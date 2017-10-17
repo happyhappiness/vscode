@@ -1,0 +1,15 @@
+fputs(
+"              certificate contains the right name  and  verifies  successfully\n"
+"              using the cert store.\n"
+"\n"
+"              See this online resource for further details:\n"
+"               https://curl.haxx.se/docs/sslcerts.html\n"
+"              See also --proxy-insecure and --cacert.\n"
+"\n"
+"       --interface <name>\n"
+"\n"
+"              Perform  an operation using a specified interface. You can enter\n"
+"              interface name, IP address or host name. An example  could  look\n"
+"              like:\n"
+"\n"
+, stdout);

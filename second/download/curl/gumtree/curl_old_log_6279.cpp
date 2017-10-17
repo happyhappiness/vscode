@@ -1,0 +1,1 @@
+curl_mprintf(buffer, "%s %s %d", "daniel", "stenberg", 19988);

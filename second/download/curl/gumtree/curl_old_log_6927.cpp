@@ -1,11 +1,11 @@
 fputs(
-"              reached  the  limit, the request will be made and while perform-\n"
-"              ing, it may take longer than this given time period. To limit  a\n"
-"              single  request's  maximum  time,  use -m, --max-time.  Set this\n"
-"              option to zero to not timeout retries. (Added in 7.12.3)\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks5 proxy with -x, --proxy using a socks5:// protocol prefix.\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (This  option  was  previously  wrongly  documented  and used as\n"
+"              --socks without the number appended.)\n"
 "\n"
-"              If this option is  used  multiple  times,  the  last  occurrence\n"
-"              determines the amount.\n"
+"              This option (as well as --socks4) does not work with IPV6,  FTPS\n"
+"              or LDAP.\n"
 "\n"
-"       -s, --silent\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              Set a preferred number or range of local port numbers to use for\n"
-"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
-"              scarce resource that will be busy at times so setting this range\n"
-"              to something too narrow might cause unnecessary connection setup\n"
-"              failures. (Added in 7.15.2)\n"
+"              --location is used, this option can be used to prevent curl from\n"
+"              following  redirections  \"in absurdum\". By default, the limit is\n"
+"              set to 50 redirections. Set this option to -1 to make it  limit-\n"
+"              less.\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS)  Like  -L,  --location,  but will allow sending the\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --metalink\n"
+"              This  option  can  tell curl to parse and process a given URI as\n"
 , stdout);

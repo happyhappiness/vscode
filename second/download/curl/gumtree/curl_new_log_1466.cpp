@@ -1,0 +1,8 @@
+fputs(
+"              (HTTP) This lets curl emulate a filled in form in which  a  user\n"
+"              has  pressed  the  submit  button. This causes curl to POST data\n"
+"              using the Content-Type multipart/form-data according to RFC1867.\n"
+"              This  enables  uploading of binary files etc. To force the 'con-\n"
+"              tent' part to be a file, prefix the file name with an @ sign. To\n"
+"              just get the content part from a file, prefix the file name with\n"
+, stdout);

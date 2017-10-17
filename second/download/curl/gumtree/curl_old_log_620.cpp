@@ -1,10 +1,9 @@
 fputs(
-"              errors. This is mostly done  like  this  to  better\n"
-"              enable  scripts  etc  to  better  deal  with failed\n"
-"              attempts. In normal cases when a HTTP server  fails\n"
-"              to  deliver  a document, it returns a HTML document\n"
-"              stating so (which  often  also  describes  why  and\n"
-"              more).  This flag will prevent curl from outputting\n"
-"              that and fail silently instead.\n"
-"\n"
+"              You  may  specify any number of extra headers. Note\n"
+"              that if you should add a custom header that has the\n"
+"              same  name  as  one of the internal ones curl would\n"
+"              use,  your  externally  set  header  will  be  used\n"
+"              instead  of  the  internal  one. This allows you to\n"
+"              make even trickier stuff than curl  would  normally\n"
+"              do.  You  should not replace internally set headers\n"
 , stdout);

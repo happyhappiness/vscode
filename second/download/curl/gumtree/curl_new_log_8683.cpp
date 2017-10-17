@@ -1,10 +1,9 @@
 fputs(
-"              can be used to send an UIDL command instead, so the user may use\n"
-"              the email's unique identifier rather than  it's  message  id  to\n"
-"              make the request. (Added in 7.21.5)\n"
+"              Maximum time in seconds that you allow the  whole  operation  to\n"
+"              take.   This is useful for preventing your batch jobs from hang-\n"
+"              ing for hours due to slow networks or links going  down.   Since\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
+"              out will decrease in accuracy as the specified timeout increases\n"
+"              in decimal precision.  See also the --connect-timeout option.\n"
 "\n"
-"       -L, --location\n"
-"              (HTTP/HTTPS)  If  the server reports that the requested page has\n"
-"              moved to a different location (indicated with a Location: header\n"
-"              and  a  3XX  response code), this option will make curl redo the\n"
 , stdout);

@@ -1,0 +1,15 @@
+fputs(
+"               curl   -F  \"file=@\\\"localfile\\\";filename=\\\"nameinpost\\\"\"  exam-\n"
+"              ple.com\n"
+"\n"
+"              or\n"
+"\n"
+"               curl -F 'file=@\"localfile\";filename=\"nameinpost\"' example.com\n"
+"\n"
+"              Note that if a filename/path is  quoted  by  double-quotes,  any\n"
+"              double-quote or backslash within the filename must be escaped by\n"
+"              backslash.\n"
+"\n"
+"              See further examples and details in the MANUAL.\n"
+"\n"
+, stdout);

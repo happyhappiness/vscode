@@ -1,12 +1,10 @@
 fputs(
-"              Turn  on the TCP_NODELAY option. See the curl_easy_setopt(3) man\n"
-"              page for details about this option. (Added in 7.11.2)\n"
+"              the server to succesfully obtain a Kerberos Ticket. If you don't\n"
+"              then the initial authentication handshake may fail.\n"
 "\n"
-"       --tftp-blksize <value>\n"
-"              (TFTP) Set TFTP BLKSIZE option (must be >512). This is the block\n"
-"              size that curl will try to use when transferring data to or from\n"
-"              a TFTP server. By default 512 bytes will be used.\n"
+"              When  using  NTLM,  the user name can be specified simply as the\n"
+"              user name, without the domain, if there is a single  domain  and\n"
+"              forest in your setup for example.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
+"              To  specify  the domain name use either Down-Level Logon Name or\n"
 , stdout);

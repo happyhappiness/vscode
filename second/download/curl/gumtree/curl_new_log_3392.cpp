@@ -1,8 +1,12 @@
 fputs(
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
-"              when doing active FTP transfers. Curl will normally always first\n"
-"              attempt to use EPRT, then LPRT before using PORT, but with  this\n"
-"              option,  it  will  use PORT right away. EPRT and LPRT are exten-\n"
-"              sions to the original FTP protocol, may not work on all  servers\n"
-"              but  enable  more  functionality in a better way than the tradi-\n"
+"              independently.\n"
+"\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
+"              tells curl the nickname of the certificate to use within the NSS\n"
+"              database  defined  by  the  environment  variable SSL_DIR (or by\n"
+"              default /etc/pki/nssdb). If the NSS  PEM  PKCS#11  module  (lib-\n"
+"              nsspem.so) is available then PEM files may be loaded.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
 , stdout);

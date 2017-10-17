@@ -1,10 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"       disabled  with --no-option. That is, you use the exact same option name\n"
+"       but prefix it with \"no-\". However, in this list we mostly only list and\n"
+"       show  the --option version of them. (This concept with --no options was\n"
+"       added in  7.19.0.  Previously  most  options  were  toggled  on/off  on\n"
+"       repeated use of the same command line option.)\n"
 "\n"
-"       -y/--speed-time <time>\n"
-"              If a download is slower than speed-limit bytes per second during\n"
-"              a speed-time period, the download gets aborted. If speed-time is\n"
-"              used, the default speed-limit will be 1 unless set with -y.\n"
-"\n"
-"              This option controls transfers and thus  will  not  affect  slow\n"
+"       -a/--append\n"
+"              (FTP/SFTP) When used in an upload, this will tell curl to append\n"
 , stdout);

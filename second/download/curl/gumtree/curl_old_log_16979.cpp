@@ -1,0 +1,15 @@
+puts(
+"          disable header only.\n"
+"\n"
+"     --krb4 <level>\n"
+"          (FTP)  Enable  kerberos4  authentication  and  use. The\n"
+"          level must be entered and should  be  one  of  'clear',\n"
+"          'safe',  'confidential'  or 'private'. Should you use a\n"
+"          level that is not one of these, 'private' will  instead\n"
+"          be used.\n"
+"\n"
+"          If this option is used several times, the last one will\n"
+"          be used.\n"
+"\n"
+"     -K/--config <config file>\n"
+);

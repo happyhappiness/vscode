@@ -1,12 +1,9 @@
 fputs(
-"              request/response round-trip. (Added in 7.13.2)\n"
+"              supported for FTP). You may specify any number of  commands.  If\n"
+"              the  server  returns failure for one of the commands, the entire\n"
+"              operation will be aborted. You must send  syntactically  correct\n"
+"              FTP  commands  as  RFC959  defines to FTP servers, or one of the\n"
+"              commands listed below to SFTP servers.  This option can be  used\n"
+"              multiple times.\n"
 "\n"
-"       --proxy-basic\n"
-"              Tells  curl  to use HTTP Basic authentication when communicating\n"
-"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
-"              remote  host.  Basic  is  the default authentication method curl\n"
-"              uses with proxies.\n"
-"\n"
-"       --proxy-digest\n"
-"              Tells curl to use HTTP Digest authentication when  communicating\n"
 , stdout);

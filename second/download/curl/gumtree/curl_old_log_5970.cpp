@@ -1,9 +1,11 @@
 fputs(
-"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
-"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
-"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
-"              mode to  allow  reading  server  output  while  stdin  is  being\n"
-"              uploaded.\n"
+"              debugging. A line starting with '>' means \"header data\" sent  by\n"
+"              curl, '<' means \"header data\" received by curl that is hidden in\n"
+"              normal cases, and a line starting with '*' means additional info\n"
+"              provided by curl.\n"
 "\n"
-"              You can specify one -T for each URL on the command line. Each -T\n"
+"              Note  that  if  you  only  want  HTTP  headers  in  the  output,\n"
+"              -i/--include might be the option you're looking for.\n"
+"\n"
+"              If you think this option still doesn't give you enough  details,\n"
 , stdout);

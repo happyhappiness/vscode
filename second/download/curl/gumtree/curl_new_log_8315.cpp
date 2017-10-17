@@ -1,11 +1,9 @@
 fputs(
-"              specify  alternative proxy protocols. Use socks4://, socks4a://,\n"
-"              socks5:// or socks5h:// to request the specific SOCKS version to\n"
-"              be  used.  No protocol specified, http:// and all others will be\n"
-"              treated as HTTP proxies. (The protocol support was added in curl\n"
-"              7.21.7)\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default config file and uses it if  found.  The  default  config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"              If  the  port number is not specified in the proxy string, it is\n"
-"              assumed to be 1080.\n"
-"\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it  uses getpwuid() on UNIX-like systems (which returns the home\n"
 , stdout);

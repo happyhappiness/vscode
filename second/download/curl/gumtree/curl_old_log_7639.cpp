@@ -1,9 +1,12 @@
 fputs(
-"              combination  with  the -L, --location option. The file format of\n"
-"              the file to read cookies from should be plain  HTTP  headers  or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              URL: http://directory.fedora.redhat.com/docs/mod_nss.html#Direc-\n"
+"              tives\n"
 "\n"
-"              NOTE  that  the file specified with -b, --cookie is only used as\n"
-"              input. No cookies will be stored in the file. To store  cookies,\n"
-"              use  the -c, --cookie-jar option or you could even save the HTTP\n"
+"              If this option is used several times, the last one will override\n"
+"              the others.\n"
+"\n"
+"       --compressed\n"
+"              (HTTP) Request a compressed response using one of the algorithms\n"
+"              libcurl supports, and save the uncompressed document.   If  this\n"
+"              option  is  used  and  the server sends an unsupported encoding,\n"
 , stdout);

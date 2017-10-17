@@ -1,11 +1,10 @@
 fputs(
-"              proxy, you can set proxy to \"\" to override it.\n"
+"              (HTTP/FTP)  Request a file that has been modified later than the\n"
+"              given time and date, or one that has been modified  before  that\n"
+"              time.  The <date expression> can be all sorts of date strings or\n"
+"              if it doesn't match any internal ones, it is taken as a filename\n"
+"              and  tries  to  get  the  modification  date (mtime) from <file>\n"
+"              instead. See the curl_getdate(3) man pages for  date  expression\n"
+"              details.\n"
 "\n"
-"              All operations that are performed over an HTTP proxy will trans-\n"
-"              parently be converted to HTTP. It means  that  certain  protocol\n"
-"              specific operations might not be available. This is not the case\n"
-"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
-"              ytunnel option.\n"
-"\n"
-"              User and password that might be provided in the proxy string are\n"
 , stdout);

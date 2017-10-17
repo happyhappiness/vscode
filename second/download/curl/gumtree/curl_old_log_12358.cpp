@@ -1,9 +1,11 @@
 fputs(
-"              (SSL)  Tells  curl  to use false start during the TLS handshake.\n"
-"              False start is a mode where a  TLS  client  will  start  sending\n"
-"              application data before verifying the server's Finished message,\n"
-"              thus saving a round trip when performing a full handshake.\n"
+"              ACCT command. (Added in 7.13.0)\n"
 "\n"
-"              This is currently only implemented in the NSS and Secure  Trans-\n"
-"              port  (on  iOS  7.0  or  later, or OS X 10.9 or later) backends.\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --ftp-alternative-to-user <command>\n"
+"              (FTP) If authenticating with the USER and PASS  commands  fails,\n"
+"              send  this  command.   When  connecting  to  Tumbleweed's Secure\n"
+"              Transport server over FTPS using  a  client  certificate,  using\n"
+"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
 , stdout);

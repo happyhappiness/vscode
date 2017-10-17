@@ -1,11 +1,9 @@
 fputs(
-"              This is not very common. Use -V, --version to see if  your  curl\n"
-"              supports it.\n"
+"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -l, --list-only\n"
-"              (FTP)  When listing an FTP directory, this switch forces a name-\n"
-"              only view. This is  especially  useful  if  the  user  wants  to\n"
-"              machine-parse  the contents of an FTP directory since the normal\n"
+"              The  given  rate  is the average speed counted during the entire\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
+"              If  you  also use the -Y, --speed-limit option, that option will\n"
 , stdout);

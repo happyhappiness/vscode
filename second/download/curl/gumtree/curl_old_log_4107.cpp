@@ -1,12 +1,9 @@
 fputs(
-"              mkdir directory_name\n"
-"                     The  mkdir  command  creates  the  directory named by the\n"
-"                     directory_name operand.\n"
+"              second and then for all forthcoming retries it will  double  the\n"
+"              waiting  time until it reaches 10 minutes which then will be the\n"
+"              delay between the rest of the retries.  By  using  --retry-delay\n"
+"              you   disable  this  exponential  backoff  algorithm.  See  also\n"
+"              --retry-max-time to limit the total time  allowed  for  retries.\n"
+"              (Added in 7.12.3)\n"
 "\n"
-"              pwd    The pwd command returns the absolute pathname of the cur-\n"
-"                     rent working directory.\n"
-"\n"
-"              rename source target\n"
-"                     The rename command renames the file or directory named by\n"
-"                     the source operand to the destination path named  by  the\n"
 , stdout);

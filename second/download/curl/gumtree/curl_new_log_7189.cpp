@@ -1,10 +1,10 @@
 fputs(
-"              (HTTP) This option tells the -O, --remote-name option to use the\n"
-"              server-specified   Content-Disposition   filename   instead   of\n"
-"              extracting a filename from the URL.\n"
+"              Displays information about curl and the libcurl version it uses.\n"
+"              The  first  line  includes the full version of curl, libcurl and\n"
+"              other 3rd party libraries linked with the executable.\n"
 "\n"
-"       -k, --insecure\n"
-"              (SSL) This option explicitly allows curl to  perform  \"insecure\"\n"
-"              SSL connections and transfers. All SSL connections are attempted\n"
-"              to be made secure by using the CA certificate  bundle  installed\n"
+"              The second line (starts with \"Protocols:\") shows  all  protocols\n"
+"              that libcurl reports to support.\n"
+"\n"
+"              The third line (starts with \"Features:\") shows specific features\n"
 , stdout);

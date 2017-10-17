@@ -1,1 +1,0 @@
-fputs("\n", data->err);

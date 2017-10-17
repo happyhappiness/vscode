@@ -1,11 +1,9 @@
 fputs(
-"              available: \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding  any\n"
-"              other letter is ignored. If the first column of a config line is\n"
-"              a '#' character, the rest of the line will be treated as a  com-\n"
-"              ment.  Only  write  one  option  per physical line in the config\n"
-"              file.\n"
+"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
+"              bytes,  'm'  or M' makes it megabytes, while 'g' or 'G' makes it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"              Specify the filename to -K/--config as '-' to make curl read the\n"
-"              file from stdin.\n"
-"\n"
+"              The given rate is the average speed counted  during  the  entire\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
 , stdout);

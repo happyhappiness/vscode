@@ -1,9 +1,11 @@
 fputs(
-"              initial  host.  If a redirect takes curl to a different host, it\n"
-"              won't be able to intercept the user+password. See  also  --loca-\n"
-"              tion-trusted  on how to change this. You can limit the amount of\n"
-"              redirects to follow by using the --max-redirs option.\n"
+"              path (absolute or relative) to the netrc file that  Curl  should\n"
+"              use.   You  can  only  specify one netrc file per invocation. If\n"
+"              several --netrc-file options are provided,  only  the  last  one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"              When curl follows a redirect and the request is not a plain  GET\n"
-"              (for example POST or PUT), it will do the following request with\n"
+"              This  option  overrides  any use of --netrc as they are mutually\n"
+"              exclusive.  It will also abide by --netrc-optional if specified.\n"
+"\n"
+"       --negotiate\n"
 , stdout);

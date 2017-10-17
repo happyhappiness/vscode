@@ -1,11 +1,11 @@
 fputs(
-"              time_connect   The  time,  in  seconds,  it  took from the start\n"
-"                             until the TCP connect  to  the  remote  host  (or\n"
-"                             proxy) was completed.\n"
+"              the proxy to use. If there's an environment variable  setting  a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              time_appconnect\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
-"                             remote host was completed. (Added in 7.19.0)\n"
+"              Note  that  all  operations that are performed over a HTTP proxy\n"
+"              will transparently be converted to HTTP. It means  that  certain\n"
+"              protocol specific operations might not be available. This is not\n"
+"              the case if you can tunnel through the proxy, as done  with  the\n"
+"              -p/--proxytunnel option.\n"
 "\n"
 , stdout);

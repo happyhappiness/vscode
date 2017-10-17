@@ -1,2 +1,1 @@
-warnf(config,
-                    "fcntl failed on fd=%d: %s\n", infd, strerror(errno));
+warnf(config, "unrecognized delegation method '%s', using none\n", str);

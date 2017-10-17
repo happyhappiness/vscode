@@ -1,9 +1,11 @@
 fputs(
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              are  errors (such as the file or server not being available). It\n"
+"              will also verify the hash of the file after  the  download  com-\n"
+"              pletes.  The Metalink file itself is downloaded and processed in\n"
+"              memory and not stored in the local file system.\n"
 "\n"
-"       -m, --max-time <seconds>\n"
-"              Maximum time in seconds that you allow the  whole  operation  to\n"
-"              take.   This is useful for preventing your batch jobs from hang-\n"
-"              ing for hours due to slow networks or links going  down.   Since\n"
-"              7.32.0, this option accepts decimal values, but the actual time-\n"
+"              Example to use a remote Metalink file:\n"
+"\n"
+"              curl --metalink http://www.example.com/example.metalink\n"
+"\n"
 , stdout);

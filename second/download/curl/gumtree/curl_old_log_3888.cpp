@@ -1,11 +1,12 @@
 fputs(
-"              Redirect  all writes to stderr to the specified file instead. If\n"
-"              the file name is a plain '-', it is instead written  to  stdout.\n"
-"              This  option  has no point when you're using a shell with decent\n"
-"              redirecting capabilities.\n"
+"              If  you  use an SSPI-enabled curl binary and do NTLM authentica-\n"
+"              tion, you can force curl to pick up the user name  and  password\n"
+"              from  your  environment by simply specifying a single colon with\n"
+"              this option: \"-u :\".\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --tcp-nodelay\n"
-"              Turn  on the TCP_NODELAY option. See the curl_easy_setopt(3) man\n"
+"       -U/--proxy-user <user:password>\n"
+"              Specify user and password to use for proxy authentication.\n"
+"\n"
 , stdout);

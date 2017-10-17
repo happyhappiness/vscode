@@ -1,11 +1,10 @@
 fputs(
-"  same command line if they are using the same host, as that'll make the\n"
-"  transfers faster. If you use an HTTP proxy for file transfers, practically\n"
-"  all transfers will be persistent.\n"
+"    with a curl angle.\n"
 "\n"
-"MULTIPLE TRANSFERS WITH A SINGLE COMMAND LINE\n"
+"  curl-and-python\n"
 "\n"
-"  As is mentioned above, you can download multiple files with one command line\n"
-"  by simply adding more URLs. If you want those to get saved to a local file\n"
-"  instead of just printed to stdout, you need to add one save option for each\n"
+"    Python hackers using curl with or without the python binding pycurl.\n"
+"\n"
+"  Please direct curl questions, feature requests and trouble reports to one of\n"
+"  these mailing lists instead of mailing any individual.\n"
 , stdout);

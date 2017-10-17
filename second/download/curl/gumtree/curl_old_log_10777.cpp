@@ -1,11 +1,11 @@
 fputs(
-"              (HTTP)  This  posts data exactly as specified with no extra pro-\n"
-"              cessing whatsoever.\n"
+"              certificate  indicating  its identity. A public key is extracted\n"
+"              from this certificate and if it does not exactly match the  pub-\n"
+"              lic  key provided to this option, curl will abort the connection\n"
+"              before sending or receiving any data.\n"
 "\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              filename.   Data  is  posted in a similar manner as --data-ascii\n"
-"              does, except that newlines and carriage  returns  are  preserved\n"
-"              and conversions are never done.\n"
+"              This is currently only implemented in the  OpenSSL,  GnuTLS  and\n"
+"              GSKit backends.\n"
 "\n"
-"              If  this  option  is  used several times, the ones following the\n"
+"              If this option is used several times, the last one will be used.\n"
 , stdout);

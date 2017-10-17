@@ -1,11 +1,10 @@
 fputs(
-"              nicating  with  the  given  proxy.  This  might  cause  an extra\n"
-"              request/response round-trip. (Added in 7.13.2)\n"
+"                             and  transfer  before   final   transaction   was\n"
+"                             started.  time_redirect shows the complete execu-\n"
+"                             tion time for multiple  redirections.  (Added  in\n"
+"                             7.12.3)\n"
 "\n"
-"              If this option is used twice, the second will again disable  the\n"
-"              proxy use-any authentication.\n"
-"\n"
-"       --proxy-basic\n"
-"              Tells  curl  to use HTTP Basic authentication when communicating\n"
-"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
+"              time_starttransfer\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the first byte is just about to  be  trans-\n"
 , stdout);

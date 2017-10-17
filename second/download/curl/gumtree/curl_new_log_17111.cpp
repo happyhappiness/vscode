@@ -1,0 +1,17 @@
+puts(
+"     FTP range downloads only support the simple  syntax  'start-\n"
+"     stop'  (optionally  with  one  of  the  numbers omitted). It\n"
+"     depends on the non-RFC command SIZE.\n"
+"\n"
+"     If this option is used several times, the last one  will  be\n"
+"     used.\n"
+"\n"
+"     -s/--silent\n"
+"          Silent  mode.  Don't  show progress meter or error mes�\n"
+"          sages.  Makes Curl mute.\n"
+"\n"
+"          If this option is used twice,  the  second  will  again\n"
+"          disable mute.\n"
+"\n"
+"     -S/--show-error\n"
+);

@@ -1,10 +1,10 @@
 fputs(
-"              without having them being interpreted by curl itself. Note  that\n"
-"              these  letters are not normal legal URL contents but they should\n"
-"              be encoded according to the URI standard.\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the command HEAD which this uses to get nothing but  the  header\n"
+"              of  a  document. When used on an FTP or FILE file, curl displays\n"
+"              the file size and last modification time only.\n"
 "\n"
-"       -G, --get\n"
-"              When used, this option will make all  data  specified  with  -d,\n"
-"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
-"              GET request instead of the POST request that otherwise would  be\n"
+"       --interface <name>\n"
+"              Perform an operation using a specified interface. You can  enter\n"
+"              interface  name,  IP address or host name. An example could look\n"
 , stdout);

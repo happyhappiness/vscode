@@ -1,0 +1,17 @@
+puts(
+"     11   FTP weird PASS reply. Curl  couldn't  parse  the  reply\n"
+"          sent to the PASS request.\n"
+"\n"
+"     12   FTP  weird  USER  reply.  Curl couldn't parse the reply\n"
+"          sent to the USER request.\n"
+"\n"
+"     13   FTP weird PASV reply, Curl  couldn't  parse  the  reply\n"
+"          sent to the PASV request.\n"
+"\n"
+"     14   FTP  weird 227 format. Curl couldn't parse the 227-line\n"
+"          the server sent.\n"
+"\n"
+"     15   FTP can't get host. Couldn't resolve the host IP we got\n"
+"          in the 227-line.\n"
+"\n"
+);

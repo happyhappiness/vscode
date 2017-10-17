@@ -1,9 +1,10 @@
 fputs(
-"              -d, --data is the same as  --data-ascii.  To  post  data  purely\n"
-"              binary, you should instead use the --data-binary option. To URL-\n"
-"              encode the value of a form field you may use --data-urlencode.\n"
+"              from stdin, since it may require data to be sent twice and  then\n"
+"              the client must be able to rewind. If the need should arise when\n"
+"              uploading from stdin, the upload operation will fail.\n"
 "\n"
-"              If any of these options is used more than once on the same  com-\n"
-"              mand  line,  the  data  pieces specified will be merged together\n"
-"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
+"       -b, --cookie <name=data>\n"
+"              (HTTP) Pass the data to the HTTP server as a cookie. It is  sup-\n"
+"              posedly  the data previously received from the server in a \"Set-\n"
+"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
 , stdout);

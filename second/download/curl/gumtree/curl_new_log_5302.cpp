@@ -1,10 +1,11 @@
 fputs(
-"                             steps  include  name lookup, connect, pretransfer\n"
-"                             and transfer before  the  final  transaction  was\n"
-"                             started.  time_redirect shows the complete execu-\n"
-"                             tion time for multiple  redirections.  (Added  in\n"
-"                             7.12.3)\n"
+"              This  option  controls  transfers  and thus will not affect slow\n"
+"              connects etc. If this is a concern for you, try  the  --connect-\n"
+"              timeout option.\n"
 "\n"
-"              time_starttransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -Y/--speed-limit <speed>\n"
+"              If a download is slower than this given speed (in bytes per sec-\n"
+"              ond) for speed-time seconds it gets aborted. speed-time  is  set\n"
 , stdout);

@@ -1,12 +1,10 @@
 fputs(
-"              URL: http://directory.fedora.redhat.com/docs/mod_nss.html#Direc-\n"
-"              tives\n"
+"              application/x-www-form-urlencoded.  Compare to -F/--form.\n"
 "\n"
-"              If this option is used several times, the last one will override\n"
-"              the others.\n"
+"              -d/--data  is  the  same  as  --data-ascii.  To post data purely\n"
+"              binary, you should instead use the --data-binary option. To URL-\n"
+"              encode the value of a form field you may use --data-urlencode.\n"
 "\n"
-"       --compressed\n"
-"              (HTTP) Request a compressed response using one of the algorithms\n"
-"              libcurl supports, and return the uncompressed document.  If this\n"
-"              option is used and the server  sends  an  unsupported  encoding,\n"
+"              If  any of these options is used more than once on the same com-\n"
+"              mand line, the data pieces specified  will  be  merged  together\n"
 , stdout);

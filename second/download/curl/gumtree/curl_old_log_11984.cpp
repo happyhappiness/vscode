@@ -1,10 +1,10 @@
 fputs(
-"              (SSL)  This option tells curl to not work around a security flaw\n"
-"              in the SSL3 and TLS1.0 protocols known as BEAST.  If this option\n"
-"              isn't  used,  the  SSL  layer may use workarounds known to cause\n"
-"              interoperability problems with some older  SSL  implementations.\n"
-"              WARNING: this option loosens the SSL security, and by using this\n"
-"              flag you ask for exactly that.  (Added in 7.25.0)\n"
+"              service sockd/real-name  would  use  sockd/real-name  for  cases\n"
+"              where  the proxy-name does not match the principal name.  (Added\n"
+"              in 7.19.4).\n"
 "\n"
-"       --ssl-no-revoke\n"
+"       --socks5-gssapi-nec\n"
+"              As part of the GSS-API negotiation a protection mode is  negoti-\n"
+"              ated.  RFC  1961 says in section 4.3/4.4 it should be protected,\n"
+"              but the NEC  reference  implementation  does  not.   The  option\n"
 , stdout);

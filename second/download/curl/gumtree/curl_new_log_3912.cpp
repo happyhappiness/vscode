@@ -1,11 +1,12 @@
 fputs(
-"                             fer. (Added in 7.12.3)\n"
+"              from  a  given  file  name  instead! See the curl_getdate(3) man\n"
+"              pages for date expression details.\n"
 "\n"
-"              num_redirects  Number of redirects that  were  followed  in  the\n"
-"                             request. (Added in 7.12.3)\n"
+"              Start the date expression with a dash (-) to make it request for\n"
+"              a  document that is older than the given date/time, default is a\n"
+"              document that is newer than the specified date/time.\n"
 "\n"
-"              redirect_url   When a HTTP request was made without -L to follow\n"
-"                             redirects, this variable will show the actual URL\n"
-"                             a redirect would take you to. (Added in 7.18.2)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --max-redirs <num>\n"
 , stdout);

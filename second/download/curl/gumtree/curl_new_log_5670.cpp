@@ -1,11 +1,10 @@
 fputs(
-"              would  use  sockd/real-name  for cases where the proxy-name does\n"
-"              not match the princpal name.\n"
-"               (Added in 7.19.4).\n"
+"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\" as filename to have the output sent to stdout.\n"
 "\n"
-"       --socks5-gssapi-nec\n"
-"              As part of the gssapi negotiation a protection mode  is  negoti-\n"
-"              ated.  The  rfc1961  says  in  section 4.3/4.4 it should be pro-\n"
-"              tected, but the NEC  reference  implementation  does  not.   The\n"
-"              option  --socks5-gssapi-nec  allows  the unprotected exchange of\n"
+"              This is very similar to --trace, but leaves out the hex part and\n"
+"              only  shows  the ASCII part of the dump. It makes smaller output\n"
+"              that might be easier to read for untrained humans.\n"
+"\n"
 , stdout);

@@ -1,12 +1,8 @@
 fputs(
-"              Specify user and password to use for proxy authentication.\n"
-"\n"
-"              If  you  use an SSPI-enabled curl binary and do NTLM authentica‐\n"
-"              tion, you can force curl to pick up the user name  and  password\n"
-"              from  your  environment by simply specifying a single colon with\n"
-"              this option: \"-U :\".\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --url <URL>\n"
+"              The  variables  present in the output format will be substituted\n"
+"              by the value or text that curl thinks fit, as  described  below.\n"
+"              All  variables are specified like %{variable_name} and to output\n"
+"              a normal % you just write them like %%. You can output a newline\n"
+"              by  using \\n, a carriage return with \\r and a tab space with \\t.\n"
+"              NOTE: The %-letter is a special letter in the win32-environment,\n"
 , stdout);

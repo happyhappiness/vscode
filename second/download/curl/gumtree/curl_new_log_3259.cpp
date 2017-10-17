@@ -1,11 +1,11 @@
 fputs(
-"    'Lynx/2.7.1 libwww-FM/2.14' Lynx command line browser\n"
+"       supported protocols (HTTP, HTTPS, FTP, FTPS,  SCP,  SFTP,  TFTP,  DICT,\n"
+"       TELNET,  LDAP  or  FILE).  The command is designed to work without user\n"
+"       interaction.\n"
 "\n"
-"COOKIES\n"
+"       curl offers a busload of useful tricks like proxy support, user authen-\n"
+"       tication,  ftp upload, HTTP post, SSL connections, cookies, file trans-\n"
+"       fer resume and more. As you will see below, the number of features will\n"
+"       make your head spin!\n"
 "\n"
-"  Cookies are generally used by web servers to keep state information at the\n"
-"  client's side. The server sets cookies by sending a response line in the\n"
-"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
-"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
-"  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
 , stdout);

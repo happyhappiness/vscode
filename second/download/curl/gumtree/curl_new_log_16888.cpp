@@ -1,0 +1,15 @@
+puts(
+"          Start  the  date  expression with a dash (-) to make it\n"
+"          request for a document that is  older  than  the  given\n"
+"          date/time, default is a document that is newer than the\n"
+"          specified date/time.\n"
+"\n"
+"          If this option is used serveral  times,  the  last  one\n"
+"          will be used.\n"
+"\n"
+"     -3/--sslv3\n"
+"          (HTTPS) Forces curl to use SSL version 3 when negotiat�\n"
+"          ing with a remote SSL server.\n"
+"\n"
+"     -2/--sslv2\n"
+);

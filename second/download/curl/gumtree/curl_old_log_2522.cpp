@@ -1,11 +1,11 @@
 fputs(
-"       supported protocols (HTTP, HTTPS, FTP, FTPS,  SCP,  SFTP,  TFTP,  DICT,\n"
-"       TELNET,  LDAP  or  FILE).  The command is designed to work without user\n"
-"       interaction.\n"
+"              curl has connected this option is of no more use. See  also  the\n"
+"              -m/--max-time option.\n"
 "\n"
-"       curl offers a busload of useful tricks like proxy support, user authen-\n"
-"       tication,  ftp upload, HTTP post, SSL connections, cookies, file trans-\n"
-"       fer resume and more. As you will see below, the amount of features will\n"
-"       make your head spin!\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       -c/--cookie-jar <file name>\n"
+"              Specify to which file you want curl to write all cookies after a\n"
+"              completed  operation.  Curl  writes  all cookies previously read\n"
+"              from a specified file as  well  as  all  cookies  received  from\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              (SSL)  Private key file type. Specify which type your --key pro-\n"
-"              vided private key is. DER, PEM, and ENG are  supported.  If  not\n"
-"              specified, PEM is assumed.\n"
+"              If  this  option is used several times, the last given file name\n"
+"              will be used. (Added in 7.16.1)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --limit-rate <speed>\n"
+"              Specify the maximum transfer rate you want curl  to  use  -  for\n"
+"              both downloads and uploads. This feature is useful if you have a\n"
+"              limited pipe and you'd like your transfer not to use your entire\n"
+"              bandwidth. To make it slower than it otherwise would be.\n"
 "\n"
-"       --krb <level>\n"
-"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
 , stdout);

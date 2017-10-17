@@ -1,1 +1,0 @@
-Curl_failf(conn->data, "base64-encoding: %s", curl_easy_strerror(result));

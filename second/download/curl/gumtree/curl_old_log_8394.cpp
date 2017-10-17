@@ -1,9 +1,12 @@
 fputs(
-"              default).  Transient  error  means either: a timeout, an FTP 4xx\n"
-"              response code or an HTTP 5xx response code.\n"
+"              flag you ask for exactly that.  (Added in 7.25.0)\n"
 "\n"
-"              When curl is about to retry a transfer, it will first  wait  one\n"
-"              second  and  then for all forthcoming retries it will double the\n"
-"              waiting time until it reaches 10 minutes which then will be  the\n"
-"              delay  between  the rest of the retries.  By using --retry-delay\n"
+"       --socks4 <host[:port]>\n"
+"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
+"              fied, it is assumed at port 1080. (Added in 7.15.2)\n"
+"\n"
+"              This  option  overrides any previous use of -x, --proxy, as they\n"
+"              are mutually exclusive.\n"
+"\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
 , stdout);

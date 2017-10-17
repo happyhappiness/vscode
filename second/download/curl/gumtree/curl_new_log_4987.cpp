@@ -1,1 +1,0 @@
-warnf(config, "Failed to read %s", fname);

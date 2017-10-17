@@ -1,11 +1,11 @@
 fputs(
-"              (SSL) Specify the path name  to  the  Entropy  Gathering  Daemon\n"
-"              socket.  The  socket  is  used to seed the random engine for SSL\n"
-"              connections. See also the --random-file option.\n"
+"              name with the symbol <. The difference between @ and <  is  then\n"
+"              that  @  makes a file get attached in the post as a file upload,\n"
+"              while the < makes a text field and just  get  the  contents  for\n"
+"              that text field from a file.\n"
 "\n"
-"       --cert-type <type>\n"
-"              (SSL) Tells curl what certificate type the provided  certificate\n"
-"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
-"              PEM is assumed.\n"
+"              Example,  to send your password file to the server, where 'pass-\n"
+"              word' is the name of the form-field to which /etc/passwd will be\n"
+"              the input:\n"
 "\n"
 , stdout);

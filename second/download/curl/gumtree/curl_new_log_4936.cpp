@@ -1,11 +1,11 @@
 fputs(
-"              uations,  curl  will  use a standard buffered output stream that\n"
-"              will have the effect that it will output the data in chunks, not\n"
-"              necessarily  exactly  when  the data arrives.  Using this option\n"
-"              will disable that buffering.\n"
+"              fail. If this is used on a HTTP(S) server, the PUT command  will\n"
+"              be used.\n"
 "\n"
-"              Note that this is the negated option name  documented.  You  can\n"
-"              thus use --buffer to enforce the buffering.\n"
+"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
+"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
+"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
+"              mode to  allow  reading  server  output  while  stdin  is  being\n"
+"              uploaded.\n"
 "\n"
-"       --no-keepalive\n"
 , stdout);

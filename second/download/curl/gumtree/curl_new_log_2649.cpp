@@ -1,11 +1,11 @@
 fputs(
-"              This  can also be set with the -H/--header flag of course.  When\n"
-"              used with -L/--location you can append \";auto\" to the  --referer\n"
-"              URL to make curl automatically set the previous URL when it fol‐\n"
-"              lows a Location: header. The \";auto\" string can be  used  alone,\n"
-"              even if you don’t set an initial --referer.\n"
+"              supplied  with  openssl.  Using  --capath can allow curl to make\n"
+"              SSL-connections much more efficiently than using --cacert if the\n"
+"              --cacert file contains many CA certificates.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --engine <name>\n"
+"       -f/--fail\n"
+"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
+"              is  mostly done like this to better enable scripts etc to better\n"
 , stdout);

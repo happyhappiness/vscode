@@ -1,0 +1,18 @@
+puts(
+"          written to stdout. This option has no point when you're\n"
+"          using a shell with decent redirecting capabilities.\n"
+"\n"
+"          If this option is used several times, the last one will\n"
+"          be used.\n"
+"\n"
+"     -t/--telnet-option <OPT=val>\n"
+"          Pass  options to the telnet protocol. Supported options\n"
+"          are:\n"
+"\n"
+"          TTYPE=<term> Sets the terminal type.\n"
+"\n"
+"          XDISPLOC=<X display> Sets the X display location.\n"
+"\n"
+"          NEW_ENV=<var,val> Sets an environment variable.\n"
+"\n"
+);

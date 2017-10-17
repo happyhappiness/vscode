@@ -1,11 +1,11 @@
 fputs(
-"              Makes  the  fetching  more  verbose/talkative. Mostly useful for\n"
-"              debugging. A line starting with '>' means \"header data\" sent  by\n"
-"              curl, '<' means \"header data\" received by curl that is hidden in\n"
-"              normal cases, and a line starting with '*' means additional info\n"
-"              provided by curl.\n"
+"                             headers.\n"
 "\n"
-"              Note  that  if  you  only  want  HTTP  headers  in  the  output,\n"
-"              -i/--include might be the option you're looking for.\n"
+"              http_code      The numerical response code that was found in the\n"
+"                             last retrieved HTTP(S)  or  FTP(s)  transfer.  In\n"
+"                             7.18.2  the alias response_code was added to show\n"
+"                             the same info.\n"
 "\n"
+"              http_connect   The numerical code that was  found  in  the  last\n"
+"                             response   (from  a  proxy)  to  a  curl  CONNECT\n"
 , stdout);

@@ -1,10 +1,10 @@
 fputs(
-"              If this option is used several times, each occurrence will  tog-\n"
-"              gle this on/off.\n"
+"              unix-like  systems,  it will simply try to load .curlrc from the\n"
+"              determined home dir.\n"
+"       --limit-rate <speed>\n"
+"              Specify the maximum transfer rate you want  curl  to  use.  This\n"
+"              feature is useful if you have a limited pipe and you'd like your\n"
+"              transfer not use your entire bandwidth.\n"
 "\n"
-"       -k/--insecure\n"
-"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
-"              SSL connections and transfers. Starting with curl 7.10, all  SSL\n"
-"              connections  will be attempted to be made secure by using the CA\n"
-"              certificate bundle installed by default. This makes all  connec-\n"
+"              The given speed is measured in bytes/second, unless a suffix  is\n"
 , stdout);

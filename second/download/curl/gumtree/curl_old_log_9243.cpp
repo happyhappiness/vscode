@@ -1,10 +1,11 @@
 fputs(
-"       -l, --list-only\n"
-"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
-"              only  view.  This  is  especially  useful  if  the user wants to\n"
-"              machine-parse the contents of an FTP directory since the  normal\n"
-"              directory  view doesn't use a standard look or format. When used\n"
-"              like this, the option causes a NLST command to be  sent  to  the\n"
-"              server instead of LIST.\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
+"              scarce resource that will be busy at times so setting this range\n"
+"              to something too narrow might cause unnecessary connection setup\n"
 , stdout);

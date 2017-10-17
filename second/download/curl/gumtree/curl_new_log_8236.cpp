@@ -1,10 +1,11 @@
 fputs(
-"              backend that supports this operation. The c-ares backend is  the\n"
-"              only such one.  (Added in 7.33.0)\n"
+"              If curl is built against  the  NSS  SSL  library,  the  NSS  PEM\n"
+"              PKCS#11  module  (libnsspem.so)  needs  to be available for this\n"
+"              option to work properly.\n"
 "\n"
-"       -e, --referer <URL>\n"
-"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
-"              This can also be set with the -H, --header flag of course.  When\n"
-"              used with -L, --location you can append \";auto\" to the --referer\n"
-"              URL to make curl automatically set the previous URL when it fol-\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --capath <CA certificate directory>\n"
+"              (SSL) Tells curl to use the specified certificate  directory  to\n"
+"              verify  the  peer.  Multiple paths can be provided by separating\n"
 , stdout);

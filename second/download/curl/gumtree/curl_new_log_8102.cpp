@@ -1,10 +1,11 @@
 fputs(
-"              (HTTP) When curl is told to read cookies from a given file, this\n"
-"              option will make it discard all  \"session  cookies\".  This  will\n"
-"              basically  have  the same effect as if a new session is started.\n"
-"              Typical browsers always discard  session  cookies  when  they're\n"
-"              closed down.\n"
+"              the file requested is larger than this value, the transfer  will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"       -J, --remote-header-name\n"
-"              (HTTP) This option tells the -O, --remote-name option to use the\n"
+"              NOTE:  The  file size is not always known prior to download, and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer  ends  up  being larger than this given limit. This concerns\n"
+"              both FTP and HTTP transfers.\n"
+"\n"
+"       --mail-rcpt <address>\n"
 , stdout);

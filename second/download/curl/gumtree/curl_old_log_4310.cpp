@@ -1,9 +1,11 @@
 fputs(
-"              directory as curl.exe, or in the Current Working  Directory,  or\n"
-"              in any folder along your PATH.\n"
+"              (FTP)  Use  PASV when transferring. PASV is the internal default\n"
+"              behavior, but using this option can be used to override a previ-\n"
+"              ous --ftp-port option. (Added in 7.11.0)\n"
 "\n"
-"              If  curl  is  built against the NSS SSL library then this option\n"
-"              tells curl the nickname of the CA certificate to use within  the\n"
-"              NSS  database defined by the environment variable SSL_DIR (or by\n"
-"              default /etc/pki/nssdb).  If the NSS PEM  PKCS#11  module  (lib-\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference. Undoing an enforced PASV really isn't doable\n"
+"              but you must then instead enforce the correct EPRT again.\n"
+"\n"
+"       --ftp-alternative-to-user <command>\n"
 , stdout);

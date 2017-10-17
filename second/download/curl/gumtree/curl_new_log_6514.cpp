@@ -1,12 +1,9 @@
 fputs(
-"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              ified  as \"string\", to get read from a particular file you spec-\n"
+"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"              This option overrides previous uses of -v, --verbose or --trace-\n"
-"              ascii.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --trace-ascii <file>\n"
+"              The  variables  present in the output format will be substituted\n"
+"              by the value or text that curl thinks fit, as  described  below.\n"
+"              All  variables are specified as %{variable_name} and to output a\n"
 , stdout);

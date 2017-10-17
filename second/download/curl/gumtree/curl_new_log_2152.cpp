@@ -1,12 +1,9 @@
 fputs(
-"              Specify user and password to use for proxy authentication.\n"
+"                             This includes all pre-transfer commands and nego-\n"
+"                             tiations that are specific to the particular pro-\n"
+"                             tocol(s) involved.\n"
 "\n"
-"              If you use an SSPI-enabled curl binary and  do  NTLM  autentica-\n"
-"              tion,  you  can force curl to pick up the user name and password\n"
-"              from your environment by simply specifying a single  colon  with\n"
-"              this option: \"-U :\".\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --url <URL>\n"
+"              time_redirect  The time, in seconds, it took for all redirection\n"
+"                             steps  include  name lookup, connect, pretransfer\n"
+"                             and  transfer  before   final   transaction   was\n"
 , stdout);

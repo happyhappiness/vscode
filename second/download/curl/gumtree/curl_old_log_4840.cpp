@@ -1,11 +1,10 @@
 fputs(
-"              curl operation won't fail or even report an error clearly. Using\n"
-"              -v will get a warning displayed, but that is  the  only  visible\n"
-"              feedback you get about this possibly lethal situation.\n"
+"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
+"              To be CGI-compliant, the <data> part should begin  with  a  name\n"
+"              followed  by a separator and a content specification. The <data>\n"
+"              part can be passed to curl using one of the following syntaxes:\n"
 "\n"
-"              If  this  option  is used several times, the last specified file\n"
-"              name will be used.\n"
-"\n"
-"       -C/--continue-at <offset>\n"
-"              Continue/Resume a previous file transfer at  the  given  offset.\n"
+"              content\n"
+"                     This will make curl URL-encode the content and pass  that\n"
+"                     on.  Just  be careful so that the content doesn't contain\n"
 , stdout);

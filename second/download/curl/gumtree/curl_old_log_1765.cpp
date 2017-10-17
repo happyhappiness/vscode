@@ -1,8 +1,12 @@
 fputs(
-"              sent exactly as specified with no  extra  processing  (with  all\n"
-"              newlines  cut  off).   The data is expected to be \"url-encoded\".\n"
-"              This will cause curl to pass the data to the  server  using  the\n"
-"              content-type   application/x-www-form-urlencoded.   Compare   to\n"
-"              -F/--form. If this option is used more than  once  on  the  same\n"
-"              command  line, the data pieces specified will be merged together\n"
+"\n"
+"              This  option  is handy to use when you want to store the headers\n"
+"              that a HTTP site sends to you. Cookies from  the  headers  could\n"
+"              then  be  read  in a second curl invoke by using the -b/--cookie\n"
+"              option! The -c/--cookie-jar option is however a  better  way  to\n"
+"              store cookies.\n"
+"\n"
+"              When  used  on FTP, the ftp server response lines are considered\n"
+"              being \"headers\" and thus are saved there.\n"
+"\n"
 , stdout);

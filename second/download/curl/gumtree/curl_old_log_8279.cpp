@@ -1,10 +1,10 @@
 fputs(
-"              You may use this option as many times as the number of URLs  you\n"
-"              have.\n"
+"              However, a server may require a POST to remain a POST after such\n"
+"              a  redirection.  This  option  is meaningful only when using -L,\n"
+"              --location (Added in 7.26.0)\n"
 "\n"
-"       -p, --proxytunnel\n"
-"              When an HTTP proxy is used (-x, --proxy), this option will cause\n"
-"              non-HTTP protocols  to  attempt  to  tunnel  through  the  proxy\n"
-"              instead  of merely using it to do HTTP-like operations. The tun-\n"
-"              nel approach is made with the HTTP  proxy  CONNECT  request  and\n"
+"       --proto <protocols>\n"
+"              Tells  curl  to  use  the  listed  protocols  for  its   initial\n"
+"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
+"              arated, and are each a protocol name or 'all',  optionally  pre-\n"
 , stdout);

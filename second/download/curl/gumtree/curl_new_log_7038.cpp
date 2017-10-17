@@ -1,12 +1,10 @@
 fputs(
-"              Manual. Display the huge help text.\n"
+"       19     FTP couldn't download/access the given file, the RETR (or  simi-\n"
+"              lar) command failed.\n"
 "\n"
-"       -V, --version\n"
-"              Displays information about curl and the libcurl version it uses.\n"
-"              The first line includes the full version of  curl,  libcurl  and\n"
-"              other 3rd party libraries linked with the executable.\n"
-"\n"
-"              The  second  line (starts with \"Protocols:\") shows all protocols\n"
-"              that libcurl reports to support.\n"
+"       21     FTP quote error. A quote command returned error from the server.\n"
+"       22     HTTP  page  not  retrieved.  The  requested url was not found or\n"
+"              returned another error with the HTTP error  code  being  400  or\n"
+"              above. This return code only appears if -f, --fail is used.\n"
 "\n"
 , stdout);

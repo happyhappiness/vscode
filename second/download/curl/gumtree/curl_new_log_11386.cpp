@@ -1,11 +1,11 @@
 fputs(
-"              recipient  should be specified as the user name or user name and\n"
-"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
+"              uations,  curl  will  use a standard buffered output stream that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily  exactly  when  the data arrives.  Using this option\n"
+"              will disable that buffering.\n"
 "\n"
-"              When performing a mailing list expand (EXPN command), the recip-\n"
-"              ient  should  be  specified using the mailing list name, such as\n"
-"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --buffer to enforce the buffering.\n"
 "\n"
-"       --max-redirs <num>\n"
-"              Set maximum number of  redirection-followings  allowed.  If  -L,\n"
 , stdout);

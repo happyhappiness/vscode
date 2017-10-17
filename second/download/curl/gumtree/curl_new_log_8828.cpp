@@ -1,9 +1,11 @@
 fputs(
-"              should  be used in this session if they match. Using this method\n"
-"              also activates the \"cookie parser\" which will make  curl  record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination with the -L, --location option. The file  format  of\n"
-"              the  file  to  read cookies from should be plain HTTP headers or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              URL:                                          http://git.fedora-\n"
+"              hosted.org/cgit/mod_nss.git/plain/docs/mod_nss.html#Directives\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --compressed\n"
+"              (HTTP) Request a compressed response using one of the algorithms\n"
+"              curl supports, and save  the  uncompressed  document.   If  this\n"
+"              option  is  used  and  the server sends an unsupported encoding,\n"
 , stdout);

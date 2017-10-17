@@ -1,12 +1,8 @@
 fputs(
-"              Use  --engine  list  to  print  a  list  of build-time supported\n"
-"              engines. Note that not all (or  none)  of  the  engines  may  be\n"
-"              available at run-time.\n"
-"\n"
-"       --environment\n"
-"              (RISC  OS ONLY) Sets a range of environment variables, using the\n"
-"              names the -w option supports, to allow easier extraction of use-\n"
-"              ful information after having run curl.\n"
-"\n"
-"       --egd-file <file>\n"
+"              has pressed the submit button. This causes  curl  to  POST  data\n"
+"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
+"              2388. This enables uploading of binary files etc. To  force  the\n"
+"              'content'  part  to  be  a  file, prefix the file name with an @\n"
+"              sign. To just get the content part from a file, prefix the  file\n"
+"              name  with  the symbol <. The difference between @ and < is then\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              This  is  used  instead  of  setting  a  specific authentication\n"
-"              method, which you can do with  --basic,  --digest,  --ntlm,  and\n"
-"              --negotiate.\n"
+"              The  given  offset  is  the  exact  number of bytes that will be\n"
+"              skipped, counting from the beginning of the source  file  before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"              Note  that  using --anyauth is not recommended if you do uploads\n"
-"              from stdin, since it may require data to be sent twice and  then\n"
-"              the client must be able to rewind. If the need should arise when\n"
-"              uploading from stdin, the upload operation will fail.\n"
+"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
+"              resume  the  transfer. It then uses the given output/input files\n"
+"              to figure that out.\n"
 "\n"
 , stdout);

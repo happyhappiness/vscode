@@ -1,10 +1,11 @@
 fputs(
-"              This  option changes the default action for all given URLs to be\n"
-"              dealt with as if -O, --remote-name were used for each one. So if\n"
-"              you want to disable that for a specific URL after --remote-name-\n"
-"              all has been used, you must  use  \"-o  -\"  or  --no-remote-name.\n"
-"              (Added in 7.19.0)\n"
+"              Reverts to a non-secure connection if the server doesn't support\n"
+"              SSL/TLS.   See also --ftp-ssl-control and --ssl-reqd for differ-\n"
+"              ent levels of encryption required. (Added in 7.20.0)\n"
 "\n"
-"       --resolve <host:port:address>\n"
-"              Provide  a  custom  address  for  a specific host and port pair.\n"
+"              This option was formerly known as --ftp-ssl (Added  in  7.11.0).\n"
+"              That  option  name  can  still  be used but will be removed in a\n"
+"              future version.\n"
+"\n"
+"       --ssl-reqd\n"
 , stdout);

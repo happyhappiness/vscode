@@ -1,10 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              will get a warning displayed, but that is the only visible feed-\n"
+"              back you get about this possibly lethal situation.\n"
 "\n"
-"       --anyauth\n"
-"              (HTTP) Tells curl to figure out authentication method by itself,\n"
-"              and use the most secure one the remote site claims  to  support.\n"
-"              This is done by first doing a request and checking the response-\n"
-"              headers, thus possibly inducing  an  extra  network  round-trip.\n"
-"              This  is  used  instead  of  setting  a  specific authentication\n"
+"              If this option is used several times, the  last  specified  file\n"
+"              name will be used.\n"
+"\n"
+"       -C, --continue-at <offset>\n"
+"              Continue/Resume  a  previous  file transfer at the given offset.\n"
+"              The given offset is the exact  number  of  bytes  that  will  be\n"
 , stdout);

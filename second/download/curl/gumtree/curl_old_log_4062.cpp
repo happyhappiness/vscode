@@ -1,10 +1,10 @@
 fputs(
-"              the server. The active mode initiates the shutdown and waits for\n"
-"              a reply from the server.  (Added in 7.16.2)\n"
+"       --libcurl <file>\n"
+"              Append this option to any ordinary curl command  line,  and  you\n"
+"              will  get  a  libcurl-using source code written to the file that\n"
+"              does the equivalent operation of what your command  line  opera-\n"
+"              tion does!\n"
 "\n"
-"       -F/--form <name=content>\n"
-"              (HTTP)  This  lets curl emulate a filled in form in which a user\n"
-"              has pressed the submit button. This causes  curl  to  POST  data\n"
-"              using the Content-Type multipart/form-data according to RFC1867.\n"
-"              This enables uploading of binary files etc. To force  the  'con-\n"
+"              NOTE:  this does not properly support -F and the sending of mul-\n"
+"              tipart formposts, so in those cases the output program  will  be\n"
 , stdout);

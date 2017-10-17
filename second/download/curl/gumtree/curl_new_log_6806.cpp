@@ -1,11 +1,11 @@
 fputs(
-"              Write the protocol headers to the specified file.\n"
+"              option to set user name and password. See also --ntlm, --negoti-\n"
+"              ate and --anyauth for related options.\n"
 "\n"
-"              This  option  is handy to use when you want to store the headers\n"
-"              that a HTTP site sends to you. Cookies from  the  headers  could\n"
-"              then  be  read  in  a  second  curl  invocation by using the -b,\n"
-"              --cookie option! The -c, --cookie-jar option is however a better\n"
-"              way to store cookies.\n"
+"              If this option is used several times, the following  occurrences\n"
+"              make no difference.\n"
 "\n"
-"              When  used  in FTP, the FTP server response lines are considered\n"
+"       --disable-eprt\n"
+"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+"              when doing active FTP transfers. Curl will normally always first\n"
 , stdout);

@@ -1,9 +1,10 @@
 fputs(
-"              (HTTP) Sends the specified data in a POST request  to  the  HTTP\n"
-"              server,  in  the  same  way  that a browser does when a user has\n"
-"              filled in an HTML form and presses the submit button. This  will\n"
-"              cause curl to pass the data to the server using the content-type\n"
-"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
+"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
+"                     etc and give a full path to the server for all these com-\n"
+"                     mands. This is the fastest behavior.\n"
 "\n"
-"              -d, --data is the same as  --data-ascii.  To  post  data  purely\n"
+"              singlecwd\n"
+"                     curl does one CWD with the full target directory and then\n"
+"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
+"                     case). This is somewhat  more  standards  compliant  than\n"
 , stdout);

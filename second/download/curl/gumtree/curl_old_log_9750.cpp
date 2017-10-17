@@ -1,9 +1,11 @@
 fputs(
-"       --disable-eprt\n"
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
-"              when doing active FTP transfers. Curl will normally always first\n"
-"              attempt to use EPRT, then LPRT before using PORT, but with  this\n"
-"              option,  it  will  use PORT right away. EPRT and LPRT are exten-\n"
-"              sions to the original FTP protocol, and  may  not  work  on  all\n"
-"              servers, but they enable more functionality in a better way than\n"
+"              lows a Location: header. The \";auto\" string can be  used  alone,\n"
+"              even if you don't set an initial --referer.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -E, --cert <certificate[:password]>\n"
+"              (SSL)  Tells  curl  to use the specified client certificate file\n"
+"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
+"              col.  The  certificate must be in PKCS#12 format if using Secure\n"
 , stdout);

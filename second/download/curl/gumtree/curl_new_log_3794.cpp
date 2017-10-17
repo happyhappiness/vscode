@@ -1,11 +1,9 @@
 fputs(
-"              clear  text.  Use  this in combination with the normal -u/--user\n"
-"              option to set user name and password. See also --ntlm, --negoti-\n"
-"              ate and --anyauth for related options.\n"
+"              directory as curl.exe, or in the Current Working  Directory,  or\n"
+"              in any folder along your PATH.\n"
 "\n"
-"              If  this option is used several times, the following occurrences\n"
-"              make no difference.\n"
-"\n"
-"       --disable-eprt\n"
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
+"              tells curl the nickname of the CA certificate to use within  the\n"
+"              NSS  database defined by the environment variable SSL_DIR (or by\n"
+"              default /etc/pki/nssdb).  If the NSS PEM  PKCS#11  module  (lib-\n"
 , stdout);

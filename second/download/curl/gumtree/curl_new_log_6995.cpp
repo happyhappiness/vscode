@@ -1,11 +1,10 @@
 fputs(
-"              Reverts to a non-secure connection if the server doesn't support\n"
-"              SSL/TLS.  See also --ftp-ssl-control and --ssl-reqd for  differ-\n"
-"              ent levels of encryption required. (Added in 7.20.0)\n"
+"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
+"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
+"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
+"              where the proxy-name does not match the principal name.   (Added\n"
+"              in 7.19.4).\n"
 "\n"
-"              This  option  was formerly known as --ftp-ssl (Added in 7.11.0).\n"
-"              That option name can still be used but  will  be  removed  in  a\n"
-"              future version.\n"
-"\n"
-"       --ssl-reqd\n"
+"       --socks5-gssapi-nec\n"
+"              As  part  of the gssapi negotiation a protection mode is negoti-\n"
 , stdout);

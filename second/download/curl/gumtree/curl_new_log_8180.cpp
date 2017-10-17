@@ -1,11 +1,10 @@
 fputs(
-"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
-"              ytunnel option.\n"
+"              (HTTP/FTP)  Request a file that has been modified later than the\n"
+"              given time and date, or one that has been modified  before  that\n"
+"              time.  The <date expression> can be all sorts of date strings or\n"
+"              if it doesn't match any internal ones, it is taken as a filename\n"
+"              and  tries  to  get  the  modification  date (mtime) from <file>\n"
+"              instead. See the curl_getdate(3) man pages for  date  expression\n"
+"              details.\n"
 "\n"
-"              User and password that might be provided in the proxy string are\n"
-"              URL  decoded by curl. This allows you to pass in special charac-\n"
-"              ters such as @ by using %40 or pass in a colon with %3a.\n"
-"\n"
-"              The proxy host can be specified the exact same way as the  proxy\n"
-"              environment  variables,  including the protocol prefix (http://)\n"
 , stdout);

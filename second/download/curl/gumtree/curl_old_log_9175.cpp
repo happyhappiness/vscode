@@ -1,11 +1,9 @@
 fputs(
-"              libcurl was built with an SSL library that supports NPN. NPN  is\n"
-"              used  by a libcurl that supports HTTP 2 to negotiate HTTP 2 sup-\n"
-"              port with the server during https sessions.\n"
+"              should  be used in this session if they match. Using this method\n"
+"              also activates the \"cookie parser\" which will make  curl  record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination with the -L, --location option. The file  format  of\n"
+"              the  file  to  read cookies from should be plain HTTP headers or\n"
+"              the Netscape/Mozilla cookie file format.\n"
 "\n"
-"              (Added in 7.36.0)\n"
-"\n"
-"       --no-alpn\n"
-"              Disable the ALPN TLS extension. ALPN is enabled  by  default  if\n"
-"              libcurl  was  built with an SSL library that supports ALPN. ALPN\n"
 , stdout);

@@ -1,12 +1,9 @@
 fputs(
-"              sidered as random data. The data is  used  to  seed  the  random\n"
-"              engine for SSL connections.  See also the --egd-file option.\n"
+"              transfer, it will retry this number of times before  giving  up.\n"
+"              Setting  the  number to 0 makes curl do no retries (which is the\n"
+"              default). Transient error means either: a timeout,  an  FTP  4xx\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"       -r/--range <range>\n"
-"              (HTTP/FTP/SFTP/FILE)  Retrieve a byte range (i.e a partial docu-\n"
-"              ment) from a HTTP/1.1, FTP or  SFTP  server  or  a  local  FILE.\n"
-"              Ranges can be specified in a number of ways.\n"
-"\n"
-"              0-499     specifies the first 500 bytes\n"
-"\n"
+"              When  curl  is about to retry a transfer, it will first wait one\n"
+"              second and then for all forthcoming retries it will  double  the\n"
 , stdout);

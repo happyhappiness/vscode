@@ -1,0 +1,18 @@
+fputs(
+"      curl --ntlm \"ldap://user:passwd@ldap.frontec.se/o=frontec??sub?mail=*\"\n"
+"\n"
+"  On Windows, if no user/password specified, auto-negotiation mechanism will\n"
+"  be used with current logon credentials (SSPI/SPNEGO).\n"
+"\n"
+"ENVIRONMENT VARIABLES\n"
+"\n"
+"  Curl reads and understands the following environment variables:\n"
+"\n"
+"        http_proxy, HTTPS_PROXY, FTP_PROXY\n"
+"\n"
+"  They should be set for protocol-specific proxies. General proxy should be\n"
+"  set with\n"
+"\n"
+"        ALL_PROXY\n"
+"\n"
+, stdout);

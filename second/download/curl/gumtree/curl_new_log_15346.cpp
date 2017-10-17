@@ -1,0 +1,17 @@
+fputs(
+"              See also --proxy-anyauth and --proxy-basic. Added in 7.17.1.\n"
+"\n"
+"       --proxy-ntlm\n"
+"              Tells  curl  to  use HTTP NTLM authentication when communicating\n"
+"              with the given proxy. Use --ntlm for enabling NTLM with a remote\n"
+"              host.\n"
+"\n"
+"              See also --proxy-negotiate and --proxy-anyauth.\n"
+"\n"
+"       --proxy-pass <phrase>\n"
+"              Same as --pass but used in HTTPS proxy context.\n"
+"\n"
+"              Added in 7.52.0.\n"
+"\n"
+"       --proxy-service-name <name>\n"
+, stdout);

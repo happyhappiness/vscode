@@ -1,12 +1,10 @@
 fputs(
-"                             request. (Added in 7.12.3)\n"
+"              Use  the  specified HTTP proxy. If the port number is not speci-\n"
+"              fied, it is assumed at port 1080.\n"
 "\n"
-"              redirect_url   When an HTTP request was made without -L to  fol-\n"
-"                             low redirects, this variable will show the actual\n"
-"                             URL a redirect  would  take  you  to.  (Added  in\n"
-"                             7.18.2)\n"
+"              This option overrides existing environment  variables  that  set\n"
+"              the  proxy  to use. If there's an environment variable setting a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              size_download  The total amount of bytes that were downloaded.\n"
-"\n"
-"              size_header    The total amount of bytes of the downloaded head-\n"
+"              All operations that are performed over an HTTP proxy will trans-\n"
 , stdout);

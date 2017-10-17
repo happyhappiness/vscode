@@ -1,11 +1,8 @@
 fputs(
-"              contents  of  an  FTP  directory since the normal directory view\n"
-"              doesn't use a standard look or format.\n"
-"\n"
-"              This option causes an FTP NLST command to  be  sent.   Some  FTP\n"
-"              servers  list  only files in their response to NLST; they do not\n"
-"              include subdirectories and symbolic links.\n"
-"\n"
-"       --local-port <num>[-num]\n"
-"              Set a preferred number or range of local port numbers to use for\n"
+"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
+"              user's home directory for login name and password. This is typi-\n"
+"              cally used for FTP on UNIX. If used with HTTP, curl will  enable\n"
+"              user  authentication.  See netrc(4) or ftp(1) for details on the\n"
+"              file format. Curl will not complain if that  file  doesn't  have\n"
+"              the  right permissions (it should not be either world- or group-\n"
 , stdout);

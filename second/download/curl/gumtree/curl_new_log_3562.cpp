@@ -1,12 +1,9 @@
 fputs(
-"              If  you  use an SSPI-enabled curl binary and do NTLM authentica-\n"
-"              tion, you can force curl to pick up the user name  and  password\n"
-"              from  your  environment by simply specifying a single colon with\n"
-"              this option: \"-u :\".\n"
+"              ful  operation.  The  format  is a string that may contain plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
+"              ified  as \"string\", to get read from a particular file you spec-\n"
+"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -U/--proxy-user <user:password>\n"
-"              Specify user and password to use for proxy authentication.\n"
-"\n"
+"              The  variables  present in the output format will be substituted\n"
 , stdout);

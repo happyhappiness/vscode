@@ -1,11 +1,9 @@
 fputs(
-"              This  option  causes  an  FTP NLST command to be sent.  Some FTP\n"
-"              servers list only files in their response to NLST; they  do  not\n"
-"              include subdirectories and symbolic links.\n"
+"              login name and password. This is typically used for ftp on unix.\n"
+"              If used with http, curl will  enable  user  authentication.  See\n"
+"              netrc(4) or ftp(1) for details on the file format. Curl will not\n"
+"              complain if that file hasn’t the right  permissions  (it  should\n"
+"              not  be  world  nor  group  readable).  The environment variable\n"
+"              \"HOME\" is used to find the home directory.\n"
 "\n"
-"              If this option is used twice, the second will again disable list\n"
-"              only.\n"
-"\n"
-"       --local-port <num>[-num]\n"
-"              Set a preferred number or range of local port numbers to use for\n"
 , stdout);

@@ -1,9 +1,11 @@
 fputs(
-"  understood by CGI's and similar, curl also supports the more capable\n"
-"  multipart/form-data type. This latter type supports things like file upload.\n"
+"  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
+"  path the \"cookie\" should be used for (by specifying \"path=value\"), when the\n"
+"  cookie should expire (\"expire=DATE\"), for what domain to use it\n"
+"  (\"domain=NAME\") and if it should be used on secure connections only\n"
+"  (\"secure\").\n"
 "\n"
-"  -F accepts parameters like -F \"name=contents\". If you want the contents to\n"
-"  be read from a file, use <@filename> as contents. When specifying a file,\n"
-"  you can also specify the file content type by appending ';type=<mime type>'\n"
-"  to the file name. You can also post the contents of several files in one\n"
+"  If you've received a page from a server that contains a header like:\n"
+"        Set-Cookie: sessionid=boo123; path=\"/foo\";\n"
+"\n"
 , stdout);

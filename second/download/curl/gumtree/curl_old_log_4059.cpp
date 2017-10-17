@@ -1,12 +1,8 @@
 fputs(
-"              See also --ftp-ssl-control and --ftp-ssl-reqd for different lev-\n"
-"              els of encryption required. (Added in 7.11.0)\n"
-"\n"
-"       --ftp-ssl-control\n"
-"              (FTP) Require SSL/TLS for the ftp  login,  clear  for  transfer.\n"
-"              Allows  secure  authentication, but non-encrypted data transfers\n"
-"              for efficiency.  Fails the transfer if the server  doesn't  sup-\n"
-"              port SSL/TLS.  (Added in 7.16.0)\n"
-"\n"
-"       --ftp-ssl-reqd\n"
+"              actual command line. Options and their parameters must be speci-\n"
+"              fied  on  the  same  config file line, separated by white space,\n"
+"              colon, the equals sign or any combination thereof (however,  the\n"
+"              preferred  separator is the equals sign). If the parameter is to\n"
+"              contain white spaces, the  parameter  must  be  enclosed  within\n"
+"              quotes. Within double quotes, the following escape sequences are\n"
 , stdout);

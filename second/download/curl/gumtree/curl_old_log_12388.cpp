@@ -1,11 +1,9 @@
 fputs(
-"              Typical browsers always discard  session  cookies  when  they're\n"
-"              closed down.\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it  uses getpwuid() on Unix-like systems (which returns the home\n"
+"              dir given the current user in your system). On Windows, it  then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
 "\n"
-"       -J, --remote-header-name\n"
-"              (HTTP) This option tells the -O, --remote-name option to use the\n"
-"              server-specified   Content-Disposition   filename   instead   of\n"
-"              extracting a filename from the URL.\n"
-"\n"
-"              If  the  server  specifies a file name and a file with that name\n"
 , stdout);

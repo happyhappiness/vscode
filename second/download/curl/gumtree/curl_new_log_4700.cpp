@@ -1,11 +1,11 @@
 fputs(
-"  in subsequence curl invokes. Try to stuff as many URLs as possible on the\n"
-"  same command line if they are using the same host, as that'll make the\n"
-"  transfers faster. If you use a http proxy for file transfers, practically\n"
-"  all transfers will be persistent.\n"
+"              curl operation won't fail or even report an error clearly. Using\n"
+"              -v will get a warning displayed, but that is  the  only  visible\n"
+"              feedback you get about this possibly lethal situation.\n"
 "\n"
-"MULTIPLE TRANSFERS WITH A SINGLE COMMAND LINE\n"
+"              If  this  option  is used several times, the last specified file\n"
+"              name will be used.\n"
 "\n"
-"  As is mentioned above, you can download multiple files with one command line\n"
-"  by simply adding more URLs. If you want those to get saved to a local file\n"
+"       -C/--continue-at <offset>\n"
+"              Continue/Resume a previous file transfer at  the  given  offset.\n"
 , stdout);

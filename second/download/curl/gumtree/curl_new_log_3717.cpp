@@ -1,9 +1,12 @@
 fputs(
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default  config  file  and  uses it if found. The default config\n"
-"              file is checked for in the following places in this order:\n"
+"              If this option is used twice, the second will again disable list\n"
+"              only.\n"
 "\n"
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it uses getpwuid() on unix-like systems (which returns the  home\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the connection(s).  Note that port numbers by nature is a scarce\n"
+"              resource that will be busy at times so  setting  this  range  to\n"
+"              something  too  narrow  might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
+"\n"
 , stdout);

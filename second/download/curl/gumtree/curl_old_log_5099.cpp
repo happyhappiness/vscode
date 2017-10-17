@@ -1,11 +1,8 @@
 fputs(
-"              should  ever  get  hurt  by attempting to reuse SSL session-IDs,\n"
-"              there seem to be broken SSL implementations in the wild that may\n"
-"              require  you to disable this in order for you to succeed. (Added\n"
-"              in 7.16.0)\n"
-"\n"
-"              Note that this is the negated option name  documented.  You  can\n"
-"              thus use --sessionid to enforce session-ID caching.\n"
-"\n"
-"       --noproxy <no-proxy-list>\n"
+"              Tells curl to respect  RFC  2616/10.3.2  and  not  convert  POST\n"
+"              requests into GET requests when following a 301 redirection. The\n"
+"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
+"              rection. This option is meaningful only when using -L/--location\n"
 , stdout);

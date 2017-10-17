@@ -1,0 +1,16 @@
+puts(
+"          (HTTP/FTP)  Retrieve  a byte range (i.e a partial docu�\n"
+"          ment) from a HTTP/1.1 or  FTP  server.  Ranges  can  be\n"
+"          specified in a number of ways.\n"
+"\n"
+"          0-499     specifies the first 500 bytes\n"
+"\n"
+"          500-999   specifies the second 500 bytes\n"
+"\n"
+"          -500      specifies the last 500 bytes\n"
+"          9500      specifies the bytes from offset 9500 and for�\n"
+"                    ward\n"
+"\n"
+"          0-0,-1    specifies the first and last byte only(*)(H)\n"
+"\n"
+);

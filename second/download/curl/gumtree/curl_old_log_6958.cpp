@@ -1,11 +1,9 @@
 fputs(
-"                             until the name resolving was completed.\n"
+"              This  option  overrides  existing environment variables that set\n"
+"              the proxy to use. If there's an environment variable  setting  a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              time_connect   The  time,  in  seconds,  it  took from the start\n"
-"                             until the TCP connect  to  the  remote  host  (or\n"
-"                             proxy) was completed.\n"
-"\n"
-"              time_appconnect\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the SSL/SSH/etc  connect/handshake  to  the\n"
+"              All  operations that are performed over a HTTP proxy will trans-\n"
+"              parently be converted to HTTP. It means  that  certain  protocol\n"
+"              specific operations might not be available. This is not the case\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              (Only the file part of the remote file is used, the path is  cut\n"
-"              off.)\n"
+"              rection. This option is meaningful only when using  -L,  --loca-\n"
+"              tion (Added in 7.19.1)\n"
 "\n"
-"              The  remote  file  name  to use for saving is extracted from the\n"
-"              given URL, nothing else.\n"
+"       --proto <protocols>\n"
+"              Tells   curl  to  use  the  listed  protocols  for  its  initial\n"
+"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
+"              arated,  and  are each a protocol name or 'all', optionally pre-\n"
+"              fixed by zero or more modifiers. Available modifiers are:\n"
 "\n"
-"              Consequentially, the file will be saved in the  current  working\n"
-"              directory.  If you want the file saved in a different directory,\n"
-"              make sure you change current working directory before you invoke\n"
 , stdout);

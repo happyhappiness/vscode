@@ -1,9 +1,8 @@
 fputs(
-"              internally set  headers  without  knowing  perfectly  well  what\n"
-"              you're  doing. Remove an internal header by giving a replacement\n"
-"              without content on the right  side  of  the  colon,  as  in:  -H\n"
-"              \"Host:\".  If  you  send the custom header with no-value then its\n"
-"              header must be terminated with a semicolon, such as  -H  \"X-Cus-\n"
-"              tom-Header;\" to send \"X-Custom-Header:\".\n"
-"\n"
+"              written  which  then will be used as if they were written on the\n"
+"              actual command line. Options and their parameters must be speci-\n"
+"              fied  on  the  same  config  file line, separated by whitespace,\n"
+"              colon, the equals sign or any combination thereof (however,  the\n"
+"              preferred  separator is the equals sign). If the parameter is to\n"
+"              contain  whitespace,  the  parameter  must  be  enclosed  within\n"
 , stdout);

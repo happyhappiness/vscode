@@ -1,11 +1,9 @@
 fputs(
-"              libcurl  was  built with an SSL library that supports ALPN. ALPN\n"
-"              is used by a libcurl that supports HTTP 2 to  negotiate  HTTP  2\n"
-"              support with the server during https sessions.\n"
+"              combination with the -L, --location option. The file  format  of\n"
+"              the  file  to  read cookies from should be plain HTTP headers or\n"
+"              the Netscape/Mozilla cookie file format.\n"
 "\n"
-"              (Added in 7.36.0)\n"
-"\n"
-"       -1, --tlsv1\n"
-"              (SSL) Forces curl to use TLS version 1.x when negotiating with a\n"
-"              remote TLS server.  You can use  options  --tlsv1.0,  --tlsv1.1,\n"
+"              NOTE that the file specified with -b, --cookie is only  used  as\n"
+"              input.  No cookies will be stored in the file. To store cookies,\n"
+"              use the -c, --cookie-jar option or you could even save the  HTTP\n"
 , stdout);

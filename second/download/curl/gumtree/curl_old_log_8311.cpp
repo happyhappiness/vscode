@@ -1,10 +1,11 @@
 fputs(
-"                             steps  include  name lookup, connect, pretransfer\n"
-"                             and transfer before  the  final  transaction  was\n"
-"                             started.  time_redirect shows the complete execu-\n"
-"                             tion time for multiple  redirections.  (Added  in\n"
-"                             7.12.3)\n"
+"              by default. This makes  all  connections  considered  \"insecure\"\n"
+"              fail unless -k, --insecure is used.\n"
 "\n"
-"              time_starttransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
+"              See     this    online    resource    for    further    details:\n"
+"              http://curl.haxx.se/docs/sslcerts.html\n"
+"\n"
+"       -K, --config <config file>\n"
+"              Specify which config file to read curl arguments from. The  con-\n"
+"              fig  file  is a text file in which command line arguments can be\n"
 , stdout);

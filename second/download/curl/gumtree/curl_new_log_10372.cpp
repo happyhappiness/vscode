@@ -1,12 +1,8 @@
 fputs(
-"              as a part of the header content: do not add newlines or carriage\n"
-"              returns, they will only mess things up for you.\n"
-"\n"
-"              Headers  specified  with  this  option  will  not be included in\n"
-"              requests that curl knows will not be sent to a proxy.\n"
-"\n"
-"              This option can be used  multiple  times  to  add/replace/remove\n"
-"              multiple headers.\n"
-"              (Added in 7.37.0)\n"
-"       -p, --proxytunnel\n"
+"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
+"              POST  requests  into GET requests when following a 303 redirect-\n"
+"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
+"              curl  does  the  conversion  by default to maintain consistency.\n"
+"              However, a server may require a POST to remain a POST after such\n"
+"              a  redirection.  This  option  is meaningful only when using -L,\n"
 , stdout);

@@ -1,11 +1,10 @@
 fputs(
-"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
-"              PEM is assumed.\n"
+"              multicwd\n"
+"                     curl  does  a  single CWD operation for each path part in\n"
+"                     the given URL. For deep hierarchies this means very  many\n"
+"                     commands.  This  is  how  RFC1738 says it should be done.\n"
+"                     This is the default but the slowest behavior.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --cacert <CA certificate>\n"
-"              (SSL) Tells curl to use the specified certificate file to verify\n"
-"              the  peer.  The  file  may contain multiple CA certificates. The\n"
-"              certificate(s) must be in PEM format. Normally curl is built  to\n"
+"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
+"                     etc and give a full path to the server for all these com-\n"
 , stdout);

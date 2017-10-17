@@ -1,9 +1,10 @@
 fputs(
-"              When using Kerberos V5 with a Windows based  server  you  should\n"
-"              include  the  Windows domain name in the user name, in order for\n"
-"              the server to successfully obtain  a  Kerberos  Ticket.  If  you\n"
-"              don't then the initial authentication handshake may fail.\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"              When  using  NTLM,  the user name can be specified simply as the\n"
-"              user name, without the domain, if there is a single  domain  and\n"
+"              The variables present in the output format will  be  substituted\n"
+"              by  the  value or text that curl thinks fit, as described below.\n"
+"              All variables are specified as %{variable_name} and to output  a\n"
+"              normal  % you just write them as %%. You can output a newline by\n"
+"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
+"\n"
 , stdout);

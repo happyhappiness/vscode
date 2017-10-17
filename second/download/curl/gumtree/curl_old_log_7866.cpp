@@ -1,10 +1,10 @@
 fputs(
-"              Transport server over FTPS using  a  client  certificate,  using\n"
-"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
-"              the certificate. (Added in 7.15.5)\n"
+"              for the server to do it, and will not reply to the shutdown from\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
-"       --ftp-create-dirs\n"
-"              (FTP/SFTP) When an FTP or SFTP URL/operation uses  a  path  that\n"
-"              doesn't  currently exist on the server, the standard behavior of\n"
-"              curl is to fail. Using this option, curl will instead attempt to\n"
+"       --ftp-ssl-control\n"
+"              (FTP)  Require  SSL/TLS  for  the FTP login, clear for transfer.\n"
+"              Allows secure authentication, but non-encrypted  data  transfers\n"
+"              for  efficiency.   Fails the transfer if the server doesn't sup-\n"
 , stdout);

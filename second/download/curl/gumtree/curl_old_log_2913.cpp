@@ -1,12 +1,9 @@
 fputs(
-"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
-"              remote host. Basic is the  default  authentication  method  curl\n"
-"              uses with proxies.\n"
+"              supported  for  FTP). You may specify any number of commands. If\n"
+"              the server returns failure for one of the commands,  the  entire\n"
+"              operation  will  be aborted. You must send syntactically correct\n"
+"              FTP commands as RFC959 defines to FTP servers,  or  one  of  the\n"
+"              following commands (with appropriate arguments) to SFTP servers:\n"
+"              chgrp, chmod, chown, ln, mkdir, rename, rm, rmdir, symlink.\n"
 "\n"
-"              If  this  option  is  used  twice, the second will again disable\n"
-"              proxy HTTP Basic authentication.\n"
-"\n"
-"       --proxy-digest\n"
-"              Tells curl to use HTTP Digest authentication when  communicating\n"
-"              with the given proxy. Use --digest for enabling HTTP Digest with\n"
 , stdout);

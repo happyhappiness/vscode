@@ -1,6 +1,0 @@
-warnf(config, "Transient problem: %s "
-                    "Will retry in %ld seconds. "
-                    "%ld retries left.\n",
-                    m[retry],
-                    retry_sleep/1000,
-                    retry_numretries);

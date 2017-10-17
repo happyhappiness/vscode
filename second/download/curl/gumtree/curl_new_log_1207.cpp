@@ -1,9 +1,11 @@
 fputs(
-"              \"@filename\" and to tell curl to read the format from  stdin  you\n"
-"              write \"@-\".\n"
+"              Note that all operations that are performed over  a  HTTP  proxy\n"
+"              will  transparantly  be converted to HTTP. It means that certain\n"
+"              protocol specific operations might not be available. This is not\n"
+"              the  case  if you can tunnel through the proxy, as done with the\n"
+"              -p/--proxytunnel option.\n"
 "\n"
-"              The  variables  present in the output format will be substituted\n"
-"              by the value or text that curl thinks fit, as  described  below.\n"
-"              All  variables are specified like %{variable_name} and to output\n"
-"              a normal % you just write them like %%. You can output a newline\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -X/--request <command>\n"
 , stdout);

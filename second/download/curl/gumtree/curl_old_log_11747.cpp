@@ -1,11 +1,10 @@
 fputs(
-"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
-"              if it is set, and uses the given path as a path  to  a  CA  cert\n"
-"              bundle. This option overrides that variable.\n"
+"              port  (on  iOS  7.0  or  later, or OS X 10.9 or later) backends.\n"
+"              (Added in 7.42.0)\n"
 "\n"
-"              The  windows  version  of  curl will automatically look for a CA\n"
-"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
-"              tory as curl.exe, or in the Current Working Directory, or in any\n"
-"              folder along your PATH.\n"
-"\n"
+"       -f, --fail\n"
+"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
+"              is  mostly done to better enable scripts etc to better deal with\n"
+"              failed attempts. In normal cases when an HTTP  server  fails  to\n"
+"              deliver  a  document,  it  returns  an  HTML document stating so\n"
 , stdout);

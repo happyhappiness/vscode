@@ -1,10 +1,11 @@
 fputs(
-"              When performing a mailing list expand (EXPN command), the recip-\n"
-"              ient  should  be  specified using the mailing list name, such as\n"
-"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
+"              use.   You  can  only  specify one netrc file per invocation. If\n"
+"              several --netrc-file options are provided,  only  the  last  one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"       --max-redirs <num>\n"
-"              Set maximum number of  redirection-followings  allowed.  If  -L,\n"
-"              --location is used, this option can be used to prevent curl from\n"
-"              following redirections \"in absurdum\". By default, the  limit  is\n"
+"              This  option  overrides  any use of --netrc as they are mutually\n"
+"              exclusive.  It will also abide by --netrc-optional if specified.\n"
+"\n"
+"       --netrc-optional\n"
+"              Very similar to --netrc, but this option makes the .netrc  usage\n"
 , stdout);

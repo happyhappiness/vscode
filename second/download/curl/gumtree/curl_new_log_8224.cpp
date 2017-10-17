@@ -1,9 +1,10 @@
 fputs(
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"       --dns-interface <interface>\n"
+"              Tell  curl  to  send  outgoing DNS requests through <interface>.\n"
+"              This option is a counterpart  to  --interface  (which  does  not\n"
+"              affect  DNS). The supplied string must be an interface name (not\n"
+"              an address).\n"
 "\n"
-"              If you start the data with the letter @, the rest  should  be  a\n"
-"              file  name  to read the data from, or - if you want curl to read\n"
-"              the data from stdin.  The contents of the file must  already  be\n"
-"              URL-encoded.  Multiple files can also be specified. Posting data\n"
+"              This option requires that libcurl  was  built  with  a  resolver\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
 , stdout);

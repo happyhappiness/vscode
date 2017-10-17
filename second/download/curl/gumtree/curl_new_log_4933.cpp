@@ -1,10 +1,11 @@
 fputs(
-"              Very  similar to --netrc, but this option makes the .netrc usage\n"
-"              optional and not mandatory as the --netrc option does.\n"
+"              option  --socks5-gssapi-nec  allows  the unprotected exchange of\n"
+"              the protection mode negotiation. (Added in 7.19.4).\n"
 "\n"
-"       --negotiate\n"
-"              (HTTP) Enables GSS-Negotiate authentication.  The  GSS-Negotiate\n"
-"              method was designed by Microsoft and is used in their web appli-\n"
-"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
-"              authentication but may be also used along with another authenti-\n"
+"       --stderr <file>\n"
+"              Redirect all writes to stderr to the specified file instead.  If\n"
+"              the  file  name is a plain '-', it is instead written to stdout.\n"
+"              This option has no point when you're using a shell  with  decent\n"
+"              redirecting capabilities.\n"
+"\n"
 , stdout);

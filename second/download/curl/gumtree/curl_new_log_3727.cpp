@@ -1,9 +1,11 @@
 fputs(
-"              initial host. If a redirect takes curl to a different  host,  it\n"
-"              won't  be  able to intercept the user+password. See also --loca-\n"
-"              tion-trusted on how to change this. You can limit the amount  of\n"
-"              redirects to follow by using the --max-redirs option.\n"
+"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
+"              authentication but may be also used along with another authenti-\n"
+"              cation methods. For  more  information  see  IETF  draft  draft-\n"
+"              brezak-spnego-http-04.txt.\n"
 "\n"
-"              When  curl follows a redirect and the request is not a plain GET\n"
-"              (for example POST or PUT), it will do the following request with\n"
+"              If  you  want to enable Negotiate for your proxy authentication,\n"
+"              then use --proxy-negotiate.\n"
+"\n"
+"              This option requires that the library was built with GSSAPI sup-\n"
 , stdout);

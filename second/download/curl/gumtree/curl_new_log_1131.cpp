@@ -1,11 +1,11 @@
 fputs(
-"              but enable more functionality in a better way  than  the  tradi-\n"
-"              tional PORT command. (Aded in 7.10.5)\n"
+"              The windows version of curl will automatically  look  for  a  CA\n"
+"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
+"              tory as curl.exe, or in the Current Working Directory, or in any\n"
+"              folder along your PATH.\n"
 "\n"
-"              If  this option is used several times, each occurrence will tog-\n"
-"              gle this on/off.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --disable-epsv\n"
-"              (FTP) Tell curl to disable the use  of  the  EPSV  command  when\n"
-"              doing  passive  FTP  transfers.  Curl will normally always first\n"
+"       --capath <CA certificate directory>\n"
+"              (HTTPS) Tells curl to use the specified certificate directory to\n"
 , stdout);

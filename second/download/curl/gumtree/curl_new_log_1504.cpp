@@ -1,8 +1,10 @@
 fputs(
-"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reversed engineered by clever peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior  should  not be endorsed, you should encourage everyone\n"
-"              who uses NTLM to switch to a public and  documented  authentica-\n"
+"              (FTP) Reverses the initiator/listener roles when connecting with\n"
+"              ftp. This switch makes Curl use  the  PORT  command  instead  of\n"
+"              PASV.  In  practice,  PORT  tells  the  server to connect to the\n"
+"              client's specified address and port, while PASV asks the  server\n"
+"              for  an  ip  address and port to connect to. <address> should be\n"
+"              one of:\n"
+"\n"
+"              interface\n"
 , stdout);

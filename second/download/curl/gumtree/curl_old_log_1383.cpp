@@ -1,9 +1,9 @@
 fputs(
-"              Continue/Resume  a  previous  file transfer at the given offset.\n"
-"              The given offset is the exact  number  of  bytes  that  will  be\n"
-"              skipped  counted from the beginning of the source file before it\n"
-"              is transfered to the destination.  If used with uploads, the ftp\n"
-"              server command SIZE will not be used by curl.\n"
+"              (HTTP) Enables HTTP Digest authentication. This is a authentica-\n"
+"              tion that prevents the password from being sent over the wire in\n"
+"              clear text. Use this in combination with  the  normal  -u/--user\n"
+"              option to set user name and password. See also --ntlm, --negoti-\n"
+"              ate and --anyauth for related options. (Added in curl 7.10.6)\n"
 "\n"
-"              Use  \"-C  -\" to tell curl to automatically find out where/how to\n"
+"              If this option is used several times, the following  occurrences\n"
 , stdout);

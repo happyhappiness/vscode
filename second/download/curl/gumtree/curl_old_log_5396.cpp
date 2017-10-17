@@ -1,8 +1,11 @@
 fputs(
-"              specify any number of extra headers. Note that if you should add\n"
-"              a  custom  header  that has the same name as one of the internal\n"
-"              ones curl would use, your externally set  header  will  be  used\n"
-"              instead of the internal one. This allows you to make even trick-\n"
-"              ier stuff than curl would normally do. You  should  not  replace\n"
-"              internally  set  headers  without  knowing  perfectly  well what\n"
+"\n"
+"       --keepalive-time <seconds>\n"
+"              This option sets the time a  connection  needs  to  remain  idle\n"
+"              before  sending keepalive probes and the time between individual\n"
+"              keepalive probes. It is currently effective on operating systems\n"
+"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
+"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
+"\n"
 , stdout);

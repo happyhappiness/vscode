@@ -1,10 +1,10 @@
 fputs(
-"              named parameter is used literally. Leading '@' and  '<'  charac-\n"
-"              ters, and the ';type=' string in the value have no special mean-\n"
-"              ing. Use this in preference to --form if there's any possibility\n"
-"              that  the  string  value may accidentally trigger the '@' or '<'\n"
-"              features of --form.\n"
+"              If this option is used several times, each occurrence will  tog-\n"
+"              gle this on/off.\n"
 "\n"
-"       -g/--globoff\n"
-"              This option switches off the \"URL globbing parser\". When you set\n"
+"       -k/--insecure\n"
+"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
+"              SSL connections and transfers. Starting with curl 7.10, all  SSL\n"
+"              connections  will be attempted to be made secure by using the CA\n"
+"              certificate bundle installed by default. This makes all  connec-\n"
 , stdout);

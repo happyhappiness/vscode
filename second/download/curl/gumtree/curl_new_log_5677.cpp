@@ -1,12 +1,8 @@
 fputs(
-"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
-"\n"
-"              This  option overrides previous uses of -v/--verbose or --trace-\n"
-"              ascii.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --trace-ascii <file>\n"
+"              Using this, you can make the curl requests(s)  use  a  specified\n"
+"              address  and  prevent the otherwise normally resolved address to\n"
+"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
+"              on  the  command line. The port number should be the number used\n"
+"              for the specific protocol the host will be used  for.  It  means\n"
+"              you  need several entries if you want to provide address for the\n"
 , stdout);

@@ -1,0 +1,1 @@
+Curl_failf(data, "Server didn't accept auth data");

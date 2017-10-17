@@ -1,11 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
+"                             7.18.2 the alias response_code was added to  show\n"
+"                             the same info.\n"
 "\n"
-"       -U, --proxy-user <user:password>\n"
-"              Specify  the user name and password to use for proxy authentica-\n"
-"              tion.\n"
+"              http_connect   The  numerical  code  that  was found in the last\n"
+"                             response  (from  a  proxy)  to  a  curl   CONNECT\n"
+"                             request. (Added in 7.12.4)\n"
 "\n"
-"              If you use a Windows SSPI-enabled  curl  binary  and  do  either\n"
-"              Negotiate  or  NTLM  authentication  then  you  can tell curl to\n"
-"              select the user name and password from your environment by spec-\n"
+"              local_ip       The  IP  address  of  the  local  end of the most\n"
 , stdout);

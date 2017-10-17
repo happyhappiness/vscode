@@ -1,8 +1,12 @@
 fputs(
-"              prefix them with a dash '-'.  To make  commands  be  sent  after\n"
-"              curl has changed the working directory, just before the transfer\n"
-"              command(s), prefix the command with a '+'  (this  is  only  sup-\n"
-"              ported  for FTP). You may specify any number of commands. If the\n"
-"              server returns failure for one of the commands, the entire oper-\n"
-"              ation  will  be aborted. You must send syntactically correct FTP\n"
+"                        specifies two separate 100-byte ranges(*)(H)\n"
+"\n"
+"       (*) = NOTE that this will cause the server to reply  with  a  multipart\n"
+"       response!\n"
+"\n"
+"       Only  digit characters (0-9) are valid in the 'start' and 'stop' fields\n"
+"       of the 'start-stop' range syntax. If a non-digit character is given  in\n"
+"       the  range, the server's response will be unspecified, depending on the\n"
+"       server's configuration.\n"
+"\n"
 , stdout);

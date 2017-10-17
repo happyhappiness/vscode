@@ -1,0 +1,17 @@
+puts(
+"        curl -u user:passwd -x my-proxy:888 http://www.get.this/\n"
+"\n"
+" Some proxies require special authentication. Specify by using -U as above:\n"
+"\n"
+"        curl -U user:passwd -x my-proxy:888 http://www.get.this/\n"
+"\n"
+" See also the environment variables Curl support that offer further proxy\n"
+" control.\n"
+"\n"
+"RANGES\n"
+"\n"
+"  With HTTP 1.1 byte-ranges were introduced. Using this, a client can request\n"
+"  to get only one or more subparts of a specified document. Curl supports\n"
+"  this with the -r flag.\n"
+"\n"
+);

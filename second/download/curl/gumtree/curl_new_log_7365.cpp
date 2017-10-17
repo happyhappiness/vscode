@@ -1,9 +1,11 @@
 fputs(
-"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
-"              bytes,  'm'  or M' makes it megabytes, while 'g' or 'G' makes it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks5 hostname proxy with -x, --proxy using a socks5h:// proto-\n"
+"              col prefix.\n"
 "\n"
-"              The given rate is the average speed counted  during  the  entire\n"
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (This  option  was  previously  wrongly  documented  and used as\n"
+"              --socks without the number appended.)\n"
+"\n"
+"       --socks5 <host[:port]>\n"
 , stdout);

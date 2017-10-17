@@ -1,10 +1,11 @@
 fputs(
-"              See     this    online    resource    for    further    details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code was any other 3xx code, curl  will  re-send  the  following\n"
+"              request using the same unmodified method.\n"
 "\n"
-"       -K, --config <config file>\n"
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
-"              written which then will be used as if they were written  on  the\n"
-"              actual command line. Options and their parameters must be speci-\n"
+"       --libcurl <file>\n"
+"              Append  this  option  to any ordinary curl command line, and you\n"
+"              will get a libcurl-using source code written to  the  file  that\n"
+"              does the equivalent of what your command-line operation does!\n"
+"\n"
 , stdout);

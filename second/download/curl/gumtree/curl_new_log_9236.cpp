@@ -1,12 +1,9 @@
 fputs(
-"              need  to  specify  it  using the --url option, and not by simply\n"
-"              writing the URL on its own line. So, it could  look  similar  to\n"
-"              this:\n"
+"              (POP3) When retrieving a specific email from POP3,  this  switch\n"
+"              forces  a  LIST command to be performed instead of RETR. This is\n"
+"              particularly useful if the user wants to see if a specific  mes-\n"
+"              sage id exists on the server and what size it is.\n"
 "\n"
-"              url = \"http://curl.haxx.se/docs/\"\n"
-"\n"
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default config file and uses it if  found.  The  default  config\n"
-"              file is checked for in the following places in this order:\n"
-"\n"
+"              Note:  When  combined  with -X, --request <command>, this option\n"
+"              can be used to send an UIDL command instead, so the user may use\n"
 , stdout);

@@ -1,10 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              Please note that if FILE protocol is disabled, there is  no  way\n"
+"              to  use  a local Metalink file at the time of this writing. Also\n"
+"              note  that  if  --metalink  and  --include  are  used  together,\n"
+"              --include  will be ignored. This is because including headers in\n"
+"              the response will break Metalink parser and if the  headers  are\n"
+"              included in the file described in Metalink file, hash check will\n"
+"              fail.\n"
 "\n"
-"       --login-options <options>\n"
-"              Specify the login options to use during server authentication.\n"
-"\n"
-"              You can use the  login  options  to  specify  protocol  specific\n"
-"              options  that may be used during authentication. At present only\n"
-"              IMAP, POP3 and SMTP support login options. For more  information\n"
 , stdout);

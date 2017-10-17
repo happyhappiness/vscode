@@ -1,10 +1,11 @@
 fputs(
-"              contain  whitespace,  the  parameter  must  be  enclosed  within\n"
-"              quotes. Within double quotes, the following escape sequences are\n"
-"              available:  \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding any\n"
-"              other letter is ignored. If the first column of a config line is\n"
-"              a  '#' character, the rest of the line will be treated as a com-\n"
-"              ment. Only write one option per  physical  line  in  the  config\n"
-"              file.\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
+"              If  you  also  use the -Y/--speed-limit option, that option will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -l/--list-only\n"
 , stdout);

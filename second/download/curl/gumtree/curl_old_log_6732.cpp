@@ -1,10 +1,11 @@
 fputs(
-"              (FTP) Tell curl to send a PRET command before PASV  (and  EPSV).\n"
-"              Certain  FTP  servers,  mainly drftpd, require this non-standard\n"
-"              command for directory listings as well as up  and  downloads  in\n"
-"              PASV mode.  (Added in 7.20.x)\n"
+"              you're doing. Remove an internal header by giving a  replacement\n"
+"              without  content  on  the  right  side  of  the colon, as in: -H\n"
+"              \"Host:\".\n"
 "\n"
-"       --ftp-ssl-ccc\n"
-"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
+"              curl will make sure that each header  you  add/replace  is  sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
+"\n"
 , stdout);

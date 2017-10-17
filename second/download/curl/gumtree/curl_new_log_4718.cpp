@@ -1,11 +1,11 @@
 fputs(
-"       -D/--dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"              This  option  is handy to use when you want to store the headers\n"
-"              that a HTTP site sends to you. Cookies from  the  headers  could\n"
-"              then   be  read  in  a  second  curl  invocation  by  using  the\n"
-"              -b/--cookie option! The -c/--cookie-jar option is however a bet-\n"
-"              ter way to store cookies.\n"
+"              This  method is not fail-safe and there are occasions where non-\n"
+"              successful response codes will  slip  through,  especially  when\n"
+"              authentication is involved (response codes 401 and 407).\n"
 "\n"
+"       --ftp-account [data]\n"
+"              (FTP) When an FTP server asks for \"account data\" after user name\n"
+"              and password has been provided, this data is sent off using  the\n"
 , stdout);

@@ -1,11 +1,9 @@
 fputs(
-"                     on.  Just  be careful so that the content doesn't contain\n"
-"                     any = or @ symbols, as that will  then  make  the  syntax\n"
-"                     match one of the other cases below!\n"
+"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"              =content\n"
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
-"\n"
-"              name=content\n"
+"              The  variables  present in the output format will be substituted\n"
+"              by the value or text that curl thinks fit, as  described  below.\n"
+"              All  variables are specified as %{variable_name} and to output a\n"
+"              normal % you just write them as %%. You can output a newline  by\n"
 , stdout);

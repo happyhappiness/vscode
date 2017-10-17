@@ -1,9 +1,12 @@
 fputs(
-"              The  user  name  and  passwords are split up on the first colon,\n"
-"              which makes it impossible to use a colon in the user  name  with\n"
-"              this option. The password can, still.\n"
+"              normal  % you just write them as %%. You can output a newline by\n"
+"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
 "\n"
-"              When  using  Kerberos  V5 with a Windows based server you should\n"
-"              include the Windows domain name in the user name, in  order  for\n"
-"              the  server  to  successfully  obtain  a Kerberos Ticket. If you\n"
+"              NOTE: The %-symbol is a special symbol in the win32-environment,\n"
+"              where  all  occurrences  of  %  must  be doubled when using this\n"
+"              option.\n"
+"\n"
+"              The variables available are:\n"
+"\n"
+"              content_type   The Content-Type of the  requested  document,  if\n"
 , stdout);

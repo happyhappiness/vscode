@@ -1,9 +1,10 @@
 fputs(
-"              second and then for all forthcoming retries it will  double  the\n"
-"              waiting  time until it reaches 10 minutes which then will be the\n"
-"              delay between the rest of the retries.  By  using  --retry-delay\n"
-"              you   disable  this  exponential  backoff  algorithm.  See  also\n"
-"              --retry-max-time to limit the total time  allowed  for  retries.\n"
-"              (Added in 7.12.3)\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (This option was  previously  wrongly  documented  and  used  as\n"
+"              --socks without the number appended.)\n"
 "\n"
+"       --stderr <file>\n"
+"              Redirect  all writes to stderr to the specified file instead. If\n"
+"              the file name is a plain '-', it is instead written  to  stdout.\n"
+"              This  option  has no point when you're using a shell with decent\n"
 , stdout);

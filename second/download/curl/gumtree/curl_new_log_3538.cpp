@@ -1,11 +1,10 @@
 fputs(
-"              operation  will  be aborted. You must send syntactically correct\n"
-"              FTP commands as RFC959 defines to FTP servers,  or  one  of  the\n"
-"              following commands (with appropriate arguments) to SFTP servers:\n"
-"              chgrp, chmod, chown, ln, mkdir, pwd, rename, rm, rmdir, symlink.\n"
+"              If  this  option  is  used  multiple  times, the last occurrence\n"
+"              decide the amount.\n"
 "\n"
-"              This option can be used multiple times.\n"
-"\n"
-"       --random-file <file>\n"
-"              (SSL) Specify the path name to file containing what will be con-\n"
+"       --retry-delay <seconds>\n"
+"              Make curl sleep this amount of time between each  retry  when  a\n"
+"              transfer  has  failed  with  a  transient  error (it changes the\n"
+"              default backoff time algorithm between retries). This option  is\n"
+"              only  interesting if --retry is also used. Setting this delay to\n"
 , stdout);

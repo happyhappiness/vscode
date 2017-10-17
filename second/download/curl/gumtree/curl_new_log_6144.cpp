@@ -1,11 +1,9 @@
 fputs(
-"       -u/--user <user:password>\n"
-"              Specify the user name and password to use for server authentica-\n"
-"              tion. Overrides -n/--netrc and --netrc-optional.\n"
+"              Defines what to display on stdout after a completed and success-\n"
+"              ful operation. The format is a string  that  may  contain  plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
+"              ified as \"string\", to get read from a particular file you  spec-\n"
+"              ify  it  \"@filename\"  and  to  tell curl to read the format from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"              If you just give the user name (without entering a  colon)  curl\n"
-"              will prompt for a password.\n"
-"\n"
-"              If  you  use an SSPI-enabled curl binary and do NTLM authentica-\n"
-"              tion, you can force curl to pick up the user name  and  password\n"
 , stdout);

@@ -1,9 +1,11 @@
 fputs(
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"              -      make  curl  pick the same IP address that is already used\n"
+"                     for the control connection\n"
 "\n"
-"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior should not be endorsed, you should  encourage  everyone\n"
+"       If this option is used several times, the last one will be  used.  Dis-\n"
+"       able  the  use  of PORT with --ftp-pasv. Disable the attempt to use the\n"
+"       EPRT command instead of PORT by using --disable-eprt.  EPRT  is  really\n"
+"       PORT++.\n"
+"\n"
+"       Starting in 7.19.5, you can append \":[start]-[end]\" to the right of the\n"
 , stdout);

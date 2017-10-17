@@ -1,10 +1,11 @@
 fputs(
-"                             redirects, this variable will show the actual URL\n"
-"                             a redirect would take you to. (Added in 7.18.2)\n"
+"              document that is newer than the specified date/time.\n"
 "\n"
-"              ftp_entry_path The initial path libcurl ended up in when logging\n"
-"                             on to the remote FTP server. (Added in 7.15.4)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              ssl_verify_result\n"
-"                             The  result of the SSL peer certificate verifica-\n"
+"       --max-redirs <num>\n"
+"              Set  maximum  number  of  redirection-followings   allowed.   If\n"
+"              -L/--location  is  used, this option can be used to prevent curl\n"
+"              from following redirections \"in absurdum\". By default, the limit\n"
+"              is set to 50 redirections. Set this option to -1 to make it lim-\n"
 , stdout);

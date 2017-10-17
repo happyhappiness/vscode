@@ -1,10 +1,11 @@
 fputs(
-"       disabled with --no-option. That is, you use the exact same option  name\n"
-"       but prefix it with \"no-\". However, in this list we mostly only list and\n"
-"       show the --option version of them. (This concept with --no options  was\n"
-"       added  in  7.19.0.  Previously  most  options  were  toggled  on/off on\n"
-"       repeated use of the same command line option.)\n"
+"              \"Mozilla/4.0\".  To  encode  blanks  in  the string, surround the\n"
+"              string with single quote marks. This can also be  set  with  the\n"
+"              -H, --header option of course.\n"
 "\n"
-"       -#, --progress-bar\n"
-"              Make curl display progress as a simple progress bar  instead  of\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --anyauth\n"
+"              (HTTP) Tells curl to figure out authentication method by itself,\n"
+"              and use the most secure one the remote site claims  to  support.\n"
 , stdout);

@@ -1,9 +1,11 @@
 fputs(
-"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
-"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
-"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
-"              mode to  allow  reading  server  output  while  stdin  is  being\n"
-"              uploaded.\n"
+"              UPN (User Principal Name) formats. For example, EXAMPLE\\user and\n"
+"              user@example.com respectively.\n"
 "\n"
-"              You can specify one -T for each URL on the command line. Each -T\n"
+"              If  you  use a Windows SSPI-enabled curl binary and perform Ker-\n"
+"              beros V5, Negotiate, NTLM or DIGEST-MD5 authentication then  you\n"
+"              can  tell  curl  to  select the user name and password from your\n"
+"              environment by specifying a single colon with this  option:  \"-u\n"
+"              :\".\n"
+"\n"
 , stdout);

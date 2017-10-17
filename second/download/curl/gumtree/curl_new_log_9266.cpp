@@ -1,11 +1,10 @@
 fputs(
-"              uations,  curl  will  use a standard buffered output stream that\n"
-"              will have the effect that it will output the data in chunks, not\n"
-"              necessarily  exactly  when  the data arrives.  Using this option\n"
-"              will disable that buffering.\n"
+"              Use -s, --silent to make curl quiet.\n"
 "\n"
-"              Note that this is the negated option name  documented.  You  can\n"
-"              thus use --buffer to enforce the buffering.\n"
-"\n"
-"       --netrc-file\n"
+"       -w, --write-out <format>\n"
+"              Defines what to display on stdout after a completed and success-\n"
+"              ful operation. The format is a string  that  may  contain  plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
+"              ified as \"string\", to get read from a particular file you  spec-\n"
+"              ify  it  \"@filename\"  and  to  tell curl to read the format from\n"
 , stdout);

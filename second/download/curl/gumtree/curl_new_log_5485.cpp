@@ -1,11 +1,11 @@
 fputs(
-"              feedback you get about this possibly lethal situation.\n"
+"              first will append data as described in -d/--data.\n"
 "\n"
-"              If this option is used several times, the  last  specified  file\n"
-"              name will be used.\n"
+"       --data-urlencode <data>\n"
+"              (HTTP) This posts data, similar to the other --data options with\n"
+"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
+"              To  be  CGI-compliant,  the <data> part should begin with a name\n"
+"              followed by a separator and a content specification. The  <data>\n"
+"              part can be passed to curl using one of the following syntaxes:\n"
 "\n"
-"       -C/--continue-at <offset>\n"
-"              Continue/Resume  a  previous  file transfer at the given offset.\n"
-"              The given offset is the exact  number  of  bytes  that  will  be\n"
-"              skipped,  counting  from the beginning of the source file before\n"
 , stdout);

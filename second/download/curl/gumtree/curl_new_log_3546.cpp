@@ -1,10 +1,11 @@
 fputs(
-"              If  this  option  is  used  multiple  times, the last occurrence\n"
-"              decide the amount.\n"
+"              Redirect  all writes to stderr to the specified file instead. If\n"
+"              the file name is a plain '-', it is instead written  to  stdout.\n"
+"              This  option  has no point when you're using a shell with decent\n"
+"              redirecting capabilities.\n"
 "\n"
-"       --retry-delay <seconds>\n"
-"              Make curl sleep this amount of time between each  retry  when  a\n"
-"              transfer  has  failed  with  a  transient  error (it changes the\n"
-"              default backoff time algorithm between retries). This option  is\n"
-"              only  interesting if --retry is also used. Setting this delay to\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --tcp-nodelay\n"
+"              Turn  on the TCP_NODELAY option. See the curl_easy_setopt(3) man\n"
 , stdout);

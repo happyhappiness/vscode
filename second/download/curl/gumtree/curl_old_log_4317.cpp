@@ -1,12 +1,8 @@
 fputs(
-"                     mands. This is the fastest behavior.\n"
-"\n"
-"              singlecwd\n"
-"                     curl does one CWD with the full target directory and then\n"
-"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
-"                     case). This is somewhat  more  standards  compliant  than\n"
-"                     'nocwd' but without the full penalty of 'multicwd'.\n"
-"       (Added in 7.15.1)\n"
-"\n"
-"       --ftp-pasv\n"
+"              This enables uploading of binary files etc. To force  the  'con-\n"
+"              tent' part to be a file, prefix the file name with an @ sign. To\n"
+"              just get the content part from a file, prefix the file name with\n"
+"              the  symbol  <.  The  difference  between @ and < is then that @\n"
+"              makes a file get attached in the post as a  file  upload,  while\n"
+"              the < makes a text field and just get the contents for that text\n"
 , stdout);

@@ -1,9 +1,12 @@
 fputs(
-"              The  given  rate  is the average speed counted during the entire\n"
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
-"              If  you  also use the -Y, --speed-limit option, that option will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
+"              home directory.\n"
 "\n"
+"              A  quick  and  very  simple  example of how to setup a .netrc to\n"
+"              allow curl to FTP to the machine host.domain.com with user  name\n"
+"              'myself' and password 'secret' should look similar to:\n"
+"\n"
+"              machine host.domain.com login myself password secret\n"
+"\n"
+"       -N, --no-buffer\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
 , stdout);

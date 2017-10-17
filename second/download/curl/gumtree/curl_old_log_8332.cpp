@@ -1,11 +1,11 @@
 fputs(
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code was any other 3xx code, curl  will  re-send  the  following\n"
-"              request using the same unmodified method.\n"
+"              the file requested is larger than this value, the transfer  will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"       --libcurl <file>\n"
-"              Append  this  option  to any ordinary curl command line, and you\n"
-"              will get a libcurl-using C source code written to the file  that\n"
-"              does the equivalent of what your command-line operation does!\n"
+"              NOTE:  The  file size is not always known prior to download, and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer  ends  up  being larger than this given limit. This concerns\n"
+"              both FTP and HTTP transfers.\n"
 "\n"
+"       --mail-rcpt <address>\n"
 , stdout);

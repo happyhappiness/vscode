@@ -1,9 +1,12 @@
 fputs(
-"              Defines what to display on stdout after a completed and success-\n"
-"              ful  operation.  The  format  is a string that may contain plain\n"
-"              text mixed with any number of variables. The string can be spec-\n"
-"              ified  as \"string\", to get read from a particular file you spec-\n"
-"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
-"              stdin you write \"@-\".\n"
+"              size_upload    The total amount of bytes that were uploaded.\n"
 "\n"
+"              speed_download The average download speed that curl measured for\n"
+"                             the complete download. Bytes per second.\n"
+"\n"
+"              speed_upload   The average upload speed that curl  measured  for\n"
+"                             the complete upload. Bytes per second.\n"
+"\n"
+"              ssl_verify_result\n"
+"                             The  result of the SSL peer certificate verifica-\n"
 , stdout);

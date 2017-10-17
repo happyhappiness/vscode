@@ -1,11 +1,11 @@
 fputs(
-"              Append  this  option  to any ordinary curl command line, and you\n"
-"              will get a libcurl-using C source code written to the file  that\n"
-"              does the equivalent of what your command-line operation does!\n"
+"              fer  ends  up  being larger than this given limit. This concerns\n"
+"              both FTP and HTTP transfers.\n"
 "\n"
-"              If  this  option is used several times, the last given file name\n"
-"              will be used. (Added in 7.16.1)\n"
+"       --mail-rcpt <address>\n"
+"              (SMTP) Specify a single address, user name or mailing list name.\n"
+"              When performing a mail transfer, the recipient should specify  a\n"
+"              valid email address to send the mail to. (Added in 7.20.0)\n"
 "\n"
-"       --limit-rate <speed>\n"
-"              Specify the maximum transfer rate you want  curl  to  use.  This\n"
+"              When  performing  an  address  verification  (VRFY command), the\n"
 , stdout);

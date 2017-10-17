@@ -1,12 +1,9 @@
 fputs(
-"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
-"              of PASV.\n"
+"              should  not  replace internally set headers without knowing per-\n"
+"              fectly well what you're doing. Remove an internal header by giv-\n"
+"              ing  a  replacement  without  content  on  the right side of the\n"
+"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
+"              value  then its header must be terminated with a semicolon, such\n"
+"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
 "\n"
-"       --ftp-pret\n"
-"              (FTP)  Tell  curl to send a PRET command before PASV (and EPSV).\n"
-"              Certain FTP servers, mainly drftpd,  require  this  non-standard\n"
-"              command  for  directory  listings as well as up and downloads in\n"
-"              PASV mode.  (Added in 7.20.x)\n"
-"\n"
-"       --ftp-ssl-ccc\n"
 , stdout);

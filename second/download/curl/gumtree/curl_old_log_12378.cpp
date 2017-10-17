@@ -1,9 +1,10 @@
 fputs(
-"              --data,  --data-binary or --data-urlencode to be used in an HTTP\n"
-"              GET request instead of the POST request that otherwise would  be\n"
-"              used. The data will be appended to the URL with a '?' separator.\n"
-"              If  used  in  combination with -I, the POST data will instead be\n"
-"              appended to the URL with a HEAD request.\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the  command  HEAD which this uses to get nothing but the header\n"
+"              of a document. When used on an FTP or FILE file,  curl  displays\n"
+"              the file size and last modification time only.\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
+"       --interface <name>\n"
+"              Perform  an operation using a specified interface. You can enter\n"
+"              interface name, IP address or host name. An example  could  look\n"
 , stdout);

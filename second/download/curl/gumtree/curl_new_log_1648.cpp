@@ -1,11 +1,11 @@
 fputs(
-"              url_effective  The URL that was fetched  last.  This  is  mostly\n"
-"                             meaningful  if  you've  told curl to follow loca-\n"
-"                             tion: headers.\n"
+"              proxy to use. If  there's  an  environment  variable  setting  a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              http_code      The numerical code that was  found  in  the  last\n"
-"                             retrieved HTTP(S) page.\n"
+"              Note  that  all  operations that are performed over a HTTP proxy\n"
+"              will transparently be converted to HTTP. It means  that  certain\n"
+"              protocol specific operations might not be available. This is not\n"
+"              the case if you can tunnel through the proxy, as done  with  the\n"
+"              -p/--proxytunnel option.\n"
 "\n"
-"              http_connect   The  numerical  code  that  was found in the last\n"
-"                             response  (from  a  proxy)  to  a  curl   CONNECT\n"
 , stdout);

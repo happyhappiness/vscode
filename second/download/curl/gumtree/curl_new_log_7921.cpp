@@ -1,10 +1,9 @@
 fputs(
-"                             This is only meaningful if curl is told to  write\n"
-"                             to  a  file  with  the  --remote-name or --output\n"
-"                             option. It's most useful in combination with  the\n"
-"                             --remote-header-name option. (Added in 7.25.1)\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the file transfer was just about to  begin.\n"
+"                             This includes all pre-transfer commands and nego-\n"
+"                             tiations that are specific to the particular pro-\n"
+"                             tocol(s) involved.\n"
 "\n"
-"              ftp_entry_path The initial path curl ended up in when logging on\n"
-"                             to the remote FTP server. (Added in 7.15.4)\n"
-"\n"
+"              time_redirect  The time, in seconds, it took for all redirection\n"
 , stdout);

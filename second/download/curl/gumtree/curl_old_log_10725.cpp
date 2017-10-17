@@ -1,10 +1,9 @@
 fputs(
-"                             steps  include  name lookup, connect, pretransfer\n"
-"                             and transfer before  the  final  transaction  was\n"
-"                             started.  time_redirect shows the complete execu-\n"
-"                             tion time for multiple  redirections.  (Added  in\n"
-"                             7.12.3)\n"
+"              request, it does not alter the way curl behaves. So for  example\n"
+"              if  you  want  to make a proper HEAD request, using -X HEAD will\n"
+"              not suffice. You need to use the -I, --head option.\n"
 "\n"
-"              time_starttransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
+"              The the method string you set with  -X  will  be  used  for  all\n"
+"              requests,  which if you for example use -L, --location may cause\n"
+"              unintended side-effects when curl doesn't change request  method\n"
 , stdout);

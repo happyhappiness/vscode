@@ -1,10 +1,9 @@
 fputs(
-"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
-"              the  conversion  by  default to maintain consistency. However, a\n"
-"              server may requires a POST to remain a POST after such  a  redi-\n"
-"              rection. This option is meaningful only when using -L/--location\n"
-"              (Added in 7.17.1)\n"
+"                             until  the  file transfer is just about to begin.\n"
+"                             This includes all pre-transfer commands and nego-\n"
+"                             tiations that are specific to the particular pro-\n"
+"                             tocol(s) involved.\n"
 "\n"
-"       --proxy-anyauth\n"
-"              Tells curl to pick a suitable authentication method when  commu-\n"
+"              time_redirect  The time, in seconds, it took for all redirection\n"
+"                             steps  include  name lookup, connect, pretransfer\n"
 , stdout);

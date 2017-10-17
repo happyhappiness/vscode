@@ -1,1 +1,0 @@
-fputs(ptr, config->global->errors);

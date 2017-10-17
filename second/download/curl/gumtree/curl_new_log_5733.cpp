@@ -1,10 +1,10 @@
 fputs(
-"  If the server for example, is behind a firewall that don't allow connections\n"
-"  on other ports than 21 (or if it just doesn't support the PASV command), the\n"
-"  other way to do it is to use the PORT command and instruct the server to\n"
-"  connect to the client on the given (as parameters to the PORT command) IP\n"
-"  number and port.\n"
+"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
+"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
+"  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
+"  path the \"cookie\" should be used for (by specifying \"path=value\"), when the\n"
+"  cookie should expire (\"expire=DATE\"), for what domain to use it\n"
+"  (\"domain=NAME\") and if it should be used on secure connections only\n"
+"  (\"secure\").\n"
 "\n"
-"  The -P flag to curl supports a few different options. Your machine may have\n"
-"  several IP-addresses and/or network interfaces and curl allows you to select\n"
 , stdout);

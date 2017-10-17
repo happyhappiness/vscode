@@ -1,9 +1,10 @@
 fputs(
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default config file and uses it if  found.  The  default  config\n"
-"              file is checked for in the following places in this order:\n"
+"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
+"              scarce resource that will be busy at times so setting this range\n"
+"              to something too narrow might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
 "\n"
-"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it  uses getpwuid() on UNIX-like systems (which returns the home\n"
+"       -L/--location\n"
+"              (HTTP/HTTPS)  If  the server reports that the requested page has\n"
+"              moved to a different location (indicated with a Location: header\n"
 , stdout);

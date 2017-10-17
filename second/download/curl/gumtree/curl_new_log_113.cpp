@@ -1,11 +1,9 @@
 puts(
-"              -L/--location  option.  The file format of the file\n"
-"              to read cookies from should be plain  HTTP  headers\n"
-"              or the Netscape/Mozilla cookie file format.\n"
-"\n"
-"              NOTE  that  the  file specified with -b/--cookie is\n"
-"              only used as input. No cookies will  be  stored  in\n"
-"              the  file.  To store cookies, save the HTTP headers\n"
-"              to a file using -D/--dump-header!\n"
-"\n"
+"              to the HTTP server, in a way that can emulate as if\n"
+"              a user has filled in a HTML form  and  pressed  the\n"
+"              submit  button.  Note that the data is sent exactly\n"
+"              as specified with no  extra  processing  (with  all\n"
+"              newlines  cut  off).   The  data  is expected to be\n"
+"              \"url-encoded\". This will cause  curl  to  pass  the\n"
+"              data  to the server using the content-type applica-\n"
 );

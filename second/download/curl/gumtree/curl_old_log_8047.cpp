@@ -1,11 +1,11 @@
 fputs(
-"              Maximum  time  in  seconds  that you allow the connection to the\n"
-"              server to take.  This only limits  the  connection  phase,  once\n"
-"              curl  has  connected this option is of no more use. See also the\n"
-"              -m, --max-time option.\n"
+"              does, except that newlines are  preserved  and  conversions  are\n"
+"              never done.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              If  this  option  is  used several times, the ones following the\n"
+"              first will append data as described in -d, --data.\n"
 "\n"
-"       --create-dirs\n"
-"              When used in conjunction with the -o option,  curl  will  create\n"
+"       --data-urlencode <data>\n"
+"              (HTTP) This posts data, similar to the other --data options with\n"
+"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
 , stdout);

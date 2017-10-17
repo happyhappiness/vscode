@@ -1,10 +1,12 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"       21     FTP quote error. A quote command returned error from the server.\n"
+"       22     HTTP page not retrieved. The requested  url  was  not  found  or\n"
+"              returned  another  error  with  the HTTP error code being 400 or\n"
+"              above. This return code only appears if -f/--fail is used.\n"
 "\n"
-"       -y/--speed-time <time>\n"
-"              If a download is slower than speed-limit bytes per second during\n"
-"              a speed-time period, the download gets aborted. If speed-time is\n"
-"              used, the default speed-limit will be 1 unless set with -y.\n"
+"       23     Write error. Curl couldn't write data to a local  filesystem  or\n"
+"              similar.\n"
 "\n"
-"              This  option  controls  transfers  and thus will not affect slow\n"
+"       24     Malformed user. User name badly specified.\n"
+"\n"
 , stdout);

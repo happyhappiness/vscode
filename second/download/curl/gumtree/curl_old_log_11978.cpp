@@ -1,11 +1,12 @@
 fputs(
-"              Make  curl  sleep  this  amount of time before each retry when a\n"
-"              transfer has failed with  a  transient  error  (it  changes  the\n"
-"              default  backoff time algorithm between retries). This option is\n"
-"              only interesting if --retry is also used. Setting this delay  to\n"
-"              zero  will  make  curl  use the default backoff time.  (Added in\n"
-"              7.12.3)\n"
+"              are mutually exclusive.\n"
 "\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks4 proxy with -x, --proxy using a socks4:// protocol prefix.\n"
 "              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --socks4a <host[:port]>\n"
+"              Use the specified SOCKS4a proxy. If the port number is not spec-\n"
+"              ified, it is assumed at port 1080. (Added in 7.18.0)\n"
 "\n"
 , stdout);

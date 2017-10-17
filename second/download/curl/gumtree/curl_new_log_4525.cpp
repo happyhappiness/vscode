@@ -1,10 +1,10 @@
 fputs(
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              size_download  The total amount of bytes that were downloaded.\n"
+"       -y/--speed-time <time>\n"
+"              If a download is slower than speed-limit bytes per second during\n"
+"              a speed-time period, the download gets aborted. If speed-time is\n"
+"              used, the default speed-limit will be 1 unless set with -Y.\n"
 "\n"
+"              This option controls transfers and thus  will  not  affect  slow\n"
 , stdout);

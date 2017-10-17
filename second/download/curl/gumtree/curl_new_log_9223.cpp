@@ -1,11 +1,10 @@
 fputs(
-"       If this option is used several times, the last one will be used.\n"
+"              There's  no  attempt to decode %-sequences (yet) in the provided\n"
+"              file name, so this option may provide you with rather unexpected\n"
+"              file names.\n"
 "\n"
-"       -x, --proxy <[protocol://][user:password@]proxyhost[:port]>\n"
-"              Use the specified proxy.\n"
-"\n"
-"              The  proxy  string can be specified with a protocol:// prefix to\n"
-"              specify alternative proxy protocols. Use socks4://,  socks4a://,\n"
-"              socks5:// or socks5h:// to request the specific SOCKS version to\n"
-"              be used. No protocol specified, http:// and all others  will  be\n"
+"       -k, --insecure\n"
+"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
+"              SSL connections and transfers. All SSL connections are attempted\n"
+"              to  be  made secure by using the CA certificate bundle installed\n"
 , stdout);

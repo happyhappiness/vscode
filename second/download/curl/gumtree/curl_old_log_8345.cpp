@@ -1,11 +1,11 @@
 fputs(
-"              the  response  will break Metalink parser and if the headers are\n"
-"              included in the file described in Metalink file, hash check will\n"
-"              fail.\n"
+"              by default curl enables them.\n"
 "\n"
-"              (Added in 7.27.0, if built against the libmetalink library.)\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --keepalive to enforce keepalive.\n"
 "\n"
-"       -n, --netrc\n"
-"              Makes  curl  scan  the  .netrc  (_netrc  on Windows) file in the\n"
-"              user's home directory for login name and password. This is typi-\n"
+"       --no-sessionid\n"
+"              (SSL)  Disable curl's use of SSL session-ID caching.  By default\n"
+"              all transfers are done using the cache. Note that while  nothing\n"
+"              should  ever  get  hurt  by attempting to reuse SSL session-IDs,\n"
 , stdout);

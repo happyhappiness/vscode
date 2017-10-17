@@ -1,11 +1,10 @@
 fputs(
-"              backslash  preceding  any  other letter is ignored. If the first\n"
-"              column of a config line is a '#' character, the rest of the line\n"
-"              will be treated as a comment. Only write one option per physical\n"
-"              line in the config file.\n"
+"              NLST; they do not include sub-directories and symbolic links.\n"
 "\n"
-"              Specify the filename to -K, --config as '-' to  make  curl  read\n"
-"              the file from stdin.\n"
+"              (POP3)  When  retrieving a specific email from POP3, this switch\n"
+"              forces a LIST command to be performed instead of RETR.  This  is\n"
+"              particularly  useful if the user wants to see if a specific mes-\n"
+"              sage id exists on the server and what size it is.\n"
 "\n"
-"              Note  that  to  be able to specify a URL in the config file, you\n"
+"              Note: When combined with -X, --request  <command>,  this  option\n"
 , stdout);

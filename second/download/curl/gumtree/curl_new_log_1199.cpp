@@ -1,12 +1,9 @@
 fputs(
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              \"@filename\" and to tell curl to read the format from  stdin  you\n"
+"              write \"@-\".\n"
 "\n"
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only shows the ASCII part of the dump. It makes  smaller  output\n"
-"              that might be easier to read for untrained humans.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"              (Added in 7.9.7)\n"
-"\n"
+"              The  variables  present in the output format will be substituted\n"
+"              by the value or text that curl thinks fit, as  described  below.\n"
+"              All  variables are specified like %{variable_name} and to output\n"
+"              a normal % you just write them like %%. You can output a newline\n"
 , stdout);

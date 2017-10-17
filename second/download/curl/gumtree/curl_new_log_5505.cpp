@@ -1,10 +1,11 @@
 fputs(
-"              socket. The socket is used to seed the  random  engine  for  SSL\n"
-"              connections. See also the --random-file option.\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"       -E/--cert <certificate[:password]>\n"
-"              (SSL) Tells curl to use the specified certificate file when get-\n"
-"              ting a file with HTTPS or FTPS. The certificate must be  in  PEM\n"
-"              format.   If  the  optional password isn't specified, it will be\n"
-"              queried for on the terminal. Note that  this  option  assumes  a\n"
+"              This method is not fail-safe and there are occasions where  non-\n"
+"              successful  response  codes  will  slip through, especially when\n"
+"              authentication is involved (response codes 401 and 407).\n"
+"\n"
+"       --ftp-account [data]\n"
+"              (FTP) When an FTP server asks for \"account data\" after user name\n"
+"              and  password has been provided, this data is sent off using the\n"
 , stdout);

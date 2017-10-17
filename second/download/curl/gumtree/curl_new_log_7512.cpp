@@ -1,10 +1,11 @@
 fputs(
-"  If the server for example, is behind a firewall that don't allow connections\n"
-"  on other ports than 21 (or if it just doesn't support the PASV command), the\n"
-"  other way to do it is to use the PORT command and instruct the server to\n"
-"  connect to the client on the given (as parameters to the PORT command) IP\n"
-"  number and port.\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
+"              uations, curl will use a standard buffered  output  stream  that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily exactly when the data arrives.   Using  this  option\n"
+"              will disable that buffering.\n"
 "\n"
-"  The -P flag to curl supports a few different options. Your machine may have\n"
-"  several IP-addresses and/or network interfaces and curl allows you to select\n"
+"              Note  that  this  is the negated option name documented. You can\n"
+"              thus use --buffer to enforce the buffering.\n"
+"\n"
 , stdout);

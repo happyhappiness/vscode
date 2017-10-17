@@ -1,9 +1,12 @@
 fputs(
-"              If this option is set, the default capath value will be ignored,\n"
-"              and if it is used several times, the last one will be used.\n"
+"              that @ makes a file get attached in the post as a  file  upload,\n"
+"              while  the  <  makes  a text field and just get the contents for\n"
+"              that text field from a file.\n"
 "\n"
-"       --pinnedpubkey <pinned public key (hashes)>\n"
-"              (SSL) Tells curl to  use  the  specified  public  key  file  (or\n"
-"              hashes)  to  verify the peer. This can be a path to a file which\n"
-"              contains a single public key in PEM or DER format, or any number\n"
+"              Example, to send your password file to the server, where  'pass-\n"
+"              word' is the name of the form-field to which /etc/passwd will be\n"
+"              the input:\n"
+"\n"
+"              curl -F password=@/etc/passwd www.mypasswords.com\n"
+"\n"
 , stdout);

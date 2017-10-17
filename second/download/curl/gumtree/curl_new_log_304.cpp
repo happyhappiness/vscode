@@ -1,15 +1,15 @@
-puts(
-"  only readable by yourself (curl doesn't care though).\n"
+fputs(
+"       ing zeros)\n"
+"        ftp://ftp.letters.com/file[a-z].txt\n"
 "\n"
-"  Curl supports .netrc files if told so (using the -n/--netrc and\n"
-"  --netrc-optional options). This is not restricted to only ftp,\n"
-"  but curl can use it for all protocols where authentication is used.\n"
+"       No nesting of the sequences is supported at the moment:\n"
 "\n"
-"  A very simple .netrc file could look something like:\n"
+"        http://www.any.org/archive[1996-1999]/vol-\n"
+"       ume[1-4]part{a,b,c,index}.html\n"
 "\n"
-"        machine curl.haxx.se login iamdaniel password mysecret\n"
+"       You can specify any amount of URLs on  the  command  line.\n"
+"       They  will be fetched in a sequential manner in the speci-\n"
+"       fied order.\n"
 "\n"
-"CUSTOM OUTPUT\n"
-"\n"
-"  To better allow script programmers to get to know about the progress of\n"
-);
+"       Curl will attempt to re-use connections for multiple  file\n"
+, stdout);

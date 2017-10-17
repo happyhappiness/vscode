@@ -1,12 +1,9 @@
 fputs(
-"              the case if you can tunnel through the proxy, as done  with  the\n"
-"              -p/--proxytunnel option.\n"
+"              munication  will be unencrypted. This allows NAT routers to fol-\n"
+"              low the FTP transaction. The default mode is passive. See --ftp-\n"
+"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
 "\n"
-"              Starting  with 7.14.1, the proxy host can be specified the exact\n"
-"              same way as the proxy environment variables, including the  pro-\n"
-"              tocol prefix (http://) and the embedded user + password.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -X/--request <command>\n"
+"       --ftp-ssl-ccc-mode [active/passive]\n"
+"              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
+"              passive mode will not initiate the shutdown,  but  instead  wait\n"
 , stdout);

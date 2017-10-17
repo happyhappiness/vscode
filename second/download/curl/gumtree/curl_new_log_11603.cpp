@@ -1,12 +1,11 @@
 fputs(
-"              url_effective  The URL that was fetched last. This is most mean-\n"
-"                             ingful  if  you've  told curl to follow location:\n"
-"                             headers.\n"
+"              VRFY. (Added in 7.34.0)\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -x, --proxy <[protocol://][user:password@]proxyhost[:port]>\n"
-"              Use the specified proxy.\n"
-"\n"
-"              The proxy string can be specified with a protocol://  prefix  to\n"
+"       --xattr\n"
+"              When saving output to a file, this option tells  curl  to  store\n"
+"              certain  file  metadata  in extended file attributes. Currently,\n"
+"              the URL is stored in the xdg.origin.url attribute and, for HTTP,\n"
+"              the  content  type  is stored in the mime_type attribute. If the\n"
 , stdout);

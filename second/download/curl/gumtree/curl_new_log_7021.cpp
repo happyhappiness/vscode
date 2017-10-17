@@ -1,10 +1,12 @@
 fputs(
-"              stdin you write \"@-\".\n"
+"              size_header    The total amount of bytes of the downloaded head-\n"
+"                             ers.\n"
 "\n"
-"              The variables present in the output format will  be  substituted\n"
-"              by  the  value or text that curl thinks fit, as described below.\n"
-"              All variables are specified as %{variable_name} and to output  a\n"
-"              normal  % you just write them as %%. You can output a newline by\n"
-"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
+"              size_request   The total amount of bytes that were sent  in  the\n"
+"                             HTTP request.\n"
 "\n"
+"              speed_download The average download speed that curl measured for\n"
+"                             the complete download. Bytes per second.\n"
+"\n"
+"              speed_upload   The average upload speed that curl  measured  for\n"
 , stdout);

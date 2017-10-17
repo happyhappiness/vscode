@@ -1,11 +1,11 @@
 fputs(
+"              ple and implemented in curl based on their efforts. This kind of\n"
+"              behavior should not be endorsed, you should  encourage  everyone\n"
+"              who  uses  NTLM to switch to a public and documented authentica-\n"
+"              tion method instead. Such as Digest. (Added in 7.10.6)\n"
 "\n"
-"       --max-filesize <bytes>\n"
-"              Specify  the  maximum  size (in bytes) of a file to download. If\n"
-"              the file requested is larger than this value, the transfer  will\n"
-"              not start and curl will return with exit code 63.\n"
+"              If you want to enable NTLM for your proxy  authentication,  then\n"
+"              use --proxy-ntlm.\n"
 "\n"
-"              NOTE:  The  file size is not always known prior to download, and\n"
-"              for such files this option has no effect even if the file trans-\n"
-"              fer  ends  up  being larger than this given limit. This concerns\n"
+"              This  option  requiures that the library was built with SSL sup-\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              is plaintext in the case of HTTP Basic authentication).\n"
+"              operation  will  be aborted. You must send syntactically correct\n"
+"              FTP commands as RFC959 defines to FTP servers,  or  one  of  the\n"
+"              commands  listed below to SFTP servers.  This option can be used\n"
+"              multiple times.\n"
 "\n"
-"       --max-filesize <bytes>\n"
-"              Specify  the  maximum  size (in bytes) of a file to download. If\n"
-"              the file requested is larger than this value, the transfer  will\n"
-"              not start and curl will return with exit code 63.\n"
+"              SFTP is a binary protocol. Unlike for  FTP,  libcurl  interprets\n"
+"              SFTP  quote commands before sending them to the server.  Follow-\n"
+"              ing is the list of all supported SFTP quote commands:\n"
 "\n"
-"              NOTE:  The  file size is not always known prior to download, and\n"
-"              for such files this option has no effect even if the file trans-\n"
 , stdout);

@@ -1,0 +1,15 @@
+puts(
+"  1. Send multiple files in a single \"field\" with a single field name:\n"
+" \n"
+"        curl -F \"pictures=@dog.gif,cat.gif\" \n"
+" \n"
+"  2. Send two fields with two field names: \n"
+"\n"
+"        curl -F \"docpicture=@dog.gif\" -F \"catpicture=@cat.gif\" \n"
+"\n"
+"REFERRER\n"
+"\n"
+"  A HTTP request has the option to include information about which address\n"
+"  that referred to actual page.  Curl allows you to specify the\n"
+"  referrer to be used on the command line. It is especially useful to\n"
+);

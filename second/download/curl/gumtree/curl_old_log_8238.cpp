@@ -1,12 +1,9 @@
 fputs(
-"              (RISC  OS ONLY) Sets a range of environment variables, using the\n"
-"              names the -w option supports, to allow easier extraction of use-\n"
-"              ful information after having run curl.\n"
+"              'content'  part  to  be  a  file, prefix the file name with an @\n"
+"              sign. To just get the content part from a file, prefix the  file\n"
+"              name  with  the symbol <. The difference between @ and < is then\n"
+"              that @ makes a file get attached in the post as a  file  upload,\n"
+"              while  the  <  makes  a text field and just get the contents for\n"
+"              that text field from a file.\n"
 "\n"
-"       --egd-file <file>\n"
-"              (SSL)  Specify  the  path  name  to the Entropy Gathering Daemon\n"
-"              socket. The socket is used to seed the  random  engine  for  SSL\n"
-"              connections. See also the --random-file option.\n"
-"\n"
-"       --cert-type <type>\n"
 , stdout);

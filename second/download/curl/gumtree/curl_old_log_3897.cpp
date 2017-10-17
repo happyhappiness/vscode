@@ -1,11 +1,11 @@
 fputs(
-"              If  you  use an SSPI-enabled curl binary and do NTLM authentica-\n"
-"              tion, you can force curl to pick up the user name  and  password\n"
-"              from  your  environment by simply specifying a single colon with\n"
-"              this option: \"-U :\".\n"
+"              Available variables are at this point:\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              url_effective  The URL that was fetched  last.  This  is  mostly\n"
+"                             meaningful  if  you've  told curl to follow loca-\n"
+"                             tion: headers.\n"
 "\n"
-"       --url <URL>\n"
-"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
+"              http_code      The numerical response code that was found in the\n"
+"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
+"                             7.18.2 the alias response_code was added to  show\n"
 , stdout);

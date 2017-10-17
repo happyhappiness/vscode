@@ -1,35 +1,58 @@
-bool tool_create_output_file(struct OutStruct *outs)
+void dumpeasysrc(struct GlobalConfig *config)
 {
-  struct GlobalConfig *global = outs->config->global;
-  FILE *file;
+  struct curl_slist *ptr;
+  char *o = config->libcurl;
 
-  if(!outs->filename || !*outs->filename) {
-    warnf(global, "Remote filename has no length!\n");
-    return FALSE;
-  }
+  if(o) {
+    FILE *out;
+    bool fopened = FALSE;
+    if(strcmp(o, "-")) {
+      out = fopen(o, "w");
+      fopened = TRUE;
+    }
+    else
+      out = stdout;
+    if(!out)
+      warnf(config->current, "Failed to open %s to write libcurl code!\n", o);
+    else {
+      int i;
+      const char *c;
 
-  if(outs->is_cd_filename) {
-    /* don't overwrite existing files */
-    file = fopen(outs->filename, "rb");
-    if(file) {
-      fclose(file);
-      warnf(global, "Refusing to overwrite %s: %s\n", outs->filename,
-            strerror(EEXIST));
-      return FALSE;
+      for(i=0; ((c = srchead[i]) != NULL); i++)
+        fprintf(out, "%s\n", c);
+
+      /* Declare variables used for complex setopt values */
+      for(ptr=easysrc_decl; ptr; ptr = ptr->next)
+        fprintf(out, "  %s\n", ptr->data);
+
+      /* Set up complex values for setopt calls */
+      if(easysrc_data) {
+        fprintf(out, "\n");
+
+        for(ptr=easysrc_data; ptr; ptr = ptr->next)
+          fprintf(out, "  %s\n", ptr->data);
+      }
+
+      fprintf(out, "\n");
+      for(ptr=easysrc_code; ptr; ptr = ptr->next) {
+        if(ptr->data[0]) {
+          fprintf(out, "  %s\n", ptr->data);
+        }
+        else {
+          fprintf(out, "\n");
+        }
+      }
+
+      for(ptr=easysrc_clean; ptr; ptr = ptr->next)
+        fprintf(out, "  %s\n", ptr->data);
+
+      for(i=0; ((c = srcend[i]) != NULL); i++)
+        fprintf(out, "%s\n", c);
+
+      if(fopened)
+        fclose(out);
     }
   }
 
-  /* open file for writing */
-  file = fopen(outs->filename, "wb");
-  if(!file) {
-    warnf(global, "Failed to create the file %s: %s\n", outs->filename,
-          strerror(errno));
-    return FALSE;
-  }
-  outs->s_isreg = TRUE;
-  outs->fopened = TRUE;
-  outs->stream = file;
-  outs->bytes = 0;
-  outs->init = 0;
-  return TRUE;
+  easysrc_free();
 }

@@ -1,12 +1,9 @@
 fputs(
-"              NSS  ciphers  are  done differently than OpenSSL and GnuTLS. The\n"
-"              full list of NSS ciphers is in the NSSCipherSuite entry at  this\n"
-"              URL: http://directory.fedora.redhat.com/docs/mod_nss.html#Direc-\n"
-"              tives\n"
+"              (HTTP) Sends the specified data in a POST request  to  the  HTTP\n"
+"              server,  in  the  same  way  that a browser does when a user has\n"
+"              filled in an HTML form and presses the submit button. This  will\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F/--form.\n"
 "\n"
-"              If this option is used several times, the last one will override\n"
-"              the others.\n"
-"\n"
-"       --compressed\n"
-"              (HTTP) Request a compressed response using one of the algorithms\n"
+"              -d/--data is the same  as  --data-ascii.  To  post  data  purely\n"
 , stdout);

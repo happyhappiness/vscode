@@ -1,11 +1,10 @@
 fputs(
-"  on other ports than 21 (or if it just doesn't support the PASV command), the\n"
-"  other way to do it is to use the PORT command and instruct the server to\n"
-"  connect to the client on the given (as parameters to the PORT command) IP\n"
-"  number and port.\n"
+"              scarce resource that will be busy at times so setting this range\n"
+"              to something too narrow might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
 "\n"
-"  The -P flag to curl supports a few different options. Your machine may have\n"
-"  several IP-addresses and/or network interfaces and curl allows you to select\n"
-"  which of them to use. Default address can also be used:\n"
-"\n"
+"       --location-trusted\n"
+"              (HTTP/HTTPS) Like -L, --location, but  will  allow  sending  the\n"
+"              name + password to all hosts that the site may redirect to. This\n"
+"              may or may not introduce a security breach if the site redirects\n"
 , stdout);

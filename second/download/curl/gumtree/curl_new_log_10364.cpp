@@ -1,9 +1,12 @@
 fputs(
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It  is a proprietary protocol, reverse-engineered by clever peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior  should  not be endorsed, you should encourage everyone\n"
+"              Headers  specified  with  this  option  will  not be included in\n"
+"              requests that curl knows will not be sent to a proxy.\n"
+"\n"
+"              This option can be used  multiple  times  to  add/replace/remove\n"
+"              multiple headers.\n"
+"              (Added in 7.37.0)\n"
+"       -p, --proxytunnel\n"
 , stdout);

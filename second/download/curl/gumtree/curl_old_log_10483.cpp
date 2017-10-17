@@ -1,9 +1,12 @@
 fputs(
-"              should not replace internally set headers without  knowing  per-\n"
-"              fectly well what you're doing. Remove an internal header by giv-\n"
-"              ing a replacement without content  on  the  right  side  of  the\n"
-"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
-"              value then its header must be terminated with a semicolon,  such\n"
-"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
+"              file name, so this option may provide you with rather unexpected\n"
+"              file names.\n"
+"\n"
+"       -k, --insecure\n"
+"              (SSL) This option explicitly allows curl to  perform  \"insecure\"\n"
+"              SSL connections and transfers. All SSL connections are attempted\n"
+"              to be made secure by using the CA certificate  bundle  installed\n"
+"              by  default.  This  makes  all connections considered \"insecure\"\n"
+"              fail unless -k, --insecure is used.\n"
 "\n"
 , stdout);

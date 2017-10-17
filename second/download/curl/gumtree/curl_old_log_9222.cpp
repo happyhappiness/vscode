@@ -1,11 +1,11 @@
 fputs(
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"              Typical browsers always discard  session  cookies  when  they're\n"
+"              closed down.\n"
 "\n"
-"              time_total     The  total time, in seconds, that the full opera-\n"
-"                             tion lasted. The time will be displayed with mil-\n"
-"                             lisecond resolution.\n"
+"       -J, --remote-header-name\n"
+"              (HTTP) This option tells the -O, --remote-name option to use the\n"
+"              server-specified   Content-Disposition   filename   instead   of\n"
+"              extracting a filename from the URL.\n"
 "\n"
-"              url_effective  The URL that was fetched last. This is most mean-\n"
-"                             ingful if you've told curl  to  follow  location:\n"
+"              There's  no  attempt to decode %-sequences (yet) in the provided\n"
 , stdout);

@@ -1,11 +1,9 @@
 fputs(
-"                             until  the first byte was just about to be trans-\n"
-"                             ferred. This includes time_pretransfer  and  also\n"
-"                             the  time  the  server  needed  to  calculate the\n"
-"                             result.\n"
+"              sign.  Long  option  names can optionally be given in the config\n"
+"              file without the initial double dashes and if so, the  colon  or\n"
+"              equals  characters  can  be used as separators. If the option is\n"
+"              specified with one or two dashes,  there  can  be  no  colon  or\n"
+"              equals character between the option and its parameter.\n"
 "\n"
-"              time_total     The total time, in seconds, that the full  opera-\n"
-"                             tion lasted. The time will be displayed with mil-\n"
-"                             lisecond resolution.\n"
-"\n"
+"              If the parameter is to contain whitespace, the parameter must be\n"
 , stdout);

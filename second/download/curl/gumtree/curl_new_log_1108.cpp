@@ -1,11 +1,11 @@
 fputs(
-"              to the target file  instead  of  overwriting  it.  If  the  file\n"
-"              doesn't exist, it will be created.\n"
+"              (SSL) Specifies which ciphers to use in the connection. The list\n"
+"              of ciphers must be using valid ciphers. Read up  on  SSL  cipher\n"
+"              list           details           on           this          URL:\n"
+"              http://www.openssl.org/docs/apps/ciphers.html\n"
 "\n"
-"              If this option is used twice, the second one will disable append\n"
-"              mode again.\n"
+"              If this option is used several times, the last one will override\n"
+"              the others.\n"
 "\n"
-"       -A/--user-agent <agent string>\n"
-"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
-"              Some  badly  done CGIs fail if its not set to \"Mozilla/4.0\".  To\n"
+"       --compressed\n"
 , stdout);

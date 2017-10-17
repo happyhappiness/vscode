@@ -1,11 +1,11 @@
 fputs(
-"              This option is handy to use when you want to store  the  headers\n"
-"              that  an  HTTP site sends to you. Cookies from the headers could\n"
-"              then be read in a  second  curl  invocation  by  using  the  -b,\n"
-"              --cookie option! The -c, --cookie-jar option is however a better\n"
-"              way to store cookies.\n"
+"              -u,  --user  option  to  set  user  name  and password. See also\n"
+"              --ntlm, --negotiate and --anyauth for related options.\n"
 "\n"
-"              When used in FTP, the FTP server response lines  are  considered\n"
-"              being \"headers\" and thus are saved there.\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.\n"
 "\n"
+"       --disable-eprt\n"
+"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
+"              when doing active FTP transfers. Curl will normally always first\n"
 , stdout);

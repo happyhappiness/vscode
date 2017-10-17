@@ -1,10 +1,11 @@
 fputs(
-"                             started. time_redirect shows the complete  execu-\n"
-"                             tion  time  for  multiple redirections. (Added in\n"
-"                             7.12.3)\n"
+"              with -Y and is 30 if not set.\n"
 "\n"
-"              time_starttransfer\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
-"                             until  the  first byte is just about to be trans-\n"
-"                             ferred. This includes time_pretransfer  and  also\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -z/--time-cond <date expression>\n"
+"              (HTTP) Request a file that has  been  modified  later  than  the\n"
+"              given  time  and date, or one that has been modified before that\n"
+"              time. The date expression can be all sorts of date strings or if\n"
+"              it  doesn't  match  any  internal ones, it tries to get the time\n"
 , stdout);

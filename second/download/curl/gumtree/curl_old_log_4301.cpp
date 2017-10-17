@@ -1,11 +1,11 @@
 fputs(
-"              Since curl 7.19.0, --epsv can be used to explicitly enable  EPRT\n"
-"              again and --no-epsv is an alias for --disable-epsv.\n"
+"              use a default file for this, so this option is typically used to\n"
+"              alter that default file.\n"
 "\n"
-"       -D/--dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
+"              curl recognizes the environment variable named  'CURL_CA_BUNDLE'\n"
+"              if  it  is  set,  and uses the given path as a path to a CA cert\n"
+"              bundle. This option overrides that variable.\n"
 "\n"
-"              This  option  is handy to use when you want to store the headers\n"
-"              that a HTTP site sends to you. Cookies from  the  headers  could\n"
-"              then   be  read  in  a  second  curl  invocation  by  using  the\n"
+"              The windows version of curl will automatically  look  for  a  CA\n"
+"              certs  file  named  'curl-ca-bundle.crt',  either  in  the  same\n"
 , stdout);

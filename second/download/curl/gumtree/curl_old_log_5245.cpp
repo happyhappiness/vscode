@@ -1,11 +1,11 @@
 fputs(
-"  in subsequence curl invokes. Try to stuff as many URLs as possible on the\n"
-"  same command line if they are using the same host, as that'll make the\n"
-"  transfers faster. If you use a http proxy for file transfers, practically\n"
-"  all transfers will be persistent.\n"
+"              -      make  curl  pick the same IP address that is already used\n"
+"                     for the control connection\n"
 "\n"
-"MULTIPLE TRANSFERS WITH A SINGLE COMMAND LINE\n"
+"       If this option is used several times, the last one will be  used.  Dis-\n"
+"       able  the  use  of PORT with --ftp-pasv. Disable the attempt to use the\n"
+"       EPRT command instead of PORT by using --disable-eprt.  EPRT  is  really\n"
+"       PORT++.\n"
 "\n"
-"  As is mentioned above, you can download multiple files with one command line\n"
-"  by simply adding more URLs. If you want those to get saved to a local file\n"
+"       Starting in 7.19.5, you can append \":[start]-[end]\" to the right of the\n"
 , stdout);

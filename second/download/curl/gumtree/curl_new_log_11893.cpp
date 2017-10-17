@@ -1,9 +1,11 @@
 fputs(
-"              equals character between the option and its parameter.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              If the parameter is to contain whitespace, the parameter must be\n"
-"              enclosed within quotes.  Within  double  quotes,  the  following\n"
-"              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
-"              backslash preceding any other letter is ignored.  If  the  first\n"
-"              column of a config line is a '#' character, the rest of the line\n"
+"       --krb <level>\n"
+"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
+"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
+"              'private'.  Should  you  use  a  level that is not one of these,\n"
+"              'private' will instead be used.\n"
+"\n"
+"              This option requires a library  built  with  kerberos4  support.\n"
 , stdout);

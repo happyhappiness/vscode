@@ -1,11 +1,9 @@
 fputs(
-"                             remote host was completed. (Added in 7.19.0)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              time_pretransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the file transfer was just about to  begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
-"\n"
+"       -z/--time-cond <date expression>\n"
+"              (HTTP/FTP)  Request a file that has been modified later than the\n"
+"              given time and date, or one that has been modified  before  that\n"
+"              time. The date expression can be all sorts of date strings or if\n"
+"              it doesn't match any internal ones, it tries  to  get  the  time\n"
 , stdout);

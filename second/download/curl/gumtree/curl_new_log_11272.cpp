@@ -1,9 +1,12 @@
 fputs(
-"              low the FTP transaction. The default mode is passive. See --ftp-\n"
-"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
+"              socks4a  proxy with -x, --proxy using a socks4a:// protocol pre-\n"
+"              fix.\n"
 "\n"
-"       --ftp-ssl-ccc-mode [active/passive]\n"
-"              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
-"              passive mode will not initiate the shutdown,  but  instead  wait\n"
-"              for the server to do it, and will not reply to the shutdown from\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --socks5-hostname <host[:port]>\n"
+"              Use the specified SOCKS5 proxy (and let the  proxy  resolve  the\n"
+"              host  name).  If the port number is not specified, it is assumed\n"
+"              at port 1080. (Added in 7.18.0)\n"
+"\n"
 , stdout);

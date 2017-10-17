@@ -1,10 +1,9 @@
 fputs(
-"              command for directory listings as well as up  and  downloads  in\n"
-"              PASV mode.  (Added in 7.20.x)\n"
+"              colon, as in: -H \"Host:\". If you send the custom header with no-\n"
+"              value then its header must be terminated with a semicolon,  such\n"
+"              as -H \"X-Custom-Header;\" to send \"X-Custom-Header:\".\n"
 "\n"
-"       --ftp-ssl-ccc\n"
-"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
-"              munication  will be unencrypted. This allows NAT routers to fol-\n"
-"              low the FTP transaction. The default mode is passive. See --ftp-\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
 , stdout);

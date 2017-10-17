@@ -1,0 +1,15 @@
+puts(
+"          This option can be used multiple times.\n"
+"\n"
+"     -l/--list-only\n"
+"          (FTP) When listing an FTP directory, this switch forces\n"
+"          a name-only view.  Especially useful  if  you  want  to\n"
+"          machine-parse  the  contents  of an FTP directory since\n"
+"          the normal directory view doesn't use a  standard  look\n"
+"          or format.\n"
+"\n"
+"          If  this  option  is  used twice, the second will again\n"
+"          disable list only.\n"
+"\n"
+"     -L/--location\n"
+);

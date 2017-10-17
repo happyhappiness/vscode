@@ -1,1 +1,2 @@
-warnf(config->global, "curl_formadd failed!\n");
+warnf(global,
+              "--libcurl option was disabled at build-time!\n");

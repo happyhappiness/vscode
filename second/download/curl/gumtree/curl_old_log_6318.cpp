@@ -1,11 +1,11 @@
 fputs(
-"              When used in FTP, the FTP server response lines  are  considered\n"
-"              being \"headers\" and thus are saved there.\n"
+"              cessed  using  the c_rehash utility supplied with OpenSSL. Using\n"
+"              --capath can allow OpenSSL-powered curl to make  SSL-connections\n"
+"              much  more  efficiently than using --cacert if the --cacert file\n"
+"              contains many CA certificates.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -e/--referer <URL>\n"
-"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
-"              This can also be set with the -H/--header flag of course.   When\n"
-"              used  with -L/--location you can append \";auto\" to the --referer\n"
+"       -f/--fail\n"
+"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
 , stdout);

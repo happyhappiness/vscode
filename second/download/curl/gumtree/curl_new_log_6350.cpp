@@ -1,11 +1,10 @@
 fputs(
-"              See also the -A, --user-agent and -e, --referer options.\n"
+"              option will make it discard all  \"session  cookies\".  This  will\n"
+"              basically  have  the same effect as if a new session is started.\n"
+"              Typical browsers always discard  session  cookies  when  they're\n"
+"              closed down.\n"
 "\n"
-"              This  option  can  be  used multiple times to add/replace/remove\n"
-"              multiple headers.\n"
-"\n"
-"       --hostpubmd5 <md5>\n"
-"              Pass a string  containing  32  hexadecimal  digits.  The  string\n"
-"              should  be  the 128 bit MD5 checksum of the remote host's public\n"
-"              key, curl will refuse the connection with the  host  unless  the\n"
+"       -J, --remote-header-name\n"
+"              (HTTP) This option tells the -O, --remote-name option to use the\n"
+"              server-specified   Content-Disposition   filename   instead   of\n"
 , stdout);

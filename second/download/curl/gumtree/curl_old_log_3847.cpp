@@ -1,9 +1,9 @@
 fputs(
-"              The  given speed is measured in bytes/second, unless a suffix is\n"
-"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
-"              bytes,  'm'  or  M' makes it megabytes while 'g' or 'G' makes it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              Specify  the  maximum  size (in bytes) of a file to download. If\n"
+"              the file requested is larger than this value, the transfer  will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"              The given rate is the average speed, counted during  the  entire\n"
-"              transfer. It means that curl might use higher transfer speeds in\n"
+"              NOTE:  The  file size is not always known prior to download, and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer  ends  up  being larger than this given limit. This concerns\n"
 , stdout);

@@ -1,1 +1,2 @@
-warnf(config, "skip unknown form field: %s\n", unknown);
+warnf(config,
+                "--trace-ascii overrides an earlier trace/verbose option\n");

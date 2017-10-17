@@ -1,9 +1,12 @@
 fputs(
-"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
-"              stdin you write \"@-\".\n"
+"                             the complete download. Bytes per second.\n"
 "\n"
-"              The  variables  present in the output format will be substituted\n"
-"              by the value or text that curl thinks fit, as  described  below.\n"
-"              All  variables are specified as %{variable_name} and to output a\n"
-"              normal % you just write them as %%. You can output a newline  by\n"
+"              speed_upload   The average upload speed that curl  measured  for\n"
+"                             the complete upload. Bytes per second.\n"
+"\n"
+"              ssl_verify_result\n"
+"                             The  result of the SSL peer certificate verifica-\n"
+"                             tion that was requested. 0 means the verification\n"
+"                             was successful. (Added in 7.19.0)\n"
+"\n"
 , stdout);

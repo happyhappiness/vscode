@@ -1,10 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              certain  file  metadata  in extended file attributes. Currently,\n"
+"              the URL is stored in the xdg.origin.url attribute and, for HTTP,\n"
+"              the  content  type  is stored in the mime_type attribute. If the\n"
+"              file system does not support extended attributes, a  warning  is\n"
+"              issued.\n"
 "\n"
-"       -x, --proxy <[protocol://][user:password@]proxyhost[:port]>\n"
-"              Use the specified proxy.\n"
-"\n"
-"              The proxy string can be specified with a protocol://  prefix  to\n"
-"              specify  alternative proxy protocols. Use socks4://, socks4a://,\n"
-"              socks5:// or socks5h:// to request the specific SOCKS version to\n"
+"       -y, --speed-time <time>\n"
+"              If a download is slower than speed-limit bytes per second during\n"
 , stdout);

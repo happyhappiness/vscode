@@ -1,10 +1,11 @@
 fputs(
-"              Transport server over FTPS using  a  client  certificate,  using\n"
-"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
-"              the certificate. (Added in 7.15.5)\n"
+"              See further examples and details in the MANUAL.\n"
 "\n"
-"       --ftp-skip-pasv-ip\n"
-"              (FTP) Tell curl to not use the IP address the server suggests in\n"
-"              its  response to curl's PASV command when curl connects the data\n"
-"              connection. Instead curl will re-use  the  same  IP  address  it\n"
+"              This option can be used multiple times.\n"
+"\n"
+"       --form-string <name=string>\n"
+"              (HTTP)  Similar  to  --form except that the value string for the\n"
+"              named  parameter  is  used  literally.  Leading  '@'   and   '<'\n"
+"              characters, and the ';type=' string in the value have no special\n"
+"              meaning. Use this in preference to --form if there's any  possi-\n"
 , stdout);

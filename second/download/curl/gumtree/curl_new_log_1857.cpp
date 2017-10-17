@@ -1,10 +1,10 @@
 fputs(
-"              ify the peer. The file may contain multiple CA certificates. The\n"
-"              certificate(s) must be in PEM format.\n"
+"              this.\n"
 "\n"
-"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
-"              if that is set, and uses the given path as a path to a  CA  cert\n"
-"              bundle. This option overrides that variable.\n"
-"\n"
-"              The  windows  version  of  curl will automatically look for a CA\n"
+"       -F/--form <name=content>\n"
+"              (HTTP) This lets curl emulate a filled in form in which  a  user\n"
+"              has  pressed  the  submit  button. This causes curl to POST data\n"
+"              using the Content-Type multipart/form-data according to RFC1867.\n"
+"              This  enables  uploading of binary files etc. To force the 'con-\n"
+"              tent' part to be a file, prefix the file name with an @ sign. To\n"
 , stdout);

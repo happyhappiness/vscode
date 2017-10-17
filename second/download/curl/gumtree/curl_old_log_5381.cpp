@@ -1,11 +1,9 @@
 fputs(
-"              port again.\n"
+"              tent' part to be a file, prefix the file name with an @ sign. To\n"
+"              just get the content part from a file, prefix the file name with\n"
+"              the symbol <. The difference between @ and  <  is  then  that  @\n"
+"              makes  a  file  get attached in the post as a file upload, while\n"
+"              the < makes a text field and just get the contents for that text\n"
+"              field from a file.\n"
 "\n"
-"              Passive mode means that curl will try the EPSV command first and\n"
-"              then PASV, unless --disable-epsv is used.\n"
-"\n"
-"       --ftp-alternative-to-user <command>\n"
-"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
-"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
-"              Transport  server  over  FTPS  using a client certificate, using\n"
 , stdout);

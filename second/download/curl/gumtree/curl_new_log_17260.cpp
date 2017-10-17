@@ -1,0 +1,1 @@
+Curl_failf(data, "Bad checksum returned from server");

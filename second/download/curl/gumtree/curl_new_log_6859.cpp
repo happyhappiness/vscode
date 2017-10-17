@@ -1,9 +1,8 @@
 fputs(
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default config file and uses it if  found.  The  default  config\n"
-"              file is checked for in the following places in this order:\n"
-"\n"
-"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
-"              it  uses getpwuid() on UNIX-like systems (which returns the home\n"
+"              (HTTP/HTTPS)  If  the server reports that the requested page has\n"
+"              moved to a different location (indicated with a Location: header\n"
+"              and  a  3XX  response code), this option will make curl redo the\n"
+"              request on the new place. If used together with -i, --include or\n"
+"              -I, --head, headers from all requested pages will be shown. When\n"
+"              authentication is used, curl only sends its credentials  to  the\n"
 , stdout);

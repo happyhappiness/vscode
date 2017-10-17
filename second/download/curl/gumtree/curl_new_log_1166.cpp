@@ -1,10 +1,11 @@
 fputs(
-"              (HTTP/HTTPS) Like -L/--location, but will allow sending the name\n"
-"              +  password to all hosts that the site may redirect to. This may\n"
-"              or may not introduce a security breach if the site redirects you\n"
-"              do  a  site to which you'll send your authentication info (which\n"
-"              is plaintext in the case of HTTP Basic authentication).\n"
+"              necessarily exactly when the data arrives.   Using  this  option\n"
+"              will disable that buffering.\n"
 "\n"
-"              If this option is used twice,  the  second  will  again  disable\n"
-"              location following.\n"
+"              If  this  option  is used twice, the second will again switch on\n"
+"              buffering.\n"
+"\n"
+"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
+"              method was designed by Microsoft and is used by IIS web servers.\n"
+"              It is a proprietary protocol, reversed engineered by clever peo-\n"
 , stdout);

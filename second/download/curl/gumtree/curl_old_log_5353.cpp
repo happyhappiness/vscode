@@ -1,9 +1,10 @@
 fputs(
-"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
+"              sions  to  the  original  FTP  protocol, and may not work on all\n"
+"              servers, but they enable more functionality in a better way than\n"
+"              the traditional PORT command.\n"
 "\n"
-"              If  you  start  the data with the letter @, the rest should be a\n"
-"              file name to read the data from, or - if you want curl  to  read\n"
-"              the  data  from stdin.  The contents of the file must already be\n"
+"              Since  curl 7.19.0, --eprt can be used to explicitly enable EPRT\n"
+"              again and --no-eprt is an alias for --disable-eprt.\n"
+"\n"
 , stdout);

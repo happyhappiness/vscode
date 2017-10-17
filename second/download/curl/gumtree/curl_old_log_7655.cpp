@@ -1,11 +1,10 @@
 fputs(
-"              option to set user name and password. See also --ntlm, --negoti-\n"
-"              ate and --anyauth for related options.\n"
+"              Certain FTP servers, mainly drftpd,  require  this  non-standard\n"
+"              command  for  directory  listings as well as up and downloads in\n"
+"              PASV mode.  (Added in 7.20.x)\n"
 "\n"
-"              If this option is used several times, the following  occurrences\n"
-"              make no difference.\n"
-"\n"
-"       --disable-eprt\n"
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
-"              when doing active FTP transfers. Curl will normally always first\n"
+"       --ftp-ssl-ccc\n"
+"              (FTP) Use CCC (Clear Command Channel)  Shuts  down  the  SSL/TLS\n"
+"              layer after authenticating. The rest of the control channel com-\n"
+"              munication will be unencrypted. This allows NAT routers to  fol-\n"
 , stdout);

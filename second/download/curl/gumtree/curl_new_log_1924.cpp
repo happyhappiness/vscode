@@ -1,1 +1,1 @@
-fputs(ptr, config->errors);
+warnf(config, "Failed to open %s!\n", nextarg);

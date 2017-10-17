@@ -1,11 +1,10 @@
 fputs(
-"              you  to  a  site  to  which you'll send your authentication info\n"
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              Examples:  --socks5  proxy-name  --socks5-gssapi-service   sockd\n"
+"              would  use sockd/proxy-name --socks5 proxy-name --socks5-gssapi-\n"
+"              service sockd/real-name  would  use  sockd/real-name  for  cases\n"
+"              where  the proxy-name does not match the principal name.  (Added\n"
+"              in 7.19.4).\n"
 "\n"
-"       -m, --max-time <seconds>\n"
-"              Maximum time in seconds that you allow the  whole  operation  to\n"
-"              take.   This is useful for preventing your batch jobs from hang-\n"
-"              ing for hours due to slow networks or  links  going  down.   See\n"
-"              also the --connect-timeout option.\n"
-"\n"
+"       --socks5-gssapi-nec\n"
+"              As part of the gssapi negotiation a protection mode  is  negoti-\n"
 , stdout);

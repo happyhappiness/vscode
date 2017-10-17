@@ -1,8 +1,8 @@
 fputs(
-"       -K/--config <config file>\n"
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
-"              written which then will be used as if they were written  on  the\n"
-"              actual command line. Options and their parameters must be speci-\n"
-"              fied on the same config file line. If the parameter is  to  con-\n"
+"              (HTTP/HTTPS) If the server reports that the requested page has a\n"
+"              different location (indicated with the  header  line  Location:)\n"
+"              this  flag will let curl attempt to reattempt the get on the new\n"
+"              place. If used together with -i/--include or -I/--head,  headers\n"
+"              from  all  requested  pages  will be shown. If authentication is\n"
+"              used, curl will only send its credentials to the  initial  host,\n"
 , stdout);

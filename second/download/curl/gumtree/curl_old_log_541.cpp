@@ -1,12 +1,8 @@
 puts(
-"  Dig out all the <input> tags in the form that you want to fill in. (There's\n"
-"  a perl program called formfind.pl on the curl site that helps with this).\n"
-"\n"
-"  If there's a \"normal\" post, you use -d to post. -d takes a full \"post\n"
-"  string\", which is in the format\n"
-"\n"
-"        <variable1>=<data1>&<variable2>=<data2>&...\n"
-"\n"
-"  The 'variable' names are the names set with \"name=\" in the <input> tags, and\n"
-"  the data is the contents you want to fill in for the inputs. The data *must*\n"
+"  Cookies are generally used by web servers to keep state information at the\n"
+"  client's side. The server sets cookies by sending a response line in the\n"
+"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
+"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
+"  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
+"  path the \"cookie\" should be used for (by specifying \"path=value\"), when the\n"
 );

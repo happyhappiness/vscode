@@ -1,9 +1,11 @@
 fputs(
-"              response code or an HTTP 5xx response code.\n"
+"              This  option  overrides  any previous use of -x/--proxy, as they\n"
+"              are mutually exclusive.\n"
 "\n"
-"              When curl is about to retry a transfer, it will first  wait  one\n"
-"              second  and  then for all forthcoming retries it will double the\n"
-"              waiting time until it reaches 10 minutes which then will be  the\n"
-"              delay  between  the rest of the retries.  By using --retry-delay\n"
-"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (This  option  was  previously  wrongly  documented  and used as\n"
+"              --socks without the number appended.)\n"
+"\n"
+"       --stderr <file>\n"
+"              Redirect all writes to stderr to the specified file instead.  If\n"
 , stdout);

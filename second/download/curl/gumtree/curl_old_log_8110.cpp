@@ -1,11 +1,11 @@
 fputs(
-"              (Added in 7.20.0)\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
+"              uations,  curl  will  use a standard buffered output stream that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily  exactly  when  the data arrives.  Using this option\n"
+"              will disable that buffering.\n"
 "\n"
-"       --max-filesize <bytes>\n"
-"              Specify  the  maximum  size (in bytes) of a file to download. If\n"
-"              the file requested is larger than this value, the transfer  will\n"
-"              not start and curl will return with exit code 63.\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --buffer to enforce the buffering.\n"
 "\n"
-"              NOTE:  The  file size is not always known prior to download, and\n"
-"              for such files this option has no effect even if the file trans-\n"
 , stdout);

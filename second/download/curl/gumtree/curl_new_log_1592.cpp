@@ -1,11 +1,10 @@
 fputs(
-"              (SSL)  Private key file type. Specify which type your --key pro-\n"
-"              vided private key is. DER, PEM and ENG are supported.\n"
+"              If this option is used twice,  the  second  will  again  disable\n"
+"              location following.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --krb4 <level>\n"
-"              (FTP) Enable kerberos4 authentication and use. The level must be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential'  or\n"
-"              'private'.  Should  you  use  a  level that is not one of these,\n"
+"       --location-trusted\n"
+"              (HTTP/HTTPS) Like -L/--location, but will allow sending the name\n"
+"              + password to all hosts that the site may redirect to. This  may\n"
+"              or may not introduce a security breach if the site redirects you\n"
+"              do a site to which you'll send your authentication  info  (which\n"
 , stdout);

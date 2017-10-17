@@ -1,10 +1,11 @@
 fputs(
-"              (HTTP)  Similar  to  --form except that the value string for the\n"
-"              named parameter is used literally. Leading '@' and  '<'  charac-\n"
-"              ters, and the ';type=' string in the value have no special mean-\n"
-"              ing. Use this in preference to --form if there's any possibility\n"
-"              that  the  string  value may accidentally trigger the '@' or '<'\n"
-"              features of --form.\n"
+"              of  a  document.  When used on a FTP or FILE file, curl displays\n"
+"              the file size and last modification time only.\n"
 "\n"
-"       -g/--globoff\n"
+"              If this option is used twice,  the  second  will  again  disable\n"
+"              header only.\n"
+"\n"
+"       -j/--junk-session-cookies\n"
+"              (HTTP) When curl is told to read cookies from a given file, this\n"
+"              option will make it discard all  \"session  cookies\".  This  will\n"
 , stdout);

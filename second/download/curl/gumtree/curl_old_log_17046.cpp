@@ -1,0 +1,17 @@
+puts(
+"          Silent  mode.  Don't  show progress meter or error mes�\n"
+"          sages.  Makes Curl mute.\n"
+"\n"
+"          If this option is used twice,  the  second  will  again\n"
+"          disable mute.\n"
+"\n"
+"     -S/--show-error\n"
+"          When  used  with -s it makes curl show error message if\n"
+"          it fails.\n"
+"\n"
+"          If this option is used twice,  the  second  will  again\n"
+"          disable show error.\n"
+"\n"
+"     -t/--telnet-option <OPT=val>\n"
+"          Pass  options to the telnet protocol. Supported options\n"
+);

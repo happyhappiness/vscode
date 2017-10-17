@@ -1,1 +1,1 @@
-warnf(global, "--test-event is ignored unless a debug build!\n");
+warnf(global, "Failed to read %s", fname);

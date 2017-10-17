@@ -1,11 +1,11 @@
 fputs(
-"              dir given the current user in your system). On Windows, it  then\n"
-"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
-"              PROFILE%\\Application Data'.\n"
+"              contents of an FTP directory since  the  normal  directory  view\n"
+"              doesn't use a standard look or format.\n"
 "\n"
-"              2) On windows, if there is no _curlrc file in the home  dir,  it\n"
-"              checks for one in the same dir the curl executable is placed. On\n"
-"              UNIX-like systems, it will simply try to load .curlrc  from  the\n"
-"              determined home dir.\n"
+"              This  option  causes  an  FTP NLST command to be sent.  Some FTP\n"
+"              servers list only files in their response to NLST; they  do  not\n"
+"              include subdirectories and symbolic links.\n"
 "\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
 , stdout);

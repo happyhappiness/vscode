@@ -1,12 +1,9 @@
 fputs(
-"              content_type   The  Content-Type  of  the requested document, if\n"
-"                             there was any.\n"
+"              time. The date expression can be all sorts of date strings or if\n"
+"              it  doesn't  match  any  internal ones, it tries to get the time\n"
+"              from a given file name  instead!  See  the  curl_getdate(3)  man\n"
+"              pages for date expression details.\n"
 "\n"
-"              num_connects   Number of new connects made in the recent  trans-\n"
-"                             fer. (Added in 7.12.3)\n"
-"\n"
-"              num_redirects  Number  of  redirects  that  were followed in the\n"
-"                             request. (Added in 7.12.3)\n"
-"\n"
-"              redirect_url   When a HTTP request was made without -L to follow\n"
+"              Start the date expression with a dash (-) to make it request for\n"
+"              a document that is older than the given date/time, default is  a\n"
 , stdout);

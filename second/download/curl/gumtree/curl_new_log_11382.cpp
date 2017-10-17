@@ -1,10 +1,12 @@
 fputs(
-"              Specify the login options to use during server authentication.\n"
+"              interface name, IP address or host name. An example  could  look\n"
+"              like:\n"
 "\n"
-"              You  can  use  the  login  options  to specify protocol specific\n"
-"              options that may be used during authentication. At present  only\n"
-"              IMAP,  POP3 and SMTP support login options. For more information\n"
-"              about the login options please see RFC 2384, RFC 5092  and  IETF\n"
-"              draft draft-earhart-url-smtp-00.txt (Added in 7.34.0).\n"
+"               curl --interface eth0:1 http://www.netscape.com/\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -j, --junk-session-cookies\n"
+"              (HTTP) When curl is told to read cookies from a given file, this\n"
+"              option will make it discard all  \"session  cookies\".  This  will\n"
 , stdout);

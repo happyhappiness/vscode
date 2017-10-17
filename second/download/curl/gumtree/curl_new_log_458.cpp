@@ -1,11 +1,9 @@
 fputs(
-"              ferent  host, it won't intercept the user+password.\n"
-"              See also --location-trusted on how to change  this.\n"
-"              If this option is used twice, the second will again\n"
-"              disable location following.\n"
-"\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS) Like --location, but will allow  send-\n"
-"              ing  the name + password to all hosts that the site\n"
-"              may redirect to. This may or may  not  introduce  a\n"
+"       --ntlm (HTTP)   Enables   NTLM  authentication.  The  NTLM\n"
+"              authentication method was designed by Microsoft and\n"
+"              is  used  by  IIS  web servers. It is a proprietary\n"
+"              protocol, reversed engineered by clever people  and\n"
+"              implemented  in  curl  based on their efforts. This\n"
+"              kind of behavior should not be endorsed, you should\n"
+"              encourage  everyone  who  uses  NTLM to switch to a\n"
 , stdout);

@@ -1,8 +1,9 @@
 fputs(
-"  from sites that require valid certificates. The only drawback is that the\n"
-"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
-"  store certificates with, but it is not used by the most commonly used\n"
-"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
-"  want curl to use the certificates you use with your (favourite) browser, you\n"
-"  may need to download/compile a converter that can convert your browser's\n"
+"              (HTTP/HTTPS) Like -L, --location, but  will  allow  sending  the\n"
+"              name + password to all hosts that the site may redirect to. This\n"
+"              may or may not introduce a security breach if the site redirects\n"
+"              you  to  a  site  to  which you'll send your authentication info\n"
+"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"\n"
+"       -m, --max-time <seconds>\n"
 , stdout);

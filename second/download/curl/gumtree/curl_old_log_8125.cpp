@@ -1,8 +1,11 @@
 fputs(
-"              Comma-separated  list  of hosts which do not use a proxy, if one\n"
-"              is specified.  The only wildcard is a single * character,  which\n"
-"              matches all hosts, and effectively disables the proxy. Each name\n"
-"              in this list is matched as either a domain  which  contains  the\n"
-"              hostname,  or  the hostname itself. For example, local.com would\n"
-"              match  local.com,  local.com:80,  and  www.local.com,  but   not\n"
+"              a  redirection.  This  option  is meaningful only when using -L,\n"
+"              --location (Added in 7.19.1)\n"
+"\n"
+"       --proto <protocols>\n"
+"              Tells  curl  to  use  the  listed  protocols  for  its   initial\n"
+"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
+"              arated, and are each a protocol name or 'all',  optionally  pre-\n"
+"              fixed by zero or more modifiers. Available modifiers are:\n"
+"\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              fer  ends  up  being larger than this given limit. This concerns\n"
-"              both FTP and HTTP transfers.\n"
+"              ever  should  get  hurt  by attempting to reuse SSL session-IDs,\n"
+"              there seem to be broken SSL implementations in the wild that may\n"
+"              require  you to disable this in order for you to succeed. (Added\n"
+"              in 7.16.0)\n"
 "\n"
-"       -m/--max-time <seconds>\n"
-"              Maximum time in seconds that you allow the  whole  operation  to\n"
-"              take.   This is useful for preventing your batch jobs from hang-\n"
-"              ing for hours due to slow networks or  links  going  down.   See\n"
-"              also the --connect-timeout option.\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --sessionid to enforce session-ID caching.\n"
 "\n"
+"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
 , stdout);

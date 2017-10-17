@@ -1,0 +1,10 @@
+fputs(
+"              to the server instead of LIST.\n"
+"\n"
+"              Note:  Some  FTP  servers  list  only files in their response to\n"
+"              NLST; they do not include sub-directories and symbolic links.\n"
+"\n"
+"              (POP3) When retrieving a specific email from POP3,  this  switch\n"
+"              forces  a  LIST command to be performed instead of RETR. This is\n"
+"              particularly useful if the user wants to see if a specific  mes-\n"
+, stdout);

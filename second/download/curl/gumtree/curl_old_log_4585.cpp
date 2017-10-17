@@ -1,0 +1,17 @@
+fputs(
+"        curl -u username: --key ~/.ssh/id_dsa --pubkey ~/.ssh/id_dsa.pub \\\n"
+"        	scp://shell.example.com/~/personal.txt\n"
+"\n"
+"  Get the main page from an IPv6 web server:\n"
+"\n"
+"        curl -g \"http://[2001:1890:1112:1::20]/\"\n"
+"\n"
+"DOWNLOAD TO A FILE\n"
+"\n"
+"  Get a web page and store in a local file:\n"
+"\n"
+"        curl -o thatpage.html http://www.netscape.com/\n"
+"\n"
+"  Get a web page and store in a local file, make the local file get the name\n"
+"  of the remote document (if no file name part is specified in the URL, this\n"
+, stdout);

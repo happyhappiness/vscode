@@ -1,11 +1,11 @@
 fputs(
-"              to the target file  instead  of  overwriting  it.  If  the  file\n"
-"              doesn't exist, it will be created.\n"
+"              authentication method (such as --ntlm,  --digest  and  --negoti-\n"
+"              ate). (Added in 7.10.6)\n"
 "\n"
-"              If this option is used twice, the second one will disable append\n"
-"              mode again.\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference.\n"
 "\n"
-"       -A/--user-agent <agent string>\n"
-"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
-"              Some  badly  done CGIs fail if its not set to \"Mozilla/4.0\".  To\n"
+"       --ciphers <list of ciphers>\n"
+"              (SSL) Specifies which ciphers to use in the connection. The list\n"
+"              of  ciphers  must  be using valid ciphers. Read up on SSL cipher\n"
 , stdout);

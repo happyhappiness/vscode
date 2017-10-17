@@ -1,11 +1,10 @@
 fputs(
-"              NOTE that the file specified with -b, --cookie is only  used  as\n"
-"              input.  No cookies will be stored in the file. To store cookies,\n"
-"              use the -c, --cookie-jar option or you could even save the  HTTP\n"
-"              headers to a file using -D, --dump-header!\n"
+"              curl will report an error.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -B, --use-ascii\n"
-"              (FTP/LDAP)  Enable  ASCII  transfer.  For  FTP, this can also be\n"
+"       --connect-timeout <seconds>\n"
+"              Maximum time in seconds that you allow  the  connection  to  the\n"
+"              server  to  take.   This  only limits the connection phase, once\n"
+"              curl has connected this option is of no more use.  Since 7.32.0,\n"
+"              this  option accepts decimal values, but the actual timeout will\n"
+"              decrease in accuracy as the specified timeout increases in deci-\n"
 , stdout);

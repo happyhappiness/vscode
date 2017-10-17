@@ -1,1 +1,1 @@
-warnf(config->global, "Failed to open %s\n", config->headerfile);
+warnf(config->global, "unrecognized protocol '%s'\n", token);

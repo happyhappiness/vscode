@@ -1,11 +1,11 @@
 fputs(
-"              curl  recognizes the environment variable named 'CURL_CA_BUNDLE'\n"
-"              if it is set, and uses the given path as a path  to  a  CA  cert\n"
-"              bundle. This option overrides that variable.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              The  windows  version  of  curl will automatically look for a CA\n"
-"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
-"              tory as curl.exe, or in the Current Working Directory, or in any\n"
-"              folder along your PATH.\n"
+"       --ftp-alternative-to-user <command>\n"
+"              (FTP) If authenticating with the USER and PASS  commands  fails,\n"
+"              send  this  command.   When  connecting  to  Tumbleweed's Secure\n"
+"              Transport server over FTPS using  a  client  certificate,  using\n"
+"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
+"              the certificate. (Added in 7.15.5)\n"
 "\n"
 , stdout);

@@ -1,11 +1,10 @@
 fputs(
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the  command  HEAD which this uses to get nothing but the header\n"
-"              of a document. When used on a FTP or FILE  file,  curl  displays\n"
-"              the file size and last modification time only.\n"
+"              This option can be used multiple times.\n"
 "\n"
-"              If  this  option  is  used  twice, the second will again disable\n"
-"              header only.\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default config file and uses it if  found.  The  default  config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"       -j/--junk-session-cookies\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
 , stdout);

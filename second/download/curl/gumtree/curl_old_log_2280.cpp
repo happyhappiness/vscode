@@ -1,10 +1,11 @@
 fputs(
-"              This option can be used multiple times.\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default config file and uses it if  found.  The  default  config\n"
-"              file is checked for in the following places in this order:\n"
+"              If this option is used twice,  the  second  will  again  disable\n"
+"              location following.\n"
 "\n"
-"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"       --location-trusted\n"
+"              (HTTP/HTTPS) Like -L/--location, but will allow sending the name\n"
+"              + password to all hosts that the site may redirect to. This  may\n"
+"              or may not introduce a security breach if the site redirects you\n"
 , stdout);

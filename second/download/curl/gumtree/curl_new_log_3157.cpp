@@ -1,11 +1,9 @@
 fputs(
-"              If  this option is used several times, the following occurrences\n"
-"              make no difference.\n"
-"\n"
-"       -o/--output <file>\n"
-"              Write output to <file> instead of stdout. If you are using {} or\n"
-"              []  to  fetch  multiple documents, you can use ’#’ followed by a\n"
-"              number in the <file> specifier. That variable will  be  replaced\n"
-"              with the current string for the URL being fetched. Like in:\n"
+"              When an HTTP proxy is used (-x/--proxy), this option will  cause\n"
+"              non-HTTP  protocols  to  attempt  to  tunnel  through  the proxy\n"
+"              instead of merely using it to do HTTP-like operations. The  tun‐\n"
+"              nel  approach  is  made  with the HTTP proxy CONNECT request and\n"
+"              requires that the proxy allows direct connect to the remote port\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
 , stdout);

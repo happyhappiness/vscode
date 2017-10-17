@@ -1,11 +1,10 @@
 fputs(
-"              string with single quote marks. This can also be  set  with  the\n"
-"              -H, --header option of course.\n"
+"              makes curl record and use cookies. Another way to activate it is\n"
+"              to use the -b, --cookie option.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              If the cookie jar can't be created or written to, the whole curl\n"
+"              operation won't fail or even report an error clearly.  Using  -v\n"
+"              will get a warning displayed, but that is the only visible feed-\n"
+"              back you get about this possibly lethal situation.\n"
 "\n"
-"       --anyauth\n"
-"              (HTTP) Tells curl to figure out authentication method by itself,\n"
-"              and use the most secure one the remote site claims  to  support.\n"
-"              This is done by first doing a request and checking the response-\n"
 , stdout);

@@ -1,0 +1,17 @@
+puts(
+"          Default config file.\n"
+"\n"
+"ENVIRONMENT\n"
+"     HTTP_PROXY [protocol://]<host>[:port]\n"
+"          Sets proxy server to use for HTTP.\n"
+"\n"
+"     HTTPS_PROXY [protocol://]<host>[:port]\n"
+"          Sets proxy server to use for HTTPS.\n"
+"\n"
+"     FTP_PROXY [protocol://]<host>[:port]\n"
+"          Sets proxy server to use for FTP.\n"
+"     GOPHER_PROXY [protocol://]<host>[:port]\n"
+"          Sets proxy server to use for GOPHER.\n"
+"\n"
+"     ALL_PROXY [protocol://]<host>[:port]\n"
+);

@@ -1,11 +1,11 @@
 fputs(
-"              requests - even after redirects are  followed,  like  when  told\n"
-"              with  -L,  --location. This can lead to the header being sent to\n"
-"              other hosts than the original host, so sensitive headers  should\n"
-"              be used with caution combined with following redirects.\n"
+"              by default. This makes  all  connections  considered  \"insecure\"\n"
+"              fail unless -k, --insecure is used.\n"
 "\n"
-"              This  option  can  be  used multiple times to add/replace/remove\n"
-"              multiple headers.\n"
+"              See     this    online    resource    for    further    details:\n"
+"              https://curl.haxx.se/docs/sslcerts.html\n"
 "\n"
-"       --hostpubmd5 <md5>\n"
+"       -K, --config <config file>\n"
+"              Specify which config file to read curl arguments from. The  con-\n"
+"              fig  file  is a text file in which command line arguments can be\n"
 , stdout);

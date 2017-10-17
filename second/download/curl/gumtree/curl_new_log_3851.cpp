@@ -1,8 +1,12 @@
 fputs(
-"              moved to a different location (indicated with a Location: header\n"
-"              and a 3XX response code) this option will  make  curl  redo  the\n"
-"              request  on the new place. If used together with -i/--include or\n"
-"              -I/--head, headers from all requested pages will be shown.  When\n"
-"              authentication  is  used, curl only sends its credentials to the\n"
-"              initial host. If a redirect takes curl to a different  host,  it\n"
+"              machine host.domain.com login myself password secret\n"
+"\n"
+"       --netrc-optional\n"
+"              Very  similar to --netrc, but this option makes the .netrc usage\n"
+"              optional and not mandatory as the --netrc does.\n"
+"\n"
+"       --negotiate\n"
+"              (HTTP) Enables GSS-Negotiate authentication.  The  GSS-Negotiate\n"
+"              method was designed by Microsoft and is used in their web appli-\n"
+"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
 , stdout);

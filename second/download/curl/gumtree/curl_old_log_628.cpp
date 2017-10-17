@@ -1,9 +1,10 @@
 fputs(
-"              You  may  specify any number of extra headers. Note\n"
-"              that if you should add a custom header that has the\n"
-"              same  name  as  one of the internal ones curl would\n"
-"              use,  your  externally  set  header  will  be  used\n"
-"              instead  of  the  internal  one. This allows you to\n"
-"              make even trickier stuff than curl  would  normally\n"
-"              do.  You  should not replace internally set headers\n"
+"              be  used as if they were written on the actual com-\n"
+"              mand line. Options and  their  parameters  must  be\n"
+"              specified  on  the  same  config  file line. If the\n"
+"              parameter is to contain white spaces, the parameter\n"
+"              must  be inclosed within quotes.  If the first col-\n"
+"              umn of a config line is a '#' character,  the  rest\n"
+"              of the line will be treated as a comment.\n"
+"\n"
 , stdout);

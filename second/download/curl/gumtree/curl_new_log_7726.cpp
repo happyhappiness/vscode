@@ -1,10 +1,10 @@
 fputs(
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps  include  name lookup, connect, pretransfer\n"
-"                             and transfer before  the  final  transaction  was\n"
-"                             started.  time_redirect shows the complete execu-\n"
-"                             tion time for multiple  redirections.  (Added  in\n"
-"                             7.12.3)\n"
+"              When  saving  output  to a file, this option tells curl to store\n"
+"              certain file metadata in extened file attributes. Currently, the\n"
+"              URL is stored in the xdg.origin.url attribute and, for HTTP, the\n"
+"              content type is stored in the mime_type attribute. If  the  file\n"
+"              system  does  not  support  extended  attributes,  a  warning is\n"
+"              issued.\n"
 "\n"
-"              time_starttransfer\n"
+"       -y, --speed-time <time>\n"
 , stdout);

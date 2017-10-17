@@ -1,11 +1,10 @@
 fputs(
-"              Specify  a  URL  to  fetch. This option is mostly handy when you\n"
-"              want to specify URL(s) in a config file.\n"
+"              num_connects   Number  of new connects made in the recent trans-\n"
+"                             fer. (Added in 7.12.3)\n"
 "\n"
-"              This option may be used any number of times.  To  control  where\n"
-"              this  URL  is written, use the -o, --output or the -O, --remote-\n"
-"              name options.\n"
-"       -v, --verbose\n"
-"              Makes the fetching more  verbose/talkative.  Mostly  useful  for\n"
-"              debugging.  A line starting with '>' means \"header data\" sent by\n"
+"              num_redirects  Number of redirects that  were  followed  in  the\n"
+"                             request. (Added in 7.12.3)\n"
+"\n"
+"              redirect_url   When  an HTTP request was made without -L to fol-\n"
+"                             low redirects, this variable will show the actual\n"
 , stdout);

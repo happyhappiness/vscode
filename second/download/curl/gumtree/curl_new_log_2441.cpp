@@ -1,10 +1,11 @@
 fputs(
-"              NOTE:  The  file size is not always known prior to download, and\n"
-"              for such files this option has no effect even if the file trans-\n"
-"              fer  ends  up  being larger than this given limit. This concerns\n"
-"              both FTP and HTTP transfers.\n"
+"              require you to disable this in order for you to succeed.  (Added\n"
+"              in 7.16.0)\n"
 "\n"
-"       -m/--max-time <seconds>\n"
-"              Maximum time in seconds that you allow the  whole  operation  to\n"
-"              take.   This is useful for preventing your batch jobs from hang-\n"
+"              If  this  option  is used twice, the second will again switch on\n"
+"              use of the session cache.\n"
+"\n"
+"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
+"              method was designed by Microsoft and is used by IIS web servers.\n"
+"              It is a proprietary protocol, reversed engineered by clever peo-\n"
 , stdout);

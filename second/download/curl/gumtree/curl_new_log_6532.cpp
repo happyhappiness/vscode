@@ -1,12 +1,9 @@
 fputs(
-"                             request. (Added in 7.12.3)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              redirect_url   When a HTTP request was made without -L to follow\n"
-"                             redirects, this variable will show the actual URL\n"
-"                             a redirect would take you to. (Added in 7.18.2)\n"
-"\n"
-"              ftp_entry_path The initial path libcurl ended up in when logging\n"
-"                             on to the remote FTP server. (Added in 7.15.4)\n"
-"\n"
-"              ssl_verify_result\n"
+"       -z, --time-cond <date expression>\n"
+"              (HTTP/FTP/FILE) Request a file that has been modified later than\n"
+"              the  given  time  and date, or one that has been modified before\n"
+"              that time. The date expression can be all sorts of date  strings\n"
+"              or  if  it  doesn't match any internal ones, it tries to get the\n"
 , stdout);

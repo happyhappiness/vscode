@@ -1,12 +1,9 @@
 fputs(
-"              Use  --engine  list  to  print  a  list  of build-time supported\n"
-"              engines. Note that not all (or  none)  of  the  engines  may  be\n"
-"              available at run-time.\n"
+"              When negotiating a TLS or SSL connection,  the  server  sends  a\n"
+"              certificate  indicating  its identity. A public key is extracted\n"
+"              from this certificate and if it does not exactly match the  pub-\n"
+"              lic  key provided to this option, curl will abort the connection\n"
+"              before sending or receiving any data.\n"
 "\n"
-"       --environment\n"
-"              (RISC  OS ONLY) Sets a range of environment variables, using the\n"
-"              names the -w option supports, to allow easier extraction of use-\n"
-"              ful information after having run curl.\n"
-"\n"
-"       --egd-file <file>\n"
+"              Added in 7.39.0 for OpenSSL, GnuTLS and GSKit. Added  in  7.43.0\n"
 , stdout);

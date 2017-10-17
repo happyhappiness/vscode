@@ -1,8 +1,12 @@
 fputs(
-"              Options  and their parameters must be specified on the same con-\n"
-"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
-"              sign.  Long  option  names can optionally be given in the config\n"
-"              file without the initial double dashes and if so, the  colon  or\n"
-"              equals  characters  can  be used as separators. If the option is\n"
-"              specified with one or two dashes,  there  can  be  no  colon  or\n"
+"              tries  the  following  candidates  in  order:   '~/.ssh/id_rsa',\n"
+"              '~/.ssh/id_dsa', './id_rsa', './id_dsa'.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --key-type <type>\n"
+"              (SSL)  Private key file type. Specify which type your --key pro-\n"
+"              vided private key is. DER, PEM, and ENG are  supported.  If  not\n"
+"              specified, PEM is assumed.\n"
+"\n"
 , stdout);

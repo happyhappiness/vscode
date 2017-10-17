@@ -1,9 +1,12 @@
 fputs(
-"              If this option is set, the default capath value will be ignored,\n"
-"              and if it is used several times, the last one will be used.\n"
+"              To read content from stdin instead of a file, use - as the file-\n"
+"              name.  This  goes  for both @ and < constructs. Unfortunately it\n"
+"              does not support reading the file from a named pipe or  similar,\n"
+"              as it needs the full size before the transfer starts.\n"
 "\n"
-"       --pinnedpubkey <pinned public key (hashes)>\n"
-"              (SSL) Tells curl to  use  the  specified  public  key  file  (or\n"
-"              hashes)  to  verify the peer. This can be a path to a file which\n"
-"              contains a single public key in PEM or DER format, or any number\n"
+"              You  can  also  tell  curl  what  Content-Type  to  use by using\n"
+"              'type=', in a manner similar to:\n"
+"\n"
+"              curl -F \"web=@index.html;type=text/html\" url.com\n"
+"\n"
 , stdout);

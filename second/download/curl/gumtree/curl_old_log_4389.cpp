@@ -1,12 +1,9 @@
 fputs(
-"              ln source_file target_file\n"
-"                     The ln and symlink commands create a symbolic link at the\n"
-"                     target_file  location  pointing  to the source_file loca-\n"
-"                     tion.\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"              mkdir directory_name\n"
-"                     The mkdir command creates  the  directory  named  by  the\n"
-"                     directory_name operand.\n"
-"\n"
-"              pwd    The pwd command returns the absolute pathname of the cur-\n"
+"              When curl is about to retry a transfer, it will first  wait  one\n"
+"              second  and  then for all forthcoming retries it will double the\n"
+"              waiting time until it reaches 10 minutes which then will be  the\n"
+"              delay  between  the rest of the retries.  By using --retry-delay\n"
+"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
 , stdout);

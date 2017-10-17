@@ -1,11 +1,10 @@
 fputs(
-"                             until  the first byte was just about to be trans-\n"
-"                             ferred. This includes time_pretransfer  and  also\n"
-"                             the  time  the  server  needed  to  calculate the\n"
-"                             result.\n"
-"\n"
-"              size_download  The total amount of bytes that were downloaded.\n"
-"\n"
-"              size_upload    The total amount of bytes that were uploaded.\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing with the HTTP server.  The specified request  will  be  used\n"
+"              instead  of  the  method otherwise used (which defaults to GET).\n"
+"              Read the HTTP 1.1 specification for  details  and  explanations.\n"
+"              Common  additional  HTTP  requests  include  PUT and DELETE, but\n"
+"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
+"              more.\n"
 "\n"
 , stdout);

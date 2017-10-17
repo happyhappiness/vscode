@@ -1,0 +1,15 @@
+puts(
+"          If  this  option  is  used serveral times, the last one\n"
+"          will be used.\n"
+"\n"
+"     -I/--head\n"
+"          (HTTP/FTP) Fetch  the  HTTP-header  only!  HTTP-servers\n"
+"          feature the command HEAD which this uses to get nothing\n"
+"          but the header of a document. When used on a FTP  file,\n"
+"          curl displays the file size only.\n"
+"\n"
+"          If  this  option  is  used twice, the second will again\n"
+"          disable header only.\n"
+"\n"
+"     --krb4 <level>\n"
+);

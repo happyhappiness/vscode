@@ -1,12 +1,9 @@
 fputs(
-"              content\n"
-"                     This will make curl URL-encode the content and pass  that\n"
-"                     on.  Just  be careful so that the content doesn't contain\n"
-"                     any = or @ symbols, as that will  then  make  the  syntax\n"
-"                     match one of the other cases below!\n"
+"              The  variables  present in the output format will be substituted\n"
+"              by the value or text that curl thinks fit, as  described  below.\n"
+"              All  variables are specified as %{variable_name} and to output a\n"
+"              normal % you just write them as %%. You can output a newline  by\n"
+"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
 "\n"
-"              =content\n"
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
-"\n"
+"              NOTE: The %-symbol is a special symbol in the win32-environment,\n"
 , stdout);

@@ -1,11 +1,10 @@
 fputs(
-"              ing  data  from  a  file  named 'foobar' would thus be done with\n"
-"              --data @foobar. When --data is told to read  from  a  file  like\n"
-"              that, carriage returns and newlines will be stripped out.\n"
+"              backend  that supports this operation. The c-ares backend is the\n"
+"              only such one.  (Added in 7.33.0)\n"
 "\n"
-"       -D, --dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
-"\n"
-"              This  option  is handy to use when you want to store the headers\n"
-"              that an HTTP site sends to you. Cookies from the  headers  could\n"
+"       -e, --referer <URL>\n"
+"              (HTTP) Sends the \"Referrer Page\" information to the HTTP server.\n"
+"              This can also be set with the -H, --header flag of course.  When\n"
+"              used with -L, --location you can append \";auto\" to the --referer\n"
+"              URL to make curl automatically set the previous URL when it fol-\n"
 , stdout);

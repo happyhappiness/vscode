@@ -1,10 +1,10 @@
 fputs(
-"       able  the  use  of PORT with --ftp-pasv. Disable the attempt to use the\n"
-"       EPRT command instead of PORT by using --disable-eprt.  EPRT  is  really\n"
-"       PORT++.\n"
+"              Tells curl to pick a suitable authentication method when  commu-\n"
+"              nicating  with  the  given  proxy.  This  might  cause  an extra\n"
+"              request/response round-trip. (Added in 7.13.2)\n"
 "\n"
-"       Starting in 7.19.5, you can append \":[start]-[end]\" to the right of the\n"
-"       address, to tell curl what TCP port range to use. That means you  spec-\n"
-"       ify  a  port  range,  from  a lower to a higher number. A single number\n"
-"       works as well, but do note that it increases the risk of failure  since\n"
+"       --proxy-basic\n"
+"              Tells curl to use HTTP Basic authentication  when  communicating\n"
+"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
+"              remote host. Basic is the  default  authentication  method  curl\n"
 , stdout);

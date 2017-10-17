@@ -1,9 +1,11 @@
 fputs(
-"              deal with failed attempts. In normal cases when  a  HTTP  server\n"
-"              fails to deliver a document, it returns an HTML document stating\n"
-"              so (which often also describes why and  more).  This  flag  will\n"
-"              prevent curl from outputting that and return error 22.\n"
+"              connection.  Instead  curl  will  re-use  the same IP address it\n"
+"              already uses for the control connection. (Added in 7.14.2)\n"
 "\n"
-"              This  method is not fail-safe and there are occasions where non-\n"
-"              successful response codes will  slip  through,  especially  when\n"
+"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
+"              of PASV.\n"
+"\n"
+"       --ftp-ssl\n"
+"              (FTP)  Try  to use SSL/TLS for the FTP connection.  Reverts to a\n"
+"              non-secure connection if the  server  doesn't  support  SSL/TLS.\n"
 , stdout);

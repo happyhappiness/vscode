@@ -1,9 +1,12 @@
 fputs(
-"              also activates the \"cookie parser\" which will make  curl  record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination with the -L/--location option. The  file  format  of\n"
-"              the  file  to  read cookies from should be plain HTTP headers or\n"
-"              the Netscape/Mozilla cookie file format.\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"              NOTE that the file specified with -b/--cookie is  only  used  as\n"
+"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
+"              resume  the  transfer. It then uses the given output/input files\n"
+"              to figure that out.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --create-dirs\n"
 , stdout);

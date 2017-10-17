@@ -1,11 +1,11 @@
 fputs(
-"  field.  For example, the field name 'coolfiles' is used to send three files,\n"
-"  with different content types using the following syntax:\n"
+"  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
+"  path the \"cookie\" should be used for (by specifying \"path=value\"), when the\n"
+"  cookie should expire (\"expire=DATE\"), for what domain to use it\n"
+"  (\"domain=NAME\") and if it should be used on secure connections only\n"
+"  (\"secure\").\n"
 "\n"
-"        curl -F \"coolfiles=@fil1.gif;type=image/gif,fil2.txt,fil3.html\" \\\n"
-"        http://www.post.com/postit.cgi\n"
+"  If you've received a page from a server that contains a header like:\n"
+"        Set-Cookie: sessionid=boo123; path=\"/foo\";\n"
 "\n"
-"  If the content-type is not specified, curl will try to guess from the file\n"
-"  extension (it only knows a few), or use the previously specified type (from\n"
-"  an earlier file if several files are specified in a list) or else it will\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              (HTTP) Tells curl to use HTTP Basic authentication. This is  the\n"
-"              default  and this option is usually pointless, unless you use it\n"
-"              to override a  previously  set  option  that  sets  a  different\n"
-"              authentication  method  (such  as --ntlm, --digest, or --negoti-\n"
-"              ate).\n"
+"              When  used  in  conjunction with the -o option, curl will create\n"
+"              the necessary local directory hierarchy as needed.  This  option\n"
+"              creates  the dirs mentioned with the -o option, nothing else. If\n"
+"              the -o file name uses no dir or if the dirs it mentions  already\n"
+"              exist, no dir will be created.\n"
 "\n"
-"       -c, --cookie-jar <file name>\n"
-"              Specify to which file you want curl to write all cookies after a\n"
+"              To  create remote directories when using FTP or SFTP, try --ftp-\n"
+"              create-dirs.\n"
+"\n"
 , stdout);

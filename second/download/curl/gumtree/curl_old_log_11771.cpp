@@ -1,10 +1,11 @@
 fputs(
-"              the server. The active mode initiates the shutdown and waits for\n"
-"              a reply from the server.  (Added in 7.16.2)\n"
+"              WARNING:  headers  set  with  this  option  will  be  set in all\n"
+"              requests - even after redirects are  followed,  like  when  told\n"
+"              with  -L,  --location. This can lead to the header being sent to\n"
+"              other hosts than the original host, so sensitive headers  should\n"
+"              be used with caution combined with following redirects.\n"
 "\n"
-"       --ftp-ssl-control\n"
-"              (FTP)  Require  SSL/TLS  for  the FTP login, clear for transfer.\n"
-"              Allows secure authentication, but non-encrypted  data  transfers\n"
-"              for  efficiency.   Fails the transfer if the server doesn't sup-\n"
-"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
+"              This  option  can  be  used multiple times to add/replace/remove\n"
+"              multiple headers.\n"
+"\n"
 , stdout);

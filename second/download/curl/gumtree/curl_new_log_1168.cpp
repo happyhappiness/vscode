@@ -1,11 +1,11 @@
 fputs(
-"              both FTP and HTTP transfers.\n"
+"              port. Use -V/--version to see if your curl supports NTLM.\n"
 "\n"
-"       -m/--max-time <seconds>\n"
-"              Maximum time in seconds that you allow the  whole  operation  to\n"
-"              take.   This is useful for preventing your batch jobs from hang-\n"
-"              ing for hours due to slow networks or links  going  down.   This\n"
-"              doesn't  work  fully  in win32 systems.  See also the --connect-\n"
-"              timeout option.\n"
+"              If this option is used several times, the following  occurrences\n"
+"              make no difference.\n"
 "\n"
+"       -o/--output <file>\n"
+"              Write output to <file> instead of stdout. If you are using {} or\n"
+"              [] to fetch multiple documents, you can use '#'  followed  by  a\n"
+"              number  in  the <file> specifier. That variable will be replaced\n"
 , stdout);

@@ -1,9 +1,12 @@
 fputs(
-"              directory as curl.exe, or in the Current Working  Directory,  or\n"
-"              in any folder along your PATH.\n"
+"                     mands. This is the fastest behavior.\n"
 "\n"
-"              If  curl  is  built against the NSS SSL library then this option\n"
-"              tells curl the nickname of the CA certificate to use within  the\n"
-"              NSS  database defined by the environment variable SSL_DIR (or by\n"
-"              default /etc/pki/nssdb).  If the NSS PEM  PKCS#11  module  (lib-\n"
+"              singlecwd\n"
+"                     curl does one CWD with the full target directory and then\n"
+"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
+"                     case). This is somewhat  more  standards  compliant  than\n"
+"                     'nocwd' but without the full penalty of 'multicwd'.\n"
+"\n"
+"       --ftp-pasv\n"
+"              (FTP)  Use  PASV when transferring. PASV is the internal default\n"
 , stdout);

@@ -1,11 +1,8 @@
 fputs(
-"              If you also use the -Y/--speed-limit option,  that  option  will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -l/--list-only\n"
-"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
-"              only  view.   Especially useful if you want to machine-parse the\n"
+"              Tells curl to respect  RFC  2616/10.3.2  and  not  convert  POST\n"
+"              requests into GET requests when following a 301 redirection. The\n"
+"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
+"              rection. This option is meaningful only when using -L/--location\n"
 , stdout);

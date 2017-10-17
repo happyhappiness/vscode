@@ -1,10 +1,10 @@
 fputs(
-"              (HTTP) This option tells the -O, --remote-name option to use the\n"
-"              server-specified   Content-Disposition   filename   instead   of\n"
-"              extracting a filename from the URL.\n"
+"              (SSL) This option tells curl to not work around a security  flaw\n"
+"              in the SSL3 and TLS1.0 protocols known as BEAST.  If this option\n"
+"              isn't used, the SSL layer may use work-arounds  known  to  cause\n"
+"              interoperability  problems  with some older SSL implementations.\n"
+"              WARNING: this option loosens the SSL security, and by using this\n"
+"              flag you ask for exactly that.  (Added in 7.25.0)\n"
 "\n"
-"       -k, --insecure\n"
-"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
-"              SSL connections and transfers. All SSL connections are attempted\n"
-"              to  be  made secure by using the CA certificate bundle installed\n"
+"       --socks4 <host[:port]>\n"
 , stdout);

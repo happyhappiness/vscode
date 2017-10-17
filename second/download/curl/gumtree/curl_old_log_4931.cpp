@@ -1,10 +1,11 @@
 fputs(
-"              Manual. Display the huge help text.\n"
+"              --socks without the number appended.)\n"
+"       --socks5-gssapi-service <servicename>\n"
+"              The default service name for a socks server is rcmd/server-fqdn.\n"
+"              This option allows you to change it.\n"
 "\n"
-"       -n/--netrc\n"
-"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
-"              user's home directory for login name and password. This is typi-\n"
-"              cally used for FTP on UNIX. If used with HTTP, curl will  enable\n"
-"              user  authentication.  See netrc(4) or ftp(1) for details on the\n"
-"              file format. Curl will not complain if that  file  doesn't  have\n"
+"              Examples:\n"
+"               --socks5 proxy-name --socks5-gssapi-service sockd    would  use\n"
+"              sockd/proxy-name\n"
+"               --socks5   proxy-name  --socks5-gssapi-service  sockd/real-name\n"
 , stdout);

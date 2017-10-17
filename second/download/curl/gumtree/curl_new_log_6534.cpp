@@ -1,9 +1,12 @@
 fputs(
-"              This  option  overrides  existing environment variables that set\n"
-"              the proxy to use. If there's an environment variable  setting  a\n"
-"              proxy, you can set proxy to \"\" to override it.\n"
+"              Manual. Display the huge help text.\n"
 "\n"
-"              All  operations that are performed over a HTTP proxy will trans-\n"
-"              parently be converted to HTTP. It means  that  certain  protocol\n"
-"              specific operations might not be available. This is not the case\n"
+"       -V, --version\n"
+"              Displays information about curl and the libcurl version it uses.\n"
+"              The  first  line  includes the full version of curl, libcurl and\n"
+"              other 3rd party libraries linked with the executable.\n"
+"\n"
+"              The second line (starts with \"Protocols:\") shows  all  protocols\n"
+"              that libcurl reports to support.\n"
+"\n"
 , stdout);

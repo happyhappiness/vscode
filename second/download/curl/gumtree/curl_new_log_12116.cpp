@@ -1,11 +1,11 @@
 fputs(
-"              speed_download The average download speed that curl measured for\n"
-"                             the complete download. Bytes per second.\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              speed_upload   The  average  upload speed that curl measured for\n"
-"                             the complete upload. Bytes per second.\n"
+"              All operations that are performed over an HTTP proxy will trans-\n"
+"              parently  be  converted  to HTTP. It means that certain protocol\n"
+"              specific operations might not be available. This is not the case\n"
+"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
+"              ytunnel option.\n"
 "\n"
-"              ssl_verify_result\n"
-"                             The result of the SSL peer certificate  verifica-\n"
-"                             tion that was requested. 0 means the verification\n"
+"              User and password that might be provided in the proxy string are\n"
 , stdout);

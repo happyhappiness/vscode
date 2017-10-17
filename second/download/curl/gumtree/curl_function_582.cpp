@@ -1,94 +1,151 @@
-static void help(void)
+int Curl_parsenetrc(char *host,
+                    char *login,
+                    char *password,
+                    char *netrcfile)
 {
-  printf(CURL_ID "%s\n"
-       "Usage: curl [options...] <url>\n"
-       "Options: (H) means HTTP/HTTPS only, (F) means FTP only\n"
-       " -a/--append        Append to target file when uploading (F)\n"
-       " -A/--user-agent <string> User-Agent to send to server (H)\n"
-       " -b/--cookie <name=string/file> Cookie string or file to read cookies from (H)\n"
-       " -B/--use-ascii     Use ASCII/text transfer\n",
-         curl_version());
-  puts(" -c/--cookie-jar <file> Write all cookies to this file after operation (H)\n"
-       " -C/--continue-at <offset> Specify absolute resume offset\n"
-       " -d/--data <data>   HTTP POST data (H)\n"
-       "    --data-ascii <data>   HTTP POST ASCII data (H)\n"
-       "    --data-binary <data>  HTTP POST binary data (H)\n"
-       "    --disable-epsv  Prevents curl from using EPSV (F)\n"
-       " -D/--dump-header <file> Write the headers to this file\n"
-       "    --egd-file <file> EGD socket path for random data (SSL)\n"
-#ifdef USE_ENVIRONMENT
-       "    --environment   Write result codes to environment variables (RISC OS)\n"
+  FILE *file;
+  int retcode=1;
+  int specific_login = (login[0] != 0);
+  char *home = NULL; 
+  bool home_alloc = FALSE;
+  bool netrc_alloc = FALSE;
+  int state=NOTHING;
+
+  char state_login=0;      /* Found a login keyword */
+  char state_password=0;   /* Found a password keyword */
+  char state_our_login=0;  /* With specific_login, found *our* login name */
+
+#define NETRC DOT_CHAR "netrc"
+
+#ifdef CURLDEBUG
+  {
+    /* This is a hack to allow testing.
+     * If compiled with --enable-debug and CURL_DEBUG_NETRC is defined,
+     * then it's the path to a substitute .netrc for testing purposes *only* */
+
+    char *override = curl_getenv("CURL_DEBUG_NETRC");
+
+    if (override) {
+      printf("NETRC: overridden " NETRC " file: %s\n", home);
+      netrcfile = override;
+      netrc_alloc = TRUE;
+    }
+  }
+#endif /* CURLDEBUG */
+  if(!netrcfile) {
+#if defined(HAVE_GETPWUID) && defined(HAVE_GETEUID)
+    struct passwd *pw;
+    pw= getpwuid(geteuid());
+    if (pw) {
+#ifdef	VMS
+      home = decc$translate_vms(pw->pw_dir);
+#else
+      home = pw->pw_dir;
 #endif
-       " -e/--referer       Referer page (H)");
-  puts(" -E/--cert <cert[:passwd]> Specifies your certificate file and password (HTTPS)\n"
-       "    --cert-type <type> Specifies certificate file type (DER/PEM/ENG) (HTTPS)\n"
-       "    --key <key>     Specifies private key file (HTTPS)\n"
-       "    --key-type <type> Specifies private key  file type (DER/PEM/ENG) (HTTPS)\n"
-       "    --pass  <pass>  Specifies passphrase for the private key (HTTPS)");
-  puts("    --engine <eng>  Specifies the crypto engine to use (HTTPS)\n"
-       "    --cacert <file> CA certifciate to verify peer against (SSL)\n"
-       "    --capath <directory> CA directory (made using c_rehash) to verify\n"
-       "                    peer against (SSL)\n"
-       "    --ciphers <list> What SSL ciphers to use (SSL)\n"
-       "    --compressed    Request a compressed response (using deflate).");
-  puts("    --connect-timeout <seconds> Maximum time allowed for connection\n"
-       "    --create-dirs   Create the necessary local directory hierarchy\n"
-       "    --crlf          Convert LF to CRLF in upload. Useful for MVS (OS/390)\n"
-       " -f/--fail          Fail silently (no output at all) on errors (H)\n"
-       " -F/--form <name=content> Specify HTTP POST data (H)\n"
-       " -g/--globoff       Disable URL sequences and ranges using {} and []\n"
-       " -G/--get           Send the -d data with a HTTP GET (H)");
-  puts(" -h/--help          This help text\n"
-       " -H/--header <line> Custom header to pass to server. (H)\n"
-       " -i/--include       Include the HTTP-header in the output (H)\n"
-       " -I/--head          Fetch document info only (HTTP HEAD/FTP SIZE)");
-  puts(" -j/--junk-session-cookies Ignore session cookies read from file (H)\n"
-       "    --interface <interface> Specify the interface to be used\n"
-       "    --krb4 <level>  Enable krb4 with specified security level (F)\n"
-       " -k/--insecure      Allow curl to connect to SSL sites without certs (H)\n"
-       " -K/--config        Specify which config file to read\n"
-       " -l/--list-only     List only names of an FTP directory (F)\n"
-       "    --limit-rate <rate> Limit how fast transfers to allow");
-  puts(" -L/--location      Follow Location: hints (H)\n"
-       "    --location-trusted Same, and continue to send authentication when \n"
-       "                    following locations, even when hostname changed\n"
-       " -m/--max-time <seconds> Maximum time allowed for the transfer\n"
-       " -M/--manual        Display huge help text\n"
-       " -n/--netrc         Must read .netrc for user name and password\n"
-       "    --netrc-optional  Use either .netrc or URL; overrides -n\n"
-       " -N/--no-buffer     Disables the buffering of the output stream");
-  puts(" -o/--output <file> Write output to <file> instead of stdout\n"
-       " -O/--remote-name   Write output to a file named as the remote file\n"
-       " -p/--proxytunnel   Perform non-HTTP services through a HTTP proxy\n"
-       " -P/--ftpport <address> Use PORT with address instead of PASV when ftping (F)\n"
-       " -q                 When used as the first parameter disables .curlrc\n"
-       " -Q/--quote <cmd>   Send QUOTE command to FTP before file transfer (F)");
-  puts(" -r/--range <range> Retrieve a byte range from a HTTP/1.1 or FTP server\n"
-       " -R/--remote-time   Set the remote file's time on the local output\n"
-       " -s/--silent        Silent mode. Don't output anything\n"
-       " -S/--show-error    Show error. With -s, make curl show errors when they occur");
-  puts("    --stderr <file> Where to redirect stderr. - means stdout.\n"
-       " -t/--telnet-option <OPT=val> Set telnet option\n"
-       "    --trace <file>  Dump a network/debug trace to the given file\n"
-       "    --trace-ascii <file>  Like --trace but without the hex output\n"
-       " -T/--upload-file <file> Transfer/upload <file> to remote site\n"
-       "    --url <URL>     Another way to specify URL to work with");
-  puts(" -u/--user <user[:password]> Specify user and password to use\n"
-       "                    Overrides -n and --netrc-optional\n"
-       " -U/--proxy-user <user[:password]> Specify Proxy authentication\n"
-       " -v/--verbose       Makes the operation more talkative\n"
-       " -V/--version       Outputs version number then quits");
-  puts(" -w/--write-out [format] What to output after completion\n"
-       " -x/--proxy <host[:port]>  Use proxy. (Default port is 1080)\n"
-       "    --random-file <file> File to use for reading random data from (SSL)\n"
-       " -X/--request <command> Specific request command to use");
-  puts(" -y/--speed-time    Time needed to trig speed-limit abort. Defaults to 30\n"
-       " -Y/--speed-limit   Stop transfer if below speed-limit for 'speed-time' secs\n"
-       " -z/--time-cond <time> Includes a time condition to the server (H)\n"
-       " -Z/--max-redirs <num> Set maximum number of redirections allowed (H)\n"
-       " -0/--http1.0       Force usage of HTTP 1.0 (H)\n"
-       " -1/--tlsv1         Force usage of TLSv1 (H)\n"
-       " -2/--sslv2         Force usage of SSLv2 (H)\n"
-       " -3/--sslv3         Force usage of SSLv3 (H)");
-  puts(" -#/--progress-bar  Display transfer progress as a progress bar");
+    }
+#endif
+  
+    if(!home) {
+      home = curl_getenv("HOME"); /* portable environment reader */
+      if(!home)
+        return -1;
+      home_alloc = TRUE;
+    }
+
+    netrcfile = curl_maprintf("%s%s%s", home, DIR_CHAR, NETRC);
+    if(!netrcfile) {
+      if(home_alloc)
+        free(home);
+      return -1;
+    }
+    netrc_alloc = TRUE;
+  }
+
+  file = fopen(netrcfile, "r");
+  if(file) {
+    char *tok;
+    char *tok_buf;
+    bool done=FALSE;
+    char netrcbuffer[256];
+
+    while(!done && fgets(netrcbuffer, sizeof(netrcbuffer), file)) {
+      tok=strtok_r(netrcbuffer, " \t\n", &tok_buf);
+      while(!done && tok) {
+
+        if (login[0] && password[0]) {
+          done=TRUE;
+          break;
+        }
+
+	switch(state) {
+	case NOTHING:
+	  if(strequal("machine", tok)) {
+	    /* the next tok is the machine name, this is in itself the
+	       delimiter that starts the stuff entered for this machine,
+	       after this we need to search for 'login' and
+	       'password'. */
+	    state=HOSTFOUND;
+	  }
+	  break;
+	case HOSTFOUND:
+	  if(strequal(host, tok)) {
+	    /* and yes, this is our host! */
+	    state=HOSTVALID;
+#ifdef _NETRC_DEBUG
+	    printf("HOST: %s\n", tok);
+#endif
+	    retcode=0; /* we did find our host */
+	  }
+	  else
+	    /* not our host */
+	    state=NOTHING;
+	  break;
+	case HOSTVALID:
+	  /* we are now parsing sub-keywords concerning "our" host */
+	  if(state_login) {
+            if (specific_login) {
+              state_our_login = strequal(login, tok);
+            }
+            else {
+              strncpy(login, tok, LOGINSIZE-1);
+#ifdef _NETRC_DEBUG
+	      printf("LOGIN: %s\n", login);
+#endif
+            }
+	    state_login=0;
+	  }
+	  else if(state_password) {
+            if (state_our_login || !specific_login) {
+              strncpy(password, tok, PASSWORDSIZE-1);
+#ifdef _NETRC_DEBUG
+              printf("PASSWORD: %s\n", password);
+#endif
+            }
+	    state_password=0;
+	  }
+	  else if(strequal("login", tok))
+	    state_login=1;
+	  else if(strequal("password", tok))
+	    state_password=1;
+	  else if(strequal("machine", tok)) {
+	    /* ok, there's machine here go => */
+	    state = HOSTFOUND;
+            state_our_login = 0;
+	  }
+	  break;
+	} /* switch (state) */
+
+	tok = strtok_r(NULL, " \t\n", &tok_buf);
+      } /* while (tok) */
+    } /* while fgets() */
+
+    fclose(file);
+  }
+
+  if(home_alloc)
+    free(home);
+  if(netrc_alloc)
+    free(netrcfile);
+
+  return retcode;
 }

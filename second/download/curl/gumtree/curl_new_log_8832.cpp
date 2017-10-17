@@ -1,11 +1,10 @@
 fputs(
-"              format. If you set the file name to  a  single  dash,  \"-\",  the\n"
-"              cookies will be written to stdout.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              This  command  line  option will activate the cookie engine that\n"
-"              makes curl record and use cookies. Another way to activate it is\n"
-"              to use the -b, --cookie option.\n"
-"\n"
-"              If the cookie jar can't be created or written to, the whole curl\n"
-"              operation won't fail or even report an error clearly.  Using  -v\n"
+"              (Added in 7.19.7)\n"
+"       -d, --data <data>\n"
+"              (HTTP) Sends the specified data in a POST request  to  the  HTTP\n"
+"              server,  in  the  same  way  that a browser does when a user has\n"
+"              filled in an HTML form and presses the submit button. This  will\n"
+"              cause curl to pass the data to the server using the content-type\n"
 , stdout);

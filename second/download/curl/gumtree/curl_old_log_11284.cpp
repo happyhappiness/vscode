@@ -1,10 +1,11 @@
 fputs(
-"       --socks5-gssapi-service <servicename>\n"
-"              The default service name for a socks server is rcmd/server-fqdn.\n"
-"              This option allows you to change it.\n"
+"              causes data sent to stdout to be in text mode for win32 systems.\n"
 "\n"
-"              Examples:   --socks5  proxy-name  --socks5-gssapi-service  sockd\n"
-"              would use sockd/proxy-name --socks5 proxy-name  --socks5-gssapi-\n"
-"              service  sockd/real-name  would  use  sockd/real-name  for cases\n"
-"              where the proxy-name does not match the principal name.   (Added\n"
+"       --basic\n"
+"              (HTTP) Tells curl to use  HTTP  Basic  authentication  with  the\n"
+"              remote  host.  This  is  the  default and this option is usually\n"
+"              pointless, unless you use it to override a previously set option\n"
+"              that  sets  a  different  authentication method (such as --ntlm,\n"
+"              --digest, or --negotiate).\n"
+"\n"
 , stdout);

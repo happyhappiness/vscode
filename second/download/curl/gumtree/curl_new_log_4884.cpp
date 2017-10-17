@@ -1,11 +1,10 @@
 fputs(
-"              instead of the method otherwise used (which  defaults  to  GET).\n"
-"              Read  the  HTTP  1.1 specification for details and explanations.\n"
-"              Common additional HTTP requests  include  PUT  and  DELETE,  but\n"
-"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
-"              more.\n"
+"              (FTP) Use CCC (Clear Command Channel) Sets  the  CCC  mode.  The\n"
+"              passive  mode  will  not initiate the shutdown, but instead wait\n"
+"              for the server to do it, and will not reply to the shutdown from\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
-"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
-"              doing file lists with FTP.\n"
-"\n"
+"       -F/--form <name=content>\n"
+"              (HTTP) This lets curl emulate a filled-in form in which  a  user\n"
 , stdout);

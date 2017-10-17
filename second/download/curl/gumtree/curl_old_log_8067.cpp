@@ -1,8 +1,9 @@
 fputs(
-"              If curl is built against the NSS SSL library  then  this  option\n"
-"              can  tell curl the nickname of the certificate to use within the\n"
-"              NSS database defined by the environment variable SSL_DIR (or  by\n"
-"              default  /etc/pki/nssdb).  If  the  NSS PEM PKCS#11 module (lib-\n"
-"              nsspem.so) is available then PEM files may  be  loaded.  If  you\n"
-"              want to use a file from the current directory, please precede it\n"
+"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
+"              be  in  PEM  format,  and  if curl is built against OpenSSL, the\n"
+"              directory must have been processed using  the  c_rehash  utility\n"
+"              supplied  with OpenSSL. Using --capath can allow OpenSSL-powered\n"
+"              curl to make SSL-connections much more  efficiently  than  using\n"
+"              --cacert if the --cacert file contains many CA certificates.\n"
+"\n"
 , stdout);

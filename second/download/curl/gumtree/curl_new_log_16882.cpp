@@ -1,0 +1,17 @@
+puts(
+"          password was entered.\n"
+"\n"
+"     47   Too many redirects. When following redirects, curl  hit\n"
+"          the maximum amount.\n"
+"\n"
+"     XX   There  will  appear  more  error  codes  here in future\n"
+"          releases. The existing ones are meant to never  change.\n"
+"\n"
+"BUGS\n"
+"     If you do find bugs, mail them to curl-bug@haxx.se.\n"
+"\n"
+"AUTHORS / CONTRIBUTORS\n"
+"      - Daniel Stenberg <Daniel.Stenberg@haxx.se>\n"
+"      - Rafael Sagula <sagula@inf.ufrgs.br>\n"
+"      - Sampo Kellomaki <sampo@iki.fi>\n"
+);

@@ -1,11 +1,11 @@
 fputs(
-"              curl recognizes the environment variable named  'CURL_CA_BUNDLE'\n"
-"              if  it  is  set,  and uses the given path as a path to a CA cert\n"
-"              bundle. This option overrides that variable.\n"
+"              If  this option is used several times, the following occurrences\n"
+"              make no difference. Undoing an  enforced  passive  really  isn't\n"
+"              doable  but  you must then instead enforce the correct -P/--ftp-\n"
+"              port again.\n"
 "\n"
-"              The windows version of curl will automatically  look  for  a  CA\n"
-"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
-"              tory as curl.exe, or in the Current Working Directory, or in any\n"
-"              folder along your PATH.\n"
+"              Passive mode means that curl will try the EPSV command first and\n"
+"              then PASV, unless --disable-epsv is used.\n"
 "\n"
+"       --ftp-alternative-to-user <command>\n"
 , stdout);

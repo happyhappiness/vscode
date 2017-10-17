@@ -1,1 +1,0 @@
-warnf(clientp, "Could not set TCP_KEEPIDLE!\n");

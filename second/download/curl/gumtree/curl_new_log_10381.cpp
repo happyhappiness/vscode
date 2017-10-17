@@ -1,11 +1,9 @@
 fputs(
-"              --location (Added in 7.26.0)\n"
+"              (As of 7.39.0, curl attempts to automatically extract the public\n"
+"              key  from the private key file, so passing this option is gener-\n"
+"              ally not required. Note that this public key extraction requires\n"
+"              libcurl  to  be linked against a copy of libssh2 1.2.8 or higher\n"
+"              that is itself linked against OpenSSL.)\n"
 "\n"
-"       --proto <protocols>\n"
-"              Tells  curl  to  use  the  listed  protocols  for  its   initial\n"
-"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
-"              arated, and are each a protocol name or 'all',  optionally  pre-\n"
-"              fixed by zero or more modifiers. Available modifiers are:\n"
-"\n"
-"              +  Permit this protocol in addition to protocols already permit-\n"
+"       -q     If used as the first parameter on the command line,  the  curlrc\n"
 , stdout);

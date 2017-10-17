@@ -1,10 +1,10 @@
 fputs(
-"              to a proxy. You may specify any number of extra headers. This is\n"
-"              the  equivalent option to -H, --header but is for proxy communi-\n"
-"              cation only like in CONNECT requests when you  want  a  separate\n"
-"              header  sent  to  the proxy to what is sent to the actual remote\n"
-"              host.\n"
+"              POST  requests  into GET requests when following a 302 redirect-\n"
+"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
+"              curl  does  the  conversion  by default to maintain consistency.\n"
+"              However, a server may require a POST to remain a POST after such\n"
+"              a  redirection.  This  option  is meaningful only when using -L,\n"
+"              --location (Added in 7.19.1)\n"
 "\n"
-"              curl will make sure that each header  you  add/replace  is  sent\n"
-"              with the proper end-of-line marker, you should thus not add that\n"
+"       --post303\n"
 , stdout);

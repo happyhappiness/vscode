@@ -1,9 +1,11 @@
 fputs(
-"              -I, --head, headers from all requested pages will be shown. When\n"
-"              authentication  is  used, curl only sends its credentials to the\n"
-"              initial host. If a redirect takes curl to a different  host,  it\n"
-"              won't  be  able to intercept the user+password. See also --loca-\n"
-"              tion-trusted on how to change this. You can limit the amount  of\n"
-"              redirects to follow by using the --max-redirs option.\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
+"              out will decrease in accuracy as the specified timeout increases\n"
+"              in decimal precision.  See also the --connect-timeout option.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --login-options <options>\n"
+"              Specify the login options to use during server authentication.\n"
 "\n"
 , stdout);

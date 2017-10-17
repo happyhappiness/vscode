@@ -1,11 +1,10 @@
 fputs(
-"              should ever get hurt by attempting  to  reuse  SSL  session-IDs,\n"
-"              there seem to be broken SSL implementations in the wild that may\n"
-"              require you to disable this in order for you to succeed.  (Added\n"
-"              in 7.16.0)\n"
+"              the conversion by default to maintain  consistency.  However,  a\n"
+"              server  may  requires a POST to remain a POST after such a redi-\n"
+"              rection. This option is meaningful only when using -L/--location\n"
+"              (Added in 7.19.1)\n"
 "\n"
-"              Note  that  this  is the negated option name documented. You can\n"
-"              thus use --sessionid to enforce session-ID caching.\n"
-"\n"
-"       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
+"       --proxy-anyauth\n"
+"              Tells  curl to pick a suitable authentication method when commu-\n"
+"              nicating with  the  given  proxy.  This  might  cause  an  extra\n"
 , stdout);

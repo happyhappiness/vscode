@@ -1,9 +1,11 @@
 fputs(
-"              Use the file name \"-\" (a single dash) to use stdin instead of  a\n"
-"              given  file.   Alternately,  the file name \".\" (a single period)\n"
-"              may be specified instead of \"-\" to  use  stdin  in  non-blocking\n"
-"              mode  to  allow  reading  server  output  while  stdin  is being\n"
-"              uploaded.\n"
+"              This option overrides previous uses of -v, --verbose or --trace.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              You can specify one -T for each URL on the command line. Each -T\n"
+"       --trace-time\n"
+"              Prepends a time stamp to each trace or verbose  line  that  curl\n"
+"              displays.  (Added in 7.14.0)\n"
+"\n"
+"       -u, --user <user:password;options>\n"
+"              Specify  the  user  name, password and optional login options to\n"
 , stdout);

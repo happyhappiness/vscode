@@ -1,11 +1,11 @@
 fputs(
-"              speed_download The average download speed that curl measured for\n"
-"                             the complete download. Bytes per second.\n"
+"              doing file lists with FTP.\n"
 "\n"
-"              speed_upload   The  average  upload speed that curl measured for\n"
-"                             the complete upload. Bytes per second.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              content_type   The Content-Type of the  requested  document,  if\n"
-"                             there was any.\n"
-"\n"
+"       --xattr\n"
+"              When saving output to a file, this option tells  curl  to  store\n"
+"              certain file metadata in extened file attributes. Currently, the\n"
+"              URL is stored in the xdg.origin.url attribute and, for HTTP, the\n"
+"              content  type  is stored in the mime_type attribute. If the file\n"
 , stdout);

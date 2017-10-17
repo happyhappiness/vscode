@@ -1,12 +1,9 @@
 fputs(
-"  included in recent versions of OpenSSL, and for older versions Dr Stephen\n"
-"  N. Henson has written a patch for SSLeay that adds this functionality. You\n"
-"  can get his patch (that requires an SSLeay installation) from his site at:\n"
-"  http://www.drh-consultancy.demon.co.uk/\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"  Example on how to automatically retrieve a document using a certificate with\n"
-"  a personal password:\n"
-"\n"
-"        curl -E /path/to/cert.pem:password https://secure.site.com/\n"
-"\n"
+"              If  you  start  the data with the letter @, the rest should be a\n"
+"              file name to read the data from, or - if you want curl  to  read\n"
+"              the  data  from stdin.  The contents of the file must already be\n"
+"              URL-encoded. Multiple files can also be specified. Posting  data\n"
 , stdout);

@@ -1,9 +1,11 @@
 fputs(
-"              (HTTP) Sends the \"Referer Page\" information to the HTTP  server.\n"
-"              This  can also be set with the -H/--header flag of course.  When\n"
-"              used with -L/--location you can append \";auto\"  to  the  referer\n"
-"              URL to make curl automatically set the previous URL when it fol-\n"
-"              lows a Location: header. The \";auto\" string can be  used  alone,\n"
-"              even if you don't set an initial referer.\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              silent failure.\n"
+"\n"
+"       --ftp-create-dirs\n"
+"              (FTP) When an FTP URL/operation uses a path  that  doesn't  cur-\n"
+"              rently  exist on the server, the standard behavior of curl is to\n"
+"              fail. Using this option, curl will  instead  attempt  to  create\n"
+"              missing directories. (Added in 7.10.7)\n"
 "\n"
 , stdout);

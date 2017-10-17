@@ -1,10 +1,10 @@
 fputs(
-"              If  this option is used several times, each occurrence will tog-\n"
-"              gle this on/off.\n"
+"       -l/--list-only\n"
+"              (FTP)  When listing an FTP directory, this switch forces a name-\n"
+"              only view.  Especially useful if you want to  machine-parse  the\n"
+"              contents  of  an  FTP  directory since the normal directory view\n"
+"              doesn't use a standard look or format.\n"
 "\n"
-"       -k/--insecure\n"
-"              (SSL) This option explicitly allows curl to  perform  \"insecure\"\n"
-"              SSL  connections and transfers. Starting with curl 7.10, all SSL\n"
-"              connections will be attempted to be made secure by using the  CA\n"
-"              certificate  bundle installed by default. This makes all connec-\n"
+"              This option causes an FTP NLST command to  be  sent.   Some  FTP\n"
+"              servers  list  only files in their response to NLST; they do not\n"
 , stdout);

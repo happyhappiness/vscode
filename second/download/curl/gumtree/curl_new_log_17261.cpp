@@ -1,0 +1,1 @@
+Curl_failf(conn->data, "Bad reply from server");

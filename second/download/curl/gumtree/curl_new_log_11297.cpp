@@ -1,9 +1,11 @@
 fputs(
-"              after a completed operation. Curl writes all cookies  previously\n"
-"              read  from a specified file as well as all cookies received from\n"
-"              remote server(s). If no cookies are known, no data will be writ-\n"
-"              ten.  The  file  will  be written using the Netscape cookie file\n"
-"              format. If you set the file name to  a  single  dash,  \"-\",  the\n"
-"              cookies will be written to stdout.\n"
+"              debugging and seeing what's going on \"under the  hood\".  A  line\n"
+"              starting  with  '>'  means \"header data\" sent by curl, '<' means\n"
+"              \"header data\" received by curl that is hidden in  normal  cases,\n"
+"              and  a  line starting with '*' means additional info provided by\n"
+"              curl.\n"
+"\n"
+"              Note that if you only want  HTTP  headers  in  the  output,  -i,\n"
+"              --include might be the option you're looking for.\n"
 "\n"
 , stdout);

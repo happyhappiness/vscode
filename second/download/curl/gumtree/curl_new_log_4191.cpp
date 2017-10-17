@@ -1,11 +1,11 @@
 fputs(
-"              Disables the buffering of the output stream. In normal work sit-\n"
-"              uations, curl will use a standard buffered  output  stream  that\n"
-"              will have the effect that it will output the data in chunks, not\n"
-"              necessarily exactly when the data arrives.   Using  this  option\n"
-"              will disable that buffering.\n"
+"              (SSL/SSH) Passphrase for the private key\n"
 "\n"
-"              Note  that  this  is the negated option name documented. You can\n"
-"              thus use --buffer to enforce the buffering.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --post301\n"
+"              Tells  curl  to  respect  RFC  2616/10.3.2  and not convert POST\n"
+"              requests into GET requests when following a 301 redirection. The\n"
+"              non-RFC  behaviour  is  ubiquitous in web browsers, so curl does\n"
+"              the conversion by default to maintain  consistency.  However,  a\n"
 , stdout);

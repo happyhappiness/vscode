@@ -1,11 +1,11 @@
 fputs(
-"              --epsv can be used to explicitly enable EPSV again and --no-epsv\n"
-"              is an alias for --disable-epsv.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Disabling EPSV only changes the passive behavior. If you want to\n"
-"              switch to active mode you need to use -P, --ftp-port.\n"
+"       --cacert <CA certificate>\n"
+"              (SSL) Tells curl to use the specified certificate file to verify\n"
+"              the peer. The file may contain  multiple  CA  certificates.  The\n"
+"              certificate(s)  must be in PEM format. Normally curl is built to\n"
+"              use a default file for this, so this option is typically used to\n"
+"              alter that default file.\n"
 "\n"
-"       -e, --referer <URL>\n"
-"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
-"              This can also be set with the -H, --header flag of course.  When\n"
 , stdout);

@@ -1,1 +1,2 @@
-warnf(config, "Illegally formatted input field!\n");
+warnf(config, "--metalink option is ignored because the binary is "
+                "built without the Metalink support.\n");

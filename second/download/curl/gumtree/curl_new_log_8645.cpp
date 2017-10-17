@@ -1,8 +1,12 @@
 fputs(
-"              has  pressed  the  submit  button. This causes curl to POST data\n"
-"              using the  Content-Type  multipart/form-data  according  to  RFC\n"
-"              2388.  This  enables uploading of binary files etc. To force the\n"
-"              'content' part to be a file, prefix the  file  name  with  an  @\n"
-"              sign.  To just get the content part from a file, prefix the file\n"
-"              name with the symbol <. The difference between @ and <  is  then\n"
+"                     etc and give a full path to the server for all these com-\n"
+"                     mands. This is the fastest behavior.\n"
+"\n"
+"              singlecwd\n"
+"                     curl does one CWD with the full target directory and then\n"
+"                     operates on the file \"normally\"  (like  in  the  multicwd\n"
+"                     case).  This  is  somewhat  more standards compliant than\n"
+"                     'nocwd' but without the full penalty of 'multicwd'.\n"
+"       (Added in 7.15.1)\n"
+"\n"
 , stdout);

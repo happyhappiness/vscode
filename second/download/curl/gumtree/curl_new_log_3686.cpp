@@ -1,11 +1,8 @@
 fputs(
-"                     operates on the file \"normally\"  (like  in  the  multicwd\n"
-"                     case).  This  is  somewhat  more standards compliant than\n"
-"                     'nocwd' but without the full penalty of 'multicwd'.\n"
-"\n"
-"       --ftp-pasv\n"
-"              (FTP) Use PASV when transferring. PASV is the  internal  default\n"
-"              behavior, but using this option can be used to override a previ-\n"
-"              ous --ftp-port option. (Added in 7.11.0)\n"
-"\n"
+"              has  pressed  the  submit  button. This causes curl to POST data\n"
+"              using the Content-Type multipart/form-data according to RFC1867.\n"
+"              This  enables  uploading of binary files etc. To force the 'con-\n"
+"              tent' part to be a file, prefix the file name with an @ sign. To\n"
+"              just get the content part from a file, prefix the file name with\n"
+"              the letter <. The difference between @ and  <  is  then  that  @\n"
 , stdout);

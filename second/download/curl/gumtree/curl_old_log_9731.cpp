@@ -1,11 +1,10 @@
 fputs(
-"              If the cookie jar can't be created or written to, the whole curl\n"
-"              operation won't fail or even report an error clearly.  Using  -v\n"
-"              will get a warning displayed, but that is the only visible feed-\n"
-"              back you get about this possibly lethal situation.\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"              If this option is used several times, the  last  specified  file\n"
-"              name will be used.\n"
+"              -d, --data is the same as  --data-ascii.  To  post  data  purely\n"
+"              binary, you should instead use the --data-binary option. To URL-\n"
+"              encode the value of a form field you may use --data-urlencode.\n"
 "\n"
-"       -C, --continue-at <offset>\n"
+"              If any of these options is used more than once on the same  com-\n"
 , stdout);

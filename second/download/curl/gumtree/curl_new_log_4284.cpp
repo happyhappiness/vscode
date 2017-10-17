@@ -1,12 +1,8 @@
 fputs(
-"   Note that using FTPS:// as prefix is the \"implicit\" way as described in the\n"
-"   standards while the recommended \"explicit\" way is done by using FTP:// and\n"
-"   the --ftp-ssl option.\n"
-"\n"
-" SFTP / SCP\n"
-"\n"
-"   This is similar to FTP, but you can specify a private key to use instead of\n"
-"   a password. Note that the private key may itself be protected by a password\n"
-"   that is unrelated to the login password of the remote system.  If you\n"
-"   provide a private key file you must also provide a public key file.\n"
+"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
+"              name to use to read previously stored cookie lines  from,  which\n"
+"              should  be used in this session if they match. Using this method\n"
+"              also activates the \"cookie parser\" which will make  curl  record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination with the -L/--location option. The  file  format  of\n"
 , stdout);

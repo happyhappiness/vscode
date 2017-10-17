@@ -1,0 +1,14 @@
+fputs(
+"              --tlspassword are specified but --tlsauthtype is not, then  this\n"
+"              option defaults to \"SRP\".\n"
+"\n"
+"              Added in 7.21.4.\n"
+"\n"
+"       --tlspassword\n"
+"              Set  password  for use with the TLS authentication method speci-\n"
+"              fied with --tlsauthtype. Requires that --tlsuser also be set.\n"
+"\n"
+"              Added in 7.21.4.\n"
+"       --tlsuser <name>\n"
+"              Set username for use with the TLS authentication  method  speci-\n"
+, stdout);

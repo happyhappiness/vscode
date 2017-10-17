@@ -1,9 +1,10 @@
 fputs(
-"                             The ultimate filename that curl  writes  out  to.\n"
-"                             This  is only meaningful if curl is told to write\n"
-"                             to a file  with  the  --remote-name  or  --output\n"
-"                             option.  It's most useful in combination with the\n"
-"                             --remote-header-name option. (Added in 7.25.1)\n"
+"              time_namelookup\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the name resolving was completed.\n"
 "\n"
-"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"              time_pretransfer\n"
+"                             The time, in seconds,  it  took  from  the  start\n"
+"                             until  the file transfer was just about to begin.\n"
+"                             This includes all pre-transfer commands and nego-\n"
 , stdout);

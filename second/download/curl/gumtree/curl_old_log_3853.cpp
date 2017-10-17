@@ -1,11 +1,11 @@
 fputs(
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code was any other 3xx code, curl  will  re-send  the  following\n"
-"              request using the same unmodified method.\n"
+"              port.  This  is not very common. Use -V/--version to see if your\n"
+"              version supports GSS-Negotiate.\n"
 "\n"
-"              If  this  option  is  used  twice, the second will again disable\n"
-"              location following.\n"
+"              When using this option, you must also provide a  fake  -u/--user\n"
+"              option  to  activate the authentication code properly. Sending a\n"
+"              '-u :' is enough as the user  name  and  password  from  the  -u\n"
+"              option aren't actually used.\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS) Like -L/--location, but will allow sending the name\n"
+"              If  this option is used several times, the following occurrences\n"
 , stdout);

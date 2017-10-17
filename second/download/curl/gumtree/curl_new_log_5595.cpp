@@ -1,8 +1,12 @@
 fputs(
-"              libcurl has changed  the  working  directory,  just  before  the\n"
-"              transfer command(s), prefix the command with a '+' (this is only\n"
-"              supported for FTP). You may specify any number of  commands.  If\n"
-"              the  server  returns failure for one of the commands, the entire\n"
-"              operation will be aborted. You must send  syntactically  correct\n"
-"              FTP  commands  as  RFC959  defines to FTP servers, or one of the\n"
+"       feature enabled, so that when  you  attempt  to  get  a  range,  you'll\n"
+"       instead get the whole document.\n"
+"\n"
+"       FTP  and SFTP range downloads only support the simple 'start-stop' syn-\n"
+"       tax (optionally with one of the numbers omitted). FTP  use  depends  on\n"
+"       the extended FTP command SIZE.\n"
+"\n"
+"       If this option is used several times, the last one will be used.\n"
+"\n"
+"       --raw  When  used, it disables all internal HTTP decoding of content or\n"
 , stdout);

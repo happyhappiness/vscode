@@ -1,0 +1,1 @@
+curl_mfprintf(stderr, "%s %#08x\n", "dummy", 65);

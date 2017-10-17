@@ -1,9 +1,12 @@
 fputs(
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"              rection. This option is meaningful only when using -L/--location\n"
+"              (Added in 7.19.1)\n"
 "\n"
-"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It  is a proprietary protocol, reverse-engineered by clever peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior  should  not be endorsed, you should encourage everyone\n"
+"       --proxy-anyauth\n"
+"              Tells curl to pick a suitable authentication method when  commu-\n"
+"              nicating  with  the  given  proxy.  This  might  cause  an extra\n"
+"              request/response round-trip. (Added in 7.13.2)\n"
+"\n"
+"       --proxy-basic\n"
+"              Tells curl to use HTTP Basic authentication  when  communicating\n"
 , stdout);

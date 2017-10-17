@@ -1,11 +1,11 @@
 fputs(
-"              only such one.  (Added in 7.33.0)\n"
+"              (SSL)  Specify  the  path  name  to the Entropy Gathering Daemon\n"
+"              socket. The socket is used to seed the  random  engine  for  SSL\n"
+"              connections. See also the --random-file option.\n"
 "\n"
-"       --dns-servers <ip-address,ip-address>\n"
-"              Set the list of DNS servers to be used  instead  of  the  system\n"
-"              default.  The list of IP addresses should be separated with com-\n"
-"              mas. Port numbers may also optionally be given as :<port-number>\n"
-"              after each IP address.\n"
+"       --cert-type <type>\n"
+"              (SSL)  Tells curl what certificate type the provided certificate\n"
+"              is in. PEM, DER and ENG are recognized types.  If not specified,\n"
+"              PEM is assumed.\n"
 "\n"
-"              This  option  requires  that  libcurl  was built with a resolver\n"
 , stdout);

@@ -1,10 +1,12 @@
 fputs(
-"       19     FTP  couldn't download/access the given file, the RETR (or simi-\n"
-"              lar) command failed.\n"
+"              versions (which it is if it is IPv6-capable), this option  tells\n"
+"              libcurl to resolve names to IPv4 addresses only.\n"
 "\n"
-"       21     FTP quote error. A quote command returned error from the server.\n"
-"       22     HTTP page not retrieved. The requested  url  was  not  found  or\n"
-"              returned  another  error  with  the HTTP error code being 400 or\n"
-"              above. This return code only appears if -f, --fail is used.\n"
+"       -6, --ipv6\n"
+"              If  libcurl  is  capable  of resolving an address to multiple IP\n"
+"              versions (which it is if it is IPv6-capable), this option  tells\n"
+"              libcurl  to  resolve names to IPv6 addresses only.  default sta-\n"
+"              tistics.\n"
 "\n"
+"       -a, --append\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              SSL connections and transfers. All SSL connections are attempted\n"
-"              to be made secure by using the CA certificate  bundle  installed\n"
-"              by  default.  This  makes  all connections considered \"insecure\"\n"
-"              fail unless -k, --insecure is used.\n"
+"              vided  private  key  is. DER, PEM, and ENG are supported. If not\n"
+"              specified, PEM is assumed.\n"
 "\n"
-"              See    this    online    resource    for    further     details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -K, --config <config file>\n"
+"       --krb <level>\n"
+"              (FTP) Enable Kerberos authentication and use. The level must  be\n"
+"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
+"              'private'. Should you use a level that  is  not  one  of  these,\n"
 , stdout);

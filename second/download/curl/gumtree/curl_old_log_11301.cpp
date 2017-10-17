@@ -1,10 +1,11 @@
 fputs(
-"              POST  requests  into GET requests when following a 303 redirect-\n"
-"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
-"              curl  does  the  conversion  by default to maintain consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
-"              a  redirection.  This  option  is meaningful only when using -L,\n"
-"              --location (Added in 7.26.0)\n"
+"                             there was any.\n"
 "\n"
-"       --proto <protocols>\n"
+"              filename_effective\n"
+"                             The  ultimate  filename  that curl writes out to.\n"
+"                             This is only meaningful if curl is told to  write\n"
+"                             to  a  file  with  the  --remote-name or --output\n"
+"                             option. It's most useful in combination with  the\n"
+"                             --remote-header-name option. (Added in 7.25.1)\n"
+"\n"
 , stdout);

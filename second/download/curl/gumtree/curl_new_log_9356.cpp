@@ -1,10 +1,12 @@
 fputs(
-"              cause curl to pass the data to the server using the content-type\n"
-"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
+"                     it on in the POST.\n"
 "\n"
-"              -d, --data is the same as  --data-ascii.  To  post  data  purely\n"
-"              binary, you should instead use the --data-binary option. To URL-\n"
-"              encode the value of a form field you may use --data-urlencode.\n"
+"              name@filename\n"
+"                     This will  make  curl  load  data  from  the  given  file\n"
+"                     (including  any  newlines), URL-encode that data and pass\n"
+"                     it on in the POST. The  name  part  gets  an  equal  sign\n"
+"                     appended, resulting in name=urlencoded-file-content. Note\n"
+"                     that the name is expected to be URL-encoded already.\n"
 "\n"
-"              If any of these options is used more than once on the same  com-\n"
+"       --delegation LEVEL\n"
 , stdout);

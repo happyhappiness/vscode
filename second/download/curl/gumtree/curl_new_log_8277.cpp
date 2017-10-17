@@ -1,9 +1,8 @@
 fputs(
-"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
-"              be  in  PEM  format,  and  if curl is built against OpenSSL, the\n"
-"              directory must have been processed using  the  c_rehash  utility\n"
-"              supplied  with OpenSSL. Using --capath can allow OpenSSL-powered\n"
-"              curl to make SSL-connections much more  efficiently  than  using\n"
-"              --cacert if the --cacert file contains many CA certificates.\n"
-"\n"
+"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
+"              POST  requests  into GET requests when following a 302 redirect-\n"
+"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
+"              curl  does  the  conversion  by default to maintain consistency.\n"
+"              However, a server may require a POST to remain a POST after such\n"
+"              a  redirection.  This  option  is meaningful only when using -L,\n"
 , stdout);

@@ -1,12 +1,9 @@
 fputs(
-"              the standard, more informational, meter.\n"
+"              This is done by first doing a request and checking the response-\n"
+"              headers, thus possibly inducing  an  extra  network  round-trip.\n"
+"              This  is  used  instead  of  setting  a  specific authentication\n"
+"              method, which you can do with  --basic,  --digest,  --ntlm,  and\n"
+"              --negotiate.\n"
 "\n"
-"       -:, --next\n"
-"              Tells curl to use a separate operation for the following URL and\n"
-"              associated  options.  This  allows  you  to  send  several   URL\n"
-"              requests,  each  with  their  own specific options, for example,\n"
-"              such as different user names or custom requests for each. (Added\n"
-"              in 7.36.0)\n"
-"\n"
-"       -0, --http1.0\n"
+"              Note  that  using --anyauth is not recommended if you do uploads\n"
 , stdout);

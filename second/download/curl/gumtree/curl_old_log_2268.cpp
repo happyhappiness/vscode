@@ -1,10 +1,11 @@
 fputs(
-"              ones curl would use, your externally set  header  will  be  used\n"
-"              instead of the internal one. This allows you to make even trick-\n"
-"              ier stuff than curl would normally do. You  should  not  replace\n"
-"              internally  set  headers  without  knowing  perfectly  well what\n"
-"              you're doing. Remove an internal header by giving a  replacement\n"
-"              without  content  on  the  right  side  of  the colon, as in: -H\n"
-"              \"Host:\".\n"
+"              vided private key is. DER, PEM and ENG  are  supported.  If  not\n"
+"              specified, PEM is assumed.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --krb4 <level>\n"
+"              (FTP) Enable kerberos4 authentication and use. The level must be\n"
+"              entered  and should be one of 'clear', 'safe', 'confidential' or\n"
+"              'private'. Should you use a level that  is  not  one  of  these,\n"
 , stdout);

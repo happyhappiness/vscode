@@ -1,10 +1,11 @@
 fputs(
-"       -v, --verbose\n"
-"              Be more  verbose/talkative  during  the  operation.  Useful  for\n"
-"              debugging  and  seeing  what's going on \"under the hood\". A line\n"
-"              starting with '>' means \"header data\" sent by  curl,  '<'  means\n"
-"              \"header  data\"  received by curl that is hidden in normal cases,\n"
-"              and a line starting with '*' means additional info  provided  by\n"
-"              curl.\n"
+"                             request. (Added in 7.12.3)\n"
 "\n"
+"              redirect_url   When an HTTP request was made without -L to  fol-\n"
+"                             low redirects, this variable will show the actual\n"
+"                             URL a redirect  would  take  you  to.  (Added  in\n"
+"                             7.18.2)\n"
+"\n"
+"              remote_ip      The  remote  IP address of the most recently done\n"
+"                             connection - can be either IPv4 or IPv6 (Added in\n"
 , stdout);

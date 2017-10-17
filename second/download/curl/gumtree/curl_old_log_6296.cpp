@@ -1,11 +1,11 @@
 fputs(
-"              --negotiate.\n"
+"              -m/--max-time option.\n"
 "\n"
-"              Note that using --anyauth is not recommended if you  do  uploads\n"
-"              from  stdin, since it may require data to be sent twice and then\n"
-"              the client must be able to rewind. If the need should arise when\n"
-"              uploading from stdin, the upload operation will fail.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -b/--cookie <name=data>\n"
-"              (HTTP)  Pass the data to the HTTP server as a cookie. It is sup-\n"
+"       -c/--cookie-jar <file name>\n"
+"              Specify to which file you want curl to write all cookies after a\n"
+"              completed operation. Curl writes  all  cookies  previously  read\n"
+"              from  a  specified  file  as  well  as all cookies received from\n"
+"              remote server(s). If no cookies are known, no file will be writ-\n"
 , stdout);

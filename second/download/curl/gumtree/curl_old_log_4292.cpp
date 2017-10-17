@@ -1,8 +1,11 @@
 fputs(
-"              If  no  '=' letter is used in the line, it is treated as a file-\n"
-"              name to use to read previously stored cookie lines  from,  which\n"
-"              should  be used in this session if they match. Using this method\n"
-"              also activates the \"cookie parser\" which will make  curl  record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
-"              combination with the -L/--location option. The  file  format  of\n"
+"              Since curl 7.19.0, --eprt can be used to explicitly enable  EPRT\n"
+"              again and --no-eprt is an alias for --disable-eprt.\n"
+"\n"
+"       --disable-epsv\n"
+"              (FTP)  Tell  curl  to  disable  the use of the EPSV command when\n"
+"              doing passive FTP transfers. Curl  will  normally  always  first\n"
+"              attempt  to  use EPSV before PASV, but with this option, it will\n"
+"              not try using EPSV.\n"
+"\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              (FTP) Tell curl to send a PRET command before PASV  (and  EPSV).\n"
-"              Certain  FTP  servers,  mainly drftpd, require this non-standard\n"
-"              command for directory listings as well as up  and  downloads  in\n"
-"              PASV mode.  (Added in 7.20.x)\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks4 proxy with -x, --proxy using a socks4:// protocol prefix.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --ftp-ssl-ccc\n"
-"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
+"       --socks4a <host[:port]>\n"
+"              Use the specified SOCKS4a proxy. If the port number is not spec-\n"
+"              ified, it is assumed at port 1080. (Added in 7.18.0)\n"
+"\n"
+"              This  option  overrides any previous use of -x, --proxy, as they\n"
 , stdout);

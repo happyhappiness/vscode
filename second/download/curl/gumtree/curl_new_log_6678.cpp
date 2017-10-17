@@ -1,16 +1,1 @@
-fputs(
-"  and site local addresses including a scope identifier, such as fe80::1234%1,\n"
-"  may also be used, but the scope portion must be numeric and the percent\n"
-"  character must be URL escaped. The previous example in an SFTP URL might\n"
-"  look like:\n"
-"\n"
-"    sftp://[fe80::1234%251]/\n"
-"\n"
-"  IPv6 addresses provided other than in URLs (e.g. to the --proxy, --interface\n"
-"  or --ftp-port options) should not be URL encoded.\n"
-"\n"
-"\n"
-"MAILING LISTS\n"
-"\n"
-"  For your convenience, we have several open mailing lists to discuss curl,\n"
-, stdout);
+Curl_failf(conn->data, "base64-encoding: %s", curl_easy_strerror(result));

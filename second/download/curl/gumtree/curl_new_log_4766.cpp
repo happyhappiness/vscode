@@ -1,10 +1,11 @@
 fputs(
-"              (Added in 7.17.1)\n"
+"              commands listed below to SFTP servers.  This option can be  used\n"
+"              multiple times.\n"
 "\n"
-"       --post302\n"
-"              Tells curl to respect  RFC  2616/10.3.2  and  not  convert  POST\n"
-"              requests into GET requests when following a 302 redirection. The\n"
-"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
-"              the  conversion  by  default to maintain consistency. However, a\n"
-"              server may require a POST to remain a POST after  such  a  redi-\n"
+"              SFTP  is  a  binary protocol. Unlike for FTP, libcurl interprets\n"
+"              SFTP quote commands before sending them to the server.   Follow-\n"
+"              ing is the list of all supported SFTP quote commands:\n"
+"\n"
+"              chgrp group file\n"
+"                     The  chgrp command sets the group ID of the file named by\n"
 , stdout);

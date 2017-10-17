@@ -1,10 +1,11 @@
 fputs(
-"              quotes. Within double quotes, the following escape sequences are\n"
-"              available:  \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding any\n"
-"              other letter is ignored. If the first column of a config line is\n"
-"              a  '#' character, the rest of the line will be treated as a com-\n"
-"              ment. Only write one option per  physical  line  in  the  config\n"
-"              file.\n"
+"              only view.  Especially useful if you want to  machine-parse  the\n"
+"              contents  of  an  FTP  directory since the normal directory view\n"
+"              doesn't use a standard look or format.\n"
 "\n"
-"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
+"              This option causes an FTP NLST command to  be  sent.   Some  FTP\n"
+"              servers  list  only files in their response to NLST; they do not\n"
+"              include subdirectories and symbolic links.\n"
+"\n"
+"       -L, --location\n"
 , stdout);

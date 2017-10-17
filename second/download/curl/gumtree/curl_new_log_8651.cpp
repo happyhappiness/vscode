@@ -1,11 +1,10 @@
 fputs(
-"       --ftp-create-dirs\n"
-"              (FTP/SFTP)  When  an  FTP or SFTP URL/operation uses a path that\n"
-"              doesn't currently exist on the server, the standard behavior  of\n"
-"              curl is to fail. Using this option, curl will instead attempt to\n"
-"              create missing directories.\n"
+"              Allows  secure  authentication, but non-encrypted data transfers\n"
+"              for efficiency.  Fails the transfer if the server  doesn't  sup-\n"
+"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
+"              be removed in a future version.\n"
 "\n"
-"       --ftp-method [method]\n"
-"              (FTP) Control what method curl should use to reach a file on  an\n"
-"              FTP(S)  server. The method argument should be one of the follow-\n"
+"       --form-string <name=string>\n"
+"              (HTTP) Similar to --form except that the value  string  for  the\n"
+"              named  parameter  is used literally. Leading '@' and '<' charac-\n"
 , stdout);

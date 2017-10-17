@@ -1,8 +1,10 @@
 fputs(
-"              actual command line. Options and their parameters must be speci-\n"
-"              fied  on  the  same  config file line, separated by white space,\n"
-"              colon, the equals sign or any combination thereof (however,  the\n"
-"              preferred  separator is the equals sign). If the parameter is to\n"
-"              contain white spaces, the  parameter  must  be  enclosed  within\n"
-"              quotes. Within double quotes, the following escape sequences are\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the connection(s).  Note that port numbers by nature is a scarce\n"
+"              resource that will be busy at times so  setting  this  range  to\n"
+"              something  too  narrow  might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
+"\n"
+"       -L/--location\n"
+"              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
 , stdout);

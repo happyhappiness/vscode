@@ -1,10 +1,9 @@
 fputs(
-"              libcurl supports, and return the uncompressed document.  If this\n"
-"              option  is  used  and  the server sends an unsupported encoding,\n"
-"              curl will report an error.\n"
+"              binary, you should instead use the --data-binary option. To URL-\n"
+"              encode the value of a form field you may use --data-urlencode.\n"
 "\n"
-"       --connect-timeout <seconds>\n"
-"              Maximum time in seconds that you allow  the  connection  to  the\n"
-"              server  to  take.   This  only limits the connection phase, once\n"
-"              curl has connected this option is of no more use. See  also  the\n"
+"              If any of these options is used more than once on the same  com-\n"
+"              mand  line,  the  data  pieces specified will be merged together\n"
+"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
 , stdout);

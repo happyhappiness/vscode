@@ -1,11 +1,11 @@
 fputs(
-"                             remote host was completed. (Added in 7.19.0)\n"
+"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
+"              ytunnel option.\n"
 "\n"
-"              time_pretransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the file transfer was just about to  begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              The  proxy host can be specified the exact same way as the proxy\n"
+"              environment variables, including the protocol  prefix  (http://)\n"
+"              and the embedded user + password.\n"
 "\n"
+"              From  7.21.7,  the  proxy  string may be specified with a proto-\n"
+"              col://  prefix  to  specify  alternative  proxy  protocols.  Use\n"
 , stdout);

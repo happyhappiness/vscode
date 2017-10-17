@@ -1,12 +1,9 @@
 fputs(
-"                        specifies two separate 100-byte ranges(*)(H)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       (*)  =  NOTE  that this will cause the server to reply with a multipart\n"
-"       response!\n"
-"\n"
-"       Only digit characters (0-9) are valid in the 'start' and 'stop'  fields\n"
-"       of  the 'start-stop' range syntax. If a non-digit character is given in\n"
-"       the range, the server's response will be unspecified, depending on  the\n"
-"       server's configuration.\n"
-"\n"
+"       --retry-delay <seconds>\n"
+"              Make  curl  sleep  this  amount of time before each retry when a\n"
+"              transfer has failed with  a  transient  error  (it  changes  the\n"
+"              default  backoff time algorithm between retries). This option is\n"
+"              only interesting if --retry is also used. Setting this delay  to\n"
 , stdout);

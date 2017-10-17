@@ -1,8 +1,11 @@
 fputs(
-"              supported  for  FTP). You may specify any number of commands. If\n"
-"              the server returns failure for one of the commands,  the  entire\n"
-"              operation  will  be aborted. You must send syntactically correct\n"
-"              FTP commands as RFC 959 defines to FTP servers, or  one  of  the\n"
-"              commands  listed below to SFTP servers.  This option can be used\n"
-"              multiple times. When speaking to a FTP server, prefix  the  com-\n"
+"              (SSL) Specify the path name to file containing what will be con-\n"
+"              sidered  as  random  data.  The  data is used to seed the random\n"
+"              engine for SSL connections.  See also the --egd-file option.\n"
+"\n"
+"       --raw  When used, it disables all internal HTTP decoding of content  or\n"
+"              transfer  encodings  and instead makes them passed on unaltered,\n"
+"              raw. (Added in 7.16.2)\n"
+"\n"
+"       --remote-name-all\n"
 , stdout);

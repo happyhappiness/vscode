@@ -1,8 +1,10 @@
 fputs(
-"              (HTTP) Tells curl to figure out authentication method by itself,\n"
-"              and  use  the most secure one the remote site claims to support.\n"
-"              This is done by first doing a request and checking the response-\n"
-"              headers,  thus  possibly  inducing  an extra network round-trip.\n"
-"              This is  used  instead  of  setting  a  specific  authentication\n"
-"              method,  which  you  can  do with --basic, --digest, --ntlm, and\n"
+"              libcurl supports, and save the uncompressed document.   If  this\n"
+"              option  is  used  and  the server sends an unsupported encoding,\n"
+"              curl will report an error.\n"
+"\n"
+"       --connect-timeout <seconds>\n"
+"              Maximum time in seconds that you allow  the  connection  to  the\n"
+"              server  to  take.   This  only limits the connection phase, once\n"
+"              curl has connected this option is of no more use. See  also  the\n"
 , stdout);

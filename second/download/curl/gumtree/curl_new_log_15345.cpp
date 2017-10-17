@@ -1,0 +1,15 @@
+fputs(
+"       --proxy-key-type <type>\n"
+"              Same as --key-type but used in HTTPS proxy context.\n"
+"\n"
+"              Added in 7.52.0.\n"
+"\n"
+"       --proxy-key <key>\n"
+"              Same as --key but used in HTTPS proxy context.\n"
+"\n"
+"       --proxy-negotiate\n"
+"              Tells  curl  to  use HTTP Negotiate (SPNEGO) authentication when\n"
+"              communicating with the given proxy. Use --negotiate for enabling\n"
+"              HTTP Negotiate (SPNEGO) with a remote host.\n"
+"\n"
+, stdout);

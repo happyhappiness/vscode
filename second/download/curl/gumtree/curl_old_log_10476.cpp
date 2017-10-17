@@ -1,9 +1,12 @@
 fputs(
-"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
-"              munication  will be unencrypted. This allows NAT routers to fol-\n"
-"              low the FTP transaction. The default mode is passive. See --ftp-\n"
-"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
+"              curl  will  make  sure  that each header you add/replace is sent\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"       --ftp-ssl-ccc-mode [active/passive]\n"
+"              See also the -A, --user-agent and -e, --referer options.\n"
+"\n"
+"              Starting in 7.37.0, you need --proxy-header to send custom head-\n"
+"              ers intended for a proxy.\n"
+"\n"
 , stdout);

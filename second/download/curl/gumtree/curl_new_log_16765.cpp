@@ -1,0 +1,16 @@
+puts(
+"     14   FTP weird 227 format. Curl couldn't parse the  227-line\n"
+"          the server sent.\n"
+"\n"
+"     15   FTP can't get host. Couldn't resolve the host IP we got\n"
+"          in the 227-line.\n"
+"\n"
+"     16   FTP can't reconnect. Couldn't connect to  the  host  we\n"
+"          got in the 227-line.\n"
+"\n"
+"     17   FTP  couldn't  set  binary.  Couldn't  change  transfer\n"
+"          method to binary.\n"
+"\n"
+"     18   Partial file. Only a part of the file was transfered.\n"
+"\n"
+);

@@ -1,10 +1,10 @@
 fputs(
-"              If curl is built against the NSS SSL library  then  this  option\n"
-"              tells  curl the nickname of the CA certificate to use within the\n"
-"              NSS database defined by the environment variable SSL_DIR (or  by\n"
-"              default  /etc/pki/nssdb).   If  the NSS PEM PKCS#11 module (lib-\n"
-"              nsspem.so) is available then PEM files may be loaded.\n"
+"              (FTP) If authenticating with the USER and PASS  commands  fails,\n"
+"              send  this  command.   When  connecting  to  Tumbleweed's Secure\n"
+"              Transport server over FTPS using  a  client  certificate,  using\n"
+"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
+"              the certificate. (Added in 7.15.5)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
+"       --ftp-skip-pasv-ip\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
 , stdout);

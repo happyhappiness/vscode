@@ -1,1 +1,0 @@
-fputs("> ", conn->data->err);

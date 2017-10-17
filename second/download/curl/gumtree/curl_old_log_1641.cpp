@@ -1,9 +1,11 @@
 fputs(
-"              Makes the fetching more  verbose/talkative.  Mostly  usable  for\n"
-"              debugging.  Lines starting with '>' means data sent by curl, '<'\n"
-"              means data received by curl that is hidden in normal  cases  and\n"
-"              lines  starting with '*' means additional info provided by curl.\n"
-"              Note  that  if  you  only  want  HTTP  headers  in  the  output,\n"
-"              -i/--include might be option you're looking for.\n"
+"                             response   (from  a  proxy)  to  a  curl  CONNECT\n"
+"                             request. (Added in 7.12.4)\n"
 "\n"
+"              time_total     The total time, in seconds, that the full  opera-\n"
+"                             tion lasted. The time will be displayed with mil-\n"
+"                             lisecond resolution.\n"
+"\n"
+"              time_namelookup\n"
+"                             The time, in seconds,  it  took  from  the  start\n"
 , stdout);

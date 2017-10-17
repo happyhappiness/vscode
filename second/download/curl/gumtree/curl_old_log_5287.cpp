@@ -1,11 +1,10 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"                     name,  curl  will authenticate with your current user and\n"
+"                     password.\n"
 "\n"
-"       --trace-ascii <file>\n"
-"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
-"\n"
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only  shows  the ASCII part of the dump. It makes smaller output\n"
+"       -w/--write-out <format>\n"
+"              Defines what to display on stdout after a completed and success-\n"
+"              ful  operation.  The  format  is a string that may contain plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
+"              ified  as \"string\", to get read from a particular file you spec-\n"
 , stdout);

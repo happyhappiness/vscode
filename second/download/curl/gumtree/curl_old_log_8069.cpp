@@ -1,11 +1,11 @@
 fputs(
-"              port,  then the certificate string must match the name of a cer-\n"
-"              tificate that's in the system or user keychain. The private  key\n"
-"              corresponding  to  the  certificate,  and  certificate chain (if\n"
-"              any),  must also be present in the keychain.\n"
+"              (which often also describes why and more). This flag  will  pre-\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              This  method is not fail-safe and there are occasions where non-\n"
+"              successful response codes will  slip  through,  especially  when\n"
+"              authentication is involved (response codes 401 and 407).\n"
 "\n"
-"       --engine <name>\n"
-"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
+"       -F, --form <name=content>\n"
+"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
 , stdout);

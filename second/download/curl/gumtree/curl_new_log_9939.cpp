@@ -1,11 +1,10 @@
 fputs(
-"              a  redirection.  This  option  is meaningful only when using -L,\n"
-"              --location (Added in 7.26.0)\n"
+"       -q     If used as the first parameter on the command line,  the  curlrc\n"
+"              config  file will not be read and used. See the -K, --config for\n"
+"              details on the default config file search path.\n"
 "\n"
-"       --proto <protocols>\n"
-"              Tells  curl  to  use  the  listed  protocols  for  its   initial\n"
-"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
-"              arated, and are each a protocol name or 'all',  optionally  pre-\n"
-"              fixed by zero or more modifiers. Available modifiers are:\n"
-"\n"
+"       -Q, --quote <command>\n"
+"              (FTP/SFTP) Send an arbitrary command to the remote FTP  or  SFTP\n"
+"              server.  Quote commands are sent BEFORE the transfer takes place\n"
+"              (just after the initial PWD command in an FTP  transfer,  to  be\n"
 , stdout);

@@ -1,8 +1,11 @@
 fputs(
-"              can tell curl the nickname of the certificate to use within  the\n"
-"              NSS  database defined by the environment variable SSL_DIR (or by\n"
-"              default /etc/pki/nssdb). If the NSS  PEM  PKCS#11  module  (lib-\n"
-"              nsspem.so)  is  available  then  PEM files may be loaded. If you\n"
-"              want to use a file from the current directory, please precede it\n"
-"              with  \"./\"  prefix, in order to avoid confusion with a nickname.\n"
+"              PKCS#11  module  (libnsspem.so)  needs  to be available for this\n"
+"              option to work properly.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --capath <CA certificate directory>\n"
+"              (SSL) Tells curl to use the specified certificate  directory  to\n"
+"              verify  the  peer.  Multiple paths can be provided by separating\n"
+"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
 , stdout);

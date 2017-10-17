@@ -1,8 +1,12 @@
 fputs(
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
-"              when doing active FTP transfers. Curl will normally always first\n"
-"              attempt  to use EPRT, then LPRT before using PORT, but with this\n"
-"              option, it will use PORT right away. EPRT and  LPRT  are  exten-\n"
-"              sions  to  the  original  FTP  protocol, and may not work on all\n"
-"              servers, but they enable more functionality in a better way than\n"
+"              tion. Overrides -n/--netrc and --netrc-optional.\n"
+"\n"
+"              If  you  just give the user name (without entering a colon) curl\n"
+"              will prompt for a password.\n"
+"\n"
+"              If you use an SSPI-enabled curl binary and do  NTLM  authentica-\n"
+"              tion,  you  can force curl to pick up the user name and password\n"
+"              from your environment by simply specifying a single  colon  with\n"
+"              this option: \"-u :\".\n"
+"\n"
 , stdout);

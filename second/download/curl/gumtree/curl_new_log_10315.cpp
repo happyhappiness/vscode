@@ -1,12 +1,8 @@
 fputs(
-"              Example:\n"
-"\n"
-"              # curl -H \"X-First-Name: Joe\" http://192.168.0.1/\n"
-"\n"
-"              WARNING:  headers  set  with  this  option  will  be  set in all\n"
-"              requests - even after redirects are  followed,  like  when  told\n"
-"              with  -L,  --location. This can lead to the header being sent to\n"
-"              other hosts than the original host, so sensitive headers  should\n"
-"              be used with caution combined with following redirects.\n"
-"\n"
+"              Options and their parameters must be specified on the same  con-\n"
+"              fig  file  line,  separated  by whitespace, colon, or the equals\n"
+"              sign. Long option names can optionally be given  in  the  config\n"
+"              file  without  the initial double dashes and if so, the colon or\n"
+"              equals characters can be used as separators. If  the  option  is\n"
+"              specified  with  one  or  two  dashes,  there can be no colon or\n"
 , stdout);

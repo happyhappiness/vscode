@@ -1,9 +1,11 @@
 fputs(
-"              The given rate is the average speed counted  during  the  entire\n"
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
-"              If you also use the -Y, --speed-limit option, that  option  will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
+"              Use  the  specified  SOCKS5  proxy  -  but resolve the host name\n"
+"              locally. If the port number is not specified, it is  assumed  at\n"
+"              port 1080.\n"
 "\n"
+"              This  option  overrides any previous use of -x, --proxy, as they\n"
+"              are mutually exclusive.\n"
+"\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks5 proxy with -x, --proxy using a socks5:// protocol prefix.\n"
 , stdout);

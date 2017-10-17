@@ -1,12 +1,9 @@
 fputs(
-"                             request. (Added in 7.12.4)\n"
+"              This  option  overrides  existing environment variables that set\n"
+"              the proxy to use. If there's an environment variable  setting  a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              time_total     The total time, in seconds, that the full  opera-\n"
-"                             tion lasted. The time will be displayed with mil-\n"
-"                             lisecond resolution.\n"
-"\n"
-"              time_namelookup\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
-"                             until the name resolving was completed.\n"
-"\n"
+"              Note  that  all  operations that are performed over a HTTP proxy\n"
+"              will transparently be converted to HTTP. It means  that  certain\n"
+"              protocol specific operations might not be available. This is not\n"
 , stdout);

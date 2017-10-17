@@ -1,0 +1,15 @@
+puts(
+"     8    FTP weird server  reply.  The  server  sent  data  curl\n"
+"          couldn't parse.\n"
+"\n"
+"     9    FTP access denied. The server denied login.\n"
+"\n"
+"     10   FTP  user/password  incorrect.  Either one or both were\n"
+"          not accepted by the server.\n"
+"\n"
+"     11   FTP weird PASS reply. Curl  couldn't  parse  the  reply\n"
+"          sent to the PASS request.\n"
+"\n"
+"     12   FTP  weird  USER  reply.  Curl couldn't parse the reply\n"
+"          sent to the USER request.\n"
+);

@@ -1,10 +1,12 @@
 fputs(
-"  address and fall back to IPv4 if the connection fails. The --ipv4 and --ipv6\n"
-"  options can specify which address to use when both are available. IPv6\n"
-"  addresses can also be specified directly in URLs using the syntax:\n"
+"              this URL is written, use the -o/--output or the -O/--remote-name\n"
+"              options.\n"
 "\n"
-"    http://[2001:1890:1112:1::20]/overview.html\n"
+"       -v/--verbose\n"
+"              Makes  the  fetching  more  verbose/talkative. Mostly useful for\n"
+"              debugging. A line starting with '>' means \"header data\" sent  by\n"
+"              curl, '<' means \"header data\" received by curl that is hidden in\n"
+"              normal cases, and a line starting with '*' means additional info\n"
+"              provided by curl.\n"
 "\n"
-"  When this style is used, the -g option must be given to stop curl from\n"
-"  interpreting the square brackets as special globbing characters.  Link local\n"
 , stdout);

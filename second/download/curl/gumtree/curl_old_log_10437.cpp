@@ -1,1 +1,1 @@
-warnf(config, "Error building form post!\n");
+warnf(config, "unsupported rate unit. Use G, M, K or B!\n");

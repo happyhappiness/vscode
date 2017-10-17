@@ -1,8 +1,11 @@
 fputs(
-"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
-"  store certificates with, but it is not used by the most commonly used\n"
-"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
-"  want curl to use the certificates you use with your (favourite) browser, you\n"
-"  may need to download/compile a converter that can convert your browser's\n"
-"  formatted certificates to PEM formatted ones. This kind of converter is\n"
+"              you  to  a  site  to  which you'll send your authentication info\n"
+"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"\n"
+"       -m, --max-time <seconds>\n"
+"              Maximum time in seconds that you allow the  whole  operation  to\n"
+"              take.   This is useful for preventing your batch jobs from hang-\n"
+"              ing for hours due to slow networks or  links  going  down.   See\n"
+"              also the --connect-timeout option.\n"
+"\n"
 , stdout);

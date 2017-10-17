@@ -1,0 +1,16 @@
+fputs(
+"              behavior, but using this option can be used to override a previ-\n"
+"              ous --ftp-port option. (Added in 7.11.0)\n"
+"\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              silent failure.\n"
+"\n"
+"       --ftp-ssl\n"
+"              (FTP) Make the FTP connection switch to use SSL/TLS.  (Added  in\n"
+"              7.11.0)\n"
+"\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              this.\n"
+"\n"
+"       -F/--form <name=content>\n"
+, stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              Makes the fetching more  verbose/talkative.  Mostly  useful  for\n"
-"              debugging.  A line starting with '>' means \"header data\" sent by\n"
-"              curl, '<' means \"header data\" received by curl that is hidden in\n"
-"              normal cases, and a line starting with '*' means additional info\n"
-"              provided by curl.\n"
+"              time_connect   The time, in seconds,  it  took  from  the  start\n"
+"                             until  the  TCP  connect  to  the remote host (or\n"
+"                             proxy) was completed.\n"
 "\n"
-"              Note  that  if  you  only  want  HTTP  headers  in  the  output,\n"
-"              -i/--include might be the option you're looking for.\n"
+"              time_appconnect\n"
+"                             The time, in seconds,  it  took  from  the  start\n"
+"                             until  the  SSL/SSH/etc  connect/handshake to the\n"
+"                             remote host was completed. (Added in 7.19.0)\n"
 "\n"
 , stdout);

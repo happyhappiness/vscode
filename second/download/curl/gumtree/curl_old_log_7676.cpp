@@ -1,11 +1,10 @@
 fputs(
-"       -j, --junk-session-cookies\n"
-"              (HTTP) When curl is told to read cookies from a given file, this\n"
-"              option  will  make  it  discard all \"session cookies\". This will\n"
-"              basically have the same effect as if a new session  is  started.\n"
-"              Typical  browsers  always  discard  session cookies when they're\n"
-"              closed down.\n"
+"              tion (Added in 7.17.1)\n"
 "\n"
-"       -J, --remote-header-name\n"
-"              (HTTP) This option tells the -O, --remote-name option to use the\n"
+"       --post302\n"
+"              Tells  curl  to  respect  RFC  2616/10.3.2  and not convert POST\n"
+"              requests into GET requests when following a 302 redirection. The\n"
+"              non-RFC  behaviour  is  ubiquitous in web browsers, so curl does\n"
+"              the conversion by default to maintain  consistency.  However,  a\n"
+"              server  may  require  a POST to remain a POST after such a redi-\n"
 , stdout);

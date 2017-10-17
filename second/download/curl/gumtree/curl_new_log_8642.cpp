@@ -1,9 +1,11 @@
 fputs(
-"              them with \":\" (e.g.  \"path1:path2:path3\"). The certificates must\n"
-"              be in PEM format, and if curl  is  built  against  OpenSSL,  the\n"
-"              directory  must  have  been processed using the c_rehash utility\n"
-"              supplied with OpenSSL. Using --capath can allow  OpenSSL-powered\n"
-"              curl  to  make  SSL-connections much more efficiently than using\n"
-"              --cacert if the --cacert file contains many CA certificates.\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --ftp-alternative-to-user <command>\n"
+"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
+"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
+"              Transport  server  over  FTPS  using a client certificate, using\n"
+"              \"SITE AUTH\" will tell the server to retrieve the  username  from\n"
+"              the certificate. (Added in 7.15.5)\n"
 "\n"
 , stdout);

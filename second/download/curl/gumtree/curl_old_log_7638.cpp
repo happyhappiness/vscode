@@ -1,9 +1,9 @@
 fputs(
-"              NAME2=VALUE2\".\n"
+"              (SSL) Specifies which ciphers to use in the connection. The list\n"
+"              of  ciphers  must  specify  valid ciphers. Read up on SSL cipher\n"
+"              list          details           on           this           URL:\n"
+"              http://www.openssl.org/docs/apps/ciphers.html\n"
 "\n"
-"              If no '=' symbol is used in the line, it is treated as  a  file-\n"
-"              name  to  use to read previously stored cookie lines from, which\n"
-"              should be used in this session if they match. Using this  method\n"
-"              also  activates  the \"cookie parser\" which will make curl record\n"
-"              incoming cookies too, which may be handy if you're using this in\n"
+"              NSS  ciphers  are  done differently than OpenSSL and GnuTLS. The\n"
+"              full list of NSS ciphers is in the NSSCipherSuite entry at  this\n"
 , stdout);

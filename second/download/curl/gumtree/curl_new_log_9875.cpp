@@ -1,8 +1,11 @@
 fputs(
-"              (HTTP) Extra header to include in the request when sending  HTTP\n"
-"              to  a  server. You may specify any number of extra headers. Note\n"
-"              that if you should add a custom header that has the same name as\n"
-"              one  of  the  internal  ones curl would use, your externally set\n"
-"              header will be used instead of the internal one. This allows you\n"
-"              to  make  even  trickier  stuff than curl would normally do. You\n"
+"              by  default.  This  makes  all connections considered \"insecure\"\n"
+"              fail unless -k, --insecure is used.\n"
+"\n"
+"              See    this    online    resource    for    further     details:\n"
+"              http://curl.haxx.se/docs/sslcerts.html\n"
+"\n"
+"       -K, --config <config file>\n"
+"              Specify  which config file to read curl arguments from. The con-\n"
+"              fig file is a text file in which command line arguments  can  be\n"
 , stdout);

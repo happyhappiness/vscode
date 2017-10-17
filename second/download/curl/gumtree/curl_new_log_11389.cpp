@@ -1,10 +1,11 @@
 fputs(
-"       -I, --head\n"
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the  command  HEAD which this uses to get nothing but the header\n"
-"              of a document. When used on an FTP or FILE file,  curl  displays\n"
-"              the file size and last modification time only.\n"
+"              This option requires a library built with GSS-API or  SSPI  sup-\n"
+"              port.  Use  -V,  --version  to  see  if  your curl supports GSS-\n"
+"              API/SSPI and SPNEGO.\n"
 "\n"
-"       --interface <name>\n"
-"              Perform  an operation using a specified interface. You can enter\n"
+"              When using this option, you must also provide a fake -u,  --user\n"
+"              option  to  activate the authentication code properly. Sending a\n"
+"              '-u :' is enough as the user  name  and  password  from  the  -u\n"
+"              option aren't actually used.\n"
+"\n"
 , stdout);

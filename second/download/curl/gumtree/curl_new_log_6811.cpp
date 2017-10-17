@@ -1,10 +1,9 @@
 fputs(
-"                     This  will  make  curl  load  data  from  the  given file\n"
-"                     (including any newlines), URL-encode that data  and  pass\n"
-"                     it on in the POST.\n"
+"              when getting a file with HTTPS, FTPS or another SSL-based proto-\n"
+"              col. The certificate must be in PEM  format.   If  the  optional\n"
+"              password  isn't  specified, it will be queried for on the termi-\n"
+"              nal. Note that this option assumes a \"certificate\" file that  is\n"
+"              the  private  key  and the private certificate concatenated! See\n"
+"              --cert and --key to specify them independently.\n"
 "\n"
-"              name@filename\n"
-"                     This  will  make  curl  load  data  from  the  given file\n"
-"                     (including any newlines), URL-encode that data  and  pass\n"
-"                     it  on  in  the  POST.  The  name part gets an equal sign\n"
 , stdout);

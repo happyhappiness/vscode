@@ -1,10 +1,10 @@
 fputs(
-"              (FTP/SFTP) When used in an upload, this will tell curl to append\n"
-"              to  the  target  file  instead  of  overwriting  it. If the file\n"
-"              doesn't exist, it will be  created.   Note  that  this  flag  is\n"
-"              ignored by some SSH servers (including OpenSSH).\n"
+"              makes curl record and use cookies. Another way to activate it is\n"
+"              to use the -b, --cookie option.\n"
 "\n"
-"       -A, --user-agent <agent string>\n"
-"              (HTTP) Specify the User-Agent string to send to the HTTP server.\n"
-"              Some  badly  done  CGIs  fail  if  this  field  isn't   set   to\n"
+"              If the cookie jar can't be created or written to, the whole curl\n"
+"              operation won't fail or even report an error clearly.  Using  -v\n"
+"              will get a warning displayed, but that is the only visible feed-\n"
+"              back you get about this possibly lethal situation.\n"
+"\n"
 , stdout);

@@ -1,10 +1,12 @@
 fputs(
-"    with a curl angle.\n"
+"              (RISC  OS ONLY) Sets a range of environment variables, using the\n"
+"              names the -w option supports, to allow easier extraction of use-\n"
+"              ful information after having run curl.\n"
 "\n"
-"  curl-and-python\n"
+"       --egd-file <file>\n"
+"              (SSL)  Specify  the  path  name  to the Entropy Gathering Daemon\n"
+"              socket. The socket is used to seed the  random  engine  for  SSL\n"
+"              connections. See also the --random-file option.\n"
 "\n"
-"    Python hackers using curl with or without the python binding pycurl.\n"
-"\n"
-"  Please direct curl questions, feature requests and trouble reports to one of\n"
-"  these mailing lists instead of mailing any individual.\n"
+"       --cert-type <type>\n"
 , stdout);

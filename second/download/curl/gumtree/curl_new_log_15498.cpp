@@ -1,0 +1,17 @@
+fputs(
+"              statistics.\n"
+"\n"
+"              See also -D, --dump-header and -i, --include and -p, --proxytun-\n"
+"              nel.\n"
+"\n"
+"       --tcp-fastopen\n"
+"              Enable use of TCP Fast Open (RFC7413).\n"
+"\n"
+"              Added in 7.49.0.\n"
+"\n"
+"       --tcp-nodelay\n"
+"              Turn on the TCP_NODELAY option. See the curl_easy_setopt(3)  man\n"
+"              page for details about this option.\n"
+"\n"
+"              Since  7.50.2,  curl sets this option by default and you need to\n"
+, stdout);

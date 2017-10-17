@@ -1,11 +1,10 @@
 fputs(
-"       --ftp-pasv\n"
-"              (FTP) Use passive mode for the data connection. Passive  is  the\n"
-"              internal  default behavior, but using this option can be used to\n"
-"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
+"              without  having them being interpreted by curl itself. Note that\n"
+"              these letters are not normal legal URL contents but they  should\n"
+"              be encoded according to the URI standard.\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.  Undoing  an  enforced passive really isn't doable but you\n"
-"              must then instead enforce the correct -P, --ftp-port again.\n"
-"\n"
+"       -G, --get\n"
+"              When  used,  this  option  will make all data specified with -d,\n"
+"              --data or --data-binary to  be  used  in  an  HTTP  GET  request\n"
+"              instead  of  the  POST request that otherwise would be used. The\n"
 , stdout);

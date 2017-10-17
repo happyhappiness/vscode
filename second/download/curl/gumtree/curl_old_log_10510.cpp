@@ -1,9 +1,11 @@
 fputs(
-"              Specify  the  maximum  transfer  rate you want curl to use - for\n"
-"              both downloads and uploads. This feature is useful if you have a\n"
-"              limited pipe and you'd like your transfer not to use your entire\n"
-"              bandwidth. To make it slower than it otherwise would be.\n"
+"              the file requested is larger than this value, the transfer  will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"              The given speed is measured in bytes/second, unless a suffix  is\n"
-"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
+"              NOTE:  The  file size is not always known prior to download, and\n"
+"              for such files this option has no effect even if the file trans-\n"
+"              fer  ends  up  being larger than this given limit. This concerns\n"
+"              both FTP and HTTP transfers.\n"
+"\n"
+"       --mail-rcpt <address>\n"
 , stdout);

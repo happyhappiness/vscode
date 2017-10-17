@@ -1,10 +1,9 @@
 fputs(
-"              (HTTP) This posts data, similar to the other --data options with\n"
-"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
-"              To  be  CGI-compliant,  the <data> part should begin with a name\n"
-"              followed by a separator and a content specification. The  <data>\n"
-"              part can be passed to curl using one of the following syntaxes:\n"
+"              name  contains \"\\\", it needs to be escaped as \"\\\\\" so that it is\n"
+"              not recognized as an escape character.\n"
 "\n"
-"              content\n"
-"                     This  will make curl URL-encode the content and pass that\n"
+"              (iOS and Mac OS X only) If curl is built against  Secure  Trans-\n"
+"              port,  then the certificate string must match the name of a cer-\n"
+"              tificate that's in the system or user keychain. The private  key\n"
+"              corresponding  to  the  certificate,  and  certificate chain (if\n"
 , stdout);

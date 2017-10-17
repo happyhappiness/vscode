@@ -1,9 +1,11 @@
 fputs(
-"              user authentication. See netrc(4) or ftp(1) for details  on  the\n"
-"              file  format.  Curl  will not complain if that file doesn't have\n"
-"              the right permissions (it should not be either world- or  group-\n"
-"              readable).  The  environment variable \"HOME\" is used to find the\n"
-"              home directory.\n"
 "\n"
-"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --sessionid to enforce session-ID caching.\n"
+"\n"
+"       --noproxy <no-proxy-list>\n"
+"              Comma-separated  list  of hosts which do not use a proxy, if one\n"
+"              is specified.  The only wildcard is a single * character,  which\n"
+"              matches all hosts, and effectively disables the proxy. Each name\n"
+"              in this list is matched as either a domain  which  contains  the\n"
 , stdout);

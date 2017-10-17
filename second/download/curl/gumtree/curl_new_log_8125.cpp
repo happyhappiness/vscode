@@ -1,9 +1,10 @@
 fputs(
-"              is specified.  The only wildcard is a single * character,  which\n"
-"              matches all hosts, and effectively disables the proxy. Each name\n"
-"              in this list is matched as either a domain  which  contains  the\n"
-"              hostname,  or  the hostname itself. For example, local.com would\n"
-"              match  local.com,  local.com:80,  and  www.local.com,  but   not\n"
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"              However, a server may require a POST to remain a POST after such\n"
+"              a  redirection.  This  option  is meaningful only when using -L,\n"
+"              --location (Added in 7.26.0)\n"
 "\n"
+"       --proto <protocols>\n"
+"              Tells  curl  to  use  the  listed  protocols  for  its   initial\n"
+"              retrieval. Protocols are evaluated left to right, are comma sep-\n"
+"              arated, and are each a protocol name or 'all',  optionally  pre-\n"
 , stdout);

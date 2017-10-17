@@ -1,10 +1,10 @@
 fputs(
-"       19     FTP couldn't download/access the given file, the RETR (or  simi-\n"
-"              lar) command failed.\n"
+"              This  method is not fail-safe and there are occasions where non-\n"
+"              successful response codes will  slip  through,  especially  when\n"
+"              authentication is involved (response codes 401 and 407).\n"
 "\n"
-"       21     FTP quote error. A quote command returned error from the server.\n"
-"       22     HTTP  page  not  retrieved.  The  requested url was not found or\n"
-"              returned another error with the HTTP error  code  being  400  or\n"
-"              above. This return code only appears if -f, --fail is used.\n"
-"\n"
+"       -F, --form <name=content>\n"
+"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
+"              has pressed the submit button. This causes  curl  to  POST  data\n"
+"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
 , stdout);

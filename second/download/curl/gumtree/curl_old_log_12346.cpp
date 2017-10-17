@@ -1,11 +1,11 @@
 fputs(
-"              certificate/private  key  in the system or user keychain, or the\n"
-"              path to a PKCS#12-encoded certificate and private  key.  If  you\n"
-"              want to use a file from the current directory, please precede it\n"
-"              with \"./\" prefix, in order to avoid confusion with a nickname.\n"
+"              and if it is used several times, the last one will be used.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --pinnedpubkey <pinned public key (hashes)>\n"
+"              (SSL) Tells curl to  use  the  specified  public  key  file  (or\n"
+"              hashes)  to  verify the peer. This can be a path to a file which\n"
+"              contains a single public key in PEM or DER format, or any number\n"
+"              of base64 encoded sha256 hashes preceded by 'sha256//' and sepa-\n"
+"              rated by ';'\n"
 "\n"
-"       --engine <name>\n"
-"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
 , stdout);

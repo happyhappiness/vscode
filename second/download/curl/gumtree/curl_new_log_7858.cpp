@@ -1,11 +1,11 @@
 fputs(
-"              If curl is built against  the  NSS  SSL  library,  the  NSS  PEM\n"
-"              PKCS#11  module  (libnsspem.so)  needs  to be available for this\n"
-"              option to work properly.\n"
-"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --capath <CA certificate directory>\n"
-"              (SSL) Tells curl to use the specified certificate  directory  to\n"
-"              verify  the  peer.  Multiple paths can be provided by separating\n"
+"       --ftp-alternative-to-user <command>\n"
+"              (FTP) If authenticating with the USER and PASS  commands  fails,\n"
+"              send  this  command.   When  connecting  to  Tumbleweed's Secure\n"
+"              Transport server over FTPS using  a  client  certificate,  using\n"
+"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
+"              the certificate. (Added in 7.15.5)\n"
+"\n"
 , stdout);

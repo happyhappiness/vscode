@@ -1,9 +1,11 @@
 fputs(
-"              second  and  then for all forthcoming retries it will double the\n"
-"              waiting time until it reaches 10 minutes which then will be  the\n"
-"              delay  between  the rest of the retries.  By using --retry-delay\n"
-"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
-"              --retry-max-time  to  limit  the total time allowed for retries.\n"
-"              (Added in 7.12.3)\n"
+"              WARNING: this option loosens the SSL security, and by using this\n"
+"              flag you ask for exactly that.  (Added in 7.25.0)\n"
 "\n"
+"       --ssl-no-revoke\n"
+"              (WinSSL)  This  option tells curl to disable certificate revoca-\n"
+"              tion checks.  WARNING: this option loosens the SSL security, and\n"
+"              by using this flag you ask for exactly that.  (Added in 7.44.0)\n"
+"\n"
+"       --socks4 <host[:port]>\n"
 , stdout);

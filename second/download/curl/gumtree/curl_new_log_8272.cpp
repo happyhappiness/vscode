@@ -1,11 +1,10 @@
 fputs(
-"              by default. This makes  all  connections  considered  \"insecure\"\n"
-"              fail unless -k, --insecure is used.\n"
+"              number curl wants to tunnel through to.\n"
 "\n"
-"              See     this    online    resource    for    further    details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
-"\n"
-"       -K, --config <config file>\n"
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
+"       -P, --ftp-port <address>\n"
+"              (FTP) Reverses the default initiator/listener  roles  when  con-\n"
+"              necting  with  FTP.  This  switch makes curl use active mode. In\n"
+"              practice, curl then tells the server  to  connect  back  to  the\n"
+"              client's specified address and port, while passive mode asks the\n"
+"              server to setup an IP address and port for  it  to  connect  to.\n"
 , stdout);

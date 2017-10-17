@@ -1,12 +1,9 @@
 fputs(
-"        curl -E /path/to/cert.pem:password https://secure.site.com/\n"
-"\n"
-"  If you neglect to specify the password on the command line, you will be\n"
-"  prompted for the correct password before any data can be received.\n"
-"\n"
-"  Many older SSL-servers have problems with SSLv3 or TLS, which newer versions\n"
-"  of OpenSSL etc use, therefore it is sometimes useful to specify what\n"
-"  SSL-version curl should use. Use -3, -2 or -1 to specify that exact SSL\n"
-"  version to use (for SSLv3, SSLv2 or TLSv1 respectively):\n"
+"              'content'  part  to  be  a  file, prefix the file name with an @\n"
+"              sign. To just get the content part from a file, prefix the  file\n"
+"              name  with  the symbol <. The difference between @ and < is then\n"
+"              that @ makes a file get attached in the post as a  file  upload,\n"
+"              while  the  <  makes  a text field and just get the contents for\n"
+"              that text field from a file.\n"
 "\n"
 , stdout);

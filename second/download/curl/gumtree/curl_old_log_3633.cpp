@@ -1,11 +1,10 @@
 fputs(
-"              of a document. When used on a FTP or FILE  file,  curl  displays\n"
-"              the file size and last modification time only.\n"
+"              contain  white  spaces,  the  parameter  must be enclosed within\n"
+"              quotes. Within double quotes, the following escape sequences are\n"
+"              available:  \\\\,  \\\", \\t, \\n, \\r and \\v. A backlash preceding any\n"
+"              other letter is  ignored. If the first column of a  config  line\n"
+"              is  a  '#'  character, the rest of the line will be treated as a\n"
+"              comment. Only write one option per physical line in  the  config\n"
+"              file.\n"
 "\n"
-"              If  this  option  is  used  twice, the second will again disable\n"
-"              header only.\n"
-"\n"
-"       -j/--junk-session-cookies\n"
-"              (HTTP) When curl is told to read cookies from a given file, this\n"
-"              option  will  make  it  discard all \"session cookies\". This will\n"
 , stdout);

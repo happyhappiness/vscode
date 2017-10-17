@@ -1,12 +1,9 @@
 fputs(
-"       22     HTTP page not retrieved. The requested  url  was  not  found  or\n"
-"              returned  another  error  with  the HTTP error code being 400 or\n"
-"              above. This return code only appears if -f, --fail is used.\n"
+"              environment variables, including the protocol  prefix  (http://)\n"
+"              and the embedded user + password.\n"
 "\n"
-"       23     Write error. Curl couldn't write data to a local  filesystem  or\n"
-"              similar.\n"
-"\n"
-"       25     FTP  couldn't  STOR  file. The server denied the STOR operation,\n"
-"              used for FTP uploading.\n"
-"\n"
+"              From  7.21.7,  the  proxy  string may be specified with a proto-\n"
+"              col://  prefix  to  specify  alternative  proxy  protocols.  Use\n"
+"              socks4://,  socks4a://,  socks5://  or socks5h:// to request the\n"
+"              specific SOCKS  version  to  be  used.  No  protocol  specified,\n"
 , stdout);

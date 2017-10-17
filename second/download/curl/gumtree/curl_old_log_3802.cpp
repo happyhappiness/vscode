@@ -1,9 +1,11 @@
 fputs(
-"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
-"              tory as curl.exe, or in the Current Working Directory, or in any\n"
-"              folder along your PATH.\n"
+"                     operates on the file \"normally\"  (like  in  the  multicwd\n"
+"                     case).  This  is  somewhat  more standards compliant than\n"
+"                     'nocwd' but without the full penalty of 'multicwd'.\n"
 "\n"
-"              If curl is built against the NSS SSL library  then  this  option\n"
-"              tells  curl the nickname of the CA certificate to use within the\n"
-"              NSS database defined by the environment variable SSL_DIR (or  by\n"
+"       --ftp-pasv\n"
+"              (FTP) Use PASV when transferring. PASV is the  internal  default\n"
+"              behavior, but using this option can be used to override a previ-\n"
+"              ous --ftp-port option. (Added in 7.11.0)\n"
+"\n"
 , stdout);

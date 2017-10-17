@@ -1,9 +1,12 @@
 fputs(
-"              munication  will be unencrypted. This allows NAT routers to fol-\n"
-"              low the FTP transaction. The default mode is passive. See --ftp-\n"
-"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"       --ftp-ssl-ccc-mode [active/passive]\n"
-"              (FTP)  Use  CCC  (Clear  Command Channel) Sets the CCC mode. The\n"
-"              passive mode will not initiate the shutdown,  but  instead  wait\n"
+"              See also the -A, --user-agent and -e, --referer options.\n"
+"\n"
+"              This option can be used  multiple  times  to  add/replace/remove\n"
+"              multiple headers.\n"
+"\n"
+"       --hostpubmd5 <md5>\n"
+"              (SCP/SFTP)  Pass  a string containing 32 hexadecimal digits. The\n"
 , stdout);

@@ -1,9 +1,10 @@
 fputs(
-"              Continue/Resume  a  previous  file transfer at the given offset.\n"
-"              The given offset is the exact  number  of  bytes  that  will  be\n"
-"              skipped,  counting  from the beginning of the source file before\n"
-"              it is transferred to the destination.  If used with uploads, the\n"
-"              FTP server command SIZE will not be used by curl.\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"              Use  \"-C  -\" to tell curl to automatically find out where/how to\n"
+"              -d, --data is the same as  --data-ascii.  To  post  data  purely\n"
+"              binary, you should instead use the --data-binary option. To URL-\n"
+"              encode the value of a form field you may use --data-urlencode.\n"
+"\n"
+"              If any of these options is used more than once on the same  com-\n"
 , stdout);

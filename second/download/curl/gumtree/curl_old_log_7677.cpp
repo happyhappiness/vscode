@@ -1,10 +1,8 @@
 fputs(
-"              server-specified   Content-Disposition   filename   instead   of\n"
-"              extracting a filename from the URL.\n"
-"\n"
-"       -k, --insecure\n"
-"              (SSL) This option explicitly allows curl to  perform  \"insecure\"\n"
-"              SSL connections and transfers. All SSL connections are attempted\n"
-"              to be made secure by using the CA certificate  bundle  installed\n"
-"              by  default.  This  makes  all connections considered \"insecure\"\n"
+"              server. Quote commands are sent BEFORE the transfer takes  place\n"
+"              (just  after  the  initial PWD command in an FTP transfer, to be\n"
+"              exact). To make commands take place after a successful transfer,\n"
+"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
+"              libcurl has changed  the  working  directory,  just  before  the\n"
+"              transfer command(s), prefix the command with a '+' (this is only\n"
 , stdout);

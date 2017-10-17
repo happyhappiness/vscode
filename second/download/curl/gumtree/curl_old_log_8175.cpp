@@ -1,9 +1,11 @@
 fputs(
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the file transfer was just about to  begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              Common  additional  HTTP  requests  include  PUT and DELETE, but\n"
+"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
+"              more.\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
+"              Normally  you  don't  need  this option. All sorts of GET, HEAD,\n"
+"              POST and PUT requests are rather invoked by using dedicated com-\n"
+"              mand line options.\n"
+"\n"
+"              This  option  only  changes  the  actual  word  used in the HTTP\n"
 , stdout);

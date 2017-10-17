@@ -1,9 +1,10 @@
 fputs(
-"              when doing active FTP transfers. Curl will normally always first\n"
-"              attempt to use EPRT, then LPRT before using PORT, but with  this\n"
-"              option,  it  will  use PORT right away. EPRT and LPRT are exten-\n"
-"              sions to the original FTP protocol, may not work on all  servers\n"
-"              but  enable  more  functionality in a better way than the tradi-\n"
-"              tional PORT command.\n"
+"              nsspem.so) is available then PEM files may be loaded.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --capath <CA certificate directory>\n"
+"              (SSL) Tells curl to use the specified certificate  directory  to\n"
+"              verify the peer. The certificates must be in PEM format, and the\n"
+"              directory must have been processed using  the  c_rehash  utility\n"
 , stdout);

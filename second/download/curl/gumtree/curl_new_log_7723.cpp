@@ -1,11 +1,9 @@
 fputs(
-"                             the complete upload. Bytes per second.\n"
+"              The proxy host can be specified the exact same way as the  proxy\n"
+"              environment  variables,  including the protocol prefix (http://)\n"
+"              and the embedded user + password.\n"
 "\n"
-"              ssl_verify_result\n"
-"                             The  result of the SSL peer certificate verifica-\n"
-"                             tion that was requested. 0 means the verification\n"
-"                             was successful. (Added in 7.19.0)\n"
-"\n"
-"              time_appconnect\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
+"              From 7.21.7, the proxy string may be  specified  with  a  proto-\n"
+"              col://  prefix  to  specify  alternative  proxy  protocols.  Use\n"
+"              socks4://, socks4a://, socks5:// or socks5h://  to  request  the\n"
 , stdout);

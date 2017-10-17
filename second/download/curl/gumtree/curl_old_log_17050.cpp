@@ -1,0 +1,15 @@
+puts(
+"          If this option is used several times, the last one will\n"
+"          be used.\n"
+"\n"
+"     --url <URL>\n"
+"          Specify a URL to fetch. This  option  is  mostly  handy\n"
+"          when you wanna specify URL(s) in a config file.\n"
+"\n"
+"          This option may be used any number of times. To control\n"
+"          where this URL  is  written,  use  the  -o  or  the  -O\n"
+"          options.\n"
+"\n"
+"     -v/--verbose\n"
+"          Makes   the  fetching  more  verbose/talkative.  Mostly\n"
+);

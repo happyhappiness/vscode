@@ -1,11 +1,11 @@
 fputs(
-"              fer  ends  up  being larger than this given limit. This concerns\n"
-"              both FTP and HTTP transfers.\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
+"              uations, curl will use a standard buffered  output  stream  that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily exactly when the data arrives.   Using  this  option\n"
+"              will disable that buffering.\n"
 "\n"
-"       --mail-rcpt <address>\n"
-"              (SMTP) Specify a single address, user name or mailing list name.\n"
-"              When performing a mail transfer, the recipient should specify  a\n"
-"              valid email address to send the mail to. (Added in 7.20.0)\n"
+"              Note  that  this  is the negated option name documented. You can\n"
+"              thus use --buffer to enforce the buffering.\n"
 "\n"
-"              When  performing  an  address  verification  (VRFY command), the\n"
 , stdout);

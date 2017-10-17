@@ -1,12 +1,9 @@
 fputs(
-"              includes  things  like  server-name, date of the document, HTTP-\n"
-"              version and more...\n"
+"              default  config  file  and  uses it if found. The default config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"       -I, --head\n"
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the  command  HEAD which this uses to get nothing but the header\n"
-"              of a document. When used on a FTP or FILE  file,  curl  displays\n"
-"              the file size and last modification time only.\n"
-"\n"
-"       --interface <name>\n"
+"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it uses getpwuid() on UNIX-like systems (which returns the  home\n"
+"              dir  given the current user in your system). On Windows, it then\n"
 , stdout);

@@ -1,10 +1,9 @@
 fputs(
-"              curl  does  the  conversion  by default to maintain consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
-"              a  redirection.  This  option  is meaningful only when using -L,\n"
-"              --location (Added in 7.17.1)\n"
+"              literal \"string\", or you can have curl read the  format  from  a\n"
+"              file  with  \"@filename\" and to tell curl to read the format from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"       --post302\n"
-"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
-"              POST  requests  into GET requests when following a 302 redirect-\n"
+"              The variables present in the output format will  be  substituted\n"
+"              by  the  value or text that curl thinks fit, as described below.\n"
+"              All variables are specified as %{variable_name} and to output  a\n"
 , stdout);

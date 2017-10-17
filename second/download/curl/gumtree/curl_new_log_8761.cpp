@@ -1,11 +1,11 @@
 fputs(
-"              ated.  RFC  1961 says in section 4.3/4.4 it should be protected,\n"
-"              but the NEC  reference  implementation  does  not.   The  option\n"
-"              --socks5-gssapi-nec  allows the unprotected exchange of the pro-\n"
-"              tection mode negotiation. (Added in 7.19.4).\n"
+"              use  for  server  authentication.  Overrides  -n,  --netrc   and\n"
+"              --netrc-optional.\n"
 "\n"
-"       --stderr <file>\n"
-"              Redirect all writes to stderr to the specified file instead.  If\n"
-"              the file name is a plain '-', it is instead written to stdout.\n"
+"              If  you  simply specify the user name, with or without the login\n"
+"              options, curl will prompt for a password.\n"
 "\n"
+"              If you use an SSPI-enabled curl binary and perform NTLM  authen-\n"
+"              tication,  you  can force curl to select the user name and pass-\n"
+"              word from your environment by simply specifying a  single  colon\n"
 , stdout);

@@ -1,18 +1,12 @@
-puts(
-"        http_proxy, HTTPS_PROXY, FTP_PROXY, GOPHER_PROXY\n"
+fputs(
+"       GOPHER,  DICT,  TELNET,  LDAP  or  FILE).  The  command is\n"
+"       designed to work without user interaction.\n"
 "\n"
-"  They should be set for protocol-specific proxies. General proxy should be\n"
-"  set with\n"
-"        \n"
-"        ALL_PROXY\n"
+"       curl offers a busload of useful tricks like proxy support,\n"
+"       user  authentication,  ftp upload, HTTP post, SSL (https:)\n"
+"       connections, cookies, file transfer resume  and  more.  As\n"
+"       you  will see below, the amount of features will make your\n"
+"       head spin!\n"
 "\n"
-"  A comma-separated list of host names that shouldn't go through any proxy is\n"
-"  set in (only an asterisk, '*' matches all hosts)\n"
-"\n"
-"        NO_PROXY\n"
-"\n"
-"  If a tail substring of the domain-path for a host matches one of these\n"
-"  strings, transactions with that node will not be proxied.\n"
-"\n"
-"\n"
-);
+"       curl is powered by libcurl for all  transfer-related  fea-\n"
+, stdout);

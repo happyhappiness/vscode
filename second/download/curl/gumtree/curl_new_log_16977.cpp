@@ -1,0 +1,16 @@
+puts(
+"          header with one without content on the  right  side  of\n"
+"          the colon will prevent that header from appearing.\n"
+"\n"
+"          This option can be used multiple times.\n"
+"\n"
+"     -i/--include\n"
+"          (HTTP) Include the HTTP-header in the output. The HTTP-\n"
+"          header includes things like server-name,  date  of  the\n"
+"          document, HTTP-version and more...\n"
+"\n"
+"          If  this  option  is  used twice, the second will again\n"
+"          disable header include.\n"
+"\n"
+"     --interface <name>\n"
+);

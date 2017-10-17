@@ -1,8 +1,10 @@
 fputs(
-"              supported for FTP). You may specify any number of  commands.  If\n"
-"              the  server  returns failure for one of the commands, the entire\n"
-"              operation will be aborted. You must send  syntactically  correct\n"
-"              FTP  commands  as  RFC 959 defines to FTP servers, or one of the\n"
-"              commands listed below to SFTP servers.  This option can be  used\n"
-"              multiple  times.  When speaking to a FTP server, prefix the com-\n"
+"              in the SSL3 and TLS1.0 protocols known as BEAST.  If this option\n"
+"              isn't used, the SSL layer may use work-arounds  known  to  cause\n"
+"              interoperability  problems  with some older SSL implementations.\n"
+"              WARNING: this option loosens the SSL security, and by using this\n"
+"              flag you ask for exactly that.  (Added in 7.25.0)\n"
+"\n"
+"       --socks4 <host[:port]>\n"
+"              Use the specified SOCKS4 proxy. If the port number is not speci-\n"
 , stdout);

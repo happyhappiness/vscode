@@ -1,10 +1,11 @@
 fputs(
-"       --ciphers <list of ciphers>\n"
-"              (SSL) Specifies which ciphers to use in the connection. The list\n"
-"              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
-"              list           details           on           this          URL:\n"
-"              http://www.openssl.org/docs/apps/ciphers.html\n"
+"              ing  data  from  a  file  named 'foobar' would thus be done with\n"
+"              --data @foobar. When --data is told to read  from  a  file  like\n"
+"              that, carriage returns and newlines will be stripped out.\n"
 "\n"
-"              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
-"              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
+"       -D, --dump-header <file>\n"
+"              Write the protocol headers to the specified file.\n"
+"\n"
+"              This  option  is handy to use when you want to store the headers\n"
+"              that an HTTP site sends to you. Cookies from the  headers  could\n"
 , stdout);

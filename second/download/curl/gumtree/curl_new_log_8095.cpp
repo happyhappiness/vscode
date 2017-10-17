@@ -1,11 +1,10 @@
 fputs(
-"              appended to the URL with a HEAD request.\n"
+"              server-specified   Content-Disposition   filename   instead   of\n"
+"              extracting a filename from the URL.\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.  This is because undoing a GET doesn't make sense, but you\n"
-"              should then instead enforce the alternative method you prefer.\n"
-"\n"
-"       -H, --header <header>\n"
-"              (HTTP) Extra header to use when getting  a  web  page.  You  may\n"
-"              specify any number of extra headers. Note that if you should add\n"
+"       -k, --insecure\n"
+"              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
+"              SSL connections and transfers. All SSL connections are attempted\n"
+"              to  be  made secure by using the CA certificate bundle installed\n"
+"              by default. This makes  all  connections  considered  \"insecure\"\n"
 , stdout);

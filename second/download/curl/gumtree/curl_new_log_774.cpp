@@ -1,15 +1,1 @@
-fputs(
-"                             measured for the complete upload.\n"
-"\n"
-"              content_type   The Content-Type  of  the  requested\n"
-"                             document,  if  there was any. (Added\n"
-"                             in 7.9.5)\n"
-"\n"
-"       If this option is used several times, the last one will be\n"
-"       used.\n"
-"\n"
-"       -x/--proxy <proxyhost[:port]>\n"
-"              Use specified HTTP proxy. If the port number is not\n"
-"              specified, it is assumed at port 1080.\n"
-"\n"
-, stdout);
+curl_mprintf("%lld %lld %lld\n", one, two, test);

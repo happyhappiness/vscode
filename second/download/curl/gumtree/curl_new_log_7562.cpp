@@ -1,8 +1,12 @@
 fputs(
-"              Using this, you can make the curl requests(s)  use  a  specified\n"
-"              address  and  prevent the otherwise normally resolved address to\n"
-"              be used. Consider it a sort of /etc/hosts  alternative  provided\n"
-"              on  the  command line. The port number should be the number used\n"
-"              for the specific protocol the host will be used  for.  It  means\n"
-"              you  need several entries if you want to provide address for the\n"
+"              (FTP, POP3, IMAP, SMTP)  Require  SSL/TLS  for  the  connection.\n"
+"              Terminates the connection if the server doesn't support SSL/TLS.\n"
+"              (Added in 7.20.0)\n"
+"\n"
+"              This option was  formerly  known  as  --ftp-ssl-reqd  (added  in\n"
+"              7.15.5).  That option name can still be used but will be removed\n"
+"              in a future version.\n"
+"\n"
+"       --ssl-allow-beast\n"
+"              (SSL) This option tells curl to not work around a security  flaw\n"
 , stdout);

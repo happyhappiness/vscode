@@ -1,12 +1,9 @@
 fputs(
-"              FTP server command SIZE will not be used by curl.\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"              Use  \"-C  -\" to tell curl to automatically find out where/how to\n"
-"              resume the transfer. It then uses the given  output/input  files\n"
-"              to figure that out.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --ciphers <list of ciphers>\n"
-"              (SSL) Specifies which ciphers to use in the connection. The list\n"
+"              If you start the data with the letter @, the rest  should  be  a\n"
+"              file  name  to read the data from, or - if you want curl to read\n"
+"              the data from stdin. Multiple files can also be specified. Post-\n"
+"              ing  data  from  a  file  named 'foobar' would thus be done with\n"
 , stdout);

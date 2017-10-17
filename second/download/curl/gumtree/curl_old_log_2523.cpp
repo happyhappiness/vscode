@@ -1,12 +1,9 @@
 fputs(
-"       ple, for host names starting with \"ftp.\" curl will assume you  want  to\n"
-"       speak FTP.\n"
+"              remote server(s). If no cookies are known, no file will be writ-\n"
+"              ten. The file will be written using  the  Netscape  cookie  file\n"
+"              format.  If  you  set  the  file name to a single dash, \"-\", the\n"
+"              cookies will be written to stdout.\n"
 "\n"
-"       Curl will attempt to re-use connections for multiple file transfers, so\n"
-"       that getting many files from the same server will not do multiple  con-\n"
-"       nects / handshakes. This improves speed. Of course this is only done on\n"
-"       files specified on a single command line and  cannot  be  used  between\n"
-"       separate curl invokes.\n"
-"\n"
-"PROGRESS METER\n"
+"              NOTE If the cookie jar can't be created or written to, the whole\n"
+"              curl operation won't fail or even report an error clearly. Using\n"
 , stdout);

@@ -1,10 +1,10 @@
 fputs(
-"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
-"              scarce resource that will be busy at times so setting this range\n"
-"              to something too narrow might cause unnecessary connection setup\n"
-"              failures. (Added in 7.15.2)\n"
+"       --netrc-optional\n"
+"              Very similar to --netrc, but this option makes the .netrc  usage\n"
+"              optional and not mandatory as the --netrc option does.\n"
 "\n"
-"       -L/--location\n"
-"              (HTTP/HTTPS)  If  the server reports that the requested page has\n"
-"              moved to a different location (indicated with a Location: header\n"
+"       --negotiate\n"
+"              (HTTP)  Enables  GSS-Negotiate authentication. The GSS-Negotiate\n"
+"              method was designed by Microsoft and is used in their web appli-\n"
+"              cations.  It  is  primarily  meant  as  a  support for Kerberos5\n"
 , stdout);

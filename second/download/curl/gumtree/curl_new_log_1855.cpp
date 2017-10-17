@@ -1,9 +1,11 @@
 fputs(
-"       -E/--cert <certificate[:password]>\n"
-"              (HTTPS) Tells curl to use the specified  certificate  file  when\n"
-"              getting  a  file with HTTPS. The certificate must be in PEM for-\n"
-"              mat.  If the optional  password  isn't  specified,  it  will  be\n"
-"              queried  for  on the terminal. Note that this certificate is the\n"
-"              private key and the private certificate concatenated!\n"
+"              ous --ftp-port option. (Added in 7.11.0)\n"
 "\n"
+"              If this option is used twice,  the  second  will  again  disable\n"
+"              silent failure.\n"
+"\n"
+"       --ftp-skip-pasv-ip\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"              its response to curl's PASV command when curl connects the  data\n"
+"              connection.  Instead  curl  will  re-use  the same IP address it\n"
 , stdout);

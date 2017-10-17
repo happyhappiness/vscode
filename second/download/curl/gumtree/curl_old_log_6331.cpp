@@ -1,12 +1,9 @@
 fputs(
-"                     etc and give a full path to the server for all these com-\n"
-"                     mands. This is the fastest behavior.\n"
+"              low the FTP transaction. The default mode is passive. See --ftp-\n"
+"              ssl-ccc-mode for other modes.  (Added in 7.16.1)\n"
 "\n"
-"              singlecwd\n"
-"                     curl does one CWD with the full target directory and then\n"
-"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
-"                     case). This is somewhat  more  standards  compliant  than\n"
-"                     'nocwd' but without the full penalty of 'multicwd'.\n"
-"       (Added in 7.15.1)\n"
-"\n"
+"       --ftp-ssl-ccc-mode [active/passive]\n"
+"              (FTP) Use CCC (Clear Command Channel) Sets  the  CCC  mode.  The\n"
+"              passive  mode  will  not initiate the shutdown, but instead wait\n"
+"              for the server to do it, and will not reply to the shutdown from\n"
 , stdout);

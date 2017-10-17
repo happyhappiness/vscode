@@ -1,11 +1,11 @@
 fputs(
+"              short bursts, but over time it uses no more than the given rate.\n"
+"              If you are also using the -Y/--speed-limit option,  that  option\n"
+"              will   take  precedence  and  might  cripple  the  rate-limiting\n"
+"              slightly, to help keeping the speed-limit logic working.\n"
+"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --krb <level>\n"
-"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
-"              entered and should be one of 'clear', 'safe', 'confidential'  or\n"
-"              'private'.  Should  you  use  a  level that is not one of these,\n"
-"              'private' will instead be used.\n"
-"\n"
-"              This option requires that the library was built  with  kerberos4\n"
+"       -l/--list-only\n"
+"              (FTP)  When listing an FTP directory, this switch forces a name-\n"
 , stdout);

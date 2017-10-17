@@ -1,11 +1,10 @@
 fputs(
-"              ing alternatives:\n"
+"              Allows  secure  authentication, but non-encrypted data transfers\n"
+"              for efficiency.  Fails the transfer if the server  doesn't  sup-\n"
+"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
+"              be removed in a future version.\n"
 "\n"
-"              multicwd\n"
-"                     curl does a single CWD operation for each  path  part  in\n"
-"                     the  given URL. For deep hierarchies this means very many\n"
-"                     commands. This is how RFC 1738 says it  should  be  done.\n"
-"                     This is the default but the slowest behavior.\n"
-"\n"
-"              nocwd  curl  does  no  CWD at all. curl will do SIZE, RETR, STOR\n"
+"       --form-string <name=string>\n"
+"              (HTTP) Similar to --form except that the value  string  for  the\n"
+"              named  parameter  is used literally. Leading '@' and '<' charac-\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              keepalive probes. It is currently effective on operating systems\n"
-"              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
-"              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
-"              effect if --no-keepalive is used. (Added in 7.18.0)\n"
+"              dir  given the current user in your system). On Windows, it then\n"
+"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
+"              PROFILE%\\Application Data'.\n"
 "\n"
-"              If  this option is used multiple times, the last occurrence sets\n"
-"              the amount.\n"
-"       --key <key>\n"
+"              2)  On  windows, if there is no _curlrc file in the home dir, it\n"
+"              checks for one in the same dir the curl executable is placed. On\n"
+"              UNIX-like  systems,  it will simply try to load .curlrc from the\n"
+"              determined home dir.\n"
+"\n"
 , stdout);

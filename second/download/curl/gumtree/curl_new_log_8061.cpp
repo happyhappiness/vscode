@@ -1,11 +1,9 @@
 fputs(
-"              cation  scheme  that  prevents the password from being sent over\n"
-"              the wire in clear text. Use this in combination with the  normal\n"
-"              -u,  --user  option  to  set  user  name  and password. See also\n"
-"              --ntlm, --negotiate and --anyauth for related options.\n"
+"              name  contains \"\\\", it needs to be escaped as \"\\\\\" so that it is\n"
+"              not recognized as an escape character.\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.\n"
-"\n"
-"       --disable-eprt\n"
+"              (iOS and Mac OS X only) If curl is built against  Secure  Trans-\n"
+"              port,  then the certificate string must match the name of a cer-\n"
+"              tificate that's in the system or user keychain. The private  key\n"
+"              corresponding  to  the  certificate,  and  certificate chain (if\n"
 , stdout);

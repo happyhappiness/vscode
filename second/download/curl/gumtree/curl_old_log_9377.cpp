@@ -1,10 +1,11 @@
 fputs(
-"              machine-parse the contents of an FTP directory since the  normal\n"
-"              directory  view doesn't use a standard look or format. When used\n"
-"              like this, the option causes a NLST command to be  sent  to  the\n"
-"              server instead of LIST.\n"
+"              If you also use the -Y, --speed-limit option, that  option  will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
-"              Note:  Some  FTP  servers  list  only files in their response to\n"
-"              NLST; they do not include sub-directories and symbolic links.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the  connection(s).   Note  that  port  numbers  by nature are a\n"
 , stdout);

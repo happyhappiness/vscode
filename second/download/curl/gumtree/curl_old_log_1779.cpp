@@ -1,10 +1,11 @@
 fputs(
-"              (HTTPS) Tells curl to use the specified certificate file to ver-\n"
-"              ify the peer. The file may contain multiple CA certificates. The\n"
-"              certificate(s) must be in PEM format.\n"
+"              the letter <. The difference between @ and  <  is  then  that  @\n"
+"              makes  a  file  get attached in the post as a file upload, while\n"
+"              the < makes a text field and just get the contents for that text\n"
+"              field from a file.\n"
 "\n"
-"              curl recognizes the environment variable named  'CURL_CA_BUNDLE'\n"
-"              if  that  is set, and uses the given path as a path to a CA cert\n"
-"              bundle. This option overrides that variable.\n"
+"              Example,  to send your password file to the server, where 'pass-\n"
+"              word' is the name of the form-field to which /etc/passwd will be\n"
+"              the input:\n"
 "\n"
 , stdout);

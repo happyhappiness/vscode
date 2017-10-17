@@ -1,11 +1,11 @@
 fputs(
-"              Maximum  time  in  seconds  that you allow the connection to the\n"
-"              server to take.  This only limits  the  connection  phase,  once\n"
-"              curl  has  connected this option is of no more use. See also the\n"
-"              -m, --max-time option.\n"
-"\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --create-dirs\n"
-"              When used in conjunction with the -o option,  curl  will  create\n"
+"       --ftp-alternative-to-user <command>\n"
+"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
+"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
+"              Transport  server  over  FTPS  using a client certificate, using\n"
+"              \"SITE AUTH\" will tell the server to retrieve the  username  from\n"
+"              the certificate. (Added in 7.15.5)\n"
+"\n"
 , stdout);

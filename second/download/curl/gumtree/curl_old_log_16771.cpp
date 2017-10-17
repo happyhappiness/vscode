@@ -1,0 +1,15 @@
+puts(
+"     XX   There  will  appear  more  error  codes  here in future\n"
+"          releases. The existing ones are meant to never  change.\n"
+"\n"
+"BUGS\n"
+"     If you do find bugs, mail them to curl-bug@haxx.se.\n"
+"\n"
+"AUTHORS / CONTRIBUTORS\n"
+"      - Daniel Stenberg <Daniel.Stenberg@haxx.se>\n"
+"      - Rafael Sagula <sagula@inf.ufrgs.br>\n"
+"      - Sampo Kellomaki <sampo@iki.fi>\n"
+"      - Linas Vepstas <linas@linas.org>\n"
+"      - Bjorn Reese <breese@mail1.stofanet.dk>\n"
+"      - Johan Anderson <johan@homemail.com>\n"
+);

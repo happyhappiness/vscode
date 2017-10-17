@@ -1,10 +1,11 @@
 fputs(
-"                             tion time for multiple  redirections.  (Added  in\n"
-"                             7.12.3)\n"
+"              http:// and all others will be treated as HTTP proxies.\n"
 "\n"
-"              time_starttransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -X, --request <command>\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing  with  the  HTTP server.  The specified request will be used\n"
+"              instead of the method otherwise used (which  defaults  to  GET).\n"
+"              Read  the  HTTP  1.1 specification for details and explanations.\n"
 , stdout);

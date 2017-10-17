@@ -1,11 +1,11 @@
 fputs(
-"              fail unless -k, --insecure is used.\n"
+"              set  to 50 redirections. Set this option to -1 to make it limit-\n"
+"              less.\n"
 "\n"
-"              See     this    online    resource    for    further    details:\n"
-"              http://curl.haxx.se/docs/sslcerts.html\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -K, --config <config file>\n"
-"              Specify which config file to read curl arguments from. The  con-\n"
-"              fig  file  is a text file in which command line arguments can be\n"
-"              written which then will be used as if they were written  on  the\n"
+"       --metalink\n"
+"              This option can tell curl to parse and process a  given  URI  as\n"
+"              Metalink  file  (both  version 3 and 4 (RFC 5854) are supported)\n"
+"              and make use of the mirrors listed within for failover if  there\n"
 , stdout);

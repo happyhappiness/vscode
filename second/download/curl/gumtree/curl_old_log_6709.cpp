@@ -1,9 +1,10 @@
 fputs(
-"              (HTTP) Sends the \"Referer Page\" information to the HTTP  server.\n"
-"              This can also be set with the -H, --header flag of course.  When\n"
-"              used with -L, --location you can append \";auto\" to the --referer\n"
-"              URL to make curl automatically set the previous URL when it fol-\n"
-"              lows a Location: header. The \";auto\" string can be  used  alone,\n"
-"              even if you don't set an initial --referer.\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
+"              tells curl the nickname of the CA certificate to use within  the\n"
+"              NSS  database defined by the environment variable SSL_DIR (or by\n"
+"              default /etc/pki/nssdb).  If the NSS PEM  PKCS#11  module  (lib-\n"
+"              nsspem.so) is available then PEM files may be loaded.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
 , stdout);

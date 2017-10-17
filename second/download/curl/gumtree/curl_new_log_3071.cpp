@@ -1,12 +1,9 @@
 fputs(
-"       21     FTP quote error. A quote command returned error from the server.\n"
-"       22     HTTP  page  not  retrieved.  The  requested url was not found or\n"
-"              returned another error with the HTTP error  code  being  400  or\n"
-"              above. This return code only appears if -f/--fail is used.\n"
+"              tory as curl.exe, or in the Current Working Directory, or in any\n"
+"              folder along your PATH.\n"
 "\n"
-"       23     Write  error.  Curl couldn’t write data to a local filesystem or\n"
-"              similar.\n"
-"\n"
-"       24     Malformed user. User name badly specified.\n"
-"\n"
+"              If  curl  is  built against the NSS SSL library then this option\n"
+"              tells curl the nickname of the CA certificate to use within  the\n"
+"              NSS  database defined by the environment variable SSL_DIR (or by\n"
+"              default /etc/pki/nssdb).  If the NSS PEM  PKCS#11  module  (lib‐\n"
 , stdout);

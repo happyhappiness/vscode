@@ -1,10 +1,11 @@
 fputs(
-"              the server. The active mode initiates the shutdown and waits for\n"
-"              a reply from the server.  (Added in 7.16.2)\n"
+"              This option overrides any previous use of -x, --proxy,  as  they\n"
+"              are mutually exclusive.\n"
 "\n"
-"       --ftp-ssl-control\n"
-"              (FTP)  Require  SSL/TLS  for  the FTP login, clear for transfer.\n"
-"              Allows secure authentication, but non-encrypted  data  transfers\n"
-"              for  efficiency.   Fails the transfer if the server doesn't sup-\n"
-"              port SSL/TLS.  (Added in 7.16.0) that can still be used but will\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks5 hostname proxy with -x, --proxy using a socks5h:// proto-\n"
+"              col prefix.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (This option was  previously  wrongly  documented  and  used  as\n"
 , stdout);

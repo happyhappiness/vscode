@@ -1,1 +1,12 @@
-=curl_maprintf("test this then baby %s%s%s%s%s%s %d %d %d loser baby get a kiss in yer face now!", "", "pretty long string pretty long string pretty long string pretty long string pretty long string", "/", "/", "/", "pretty long string", 1998, 1999, 2001);
+fputs(
+"       added  in  7.19.0.  Previously  most  options  were  toggled  on/off on\n"
+"       repeated use of the same command line option.)\n"
+"\n"
+"       -a/--append\n"
+"              (FTP/SFTP) When used in an upload, this will tell curl to append\n"
+"              to  the  target  file  instead  of  overwriting  it. If the file\n"
+"              doesn't exist, it will be  created.   Note  that  this  flag  is\n"
+"              ignored by some SSH servers (including OpenSSH).\n"
+"\n"
+"       -A/--user-agent <agent string>\n"
+, stdout);

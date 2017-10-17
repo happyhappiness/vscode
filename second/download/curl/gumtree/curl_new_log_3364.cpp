@@ -1,11 +1,11 @@
 fputs(
-"       curl  normally  displays a progress meter during operations, indicating\n"
-"       amount of transferred data, transfer speeds  and  estimated  time  left\n"
-"       etc.\n"
+"              NOTE that the file specified with -b/--cookie is  only  used  as\n"
+"              input.  No cookies will be stored in the file. To store cookies,\n"
+"              use the -c/--cookie-jar option or you could even save  the  HTTP\n"
+"              headers to a file using -D/--dump-header!\n"
 "\n"
-"       However,  since  curl  displays data to the terminal by default, if you\n"
-"       invoke curl to do an operation and it is about to  write  data  to  the\n"
-"       terminal,  it disables the progress meter as otherwise it would mess up\n"
-"       the output mixing progress meter and response data.\n"
+"              If  this  option is set more than once, the last one will be the\n"
+"              one that's used.\n"
 "\n"
+"       -B/--use-ascii\n"
 , stdout);

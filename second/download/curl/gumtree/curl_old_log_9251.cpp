@@ -1,11 +1,11 @@
 fputs(
-"              help keeping the speed-limit logic working.\n"
+"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"       --max-redirs <num>\n"
+"              Set  maximum  number  of  redirection-followings allowed. If -L,\n"
+"              --location is used, this option can be used to prevent curl from\n"
+"              following  redirections  \"in absurdum\". By default, the limit is\n"
+"              set to 50 redirections. Set this option to -1 to make it  limit-\n"
+"              less.\n"
 "\n"
-"       --local-port <num>[-num]\n"
-"              Set a preferred number or range of local port numbers to use for\n"
-"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
-"              scarce resource that will be busy at times so setting this range\n"
-"              to something too narrow might cause unnecessary connection setup\n"
 , stdout);

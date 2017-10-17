@@ -1,8 +1,11 @@
 fputs(
-"              fig file is a text file in which command line arguments  can  be\n"
-"              written  which  then will be used as if they were written on the\n"
-"              actual command line. Options and their parameters must be speci‐\n"
-"              fied  on  the same config file line. If the parameter is to con‐\n"
-"              tain white spaces, the parameter must be enclosed within quotes.\n"
-"              If  the  first  column  of a config line is a ’#’ character, the\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
+"              If  you  are also using the -Y/--speed-limit option, that option\n"
+"              will  take  precedence  and  might  cripple  the   rate-limiting\n"
+"              slightly, to help keeping the speed-limit logic working.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -l/--list-only\n"
+"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
 , stdout);

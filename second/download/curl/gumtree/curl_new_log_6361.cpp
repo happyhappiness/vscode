@@ -1,8 +1,11 @@
 fputs(
-"              fied on the same config  file  line,  separated  by  whitespace,\n"
-"              colon,  the equals sign or any combination thereof (however, the\n"
-"              preferred separator is the equals sign). If the parameter is  to\n"
-"              contain  whitespace,  the  parameter  must  be  enclosed  within\n"
-"              quotes. Within double quotes, the following escape sequences are\n"
-"              available:  \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding any\n"
+"              NOTE:  this does not properly support -F and the sending of mul-\n"
+"              tipart formposts, so in those cases the output program  will  be\n"
+"              missing necessary calls to curl_formadd(3), and possibly more.\n"
+"\n"
+"              If  this  option is used several times, the last given file name\n"
+"              will be used. (Added in 7.16.1)\n"
+"\n"
+"       --limit-rate <speed>\n"
+"              Specify the maximum transfer rate you want  curl  to  use.  This\n"
 , stdout);

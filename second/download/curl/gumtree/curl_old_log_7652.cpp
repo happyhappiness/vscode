@@ -1,9 +1,11 @@
 fputs(
-"              binary, you should instead use the --data-binary option. To URL-\n"
-"              encode the value of a form field you may use --data-urlencode.\n"
+"                     'nocwd' but without the full penalty of 'multicwd'.\n"
+"       (Added in 7.15.1)\n"
 "\n"
-"              If any of these options is used more than once on the same  com-\n"
-"              mand  line,  the  data  pieces specified will be merged together\n"
-"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"       --ftp-pasv\n"
+"              (FTP)  Use  passive mode for the data connection. Passive is the\n"
+"              internal default behavior, but using this option can be used  to\n"
+"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
+"\n"
+"              If  this option is used several times, the following occurrences\n"
 , stdout);

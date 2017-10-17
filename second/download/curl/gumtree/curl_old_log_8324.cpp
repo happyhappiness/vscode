@@ -1,11 +1,11 @@
 fputs(
-"              dir  given the current user in your system). On Windows, it then\n"
-"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
-"              PROFILE%\\Application Data'.\n"
+"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
+"              code was any other 3xx code, curl  will  re-send  the  following\n"
+"              request using the same unmodified method.\n"
 "\n"
-"              2)  On  windows, if there is no _curlrc file in the home dir, it\n"
-"              checks for one in the same dir the curl executable is placed. On\n"
-"              UNIX-like  systems,  it will simply try to load .curlrc from the\n"
-"              determined home dir.\n"
+"       --libcurl <file>\n"
+"              Append  this  option  to any ordinary curl command line, and you\n"
+"              will get a libcurl-using C source code written to the file  that\n"
+"              does the equivalent of what your command-line operation does!\n"
 "\n"
 , stdout);

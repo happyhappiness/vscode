@@ -1,0 +1,1 @@
+fputs(CURL_CA_CERT_ERRORMSG, global->errors);

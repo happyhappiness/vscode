@@ -1,10 +1,10 @@
 fputs(
-"              url = \"http://curl.haxx.se/docs/\"\n"
+"              directory view doesn't use a standard look or format. When  used\n"
+"              like  this,  the  option causes a NLST command to be sent to the\n"
+"              server instead of LIST.\n"
 "\n"
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default  config  file  and  uses it if found. The default config\n"
-"              file is checked for in the following places in this order:\n"
+"              Note: Some FTP servers list only  files  in  their  response  to\n"
+"              NLST; they do not include sub-directories and symbolic links.\n"
 "\n"
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              (POP3)  When  retrieving a specific email from POP3, this switch\n"
 , stdout);

@@ -1,11 +1,10 @@
 fputs(
-"              The file specified with -b, --cookie is only used as  input.  No\n"
-"              cookies  will  be written to the file. To store cookies, use the\n"
-"              -c, --cookie-jar option.\n"
+"              curl  does  the  conversion  by default to maintain consistency.\n"
+"              However, a server may require a POST to remain a POST after such\n"
+"              a  redirection.  This  option  is meaningful only when using -L,\n"
+"              --location (Added in 7.17.1)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -B, --use-ascii\n"
-"              (FTP/LDAP) Enable ASCII transfer. For  FTP,  this  can  also  be\n"
-"              enforced  by  using an URL that ends with \";type=A\". This option\n"
+"       --post302\n"
+"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
+"              POST  requests  into GET requests when following a 302 redirect-\n"
 , stdout);

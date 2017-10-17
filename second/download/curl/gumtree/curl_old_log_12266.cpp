@@ -1,12 +1,10 @@
 fputs(
-"        curl -E /path/to/cert.pem:password https://secure.site.com/\n"
+"              url = \"http://curl.haxx.se/docs/\"\n"
 "\n"
-"  If you neglect to specify the password on the command line, you will be\n"
-"  prompted for the correct password before any data can be received.\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default config file and uses it if  found.  The  default  config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"  Many older SSL-servers have problems with SSLv3 or TLS, which newer versions\n"
-"  of OpenSSL etc use, therefore it is sometimes useful to specify what\n"
-"  SSL-version curl should use. Use -3, -2 or -1 to specify that exact SSL\n"
-"  version to use (for SSLv3, SSLv2 or TLSv1 respectively):\n"
-"\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
 , stdout);

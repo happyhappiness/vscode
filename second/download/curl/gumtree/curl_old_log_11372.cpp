@@ -1,10 +1,9 @@
 fputs(
-"              Note: When combined with -X, --request  <command>,  this  option\n"
-"              can be used to send an UIDL command instead, so the user may use\n"
-"              the email's unique identifier rather than  it's  message  id  to\n"
-"              make the request. (Added in 7.21.5)\n"
+"              name + password to all hosts that the site may redirect to. This\n"
+"              may or may not introduce a security breach if the site redirects\n"
+"              you to a site to which  you'll  send  your  authentication  info\n"
+"              (which is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"       -L, --location\n"
-"              (HTTP/HTTPS)  If  the server reports that the requested page has\n"
-"              moved to a different location (indicated with a Location: header\n"
+"       -m, --max-time <seconds>\n"
+"              Maximum  time  in  seconds that you allow the whole operation to\n"
 , stdout);

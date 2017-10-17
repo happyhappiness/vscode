@@ -1,1 +1,1 @@
-warnf(operation, "Failed to create/open output");
+warnf(config, "Remote filename has no length!\n");

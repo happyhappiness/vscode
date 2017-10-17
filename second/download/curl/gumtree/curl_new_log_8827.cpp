@@ -1,9 +1,10 @@
 fputs(
-"              (HTTP) Pass the data to the HTTP server as a cookie. It is  sup-\n"
-"              posedly  the data previously received from the server in a \"Set-\n"
-"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
-"              NAME2=VALUE2\".\n"
+"       --ciphers <list of ciphers>\n"
+"              (SSL) Specifies which ciphers to use in the connection. The list\n"
+"              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
+"              list           details           on           this          URL:\n"
+"              http://www.openssl.org/docs/apps/ciphers.html\n"
 "\n"
-"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
-"              name to use to read previously stored cookie lines  from,  which\n"
+"              NSS ciphers are done differently than OpenSSL  and  GnuTLS.  The\n"
+"              full  list of NSS ciphers is in the NSSCipherSuite entry at this\n"
 , stdout);

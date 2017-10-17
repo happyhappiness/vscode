@@ -1,11 +1,11 @@
 puts(
-"  The default way for curl is to issue the PASV command which causes the\n"
-"  server to open another port and await another connection performed by the\n"
-"  client. This is good if the client is behind a firewall that don't allow\n"
-"  incoming connections.\n"
+"  The usage of the -x/--proxy flag overrides the environment variables.\n"
 "\n"
-"        curl ftp.download.com\n"
+"NETRC\n"
 "\n"
-"  If the server for example, is behind a firewall that don't allow connections\n"
-"  on other ports than 21 (or if it just doesn't support the PASV command), the\n"
+"  Unix introduced the .netrc concept a long time ago. It is a way for a user\n"
+"  to specify name and password for commonly visited ftp sites in a file so\n"
+"  that you don't have to type them in each time you visit those sites. You\n"
+"  realize this is a big security risk if someone else gets hold of your\n"
+"  passwords, so therefor most unix programs won't read this file unless it is\n"
 );

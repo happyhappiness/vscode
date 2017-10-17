@@ -1,10 +1,9 @@
 fputs(
-"              ftp_entry_path The initial path curl ended up in when logging on\n"
-"                             to the remote FTP server. (Added in 7.15.4)\n"
+"                             tiations that are specific to the particular pro-\n"
+"                             tocol(s) involved.\n"
 "\n"
-"              http_code      The numerical response code that was found in the\n"
-"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
-"                             7.18.2 the alias response_code was added to  show\n"
-"                             the same info.\n"
-"\n"
+"              time_redirect  The time, in seconds, it took for all redirection\n"
+"                             steps include name lookup,  connect,  pretransfer\n"
+"                             and  transfer  before  the  final transaction was\n"
+"                             started. time_redirect shows the complete  execu-\n"
 , stdout);

@@ -1,18 +1,4 @@
-fputs(
-"              protocol.\n"
-"\n"
-"       2      Failed to initialize.\n"
-"\n"
-"       3      URL malformed. The syntax was not correct.\n"
-"\n"
-"       5      Couldn't resolve proxy.  The  given  proxy  host  could  not  be\n"
-"              resolved.\n"
-"\n"
-"       6      Couldn't resolve host. The given remote host was not resolved.\n"
-"\n"
-"       7      Failed to connect to host.\n"
-"\n"
-"       8      FTP  weird  server  reply.  The  server  sent data curl couldn't\n"
-"              parse.\n"
-"\n"
-, stdout);
+warnf(config,
+                  "Using --anyauth or --proxy-anyauth with upload from stdin"
+                  " involves a big risk of it not working. Use a temporary"
+                  " file or a fixed auth type instead!\n");

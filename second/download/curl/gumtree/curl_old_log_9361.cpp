@@ -1,10 +1,8 @@
 fputs(
-"              (HTTP) This posts data, similar to the other --data options with\n"
-"              the exception that this performs URL-encoding. (Added in 7.18.0)\n"
-"              To be CGI-compliant, the <data> part should begin  with  a  name\n"
-"              followed  by a separator and a content specification. The <data>\n"
-"              part can be passed to curl using one of the following syntaxes:\n"
-"\n"
-"              content\n"
-"                     This will make curl URL-encode the content and pass  that\n"
+"              has  pressed  the  submit  button. This causes curl to POST data\n"
+"              using the  Content-Type  multipart/form-data  according  to  RFC\n"
+"              2388.  This  enables uploading of binary files etc. To force the\n"
+"              'content' part to be a file, prefix the  file  name  with  an  @\n"
+"              sign.  To just get the content part from a file, prefix the file\n"
+"              name with the symbol <. The difference between @ and <  is  then\n"
 , stdout);

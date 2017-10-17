@@ -1,0 +1,17 @@
+fputs(
+"              rides -2, --sslv2 and -1, --tlsv1 and --tlsv1.1 and --tlsv1.2.\n"
+"\n"
+"       --stderr\n"
+"              Redirect all writes to stderr to the specified file instead.  If\n"
+"              the file name is a plain '-', it is instead written to stdout.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"              See also -v, --verbose and -s, --silent.\n"
+"\n"
+"       --tcp-fastopen\n"
+"              Enable use of TCP Fast Open (RFC7413).\n"
+"\n"
+"              Added in 7.49.0.\n"
+"\n"
+, stdout);

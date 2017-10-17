@@ -1,9 +1,9 @@
 fputs(
-"              This option overrides existing environment variables  that  sets\n"
-"              proxy  to  use.  If  there's  an  environment variable setting a\n"
-"              proxy, you can set proxy to \"\" to override it.\n"
+"              headers, thus possibly inducing  an  extra  network  round-trip.\n"
+"              This  is  used  instead  of  setting  a  specific authentication\n"
+"              method, which you can do with  --basic,  --digest,  --ntlm,  and\n"
+"              --negotiate.\n"
 "\n"
-"              Note that all operations that are performed over  a  HTTP  proxy\n"
-"              will  transparently  be converted to HTTP. It means that certain\n"
-"              protocol specific operations might not be available. This is not\n"
+"              Note  that  using --anyauth is not recommended if you do uploads\n"
+"              from stdin, since it may require data to be sent twice and  then\n"
 , stdout);

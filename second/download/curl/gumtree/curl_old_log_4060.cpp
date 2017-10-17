@@ -1,10 +1,11 @@
 fputs(
-"              (FTP)  Require  SSL/TLS  for the FTP connection.  Terminates the\n"
-"              connection if the server doesn't  support  SSL/TLS.   (Added  in\n"
-"              7.15.5)\n"
+"              available: \\\\, \\\", \\t, \\n, \\r and \\v. A backlash  preceding  any\n"
+"              other  letter  is  ignored. If the first column of a config line\n"
+"              is a '#' character, the rest of the line will be  treated  as  a\n"
+"              comment.  Only  write one option per physical line in the config\n"
+"              file.\n"
 "\n"
-"       --ftp-ssl-ccc\n"
-"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
-"              munication  will be unencrypted. This allows NAT routers to fol-\n"
+"              Specify the filename to -K/--config as '-' to make curl read the\n"
+"              file from stdin.\n"
+"\n"
 , stdout);

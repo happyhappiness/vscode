@@ -1,0 +1,15 @@
+puts(
+"          machine-parse the contents of an  FTP  directory  since\n"
+"          the  normal  directory view doesn't use a standard look\n"
+"          or format.\n"
+"\n"
+"          This option causes an FTP  NLST  command  to  be  sent.\n"
+"          Some  FTP  servers list only files in their response to\n"
+"          NLST; they do not include subdirectories  and  symbolic\n"
+"          links.\n"
+"\n"
+"          If  this  option  is  used twice, the second will again\n"
+"          disable list only.\n"
+"\n"
+"     -L/--location\n"
+);

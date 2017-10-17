@@ -1,11 +1,11 @@
 fputs(
-"  Note that by specifying -b you enable the \"cookie awareness\" and with -L\n"
-"  you can make curl follow a location: (which often is used in combination\n"
-"  with cookies). So that if a site sends cookies and a location, you can\n"
-"  use a non-existing file to trigger the cookie awareness like:\n"
+"  systems) from the user's home dir on startup.\n"
 "\n"
-"        curl -L -b empty.txt www.example.com\n"
+"  The config file could be made up with normal command line switches, but you\n"
+"  can also specify the long options without the dashes to make it more\n"
+"  readable. You can separate the options and the parameter with spaces, or\n"
+"  with = or :. Comments can be used within the file. If the first letter on a\n"
+"  line is a '#'-letter the rest of the line is treated as a comment.\n"
 "\n"
-"  The file to read cookies from must be formatted using plain HTTP headers OR\n"
-"  as netscape's cookie file. Curl will determine what kind it is based on the\n"
+"  If you want the parameter to contain spaces, you must inclose the entire\n"
 , stdout);

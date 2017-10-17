@@ -1,1 +1,0 @@
-warnf(config, "bad output glob!\n");

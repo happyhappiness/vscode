@@ -1,9 +1,11 @@
 fputs(
-"              with  any  number of variables. The format can be specified as a\n"
-"              literal \"string\", or you can have curl read the  format  from  a\n"
-"              file  with  \"@filename\" and to tell curl to read the format from\n"
-"              stdin you write \"@-\".\n"
+"              speed_download The average download speed that curl measured for\n"
+"                             the complete download. Bytes per second.\n"
 "\n"
-"              The variables present in the output format will  be  substituted\n"
-"              by  the  value or text that curl thinks fit, as described below.\n"
+"              speed_upload   The  average  upload speed that curl measured for\n"
+"                             the complete upload. Bytes per second.\n"
+"\n"
+"              ssl_verify_result\n"
+"                             The result of the SSL peer certificate  verifica-\n"
+"                             tion that was requested. 0 means the verification\n"
 , stdout);

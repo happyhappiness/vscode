@@ -1,9 +1,11 @@
 fputs(
-"              Retries will be done as usual (see --retry) as long as the timer\n"
-"              hasn't reached this given limit. Notice that if the timer hasn't\n"
-"              reached  the  limit, the request will be made and while perform-\n"
-"              ing, it may take longer than this given time period. To limit  a\n"
-"              single  request's  maximum  time,  use -m, --max-time.  Set this\n"
-"              option to zero to not timeout retries. (Added in 7.12.3)\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks5 hostname proxy with -x, --proxy using a socks5h:// proto-\n"
+"              col prefix.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (This option was  previously  wrongly  documented  and  used  as\n"
+"              --socks without the number appended.)\n"
+"\n"
+"       --socks5 <host[:port]>\n"
 , stdout);

@@ -1,0 +1,16 @@
+fputs(
+"   key file, but in cases where curl does not have the proper library support,\n"
+"   a matching public key file must be specified using the --pubkey option.\n"
+"\n"
+" HTTP\n"
+"\n"
+"   Curl also supports user and password in HTTP URLs, thus you can pick a file\n"
+"   like:\n"
+"\n"
+"        curl http://name:passwd@machine.domain/full/path/to/file\n"
+"\n"
+"   or specify user and password separately like in\n"
+"\n"
+"        curl -u name:passwd http://machine.domain/full/path/to/file\n"
+"\n"
+, stdout);

@@ -1,11 +1,10 @@
 fputs(
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"              When saving output to a file, this option tells  curl  to  store\n"
+"              certain  file  metadata  in extended file attributes. Currently,\n"
+"              the URL is stored in the xdg.origin.url attribute and, for HTTP,\n"
+"              the  content  type  is stored in the mime_type attribute. If the\n"
+"              file system does not support extended attributes, a  warning  is\n"
+"              issued.\n"
 "\n"
-"              time_total     The  total time, in seconds, that the full opera-\n"
-"                             tion lasted. The time will be displayed with mil-\n"
-"                             lisecond resolution.\n"
-"\n"
+"       -y, --speed-time <time>\n"
 , stdout);

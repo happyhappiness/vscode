@@ -1,10 +1,10 @@
 fputs(
-"              content_type   The  Content-Type  of  the requested document, if\n"
-"                             there was any.\n"
+"              time_redirect  The time, in seconds, it took for all redirection\n"
+"                             steps  include  name lookup, connect, pretransfer\n"
+"                             and transfer before  the  final  transaction  was\n"
+"                             started.  time_redirect shows the complete execu-\n"
+"                             tion time for multiple  redirections.  (Added  in\n"
+"                             7.12.3)\n"
 "\n"
-"              filename_effective\n"
-"                             The ultimate filename that curl  writes  out  to.\n"
-"                             This  is only meaningful if curl is told to write\n"
-"                             to a file  with  the  --remote-name  or  --output\n"
-"                             option.  It's most useful in combination with the\n"
+"              time_starttransfer\n"
 , stdout);

@@ -1,12 +1,10 @@
 fputs(
-"              ronment by specifying a single colon with this option: \"-u :\".\n"
+"                             This is only meaningful if curl is told to  write\n"
+"                             to  a  file  with  the  --remote-name or --output\n"
+"                             option. It's most useful in combination with  the\n"
+"                             --remote-header-name option. (Added in 7.25.1)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"                             to the remote FTP server. (Added in 7.15.4)\n"
 "\n"
-"       -U, --proxy-user <user:password>\n"
-"              Specify the user name and password to use for proxy  authentica-\n"
-"              tion.\n"
-"\n"
-"              If  you  use  a  Windows  SSPI-enabled curl binary and do either\n"
-"              Negotiate or NTLM authentication  then  you  can  tell  curl  to\n"
 , stdout);

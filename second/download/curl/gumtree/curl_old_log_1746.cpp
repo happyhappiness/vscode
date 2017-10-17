@@ -1,10 +1,11 @@
 fputs(
-"       supported protocols (HTTP, HTTPS, FTP, FTPS, GOPHER, DICT, TELNET, LDAP\n"
-"       or FILE). The command is designed to work without user interaction.\n"
+"              use  the  -c/--cookie-jar option or you could even save the HTTP\n"
+"              headers to a file using -D/--dump-header!\n"
 "\n"
-"       curl offers a busload of useful tricks like proxy support, user authen-\n"
-"       tication, ftp upload, HTTP post,  SSL  (https:)  connections,  cookies,\n"
-"       file  transfer  resume  and  more. As you will see below, the amount of\n"
-"       features will make your head spin!\n"
+"              If this option is set more than once, the last one will  be  the\n"
+"              one that's used.\n"
 "\n"
+"       -B/--use-ascii\n"
+"              Enable  ASCII transfer when using FTP or LDAP. For FTP, this can\n"
+"              also be enforced by using an URL that ends with \";type=A\".  This\n"
 , stdout);

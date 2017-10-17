@@ -1,11 +1,12 @@
 fputs(
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"              a speed-time period, the download gets aborted. If speed-time is\n"
+"              used, the default speed-limit will be 1 unless set with -Y.\n"
 "\n"
-"              size_download  The total amount of bytes that were downloaded.\n"
+"              This option controls transfers and thus  will  not  affect  slow\n"
+"              connects  etc.  If this is a concern for you, try the --connect-\n"
+"              timeout option.\n"
 "\n"
-"              size_upload    The total amount of bytes that were uploaded.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       -Y/--speed-limit <speed>\n"
 , stdout);

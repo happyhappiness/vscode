@@ -1,11 +1,9 @@
 fputs(
-"  all of them, one after the other in the specified order.\n"
+"              from a specified file as  well  as  all  cookies  received  from\n"
+"              remote server(s). If no cookies are known, no file will be writ-\n"
+"              ten. The file will be written using  the  Netscape  cookie  file\n"
+"              format.  If  you  set  the  file name to a single dash, \"-\", the\n"
+"              cookies will be written to stdout.\n"
 "\n"
-"  libcurl will attempt to use persistent connections for the transfers so that\n"
-"  the second transfer to the same host can use the same connection that was\n"
-"  already initiated and was left open in the previous transfer. This greatly\n"
-"  decreases connection time for all but the first transfer and it makes a far\n"
-"  better use of the network.\n"
-"\n"
-"  Note that curl cannot use persistent connections for transfers that are used\n"
+"              NOTE If the cookie jar can't be created or written to, the whole\n"
 , stdout);

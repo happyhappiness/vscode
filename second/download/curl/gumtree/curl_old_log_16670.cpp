@@ -1,0 +1,15 @@
+puts(
+"                         transfer commands and negotiations  that\n"
+"                         are  specific  to  the particular proto�\n"
+"                         col(s) involved.\n"
+"\n"
+"          size_download  The total  amount  of  bytes  that  were\n"
+"                         downloaded.\n"
+"\n"
+"          size_upload    The  total  amount  of  bytes  that were\n"
+"                         uploaded.\n"
+"\n"
+"          size_header    The total amount of bytes of  the  down�\n"
+"                         loaded headers.\n"
+"\n"
+);

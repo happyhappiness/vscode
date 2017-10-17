@@ -1,11 +1,11 @@
 fputs(
-"              instead of setting a specific authentication method,  which  you\n"
-"              can  do  with --basic, --digest, --ntlm, and --negotiate. (Added\n"
-"              in 7.10.6)\n"
+"              Maximum  time  in  seconds  that you allow the connection to the\n"
+"              server to take.  This only limits  the  connection  phase,  once\n"
+"              curl  has  connected this option is of no more use. See also the\n"
+"              -m/--max-time option.\n"
 "\n"
-"              Note that using --anyauth is not recommended if you  do  uploads\n"
-"              from  stdin, since it may require data to be sent twice and then\n"
-"              the client must be able to rewind. If the need should arise when\n"
-"              uploading from stdin, the upload operation will fail.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       -c/--cookie-jar <file name>\n"
+"              Specify to which file you want curl to write all cookies after a\n"
 , stdout);

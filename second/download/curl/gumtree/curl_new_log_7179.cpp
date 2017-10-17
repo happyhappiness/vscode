@@ -1,10 +1,13 @@
 fputs(
-"    with a curl angle.\n"
+"              the command HEAD which this uses to get nothing but  the  header\n"
+"              of  a  document.  When used on a FTP or FILE file, curl displays\n"
+"              the file size and last modification time only.\n"
 "\n"
-"  curl-and-python\n"
+"       --interface <name>\n"
+"              Perform an operation using a specified interface. You can  enter\n"
+"              interface  name,  IP address or host name. An example could look\n"
+"              like:\n"
 "\n"
-"    Python hackers using curl with or without the python binding pycurl.\n"
+"               curl --interface eth0:1 http://www.netscape.com/\n"
 "\n"
-"  Please direct curl questions, feature requests and trouble reports to one of\n"
-"  these mailing lists instead of mailing any individual.\n"
 , stdout);

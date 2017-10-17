@@ -1,9 +1,9 @@
 fputs(
-"              may or may not introduce a security breach if the site redirects\n"
-"              you to a site to which  you'll  send  your  authentication  info\n"
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              Metalink file (both version 3 and 4 (RFC  5854)  are  supported)\n"
+"              and  make use of the mirrors listed within for failover if there\n"
+"              are errors (such as the file or server not being available).  It\n"
+"              will  also  verify  the hash of the file after the download com-\n"
+"              pletes. The Metalink file itself is downloaded and processed  in\n"
+"              memory and not stored in the local file system.\n"
 "\n"
-"       -m, --max-time <seconds>\n"
-"              Maximum  time  in  seconds that you allow the whole operation to\n"
-"              take.  This is useful for preventing your batch jobs from  hang-\n"
 , stdout);

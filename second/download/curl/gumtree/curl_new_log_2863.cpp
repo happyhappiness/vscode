@@ -1,11 +1,11 @@
 fputs(
-"                             The time, in seconds,  it  took  from  the  start\n"
-"                             until the name resolving was completed.\n"
+"              same way as the proxy environment  variables,  include  protocol\n"
+"              prefix (http://) and embedded user + password.\n"
 "\n"
-"              time_connect   The  time,  in  seconds,  it  took from the start\n"
-"                             until the connect to the remote host  (or  proxy)\n"
-"                             was completed.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              time_pretransfer\n"
-"                             The  time,  in  seconds,  it  took from the start\n"
+"       -X/--request <command>\n"
+"              (HTTP) Specifies a custom request method to use when communicat‐\n"
+"              ing  with  the  HTTP server.  The specified request will be used\n"
+"              instead of the method otherwise used (which  defaults  to  GET).\n"
 , stdout);

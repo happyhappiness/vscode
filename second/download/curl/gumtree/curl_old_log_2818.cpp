@@ -1,11 +1,11 @@
 fputs(
-"              initial host. If a redirect takes curl to a different  host,  it\n"
-"              won’t  be  able to intercept the user+password. See also --loca‐\n"
-"              tion-trusted on how to change this. You can limit the amount  of\n"
-"              redirects to follow by using the --max-redirs option.\n"
+"              port. This is not very common. Use -V/--version to see  if  your\n"
+"              version supports GSS-Negotiate.\n"
 "\n"
-"              If  this  option  is  used  twice, the second will again disable\n"
-"              location following.\n"
+"              When  using  this option, you must also provide a fake -u/--user\n"
+"              option to activate the authentication code properly.  Sending  a\n"
+"              ’-u  :’  is  enough  as  the  user name and password from the -u\n"
+"              option aren’t actually used.\n"
 "\n"
-"       --location-trusted\n"
+"              If this option is used several times, the following  occurrences\n"
 , stdout);

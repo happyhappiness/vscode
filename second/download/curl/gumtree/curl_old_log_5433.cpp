@@ -1,10 +1,10 @@
 fputs(
-"              (SSL)  Disable curl's use of SSL session-ID caching.  By default\n"
-"              all transfers are done using the cache. Note that while  nothing\n"
-"              should  ever  get  hurt  by attempting to reuse SSL session-IDs,\n"
-"              there seem to be broken SSL implementations in the wild that may\n"
-"              require  you to disable this in order for you to succeed. (Added\n"
-"              in 7.16.0)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Note that this is the negated option name  documented.  You  can\n"
+"       --post301\n"
+"              Tells curl to respect  RFC  2616/10.3.2  and  not  convert  POST\n"
+"              requests into GET requests when following a 301 redirection. The\n"
+"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
 , stdout);

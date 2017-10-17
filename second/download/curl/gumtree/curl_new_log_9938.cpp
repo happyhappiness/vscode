@@ -1,10 +1,11 @@
 fputs(
-"              --location (Added in 7.19.1)\n"
+"              key in this separate file.\n"
 "\n"
-"       --post303\n"
-"              (HTTP) Tells curl to respect RFC  2616/10.3.2  and  not  convert\n"
-"              POST  requests  into GET requests when following a 303 redirect-\n"
-"              ion. The non-RFC behaviour is ubiquitous  in  web  browsers,  so\n"
-"              curl  does  the  conversion  by default to maintain consistency.\n"
-"              However, a server may require a POST to remain a POST after such\n"
+"              If this option is used several times, the last one will be used.\n"
+"              (As of 7.39.0, curl attempts to automatically extract the public\n"
+"              key  from the private key file, so passing this option is gener-\n"
+"              ally not required. Note that this public key extraction requires\n"
+"              libcurl  to  be linked against a copy of libssh2 1.2.8 or higher\n"
+"              that is itself linked against OpenSSL.)\n"
+"\n"
 , stdout);

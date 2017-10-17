@@ -1,11 +1,9 @@
 fputs(
-"              The given offset is the exact  number  of  bytes  that  will  be\n"
-"              skipped  counted from the beginning of the source file before it\n"
-"              is transferred to the destination.  If used  with  uploads,  the\n"
-"              FTP server command SIZE will not be used by curl.\n"
+"              failed attempts. In normal cases when a  HTTP  server  fails  to\n"
+"              deliver  a  document,  it  returns  an  HTML document stating so\n"
+"              (which often also describes why and more). This flag  will  pre-\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"              Use  \"-C  -\" to tell curl to automatically find out where/how to\n"
-"              resume the transfer. It then uses the given  output/input  files\n"
-"              to figure that out.\n"
-"\n"
+"              This  method is not fail-safe and there are occasions where non-\n"
+"              successful response codes will  slip  through,  especially  when\n"
 , stdout);

@@ -1,10 +1,9 @@
 fputs(
-"              there is no file part in the specified URL, Curl will append the\n"
-"              local file name. NOTE that you must use a trailing / on the last\n"
-"              directory  to really prove to Curl that there is no file name or\n"
-"              curl will think that your last directory name is the remote file\n"
-"              name to use. That will most likely cause the upload operation to\n"
-"              fail. If this is used on an HTTP(S) server, the PUT command will\n"
-"              be used.\n"
+"              When  using  Kerberos  V5 with a Windows based server you should\n"
+"              include the Windows domain name in the user name, in  order  for\n"
+"              the server to succesfully obtain a Kerberos Ticket. If you don't\n"
+"              then the initial authentication handshake may fail.\n"
 "\n"
+"              When using NTLM, the user name can be specified  simply  as  the\n"
+"              user  name,  without the domain, if there is a single domain and\n"
 , stdout);

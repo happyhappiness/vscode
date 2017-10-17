@@ -1,11 +1,8 @@
 fputs(
-"              fer  ends  up  being larger than this given limit. This concerns\n"
-"              both FTP and HTTP transfers.\n"
-"\n"
-"       -m/--max-time <seconds>\n"
-"              Maximum time in seconds that you allow the  whole  operation  to\n"
-"              take.   This is useful for preventing your batch jobs from hang‐\n"
-"              ing for hours due to slow networks or  links  going  down.   See\n"
-"              also the --connect-timeout option.\n"
-"\n"
+"              commands  are  sent  BEFORE  the  transfer is taking place (just\n"
+"              after the initial PWD command to be  exact).  To  make  commands\n"
+"              take  place after a successful transfer, prefix them with a dash\n"
+"              ’-’. To make commands get sent after libcurl has changed working\n"
+"              directory,  just before the transfer command(s), prefix the com‐\n"
+"              mand with ’+’. You may specify any amount of  commands.  If  the\n"
 , stdout);

@@ -1,10 +1,10 @@
 fputs(
-"              Note: Some FTP servers list only  files  in  their  response  to\n"
-"              NLST; they do not include sub-directories and symbolic links.\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
+"              scarce resource that will be busy at times so setting this range\n"
+"              to something too narrow might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
 "\n"
-"              (POP3)  When  retrieving a specific email from POP3, this switch\n"
-"              forces a LIST command to be performed instead of RETR.  This  is\n"
-"              particularly  useful if the user wants to see if a specific mes-\n"
-"              sage id exists on the server and what size it is.\n"
-"\n"
+"       --location-trusted\n"
+"              (HTTP/HTTPS)  Like  -L,  --location,  but will allow sending the\n"
 , stdout);

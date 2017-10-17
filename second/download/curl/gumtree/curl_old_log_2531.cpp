@@ -1,9 +1,11 @@
 fputs(
-"              remote server(s). If no cookies are known, no file will be writ-\n"
-"              ten. The file will be written using  the  Netscape  cookie  file\n"
-"              format.  If  you  set  the  file name to a single dash, \"-\", the\n"
-"              cookies will be written to stdout.\n"
+"              (HTTP) This is an alias for the -d/--data option.\n"
 "\n"
-"              NOTE If the cookie jar can't be created or written to, the whole\n"
-"              curl operation won't fail or even report an error clearly. Using\n"
+"              If  this  option  is  used several times, the ones following the\n"
+"              first will append data.\n"
+"\n"
+"       --data-binary <data>\n"
+"              (HTTP) This posts data in a similar manner as --data-ascii does,\n"
+"              although when using this option the entire context of the posted\n"
+"              data is kept as-is. If you want to post a  binary  file  without\n"
 , stdout);

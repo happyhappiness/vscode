@@ -1,0 +1,15 @@
+puts(
+"          If this option is used twice,  the  second  will  again\n"
+"          disable header include.\n"
+"\n"
+"     --interface <name>\n"
+"          Perform  an  operation using a specified interface. You\n"
+"          can enter interface name, IP address or host  name.  An\n"
+"          example could look like:\n"
+"          curl --interface eth0:1 http://www.netscape.com/\n"
+"\n"
+"          If this option is used several times, the last one will\n"
+"          be used.\n"
+"\n"
+"     -I/--head\n"
+);

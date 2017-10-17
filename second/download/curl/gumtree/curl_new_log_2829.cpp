@@ -1,8 +1,12 @@
 fputs(
-"              server.  Quote  commands  are sent BEFORE the transfer is taking\n"
-"              place (just after the initial PWD command in an FTP transfer, to\n"
-"              be exact). To make commands take place after a successful trans‐\n"
-"              fer, prefix them with a dash ’-’.  To  make  commands  get  sent\n"
-"              after  libcurl  has  changed  working directory, just before the\n"
-"              transfer command(s), prefix the command with ’+’ (this  is  only\n"
+"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
+"              --retry-max-time  to  limit  the total time allowed for retries.\n"
+"              (Added in 7.12.3)\n"
+"\n"
+"              If this option is  used  multiple  times,  the  last  occurrence\n"
+"              decide the amount.\n"
+"\n"
+"       --retry-delay <seconds>\n"
+"              Make  curl  sleep  this amount of time between each retry when a\n"
+"              transfer has failed with  a  transient  error  (it  changes  the\n"
 , stdout);

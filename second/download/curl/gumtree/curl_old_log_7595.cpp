@@ -1,10 +1,11 @@
 fputs(
-"              url_effective  The URL that was fetched last. This is most mean-\n"
-"                             ingful if you've told curl  to  follow  location:\n"
-"                             headers.\n"
+"              speed_download The average download speed that curl measured for\n"
+"                             the complete download. Bytes per second.\n"
 "\n"
-"              filename_effective\n"
-"                             The  ultimate  filename  that curl writes out to.\n"
-"                             This is only meaningful if curl is told to  write\n"
-"                             to  a  file  with  the  --remote-name or --output\n"
+"              speed_upload   The  average  upload speed that curl measured for\n"
+"                             the complete upload. Bytes per second.\n"
+"\n"
+"              content_type   The Content-Type of the  requested  document,  if\n"
+"                             there was any.\n"
+"\n"
 , stdout);

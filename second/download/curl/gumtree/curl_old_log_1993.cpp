@@ -1,12 +1,8 @@
 fputs(
-"              as a part of the header content: do not add newlines or carriage\n"
-"              returns they will only mess things up for you.\n"
-"\n"
-"              See also the -A/--user-agent and -e/--referer options.\n"
-"\n"
-"              This option can be used  multiple  times  to  add/replace/remove\n"
-"              multiple headers.\n"
-"\n"
-"       --ignore-content-length\n"
-"              (HTTP)  Ignore  the  Content-Length header. This is particularly\n"
+"       -K/--config <config file>\n"
+"              Specify which config file to read curl arguments from. The  con-\n"
+"              fig  file  is a text file in which command line arguments can be\n"
+"              written which then will be used as if they were written  on  the\n"
+"              actual command line. Options and their parameters must be speci-\n"
+"              fied on the same config file line. If the parameter is  to  con-\n"
 , stdout);

@@ -1,12 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will override\n"
-"              the others.\n"
+"              binary, you should instead use the --data-binary option. To  URL\n"
+"              encode the value of a form field you may use --data-urlencode.\n"
 "\n"
-"       --compressed\n"
-"              (HTTP) Request a compressed response using one of the algorithms\n"
-"              libcurl supports, and return the uncompressed document.  If this\n"
-"              option is used and the server  sends  an  unsupported  encoding,\n"
-"              Curl will report an error.\n"
-"\n"
-"              If  this option is used several times, each occurrence will tog-\n"
+"              If  any of these options is used more than once on the same com-\n"
+"              mand line, the data pieces specified  will  be  merged  together\n"
+"              with  a  separating  &-letter.  Thus,  using  '-d name=daniel -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
 , stdout);

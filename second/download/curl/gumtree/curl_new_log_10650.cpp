@@ -1,9 +1,10 @@
 fputs(
-"              (Added in 7.37.0)\n"
-"       -p, --proxytunnel\n"
-"              When an HTTP proxy is used (-x, --proxy), this option will cause\n"
-"              non-HTTP  protocols  to  attempt  to  tunnel  through  the proxy\n"
-"              instead of merely using it to do HTTP-like operations. The  tun-\n"
-"              nel  approach  is  made  with the HTTP proxy CONNECT request and\n"
-"              requires that the proxy allows direct connect to the remote port\n"
+"              POST requests into GET requests when following a  303  redirect-\n"
+"              ion.  The  non-RFC  behaviour  is ubiquitous in web browsers, so\n"
+"              curl does the conversion by  default  to  maintain  consistency.\n"
+"              However, a server may require a POST to remain a POST after such\n"
+"              a redirection. This option is meaningful  only  when  using  -L,\n"
+"              --location (Added in 7.26.0)\n"
+"\n"
+"       --proto <protocols>\n"
 , stdout);

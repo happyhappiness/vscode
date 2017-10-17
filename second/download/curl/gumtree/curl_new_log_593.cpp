@@ -1,10 +1,11 @@
 fputs(
-"              vates the \"cookie  parser\"  which  will  make  curl\n"
-"              record  incoming cookies too, which may be handy if\n"
-"              you're  using  this   in   combination   with   the\n"
-"              -L/--location  option.  The file format of the file\n"
-"              to read cookies from should be plain  HTTP  headers\n"
-"              or the Netscape/Mozilla cookie file format.\n"
+"              report  an error clearly. Using -v will get a warn-\n"
+"              ing displayed, but that is the only  visible  feed-\n"
+"              back  you get about this possibly lethal situation.\n"
+"              If this option is  used  several  times,  the  last\n"
+"              specfied file name will be used.\n"
 "\n"
-"              NOTE  that  the  file specified with -b/--cookie is\n"
+"       -C/--continue-at <offset>\n"
+"              Continue/Resume  a  previous  file  transfer at the\n"
+"              given offset. The given offset is the exact  number\n"
 , stdout);

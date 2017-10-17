@@ -1,9 +1,10 @@
 fputs(
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              URL decoded by libcurl. This allows you to pass in special char-\n"
+"              acters such as @ by using %40 or pass in a colon with %3a.\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps include name lookup,  connect,  pretransfer\n"
-"                             and  transfer  before  the  final transaction was\n"
-"                             started. time_redirect shows the complete  execu-\n"
+"              The  proxy host can be specified the exact same way as the proxy\n"
+"              environment variables, including the protocol  prefix  (http://)\n"
+"              and the embedded user + password.\n"
+"\n"
+"              From  7.21.7,  the  proxy  string may be specified with a proto-\n"
 , stdout);

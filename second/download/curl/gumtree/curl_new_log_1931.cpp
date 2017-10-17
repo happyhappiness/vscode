@@ -1,1 +1,1 @@
-warnf(config, "Illegally formatted input field!\n");
+warnf(config, "bad output glob!\n");

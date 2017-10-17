@@ -1,9 +1,12 @@
 fputs(
-"              Use the file name \"-\" (a single dash) to use stdin instead of  a\n"
-"              given  file.   Alternately,  the file name \".\" (a single period)\n"
-"              may be specified instead of \"-\" to  use  stdin  in  non-blocking\n"
-"              mode  to  allow  reading  server  output  while  stdin  is being\n"
-"              uploaded.\n"
+"              login options please see RFC  2384,  RFC  5092  and  IETF  draft\n"
+"              draft-earhart-url-smtp-00.txt (Added in 7.31.0).\n"
 "\n"
-"              You can specify one -T for each URL on the command line. Each -T\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -U, --proxy-user <user:password>\n"
+"              Specify  the user name and password to use for proxy authentica-\n"
+"              tion.\n"
+"\n"
+"              If you use an SSPI-enabled curl binary and do  NTLM  authentica-\n"
 , stdout);

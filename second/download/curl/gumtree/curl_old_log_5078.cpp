@@ -1,11 +1,8 @@
 fputs(
-"              dir  given the current user in your system). On Windows, it then\n"
-"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
-"              PROFILE%\\Application Data'.\n"
-"\n"
-"              2)  On  windows, if there is no _curlrc file in the home dir, it\n"
-"              checks for one in the same dir the curl executable is placed. On\n"
-"              UNIX-like  systems,  it will simply try to load .curlrc from the\n"
-"              determined home dir.\n"
-"\n"
+"              and a 3XX response code), this option will make  curl  redo  the\n"
+"              request  on the new place. If used together with -i/--include or\n"
+"              -I/--head, headers from all requested pages will be shown.  When\n"
+"              authentication  is  used, curl only sends its credentials to the\n"
+"              initial host. If a redirect takes curl to a different  host,  it\n"
+"              won't  be  able to intercept the user+password. See also --loca-\n"
 , stdout);

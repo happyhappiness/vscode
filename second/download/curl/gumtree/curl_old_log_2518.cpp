@@ -1,12 +1,9 @@
 fputs(
-"       30     FTP PORT failed. The PORT command failed. Not  all  FTP  servers\n"
-"              support  the  PORT  command,  try  doing  a  transfer using PASV\n"
-"              instead!\n"
+"              also  activates  the \"cookie parser\" which will make curl record\n"
+"              incoming cookies too, which may be handy if you're using this in\n"
+"              combination  with  the  -L/--location option. The file format of\n"
+"              the file to read cookies from should be plain  HTTP  headers  or\n"
+"              the Netscape/Mozilla cookie file format.\n"
 "\n"
-"       31     FTP couldn't use REST. The REST command failed. This command  is\n"
-"              used for resumed FTP transfers.\n"
-"\n"
-"       32     FTP  couldn't  use SIZE. The SIZE command failed. The command is\n"
-"              an extension to the original FTP spec RFC 959.\n"
-"\n"
+"              NOTE  that  the  file specified with -b/--cookie is only used as\n"
 , stdout);

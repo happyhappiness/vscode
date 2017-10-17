@@ -1,9 +1,9 @@
 fputs(
-"       curl  will  do  its best to use what you pass to it as a URL. It is not\n"
-"       trying to validate it as a syntactically correct URL by any  means  but\n"
-"       is instead very liberal with what it accepts.\n"
+"              Cookie:\" line.  The data should be in the format  \"NAME1=VALUE1;\n"
+"              NAME2=VALUE2\".\n"
 "\n"
-"       Curl will attempt to re-use connections for multiple file transfers, so\n"
-"       that getting many files from the same server will not do multiple  con-\n"
-"       nects / handshakes. This improves speed. Of course this is only done on\n"
+"              If  no  '=' symbol is used in the line, it is treated as a file-\n"
+"              name to use to read previously stored cookie lines  from,  which\n"
+"              should  be used in this session if they match. Using this method\n"
+"              also activates the \"cookie parser\" which will make  curl  record\n"
 , stdout);

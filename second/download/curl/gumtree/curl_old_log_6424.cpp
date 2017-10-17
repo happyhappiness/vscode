@@ -1,9 +1,11 @@
 fputs(
-"              Retries will be done as usual (see --retry) as long as the timer\n"
-"              hasn't reached this given limit. Notice that if the timer hasn't\n"
-"              reached  the  limit, the request will be made and while perform-\n"
-"              ing, it may take longer than this given time period. To limit  a\n"
-"              single  request's  maximum  time,  use  -m/--max-time.  Set this\n"
-"              option to zero to not timeout retries. (Added in 7.12.3)\n"
+"              --socks5-gssapi-nec allows the unprotected exchange of the  pro-\n"
+"              tection mode negotiation. (Added in 7.19.4).\n"
+"\n"
+"       --stderr <file>\n"
+"              Redirect  all writes to stderr to the specified file instead. If\n"
+"              the file name is a plain '-', it is instead written  to  stdout.\n"
+"              This  option  has no point when you're using a shell with decent\n"
+"              redirecting capabilities.\n"
 "\n"
 , stdout);

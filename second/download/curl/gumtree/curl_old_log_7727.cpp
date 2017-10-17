@@ -1,10 +1,11 @@
 fputs(
-"              num_connects   Number of new connects made in the recent  trans-\n"
-"                             fer. (Added in 7.12.3)\n"
+"              system  does  not  support  extended  attributes,  a  warning is\n"
+"              issued.\n"
 "\n"
-"              num_redirects  Number  of  redirects  that  were followed in the\n"
-"                             request. (Added in 7.12.3)\n"
+"       -y, --speed-time <time>\n"
+"              If a download is slower than speed-limit bytes per second during\n"
+"              a speed-time period, the download gets aborted. If speed-time is\n"
+"              used, the default speed-limit will be 1 unless set with -Y.\n"
 "\n"
-"              redirect_url   When a HTTP request was made without -L to follow\n"
-"                             redirects, this variable will show the actual URL\n"
+"              This option controls transfers and thus  will  not  affect  slow\n"
 , stdout);

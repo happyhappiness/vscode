@@ -1,11 +1,11 @@
 fputs(
-"              This option overrides any use of --netrc as  they  are  mutually\n"
-"              exclusive.  It will also abide by --netrc-optional if specified.\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.\n"
 "\n"
-"       --netrc-optional\n"
-"              Very  similar to --netrc, but this option makes the .netrc usage\n"
-"              optional and not mandatory as the --netrc option does.\n"
+"       -o, --output <file>\n"
+"              Write output to <file> instead of stdout. If you are using {} or\n"
+"              [] to fetch multiple documents, you can use '#'  followed  by  a\n"
+"              number  in  the <file> specifier. That variable will be replaced\n"
+"              with the current string for the URL being fetched. Like in:\n"
 "\n"
-"       --negotiate\n"
-"              (HTTP) Enables GSS-Negotiate authentication.  The  GSS-Negotiate\n"
 , stdout);

@@ -1,10 +1,11 @@
 fputs(
-"              (HTTP) Request a compressed response using one of the algorithms\n"
-"              libcurl supports, and save the uncompressed document.   If  this\n"
-"              option  is  used  and  the server sends an unsupported encoding,\n"
-"              curl will report an error.\n"
+"              (HTTP)  This  posts data exactly as specified with no extra pro-\n"
+"              cessing whatsoever.\n"
 "\n"
-"       --connect-timeout <seconds>\n"
-"              Maximum time in seconds that you allow  the  connection  to  the\n"
-"              server  to  take.   This  only limits the connection phase, once\n"
+"              If you start the data with the letter @, the rest  should  be  a\n"
+"              filename.   Data  is  posted in a similar manner as --data-ascii\n"
+"              does, except that newlines are  preserved  and  conversions  are\n"
+"              never done.\n"
+"\n"
+"              If  this  option  is  used several times, the ones following the\n"
 , stdout);

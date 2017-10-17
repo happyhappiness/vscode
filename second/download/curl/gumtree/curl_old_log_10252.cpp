@@ -1,10 +1,10 @@
 fputs(
-"              redirects to follow by using the --max-redirs option.\n"
+"              Specify the login options to use during server authentication.\n"
 "\n"
-"              When curl follows a redirect and the request is not a plain  GET\n"
-"              (for example POST or PUT), it will do the following request with\n"
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code  was  any  other  3xx code, curl will re-send the following\n"
-"              request using the same unmodified method.\n"
+"              You can use the  login  options  to  specify  protocol  specific\n"
+"              options  that may be used during authentication. At present only\n"
+"              IMAP, POP3 and SMTP support login options. For more  information\n"
+"              about  the  login options please see RFC 2384, RFC 5092 and IETF\n"
+"              draft draft-earhart-url-smtp-00.txt (Added in 7.34.0).\n"
 "\n"
 , stdout);

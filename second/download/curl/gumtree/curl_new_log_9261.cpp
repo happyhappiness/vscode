@@ -1,10 +1,11 @@
 fputs(
-"              and make use of the mirrors listed within for failover if  there\n"
-"              are  errors (such as the file or server not being available). It\n"
-"              will also verify the hash of the file after  the  download  com-\n"
-"              pletes.  The Metalink file itself is downloaded and processed in\n"
-"              memory and not stored in the local file system.\n"
+"              This option requires a library  built  with  kerberos4  support.\n"
+"              This  is  not very common. Use -V, --version to see if your curl\n"
+"              supports it.\n"
 "\n"
-"              Example to use a remote Metalink file:\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
+"       -l, --list-only\n"
+"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
+"              only  view.  This  is  especially  useful  if  the user wants to\n"
 , stdout);

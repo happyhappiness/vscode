@@ -1,8 +1,9 @@
 fputs(
-"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
-"  store certificates with, but it is not used by the most commonly used\n"
-"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
-"  want curl to use the certificates you use with your (favourite) browser, you\n"
-"  may need to download/compile a converter that can convert your browser's\n"
-"  formatted certificates to PEM formatted ones. This kind of converter is\n"
+"              This  option  is similar to --netrc, except that you provide the\n"
+"              path (absolute or relative) to the netrc file that  Curl  should\n"
+"              use.   You  can  only  specify one netrc file per invocation. If\n"
+"              several --netrc-file options are provided,  only  the  last  one\n"
+"              will be used.  (Added in 7.21.5)\n"
+"\n"
+"              This  option  overrides  any use of --netrc as they are mutually\n"
 , stdout);

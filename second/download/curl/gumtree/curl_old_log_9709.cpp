@@ -1,0 +1,15 @@
+fputs(
+"              in 7.36.0)\n"
+"\n"
+"       -0, --http1.0\n"
+"              (HTTP) Tells curl to use HTTP version 1.0 instead of  using  its\n"
+"              internally preferred: HTTP 1.1.\n"
+"\n"
+"       --http1.1\n"
+"              (HTTP)  Tells curl to use HTTP version 1.1. This is the internal\n"
+"              default version. (Added in 7.33.0)\n"
+"\n"
+"       --http2\n"
+"              (HTTP) Tells curl to issue  its  requests  using  HTTP  2.  This\n"
+"              requires  that  the  underlying libcurl was built to support it.\n"
+, stdout);

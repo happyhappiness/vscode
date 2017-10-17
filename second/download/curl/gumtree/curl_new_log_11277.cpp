@@ -1,8 +1,11 @@
 fputs(
-"              has pressed the submit button. This causes  curl  to  POST  data\n"
-"              using  the  Content-Type  multipart/form-data  according  to RFC\n"
-"              2388. This enables uploading of binary files etc. To  force  the\n"
-"              'content'  part  to  be  a  file, prefix the file name with an @\n"
-"              sign. To just get the content part from a file, prefix the  file\n"
-"              name  with  the symbol <. The difference between @ and < is then\n"
+"              WARNING: this option loosens the SSL security, and by using this\n"
+"              flag you ask for exactly that.  (Added in 7.25.0)\n"
+"\n"
+"       --ssl-no-revoke\n"
+"              (WinSSL)  This  option tells curl to disable certificate revoca-\n"
+"              tion checks.  WARNING: this option loosens the SSL security, and\n"
+"              by using this flag you ask for exactly that.  (Added in 7.44.0)\n"
+"\n"
+"       --socks4 <host[:port]>\n"
 , stdout);

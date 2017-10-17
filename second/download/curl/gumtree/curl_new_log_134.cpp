@@ -1,11 +1,9 @@
 puts(
-"              directory to verify the peer. The certificates must\n"
-"              be in PEM format, and the directory must have  been\n"
-"              processed  using the c_rehash utility supplied with\n"
-"              openssl. Using --capath  can  allow  curl  to  make\n"
-"              https  connections much more efficiently than using\n"
-"              --cacert if the --cacert file contains many CA cer-\n"
-"              tificates.\n"
-"\n"
-"              If  this option is used several times, the last one\n"
+"              same name as one of the internal  ones  curl  would\n"
+"              use,  your  externally  set  header  will  be  used\n"
+"              instead of the internal one.  This  allows  you  to\n"
+"              make  even  trickier stuff than curl would normally\n"
+"              do. You should not replace internally  set  headers\n"
+"              without  knowing  perfectly well what you're doing.\n"
+"              Replacing an internal header with one without  con-\n"
 );

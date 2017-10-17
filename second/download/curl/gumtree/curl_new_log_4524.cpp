@@ -1,10 +1,10 @@
 fputs(
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps  include  name lookup, connect, pretransfer\n"
-"                             and transfer before  the  final  transaction  was\n"
-"                             started.  time_redirect shows the complete execu-\n"
-"                             tion time for multiple  redirections.  (Added  in\n"
-"                             7.12.3)\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing with the HTTP server.  The specified request  will  be  used\n"
+"              instead  of  the  method otherwise used (which defaults to GET).\n"
+"              Read the HTTP 1.1 specification for details and explanations.\n"
 "\n"
-"              time_starttransfer\n"
+"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
+"              doing file lists with FTP.\n"
+"\n"
 , stdout);

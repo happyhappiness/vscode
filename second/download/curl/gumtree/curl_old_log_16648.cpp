@@ -1,0 +1,15 @@
+puts(
+"          links  going  down.   This  doesn't work fully in win32\n"
+"          systems.  See also the --connect-timeout option.\n"
+"\n"
+"          If this option is used serveral  times,  the  last  one\n"
+"          will be used.\n"
+"\n"
+"     -M/--manual\n"
+"          Manual. Display the huge help text.\n"
+"\n"
+"     -n/--netrc\n"
+"          Makes  curl  scan  the  .netrc  file in the user's home\n"
+"          directory for login name and password.  This  is  typi�\n"
+"          cally  used  for  ftp  on unix. If used with http, curl\n"
+);

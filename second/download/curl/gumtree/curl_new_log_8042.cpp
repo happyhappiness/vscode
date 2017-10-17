@@ -1,11 +1,10 @@
 fputs(
-"    'Konqueror/1.0'             KDE File Manager desktop client\n"
-"    'Lynx/2.7.1 libwww-FM/2.14' Lynx command line browser\n"
+"              (Added in 7.19.7)\n"
+"       -d, --data <data>\n"
+"              (HTTP)  Sends  the  specified data in a POST request to the HTTP\n"
+"              server, in the same way that a browser  does  when  a  user  has\n"
+"              filled  in an HTML form and presses the submit button. This will\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"COOKIES\n"
-"\n"
-"  Cookies are generally used by web servers to keep state information at the\n"
-"  client's side. The server sets cookies by sending a response line in the\n"
-"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
-"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
 , stdout);

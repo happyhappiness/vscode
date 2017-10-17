@@ -1,9 +1,12 @@
 fputs(
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.  This is because undoing a GET doesn't make sense, but you\n"
-"              should then instead enforce the alternative method you prefer.\n"
+"              interface name, IP address or host name. An example  could  look\n"
+"              like:\n"
 "\n"
-"       -H, --header <header>\n"
-"              (HTTP) Extra header to include in the request when sending  HTTP\n"
-"              to  a  server. You may specify any number of extra headers. Note\n"
+"               curl --interface eth0:1 http://www.netscape.com/\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -j, --junk-session-cookies\n"
+"              (HTTP) When curl is told to read cookies from a given file, this\n"
+"              option will make it discard all  \"session  cookies\".  This  will\n"
 , stdout);

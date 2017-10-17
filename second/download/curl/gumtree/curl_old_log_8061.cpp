@@ -1,11 +1,11 @@
 fputs(
-"              -u,  --user  option  to  set  user  name  and password. See also\n"
-"              --ntlm, --negotiate and --anyauth for related options.\n"
+"              port,  then the certificate string must match the name of a cer-\n"
+"              tificate that's in the system or user keychain. The private  key\n"
+"              corresponding  to  the  certificate,  and  certificate chain (if\n"
+"              any),  must also be present in the keychain.\n"
 "\n"
-"              If this option is used several times,  only  the  first  one  is\n"
-"              used.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --disable-eprt\n"
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
-"              when doing active FTP transfers. Curl will normally always first\n"
+"       --engine <name>\n"
+"              Select the OpenSSL crypto engine to use for  cipher  operations.\n"
 , stdout);

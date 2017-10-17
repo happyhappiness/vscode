@@ -1,11 +1,11 @@
 fputs(
-"              redirects to follow by using the --max-redirs option.\n"
+"              (Added in 7.20.0)\n"
 "\n"
-"              When  curl follows a redirect and the request is not a plain GET\n"
-"              (for example POST or PUT), it will do the following request with\n"
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code was any other 3xx code, curl  will  re-send  the  following\n"
-"              request using the same unmodified method.\n"
+"       --max-filesize <bytes>\n"
+"              Specify  the  maximum  size (in bytes) of a file to download. If\n"
+"              the file requested is larger than this value, the transfer  will\n"
+"              not start and curl will return with exit code 63.\n"
 "\n"
-"       --libcurl <file>\n"
+"              NOTE:  The  file size is not always known prior to download, and\n"
+"              for such files this option has no effect even if the file trans-\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              deliver a document, it  returns  an  HTML  document  stating  so\n"
-"              (which  often  also describes why and more). This flag will pre-\n"
-"              vent curl from outputting that and return error 22.\n"
+"                     commands. This is how RFC 1738 says it  should  be  done.\n"
+"                     This is the default but the slowest behavior.\n"
 "\n"
-"              This method is not fail-safe and there are occasions where  non-\n"
-"              successful  response  codes  will  slip through, especially when\n"
-"              authentication is involved (response codes 401 and 407).\n"
+"              nocwd  curl  does  no  CWD at all. curl will do SIZE, RETR, STOR\n"
+"                     etc and give a full path to the server for all these com-\n"
+"                     mands. This is the fastest behavior.\n"
 "\n"
-"       -F, --form <name=content>\n"
+"              singlecwd\n"
+"                     curl does one CWD with the full target directory and then\n"
 , stdout);

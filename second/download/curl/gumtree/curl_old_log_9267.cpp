@@ -1,11 +1,9 @@
 fputs(
-"              This option overrides any use of --netrc as  they  are  mutually\n"
-"              exclusive.  It will also abide by --netrc-optional if specified.\n"
+"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
+"              stdin you write \"@-\".\n"
 "\n"
-"       --netrc-optional\n"
-"              Very  similar to --netrc, but this option makes the .netrc usage\n"
-"              optional and not mandatory as the --netrc option does.\n"
-"\n"
-"       --negotiate\n"
-"              (HTTP) Enables GSS-Negotiate authentication.  The  GSS-Negotiate\n"
+"              The  variables  present in the output format will be substituted\n"
+"              by the value or text that curl thinks fit, as  described  below.\n"
+"              All  variables are specified as %{variable_name} and to output a\n"
+"              normal % you just write them as %%. You can output a newline  by\n"
 , stdout);

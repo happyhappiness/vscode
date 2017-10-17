@@ -1,12 +1,8 @@
 fputs(
-"              you'll instead get the whole document.\n"
-"\n"
-"              FTP  and  SFTP  range  downloads only support the simple 'start-\n"
-"              stop' syntax (optionally with one of the numbers  omitted).  FTP\n"
-"              use depends on the extended FTP command SIZE.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -R, --remote-time\n"
-"              When  used,  this will make curl attempt to figure out the time-\n"
+"       --retry-max-time <seconds>\n"
+"              The retry timer is reset  before  the  first  transfer  attempt.\n"
+"              Retries will be done as usual (see --retry) as long as the timer\n"
+"              hasn't reached this given limit. Notice that if the timer hasn't\n"
+"              reached  the  limit, the request will be made and while perform-\n"
+"              ing, it may take longer than this given time period. To limit  a\n"
 , stdout);

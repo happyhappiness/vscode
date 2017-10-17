@@ -1,9 +1,12 @@
 fputs(
-"              IDN    This curl supports IDN - international domain names.\n"
+"       If this option is used several times, the last one will be used.\n"
 "\n"
-"       -w/--write-out <format>\n"
-"              Defines what to display after a completed and successful  opera-\n"
-"              tion.  The  format is a string that may contain plain text mixed\n"
-"              with any number of variables. The string  can  be  specified  as\n"
-"              \"string\",  to  get  read  from  a particular file you specify it\n"
+"       -x/--proxy <proxyhost[:port]>\n"
+"              Use  specified  HTTP proxy. If the port number is not specified,\n"
+"              it is assumed at port 1080.\n"
+"\n"
+"              This option overrides existing environment variables  that  sets\n"
+"              proxy  to  use.  If  there's  an  environment variable setting a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
+"\n"
 , stdout);

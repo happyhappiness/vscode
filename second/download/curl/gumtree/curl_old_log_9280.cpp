@@ -1,10 +1,12 @@
 fputs(
-"              num_connects   Number  of new connects made in the recent trans-\n"
-"                             fer. (Added in 7.12.3)\n"
+"                             result.\n"
 "\n"
-"              num_redirects  Number of redirects that  were  followed  in  the\n"
-"                             request. (Added in 7.12.3)\n"
+"              time_total     The  total time, in seconds, that the full opera-\n"
+"                             tion lasted. The time will be displayed with mil-\n"
+"                             lisecond resolution.\n"
 "\n"
-"              redirect_url   When  an HTTP request was made without -L to fol-\n"
-"                             low redirects, this variable will show the actual\n"
+"              url_effective  The URL that was fetched last. This is most mean-\n"
+"                             ingful if you've told curl  to  follow  location:\n"
+"                             headers.\n"
+"\n"
 , stdout);

@@ -1,9 +1,11 @@
 fputs(
-"              Transport,  or  PEM  format  if  using any other engine.  If the\n"
-"              optional password isn't specified, it will be queried for on the\n"
-"              terminal.  Note  that  this  option assumes a \"certificate\" file\n"
-"              that is the private key and  the  private  certificate  concate-\n"
-"              nated! See --cert and --key to specify them independently.\n"
+"              (which often also describes why and more). This flag  will  pre-\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"              If  curl  is  built against the NSS SSL library then this option\n"
+"              This  method is not fail-safe and there are occasions where non-\n"
+"              successful response codes will  slip  through,  especially  when\n"
+"              authentication is involved (response codes 401 and 407).\n"
+"\n"
+"       -F, --form <name=content>\n"
+"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
 , stdout);

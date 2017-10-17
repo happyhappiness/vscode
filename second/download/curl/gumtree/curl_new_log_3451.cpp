@@ -1,8 +1,10 @@
 fputs(
-"              request  on the new place. If used together with -i/--include or\n"
-"              -I/--head, headers from all requested pages will be shown.  When\n"
-"              authentication  is  used, curl only sends its credentials to the\n"
-"              initial host. If a redirect takes curl to a different  host,  it\n"
-"              won't  be  able to intercept the user+password. See also --loca-\n"
-"              tion-trusted on how to change this. You can limit the amount  of\n"
+"       --negotiate\n"
+"              (HTTP) Enables GSS-Negotiate authentication.  The  GSS-Negotiate\n"
+"              method was designed by Microsoft and is used in their web appli-\n"
+"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
+"              authentication but may be also used along with another authenti-\n"
+"              cation methods. For  more  information  see  IETF  draft  draft-\n"
+"              brezak-spnego-http-04.txt.\n"
+"\n"
 , stdout);

@@ -1,10 +1,9 @@
 fputs(
-"       --hostpubmd5 <md5>\n"
-"              (SCP/SFTP) Pass a string containing 32 hexadecimal  digits.  The\n"
-"              string  should  be the 128 bit MD5 checksum of the remote host's\n"
-"              public key, curl will refuse the connection with the host unless\n"
-"              the md5sums match. (Added in 7.17.1)\n"
+"              enclosed  within  quotes.  Within  double  quotes, the following\n"
+"              escape sequences are available: \\\\, \\\", \\t, \\n,  \\r  and  \\v.  A\n"
+"              backslash  preceding  any  other letter is ignored. If the first\n"
+"              column of a config line is a '#' character, the rest of the line\n"
+"              will be treated as a comment. Only write one option per physical\n"
+"              line in the config file.\n"
 "\n"
-"       --ignore-content-length\n"
-"              (HTTP)  Ignore  the  Content-Length header. This is particularly\n"
 , stdout);

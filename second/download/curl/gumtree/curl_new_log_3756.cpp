@@ -1,12 +1,9 @@
 fputs(
-"              size_request   The total amount of bytes that were sent  in  the\n"
-"                             HTTP request.\n"
+"              This option overrides existing environment variables  that  sets\n"
+"              proxy  to  use.  If  there's  an  environment variable setting a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              speed_download The average download speed that curl measured for\n"
-"                             the complete download.\n"
-"\n"
-"              speed_upload   The average upload speed that curl  measured  for\n"
-"                             the complete upload.\n"
-"\n"
-"              content_type   The  Content-Type  of  the requested document, if\n"
+"              Note that all operations that are performed over  a  HTTP  proxy\n"
+"              will  transparently  be converted to HTTP. It means that certain\n"
+"              protocol specific operations might not be available. This is not\n"
 , stdout);

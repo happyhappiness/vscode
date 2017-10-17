@@ -1,10 +1,12 @@
 fputs(
-"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              used, the default speed-limit will be 1 unless set with -Y.\n"
 "\n"
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only shows the ASCII part of the dump. It makes  smaller  output\n"
-"              that might be easier to read for untrained humans.\n"
+"              This option controls transfers and thus  will  not  affect  slow\n"
+"              connects  etc.  If this is a concern for you, try the --connect-\n"
+"              timeout option.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -Y, --speed-limit <speed>\n"
+"              If a download is slower than this given speed (in bytes per sec-\n"
 , stdout);

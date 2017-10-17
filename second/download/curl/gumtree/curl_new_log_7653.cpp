@@ -1,11 +1,11 @@
 fputs(
-"              file name to read the data from, or - if you want curl  to  read\n"
-"              the  data  from stdin.  The contents of the file must already be\n"
-"              URL-encoded. Multiple files can also be specified. Posting  data\n"
-"              from  a file named 'foobar' would thus be done with --data @foo-\n"
-"              bar.\n"
+"              Passive mode means that curl will try the EPSV command first and\n"
+"              then PASV, unless --disable-epsv is used.\n"
 "\n"
-"       -D, --dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
+"       --ftp-skip-pasv-ip\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"              its response to curl's PASV command when curl connects the  data\n"
+"              connection.  Instead  curl  will  re-use  the same IP address it\n"
+"              already uses for the control connection. (Added in 7.14.2)\n"
 "\n"
 , stdout);

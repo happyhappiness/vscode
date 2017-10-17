@@ -1,9 +1,12 @@
 fputs(
-"                             until  the  file transfer is just about to begin.\n"
-"                             This includes all pre-transfer commands and nego‐\n"
-"                             tiations that are specific to the particular pro‐\n"
-"                             tocol(s) involved.\n"
+"              Read the HTTP 1.1 specification for details and explanations.\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps  include  name lookup, connect, pretransfer\n"
+"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
+"              doing file lists with ftp.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -y/--speed-time <time>\n"
+"              If a download is slower than speed-limit bytes per second during\n"
+"              a speed-time period, the download gets aborted. If speed-time is\n"
 , stdout);

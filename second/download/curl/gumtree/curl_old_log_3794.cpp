@@ -1,11 +1,9 @@
 fputs(
-"              tion that prevents the password from being sent over the wire in\n"
-"              clear  text.  Use  this in combination with the normal -u/--user\n"
-"              option to set user name and password. See also --ntlm, --negoti-\n"
-"              ate and --anyauth for related options.\n"
+"              certs file named 'curl-ca-bundle.crt', either in the same direc-\n"
+"              tory as curl.exe, or in the Current Working Directory, or in any\n"
+"              folder along your PATH.\n"
 "\n"
-"              If  this option is used several times, the following occurrences\n"
-"              make no difference.\n"
-"\n"
-"       --disable-eprt\n"
+"              If curl is built against the NSS SSL library  then  this  option\n"
+"              tells  curl the nickname of the CA certificate to use within the\n"
+"              NSS database defined by the environment variable SSL_DIR (or  by\n"
 , stdout);

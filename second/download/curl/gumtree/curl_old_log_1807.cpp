@@ -1,12 +1,9 @@
 fputs(
-"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
-"              bytes, 'm' or M' makes it megabytes while 'g' or  'G'  makes  it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
-"\n"
-"              If  you  are also using the -Y/--speed-limit option, that option\n"
-"              will  take  precedence  and  might  cripple  the   rate-limiting\n"
-"              slightly, to help keeping the speed-limit logic working.\n"
-"\n"
-"              This option was introduced in curl 7.10.\n"
+"              login name and password. This is typically used for ftp on unix.\n"
+"              If used with http, curl will  enable  user  authentication.  See\n"
+"              netrc(4) or ftp(1) for details on the file format. Curl will not\n"
+"              complain if that file hasn't the right  permissions  (it  should\n"
+"              not  be  world  nor  group  readable).  The environment variable\n"
+"              \"HOME\" is used to find the home directory.\n"
 "\n"
 , stdout);

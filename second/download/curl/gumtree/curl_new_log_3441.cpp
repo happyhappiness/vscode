@@ -1,10 +1,11 @@
 fputs(
-"              without the initial double dashes.\n"
+"              servers list only files in their response to NLST; they  do  not\n"
+"              include subdirectories and symbolic links.\n"
 "\n"
-"              When curl is invoked, it always (unless -q is used) checks for a\n"
-"              default  config  file  and  uses it if found. The default config\n"
-"              file is checked for in the following places in this order:\n"
+"              If this option is used twice, the second will again disable list\n"
+"              only.\n"
 "\n"
-"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
-"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the connection(s).  Note that port numbers by nature is a scarce\n"
 , stdout);

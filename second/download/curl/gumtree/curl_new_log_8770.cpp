@@ -1,9 +1,10 @@
 fputs(
-"              with  this  option:  \"-u :\" or by specfying the login options on\n"
-"              their own, for example \"-u ;auth=NTLM\".\n"
+"                             This  is only meaningful if curl is told to write\n"
+"                             to a file  with  the  --remote-name  or  --output\n"
+"                             option.  It's most useful in combination with the\n"
+"                             --remote-header-name option. (Added in 7.25.1)\n"
 "\n"
-"              You can use the optional login options part to specify  protocol\n"
-"              specific  options  that  may  be  used during authentication. At\n"
-"              present only IMAP, POP3 and SMTP support login options  as  part\n"
-"              of  the  user  login information. For more information about the\n"
+"              ftp_entry_path The initial path curl ended up in when logging on\n"
+"                             to the remote FTP server. (Added in 7.15.4)\n"
+"\n"
 , stdout);

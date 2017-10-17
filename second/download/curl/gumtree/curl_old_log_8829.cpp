@@ -1,11 +1,9 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"              Maximum time in seconds that you allow  the  connection  to  the\n"
+"              server  to  take.   This  only limits the connection phase, once\n"
+"              curl has connected this option is of no more use.  Since 7.32.0,\n"
+"              this  option accepts decimal values, but the actual timeout will\n"
+"              decrease in accuracy as the specified timeout increases in deci-\n"
+"              mal precision. See also the -m, --max-time option.\n"
 "\n"
-"       -B, --use-ascii\n"
-"              (FTP/LDAP)  Enable  ASCII  transfer.  For  FTP, this can also be\n"
-"              enforced by using an URL that ends with \";type=A\".  This  option\n"
-"              causes data sent to stdout to be in text mode for win32 systems.\n"
-"\n"
-"       --basic\n"
-"              (HTTP)  Tells curl to use HTTP Basic authentication. This is the\n"
 , stdout);

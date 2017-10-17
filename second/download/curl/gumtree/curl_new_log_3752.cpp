@@ -1,11 +1,10 @@
 fputs(
-"                             The  time,  in  seconds,  it  took from the start\n"
-"                             until the name resolving was completed.\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing with the HTTP server.  The specified request  will  be  used\n"
+"              instead  of  the  method otherwise used (which defaults to GET).\n"
+"              Read the HTTP 1.1 specification for details and explanations.\n"
 "\n"
-"              time_connect   The time, in seconds,  it  took  from  the  start\n"
-"                             until  the  connect to the remote host (or proxy)\n"
-"                             was completed.\n"
+"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
+"              doing file lists with ftp.\n"
 "\n"
-"              time_pretransfer\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
 , stdout);

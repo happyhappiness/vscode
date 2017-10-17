@@ -1,12 +1,9 @@
 fputs(
-"              include subdirectories and symbolic links.\n"
+"              user authentication. See netrc(4) or ftp(1) for details  on  the\n"
+"              file  format.  Curl  will not complain if that file doesn't have\n"
+"              the right permissions (it should not be either world- or  group-\n"
+"              readable).  The  environment variable \"HOME\" is used to find the\n"
+"              home directory.\n"
 "\n"
-"       --local-port <num>[-num]\n"
-"              Set a preferred number or range of local port numbers to use for\n"
-"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
-"              scarce resource that will be busy at times so setting this range\n"
-"              to something too narrow might cause unnecessary connection setup\n"
-"              failures. (Added in 7.15.2)\n"
-"\n"
-"       -L/--location\n"
+"              A quick and very simple example of how  to  setup  a  .netrc  to\n"
 , stdout);

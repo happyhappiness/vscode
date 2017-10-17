@@ -1,10 +1,10 @@
 fputs(
-"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              Use -s, --silent to make curl quiet.\n"
 "\n"
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only  shows  the ASCII part of the dump. It makes smaller output\n"
-"              that might be easier to read for untrained humans.\n"
-"\n"
+"       -w, --write-out <format>\n"
+"              Defines what to display on stdout after a completed and success-\n"
+"              ful  operation.  The  format  is a string that may contain plain\n"
+"              text mixed with any number of variables. The string can be spec-\n"
+"              ified  as \"string\", to get read from a particular file you spec-\n"
+"              ify it \"@filename\" and to tell curl  to  read  the  format  from\n"
 , stdout);

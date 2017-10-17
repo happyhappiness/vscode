@@ -1,9 +1,12 @@
 fputs(
-"              is  mostly done to better enable scripts etc to better deal with\n"
-"              failed attempts. In normal cases when a  HTTP  server  fails  to\n"
-"              deliver  a  document,  it  returns  an  HTML document stating so\n"
-"              (which often also describes why and more). This flag  will  pre-\n"
-"              vent curl from outputting that and return error 22.\n"
+"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
+"              of PASV.\n"
 "\n"
-"              This  method is not fail-safe and there are occasions where non-\n"
+"       --ftp-pret\n"
+"              (FTP)  Tell  curl to send a PRET command before PASV (and EPSV).\n"
+"              Certain FTP servers, mainly drftpd,  require  this  non-standard\n"
+"              command  for  directory  listings as well as up and downloads in\n"
+"              PASV mode.  (Added in 7.20.x)\n"
+"\n"
+"       --ssl  (FTP, POP3, IMAP, SMTP) Try to use SSL/TLS for  the  connection.\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              If curl is built against  the  NSS  SSL  library,  the  NSS  PEM\n"
-"              PKCS#11  module  (libnsspem.so)  needs  to be available for this\n"
-"              option to work properly.\n"
+"              (which often also describes why and more). This flag  will  pre-\n"
+"              vent curl from outputting that and return error 22.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              This  method is not fail-safe and there are occasions where non-\n"
+"              successful response codes will  slip  through,  especially  when\n"
+"              authentication is involved (response codes 401 and 407).\n"
 "\n"
-"       --capath <CA certificate directory>\n"
-"              (SSL) Tells curl to use the specified certificate  directory  to\n"
-"              verify  the  peer.  Multiple paths can be provided by separating\n"
+"       -F, --form <name=content>\n"
+"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
 , stdout);

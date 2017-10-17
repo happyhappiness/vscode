@@ -1,10 +1,11 @@
 fputs(
-"                     This will  make  curl  load  data  from  the  given  file\n"
-"                     (including  any  newlines), URL-encode that data and pass\n"
-"                     it on in the POST. The  name  part  gets  an  equal  sign\n"
-"                     appended, resulting in name=urlencoded-file-content. Note\n"
-"                     that the name is expected to be URL-encoded already.\n"
+"              only such one.  (Added in 7.33.0)\n"
 "\n"
-"       --delegation LEVEL\n"
-"              Set LEVEL to tell the server what it is allowed to delegate when\n"
+"       --dns-ipv6-addr <ip-address>\n"
+"              Tell curl to bind to <ip-address> when making IPv6 DNS requests,\n"
+"              so that the DNS requests originate from this address. The  argu-\n"
+"              ment should be a single IPv6 address.\n"
+"\n"
+"              This  option  requires  that  libcurl  was built with a resolver\n"
+"              backend that supports this operation. The c-ares backend is  the\n"
 , stdout);

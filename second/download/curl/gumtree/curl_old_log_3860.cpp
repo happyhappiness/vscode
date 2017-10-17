@@ -1,11 +1,11 @@
 fputs(
-"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
-"              authentication but may be also used along with another authenti-\n"
-"              cation methods. For  more  information  see  IETF  draft  draft-\n"
-"              brezak-spnego-http-04.txt.\n"
+"              nicating  with  the  given  proxy.  This  might  cause  an extra\n"
+"              request/response round-trip. (Added in 7.13.2)\n"
 "\n"
-"              If  you  want to enable Negotiate for your proxy authentication,\n"
-"              then use --proxy-negotiate.\n"
+"              If this option is used twice, the second will again disable  the\n"
+"              proxy use-any authentication.\n"
 "\n"
-"              This option requires that the library was built with GSSAPI sup-\n"
+"       --proxy-basic\n"
+"              Tells  curl  to use HTTP Basic authentication when communicating\n"
+"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
 , stdout);

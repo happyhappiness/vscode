@@ -1,12 +1,9 @@
 fputs(
-"              If this option is used twice, the second will again disable list\n"
-"              only.\n"
+"              method was designed by Microsoft and is used in their web appli‐\n"
+"              cations. It is  primarily  meant  as  a  support  for  Kerberos5\n"
+"              authentication but may be also used along with another authenti‐\n"
+"              cation methods. For  more  information  see  IETF  draft  draft-\n"
+"              brezak-spnego-http-04.txt.\n"
 "\n"
-"       --local-port <num>[-num]\n"
-"              Set a prefered number or range of local port numbers to use  for\n"
-"              the connection(s).  Note that port numbers by nature is a scarce\n"
-"              resource that will be busy at times so  setting  this  range  to\n"
-"              something  too  narrow  might cause unnecessary connection setup\n"
-"              failures. (Added in 7.15.2)\n"
-"\n"
+"              This option requires that the library was built with GSSAPI sup‐\n"
 , stdout);

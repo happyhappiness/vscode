@@ -1,9 +1,11 @@
 fputs(
-"              it  uses getpwuid() on unix-like systems (which returns the home\n"
-"              dir given the current user in your system). On Windows, it  then\n"
-"              checks for the APPDATA variable, or as a last resort the '%USER-\n"
-"              PROFILE%0lication Data'.\n"
+"              do a site to which you'll send your authentication  info  (which\n"
+"              is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"              2) On windows, if there is no _curlrc file in the home  dir,  it\n"
-"              checks for one in the same dir the executable curl is placed. On\n"
+"              If  this  option  is  used  twice, the second will again disable\n"
+"              location following.\n"
+"\n"
+"       --max-filesize <bytes>\n"
+"              Specify the maximum size (in bytes) of a file  to  download.  If\n"
+"              the  file requested is larger than this value, the transfer will\n"
 , stdout);

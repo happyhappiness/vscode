@@ -1,2 +1,2 @@
-warnf(global, "--metalink option is ignored because the binary is "
-                "built without the Metalink support.\n");
+warnf(global,
+                "-v, --verbose overrides an earlier trace/verbose option\n");

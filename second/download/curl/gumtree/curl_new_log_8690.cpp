@@ -1,9 +1,11 @@
 fputs(
-"              (HTTP/HTTPS) Like -L, --location, but  will  allow  sending  the\n"
-"              name + password to all hosts that the site may redirect to. This\n"
-"              may or may not introduce a security breach if the site redirects\n"
-"              you  to  a  site  to  which you'll send your authentication info\n"
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              note  that  if  --metalink  and  --include  are  used  together,\n"
+"              --include will be ignored. This is because including headers  in\n"
+"              the  response  will break Metalink parser and if the headers are\n"
+"              included in the file described in Metalink file, hash check will\n"
+"              fail.\n"
 "\n"
-"       -m, --max-time <seconds>\n"
+"              (Added in 7.27.0, if built against the libmetalink library.)\n"
+"\n"
+"       -n, --netrc\n"
 , stdout);

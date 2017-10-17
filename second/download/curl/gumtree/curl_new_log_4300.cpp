@@ -1,11 +1,11 @@
 fputs(
-"              Since curl 7.19.0, --eprt can be used to explicitly enable  EPRT\n"
-"              again and --no-eprt is an alias for --disable-eprt.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Disabling  EPRT only changes the active behavior. If you want to\n"
-"              switch to passive mode you need  to  not  use  -P/--ftp-port  or\n"
-"              force it with --ftp-pasv.\n"
+"       --cacert <CA certificate>\n"
+"              (SSL) Tells curl to use the specified certificate file to verify\n"
+"              the peer. The file may contain  multiple  CA  certificates.  The\n"
+"              certificate(s)  must be in PEM format. Normally curl is built to\n"
+"              use a default file for this, so this option is typically used to\n"
+"              alter that default file.\n"
 "\n"
-"       --disable-epsv\n"
-"              (FTP)  Tell  curl  to  disable  the use of the EPSV command when\n"
 , stdout);

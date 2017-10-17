@@ -1,9 +1,12 @@
 fputs(
-"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
-"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
-"              mode to  allow  reading  server  output  while  stdin  is  being\n"
-"              uploaded.\n"
+"              this URL is written, use the -o/--output or the -O/--remote-name\n"
+"              options.\n"
 "\n"
-"              You can specify one -T for each URL on the command line. Each -T\n"
-"              + URL pair specifies what to upload and to where. curl also sup-\n"
+"       -v/--verbose\n"
+"              Makes  the  fetching  more  verbose/talkative. Mostly useful for\n"
+"              debugging. A line starting with '>' means \"header data\" sent  by\n"
+"              curl, '<' means \"header data\" received by curl that is hidden in\n"
+"              normal cases, and a line starting with '*' means additional info\n"
+"              provided by curl.\n"
+"\n"
 , stdout);

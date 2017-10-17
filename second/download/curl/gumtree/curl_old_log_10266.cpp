@@ -1,9 +1,11 @@
 fputs(
-"              Metalink file (both version 3 and 4 (RFC  5854)  are  supported)\n"
-"              and  make use of the mirrors listed within for failover if there\n"
-"              are errors (such as the file or server not being available).  It\n"
-"              will  also  verify  the hash of the file after the download com-\n"
-"              pletes. The Metalink file itself is downloaded and processed  in\n"
-"              memory and not stored in the local file system.\n"
+"              This  option  requires a library built with GSS-API or SSPI sup-\n"
+"              port. Use -V, --version  to  see  if  your  curl  supports  GSS-\n"
+"              API/SSPI and SPNEGO.\n"
+"\n"
+"              When  using this option, you must also provide a fake -u, --user\n"
+"              option to activate the authentication code properly.  Sending  a\n"
+"              '-u  :'  is  enough  as  the  user name and password from the -u\n"
+"              option aren't actually used.\n"
 "\n"
 , stdout);

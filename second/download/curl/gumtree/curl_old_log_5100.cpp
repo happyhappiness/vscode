@@ -1,8 +1,10 @@
 fputs(
-"              Comma-separated  list  of hosts which do not use a proxy, if one\n"
-"              is specified.  The only wildcard is a single * character,  which\n"
-"              matches all hosts, and effectively disables the proxy. Each name\n"
-"              in this list is matched as either a domain  which  contains  the\n"
-"              hostname,  or  the hostname itself. For example, local.com would\n"
-"              match  local.com,  local.com:80,  and  www.local.com,  but   not\n"
+"              (Added in 7.17.1)\n"
+"\n"
+"       --post302\n"
+"              Tells curl to respect  RFC  2616/10.3.2  and  not  convert  POST\n"
+"              requests into GET requests when following a 302 redirection. The\n"
+"              non-RFC behaviour is ubiquitous in web browsers,  so  curl  does\n"
+"              the  conversion  by  default to maintain consistency. However, a\n"
+"              server may require a POST to remain a POST after  such  a  redi-\n"
 , stdout);

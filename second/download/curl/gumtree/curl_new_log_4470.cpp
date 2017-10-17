@@ -1,10 +1,11 @@
 fputs(
-"              (Added in 7.17.1)\n"
+"              -      make  curl  pick the same IP address that is already used\n"
+"                     for the control connection\n"
 "\n"
-"       --post302\n"
-"              Tells  curl  to  respect  RFC  2616/10.3.2  and not convert POST\n"
-"              requests into GET requests when following a 302 redirection. The\n"
-"              non-RFC  behaviour  is  ubiquitous in web browsers, so curl does\n"
-"              the conversion by default to maintain  consistency.  However,  a\n"
-"              server may require a POST to remain a POST after such a redirec-\n"
+"       If this option is used several times, the last one will be  used.  Dis-\n"
+"       able  the  use  of PORT with --ftp-pasv. Disable the attempt to use the\n"
+"       EPRT command instead of PORT by using --disable-eprt.  EPRT  is  really\n"
+"       PORT++.\n"
+"\n"
+"       -q     If  used  as the first parameter on the command line, the curlrc\n"
 , stdout);

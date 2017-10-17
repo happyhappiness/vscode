@@ -1,10 +1,11 @@
 fputs(
-"              Displays information about curl and the libcurl version it uses.\n"
-"              The  first  line  includes the full version of curl, libcurl and\n"
-"              other 3rd party libraries linked with the executable.\n"
+"                             tion lasted. The time will be displayed with mil-\n"
+"                             lisecond resolution.\n"
 "\n"
-"              The second line (starts with \"Protocols:\") shows  all  protocols\n"
-"              that libcurl reports to support.\n"
+"              time_namelookup\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the name resolving was completed.\n"
 "\n"
-"              The third line (starts with \"Features:\") shows specific features\n"
+"              time_connect   The time, in seconds,  it  took  from  the  start\n"
+"                             until  the  TCP  connect  to  the remote host (or\n"
 , stdout);

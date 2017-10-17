@@ -1,10 +1,11 @@
 fputs(
-"              (FTP)  Require  SSL/TLS  for the FTP connection.  Terminates the\n"
-"              connection if the server doesn't  support  SSL/TLS.   (Added  in\n"
-"              7.15.5)\n"
+"              be encoded according to the URI standard.\n"
 "\n"
-"       --ftp-ssl-ccc\n"
-"              (FTP)  Use  CCC  (Clear  Command Channel) Shuts down the SSL/TLS\n"
-"              layer after authenticating. The rest of the control channel com-\n"
-"              munication  will be unencrypted. This allows NAT routers to fol-\n"
+"       -G/--get\n"
+"              When  used,  this  option  will  make  all  data  specified with\n"
+"              -d/--data or --data-binary to be used  in  a  HTTP  GET  request\n"
+"              instead  of  the  POST request that otherwise would be used. The\n"
+"              data will be appended to the URL with a '?'  separator.\n"
+"\n"
+"              If used in combination with -I, the POST data  will  instead  be\n"
 , stdout);

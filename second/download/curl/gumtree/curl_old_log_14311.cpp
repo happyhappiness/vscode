@@ -1,0 +1,14 @@
+fputs(
+"              the traditional PORT command.\n"
+"\n"
+"              --eprt can be used to explicitly enable EPRT again and --no-eprt\n"
+"              is an alias for --disable-eprt.\n"
+"\n"
+"              If the server is accessed using IPv6, this option will  have  no\n"
+"              effect as EPRT is necessary then.\n"
+"\n"
+"              Disabling  EPRT only changes the active behavior. If you want to\n"
+"              switch to passive mode you need to not  use  -P,  --ftp-port  or\n"
+"              force it with --ftp-pasv.\n"
+"\n"
+, stdout);

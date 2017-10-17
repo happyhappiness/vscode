@@ -1,11 +1,11 @@
 fputs(
-"              supplied with openssl. Using --capath can  allow  curl  to  make\n"
-"              SSL-connections much more efficiently than using --cacert if the\n"
-"              --cacert file contains many CA certificates.\n"
+"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"              its response to curl's PASV command when curl connects the  data\n"
+"              connection.  Instead  curl  will  re-use  the same IP address it\n"
+"              already uses for the control connection. (Added in 7.14.2)\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
+"              of PASV.\n"
 "\n"
-"       -f/--fail\n"
-"              (HTTP)  Fail  silently (no output at all) on server errors. This\n"
-"              is mostly done like this to better enable scripts etc to  better\n"
+"              If  this  option  is  used  twice, the second will again use the\n"
 , stdout);

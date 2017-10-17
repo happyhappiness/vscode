@@ -1,11 +1,10 @@
 fputs(
-"              (which often also describes why and more). This flag  will  pre-\n"
-"              vent curl from outputting that and return error 22.\n"
+"              (FTP)  Control what method curl should use to reach a file on an\n"
+"              FTP(S) server. The method argument should be one of the  follow-\n"
+"              ing alternatives:\n"
 "\n"
-"              This  method is not fail-safe and there are occasions where non-\n"
-"              successful response codes will  slip  through,  especially  when\n"
-"              authentication is involved (response codes 401 and 407).\n"
-"\n"
-"       -F, --form <name=content>\n"
-"              (HTTP)  This  lets curl emulate a filled-in form in which a user\n"
+"              multicwd\n"
+"                     curl  does  a  single CWD operation for each path part in\n"
+"                     the given URL. For deep hierarchies this means very  many\n"
+"                     commands.  This  is  how RFC 1738 says it should be done.\n"
 , stdout);

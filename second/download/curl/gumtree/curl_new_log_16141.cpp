@@ -1,0 +1,1 @@
+fputs(buf, keylog_file_fp);

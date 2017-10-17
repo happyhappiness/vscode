@@ -1,11 +1,12 @@
 fputs(
-"              transfer. It means that curl might use higher transfer speeds in\n"
-"              short bursts, but over time it uses no more than the given rate.\n"
-"              If you also use the -Y, --speed-limit option, that  option  will\n"
-"              take precedence and might cripple the rate-limiting slightly, to\n"
-"              help keeping the speed-limit logic working.\n"
+"              Enables  a  full  trace  dump of all incoming and outgoing data,\n"
+"              including descriptive information, to the given output file. Use\n"
+"              \"-\" as filename to have the output sent to stdout.\n"
+"\n"
+"              This option overrides previous uses of -v, --verbose or --trace-\n"
+"              ascii.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --local-port <num>[-num]\n"
+"       --trace-ascii <file>\n"
 , stdout);

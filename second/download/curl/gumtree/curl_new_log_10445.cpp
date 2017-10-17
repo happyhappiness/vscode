@@ -1,1 +1,2 @@
-warnf(global, "unsupported rate unit. Use G, M, K or B!\n");
+warnf(global, "Couldn't read data from file \"%s\", this makes "
+                  "an empty POST.\n", nextarg);

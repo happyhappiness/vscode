@@ -1,11 +1,11 @@
 fputs(
-"              fail. If this is used on a HTTP(S) server, the PUT command  will\n"
-"              be used.\n"
+"              Makes  the  fetching  more  verbose/talkative. Mostly useful for\n"
+"              debugging. A line starting with '>' means \"header data\" sent  by\n"
+"              curl, '<' means \"header data\" received by curl that is hidden in\n"
+"              normal cases, and a line starting with '*' means additional info\n"
+"              provided by curl.\n"
 "\n"
-"              Use  the file name \"-\" (a single dash) to use stdin instead of a\n"
-"              given file.  Alternately, the file name \".\"  (a  single  period)\n"
-"              may  be  specified  instead  of \"-\" to use stdin in non-blocking\n"
-"              mode to  allow  reading  server  output  while  stdin  is  being\n"
-"              uploaded.\n"
+"              Note  that  if  you  only  want  HTTP  headers  in  the  output,\n"
+"              -i/--include might be the option you're looking for.\n"
 "\n"
 , stdout);

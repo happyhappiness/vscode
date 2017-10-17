@@ -1,10 +1,11 @@
 fputs(
-"              (FTP)  If  authenticating with the USER and PASS commands fails,\n"
-"              send this  command.   When  connecting  to  Tumbleweed's  Secure\n"
-"              Transport  server  over  FTPS  using a client certificate, using\n"
-"              \"SITE AUTH\" will tell the server to retrieve the  username  from\n"
-"              the certificate. (Added in 7.15.5)\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --ftp-skip-pasv-ip\n"
-"              (FTP) Tell curl to not use the IP address the server suggests in\n"
+"       --krb <level>\n"
+"              (FTP)  Enable Kerberos authentication and use. The level must be\n"
+"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
+"              'private'.  Should  you  use  a  level that is not one of these,\n"
+"              'private' will instead be used.\n"
+"\n"
+"              This option requires a library built with  kerberos4  or  GSSAPI\n"
 , stdout);

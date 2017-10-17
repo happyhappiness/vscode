@@ -1,8 +1,9 @@
 fputs(
-"              fig file is a text file in which command line arguments  can  be\n"
-"              written  which  then will be used as if they were written on the\n"
-"              actual command line. Options and their parameters must be speci‐\n"
-"              fied  on  the same config file line. If the parameter is to con‐\n"
-"              tain white spaces, the parameter must be enclosed within quotes.\n"
-"              If  the  first  column  of a config line is a ’#’ character, the\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"\n"
+"              The given rate is the average speed, counted during  the  entire\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
+"              If  you  are also using the -Y/--speed-limit option, that option\n"
+"              will  take  precedence  and  might  cripple  the   rate-limiting\n"
 , stdout);

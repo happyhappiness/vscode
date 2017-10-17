@@ -1,9 +1,10 @@
 fputs(
-"                             until  the  file transfer is just about to begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
-"                             tiations that are specific to the particular pro-\n"
-"                             tocol(s) involved.\n"
+"              (HTTP) Specifies a custom request method to use when communicat-\n"
+"              ing with the HTTP server.  The specified request  will  be  used\n"
+"              instead  of  the  method otherwise used (which defaults to GET).\n"
+"              Read the HTTP 1.1 specification for details and explanations.\n"
 "\n"
-"              time_redirect  The time, in seconds, it took for all redirection\n"
-"                             steps  include  name lookup, connect, pretransfer\n"
+"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
+"              doing file lists with ftp.\n"
+"\n"
 , stdout);

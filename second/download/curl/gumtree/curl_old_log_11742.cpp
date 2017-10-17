@@ -1,8 +1,9 @@
 fputs(
-"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
-"  store certificates with, but it is not used by the most commonly used\n"
-"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
-"  want curl to use the certificates you use with your (favourite) browser, you\n"
-"  may need to download/compile a converter that can convert your browser's\n"
-"  formatted certificates to PEM formatted ones. This kind of converter is\n"
+"              If this option is set, the default capath value will be ignored,\n"
+"              and if it is used several times, the last one will be used.\n"
+"\n"
+"       --pinnedpubkey <pinned public key (hashes)>\n"
+"              (SSL) Tells curl to  use  the  specified  public  key  file  (or\n"
+"              hashes)  to  verify the peer. This can be a path to a file which\n"
+"              contains a single public key in PEM or DER format, or any number\n"
 , stdout);

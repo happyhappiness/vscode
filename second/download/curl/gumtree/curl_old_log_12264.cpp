@@ -1,8 +1,9 @@
 fputs(
-"  from sites that require valid certificates. The only drawback is that the\n"
-"  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
-"  store certificates with, but it is not used by the most commonly used\n"
-"  browsers (Netscape and MSIE both use the so called PKCS#12 format). If you\n"
-"  want curl to use the certificates you use with your (favourite) browser, you\n"
-"  may need to download/compile a converter that can convert your browser's\n"
+"              equals character between the option and its parameter.\n"
+"\n"
+"              If the parameter is to contain whitespace, the parameter must be\n"
+"              enclosed within quotes.  Within  double  quotes,  the  following\n"
+"              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
+"              backslash preceding any other letter is ignored.  If  the  first\n"
+"              column of a config line is a '#' character, the rest of the line\n"
 , stdout);

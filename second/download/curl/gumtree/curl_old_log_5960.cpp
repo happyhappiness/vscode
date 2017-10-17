@@ -1,8 +1,12 @@
 fputs(
-"              libcurl has changed  the  working  directory,  just  before  the\n"
-"              transfer command(s), prefix the command with a '+' (this is only\n"
-"              supported for FTP). You may specify any number of  commands.  If\n"
-"              the  server  returns failure for one of the commands, the entire\n"
-"              operation will be aborted. You must send  syntactically  correct\n"
-"              FTP  commands  as  RFC959  defines to FTP servers, or one of the\n"
+"              (TFTP) Set TFTP BLKSIZE option (must be >512). This is the block\n"
+"              size  that curl will try to use when tranferring data to or from\n"
+"              a TFTP server. By default 512 bytes will be used.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"              (Added in 7.20.0)\n"
+"\n"
+"       -T/--upload-file <file>\n"
+"              This transfers the specified local file to the  remote  URL.  If\n"
 , stdout);

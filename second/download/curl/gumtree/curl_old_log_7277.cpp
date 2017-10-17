@@ -1,11 +1,10 @@
 fputs(
-"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
-"              ytunnel option.\n"
+"              Displays information about curl and the libcurl version it uses.\n"
+"              The  first  line  includes the full version of curl, libcurl and\n"
+"              other 3rd party libraries linked with the executable.\n"
 "\n"
-"              The proxy host can be specified the exact same way as the  proxy\n"
-"              environment  variables,  including the protocol prefix (http://)\n"
-"              and the embedded user + password.\n"
+"              The second line (starts with \"Protocols:\") shows  all  protocols\n"
+"              that libcurl reports to support.\n"
 "\n"
-"              From 7.21.7, the proxy string may be  specified  with  a  proto-\n"
-"              col://  prefix  to  specify  alternative  proxy  protocols.  Use\n"
+"              The third line (starts with \"Features:\") shows specific features\n"
 , stdout);

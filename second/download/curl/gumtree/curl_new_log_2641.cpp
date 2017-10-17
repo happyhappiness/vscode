@@ -1,9 +1,11 @@
 fputs(
-"              If  you  start  the data with the letter @, the rest should be a\n"
-"              file name to read the data from, or - if you want curl  to  read\n"
-"              the  data  from stdin.  The contents of the file must already be\n"
-"              url-encoded. Multiple files can also be specified. Posting  data\n"
-"              from  a file named ’foobar’ would thus be done with --data @foo‐\n"
-"              bar\".\n"
+"              This  can also be set with the -H/--header flag of course.  When\n"
+"              used with -L/--location you can append \";auto\" to the  --referer\n"
+"              URL to make curl automatically set the previous URL when it fol‐\n"
+"              lows a Location: header. The \";auto\" string can be  used  alone,\n"
+"              even if you don’t set an initial --referer.\n"
 "\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --engine <name>\n"
 , stdout);

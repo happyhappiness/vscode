@@ -1,2 +1,2 @@
-warnf(config, "curl_formadd failed, possibly the file %s is bad!\n",
-                contp+1);
+warnf(config, "%s:%d: warning: '%s' %s\n",
+                filename, lineno, option, reason);

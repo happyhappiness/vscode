@@ -1,9 +1,11 @@
 fputs(
-"              If  any of these options is used more than once on the same com-\n"
-"              mand line, the data pieces specified  will  be  merged  together\n"
-"              with  a  separating  &-symbol.  Thus,  using  '-d name=daniel -d\n"
-"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
-"              'name=daniel&skill=lousy'.\n"
+"       --ftp-pasv\n"
+"              (FTP) Use passive mode for the data connection. Passive  is  the\n"
+"              internal  default behavior, but using this option can be used to\n"
+"              override a previous -P/-ftp-port option. (Added in 7.11.0)\n"
 "\n"
-"              If  you  start  the data with the letter @, the rest should be a\n"
+"              If this option is used several times,  only  the  first  one  is\n"
+"              used.  Undoing  an  enforced passive really isn't doable but you\n"
+"              must then instead enforce the correct -P, --ftp-port again.\n"
+"\n"
 , stdout);

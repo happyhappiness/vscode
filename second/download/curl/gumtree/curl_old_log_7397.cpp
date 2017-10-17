@@ -1,9 +1,9 @@
 fputs(
-"                             until  the  SSL/SSH/etc  connect/handshake to the\n"
-"                             remote host was completed. (Added in 7.19.0)\n"
+"              All operations that are performed over a HTTP proxy will  trans-\n"
+"              parently  be  converted  to HTTP. It means that certain protocol\n"
+"              specific operations might not be available. This is not the case\n"
+"              if you can tunnel through the proxy, as one with the -p, --prox-\n"
+"              ytunnel option.\n"
 "\n"
-"              time_pretransfer\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
-"                             until  the file transfer was just about to begin.\n"
-"                             This includes all pre-transfer commands and nego-\n"
+"              The proxy host can be specified the exact same way as the  proxy\n"
 , stdout);

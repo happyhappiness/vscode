@@ -1,10 +1,11 @@
 fputs(
-"              To  be  CGI-compliant,  the <data> part should begin with a name\n"
-"              followed by a separator and a content specification. The  <data>\n"
-"              part can be passed to curl using one of the following syntaxes:\n"
+"              --epsv can be used to explicitly enable EPSV again and --no-epsv\n"
+"              is an alias for --disable-epsv.\n"
 "\n"
-"              content\n"
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. Just be careful so that the content  doesn't  contain\n"
-"                     any  =  or  @  symbols, as that will then make the syntax\n"
+"              Disabling EPSV only changes the passive behavior. If you want to\n"
+"              switch to active mode you need to use -P, --ftp-port.\n"
+"\n"
+"       -e, --referer <URL>\n"
+"              (HTTP)  Sends the \"Referer Page\" information to the HTTP server.\n"
+"              This can also be set with the -H, --header flag of course.  When\n"
 , stdout);

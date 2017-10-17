@@ -1,10 +1,8 @@
 fputs(
-"              instead of the POST request that otherwise would  be  used.  The\n"
-"              data will be appended to the URL with a '?' separator.\n"
-"\n"
-"              If  used  in  combination with -I, the POST data will instead be\n"
-"              appended to the URL with a HEAD request.\n"
-"\n"
-"              If this option is used several times, the following  occurrences\n"
-"              make  no  difference. This is because undoing a GET doesn't make\n"
+"              and a 3XX response code), this option will make  curl  redo  the\n"
+"              request  on the new place. If used together with -i/--include or\n"
+"              -I/--head, headers from all requested pages will be shown.  When\n"
+"              authentication  is  used, curl only sends its credentials to the\n"
+"              initial host. If a redirect takes curl to a different  host,  it\n"
+"              won't  be  able to intercept the user+password. See also --loca-\n"
 , stdout);

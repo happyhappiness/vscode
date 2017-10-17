@@ -1,11 +1,10 @@
 fputs(
-"              operation  won't  fail or even report an error clearly. Using -v\n"
-"              will get a warning displayed, but that is the only visible feed-\n"
-"              back you get about this possibly lethal situation.\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"              If  this  option  is used several times, the last specified file\n"
-"              name will be used.\n"
+"              -d,  --data  is  the  same  as --data-ascii. To post data purely\n"
+"              binary, you should instead use the --data-binary option. To URL-\n"
+"              encode the value of a form field you may use --data-urlencode.\n"
 "\n"
-"       -C, --continue-at <offset>\n"
-"              Continue/Resume a previous file transfer at  the  given  offset.\n"
+"              If  any of these options is used more than once on the same com-\n"
+"              mand line, the data pieces specified  will  be  merged  together\n"
 , stdout);

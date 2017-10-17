@@ -1,11 +1,9 @@
 fputs(
-"              resume the transfer. It then uses the given  output/input  files\n"
-"              to figure that out.\n"
+"              mand  line,  the  data  pieces specified will be merged together\n"
+"              with a separating  &-symbol.  Thus,  using  '-d  name=daniel  -d\n"
+"              skill=lousy'  would  generate  a  post  chunk  that  looks  like\n"
+"              'name=daniel&skill=lousy'.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --ciphers <list of ciphers>\n"
-"              (SSL) Specifies which ciphers to use in the connection. The list\n"
-"              of ciphers must specify valid ciphers. Read  up  on  SSL  cipher\n"
-"              list           details           on           this          URL:\n"
+"              If you start the data with the letter @, the rest  should  be  a\n"
+"              file  name  to read the data from, or - if you want curl to read\n"
 , stdout);

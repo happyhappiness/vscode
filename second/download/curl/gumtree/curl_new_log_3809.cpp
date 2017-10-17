@@ -1,10 +1,10 @@
 fputs(
-"              multicwd\n"
-"                     curl  does  a  single CWD operation for each path part in\n"
-"                     the given URL. For deep hierarchies this means very  many\n"
-"                     commands.  This  is  how  RFC1738 says it should be done.\n"
-"                     This is the default but the slowest behavior.\n"
+"              the server. The active mode initiates the shutdown and waits for\n"
+"              a reply from the server.  (Added in 7.16.2)\n"
 "\n"
-"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
-"                     etc and give a full path to the server for all these com-\n"
+"       -F/--form <name=content>\n"
+"              (HTTP)  This  lets curl emulate a filled in form in which a user\n"
+"              has pressed the submit button. This causes  curl  to  POST  data\n"
+"              using the Content-Type multipart/form-data according to RFC1867.\n"
+"              This enables uploading of binary files etc. To force  the  'con-\n"
 , stdout);

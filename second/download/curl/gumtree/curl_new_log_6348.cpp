@@ -1,8 +1,12 @@
 fputs(
-"              specify any number of extra headers. Note that if you should add\n"
-"              a  custom  header  that has the same name as one of the internal\n"
-"              ones curl would use, your externally set  header  will  be  used\n"
-"              instead of the internal one. This allows you to make even trick-\n"
-"              ier stuff than curl would normally do. You  should  not  replace\n"
-"              internally  set  headers  without  knowing  perfectly  well what\n"
+"              includes  things  like  server-name, date of the document, HTTP-\n"
+"              version and more...\n"
+"\n"
+"       -I, --head\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the  command  HEAD which this uses to get nothing but the header\n"
+"              of a document. When used on a FTP or FILE  file,  curl  displays\n"
+"              the file size and last modification time only.\n"
+"\n"
+"       --interface <name>\n"
 , stdout);

@@ -1,11 +1,10 @@
 fputs(
-"              vent curl from outputting that and return error 22.\n"
+"              non-secure  connection  if  the  server doesn't support SSL/TLS.\n"
+"              See also --ftp-ssl-control and --ftp-ssl-reqd for different lev-\n"
+"              els of encryption required. (Added in 7.11.0)\n"
 "\n"
-"              This method is not fail-safe and there are occasions where  non-\n"
-"              successful  response  codes  will  slip through, especially when\n"
-"              authentication is involved (response codes 401 and 407).\n"
-"\n"
-"       --ftp-account [data]\n"
-"              (FTP) When an FTP server asks for \"account data\" after user name\n"
-"              and  password has been provided, this data is sent off using the\n"
+"       --ftp-ssl-control\n"
+"              (FTP)  Require  SSL/TLS  for  the FTP login, clear for transfer.\n"
+"              Allows secure authentication, but non-encrypted  data  transfers\n"
+"              for  efficiency.   Fails the transfer if the server doesn't sup-\n"
 , stdout);

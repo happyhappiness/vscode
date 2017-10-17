@@ -1,11 +1,8 @@
 fputs(
-"              (FTP) Tell curl to not use the IP address the server suggests in\n"
-"              its  response to curl's PASV command when curl connects the data\n"
-"              connection. Instead curl will re-use  the  same  IP  address  it\n"
-"              already uses for the control connection. (Added in 7.14.2)\n"
-"\n"
-"              This  option has no effect if PORT, EPRT or EPSV is used instead\n"
-"              of PASV.\n"
-"\n"
-"       --ftp-pret\n"
+"              a custom header that has the same name as one  of  the  internal\n"
+"              ones  curl  would  use,  your externally set header will be used\n"
+"              instead of the internal one. This allows you to make even trick-\n"
+"              ier  stuff  than  curl would normally do. You should not replace\n"
+"              internally set  headers  without  knowing  perfectly  well  what\n"
+"              you're  doing. Remove an internal header by giving a replacement\n"
 , stdout);

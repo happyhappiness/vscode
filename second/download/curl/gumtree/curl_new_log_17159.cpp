@@ -1,0 +1,17 @@
+puts(
+"        <form action=\"post.cgi\" method=\"post\">\n"
+"        <input name=user size=10>\n"
+"        <input name=pass type=password size=10>\n"
+"        <input name=id type=hidden value=\"blablabla\">\n"
+"        <input name=ding value=\"submit\">\n"
+"        </form>\n"
+"\n"
+"  We want to enter user 'foobar' with password '12345'.\n"
+"\n"
+"  To post to this, you enter a curl command line like:\n"
+"\n"
+"        curl -d \"user=foobar&pass=12345&id=blablabla&dig=submit\"  (continues)\n"
+"          http://www.formpost.com/getthis/post.cgi\n"
+"\n"
+"\n"
+);

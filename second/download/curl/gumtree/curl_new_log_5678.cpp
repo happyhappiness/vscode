@@ -1,10 +1,9 @@
 fputs(
-"              Enables a full trace dump of all  incoming  and  outgoing  data,\n"
-"              including descriptive information, to the given output file. Use\n"
-"              \"-\" as filename to have the output sent to stdout.\n"
+"              default). Transient error means either: a timeout,  an  FTP  4xx\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only  shows  the ASCII part of the dump. It makes smaller output\n"
-"              that might be easier to read for untrained humans.\n"
-"\n"
+"              When  curl  is about to retry a transfer, it will first wait one\n"
+"              second and then for all forthcoming retries it will  double  the\n"
+"              waiting  time until it reaches 10 minutes which then will be the\n"
+"              delay between the rest of the retries.  By  using  --retry-delay\n"
 , stdout);

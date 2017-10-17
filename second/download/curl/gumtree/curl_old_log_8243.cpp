@@ -1,11 +1,10 @@
 fputs(
-"              supplied  with OpenSSL. Using --capath can allow OpenSSL-powered\n"
-"              curl to make SSL-connections much more  efficiently  than  using\n"
-"              --cacert if the --cacert file contains many CA certificates.\n"
+"              Transport server over FTPS using  a  client  certificate,  using\n"
+"              \"SITE  AUTH\"  will tell the server to retrieve the username from\n"
+"              the certificate. (Added in 7.15.5)\n"
 "\n"
-"              If this option is set, the default capath value will be ignored,\n"
-"              and if it is used several times, the last one will be used.\n"
-"\n"
-"       -f, --fail\n"
-"              (HTTP) Fail silently (no output at all) on server  errors.  This\n"
+"       --ftp-create-dirs\n"
+"              (FTP/SFTP) When an FTP or SFTP URL/operation uses  a  path  that\n"
+"              doesn't  currently exist on the server, the standard behavior of\n"
+"              curl is to fail. Using this option, curl will instead attempt to\n"
 , stdout);

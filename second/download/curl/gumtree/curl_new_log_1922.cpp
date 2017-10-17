@@ -1,1 +1,1 @@
-fputs(WARN_PREFIX, config->errors);
+warnf(config, "curl_formadd failed!\n");

@@ -1,7 +1,13 @@
-puts("    --connect-timeout <seconds> Maximum time allowed for connection\n"
-       "    --create-dirs   Create the necessary local directory hierarchy\n"
-       "    --crlf          Convert LF to CRLF in upload. Useful for MVS (OS/390)\n"
-       " -f/--fail          Fail silently (no output at all) on errors (H)\n"
-       " -F/--form <name=content> Specify HTTP POST data (H)\n"
-       " -g/--globoff       Disable URL sequences and ranges using {} and []\n"
-       " -G/--get           Send the -d data with a HTTP GET (H)");
+fputs(
+"              marks.   This  can also be set with the -H/--header\n"
+"              flag of course.\n"
+"\n"
+"              If this option is set more than once, the last  one\n"
+"              will be the one that's used.\n"
+"\n"
+"       --anyauth\n"
+"              (HTTP)  Tells  curl  to  figure  out authentication\n"
+"              method by itself, and use the most secure  one  the\n"
+"              remote  site  claims  it  supports. This is done by\n"
+"              first doing a request and  checking  the  response-\n"
+, stdout);

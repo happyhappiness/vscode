@@ -1,9 +1,12 @@
 fputs(
-"              This  option  overrides  existing environment variables that set\n"
-"              the proxy to use. If there's an environment variable  setting  a\n"
-"              proxy, you can set proxy to \"\" to override it.\n"
+"              remote SSL server.\n"
 "\n"
-"              Note  that  all  operations that are performed over a HTTP proxy\n"
-"              will transparently be converted to HTTP. It means  that  certain\n"
-"              protocol specific operations might not be available. This is not\n"
+"       -4/--ipv4\n"
+"              If  libcurl  is  capable  of resolving an address to multiple IP\n"
+"              versions (which it is if it is IPv6-capable), this option  tells\n"
+"              libcurl to resolve names to IPv4 addresses only.\n"
+"\n"
+"       -6/--ipv6\n"
+"              If  libcurl  is  capable  of resolving an address to multiple IP\n"
+"              versions (which it is if it is IPv6-capable), this option  tells\n"
 , stdout);

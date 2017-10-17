@@ -1,9 +1,11 @@
 fputs(
-"              If  the nickname contains \":\", it needs to be preceded by \"\\\" so\n"
-"              that it is not recognized as password delimiter.  If  the  nick-\n"
-"              name  contains \"\\\", it needs to be escaped as \"\\\\\" so that it is\n"
-"              not recognized as an escape character.\n"
+"              If this option is set, the default capath value will be ignored,\n"
+"              and if it is used several times, the last one will be used.\n"
 "\n"
-"              (iOS and Mac OS X only) If curl is built against  Secure  Trans-\n"
-"              port,  then  the  certificate string can either be the name of a\n"
+"       --pinnedpubkey <pinned public key>\n"
+"              (SSL)  Tells curl to use the specified public key file to verify\n"
+"              the peer. The file must contain a single public key in DER  for-\n"
+"              mat.\n"
+"\n"
+"              When  negotiating  a  TLS  or SSL connection, the server sends a\n"
 , stdout);

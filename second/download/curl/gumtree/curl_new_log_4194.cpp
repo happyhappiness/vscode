@@ -1,9 +1,12 @@
 fputs(
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
-"              behavior should not be endorsed, you should  encourage  everyone\n"
-"              who  uses  NTLM to switch to a public and documented authentica-\n"
-"              tion method instead, such as Digest.\n"
+"              request/response round-trip. (Added in 7.13.2)\n"
 "\n"
+"       --proxy-basic\n"
+"              Tells  curl  to use HTTP Basic authentication when communicating\n"
+"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
+"              remote  host.  Basic  is  the default authentication method curl\n"
+"              uses with proxies.\n"
+"\n"
+"       --proxy-digest\n"
+"              Tells curl to use HTTP Digest authentication when  communicating\n"
 , stdout);

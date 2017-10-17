@@ -1,11 +1,11 @@
 fputs(
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"              instead of the method otherwise used (which  defaults  to  GET).\n"
+"              Read  the  HTTP  1.1 specification for details and explanations.\n"
+"              Common additional HTTP requests  include  PUT  and  DELETE,  but\n"
+"              related technologies like WebDAV offers PROPFIND, COPY, MOVE and\n"
+"              more.\n"
 "\n"
-"              size_download  The total amount of bytes that were downloaded.\n"
-"\n"
-"              size_upload    The total amount of bytes that were uploaded.\n"
+"              (FTP) Specifies a custom FTP command to use instead of LIST when\n"
+"              doing file lists with FTP.\n"
 "\n"
 , stdout);

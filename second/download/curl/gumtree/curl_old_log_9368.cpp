@@ -1,11 +1,11 @@
 fputs(
-"              (which  often  also describes why and more). This flag will pre-\n"
-"              vent curl from outputting that and return error 22.\n"
+"              This option requires a library  built  with  kerberos4  support.\n"
+"              This  is  not very common. Use -V, --version to see if your curl\n"
+"              supports it.\n"
 "\n"
-"              This method is not fail-safe and there are occasions where  non-\n"
-"              successful  response  codes  will  slip through, especially when\n"
-"              authentication is involved (response codes 401 and 407).\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -F, --form <name=content>\n"
-"              (HTTP) This lets curl emulate a filled-in form in which  a  user\n"
+"       -l, --list-only\n"
+"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
+"              only  view.  This  is  especially  useful  if  the user wants to\n"
 , stdout);

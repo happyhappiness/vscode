@@ -1,12 +1,9 @@
 fputs(
+"              headers,  thus  possibly  inducing  an extra network round-trip.\n"
+"              This is  used  instead  of  setting  a  specific  authentication\n"
+"              method,  which  you  can  do with --basic, --digest, --ntlm, and\n"
+"              --negotiate.\n"
 "\n"
-"       -#, --progress-bar\n"
-"              Make  curl  display progress as a simple progress bar instead of\n"
-"              the standard, more informational, meter.\n"
-"\n"
-"       -:, --next\n"
-"              Tells curl to use a separate operation for the following URL and\n"
-"              associated   options.  This  allows  you  to  send  several  URL\n"
-"              requests, each with their own  specific  options,  for  example,\n"
-"              such as different user names or custom requests for each. (Added\n"
+"              Note that using --anyauth is not recommended if you  do  uploads\n"
+"              from  stdin, since it may require data to be sent twice and then\n"
 , stdout);

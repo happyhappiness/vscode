@@ -1,10 +1,11 @@
 fputs(
-"              that  the  string  value may accidentally trigger the '@' or '<'\n"
-"              features of --form.\n"
+"              available:  \\\\, \\\", \\t, \\n, \\r and \\v. A backslash preceding any\n"
+"              other letter is ignored. If the first column of a config line is\n"
+"              a  '#' character, the rest of the line will be treated as a com-\n"
+"              ment. Only write one option per  physical  line  in  the  config\n"
+"              file.\n"
 "\n"
-"       -g/--globoff\n"
-"              This option switches off the \"URL globbing parser\". When you set\n"
-"              this  option, you can specify URLs that contain the letters {}[]\n"
-"              without having them being interpreted by curl itself. Note  that\n"
-"              these  letters are not normal legal URL contents but they should\n"
+"              Specify the filename to -K/--config as '-' to make curl read the\n"
+"              file from stdin.\n"
+"\n"
 , stdout);

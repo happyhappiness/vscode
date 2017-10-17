@@ -1,9 +1,9 @@
 fputs(
-"              (HTTP/HTTPS) Like -L, --location, but  will  allow  sending  the\n"
-"              name + password to all hosts that the site may redirect to. This\n"
-"              may or may not introduce a security breach if the site redirects\n"
-"              you  to  a  site  to  which you'll send your authentication info\n"
-"              (which is plaintext in the case of HTTP Basic authentication).\n"
+"              This  option  is similar to --netrc, except that you provide the\n"
+"              path (absolute or relative) to the netrc file that  Curl  should\n"
+"              use.   You  can  only  specify one netrc file per invocation. If\n"
+"              several --netrc-file options are provided,  only  the  last  one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"       -m, --max-time <seconds>\n"
+"              This  option  overrides  any use of --netrc as they are mutually\n"
 , stdout);

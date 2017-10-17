@@ -1,11 +1,11 @@
 fputs(
-"              Write the protocol headers to the specified file.\n"
+"              its response to curl's PASV command when curl connects the  data\n"
+"              connection.  Instead  curl  will  re-use  the same IP address it\n"
+"              already uses for the control connection. (Added in 7.14.2)\n"
 "\n"
-"              This  option  is handy to use when you want to store the headers\n"
-"              that a HTTP site sends to you. Cookies from  the  headers  could\n"
-"              then  be  read  in  a  second  curl  invocation by using the -b,\n"
-"              --cookie option! The -c, --cookie-jar option is however a better\n"
-"              way to store cookies.\n"
+"              This option has no effect if PORT, EPRT or EPSV is used  instead\n"
+"              of PASV.\n"
 "\n"
-"              When  used  in FTP, the FTP server response lines are considered\n"
+"       --ftp-pret\n"
+"              (FTP)  Tell  curl to send a PRET command before PASV (and EPSV).\n"
 , stdout);

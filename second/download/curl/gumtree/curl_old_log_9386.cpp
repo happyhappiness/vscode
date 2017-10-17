@@ -1,10 +1,11 @@
 fputs(
-"              scarce resource that will be busy at times so setting this range\n"
-"              to something too narrow might cause unnecessary connection setup\n"
-"              failures. (Added in 7.15.2)\n"
+"              following redirections \"in absurdum\". By default, the  limit  is\n"
+"              set  to 50 redirections. Set this option to -1 to make it limit-\n"
+"              less.\n"
 "\n"
-"       --location-trusted\n"
-"              (HTTP/HTTPS) Like -L, --location, but  will  allow  sending  the\n"
-"              name + password to all hosts that the site may redirect to. This\n"
-"              may or may not introduce a security breach if the site redirects\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --metalink\n"
+"              This option can tell curl to parse and process a  given  URI  as\n"
+"              Metalink  file  (both  version 3 and 4 (RFC 5854) are supported)\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"              If this option is used several times, the last one will be used.\n"
+"                     This is the default but the slowest behavior.\n"
 "\n"
-"       --cacert <CA certificate>\n"
-"              (SSL) Tells curl to use the specified certificate file to verify\n"
-"              the  peer.  The  file  may contain multiple CA certificates. The\n"
-"              certificate(s) must be in PEM format. Normally curl is built  to\n"
-"              use a default file for this, so this option is typically used to\n"
-"              alter that default file.\n"
+"              nocwd  curl does no CWD at all. curl will do  SIZE,  RETR,  STOR\n"
+"                     etc and give a full path to the server for all these com-\n"
+"                     mands. This is the fastest behavior.\n"
 "\n"
+"              singlecwd\n"
+"                     curl does one CWD with the full target directory and then\n"
+"                     operates  on  the  file  \"normally\" (like in the multicwd\n"
 , stdout);

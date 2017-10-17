@@ -1,8 +1,8 @@
 fputs(
-"              libcurl has changed  the  working  directory,  just  before  the\n"
-"              transfer command(s), prefix the command with a '+' (this is only\n"
-"              supported for FTP). You may specify any number of  commands.  If\n"
-"              the  server  returns failure for one of the commands, the entire\n"
-"              operation will be aborted. You must send  syntactically  correct\n"
-"              FTP  commands  as  RFC959  defines to FTP servers, or one of the\n"
+"       -Q/--quote <command>\n"
+"              (FTP/SFTP)  Send  an arbitrary command to the remote FTP or SFTP\n"
+"              server. Quote commands are sent BEFORE the transfer takes  place\n"
+"              (just  after  the  initial PWD command in an FTP transfer, to be\n"
+"              exact). To make commands take place after a successful transfer,\n"
+"              prefix  them  with  a  dash '-'.  To make commands be sent after\n"
 , stdout);
