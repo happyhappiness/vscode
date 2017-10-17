@@ -28,9 +28,7 @@ def cluster_feature(z3_api):
     # build feature list
     index = 0
     for record in islice(records, 1, None):  # remove the table title
-        check_feature = json.loads(record[my_constant.ANALYZE_CHECK])
-        if check_feature == []:
-            continue       
+        check_feature = json.loads(record[my_constant.ANALYZE_CHECK]) 
         variable_feature = json.loads(record[my_constant.ANALYZE_VARIABLE])
         # z3 feature
         if z3_api is not None:
@@ -115,8 +113,6 @@ def cluster_edition_and_feature(z3_api=None):
     for record in islice(records, 1, None):  # remove the table title
         # context feature
         check_feature = json.loads(record[my_constant.ANALYZE_CHECK])
-        if check_feature == []:
-            continue
         variable_feature = json.loads(record[my_constant.ANALYZE_VARIABLE])
         # z3 feature
         if z3_api is not None:

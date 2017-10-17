@@ -127,12 +127,10 @@ def analyze_old_new(is_rebuild = False):
     # llvm_api = LLVM()
     # get ddg and cdg with joern
     for record in islice(old_new_gumtree_records, 1, None):
-        # get old and new check and variable
-        # old_loc = record[my_constant.FETCH_LOG_OLD_LOC]
-        # old_file = record[my_constant.FETCH_LOG_OLD_FILE]
-        # llvm_api.set_log_loc(int(old_loc))
-        # llvm_api.set_in_file(old_file + '.bc')
-        # old_check, old_variable = llvm_api.get_cdg_ddg_list()
+        if total_record % 10 == 0:
+            print 'have dealed with %d record; %d log' %(total_record, total_log)
+        total_record += 1
+
         function = record[my_constant.ANALYZE_FUNCTION]
         function_loc = record[my_constant.ANALYZE_FUNCTION_LOC]
         srcml = SrcmlApi()
@@ -155,9 +153,7 @@ def analyze_old_new(is_rebuild = False):
         # else:
         #     record[my_constant.FETCH_LOG_ACTION_TYPE] = my_constant.LOG_LOG_MODIFY
         old_new_llvm_writer.writerow(record + [json.dumps(check), json.dumps(variable), ddg_codes, ddg_locs])
-        print 'have dealed with %d record; %d log' %(total_record, total_log)
         total_log += 1
-        total_record += 1
 
     old_new_gumtree_file.close()
     old_new_llvm_file.close()
@@ -168,7 +164,7 @@ def analyze_old_new(is_rebuild = False):
 main function
 """
 if __name__ == "__main__":
-    analyze_old_new(True)
+    analyze_old_new(False)
 
     # analyze_old_new_joern(False)
     # gumtree = Gumtree()
