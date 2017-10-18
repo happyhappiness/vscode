@@ -1,0 +1,10 @@
+/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/bin/Debug/netcoreapp2.0/src-c-sharp.deps.json
+/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/bin/Debug/netcoreapp2.0/src-c-sharp.runtimeconfig.json
+/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/bin/Debug/netcoreapp2.0/src-c-sharp.runtimeconfig.dev.json
+/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/bin/Debug/netcoreapp2.0/src-c-sharp.dll
+/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/bin/Debug/netcoreapp2.0/src-c-sharp.pdb
+/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/obj/Debug/netcoreapp2.0/src-c-sharp.csproj.CoreCompileInputs.cache
+/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/obj/Debug/netcoreapp2.0/src-c-sharp.AssemblyInfoInputs.cache
+/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/obj/Debug/netcoreapp2.0/src-c-sharp.AssemblyInfo.cs
+/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/obj/Debug/netcoreapp2.0/src-c-sharp.dll
+/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/obj/Debug/netcoreapp2.0/src-c-sharp.pdb
