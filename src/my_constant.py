@@ -13,8 +13,8 @@
 
 # REPOS = 'httpd'
 # REPOS = 'git'
-REPOS = 'mutt'
-# REPOS = 'rtorrent'
+# REPOS = 'mutt'
+REPOS = 'rtorrent'
 # REPOS = 'curl'
 # REPOS = 'sqlite'
 
@@ -101,7 +101,7 @@ ANALYZE_OLD_NEW_LLVM_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['check', 'variable
 ANALYZE_CHECK = ANALYZE_OLD_NEW_LLVM_TITLE.index('check')
 ANALYZE_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('variable')
 CLUSTER_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
-
+ANALYZE_CLUSTER = CLUSTER_OLD_NEW_TITLE.index('cluster')
 
 """
 analyze repos / cluster repos title and index
