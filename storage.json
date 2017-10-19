@@ -448,17 +448,17 @@
         "files": []
     },
     "windowsState": {
-        "openedFolders": [],
+        "openedWindows": [],
         "lastActiveWindow": {
+            "folderPath": "/usr/info/code/cpp/LogMonitor/LogMonitor",
+            "backupPath": "/usr/info/code/cpp/LogMonitor/LogMonitor/Backups/1b5a67b17cf89df088b7899ae7f18022",
             "uiState": {
                 "mode": 0,
                 "x": 1280,
                 "y": 26,
                 "width": 1920,
                 "height": 1028
-            },
-            "folderPath": "/usr/info/code/cpp/LogMonitor/LogMonitor"
-        },
-        "openedWindows": []
+            }
+        }
     }
 }

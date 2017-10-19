@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace src_c_sharp
+namespace LogMonitor
 {
     class Program
     {
