@@ -1,6 +1,17 @@
 {
     "version": "0.2.0",
     "configurations": [
+        {
+            "name": "src-c-sharp .NET Core Launch (console)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-src-c-sharp",
+            "args": [],
+            "cwd": "${workspaceRoot}/src-c-sharp/",
+            "program": "${workspaceRoot}/src-c-sharp/bin/Debug/netcoreapp2.0/src-c-sharp.dll",            
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        },
          {
             "name": "simplex Launch",
             "type": "cppdbg",

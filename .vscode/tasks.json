@@ -1,12 +1,12 @@
 {
     "version": "0.1.0",
-    "command": "clang++",
     "isShellCommand": true,
-    "args": ["-g","-std=c++11", "${file}"],
     "showOutput": "always",
     "tasks": [
         {
             "taskName": "default",
+            "command": "clang++",
+            "args": ["-g","-std=c++11", "${file}"],
             "isBuildCommand": true,
             "suppressTaskName": true,
             "problemMatcher": [
@@ -16,6 +16,7 @@
         },
          {
             "taskName": "simplex",
+            "command": "clang++",
             "args": ["${workspaceRoot}/simplex/dualSimplex.cpp"],
             "isBuildCommand": true,
             "suppressTaskName": true,
@@ -23,6 +24,20 @@
                 "$tsc",
                 "$lessCompile"
             ]
-        }
+        },
+        {
+            "command": "dotnet",
+            "taskName": "build-src-c-sharp",
+            "options": 
+            {
+                "cwd":"${workspaceRoot}/src-c-sharp/"
+            },
+            "args":["build"],
+            "isBuildCommand": true,
+            "suppressTaskName": true,
+            "problemMatcher":[
+                "$msCompile"
+            ]
+        },
     ]
 }

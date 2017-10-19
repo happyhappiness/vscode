@@ -670,11 +670,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/src-c-sharp.csproj",
-      "projectName": "src-c-sharp",
-      "projectPath": "/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/src-c-sharp.csproj",
+      "projectUniqueName": "/usr/info/code/cpp/LogMonitor/LogMonitor/LogMonitor.csproj",
+      "projectName": "LogMonitor",
+      "projectPath": "/usr/info/code/cpp/LogMonitor/LogMonitor/LogMonitor.csproj",
       "packagesPath": "/root/.nuget/packages/",
-      "outputPath": "/usr/info/code/cpp/LogMonitor/LogMonitor/src/src-c-sharp/obj/",
+      "outputPath": "/usr/info/code/cpp/LogMonitor/LogMonitor/obj/",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "/usr/share/dotnet/sdk/NuGetFallbackFolder"
