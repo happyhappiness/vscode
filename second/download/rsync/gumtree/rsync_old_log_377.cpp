@@ -1,0 +1,1 @@
+fprintf(FERROR,"deleting %s\n",f->name);

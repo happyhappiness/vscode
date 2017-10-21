@@ -1,0 +1,1 @@
+fprintf(f,"    --force              force deletion of directories even if not empty\n");

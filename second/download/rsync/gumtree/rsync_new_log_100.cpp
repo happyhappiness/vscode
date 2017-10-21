@@ -1,0 +1,1 @@
+fprintf(stderr,"EOF in map_ptr!\n");

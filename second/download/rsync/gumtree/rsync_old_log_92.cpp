@@ -1,0 +1,1 @@
+fprintf(stderr,"dev=0x%x\n",(int)file->dev);

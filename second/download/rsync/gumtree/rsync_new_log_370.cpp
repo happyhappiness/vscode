@@ -1,0 +1,1 @@
+fprintf(FINFO,"%s is newer\n",fname);

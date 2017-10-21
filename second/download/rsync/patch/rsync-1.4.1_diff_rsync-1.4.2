@@ -1,0 +1,340 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/io.c	1996-06-27 10:23:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/io.c	1996-06-28 15:44:18.000000000 +0800
+@@ -100,14 +100,21 @@
+       if (read_buffer_len > 0) {
+ 	ret = MIN(read_buffer_len,N-total);
+ 	memcpy(buffer+total,read_buffer_p,ret);
+ 	read_buffer_p += ret;
+ 	read_buffer_len -= ret;
+       } else {
+-	if ((ret = read(fd,buffer + total,N - total)) == -1)
+-	  return -1;
++	while ((ret = read(fd,buffer + total,N - total)) == -1) {
++	  fd_set fds;
++
++	  if (errno != EAGAIN && errno != EWOULDBLOCK)
++	    return -1;
++	  FD_ZERO(&fds);
++	  FD_SET(fd, &fds);
++	  select(fd+1, &fds, NULL, NULL, NULL);
++	}
+       }
+ 
+       if (ret <= 0)
+ 	return total;
+       total += ret;
+     }
+@@ -145,12 +152,50 @@
+ {
+   char c;
+   read_buf(f,&c,1);
+   return (unsigned char)c;
+ }
+ 
++
++static char last_byte=0;
++static int last_sparse = 0;
++
++int sparse_end(int f)
++{
++#if SPARSE_FILES
++  if (last_sparse) {
++    lseek(f,-1,SEEK_CUR);
++    return (write(f,&last_byte,1) == 1 ? 0 : -1);
++  }
++#endif  
++  return 0;
++}
++
++int write_sparse(int f,char *buf,int len)
++{
++  int l=0;
++
++#if SPARSE_FILES
++  for (l=0;l<len && buf[l]==0;l++) ;
++
++  if (l > 0)
++    lseek(f,l,SEEK_CUR);
++
++  last_byte = buf[len-1];
++#endif
++
++  if (l == len) {
++    last_sparse = 1;
++    return len;
++  } 
++
++  last_sparse = 0;
++
++  return (l + write(f,buf+l,len-l));
++}
++
+ int read_write(int fd_in,int fd_out,int size)
+ {
+   static char *buf=NULL;
+   static int bufsize = WRITE_BLOCK_SIZE;
+   int total=0;
+   
+@@ -159,13 +204,13 @@
+     if (!buf) out_of_memory("read_write");
+   }
+ 
+   while (total < size) {
+     int n = MIN(size-total,bufsize);
+     read_buf(fd_in,buf,n);
+-    if (write(fd_out,buf,n) != n)
++    if (write_sparse(fd_out,buf,n) != n)
+       return total;
+     total += n;
+   }
+   return total;
+ }
+ 
+@@ -191,13 +236,13 @@
+       read_check(buffer_f_in);
+ 
+       FD_ZERO(&fds);
+       FD_SET(fd,&fds);
+       tv.tv_sec = BLOCKING_TIMEOUT;
+       tv.tv_usec = 0;
+-      select(16,NULL,&fds,NULL,&tv);
++      select(fd+1,NULL,&fds,NULL,&tv);
+     } else {
+       total += ret;
+     }
+   }
+ 
+   return total;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/main.c	1996-06-27 13:09:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/main.c	1996-06-28 16:00:14.000000000 +0800
+@@ -594,15 +594,15 @@
+ 
+     if (dry_run)
+       verbose = MAX(verbose,1);
+ 
+     if (am_server) {
+       remote_version = read_int(STDIN_FILENO);
+-      if (remote_version < MIN_PROTOCOL_VERSION) {
+-	fprintf(stderr,"protocol version mismatch %d %d\n",
+-		remote_version,PROTOCOL_VERSION);
++      if (remote_version < MIN_PROTOCOL_VERSION ||
++	  remote_version > MAX_PROTOCOL_VERSION) {
++	fprintf(stderr,"protocol version mismatch - is your shell clean?\n");
+ 	exit(1);
+       }
+       write_int(STDOUT_FILENO,PROTOCOL_VERSION);
+       write_flush(STDOUT_FILENO);
+ 
+       setup_protocol();
+@@ -680,14 +680,15 @@
+     pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
+ 
+     write_int(f_out,PROTOCOL_VERSION);
+     write_flush(f_out);
+     {
+       remote_version = read_int(f_in);
+-      if (remote_version < MIN_PROTOCOL_VERSION) {
+-	fprintf(stderr,"protocol version mismatch\n");
++      if (remote_version < MIN_PROTOCOL_VERSION ||
++	  remote_version > MAX_PROTOCOL_VERSION) {
++	fprintf(stderr,"protocol version mismatch - is your shell clean?\n");
+ 	exit(1);
+       }	
+     }
+ 
+     setup_protocol();
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/proto.h	1996-06-27 10:53:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/proto.h	1996-06-27 14:01:00.000000000 +0800
+@@ -25,12 +25,14 @@
+ int write_total(void);
+ int read_total(void);
+ void setup_nonblocking(int f_in,int f_out);
+ int read_int(int f);
+ void read_buf(int f,char *buf,int len);
+ unsigned char read_byte(int f);
++int sparse_end(int f);
++int write_sparse(int f,char *buf,int len);
+ int read_write(int fd_in,int fd_out,int size);
+ void write_int(int f,int x);
+ void write_buf(int f,char *buf,int len);
+ void write_byte(int f,unsigned char c);
+ void write_flush(int f);
+ int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/rsync.c	1996-06-27 13:04:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/rsync.c	1996-06-28 15:56:56.000000000 +0800
+@@ -202,23 +202,25 @@
+       fprintf(stderr,"stat %s : %s\n",fname,strerror(errno));
+       return;
+     }
+     st = &st2;
+   }
+ 
+-  if (preserve_times && st->st_mtime != file->modtime) {
++  if (preserve_times && !S_ISLNK(st->st_mode) &&
++      st->st_mtime != file->modtime) {
+     updated = 1;
+     if (set_modtime(fname,file->modtime) != 0) {
+       fprintf(stderr,"failed to set times on %s : %s\n",
+ 	      fname,strerror(errno));
+       return;
+     }
+   }
+ 
+ #ifdef HAVE_CHMOD
+-  if (preserve_perms && st->st_mode != file->mode) {
++  if (preserve_perms && !S_ISLNK(st->st_mode) &&
++      st->st_mode != file->mode) {
+     updated = 1;
+     if (chmod(fname,file->mode) != 0) {
+       fprintf(stderr,"failed to set permissions on %s : %s\n",
+ 	      fname,strerror(errno));
+       return;
+     }
+@@ -266,25 +268,26 @@
+     int l;
+     if (statret == 0) {
+       l = readlink(fname,lnk,MAXPATHLEN-1);
+       if (l > 0) {
+ 	lnk[l] = 0;
+ 	if (strcmp(lnk,flist->files[i].link) == 0) {
+-	  if (verbose > 1) 
+-	    fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);
++	  set_perms(fname,&flist->files[i],&st,1);
+ 	  return;
+ 	}
+       }
+     }
+     if (!dry_run) unlink(fname);
+     if (!dry_run && symlink(flist->files[i].link,fname) != 0) {
+       fprintf(stderr,"link %s -> %s : %s\n",
+ 	      fname,flist->files[i].link,strerror(errno));
+     } else {
++      set_perms(fname,&flist->files[i],NULL,0);
+       if (verbose) 
+-	fprintf(am_server?stderr:stdout,"%s -> %s\n",fname,flist->files[i].link);
++	fprintf(am_server?stderr:stdout,"%s -> %s\n",
++		fname,flist->files[i].link);
+     }
+     return;
+   }
+ #endif
+ 
+ #ifdef HAVE_MKNOD
+@@ -414,19 +417,24 @@
+ 	len = remainder;
+ 
+       if (verbose > 3)
+ 	fprintf(stderr,"chunk[%d] of size %d at %d offset=%d\n",
+ 		i,len,(int)offset2,(int)offset);
+ 
+-      if (write(fd,map_ptr(buf,offset2,len),len) != len) {
++      if (write_sparse(fd,map_ptr(buf,offset2,len),len) != len) {
+ 	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+ 	exit(1);
+       }
+       offset += len;
+     }
+   }
++
++  if (offset > 0 && sparse_end(fd) != 0) {
++    fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
++    exit(1);
++  }
+ }
+ 
+ 
+ static void delete_one(struct file_struct *f)
+ {
+   if (!S_ISDIR(f->mode)) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/rsync.h	1996-06-27 12:14:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/rsync.h	1996-06-28 15:52:30.000000000 +0800
+@@ -33,19 +33,23 @@
+ #define LONG_NAME (1<<6)
+ #define SAME_TIME (1<<7)
+ 
+ /* update this if you make incompatible changes */
+ #define PROTOCOL_VERSION 11
+ #define MIN_PROTOCOL_VERSION 10
++#define MAX_PROTOCOL_VERSION 20
+ 
+ /* block size to write files in */
+ #define WRITE_BLOCK_SIZE (32*1024)
+ #define MAX_MAP_SIZE (4*1024*1024)
+ 
+ #define BLOCKING_TIMEOUT 10
+ 
++/* do we try to create sparse files */
++#define SPARSE_FILES 1
++
+ #include "config.h"
+ 
+ #include <sys/types.h>
+ #ifdef HAVE_UNISTD_H
+ #include <unistd.h>
+ #endif
+@@ -106,13 +110,16 @@
+ #endif
+ #ifdef HAVE_GRP_H
+ #include <grp.h>
+ #endif
+ #include <errno.h>
+ 
++#ifdef HAVE_MMAP
+ #include <sys/mman.h>
++#endif
++
+ #ifdef HAVE_UTIME_H
+ #include <utime.h>
+ #endif
+ 
+ #ifdef HAVE_FNMATCH
+ #include <fnmatch.h>
+@@ -242,12 +249,16 @@
+ #ifndef HAVE_BZERO
+ #define bzero(buf,n) memset(buf,0,n)
+ #endif
+ 
+ #define SUPPORT_LINKS (HAVE_READLINK && defined(S_ISLNK))
+ 
++#ifndef S_ISLNK
++#define S_ISLNK(x) 0
++#endif
++
+ #if !SUPPORT_LINKS
+ #define lstat stat
+ #endif
+ 
+ #define SIGNAL_CAST (RETSIGTYPE (*)())
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/util.c	1996-06-27 00:02:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/util.c	1996-06-28 15:44:52.000000000 +0800
+@@ -88,14 +88,16 @@
+   return p; 
+ }
+ 
+ 
+ void unmap_file(char *buf,off_t len)
+ {
++#ifdef HAVE_MMAP
+   if (len > 0 && buf)
+     munmap(buf,len);
++#endif
+   map_fd = -1;
+   map_size = 0;
+   p_len = 0;
+ }
+ 
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/version.h	1996-06-27 12:05:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/version.h	1996-06-28 16:04:07.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.4.1"
++#define VERSION "1.4.2"

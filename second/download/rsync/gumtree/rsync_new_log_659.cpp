@@ -1,0 +1,1 @@
+slprintf(pidbuf, sizeof(pidbuf), "%d\n", pid);

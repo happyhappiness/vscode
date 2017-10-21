@@ -1,0 +1,1 @@
+fprintf(f,"-l, --links              preserve soft links\n");

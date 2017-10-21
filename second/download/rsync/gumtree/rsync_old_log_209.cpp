@@ -1,0 +1,1 @@
+fprintf(stderr,"renaming %s to %s\n",fnametmp,fname);

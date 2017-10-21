@@ -1,0 +1,1 @@
+fprintf(stderr,"-a       : archive mode (same as -rlptDog)\n");

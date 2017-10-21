@@ -1,0 +1,1 @@
+fprintf(stderr,"Failed to dup/close : %s\n",strerror(errno));

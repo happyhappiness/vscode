@@ -1,0 +1,1 @@
+io_printf(fd,"@ERROR: invalid uid\n");

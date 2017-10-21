@@ -1,0 +1,1 @@
+fprintf(FERROR,"EOF in map_ptr!\n");

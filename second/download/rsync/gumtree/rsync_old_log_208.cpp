@@ -1,0 +1,1 @@
+fprintf(stderr,"open %s : %s\n",fnametmp,strerror(errno));

@@ -1,0 +1,1 @@
+fprintf(stderr,"mmap : %s\n",strerror(errno));

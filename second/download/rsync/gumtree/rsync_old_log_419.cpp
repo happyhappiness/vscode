@@ -1,0 +1,1 @@
+fprintf(FINFO,"excluding file %s\n",fname);

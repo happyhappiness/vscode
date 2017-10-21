@@ -1,0 +1,1 @@
+fprintf(stderr,"-D only allowed for root\n");

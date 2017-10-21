@@ -1,0 +1,1 @@
+fprintf(stderr,"skipping directory %s\n",fname);

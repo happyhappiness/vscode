@@ -1,0 +1,108 @@
+
+	if (protect_args)
+		send_protected_args(f_out, sargs);
+
+	if (protocol_version < 23) {
+		if (protocol_version == 22 || !am_sender)
+			io_start_multiplex_in();
+	}
+
+	free(modname);
+
+	return 0;
+}
+
+static char *finish_pre_exec(pid_t pid, int fd, char *request,
+			     char **early_argv, char **argv)
+{
+	int j = 0, status = -1;
+
+	if (!request)
+		request = "(NONE)";
+
+	write_buf(fd, request, strlen(request)+1);
+	if (early_argv) {
+		for ( ; *early_argv; early_argv++)
+			write_buf(fd, *early_argv, strlen(*early_argv)+1);
+		j = 1; /* Skip arg0 name in argv. */
+	}
+	for ( ; argv[j]; j++) {
+		write_buf(fd, argv[j], strlen(argv[j])+1);
+		if (argv[j][0] == '.' && argv[j][1] == '\0')
+			break;
+	}
+	write_byte(fd, 0);
+
+	close(fd);
+
+	if (wait_process(pid, &status, 0) < 0
+	 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+		char *e;
+		if (asprintf(&e, "pre-xfer exec returned failure (%d)%s%s\n",
+			     status, status < 0 ? ": " : "",
+			     status < 0 ? strerror(errno) : "") < 0)
+			out_of_memory("finish_pre_exec");
+		return e;
+	}
+	return NULL;
+}
+
+static int read_arg_from_pipe(int fd, char *buf, int limit)
+{
+	char *bp = buf, *eob = buf + limit - 1;
+
+	while (1) {
+	    int got = read(fd, bp, 1);
+	    if (got != 1) {
+		if (got < 0 && errno == EINTR)
+			continue;
+		return -1;
+	    }
+	    if (*bp == '\0')
+		break;
+	    if (bp < eob)
+		bp++;
+	}
+	*bp = '\0';
+
+	return bp - buf;
+}
+
+static int path_failure(int f_out, const char *dir, BOOL was_chdir)
+{
+	if (was_chdir)
+		rsyserr(FLOG, errno, "chdir %s failed\n", dir);
+	else
+		rprintf(FLOG, "normalize_path(%s) failed\n", dir);
+	io_printf(f_out, "@ERROR: chdir failed\n");
+	return -1;
+}
+
+static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
+{
+	int argc;
+	char **argv, **orig_argv, **orig_early_argv, *module_chdir;
+	char line[BIGPATHBUFLEN];
+	uid_t uid = (uid_t)-2;  /* canonically "nobody" */
+	gid_t gid = (gid_t)-2;
+	char *p, *err_msg = NULL;
+	char *name = lp_name(i);
+	int use_chroot = lp_use_chroot(i);
+	int ret, pre_exec_fd = -1;
+	pid_t pre_exec_pid = 0;
+	char *request = NULL;
+
+#ifdef ICONV_OPTION
+	iconv_opt = lp_charset(i);
+	if (*iconv_opt)
+		setup_iconv();
+	iconv_opt = NULL;
+#endif
+
+	if (!allow_access(addr, host, lp_hosts_allow(i), lp_hosts_deny(i))) {
+		rprintf(FLOG, "rsync denied on module %s from %s (%s)\n",
+			name, host, addr);
+		if (!lp_list(i))
+			io_printf(f_out, "@ERROR: Unknown module '%s'\n", name);
+		else {
+			io_printf(f_out,

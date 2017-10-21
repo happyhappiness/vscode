@@ -1,0 +1,1 @@
+fprintf(f,"-L, --copy-links         treat soft links like regular files\n");

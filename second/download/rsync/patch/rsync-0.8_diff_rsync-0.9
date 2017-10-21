@@ -1,0 +1,643 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/configure	1996-06-16 10:51:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/configure	1996-06-21 20:18:19.000000000 +0800
+@@ -1532,50 +1532,54 @@
+ #define HAVE_ST_RDEV 1
+ EOF
+ 
+ fi
+ 
+ 
++echo -n "checking for errno in errno.h... "
+ cat > conftest.$ac_ext <<EOF
+-#line 1540 "configure"
++#line 1541 "configure"
+ #include "confdefs.h"
+ #include <errno.h>
+ int main() { return 0; }
+ int t() {
+ int i = errno
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1548: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1549: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+-  cat >> confdefs.h <<\EOF
++  echo yes; cat >> confdefs.h <<\EOF
+ #define HAVE_ERRNO_DECL 1
+ EOF
+ 
++else
++  rm -rf conftest*
++  echo no
+ fi
+ rm -f conftest*
+ 
+ 
+ echo $ac_n "checking for 8-bit clean memcmp""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_func_memcmp'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+   ac_cv_func_memcmp=no
+ else
+ cat > conftest.$ac_ext <<EOF
+-#line 1566 "configure"
++#line 1570 "configure"
+ #include "confdefs.h"
+ 
+ main()
+ {
+   char c0 = 0x40, c1 = 0x80, c2 = 0x81;
+   exit(memcmp(&c0, &c2, 1) < 0 && memcmp(&c1, &c2, 1) < 0 ? 0 : 1);
+ }
+ 
+ EOF
+-{ (eval echo configure:1576: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++{ (eval echo configure:1580: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
+ if test -s conftest && (./conftest; exit) 2>/dev/null; then
+   ac_cv_func_memcmp=yes
+ else
+   ac_cv_func_memcmp=no
+ fi
+ fi
+@@ -1589,13 +1593,13 @@
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1596 "configure"
++#line 1600 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ char $ac_func();
+@@ -1611,13 +1615,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1618: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
++if { (eval echo configure:1622: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=no"
+ fi
+@@ -1641,13 +1645,13 @@
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+   ac_cv_func_mmap=no
+ else
+ cat > conftest.$ac_ext <<EOF
+-#line 1648 "configure"
++#line 1652 "configure"
+ #include "confdefs.h"
+ 
+ /* Thanks to Mike Haertel and Jim Avera for this test. */
+ #include <sys/types.h>
+ #include <fcntl.h>
+ #include <sys/mman.h>
+@@ -1710,13 +1714,13 @@
+     if (*(buf1 + j) != *(buf3 + j))
+       exit(1);
+   exit(0);
+ }
+ 
+ EOF
+-{ (eval echo configure:1717: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++{ (eval echo configure:1721: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
+ if test -s conftest && (./conftest; exit) 2>/dev/null; then
+   ac_cv_func_mmap=yes
+ else
+   ac_cv_func_mmap=no
+ fi
+ fi
+@@ -1738,24 +1742,24 @@
+   rm -f conftestdata; > conftestdata
+ # Sequent interprets utime(file, 0) to mean use start of epoch.  Wrong.
+ if test "$cross_compiling" = yes; then
+   ac_cv_func_utime_null=no
+ else
+ cat > conftest.$ac_ext <<EOF
+-#line 1745 "configure"
++#line 1749 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ main() {
+ struct stat s, t;
+ exit(!(stat ("conftestdata", &s) == 0 && utime("conftestdata", (long *)0) == 0
+ && stat("conftestdata", &t) == 0 && t.st_mtime >= s.st_mtime
+ && t.st_mtime - s.st_mtime < 120));
+ }
+ EOF
+-{ (eval echo configure:1756: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++{ (eval echo configure:1760: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
+ if test -s conftest && (./conftest; exit) 2>/dev/null; then
+   ac_cv_func_utime_null=yes
+ else
+   ac_cv_func_utime_null=no
+ fi
+ fi
+@@ -1775,13 +1779,13 @@
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1782 "configure"
++#line 1786 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ char $ac_func();
+@@ -1797,13 +1801,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1804: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
++if { (eval echo configure:1808: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=no"
+ fi
+@@ -1819,20 +1823,20 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+-for ac_func in fchmod fstat strchr bcopy bzero readlink utime
++for ac_func in fchmod fstat strchr bcopy bzero readlink utime getopt_long
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1833 "configure"
++#line 1837 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ char $ac_func();
+@@ -1848,13 +1852,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1855: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
++if { (eval echo configure:1859: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=no"
+ fi
+@@ -1870,63 +1874,34 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+-for ac_func in getopt_long fnmatch
+-do
+-echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+-  echo $ac_n "(cached) $ac_c" 1>&6
++
++echo -n "checking for working fnmatch... "
++if test "$cross_compiling" = yes; then
++    { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+-  cat > conftest.$ac_ext <<EOF
+-#line 1884 "configure"
++cat > conftest.$ac_ext <<EOF
++#line 1887 "configure"
+ #include "confdefs.h"
+-/* System header to define __stub macros and hopefully few prototypes,
+-    which can conflict with char $ac_func(); below.  */
+-#include <assert.h>
+-/* Override any gcc2 internal prototype to avoid an error.  */
+-char $ac_func();
+-
+-int main() { return 0; }
+-int t() {
+-
+-/* The GNU C library defines this for functions which it implements
+-    to always fail with ENOSYS.  Some functions are actually named
+-    something starting with __ and the normal name is an alias.  */
+-#if defined (__stub_$ac_func) || defined (__stub___$ac_func)
+-choke me
+-#else
+-$ac_func();
+-#endif
+-
+-; return 0; }
++#include <fnmatch.h>
++main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }
+ EOF
+-if { (eval echo configure:1906: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
+-  rm -rf conftest*
+-  eval "ac_cv_func_$ac_func=yes"
+-else
+-  rm -rf conftest*
+-  eval "ac_cv_func_$ac_func=no"
+-fi
+-rm -f conftest*
+-
+-fi
+-if eval "test \"`echo '$ac_cv_func_'$ac_func`\" = yes"; then
+-  echo "$ac_t""yes" 1>&6
+-    ac_tr_func=HAVE_`echo $ac_func | tr 'abcdefghijklmnopqrstuvwxyz' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'`
+-  cat >> confdefs.h <<EOF
+-#define $ac_tr_func 1
++{ (eval echo configure:1892: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++if test -s conftest && (./conftest; exit) 2>/dev/null; then
++  echo yes;cat >> confdefs.h <<\EOF
++#define HAVE_FNMATCH 1
+ EOF
+- 
++
+ else
+-  echo "$ac_t""no" 1>&6
++  echo no
+ fi
+-done
+-
++fi
++rm -fr conftest*
+ 
+ trap '' 1 2 15
+ cat > confcache <<\EOF
+ # This file is a shell script that caches the results of configure
+ # tests run on this system so they can be shared between configure
+ # scripts and configure runs.  It is not useful on other systems.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/configure.in	1996-06-16 10:51:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/configure.in	1996-06-21 20:18:20.000000000 +0800
+@@ -25,16 +25,24 @@
+ AC_TYPE_MODE_T
+ AC_TYPE_OFF_T
+ AC_TYPE_SIZE_T
+ AC_TYPE_PID_T
+ AC_STRUCT_ST_RDEV
+ 
+-AC_TRY_COMPILE([#include <errno.h>],[int i = errno],AC_DEFINE(HAVE_ERRNO_DECL))
++echo -n "checking for errno in errno.h... "
++AC_TRY_COMPILE([#include <errno.h>],[int i = errno],
++echo yes; AC_DEFINE(HAVE_ERRNO_DECL),
++echo no)
+ 
+ AC_FUNC_MEMCMP
+ AC_FUNC_MMAP
+ AC_FUNC_UTIME_NULL
+ AC_CHECK_FUNCS(waitpid strtok pipe getcwd mkdir strdup strerror chown chmod mknod)
+-AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink utime)
+-AC_CHECK_FUNCS(getopt_long fnmatch)
++AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink utime getopt_long)
++
++echo -n "checking for working fnmatch... "
++AC_TRY_RUN([#include <fnmatch.h>
++main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }],
++echo yes;AC_DEFINE(HAVE_FNMATCH), 
++echo no)
+ 
+ AC_OUTPUT(Makefile)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/exclude.c	1996-06-17 18:03:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/exclude.c	1996-06-21 10:34:52.000000000 +0800
+@@ -33,20 +33,28 @@
+ }
+ 
+ 
+ static int check_one_exclude(char *name,char *pattern)
+ {
+   char *str;
++  char *p;
++
++  if (!strchr(pattern,'/') && (p=strrchr(name,'/')))
++    name = p+1;
++
++  if (!name[0]) return 0;
+ 
+   if (is_regex(pattern)) {
+     if (fnmatch(pattern, name, 0) == 0)
+       return 1;
+   } else {
+-    if (str = strstr(name, pattern),
+-	(str && (str == name || str[-1] == '/')
+-	 && str[strlen(pattern)] == '\0'))
++    int l1 = strlen(name);
++    int l2 = strlen(pattern);
++    if (l2 <= l1 && 
++	strcmp(name+(l1-l2),pattern) == 0 &&
++	(l1==l2 || name[l1-(l2+1)] == '/'))
+       return 1;
+   }
+ 
+   return 0;
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/flist.c	1996-06-20 20:42:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/flist.c	1996-06-21 20:22:59.000000000 +0800
+@@ -36,20 +36,26 @@
+ extern int preserve_uid;
+ extern int preserve_gid;
+ extern int preserve_times;
+ 
+ static char **local_exclude_list = NULL;
+ 
++static void clean_fname(char *name);
++
++
+ /*
+   This function is used to check if a file should be included/excluded
+   from the list of files based on its name and type etc
+  */
+ static int match_file_name(char *fname,struct stat *st)
+ {
+-  if (check_exclude(fname,local_exclude_list)) 
++  if (check_exclude(fname,local_exclude_list)) {
++    if (verbose > 2)
++      fprintf(stderr,"excluding file %s\n",fname);
+     return 0;
++  }
+   return 1;
+ }
+ 
+ /* used by the one_file_system code */
+ static dev_t filesystem_dev;
+ 
+@@ -242,14 +248,16 @@
+   int i,l;
+   struct stat st;
+   char *p,*dir;
+   char dbuf[MAXPATHLEN];
+   struct file_list *flist;
+ 
+-  if (verbose && recurse)
++  if (verbose && recurse) {
+     fprintf(am_server?stderr:stdout,"building file list ... ");
++    fflush(am_server?stderr:stdout);
++  }
+ 
+   flist = (struct file_list *)malloc(sizeof(flist[0]));
+   if (!flist) out_of_memory("send_file_list");
+ 
+   flist->count=0;
+   flist->malloced = 100;
+@@ -435,50 +443,72 @@
+   }
+   if (flist_compare(&flist->files[low],f) == 0)
+     return low;
+   return -1;
+ }
+ 
+-/*
+- * This routine ensures we don't have any duplicate names in our file list.
+- * duplicate names can cause corruption because of the pipelining 
+- */
+-void clean_flist(struct file_list *flist)
++
++static void clean_fname(char *name)
+ {
+-  int i,l;
+   char *p;
++  int l;
++  int modified = 1;
+ 
+-  if (!flist || flist->count == 0) 
+-    return;
+-  
+-  for (i=0;i<flist->count;i++) {
+-    if (!flist->files[i].name) continue;
+-    if ((p=strstr(flist->files[i].name,"/./"))) {
++  if (!name) return;
++
++  while (modified) {
++    modified = 0;
++
++    if ((p=strstr(name,"/./"))) {
++      modified = 1;
+       while (*p) {
+ 	p[0] = p[2];
+ 	p++;
+       }
+     }
+-    if ((p=strstr(flist->files[i].name,"//"))) {
++
++    if ((p=strstr(name,"//"))) {
++      modified = 1;
+       while (*p) {
+ 	p[0] = p[1];
+ 	p++;
+       }
+     }
+-    if (strncmp(p=flist->files[i].name,"./",2) == 0) {      
++
++    if (strncmp(p=name,"./",2) == 0) {      
++      modified = 1;
+       while (*p) {
+ 	p[0] = p[2];
+ 	p++;
+       }
+     }
+-    l = strlen(p=flist->files[i].name);
+-    if (l > 1 && p[l-1] == '/')
++
++    l = strlen(p=name);
++    if (l > 1 && p[l-1] == '/') {
++      modified = 1;
+       p[l-1] = 0;
++    }
+   }
++}
++
++
++/*
++ * This routine ensures we don't have any duplicate names in our file list.
++ * duplicate names can cause corruption because of the pipelining 
++ */
++void clean_flist(struct file_list *flist)
++{
++  int i;
++
++  if (!flist || flist->count == 0) 
++    return;
+   
+-    
++  for (i=0;i<flist->count;i++) {
++    clean_fname(flist->files[i].name);
++  }
++      
+   qsort(flist->files,flist->count,
+ 	sizeof(flist->files[0]),
+ 	(int (*)())flist_compare);
+ 
+   for (i=1;i<flist->count;i++) {
+     if (flist->files[i].name &&
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/main.c	1996-06-20 20:54:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/main.c	1996-06-21 20:18:20.000000000 +0800
+@@ -24,12 +24,14 @@
+ time_t starttime;
+ off_t total_size = 0;
+ int block_size=BLOCK_SIZE;
+ 
+ char *backup_suffix = BACKUP_SUFFIX;
+ 
++static char *rsync_path = RSYNC_NAME;
++
+ int make_backups = 0;
+ int preserve_links = 0;
+ int preserve_perms = 0;
+ int preserve_devices = 0;
+ int preserve_uid = 0;
+ int preserve_gid = 0;
+@@ -164,13 +166,13 @@
+       args[argc++] = "-l";
+       args[argc++] = user;
+     }
+     args[argc++] = machine;
+   }
+ 
+-  args[argc++] = RSYNC_NAME;
++  args[argc++] = rsync_path;
+ 
+   server_options(args,&argc);
+ 
+   if (path && *path) {
+     char *dir = strdup(path);
+     p = strrchr(dir,'/');
+@@ -354,12 +356,13 @@
+   fprintf(f,"-D, --devices            preserve devices (root only)\n");
+   fprintf(f,"-t, --times              preserve times\n");  
+   fprintf(f,"-n, --dry-run            show what would have been transferred\n");
+   fprintf(f,"-x, --one-file-system    don't cross filesystem boundaries\n");
+   fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");  
+   fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
++  fprintf(f,"    --rsync-path PATH    specify path to rsync on the remote machine\n");
+   fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
+   fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
+   fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");
+   fprintf(f,"    --exclude FILE       exclude file FILE\n");
+   fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
+   fprintf(f,"    --suffix SUFFIX      override backup suffix\n");  
+@@ -368,23 +371,24 @@
+   fprintf(f,"\n");
+   fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+   fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
+ }
+ 
+ enum {OPT_VERSION,OPT_SUFFIX,OPT_SENDER,OPT_SERVER,OPT_EXCLUDE,
+-      OPT_EXCLUDE_FROM,OPT_DELETE};
++      OPT_EXCLUDE_FROM,OPT_DELETE,OPT_RSYNC_PATH};
+ 
+ static char *short_options = "oblpguDCtcahvrIxne:B:";
+ 
+ static struct option long_options[] = {
+   {"version",     0,     0,    OPT_VERSION},
+   {"server",      0,     0,    OPT_SERVER},
+   {"sender",      0,     0,    OPT_SENDER},
+   {"delete",      0,     0,    OPT_DELETE},
+   {"exclude",     1,     0,    OPT_EXCLUDE},
+   {"exclude-from",1,     0,    OPT_EXCLUDE_FROM},
++  {"rsync-path",  1,     0,    OPT_RSYNC_PATH},
+   {"one-file-system",0,  0,    'x'},
+   {"ignore-times",0,     0,    'I'},
+   {"help",        0,     0,    'h'},
+   {"dry-run",     0,     0,    'n'},
+   {"cvs-exclude", 0,     0,    'C'},
+   {"archive",     0,     0,    'a'},
+@@ -429,13 +433,17 @@
+ 	  printf("rsync version %s  protocol version %d\n",
+ 		 VERSION,PROTOCOL_VERSION);
+ 	  exit(0);
+ 
+ 	case OPT_SUFFIX:
+ 	  backup_suffix = optarg;
+-	  exit(0);
++	  break;
++
++	case OPT_RSYNC_PATH:
++	  rsync_path = optarg;
++	  break;
+ 
+ 	case 'I':
+ 	  ignore_times = 1;
+ 	  break;
+ 
+ 	case 'x':
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/Makefile.in	1996-06-20 14:52:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/Makefile.in	1996-06-21 20:18:19.000000000 +0800
+@@ -25,14 +25,14 @@
+ .c.o:
+ 	$(CC) $(CFLAGS) -c $*.c -o $*.o
+ 
+ all: rsync
+ 
+ install: all
+-	${INSTALLCMD} -s -o root -m 755 rsync ${INSTALL_BIN}
+-	${INSTALLCMD} -o root -m 644 rsync.1 ${INSTALL_MAN}/man1
++	${INSTALLCMD} -m 755 rsync ${INSTALL_BIN}
++	${INSTALLCMD} -m 644 rsync.1 ${INSTALL_MAN}/man1
+ 
+ rsync: $(OBJS) 
+ 	$(CC) $(CFLAGS) -o rsync $(OBJS) $(LIBS)
+ 
+ proto:
+ 	cat *.c | awk -f mkproto.awk > proto.h
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/rsync.1	1996-06-20 20:54:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/rsync.1	1996-06-21 20:18:20.000000000 +0800
+@@ -219,12 +219,18 @@
+ ssh because of its high security and compression.
+ 
+ You can also choose the remote shell program using the RSYNC_RSH
+ environment variable.
+ .RE
+ 
++.B -e, --rsync-path PATH
++.RS 3
++Use this to specify the path to the copy of rsync on the remote
++machine. Useful when its not in your path.
++.RE
++
+ .B --exclude FILE
+ .RS 3
+ This option allows you to selectively exclude certain files from the
+ list of files to be transferred. This is most useful in combination
+ with a recursive transfer.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/version.h	1996-06-20 20:42:27.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.9/version.h	1996-06-21 20:18:20.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "0.8"
++#define VERSION "0.9"

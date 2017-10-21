@@ -1,0 +1,1 @@
+fprintf(f,"-o, --owner              preserve owner (root only)\n");

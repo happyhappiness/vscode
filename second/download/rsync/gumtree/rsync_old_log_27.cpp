@@ -1,0 +1,1 @@
+fprintf(stderr,"%s -> %s\n",fname,flist->files[i].link);

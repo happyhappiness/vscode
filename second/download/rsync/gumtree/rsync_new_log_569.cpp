@@ -1,0 +1,1 @@
+rprintf(FINFO,"deleting %s\n",f_name(f));

@@ -1,0 +1,834 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/clientserver.c	1998-05-27 21:54:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/clientserver.c	1998-05-30 10:08:30.000000000 +0800
+@@ -359,12 +359,17 @@
+ 
+ 
+ int daemon_main(void)
+ {
+ 	extern char *config_file;
+ 
++	/* this ensures that we don't call getcwd after the chroot,
++           which doesn't work on platforms that use popen("pwd","r")
++           for getcwd */
++	push_dir("/", 0);
++
+ 	if (is_a_socket(STDIN_FILENO)) {
+ 		/* we are running via inetd */
+ 		return start_daemon(STDIN_FILENO);
+ 	}
+ 
+ 	become_daemon();
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/cvs.log	1998-05-29 10:29:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/cvs.log	1998-05-30 10:10:38.000000000 +0800
+@@ -5231,6 +5231,97 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.0.14
+ 
++
++****************************************
++Date:	Saturday May 30, 1998 @ 0:36
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv15383
++
++Modified Files:
++	clientserver.c flist.c main.c options.c proto.h rsync.yo 
++	util.c 
++Log Message:
++replaced chdir and getcwd calls with push_dir/pop_dir functions. These
++are faster and don't cause problems in a chrooted environment on any
++systems.
++
++
++
++****************************************
++Date:	Saturday May 30, 1998 @ 12:02
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv13286
++
++Modified Files:
++	io.c 
++Log Message:
++make sure that io_flush() doesn't call writefd_unbuffered from within
++a writefd_unbuffered call!
++
++this should fix the "decompressor lost sync" bug
++
++
++
++****************************************
++Date:	Saturday May 30, 1998 @ 12:03
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv11851
++
++Modified Files:
++	rsync.c 
++Log Message:
++cosmetic fix.
++
++reset offset to 0 at the start of each loop so the filenames get
++printed correctly when sending directories followed by local names.
++
++
++
++****************************************
++Date:	Saturday May 30, 1998 @ 12:07
++Author:	tridge
++
++Update of /data/cvs/rsync/zlib
++In directory samba:/tmp/cvs-serv25515
++
++Modified Files:
++	infblock.c inflate.c infutil.h 
++Log Message:
++replace BAD with zBAD so it compiles on AIX
++
++
++
++****************************************
++Date:	Saturday May 30, 1998 @ 12:10
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.15
++
++
++****************************************
++Date:	Saturday May 30, 1998 @ 12:10
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.0.15
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/flist.c	1998-05-29 10:29:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/flist.c	1998-05-30 10:08:30.000000000 +0800
+@@ -87,55 +87,12 @@
+ 
+ 
+ static void send_directory(int f,struct file_list *flist,char *dir);
+ 
+ static char *flist_dir;
+ 
+-static void clean_fname(char *name)
+-{
+-  char *p;
+-  int l;
+-  int modified = 1;
+-
+-  if (!name) return;
+-
+-  while (modified) {
+-    modified = 0;
+-
+-    if ((p=strstr(name,"/./"))) {
+-      modified = 1;
+-      while (*p) {
+-	p[0] = p[2];
+-	p++;
+-      }
+-    }
+-
+-    if ((p=strstr(name,"//"))) {
+-      modified = 1;
+-      while (*p) {
+-	p[0] = p[1];
+-	p++;
+-      }
+-    }
+-
+-    if (strncmp(p=name,"./",2) == 0) {      
+-      modified = 1;
+-      do {
+-	p[0] = p[2];
+-      } while (*p++);
+-    }
+-
+-    l = strlen(p=name);
+-    if (l > 1 && p[l-1] == '/') {
+-      modified = 1;
+-      p[l-1] = 0;
+-    }
+-  }
+-}
+-
+-
+ 
+ void send_file_entry(struct file_struct *file,int f,unsigned base_flags)
+ {
+   unsigned char flags;
+   static time_t last_time;
+   static mode_t last_mode;
+@@ -563,13 +520,12 @@
+ 
+ struct file_list *send_file_list(int f,int argc,char *argv[])
+ {
+ 	int i,l;
+ 	STRUCT_STAT st;
+ 	char *p,*dir;
+-	char dbuf[MAXPATHLEN];
+ 	char lastpath[MAXPATHLEN]="";
+ 	struct file_list *flist;
+ 
+ 	if (verbose && recurse && !am_server && f != -1) {
+ 		rprintf(FINFO,"building file list ... ");
+ 		rflush(FINFO);
+@@ -643,30 +599,29 @@
+ 		}
+ 		
+ 		if (!*fname)
+ 			fname = ".";
+ 		
+ 		if (dir && *dir) {
+-			if (getcwd(dbuf,MAXPATHLEN-1) == NULL) {
+-				rprintf(FERROR,"getwd : %s\n",strerror(errno));
+-				exit_cleanup(1);
+-			}
+-			if (chdir(dir) != 0) {
++			char *olddir = push_dir(dir, 1);
++
++			if (!olddir) {
+ 				io_error=1;
+-				rprintf(FERROR,"chdir %s : %s\n",
++				rprintf(FERROR,"push_dir %s : %s\n",
+ 					dir,strerror(errno));
+ 				continue;
+ 			}
++
+ 			flist_dir = dir;
+ 			if (one_file_system)
+ 				set_filesystem(fname);
+ 			send_file_name(f,flist,fname,recurse,FLAG_DELETE);
+ 			flist_dir = NULL;
+-			if (chdir(dbuf) != 0) {
+-				rprintf(FERROR,"chdir %s : %s\n",
+-					dbuf,strerror(errno));
++			if (pop_dir(olddir) != 0) {
++				rprintf(FERROR,"pop_dir %s : %s\n",
++					dir,strerror(errno));
+ 				exit_cleanup(1);
+ 			}
+ 			continue;
+ 		}
+ 		
+ 		if (one_file_system)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/io.c	1998-05-29 10:29:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/io.c	1998-05-30 10:08:30.000000000 +0800
+@@ -76,12 +76,13 @@
+ 
+ 
+ static char *read_buffer;
+ static char *read_buffer_p;
+ static int read_buffer_len;
+ static int read_buffer_size;
++static int no_flush;
+ 
+ /* read from a socket with IO timeout. return the number of
+    bytes read. If no bytes can be read then exit, never return
+    a number <= 0 */
+ static int read_timeout(int fd, char *buf, int len)
+ {
+@@ -322,12 +323,14 @@
+ 	int total = 0;
+ 	fd_set w_fds, r_fds;
+ 	int fd_count, count;
+ 	struct timeval tv;
+ 	int reading;
+ 
++	no_flush++;
++
+ 	reading = (buffer_f_in != -1 && read_buffer_len < MAX_READ_BUFFER);
+ 
+ 	while (total < len) {
+ 		FD_ZERO(&w_fds);
+ 		FD_ZERO(&r_fds);
+ 		FD_SET(fd,&w_fds);
+@@ -371,12 +374,14 @@
+ 		}
+ 
+ 		if (reading && FD_ISSET(buffer_f_in, &r_fds)) {
+ 			read_check(buffer_f_in);
+ 		}
+ 	}
++
++	no_flush--;
+ }
+ 
+ 
+ static char *io_buffer;
+ static int io_buffer_count;
+ 
+@@ -392,13 +397,13 @@
+ 	io_buffer += 4;
+ }
+ 
+ void io_flush(void)
+ {
+ 	int fd = multiplex_out_fd;
+-	if (!io_buffer_count) return;
++	if (!io_buffer_count || no_flush) return;
+ 
+ 	if (io_multiplexing_out) {
+ 		SIVAL(io_buffer-4, 0, (MPLEX_BASE<<24) + io_buffer_count);
+ 		writefd_unbuffered(fd, io_buffer-4, io_buffer_count+4);
+ 	} else {
+ 		writefd_unbuffered(fd, io_buffer, io_buffer_count);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/main.c	1998-05-27 21:54:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/main.c	1998-05-30 10:08:30.000000000 +0800
+@@ -146,14 +146,14 @@
+ {
+ 	STRUCT_STAT st;
+ 	extern int orig_umask;
+ 
+ 	if (do_stat(name,&st) == 0) {
+ 		if (S_ISDIR(st.st_mode)) {
+-			if (chdir(name) != 0) {
+-				rprintf(FERROR,"chdir %s : %s (1)\n",
++			if (!push_dir(name, 0)) {
++				rprintf(FERROR,"push_dir %s : %s (1)\n",
+ 					name,strerror(errno));
+ 				exit_cleanup(1);
+ 			}
+ 			return NULL;
+ 		}
+ 		if (flist->count > 1) {
+@@ -173,14 +173,15 @@
+ 		rprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));
+ 		exit_cleanup(1);
+ 	} else {
+ 		rprintf(FINFO,"created directory %s\n",name);
+ 	}
+ 
+-	if (chdir(name) != 0) {
+-		rprintf(FERROR,"chdir %s : %s (2)\n",name,strerror(errno));
++	if (!push_dir(name, 0)) {
++		rprintf(FERROR,"push_dir %s : %s (2)\n",
++			name,strerror(errno));
+ 		exit_cleanup(1);
+ 	}
+ 
+ 	return NULL;
+ }
+ 
+@@ -195,14 +196,14 @@
+ 	extern int relative_paths;
+ 	extern int recurse;
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"server_sender starting pid=%d\n",(int)getpid());
+   
+-	if (!relative_paths && chdir(dir) != 0) {
+-		rprintf(FERROR,"chdir %s: %s (3)\n",dir,strerror(errno));
++	if (!relative_paths && !push_dir(dir, 0)) {
++		rprintf(FERROR,"push_dir %s: %s (3)\n",dir,strerror(errno));
+ 		exit_cleanup(1);
+ 	}
+ 	argc--;
+ 	argv++;
+   
+ 	if (strcmp(dir,".")) {
+@@ -286,14 +287,14 @@
+ 		rprintf(FINFO,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
+ 	
+ 	if (argc > 0) {
+ 		dir = argv[0];
+ 		argc--;
+ 		argv++;
+-		if (!am_daemon && chdir(dir) != 0) {
+-			rprintf(FERROR,"chdir %s : %s (4)\n",
++		if (!am_daemon && !push_dir(dir, 0)) {
++			rprintf(FERROR,"push_dir %s : %s (4)\n",
+ 				dir,strerror(errno));
+ 			exit_cleanup(1);
+ 		}    
+ 	}
+ 
+ 	if (delete_mode)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/options.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/options.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/options.c	1998-05-27 21:54:33.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/options.c	1998-05-30 10:08:30.000000000 +0800
+@@ -76,13 +76,13 @@
+ 	  VERSION);
+   rprintf(F,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
+   rprintf(F,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
+   rprintf(F,"Options:\n");
+   rprintf(F,"-v, --verbose            increase verbosity\n");
+   rprintf(F,"-c, --checksum           always checksum\n");
+-  rprintf(F,"-a, --archive            archive mode (same as -rlptDog)\n");
++  rprintf(F,"-a, --archive            archive mode\n");
+   rprintf(F,"-r, --recursive          recurse into directories\n");
+   rprintf(F,"-R, --relative           use relative path names\n");
+   rprintf(F,"-b, --backup             make backups (default ~ extension)\n");
+   rprintf(F,"-u, --update             update only (don't overwrite newer files)\n");
+   rprintf(F,"-l, --links              preserve soft links\n");
+   rprintf(F,"-L, --copy-links         treat soft links like regular files\n");
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/packaging/redhat/5.0/rsync.spec	1998-05-29 10:29:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/packaging/redhat/5.0/rsync.spec	1998-05-30 10:10:13.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.0.14
++Version: 2.0.15
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.14.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.15.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/proto.h	1998-05-29 10:29:13.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/proto.h	1998-05-30 10:08:30.000000000 +0800
+@@ -162,6 +162,9 @@
+ int lock_range(int fd, int offset, int len);
+ void glob_expand(char *base1, char **argv, int *argc, int maxargs);
+ void strlower(char *s);
+ int vslprintf(char *str, int n, const char *format, va_list ap);
+ int slprintf(char *str, int n, char *format, ...);
+ void *Realloc(void *p, int size);
++void clean_fname(char *name);
++char *push_dir(char *dir, int save);
++int pop_dir(char *dir);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/rsync.c	1998-05-29 10:29:13.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/rsync.c	1998-05-30 10:08:31.000000000 +0800
+@@ -959,20 +959,21 @@
+   struct map_struct *buf;
+   STRUCT_STAT st;
+   char fname[MAXPATHLEN];  
+   int i;
+   struct file_struct *file;
+   int phase = 0;
+-  int offset=0;
+ 
+   if (verbose > 2)
+     rprintf(FINFO,"send_files starting\n");
+ 
+   setup_readbuffer(f_in);
+ 
+   while (1) {
++	  int offset=0;
++
+ 	  i = read_int(f_in);
+ 	  if (i == -1) {
+ 		  if (phase==0 && remote_version >= 13) {
+ 			  phase++;
+ 			  csum_length = SUM_LENGTH;
+ 			  write_int(f_out,-1);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/rsync.yo	1998-05-27 21:54:33.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/rsync.yo	1998-05-30 10:08:31.000000000 +0800
+@@ -214,15 +214,18 @@
+ dit(bf(-c, --checksum)) This forces the sender to checksum all files using
+ a 128-bit MD4 checksum before transfer. The checksum is then
+ explicitly checked on the receiver and any files of the same name
+ which already exist and have the same checksum and size on the
+ receiver are skipped.  This option can be quite slow.
+ 
+-dit(bf(-a, --archive)) This is equivalent to -rlptDog. It is a quick way
++dit(bf(-a, --archive)) This is equivalent to -rlptDg. It is a quick way
+ of saying I want recursion and want to preserve everything.
+ 
++Note: if the user launching rsync is root then the -o option (preserve
++uid) is also implied.
++
+ dit(bf(-r, --recursive)) This tells rsync to copy directories recursively
+ 
+ dit(bf(-R, --relative)) Use relative paths. This means that the full path
+ names specified on the command line are sent to the server rather than
+ just the last parts of the filenames. This is particularly useful when
+ you want to sent several different directories at the same time. For
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/util.c	1998-05-29 10:29:13.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/util.c	1998-05-30 10:08:31.000000000 +0800
+@@ -556,6 +556,100 @@
+ 
+ void *Realloc(void *p, int size)
+ {
+ 	if (!p) return (void *)malloc(size);
+ 	return (void *)realloc(p, size);
+ }
++
++
++void clean_fname(char *name)
++{
++	char *p;
++	int l;
++	int modified = 1;
++
++	if (!name) return;
++
++	while (modified) {
++		modified = 0;
++
++		if ((p=strstr(name,"/./"))) {
++			modified = 1;
++			while (*p) {
++				p[0] = p[2];
++				p++;
++			}
++		}
++
++		if ((p=strstr(name,"//"))) {
++			modified = 1;
++			while (*p) {
++				p[0] = p[1];
++				p++;
++			}
++		}
++
++		if (strncmp(p=name,"./",2) == 0) {      
++			modified = 1;
++			do {
++				p[0] = p[2];
++			} while (*p++);
++		}
++
++		l = strlen(p=name);
++		if (l > 1 && p[l-1] == '/') {
++			modified = 1;
++			p[l-1] = 0;
++		}
++	}
++}
++
++
++static char curr_dir[MAXPATHLEN];
++
++/* like chdir() but can be reversed with pop_dir() if save is set. It
++   is also much faster as it remembers where we have been */
++char *push_dir(char *dir, int save)
++{
++	char *ret = curr_dir;
++	static int initialised;
++
++	if (!initialised) {
++		initialised = 1;
++		getcwd(curr_dir, sizeof(curr_dir)-1);
++	}
++
++	if (chdir(dir)) return NULL;
++
++	if (save) {
++		ret = strdup(curr_dir);
++	}
++
++	if (*dir == '/') {
++		strlcpy(curr_dir, dir, sizeof(curr_dir)-1);
++	} else {
++		strlcat(curr_dir,"/", sizeof(curr_dir)-1);
++		strlcat(curr_dir,dir, sizeof(curr_dir)-1);
++	}
++
++	clean_fname(curr_dir);
++
++	return ret;
++}
++
++/* reverse a push_dir call */
++int pop_dir(char *dir)
++{
++	int ret;
++
++	ret = chdir(dir);
++	if (ret) {
++		free(dir);
++		return ret;
++	}
++
++	strlcpy(curr_dir, dir, sizeof(curr_dir)-1);
++
++	free(dir);
++
++	return 0;
++}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/version.h	1998-05-29 10:29:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/version.h	1998-05-30 10:10:11.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.14"
++#define VERSION "2.0.15"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/zlib/infblock.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/zlib/infblock.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/zlib/infblock.c	1998-05-07 14:19:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/zlib/infblock.c	1998-05-30 10:08:32.000000000 +0800
+@@ -173,23 +173,23 @@
+                  s->last ? " (last)" : ""));
+           DUMPBITS(3)
+           s->mode = TABLE;
+           break;
+         case 3:                         /* illegal */
+           DUMPBITS(3)
+-          s->mode = BAD;
++          s->mode = zBAD;
+           z->msg = (char*)"invalid block type";
+           r = Z_DATA_ERROR;
+           LEAVE
+       }
+       break;
+     case LENS:
+       NEEDBITS(32)
+       if ((((~b) >> 16) & 0xffff) != (b & 0xffff))
+       {
+-        s->mode = BAD;
++        s->mode = zBAD;
+         z->msg = (char*)"invalid stored block lengths";
+         r = Z_DATA_ERROR;
+         LEAVE
+       }
+       s->sub.left = (uInt)b & 0xffff;
+       b = k = 0;                      /* dump bits */
+@@ -216,13 +216,13 @@
+     case TABLE:
+       NEEDBITS(14)
+       s->sub.trees.table = t = (uInt)b & 0x3fff;
+ #ifndef PKZIP_BUG_WORKAROUND
+       if ((t & 0x1f) > 29 || ((t >> 5) & 0x1f) > 29)
+       {
+-        s->mode = BAD;
++        s->mode = zBAD;
+         z->msg = (char*)"too many length or distance symbols";
+         r = Z_DATA_ERROR;
+         LEAVE
+       }
+ #endif
+       t = 258 + (t & 0x1f) + ((t >> 5) & 0x1f);
+@@ -249,13 +249,13 @@
+                              &s->sub.trees.tb, s->hufts, z);
+       if (t != Z_OK)
+       {
+         ZFREE(z, s->sub.trees.blens);
+         r = t;
+         if (r == Z_DATA_ERROR)
+-          s->mode = BAD;
++          s->mode = zBAD;
+         LEAVE
+       }
+       s->sub.trees.index = 0;
+       Tracev((stderr, "inflate:       bits tree ok\n"));
+       s->mode = DTREE;
+     case DTREE:
+@@ -286,13 +286,13 @@
+           i = s->sub.trees.index;
+           t = s->sub.trees.table;
+           if (i + j > 258 + (t & 0x1f) + ((t >> 5) & 0x1f) ||
+               (c == 16 && i < 1))
+           {
+             ZFREE(z, s->sub.trees.blens);
+-            s->mode = BAD;
++            s->mode = zBAD;
+             z->msg = (char*)"invalid bit length repeat";
+             r = Z_DATA_ERROR;
+             LEAVE
+           }
+           c = c == 16 ? s->sub.trees.blens[i - 1] : 0;
+           do {
+@@ -314,13 +314,13 @@
+                                   s->sub.trees.blens, &bl, &bd, &tl, &td,
+                                   s->hufts, z);
+         ZFREE(z, s->sub.trees.blens);
+         if (t != Z_OK)
+         {
+           if (t == (uInt)Z_DATA_ERROR)
+-            s->mode = BAD;
++            s->mode = zBAD;
+           r = t;
+           LEAVE
+         }
+         Tracev((stderr, "inflate:       trees ok\n"));
+         if ((c = inflate_codes_new(bl, bd, tl, td, z)) == Z_NULL)
+         {
+@@ -358,13 +358,13 @@
+       if (s->read != s->write)
+         LEAVE
+       s->mode = DONE;
+     case DONE:
+       r = Z_STREAM_END;
+       LEAVE
+-    case BAD:
++    case zBAD:
+       r = Z_DATA_ERROR;
+       LEAVE
+     default:
+       r = Z_STREAM_ERROR;
+       LEAVE
+   }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/zlib/inflate.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/zlib/inflate.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/zlib/inflate.c	1998-05-07 14:19:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/zlib/inflate.c	1998-05-30 10:08:32.000000000 +0800
+@@ -19,13 +19,13 @@
+       BLOCKS,   /* decompressing blocks */
+       CHECK4,   /* four check bytes to go */
+       CHECK3,   /* three check bytes to go */
+       CHECK2,   /* two check bytes to go */
+       CHECK1,   /* one check byte to go */
+       DONE,     /* finished check, done */
+-      BAD}      /* got an error--stay here */
++      zBAD}      /* got an error--stay here */
+ inflate_mode;
+ 
+ /* inflate private state */
+ struct internal_state {
+ 
+   /* mode */
+@@ -35,13 +35,13 @@
+   union {
+     uInt method;        /* if FLAGS, method byte */
+     struct {
+       uLong was;                /* computed check value */
+       uLong need;               /* stream check value */
+     } check;            /* if CHECK, check values to compare */
+-    uInt marker;        /* if BAD, inflateSync's marker bytes count */
++    uInt marker;        /* if zBAD, inflateSync's marker bytes count */
+   } sub;        /* submode */
+ 
+   /* mode independent information */
+   int  nowrap;          /* flag for no wrapper */
+   uInt wbits;           /* log2(window size)  (8..15, defaults to 15) */
+   inflate_blocks_statef 
+@@ -161,31 +161,31 @@
+   while (1) switch (z->state->mode)
+   {
+     case METHOD:
+       NEEDBYTE
+       if (((z->state->sub.method = NEXTBYTE) & 0xf) != Z_DEFLATED)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = zBAD;
+         z->msg = (char*)"unknown compression method";
+         z->state->sub.marker = 5;       /* can't try inflateSync */
+         break;
+       }
+       if ((z->state->sub.method >> 4) + 8 > z->state->wbits)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = zBAD;
+         z->msg = (char*)"invalid window size";
+         z->state->sub.marker = 5;       /* can't try inflateSync */
+         break;
+       }
+       z->state->mode = FLAG;
+     case FLAG:
+       NEEDBYTE
+       b = NEXTBYTE;
+       if (((z->state->sub.method << 8) + b) % 31)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = zBAD;
+         z->msg = (char*)"incorrect header check";
+         z->state->sub.marker = 5;       /* can't try inflateSync */
+         break;
+       }
+       Tracev((stderr, "inflate: zlib header ok\n"));
+       if (!(b & PRESET_DICT))
+@@ -210,21 +210,21 @@
+       NEEDBYTE
+       z->state->sub.check.need += (uLong)NEXTBYTE;
+       z->adler = z->state->sub.check.need;
+       z->state->mode = DICT0;
+       return Z_NEED_DICT;
+     case DICT0:
+-      z->state->mode = BAD;
++      z->state->mode = zBAD;
+       z->msg = (char*)"need dictionary";
+       z->state->sub.marker = 0;       /* can try inflateSync */
+       return Z_STREAM_ERROR;
+     case BLOCKS:
+       r = inflate_blocks(z->state->blocks, z, r);
+       if (r == Z_DATA_ERROR)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = zBAD;
+         z->state->sub.marker = 0;       /* can try inflateSync */
+         break;
+       }
+       if (r == Z_OK)
+         r = f;
+       if (r != Z_STREAM_END)
+@@ -252,22 +252,22 @@
+     case CHECK1:
+       NEEDBYTE
+       z->state->sub.check.need += (uLong)NEXTBYTE;
+ 
+       if (z->state->sub.check.was != z->state->sub.check.need)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = zBAD;
+         z->msg = (char*)"incorrect data check";
+         z->state->sub.marker = 5;       /* can't try inflateSync */
+         break;
+       }
+       Tracev((stderr, "inflate: zlib check ok\n"));
+       z->state->mode = DONE;
+     case DONE:
+       return Z_STREAM_END;
+-    case BAD:
++    case zBAD:
+       return Z_DATA_ERROR;
+     default:
+       return Z_STREAM_ERROR;
+   }
+ #ifdef NEED_DUMMY_RETURN
+   return Z_STREAM_ERROR;  /* Some dumb compilers complain without this */
+@@ -307,15 +307,15 @@
+   uInt m;       /* number of marker bytes found in a row */
+   uLong r, w;   /* temporaries to save total_in and total_out */
+ 
+   /* set up */
+   if (z == Z_NULL || z->state == Z_NULL)
+     return Z_STREAM_ERROR;
+-  if (z->state->mode != BAD)
++  if (z->state->mode != zBAD)
+   {
+-    z->state->mode = BAD;
++    z->state->mode = zBAD;
+     z->state->sub.marker = 0;
+   }
+   if ((n = z->avail_in) == 0)
+     return Z_BUF_ERROR;
+   p = z->next_in;
+   m = z->state->sub.marker;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/zlib/infutil.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/zlib/infutil.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/zlib/infutil.h	1998-05-22 21:45:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.15/zlib/infutil.h	1998-05-30 10:08:32.000000000 +0800
+@@ -18,13 +18,13 @@
+       TABLE,    /* get table lengths */
+       BTREE,    /* get bit lengths tree for a dynamic block */
+       DTREE,    /* get length, distance trees for a dynamic block */
+       CODES,    /* processing fixed or dynamic block */
+       DRY,      /* output remaining window bytes */
+       DONE,     /* finished last block, done */
+-      BAD}      /* got a data error--stuck here */
++      zBAD}      /* got a data error--stuck here */
+ inflate_block_mode;
+ 
+ /* inflate blocks semi-private state */
+ struct inflate_blocks_state {
+ 
+   /* mode */

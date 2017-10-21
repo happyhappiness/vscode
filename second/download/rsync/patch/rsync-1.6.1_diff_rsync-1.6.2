@@ -1,0 +1,211 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/lib/zlib.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/lib/zlib.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/lib/zlib.c	1996-10-01 14:05:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/lib/zlib.c	1996-10-02 13:44:04.000000000 +0800
+@@ -4,17 +4,16 @@
+  * by Paul Mackerras to aid in implementing Deflate compression and
+  * decompression for PPP packets.  See zlib.h for conditions of
+  * distribution and use.
+  *
+  * Changes that have been made include:
+  * - changed functions not used outside this file to "local"
+- * - added minCompression parameter to deflateInit2
+  * - added Z_PACKET_FLUSH (see zlib.h for details)
+  * - added inflateIncomp
+  *
+- * $Id: zlib.c,v 1.2 1996/07/03 05:23:00 tridge Exp $
++ * $Id: zlib.c,v 1.4 1996/10/02 04:20:22 paulus Exp $
+  */
+ 
+ 
+ /*+++++*/
+ /* zutil.h -- internal interface and configuration of the compression library
+  * Copyright (C) 1995 Jean-loup Gailly.
+@@ -208,13 +207,12 @@
+     Bytef *pending_out;  /* next pending byte to output to the stream */
+     int   pending;       /* nb of bytes in the pending buffer */
+     uLong adler;         /* adler32 of uncompressed data */
+     int   noheader;      /* suppress zlib header and adler32 */
+     Byte  data_type;     /* UNKNOWN, BINARY or ASCII */
+     Byte  method;        /* STORED (for zip only) or DEFLATED */
+-    int	  minCompr;	 /* min size decrease for Z_FLUSH_NOSTORE */
+ 
+                 /* used by deflate.c: */
+ 
+     uInt  w_size;        /* LZ77 window size (32K by default) */
+     uInt  w_bits;        /* log2(w_size)  (8..16) */
+     uInt  w_mask;        /* w_size - 1 */
+@@ -565,27 +563,24 @@
+ 
+ /* ========================================================================= */
+ int deflateInit (strm, level)
+     z_stream *strm;
+     int level;
+ {
+-    return deflateInit2 (strm, level, DEFLATED, MAX_WBITS, DEF_MEM_LEVEL,
+-			 0, 0);
++    return deflateInit2 (strm, level, DEFLATED, MAX_WBITS, DEF_MEM_LEVEL, 0);
+     /* To do: ignore strm->next_in if we use it as window */
+ }
+ 
+ /* ========================================================================= */
+-int deflateInit2 (strm, level, method, windowBits, memLevel,
+-		  strategy, minCompression)
++int deflateInit2 (strm, level, method, windowBits, memLevel, strategy)
+     z_stream *strm;
+     int  level;
+     int  method;
+     int  windowBits;
+     int  memLevel;
+     int  strategy;
+-    int  minCompression;
+ {
+     deflate_state *s;
+     int noheader = 0;
+ 
+     if (strm == Z_NULL) return Z_STREAM_ERROR;
+ 
+@@ -639,13 +634,12 @@
+      * is 15+15+13=33).
+      */
+ 
+     s->level = level;
+     s->strategy = strategy;
+     s->method = (Byte)method;
+-    s->minCompr = minCompression;
+     s->blocks_in_packet = 0;
+ 
+     return deflateReset(strm);
+ }
+ 
+ /* ========================================================================= */
+@@ -2334,23 +2328,12 @@
+         copy_block(buf, (unsigned)stored_len, 0); /* without header */
+         s->compressed_len = stored_len << 3;
+         s->method = STORED;
+     } else
+ #endif /* STORED_FILE_OK */
+ 
+-    /* For Z_PACKET_FLUSH, if we don't achieve the required minimum
+-     * compression, and this block contains all the data since the last
+-     * time we used Z_PACKET_FLUSH, then just omit this block completely
+-     * from the output.
+-     */
+-    if (flush == Z_PACKET_FLUSH && s->blocks_in_packet == 1
+-	&& opt_lenb > stored_len - s->minCompr) {
+-	s->blocks_in_packet = 0;
+-	/* output nothing */
+-    } else
+-
+ #ifdef FORCE_STORED
+     if (buf != (char*)0) /* force stored block */
+ #else
+     if (stored_len+4 <= opt_lenb && buf != (char*)0)
+                        /* 4: two words for the lengths */
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/lib/zlib.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/lib/zlib.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/lib/zlib.h	1996-07-03 13:05:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/lib/zlib.h	1996-10-02 13:44:04.000000000 +0800
+@@ -1,7 +1,7 @@
+-/*	$Id: zlib.h,v 1.1 1996/07/03 04:05:49 paulus Exp $	*/
++/*	$Id: zlib.h,v 1.2 1996/10/02 04:20:23 paulus Exp $	*/
+ 
+ /*
+  * This file is derived from zlib.h and zconf.h from the zlib-0.95
+  * distribution by Jean-loup Gailly and Mark Adler, with some additions
+  * by Paul Mackerras to aid in implementing Deflate compression and
+  * decompression for PPP packets.
+@@ -441,14 +441,13 @@
+ 
+ extern int deflateInit2 OF((z_stream *strm,
+                             int  level,
+                             int  method,
+                             int  windowBits,
+                             int  memLevel,
+-                            int  strategy,
+-			    int  minCompression));
++                            int  strategy));
+ /*   
+      This is another version of deflateInit with more compression options. The
+    fields next_in, zalloc and zfree must be initialized before by the caller.
+ 
+      The method parameter is the compression method. It must be 8 in this
+    version of the library. (Method 9 will allow a 64K history buffer and
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/README	1996-10-01 12:29:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/README	1996-10-01 15:30:20.000000000 +0800
+@@ -92,6 +92,10 @@
+ 
+ 
+ AVAILABILITY
+ ------------
+ 
+ The main ftp site for rsync is ftp://samba.anu.edu.au/pub/rsync
++
++A european mirror of this directory is available at
++ftp://sunsite.auc.dk/pub/unix/rsync
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/rsync.h	1996-10-01 14:07:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/rsync.h	1996-10-01 20:05:58.000000000 +0800
+@@ -17,18 +17,12 @@
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
+ #define BLOCK_SIZE 700
+ #define RSYNC_RSH_ENV "RSYNC_RSH"
+ 
+-#if HAVE_REMSH
+-#define RSYNC_RSH "remsh"
+-#else
+-#define RSYNC_RSH "rsh"
+-#endif
+-
+ #define RSYNC_NAME "rsync"
+ #define BACKUP_SUFFIX "~"
+ 
+ /* a non-zero CHAR_OFFSET makes the rolling sum stronger, but is
+    imcompatible with older versions :-( */
+ #define CHAR_OFFSET 0
+@@ -58,12 +52,18 @@
+ 
+ #define FERROR stderr
+ #define FINFO (am_server?stderr:stdout)
+ 
+ #include "config.h"
+ 
++#if HAVE_REMSH
++#define RSYNC_RSH "remsh"
++#else
++#define RSYNC_RSH "rsh"
++#endif
++
+ #include <sys/types.h>
+ #ifdef HAVE_UNISTD_H
+ #include <unistd.h>
+ #endif
+ #include <stdio.h>
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/token.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/token.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/token.c	1996-07-16 21:08:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/token.c	1996-10-02 13:44:03.000000000 +0800
+@@ -113,13 +113,13 @@
+ 	/* initialization */
+ 	if (!init_done) {
+ 	    tx_strm.next_in = NULL;
+ 	    tx_strm.zalloc = z_alloc;
+ 	    tx_strm.zfree = z_free;
+ 	    if (deflateInit2(&tx_strm, Z_DEFAULT_COMPRESSION, 8,
+-			     -15, 8, Z_DEFAULT_STRATEGY, -4) != Z_OK) {
++			     -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+ 		fprintf(FERROR, "compression init failed\n");
+ 		exit_cleanup(1);
+ 	    }
+ 	    if ((obuf = malloc(MAX_DATA_COUNT+2)) == NULL)
+ 		out_of_memory("send_deflated_token");
+ 	    init_done = 1;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/version.h	1996-10-01 14:36:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/version.h	1996-10-02 14:34:05.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.6.1"
++#define VERSION "1.6.2"

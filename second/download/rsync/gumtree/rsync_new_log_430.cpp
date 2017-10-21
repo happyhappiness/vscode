@@ -1,0 +1,1 @@
+rprintf(FERROR,"getwd : %s\n",strerror(errno));

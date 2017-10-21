@@ -1,0 +1,12 @@
+
+	if (!lp_load(config_file, 0)) {
+		exit_cleanup(1);
+	}
+
+	set_socket_options(fd,"SO_KEEPALIVE");
+
+	io_printf(fd,"@RSYNCD: %d\n", PROTOCOL_VERSION);
+
+	motd = lp_motd_file();
+	if (*motd) {
+		FILE *f = fopen(motd,"r");

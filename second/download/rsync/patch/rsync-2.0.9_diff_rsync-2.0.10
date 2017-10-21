@@ -1,0 +1,217 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/cvs.log	1998-05-18 18:31:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/cvs.log	1998-05-18 22:30:31.000000000 +0800
+@@ -4457,6 +4457,61 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.0.9
+ 
++
++****************************************
++Date:	Tuesday May 19, 1998 @ 0:00
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv8468
++
++Modified Files:
++	main.c util.c 
++Log Message:
++fixed a bug in the glob expansion code (pointed out by
++hazard.bsn@blkseanet.net.eu.org)
++
++
++
++****************************************
++Date:	Tuesday May 19, 1998 @ 0:11
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv20349
++
++Modified Files:
++	flist.c 
++Log Message:
++strip any leading / off absolute paths when using relative path names
++
++
++
++****************************************
++Date:	Tuesday May 19, 1998 @ 0:30
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.10
++
++
++****************************************
++Date:	Tuesday May 19, 1998 @ 0:30
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.0.10
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/flist.c	1998-05-15 22:10:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/flist.c	1998-05-18 22:30:20.000000000 +0800
+@@ -259,12 +259,18 @@
+ 
+   strlcpy(lastname,thisname,MAXPATHLEN-1);
+   lastname[MAXPATHLEN-1] = 0;
+ 
+   clean_fname(thisname);
+ 
++  if (relative_paths && thisname[0] == '/') {
++	  /* strip / off absolute paths in destination */
++	  memmove(thisname, thisname+1, strlen(thisname));
++	  if (!thisname[0]) strcpy(thisname,".");
++  }
++
+   if ((p = strrchr(thisname,'/'))) {
+ 	  static char *lastdir;
+ 	  *p = 0;
+ 	  if (lastdir && strcmp(thisname, lastdir)==0) {
+ 		  file->dirname = lastdir;
+ 	  } else {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/main.c	1998-05-18 18:30:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/main.c	1998-05-18 22:30:20.000000000 +0800
+@@ -40,12 +40,14 @@
+ 		       (double)total_size);
+ 		if (f == -1 || !am_sender) return;
+ 	}
+ 
+ 	if (!verbose) return;
+ 
++	if (am_server && !am_sender) return;
++
+ 	if (am_server && am_sender) {
+ 		write_longint(f,read_total());
+ 		write_longint(f,write_total());
+ 		write_longint(f,total_size);
+ 		write_flush(f);
+ 		return;
+@@ -232,13 +234,12 @@
+ static int do_recv(int f_in,int f_out,struct file_list *flist,char *local_name)
+ {
+ 	int pid;
+ 	int status=0;
+ 	int recv_pipe[2];
+ 	extern int preserve_hard_links;
+-	extern int am_server;
+ 
+ 	if (preserve_hard_links)
+ 		init_hard_links(flist);
+ 
+ 	if (pipe(recv_pipe) < 0) {
+ 		rprintf(FERROR,"pipe failed in do_recv\n");
+@@ -249,14 +250,13 @@
+ 
+ 	if ((pid=do_fork()) == 0) {
+ 		close(recv_pipe[0]);
+ 		if (f_in != f_out) close(f_out);
+ 
+ 		recv_files(f_in,flist,local_name,recv_pipe[1]);
+-		if (!am_server)
+-			report(f_in);
++		report(f_in);
+ 
+ 		if (verbose > 3)
+ 			rprintf(FINFO,"do_recv waiting on %d\n",pid);
+ 
+ 		io_flush();
+ 		_exit(0);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/packaging/redhat/5.0/rsync.spec	1998-05-18 18:30:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/packaging/redhat/5.0/rsync.spec	1998-05-18 22:30:22.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.0.9
++Version: 2.0.10
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.9.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.10.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/util.c	1998-05-18 18:30:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/util.c	1998-05-18 22:30:21.000000000 +0800
+@@ -555,41 +555,44 @@
+ 	}
+ 	globfree(&globbuf);
+ 	(*argc) += i;
+ #endif
+ }
+ 
+-void glob_expand(char *base, char **argv, int *argc, int maxargs)
++void glob_expand(char *base1, char **argv, int *argc, int maxargs)
+ {
+ 	char *s = argv[*argc];
+ 	char *p, *q;
++	char *base = base1;
+ 
+ 	if (!s || !*s) return;
+ 
+ 	if (strncmp(s, base, strlen(base)) == 0) {
+ 		s += strlen(base);
+ 	}
+ 
+ 	s = strdup(s);
+ 	if (!s) out_of_memory("glob_expand");
+ 
++	base = (char *)malloc(strlen(base1)+3);
++	if (!base) out_of_memory("glob_expand");
++
++	sprintf(base," %s/", base1);
++
+ 	q = s;
+ 	while ((p = strstr(q,base)) && ((*argc) < maxargs)) {
+-		if (p != q && *(p-1) == ' ' && p[strlen(base)] == '/') {
+-			/* split it at this point */
+-			*(p-1) = 0;
+-			glob_expand_one(q, argv, argc, maxargs);
+-			q = p+strlen(base)+1;
+-		} else {
+-			q++;
+-		}
++		/* split it at this point */
++		*p = 0;
++		glob_expand_one(q, argv, argc, maxargs);
++		q = p+strlen(base);
+ 	}
+ 
+ 	if (*q && (*argc < maxargs)) glob_expand_one(q, argv, argc, maxargs);
+ 
+ 	free(s);
++	free(base);
+ }
+ 
+ /*******************************************************************
+   convert a string to lower case
+ ********************************************************************/
+ void strlower(char *s)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.9/version.h	1998-05-18 18:30:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/version.h	1998-05-18 22:30:22.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.9"
++#define VERSION "2.0.10"

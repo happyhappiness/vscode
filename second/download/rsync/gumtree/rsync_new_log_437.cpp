@@ -1,0 +1,1 @@
+rprintf(FINFO,"received %d names\n",flist->count);

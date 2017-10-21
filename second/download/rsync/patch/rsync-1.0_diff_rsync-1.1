@@ -1,0 +1,973 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/config.h.in	1996-06-22 13:32:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/config.h.in	1996-06-25 15:25:34.000000000 +0800
+@@ -29,12 +29,14 @@
+ #undef HAVE_SYS_DIR_H
+ #undef HAVE_SYS_TIME_H
+ #undef HAVE_SYS_TIMES_H
+ #undef HAVE_UNISTD_H
+ #undef HAVE_GRP_H
+ #undef HAVE_CTYPE_H
++#undef HAVE_SYS_FILIO_H
++#undef HAVE_SYS_IOCTL_H
+ #undef HAVE_UTIME_H
+ 
+ /* specific functions */
+ #undef HAVE_FCHMOD
+ #undef HAVE_CHMOD
+ #undef HAVE_MKNOD
+@@ -48,12 +50,20 @@
+ #undef HAVE_BZERO
+ #undef HAVE_READLINK
+ #undef HAVE_UTIME
+ #undef HAVE_UTIMES
+ #undef HAVE_GETOPT_LONG
+ #undef HAVE_FNMATCH
++#undef HAVE_MEMMOVE
++
++
++
++#ifndef HAVE_MEMMOVE
++#define memmove(d,s,n) bcopy(s,d,n)
++#endif
++
+ 
+ /* for signal declarations */
+ #undef RETSIGTYPE
+ 
+ /* needed for mknod */
+ #undef HAVE_ST_RDEV
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/configure	1996-06-21 12:39:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/configure	1996-06-25 21:39:12.000000000 +0800
+@@ -1121,13 +1121,13 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+-for ac_hdr in compat.h sys/param.h ctype.h sys/wait.h
++for ac_hdr in compat.h sys/param.h ctype.h sys/wait.h sys/ioctl.h
+ do
+ ac_safe=`echo "$ac_hdr" | tr './\055' '___'`
+ echo $ac_n "checking for $ac_hdr""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_header_$ac_safe'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+@@ -1158,33 +1158,70 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
++for ac_hdr in sys/filio.h
++do
++ac_safe=`echo "$ac_hdr" | tr './\055' '___'`
++echo $ac_n "checking for $ac_hdr""... $ac_c" 1>&6
++if eval "test \"`echo '$''{'ac_cv_header_$ac_safe'+set}'`\" = set"; then
++  echo $ac_n "(cached) $ac_c" 1>&6
++else
++  cat > conftest.$ac_ext <<EOF
++#line 1173 "configure"
++#include "confdefs.h"
++#include <$ac_hdr>
++EOF
++ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
++{ (eval echo configure:1178: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++ac_err=`grep -v '^ *+' conftest.out`
++if test -z "$ac_err"; then
++  rm -rf conftest*
++  eval "ac_cv_header_$ac_safe=yes"
++else
++  echo "$ac_err" >&5
++  rm -rf conftest*
++  eval "ac_cv_header_$ac_safe=no"
++fi
++rm -f conftest*
++fi
++if eval "test \"`echo '$ac_cv_header_'$ac_safe`\" = yes"; then
++  echo "$ac_t""yes" 1>&6
++    ac_tr_hdr=HAVE_`echo $ac_hdr | tr 'abcdefghijklmnopqrstuvwxyz./\055' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ___'`
++  cat >> confdefs.h <<EOF
++#define $ac_tr_hdr 1
++EOF
++ 
++else
++  echo "$ac_t""no" 1>&6
++fi
++done
++
+ 
+ echo $ac_n "checking size of int""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_sizeof_int'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+ cat > conftest.$ac_ext <<EOF
+-#line 1174 "configure"
++#line 1211 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ main()
+ {
+   FILE *f=fopen("conftestval", "w");
+   if (!f) exit(1);
+   fprintf(f, "%d\n", sizeof(int));
+   exit(0);
+ }
+ EOF
+-{ (eval echo configure:1185: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++{ (eval echo configure:1222: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
+ if test -s conftest && (./conftest; exit) 2>/dev/null; then
+   ac_cv_sizeof_int=`cat conftestval`
+ else
+   ac_cv_sizeof_int=0
+ fi
+ fi
+@@ -1201,24 +1238,24 @@
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+ cat > conftest.$ac_ext <<EOF
+-#line 1208 "configure"
++#line 1245 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ main()
+ {
+   FILE *f=fopen("conftestval", "w");
+   if (!f) exit(1);
+   fprintf(f, "%d\n", sizeof(long));
+   exit(0);
+ }
+ EOF
+-{ (eval echo configure:1219: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++{ (eval echo configure:1256: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
+ if test -s conftest && (./conftest; exit) 2>/dev/null; then
+   ac_cv_sizeof_long=`cat conftestval`
+ else
+   ac_cv_sizeof_long=0
+ fi
+ fi
+@@ -1235,24 +1272,24 @@
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+ cat > conftest.$ac_ext <<EOF
+-#line 1242 "configure"
++#line 1279 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ main()
+ {
+   FILE *f=fopen("conftestval", "w");
+   if (!f) exit(1);
+   fprintf(f, "%d\n", sizeof(short));
+   exit(0);
+ }
+ EOF
+-{ (eval echo configure:1253: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++{ (eval echo configure:1290: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
+ if test -s conftest && (./conftest; exit) 2>/dev/null; then
+   ac_cv_sizeof_short=`cat conftestval`
+ else
+   ac_cv_sizeof_short=0
+ fi
+ fi
+@@ -1269,21 +1306,21 @@
+ if eval "test \"`echo '$''{'ac_cv_c_inline'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_cv_c_inline=no
+ for ac_kw in inline __inline__ __inline; do
+   cat > conftest.$ac_ext <<EOF
+-#line 1276 "configure"
++#line 1313 "configure"
+ #include "confdefs.h"
+ 
+ int main() { return 0; }
+ int t() {
+ } $ac_kw foo() {
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1284: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1321: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   ac_cv_c_inline=$ac_kw; break
+ fi
+ rm -f conftest*
+ 
+ done
+@@ -1306,13 +1343,13 @@
+ 
+ echo $ac_n "checking return type of signal handlers""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_type_signal'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1313 "configure"
++#line 1350 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <signal.h>
+ #ifdef signal
+ #undef signal
+ #endif
+@@ -1324,13 +1361,13 @@
+ 
+ int main() { return 0; }
+ int t() {
+ int i;
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1331: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1368: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   ac_cv_type_signal=void
+ else
+   rm -rf conftest*
+   ac_cv_type_signal=int
+ fi
+@@ -1346,13 +1383,13 @@
+ 
+ echo $ac_n "checking for uid_t in sys/types.h""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_type_uid_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1353 "configure"
++#line 1390 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ EOF
+ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+   egrep "uid_t" >/dev/null 2>&1; then
+   rm -rf conftest*
+@@ -1379,13 +1416,13 @@
+ 
+ echo $ac_n "checking for mode_t""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_type_mode_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1386 "configure"
++#line 1423 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #if STDC_HEADERS
+ #include <stdlib.h>
+ #endif
+ EOF
+@@ -1410,13 +1447,13 @@
+ 
+ echo $ac_n "checking for off_t""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_type_off_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1417 "configure"
++#line 1454 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #if STDC_HEADERS
+ #include <stdlib.h>
+ #endif
+ EOF
+@@ -1441,13 +1478,13 @@
+ 
+ echo $ac_n "checking for size_t""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_type_size_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1448 "configure"
++#line 1485 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #if STDC_HEADERS
+ #include <stdlib.h>
+ #endif
+ EOF
+@@ -1472,13 +1509,13 @@
+ 
+ echo $ac_n "checking for pid_t""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_type_pid_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1479 "configure"
++#line 1516 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #if STDC_HEADERS
+ #include <stdlib.h>
+ #endif
+ EOF
+@@ -1503,22 +1540,22 @@
+ 
+ echo $ac_n "checking for st_rdev in struct stat""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_struct_st_rdev'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1510 "configure"
++#line 1547 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ int main() { return 0; }
+ int t() {
+ struct stat s; s.st_rdev;
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1519: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1556: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   ac_cv_struct_st_rdev=yes
+ else
+   rm -rf conftest*
+   ac_cv_struct_st_rdev=no
+ fi
+@@ -1534,21 +1571,21 @@
+ 
+ fi
+ 
+ 
+ echo -n "checking for errno in errno.h... "
+ cat > conftest.$ac_ext <<EOF
+-#line 1541 "configure"
++#line 1578 "configure"
+ #include "confdefs.h"
+ #include <errno.h>
+ int main() { return 0; }
+ int t() {
+ int i = errno
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1549: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1586: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   echo yes; cat >> confdefs.h <<\EOF
+ #define HAVE_ERRNO_DECL 1
+ EOF
+ 
+ else
+@@ -1563,23 +1600,23 @@
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+   ac_cv_func_memcmp=no
+ else
+ cat > conftest.$ac_ext <<EOF
+-#line 1570 "configure"
++#line 1607 "configure"
+ #include "confdefs.h"
+ 
+ main()
+ {
+   char c0 = 0x40, c1 = 0x80, c2 = 0x81;
+   exit(memcmp(&c0, &c2, 1) < 0 && memcmp(&c1, &c2, 1) < 0 ? 0 : 1);
+ }
+ 
+ EOF
+-{ (eval echo configure:1580: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++{ (eval echo configure:1617: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
+ if test -s conftest && (./conftest; exit) 2>/dev/null; then
+   ac_cv_func_memcmp=yes
+ else
+   ac_cv_func_memcmp=no
+ fi
+ fi
+@@ -1593,13 +1630,13 @@
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1600 "configure"
++#line 1637 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ char $ac_func();
+@@ -1615,13 +1652,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1622: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
++if { (eval echo configure:1659: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=no"
+ fi
+@@ -1645,13 +1682,13 @@
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+   ac_cv_func_mmap=no
+ else
+ cat > conftest.$ac_ext <<EOF
+-#line 1652 "configure"
++#line 1689 "configure"
+ #include "confdefs.h"
+ 
+ /* Thanks to Mike Haertel and Jim Avera for this test. */
+ #include <sys/types.h>
+ #include <fcntl.h>
+ #include <sys/mman.h>
+@@ -1714,13 +1751,13 @@
+     if (*(buf1 + j) != *(buf3 + j))
+       exit(1);
+   exit(0);
+ }
+ 
+ EOF
+-{ (eval echo configure:1721: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++{ (eval echo configure:1758: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
+ if test -s conftest && (./conftest; exit) 2>/dev/null; then
+   ac_cv_func_mmap=yes
+ else
+   ac_cv_func_mmap=no
+ fi
+ fi
+@@ -1742,24 +1779,24 @@
+   rm -f conftestdata; > conftestdata
+ # Sequent interprets utime(file, 0) to mean use start of epoch.  Wrong.
+ if test "$cross_compiling" = yes; then
+   ac_cv_func_utime_null=no
+ else
+ cat > conftest.$ac_ext <<EOF
+-#line 1749 "configure"
++#line 1786 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ main() {
+ struct stat s, t;
+ exit(!(stat ("conftestdata", &s) == 0 && utime("conftestdata", (long *)0) == 0
+ && stat("conftestdata", &t) == 0 && t.st_mtime >= s.st_mtime
+ && t.st_mtime - s.st_mtime < 120));
+ }
+ EOF
+-{ (eval echo configure:1760: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++{ (eval echo configure:1797: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
+ if test -s conftest && (./conftest; exit) 2>/dev/null; then
+   ac_cv_func_utime_null=yes
+ else
+   ac_cv_func_utime_null=no
+ fi
+ fi
+@@ -1779,13 +1816,64 @@
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1786 "configure"
++#line 1823 "configure"
++#include "confdefs.h"
++/* System header to define __stub macros and hopefully few prototypes,
++    which can conflict with char $ac_func(); below.  */
++#include <assert.h>
++/* Override any gcc2 internal prototype to avoid an error.  */
++char $ac_func();
++
++int main() { return 0; }
++int t() {
++
++/* The GNU C library defines this for functions which it implements
++    to always fail with ENOSYS.  Some functions are actually named
++    something starting with __ and the normal name is an alias.  */
++#if defined (__stub_$ac_func) || defined (__stub___$ac_func)
++choke me
++#else
++$ac_func();
++#endif
++
++; return 0; }
++EOF
++if { (eval echo configure:1845: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
++  rm -rf conftest*
++  eval "ac_cv_func_$ac_func=yes"
++else
++  rm -rf conftest*
++  eval "ac_cv_func_$ac_func=no"
++fi
++rm -f conftest*
++
++fi
++if eval "test \"`echo '$ac_cv_func_'$ac_func`\" = yes"; then
++  echo "$ac_t""yes" 1>&6
++    ac_tr_func=HAVE_`echo $ac_func | tr 'abcdefghijklmnopqrstuvwxyz' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'`
++  cat >> confdefs.h <<EOF
++#define $ac_tr_func 1
++EOF
++ 
++else
++  echo "$ac_t""no" 1>&6
++fi
++done
++
++for ac_func in fchmod fstat strchr bcopy bzero readlink utime utimes
++do
++echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
++if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
++  echo $ac_n "(cached) $ac_c" 1>&6
++else
++  cat > conftest.$ac_ext <<EOF
++#line 1874 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ char $ac_func();
+@@ -1801,13 +1889,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1808: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
++if { (eval echo configure:1896: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=no"
+ fi
+@@ -1823,20 +1911,20 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+-for ac_func in fchmod fstat strchr bcopy bzero readlink utime getopt_long
++for ac_func in memmove getopt_long
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1837 "configure"
++#line 1925 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ char $ac_func();
+@@ -1852,13 +1940,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1859: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
++if { (eval echo configure:1947: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=no"
+ fi
+@@ -1880,18 +1968,18 @@
+ 
+ echo -n "checking for working fnmatch... "
+ if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+ cat > conftest.$ac_ext <<EOF
+-#line 1887 "configure"
++#line 1975 "configure"
+ #include "confdefs.h"
+ #include <fnmatch.h>
+ main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }
+ EOF
+-{ (eval echo configure:1892: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
++{ (eval echo configure:1980: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }
+ if test -s conftest && (./conftest; exit) 2>/dev/null; then
+   echo yes;cat >> confdefs.h <<\EOF
+ #define HAVE_FNMATCH 1
+ EOF
+ 
+ else
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/configure.in	1996-06-22 11:45:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/configure.in	1996-06-25 15:21:58.000000000 +0800
+@@ -9,13 +9,14 @@
+ 
+ AC_HEADER_DIRENT
+ AC_HEADER_STDC
+ AC_HEADER_TIME
+ AC_HEADER_SYS_WAIT
+ AC_CHECK_HEADERS(sys/fcntl.h fcntl.h sys/time.h unistd.h utime.h grp.h)
+-AC_CHECK_HEADERS(compat.h sys/param.h ctype.h sys/wait.h)
++AC_CHECK_HEADERS(compat.h sys/param.h ctype.h sys/wait.h sys/ioctl.h)
++AC_CHECK_HEADERS(sys/filio.h)
+ 
+ AC_CHECK_SIZEOF(int)
+ AC_CHECK_SIZEOF(long)
+ AC_CHECK_SIZEOF(short)
+ 
+ AC_C_INLINE
+@@ -34,13 +35,14 @@
+ echo no)
+ 
+ AC_FUNC_MEMCMP
+ AC_FUNC_MMAP
+ AC_FUNC_UTIME_NULL
+ AC_CHECK_FUNCS(waitpid strtok pipe getcwd mkdir strdup strerror chown chmod mknod)
+-AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink utime utimes getopt_long)
++AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink utime utimes)
++AC_CHECK_FUNCS(memmove getopt_long)
+ 
+ echo -n "checking for working fnmatch... "
+ AC_TRY_RUN([#include <fnmatch.h>
+ main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }],
+ echo yes;AC_DEFINE(HAVE_FNMATCH), 
+ echo no)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/main.c	1996-06-22 13:32:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/main.c	1996-06-25 15:30:08.000000000 +0800
+@@ -232,12 +232,14 @@
+   if (!name) 
+     return NULL;
+ 
+   if (mkdir(name,0777) != 0) {
+     fprintf(stderr,"mkdir %s : %s\n",name,strerror(errno));
+     exit(1);
++  } else {
++    fprintf(am_server?stderr:stdout,"created directory %s\n",name);
+   }
+ 
+   if (chdir(name) != 0) {
+     fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
+     exit(1);
+   }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/match.c	1996-06-20 13:10:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/match.c	1996-06-25 15:15:15.000000000 +0800
+@@ -35,12 +35,15 @@
+ static int total_false_alarms=0;
+ static int total_tag_hits=0;
+ static int total_matches=0;
+ static int total_data_transfer=0;
+ 
+ 
++static int check_f_in;
++
++
+ struct target {
+   tag t;
+   int i;
+ };
+ 
+ static struct target *targets=NULL;
+@@ -94,12 +97,13 @@
+   if (verbose > 2)
+     if (i != -1)
+       fprintf(stderr,"match at %d last_match=%d j=%d len=%d n=%d\n",
+ 	      (int)offset,(int)last_match,i,(int)s->sums[i].len,n);
+ 
+   if (n > 0) {
++    read_check(check_f_in);
+     write_int(f,n);
+     write_buf(f,buf+last_match,n);
+     data_transfer += n;
+   }
+   write_int(f,-(i+1));
+   if (i != -1)
+@@ -194,20 +198,22 @@
+   } while (++offset < end);
+ 
+   matched(f,s,buf,len,len,-1);
+ }
+ 
+ 
+-void match_sums(int f,struct sum_struct *s,char *buf,off_t len)
++void match_sums(int f,struct sum_struct *s,char *buf,off_t len,int f_in)
+ {
+   last_match = 0;
+   false_alarms = 0;
+   tag_hits = 0;
+   matches=0;
+   data_transfer=0;
+ 
++  check_f_in = f_in;
++
+   if (len > 0 && s->count>0) {
+     build_hash_table(s);
+ 
+     if (verbose > 2) 
+       fprintf(stderr,"built hash table\n");
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/proto.h	1996-06-22 13:32:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/proto.h	1996-06-25 15:19:58.000000000 +0800
+@@ -16,25 +16,25 @@
+ int flist_find(struct file_list *flist,struct file_struct *f);
+ void clean_flist(struct file_list *flist);
+ int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out);
+ void do_server_sender(int argc,char *argv[]);
+ void do_server_recv(int argc,char *argv[]);
+ int main(int argc,char *argv[]);
+-void match_sums(int f,struct sum_struct *s,char *buf,off_t len);
++void match_sums(int f,struct sum_struct *s,char *buf,off_t len,int f_in);
+ void match_report(void);
+ void recv_generator(char *fname,struct file_list *flist,int i,int f_out);
+ void sig_int(void);
+ int recv_files(int f_in,struct file_list *flist,char *local_name);
+ off_t send_files(struct file_list *flist,int f_out,int f_in);
+ void generate_files(int f,struct file_list *flist,char *local_name);
+ int write_total(void);
+ int read_total(void);
+ void write_int(int f,int x);
+ void write_buf(int f,char *buf,int len);
+ void write_flush(int f);
+-int readfd(int fd,char *buffer,int N);
++void read_check(int f);
+ int read_int(int f);
+ void read_buf(int f,char *buf,int len);
+ char *map_file(int fd,off_t len);
+ void unmap_file(char *buf,off_t len);
+ int read_write(int fd_in,int fd_out,int size);
+ int piped_child(char **command,int *f_in,int *f_out);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/rsync.c	1996-06-22 13:32:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/rsync.c	1996-06-25 15:14:00.000000000 +0800
+@@ -483,14 +483,15 @@
+   struct stat st;
+   char *fname;
+   char fnametmp[MAXPATHLEN];
+   char *buf;
+   int i;
+ 
+-  if (verbose > 2)
++  if (verbose > 2) {
+     fprintf(stderr,"recv_files(%d) starting\n",flist->count);
++  }
+ 
+   if (recurse && delete_mode && !local_name && flist->count>0) {
+     delete_files(flist);
+   }
+ 
+   while (1) 
+@@ -557,13 +558,16 @@
+       if (!am_server && verbose)
+ 	printf("%s\n",fname);
+ 
+       /* recv file data */
+       receive_data(f_in,buf,fd2,fname);
+ 
+-      if (fd1 != -1) close(fd1);
++      if (fd1 != -1) {
++	unmap_file(buf,st.st_size);
++	close(fd1);
++      }
+       close(fd2);
+ 
+       if (verbose > 2)
+ 	fprintf(stderr,"renaming %s to %s\n",fnametmp,fname);
+ 
+       if (make_backups) {
+@@ -580,14 +584,12 @@
+ 	fprintf(stderr,"rename %s -> %s : %s\n",
+ 		fnametmp,fname,strerror(errno));
+       }
+ 
+       cleanup_fname = NULL;
+ 
+-      unmap_file(buf,st.st_size);
+-
+       set_perms(fname,&flist->files[i],NULL,0);
+     }
+ 
+   if (verbose > 2)
+     fprintf(stderr,"recv_files finished\n");
+   
+@@ -608,12 +610,14 @@
+ 
+   if (verbose > 2)
+     fprintf(stderr,"send_files starting\n");
+ 
+   while (1) 
+     {
++      read_check(f_in);
++
+       i = read_int(f_in);
+       if (i == -1) break;
+ 
+       fname[0] = 0;
+       if (flist->files[i].dir) {
+ 	strcpy(fname,flist->files[i].dir);
+@@ -673,13 +677,13 @@
+       if (verbose > 2)
+ 	fprintf(stderr,"calling match_sums %s\n",fname);
+ 
+       if (!am_server && verbose)
+ 	printf("%s\n",fname);
+       
+-      match_sums(f_out,s,buf,st.st_size);
++      match_sums(f_out,s,buf,st.st_size,f_in);
+       write_flush(f_out);
+       
+       unmap_file(buf,st.st_size);
+       close(fd);
+ 
+       free_sums(s);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/rsync.h	1996-06-22 13:32:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/rsync.h	1996-06-25 15:22:34.000000000 +0800
+@@ -72,12 +72,20 @@
+ #include <sys/fcntl.h>
+ #endif
+ #endif
+ 
+ #include <sys/stat.h>
+ 
++#ifdef HAVE_SYS_IOCTL_H
++#include <sys/ioctl.h>
++#endif
++
++#ifdef HAVE_SYS_FILIO_H
++#include <sys/filio.h>
++#endif
++
+ #include <signal.h>
+ #ifdef HAVE_SYS_WAIT_H
+ #include <sys/wait.h>
+ #endif
+ #ifdef HAVE_CTYPE_H
+ #include <ctype.h>
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/util.c	1996-06-22 11:52:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/util.c	1996-06-25 21:39:13.000000000 +0800
+@@ -56,25 +56,83 @@
+     fprintf(stderr,"write_buf failed : %s\n",strerror(errno));
+     exit(1);
+   }
+   total_written += len;
+ }
+ 
++static int num_waiting(int fd)
++{
++  int len=0;
++#ifdef FIONREAD
++  ioctl(fd,FIONREAD,&len);
++#endif
++  return(len);
++}
++
++static char *read_buffer = NULL;
++static char *read_buffer_p = NULL;
++static int read_buffer_len = 0;
++static int read_buffer_size = 0;
++
++
+ void write_flush(int f)
+ {
+ }
+ 
+ 
+-int readfd(int fd,char *buffer,int N)
++/* This function was added to overcome a deadlock problem when using
++ * ssh.  It looks like we can't allow our receive queue to get full or
++ * ssh will clag up. Uggh.  */
++void read_check(int f)
++{
++  int n;
++
++  if (read_buffer_len == 0) {
++    read_buffer_p = read_buffer;
++  }
++
++  if ((n=num_waiting(f)) <= 0)
++    return;
++
++  if (read_buffer_p != read_buffer) {
++    memmove(read_buffer,read_buffer_p,read_buffer_len);
++    read_buffer_p = read_buffer;
++  }
++
++  if (n > (read_buffer_size - read_buffer_len)) {
++    read_buffer_size += n;
++    if (!read_buffer)
++      read_buffer = (char *)malloc(read_buffer_size);
++    else
++      read_buffer = (char *)realloc(read_buffer,read_buffer_size);
++    if (!read_buffer) out_of_memory("read check");      
++    read_buffer_p = read_buffer;      
++  }
++
++  n = read(f,read_buffer+read_buffer_len,n);
++  if (n > 0) {
++    read_buffer_len += n;
++  }
++}
++
++
++static int readfd(int fd,char *buffer,int N)
+ {
+   int  ret;
+   int total=0;  
+  
+   while (total < N)
+     {
+-      ret = read(fd,buffer + total,N - total);
++      if (read_buffer_len > 0) {
++	ret = MIN(read_buffer_len,N-total);
++	memcpy(buffer+total,read_buffer_p,ret);
++	read_buffer_p += ret;
++	read_buffer_len -= ret;
++      } else {
++	ret = read(fd,buffer + total,N - total);
++      }
+ 
+       if (ret <= 0)
+ 	return total;
+       total += ret;
+     }
+   return total;
+@@ -109,13 +167,13 @@
+   char *ret = (char *)mmap(NULL,len,PROT_READ,MAP_SHARED,fd,0);
+   return ret;
+ }
+ 
+ void unmap_file(char *buf,off_t len)
+ {
+-  if (len > 0)
++  if (len > 0 && buf)
+     munmap(buf,len);
+ }
+ 
+ 
+ int read_write(int fd_in,int fd_out,int size)
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.0/version.h	1996-06-24 07:52:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.1/version.h	1996-06-25 15:30:37.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.0"
++#define VERSION "1.1"

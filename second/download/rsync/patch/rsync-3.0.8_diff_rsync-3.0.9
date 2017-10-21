@@ -1,0 +1,4612 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/acls.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/acls.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/acls.c	2011-03-19 05:42:28.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/acls.c	2011-05-30 23:39:07.000000000 +0800
+@@ -492,15 +492,21 @@
+ 		if (len < 4*4 || len != (size_t)cnt*(4+4) + 4*4) {
+ 			free(buf);
+ 			return -1;
+ 		}
+ 
+ 		racl->user_obj = IVAL(buf, 0);
++		if (racl->user_obj == NO_ENTRY)
++			racl->user_obj = (mode >> 6) & 7;
+ 		racl->group_obj = IVAL(buf, 4);
++		if (racl->group_obj == NO_ENTRY)
++			racl->group_obj = (mode >> 3) & 7;
+ 		racl->mask_obj = IVAL(buf, 8);
+ 		racl->other_obj = IVAL(buf, 12);
++		if (racl->other_obj == NO_ENTRY)
++			racl->other_obj = mode & 7;
+ 
+ 		if (cnt) {
+ 			char *bp = buf + 4*4;
+ 			id_access *ida;
+ 			if (!(ida = racl->names.idas = new_array(id_access, cnt)))
+ 				out_of_memory("get_rsync_acl");
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/authenticate.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/authenticate.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/authenticate.c	2009-01-18 05:41:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/authenticate.c	2011-09-11 04:38:17.000000000 +0800
+@@ -153,53 +153,45 @@
+ }
+ 
+ static const char *getpassf(const char *filename)
+ {
+ 	STRUCT_STAT st;
+ 	char buffer[512], *p;
+-	int fd, n, ok = 1;
+-	const char *envpw = getenv("RSYNC_PASSWORD");
++	int fd, n;
+ 
+ 	if (!filename)
+ 		return NULL;
+ 
+ 	if ((fd = open(filename,O_RDONLY)) < 0) {
+-		rsyserr(FWARNING, errno, "could not open password file \"%s\"",
+-			filename);
+-		if (envpw)
+-			rprintf(FINFO, "falling back to RSYNC_PASSWORD environment variable.\n");
+-		return NULL;
++		rsyserr(FERROR, errno, "could not open password file %s", filename);
++		exit_cleanup(RERR_SYNTAX);
+ 	}
+ 
+ 	if (do_stat(filename, &st) == -1) {
+-		rsyserr(FWARNING, errno, "stat(%s)", filename);
+-		ok = 0;
+-	} else if ((st.st_mode & 06) != 0) {
+-		rprintf(FWARNING, "password file must not be other-accessible\n");
+-		ok = 0;
+-	} else if (MY_UID() == 0 && st.st_uid != 0) {
+-		rprintf(FWARNING, "password file must be owned by root when running as root\n");
+-		ok = 0;
++		rsyserr(FERROR, errno, "stat(%s)", filename);
++		exit_cleanup(RERR_SYNTAX);
+ 	}
+-	if (!ok) {
+-		close(fd);
+-		rprintf(FWARNING, "continuing without password file\n");
+-		if (envpw)
+-			rprintf(FINFO, "falling back to RSYNC_PASSWORD environment variable.\n");
+-		return NULL;
++	if ((st.st_mode & 06) != 0) {
++		rprintf(FERROR, "ERROR: password file must not be other-accessible\n");
++		exit_cleanup(RERR_SYNTAX);
++	}
++	if (MY_UID() == 0 && st.st_uid != 0) {
++		rprintf(FERROR, "ERROR: password file must be owned by root when running as root\n");
++		exit_cleanup(RERR_SYNTAX);
+ 	}
+ 
+ 	n = read(fd, buffer, sizeof buffer - 1);
+ 	close(fd);
+ 	if (n > 0) {
+ 		buffer[n] = '\0';
+ 		if ((p = strtok(buffer, "\n\r")) != NULL)
+ 			return strdup(p);
+ 	}
+ 
+-	return NULL;
++	rprintf(FERROR, "ERROR: failed to read a password from %s\n", filename);
++	exit_cleanup(RERR_SYNTAX);
+ }
+ 
+ /* Generate an MD4 hash created from the combination of the password
+  * and the challenge string and return it base64-encoded. */
+ static void generate_hash(const char *in, const char *challenge, char *out)
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/clientserver.c	2010-12-24 14:08:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/clientserver.c	2011-07-17 07:14:50.000000000 +0800
+@@ -1068,12 +1068,12 @@
+ 
+ 	log_init(0);
+ 
+ 	rprintf(FLOG, "rsyncd version %s starting, listening on port %d\n",
+ 		RSYNC_VERSION, rsync_port);
+ 	/* TODO: If listening on a particular address, then show that
+-	 * address too.  In fact, why not just do inet_ntop on the
++	 * address too.  In fact, why not just do getnameinfo on the
+ 	 * local address??? */
+ 
+ 	start_accept_loop(rsync_port, start_daemon);
+ 	return -1;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/config.h.in	2011-03-27 05:37:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/config.h.in	2011-09-24 00:41:30.000000000 +0800
+@@ -262,12 +262,18 @@
+ /* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
+ #undef HAVE_NDIR_H
+ 
+ /* Define to 1 if you have the <netdb.h> header file. */
+ #undef HAVE_NETDB_H
+ 
++/* Define to 1 if you have the <netinet/in_systm.h> header file. */
++#undef HAVE_NETINET_IN_SYSTM_H
++
++/* Define to 1 if you have the <netinet/ip.h> header file. */
++#undef HAVE_NETINET_IP_H
++
+ /* Define to 1 if you have the `nl_langinfo' function. */
+ #undef HAVE_NL_LANGINFO
+ 
+ /* Define to 1 if the system has the type `off_t'. */
+ #undef HAVE_OFF_T
+ 
+@@ -692,11 +698,14 @@
+ /* Define to `__inline__' or `__inline' if that's what the C compiler
+    calls it, or to nothing if 'inline' is not supported under any name.  */
+ #ifndef __cplusplus
+ #undef inline
+ #endif
+ 
++/* Define to `unsigned int' if <sys/types.h> does not define. */
++#undef size_t
++
+ /* type to use in place of socklen_t if not defined */
+ #undef socklen_t
+ 
+ /* Define to `int' if <sys/types.h> doesn't define. */
+ #undef uid_t
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/configure.ac /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/configure.ac
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/configure.ac	2011-03-27 05:34:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/configure.ac	2011-09-24 00:13:53.000000000 +0800
+@@ -2,13 +2,13 @@
+ 
+ AC_INIT()
+ AC_CONFIG_SRCDIR([byteorder.h])
+ AC_CONFIG_HEADER(config.h)
+ AC_PREREQ(2.59)
+ 
+-RSYNC_VERSION=3.0.8
++RSYNC_VERSION=3.0.9
+ AC_SUBST(RSYNC_VERSION)
+ AC_MSG_NOTICE([Configuring rsync $RSYNC_VERSION])
+ 
+ AC_DEFINE_UNQUOTED(RSYNC_VERSION, ["$RSYNC_VERSION"], [rsync release version])
+ 
+ LDFLAGS=${LDFLAGS-""}
+@@ -328,13 +328,13 @@
+ AC_CHECK_HEADERS(sys/fcntl.h sys/select.h fcntl.h sys/time.h sys/unistd.h \
+     unistd.h utime.h grp.h compat.h sys/param.h ctype.h sys/wait.h \
+     sys/ioctl.h sys/filio.h string.h stdlib.h sys/socket.h sys/mode.h \
+     sys/un.h sys/attr.h mcheck.h arpa/inet.h arpa/nameser.h locale.h \
+     netdb.h malloc.h float.h limits.h iconv.h libcharset.h langinfo.h \
+     sys/acl.h acl/libacl.h attr/xattr.h sys/xattr.h sys/extattr.h \
+-    popt.h popt/popt.h)
++    popt.h popt/popt.h netinet/in_systm.h netinet/ip.h)
+ AC_HEADER_MAJOR
+ 
+ AC_CACHE_CHECK([if makedev takes 3 args],rsync_cv_MAKEDEV_TAKES_3_ARGS,[
+ AC_TRY_RUN([
+ #include <sys/types.h>
+ #ifdef MAJOR_IN_MKDEV
+@@ -672,13 +672,17 @@
+ AC_TRY_RUN([
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ 
+ main() {
+        int fd[2];
++#ifdef __CYGWIN__
++       exit(1);
++#else
+        exit((socketpair(AF_UNIX, SOCK_STREAM, 0, fd) != -1) ? 0 : 1);
++#endif
+ }],
+ rsync_cv_HAVE_SOCKETPAIR=yes,rsync_cv_HAVE_SOCKETPAIR=no,rsync_cv_HAVE_SOCKETPAIR=cross)])
+ if test x"$rsync_cv_HAVE_SOCKETPAIR" = x"yes"; then
+     AC_DEFINE(HAVE_SOCKETPAIR, 1, [Define to 1 if you have the "socketpair" function])
+ fi
+ 
+@@ -963,13 +967,12 @@
+ else
+     case "$host_os" in
+     *linux*)
+ 	AC_MSG_RESULT(Using Linux xattrs)
+ 	AC_DEFINE(HAVE_LINUX_XATTRS, 1, [True if you have Linux xattrs])
+ 	AC_DEFINE(SUPPORT_XATTRS, 1)
+-	AC_DEFINE(NO_SYMLINK_XATTRS, 1, [True if symlinks do not support xattrs])
+ 	;;
+     darwin*)
+ 	AC_MSG_RESULT(Using OS X xattrs)
+ 	AC_DEFINE(HAVE_OSX_XATTRS, 1, [True if you have Mac OS X xattrs])
+ 	AC_DEFINE(SUPPORT_XATTRS, 1)
+ 	AC_DEFINE(NO_DEVICE_XATTRS, 1, [True if device files do not support xattrs])
+@@ -977,12 +980,16 @@
+ 	;;
+     freebsd*)
+ 	AC_MSG_RESULT(Using FreeBSD extattrs)
+ 	AC_DEFINE(HAVE_FREEBSD_XATTRS, 1, [True if you have FreeBSD xattrs])
+ 	AC_DEFINE(SUPPORT_XATTRS, 1)
+ 	;;
++    solaris*)
++	# Better Solaris support coming in 3.1.0...
++	AC_DEFINE(NO_SYMLINK_XATTRS, 1, [True if symlinks do not support xattrs])
++	;;
+     *)
+ 	if test x"$enable_xattr_support" = x"yes"; then
+ 	    AC_MSG_ERROR(Failed to find extended attribute support)
+ 	else
+ 	    AC_MSG_RESULT(No extended attribute support found)
+ 	fi
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/configure.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/configure.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/configure.sh	2011-03-27 05:37:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/configure.sh	2011-09-24 00:41:30.000000000 +0800
+@@ -1,9 +1,9 @@
+ #! /bin/sh
+ # Guess values for system-dependent variables and create Makefiles.
+-# Generated by GNU Autoconf 2.67.
++# Generated by GNU Autoconf 2.68.
+ #
+ #
+ # Copyright (C) 1992, 1993, 1994, 1995, 1996, 1998, 1999, 2000, 2001,
+ # 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010 Free Software
+ # Foundation, Inc.
+ #
+@@ -86,12 +86,13 @@
+ # there to prevent editors from complaining about space-tab.
+ # (If _AS_PATH_WALK were called with IFS unset, it would disable word
+ # splitting by setting IFS to empty value.)
+ IFS=" ""	$as_nl"
+ 
+ # Find who we are.  Look in the path if we contain no directory separator.
++as_myself=
+ case $0 in #((
+   *[\\/]* ) as_myself=$0 ;;
+   *) as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+ for as_dir in $PATH
+ do
+   IFS=$as_save_IFS
+@@ -211,17 +212,24 @@
+ 
+ 
+       if test "x$CONFIG_SHELL" != x; then :
+   # We cannot yet assume a decent shell, so we have to provide a
+ 	# neutralization value for shells without unset; and this also
+ 	# works around shells that cannot unset nonexistent variables.
++	# Preserve -v and -x to the replacement shell.
+ 	BASH_ENV=/dev/null
+ 	ENV=/dev/null
+ 	(unset BASH_ENV) >/dev/null 2>&1 && unset BASH_ENV ENV
+ 	export CONFIG_SHELL
+-	exec "$CONFIG_SHELL" "$as_myself" ${1+"$@"}
++	case $- in # ((((
++	  *v*x* | *x*v* ) as_opts=-vx ;;
++	  *v* ) as_opts=-v ;;
++	  *x* ) as_opts=-x ;;
++	  * ) as_opts= ;;
++	esac
++	exec "$CONFIG_SHELL" $as_opts "$as_myself" ${1+"$@"}
+ fi
+ 
+     if test x$as_have_required = xno; then :
+   $as_echo "$0: This script requires a shell more modern than all"
+   $as_echo "$0: the shells that I found on your system."
+   if test x${ZSH_VERSION+set} = xset ; then
+@@ -1091,13 +1099,13 @@
+ 
+   *)
+     # FIXME: should be removed in autoconf 3.0.
+     $as_echo "$as_me: WARNING: you should use --build, --host, --target" >&2
+     expr "x$ac_option" : ".*[^-._$as_cr_alnum]" >/dev/null &&
+       $as_echo "$as_me: WARNING: invalid host type: $ac_option" >&2
+-    : ${build_alias=$ac_option} ${host_alias=$ac_option} ${target_alias=$ac_option}
++    : "${build_alias=$ac_option} ${host_alias=$ac_option} ${target_alias=$ac_option}"
+     ;;
+ 
+   esac
+ done
+ 
+ if test -n "$ac_prev"; then
+@@ -1401,13 +1409,13 @@
+ fi
+ 
+ test -n "$ac_init_help" && exit $ac_status
+ if $ac_init_version; then
+   cat <<\_ACEOF
+ configure
+-generated by GNU Autoconf 2.67
++generated by GNU Autoconf 2.68
+ 
+ Copyright (C) 2010 Free Software Foundation, Inc.
+ This configure script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it.
+ _ACEOF
+   exit
+@@ -1447,13 +1455,13 @@
+ else
+   $as_echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ 	ac_retval=1
+ fi
+-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
++  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+   as_fn_set_status $ac_retval
+ 
+ } # ac_fn_c_try_compile
+ 
+ # ac_fn_c_try_cpp LINENO
+ # ----------------------
+@@ -1484,13 +1492,13 @@
+ else
+   $as_echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+     ac_retval=1
+ fi
+-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
++  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+   as_fn_set_status $ac_retval
+ 
+ } # ac_fn_c_try_cpp
+ 
+ # ac_fn_c_try_run LINENO
+ # ----------------------
+@@ -1526,13 +1534,13 @@
+        $as_echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+        ac_retval=$ac_status
+ fi
+   rm -rf conftest.dSYM conftest_ipa8_conftest.oo
+-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
++  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+   as_fn_set_status $ac_retval
+ 
+ } # ac_fn_c_try_run
+ 
+ # ac_fn_c_try_link LINENO
+ # -----------------------
+@@ -1572,13 +1580,13 @@
+ fi
+   # Delete the IPA/IPO (Inter Procedural Analysis/Optimization) information
+   # created by the PGI compiler (conftest_ipa8_conftest.oo), as it would
+   # interfere with the next link command; also delete a directory that is
+   # left behind by Apple's compiler.  We do this before executing the actions.
+   rm -rf conftest.dSYM conftest_ipa8_conftest.oo
+-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
++  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+   as_fn_set_status $ac_retval
+ 
+ } # ac_fn_c_try_link
+ 
+ # ac_fn_c_check_header_compile LINENO HEADER VAR INCLUDES
+ # -------------------------------------------------------
+@@ -1586,13 +1594,13 @@
+ # INCLUDES, setting the cache variable VAR accordingly.
+ ac_fn_c_check_header_compile ()
+ {
+   as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
+ $as_echo_n "checking for $2... " >&6; }
+-if eval "test \"\${$3+set}\"" = set; then :
++if eval \${$3+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ $4
+ #include <$2>
+@@ -1604,28 +1612,28 @@
+ fi
+ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ eval ac_res=\$$3
+ 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+ $as_echo "$ac_res" >&6; }
+-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
++  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+ 
+ } # ac_fn_c_check_header_compile
+ 
+ # ac_fn_c_check_header_mongrel LINENO HEADER VAR INCLUDES
+ # -------------------------------------------------------
+ # Tests whether HEADER exists, giving a warning if it cannot be compiled using
+ # the include files in INCLUDES and setting the cache variable VAR
+ # accordingly.
+ ac_fn_c_check_header_mongrel ()
+ {
+   as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+-  if eval "test \"\${$3+set}\"" = set; then :
++  if eval \${$3+:} false; then :
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
+ $as_echo_n "checking for $2... " >&6; }
+-if eval "test \"\${$3+set}\"" = set; then :
++if eval \${$3+:} false; then :
+   $as_echo_n "(cached) " >&6
+ fi
+ eval ac_res=\$$3
+ 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+ $as_echo "$ac_res" >&6; }
+ else
+@@ -1682,22 +1690,22 @@
+     { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $2: proceeding with the compiler's result" >&5
+ $as_echo "$as_me: WARNING: $2: proceeding with the compiler's result" >&2;}
+     ;;
+ esac
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
+ $as_echo_n "checking for $2... " >&6; }
+-if eval "test \"\${$3+set}\"" = set; then :
++if eval \${$3+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   eval "$3=\$ac_header_compiler"
+ fi
+ eval ac_res=\$$3
+ 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+ $as_echo "$ac_res" >&6; }
+ fi
+-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
++  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+ 
+ } # ac_fn_c_check_header_mongrel
+ 
+ # ac_fn_c_compute_int LINENO EXPR VAR INCLUDES
+ # --------------------------------------------
+ # Tries to find the compile-time value of EXPR in a program that includes
+@@ -1868,13 +1876,13 @@
+ fi
+ rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+   conftest.$ac_objext conftest.beam conftest.$ac_ext
+ rm -f conftest.val
+ 
+   fi
+-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
++  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+   as_fn_set_status $ac_retval
+ 
+ } # ac_fn_c_compute_int
+ 
+ # ac_fn_c_check_type LINENO TYPE VAR INCLUDES
+ # -------------------------------------------
+@@ -1882,13 +1890,13 @@
+ # variable VAR accordingly.
+ ac_fn_c_check_type ()
+ {
+   as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
+ $as_echo_n "checking for $2... " >&6; }
+-if eval "test \"\${$3+set}\"" = set; then :
++if eval \${$3+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   eval "$3=no"
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ $4
+@@ -1923,26 +1931,26 @@
+ fi
+ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ eval ac_res=\$$3
+ 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+ $as_echo "$ac_res" >&6; }
+-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
++  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+ 
+ } # ac_fn_c_check_type
+ 
+ # ac_fn_c_check_member LINENO AGGR MEMBER VAR INCLUDES
+ # ----------------------------------------------------
+ # Tries to find if the field MEMBER exists in type AGGR, after including
+ # INCLUDES, setting cache variable VAR accordingly.
+ ac_fn_c_check_member ()
+ {
+   as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2.$3" >&5
+ $as_echo_n "checking for $2.$3... " >&6; }
+-if eval "test \"\${$4+set}\"" = set; then :
++if eval \${$4+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ $5
+ int
+@@ -1980,25 +1988,25 @@
+ fi
+ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+ fi
+ eval ac_res=\$$4
+ 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+ $as_echo "$ac_res" >&6; }
+-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
++  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+ 
+ } # ac_fn_c_check_member
+ 
+ # ac_fn_c_check_func LINENO FUNC VAR
+ # ----------------------------------
+ # Tests whether FUNC exists, setting the cache variable VAR accordingly
+ ac_fn_c_check_func ()
+ {
+   as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $2" >&5
+ $as_echo_n "checking for $2... " >&6; }
+-if eval "test \"\${$3+set}\"" = set; then :
++if eval \${$3+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ /* Define $2 to an innocuous variant, in case <limits.h> declares $2.
+    For example, HP-UX 11i <limits.h> declares gettimeofday.  */
+@@ -2047,21 +2055,21 @@
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext conftest.$ac_ext
+ fi
+ eval ac_res=\$$3
+ 	       { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_res" >&5
+ $as_echo "$ac_res" >&6; }
+-  eval $as_lineno_stack; test "x$as_lineno_stack" = x && { as_lineno=; unset as_lineno;}
++  eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
+ 
+ } # ac_fn_c_check_func
+ cat >config.log <<_ACEOF
+ This file contains any messages produced by compilers while
+ running configure, to aid debugging if configure makes a mistake.
+ 
+ It was created by $as_me, which was
+-generated by GNU Autoconf 2.67.  Invocation command line was
++generated by GNU Autoconf 2.68.  Invocation command line was
+ 
+   $ $0 $@
+ 
+ _ACEOF
+ exec 5>>config.log
+ {
+@@ -2313,13 +2321,13 @@
+ $as_echo "$as_me: loading site script $ac_site_file" >&6;}
+     sed 's/^/| /' "$ac_site_file" >&5
+     . "$ac_site_file" \
+       || { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error $? "failed to load site script $ac_site_file
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+   fi
+ done
+ 
+ if test -r "$cache_file"; then
+   # Some versions of bash will fail to source /dev/null (special files
+   # actually), so we avoid doing that.  DJGPP emulates it as a regular file.
+@@ -2408,13 +2416,13 @@
+ 
+ 
+ ac_config_headers="$ac_config_headers config.h"
+ 
+ 
+ 
+-RSYNC_VERSION=3.0.8
++RSYNC_VERSION=3.0.9
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: Configuring rsync $RSYNC_VERSION" >&5
+ $as_echo "$as_me: Configuring rsync $RSYNC_VERSION" >&6;}
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+@@ -2456,13 +2464,13 @@
+ # Make sure we can run config.sub.
+ $SHELL "$ac_aux_dir/config.sub" sun4 >/dev/null 2>&1 ||
+   as_fn_error $? "cannot run $SHELL $ac_aux_dir/config.sub" "$LINENO" 5
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking build system type" >&5
+ $as_echo_n "checking build system type... " >&6; }
+-if test "${ac_cv_build+set}" = set; then :
++if ${ac_cv_build+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_build_alias=$build_alias
+ test "x$ac_build_alias" = x &&
+   ac_build_alias=`$SHELL "$ac_aux_dir/config.guess"`
+ test "x$ac_build_alias" = x &&
+@@ -2472,13 +2480,13 @@
+ 
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_build" >&5
+ $as_echo "$ac_cv_build" >&6; }
+ case $ac_cv_build in
+ *-*-*) ;;
+-*) as_fn_error $? "invalid value of canonical build" "$LINENO" 5 ;;
++*) as_fn_error $? "invalid value of canonical build" "$LINENO" 5;;
+ esac
+ build=$ac_cv_build
+ ac_save_IFS=$IFS; IFS='-'
+ set x $ac_cv_build
+ shift
+ build_cpu=$1
+@@ -2490,13 +2498,13 @@
+ IFS=$ac_save_IFS
+ case $build_os in *\ *) build_os=`echo "$build_os" | sed 's/ /-/g'`;; esac
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking host system type" >&5
+ $as_echo_n "checking host system type... " >&6; }
+-if test "${ac_cv_host+set}" = set; then :
++if ${ac_cv_host+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test "x$host_alias" = x; then
+   ac_cv_host=$ac_cv_build
+ else
+   ac_cv_host=`$SHELL "$ac_aux_dir/config.sub" $host_alias` ||
+@@ -2505,13 +2513,13 @@
+ 
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_host" >&5
+ $as_echo "$ac_cv_host" >&6; }
+ case $ac_cv_host in
+ *-*-*) ;;
+-*) as_fn_error $? "invalid value of canonical host" "$LINENO" 5 ;;
++*) as_fn_error $? "invalid value of canonical host" "$LINENO" 5;;
+ esac
+ host=$ac_cv_host
+ ac_save_IFS=$IFS; IFS='-'
+ set x $ac_cv_host
+ shift
+ host_cpu=$1
+@@ -2555,13 +2563,13 @@
+ ac_compiler_gnu=$ac_cv_c_compiler_gnu
+ if test -n "$ac_tool_prefix"; then
+   # Extract the first word of "${ac_tool_prefix}gcc", so it can be a program name with args.
+ set dummy ${ac_tool_prefix}gcc; ac_word=$2
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+ $as_echo_n "checking for $ac_word... " >&6; }
+-if test "${ac_cv_prog_CC+set}" = set; then :
++if ${ac_cv_prog_CC+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test -n "$CC"; then
+   ac_cv_prog_CC="$CC" # Let the user override the test.
+ else
+ as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+@@ -2595,13 +2603,13 @@
+ if test -z "$ac_cv_prog_CC"; then
+   ac_ct_CC=$CC
+   # Extract the first word of "gcc", so it can be a program name with args.
+ set dummy gcc; ac_word=$2
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+ $as_echo_n "checking for $ac_word... " >&6; }
+-if test "${ac_cv_prog_ac_ct_CC+set}" = set; then :
++if ${ac_cv_prog_ac_ct_CC+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test -n "$ac_ct_CC"; then
+   ac_cv_prog_ac_ct_CC="$ac_ct_CC" # Let the user override the test.
+ else
+ as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+@@ -2648,13 +2656,13 @@
+ if test -z "$CC"; then
+           if test -n "$ac_tool_prefix"; then
+     # Extract the first word of "${ac_tool_prefix}cc", so it can be a program name with args.
+ set dummy ${ac_tool_prefix}cc; ac_word=$2
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+ $as_echo_n "checking for $ac_word... " >&6; }
+-if test "${ac_cv_prog_CC+set}" = set; then :
++if ${ac_cv_prog_CC+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test -n "$CC"; then
+   ac_cv_prog_CC="$CC" # Let the user override the test.
+ else
+ as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+@@ -2688,13 +2696,13 @@
+ fi
+ if test -z "$CC"; then
+   # Extract the first word of "cc", so it can be a program name with args.
+ set dummy cc; ac_word=$2
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+ $as_echo_n "checking for $ac_word... " >&6; }
+-if test "${ac_cv_prog_CC+set}" = set; then :
++if ${ac_cv_prog_CC+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test -n "$CC"; then
+   ac_cv_prog_CC="$CC" # Let the user override the test.
+ else
+   ac_prog_rejected=no
+@@ -2747,13 +2755,13 @@
+   for ac_prog in cl.exe
+   do
+     # Extract the first word of "$ac_tool_prefix$ac_prog", so it can be a program name with args.
+ set dummy $ac_tool_prefix$ac_prog; ac_word=$2
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+ $as_echo_n "checking for $ac_word... " >&6; }
+-if test "${ac_cv_prog_CC+set}" = set; then :
++if ${ac_cv_prog_CC+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test -n "$CC"; then
+   ac_cv_prog_CC="$CC" # Let the user override the test.
+ else
+ as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+@@ -2791,13 +2799,13 @@
+   for ac_prog in cl.exe
+ do
+   # Extract the first word of "$ac_prog", so it can be a program name with args.
+ set dummy $ac_prog; ac_word=$2
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+ $as_echo_n "checking for $ac_word... " >&6; }
+-if test "${ac_cv_prog_ac_ct_CC+set}" = set; then :
++if ${ac_cv_prog_ac_ct_CC+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test -n "$ac_ct_CC"; then
+   ac_cv_prog_ac_ct_CC="$ac_ct_CC" # Let the user override the test.
+ else
+ as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+@@ -2846,13 +2854,13 @@
+ fi
+ 
+ 
+ test -z "$CC" && { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error $? "no acceptable C compiler found in \$PATH
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+ 
+ # Provide some information about the compiler.
+ $as_echo "$as_me:${as_lineno-$LINENO}: checking for C compiler version" >&5
+ set X $ac_compile
+ ac_compiler=$2
+ for ac_option in --version -v -V -qversion; do
+@@ -2961,13 +2969,13 @@
+ $as_echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "C compiler cannot create executables
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+ else
+   { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+ $as_echo "yes" >&6; }
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for C compiler default output file name" >&5
+ $as_echo_n "checking for C compiler default output file name... " >&6; }
+@@ -3004,13 +3012,13 @@
+   esac
+ done
+ else
+   { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error $? "cannot compute suffix of executables: cannot compile and link
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+ fi
+ rm -f conftest conftest$ac_cv_exeext
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_exeext" >&5
+ $as_echo "$ac_cv_exeext" >&6; }
+ 
+ rm -f conftest.$ac_ext
+@@ -3063,24 +3071,24 @@
+ 	cross_compiling=yes
+     else
+ 	{ { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error $? "cannot run C compiled programs.
+ If you meant to cross compile, use \`--host'.
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+     fi
+   fi
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $cross_compiling" >&5
+ $as_echo "$cross_compiling" >&6; }
+ 
+ rm -f conftest.$ac_ext conftest$ac_cv_exeext conftest.out
+ ac_clean_files=$ac_clean_files_save
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for suffix of object files" >&5
+ $as_echo_n "checking for suffix of object files... " >&6; }
+-if test "${ac_cv_objext+set}" = set; then :
++if ${ac_cv_objext+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+ int
+@@ -3115,23 +3123,23 @@
+   $as_echo "$as_me: failed program was:" >&5
+ sed 's/^/| /' conftest.$ac_ext >&5
+ 
+ { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error $? "cannot compute suffix of object files: cannot compile
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+ fi
+ rm -f conftest.$ac_cv_objext conftest.$ac_ext
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_objext" >&5
+ $as_echo "$ac_cv_objext" >&6; }
+ OBJEXT=$ac_cv_objext
+ ac_objext=$OBJEXT
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether we are using the GNU C compiler" >&5
+ $as_echo_n "checking whether we are using the GNU C compiler... " >&6; }
+-if test "${ac_cv_c_compiler_gnu+set}" = set; then :
++if ${ac_cv_c_compiler_gnu+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+ int
+@@ -3162,13 +3170,13 @@
+   GCC=
+ fi
+ ac_test_CFLAGS=${CFLAGS+set}
+ ac_save_CFLAGS=$CFLAGS
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether $CC accepts -g" >&5
+ $as_echo_n "checking whether $CC accepts -g... " >&6; }
+-if test "${ac_cv_prog_cc_g+set}" = set; then :
++if ${ac_cv_prog_cc_g+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_save_c_werror_flag=$ac_c_werror_flag
+    ac_c_werror_flag=yes
+    ac_cv_prog_cc_g=no
+    CFLAGS="-g"
+@@ -3240,13 +3248,13 @@
+   else
+     CFLAGS=
+   fi
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $CC option to accept ISO C89" >&5
+ $as_echo_n "checking for $CC option to accept ISO C89... " >&6; }
+-if test "${ac_cv_prog_cc_c89+set}" = set; then :
++if ${ac_cv_prog_cc_c89+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_cv_prog_cc_c89=no
+ ac_save_CC=$CC
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -3347,13 +3355,13 @@
+ $as_echo_n "checking how to run the C preprocessor... " >&6; }
+ # On Suns, sometimes $CPP names a directory.
+ if test -n "$CPP" && test -d "$CPP"; then
+   CPP=
+ fi
+ if test -z "$CPP"; then
+-  if test "${ac_cv_prog_CPP+set}" = set; then :
++  if ${ac_cv_prog_CPP+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+       # Double quotes because CPP needs to be expanded
+     for CPP in "$CC -E" "$CC -E -traditional-cpp" "/lib/cpp"
+     do
+       ac_preproc_ok=false
+@@ -3463,24 +3471,24 @@
+ if $ac_preproc_ok; then :
+ 
+ else
+   { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error $? "C preprocessor \"$CPP\" fails sanity check
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+ fi
+ 
+ ac_ext=c
+ ac_cpp='$CPP $CPPFLAGS'
+ ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
+ ac_link='$CC -o conftest$ac_exeext $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
+ ac_compiler_gnu=$ac_cv_c_compiler_gnu
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for grep that handles long lines and -e" >&5
+ $as_echo_n "checking for grep that handles long lines and -e... " >&6; }
+-if test "${ac_cv_path_GREP+set}" = set; then :
++if ${ac_cv_path_GREP+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test -z "$GREP"; then
+   ac_path_GREP_found=false
+   # Loop through the user's path and test for each of PROGNAME-LIST
+   as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+@@ -3537,13 +3545,13 @@
+ $as_echo "$ac_cv_path_GREP" >&6; }
+  GREP="$ac_cv_path_GREP"
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for egrep" >&5
+ $as_echo_n "checking for egrep... " >&6; }
+-if test "${ac_cv_path_EGREP+set}" = set; then :
++if ${ac_cv_path_EGREP+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if echo a | $GREP -E '(a|b)' >/dev/null 2>&1
+    then ac_cv_path_EGREP="$GREP -E"
+    else
+      if test -z "$EGREP"; then
+@@ -3619,13 +3627,13 @@
+ # OS/2's system install, which has a completely different semantic
+ # ./install, which can be erroneously created by make from ./install.sh.
+ # Reject install programs that cannot install multiple files.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for a BSD-compatible install" >&5
+ $as_echo_n "checking for a BSD-compatible install... " >&6; }
+ if test -z "$INSTALL"; then
+-if test "${ac_cv_path_install+set}" = set; then :
++if ${ac_cv_path_install+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+ for as_dir in $PATH
+ do
+   IFS=$as_save_IFS
+@@ -3701,13 +3709,13 @@
+    case $ac_cv_prog_cc_stdc in #(
+   no) :
+     ac_cv_prog_cc_c99=no; ac_cv_prog_cc_c89=no ;; #(
+   *) :
+     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $CC option to accept ISO C99" >&5
+ $as_echo_n "checking for $CC option to accept ISO C99... " >&6; }
+-if test "${ac_cv_prog_cc_c99+set}" = set; then :
++if ${ac_cv_prog_cc_c99+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_cv_prog_cc_c99=no
+ ac_save_CC=$CC
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -3876,13 +3884,13 @@
+ esac
+ if test "x$ac_cv_prog_cc_c99" != xno; then :
+   ac_cv_prog_cc_stdc=$ac_cv_prog_cc_c99
+ else
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $CC option to accept ISO C89" >&5
+ $as_echo_n "checking for $CC option to accept ISO C89... " >&6; }
+-if test "${ac_cv_prog_cc_c89+set}" = set; then :
++if ${ac_cv_prog_cc_c89+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_cv_prog_cc_c89=no
+ ac_save_CC=$CC
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -3972,13 +3980,13 @@
+ 
+ fi
+  ;;
+ esac
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $CC option to accept ISO Standard C" >&5
+ $as_echo_n "checking for $CC option to accept ISO Standard C... " >&6; }
+-  if test "${ac_cv_prog_cc_stdc+set}" = set; then :
++  if ${ac_cv_prog_cc_stdc+:} false; then :
+   $as_echo_n "(cached) " >&6
+ fi
+ 
+   case $ac_cv_prog_cc_stdc in #(
+   no) :
+     { $as_echo "$as_me:${as_lineno-$LINENO}: result: unsupported" >&5
+@@ -4091,13 +4099,13 @@
+ 
+ 
+ # Extract the first word of "remsh", so it can be a program name with args.
+ set dummy remsh; ac_word=$2
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+ $as_echo_n "checking for $ac_word... " >&6; }
+-if test "${ac_cv_prog_HAVE_REMSH+set}" = set; then :
++if ${ac_cv_prog_HAVE_REMSH+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test -n "$HAVE_REMSH"; then
+   ac_cv_prog_HAVE_REMSH="$HAVE_REMSH" # Let the user override the test.
+ else
+ as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+@@ -4146,13 +4154,13 @@
+ 
+ 
+ # Extract the first word of "yodl2man", so it can be a program name with args.
+ set dummy yodl2man; ac_word=$2
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_word" >&5
+ $as_echo_n "checking for $ac_word... " >&6; }
+-if test "${ac_cv_prog_HAVE_YODL2MAN+set}" = set; then :
++if ${ac_cv_prog_HAVE_YODL2MAN+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test -n "$HAVE_YODL2MAN"; then
+   ac_cv_prog_HAVE_YODL2MAN="$HAVE_YODL2MAN" # Let the user override the test.
+ else
+ as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+@@ -4221,13 +4229,13 @@
+ 
+ # arrgh. libc in some old debian version screwed up the largefile
+ # stuff, getting byte range locking wrong
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for broken largefile support" >&5
+ $as_echo_n "checking for broken largefile support... " >&6; }
+-if test "${rsync_cv_HAVE_BROKEN_LARGEFILE+set}" = set; then :
++if ${rsync_cv_HAVE_BROKEN_LARGEFILE+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ if test "$cross_compiling" = yes; then :
+   rsync_cv_HAVE_BROKEN_LARGEFILE=cross
+ else
+@@ -4286,13 +4294,13 @@
+ fi
+ 
+ if test "$enable_largefile" != no; then
+ 
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for special C compiler options needed for large files" >&5
+ $as_echo_n "checking for special C compiler options needed for large files... " >&6; }
+-if test "${ac_cv_sys_largefile_CC+set}" = set; then :
++if ${ac_cv_sys_largefile_CC+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_cv_sys_largefile_CC=no
+      if test "$GCC" != yes; then
+        ac_save_CC=$CC
+        while :; do
+@@ -4337,13 +4345,13 @@
+   if test "$ac_cv_sys_largefile_CC" != no; then
+     CC=$CC$ac_cv_sys_largefile_CC
+   fi
+ 
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for _FILE_OFFSET_BITS value needed for large files" >&5
+ $as_echo_n "checking for _FILE_OFFSET_BITS value needed for large files... " >&6; }
+-if test "${ac_cv_sys_file_offset_bits+set}" = set; then :
++if ${ac_cv_sys_file_offset_bits+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   while :; do
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+@@ -4406,13 +4414,13 @@
+ ;;
+ esac
+ rm -rf conftest*
+   if test $ac_cv_sys_file_offset_bits = unknown; then
+     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for _LARGE_FILES value needed for large files" >&5
+ $as_echo_n "checking for _LARGE_FILES value needed for large files... " >&6; }
+-if test "${ac_cv_sys_large_files+set}" = set; then :
++if ${ac_cv_sys_large_files+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   while :; do
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+@@ -4678,13 +4686,13 @@
+ 	done
+ 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ipv6type" >&5
+ $as_echo "$ipv6type" >&6; }
+ 
+ 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing getaddrinfo" >&5
+ $as_echo_n "checking for library containing getaddrinfo... " >&6; }
+-if test "${ac_cv_search_getaddrinfo+set}" = set; then :
++if ${ac_cv_search_getaddrinfo+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_func_search_save_LIBS=$LIBS
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -4712,17 +4720,17 @@
+   fi
+   if ac_fn_c_try_link "$LINENO"; then :
+   ac_cv_search_getaddrinfo=$ac_res
+ fi
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext
+-  if test "${ac_cv_search_getaddrinfo+set}" = set; then :
++  if ${ac_cv_search_getaddrinfo+:} false; then :
+   break
+ fi
+ done
+-if test "${ac_cv_search_getaddrinfo+set}" = set; then :
++if ${ac_cv_search_getaddrinfo+:} false; then :
+ 
+ else
+   ac_cv_search_getaddrinfo=no
+ fi
+ rm conftest.$ac_ext
+ LIBS=$ac_func_search_save_LIBS
+@@ -4760,13 +4768,13 @@
+ 	       * ) { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+ $as_echo "no" >&6; };;
+ esac
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for ANSI C header files" >&5
+ $as_echo_n "checking for ANSI C header files... " >&6; }
+-if test "${ac_cv_header_stdc+set}" = set; then :
++if ${ac_cv_header_stdc+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <stdlib.h>
+ #include <stdarg.h>
+@@ -4889,13 +4897,13 @@
+ 
+ done
+ 
+ 
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether byte ordering is bigendian" >&5
+ $as_echo_n "checking whether byte ordering is bigendian... " >&6; }
+-if test "${ac_cv_c_bigendian+set}" = set; then :
++if ${ac_cv_c_bigendian+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_cv_c_bigendian=unknown
+     # See if we're dealing with a universal compiler.
+     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -5108,21 +5116,21 @@
+ 
+ $as_echo "#define AC_APPLE_UNIVERSAL_BUILD 1" >>confdefs.h
+ 
+      ;; #(
+    *)
+      as_fn_error $? "unknown endianness
+- presetting ac_cv_c_bigendian=no (or yes) will help" "$LINENO" 5  ;;
++ presetting ac_cv_c_bigendian=no (or yes) will help" "$LINENO" 5 ;;
+  esac
+ 
+ ac_header_dirent=no
+ for ac_hdr in dirent.h sys/ndir.h sys/dir.h ndir.h; do
+   as_ac_Header=`$as_echo "ac_cv_header_dirent_$ac_hdr" | $as_tr_sh`
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for $ac_hdr that defines DIR" >&5
+ $as_echo_n "checking for $ac_hdr that defines DIR... " >&6; }
+-if eval "test \"\${$as_ac_Header+set}\"" = set; then :
++if eval \${$as_ac_Header+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+ #include <$ac_hdr>
+@@ -5156,13 +5164,13 @@
+ 
+ done
+ # Two versions of opendir et al. are in -ldir and -lx on SCO Xenix.
+ if test $ac_header_dirent = dirent.h; then
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing opendir" >&5
+ $as_echo_n "checking for library containing opendir... " >&6; }
+-if test "${ac_cv_search_opendir+set}" = set; then :
++if ${ac_cv_search_opendir+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_func_search_save_LIBS=$LIBS
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -5190,17 +5198,17 @@
+   fi
+   if ac_fn_c_try_link "$LINENO"; then :
+   ac_cv_search_opendir=$ac_res
+ fi
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext
+-  if test "${ac_cv_search_opendir+set}" = set; then :
++  if ${ac_cv_search_opendir+:} false; then :
+   break
+ fi
+ done
+-if test "${ac_cv_search_opendir+set}" = set; then :
++if ${ac_cv_search_opendir+:} false; then :
+ 
+ else
+   ac_cv_search_opendir=no
+ fi
+ rm conftest.$ac_ext
+ LIBS=$ac_func_search_save_LIBS
+@@ -5213,13 +5221,13 @@
+ 
+ fi
+ 
+ else
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing opendir" >&5
+ $as_echo_n "checking for library containing opendir... " >&6; }
+-if test "${ac_cv_search_opendir+set}" = set; then :
++if ${ac_cv_search_opendir+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_func_search_save_LIBS=$LIBS
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -5247,17 +5255,17 @@
+   fi
+   if ac_fn_c_try_link "$LINENO"; then :
+   ac_cv_search_opendir=$ac_res
+ fi
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext
+-  if test "${ac_cv_search_opendir+set}" = set; then :
++  if ${ac_cv_search_opendir+:} false; then :
+   break
+ fi
+ done
+-if test "${ac_cv_search_opendir+set}" = set; then :
++if ${ac_cv_search_opendir+:} false; then :
+ 
+ else
+   ac_cv_search_opendir=no
+ fi
+ rm conftest.$ac_ext
+ LIBS=$ac_func_search_save_LIBS
+@@ -5271,13 +5279,13 @@
+ fi
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether time.h and sys/time.h may both be included" >&5
+ $as_echo_n "checking whether time.h and sys/time.h may both be included... " >&6; }
+-if test "${ac_cv_header_time+set}" = set; then :
++if ${ac_cv_header_time+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+ #include <sys/time.h>
+@@ -5306,13 +5314,13 @@
+ $as_echo "#define TIME_WITH_SYS_TIME 1" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for sys/wait.h that is POSIX.1 compatible" >&5
+ $as_echo_n "checking for sys/wait.h that is POSIX.1 compatible... " >&6; }
+-if test "${ac_cv_header_sys_wait_h+set}" = set; then :
++if ${ac_cv_header_sys_wait_h+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+ #include <sys/wait.h>
+@@ -5351,13 +5359,13 @@
+ for ac_header in sys/fcntl.h sys/select.h fcntl.h sys/time.h sys/unistd.h \
+     unistd.h utime.h grp.h compat.h sys/param.h ctype.h sys/wait.h \
+     sys/ioctl.h sys/filio.h string.h stdlib.h sys/socket.h sys/mode.h \
+     sys/un.h sys/attr.h mcheck.h arpa/inet.h arpa/nameser.h locale.h \
+     netdb.h malloc.h float.h limits.h iconv.h libcharset.h langinfo.h \
+     sys/acl.h acl/libacl.h attr/xattr.h sys/xattr.h sys/extattr.h \
+-    popt.h popt/popt.h
++    popt.h popt/popt.h netinet/in_systm.h netinet/ip.h
+ do :
+   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
+ ac_fn_c_check_header_mongrel "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
+ if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
+   cat >>confdefs.h <<_ACEOF
+ #define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
+@@ -5366,13 +5374,13 @@
+ fi
+ 
+ done
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether sys/types.h defines makedev" >&5
+ $as_echo_n "checking whether sys/types.h defines makedev... " >&6; }
+-if test "${ac_cv_header_sys_types_h_makedev+set}" = set; then :
++if ${ac_cv_header_sys_types_h_makedev+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+ int
+@@ -5394,36 +5402,36 @@
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_header_sys_types_h_makedev" >&5
+ $as_echo "$ac_cv_header_sys_types_h_makedev" >&6; }
+ 
+ if test $ac_cv_header_sys_types_h_makedev = no; then
+ ac_fn_c_check_header_mongrel "$LINENO" "sys/mkdev.h" "ac_cv_header_sys_mkdev_h" "$ac_includes_default"
+-if test "x$ac_cv_header_sys_mkdev_h" = x""yes; then :
++if test "x$ac_cv_header_sys_mkdev_h" = xyes; then :
+ 
+ $as_echo "#define MAJOR_IN_MKDEV 1" >>confdefs.h
+ 
+ fi
+ 
+ 
+ 
+   if test $ac_cv_header_sys_mkdev_h = no; then
+     ac_fn_c_check_header_mongrel "$LINENO" "sys/sysmacros.h" "ac_cv_header_sys_sysmacros_h" "$ac_includes_default"
+-if test "x$ac_cv_header_sys_sysmacros_h" = x""yes; then :
++if test "x$ac_cv_header_sys_sysmacros_h" = xyes; then :
+ 
+ $as_echo "#define MAJOR_IN_SYSMACROS 1" >>confdefs.h
+ 
+ fi
+ 
+ 
+   fi
+ fi
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking if makedev takes 3 args" >&5
+ $as_echo_n "checking if makedev takes 3 args... " >&6; }
+-if test "${rsync_cv_MAKEDEV_TAKES_3_ARGS+set}" = set; then :
++if ${rsync_cv_MAKEDEV_TAKES_3_ARGS+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ if test "$cross_compiling" = yes; then :
+   rsync_cv_MAKEDEV_TAKES_3_ARGS=no
+ else
+@@ -5470,23 +5478,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of int" >&5
+ $as_echo_n "checking size of int... " >&6; }
+-if test "${ac_cv_sizeof_int+set}" = set; then :
++if ${ac_cv_sizeof_int+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (int))" "ac_cv_sizeof_int"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_int" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (int)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_int=0
+    fi
+ fi
+ 
+ fi
+@@ -5503,23 +5511,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of long" >&5
+ $as_echo_n "checking size of long... " >&6; }
+-if test "${ac_cv_sizeof_long+set}" = set; then :
++if ${ac_cv_sizeof_long+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (long))" "ac_cv_sizeof_long"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_long" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (long)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_long=0
+    fi
+ fi
+ 
+ fi
+@@ -5536,23 +5544,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of long long" >&5
+ $as_echo_n "checking size of long long... " >&6; }
+-if test "${ac_cv_sizeof_long_long+set}" = set; then :
++if ${ac_cv_sizeof_long_long+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (long long))" "ac_cv_sizeof_long_long"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_long_long" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (long long)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_long_long=0
+    fi
+ fi
+ 
+ fi
+@@ -5569,23 +5577,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of short" >&5
+ $as_echo_n "checking size of short... " >&6; }
+-if test "${ac_cv_sizeof_short+set}" = set; then :
++if ${ac_cv_sizeof_short+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (short))" "ac_cv_sizeof_short"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_short" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (short)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_short=0
+    fi
+ fi
+ 
+ fi
+@@ -5602,23 +5610,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of int16_t" >&5
+ $as_echo_n "checking size of int16_t... " >&6; }
+-if test "${ac_cv_sizeof_int16_t+set}" = set; then :
++if ${ac_cv_sizeof_int16_t+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (int16_t))" "ac_cv_sizeof_int16_t"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_int16_t" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (int16_t)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_int16_t=0
+    fi
+ fi
+ 
+ fi
+@@ -5635,23 +5643,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of uint16_t" >&5
+ $as_echo_n "checking size of uint16_t... " >&6; }
+-if test "${ac_cv_sizeof_uint16_t+set}" = set; then :
++if ${ac_cv_sizeof_uint16_t+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (uint16_t))" "ac_cv_sizeof_uint16_t"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_uint16_t" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (uint16_t)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_uint16_t=0
+    fi
+ fi
+ 
+ fi
+@@ -5668,23 +5676,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of int32_t" >&5
+ $as_echo_n "checking size of int32_t... " >&6; }
+-if test "${ac_cv_sizeof_int32_t+set}" = set; then :
++if ${ac_cv_sizeof_int32_t+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (int32_t))" "ac_cv_sizeof_int32_t"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_int32_t" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (int32_t)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_int32_t=0
+    fi
+ fi
+ 
+ fi
+@@ -5701,23 +5709,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of uint32_t" >&5
+ $as_echo_n "checking size of uint32_t... " >&6; }
+-if test "${ac_cv_sizeof_uint32_t+set}" = set; then :
++if ${ac_cv_sizeof_uint32_t+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (uint32_t))" "ac_cv_sizeof_uint32_t"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_uint32_t" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (uint32_t)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_uint32_t=0
+    fi
+ fi
+ 
+ fi
+@@ -5734,23 +5742,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of int64_t" >&5
+ $as_echo_n "checking size of int64_t... " >&6; }
+-if test "${ac_cv_sizeof_int64_t+set}" = set; then :
++if ${ac_cv_sizeof_int64_t+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (int64_t))" "ac_cv_sizeof_int64_t"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_int64_t" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (int64_t)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_int64_t=0
+    fi
+ fi
+ 
+ fi
+@@ -5767,23 +5775,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of off_t" >&5
+ $as_echo_n "checking size of off_t... " >&6; }
+-if test "${ac_cv_sizeof_off_t+set}" = set; then :
++if ${ac_cv_sizeof_off_t+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (off_t))" "ac_cv_sizeof_off_t"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_off_t" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (off_t)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_off_t=0
+    fi
+ fi
+ 
+ fi
+@@ -5800,23 +5808,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of off64_t" >&5
+ $as_echo_n "checking size of off64_t... " >&6; }
+-if test "${ac_cv_sizeof_off64_t+set}" = set; then :
++if ${ac_cv_sizeof_off64_t+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (off64_t))" "ac_cv_sizeof_off64_t"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_off64_t" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (off64_t)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_off64_t=0
+    fi
+ fi
+ 
+ fi
+@@ -5833,23 +5841,23 @@
+ # The cast to long int works around a bug in the HP C Compiler
+ # version HP92453-01 B.11.11.23709.GP, which incorrectly rejects
+ # declarations like `int a3[[(sizeof (unsigned char)) >= 0]];'.
+ # This bug is HP SR number 8606223364.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking size of time_t" >&5
+ $as_echo_n "checking size of time_t... " >&6; }
+-if test "${ac_cv_sizeof_time_t+set}" = set; then :
++if ${ac_cv_sizeof_time_t+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if ac_fn_c_compute_int "$LINENO" "(long int) (sizeof (time_t))" "ac_cv_sizeof_time_t"        "$ac_includes_default"; then :
+ 
+ else
+   if test "$ac_cv_type_time_t" = yes; then
+      { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+ $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+ as_fn_error 77 "cannot compute sizeof (time_t)
+-See \`config.log' for more details" "$LINENO" 5 ; }
++See \`config.log' for more details" "$LINENO" 5; }
+    else
+      ac_cv_sizeof_time_t=0
+    fi
+ fi
+ 
+ fi
+@@ -5863,13 +5871,13 @@
+ _ACEOF
+ 
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for inline" >&5
+ $as_echo_n "checking for inline... " >&6; }
+-if test "${ac_cv_c_inline+set}" = set; then :
++if ${ac_cv_c_inline+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_cv_c_inline=no
+ for ac_kw in inline __inline__ __inline; do
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -5907,13 +5915,13 @@
+ esac
+ 
+ 
+ 
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for long double with more range or precision than double" >&5
+ $as_echo_n "checking for long double with more range or precision than double... " >&6; }
+-if test "${ac_cv_type_long_double_wider+set}" = set; then :
++if ${ac_cv_type_long_double_wider+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <float.h>
+ 	    long double const a[] =
+@@ -5965,13 +5973,13 @@
+ 
+     fi
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking return type of signal handlers" >&5
+ $as_echo_n "checking return type of signal handlers... " >&6; }
+-if test "${ac_cv_type_signal+set}" = set; then :
++if ${ac_cv_type_signal+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+ #include <signal.h>
+@@ -5998,13 +6006,13 @@
+ #define RETSIGTYPE $ac_cv_type_signal
+ _ACEOF
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for uid_t in sys/types.h" >&5
+ $as_echo_n "checking for uid_t in sys/types.h... " >&6; }
+-if test "${ac_cv_type_uid_t+set}" = set; then :
++if ${ac_cv_type_uid_t+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+ 
+@@ -6027,60 +6035,60 @@
+ 
+ $as_echo "#define gid_t int" >>confdefs.h
+ 
+ fi
+ 
+ ac_fn_c_check_type "$LINENO" "mode_t" "ac_cv_type_mode_t" "$ac_includes_default"
+-if test "x$ac_cv_type_mode_t" = x""yes; then :
++if test "x$ac_cv_type_mode_t" = xyes; then :
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define HAVE_MODE_T 1
+ _ACEOF
+ 
+ 
+ fi
+ ac_fn_c_check_type "$LINENO" "off_t" "ac_cv_type_off_t" "$ac_includes_default"
+-if test "x$ac_cv_type_off_t" = x""yes; then :
++if test "x$ac_cv_type_off_t" = xyes; then :
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define HAVE_OFF_T 1
+ _ACEOF
+ 
+ 
+ fi
+ ac_fn_c_check_type "$LINENO" "size_t" "ac_cv_type_size_t" "$ac_includes_default"
+-if test "x$ac_cv_type_size_t" = x""yes; then :
++if test "x$ac_cv_type_size_t" = xyes; then :
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define HAVE_SIZE_T 1
+ _ACEOF
+ 
+ 
+ fi
+ ac_fn_c_check_type "$LINENO" "pid_t" "ac_cv_type_pid_t" "$ac_includes_default"
+-if test "x$ac_cv_type_pid_t" = x""yes; then :
++if test "x$ac_cv_type_pid_t" = xyes; then :
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define HAVE_PID_T 1
+ _ACEOF
+ 
+ 
+ fi
+ ac_fn_c_check_type "$LINENO" "id_t" "ac_cv_type_id_t" "$ac_includes_default"
+-if test "x$ac_cv_type_id_t" = x""yes; then :
++if test "x$ac_cv_type_id_t" = xyes; then :
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define HAVE_ID_T 1
+ _ACEOF
+ 
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking type of array argument to getgroups" >&5
+ $as_echo_n "checking type of array argument to getgroups... " >&6; }
+-if test "${ac_cv_type_getgroups+set}" = set; then :
++if ${ac_cv_type_getgroups+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test "$cross_compiling" = yes; then :
+   ac_cv_type_getgroups=cross
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+@@ -6140,13 +6148,13 @@
+ cat >>confdefs.h <<_ACEOF
+ #define GETGROUPS_T $ac_cv_type_getgroups
+ _ACEOF
+ 
+ 
+ ac_fn_c_check_member "$LINENO" "struct stat" "st_rdev" "ac_cv_member_struct_stat_st_rdev" "$ac_includes_default"
+-if test "x$ac_cv_member_struct_stat_st_rdev" = x""yes; then :
++if test "x$ac_cv_member_struct_stat_st_rdev" = xyes; then :
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define HAVE_STRUCT_STAT_ST_RDEV 1
+ _ACEOF
+ 
+ 
+@@ -6154,19 +6162,19 @@
+ 
+ 
+ 
+    ac_fn_c_check_type "$LINENO" "socklen_t" "ac_cv_type_socklen_t" "#include <sys/types.h>
+ #include <sys/socket.h>
+ "
+-if test "x$ac_cv_type_socklen_t" = x""yes; then :
++if test "x$ac_cv_type_socklen_t" = xyes; then :
+ 
+ else
+ 
+       { $as_echo "$as_me:${as_lineno-$LINENO}: checking for socklen_t equivalent" >&5
+ $as_echo_n "checking for socklen_t equivalent... " >&6; }
+-      if test "${rsync_cv_socklen_t_equiv+set}" = set; then :
++      if ${rsync_cv_socklen_t_equiv+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+          # Systems have either "struct sockaddr *" or
+          # "void *" as the second argument to getpeername
+          rsync_cv_socklen_t_equiv=
+@@ -6217,13 +6225,13 @@
+ fi
+ 
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for errno in errno.h" >&5
+ $as_echo_n "checking for errno in errno.h... " >&6; }
+-if test "${rsync_cv_errno+set}" = set; then :
++if ${rsync_cv_errno+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <errno.h>
+@@ -6258,26 +6266,26 @@
+ # libsocket.so which has a bad implementation of gethostbyname (it
+ # only looks in /etc/hosts), so we only look for -lsocket if we need
+ # it.
+ for ac_func in connect
+ do :
+   ac_fn_c_check_func "$LINENO" "connect" "ac_cv_func_connect"
+-if test "x$ac_cv_func_connect" = x""yes; then :
++if test "x$ac_cv_func_connect" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_CONNECT 1
+ _ACEOF
+ 
+ fi
+ done
+ 
+ if test x"$ac_cv_func_connect" = x"no"; then
+     case "$LIBS" in
+     *-lnsl*) ;;
+     *) { $as_echo "$as_me:${as_lineno-$LINENO}: checking for printf in -lnsl_s" >&5
+ $as_echo_n "checking for printf in -lnsl_s... " >&6; }
+-if test "${ac_cv_lib_nsl_s_printf+set}" = set; then :
++if ${ac_cv_lib_nsl_s_printf+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+ LIBS="-lnsl_s  $LIBS"
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -6305,13 +6313,13 @@
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_nsl_s_printf" >&5
+ $as_echo "$ac_cv_lib_nsl_s_printf" >&6; }
+-if test "x$ac_cv_lib_nsl_s_printf" = x""yes; then :
++if test "x$ac_cv_lib_nsl_s_printf" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_LIBNSL_S 1
+ _ACEOF
+ 
+   LIBS="-lnsl_s $LIBS"
+ 
+@@ -6319,13 +6327,13 @@
+  ;;
+     esac
+     case "$LIBS" in
+     *-lnsl*) ;;
+     *) { $as_echo "$as_me:${as_lineno-$LINENO}: checking for printf in -lnsl" >&5
+ $as_echo_n "checking for printf in -lnsl... " >&6; }
+-if test "${ac_cv_lib_nsl_printf+set}" = set; then :
++if ${ac_cv_lib_nsl_printf+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+ LIBS="-lnsl  $LIBS"
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -6353,13 +6361,13 @@
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_nsl_printf" >&5
+ $as_echo "$ac_cv_lib_nsl_printf" >&6; }
+-if test "x$ac_cv_lib_nsl_printf" = x""yes; then :
++if test "x$ac_cv_lib_nsl_printf" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_LIBNSL 1
+ _ACEOF
+ 
+   LIBS="-lnsl $LIBS"
+ 
+@@ -6367,13 +6375,13 @@
+  ;;
+     esac
+     case "$LIBS" in
+     *-lsocket*) ;;
+     *) { $as_echo "$as_me:${as_lineno-$LINENO}: checking for connect in -lsocket" >&5
+ $as_echo_n "checking for connect in -lsocket... " >&6; }
+-if test "${ac_cv_lib_socket_connect+set}" = set; then :
++if ${ac_cv_lib_socket_connect+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+ LIBS="-lsocket  $LIBS"
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -6401,13 +6409,13 @@
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_socket_connect" >&5
+ $as_echo "$ac_cv_lib_socket_connect" >&6; }
+-if test "x$ac_cv_lib_socket_connect" = x""yes; then :
++if test "x$ac_cv_lib_socket_connect" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_LIBSOCKET 1
+ _ACEOF
+ 
+   LIBS="-lsocket $LIBS"
+ 
+@@ -6415,13 +6423,13 @@
+  ;;
+     esac
+     case "$LIBS" in
+     *-linet*) ;;
+     *) { $as_echo "$as_me:${as_lineno-$LINENO}: checking for connect in -linet" >&5
+ $as_echo_n "checking for connect in -linet... " >&6; }
+-if test "${ac_cv_lib_inet_connect+set}" = set; then :
++if ${ac_cv_lib_inet_connect+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+ LIBS="-linet  $LIBS"
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -6449,13 +6457,13 @@
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_inet_connect" >&5
+ $as_echo "$ac_cv_lib_inet_connect" >&6; }
+-if test "x$ac_cv_lib_inet_connect" = x""yes; then :
++if test "x$ac_cv_lib_inet_connect" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_LIBINET 1
+ _ACEOF
+ 
+   LIBS="-linet $LIBS"
+ 
+@@ -6471,13 +6479,13 @@
+ 
+     fi
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing inet_ntop" >&5
+ $as_echo_n "checking for library containing inet_ntop... " >&6; }
+-if test "${ac_cv_search_inet_ntop+set}" = set; then :
++if ${ac_cv_search_inet_ntop+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_func_search_save_LIBS=$LIBS
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -6505,17 +6513,17 @@
+   fi
+   if ac_fn_c_try_link "$LINENO"; then :
+   ac_cv_search_inet_ntop=$ac_res
+ fi
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext
+-  if test "${ac_cv_search_inet_ntop+set}" = set; then :
++  if ${ac_cv_search_inet_ntop+:} false; then :
+   break
+ fi
+ done
+-if test "${ac_cv_search_inet_ntop+set}" = set; then :
++if ${ac_cv_search_inet_ntop+:} false; then :
+ 
+ else
+   ac_cv_search_inet_ntop=no
+ fi
+ rm conftest.$ac_ext
+ LIBS=$ac_func_search_save_LIBS
+@@ -6531,13 +6539,13 @@
+ 
+ # For OS X, Solaris, HP-UX, etc.: figure out if -liconv is needed.  We'll
+ # accept either iconv_open or libiconv_open, since some include files map
+ # the former to the latter.
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing iconv_open" >&5
+ $as_echo_n "checking for library containing iconv_open... " >&6; }
+-if test "${ac_cv_search_iconv_open+set}" = set; then :
++if ${ac_cv_search_iconv_open+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_func_search_save_LIBS=$LIBS
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -6565,17 +6573,17 @@
+   fi
+   if ac_fn_c_try_link "$LINENO"; then :
+   ac_cv_search_iconv_open=$ac_res
+ fi
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext
+-  if test "${ac_cv_search_iconv_open+set}" = set; then :
++  if ${ac_cv_search_iconv_open+:} false; then :
+   break
+ fi
+ done
+-if test "${ac_cv_search_iconv_open+set}" = set; then :
++if ${ac_cv_search_iconv_open+:} false; then :
+ 
+ else
+   ac_cv_search_iconv_open=no
+ fi
+ rm conftest.$ac_ext
+ LIBS=$ac_func_search_save_LIBS
+@@ -6587,13 +6595,13 @@
+   test "$ac_res" = "none required" || LIBS="$ac_res $LIBS"
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for library containing libiconv_open" >&5
+ $as_echo_n "checking for library containing libiconv_open... " >&6; }
+-if test "${ac_cv_search_libiconv_open+set}" = set; then :
++if ${ac_cv_search_libiconv_open+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_func_search_save_LIBS=$LIBS
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -6621,17 +6629,17 @@
+   fi
+   if ac_fn_c_try_link "$LINENO"; then :
+   ac_cv_search_libiconv_open=$ac_res
+ fi
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext
+-  if test "${ac_cv_search_libiconv_open+set}" = set; then :
++  if ${ac_cv_search_libiconv_open+:} false; then :
+   break
+ fi
+ done
+-if test "${ac_cv_search_libiconv_open+set}" = set; then :
++if ${ac_cv_search_libiconv_open+:} false; then :
+ 
+ else
+   ac_cv_search_libiconv_open=no
+ fi
+ rm conftest.$ac_ext
+ LIBS=$ac_func_search_save_LIBS
+@@ -6644,13 +6652,13 @@
+ 
+ fi
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for iconv declaration" >&5
+ $as_echo_n "checking for iconv declaration... " >&6; }
+-if test "${am_cv_proto_iconv+set}" = set; then :
++if ${am_cv_proto_iconv+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -6695,13 +6703,13 @@
+ 
+ 
+ 
+ for ac_func in inet_ntop
+ do :
+   ac_fn_c_check_func "$LINENO" "inet_ntop" "ac_cv_func_inet_ntop"
+-if test "x$ac_cv_func_inet_ntop" = x""yes; then :
++if test "x$ac_cv_func_inet_ntop" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_INET_NTOP 1
+ _ACEOF
+ 
+ else
+   case " $LIBOBJS " in
+@@ -6713,13 +6721,13 @@
+ fi
+ done
+ 
+ for ac_func in inet_pton
+ do :
+   ac_fn_c_check_func "$LINENO" "inet_pton" "ac_cv_func_inet_pton"
+-if test "x$ac_cv_func_inet_pton" = x""yes; then :
++if test "x$ac_cv_func_inet_pton" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_INET_PTON 1
+ _ACEOF
+ 
+ else
+   case " $LIBOBJS " in
+@@ -6734,13 +6742,13 @@
+ 
+ 
+ 
+ cv=`echo "struct addrinfo" | sed 'y%./+- %__p__%'`
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for struct addrinfo" >&5
+ $as_echo_n "checking for struct addrinfo... " >&6; }
+-if eval "test \"\${ac_cv_type_$cv+set}\"" = set; then :
++if eval \${ac_cv_type_$cv+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+ $ac_includes_default
+@@ -6764,13 +6772,13 @@
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_foo" >&5
+ $as_echo "$ac_foo" >&6; }
+ if test "$ac_foo" = yes; then
+   ac_tr_hdr=HAVE_`echo struct addrinfo | sed 'y%abcdefghijklmnopqrstuvwxyz./- %ABCDEFGHIJKLMNOPQRSTUVWXYZ____%'`
+ if false; then
+ 	ac_fn_c_check_type "$LINENO" "struct addrinfo" "ac_cv_type_struct_addrinfo" "$ac_includes_default"
+-if test "x$ac_cv_type_struct_addrinfo" = x""yes; then :
++if test "x$ac_cv_type_struct_addrinfo" = xyes; then :
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define HAVE_STRUCT_ADDRINFO 1
+ _ACEOF
+ 
+ 
+@@ -6786,13 +6794,13 @@
+ 
+ 
+ 
+ cv=`echo "struct sockaddr_storage" | sed 'y%./+- %__p__%'`
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for struct sockaddr_storage" >&5
+ $as_echo_n "checking for struct sockaddr_storage... " >&6; }
+-if eval "test \"\${ac_cv_type_$cv+set}\"" = set; then :
++if eval \${ac_cv_type_$cv+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+ $ac_includes_default
+@@ -6817,13 +6825,13 @@
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_foo" >&5
+ $as_echo "$ac_foo" >&6; }
+ if test "$ac_foo" = yes; then
+   ac_tr_hdr=HAVE_`echo struct sockaddr_storage | sed 'y%abcdefghijklmnopqrstuvwxyz./- %ABCDEFGHIJKLMNOPQRSTUVWXYZ____%'`
+ if false; then
+ 	ac_fn_c_check_type "$LINENO" "struct sockaddr_storage" "ac_cv_type_struct_sockaddr_storage" "$ac_includes_default"
+-if test "x$ac_cv_type_struct_sockaddr_storage" = x""yes; then :
++if test "x$ac_cv_type_struct_sockaddr_storage" = xyes; then :
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define HAVE_STRUCT_SOCKADDR_STORAGE 1
+ _ACEOF
+ 
+ 
+@@ -6839,13 +6847,13 @@
+ 
+ 
+ # Irix 6.5 has getaddrinfo but not the corresponding defines, so use
+ #   builtin getaddrinfo if one of the defines don't exist
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether defines needed by getaddrinfo exist" >&5
+ $as_echo_n "checking whether defines needed by getaddrinfo exist... " >&6; }
+-if test "${rsync_cv_HAVE_GETADDR_DEFINES+set}" = set; then :
++if ${rsync_cv_HAVE_GETADDR_DEFINES+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ 			cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -6871,13 +6879,13 @@
+ 	# Tru64 UNIX has getaddrinfo() but has it renamed in libc as
+ 	# something else so we must include <netdb.h> to get the
+ 	# redefinition.
+ 	for ac_func in getaddrinfo
+ do :
+   ac_fn_c_check_func "$LINENO" "getaddrinfo" "ac_cv_func_getaddrinfo"
+-if test "x$ac_cv_func_getaddrinfo" = x""yes; then :
++if test "x$ac_cv_func_getaddrinfo" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_GETADDRINFO 1
+ _ACEOF
+ 
+ else
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for getaddrinfo by including <netdb.h>" >&5
+@@ -6927,64 +6935,64 @@
+ 
+ ac_fn_c_check_member "$LINENO" "struct sockaddr" "sa_len" "ac_cv_member_struct_sockaddr_sa_len" "
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ 
+ "
+-if test "x$ac_cv_member_struct_sockaddr_sa_len" = x""yes; then :
++if test "x$ac_cv_member_struct_sockaddr_sa_len" = xyes; then :
+ 
+ $as_echo "#define HAVE_SOCKADDR_LEN 1" >>confdefs.h
+ 
+ fi
+ 
+ 
+ ac_fn_c_check_member "$LINENO" "struct sockaddr_in" "sin_len" "ac_cv_member_struct_sockaddr_in_sin_len" "
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #include <netinet/in.h>
+ 
+ "
+-if test "x$ac_cv_member_struct_sockaddr_in_sin_len" = x""yes; then :
++if test "x$ac_cv_member_struct_sockaddr_in_sin_len" = xyes; then :
+ 
+ $as_echo "#define HAVE_SOCKADDR_IN_LEN 1" >>confdefs.h
+ 
+ fi
+ 
+ 
+ ac_fn_c_check_member "$LINENO" "struct sockaddr_un" "sun_len" "ac_cv_member_struct_sockaddr_un_sun_len" "
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #include <netinet/in.h>
+ 
+ "
+-if test "x$ac_cv_member_struct_sockaddr_un_sun_len" = x""yes; then :
++if test "x$ac_cv_member_struct_sockaddr_un_sun_len" = xyes; then :
+ 
+ $as_echo "#define HAVE_SOCKADDR_UN_LEN 1" >>confdefs.h
+ 
+ fi
+ 
+ 
+ ac_fn_c_check_member "$LINENO" "struct sockaddr_in6" "sin6_scope_id" "ac_cv_member_struct_sockaddr_in6_sin6_scope_id" "
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ #include <netinet/in.h>
+ 
+ "
+-if test "x$ac_cv_member_struct_sockaddr_in6_sin6_scope_id" = x""yes; then :
++if test "x$ac_cv_member_struct_sockaddr_in6_sin6_scope_id" = xyes; then :
+ 
+ $as_echo "#define HAVE_SOCKADDR_IN6_SCOPE_ID 1" >>confdefs.h
+ 
+ fi
+ 
+ 
+ 
+ 
+ cv=`echo "struct stat64" | sed 'y%./+- %__p__%'`
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for struct stat64" >&5
+ $as_echo_n "checking for struct stat64... " >&6; }
+-if eval "test \"\${ac_cv_type_$cv+set}\"" = set; then :
++if eval \${ac_cv_type_$cv+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+ $ac_includes_default
+@@ -7023,13 +7031,13 @@
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_foo" >&5
+ $as_echo "$ac_foo" >&6; }
+ if test "$ac_foo" = yes; then
+   ac_tr_hdr=HAVE_`echo struct stat64 | sed 'y%abcdefghijklmnopqrstuvwxyz./- %ABCDEFGHIJKLMNOPQRSTUVWXYZ____%'`
+ if false; then
+ 	ac_fn_c_check_type "$LINENO" "struct stat64" "ac_cv_type_struct_stat64" "$ac_includes_default"
+-if test "x$ac_cv_type_struct_stat64" = x""yes; then :
++if test "x$ac_cv_type_struct_stat64" = xyes; then :
+ 
+ cat >>confdefs.h <<_ACEOF
+ #define HAVE_STRUCT_STAT64 1
+ _ACEOF
+ 
+ 
+@@ -7046,24 +7054,24 @@
+ 
+ # if we can't find strcasecmp, look in -lresolv (for Unixware at least)
+ #
+ for ac_func in strcasecmp
+ do :
+   ac_fn_c_check_func "$LINENO" "strcasecmp" "ac_cv_func_strcasecmp"
+-if test "x$ac_cv_func_strcasecmp" = x""yes; then :
++if test "x$ac_cv_func_strcasecmp" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_STRCASECMP 1
+ _ACEOF
+ 
+ fi
+ done
+ 
+ if test x"$ac_cv_func_strcasecmp" = x"no"; then
+     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for strcasecmp in -lresolv" >&5
+ $as_echo_n "checking for strcasecmp in -lresolv... " >&6; }
+-if test "${ac_cv_lib_resolv_strcasecmp+set}" = set; then :
++if ${ac_cv_lib_resolv_strcasecmp+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+ LIBS="-lresolv  $LIBS"
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -7091,13 +7099,13 @@
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_resolv_strcasecmp" >&5
+ $as_echo "$ac_cv_lib_resolv_strcasecmp" >&6; }
+-if test "x$ac_cv_lib_resolv_strcasecmp" = x""yes; then :
++if test "x$ac_cv_lib_resolv_strcasecmp" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_LIBRESOLV 1
+ _ACEOF
+ 
+   LIBS="-lresolv $LIBS"
+ 
+@@ -7105,24 +7113,24 @@
+ 
+ fi
+ 
+ for ac_func in aclsort
+ do :
+   ac_fn_c_check_func "$LINENO" "aclsort" "ac_cv_func_aclsort"
+-if test "x$ac_cv_func_aclsort" = x""yes; then :
++if test "x$ac_cv_func_aclsort" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_ACLSORT 1
+ _ACEOF
+ 
+ fi
+ done
+ 
+ if test x"$ac_cv_func_aclsort" = x"no"; then
+     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for aclsort in -lsec" >&5
+ $as_echo_n "checking for aclsort in -lsec... " >&6; }
+-if test "${ac_cv_lib_sec_aclsort+set}" = set; then :
++if ${ac_cv_lib_sec_aclsort+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+ LIBS="-lsec  $LIBS"
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -7150,13 +7158,13 @@
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_sec_aclsort" >&5
+ $as_echo "$ac_cv_lib_sec_aclsort" >&6; }
+-if test "x$ac_cv_lib_sec_aclsort" = x""yes; then :
++if test "x$ac_cv_lib_sec_aclsort" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_LIBSEC 1
+ _ACEOF
+ 
+   LIBS="-lsec $LIBS"
+ 
+@@ -7184,13 +7192,13 @@
+ 
+ 
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether utime accepts a null argument" >&5
+ $as_echo_n "checking whether utime accepts a null argument... " >&6; }
+-if test "${ac_cv_func_utime_null+set}" = set; then :
++if ${ac_cv_func_utime_null+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   rm -f conftest.data; >conftest.data
+ # Sequent interprets utime(file, 0) to mean use start of epoch.  Wrong.
+ if test "$cross_compiling" = yes; then :
+   ac_cv_func_utime_null='guessing yes'
+@@ -7231,17 +7239,28 @@
+ 
+ $as_echo "#define HAVE_UTIME_NULL 1" >>confdefs.h
+ 
+ fi
+ rm -f conftest.data
+ 
++ac_fn_c_check_type "$LINENO" "size_t" "ac_cv_type_size_t" "$ac_includes_default"
++if test "x$ac_cv_type_size_t" = xyes; then :
++
++else
++
++cat >>confdefs.h <<_ACEOF
++#define size_t unsigned int
++_ACEOF
++
++fi
++
+ # The Ultrix 4.2 mips builtin alloca declared by alloca.h only works
+ # for constant arguments.  Useless!
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for working alloca.h" >&5
+ $as_echo_n "checking for working alloca.h... " >&6; }
+-if test "${ac_cv_working_alloca_h+set}" = set; then :
++if ${ac_cv_working_alloca_h+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <alloca.h>
+ int
+@@ -7268,13 +7287,13 @@
+ $as_echo "#define HAVE_ALLOCA_H 1" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for alloca" >&5
+ $as_echo_n "checking for alloca... " >&6; }
+-if test "${ac_cv_func_alloca_works+set}" = set; then :
++if ${ac_cv_func_alloca_works+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #ifdef __GNUC__
+ # define alloca __builtin_alloca
+@@ -7287,13 +7306,13 @@
+ #   include <alloca.h>
+ #  else
+ #   ifdef _AIX
+  #pragma alloca
+ #   else
+ #    ifndef alloca /* predefined by HP cc +Olibcalls */
+-char *alloca ();
++void *alloca (size_t);
+ #    endif
+ #   endif
+ #  endif
+ # endif
+ #endif
+ 
+@@ -7331,13 +7350,13 @@
+ 
+ $as_echo "#define C_ALLOCA 1" >>confdefs.h
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether \`alloca.c' needs Cray hooks" >&5
+ $as_echo_n "checking whether \`alloca.c' needs Cray hooks... " >&6; }
+-if test "${ac_cv_os_cray+set}" = set; then :
++if ${ac_cv_os_cray+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #if defined CRAY && ! defined CRAY2
+ webecray
+@@ -7372,13 +7391,13 @@
+ 
+   done
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking stack direction for C alloca" >&5
+ $as_echo_n "checking stack direction for C alloca... " >&6; }
+-if test "${ac_cv_c_stack_direction+set}" = set; then :
++if ${ac_cv_c_stack_direction+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   if test "$cross_compiling" = yes; then :
+   ac_cv_c_stack_direction=0
+ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+@@ -7442,13 +7461,13 @@
+ fi
+ done
+ 
+ 
+ if test x"$ac_cv_func_iconv_open" != x"yes"; then
+     ac_fn_c_check_func "$LINENO" "libiconv_open" "ac_cv_func_libiconv_open"
+-if test "x$ac_cv_func_libiconv_open" = x""yes; then :
++if test "x$ac_cv_func_libiconv_open" = xyes; then :
+   ac_cv_func_iconv_open=yes; $as_echo "#define HAVE_ICONV_OPEN 1" >>confdefs.h
+ 
+ fi
+ 
+ fi
+ 
+@@ -7464,13 +7483,13 @@
+ fi
+ done
+ 
+ if test $ac_cv_func_getpgrp = yes; then
+     { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether getpgrp requires zero arguments" >&5
+ $as_echo_n "checking whether getpgrp requires zero arguments... " >&6; }
+-if test "${ac_cv_func_getpgrp_void+set}" = set; then :
++if ${ac_cv_func_getpgrp_void+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   # Use it with a single arg.
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ $ac_includes_default
+@@ -7536,13 +7555,13 @@
+ $as_echo "#define UTF8_CHARSET \"UTF-8\"" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether chown() modifies symlinks" >&5
+ $as_echo_n "checking whether chown() modifies symlinks... " >&6; }
+-if test "${rsync_cv_chown_modifies_symlink+set}" = set; then :
++if ${rsync_cv_chown_modifies_symlink+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+   if test "$cross_compiling" = yes; then :
+   rsync_cv_chown_modifies_symlink=no
+ else
+@@ -7579,13 +7598,13 @@
+ $as_echo "#define CHOWN_MODIFIES_SYMLINK 1" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether link() can hard-link symlinks" >&5
+ $as_echo_n "checking whether link() can hard-link symlinks... " >&6; }
+-if test "${rsync_cv_can_hardlink_symlink+set}" = set; then :
++if ${rsync_cv_can_hardlink_symlink+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+   if test "$cross_compiling" = yes; then :
+   rsync_cv_can_hardlink_symlink=no
+ else
+@@ -7622,13 +7641,13 @@
+ $as_echo "#define CAN_HARDLINK_SYMLINK 1" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether link() can hard-link special files" >&5
+ $as_echo_n "checking whether link() can hard-link special files... " >&6; }
+-if test "${rsync_cv_can_hardlink_special+set}" = set; then :
++if ${rsync_cv_can_hardlink_special+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+   if test "$cross_compiling" = yes; then :
+   rsync_cv_can_hardlink_special=no
+ else
+@@ -7665,13 +7684,13 @@
+ $as_echo "#define CAN_HARDLINK_SPECIAL 1" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for working socketpair" >&5
+ $as_echo_n "checking for working socketpair... " >&6; }
+-if test "${rsync_cv_HAVE_SOCKETPAIR+set}" = set; then :
++if ${rsync_cv_HAVE_SOCKETPAIR+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ if test "$cross_compiling" = yes; then :
+   rsync_cv_HAVE_SOCKETPAIR=cross
+ else
+@@ -7680,13 +7699,17 @@
+ 
+ #include <sys/types.h>
+ #include <sys/socket.h>
+ 
+ main() {
+        int fd[2];
++#ifdef __CYGWIN__
++       exit(1);
++#else
+        exit((socketpair(AF_UNIX, SOCK_STREAM, 0, fd) != -1) ? 0 : 1);
++#endif
+ }
+ _ACEOF
+ if ac_fn_c_try_run "$LINENO"; then :
+   rsync_cv_HAVE_SOCKETPAIR=yes
+ else
+   rsync_cv_HAVE_SOCKETPAIR=no
+@@ -7704,13 +7727,13 @@
+ 
+ fi
+ 
+ if test x"$with_included_popt" != x"yes"; then
+     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for poptGetContext in -lpopt" >&5
+ $as_echo_n "checking for poptGetContext in -lpopt... " >&6; }
+-if test "${ac_cv_lib_popt_poptGetContext+set}" = set; then :
++if ${ac_cv_lib_popt_poptGetContext+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+ LIBS="-lpopt  $LIBS"
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -7738,13 +7761,13 @@
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_popt_poptGetContext" >&5
+ $as_echo "$ac_cv_lib_popt_poptGetContext" >&6; }
+-if test "x$ac_cv_lib_popt_poptGetContext" = x""yes; then :
++if test "x$ac_cv_lib_popt_poptGetContext" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_LIBPOPT 1
+ _ACEOF
+ 
+   LIBS="-lpopt $LIBS"
+ 
+@@ -7781,13 +7804,13 @@
+     { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+ $as_echo "no" >&6; }
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for unsigned char" >&5
+ $as_echo_n "checking for unsigned char... " >&6; }
+-if test "${rsync_cv_SIGNED_CHAR_OK+set}" = set; then :
++if ${rsync_cv_SIGNED_CHAR_OK+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+@@ -7813,13 +7836,13 @@
+ $as_echo "#define SIGNED_CHAR_OK 1" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for broken readdir" >&5
+ $as_echo_n "checking for broken readdir... " >&6; }
+-if test "${rsync_cv_HAVE_BROKEN_READDIR+set}" = set; then :
++if ${rsync_cv_HAVE_BROKEN_READDIR+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ if test "$cross_compiling" = yes; then :
+   rsync_cv_HAVE_BROKEN_READDIR=cross
+ else
+@@ -7848,13 +7871,13 @@
+ $as_echo "#define HAVE_BROKEN_READDIR 1" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for utimbuf" >&5
+ $as_echo_n "checking for utimbuf... " >&6; }
+-if test "${rsync_cv_HAVE_STRUCT_UTIMBUF+set}" = set; then :
++if ${rsync_cv_HAVE_STRUCT_UTIMBUF+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+@@ -7881,13 +7904,13 @@
+ $as_echo "#define HAVE_STRUCT_UTIMBUF 1" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking if gettimeofday takes tz argument" >&5
+ $as_echo_n "checking if gettimeofday takes tz argument... " >&6; }
+-if test "${rsync_cv_HAVE_GETTIMEOFDAY_TZ+set}" = set; then :
++if ${rsync_cv_HAVE_GETTIMEOFDAY_TZ+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/time.h>
+@@ -7914,13 +7937,13 @@
+ $as_echo "#define HAVE_GETTIMEOFDAY_TZ 1" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for C99 vsnprintf" >&5
+ $as_echo_n "checking for C99 vsnprintf... " >&6; }
+-if test "${rsync_cv_HAVE_C99_VSNPRINTF+set}" = set; then :
++if ${rsync_cv_HAVE_C99_VSNPRINTF+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ if test "$cross_compiling" = yes; then :
+   rsync_cv_HAVE_C99_VSNPRINTF=cross
+ else
+@@ -7964,13 +7987,13 @@
+ 
+ fi
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking for secure mkstemp" >&5
+ $as_echo_n "checking for secure mkstemp... " >&6; }
+-if test "${rsync_cv_HAVE_SECURE_MKSTEMP+set}" = set; then :
++if ${rsync_cv_HAVE_SECURE_MKSTEMP+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ if test "$cross_compiling" = yes; then :
+   rsync_cv_HAVE_SECURE_MKSTEMP=cross
+ else
+@@ -8017,13 +8040,13 @@
+     esac
+ fi
+ 
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking if mknod creates FIFOs" >&5
+ $as_echo_n "checking if mknod creates FIFOs... " >&6; }
+-if test "${rsync_cv_MKNOD_CREATES_FIFOS+set}" = set; then :
++if ${rsync_cv_MKNOD_CREATES_FIFOS+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ if test "$cross_compiling" = yes; then :
+   rsync_cv_MKNOD_CREATES_FIFOS=cross
+ else
+@@ -8055,13 +8078,13 @@
+ $as_echo "#define MKNOD_CREATES_FIFOS 1" >>confdefs.h
+ 
+ fi
+ 
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking if mknod creates sockets" >&5
+ $as_echo_n "checking if mknod creates sockets... " >&6; }
+-if test "${rsync_cv_MKNOD_CREATES_SOCKETS+set}" = set; then :
++if ${rsync_cv_MKNOD_CREATES_SOCKETS+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ if test "$cross_compiling" = yes; then :
+   rsync_cv_MKNOD_CREATES_SOCKETS=cross
+ else
+@@ -8096,13 +8119,13 @@
+ 
+ #
+ # The following test was mostly taken from the tcl/tk plus patches
+ #
+ { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether -c -o works" >&5
+ $as_echo_n "checking whether -c -o works... " >&6; }
+-if test "${rsync_cv_DASHC_WORKS_WITH_DASHO+set}" = set; then :
++if ${rsync_cv_DASHC_WORKS_WITH_DASHO+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ rm -rf conftest*
+ cat > conftest.$ac_ext <<EOF
+ int main() { return 0; }
+@@ -8229,13 +8252,13 @@
+ 	;;
+     *)
+ 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: running tests:" >&5
+ $as_echo "running tests:" >&6; }
+ 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for acl_get_file in -lacl" >&5
+ $as_echo_n "checking for acl_get_file in -lacl... " >&6; }
+-if test "${ac_cv_lib_acl_acl_get_file+set}" = set; then :
++if ${ac_cv_lib_acl_acl_get_file+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+   ac_check_lib_save_LIBS=$LIBS
+ LIBS="-lacl  $LIBS"
+ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+@@ -8263,24 +8286,24 @@
+ rm -f core conftest.err conftest.$ac_objext \
+     conftest$ac_exeext conftest.$ac_ext
+ LIBS=$ac_check_lib_save_LIBS
+ fi
+ { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_acl_acl_get_file" >&5
+ $as_echo "$ac_cv_lib_acl_acl_get_file" >&6; }
+-if test "x$ac_cv_lib_acl_acl_get_file" = x""yes; then :
++if test "x$ac_cv_lib_acl_acl_get_file" = xyes; then :
+   cat >>confdefs.h <<_ACEOF
+ #define HAVE_LIBACL 1
+ _ACEOF
+ 
+   LIBS="-lacl $LIBS"
+ 
+ fi
+ 
+ 	    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for ACL support" >&5
+ $as_echo_n "checking for ACL support... " >&6; }
+-if test "${samba_cv_HAVE_POSIX_ACLS+set}" = set; then :
++if ${samba_cv_HAVE_POSIX_ACLS+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ 	    cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+@@ -8312,13 +8335,13 @@
+ $as_echo "#define HAVE_POSIX_ACLS 1" >>confdefs.h
+ 
+ 	    $as_echo "#define SUPPORT_ACLS 1" >>confdefs.h
+ 
+ 	    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for acl_get_perm_np" >&5
+ $as_echo_n "checking for acl_get_perm_np... " >&6; }
+-if test "${samba_cv_HAVE_ACL_GET_PERM_NP+set}" = set; then :
++if ${samba_cv_HAVE_ACL_GET_PERM_NP+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
+ 
+ 		cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ #include <sys/types.h>
+@@ -8383,15 +8406,12 @@
+ $as_echo "Using Linux xattrs" >&6; }
+ 
+ $as_echo "#define HAVE_LINUX_XATTRS 1" >>confdefs.h
+ 
+ 	$as_echo "#define SUPPORT_XATTRS 1" >>confdefs.h
+ 
+-
+-$as_echo "#define NO_SYMLINK_XATTRS 1" >>confdefs.h
+-
+ 	;;
+     darwin*)
+ 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: Using OS X xattrs" >&5
+ $as_echo "Using OS X xattrs" >&6; }
+ 
+ $as_echo "#define HAVE_OSX_XATTRS 1" >>confdefs.h
+@@ -8411,12 +8431,18 @@
+ 
+ $as_echo "#define HAVE_FREEBSD_XATTRS 1" >>confdefs.h
+ 
+ 	$as_echo "#define SUPPORT_XATTRS 1" >>confdefs.h
+ 
+ 	;;
++    solaris*)
++	# Better Solaris support coming in 3.1.0...
++
++$as_echo "#define NO_SYMLINK_XATTRS 1" >>confdefs.h
++
++	;;
+     *)
+ 	if test x"$enable_xattr_support" = x"yes"; then
+ 	    as_fn_error $? "Failed to find extended attribute support" "$LINENO" 5
+ 	else
+ 	    { $as_echo "$as_me:${as_lineno-$LINENO}: result: No extended attribute support found" >&5
+ $as_echo "No extended attribute support found" >&6; }
+@@ -8526,16 +8552,27 @@
+      s/^\([^=]*\)=\(.*[{}].*\)$/test "${\1+set}" = set || &/
+      t end
+      s/^\([^=]*\)=\(.*\)$/\1=${\1=\2}/
+      :end' >>confcache
+ if diff "$cache_file" confcache >/dev/null 2>&1; then :; else
+   if test -w "$cache_file"; then
+-    test "x$cache_file" != "x/dev/null" &&
++    if test "x$cache_file" != "x/dev/null"; then
+       { $as_echo "$as_me:${as_lineno-$LINENO}: updating cache $cache_file" >&5
+ $as_echo "$as_me: updating cache $cache_file" >&6;}
+-    cat confcache >$cache_file
++      if test ! -f "$cache_file" || test -h "$cache_file"; then
++	cat confcache >"$cache_file"
++      else
++        case $cache_file in #(
++        */* | ?:*)
++	  mv -f confcache "$cache_file"$$ &&
++	  mv -f "$cache_file"$$ "$cache_file" ;; #(
++        *)
++	  mv -f confcache "$cache_file" ;;
++	esac
++      fi
++    fi
+   else
+     { $as_echo "$as_me:${as_lineno-$LINENO}: not updating unwritable cache $cache_file" >&5
+ $as_echo "$as_me: not updating unwritable cache $cache_file" >&6;}
+   fi
+ fi
+ rm -f confcache
+@@ -8562,13 +8599,13 @@
+ 
+ LTLIBOBJS=$ac_ltlibobjs
+ 
+ 
+ 
+ 
+-: ${CONFIG_STATUS=./config.status}
++: "${CONFIG_STATUS=./config.status}"
+ ac_write_fail=0
+ ac_clean_files_save=$ac_clean_files
+ ac_clean_files="$ac_clean_files $CONFIG_STATUS"
+ { $as_echo "$as_me:${as_lineno-$LINENO}: creating $CONFIG_STATUS" >&5
+ $as_echo "$as_me: creating $CONFIG_STATUS" >&6;}
+ as_write_fail=0
+@@ -8663,12 +8700,13 @@
+ # there to prevent editors from complaining about space-tab.
+ # (If _AS_PATH_WALK were called with IFS unset, it would disable word
+ # splitting by setting IFS to empty value.)
+ IFS=" ""	$as_nl"
+ 
+ # Find who we are.  Look in the path if we contain no directory separator.
++as_myself=
+ case $0 in #((
+   *[\\/]* ) as_myself=$0 ;;
+   *) as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+ for as_dir in $PATH
+ do
+   IFS=$as_save_IFS
+@@ -8970,13 +9008,13 @@
+ cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
+ # Save the log message, to keep $0 and so on meaningful, and to
+ # report actual input values of CONFIG_FILES etc. instead of their
+ # values after options handling.
+ ac_log="
+ This file was extended by $as_me, which was
+-generated by GNU Autoconf 2.67.  Invocation command line was
++generated by GNU Autoconf 2.68.  Invocation command line was
+ 
+   CONFIG_FILES    = $CONFIG_FILES
+   CONFIG_HEADERS  = $CONFIG_HEADERS
+   CONFIG_LINKS    = $CONFIG_LINKS
+   CONFIG_COMMANDS = $CONFIG_COMMANDS
+   $ $0 $@
+@@ -9032,13 +9070,13 @@
+ 
+ _ACEOF
+ cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
+ ac_cs_config="`$as_echo "$ac_configure_args" | sed 's/^ //; s/[\\""\`\$]/\\\\&/g'`"
+ ac_cs_version="\\
+ config.status
+-configured by $0, generated by GNU Autoconf 2.67,
++configured by $0, generated by GNU Autoconf 2.68,
+   with options \\"\$ac_cs_config\\"
+ 
+ Copyright (C) 2010 Free Software Foundation, Inc.
+ This config.status script is free software; the Free Software Foundation
+ gives unlimited permission to copy, distribute and modify it."
+ 
+@@ -9160,13 +9198,13 @@
+     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+     "lib/dummy") CONFIG_FILES="$CONFIG_FILES lib/dummy" ;;
+     "zlib/dummy") CONFIG_FILES="$CONFIG_FILES zlib/dummy" ;;
+     "popt/dummy") CONFIG_FILES="$CONFIG_FILES popt/dummy" ;;
+     "shconfig") CONFIG_FILES="$CONFIG_FILES shconfig" ;;
+ 
+-  *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5 ;;
++  *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
+   esac
+ done
+ 
+ 
+ # If the user did not use the arguments to specify the items to instantiate,
+ # then the envvar interface is used.  Set only those that are not.
+@@ -9182,28 +9220,30 @@
+ # creating and moving files from /tmp can sometimes cause problems.
+ # Hook for its removal unless debugging.
+ # Note that there is a small window in which the directory will not be cleaned:
+ # after its creation but before its name has been assigned to `$tmp'.
+ $debug ||
+ {
+-  tmp=
++  tmp= ac_tmp=
+   trap 'exit_status=$?
+-  { test -z "$tmp" || test ! -d "$tmp" || rm -fr "$tmp"; } && exit $exit_status
++  : "${ac_tmp:=$tmp}"
++  { test ! -d "$ac_tmp" || rm -fr "$ac_tmp"; } && exit $exit_status
+ ' 0
+   trap 'as_fn_exit 1' 1 2 13 15
+ }
+ # Create a (secure) tmp directory for tmp files.
+ 
+ {
+   tmp=`(umask 077 && mktemp -d "./confXXXXXX") 2>/dev/null` &&
+-  test -n "$tmp" && test -d "$tmp"
++  test -d "$tmp"
+ }  ||
+ {
+   tmp=./conf$$-$RANDOM
+   (umask 077 && mkdir "$tmp")
+ } || as_fn_error $? "cannot create a temporary directory in ." "$LINENO" 5
++ac_tmp=$tmp
+ 
+ # Set up the scripts for CONFIG_FILES section.
+ # No need to generate them if there are no CONFIG_FILES.
+ # This happens for instance with `./config.status config.h'.
+ if test -n "$CONFIG_FILES"; then
+ 
+@@ -9219,13 +9259,13 @@
+ if test "$ac_cs_awk_cr" = "a${ac_cr}b"; then
+   ac_cs_awk_cr='\\r'
+ else
+   ac_cs_awk_cr=$ac_cr
+ fi
+ 
+-echo 'BEGIN {' >"$tmp/subs1.awk" &&
++echo 'BEGIN {' >"$ac_tmp/subs1.awk" &&
+ _ACEOF
+ 
+ 
+ {
+   echo "cat >conf$$subs.awk <<_ACEOF" &&
+   echo "$ac_subst_vars" | sed 's/.*/&!$&$ac_delim/' &&
+@@ -9247,13 +9287,13 @@
+     ac_delim="$ac_delim!$ac_delim _$ac_delim!! "
+   fi
+ done
+ rm -f conf$$subs.sh
+ 
+ cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
+-cat >>"\$tmp/subs1.awk" <<\\_ACAWK &&
++cat >>"\$ac_tmp/subs1.awk" <<\\_ACAWK &&
+ _ACEOF
+ sed -n '
+ h
+ s/^/S["/; s/!.*/"]=/
+ p
+ g
+@@ -9295,13 +9335,13 @@
+   s/\n//
+ }
+ ' >>$CONFIG_STATUS || ac_write_fail=1
+ rm -f conf$$subs.awk
+ cat >>$CONFIG_STATUS <<_ACEOF || ac_write_fail=1
+ _ACAWK
+-cat >>"\$tmp/subs1.awk" <<_ACAWK &&
++cat >>"\$ac_tmp/subs1.awk" <<_ACAWK &&
+   for (key in S) S_is_set[key] = 1
+   FS = ""
+ 
+ }
+ {
+   line = $ 0
+@@ -9327,13 +9367,13 @@
+ _ACEOF
+ cat >>$CONFIG_STATUS <<\_ACEOF || ac_write_fail=1
+ if sed "s/$ac_cr//" < /dev/null > /dev/null 2>&1; then
+   sed "s/$ac_cr\$//; s/$ac_cr/$ac_cs_awk_cr/g"
+ else
+   cat
+-fi < "$tmp/subs1.awk" > "$tmp/subs.awk" \
++fi < "$ac_tmp/subs1.awk" > "$ac_tmp/subs.awk" \
+   || as_fn_error $? "could not setup config files machinery" "$LINENO" 5
+ _ACEOF
+ 
+ # VPATH may cause trouble with some makes, so we remove sole $(srcdir),
+ # ${srcdir} and @srcdir@ entries from VPATH if srcdir is ".", strip leading and
+ # trailing colons and then remove the whole line if VPATH becomes empty
+@@ -9361,26 +9401,26 @@
+ fi # test -n "$CONFIG_FILES"
+ 
+ # Set up the scripts for CONFIG_HEADERS section.
+ # No need to generate them if there are no CONFIG_HEADERS.
+ # This happens for instance with `./config.status Makefile'.
+ if test -n "$CONFIG_HEADERS"; then
+-cat >"$tmp/defines.awk" <<\_ACAWK ||
++cat >"$ac_tmp/defines.awk" <<\_ACAWK ||
+ BEGIN {
+ _ACEOF
+ 
+ # Transform confdefs.h into an awk script `defines.awk', embedded as
+ # here-document in config.status, that substitutes the proper values into
+ # config.h.in to produce config.h.
+ 
+ # Create a delimiter string that does not exist in confdefs.h, to ease
+ # handling of long lines.
+ ac_delim='%!_!# '
+ for ac_last_try in false false :; do
+-  ac_t=`sed -n "/$ac_delim/p" confdefs.h`
+-  if test -z "$ac_t"; then
++  ac_tt=`sed -n "/$ac_delim/p" confdefs.h`
++  if test -z "$ac_tt"; then
+     break
+   elif $ac_last_try; then
+     as_fn_error $? "could not make $CONFIG_HEADERS" "$LINENO" 5
+   else
+     ac_delim="$ac_delim!$ac_delim _$ac_delim!! "
+   fi
+@@ -9475,13 +9515,13 @@
+ do
+   case $ac_tag in
+   :[FHLC]) ac_mode=$ac_tag; continue;;
+   esac
+   case $ac_mode$ac_tag in
+   :[FHL]*:*);;
+-  :L* | :C*:*) as_fn_error $? "invalid tag \`$ac_tag'" "$LINENO" 5 ;;
++  :L* | :C*:*) as_fn_error $? "invalid tag \`$ac_tag'" "$LINENO" 5;;
+   :[FH]-) ac_tag=-:-;;
+   :[FH]*) ac_tag=$ac_tag:$ac_tag.in;;
+   esac
+   ac_save_IFS=$IFS
+   IFS=:
+   set x $ac_tag
+@@ -9494,22 +9534,22 @@
+   :L) ac_source=$1;;
+   :[FH])
+     ac_file_inputs=
+     for ac_f
+     do
+       case $ac_f in
+-      -) ac_f="$tmp/stdin";;
++      -) ac_f="$ac_tmp/stdin";;
+       *) # Look for the file first in the build tree, then in the source tree
+ 	 # (if the path is not absolute).  The absolute path cannot be DOS-style,
+ 	 # because $ac_f cannot contain `:'.
+ 	 test -f "$ac_f" ||
+ 	   case $ac_f in
+ 	   [\\/$]*) false;;
+ 	   *) test -f "$srcdir/$ac_f" && ac_f="$srcdir/$ac_f";;
+ 	   esac ||
+-	   as_fn_error 1 "cannot find input file: \`$ac_f'" "$LINENO" 5 ;;
++	   as_fn_error 1 "cannot find input file: \`$ac_f'" "$LINENO" 5;;
+       esac
+       case $ac_f in *\'*) ac_f=`$as_echo "$ac_f" | sed "s/'/'\\\\\\\\''/g"`;; esac
+       as_fn_append ac_file_inputs " '$ac_f'"
+     done
+ 
+     # Let's still pretend it is `configure' which instantiates (i.e., don't
+@@ -9529,14 +9569,14 @@
+        ac_sed_conf_input=`$as_echo "$configure_input" |
+        sed 's/[\\\\&|]/\\\\&/g'`;; #(
+     *) ac_sed_conf_input=$configure_input;;
+     esac
+ 
+     case $ac_tag in
+-    *:-:* | *:-) cat >"$tmp/stdin" \
+-      || as_fn_error $? "could not create $ac_file" "$LINENO" 5  ;;
++    *:-:* | *:-) cat >"$ac_tmp/stdin" \
++      || as_fn_error $? "could not create $ac_file" "$LINENO" 5 ;;
+     esac
+     ;;
+   esac
+ 
+   ac_dir=`$as_dirname -- "$ac_file" ||
+ $as_expr X"$ac_file" : 'X\(.*[^/]\)//*[^/][^/]*/*$' \| \
+@@ -9660,51 +9700,52 @@
+ s&@builddir@&$ac_builddir&;t t
+ s&@abs_builddir@&$ac_abs_builddir&;t t
+ s&@abs_top_builddir@&$ac_abs_top_builddir&;t t
+ s&@INSTALL@&$ac_INSTALL&;t t
+ $ac_datarootdir_hack
+ "
+-eval sed \"\$ac_sed_extra\" "$ac_file_inputs" | $AWK -f "$tmp/subs.awk" >$tmp/out \
+-  || as_fn_error $? "could not create $ac_file" "$LINENO" 5
++eval sed \"\$ac_sed_extra\" "$ac_file_inputs" | $AWK -f "$ac_tmp/subs.awk" \
++  >$ac_tmp/out || as_fn_error $? "could not create $ac_file" "$LINENO" 5
+ 
+ test -z "$ac_datarootdir_hack$ac_datarootdir_seen" &&
+-  { ac_out=`sed -n '/\${datarootdir}/p' "$tmp/out"`; test -n "$ac_out"; } &&
+-  { ac_out=`sed -n '/^[	 ]*datarootdir[	 ]*:*=/p' "$tmp/out"`; test -z "$ac_out"; } &&
++  { ac_out=`sed -n '/\${datarootdir}/p' "$ac_tmp/out"`; test -n "$ac_out"; } &&
++  { ac_out=`sed -n '/^[	 ]*datarootdir[	 ]*:*=/p' \
++      "$ac_tmp/out"`; test -z "$ac_out"; } &&
+   { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: $ac_file contains a reference to the variable \`datarootdir'
+ which seems to be undefined.  Please make sure it is defined" >&5
+ $as_echo "$as_me: WARNING: $ac_file contains a reference to the variable \`datarootdir'
+ which seems to be undefined.  Please make sure it is defined" >&2;}
+ 
+-  rm -f "$tmp/stdin"
++  rm -f "$ac_tmp/stdin"
+   case $ac_file in
+-  -) cat "$tmp/out" && rm -f "$tmp/out";;
+-  *) rm -f "$ac_file" && mv "$tmp/out" "$ac_file";;
++  -) cat "$ac_tmp/out" && rm -f "$ac_tmp/out";;
++  *) rm -f "$ac_file" && mv "$ac_tmp/out" "$ac_file";;
+   esac \
+   || as_fn_error $? "could not create $ac_file" "$LINENO" 5
+  ;;
+   :H)
+   #
+   # CONFIG_HEADER
+   #
+   if test x"$ac_file" != x-; then
+     {
+       $as_echo "/* $configure_input  */" \
+-      && eval '$AWK -f "$tmp/defines.awk"' "$ac_file_inputs"
+-    } >"$tmp/config.h" \
++      && eval '$AWK -f "$ac_tmp/defines.awk"' "$ac_file_inputs"
++    } >"$ac_tmp/config.h" \
+       || as_fn_error $? "could not create $ac_file" "$LINENO" 5
+-    if diff "$ac_file" "$tmp/config.h" >/dev/null 2>&1; then
++    if diff "$ac_file" "$ac_tmp/config.h" >/dev/null 2>&1; then
+       { $as_echo "$as_me:${as_lineno-$LINENO}: $ac_file is unchanged" >&5
+ $as_echo "$as_me: $ac_file is unchanged" >&6;}
+     else
+       rm -f "$ac_file"
+-      mv "$tmp/config.h" "$ac_file" \
++      mv "$ac_tmp/config.h" "$ac_file" \
+ 	|| as_fn_error $? "could not create $ac_file" "$LINENO" 5
+     fi
+   else
+     $as_echo "/* $configure_input  */" \
+-      && eval '$AWK -f "$tmp/defines.awk"' "$ac_file_inputs" \
++      && eval '$AWK -f "$ac_tmp/defines.awk"' "$ac_file_inputs" \
+       || as_fn_error $? "could not create -" "$LINENO" 5
+   fi
+  ;;
+ 
+ 
+   esac
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/exclude.c	2011-02-21 15:48:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/exclude.c	2011-09-15 22:48:31.000000000 +0800
+@@ -898,19 +898,15 @@
+ 			new_mflags &= ~MATCHFLG_CLEAR_LIST;
+ 	} else if (!len && !(new_mflags & MATCHFLG_CVS_IGNORE)) {
+ 		rprintf(FERROR, "unexpected end of filter rule: %s\n", p);
+ 		exit_cleanup(RERR_SYNTAX);
+ 	}
+ 
+-	/* --delete-excluded turns an un-modified include/exclude into a
+-	 * sender-side rule.  We also affect per-dir merge files that take
+-	 * no prefixes as a simple optimization. */
++	/* --delete-excluded turns an un-modified include/exclude into a sender-side rule. */
+ 	if (delete_excluded
+-	 && !(new_mflags & (MATCHFLG_RECEIVER_SIDE|MATCHFLG_SENDER_SIDE))
+-	 && (!(new_mflags & MATCHFLG_PERDIR_MERGE)
+-	  || new_mflags & MATCHFLG_NO_PREFIXES))
++	 && !(new_mflags & (MATCHFLG_RECEIVER_SIDE|MATCHFLG_SENDER_SIDE|MATCHFLG_MERGE_FILE|MATCHFLG_PERDIR_MERGE)))
+ 		new_mflags |= MATCHFLG_SENDER_SIDE;
+ 
+ 	*len_ptr = len;
+ 	*mflags_ptr = new_mflags;
+ 	return (const char *)s;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/flist.c	2011-02-22 02:20:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/flist.c	2011-08-28 05:58:04.000000000 +0800
+@@ -1643,17 +1643,18 @@
+ 		*p = '\0';
+ 		remainder = MAXPATHLEN - (len + 1);
+ 	} else
+ 		remainder = 0;
+ 
+ 	for (errno = 0, di = readdir(d); di; errno = 0, di = readdir(d)) {
++		unsigned name_len;
+ 		char *dname = d_name(di);
+ 		if (dname[0] == '.' && (dname[1] == '\0'
+ 		    || (dname[1] == '.' && dname[2] == '\0')))
+ 			continue;
+-		unsigned name_len = strlcpy(p, dname, remainder);
++		name_len = strlcpy(p, dname, remainder);
+ 		if (name_len >= remainder) {
+ 			char save = fbuf[len];
+ 			fbuf[len] = '\0';
+ 			io_error |= IOERR_GENERAL;
+ 			rprintf(FERROR_XFER,
+ 				"filename overflows max-path len by %u: %s/%s\n",
+@@ -2098,18 +2099,14 @@
+ 				if (!*fn)
+ 					*--fn = '\0'; /* ensure room for '.' */
+ 			} else
+ 				fn = fbuf;
+ 			/* A leading ./ can be used in relative mode to affect
+ 			 * the dest dir without its name being in the path. */
+-			if (*fn == '.' && fn[1] == '/' && !implied_dot_dir) {
+-				send_file_name(f, flist, ".", NULL,
+-				    (flags | FLAG_IMPLIED_DIR) & ~FLAG_CONTENT_DIR,
+-				    ALL_FILTERS);
+-				implied_dot_dir = 1;
+-			}
++			if (*fn == '.' && fn[1] == '/' && fn[2] && !implied_dot_dir)
++				implied_dot_dir = -1;
+ 			len = clean_fname(fn, CFN_KEEP_TRAILING_SLASH
+ 					    | CFN_DROP_TRAILING_DOT_DIR);
+ 			if (len == 1) {
+ 				if (fn[0] == '/') {
+ 					fn = "/.";
+ 					len = 2;
+@@ -2141,17 +2138,26 @@
+ 			name_type = DOTDIR_NAME;
+ 		}
+ 
+ 		dirlen = dir ? strlen(dir) : 0;
+ 		if (dirlen != lastdir_len || memcmp(lastdir, dir, dirlen) != 0) {
+ 			if (!change_pathname(NULL, dir, -dirlen))
+-				continue;
++				goto bad_path;
+ 			lastdir = pathname;
+ 			lastdir_len = pathname_len;
+-		} else if (!change_pathname(NULL, lastdir, lastdir_len))
++		} else if (!change_pathname(NULL, lastdir, lastdir_len)) {
++		    bad_path:
++			if (implied_dot_dir < 0)
++				implied_dot_dir = 0;
+ 			continue;
++		}
++
++		if (implied_dot_dir < 0) {
++			implied_dot_dir = 1;
++			send_file_name(f, flist, ".", NULL, (flags | FLAG_IMPLIED_DIR) & ~FLAG_CONTENT_DIR, ALL_FILTERS);
++		}
+ 
+ 		if (fn != fbuf)
+ 			memmove(fbuf, fn, len + 1);
+ 
+ 		if (link_stat(fbuf, &st, copy_dirlinks || name_type != NORMAL_NAME) != 0
+ 		 || (name_type != DOTDIR_NAME && is_daemon_excluded(fbuf, S_ISDIR(st.st_mode)))
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/generator.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/generator.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/generator.c	2011-03-27 01:17:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/generator.c	2011-09-11 04:38:11.000000000 +0800
+@@ -627,13 +627,13 @@
+ 			return 0;
+ #endif
+ #ifdef CAN_CHMOD_SYMLINK
+ 		if (perms_differ(file, sxp))
+ 			return 0;
+ #endif
+-#ifndef CAN_CHOWN_SYMLINK
++#ifdef CAN_CHOWN_SYMLINK
+ 		if (ownership_differs(file, sxp))
+ 			return 0;
+ #endif
+ #if defined SUPPORT_ACLS && 0 /* no current symlink-ACL support */
+ 		if (acls_differ(fname, file, sxp))
+ 			return 0;
+@@ -1352,13 +1352,13 @@
+ 				return;
+ #ifdef SUPPORT_HARD_LINKS
+ 			if (F_IS_HLINKED(file))
+ 				handle_skipped_hlink(file, itemizing, code, f_out);
+ #endif
+ 			rprintf(FERROR_XFER,
+-				"skipping daemon-excluded %s \"%s\"\n",
++				"ERROR: daemon refused to receive %s \"%s\"\n",
+ 				is_dir ? "directory" : "file", fname);
+ 			if (is_dir)
+ 				goto skipping_dir_contents;
+ 			return;
+ 		}
+ 	}
+@@ -1520,35 +1520,36 @@
+ 				skip_dir = file;
+ 				file->flags |= FLAG_MISSING_DIR;
+ 				goto cleanup;
+ 			}
+ 		}
+ 
+-		/* We need to ensure that the dirs in the transfer have writable
+-		 * permissions during the time we are putting files within them.
+-		 * This is then fixed after the transfer is done. */
++#ifdef SUPPORT_XATTRS
++		if (preserve_xattrs && statret == 1)
++			copy_xattrs(fnamecmpbuf, fname);
++#endif
++		if (set_file_attrs(fname, file, real_ret ? NULL : &real_sx, NULL, 0)
++		    && verbose && code != FNONE && f_out != -1)
++			rprintf(code, "%s/\n", fname);
++
++		/* We need to ensure that the dirs in the transfer have both
++		 * readable and writable permissions during the time we are
++		 * putting files within them.  This is then restored to the
++		 * former permissions after the transfer is done. */
+ #ifdef HAVE_CHMOD
+-		if (!am_root && !(file->mode & S_IWUSR) && dir_tweaking) {
+-			mode_t mode = file->mode | S_IWUSR;
++		if (!am_root && (file->mode & S_IRWXU) != S_IRWXU && dir_tweaking) {
++			mode_t mode = file->mode | S_IRWXU;
+ 			if (do_chmod(fname, mode) < 0) {
+ 				rsyserr(FERROR_XFER, errno,
+ 					"failed to modify permissions on %s",
+ 					full_fname(fname));
+ 			}
+ 			need_retouch_dir_perms = 1;
+ 		}
+ #endif
+ 
+-#ifdef SUPPORT_XATTRS
+-		if (preserve_xattrs && statret == 1)
+-			copy_xattrs(fnamecmpbuf, fname);
+-#endif
+-		if (set_file_attrs(fname, file, real_ret ? NULL : &real_sx, NULL, 0)
+-		    && verbose && code != FNONE && f_out != -1)
+-			rprintf(code, "%s/\n", fname);
+-
+ 		if (real_ret != 0 && one_file_system)
+ 			real_sx.st.st_dev = filesystem_dev;
+ 		if (inc_recurse) {
+ 			if (one_file_system) {
+ 				uint32 *devp = F_DIR_DEV_P(file);
+ 				DEV_MAJOR(devp) = major(real_sx.st.st_dev);
+@@ -2139,16 +2140,22 @@
+ 	char fbuf[MAXPATHLEN];
+ 	int ndx;
+ 
+ 	while (1) {
+ #ifdef SUPPORT_HARD_LINKS
+ 		if (preserve_hard_links && (ndx = get_hlink_num()) != -1) {
++			int send_failed = (ndx == -2);
++			if (send_failed)
++				ndx = get_hlink_num();
+ 			flist = flist_for_ndx(ndx, "check_for_finished_files.1");
+ 			file = flist->files[ndx - flist->ndx_start];
+ 			assert(file->flags & FLAG_HLINKED);
+-			finish_hard_link(file, f_name(file, fbuf), ndx, NULL, itemizing, code, -1);
++			if (send_failed)
++				handle_skipped_hlink(file, itemizing, code, sock_f_out);
++			else
++				finish_hard_link(file, f_name(file, fbuf), ndx, NULL, itemizing, code, -1);
+ 			flist->in_progress--;
+ 			continue;
+ 		}
+ #endif
+ 
+ 		if (check_redo && (ndx = get_redo_num()) != -1) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/io.c	2010-07-01 00:17:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/io.c	2011-09-23 14:33:47.000000000 +0800
+@@ -174,32 +174,36 @@
+ 		flist->in_progress--;
+ 
+ 	switch (status) {
+ 	case FES_SUCCESS:
+ 		if (remove_source_files)
+ 			send_msg(MSG_SUCCESS, buf, 4, 0);
++		/* FALL THROUGH */
++	case FES_NO_SEND:
++#ifdef SUPPORT_HARD_LINKS
+ 		if (preserve_hard_links) {
+ 			struct file_struct *file = flist->files[ndx - flist->ndx_start];
+ 			if (F_IS_HLINKED(file)) {
++				if (status == FES_NO_SEND)
++					flist_ndx_push(&hlink_list, -2); /* indicates a failure follows */
+ 				flist_ndx_push(&hlink_list, ndx);
+ 				flist->in_progress++;
+ 			}
+ 		}
++#endif
+ 		break;
+ 	case FES_REDO:
+ 		if (read_batch) {
+ 			if (inc_recurse)
+ 				flist->in_progress++;
+ 			break;
+ 		}
+ 		if (inc_recurse)
+ 			flist->to_redo++;
+ 		flist_ndx_push(&redo_list, ndx);
+ 		break;
+-	case FES_NO_SEND:
+-		break;
+ 	}
+ }
+ 
+ /* Note the fds used for the main socket (which might really be a pipe
+  * for a local transfer, but we can ignore that). */
+ void io_set_sock_fds(int f_in, int f_out)
+@@ -1059,13 +1063,12 @@
+ 				goto overflow;
+ #ifdef ICONV_OPTION
+ 			if (ic_recv != (iconv_t)-1) {
+ 				xbuf outbuf, inbuf;
+ 				char ibuf[512];
+ 				int add_null = 0;
+-				int pos = 0;
+ 
+ 				INIT_CONST_XBUF(outbuf, line);
+ 				INIT_XBUF(inbuf, ibuf, 0, -1);
+ 
+ 				while (msg_bytes) {
+ 					inbuf.len = msg_bytes > sizeof ibuf
+@@ -1074,13 +1077,12 @@
+ 					if (!(msg_bytes -= inbuf.len)
+ 					 && !ibuf[inbuf.len-1])
+ 						inbuf.len--, add_null = 1;
+ 					if (iconvbufs(ic_send, &inbuf, &outbuf,
+ 					    ICB_INCLUDE_BAD | ICB_INCLUDE_INCOMPLETE) < 0)
+ 						goto overflow;
+-					pos = -1;
+ 				}
+ 				if (add_null) {
+ 					if (outbuf.len == outbuf.size)
+ 						goto overflow;
+ 					outbuf.buf[outbuf.len++] = '\0';
+ 				}
+@@ -1399,13 +1401,13 @@
+ 	total_written += bytes_written;
+ 
+ 	gettimeofday(&start_tv, NULL);
+ 	if (prior_tv.tv_sec) {
+ 		elapsed_usec = (start_tv.tv_sec - prior_tv.tv_sec) * ONE_SEC
+ 			     + (start_tv.tv_usec - prior_tv.tv_usec);
+-		total_written -= elapsed_usec * bwlimit / (ONE_SEC/1024);
++		total_written -= (int64)elapsed_usec * bwlimit / (ONE_SEC/1024);
+ 		if (total_written < 0)
+ 			total_written = 0;
+ 	}
+ 
+ 	sleep_usec = total_written * (ONE_SEC/1024) / bwlimit;
+ 	if (sleep_usec < ONE_SEC / 10) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/main.c	2011-02-23 00:21:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/main.c	2011-06-19 03:44:47.000000000 +0800
+@@ -523,13 +523,13 @@
+ 			*slash = '\0';
+ 		else
+ 			slash = NULL;
+ 		if ((*dest_path != '.' || dest_path[1] != '\0')
+ 		 && (check_filter(&daemon_filter_list, FLOG, dest_path, 0) < 0
+ 		  || check_filter(&daemon_filter_list, FLOG, dest_path, 1) < 0)) {
+-			rprintf(FERROR, "skipping daemon-excluded destination \"%s\"\n",
++			rprintf(FERROR, "ERROR: daemon has excluded destination \"%s\"\n",
+ 				dest_path);
+ 			exit_cleanup(RERR_FILESELECT);
+ 		}
+ 		if (slash)
+ 			*slash = '/';
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/match.c	2011-01-17 09:23:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/match.c	2011-04-23 02:27:16.000000000 +0800
+@@ -235,13 +235,13 @@
+ 			if (updating_basis_file) {
+ 				/* All the generator's chunks start at blength boundaries. */
+ 				while (aligned_offset < offset) {
+ 					aligned_offset += s->blength;
+ 					aligned_i++;
+ 				}
+-				if (offset == aligned_offset) {
++				if (offset == aligned_offset && aligned_i < s->count) {
+ 					if (i != aligned_i) {
+ 						if (sum != s->sums[aligned_i].sum1
+ 						 || l != s->sums[aligned_i].len
+ 						 || memcmp(sum2, s->sums[aligned_i].sum2, s->s2length) != 0)
+ 							goto check_want_i;
+ 						i = aligned_i;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/NEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/NEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/NEWS	2011-03-27 05:34:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/NEWS	2011-09-24 00:13:53.000000000 +0800
+@@ -1,138 +1,56 @@
+-NEWS for rsync 3.0.8 (26 Mar 2011)
++NEWS for rsync 3.0.9 (23 Sep 2011)
+ Protocol: 30 (unchanged)
+-Changes since 3.0.7:
++Changes since 3.0.8:
+ 
+   BUG FIXES:
+ 
+-    - Fixed two buffer-overflow issues: one where a directory path that is
+-      exactly MAXPATHLEN was not handled correctly, and one handling a
+-      --backup-dir that is extra extra large.
++    - Fix a crash bug in checksum scanning when --inplace is used.
+ 
+-    - Fixed a data-corruption issue when preserving hard-links without
+-      preserving file ownership, and doing deletions either before or during
+-      the transfer (CVE-2011-1097).  This fixes some assert errors in the
+-      hard-linking code, and some potential failed checksums (via -c) that
+-      should have matched.
++    - Fix a hang if a hard-linked file cannot be opened by the sender (e.g.
++      if it has no read permission).
+ 
+-    - Fixed a potential crash when an rsync daemon has a filter/exclude list
+-      and the transfer is using ACLs or xattrs.
++    - Fix preservation of a symlink's system xattrs (e.g. selinux) on Linux.
+ 
+-    - Fixed a hang if a really large file is being processed by an rsync that
+-      can't handle 64-bit numbers.  Rsync will now complain about the file
+-      being too big and skip it.
++    - Fix a memory leak in the xattr code.
+ 
+-    - For devices and special files, we now avoid gathering useless ACL and/or
+-      xattr information for files that aren't being copied.  (The un-copied
+-      files are still put into the file list, but there's no need to gather
+-      data that is not going to be used.)  This ensures that if the user uses
+-      --no-D, that rsync can't possibly complain about being unable to gather
+-      extended information from special files that are in the file list (but
+-      not in the transfer).
++    - Fixed a bug with --delete-excluded when a filter merge file has a rule
++      that specifies a receiver-only side restriction.
+ 
+-    - Properly handle requesting remote filenames that start with a dash.  This
+-      avoids a potential error where a filename could be interpreted as a
+-      (usually invalid) option.
++    - Fix a bug with the modifying of unwritable directories.
+ 
+-    - Fixed a bug in the comparing of upper-case letters in file suffixes for
+-      --skip-compress.
++    - Fix --fake-super's interaction with --link-dest same-file comparisons.
+ 
+-    - If an rsync daemon has a module configured without a path setting, rsync
+-      will now disallow access to that module.
++    - Fix the updating of the curr_dir buffer to avoid a duplicate slash.
+ 
+-    - If the destination arg is an empty string, it will be treated as a
+-      reference to the current directory (as 2.x used to do).
++    - Fix the directory permissions on an implied dot-dir when using --relative
++      (e.g. /outside/path/././send/path).
+ 
+-    - If rsync was compiled with a newer time-setting function (such as
+-      lutimes), rsync will fall-back to an older function (such as utimes) on a
+-      system where the newer function is not around.  This helps to make the
+-      rsync binary more portable in mixed-OS-release situations.
++    - Fixed some too-long sleeping instances when using --bwlimit.
+ 
+-    - Fixed a batch-file writing bug that would not write out the full set of
+-      compatibility flags that the transfer was using.  This fixes a potential
+-      protocol problem for a batch file that contains a sender-side I/O error:
+-      it would have been sent in a way that the batch-reader wasn't expecting.
++    - Fixed when symlink ownership difference-checking gets compiled into
++      unchanged_attrs().
+ 
+-    - Some improvements to the hard-linking code to ensure that device-number
+-      hashing is working right, and to supply more information if the hard-link
+-      code fails.
++    - Improved the socket-error reporting when multiple protocols fail.
+ 
+-    - The --inplace code was improved to not search for an impossible checksum
+-      position.  The quadruple-verbose chunk[N] message will now mention when
+-      an inplace chunk was handled by a seek rather than a read+write.
++    - Fixed a case where a socket error could reference just-freed memory.
+ 
+-    - Improved ACL mask handling, e.g. for Solaris.
++    - Failing to use a password file that was specified on the command-line is
++      now a fatal error.
+ 
+-    - Fixed a bug that prevented --numeric-ids from disabling the translation
+-      of user/group IDs for ACLs.
++    - Fix the non-root updating of directories that don't have the read and/or
++      execute permission.
+ 
+-    - Fixed an issue where an xattr and/or ACL transfer that used an alt-dest
+-      option (e.g. --link-dest) could output an error trying to itemize the
+-      changes against the alt-dest directory's xattr/ACL info but was instead
+-      trying to access the not-yet-existing new destination directory.
++    - Make daemon-excluded file errors more error-like.
+ 
+-    - Improved xattr system-error messages to mention the full path to the
+-      file.
++    - Fix a compilation issue on older C compilers (due to a misplaced var
++      declaration).
+ 
+-    - The --link-dest checking for identical symlinks now avoids considering
+-      attribute differences that cannot be changed on the receiver.
++    - Make configure avoid finding socketpair on cygwin.
+ 
+-    - Avoid trying to read/write xattrs on certain file types for certain OSes.
+-      Improved configure to set NO_SYMLINK_XATTRS, NO_DEVICE_XATTRS, and/or
+-      NO_SPECIAL_XATTRS defines in config.h.
++    - Avoid trying to reference SO_BROADCAST if the OS doesn't support it.
+ 
+-    - Improved the unsafe-symlink errors messages.
++    - Fix some issues with the post-processing of the man pages.
+ 
+-    - Fixed a bug setting xattrs on new files that aren't user writable.
++    - Fixed the user home-dir handling in the support/lsh script.
+ 
+-    - Avoid re-setting xattrs on a hard-linked file w/the same xattrs.
+-
+-    - Fixed a bug with --fake-super when copying files and dirs that aren't
+-      user writable.
+-
+-    - Fixed a bug where a sparse file could have its last sparse block turned
+-      into a real block when rsync sets the file size (requires ftruncate).
+-
+-    - If a temp-file name is too long, rsync now avoids truncating the name in
+-      the middle of adjacent high-bit characters.  This prevents a potential
+-      filename error if the filesystem doesn't allow a name to contain an
+-      invalid multi-byte sequence.
+-
+-    - If a muli-protocol socket connection fails (i.e., when contacting a
+-      daemon), we now report all the failures, not just the last one.  This
+-      avoids losing a relevant error (e.g. an IPv4 connection-refused error)
+-      that happened before the final error (e.g. an IPv6 protocol-not-supported
+-      error).
+-
+-    - Generate a transfer error if we try to call chown with a -1 for a uid or
+-      a gid (which is not settable).
+-
+-    - Fixed the working of --force when used with --one-file-system.
+-
+-    - Fix the popt arg parsing so that an option that doesn't take an arg will
+-      reject an attempt to supply one (can configure --with-included-popt if
+-      your system's popt library doesn't yet have this fix).
+-
+-    - A couple minor option tweaks to the support/rrsync script, and also some
+-      regex changes that make vim highlighting happier.
+-
+-    - Fixed some issues in the support/mnt-excl script.
+-
+-    - Various manpage improvements.
+-
+-  ENHANCEMENTS:
+-
+-    - Added ".hg/" to the default cvs excludes (see -C & --cvs-exclude).
+-
+-  DEVELOPER RELATED:
+-
+-    - Use lchmod() whenever it is available (not just on symlinks).
+-
+-    - A couple fixes to the socketpair_tcp() routine.
+-
+-    - Updated the helper scripts in the packaging subdirectory.
+-
+-    - Renamed configure.in to configure.ac.
+-
+-    - Fixed configure's checking for iconv routines for newer OS X versions.
+-
+-    - Fixed the testsuite/xattrs.test script on OS X.
++    - Some minor manpage improvements.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/OLDNEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/OLDNEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/OLDNEWS	2011-03-27 05:34:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/OLDNEWS	2011-09-24 00:13:53.000000000 +0800
+@@ -1,6 +1,146 @@
++NEWS for rsync 3.0.8 (26 Mar 2011)
++Protocol: 30 (unchanged)
++Changes since 3.0.7:
++
++  BUG FIXES:
++
++    - Fixed two buffer-overflow issues: one where a directory path that is
++      exactly MAXPATHLEN was not handled correctly, and one handling a
++      --backup-dir that is extra extra large.
++
++    - Fixed a data-corruption issue when preserving hard-links without
++      preserving file ownership, and doing deletions either before or during
++      the transfer (CVE-2011-1097).  This fixes some assert errors in the
++      hard-linking code, and some potential failed checksums (via -c) that
++      should have matched.
++
++    - Fixed a potential crash when an rsync daemon has a filter/exclude list
++      and the transfer is using ACLs or xattrs.
++
++    - Fixed a hang if a really large file is being processed by an rsync that
++      can't handle 64-bit numbers.  Rsync will now complain about the file
++      being too big and skip it.
++
++    - For devices and special files, we now avoid gathering useless ACL and/or
++      xattr information for files that aren't being copied.  (The un-copied
++      files are still put into the file list, but there's no need to gather
++      data that is not going to be used.)  This ensures that if the user uses
++      --no-D, that rsync can't possibly complain about being unable to gather
++      extended information from special files that are in the file list (but
++      not in the transfer).
++
++    - Properly handle requesting remote filenames that start with a dash.  This
++      avoids a potential error where a filename could be interpreted as a
++      (usually invalid) option.
++
++    - Fixed a bug in the comparing of upper-case letters in file suffixes for
++      --skip-compress.
++
++    - If an rsync daemon has a module configured without a path setting, rsync
++      will now disallow access to that module.
++
++    - If the destination arg is an empty string, it will be treated as a
++      reference to the current directory (as 2.x used to do).
++
++    - If rsync was compiled with a newer time-setting function (such as
++      lutimes), rsync will fall-back to an older function (such as utimes) on a
++      system where the newer function is not around.  This helps to make the
++      rsync binary more portable in mixed-OS-release situations.
++
++    - Fixed a batch-file writing bug that would not write out the full set of
++      compatibility flags that the transfer was using.  This fixes a potential
++      protocol problem for a batch file that contains a sender-side I/O error:
++      it would have been sent in a way that the batch-reader wasn't expecting.
++
++    - Some improvements to the hard-linking code to ensure that device-number
++      hashing is working right, and to supply more information if the hard-link
++      code fails.
++
++    - The --inplace code was improved to not search for an impossible checksum
++      position.  The quadruple-verbose chunk[N] message will now mention when
++      an inplace chunk was handled by a seek rather than a read+write.
++
++    - Improved ACL mask handling, e.g. for Solaris.
++
++    - Fixed a bug that prevented --numeric-ids from disabling the translation
++      of user/group IDs for ACLs.
++
++    - Fixed an issue where an xattr and/or ACL transfer that used an alt-dest
++      option (e.g. --link-dest) could output an error trying to itemize the
++      changes against the alt-dest directory's xattr/ACL info but was instead
++      trying to access the not-yet-existing new destination directory.
++
++    - Improved xattr system-error messages to mention the full path to the
++      file.
++
++    - The --link-dest checking for identical symlinks now avoids considering
++      attribute differences that cannot be changed on the receiver.
++
++    - Avoid trying to read/write xattrs on certain file types for certain OSes.
++      Improved configure to set NO_SYMLINK_XATTRS, NO_DEVICE_XATTRS, and/or
++      NO_SPECIAL_XATTRS defines in config.h.
++
++    - Improved the unsafe-symlink errors messages.
++
++    - Fixed a bug setting xattrs on new files that aren't user writable.
++
++    - Avoid re-setting xattrs on a hard-linked file w/the same xattrs.
++
++    - Fixed a bug with --fake-super when copying files and dirs that aren't
++      user writable.
++
++    - Fixed a bug where a sparse file could have its last sparse block turned
++      into a real block when rsync sets the file size (requires ftruncate).
++
++    - If a temp-file name is too long, rsync now avoids truncating the name in
++      the middle of adjacent high-bit characters.  This prevents a potential
++      filename error if the filesystem doesn't allow a name to contain an
++      invalid multi-byte sequence.
++
++    - If a muli-protocol socket connection fails (i.e., when contacting a
++      daemon), we now report all the failures, not just the last one.  This
++      avoids losing a relevant error (e.g. an IPv4 connection-refused error)
++      that happened before the final error (e.g. an IPv6 protocol-not-supported
++      error).
++
++    - Generate a transfer error if we try to call chown with a -1 for a uid or
++      a gid (which is not settable).
++
++    - Fixed the working of --force when used with --one-file-system.
++
++    - Fix the popt arg parsing so that an option that doesn't take an arg will
++      reject an attempt to supply one (can configure --with-included-popt if
++      your system's popt library doesn't yet have this fix).
++
++    - A couple minor option tweaks to the support/rrsync script, and also some
++      regex changes that make vim highlighting happier.
++
++    - Fixed some issues in the support/mnt-excl script.
++
++    - Various manpage improvements.
++
++  ENHANCEMENTS:
++
++    - Added ".hg/" to the default cvs excludes (see -C & --cvs-exclude).
++
++  DEVELOPER RELATED:
++
++    - Use lchmod() whenever it is available (not just on symlinks).
++
++    - A couple fixes to the socketpair_tcp() routine.
++
++    - Updated the helper scripts in the packaging subdirectory.
++
++    - Renamed configure.in to configure.ac.
++
++    - Fixed configure's checking for iconv routines for newer OS X versions.
++
++    - Fixed the testsuite/xattrs.test script on OS X.
++
++
+ NEWS for rsync 3.0.7 (31 Dec 2009)
+ Protocol: 30 (unchanged)
+ Changes since 3.0.6:
+ 
+   BUG FIXES:
+ 
+@@ -3088,15 +3228,17 @@
+ 
+   TESTING:
+ 
+     * The existing test.sh script by Phil Hands has been merged into a
+       test framework that works from both "make check" and the Samba
+       build farm.
++
+ 
+ Partial Protocol History
+ 	RELEASE DATE	VER.	DATE OF COMMIT*	PROTOCOL
++	23 Sep 2011	3.0.9			30
+ 	26 Mar 2011	3.0.8			30
+ 	31 Dec 2009	3.0.7			30
+ 	08 May 2009	3.0.6			30
+ 	28 Dec 2008	3.0.5			30
+ 	06 Sep 2008	3.0.4			30
+ 	29 Jun 2008	3.0.3			30
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/options.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/options.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/options.c	2011-02-22 03:32:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/options.c	2011-09-14 06:41:26.000000000 +0800
+@@ -366,13 +366,13 @@
+   rprintf(F,"     --existing              skip creating new files on receiver\n");
+   rprintf(F,"     --ignore-existing       skip updating files that already exist on receiver\n");
+   rprintf(F,"     --remove-source-files   sender removes synchronized files (non-dirs)\n");
+   rprintf(F,"     --del                   an alias for --delete-during\n");
+   rprintf(F,"     --delete                delete extraneous files from destination dirs\n");
+   rprintf(F,"     --delete-before         receiver deletes before transfer, not during\n");
+-  rprintf(F,"     --delete-during         receiver deletes during transfer (default)\n");
++  rprintf(F,"     --delete-during         receiver deletes during the transfer\n");
+   rprintf(F,"     --delete-delay          find deletions during, delete after\n");
+   rprintf(F,"     --delete-after          receiver deletes after transfer, not during\n");
+   rprintf(F,"     --delete-excluded       also delete excluded files from destination dirs\n");
+   rprintf(F,"     --ignore-errors         delete even if there are I/O errors\n");
+   rprintf(F,"     --force                 force deletion of directories even if not empty\n");
+   rprintf(F,"     --max-delete=NUM        don't delete more than NUM files\n");
+@@ -430,13 +430,13 @@
+ #ifdef ICONV_OPTION
+   rprintf(F,"     --iconv=CONVERT_SPEC    request charset conversion of filenames\n");
+ #endif
+   rprintf(F," -4, --ipv4                  prefer IPv4\n");
+   rprintf(F," -6, --ipv6                  prefer IPv6\n");
+   rprintf(F,"     --version               print version number\n");
+-  rprintf(F,"(-h) --help                  show this help (-h works with no other options)\n");
++  rprintf(F,"(-h) --help                  show this help (-h is --help only if used alone)\n");
+ 
+   rprintf(F,"\n");
+   rprintf(F,"Use \"rsync --daemon --help\" to see the daemon-mode command-line options.\n");
+   rprintf(F,"Please see the rsync(1) and rsyncd.conf(5) man pages for full documentation.\n");
+   rprintf(F,"See http://rsync.samba.org/ for updates, bug reports, and answers\n");
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/packaging/lsb/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/packaging/lsb/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/packaging/lsb/rsync.spec	2011-03-27 05:34:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/packaging/lsb/rsync.spec	2011-09-24 00:13:53.000000000 +0800
+@@ -1,9 +1,9 @@
+ Summary: A fast, versatile, remote (and local) file-copying tool
+ Name: rsync
+-Version: 3.0.8
++Version: 3.0.9
+ %define fullversion %{version}
+ Release: 1
+ %define srcdir src
+ Group: Applications/Internet
+ Source0: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-%{fullversion}.tar.gz
+ #Source1: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-patches-%{fullversion}.tar.gz
+@@ -63,12 +63,12 @@
+ %config(noreplace) /etc/xinetd.d/rsync
+ %{_prefix}/bin/rsync*
+ %{_mandir}/man1/rsync.1*
+ %{_mandir}/man5/rsyncd.conf.5*
+ 
+ %changelog
+-* Sat Mar 26 2011 Wayne Davison <wayned@samba.org>
+-Released 3.0.8.
++* Fri Sep 23 2011 Wayne Davison <wayned@samba.org>
++Released 3.0.9.
+ 
+ * Fri Mar 21 2008 Wayne Davison <wayned@samba.org>
+ Added installation of /etc/xinetd.d/rsync file and some commented-out
+ lines that demonstrate how to use the rsync-patches tar file.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/rsync.1	2011-03-27 05:37:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/rsync.1	2011-09-24 00:42:26.000000000 +0800
+@@ -1,9 +1,9 @@
+-.TH "rsync" "1" "26 Mar 2011" "" ""
++.TH "rsync" "1" "23 Sep 2011" "" ""
+ .SH "NAME"
+-rsync \(em a fast, versatile, remote (and local) file\-copying tool
++rsync \- a fast, versatile, remote (and local) file\-copying tool
+ .SH "SYNOPSIS"
+ 
+ .PP 
+ .nf 
+ Local:  rsync [OPTION...] SRC... [DEST]
+ 
+@@ -343,12 +343,26 @@
+ file for the daemon, and it contains the full details for how to run the
+ daemon (including stand\-alone and inetd configurations).
+ .PP 
+ If you\(cq\&re using one of the remote\-shell transports for the transfer, there is
+ no need to manually start an rsync daemon.
+ .PP 
++.SH "SORTED TRANSFER ORDER"
++
++.PP 
++Rsync always sorts the specified filenames into its internal transfer list.
++This handles the merging together of the contents of identically named
++directories, makes it easy to remove duplicate filenames, and may confuse
++someone when the files are transferred in a different order than what was
++given on the command\-line.
++.PP 
++If you need a particular file to be transferred prior to another, either
++separate the files into different rsync calls, or consider using
++\fB\-\-delay\-updates\fP (which doesn\(cq\&t affect the sorted transfer order, but
++does make the final file\-updating phase happen much more rapidly).
++.PP 
+ .SH "EXAMPLES"
+ 
+ .PP 
+ Here are some examples of how I use rsync.
+ .PP 
+ To backup my wife\(cq\&s home directory, which consists of large MS Word
+@@ -439,16 +453,16 @@
+      \-\-rsync\-path=PROGRAM    specify the rsync to run on remote machine
+      \-\-existing              skip creating new files on receiver
+      \-\-ignore\-existing       skip updating files that exist on receiver
+      \-\-remove\-source\-files   sender removes synchronized files (non\-dir)
+      \-\-del                   an alias for \-\-delete\-during
+      \-\-delete                delete extraneous files from dest dirs
+-     \-\-delete\-before         receiver deletes before transfer (default)
+-     \-\-delete\-during         receiver deletes during xfer, not before
++     \-\-delete\-before         receiver deletes before xfer, not during
++     \-\-delete\-during         receiver deletes during the transfer
+      \-\-delete\-delay          find deletions during, delete after
+-     \-\-delete\-after          receiver deletes after transfer, not before
++     \-\-delete\-after          receiver deletes after transfer, not during
+      \-\-delete\-excluded       also delete excluded files from dest dirs
+      \-\-ignore\-errors         delete even if there are I/O errors
+      \-\-force                 force deletion of dirs even if not empty
+      \-\-max\-delete=NUM        don'\&t delete more than NUM files
+      \-\-max\-size=SIZE         don'\&t transfer any file larger than SIZE
+      \-\-min\-size=SIZE         don'\&t transfer any file smaller than SIZE
+@@ -530,17 +544,23 @@
+ .fi 
+ 
+ .PP 
+ .SH "OPTIONS"
+ 
+ .PP 
+-rsync uses the GNU long options package. Many of the command line
+-options have two variants, one short and one long.  These are shown
+-below, separated by commas. Some options only have a long variant.
+-The \(cq\&=\(cq\& for options that take a parameter is optional; whitespace
+-can be used instead.
++Rsync accepts both long (double\-dash + word) and short (single\-dash + letter)
++options.  The full list of the available options are described below.  If an
++option can be specified in more than one way, the choices are comma\-separated.
++Some options only have a long variant, not a short.  If the option takes a
++parameter, the parameter is only listed after the long variant, even though it
++must also be specified for the short.  When specifying a parameter, you can
++either use the form \-\-option=param or replace the \(cq\&=\(cq\& with whitespace.  The
++parameter may need to be quoted in some manner for it to survive the shell\(cq\&s
++command\-line parsing.  Keep in mind that a leading tilde (~) in a filename is
++substituted by your shell, so \-\-option=~/foo will not change the tilde into
++your home directory (remove the \(cq\&=\(cq\& for that).
+ .PP 
+ .IP "\fB\-\-help\fP"
+ Print a short help page describing the options
+ available in rsync and exit.  For backward\-compatibility with older
+ versions of rsync, the help will also be output if you use the \fB\-h\fP
+ option without any other args.
+@@ -1141,13 +1161,13 @@
+ Note that this option does not copy rsyncs special xattr values (e.g. those
+ used by \fB\-\-fake\-super\fP) unless you repeat the option (e.g. \-XX).  This
+ \(dq\&copy all xattrs\(dq\& mode cannot be used with \fB\-\-fake\-super\fP.
+ .IP 
+ .IP "\fB\-\-chmod\fP"
+ This option tells rsync to apply one or more
+-comma\-separated \(dq\&chmod\(dq\& strings to the permission of the files in the
++comma\-separated \(dq\&chmod\(dq\& modes to the permission of the files in the
+ transfer.  The resulting value is treated as though it were the permissions
+ that the sending side supplied for the file, which means that this option
+ can seem to have no effect on existing files if \fB\-\-perms\fP is not enabled.
+ .IP 
+ In addition to the normal parsing rules specified in the \fBchmod\fP(1)
+ manpage, you can specify an item that should only apply to a directory by
+@@ -1346,12 +1366,22 @@
+ .IP 
+ .IP "\fB\-\-remove\-source\-files\fP"
+ This tells rsync to remove from the sending
+ side the files (meaning non\-directories) that are a part of the transfer
+ and have been successfully duplicated on the receiving side.
+ .IP 
++Note that you should only use this option on source files that are quiescent.
++If you are using this to move files that show up in a particular directory over
++to another host, make sure that the finished files get renamed into the source
++directory, not directly written into it, so that rsync can\(cq\&t possibly transfer
++a file that is not yet fully written.  If you can\(cq\&t first write the files into
++a different directory, you should use a naming idiom that lets rsync avoid
++transferring files that are not yet finished (e.g. name the file \(dq\&foo.new\(dq\& when
++it is written, rename it to \(dq\&foo\(dq\& when it is done, and then use the option
++\fB\-\-exclude='\&*.new'\&\fP for the rsync transfer).
++.IP 
+ .IP "\fB\-\-delete\fP"
+ This tells rsync to delete extraneous files from the
+ receiving side (ones that aren\(cq\&t on the sending side), but only for the
+ directories that are being synchronized.  You must have asked rsync to
+ send the whole directory (e.g. \(dq\&dir\(dq\& or \(dq\&dir/\(dq\&) without using a wildcard
+ for the directory\(cq\&s contents (e.g. \(dq\&dir/*\(dq\&) since the wildcard is expanded
+@@ -3498,13 +3528,13 @@
+ Please report bugs! See the web site at
+ http://rsync.samba.org/
+ .PP 
+ .SH "VERSION"
+ 
+ .PP 
+-This man page is current for version 3.0.8 of rsync.
++This man page is current for version 3.0.9 of rsync.
+ .PP 
+ .SH "INTERNAL OPTIONS"
+ 
+ .PP 
+ The options \fB\-\-server\fP and \fB\-\-sender\fP are used internally by rsync,
+ and should never be typed by a user under normal circumstances.  Some
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/rsyncd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/rsyncd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/rsyncd.conf.5	2011-03-27 05:37:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/rsyncd.conf.5	2011-09-24 00:35:55.000000000 +0800
+@@ -1,9 +1,9 @@
+-.TH "rsyncd.conf" "5" "26 Mar 2011" "" ""
++.TH "rsyncd.conf" "5" "23 Sep 2011" "" ""
+ .SH "NAME"
+-rsyncd.conf \(em configuration file for rsync in daemon mode
++rsyncd.conf \- configuration file for rsync in daemon mode
+ .SH "SYNOPSIS"
+ 
+ .PP 
+ rsyncd.conf
+ .PP 
+ .SH "DESCRIPTION"
+@@ -140,12 +140,18 @@
+ .IP 
+ .IP "\fBpath\fP"
+ This parameter specifies the directory in the daemon\(cq\&s
+ filesystem to make available in this module.  You must specify this parameter
+ for each module in \f(CWrsyncd.conf\fP.
+ .IP 
++It is fine if the path includes internal spaces \-\- they will be retained
++verbatim (which means that you shouldn\(cq\&t try to escape them).  If your final
++directory has a trailing space (and this is somehow not something you wish to
++fix), append a trailing slash to the path to avoid losing the trailing
++whitespace.
++.IP 
+ .IP "\fBuse chroot\fP"
+ If \(dq\&use chroot\(dq\& is true, the rsync daemon will chroot
+ to the \(dq\&path\(dq\& before starting the file transfer with the client.  This has
+ the advantage of extra protection against possible implementation security
+ holes, but it has the disadvantages of requiring super\-user privileges,
+ of not being able to follow symbolic links that are either absolute or outside
+@@ -373,13 +379,13 @@
+ entire subtree, for example, \(dq\&/secret\(dq\&, you \fImust\fP exclude everything in the
+ subtree; the easiest way to do this is with a triple\-star pattern like
+ \(dq\&/secret/***\(dq\&.
+ .IP 
+ The \(dq\&filter\(dq\& parameter takes a space\-separated list of daemon filter rules,
+ though it is smart enough to know not to split a token at an internal space in
+-a rule (e.g. \(dq\&\- /foo  \(em /bar\(dq\& is parsed as two rules).  You may specify one or
++a rule (e.g. \(dq\&\- /foo  \- /bar\(dq\& is parsed as two rules).  You may specify one or
+ more merge\-file rules using the normal syntax.  Only one \(dq\&filter\(dq\& parameter can
+ apply to a given module in the config file, so put all the rules you want in a
+ single parameter.  Note that per\-directory merge\-file rules do not provide as
+ much protection as global rules, but they can be used to make \fB\-\-delete\fP work
+ better during a client download operation if the per\-dir merge files are
+ included in the transfer and the client requests that they be used.
+@@ -819,13 +825,13 @@
+ Please report bugs! The rsync bug tracking system is online at
+ http://rsync.samba.org/
+ .PP 
+ .SH "VERSION"
+ 
+ .PP 
+-This man page is current for version 3.0.8 of rsync.
++This man page is current for version 3.0.9 of rsync.
+ .PP 
+ .SH "CREDITS"
+ 
+ .PP 
+ rsync is distributed under the GNU public license.  See the file
+ COPYING for details.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/rsyncd.conf.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/rsyncd.conf.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/rsyncd.conf.yo	2011-03-27 05:34:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/rsyncd.conf.yo	2011-09-24 00:13:53.000000000 +0800
+@@ -1,8 +1,8 @@
+ mailto(rsync-bugs@samba.org)
+-manpage(rsyncd.conf)(5)(26 Mar 2011)()()
++manpage(rsyncd.conf)(5)(23 Sep 2011)()()
+ manpagename(rsyncd.conf)(configuration file for rsync in daemon mode)
+ manpagesynopsis()
+ 
+ rsyncd.conf
+ 
+ manpagedescription()
+@@ -124,12 +124,18 @@
+ of available modules. The default is no comment.
+ 
+ dit(bf(path)) This parameter specifies the directory in the daemon's
+ filesystem to make available in this module.  You must specify this parameter
+ for each module in tt(rsyncd.conf).
+ 
++It is fine if the path includes internal spaces -- they will be retained
++verbatim (which means that you shouldn't try to escape them).  If your final
++directory has a trailing space (and this is somehow not something you wish to
++fix), append a trailing slash to the path to avoid losing the trailing
++whitespace.
++
+ dit(bf(use chroot)) If "use chroot" is true, the rsync daemon will chroot
+ to the "path" before starting the file transfer with the client.  This has
+ the advantage of extra protection against possible implementation security
+ holes, but it has the disadvantages of requiring super-user privileges,
+ of not being able to follow symbolic links that are either absolute or outside
+ of the new root path, and of complicating the preservation of users and groups
+@@ -697,13 +703,13 @@
+ 
+ Please report bugs! The rsync bug tracking system is online at
+ url(http://rsync.samba.org/)(http://rsync.samba.org/)
+ 
+ manpagesection(VERSION)
+ 
+-This man page is current for version 3.0.8 of rsync.
++This man page is current for version 3.0.9 of rsync.
+ 
+ manpagesection(CREDITS)
+ 
+ rsync is distributed under the GNU public license.  See the file
+ COPYING for details.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/rsync.yo	2011-03-27 05:34:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/rsync.yo	2011-09-24 00:13:53.000000000 +0800
+@@ -1,8 +1,8 @@
+ mailto(rsync-bugs@samba.org)
+-manpage(rsync)(1)(26 Mar 2011)()()
++manpage(rsync)(1)(23 Sep 2011)()()
+ manpagename(rsync)(a fast, versatile, remote (and local) file-copying tool)
+ manpagesynopsis()
+ 
+ verb(Local:  rsync [OPTION...] SRC... [DEST]
+ 
+ Access via remote shell:
+@@ -278,12 +278,25 @@
+ file for the daemon, and it contains the full details for how to run the
+ daemon (including stand-alone and inetd configurations).
+ 
+ If you're using one of the remote-shell transports for the transfer, there is
+ no need to manually start an rsync daemon.
+ 
++manpagesection(SORTED TRANSFER ORDER)
++
++Rsync always sorts the specified filenames into its internal transfer list.
++This handles the merging together of the contents of identically named
++directories, makes it easy to remove duplicate filenames, and may confuse
++someone when the files are transferred in a different order than what was
++given on the command-line.
++
++If you need a particular file to be transferred prior to another, either
++separate the files into different rsync calls, or consider using
++bf(--delay-updates) (which doesn't affect the sorted transfer order, but
++does make the final file-updating phase happen much more rapidly).
++
+ manpagesection(EXAMPLES)
+ 
+ Here are some examples of how I use rsync.
+ 
+ To backup my wife's home directory, which consists of large MS Word
+ files and mail folders, I use a cron job that runs
+@@ -364,16 +377,16 @@
+      --rsync-path=PROGRAM    specify the rsync to run on remote machine
+      --existing              skip creating new files on receiver
+      --ignore-existing       skip updating files that exist on receiver
+      --remove-source-files   sender removes synchronized files (non-dir)
+      --del                   an alias for --delete-during
+      --delete                delete extraneous files from dest dirs
+-     --delete-before         receiver deletes before transfer (default)
+-     --delete-during         receiver deletes during xfer, not before
++     --delete-before         receiver deletes before xfer, not during
++     --delete-during         receiver deletes during the transfer
+      --delete-delay          find deletions during, delete after
+-     --delete-after          receiver deletes after transfer, not before
++     --delete-after          receiver deletes after transfer, not during
+      --delete-excluded       also delete excluded files from dest dirs
+      --ignore-errors         delete even if there are I/O errors
+      --force                 force deletion of dirs even if not empty
+      --max-delete=NUM        don't delete more than NUM files
+      --max-size=SIZE         don't transfer any file larger than SIZE
+      --min-size=SIZE         don't transfer any file smaller than SIZE
+@@ -448,17 +461,23 @@
+  -4, --ipv4                  prefer IPv4
+  -6, --ipv6                  prefer IPv6
+  -h, --help                  show this help (if used after --daemon))
+ 
+ manpageoptions()
+ 
+-rsync uses the GNU long options package. Many of the command line
+-options have two variants, one short and one long.  These are shown
+-below, separated by commas. Some options only have a long variant.
+-The '=' for options that take a parameter is optional; whitespace
+-can be used instead.
++Rsync accepts both long (double-dash + word) and short (single-dash + letter)
++options.  The full list of the available options are described below.  If an
++option can be specified in more than one way, the choices are comma-separated.
++Some options only have a long variant, not a short.  If the option takes a
++parameter, the parameter is only listed after the long variant, even though it
++must also be specified for the short.  When specifying a parameter, you can
++either use the form --option=param or replace the '=' with whitespace.  The
++parameter may need to be quoted in some manner for it to survive the shell's
++command-line parsing.  Keep in mind that a leading tilde (~) in a filename is
++substituted by your shell, so --option=~/foo will not change the tilde into
++your home directory (remove the '=' for that).
+ 
+ startdit()
+ dit(bf(--help)) Print a short help page describing the options
+ available in rsync and exit.  For backward-compatibility with older
+ versions of rsync, the help will also be output if you use the bf(-h)
+ option without any other args.
+@@ -988,13 +1007,13 @@
+ 
+ Note that this option does not copy rsyncs special xattr values (e.g. those
+ used by bf(--fake-super)) unless you repeat the option (e.g. -XX).  This
+ "copy all xattrs" mode cannot be used with bf(--fake-super).
+ 
+ dit(bf(--chmod)) This option tells rsync to apply one or more
+-comma-separated "chmod" strings to the permission of the files in the
++comma-separated "chmod" modes to the permission of the files in the
+ transfer.  The resulting value is treated as though it were the permissions
+ that the sending side supplied for the file, which means that this option
+ can seem to have no effect on existing files if bf(--perms) is not enabled.
+ 
+ In addition to the normal parsing rules specified in the bf(chmod)(1)
+ manpage, you can specify an item that should only apply to a directory by
+@@ -1171,12 +1190,22 @@
+ is only looking at the existing files in the destination hierarchy itself.
+ 
+ dit(bf(--remove-source-files)) This tells rsync to remove from the sending
+ side the files (meaning non-directories) that are a part of the transfer
+ and have been successfully duplicated on the receiving side.
+ 
++Note that you should only use this option on source files that are quiescent.
++If you are using this to move files that show up in a particular directory over
++to another host, make sure that the finished files get renamed into the source
++directory, not directly written into it, so that rsync can't possibly transfer
++a file that is not yet fully written.  If you can't first write the files into
++a different directory, you should use a naming idiom that lets rsync avoid
++transferring files that are not yet finished (e.g. name the file "foo.new" when
++it is written, rename it to "foo" when it is done, and then use the option
++bf(--exclude='*.new') for the rsync transfer).
++
+ dit(bf(--delete)) This tells rsync to delete extraneous files from the
+ receiving side (ones that aren't on the sending side), but only for the
+ directories that are being synchronized.  You must have asked rsync to
+ send the whole directory (e.g. "dir" or "dir/") without using a wildcard
+ for the directory's contents (e.g. "dir/*") since the wildcard is expanded
+ by the shell and rsync thus gets a request to transfer individual files, not
+@@ -2993,13 +3022,13 @@
+ 
+ Please report bugs! See the web site at
+ url(http://rsync.samba.org/)(http://rsync.samba.org/)
+ 
+ manpagesection(VERSION)
+ 
+-This man page is current for version 3.0.8 of rsync.
++This man page is current for version 3.0.9 of rsync.
+ 
+ manpagesection(INTERNAL OPTIONS)
+ 
+ The options bf(--server) and bf(--sender) are used internally by rsync,
+ and should never be typed by a user under normal circumstances.  Some
+ awareness of these options may be needed in certain scenarios, such as
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/runtests.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/runtests.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/runtests.sh	2008-05-18 22:00:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/runtests.sh	2011-09-15 22:27:23.000000000 +0800
+@@ -126,13 +126,16 @@
+ . "./shconfig"
+ 
+ RUNSHFLAGS='-e'
+ export RUNSHFLAGS
+ 
+ # for Solaris
+-[ -d /usr/xpg4/bin ] && PATH="/usr/xpg4/bin/:$PATH"
++if [ -d /usr/xpg4/bin ]; then
++    PATH="/usr/xpg4/bin/:$PATH"
++    export PATH
++fi
+ 
+ if [ "x$loglevel" != x ] && [ "$loglevel" -gt 8 ]; then
+     if set -x; then
+ 	# If it doesn't work the first time, don't keep trying.
+ 	RUNSHFLAGS="$RUNSHFLAGS -x"
+     fi
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/socket.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/socket.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/socket.c	2011-01-02 05:55:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/socket.c	2011-08-07 02:23:09.000000000 +0800
+@@ -23,14 +23,18 @@
+  * interface, which supports IPv6 but is also supported on recent
+  * IPv4-only machines.  On systems that don't have that interface, we
+  * emulate it using the KAME implementation. */
+ 
+ #include "rsync.h"
+ #include "ifuncs.h"
++#ifdef HAVE_NETINET_IN_SYSTM_H
+ #include <netinet/in_systm.h>
++#endif
++#ifdef HAVE_NETINET_IP_H
+ #include <netinet/ip.h>
++#endif
+ #include <netinet/tcp.h>
+ 
+ extern char *bind_address;
+ extern char *sockopts;
+ extern int default_af_hint;
+ extern int connect_timeout;
+@@ -294,28 +298,35 @@
+ 		 && establish_proxy_connection(s, host, port,
+ 					       proxy_user, proxy_pass) != 0) {
+ 			close(s);
+ 			s = -1;
+ 			continue;
+ 		}
++		if (verbose >= 3) {
++			char buf[2048];
++			if ((error = getnameinfo(res->ai_addr, res->ai_addrlen, buf, sizeof buf, NULL, 0, NI_NUMERICHOST)) != 0)
++				snprintf(buf, sizeof buf, "*getnameinfo failure: %s*", gai_strerror(error));
++			rprintf(FINFO, "Connected to %s (%s)\n", h, buf);
++		}
+ 		break;
+ 	}
+-	freeaddrinfo(res0);
+ 
+-	if (s < 0) {
++	if (s < 0 || verbose >= 3) {
+ 		char buf[2048];
+ 		for (res = res0, j = 0; res; res = res->ai_next, j++) {
+ 			if (errnos[j] == 0)
+ 				continue;
+-			if (inet_ntop(res->ai_family, res->ai_addr->sa_data + 2, buf, sizeof buf) == NULL)
+-				strlcpy(buf, "*inet_ntop failed*", sizeof buf);
++			if ((error = getnameinfo(res->ai_addr, res->ai_addrlen, buf, sizeof buf, NULL, 0, NI_NUMERICHOST)) != 0)
++				snprintf(buf, sizeof buf, "*getnameinfo failure: %s*", gai_strerror(error));
+ 			rsyserr(FERROR, errnos[j], "failed to connect to %s (%s)", h, buf);
+ 		}
+-		s = -1;
++		if (s < 0)
++			s = -1;
+ 	}
+ 
++	freeaddrinfo(res0);
+ 	free(errnos);
+ 
+ 	return s;
+ }
+ 
+ 
+@@ -632,13 +643,15 @@
+   int option;
+   int value;
+   int opttype;
+ } socket_options[] = {
+   {"SO_KEEPALIVE",      SOL_SOCKET,    SO_KEEPALIVE,    0,                 OPT_BOOL},
+   {"SO_REUSEADDR",      SOL_SOCKET,    SO_REUSEADDR,    0,                 OPT_BOOL},
++#ifdef SO_BROADCAST
+   {"SO_BROADCAST",      SOL_SOCKET,    SO_BROADCAST,    0,                 OPT_BOOL},
++#endif
+ #ifdef TCP_NODELAY
+   {"TCP_NODELAY",       IPPROTO_TCP,   TCP_NODELAY,     0,                 OPT_BOOL},
+ #endif
+ #ifdef IPTOS_LOWDELAY
+   {"IPTOS_LOWDELAY",    IPPROTO_IP,    IP_TOS,          IPTOS_LOWDELAY,    OPT_ON},
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/support/lsh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/support/lsh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/support/lsh	2010-09-06 23:42:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/support/lsh	2011-06-25 06:11:25.000000000 +0800
+@@ -4,13 +4,12 @@
+ # for testing or for running a local copy where the sender and the
+ # receiver needs to use different options (e.g. --fake-super).  If
+ # we get a -l USER option, we try to use "sudo -u USER" to run the
+ # command.
+ 
+ user=''
+-prefix=''
+ do_cd=y # Default path is user's home dir, just like ssh.
+ 
+ while : ; do
+     case "$1" in
+     -l) user="$2"; shift; shift ;;
+     -l*) user=`echo "$1" | sed 's/^-l//'`; shift ;;
+@@ -19,17 +18,16 @@
+     localhost) shift; break ;;
+     *) echo "lsh: unable to connect to host $1" 1>&2; exit 1 ;;
+     esac
+ done
+ 
+ if [ "$user" ]; then
+-    prefix="sudo -H -u '$user'"
++    prefix=''
+     if [ $do_cd = y ]; then
+ 	home=`perl -e "print((getpwnam('$user'))[7])"`
+-	# Yeah, this may fail, but attempts to get sudo to cd are harder.
+-	cd $home
++	prefix="cd '$home' ;"
+     fi
+-elif [ $do_cd = y ]; then
+-    cd
++    sudo -H -u "$user" sh -c "$prefix $*"
++else
++    [ $do_cd = y ] && cd
++    eval "${@}"
+ fi
+-
+-eval $prefix "${@}"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/support/mnt-excl /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/support/mnt-excl
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/support/mnt-excl	2011-01-14 15:03:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/support/mnt-excl	2011-07-05 07:31:58.000000000 +0800
+@@ -15,13 +15,13 @@
+ # output /foo (which are the properly anchored excludes).
+ #
+ # NOTE:  This script expects /proc/mounts to exist, but could be
+ # easily adapted to read /etc/mtab or similar.
+ #
+ # ADDENDUM:  The addition of the --filter option (which has support for
+-# absolute-anchored excludes) can make this screen unneeded in some
++# absolute-anchored excludes) can make this script unneeded in some
+ # scenarios.  If you don't need delete protection on the receiving side
+ # (or if the destination path is identical to the source path), then you
+ # can exclude some absolute paths from the transfer based on the mount
+ # dirs.  For instance:
+ #
+ # awk '{print $2}' /proc/mounts | grep -v '^/$' | \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/tweak_manpage /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/tweak_manpage
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/tweak_manpage	2006-11-14 15:54:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/tweak_manpage	2011-06-05 03:53:22.000000000 +0800
+@@ -1,22 +1,13 @@
+ #!/usr/bin/perl -i -p
+ 
+-# Make some hyphens unbreakable.
+-s{(--\w[-\w]+)}{ $x = $1; $x =~ s/-/\\-/g; $x }eg;
+-s/(?<!\\)-(['"\d*])/\\-$1/g;
+-s#(['"(= /,])-(?!-)#$1\\-#g;
+-s/(\\fB)-/$1\\-/g;
+-s/(\[\w)-(\w\])/$1\\-$2/g;
+-s{(\\f\(CW.*?\\fP)}{ $x = $1; $x =~ s/(?<!\\)-/\\-/g; $x }eg;
+-s/(\.\w+)-/$1\\-/g;
++use strict;
++use warnings;
+ 
+ # We only need to use "\&'" or "\&." at the start of a line.
+-s/(?<=.)\\\&(['.])/$1$2/g;
+-
+-# Use an em-dash where appropriate.
+-s/ \\?-{1,2} / \\(em /g;
++s/(?<=.)\\\&(['.])/$1/g;
+ 
+ # Some quotes turn into open/close quotes.
+ s/'(.)'/\\(oq$1\\(cq/g;
+ s/(^|[ (])"(?!( |$))/$1\\(lq/gm;
+ s/(?<! )"([.,:;! )]|$)/\\(rq$1/gm;
+ s/(\\\(lq[^(]*) "( |$)/$1 \\(rq$2/gm;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/util.c	2011-03-18 02:25:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/util.c	2011-04-23 06:51:55.000000000 +0800
+@@ -1021,14 +1021,15 @@
+ 		memcpy(curr_dir, dir, len + 1);
+ 	} else {
+ 		if (curr_dir_len + 1 + len >= sizeof curr_dir) {
+ 			errno = ENAMETOOLONG;
+ 			return 0;
+ 		}
+-		curr_dir[curr_dir_len] = '/';
+-		memcpy(curr_dir + curr_dir_len + 1, dir, len + 1);
++		if (!(curr_dir_len && curr_dir[curr_dir_len-1] == '/'))
++			curr_dir[curr_dir_len++] = '/';
++		memcpy(curr_dir + curr_dir_len, dir, len + 1);
+ 
+ 		if (!set_path_only && chdir(curr_dir)) {
+ 			curr_dir[curr_dir_len] = '\0';
+ 			return 0;
+ 		}
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/wildtest.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/wildtest.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/wildtest.c	2009-01-18 05:41:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/wildtest.c	2011-09-23 14:33:47.000000000 +0800
+@@ -47,21 +47,22 @@
+   {"explode",        'x', POPT_ARG_INT,    &explode_mod, 0, 0, 0},
+   {0,0,0,0, 0, 0, 0}
+ };
+ 
+ /* match just at the start of string (anchored tests) */
+ static void
+-run_test(int line, bool matches, bool same_as_fnmatch,
++run_test(int line, bool matches,
++#ifdef COMPARE_WITH_FNMATCH
++	 bool same_as_fnmatch,
++#endif
+ 	 const char *text, const char *pattern)
+ {
+     bool matched;
+ #ifdef COMPARE_WITH_FNMATCH
+     bool fn_matched;
+     int flags = strstr(pattern, "**")? 0 : FNM_PATHNAME;
+-#else
+-    same_as_fnmatch = 0; /* Get rid of unused-variable compiler warning. */
+ #endif
+ 
+     if (explode_mod) {
+ 	char buf[MAXPATHLEN*2], *texts[MAXPATHLEN];
+ 	int pos = 0, cnt = 0, ndx = 0, len = strlen(text);
+ 
+@@ -191,13 +192,17 @@
+ 		while (*++s && *s != ' ' && *s != '\t' && *s != '\n') {}
+ 		end[i] = s;
+ 	    }
+ 	    while (*++s == ' ' || *s == '\t') {}
+ 	}
+ 	*end[0] = *end[1] = '\0';
+-	run_test(line, flag[0], flag[1], string[0], string[1]);
++	run_test(line, flag[0],
++#ifdef COMPARE_WITH_FNMATCH
++		 flag[1],
++#endif
++		 string[0], string[1]);
+     }
+ 
+     if (!wildmatch_errors)
+ 	fputs("No", stdout);
+     else
+ 	printf("%d", wildmatch_errors);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/xattrs.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/xattrs.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.8/xattrs.c	2011-02-22 03:32:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.9/xattrs.c	2011-09-23 00:02:21.000000000 +0800
+@@ -90,17 +90,20 @@
+ 
+ static void rsync_xal_free(item_list *xalp)
+ {
+ 	size_t i;
+ 	rsync_xa *rxas = xalp->items;
+ 
++	if (!xalp->malloced)
++		return;
++
+ 	for (i = 0; i < xalp->count; i++) {
+ 		free(rxas[i].datum);
+ 		/*free(rxas[i].name);*/
+ 	}
+-	xalp->count = 0;
++	free(xalp->items);
+ }
+ 
+ void free_xattr(stat_x *sxp)
+ {
+ 	if (!sxp->xattr)
+ 		return;
+@@ -769,16 +772,14 @@
+ {
+ 	if (prior_xattr_count != (size_t)-1) {
+ 		item_list *xattr_item = rsync_xal_l.items;
+ 		item_list *xattr_start = xattr_item + prior_xattr_count;
+ 		xattr_item += rsync_xal_l.count;
+ 		rsync_xal_l.count = prior_xattr_count;
+-		while (xattr_item-- > xattr_start) {
++		while (xattr_item-- > xattr_start)
+ 			rsync_xal_free(xattr_item);
+-			free(xattr_item->items);
+-		}
+ 		prior_xattr_count = (size_t)-1;
+ 	}
+ }
+ 
+ static int rsync_xal_set(const char *fname, item_list *xalp,
+ 			 const char *fnamecmp, stat_x *sxp)

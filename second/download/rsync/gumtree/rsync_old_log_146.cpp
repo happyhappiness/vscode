@@ -1,0 +1,1 @@
+fprintf(stderr,"receiver read %d\n",read_total());

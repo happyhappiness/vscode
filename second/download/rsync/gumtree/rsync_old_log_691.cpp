@@ -1,0 +1,1 @@
+io_printf(fd,"@ERROR: setuid failed\n");

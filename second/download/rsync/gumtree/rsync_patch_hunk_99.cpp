@@ -1,0 +1,12 @@
+ void sig_int(void);
+ int recv_files(int f_in,struct file_list *flist,char *local_name);
+ off_t send_files(struct file_list *flist,int f_out,int f_in);
+ void generate_files(int f,struct file_list *flist,char *local_name);
+ int num_waiting(int fd);
+ char *map_file(int fd,off_t len);
++char *map_ptr(char *buf,off_t offset,int len);
+ void unmap_file(char *buf,off_t len);
+ int piped_child(char **command,int *f_in,int *f_out);
+ void out_of_memory(char *str);
+ int set_modtime(char *fname,time_t modtime);
+ int set_blocking(int fd, int set);

@@ -1,0 +1,637 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/cleanup.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/cleanup.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/cleanup.c	1998-11-26 00:24:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/cleanup.c	1999-04-06 23:04:16.000000000 +0800
+@@ -27,17 +27,20 @@
+ static char *cleanup_fname;
+ static char *cleanup_new_fname;
+ static struct file_struct *cleanup_file;
+ static int cleanup_fd1, cleanup_fd2;
+ static struct map_struct *cleanup_buf;
+ static int cleanup_pid = 0;
++extern int io_error;
+ 
+ void _exit_cleanup(int code, const char *file, int line)
+ {
+ 	extern int keep_partial;
+ 
++	if (code == 0 && io_error) code = RERR_FILEIO;
++
+ 	signal(SIGUSR1, SIG_IGN);
+ 
+ 	if (cleanup_got_literal && cleanup_fname && keep_partial) {
+ 		char *fname = cleanup_fname;
+ 		cleanup_fname = NULL;
+ 		if (cleanup_buf) unmap_file(cleanup_buf);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/clientserver.c	1999-03-16 05:23:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/clientserver.c	1999-04-06 23:04:16.000000000 +0800
+@@ -414,12 +414,13 @@
+ }
+ 
+ 
+ int daemon_main(void)
+ {
+ 	extern char *config_file;
++	extern int orig_umask;
+ 	char *pid_file;
+ 
+ 	if (is_a_socket(STDIN_FILENO)) {
+ 		int i;
+ 
+ 		/* we are running via inetd - close off stdout and
+@@ -444,22 +445,25 @@
+ 
+ 	log_open();
+ 
+ 	rprintf(FINFO,"rsyncd version %s starting\n",VERSION);
+ 
+ 	if (((pid_file = lp_pid_file()) != NULL) && (*pid_file != '\0')) {
+-		FILE *f;
++		char pidbuf[16];
++		int fd;
+ 		int pid = (int) getpid();
+ 		cleanup_set_pid(pid);
+-		if ((f = fopen(lp_pid_file(), "w")) == NULL) {
++		if ((fd = do_open(lp_pid_file(), O_WRONLY|O_CREAT|O_TRUNC,
++					0666 & ~orig_umask)) == -1) {
+ 		    cleanup_set_pid(0);
+ 		    fprintf(stderr,"failed to create pid file %s\n", pid_file);
+ 		    exit_cleanup(RERR_FILEIO);
+ 		}
+-		fprintf(f, "%d\n", pid);
+-		fclose(f);
++		slprintf(pidbuf, sizeof(pidbuf), "%d\n", pid);
++		write(fd, pidbuf, strlen(pidbuf));
++		close(fd);
+ 	}
+ 
+ 	start_accept_loop(rsync_port, start_daemon);
+ 	return -1;
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/cvs.log	1999-03-16 05:23:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/cvs.log	1999-04-06 23:09:36.000000000 +0800
+@@ -9210,6 +9210,264 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.3.0
+ 
++
++****************************************
++Date:	Wednesday March 24, 1999 @ 9:20
++Author:	dwd
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv6765
++
++Modified Files:
++	receiver.c 
++Log Message:
++Fix bug with --compare-dest option where missing parent directories in the
++target destination were not getting created.  There was a case in
++receiver.c to do that but it was only getting invoked when the -R option is
++specified, although I don't know why it was limited to that.
++
++It's too bad I didn't get a chance to more fully test the use of
++--compare-dest by my nsbd program before releasing rsync 2.3.0.  I'll
++probably need to put a workaround in nsbd too until the next release
++of rsync.
++
++
++
++****************************************
++Date:	Thursday March 25, 1999 @ 3:39
++Author:	dwd
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv4244
++
++Modified Files:
++	clientserver.c 
++Log Message:
++The "pid file" was getting created mode 666, not applying the umask
++because at that point in the program the umask is set to 0.  Now creating
++the file with mode (666 & ~orig_umask).
++
++
++
++****************************************
++Date:	Thursday March 25, 1999 @ 6:28
++Author:	dwd
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv19895
++
++Modified Files:
++	receiver.c 
++Log Message:
++Backed out the change to create missing parent directories when using
++--compare-dest.  It was due to an incomplete analysis of the problem,
++sorry.  I left a comment in its place indicating that normally the
++parent directories should already have been created.
++
++It turned out to actually be a bug in nsbd in which it was not always
++including all the parent directories in the include list like it was
++supposed to.  The files themselves were still being sent but that was only
++because my exclude_the_rest optimization was kicking in; if it weren't,
++excluding the parent directories would have had the side effect of
++excluding the files too.  So it really had nothing to do with the
++--compare-dest option after all, just with the requirement that if you use
++--exclude '*' you need to explicitly include all parent directories of
++files you include.
++
++
++
++****************************************
++Date:	Saturday April 3, 1999 @ 4:24
++Author:	dwd
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv10325
++
++Modified Files:
++	generator.c 
++Log Message:
++Small bug fix for the --compare-dest option: when a file's contents
++hadn't changed but its permissions had, the file wasn't copied but
++its permissions were attempted to be set anyway.  Made a change to
++skip setting the permissions in that case.
++
++
++
++****************************************
++Date:	Tuesday April 6, 1999 @ 20:27
++Author:	tridge
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/tmp/cvs-serv14971
++
++Modified Files:
++	rsync.spec.tmpl 
++Log Message:
++quote RPM_OPT_FLAGS
++patch from racke@linuxia.de
++
++
++
++****************************************
++Date:	Tuesday April 6, 1999 @ 20:56
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv25211
++
++Modified Files:
++	receiver.c 
++Log Message:
++fixed a nasty bug in the handling of "local_name" when setting the
++permissions on directories after a transfer.
++
++
++
++
++
++****************************************
++Date:	Tuesday April 6, 1999 @ 21:34
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv20997
++
++Modified Files:
++	rsyncd.conf.5 rsyncd.conf.yo 
++Log Message:
++fix the man page to reflect the fact that exclude options in
++rsyncd.conf are not passed to the client and thus only affect the file
++lists on the server.
++
++
++
++
++
++****************************************
++Date:	Tuesday April 6, 1999 @ 21:52
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv24211
++
++Modified Files:
++	rsync.yo 
++Log Message:
++note in the man page that:
++
++1) rsync won't copy directories at all if recursion isn't selected
++2) --delete won't do anything if recursion isn't selected
++
++
++
++****************************************
++Date:	Tuesday April 6, 1999 @ 21:55
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv4022
++
++Modified Files:
++	rsync.1 
++Log Message:
++rebuilt man page
++
++
++
++****************************************
++Date:	Tuesday April 6, 1999 @ 22:28
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv8865
++
++Modified Files:
++	main.c 
++Log Message:
++don't abort the server side if the file list is empty (perhaps because
++all files have been excluded).
++
++
++
++
++****************************************
++Date:	Tuesday April 6, 1999 @ 22:30
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv7473
++
++Modified Files:
++	main.c 
++Log Message:
++handle the case of an empty file list in get_local_name
++
++
++
++
++
++****************************************
++Date:	Wednesday April 7, 1999 @ 0:17
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv10175
++
++Removed Files:
++	md4.c md4.h 
++Log Message:
++these aren't used any more
++
++
++
++
++
++
++****************************************
++Date:	Wednesday April 7, 1999 @ 0:52
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv4421
++
++Modified Files:
++	cleanup.c 
++Log Message:
++set the exit code to RERR_FILEIO is io_error is set when we exit. This
++catches most sorts of io errors and ensures we report a error in our
++exit status.
++
++
++
++
++
++
++
++****************************************
++Date:	Wednesday April 7, 1999 @ 1:09
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.3.1
++
++
++****************************************
++Date:	Wednesday April 7, 1999 @ 1:09
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.3.1
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/generator.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/generator.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/generator.c	1999-03-16 05:23:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/generator.c	1999-04-06 23:04:16.000000000 +0800
+@@ -314,13 +314,14 @@
+ 		if (verbose > 1)
+ 			rprintf(FINFO,"%s is newer\n",fname);
+ 		return;
+ 	}
+ 
+ 	if (skip_file(fname, file, &st)) {
+-		set_perms(fname,file,&st,1);
++		if (fnamecmp == fname)
++			set_perms(fname,file,&st,1);
+ 		return;
+ 	}
+ 
+ 	if (dry_run) {
+ 		write_int(f_out,i);
+ 		return;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/main.c	1999-03-16 05:23:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/main.c	1999-04-06 23:04:16.000000000 +0800
+@@ -205,13 +205,13 @@
+ 			rprintf(FERROR,"ERROR: destination must be a directory when copying more than 1 file\n");
+ 			exit_cleanup(RERR_FILESELECT);
+ 		}
+ 		return name;
+ 	}
+ 
+-	if (flist->count == 1)
++	if (flist->count <= 1)
+ 		return name;
+ 
+ 	if (do_mkdir(name,0777 & ~orig_umask) != 0) {
+ 		rprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));
+ 		exit_cleanup(RERR_FILEIO);
+ 	} else {
+@@ -352,14 +352,14 @@
+ 	}
+ 
+ 	if (delete_mode && !delete_excluded)
+ 		recv_exclude_list(f_in);
+ 
+ 	flist = recv_file_list(f_in);
+-	if (!flist || flist->count == 0) {
+-		rprintf(FERROR,"server_recv: nothing to do\n");
++	if (!flist) {
++		rprintf(FERROR,"server_recv: recv_file_list error\n");
+ 		exit_cleanup(RERR_FILESELECT);
+ 	}
+ 	
+ 	if (argc > 0) {    
+ 		if (strcmp(dir,".")) {
+ 			argv[0] += strlen(dir);
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0: md4.c
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0: md4.h
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/packaging/redhat/5.0/rsync.spec	1999-03-16 05:23:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/packaging/redhat/5.0/rsync.spec	1999-04-06 23:09:26.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.3.0
++Version: 2.3.1
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.3.0.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.3.1.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+@@ -18,12 +18,14 @@
+ sets of files are present at one of the ends of the link beforehand.
+ 
+ A technical report describing the rsync algorithm is included with
+ this package. 
+ 
+ %changelog
++* Mon Jan 25 1999 Stefan Hornburg <racke@linuxia.de>
++  quoted RPM_OPT_FLAGS for the sake of robustness  
+ * Mon May 18 1998 Andrew Tridgell <tridge@samba.anu.edu.au>
+   reworked for auto-building when I release rsync (tridge@samba.anu.edu.au)
+ 
+ * Sat May 16 1998 John H Terpstra <jht@aquasoft.com.au>
+   Upgraded to Rsync 2.0.6
+     -new feature anonymous rsync
+@@ -55,13 +57,13 @@
+ 
+ %prep
+ %setup
+ 
+ %build
+ ./configure --prefix=/usr
+-make CFLAGS=$RPM_OPT_FLAGS
++make CFLAGS="$RPM_OPT_FLAGS"
+ strip rsync
+ 
+ %install
+ mkdir -p $RPM_BUILD_ROOT/usr/{bin,man/{man1,man5}}
+ install -m755 rsync $RPM_BUILD_ROOT/usr/bin
+ install -m644 rsync.1 $RPM_BUILD_ROOT/usr/man/man1
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/receiver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/receiver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/receiver.c	1999-03-16 05:23:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/receiver.c	1999-04-06 23:04:16.000000000 +0800
+@@ -414,12 +414,15 @@
+ 		   the lchown. Thanks to snabb@epipe.fi for pointing
+ 		   this out.  We also set it initially without group
+ 		   access because of a similar race condition. */
+ 		fd2 = do_open(fnametmp,O_WRONLY|O_CREAT|O_EXCL,
+ 			      file->mode & INITACCESSPERMS);
+ 
++		/* in most cases parent directories will already exist
++		   because their information should have been previously
++		   transferred, but that may not be the case with -R */
+ 		if (fd2 == -1 && relative_paths && errno == ENOENT && 
+ 		    create_directory_path(fnametmp) == 0) {
+ 			fd2 = do_open(fnametmp,O_WRONLY|O_CREAT|O_EXCL,
+ 				      file->mode & INITACCESSPERMS);
+ 		}
+ 		if (fd2 == -1) {
+@@ -471,13 +474,13 @@
+ 
+ 	/* now we need to fix any directory permissions that were 
+ 	   modified during the transfer */
+ 	for (i = 0; i < flist->count; i++) {
+ 		file = flist->files[i];
+ 		if (!file->basename || !S_ISDIR(file->mode)) continue;
+-		recv_generator(f_name(file),flist,i,-1);
++		recv_generator(local_name?local_name:f_name(file),flist,i,-1);
+ 	}
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"recv_files finished\n");
+ 	
+ 	return 0;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/rsync.1	1999-03-16 05:23:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/rsync.1	1999-04-06 23:04:16.000000000 +0800
+@@ -362,13 +362,15 @@
+ of saying you want recursion and want to preserve everything\&.
+ .IP 
+ Note: if the user launching rsync is root then the -o (preserve
+ uid) and -D (preserve devices) options are also implied\&.
+ .IP 
+ .IP "\fB-r, --recursive\fP" 
+-This tells rsync to copy directories recursively\&.
++This tells rsync to copy directories
++recursively\&. If you don\'t specify this then rsync won\'t copy
++directories at all\&.
+ .IP 
+ .IP "\fB-R, --relative\fP" 
+ Use relative paths\&. This means that the full path
+ names specified on the command line are sent to the server rather than
+ just the last parts of the filenames\&. This is particularly useful when
+ you want to send several different directories at the same time\&. For
+@@ -503,12 +505,14 @@
+ .IP 
+ .IP "\fB--delete\fP" 
+ This tells rsync to delete any files on the receiving
+ side that aren\'t on the sending side\&.   Files that are excluded from
+ transfer are excluded from being deleted unless you use --delete-excluded\&.
+ .IP 
++This option has no effect if directory recursion is not selected\&.
++.IP 
+ This option can be dangerous if used incorrectly!  It is a very good idea
+ to run first using the dry run option (-n) to see what files would be
+ deleted to make sure important files aren\'t listed\&.
+ .IP 
+ rsync 1\&.6\&.4 changed the behavior of --delete to make it less
+ dangerous\&.  rsync now only scans directories on the receiving side
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/rsyncd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/rsyncd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/rsyncd.conf.5	1999-03-16 05:23:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/rsyncd.conf.5	1999-04-06 23:04:17.000000000 +0800
+@@ -175,29 +175,32 @@
+ file transfers to and from that module should take place as when the daemon
+ was run as root\&. This complements the "uid" option\&. The default is the
+ group "nobody"\&.
+ .IP 
+ .IP "\fBexclude\fP" 
+ The "exclude" option allows you to specify a space
+-separated list of patterns to add to the exclude list\&. This is equivalent
+-to the client specifying these patterns with the --exclude option\&.  Only
+-one "exclude" option may be specified, but you can use "-" and "+" before
+-patterns to specify exclude/include\&.
++separated list of patterns to add to the exclude list\&. This is
++equivalent to the client specifying these patterns with the --exclude
++option except that the exclude list is not passed to the client and
++thus only apply on the server\&.  Only one "exclude" option may be
++specified, but you can use "-" and "+" before patterns to specify
++exclude/include\&.
+ .IP 
+ Note that this option is not designed with strong security in
+ mind, it is quite possible that a client may find a way to bypass this
+ exclude list\&. If you want to absolutely ensure that certain files
+ cannot be accessed then use the uid/gid options in combination with
+ file permissions\&.
+ .IP 
+ .IP "\fBexclude from\fP" 
+ The "exclude from" option specifies a filename
+ on the server that contains exclude patterns, one per line\&. This is
+ equivalent to the client specifying the --exclude-from option with a
+-equivalent file\&. See also the note about security for the exclude
+-option above\&.
++equivalent file except that the resulting exclude patterns are not
++passed to the client and thus only apply on the server\&. See also the
++note about security for the exclude option above\&.
+ .IP 
+ .IP "\fBinclude\fP" 
+ The "include" option allows you to specify a space
+ separated list of patterns which rsync should not exclude\&. This is
+ equivalent to the client specifying these patterns with the --include
+ option\&.  This is useful as it allows you to build up quite complex
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/rsyncd.conf.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/rsyncd.conf.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/rsyncd.conf.yo	1999-03-16 05:23:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/rsyncd.conf.yo	1999-04-06 23:04:17.000000000 +0800
+@@ -160,28 +160,31 @@
+ dit(bf(gid)) The "gid" option specifies the group name or group id that
+ file transfers to and from that module should take place as when the daemon
+ was run as root. This complements the "uid" option. The default is the
+ group "nobody".
+ 
+ dit(bf(exclude)) The "exclude" option allows you to specify a space
+-separated list of patterns to add to the exclude list. This is equivalent
+-to the client specifying these patterns with the --exclude option.  Only
+-one "exclude" option may be specified, but you can use "-" and "+" before
+-patterns to specify exclude/include.
++separated list of patterns to add to the exclude list. This is
++equivalent to the client specifying these patterns with the --exclude
++option except that the exclude list is not passed to the client and
++thus only apply on the server.  Only one "exclude" option may be
++specified, but you can use "-" and "+" before patterns to specify
++exclude/include.
+ 
+ Note that this option is not designed with strong security in
+ mind, it is quite possible that a client may find a way to bypass this
+ exclude list. If you want to absolutely ensure that certain files
+ cannot be accessed then use the uid/gid options in combination with
+ file permissions.
+ 
+ dit(bf(exclude from)) The "exclude from" option specifies a filename
+ on the server that contains exclude patterns, one per line. This is
+ equivalent to the client specifying the --exclude-from option with a
+-equivalent file. See also the note about security for the exclude
+-option above.
++equivalent file except that the resulting exclude patterns are not
++passed to the client and thus only apply on the server. See also the
++note about security for the exclude option above.
+ 
+ dit(bf(include)) The "include" option allows you to specify a space
+ separated list of patterns which rsync should not exclude. This is
+ equivalent to the client specifying these patterns with the --include
+ option.  This is useful as it allows you to build up quite complex
+ exclude/include rules.  Only one "include" option may be specified, but you
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/rsync.yo	1999-03-16 05:23:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/rsync.yo	1999-04-06 23:04:17.000000000 +0800
+@@ -322,13 +322,15 @@
+ dit(bf(-a, --archive)) This is equivalent to -rlptg. It is a quick way
+ of saying you want recursion and want to preserve everything.
+ 
+ Note: if the user launching rsync is root then the -o (preserve
+ uid) and -D (preserve devices) options are also implied.
+ 
+-dit(bf(-r, --recursive)) This tells rsync to copy directories recursively.
++dit(bf(-r, --recursive)) This tells rsync to copy directories
++recursively. If you don't specify this then rsync won't copy
++directories at all.
+ 
+ dit(bf(-R, --relative)) Use relative paths. This means that the full path
+ names specified on the command line are sent to the server rather than
+ just the last parts of the filenames. This is particularly useful when
+ you want to send several different directories at the same time. For
+ example, if you used the command
+@@ -431,12 +433,14 @@
+ contents of only one filesystem.
+ 
+ dit(bf(--delete)) This tells rsync to delete any files on the receiving
+ side that aren't on the sending side.   Files that are excluded from
+ transfer are excluded from being deleted unless you use --delete-excluded.
+ 
++This option has no effect if directory recursion is not selected.
++
+ This option can be dangerous if used incorrectly!  It is a very good idea
+ to run first using the dry run option (-n) to see what files would be
+ deleted to make sure important files aren't listed.
+ 
+ rsync 1.6.4 changed the behavior of --delete to make it less
+ dangerous.  rsync now only scans directories on the receiving side
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.0/version.h	1999-03-16 05:23:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.1/version.h	1999-04-06 23:09:25.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.3.0"
++#define VERSION "2.3.1"

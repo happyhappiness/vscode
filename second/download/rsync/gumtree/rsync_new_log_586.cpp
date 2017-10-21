@@ -1,0 +1,1 @@
+rprintf(FERROR,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));

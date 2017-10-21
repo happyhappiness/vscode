@@ -1,0 +1,1 @@
+fprintf(FERROR,"out of memory in %s\n",str);

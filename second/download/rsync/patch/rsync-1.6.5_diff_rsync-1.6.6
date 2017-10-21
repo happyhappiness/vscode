@@ -1,0 +1,175 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.5/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.6/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.5/cvs.log	1997-12-16 06:26:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.6/cvs.log	1997-12-16 15:20:16.000000000 +0800
+@@ -315,6 +315,52 @@
+ Log Message:
+ #if 0 the write exception code for the moment. I need to work out why
+ it gets a successful write select on a fd followed by a EAGAIN
+ write yet the fd is still OK. 
+ 
+ 
++
++****************************************
++Date:	Tuesday December 16, 1997 @ 17:59
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv28373
++
++Modified Files:
++	flist.c rsync.c 
++Log Message:
++fixed a nasty bug in the handling of the --delete option when there
++are duplicate file names in the list of files to be transferred
++(eg. the user specifies the same file twice).
++
++
++
++****************************************
++Date:	Tuesday December 16, 1997 @ 18:18
++Author:	tridge
++
++Update of /data/cvs/rsync/lib
++In directory samba:/tmp/cvs-serv13442
++
++Modified Files:
++	zlib.c 
++Log Message:
++Checker showed that zlib was using a element of its internal state
++structure without initialising it. Although it looks harmless I've
++added a bzero() to make absolutely sure that the code behaves
++consistently across platforms.
++
++
++
++****************************************
++Date:	Tuesday December 16, 1997 @ 18:20
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 1.6.6
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.5/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.6/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.5/flist.c	1997-12-16 06:09:28.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.6/flist.c	1997-12-16 15:14:44.000000000 +0800
+@@ -557,28 +557,42 @@
+   if (!f1->name) return -1;
+   if (!f2->name) return 1;
+   return strcmp(f1->name,f2->name);
+ }
+ 
+ 
++/* we need this function because of the silly way in which duplicate
++   entries are handled in the file lists - we can't change this
++   without breaking existing versions */
++static int flist_up(struct file_list *flist, int i)
++{
++	while (!flist->files[i].name) i++;
++	return i;
++}
++
++
+ int flist_find(struct file_list *flist,struct file_struct *f)
+ {
+-  int low=0,high=flist->count-1;
++	int low=0,high=flist->count-1;
++
++	if (flist->count <= 0) return -1;
++
++	while (low != high) {
++		int mid = (low+high)/2;
++		int ret = file_compare(&flist->files[flist_up(flist, mid)],f);
++		if (ret == 0) return flist_up(flist, mid);
++		if (ret > 0) {
++			high=mid;
++		} else {
++			low=mid+1;
++		}
++	}
+ 
+-  while (low != high) {
+-    int mid = (low+high)/2;
+-    int ret = file_compare(&flist->files[mid],f);
+-    if (ret == 0) return mid;
+-    if (ret > 0) 
+-      high=mid;
+-    else
+-      low=mid+1;
+-  }
+-  if (file_compare(&flist->files[low],f) == 0)
+-    return low;
+-  return -1;
++	if (file_compare(&flist->files[flist_up(flist,low)],f) == 0)
++		return flist_up(flist,low);
++	return -1;
+ }
+ 
+ 
+ static void clean_fname(char *name)
+ {
+   char *p;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.5/lib/zlib.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.6/lib/zlib.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.5/lib/zlib.c	1997-10-30 16:13:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.6/lib/zlib.c	1997-12-16 15:18:38.000000000 +0800
+@@ -7,13 +7,13 @@
+  *
+  * Changes that have been made include:
+  * - changed functions not used outside this file to "local"
+  * - added Z_PACKET_FLUSH (see zlib.h for details)
+  * - added inflateIncomp
+  *
+- * $Id: zlib.c,v 1.6 1997/10/30 08:13:32 tridge Exp $
++ * $Id: zlib.c,v 1.7 1997/12/16 18:18:02 tridge Exp $
+  */
+ 
+ 
+ /*+++++*/
+ /* zutil.h -- internal interface and configuration of the compression library
+  * Copyright (C) 1995 Jean-loup Gailly.
+@@ -597,12 +597,13 @@
+     if (memLevel < 1 || memLevel > MAX_MEM_LEVEL || method != DEFLATED ||
+         windowBits < 8 || windowBits > 15 || level < 1 || level > 9) {
+         return Z_STREAM_ERROR;
+     }
+     s = (deflate_state *) ZALLOC(strm, 1, sizeof(deflate_state));
+     if (s == Z_NULL) return Z_MEM_ERROR;
++    bzero(s, sizeof(*s));
+     strm->state = (struct internal_state FAR *)s;
+     s->strm = strm;
+ 
+     s->noheader = noheader;
+     s->w_bits = windowBits;
+     s->w_size = 1 << s->w_bits;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.5/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.6/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.5/rsync.c	1997-12-15 20:05:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.6/rsync.c	1997-12-16 15:14:44.000000000 +0800
+@@ -545,16 +545,16 @@
+ 	  if (strcmp(flist->files[j].name,".")==0) continue;
+ 	  if (last_name &&
+ 	      flist->files[j].name[strlen(last_name)] == '/' &&
+ 	      strncmp(flist->files[j].name,last_name, strlen(last_name))==0)
+ 		  continue;
+ 	  last_name = flist->files[j].name;
++	  if (!(local_file_list = send_file_list(-1,1,&last_name)))
++		  continue;
+ 	  if (verbose > 1)
+ 		  fprintf(FINFO,"deleting in %s\n", last_name);
+-	  if (!(local_file_list = send_file_list(-1,1,&last_name)))
+-		  return;
+ 
+ 	  for (i=local_file_list->count-1;i>=0;i--) {
+ 		  if (!local_file_list->files[i].name) continue;
+ 		  if (-1 == flist_find(flist,&local_file_list->files[i])) {
+ 			  delete_one(&local_file_list->files[i]);
+ 		  }    
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.5/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.6/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.5/version.h	1997-12-16 06:26:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.6/version.h	1997-12-16 15:20:08.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.6.5"
++#define VERSION "1.6.6"

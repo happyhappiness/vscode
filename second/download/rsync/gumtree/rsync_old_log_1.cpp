@@ -1,0 +1,1 @@
+fprintf(stderr,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);

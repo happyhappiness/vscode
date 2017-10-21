@@ -1,0 +1,319 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/clientserver.c	1998-05-15 18:57:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/clientserver.c	1998-05-15 22:10:47.000000000 +0800
+@@ -268,12 +268,14 @@
+ 
+ 	if (!lp_load(config_file, 0)) {
+ 		exit_cleanup(1);
+ 	}
+ 
+ 	set_socket_options(fd,"SO_KEEPALIVE");
++	set_socket_options(fd,lp_socket_options());
++	
+ 
+ 	io_printf(fd,"@RSYNCD: %d\n", PROTOCOL_VERSION);
+ 
+ 	motd = lp_motd_file();
+ 	if (*motd) {
+ 		FILE *f = fopen(motd,"r");
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/cvs.log	1998-05-15 18:58:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/cvs.log	1998-05-15 22:12:17.000000000 +0800
+@@ -3957,6 +3957,67 @@
+ 
+ Modified Files:
+ 	version.h 
+ Log Message:
+ preparing for release of 2.0.4
+ 
++
++****************************************
++Date:	Friday May 15, 1998 @ 23:25
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv4369
++
++Modified Files:
++	clientserver.c loadparm.c proto.h rsyncd.conf.5 rsyncd.conf.yo 
++	socket.c 
++Log Message:
++added a "socket options" option to rsyncd.conf. This option will
++provide hours of fun for those people who like to tune their systems
++to the utmost degree.
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 0:00
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv6077
++
++Modified Files:
++	flist.c util.c 
++Log Message:
++got rid of "EOF in map_ptr" problem. If a file shrinks mid transfer
++then we supply a zero filled buffer at the end and rely on the
++checksum to cause a retry. This is really the best we can do as there
++is no correct semantics for copying a changing file!
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 0:01
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv17517
++
++Modified Files:
++	flist.c 
++Log Message:
++removed some debug code
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 0:12
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.5
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/loadparm.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/loadparm.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/loadparm.c	1998-05-15 18:57:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/loadparm.c	1998-05-15 22:10:48.000000000 +0800
+@@ -98,12 +98,13 @@
+ typedef struct
+ {
+ 	char *motd_file;
+ 	char *lock_file;
+ 	int syslog_facility;
+ 	int max_connections;
++	char *socket_options;
+ } global;
+ 
+ static global Globals;
+ 
+ 
+ 
+@@ -227,12 +228,13 @@
+ static struct parm_struct parm_table[] =
+ {
+   {"max connections",  P_INTEGER, P_GLOBAL, &Globals.max_connections,NULL, 0},
+   {"motd file",        P_STRING,  P_GLOBAL, &Globals.motd_file,    NULL,   0},
+   {"lock file",        P_STRING,  P_GLOBAL, &Globals.lock_file,    NULL,   0},
+   {"syslog facility",  P_ENUM,    P_GLOBAL, &Globals.syslog_facility, enum_facilities,0},
++  {"socket options",   P_STRING,  P_GLOBAL, &Globals.socket_options,NULL,  0},
+ 
+   {"name",             P_STRING,  P_LOCAL,  &sDefault.name,        NULL,   0},
+   {"comment",          P_STRING,  P_LOCAL,  &sDefault.comment,     NULL,   0},
+   {"path",             P_STRING,  P_LOCAL,  &sDefault.path,        NULL,   0},
+   {"read only",        P_BOOL,    P_LOCAL,  &sDefault.read_only,   NULL,   0},
+   {"list",             P_BOOL,    P_LOCAL,  &sDefault.list,        NULL,   0},
+@@ -291,14 +293,16 @@
+ #define FN_LOCAL_INTEGER(fn_name,val) \
+  int fn_name(int i) {return(LP_SNUM_OK(i)? pSERVICE(i)->val : sDefault.val);}
+ 
+ 
+ FN_GLOBAL_STRING(lp_motd_file, &Globals.motd_file)
+ FN_GLOBAL_STRING(lp_lock_file, &Globals.lock_file)
++FN_GLOBAL_STRING(lp_socket_options, &Globals.socket_options)
+ FN_GLOBAL_INTEGER(lp_max_connections, &Globals.max_connections)
+ FN_GLOBAL_INTEGER(lp_syslog_facility, &Globals.syslog_facility)
++
+ FN_LOCAL_STRING(lp_name, name)
+ FN_LOCAL_STRING(lp_comment, comment)
+ FN_LOCAL_STRING(lp_path, path)
+ FN_LOCAL_BOOL(lp_read_only, read_only)
+ FN_LOCAL_BOOL(lp_list, list)
+ FN_LOCAL_STRING(lp_uid, uid)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/proto.h	1998-05-15 18:57:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/proto.h	1998-05-15 22:10:48.000000000 +0800
+@@ -58,12 +58,13 @@
+ void write_byte(int f,unsigned char c);
+ void write_flush(int f);
+ int read_line(int f, char *buf, int maxlen);
+ void io_printf(int fd, const char *format, ...);
+ char *lp_motd_file(void);
+ char *lp_lock_file(void);
++char *lp_socket_options(void);
+ int lp_max_connections(void);
+ int lp_syslog_facility(void);
+ char *lp_name(int );
+ char *lp_comment(int );
+ char *lp_path(int );
+ BOOL lp_read_only(int );
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/rsyncd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/rsyncd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/rsyncd.conf.5	1998-05-15 13:43:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/rsyncd.conf.5	1998-05-15 22:10:48.000000000 +0800
+@@ -103,12 +103,20 @@
+ rsync server\&. You may use any standard syslog facility name which is
+ defined on your system\&. Common names are auth, authpriv, cron, daemon,
+ ftp, kern, lpr, mail, news, security, syslog, user, uucp, local0,
+ local1, local2, local3, local4, local5, local6 and local7\&. The default
+ is daemon\&. 
+ .IP 
++.IP "\fBsocket options\fP" 
++This option can provide endless fun for people
++who like to tune their systems to the utmost degree\&. You can set all
++sorts of socket options which may make transfers faster (or
++slower!)\&. Read the man page for the setsockopt() system call for
++details on some of the options you may be able to set\&. By default no
++special socket options are set\&.
++.IP 
+ .PP 
+ .SH "MODULE OPTIONS" 
+ .PP 
+ After the global options you should define a number of modules, each
+ module exports a directory tree as a symbolic name\&. Modules are
+ exported by specifying a module name in square brackets [module]
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/rsyncd.conf.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/rsyncd.conf.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/rsyncd.conf.yo	1998-05-15 13:43:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/rsyncd.conf.yo	1998-05-15 22:10:48.000000000 +0800
+@@ -96,12 +96,19 @@
+ rsync server. You may use any standard syslog facility name which is
+ defined on your system. Common names are auth, authpriv, cron, daemon,
+ ftp, kern, lpr, mail, news, security, syslog, user, uucp, local0,
+ local1, local2, local3, local4, local5, local6 and local7. The default
+ is daemon. 
+ 
++dit(bf(socket options)) This option can provide endless fun for people
++who like to tune their systems to the utmost degree. You can set all
++sorts of socket options which may make transfers faster (or
++slower!). Read the man page for the setsockopt() system call for
++details on some of the options you may be able to set. By default no
++special socket options are set.
++
+ enddit()
+ 
+ 
+ manpagesection(MODULE OPTIONS)
+ 
+ After the global options you should define a number of modules, each
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/socket.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/socket.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/socket.c	1998-05-15 09:03:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/socket.c	1998-05-15 22:10:48.000000000 +0800
+@@ -213,12 +213,14 @@
+ /****************************************************************************
+ set user socket options
+ ****************************************************************************/
+ void set_socket_options(int fd, char *options)
+ {
+ 	char *tok;
++	if (!options || !*options) return;
++
+ 	options = strdup(options);
+ 	
+ 	if (!options) out_of_memory("set_socket_options");
+ 
+ 	for (tok=strtok(options, " \t,"); tok; tok=strtok(NULL," \t,")) {
+ 		int ret=0,i;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/util.c	1998-05-15 18:57:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/util.c	1998-05-15 22:10:48.000000000 +0800
+@@ -57,50 +57,55 @@
+   return ret;
+ }
+ 
+ 
+ char *map_ptr(struct map_struct *map,OFF_T offset,int len)
+ {
+-  int nread = -2;
++	int nread;
+ 
+-  if (map->map)
+-    return map->map+offset;
++	if (map->map)
++		return map->map+offset;
+ 
+-  if (len == 0) 
+-    return NULL;
++	if (len == 0) 
++		return NULL;
+ 
+-  if (len > (map->size-offset))
+-      len = map->size-offset;
+-
+-  if (offset >= map->p_offset && 
+-      offset+len <= map->p_offset+map->p_len) {
+-    return (map->p + (offset - map->p_offset));
+-  }
+-
+-  len = MAX(len,CHUNK_SIZE);
+-  if (len > (map->size-offset))
+-      len = map->size-offset;
+-
+-  if (len > map->p_size) {
+-    if (map->p) free(map->p);
+-    map->p = (char *)malloc(len);
+-    if (!map->p) out_of_memory("map_ptr");
+-    map->p_size = len;
+-  }
+-
+-  if (do_lseek(map->fd,offset,SEEK_SET) != offset ||
+-      (nread=read(map->fd,map->p,len)) != len) {
+-	  rprintf(FERROR,"EOF in map_ptr! (offset=%d len=%d nread=%d errno=%d)\n",
+-		  (int)offset, len, nread, errno);
+-	  exit_cleanup(1);
+-  }
+-
+-  map->p_offset = offset;
+-  map->p_len = len;
+-
+-  return map->p; 
++	if (len > (map->size-offset))
++		len = map->size-offset;
++
++	if (offset >= map->p_offset && 
++	    offset+len <= map->p_offset+map->p_len) {
++		return (map->p + (offset - map->p_offset));
++	}
++
++	len = MAX(len,CHUNK_SIZE);
++	if (len > (map->size-offset))
++		len = map->size-offset;
++
++	if (len > map->p_size) {
++		if (map->p) free(map->p);
++		map->p = (char *)malloc(len);
++		if (!map->p) out_of_memory("map_ptr");
++		map->p_size = len;
++	}
++
++	map->p_offset = offset;
++	map->p_len = len;
++
++	if (do_lseek(map->fd,offset,SEEK_SET) != offset) {
++		rprintf(FERROR,"lseek failed in map_ptr\n");
++		exit_cleanup(1);
++	}
++
++	if ((nread=read(map->fd,map->p,len)) != len) {		
++		if (nread < 0) nread = 0;
++		/* the best we can do is zero the buffer - the file
++                   has changed mid transfer! */
++		memset(map->p+nread, 0, len - nread);
++	}
++  
++	return map->p; 
+ }
+ 
+ 
+ void unmap_file(struct map_struct *map)
+ {
+ #ifdef HAVE_MMAP
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/version.h	1998-05-15 18:58:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/version.h	1998-05-15 22:12:02.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.4"
++#define VERSION "2.0.5"

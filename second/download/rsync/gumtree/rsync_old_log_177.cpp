@@ -1,0 +1,1 @@
+fprintf(stderr,"chown %s : %s\n",fname,strerror(errno));

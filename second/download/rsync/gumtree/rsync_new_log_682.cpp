@@ -1,0 +1,1 @@
+io_printf(f_out, "%s\n", sargs[i]);

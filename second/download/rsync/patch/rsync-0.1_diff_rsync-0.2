@@ -1,0 +1,694 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/config.h.in	1996-06-15 15:33:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/config.h.in	1996-06-16 10:51:30.000000000 +0800
+@@ -45,12 +45,14 @@
+ #undef HAVE_STRTOK
+ #undef HAVE_WAITPID
+ #undef HAVE_BCOPY
+ #undef HAVE_BZERO
+ #undef HAVE_READLINK
+ #undef HAVE_UTIME
++#undef HAVE_GETOPT_LONG
++#undef HAVE_FNMATCH
+ 
+ /* needed for mknod */
+ #undef HAVE_ST_RDEV
+ 
+ /* Define if the system does not provide POSIX.1 features except
+    with this defined.  */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/configure	1996-06-15 15:33:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/configure	1996-06-16 10:51:30.000000000 +0800
+@@ -1870,12 +1870,63 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
++for ac_func in getopt_long fnmatch
++do
++echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
++if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
++  echo $ac_n "(cached) $ac_c" 1>&6
++else
++  cat > conftest.$ac_ext <<EOF
++#line 1884 "configure"
++#include "confdefs.h"
++/* System header to define __stub macros and hopefully few prototypes,
++    which can conflict with char $ac_func(); below.  */
++#include <assert.h>
++/* Override any gcc2 internal prototype to avoid an error.  */
++char $ac_func();
++
++int main() { return 0; }
++int t() {
++
++/* The GNU C library defines this for functions which it implements
++    to always fail with ENOSYS.  Some functions are actually named
++    something starting with __ and the normal name is an alias.  */
++#if defined (__stub_$ac_func) || defined (__stub___$ac_func)
++choke me
++#else
++$ac_func();
++#endif
++
++; return 0; }
++EOF
++if { (eval echo configure:1906: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; }; then
++  rm -rf conftest*
++  eval "ac_cv_func_$ac_func=yes"
++else
++  rm -rf conftest*
++  eval "ac_cv_func_$ac_func=no"
++fi
++rm -f conftest*
++
++fi
++if eval "test \"`echo '$ac_cv_func_'$ac_func`\" = yes"; then
++  echo "$ac_t""yes" 1>&6
++    ac_tr_func=HAVE_`echo $ac_func | tr 'abcdefghijklmnopqrstuvwxyz' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'`
++  cat >> confdefs.h <<EOF
++#define $ac_tr_func 1
++EOF
++ 
++else
++  echo "$ac_t""no" 1>&6
++fi
++done
++
+ 
+ trap '' 1 2 15
+ cat > confcache <<\EOF
+ # This file is a shell script that caches the results of configure
+ # tests run on this system so they can be shared between configure
+ # scripts and configure runs.  It is not useful on other systems.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/configure.in	1996-06-15 15:33:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/configure.in	1996-06-16 10:51:31.000000000 +0800
+@@ -32,8 +32,9 @@
+ 
+ AC_FUNC_MEMCMP
+ AC_FUNC_MMAP
+ AC_FUNC_UTIME_NULL
+ AC_CHECK_FUNCS(waitpid strtok pipe getcwd mkdir strdup strerror chown chmod mknod)
+ AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink utime)
++AC_CHECK_FUNCS(getopt_long fnmatch)
+ 
+ AC_OUTPUT(Makefile)
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2: exclude.c
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/flist.c	1996-06-16 08:11:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/flist.c	1996-06-16 12:53:30.000000000 +0800
+@@ -22,36 +22,35 @@
+ #include "rsync.h"
+ 
+ extern int verbose;
+ extern int always_checksum;
+ extern off_t total_size;
+ 
++extern int cvs_exclude;
++
+ extern int make_backups;
+ extern int preserve_links;
+ extern int preserve_perms;
+ extern int preserve_devices;
+ extern int preserve_uid;
+ extern int preserve_gid;
+ extern int preserve_times;
+ 
++static char **local_exclude_list = NULL;
+ 
+ /*
+   This function is used to check if a file should be included/excluded
+   from the list of files based on its name and type etc
+-
+-  This will be expanded soon to include globbing functions, .ignore
+-  files and anything else Paul can dream up :-)
+  */
+ static int match_file_name(char *fname,struct stat *st)
+ {
+-
++  if (check_exclude(fname,local_exclude_list)) 
++    return 0;
+   return 1;
+ }
+ 
+-
+-
+ static void send_directory(int f,struct file_list *flist,char *dir);
+ 
+ static char *flist_dir = NULL;
+ 
+ static void send_file_entry(struct file_struct *file,int f)
+ {
+@@ -168,14 +167,16 @@
+   }
+ 
+   flist->files[flist->count++] = *file;    
+ 
+   send_file_entry(file,f);
+ 
+-  if (S_ISDIR(file->mode) && recurse) {      
++  if (S_ISDIR(file->mode) && recurse) {
++    char **last_exclude_list = local_exclude_list;
+     send_directory(f,flist,file->name);
++    local_exclude_list = last_exclude_list;
+     return;
+   }
+ }
+ 
+ 
+ 
+@@ -196,13 +197,18 @@
+ 
+   strcpy(fname,dir);
+   l = strlen(fname);
+   if (fname[l-1] != '/')
+     strcat(fname,"/");
+   p = fname + strlen(fname);
+-  
++
++  if (cvs_exclude) {
++    strcpy(p,".cvsignore");
++    local_exclude_list = make_exclude_list(fname,NULL);
++  }  
++
+   for (di=readdir(d); di; di=readdir(d)) {
+     if (strcmp(di->d_name,".")==0 ||
+ 	strcmp(di->d_name,"..")==0)
+       continue;
+     strcpy(p,di->d_name);
+     send_file_name(f,flist,1,fname);
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2: lib
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/main.c	1996-06-16 08:11:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/main.c	1996-06-16 13:05:08.000000000 +0800
+@@ -32,18 +32,18 @@
+ int preserve_perms = 0;
+ int preserve_devices = 0;
+ int preserve_uid = 0;
+ int preserve_gid = 0;
+ int preserve_times = 0;
+ int update_only = 0;
++int cvs_exclude = 0;
+ 
+ static int server = 0;
+ static int sender = 0;
+ static int recurse = 0;
+ 
+-
+ static void report(int f)
+ {
+   int in,out,tsize;
+   time_t t = time(NULL);
+   
+   if (!verbose) return;
+@@ -70,45 +70,27 @@
+ 	 out,in,(in+out)/(0.5 + (t-starttime)));        
+   printf("total size is %d  speedup is %g\n",
+ 	 tsize,(1.0*tsize)/(in+out));
+ }
+ 
+ 
+-int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
++static void server_options(char **args,int *argc)
+ {
+-  char *args[100];
+-  int i,x,argc=0;
+-  char *tok,*p;
+-  char argstr[30]="-s";
+-  char bsize[30];
+-
+-  if (!cmd)
+-    cmd = getenv(RSYNC_RSH_ENV);
+-  if (!cmd)
+-    cmd = RSYNC_RSH;
+-  cmd = strdup(cmd);
+-  if (!cmd) 
+-    goto oom;
++  int ac = *argc;
++  static char argstr[50];
++  static char bsize[30];
++  int i, x = 1;
+ 
+-  for (tok=strtok(cmd," ");tok;tok=strtok(NULL," ")) {
+-    args[argc++] = tok;
+-  }
+-
+-  if (user) {
+-    args[argc++] = "-l";
+-    args[argc++] = user;
+-  }
+-  args[argc++] = machine;
++  args[ac++] = "--server";
+ 
+-  args[argc++] = RSYNC_NAME;
++  if (!sender)
++    args[ac++] = "--sender";
+ 
+-  x = 2;
++  argstr[0] = '-';
+   for (i=0;i<verbose;i++)
+     argstr[x++] = 'v';
+-  if (!sender)
+-    argstr[x++] = 'S';
+   if (make_backups)
+     argstr[x++] = 'b';
+   if (update_only)
+     argstr[x++] = 'u';
+   if (preserve_links)
+     argstr[x++] = 'l';
+@@ -123,21 +105,56 @@
+   if (preserve_perms)
+     argstr[x++] = 'p';
+   if (recurse)
+     argstr[x++] = 'r';
+   if (always_checksum)
+     argstr[x++] = 'c';
++  if (cvs_exclude)
++    argstr[x++] = 'C';
+   argstr[x] = 0;
+ 
+-  args[argc++] = argstr;
++  args[ac++] = argstr;
+ 
+   if (block_size != BLOCK_SIZE) {
+     sprintf(bsize,"-B%d",block_size);
+-    args[argc++] = bsize;
++    args[ac++] = bsize;
+   }    
+-  
++
++  *argc = ac;
++}
++
++
++
++int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
++{
++  char *args[100];
++  int i,argc=0;
++  char *tok,*p;
++
++  if (!cmd)
++    cmd = getenv(RSYNC_RSH_ENV);
++  if (!cmd)
++    cmd = RSYNC_RSH;
++  cmd = strdup(cmd);
++  if (!cmd) 
++    goto oom;
++
++  for (tok=strtok(cmd," ");tok;tok=strtok(NULL," ")) {
++    args[argc++] = tok;
++  }
++
++  if (user) {
++    args[argc++] = "-l";
++    args[argc++] = user;
++  }
++  args[argc++] = machine;
++
++  args[argc++] = RSYNC_NAME;
++
++  server_options(args,&argc);
++
+   if (path && *path) {
+     char *dir = strdup(path);
+     p = strrchr(dir,'/');
+     if (p) {
+       *p = 0;
+       args[argc++] = dir;
+@@ -289,62 +306,123 @@
+     fprintf(stderr,"receiver read %d\n",read_total());
+   waitpid(pid, &status, 0);
+   exit(status);
+ }
+ 
+ 
+-void usage(void)
++static void usage(FILE *f)
+ {
+-  fprintf(stderr,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",VERSION);
+-  fprintf(stderr,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
+-  fprintf(stderr,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
+-  fprintf(stderr,"Options:\n");
+-  fprintf(stderr,"-v       : increase verbosity\n");
+-  fprintf(stderr,"-c       : always checksum\n");
+-  fprintf(stderr,"-a       : archive mode (same as -rlptDog)\n");
+-  fprintf(stderr,"-r       : recurse into directories\n");
+-  fprintf(stderr,"-b       : make backups (default ~ extension)\n");
+-  fprintf(stderr,"-u       : update only (don't overwrite newer files)\n");
+-  fprintf(stderr,"-l       : preserve soft links\n");
+-  fprintf(stderr,"-p       : preserve permissions\n");
+-  fprintf(stderr,"-o       : preserve owner (root only)\n");
+-  fprintf(stderr,"-g       : preserve group\n");
+-  fprintf(stderr,"-D       : preserve devices (root only)\n");
+-  fprintf(stderr,"-t       : preserve times\n");  
+-  fprintf(stderr,"-e cmd   : specify rsh replacement\n");
++  fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
++	  VERSION);
++  fprintf(f,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
++  fprintf(f,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
++  fprintf(f,"Options:\n");
++  fprintf(f,"-v, --verbose            increase verbosity\n");
++  fprintf(f,"-c, --checksum           always checksum\n");
++  fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");
++  fprintf(f,"-r, --recursive          recurse into directories\n");
++  fprintf(f,"-b, --backup             make backups (default ~ extension)\n");
++  fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
++  fprintf(f,"-l, --links              preserve soft links\n");
++  fprintf(f,"-p, --perms              preserve permissions\n");
++  fprintf(f,"-o, --owner              preserve owner (root only)\n");
++  fprintf(f,"-g, --group              preserve group\n");
++  fprintf(f,"-D, --devices            preserve devices (root only)\n");
++  fprintf(f,"-t, --times              preserve times\n");  
++  fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");  
++  fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
++  fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
++  fprintf(f,"    --exclude FILE       exclude file FILE\n");
++  fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
++  fprintf(f,"    --suffix SUFFIX      override backup suffix\n");  
++  fprintf(f,"    --version            print version number\n");  
++
++  fprintf(f,"\n");
++  fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
++  fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
+ }
+ 
++enum {OPT_VERSION,OPT_SUFFIX,OPT_SENDER,OPT_SERVER,OPT_EXCLUDE,OPT_EXCLUDE_FROM};
++
++static char *short_options = "oblpguDCtcahvre:B:";
++
++static struct option long_options[] = {
++  {"version",     0,     0,    OPT_VERSION},
++  {"server",      0,     0,    OPT_SERVER},
++  {"sender",      0,     0,    OPT_SENDER},
++  {"exclude",     1,     0,    OPT_EXCLUDE},
++  {"exclude-from",1,     0,    OPT_EXCLUDE_FROM},
++  {"help",        0,     0,    'h'},
++  {"cvs-exclude", 0,     0,    'C'},
++  {"archive",     0,     0,    'a'},
++  {"checksum",    0,     0,    'c'},
++  {"backup",      0,     0,    'b'},
++  {"update",      0,     0,    'u'},
++  {"verbose",     0,     0,    'v'},
++  {"recursive",   0,     0,    'r'},
++  {"devices",     0,     0,    'D'},
++  {"perms",       0,     0,    'p'},
++  {"links",       0,     0,    'l'},
++  {"owner",       0,     0,    'o'},
++  {"group",       0,     0,    'g'},
++  {"times",       0,     0,    't'},
++  {"rsh",         1,     0,    'e'},
++  {"suffix",      1,     0,    OPT_SUFFIX},
++  {"block-size",  1,     0,    'B'},
++  {0,0,0,0}};
+ 
+ int main(int argc,char *argv[])
+ {
+     int i, pid, status, pid2, status2;
+     int opt;
+-    extern char *optarg;
+-    extern int optind;
++    int option_index;
+     char *shell_cmd = NULL;
+     char *shell_machine = NULL;
+     char *shell_path = NULL;
+     char *shell_user = NULL;
+     char *p;
+     int f_in,f_out;
+     struct file_list *flist;
+     char *local_name = NULL;
+ 
+     starttime = time(NULL);
+ 
+-    while ((opt=getopt(argc, argv, "oblpguDtcahvSsre:B:")) != EOF)
++    while ((opt = getopt_long(argc, argv, 
++			      short_options, long_options, &option_index)) 
++	   != -1)
+       switch (opt) 
+ 	{
++	case OPT_VERSION:
++	  printf("rsync version %s  protocol version %d\n",
++		 VERSION,PROTOCOL_VERSION);
++	  exit(0);
++
++	case OPT_SUFFIX:
++	  backup_suffix = optarg;
++	  exit(0);
++
++	case OPT_EXCLUDE:
++	  add_exclude(optarg);
++	  break;
++
++	case OPT_EXCLUDE_FROM:
++	  add_exclude_file(optarg);
++	  break;
++
+ 	case 'h':
+-	  usage();
++	  usage(stdout);
+ 	  exit(0);
+ 
+ 	case 'b':
+ 	  make_backups=1;
+ 	  break;
+ 
++	case 'C':
++	  cvs_exclude=1;
++	  break;
++
+ 	case 'u':
+ 	  update_only=1;
+ 	  break;
+ 
+ #if SUPPORT_LINKS
+ 	case 'l':
+@@ -401,19 +479,19 @@
+ 	  if (getuid() == 0) {
+ 	    preserve_devices=1;
+ 	    preserve_uid=1;
+ 	  }	    
+ 	  break;
+ 
+-	case 's':
++	case OPT_SERVER:
+ 	  server = 1;
+ 	  break;
+ 
+-	case 'S':
++	case OPT_SENDER:
+ 	  if (!server) {
+-	    usage();
++	    usage(stderr);
+ 	    exit(1);
+ 	  }
+ 	  sender = 1;
+ 	  break;
+ 
+ 	case 'r':
+@@ -445,21 +524,25 @@
+ 		version,PROTOCOL_VERSION);
+ 	exit(1);
+       }
+       write_int(STDOUT_FILENO,PROTOCOL_VERSION);
+       write_flush(STDOUT_FILENO);
+ 	
+-      if (sender)
++      if (sender) {
++	recv_exclude_list(STDIN_FILENO);
++	if (cvs_exclude)
++	  add_cvs_excludes();
+ 	do_server_sender(argc,argv);
+-      else
++      } else {
+ 	do_server_recv(argc,argv);
++      }
+       exit(0);
+     }
+ 
+     if (argc < 2) {
+-      usage();
++      usage(stderr);
+       exit(1);
+     }
+ 
+     p = strchr(argv[0],':');
+ 
+     if (p) {
+@@ -471,13 +554,13 @@
+       argv++;
+     } else {
+       sender = 1;
+ 
+       p = strchr(argv[argc-1],':');
+       if (!p) {
+-	usage();
++	usage(stderr);
+ 	exit(1);
+       }
+ 
+       *p = 0;
+       shell_machine = argv[argc-1];
+       shell_path = p+1;
+@@ -499,13 +582,13 @@
+ 	      shell_path?shell_path:"");
+     }
+     
+     signal(SIGCHLD,SIG_IGN);
+ 
+     if (!sender && argc != 1) {
+-      usage();
++      usage(stderr);
+       exit(1);
+     }
+ 
+     pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
+ 
+     write_int(f_out,PROTOCOL_VERSION);
+@@ -520,23 +603,27 @@
+ 
+     if (verbose > 3) 
+       fprintf(stderr,"parent=%d child=%d sender=%d recurse=%d\n",
+ 	      (int)getpid(),pid,sender,recurse);
+ 
+     if (sender) {
++      if (cvs_exclude)
++	add_cvs_excludes();
+       flist = send_file_list(f_out,recurse,argc,argv);
+       if (verbose > 3) 
+ 	fprintf(stderr,"file list sent\n");
+       send_files(flist,f_out,f_in);
+       if (verbose > 3)
+ 	fprintf(stderr,"waiting on %d\n",pid);
+       waitpid(pid, &status, 0);
+       report(-1);
+       exit(status);
+     }
+ 
++    send_exclude_list(f_out);
++
+     flist = recv_file_list(f_in);
+     if (flist->count == 0) {
+       exit(0);
+     }
+ 
+     {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/Makefile.in	1996-06-16 08:54:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/Makefile.in	1996-06-16 12:55:35.000000000 +0800
+@@ -16,27 +16,31 @@
+ SHELL=/bin/sh
+ 
+ 
+ .SUFFIXES:
+ .SUFFIXES: .c .o
+ 
+-OBJS=rsync.o util.o md4.o main.o checksum.o match.o flist.o
++LIBOBJ=lib/getopt.o lib/fnmatch.o 
++OBJS=rsync.o exclude.o util.o md4.o main.o checksum.o match.o flist.o $(LIBOBJ)
++
++.c.o:
++	$(CC) $(CFLAGS) -c $*.c -o $*.o
+ 
+ all: rsync
+ 
+ install: all
+ 	${INSTALLCMD} -s -o root -m 755 rsync ${INSTALL_BIN}
+ 
+-rsync: $(OBJS)
++rsync: $(OBJS) 
+ 	$(CC) $(CFLAGS) -o rsync $(OBJS) $(LIBS)
+ 
+ proto:
+ 	cat *.c | awk -f mkproto.awk > proto.h
+ 
+ clean:
+-	rm -f *~ *.o rsync config.cache config.log config.status
++	rm -f *~ $(OBJS) rsync config.cache config.log config.status
+ 
+ dist: 
+ 	tar --exclude-from .ignore -czf dist.tar.gz .
+ 	-mkdir rsync-$(VERSION)
+ 	(cd rsync-$(VERSION) ; tar xzf ../dist.tar.gz)
+ 	tar -czf rsync-$(VERSION).tar.gz rsync-$(VERSION)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/proto.h	1996-06-15 17:53:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/proto.h	1996-06-16 12:53:31.000000000 +0800
+@@ -1,17 +1,24 @@
+ /* This file is automatically generated with "make proto". DO NOT EDIT */
+ 
+ uint32 get_checksum1(char *buf,int len);
+ void get_checksum2(char *buf,int len,char *sum);
+ void file_checksum(char *fname,char *sum,off_t size);
++int check_exclude(char *name,char **local_exclude_list);
++void add_exclude_list(char *pattern,char ***list);
++void add_exclude(char *pattern);
++char **make_exclude_list(char *fname,char **list1);
++void add_exclude_file(char *fname);
++void send_exclude_list(int f);
++void recv_exclude_list(int f);
++void add_cvs_excludes(void);
+ struct file_list *send_file_list(int f,int recurse,int argc,char *argv[]);
+ struct file_list *recv_file_list(int f);
+ int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out);
+ void do_server_sender(int argc,char *argv[]);
+ void do_server_recv(int argc,char *argv[]);
+-void usage(void);
+ int main(int argc,char *argv[]);
+ void match_sums(int f,struct sum_struct *s,char *buf,off_t len);
+ void recv_generator(char *fname,struct file_list *flist,int i,int f_out);
+ int recv_files(int f_in,struct file_list *flist,char *local_name);
+ off_t send_files(struct file_list *flist,int f_out,int f_in);
+ int write_total(void);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/rsync.h	1996-06-16 08:11:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/rsync.h	1996-06-16 12:53:31.000000000 +0800
+@@ -21,13 +21,13 @@
+ #define RSYNC_RSH_ENV "RSYNC_RSH"
+ #define RSYNC_RSH "rsh"
+ #define RSYNC_NAME "rsync"
+ #define BACKUP_SUFFIX "~"
+ 
+ /* update this if you make incompatible changes */
+-#define PROTOCOL_VERSION 6
++#define PROTOCOL_VERSION 7
+ 
+ #include "config.h"
+ 
+ #include <sys/types.h>
+ #ifdef HAVE_UNISTD_H
+ #include <unistd.h>
+@@ -84,12 +84,25 @@
+ #endif
+ #include <errno.h>
+ 
+ #include <sys/mman.h>
+ #include <utime.h>
+ 
++#ifdef HAVE_FNMATCH
++#include <fnmatch.h>
++#else
++#include "lib/fnmatch.h"
++#endif
++
++#ifdef HAVE_GETOPT_LONG
++#include <getopt.h>
++#else
++#include "lib/getopt.h"
++#endif
++
++
+ #ifndef S_ISLNK
+ #define S_ISLNK(mode) (((mode) & S_IFLNK) == S_IFLNK)
+ #endif
+ 
+ #ifndef uchar
+ #define uchar unsigned char
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.1/version.h	1996-06-15 15:33:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.2/version.h	1996-06-16 12:56:32.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "0.1"
++#define VERSION "0.2"

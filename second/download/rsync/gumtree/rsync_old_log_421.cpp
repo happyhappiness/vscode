@@ -1,0 +1,1 @@
+fprintf(FINFO,"skipping directory %s\n",fname);

@@ -1,0 +1,1 @@
+rprintf(FERROR,"fstat %s : %s\n",fname,strerror(errno));

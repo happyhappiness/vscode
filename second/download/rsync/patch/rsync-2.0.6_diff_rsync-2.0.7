@@ -1,0 +1,315 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.7/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/clientserver.c	1998-05-15 22:10:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.7/clientserver.c	1998-05-16 13:26:28.000000000 +0800
+@@ -107,12 +107,14 @@
+ 	gid_t gid = (gid_t)-2;
+ 	char *p;
+ 	char *addr = client_addr(fd);
+ 	char *host = client_name(fd);
+ 	char *name = lp_name(i);
+ 	int start_glob=0;
++	char *request=NULL;
++	extern int am_sender;
+ 
+ 	if (!allow_access(addr, host, lp_hosts_allow(i), lp_hosts_deny(i))) {
+ 		rprintf(FERROR,"rsync denied on module %s from %s (%s)\n",
+ 			name, client_name(fd), client_addr(fd));
+ 		io_printf(fd,"@ERROR: access denied to %s from %s (%s)\n",
+ 			  name, client_name(fd), client_addr(fd));
+@@ -208,14 +210,13 @@
+ 		if (!argv[argc]) {
+ 			return -1;
+ 		}
+ 
+ 		if (start_glob) {
+ 			if (start_glob == 1) {
+-				rprintf(FINFO,"rsync on %s from %s (%s)\n",
+-					p, host, addr);
++				request = strdup(p);
+ 				start_glob++;
+ 			}
+ 			glob_expand(name, argv, &argc, MAX_ARGS);
+ 		} else {
+ 			argc++;
+ 		}
+@@ -228,12 +229,19 @@
+ 			return -1;
+ 		}
+ 	}
+ 
+ 	parse_arguments(argc, argv);
+ 
++	if (request) {
++		rprintf(FINFO,"rsync %s %s from %s (%s)\n",
++			am_sender?"on":"to",
++			request, host, addr);
++		free(request);
++	}
++
+ 	/* don't allow the logs to be flooded too fast */
+ 	if (verbose > 1) verbose = 1;
+ 
+ 	argc -= optind;
+ 	argp = argv + optind;
+ 	optind = 0;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.7/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/cvs.log	1998-05-16 08:57:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.7/cvs.log	1998-05-16 13:38:44.000000000 +0800
+@@ -4045,6 +4045,163 @@
+ 
+ Modified Files:
+ 	version.h 
+ Log Message:
+ preparing for release of 2.0.6
+ 
++
++****************************************
++Date:	Saturday May 16, 1998 @ 13:03
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv14255
++
++Modified Files:
++	clientserver.c main.c 
++Log Message:
++
++- distinguish downloads and uploads in the syslog messages
++- add stats on uploads in syslog
++
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 14:22
++Author:	jht
++
++Update of /data/cvs/rsync/packaging
++In directory samba:/tmp/cvs-serv4460/packaging
++
++Log Message:
++Directory /data/cvs/rsync/packaging added to the repository
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 14:22
++Author:	jht
++
++Update of /data/cvs/rsync/packaging/redhat
++In directory samba:/tmp/cvs-serv16665/redhat
++
++Log Message:
++Directory /data/cvs/rsync/packaging/redhat added to the repository
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 14:22
++Author:	jht
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/tmp/cvs-serv20718/5.0
++
++Log Message:
++Directory /data/cvs/rsync/packaging/redhat/5.0 added to the repository
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 14:23
++Author:	jht
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/tmp/cvs-serv16240
++
++Added Files:
++	rsync.spec 
++Log Message:
++Spec file for building Red Hat RPM packages.
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 15:24
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv26195
++
++Modified Files:
++	main.c 
++Log Message:
++- print the stats at the right place when uploading in the rsync
++  daemon
++- update spec file
++
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 15:24
++Author:	tridge
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/tmp/cvs-serv27709
++
++Modified Files:
++	rsync.spec 
++Log Message:
++- print the stats at the right place when uploading in the rsync
++  daemon
++- update spec file
++
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 15:30
++Author:	rsync-bugs
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Added Files:
++	rsync.spec.tmpl 
++Log Message:
++added a template file for the rsync spec file to enable automatic spec
++generation
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 15:35
++Author:	rsync-bugs
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec.tmpl 
++Log Message:
++put only the ftp directory in the template file
++
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 15:38
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.7
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 15:38
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.0.7
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.7/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/main.c	1998-05-15 18:57:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.7/main.c	1998-05-16 13:26:28.000000000 +0800
+@@ -31,20 +31,21 @@
+ 	int64 in,out,tsize;
+ 	time_t t = time(NULL);
+ 	extern int am_server;
+ 	extern int am_sender;
+ 	extern int am_daemon;
+ 
+-	if (!verbose) return;
+-
+ 	if (am_daemon) {
+ 		rprintf(FINFO, "wrote %.0f bytes  read %.0f bytes  total size %.0f\n",
+ 			(double)write_total(),(double)read_total(),
+ 			(double)total_size);
++		if (f == -1 || !am_sender) return;
+ 	}
+ 
++	if (!verbose) return;
++
+ 	if (am_server && am_sender) {
+ 		write_longint(f,read_total());
+ 		write_longint(f,write_total());
+ 		write_longint(f,total_size);
+ 		write_flush(f);
+ 		return;
+@@ -222,38 +223,38 @@
+ 	exit_cleanup(0);
+ }
+ 
+ 
+ static int do_recv(int f_in,int f_out,struct file_list *flist,char *local_name)
+ {
+-  int pid;
+-  int status=0;
+-  int recv_pipe[2];
+-  extern int preserve_hard_links;
+-
+-  if (preserve_hard_links)
+-    init_hard_links(flist);
+-
+-  if (pipe(recv_pipe) < 0) {
+-    rprintf(FERROR,"pipe failed in do_recv\n");
+-    exit(1);
+-  }
++	int pid;
++	int status=0;
++	int recv_pipe[2];
++	extern int preserve_hard_links;
++	extern int am_daemon;
++
++	if (preserve_hard_links)
++		init_hard_links(flist);
++
++	if (pipe(recv_pipe) < 0) {
++		rprintf(FERROR,"pipe failed in do_recv\n");
++		exit(1);
++	}
+   
+ 
+-  if ((pid=do_fork()) == 0) {
+-    recv_files(f_in,flist,local_name,recv_pipe[1]);
+-    if (verbose > 2)
+-      rprintf(FINFO,"receiver read %ld\n",(long)read_total());
+-    exit_cleanup(0);
+-  }
++	if ((pid=do_fork()) == 0) {
++		recv_files(f_in,flist,local_name,recv_pipe[1]);
++		if (am_daemon) report(-1);
++		exit_cleanup(0);
++	}
+ 
+-  generate_files(f_out,flist,local_name,recv_pipe[0]);
++	generate_files(f_out,flist,local_name,recv_pipe[0]);
+ 
+-  waitpid(pid, &status, 0);
++	waitpid(pid, &status, 0);
+ 
+-  return status;
++	return status;
+ }
+ 
+ 
+ static void do_server_recv(int f_in, int f_out, int argc,char *argv[])
+ {
+ 	int status;
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.7: packaging
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.7/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/version.h	1998-05-16 08:57:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.7/version.h	1998-05-16 13:38:29.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.6"
++#define VERSION "2.0.7"

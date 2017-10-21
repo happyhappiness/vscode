@@ -1,0 +1,1 @@
+rprintf(FERROR, "deflate returned %d\n", r);

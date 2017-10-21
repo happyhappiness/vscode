@@ -1,0 +1,1 @@
+fprintf(FINFO,"sending sums for %d\n",i);

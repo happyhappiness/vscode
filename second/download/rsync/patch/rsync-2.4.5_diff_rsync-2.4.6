@@ -1,0 +1,3328 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/authenticate.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/authenticate.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/authenticate.c	2000-01-29 19:35:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/authenticate.c	2000-09-06 10:46:43.000000000 +0800
+@@ -132,13 +132,12 @@
+ 	return 1;
+ }
+ 
+ static char *getpassf(char *filename)
+ {
+ 	char buffer[100];
+-	int len=0;
+ 	int fd=0;
+ 	STRUCT_STAT st;
+ 	int ok = 1;
+ 	extern int am_root;
+ 	char *envpw=getenv("RSYNC_PASSWORD");
+ 
+@@ -167,13 +166,13 @@
+ 		return NULL;
+ 	}
+ 
+ 	if (envpw) rprintf(FERROR,"RSYNC_PASSWORD environment variable ignored\n");
+ 
+ 	buffer[sizeof(buffer)-1]='\0';
+-	if ( (len=read(fd,buffer,sizeof(buffer)-1)) > 0)
++	if (read(fd,buffer,sizeof(buffer)-1) > 0)
+ 	{
+ 		char *p = strtok(buffer,"\n\r");
+ 		close(fd);
+ 		if (p) p = strdup(p);
+ 		return p;
+ 	}	
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/clientserver.c	2000-08-19 21:10:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/clientserver.c	2000-09-06 10:46:43.000000000 +0800
+@@ -35,12 +35,17 @@
+ 	char line[MAXPATHLEN];
+ 	char *p, *user=NULL;
+ 	extern int remote_version;
+ 	extern int am_sender;
+ 	extern struct in_addr socket_address;
+ 
++	if (argc == 0 && !am_sender) {
++		extern int list_only;
++		list_only = 1;
++	}
++
+ 	if (*path == '/') {
+ 		rprintf(FERROR,"ERROR: The remote path must start with a module name\n");
+ 		return -1;
+ 	}
+ 
+ 	p = strchr(host, '@');
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/configure	2000-07-29 13:05:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/configure	2000-09-06 10:46:43.000000000 +0800
+@@ -522,12 +522,13 @@
+ 
+ 
+ 
+ 
+ # compile with optimisation and without debugging by default
+ CFLAGS=${CFLAGS-"-O"}
++LDFLAGS=${LDFLAGS-""}
+ 
+ ac_aux_dir=
+ for ac_dir in $srcdir $srcdir/.. $srcdir/../..; do
+   if test -f $ac_dir/install-sh; then
+     ac_aux_dir=$ac_dir
+     ac_install_sh="$ac_aux_dir/install-sh -c"
+@@ -570,13 +571,13 @@
+ # Make sure we can run config.sub.
+ if ${CONFIG_SHELL-/bin/sh} $ac_config_sub sun4 >/dev/null 2>&1; then :
+ else { echo "configure: error: can not run $ac_config_sub" 1>&2; exit 1; }
+ fi
+ 
+ echo $ac_n "checking host system type""... $ac_c" 1>&6
+-echo "configure:577: checking host system type" >&5
++echo "configure:578: checking host system type" >&5
+ 
+ host_alias=$host
+ case "$host_alias" in
+ NONE)
+   case $nonopt in
+   NONE)
+@@ -591,13 +592,13 @@
+ host_cpu=`echo $host | sed 's/^\([^-]*\)-\([^-]*\)-\(.*\)$/\1/'`
+ host_vendor=`echo $host | sed 's/^\([^-]*\)-\([^-]*\)-\(.*\)$/\2/'`
+ host_os=`echo $host | sed 's/^\([^-]*\)-\([^-]*\)-\(.*\)$/\3/'`
+ echo "$ac_t""$host" 1>&6
+ 
+ echo $ac_n "checking target system type""... $ac_c" 1>&6
+-echo "configure:598: checking target system type" >&5
++echo "configure:599: checking target system type" >&5
+ 
+ target_alias=$target
+ case "$target_alias" in
+ NONE)
+   case $nonopt in
+   NONE) target_alias=$host_alias ;;
+@@ -609,13 +610,13 @@
+ target_cpu=`echo $target | sed 's/^\([^-]*\)-\([^-]*\)-\(.*\)$/\1/'`
+ target_vendor=`echo $target | sed 's/^\([^-]*\)-\([^-]*\)-\(.*\)$/\2/'`
+ target_os=`echo $target | sed 's/^\([^-]*\)-\([^-]*\)-\(.*\)$/\3/'`
+ echo "$ac_t""$target" 1>&6
+ 
+ echo $ac_n "checking build system type""... $ac_c" 1>&6
+-echo "configure:616: checking build system type" >&5
++echo "configure:617: checking build system type" >&5
+ 
+ build_alias=$build
+ case "$build_alias" in
+ NONE)
+   case $nonopt in
+   NONE) build_alias=$host_alias ;;
+@@ -634,13 +635,13 @@
+     NONENONEs,x,x, &&
+   program_prefix=${target_alias}-
+ 
+ 
+     
+     echo $ac_n "checking config.cache system type""... $ac_c" 1>&6
+-echo "configure:641: checking config.cache system type" >&5
++echo "configure:642: checking config.cache system type" >&5
+     if { test x"${ac_cv_host_system_type+set}" = x"set" &&
+          test x"$ac_cv_host_system_type" != x"$host"; } ||
+        { test x"${ac_cv_build_system_type+set}" = x"set" &&
+          test x"$ac_cv_build_system_type" != x"$build"; } ||
+        { test x"${ac_cv_target_system_type+set}" = x"set" &&
+          test x"$ac_cv_target_system_type" != x"$target"; }; then
+@@ -651,16 +652,52 @@
+     fi
+     ac_cv_host_system_type="$host"
+     ac_cv_build_system_type="$build"
+     ac_cv_target_system_type="$target"
+ 
+ 
++# look for getconf early as this affects just about everything
++# Extract the first word of "getconf", so it can be a program name with args.
++set dummy getconf; ac_word=$2
++echo $ac_n "checking for $ac_word""... $ac_c" 1>&6
++echo "configure:663: checking for $ac_word" >&5
++if eval "test \"`echo '$''{'ac_cv_prog_HAVE_GETCONF'+set}'`\" = set"; then
++  echo $ac_n "(cached) $ac_c" 1>&6
++else
++  if test -n "$HAVE_GETCONF"; then
++  ac_cv_prog_HAVE_GETCONF="$HAVE_GETCONF" # Let the user override the test.
++else
++  IFS="${IFS= 	}"; ac_save_ifs="$IFS"; IFS=":"
++  ac_dummy="$PATH"
++  for ac_dir in $ac_dummy; do
++    test -z "$ac_dir" && ac_dir=.
++    if test -f $ac_dir/$ac_word; then
++      ac_cv_prog_HAVE_GETCONF="1"
++      break
++    fi
++  done
++  IFS="$ac_save_ifs"
++  test -z "$ac_cv_prog_HAVE_GETCONF" && ac_cv_prog_HAVE_GETCONF="0"
++fi
++fi
++HAVE_GETCONF="$ac_cv_prog_HAVE_GETCONF"
++if test -n "$HAVE_GETCONF"; then
++  echo "$ac_t""$HAVE_GETCONF" 1>&6
++else
++  echo "$ac_t""no" 1>&6
++fi
++
++if test $HAVE_GETCONF = 1; then
++	CFLAGS=$CFLAGS" "`getconf LFS_CFLAGS`
++	LDFLAGS=$LDFLAGS" "`getconf LFS_LDFLAGS`
++fi
++
+ # Extract the first word of "gcc", so it can be a program name with args.
+ set dummy gcc; ac_word=$2
+ echo $ac_n "checking for $ac_word""... $ac_c" 1>&6
+-echo "configure:661: checking for $ac_word" >&5
++echo "configure:698: checking for $ac_word" >&5
+ if eval "test \"`echo '$''{'ac_cv_prog_CC'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test -n "$CC"; then
+   ac_cv_prog_CC="$CC" # Let the user override the test.
+ else
+@@ -684,13 +721,13 @@
+ fi
+ 
+ if test -z "$CC"; then
+   # Extract the first word of "cc", so it can be a program name with args.
+ set dummy cc; ac_word=$2
+ echo $ac_n "checking for $ac_word""... $ac_c" 1>&6
+-echo "configure:691: checking for $ac_word" >&5
++echo "configure:728: checking for $ac_word" >&5
+ if eval "test \"`echo '$''{'ac_cv_prog_CC'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test -n "$CC"; then
+   ac_cv_prog_CC="$CC" # Let the user override the test.
+ else
+@@ -735,13 +772,13 @@
+   if test -z "$CC"; then
+     case "`uname -s`" in
+     *win32* | *WIN32*)
+       # Extract the first word of "cl", so it can be a program name with args.
+ set dummy cl; ac_word=$2
+ echo $ac_n "checking for $ac_word""... $ac_c" 1>&6
+-echo "configure:742: checking for $ac_word" >&5
++echo "configure:779: checking for $ac_word" >&5
+ if eval "test \"`echo '$''{'ac_cv_prog_CC'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test -n "$CC"; then
+   ac_cv_prog_CC="$CC" # Let the user override the test.
+ else
+@@ -767,29 +804,29 @@
+     esac
+   fi
+   test -z "$CC" && { echo "configure: error: no acceptable cc found in \$PATH" 1>&2; exit 1; }
+ fi
+ 
+ echo $ac_n "checking whether the C compiler ($CC $CFLAGS $LDFLAGS) works""... $ac_c" 1>&6
+-echo "configure:774: checking whether the C compiler ($CC $CFLAGS $LDFLAGS) works" >&5
++echo "configure:811: checking whether the C compiler ($CC $CFLAGS $LDFLAGS) works" >&5
+ 
+ ac_ext=c
+ # CFLAGS is not in ac_cpp because -g, -O, etc. are not valid cpp options.
+ ac_cpp='$CPP $CPPFLAGS'
+ ac_compile='${CC-cc} -c $CFLAGS $CPPFLAGS conftest.$ac_ext 1>&5'
+ ac_link='${CC-cc} -o conftest${ac_exeext} $CFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ext $LIBS 1>&5'
+ cross_compiling=$ac_cv_prog_cc_cross
+ 
+ cat > conftest.$ac_ext << EOF
+ 
+-#line 785 "configure"
++#line 822 "configure"
+ #include "confdefs.h"
+ 
+ main(){return(0);}
+ EOF
+-if { (eval echo configure:790: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:827: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   ac_cv_prog_cc_works=yes
+   # If we can't run a trivial program, we are probably using a cross compiler.
+   if (./conftest; exit) 2>/dev/null; then
+     ac_cv_prog_cc_cross=no
+   else
+     ac_cv_prog_cc_cross=yes
+@@ -809,27 +846,27 @@
+ 
+ echo "$ac_t""$ac_cv_prog_cc_works" 1>&6
+ if test $ac_cv_prog_cc_works = no; then
+   { echo "configure: error: installation or configuration problem: C compiler cannot create executables." 1>&2; exit 1; }
+ fi
+ echo $ac_n "checking whether the C compiler ($CC $CFLAGS $LDFLAGS) is a cross-compiler""... $ac_c" 1>&6
+-echo "configure:816: checking whether the C compiler ($CC $CFLAGS $LDFLAGS) is a cross-compiler" >&5
++echo "configure:853: checking whether the C compiler ($CC $CFLAGS $LDFLAGS) is a cross-compiler" >&5
+ echo "$ac_t""$ac_cv_prog_cc_cross" 1>&6
+ cross_compiling=$ac_cv_prog_cc_cross
+ 
+ echo $ac_n "checking whether we are using GNU C""... $ac_c" 1>&6
+-echo "configure:821: checking whether we are using GNU C" >&5
++echo "configure:858: checking whether we are using GNU C" >&5
+ if eval "test \"`echo '$''{'ac_cv_prog_gcc'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.c <<EOF
+ #ifdef __GNUC__
+   yes;
+ #endif
+ EOF
+-if { ac_try='${CC-cc} -E conftest.c'; { (eval echo configure:830: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }; } | egrep yes >/dev/null 2>&1; then
++if { ac_try='${CC-cc} -E conftest.c'; { (eval echo configure:867: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }; } | egrep yes >/dev/null 2>&1; then
+   ac_cv_prog_gcc=yes
+ else
+   ac_cv_prog_gcc=no
+ fi
+ fi
+ 
+@@ -842,13 +879,13 @@
+ fi
+ 
+ ac_test_CFLAGS="${CFLAGS+set}"
+ ac_save_CFLAGS="$CFLAGS"
+ CFLAGS=
+ echo $ac_n "checking whether ${CC-cc} accepts -g""... $ac_c" 1>&6
+-echo "configure:849: checking whether ${CC-cc} accepts -g" >&5
++echo "configure:886: checking whether ${CC-cc} accepts -g" >&5
+ if eval "test \"`echo '$''{'ac_cv_prog_cc_g'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   echo 'void f(){}' > conftest.c
+ if test -z "`${CC-cc} -g -c conftest.c 2>&1`"; then
+   ac_cv_prog_cc_g=yes
+@@ -885,13 +922,13 @@
+ # AIX /bin/install
+ # AIX 4 /usr/bin/installbsd, which doesn't work without a -g flag
+ # AFS /usr/afsws/bin/install, which mishandles nonexistent args
+ # SVR4 /usr/ucb/install, which tries to use the nonexistent group "staff"
+ # ./install, which can be erroneously created by make from ./install.sh.
+ echo $ac_n "checking for a BSD compatible install""... $ac_c" 1>&6
+-echo "configure:892: checking for a BSD compatible install" >&5
++echo "configure:929: checking for a BSD compatible install" >&5
+ if test -z "$INSTALL"; then
+ if eval "test \"`echo '$''{'ac_cv_path_install'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+     IFS="${IFS= 	}"; ac_save_IFS="$IFS"; IFS=":"
+   for ac_dir in $PATH; do
+@@ -939,16 +976,17 @@
+ test -z "$INSTALL_SCRIPT" && INSTALL_SCRIPT='${INSTALL_PROGRAM}'
+ 
+ test -z "$INSTALL_DATA" && INSTALL_DATA='${INSTALL} -m 644'
+ 
+ 
+ 
++
+ # Extract the first word of "remsh", so it can be a program name with args.
+ set dummy remsh; ac_word=$2
+ echo $ac_n "checking for $ac_word""... $ac_c" 1>&6
+-echo "configure:949: checking for $ac_word" >&5
++echo "configure:987: checking for $ac_word" >&5
+ if eval "test \"`echo '$''{'ac_cv_prog_HAVE_REMSH'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test -n "$HAVE_REMSH"; then
+   ac_cv_prog_HAVE_REMSH="$HAVE_REMSH" # Let the user override the test.
+ else
+@@ -975,46 +1013,46 @@
+ cat >> confdefs.h <<EOF
+ #define HAVE_REMSH $HAVE_REMSH
+ EOF
+ 
+ 
+ echo $ac_n "checking whether byte ordering is bigendian""... $ac_c" 1>&6
+-echo "configure:982: checking whether byte ordering is bigendian" >&5
++echo "configure:1020: checking whether byte ordering is bigendian" >&5
+ if eval "test \"`echo '$''{'ac_cv_c_bigendian'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_cv_c_bigendian=unknown
+ # See if sys/param.h defines the BYTE_ORDER macro.
+ cat > conftest.$ac_ext <<EOF
+-#line 989 "configure"
++#line 1027 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <sys/param.h>
+ int main() {
+ 
+ #if !BYTE_ORDER || !BIG_ENDIAN || !LITTLE_ENDIAN
+  bogus endian macros
+ #endif
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1000: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1038: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   # It does; now see whether it defined to BIG_ENDIAN or not.
+ cat > conftest.$ac_ext <<EOF
+-#line 1004 "configure"
++#line 1042 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <sys/param.h>
+ int main() {
+ 
+ #if BYTE_ORDER != BIG_ENDIAN
+  not big endian
+ #endif
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1015: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1053: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   ac_cv_c_bigendian=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -1028,26 +1066,26 @@
+ rm -f conftest*
+ if test $ac_cv_c_bigendian = unknown; then
+ if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1035 "configure"
++#line 1073 "configure"
+ #include "confdefs.h"
+ main () {
+   /* Are we little or big endian?  From Harbison&Steele.  */
+   union
+   {
+     long l;
+     char c[sizeof (long)];
+   } u;
+   u.l = 1;
+   exit (u.c[sizeof (long) - 1] == 1);
+ }
+ EOF
+-if { (eval echo configure:1048: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:1086: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   ac_cv_c_bigendian=no
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -1069,26 +1107,26 @@
+ 
+ ac_header_dirent=no
+ for ac_hdr in dirent.h sys/ndir.h sys/dir.h ndir.h
+ do
+ ac_safe=`echo "$ac_hdr" | sed 'y%./+-%__p_%'`
+ echo $ac_n "checking for $ac_hdr that defines DIR""... $ac_c" 1>&6
+-echo "configure:1076: checking for $ac_hdr that defines DIR" >&5
++echo "configure:1114: checking for $ac_hdr that defines DIR" >&5
+ if eval "test \"`echo '$''{'ac_cv_header_dirent_$ac_safe'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1081 "configure"
++#line 1119 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <$ac_hdr>
+ int main() {
+ DIR *dirp = 0;
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1089: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1127: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   eval "ac_cv_header_dirent_$ac_safe=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -1107,32 +1145,32 @@
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ # Two versions of opendir et al. are in -ldir and -lx on SCO Xenix.
+ if test $ac_header_dirent = dirent.h; then
+ echo $ac_n "checking for opendir in -ldir""... $ac_c" 1>&6
+-echo "configure:1114: checking for opendir in -ldir" >&5
++echo "configure:1152: checking for opendir in -ldir" >&5
+ ac_lib_var=`echo dir'_'opendir | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-ldir  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 1122 "configure"
++#line 1160 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char opendir();
+ 
+ int main() {
+ opendir()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1133: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:1171: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -1148,32 +1186,32 @@
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ 
+ else
+ echo $ac_n "checking for opendir in -lx""... $ac_c" 1>&6
+-echo "configure:1155: checking for opendir in -lx" >&5
++echo "configure:1193: checking for opendir in -lx" >&5
+ ac_lib_var=`echo x'_'opendir | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lx  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 1163 "configure"
++#line 1201 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char opendir();
+ 
+ int main() {
+ opendir()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1174: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:1212: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -1190,27 +1228,27 @@
+   echo "$ac_t""no" 1>&6
+ fi
+ 
+ fi
+ 
+ echo $ac_n "checking whether time.h and sys/time.h may both be included""... $ac_c" 1>&6
+-echo "configure:1197: checking whether time.h and sys/time.h may both be included" >&5
++echo "configure:1235: checking whether time.h and sys/time.h may both be included" >&5
+ if eval "test \"`echo '$''{'ac_cv_header_time'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1202 "configure"
++#line 1240 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <sys/time.h>
+ #include <time.h>
+ int main() {
+ struct tm *tp;
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1211: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1249: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   ac_cv_header_time=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -1225,18 +1263,18 @@
+ #define TIME_WITH_SYS_TIME 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for sys/wait.h that is POSIX.1 compatible""... $ac_c" 1>&6
+-echo "configure:1232: checking for sys/wait.h that is POSIX.1 compatible" >&5
++echo "configure:1270: checking for sys/wait.h that is POSIX.1 compatible" >&5
+ if eval "test \"`echo '$''{'ac_cv_header_sys_wait_h'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1237 "configure"
++#line 1275 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <sys/wait.h>
+ #ifndef WEXITSTATUS
+ #define WEXITSTATUS(stat_val) ((unsigned)(stat_val) >> 8)
+ #endif
+@@ -1246,13 +1284,13 @@
+ int main() {
+ int s;
+ wait (&s);
+ s = WIFEXITED (s) ? WEXITSTATUS (s) : 1;
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1253: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1291: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   ac_cv_header_sys_wait_h=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -1267,13 +1305,13 @@
+ #define HAVE_SYS_WAIT_H 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking how to run the C preprocessor""... $ac_c" 1>&6
+-echo "configure:1274: checking how to run the C preprocessor" >&5
++echo "configure:1312: checking how to run the C preprocessor" >&5
+ # On Suns, sometimes $CPP names a directory.
+ if test -n "$CPP" && test -d "$CPP"; then
+   CPP=
+ fi
+ if test -z "$CPP"; then
+ if eval "test \"`echo '$''{'ac_cv_prog_CPP'+set}'`\" = set"; then
+@@ -1282,53 +1320,53 @@
+     # This must be in double quotes, not single quotes, because CPP may get
+   # substituted into the Makefile and "${CC-cc}" will confuse make.
+   CPP="${CC-cc} -E"
+   # On the NeXT, cc -E runs the code through the compiler's parser,
+   # not just through cpp.
+   cat > conftest.$ac_ext <<EOF
+-#line 1289 "configure"
++#line 1327 "configure"
+ #include "confdefs.h"
+ #include <assert.h>
+ Syntax Error
+ EOF
+ ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
+-{ (eval echo configure:1295: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++{ (eval echo configure:1333: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+ ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
+ if test -z "$ac_err"; then
+   :
+ else
+   echo "$ac_err" >&5
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+   CPP="${CC-cc} -E -traditional-cpp"
+   cat > conftest.$ac_ext <<EOF
+-#line 1306 "configure"
++#line 1344 "configure"
+ #include "confdefs.h"
+ #include <assert.h>
+ Syntax Error
+ EOF
+ ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
+-{ (eval echo configure:1312: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++{ (eval echo configure:1350: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+ ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
+ if test -z "$ac_err"; then
+   :
+ else
+   echo "$ac_err" >&5
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+   CPP="${CC-cc} -nologo -E"
+   cat > conftest.$ac_ext <<EOF
+-#line 1323 "configure"
++#line 1361 "configure"
+ #include "confdefs.h"
+ #include <assert.h>
+ Syntax Error
+ EOF
+ ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
+-{ (eval echo configure:1329: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++{ (eval echo configure:1367: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+ ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
+ if test -z "$ac_err"; then
+   :
+ else
+   echo "$ac_err" >&5
+   echo "configure: failed program was:" >&5
+@@ -1350,23 +1388,23 @@
+ echo "$ac_t""$CPP" 1>&6
+ 
+ for ac_hdr in sys/fcntl.h sys/select.h fcntl.h sys/time.h sys/unistd.h unistd.h utime.h grp.h
+ do
+ ac_safe=`echo "$ac_hdr" | sed 'y%./+-%__p_%'`
+ echo $ac_n "checking for $ac_hdr""... $ac_c" 1>&6
+-echo "configure:1357: checking for $ac_hdr" >&5
++echo "configure:1395: checking for $ac_hdr" >&5
+ if eval "test \"`echo '$''{'ac_cv_header_$ac_safe'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1362 "configure"
++#line 1400 "configure"
+ #include "confdefs.h"
+ #include <$ac_hdr>
+ EOF
+ ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
+-{ (eval echo configure:1367: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++{ (eval echo configure:1405: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+ ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
+ if test -z "$ac_err"; then
+   rm -rf conftest*
+   eval "ac_cv_header_$ac_safe=yes"
+ else
+   echo "$ac_err" >&5
+@@ -1390,23 +1428,23 @@
+ done
+ 
+ for ac_hdr in compat.h sys/param.h ctype.h sys/wait.h sys/ioctl.h
+ do
+ ac_safe=`echo "$ac_hdr" | sed 'y%./+-%__p_%'`
+ echo $ac_n "checking for $ac_hdr""... $ac_c" 1>&6
+-echo "configure:1397: checking for $ac_hdr" >&5
++echo "configure:1435: checking for $ac_hdr" >&5
+ if eval "test \"`echo '$''{'ac_cv_header_$ac_safe'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1402 "configure"
++#line 1440 "configure"
+ #include "confdefs.h"
+ #include <$ac_hdr>
+ EOF
+ ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
+-{ (eval echo configure:1407: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++{ (eval echo configure:1445: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+ ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
+ if test -z "$ac_err"; then
+   rm -rf conftest*
+   eval "ac_cv_header_$ac_safe=yes"
+ else
+   echo "$ac_err" >&5
+@@ -1430,23 +1468,23 @@
+ done
+ 
+ for ac_hdr in sys/filio.h string.h stdlib.h sys/socket.h sys/mode.h
+ do
+ ac_safe=`echo "$ac_hdr" | sed 'y%./+-%__p_%'`
+ echo $ac_n "checking for $ac_hdr""... $ac_c" 1>&6
+-echo "configure:1437: checking for $ac_hdr" >&5
++echo "configure:1475: checking for $ac_hdr" >&5
+ if eval "test \"`echo '$''{'ac_cv_header_$ac_safe'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1442 "configure"
++#line 1480 "configure"
+ #include "confdefs.h"
+ #include <$ac_hdr>
+ EOF
+ ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
+-{ (eval echo configure:1447: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++{ (eval echo configure:1485: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+ ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
+ if test -z "$ac_err"; then
+   rm -rf conftest*
+   eval "ac_cv_header_$ac_safe=yes"
+ else
+   echo "$ac_err" >&5
+@@ -1470,23 +1508,23 @@
+ done
+ 
+ for ac_hdr in glob.h
+ do
+ ac_safe=`echo "$ac_hdr" | sed 'y%./+-%__p_%'`
+ echo $ac_n "checking for $ac_hdr""... $ac_c" 1>&6
+-echo "configure:1477: checking for $ac_hdr" >&5
++echo "configure:1515: checking for $ac_hdr" >&5
+ if eval "test \"`echo '$''{'ac_cv_header_$ac_safe'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1482 "configure"
++#line 1520 "configure"
+ #include "confdefs.h"
+ #include <$ac_hdr>
+ EOF
+ ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
+-{ (eval echo configure:1487: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++{ (eval echo configure:1525: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+ ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
+ if test -z "$ac_err"; then
+   rm -rf conftest*
+   eval "ac_cv_header_$ac_safe=yes"
+ else
+   echo "$ac_err" >&5
+@@ -1508,32 +1546,32 @@
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+ 
+ echo $ac_n "checking size of int""... $ac_c" 1>&6
+-echo "configure:1515: checking size of int" >&5
++echo "configure:1553: checking size of int" >&5
+ if eval "test \"`echo '$''{'ac_cv_sizeof_int'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1523 "configure"
++#line 1561 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ main()
+ {
+   FILE *f=fopen("conftestval", "w");
+   if (!f) exit(1);
+   fprintf(f, "%d\n", sizeof(int));
+   exit(0);
+ }
+ EOF
+-if { (eval echo configure:1534: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:1572: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   ac_cv_sizeof_int=`cat conftestval`
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -1547,32 +1585,32 @@
+ cat >> confdefs.h <<EOF
+ #define SIZEOF_INT $ac_cv_sizeof_int
+ EOF
+ 
+ 
+ echo $ac_n "checking size of long""... $ac_c" 1>&6
+-echo "configure:1554: checking size of long" >&5
++echo "configure:1592: checking size of long" >&5
+ if eval "test \"`echo '$''{'ac_cv_sizeof_long'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1562 "configure"
++#line 1600 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ main()
+ {
+   FILE *f=fopen("conftestval", "w");
+   if (!f) exit(1);
+   fprintf(f, "%d\n", sizeof(long));
+   exit(0);
+ }
+ EOF
+-if { (eval echo configure:1573: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:1611: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   ac_cv_sizeof_long=`cat conftestval`
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -1586,32 +1624,32 @@
+ cat >> confdefs.h <<EOF
+ #define SIZEOF_LONG $ac_cv_sizeof_long
+ EOF
+ 
+ 
+ echo $ac_n "checking size of short""... $ac_c" 1>&6
+-echo "configure:1593: checking size of short" >&5
++echo "configure:1631: checking size of short" >&5
+ if eval "test \"`echo '$''{'ac_cv_sizeof_short'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1601 "configure"
++#line 1639 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ main()
+ {
+   FILE *f=fopen("conftestval", "w");
+   if (!f) exit(1);
+   fprintf(f, "%d\n", sizeof(short));
+   exit(0);
+ }
+ EOF
+-if { (eval echo configure:1612: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:1650: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   ac_cv_sizeof_short=`cat conftestval`
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -1626,27 +1664,27 @@
+ #define SIZEOF_SHORT $ac_cv_sizeof_short
+ EOF
+ 
+ 
+ 
+ echo $ac_n "checking for inline""... $ac_c" 1>&6
+-echo "configure:1633: checking for inline" >&5
++echo "configure:1671: checking for inline" >&5
+ if eval "test \"`echo '$''{'ac_cv_c_inline'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_cv_c_inline=no
+ for ac_kw in inline __inline__ __inline; do
+   cat > conftest.$ac_ext <<EOF
+-#line 1640 "configure"
++#line 1678 "configure"
+ #include "confdefs.h"
+ 
+ int main() {
+ } $ac_kw foo() {
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1647: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1685: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   ac_cv_c_inline=$ac_kw; break
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+ fi
+@@ -1667,18 +1705,18 @@
+ EOF
+  ;;
+ esac
+ 
+ 
+ echo $ac_n "checking return type of signal handlers""... $ac_c" 1>&6
+-echo "configure:1674: checking return type of signal handlers" >&5
++echo "configure:1712: checking return type of signal handlers" >&5
+ if eval "test \"`echo '$''{'ac_cv_type_signal'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1679 "configure"
++#line 1717 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <signal.h>
+ #ifdef signal
+ #undef signal
+ #endif
+@@ -1689,13 +1727,13 @@
+ #endif
+ 
+ int main() {
+ int i;
+ ; return 0; }
+ EOF
+-if { (eval echo configure:1696: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:1734: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   ac_cv_type_signal=void
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -1708,18 +1746,18 @@
+ cat >> confdefs.h <<EOF
+ #define RETSIGTYPE $ac_cv_type_signal
+ EOF
+ 
+ 
+ echo $ac_n "checking for uid_t in sys/types.h""... $ac_c" 1>&6
+-echo "configure:1715: checking for uid_t in sys/types.h" >&5
++echo "configure:1753: checking for uid_t in sys/types.h" >&5
+ if eval "test \"`echo '$''{'ac_cv_type_uid_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1720 "configure"
++#line 1758 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ EOF
+ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+   egrep "uid_t" >/dev/null 2>&1; then
+   rm -rf conftest*
+@@ -1742,26 +1780,26 @@
+ #define gid_t int
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for ANSI C header files""... $ac_c" 1>&6
+-echo "configure:1749: checking for ANSI C header files" >&5
++echo "configure:1787: checking for ANSI C header files" >&5
+ if eval "test \"`echo '$''{'ac_cv_header_stdc'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1754 "configure"
++#line 1792 "configure"
+ #include "confdefs.h"
+ #include <stdlib.h>
+ #include <stdarg.h>
+ #include <string.h>
+ #include <float.h>
+ EOF
+ ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
+-{ (eval echo configure:1762: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
++{ (eval echo configure:1800: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+ ac_err=`grep -v '^ *+' conftest.out | grep -v "^conftest.${ac_ext}\$"`
+ if test -z "$ac_err"; then
+   rm -rf conftest*
+   ac_cv_header_stdc=yes
+ else
+   echo "$ac_err" >&5
+@@ -1772,13 +1810,13 @@
+ fi
+ rm -f conftest*
+ 
+ if test $ac_cv_header_stdc = yes; then
+   # SunOS 4.x string.h does not declare mem*, contrary to ANSI.
+ cat > conftest.$ac_ext <<EOF
+-#line 1779 "configure"
++#line 1817 "configure"
+ #include "confdefs.h"
+ #include <string.h>
+ EOF
+ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+   egrep "memchr" >/dev/null 2>&1; then
+   :
+@@ -1790,13 +1828,13 @@
+ 
+ fi
+ 
+ if test $ac_cv_header_stdc = yes; then
+   # ISC 2.0.2 stdlib.h does not declare free, contrary to ANSI.
+ cat > conftest.$ac_ext <<EOF
+-#line 1797 "configure"
++#line 1835 "configure"
+ #include "confdefs.h"
+ #include <stdlib.h>
+ EOF
+ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+   egrep "free" >/dev/null 2>&1; then
+   :
+@@ -1811,24 +1849,24 @@
+ if test $ac_cv_header_stdc = yes; then
+   # /bin/cc in Irix-4.0.5 gets non-ANSI ctype macros unless using -ansi.
+ if test "$cross_compiling" = yes; then
+   :
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1818 "configure"
++#line 1856 "configure"
+ #include "confdefs.h"
+ #include <ctype.h>
+ #define ISLOWER(c) ('a' <= (c) && (c) <= 'z')
+ #define TOUPPER(c) (ISLOWER(c) ? 'A' + ((c) - 'a') : (c))
+ #define XOR(e, f) (((e) && !(f)) || (!(e) && (f)))
+ int main () { int i; for (i = 0; i < 256; i++)
+ if (XOR (islower (i), ISLOWER (i)) || toupper (i) != TOUPPER (i)) exit(2);
+ exit (0); }
+ 
+ EOF
+-if { (eval echo configure:1829: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:1867: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   :
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -1846,18 +1884,18 @@
+ #define STDC_HEADERS 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for mode_t""... $ac_c" 1>&6
+-echo "configure:1853: checking for mode_t" >&5
++echo "configure:1891: checking for mode_t" >&5
+ if eval "test \"`echo '$''{'ac_cv_type_mode_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1858 "configure"
++#line 1896 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #if STDC_HEADERS
+ #include <stdlib.h>
+ #include <stddef.h>
+ #endif
+@@ -1879,18 +1917,18 @@
+ #define mode_t int
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for off_t""... $ac_c" 1>&6
+-echo "configure:1886: checking for off_t" >&5
++echo "configure:1924: checking for off_t" >&5
+ if eval "test \"`echo '$''{'ac_cv_type_off_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1891 "configure"
++#line 1929 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #if STDC_HEADERS
+ #include <stdlib.h>
+ #include <stddef.h>
+ #endif
+@@ -1912,18 +1950,18 @@
+ #define off_t long
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for size_t""... $ac_c" 1>&6
+-echo "configure:1919: checking for size_t" >&5
++echo "configure:1957: checking for size_t" >&5
+ if eval "test \"`echo '$''{'ac_cv_type_size_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1924 "configure"
++#line 1962 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #if STDC_HEADERS
+ #include <stdlib.h>
+ #include <stddef.h>
+ #endif
+@@ -1945,18 +1983,18 @@
+ #define size_t unsigned
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for pid_t""... $ac_c" 1>&6
+-echo "configure:1952: checking for pid_t" >&5
++echo "configure:1990: checking for pid_t" >&5
+ if eval "test \"`echo '$''{'ac_cv_type_pid_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1957 "configure"
++#line 1995 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #if STDC_HEADERS
+ #include <stdlib.h>
+ #include <stddef.h>
+ #endif
+@@ -1978,21 +2016,21 @@
+ #define pid_t int
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking type of array argument to getgroups""... $ac_c" 1>&6
+-echo "configure:1985: checking type of array argument to getgroups" >&5
++echo "configure:2023: checking type of array argument to getgroups" >&5
+ if eval "test \"`echo '$''{'ac_cv_type_getgroups'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+   ac_cv_type_getgroups=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 1993 "configure"
++#line 2031 "configure"
+ #include "confdefs.h"
+ 
+ /* Thanks to Mike Rendell for this test.  */
+ #include <sys/types.h>
+ #define NGID 256
+ #undef MAX
+@@ -2011,13 +2049,13 @@
+   /* Exit non-zero if getgroups seems to require an array of ints.  This
+      happens when gid_t is short but getgroups modifies an array of ints.  */
+   exit ((n > 0 && gidset[n] != val.gval) ? 1 : 0);
+ }
+ 
+ EOF
+-if { (eval echo configure:2018: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2056: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+     ac_cv_type_getgroups=gid_t
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -2025,13 +2063,13 @@
+ fi
+ rm -fr conftest*
+ fi
+ 
+ if test $ac_cv_type_getgroups = cross; then
+         cat > conftest.$ac_ext <<EOF
+-#line 2032 "configure"
++#line 2070 "configure"
+ #include "confdefs.h"
+ #include <unistd.h>
+ EOF
+ if (eval "$ac_cpp conftest.$ac_ext") 2>&5 |
+   egrep "getgroups.*int.*gid_t" >/dev/null 2>&1; then
+   rm -rf conftest*
+@@ -2049,26 +2087,26 @@
+ cat >> confdefs.h <<EOF
+ #define GETGROUPS_T $ac_cv_type_getgroups
+ EOF
+ 
+ 
+ echo $ac_n "checking for st_rdev in struct stat""... $ac_c" 1>&6
+-echo "configure:2056: checking for st_rdev in struct stat" >&5
++echo "configure:2094: checking for st_rdev in struct stat" >&5
+ if eval "test \"`echo '$''{'ac_cv_struct_st_rdev'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2061 "configure"
++#line 2099 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ int main() {
+ struct stat s; s.st_rdev;
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2069: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:2107: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   ac_cv_struct_st_rdev=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2083,18 +2121,18 @@
+ #define HAVE_ST_RDEV 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for ino_t""... $ac_c" 1>&6
+-echo "configure:2090: checking for ino_t" >&5
++echo "configure:2128: checking for ino_t" >&5
+ if eval "test \"`echo '$''{'ac_cv_type_ino_t'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2095 "configure"
++#line 2133 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #if STDC_HEADERS
+ #include <stdlib.h>
+ #include <stddef.h>
+ #endif
+@@ -2117,26 +2155,26 @@
+ EOF
+ 
+ fi
+ 
+ 
+ echo $ac_n "checking for errno in errno.h""... $ac_c" 1>&6
+-echo "configure:2124: checking for errno in errno.h" >&5
++echo "configure:2162: checking for errno in errno.h" >&5
+ if eval "test \"`echo '$''{'rsync_cv_errno'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+     cat > conftest.$ac_ext <<EOF
+-#line 2130 "configure"
++#line 2168 "configure"
+ #include "confdefs.h"
+ #include <errno.h>
+ int main() {
+ int i = errno
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2137: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:2175: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   rsync_cv_errno=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2161,18 +2199,18 @@
+ # libsocket.so which has a bad implementation of gethostbyname (it
+ # only looks in /etc/hosts), so we only look for -lsocket if we need
+ # it.
+ for ac_func in connect
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:2168: checking for $ac_func" >&5
++echo "configure:2206: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2173 "configure"
++#line 2211 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2189,13 +2227,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2196: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2234: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2217,32 +2255,32 @@
+ done
+ 
+ if test x"$ac_cv_func_connect" = x"no"; then
+     case "$LIBS" in
+     *-lnsl*) ;;
+     *) echo $ac_n "checking for printf in -lnsl_s""... $ac_c" 1>&6
+-echo "configure:2224: checking for printf in -lnsl_s" >&5
++echo "configure:2262: checking for printf in -lnsl_s" >&5
+ ac_lib_var=`echo nsl_s'_'printf | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lnsl_s  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2232 "configure"
++#line 2270 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char printf();
+ 
+ int main() {
+ printf()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2243: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2281: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2267,32 +2305,32 @@
+ fi
+  ;;
+     esac
+     case "$LIBS" in
+     *-lnsl*) ;;
+     *) echo $ac_n "checking for printf in -lnsl""... $ac_c" 1>&6
+-echo "configure:2274: checking for printf in -lnsl" >&5
++echo "configure:2312: checking for printf in -lnsl" >&5
+ ac_lib_var=`echo nsl'_'printf | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lnsl  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2282 "configure"
++#line 2320 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char printf();
+ 
+ int main() {
+ printf()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2293: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2331: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2317,32 +2355,32 @@
+ fi
+  ;;
+     esac
+     case "$LIBS" in
+     *-lsocket*) ;;
+     *) echo $ac_n "checking for connect in -lsocket""... $ac_c" 1>&6
+-echo "configure:2324: checking for connect in -lsocket" >&5
++echo "configure:2362: checking for connect in -lsocket" >&5
+ ac_lib_var=`echo socket'_'connect | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lsocket  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2332 "configure"
++#line 2370 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char connect();
+ 
+ int main() {
+ connect()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2343: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2381: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2367,32 +2405,32 @@
+ fi
+  ;;
+     esac
+     case "$LIBS" in
+     *-linet*) ;;
+     *) echo $ac_n "checking for connect in -linet""... $ac_c" 1>&6
+-echo "configure:2374: checking for connect in -linet" >&5
++echo "configure:2412: checking for connect in -linet" >&5
+ ac_lib_var=`echo inet'_'connect | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-linet  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2382 "configure"
++#line 2420 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char connect();
+ 
+ int main() {
+ connect()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2393: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2431: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2431,18 +2469,18 @@
+ # 
+ # if we can't find strcasecmp, look in -lresolv (for Unixware at least)
+ #
+ for ac_func in strcasecmp
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:2438: checking for $ac_func" >&5
++echo "configure:2476: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2443 "configure"
++#line 2481 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2459,13 +2497,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2466: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2504: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2485,32 +2523,32 @@
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+ if test x"$ac_cv_func_strcasecmp" = x"no"; then
+     echo $ac_n "checking for strcasecmp in -lresolv""... $ac_c" 1>&6
+-echo "configure:2492: checking for strcasecmp in -lresolv" >&5
++echo "configure:2530: checking for strcasecmp in -lresolv" >&5
+ ac_lib_var=`echo resolv'_'strcasecmp | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lresolv  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2500 "configure"
++#line 2538 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char strcasecmp();
+ 
+ int main() {
+ strcasecmp()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2511: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2549: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2534,31 +2572,31 @@
+   echo "$ac_t""no" 1>&6
+ fi
+ 
+ fi
+ 
+ echo $ac_n "checking for 8-bit clean memcmp""... $ac_c" 1>&6
+-echo "configure:2541: checking for 8-bit clean memcmp" >&5
++echo "configure:2579: checking for 8-bit clean memcmp" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_memcmp_clean'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   if test "$cross_compiling" = yes; then
+   ac_cv_func_memcmp_clean=no
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2549 "configure"
++#line 2587 "configure"
+ #include "confdefs.h"
+ 
+ main()
+ {
+   char c0 = 0x40, c1 = 0x80, c2 = 0x81;
+   exit(memcmp(&c0, &c2, 1) < 0 && memcmp(&c1, &c2, 1) < 0 ? 0 : 1);
+ }
+ 
+ EOF
+-if { (eval echo configure:2559: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2597: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   ac_cv_func_memcmp_clean=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -2570,34 +2608,34 @@
+ fi
+ 
+ echo "$ac_t""$ac_cv_func_memcmp_clean" 1>&6
+ test $ac_cv_func_memcmp_clean = no && LIBOBJS="$LIBOBJS memcmp.${ac_objext}"
+ 
+ echo $ac_n "checking whether utime accepts a null argument""... $ac_c" 1>&6
+-echo "configure:2577: checking whether utime accepts a null argument" >&5
++echo "configure:2615: checking whether utime accepts a null argument" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_utime_null'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   rm -f conftestdata; > conftestdata
+ # Sequent interprets utime(file, 0) to mean use start of epoch.  Wrong.
+ if test "$cross_compiling" = yes; then
+   ac_cv_func_utime_null=no
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2587 "configure"
++#line 2625 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ main() {
+ struct stat s, t;
+ exit(!(stat ("conftestdata", &s) == 0 && utime("conftestdata", (long *)0) == 0
+ && stat("conftestdata", &t) == 0 && t.st_mtime >= s.st_mtime
+ && t.st_mtime - s.st_mtime < 120));
+ }
+ EOF
+-if { (eval echo configure:2598: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2636: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   ac_cv_func_utime_null=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -2617,18 +2655,18 @@
+ 
+ fi
+ 
+ for ac_func in waitpid wait4 getcwd strdup strerror chown chmod mknod
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:2624: checking for $ac_func" >&5
++echo "configure:2662: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2629 "configure"
++#line 2667 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2645,13 +2683,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2652: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2690: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2672,18 +2710,18 @@
+ fi
+ done
+ 
+ for ac_func in fchmod fstat strchr readlink link utime utimes strftime
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:2679: checking for $ac_func" >&5
++echo "configure:2717: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2684 "configure"
++#line 2722 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2700,13 +2738,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2707: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2745: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2727,18 +2765,18 @@
+ fi
+ done
+ 
+ for ac_func in memmove lchown vsnprintf snprintf setsid glob strpbrk
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:2734: checking for $ac_func" >&5
++echo "configure:2772: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2739 "configure"
++#line 2777 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2755,13 +2793,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2762: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2800: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2782,18 +2820,18 @@
+ fi
+ done
+ 
+ for ac_func in strlcat strlcpy
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:2789: checking for $ac_func" >&5
++echo "configure:2827: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2794 "configure"
++#line 2832 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2810,13 +2848,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2817: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2855: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2836,31 +2874,31 @@
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+ 
+ echo $ac_n "checking for working socketpair""... $ac_c" 1>&6
+-echo "configure:2843: checking for working socketpair" >&5
++echo "configure:2881: checking for working socketpair" >&5
+ if eval "test \"`echo '$''{'rsync_cv_HAVE_SOCKETPAIR'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_HAVE_SOCKETPAIR=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2852 "configure"
++#line 2890 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ 	    #include <sys/socket.h>
+ 	    main() {
+ 		int fd[2];
+ 		exit((socketpair(AF_UNIX, SOCK_STREAM, 0, fd) != -1) ? 0 : 1);
+ 	    }
+ EOF
+-if { (eval echo configure:2861: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2899: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_HAVE_SOCKETPAIR=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -2877,28 +2915,28 @@
+ #define HAVE_SOCKETPAIR 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for working fnmatch""... $ac_c" 1>&6
+-echo "configure:2884: checking for working fnmatch" >&5
++echo "configure:2922: checking for working fnmatch" >&5
+ if eval "test \"`echo '$''{'rsync_cv_HAVE_FNMATCH'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_HAVE_FNMATCH=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2893 "configure"
++#line 2931 "configure"
+ #include "confdefs.h"
+ #include <fnmatch.h>
+ main() { exit((fnmatch("*.o", "x.o", FNM_PATHNAME) == 0 &&
+                fnmatch("a/b/*", "a/b/c/d", FNM_PATHNAME) != 0) ? 0: 1); }
+ EOF
+-if { (eval echo configure:2899: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2937: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_HAVE_FNMATCH=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -2917,33 +2955,33 @@
+ 
+ fi
+ 
+ # sometimes getopt_long cannot parse same arguments twice
+ # e.g. on certain versions of CygWin32
+ echo $ac_n "checking for working getopt_long""... $ac_c" 1>&6
+-echo "configure:2924: checking for working getopt_long" >&5
++echo "configure:2962: checking for working getopt_long" >&5
+ if eval "test \"`echo '$''{'rsync_cv_HAVE_GETOPT_LONG'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_HAVE_GETOPT_LONG=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2933 "configure"
++#line 2971 "configure"
+ #include "confdefs.h"
+ #include <getopt.h>
+ main() {
+     int i, x = 0; char *argv[] = { "x", "--xx" };
+     struct option o[] = {{"xx", 0, 0, 1}, {0,0,0,0}};
+     getopt_long(2, argv, "x", o, &i) == 1 ? x++ : 0; optind = 0;
+     getopt_long(2, argv, "x", o, &i) == 1 ? x++ : 0;
+     exit(x == 2 ? 0 : 1);
+ }
+ EOF
+-if { (eval echo configure:2944: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2982: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_HAVE_GETOPT_LONG=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -2960,27 +2998,27 @@
+ #define HAVE_GETOPT_LONG 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for long long""... $ac_c" 1>&6
+-echo "configure:2967: checking for long long" >&5
++echo "configure:3005: checking for long long" >&5
+ if eval "test \"`echo '$''{'rsync_cv_HAVE_LONGLONG'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_HAVE_LONGLONG=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2976 "configure"
++#line 3014 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ main() { long long x = 1000000; x *= x; exit(((x/1000000) == 1000000)? 0: 1); }
+ EOF
+-if { (eval echo configure:2981: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:3019: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_HAVE_LONGLONG=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -2997,28 +3035,28 @@
+ #define HAVE_LONGLONG 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for off64_t""... $ac_c" 1>&6
+-echo "configure:3004: checking for off64_t" >&5
++echo "configure:3042: checking for off64_t" >&5
+ if eval "test \"`echo '$''{'rsync_cv_HAVE_OFF64_T'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_HAVE_OFF64_T=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 3013 "configure"
++#line 3051 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ #include <sys/stat.h>
+ main() { struct stat64 st; off64_t s; if (sizeof(off_t) == sizeof(off64_t)) exit(1); exit((lstat64("/dev/null", &st)==0)?0:1); }
+ EOF
+-if { (eval echo configure:3019: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:3057: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_HAVE_OFF64_T=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -3035,29 +3073,29 @@
+ #define HAVE_OFF64_T 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for short ino_t""... $ac_c" 1>&6
+-echo "configure:3042: checking for short ino_t" >&5
++echo "configure:3080: checking for short ino_t" >&5
+ if eval "test \"`echo '$''{'rsync_cv_HAVE_SHORT_INO_T'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_HAVE_SHORT_INO_T=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 3051 "configure"
++#line 3089 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ main() { if (sizeof(ino_t) < sizeof(unsigned int)) return 0; return 1; }
+ EOF
+-if { (eval echo configure:3058: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:3096: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_HAVE_SHORT_INO_T=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -3074,27 +3112,27 @@
+ #define HAVE_SHORT_INO_T 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for unsigned char""... $ac_c" 1>&6
+-echo "configure:3081: checking for unsigned char" >&5
++echo "configure:3119: checking for unsigned char" >&5
+ if eval "test \"`echo '$''{'rsync_cv_HAVE_UNSIGNED_CHAR'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_HAVE_UNSIGNED_CHAR=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 3090 "configure"
++#line 3128 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ main() { char c; c=250; exit((c > 0)?0:1); }
+ EOF
+-if { (eval echo configure:3095: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:3133: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_HAVE_UNSIGNED_CHAR=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -3111,30 +3149,30 @@
+ #define HAVE_UNSIGNED_CHAR 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for broken readdir""... $ac_c" 1>&6
+-echo "configure:3118: checking for broken readdir" >&5
++echo "configure:3156: checking for broken readdir" >&5
+ if eval "test \"`echo '$''{'rsync_cv_HAVE_BROKEN_READDIR'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_HAVE_BROKEN_READDIR=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 3127 "configure"
++#line 3165 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <dirent.h>
+ main() { struct dirent *di; DIR *d = opendir("."); di = readdir(d);
+ if (di && di->d_name[-2] == '.' && di->d_name[-1] == 0 &&
+ di->d_name[0] == 0) exit(0); exit(1);} 
+ EOF
+-if { (eval echo configure:3135: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:3173: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_HAVE_BROKEN_READDIR=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -3151,27 +3189,27 @@
+ #define HAVE_BROKEN_READDIR 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking for utimbuf""... $ac_c" 1>&6
+-echo "configure:3158: checking for utimbuf" >&5
++echo "configure:3196: checking for utimbuf" >&5
+ if eval "test \"`echo '$''{'rsync_cv_HAVE_UTIMBUF'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ cat > conftest.$ac_ext <<EOF
+-#line 3164 "configure"
++#line 3202 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <utime.h>
+ int main() {
+ struct utimbuf tbuf;  tbuf.actime = 0; tbuf.modtime = 1; exit(utime("foo.c",&tbuf));
+ ; return 0; }
+ EOF
+-if { (eval echo configure:3172: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:3210: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   rsync_cv_HAVE_UTIMBUF=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -3186,29 +3224,29 @@
+ #define HAVE_UTIMBUF 1
+ EOF
+ 
+ fi
+ 
+ echo $ac_n "checking if gettimeofday takes tz argument""... $ac_c" 1>&6
+-echo "configure:3193: checking if gettimeofday takes tz argument" >&5
++echo "configure:3231: checking if gettimeofday takes tz argument" >&5
+ if eval "test \"`echo '$''{'rsync_cv_HAVE_GETTIMEOFDAY_TZ'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_HAVE_GETTIMEOFDAY_TZ=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 3202 "configure"
++#line 3240 "configure"
+ #include "confdefs.h"
+ 
+ #include <sys/time.h>
+ #include <unistd.h>
+ main() { struct timeval tv; exit(gettimeofday(&tv, NULL));}
+ EOF
+-if { (eval echo configure:3209: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:3247: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_HAVE_GETTIMEOFDAY_TZ=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -3226,34 +3264,34 @@
+ EOF
+ 
+ fi
+ 
+ 
+ echo $ac_n "checking for broken inet_ntoa""... $ac_c" 1>&6
+-echo "configure:3233: checking for broken inet_ntoa" >&5
++echo "configure:3271: checking for broken inet_ntoa" >&5
+ if eval "test \"`echo '$''{'rsync_cv_REPLACE_INET_NTOA'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_REPLACE_INET_NTOA=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 3242 "configure"
++#line 3280 "configure"
+ #include "confdefs.h"
+ 
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <netinet/in.h>
+ #include <arpa/inet.h>
+ main() { struct in_addr ip; ip.s_addr = 0x12345678;
+ if (strcmp(inet_ntoa(ip),"18.52.86.120") &&
+     strcmp(inet_ntoa(ip),"120.86.52.18")) { exit(1); } 
+ exit(0);}
+ EOF
+-if { (eval echo configure:3254: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:3292: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_REPLACE_INET_NTOA=no
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -3271,32 +3309,32 @@
+ EOF
+ 
+ fi
+ 
+ 
+ echo $ac_n "checking for broken inet_aton""... $ac_c" 1>&6
+-echo "configure:3278: checking for broken inet_aton" >&5
++echo "configure:3316: checking for broken inet_aton" >&5
+ if eval "test \"`echo '$''{'rsync_cv_REPLACE_INET_ATON'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_REPLACE_INET_ATON=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 3287 "configure"
++#line 3325 "configure"
+ #include "confdefs.h"
+ 
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <netinet/in.h>
+ #include <arpa/inet.h>
+ main() { struct in_addr ip; 
+ if (inet_aton("example", &ip) == 0) exit(0); exit(1);}
+ EOF
+-if { (eval echo configure:3297: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:3335: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_REPLACE_INET_ATON=no
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -3316,13 +3354,13 @@
+ fi
+ 
+ #
+ # The following test was mostly taken from the tcl/tk plus patches
+ #
+ echo $ac_n "checking whether -c -o works""... $ac_c" 1>&6
+-echo "configure:3323: checking whether -c -o works" >&5
++echo "configure:3361: checking whether -c -o works" >&5
+ if eval "test \"`echo '$''{'rsync_cv_DASHC_WORKS_WITH_DASHO'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ rm -rf conftest*
+ cat > conftest.$ac_ext <<EOF
+@@ -3499,12 +3537,13 @@
+ s%@target_os@%$target_os%g
+ s%@build@%$build%g
+ s%@build_alias@%$build_alias%g
+ s%@build_cpu@%$build_cpu%g
+ s%@build_vendor@%$build_vendor%g
+ s%@build_os@%$build_os%g
++s%@HAVE_GETCONF@%$HAVE_GETCONF%g
+ s%@CC@%$CC%g
+ s%@INSTALL_PROGRAM@%$INSTALL_PROGRAM%g
+ s%@INSTALL_SCRIPT@%$INSTALL_SCRIPT%g
+ s%@INSTALL_DATA@%$INSTALL_DATA%g
+ s%@HAVE_REMSH@%$HAVE_REMSH%g
+ s%@CPP@%$CPP%g
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/configure.in	2000-07-29 13:05:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/configure.in	2000-09-06 10:46:43.000000000 +0800
+@@ -1,21 +1,30 @@
+ dnl Process this file with autoconf to produce a configure script.
+ AC_INIT(byteorder.h)
+ AC_CONFIG_HEADER(config.h)
+ 
+ # compile with optimisation and without debugging by default
+ CFLAGS=${CFLAGS-"-O"}
++LDFLAGS=${LDFLAGS-""}
+ 
+ AC_CANONICAL_SYSTEM
+ AC_VALIDATE_CACHE_SYSTEM_TYPE
+ 
++# look for getconf early as this affects just about everything
++AC_CHECK_PROG(HAVE_GETCONF, getconf, 1, 0)
++if test $HAVE_GETCONF = 1; then
++	CFLAGS=$CFLAGS" "`getconf LFS_CFLAGS`
++	LDFLAGS=$LDFLAGS" "`getconf LFS_LDFLAGS`
++fi
++
+ dnl Checks for programs.
+ AC_PROG_CC
+ AC_PROG_INSTALL
+ AC_SUBST(SHELL)
+ 
++
+ AC_CHECK_PROG(HAVE_REMSH, remsh, 1, 0)
+ AC_DEFINE_UNQUOTED(HAVE_REMSH, $HAVE_REMSH)
+ 
+ AC_C_BIGENDIAN
+ AC_HEADER_DIRENT
+ AC_HEADER_TIME
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/cvs.log	2000-08-19 21:11:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/cvs.log	2000-09-06 10:47:09.000000000 +0800
+@@ -11728,6 +11728,222 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.4.5
+ 
++
++****************************************
++Date:	Sunday August 20, 2000 @ 1:25
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv13278
++
++Modified Files:
++	authenticate.c io.c loadparm.c main.c sender.c 
++Log Message:
++got rid of some unused variables
++
++
++
++****************************************
++Date:	Tuesday August 29, 2000 @ 14:45
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv13503
++
++Modified Files:
++	exclude.c 
++Log Message:
++a hack to make listing remote sites (by leaving off a target) more
++useful
++
++
++
++****************************************
++Date:	Tuesday August 29, 2000 @ 14:46
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv13185
++
++Modified Files:
++	options.c 
++Log Message:
++the 2nd half of the hack
++
++
++
++****************************************
++Date:	Tuesday August 29, 2000 @ 14:46
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv15361
++
++Modified Files:
++	main.c 
++Log Message:
++detect list_only a bit earlier
++
++
++
++
++****************************************
++Date:	Tuesday August 29, 2000 @ 14:47
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv20265
++
++Modified Files:
++	clientserver.c 
++Log Message:
++detect list_only a bit earlier
++
++
++
++
++****************************************
++Date:	Tuesday August 29, 2000 @ 14:47
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv20108
++
++Modified Files:
++	flist.c 
++Log Message:
++some string_area cleanups
++
++
++
++
++
++****************************************
++Date:	Tuesday August 29, 2000 @ 15:07
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv18883
++
++Modified Files:
++	io.c 
++Log Message:
++make sure we don't chew too much CPU when the outgoing fd is full
++
++
++
++
++
++
++****************************************
++Date:	Friday September 1, 2000 @ 9:01
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv18158
++
++Modified Files:
++	flist.c 
++Log Message:
++a simple fix to the memory problems with the string pool patch. The
++string pools conflict with the lastdir memory saving tricks. 
++
++
++
++****************************************
++Date:	Wednesday September 6, 2000 @ 9:21
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv4900
++
++Modified Files:
++	Makefile.in configure configure.in 
++Log Message:
++added LFS support for Solaris 8
++
++
++****************************************
++Date:	Wednesday September 6, 2000 @ 10:48
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv3410
++
++Modified Files:
++	rsync.c 
++Log Message:
++removed spurious error message
++
++
++****************************************
++Date:	Wednesday September 6, 2000 @ 11:27
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv25623
++
++Modified Files:
++	rsync.yo 
++Log Message:
++minor man page update
++
++
++
++****************************************
++Date:	Wednesday September 6, 2000 @ 12:12
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv27503
++
++Modified Files:
++	generator.c options.c proto.h rsync.1 rsync.c rsync.yo util.c 
++Log Message:
++added --modify-window option from David Bolen <db3l@fitlinxx.com>
++
++
++
++****************************************
++Date:	Wednesday September 6, 2000 @ 12:39
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv23497
++
++Modified Files:
++	README 
++Log Message:
++README update
++
++
++
++
++****************************************
++Date:	Wednesday September 6, 2000 @ 12:47
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.4.6
++
++
++****************************************
++Date:	Wednesday September 6, 2000 @ 12:47
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.4.6
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/exclude.c	2000-01-29 19:35:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/exclude.c	2000-09-06 10:46:43.000000000 +0800
+@@ -219,12 +219,18 @@
+ 
+ 
+ void send_exclude_list(int f)
+ {
+ 	int i;
+ 	extern int remote_version;
++	extern int list_only, recurse;
++
++	/* this is a complete hack - blame Rusty */
++	if (list_only && !recurse) {
++		add_exclude("/*/*", 0);
++	}
+ 
+ 	if (!exclude_list) {
+ 		write_int(f,0);
+ 		return;
+ 	}
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/flist.c	2000-08-19 21:10:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/flist.c	2000-09-06 10:46:43.000000000 +0800
+@@ -52,38 +52,38 @@
+ static struct exclude_struct **local_exclude_list;
+ 
+ static struct file_struct null_file;
+ 
+ static void clean_flist(struct file_list *flist, int strip_root);
+ 
+-struct string_area *string_area_new(int size)
++static struct string_area *string_area_new(int size)
+ {
+ 	struct string_area *a;
+ 
+ 	if (size <= 0) size = ARENA_SIZE;
+ 	a = malloc(sizeof(*a));
+ 	if (!a) out_of_memory("string_area_new");
+ 	a->current = a->base = malloc(size);
+ 	if (!a->current) out_of_memory("string_area_new buffer");
+ 	a->end = a->base + size;
+-	a->next = 0;
++	a->next = NULL;
+ 
+ 	return a;
+ }
+ 
+-void string_area_free(struct string_area *a)
++static void string_area_free(struct string_area *a)
+ {
+ 	struct string_area *next;
+ 
+ 	for ( ; a ; a = next) {
+ 		next = a->next;
+ 		free(a->base);
+ 	}
+ }
+ 
+-char *string_area_malloc(struct string_area **ap, int size)
++static char *string_area_malloc(struct string_area **ap, int size)
+ {
+ 	char *p;
+ 	struct string_area *a;
+ 
+ 	/* does the request fit into the current space? */
+ 	a = *ap;
+@@ -97,13 +97,13 @@
+ 	/* have space; do the "allocation." */
+ 	p = a->current;
+ 	a->current += size;
+ 	return p;
+ }
+ 
+-char *string_area_strdup(struct string_area **ap, const char *src)
++static char *string_area_strdup(struct string_area **ap, const char *src)
+ {
+ 	char* dest = string_area_malloc(ap, strlen(src) + 1);
+ 	return strcpy(dest, src);
+ }
+ 
+ static void list_file_entry(struct file_struct *f)
+@@ -531,13 +531,13 @@
+ 	if ((p = strrchr(fname,'/'))) {
+ 		static char *lastdir;
+ 		*p = 0;
+ 		if (lastdir && strcmp(fname, lastdir)==0) {
+ 			file->dirname = lastdir;
+ 		} else {
+-			file->dirname = STRDUP(ap, fname);
++			file->dirname = strdup(fname);
+ 			lastdir = file->dirname;
+ 		}
+ 		file->basename = STRDUP(ap, p+1);
+ 		*p = '/';
+ 	} else {
+ 		file->dirname = NULL;
+@@ -576,13 +576,13 @@
+ 
+ 	if (flist_dir) {
+ 		static char *lastdir;
+ 		if (lastdir && strcmp(lastdir, flist_dir)==0) {
+ 			file->basedir = lastdir;
+ 		} else {
+-			file->basedir = STRDUP(ap, flist_dir);
++			file->basedir = strdup(flist_dir);
+ 			lastdir = file->basedir;
+ 		}
+ 	} else {
+ 		file->basedir = NULL;
+ 	}
+ 
+@@ -1012,13 +1012,13 @@
+ 	flist->files = (struct file_struct **)malloc(sizeof(flist->files[0])*
+ 						     flist->malloced);
+ 	if (!flist->files) out_of_memory("send_file_list");
+ #if ARENA_SIZE > 0
+ 	flist->string_area = string_area_new(0);
+ #else
+-	flist->string_area = 0;
++	flist->string_area = NULL;
+ #endif
+ 	return flist;
+ }
+ /*
+  * free up all elements in a flist
+  */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/generator.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/generator.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/generator.c	2000-08-19 21:10:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/generator.c	2000-09-06 10:46:43.000000000 +0800
+@@ -32,12 +32,13 @@
+ extern int csum_length;
+ extern int ignore_times;
+ extern int size_only;
+ extern int io_timeout;
+ extern int remote_version;
+ extern int always_checksum;
++extern int modify_window;
+ extern char *compare_dest;
+ 
+ 
+ /* choose whether to skip a particular file */
+ static int skip_file(char *fname,
+ 		     struct file_struct *file, STRUCT_STAT *st)
+@@ -72,13 +73,13 @@
+ 	}
+ 
+ 	if (ignore_times) {
+ 		return 0;
+ 	}
+ 
+-	return (st->st_mtime == file->modtime);
++	return (cmp_modtime(st->st_mtime,file->modtime) == 0);
+ }
+ 
+ 
+ /* use a larger block size for really big files */
+ static int adapt_block_size(struct file_struct *file, int bsize)
+ {
+@@ -340,13 +341,13 @@
+ 		/* now pretend the file didn't exist */
+ 		write_int(f_out,i);
+ 		if (!dry_run) send_sums(NULL,f_out);    
+ 		return;
+ 	}
+ 
+-	if (update_only && st.st_mtime > file->modtime && fnamecmp == fname) {
++	if (update_only && cmp_modtime(st.st_mtime,file->modtime)>0 && fnamecmp == fname) {
+ 		if (verbose > 1)
+ 			rprintf(FINFO,"%s is newer\n",fname);
+ 		return;
+ 	}
+ 
+ 	if (skip_file(fname, file, &st)) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/io.c	2000-07-29 13:05:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/io.c	2000-09-06 10:46:43.000000000 +0800
+@@ -36,22 +36,16 @@
+ static time_t last_io;
+ static int eof_error=1;
+ extern int verbose;
+ extern int io_timeout;
+ extern struct stats stats;
+ 
+-static int buffer_f_in = -1;
+ static int io_error_fd = -1;
+ 
+ static void read_loop(int fd, char *buf, int len);
+ 
+-void setup_readbuffer(int f_in)
+-{
+-	buffer_f_in = f_in;
+-}
+-
+ static void check_timeout(void)
+ {
+ 	extern int am_server, am_daemon;
+ 	time_t t;
+ 	
+ 	if (!io_timeout) return;
+@@ -320,17 +314,13 @@
+ {
+ 	unsigned char c;
+ 	read_buf(f,(char *)&c,1);
+ 	return c;
+ }
+ 
+-
+-
+-/* write len bytes to fd, possibly reading from buffer_f_in if set
+-   in order to unclog the pipe. don't return until all len
+-   bytes have been written */
++/* write len bytes to fd */
+ static void writefd_unbuffered(int fd,char *buf,int len)
+ {
+ 	int total = 0;
+ 	fd_set w_fds, r_fds;
+ 	int fd_count, count;
+ 	struct timeval tv;
+@@ -379,12 +369,13 @@
+ 			if (ret == -1 && errno == EINTR) {
+ 				continue;
+ 			}
+ 
+ 			if (ret == -1 && 
+ 			    (errno == EWOULDBLOCK || errno == EAGAIN)) {
++				msleep(1);
+ 				continue;
+ 			}
+ 
+ 			if (ret <= 0) {
+ 				rprintf(FERROR,"erroring writing %d bytes - exiting\n", len);
+ 				exit_cleanup(RERR_STREAMIO);
+@@ -470,12 +461,23 @@
+ 	if (!io_multiplexing_out) {
+ 		free(io_buffer);
+ 		io_buffer = NULL;
+ 	}
+ }
+ 
++/* some OSes have a bug where an exit causes the pending writes on
++   a socket to be flushed. Do an explicit shutdown to try to prevent this */
++void io_shutdown(void)
++{
++	if (multiplex_out_fd != -1) close(multiplex_out_fd);
++	if (io_error_fd != -1) close(io_error_fd);
++	multiplex_out_fd = -1;
++	io_error_fd = -1;
++}
++
++
+ static void writefd(int fd,char *buf,int len)
+ {
+ 	stats.total_written += len;
+ 
+ 	if (!io_buffer || fd != multiplex_out_fd) {
+ 		writefd_unbuffered(fd, buf, len);
+@@ -620,11 +622,6 @@
+ /* stop output multiplexing */
+ void io_multiplexing_close(void)
+ {
+ 	io_multiplexing_out = 0;
+ }
+ 
+-void io_close_input(int fd)
+-{
+-	buffer_f_in = -1;
+-}
+-
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/loadparm.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/loadparm.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/loadparm.c	2000-08-19 21:10:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/loadparm.c	2000-09-06 10:46:43.000000000 +0800
+@@ -74,14 +74,12 @@
+ 	parm_class class;
+ 	void *ptr;
+ 	struct enum_list *enum_list;
+ 	unsigned flags;
+ };
+ 
+-static BOOL bLoaded = False;
+-
+ #ifndef GLOBAL_NAME
+ #define GLOBAL_NAME "global"
+ #endif
+ 
+ /* some helpful bits */
+ #define pSERVICE(i) ServicePtrs[i]
+@@ -731,14 +729,12 @@
+ 	pstrcpy(n2,pszFname);
+ 
+ 	/* We get sections first, so have to start 'behind' to make up */
+ 	iServiceIndex = -1;
+ 	bRetval = pm_process(n2, globals_only?NULL:do_section, do_parameter);
+   
+-	bLoaded = True;
+-
+ 	return (bRetval);
+ }
+ 
+ 
+ /***************************************************************************
+ return the max number of services
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/main.c	2000-08-19 21:10:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/main.c	2000-09-06 10:46:43.000000000 +0800
+@@ -346,20 +346,19 @@
+ 		report(f_in);
+ 
+ 		write_int(recv_pipe[1],1);
+ 		close(recv_pipe[1]);
+ 		io_flush();
+ 		/* finally we go to sleep until our parent kills us
+-		   with a USR2 signal. We sleepp for a short time as on
++		   with a USR2 signal. We sleep for a short time as on
+ 		   some OSes a signal won't interrupt a sleep! */
+-		while (1) sleep(1);
++		while (1) msleep(20);
+ 	}
+ 
+ 	close(recv_pipe[1]);
+ 	close(error_pipe[1]);
+-	io_close_input(f_in);
+ 	if (f_in != f_out) close(f_in);
+ 
+ 	io_start_buffering(f_out);
+ 
+ 	io_set_error_fd(error_pipe[0]);
+ 
+@@ -462,13 +461,12 @@
+ int client_run(int f_in, int f_out, int pid, int argc, char *argv[])
+ {
+ 	struct file_list *flist;
+ 	int status = 0, status2 = 0;
+ 	char *local_name = NULL;
+ 	extern int am_sender;
+-	extern int list_only;
+ 	extern int remote_version;
+ 
+ 	set_nonblocking(f_in);
+ 	set_nonblocking(f_out);
+ 
+ 	setup_protocol(f_out,f_in);
+@@ -500,13 +498,16 @@
+ 			read_int(f_in);
+ 		}
+ 		report(-1);
+ 		exit_cleanup(status);
+ 	}
+ 
+-	if (argc == 0) list_only = 1;
++	if (argc == 0) {
++		extern int list_only;
++		list_only = 1;
++	}
+ 	
+ 	send_exclude_list(f_out);
+ 	
+ 	flist = recv_file_list(f_in);
+ 	if (!flist || flist->count == 0) {
+ 		rprintf(FINFO,"client: nothing to do\n");
+@@ -638,12 +639,17 @@
+ 	}
+ 	
+ 	if (!am_sender && argc > 1) {
+ 		usage(FERROR);
+ 		exit_cleanup(RERR_SYNTAX);
+ 	}
++
++	if (argc == 0 && !am_sender) {
++		extern int list_only;
++		list_only = 1;
++	}
+ 	
+ 	pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
+ 	
+ 	ret = client_run(f_in, f_out, pid, argc, argv);
+ 
+ 	fflush(stdout);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/Makefile.in	2000-08-19 21:10:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/Makefile.in	2000-09-06 10:46:43.000000000 +0800
+@@ -6,12 +6,13 @@
+ bindir=@bindir@
+ mandir=@mandir@
+ 
+ LIBS=@LIBS@
+ CC=@CC@
+ CFLAGS=@CFLAGS@
++LDFLAGS=@LDFLAGS@
+ 
+ INSTALLCMD=@INSTALL@
+ 
+ srcdir=@srcdir@
+ VPATH=$(srcdir)
+ SHELL=/bin/sh
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/options.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/options.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/options.c	2000-07-29 13:05:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/options.c	2000-09-06 10:46:43.000000000 +0800
+@@ -64,12 +64,17 @@
+ int size_only=0;
+ int bwlimit=0;
+ int delete_after=0;
+ int only_existing=0;
+ int max_delete=0;
+ int ignore_errors=0;
++#ifdef _WIN32
++int modify_window=2;
++#else
++int modify_window=0;
++#endif
+ int blocking_io=0;
+ 
+ char *backup_suffix = BACKUP_SUFFIX;
+ char *tmpdir = NULL;
+ char *compare_dest = NULL;
+ char *config_file = RSYNCD_CONF;
+@@ -82,12 +87,15 @@
+ 
+ int verbose = 0;
+ int quiet = 0;
+ int always_checksum = 0;
+ int list_only = 0;
+ 
++static int modify_window_set;
++
++
+ struct in_addr socket_address = {INADDR_ANY};
+ 
+ void usage(enum logcode F)
+ {
+   rprintf(F,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
+ 	  VERSION);
+@@ -141,12 +149,13 @@
+   rprintf(F,"     --partial               keep partially transferred files\n");
+   rprintf(F,"     --force                 force deletion of directories even if not empty\n");
+   rprintf(F,"     --numeric-ids           don't map uid/gid values by user/group name\n");
+   rprintf(F,"     --timeout=TIME          set IO timeout in seconds\n");
+   rprintf(F," -I, --ignore-times          don't exclude files that match length and time\n");
+   rprintf(F,"     --size-only             only use file size when determining if a file should be transferred\n");
++  rprintf(F,"     --modify-window=NUM     Timestamp window (seconds) for file match (default=%d)\n",modify_window);
+   rprintf(F," -T  --temp-dir=DIR          create temporary files in directory DIR\n");
+   rprintf(F,"     --compare-dest=DIR      also compare destination files relative to DIR\n");
+   rprintf(F," -P                          equivalent to --partial --progress\n");
+   rprintf(F," -z, --compress              compress file data\n");
+   rprintf(F,"     --exclude=PATTERN       exclude files matching PATTERN\n");
+   rprintf(F,"     --exclude-from=FILE     exclude patterns listed in FILE\n");
+@@ -175,13 +184,14 @@
+       OPT_EXCLUDE_FROM, OPT_DELETE, OPT_DELETE_EXCLUDED, OPT_NUMERIC_IDS,
+       OPT_RSYNC_PATH, OPT_FORCE, OPT_TIMEOUT, OPT_DAEMON, OPT_CONFIG, OPT_PORT,
+       OPT_INCLUDE, OPT_INCLUDE_FROM, OPT_STATS, OPT_PARTIAL, OPT_PROGRESS,
+       OPT_COPY_UNSAFE_LINKS, OPT_SAFE_LINKS, OPT_COMPARE_DEST,
+       OPT_LOG_FORMAT, OPT_PASSWORD_FILE, OPT_SIZE_ONLY, OPT_ADDRESS,
+       OPT_DELETE_AFTER, OPT_EXISTING, OPT_MAX_DELETE, OPT_BACKUP_DIR, 
+-      OPT_IGNORE_ERRORS, OPT_BWLIMIT, OPT_BLOCKING_IO};
++      OPT_IGNORE_ERRORS, OPT_BWLIMIT, OPT_BLOCKING_IO,
++      OPT_MODIFY_WINDOW};
+ 
+ static char *short_options = "oblLWHpguDCtcahvqrRIxnSe:B:T:zP";
+ 
+ static struct option long_options[] = {
+   {"version",     0,     0,    OPT_VERSION},
+   {"server",      0,     0,    OPT_SERVER},
+@@ -197,12 +207,13 @@
+   {"include-from",1,     0,    OPT_INCLUDE_FROM},
+   {"rsync-path",  1,     0,    OPT_RSYNC_PATH},
+   {"password-file", 1,	0,     OPT_PASSWORD_FILE},
+   {"one-file-system",0,  0,    'x'},
+   {"ignore-times",0,     0,    'I'},
+   {"size-only",   0,     0,    OPT_SIZE_ONLY},
++  {"modify-window",1,    0,    OPT_MODIFY_WINDOW},
+   {"help",        0,     0,    'h'},
+   {"dry-run",     0,     0,    'n'},
+   {"sparse",      0,     0,    'S'},
+   {"cvs-exclude", 0,     0,    'C'},
+   {"archive",     0,     0,    'a'},
+   {"checksum",    0,     0,    'c'},
+@@ -328,12 +339,17 @@
+ 			break;
+ 
+ 		case OPT_SIZE_ONLY:
+ 			size_only = 1;
+ 			break;
+ 
++		case OPT_MODIFY_WINDOW:
++			modify_window = atoi(optarg);
++			modify_window_set = 1;
++			break;
++			
+ 		case 'x':
+ 			one_file_system=1;
+ 			break;
+ 
+ 		case OPT_DELETE:
+ 			delete_mode = 1;
+@@ -595,12 +611,13 @@
+ {
+ 	int ac = *argc;
+ 	static char argstr[50];
+ 	static char bsize[30];
+ 	static char iotime[30];
+ 	static char mdelete[30];
++	static char mwindow[30];
+ 	static char bw[50];
+ 
+ 	int i, x;
+ 
+ 	args[ac++] = "--server";
+ 
+@@ -649,12 +667,20 @@
+ 	if (one_file_system)
+ 		argstr[x++] = 'x';
+ 	if (sparse_files)
+ 		argstr[x++] = 'S';
+ 	if (do_compression)
+ 		argstr[x++] = 'z';
++
++	/* this is a complete hack - blame Rusty 
++
++	   this is a hack to make the list_only (remote file list)
++	   more useful */
++	if (list_only && !recurse) 
++		argstr[x++] = 'r';
++
+ 	argstr[x] = 0;
+ 
+ 	if (x != 1) args[ac++] = argstr;
+ 
+ 	if (block_size != BLOCK_SIZE) {
+ 		slprintf(bsize,sizeof(bsize),"-B%d",block_size);
+@@ -687,12 +713,18 @@
+ 	if (delete_excluded)
+ 		args[ac++] = "--delete-excluded";
+ 
+ 	if (size_only)
+ 		args[ac++] = "--size-only";
+ 
++	if (modify_window_set) {
++	        slprintf(mwindow,sizeof(mwindow),"--modify-window=%d",
++			 modify_window);
++		args[ac++] = mwindow;
++	}
++
+ 	if (keep_partial)
+ 		args[ac++] = "--partial";
+ 
+ 	if (force_delete)
+ 		args[ac++] = "--force";
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/packaging/redhat/5.0/rsync.spec	2000-08-19 21:10:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/packaging/redhat/5.0/rsync.spec	2000-09-06 10:46:59.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.4.5
++Version: 2.4.6
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.4.5.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.4.6.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/proto.h	2000-08-19 21:10:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/proto.h	2000-09-06 10:46:43.000000000 +0800
+@@ -36,16 +36,12 @@
+ void add_cvs_excludes(void);
+ int sparse_end(int f);
+ int write_file(int f,char *buf,int len);
+ struct map_struct *map_file(int fd,OFF_T len);
+ char *map_ptr(struct map_struct *map,OFF_T offset,int len);
+ void unmap_file(struct map_struct *map);
+-struct string_area *string_area_new(int size);
+-void string_area_free(struct string_area *a);
+-char *string_area_malloc(struct string_area **ap, int size);
+-char *string_area_strdup(struct string_area **ap, const char *src);
+ int readlink_stat(const char *Path, STRUCT_STAT *Buffer, char *Linkbuf) ;
+ int link_stat(const char *Path, STRUCT_STAT *Buffer) ;
+ struct file_struct *make_file(int f, char *fname, struct string_area **ap,
+ 			      int noexcludes);
+ void send_file_name(int f,struct file_list *flist,char *fname,
+ 			   int recursive, unsigned base_flags);
+@@ -59,34 +55,33 @@
+ char *f_name(struct file_struct *f);
+ void recv_generator(char *fname,struct file_list *flist,int i,int f_out);
+ void generate_files(int f,struct file_list *flist,char *local_name,int f_recv);
+ void init_hard_links(struct file_list *flist);
+ int check_hard_link(struct file_struct *file);
+ void do_hard_links(struct file_list *flist);
+-void setup_readbuffer(int f_in);
+ void io_set_error_fd(int fd);
+ int32 read_int(int f);
+ int64 read_longint(int f);
+ void read_buf(int f,char *buf,int len);
+ void read_sbuf(int f,char *buf,int len);
+ unsigned char read_byte(int f);
+ void io_start_buffering(int fd);
+ void io_flush(void);
+ void io_end_buffering(int fd);
++void io_shutdown(void);
+ void write_int(int f,int32 x);
+ void write_longint(int f, int64 x);
+ void write_buf(int f,char *buf,int len);
+ void write_byte(int f,unsigned char c);
+ int read_line(int f, char *buf, int maxlen);
+ void io_printf(int fd, const char *format, ...);
+ void io_start_multiplex_out(int fd);
+ void io_start_multiplex_in(int fd);
+ int io_multiplex_write(enum logcode code, char *buf, int len);
+ int io_error_write(int f, enum logcode code, char *buf, int len);
+ void io_multiplexing_close(void);
+-void io_close_input(int fd);
+ char *lp_motd_file(void);
+ char *lp_log_file(void);
+ char *lp_pid_file(void);
+ char *lp_socket_options(void);
+ int lp_syslog_facility(void);
+ char *lp_name(int );
+@@ -211,8 +206,9 @@
+ int u_strcmp(const char *cs1, const char *cs2);
+ void end_progress(OFF_T size);
+ void show_progress(OFF_T ofs, OFF_T size);
+ int unsafe_symlink(char *dest, char *src);
+ char *timestring(time_t t);
+ void msleep(int t);
++int cmp_modtime(time_t file1, time_t file2);
+ int _Insure_trap_error(int a1, int a2, int a3, int a4, int a5, int a6);
+ int sys_gettimeofday(struct timeval *tv);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/README	1999-03-16 05:23:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/README	2000-09-06 10:46:43.000000000 +0800
+@@ -122,14 +122,13 @@
+ ------------
+ 
+ There is a mailing list for the discussion of rsync and its
+ applications. It is open to anyone to join. I will announce new
+ versions on this list. 
+ 
+-To join the mailing list send mail to listproc@samba.org with
+-no subject and a body of "subscribe rsync Your Name".
++To join the mailing list see the web page at http://lists.samba.org/
+ 
+ To send mail to everyone on the list send it to rsync@samba.org
+ 
+ 
+ BUG REPORTS
+ -----------
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/rsync.1	2000-08-19 21:10:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/rsync.1	2000-09-06 10:46:43.000000000 +0800
+@@ -249,13 +249,13 @@
+  -q, --quiet                 decrease verbosity
+  -c, --checksum              always checksum
+  -a, --archive               archive mode
+  -r, --recursive             recurse into directories
+  -R, --relative              use relative path names
+  -b, --backup                make backups (default ~ suffix)
+-     --backup-dir=DIR        put backups in the specified directory
++     --backup-dir            make backups into this directory
+      --suffix=SUFFIX         override backup suffix
+  -u, --update                update only (don\'t overwrite newer files)
+  -l, --links                 preserve soft links
+  -L, --copy-links            treat soft links like regular files
+      --copy-unsafe-links     copy links outside the source tree
+      --safe-links            ignore links outside the destination tree
+@@ -282,12 +282,13 @@
+      --partial               keep partially transferred files
+      --force                 force deletion of directories even if not empty
+      --numeric-ids           don\'t map uid/gid values by user/group name
+      --timeout=TIME          set IO timeout in seconds
+  -I, --ignore-times          don\'t exclude files that match length and time
+      --size-only             only use file size when determining if a file should be transferred
++     --modify-window=NUM     Timestamp window (seconds) for file match (default=0)
+  -T  --temp-dir=DIR          create temporary files in directory DIR
+      --compare-dest=DIR      also compare destination files relative to DIR
+  -P                          equivalent to --partial --progress
+  -z, --compress              compress file data
+      --exclude=PATTERN       exclude files matching PATTERN
+      --exclude-from=FILE     exclude patterns listed in FILE
+@@ -350,12 +351,20 @@
+ already the same length and have the same time-stamp\&. With the
+ --size-only option files will be skipped if they have the same size,
+ regardless of timestamp\&. This is useful when starting to use rsync
+ after using another mirroring system which may not preserve timestamps
+ exactly\&.
+ .IP 
++.IP "\fB--modify-window\fP" 
++When comparing two timestamps rsync treats
++the timestamps as being equal if they are within the value of
++modify_window\&. This is normally zero, but you may find it useful to
++set this to a larger value in some situations\&. In particular, when
++transferring to/from FAT filesystems which cannot represent times with
++a 1 second resolution this option is useful\&.
++.IP 
+ .IP "\fB-c, --checksum\fP" 
+ This forces the sender to checksum all files using
+ a 128-bit MD4 checksum before transfer\&. The checksum is then
+ explicitly checked on the receiver and any files of the same name
+ which already exist and have the same checksum and size on the
+ receiver are skipped\&.  This option can be quite slow\&.
+@@ -576,15 +585,15 @@
+ .IP 
+ See the section on exclude patterns for information on the syntax of 
+ this option\&.
+ .IP 
+ .IP "\fB--exclude-from=FILE\fP" 
+ This option is similar to the --exclude
+-option, but instead it adds all filenames listed in the file FILE to
+-the exclude list\&.  Blank lines in FILE and lines starting with \';\' or \'#\'
+-are ignored\&.
++option, but instead it adds all exclude patterns listed in the file
++FILE to the exclude list\&.  Blank lines in FILE and lines starting with
++\';\' or \'#\' are ignored\&.
+ .IP 
+ .IP "\fB--include=PATTERN\fP" 
+ This option tells rsync to not exclude the
+ specified pattern of filenames\&. This is useful as it allows you to
+ build up quite complex exclude/include rules\&.
+ .IP 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/rsync.c	2000-01-29 19:35:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/rsync.c	2000-09-06 10:46:43.000000000 +0800
+@@ -40,13 +40,13 @@
+ 	if (s->sums) free(s->sums);
+ 	free(s);
+ }
+ 
+ 
+ /*
+- * delete a file or directory. If force_delet is set then delete 
++ * delete a file or directory. If force_delete is set then delete 
+  * recursively 
+  */
+ int delete_file(char *fname)
+ {
+ 	DIR *d;
+ 	struct dirent *di;
+@@ -59,13 +59,12 @@
+ #if SUPPORT_LINKS
+ 	ret = do_lstat(fname, &st);
+ #else
+ 	ret = do_stat(fname, &st);
+ #endif
+ 	if (ret) {
+-		rprintf(FERROR,"stat(%s) : %s\n", fname, strerror(errno));
+ 		return -1;
+ 	}
+ 
+ 	if (!S_ISDIR(st.st_mode)) {
+ 		if (robust_unlink(fname) == 0 || errno == ENOENT) return 0;
+ 		rprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));
+@@ -160,13 +159,13 @@
+ 			return 0;
+ 		}
+ 		st = &st2;
+ 	}
+ 
+ 	if (preserve_times && !S_ISLNK(st->st_mode) &&
+-	    st->st_mtime != file->modtime) {
++	    cmp_modtime(st->st_mtime, file->modtime) != 0) {
+ 		/* don't complain about not setting times on directories
+ 		   because some filesystems can't do it */
+ 		if (set_modtime(fname,file->modtime) != 0 &&
+ 		    !S_ISDIR(st->st_mode)) {
+ 			rprintf(FERROR,"failed to set times on %s : %s\n",
+ 				fname,strerror(errno));
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/rsync.yo	2000-07-29 13:05:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/rsync.yo	2000-09-06 10:46:43.000000000 +0800
+@@ -220,13 +220,13 @@
+  -q, --quiet                 decrease verbosity
+  -c, --checksum              always checksum
+  -a, --archive               archive mode
+  -r, --recursive             recurse into directories
+  -R, --relative              use relative path names
+  -b, --backup                make backups (default ~ suffix)
+-     --backup-dir=DIR        put backups in the specified directory
++     --backup-dir            make backups into this directory
+      --suffix=SUFFIX         override backup suffix
+  -u, --update                update only (don't overwrite newer files)
+  -l, --links                 preserve soft links
+  -L, --copy-links            treat soft links like regular files
+      --copy-unsafe-links     copy links outside the source tree
+      --safe-links            ignore links outside the destination tree
+@@ -253,12 +253,13 @@
+      --partial               keep partially transferred files
+      --force                 force deletion of directories even if not empty
+      --numeric-ids           don't map uid/gid values by user/group name
+      --timeout=TIME          set IO timeout in seconds
+  -I, --ignore-times          don't exclude files that match length and time
+      --size-only             only use file size when determining if a file should be transferred
++     --modify-window=NUM     Timestamp window (seconds) for file match (default=0)
+  -T  --temp-dir=DIR          create temporary files in directory DIR
+      --compare-dest=DIR      also compare destination files relative to DIR
+  -P                          equivalent to --partial --progress
+  -z, --compress              compress file data
+      --exclude=PATTERN       exclude files matching PATTERN
+      --exclude-from=FILE     exclude patterns listed in FILE
+@@ -313,12 +314,19 @@
+ already the same length and have the same time-stamp. With the
+ --size-only option files will be skipped if they have the same size,
+ regardless of timestamp. This is useful when starting to use rsync
+ after using another mirroring system which may not preserve timestamps
+ exactly.
+ 
++dit(bf(--modify-window)) When comparing two timestamps rsync treats
++the timestamps as being equal if they are within the value of
++modify_window. This is normally zero, but you may find it useful to
++set this to a larger value in some situations. In particular, when
++transferring to/from FAT filesystems which cannot represent times with
++a 1 second resolution this option is useful.
++
+ dit(bf(-c, --checksum)) This forces the sender to checksum all files using
+ a 128-bit MD4 checksum before transfer. The checksum is then
+ explicitly checked on the receiver and any files of the same name
+ which already exist and have the same checksum and size on the
+ receiver are skipped.  This option can be quite slow.
+ 
+@@ -494,15 +502,15 @@
+ to build up the list of files to exclude.
+ 
+ See the section on exclude patterns for information on the syntax of 
+ this option.
+ 
+ dit(bf(--exclude-from=FILE)) This option is similar to the --exclude
+-option, but instead it adds all filenames listed in the file FILE to
+-the exclude list.  Blank lines in FILE and lines starting with ';' or '#'
+-are ignored.
++option, but instead it adds all exclude patterns listed in the file
++FILE to the exclude list.  Blank lines in FILE and lines starting with
++';' or '#' are ignored.
+ 
+ dit(bf(--include=PATTERN)) This option tells rsync to not exclude the
+ specified pattern of filenames. This is useful as it allows you to
+ build up quite complex exclude/include rules.
+ 
+ See the section of exclude patterns for information on the syntax of 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/sender.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/sender.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/sender.c	2000-01-29 19:35:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/sender.c	2000-09-06 10:46:43.000000000 +0800
+@@ -94,14 +94,12 @@
+ 	extern struct stats stats;		
+ 	struct stats initial_stats;
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"send_files starting\n");
+ 
+-	setup_readbuffer(f_in);
+-
+ 	while (1) {
+ 		int offset=0;
+ 
+ 		i = read_int(f_in);
+ 		if (i == -1) {
+ 			if (phase==0 && remote_version >= 13) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/util.c	2000-08-19 21:10:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/util.c	2000-09-06 10:46:43.000000000 +0800
+@@ -952,13 +952,33 @@
+ 		tdiff = (t2.tv_sec - t1.tv_sec)*1000 + 
+ 			(t2.tv_usec - t1.tv_usec)/1000;
+ 	}
+ }
+ 
+ 
+-#ifdef __INSURE__
++/*******************************************************************
++ Determine if two file modification times are equivalent (either exact 
++ or in the modification timestamp window established by --modify-window) 
++ Returns 0 if the times should be treated as the same, 1 if the 
++ first is later and -1 if the 2nd is later
++ *******************************************************************/
++int cmp_modtime(time_t file1, time_t file2)
++{
++	time_t diff;
++	extern int modify_window;
++
++	if (file2 > file1) {
++		if (file2 - file1 <= modify_window) return 0;
++		return -1;
++	}
++	if (file1 - file2 <= modify_window) return 0;
++	return 1;
++}
++
++
++#ifdef __INSURE__XX
+ #include <dlfcn.h>
+ 
+ /*******************************************************************
+ This routine is a trick to immediately catch errors when debugging
+ with insure. A xterm with a gdb is popped up when insure catches
+ a error. It is Linux specific.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.5/version.h	2000-08-19 21:10:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/version.h	2000-09-06 10:46:58.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.4.5"
++#define VERSION "2.4.6"

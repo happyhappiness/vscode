@@ -1,0 +1,1 @@
+rprintf(FERROR, "inflate init failed\n");

@@ -1,0 +1,1 @@
+rprintf(FINFO,"add_exclude(%s)\n",pattern);

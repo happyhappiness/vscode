@@ -1,0 +1,1 @@
+fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));

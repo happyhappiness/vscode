@@ -1,0 +1,1 @@
+fprintf(F," -l, --link-times            display the time on a symlink\n");

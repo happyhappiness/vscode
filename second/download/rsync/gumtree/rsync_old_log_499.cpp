@@ -1,0 +1,1 @@
+fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");

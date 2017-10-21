@@ -1,0 +1,1 @@
+fprintf(FERROR,"clearing exclude list\n");

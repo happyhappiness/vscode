@@ -1,0 +1,44 @@
+int do_fstat(int fd, STRUCT_STAT *st);
+OFF_T do_lseek(int fd, OFF_T offset, int whence);
+int do_utimensat(const char *fname, time_t modtime, uint32 mod_nsec);
+int do_lutimes(const char *fname, time_t modtime, uint32 mod_nsec);
+int do_utimes(const char *fname, time_t modtime, uint32 mod_nsec);
+int do_utime(const char *fname, time_t modtime, UNUSED(uint32 mod_nsec));
+void set_compression(const char *fname);
+void send_token(int f, int32 token, struct map_struct *buf, OFF_T offset,
+		int32 n, int32 toklen);
+int32 recv_token(int f, char **data);
+void see_token(char *data, int32 toklen);
+uid_t match_uid(uid_t uid);
+gid_t match_gid(gid_t gid, uint16 *flags_ptr);
+const char *add_uid(uid_t uid);
+const char *add_gid(gid_t gid);
+void send_id_list(int f);
+uid_t recv_user_name(int f, uid_t uid);
+gid_t recv_group_name(int f, gid_t gid, uint16 *flags_ptr);
+void recv_id_list(int f, struct file_list *flist);
+void set_nonblocking(int fd);
+void set_blocking(int fd);
+int fd_pair(int fd[2]);
+void print_child_argv(const char *prefix, char **cmd);
+NORETURN void out_of_memory(const char *str);
+NORETURN void overflow_exit(const char *str);
+int set_modtime(const char *fname, time_t modtime, mode_t mode);
+int mkdir_defmode(char *fname);
+int create_directory_path(char *fname);
+int full_write(int desc, const char *ptr, size_t len);
+int copy_file(const char *source, const char *dest, int ofd,
+	      mode_t mode, int create_bak_dir);
+int robust_unlink(const char *fname);
+int robust_rename(const char *from, const char *to, const char *partialptr,
+		  int mode);
+pid_t do_fork(void);
+void kill_all(int sig);
+int name_to_uid(const char *name, uid_t *uid_p);
+int name_to_gid(const char *name, gid_t *gid_p);
+int lock_range(int fd, int offset, int len);
+int glob_expand(const char *arg, char ***argv_p, int *argc_p, int *maxargs_p);
+void glob_expand_module(char *base1, char *arg, char ***argv_p, int *argc_p, int *maxargs_p);
+void strlower(char *s);
+size_t pathjoin(char *dest, size_t destsize, const char *p1, const char *p2);
+size_t stringjoin(char *dest, size_t destsize, ...);

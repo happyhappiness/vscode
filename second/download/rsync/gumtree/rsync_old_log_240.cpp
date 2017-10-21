@@ -1,0 +1,1 @@
+fprintf(FERROR,"recv_generator(%s)\n",fname);

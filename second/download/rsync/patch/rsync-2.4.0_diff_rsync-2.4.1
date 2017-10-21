@@ -1,0 +1,356 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/backup.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/backup.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/backup.c	2000-01-29 19:35:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/backup.c	2000-01-30 09:02:01.000000000 +0800
+@@ -131,16 +131,20 @@
+ {
+ 	int keep_trying = 4;
+ 	int keep_path_extfs = 0;
+ 	int failed;
+ 
+ 	while (keep_trying) {
+-		if (keep_path_extfs)
+-			failed = copy_file (src, dst, 0755);
+-		else
++		if (keep_path_extfs) {
++			failed = copy_file(src, dst, 0755);
++			if (!failed) {
++				do_unlink(src);
++			}
++		} else {
+ 			failed = robust_rename (src, dst);
++		}
+ 
+ 		if (failed) {
+ 			if (verbose > 2)
+ 				rprintf (FERROR, "robust_move failed: %s(%d)\n",
+ 					strerror (errno), errno);
+ 			switch (errno) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/cleanup.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/cleanup.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/cleanup.c	1999-04-06 23:04:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/cleanup.c	2000-01-30 09:02:01.000000000 +0800
+@@ -36,12 +36,13 @@
+ {
+ 	extern int keep_partial;
+ 
+ 	if (code == 0 && io_error) code = RERR_FILEIO;
+ 
+ 	signal(SIGUSR1, SIG_IGN);
++	signal(SIGUSR2, SIG_IGN);
+ 
+ 	if (cleanup_got_literal && cleanup_fname && keep_partial) {
+ 		char *fname = cleanup_fname;
+ 		cleanup_fname = NULL;
+ 		if (cleanup_buf) unmap_file(cleanup_buf);
+ 		if (cleanup_fd1 != -1) close(cleanup_fd1);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/cvs.log	2000-01-29 19:35:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/cvs.log	2000-01-30 09:03:07.000000000 +0800
+@@ -10919,6 +10919,84 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.4.0
+ 
++
++****************************************
++Date:	Sunday January 30, 2000 @ 10:49
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv8991
++
++Modified Files:
++	main.c rsync.h 
++Log Message:
++damn.
++
++with the new error handling code it is possible for rsync to get stuck
++on the final transaction, leaving it hung.
++
++looks like 2.4.1 will be pretty soon
++
++
++
++****************************************
++Date:	Sunday January 30, 2000 @ 11:50
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv19624
++
++Modified Files:
++	cleanup.c io.c main.c test.sh 
++Log Message:
++another hang-at-end fix. It looks like we are more sensiitive to
++these with socketpairs. The receiver now sleeps until it gets a signal
++to tell it to exit
++
++also fixed test.sh to use the current version remotely
++
++
++
++****************************************
++Date:	Sunday January 30, 2000 @ 11:56
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv15863
++
++Modified Files:
++	backup.c 
++Log Message:
++patch from Jim Delahanty <mail_us@swbell.net> to ensure files are
++deleted after being backed up in a rename operation
++
++
++
++****************************************
++Date:	Sunday January 30, 2000 @ 12:02
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.4.1
++
++
++****************************************
++Date:	Sunday January 30, 2000 @ 12:02
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.4.1
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/main.c	2000-01-29 19:35:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/main.c	2000-01-30 09:02:01.000000000 +0800
+@@ -280,12 +280,13 @@
+ 	int recv_pipe[2];
+ 	int error_pipe[2];
+ 	extern int preserve_hard_links;
+ 	extern int delete_after;
+ 	extern int recurse;
+ 	extern int delete_mode;
++	extern int remote_version;
+ 
+ 	if (preserve_hard_links)
+ 		init_hard_links(flist);
+ 
+ 	if (!delete_after) {
+ 		/* I moved this here from recv_files() to prevent a race condition */
+@@ -317,14 +318,18 @@
+ 		/* set place to send errors */
+ 		set_error_fd(error_pipe[1]);
+ 
+ 		recv_files(f_in,flist,local_name,recv_pipe[1]);
+ 		report(f_in);
+ 
++		write_int(recv_pipe[1],1);
++		close(recv_pipe[1]);
+ 		io_flush();
+-		_exit(0);
++		/* finally we go to sleep until our parent kills us with
++		   a USR2 signal */
++		while (1) sleep(60);
+ 	}
+ 
+ 	close(recv_pipe[1]);
+ 	close(error_pipe[1]);
+ 	io_close_input(f_in);
+ 	if (f_in != f_out) close(f_in);
+@@ -332,13 +337,21 @@
+ 	io_start_buffering(f_out);
+ 
+ 	io_set_error_fd(error_pipe[0]);
+ 
+ 	generate_files(f_out,flist,local_name,recv_pipe[0]);
+ 
++	read_int(recv_pipe[0]);
++	close(recv_pipe[0]);
++	if (remote_version >= 24) {
++		/* send a final goodbye message */
++		write_int(f_out, -1);
++	}
+ 	io_flush();
++
++	kill(pid, SIGUSR2);
+ 	wait_process(pid, &status);
+ 	return status;
+ }
+ 
+ 
+ static void do_server_recv(int f_in, int f_out, int argc,char *argv[])
+@@ -449,12 +462,16 @@
+ 			if (verbose > 3)
+ 				rprintf(FINFO,"client_run waiting on %d\n",pid);
+ 			io_flush();
+ 			wait_process(pid, &status);
+ 		}
+ 		report(-1);
++		if (remote_version >= 24) {
++			/* final goodbye message */		
++			read_int(f_in);
++		}
+ 		exit_cleanup(status);
+ 	}
+ 
+ 	if (argc == 0) list_only = 1;
+ 	
+ 	send_exclude_list(f_out);
+@@ -606,21 +623,26 @@
+ 
+ 
+ static RETSIGTYPE sigusr1_handler(int val) {
+ 	exit_cleanup(RERR_SIGNAL);
+ }
+ 
++static RETSIGTYPE sigusr2_handler(int val) {
++	_exit(0);
++}
++
+ int main(int argc,char *argv[])
+ {       
+ 	extern int am_root;
+ 	extern int orig_umask;
+ 	extern int dry_run;
+ 	extern int am_daemon;
+ 	extern int am_server;
+ 
+ 	signal(SIGUSR1, sigusr1_handler);
++	signal(SIGUSR2, sigusr2_handler);
+ 
+ 	starttime = time(NULL);
+ 	am_root = (getuid() == 0);
+ 
+ 	memset(&stats, 0, sizeof(stats));
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/packaging/redhat/5.0/rsync.spec	2000-01-29 19:35:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/packaging/redhat/5.0/rsync.spec	2000-01-30 09:02:58.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.4.0
++Version: 2.4.1
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.4.0.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.4.1.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/rsync.h	2000-01-29 19:35:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/rsync.h	2000-01-30 09:02:01.000000000 +0800
+@@ -44,13 +44,13 @@
+ #define SAME_DIR (1<<5)
+ #define SAME_NAME SAME_DIR
+ #define LONG_NAME (1<<6)
+ #define SAME_TIME (1<<7)
+ 
+ /* update this if you make incompatible changes */
+-#define PROTOCOL_VERSION 23
++#define PROTOCOL_VERSION 24
+ #define MIN_PROTOCOL_VERSION 15
+ #define MAX_PROTOCOL_VERSION 30
+ 
+ #define RSYNC_PORT 873
+ 
+ #define SPARSE_WRITE_SIZE (1024)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/test.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/test.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/test.sh	2000-01-29 19:35:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/test.sh	2000-01-30 09:02:02.000000000 +0800
+@@ -21,13 +21,15 @@
+ 
+ This set of tests is not completely portable. It is intended for developers
+ not for end users. You may experience failures on some platforms that
+ do not indicate a problem with rsync.
+ 
+ EOF
+-  export PATH=.:$PATH
++
++RSYNC=`pwd`/rsync
++
+   runtest() {
+     echo -n "Test $1: "
+     eval "$2"
+   }
+   printmsg() {
+     echo ""
+@@ -120,48 +122,48 @@
+     echo "Tests Completed Successfully :-)"
+   fi
+ }
+ 
+ # Main script starts here
+ 
+-runtest "basic operation" 'checkit "rsync -av ${FROM}/ ${TO}" ${FROM}/ ${TO}'
++runtest "basic operation" 'checkit "$RSYNC -av ${FROM}/ ${TO}" ${FROM}/ ${TO}'
+ 
+ ln ${FROM}/pslist ${FROM}/dir
+-runtest "hard links" 'checkit "rsync -avH ${FROM}/ ${TO}" ${FROM}/ ${TO}'
++runtest "hard links" 'checkit "$RSYNC -avH ${FROM}/ ${TO}" ${FROM}/ ${TO}'
+ 
+ rm ${TO}/${F1}
+-runtest "one file" 'checkit "rsync -avH ${FROM}/ ${TO}" ${FROM}/ ${TO}'
++runtest "one file" 'checkit "$RSYNC -avH ${FROM}/ ${TO}" ${FROM}/ ${TO}'
+ 
+ echo "extra line" >> ${TO}/${F1}
+-runtest "extra data" 'checkit "rsync -avH ${FROM}/ ${TO}" ${FROM}/ ${TO}'
++runtest "extra data" 'checkit "$RSYNC -avH ${FROM}/ ${TO}" ${FROM}/ ${TO}'
+ 
+ cp ${FROM}/${F1} ${TO}/ThisShouldGo
+-runtest " --delete" 'checkit "rsync --delete -avH ${FROM}/ ${TO}" ${FROM}/ ${TO}'
++runtest " --delete" 'checkit "$RSYNC --delete -avH ${FROM}/ ${TO}" ${FROM}/ ${TO}'
+ 
+ LONGDIR=${FROM}/This-is-a-directory-with-a-stupidly-long-name-created-in-an-attempt-to-provoke-an-error-found-in-2.0.11-that-should-hopefully-never-appear-again-if-this-test-does-its-job/This-is-a-directory-with-a-stupidly-long-name-created-in-an-attempt-to-provoke-an-error-found-in-2.0.11-that-should-hopefully-never-appear-again-if-this-test-does-its-job/This-is-a-directory-with-a-stupidly-long-name-created-in-an-attempt-to-provoke-an-error-found-in-2.0.11-that-should-hopefully-never-appear-again-if-this-test-does-its-job
+ mkdir -p ${LONGDIR}
+ date > ${LONGDIR}/1
+ ls -la / > ${LONGDIR}/2
+-runtest "long paths" 'checkit "rsync --delete -avH ${FROM}/ ${TO}" ${FROM}/ ${TO}'
++runtest "long paths" 'checkit "$RSYNC --delete -avH ${FROM}/ ${TO}" ${FROM}/ ${TO}'
+ 
+ if type ssh >/dev/null 2>&1; then
+   if [ "`ssh -o'BatchMode yes' localhost echo yes 2>/dev/null`" = "yes" ]; then
+   rm -rf ${TO}
+-    runtest "ssh: basic test" 'checkit "rsync -avH -e ssh ${FROM}/ localhost:${TO}" ${FROM}/ ${TO}'
++    runtest "ssh: basic test" 'checkit "$RSYNC -avH -e ssh --rsync-path=$RSYNC ${FROM}/ localhost:${TO}" ${FROM}/ ${TO}'
+ 
+     mv ${TO}/${F1} ${TO}/ThisShouldGo
+-    runtest "ssh: renamed file" 'checkit "rsync --delete -avH -e ssh ${FROM}/ localhost:${TO}" ${FROM}/ ${TO}'
++    runtest "ssh: renamed file" 'checkit "$RSYNC --delete -avH -e ssh --rsync-path=$RSYNC ${FROM}/ localhost:${TO}" ${FROM}/ ${TO}'
+   else
+   printmsg "Skipping SSH tests because ssh conection to localhost not authorised"
+   fi
+ else
+   printmsg "Skipping SSH tests because ssh is not in the path"
+ fi
+ 
+ rm -rf ${TO}
+ mkdir -p ${FROM}2/dir/subdir
+ cp -a ${FROM}/dir/subdir/subsubdir ${FROM}2/dir/subdir
+ cp ${FROM}/dir/* ${FROM}2/dir 2>/dev/null
+-runtest "excludes" 'checkit "rsync -vv -Hlrt --delete --include /dir/ --include /dir/\* --include /dir/\*/subsubdir  --include /dir/\*/subsubdir/\*\* --exclude \*\* ${FROM}/dir ${TO}" ${FROM}2/ ${TO}'
++runtest "excludes" 'checkit "$RSYNC -vv -Hlrt --delete --include /dir/ --include /dir/\* --include /dir/\*/subsubdir  --include /dir/\*/subsubdir/\*\* --exclude \*\* ${FROM}/dir ${TO}" ${FROM}2/ ${TO}'
+ rm -r ${FROM}2
+ 
+ checkforlogs ${LOG}.?
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/version.h	2000-01-29 19:35:33.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.1/version.h	2000-01-30 09:02:57.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.4.0"
++#define VERSION "2.4.1"

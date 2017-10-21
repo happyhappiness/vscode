@@ -1,0 +1,1 @@
+fprintf(FERROR,"skipping long-named directory %s\n",fname);

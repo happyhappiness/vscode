@@ -1,0 +1,1 @@
+fprintf(out, "local const z_crc_t FAR ");

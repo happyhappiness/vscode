@@ -1,0 +1,1 @@
+fprintf(FERROR,"bad option -%c\n",opt);

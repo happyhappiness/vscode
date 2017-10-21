@@ -1,0 +1,1 @@
+rprintf(FERROR,"backup filename too long\n");

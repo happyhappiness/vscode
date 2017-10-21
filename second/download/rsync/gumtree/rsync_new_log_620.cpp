@@ -1,0 +1,1 @@
+rprintf(FERROR,"pipe: %s\n",strerror(errno));

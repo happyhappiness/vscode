@@ -1,0 +1,1 @@
+fprintf(stderr,"-o only allowed for root\n");

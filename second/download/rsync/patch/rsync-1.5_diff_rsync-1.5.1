@@ -1,0 +1,538 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/checksum.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/checksum.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/checksum.c	1996-07-03 16:19:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/checksum.c	1996-07-04 21:05:26.000000000 +0800
+@@ -16,13 +16,13 @@
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
+ #include "rsync.h"
+ 
+-int csum_length=SUM_LENGTH;
++int csum_length=2; /* initial value */
+ 
+ #define CSUM_CHUNK 64
+ 
+ int checksum_seed = 0;
+ extern int remote_version;
+ 
+@@ -34,17 +34,18 @@
+ {
+     int i;
+     uint32 s1, s2;
+ 
+     s1 = s2 = 0;
+     for (i = 0; i < (len-4); i+=4) {
+-	s2 += 4*(s1 + buf[i]) + 3*buf[i+1] + 2*buf[i+2] + buf[i+3];
+-	s1 += (buf[i+0] + buf[i+1] + buf[i+2] + buf[i+3]); 
++	s2 += 4*(s1 + buf[i]) + 3*buf[i+1] + 2*buf[i+2] + buf[i+3] + 
++	  10*CHAR_OFFSET;
++	s1 += (buf[i+0] + buf[i+1] + buf[i+2] + buf[i+3] + 4*CHAR_OFFSET); 
+     }
+     for (; i < len; i++) {
+-	s1 += buf[i]; s2 += s1;
++	s1 += (buf[i]+CHAR_OFFSET); s2 += s1;
+     }
+     return (s1 & 0xffff) + (s2 << 16);
+ }
+ 
+ 
+ static void sum_put(MDstruct *md,char *sum)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/flist.c	1996-07-03 14:24:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/flist.c	1996-07-05 12:49:52.000000000 +0800
+@@ -27,12 +27,14 @@
+ extern int am_server;
+ extern int always_checksum;
+ extern off_t total_size;
+ 
+ extern int cvs_exclude;
+ 
++extern int recurse;
++
+ extern int one_file_system;
+ extern int make_backups;
+ extern int preserve_links;
+ extern int preserve_hard_links;
+ extern int preserve_perms;
+ extern int preserve_devices;
+@@ -229,13 +231,13 @@
+   strcpy(lastname,file->name);
+   lastname[255] = 0;
+ }
+ 
+ 
+ 
+-static struct file_struct *make_file(int recurse,char *fname)
++static struct file_struct *make_file(char *fname)
+ {
+   static struct file_struct file;
+   struct stat st;
+   char sum[SUM_LENGTH];
+ 
+   bzero(sum,SUM_LENGTH);
+@@ -301,18 +303,17 @@
+ 
+   return &file;
+ }
+ 
+ 
+ 
+-static void send_file_name(int f,struct file_list *flist,
+-			   int recurse,char *fname)
++static void send_file_name(int f,struct file_list *flist,char *fname)
+ {
+   struct file_struct *file;
+ 
+-  file = make_file(recurse,fname);
++  file = make_file(fname);
+ 
+   if (!file) return;  
+   
+   if (flist->count >= flist->malloced) {
+     flist->malloced += 100;
+     flist->files = (struct file_struct *)realloc(flist->files,
+@@ -365,29 +366,29 @@
+ 
+   for (di=readdir(d); di; di=readdir(d)) {
+     if (strcmp(di->d_name,".")==0 ||
+ 	strcmp(di->d_name,"..")==0)
+       continue;
+     strcpy(p,di->d_name);
+-    send_file_name(f,flist,1,fname);
++    send_file_name(f,flist,fname);
+   }
+ 
+   closedir(d);
+ }
+ 
+ 
+ 
+-struct file_list *send_file_list(int f,int recurse,int argc,char *argv[])
++struct file_list *send_file_list(int f,int argc,char *argv[])
+ {
+   int i,l;
+   struct stat st;
+   char *p,*dir;
+   char dbuf[MAXPATHLEN];
+   struct file_list *flist;
+ 
+-  if (verbose && recurse) {
++  if (verbose && recurse && !am_server) {
+     fprintf(FINFO,"building file list ... ");
+     fflush(FINFO);
+   }
+ 
+   flist = (struct file_list *)malloc(sizeof(flist[0]));
+   if (!flist) out_of_memory("send_file_list");
+@@ -438,32 +439,32 @@
+ 	fprintf(FERROR,"chdir %s : %s\n",dir,strerror(errno));
+ 	continue;
+       }
+       flist_dir = dir;
+       if (one_file_system)
+ 	set_filesystem(fname);
+-      send_file_name(f,flist,recurse,fname);
++      send_file_name(f,flist,fname);
+       flist_dir = NULL;
+       if (chdir(dbuf) != 0) {
+ 	fprintf(FERROR,"chdir %s : %s\n",dbuf,strerror(errno));
+ 	exit_cleanup(1);
+       }
+       continue;
+     }
+ 
+     if (one_file_system)
+       set_filesystem(fname);
+-    send_file_name(f,flist,recurse,fname);
++    send_file_name(f,flist,fname);
+   }
+ 
+   if (f != -1) {
+     send_file_entry(NULL,f);
+     write_flush(f);
+   }
+ 
+-  if (verbose && recurse)
++  if (verbose && recurse && !am_server)
+     fprintf(FINFO,"done\n");
+ 
+   clean_flist(flist);
+ 
+   return flist;
+ }
+@@ -471,14 +472,16 @@
+ 
+ struct file_list *recv_file_list(int f)
+ {
+   struct file_list *flist;
+   unsigned char flags;
+ 
+-  if (verbose > 2)
+-    fprintf(FERROR,"recv_file_list starting\n");
++  if (verbose && recurse && !am_server) {
++    fprintf(FINFO,"receiving file list ... ");
++    fflush(FINFO);
++  }
+ 
+   flist = (struct file_list *)malloc(sizeof(flist[0]));
+   if (!flist)
+     goto oom;
+ 
+   flist->count=0;
+@@ -515,12 +518,16 @@
+ 
+   if (verbose > 2)
+     fprintf(FERROR,"received %d names\n",flist->count);
+ 
+   clean_flist(flist);
+ 
++  if (verbose && recurse && !am_server) {
++    fprintf(FINFO,"done\n");
++  }
++
+   return flist;
+ 
+ oom:
+     out_of_memory("recv_file_list");
+     return NULL; /* not reached */
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/main.c	1996-07-03 14:24:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/main.c	1996-07-12 22:36:47.000000000 +0800
+@@ -288,13 +288,13 @@
+     argc=1;
+     argv--;
+     argv[0] = ".";
+   }
+     
+ 
+-  flist = send_file_list(STDOUT_FILENO,recurse,argc,argv);
++  flist = send_file_list(STDOUT_FILENO,argc,argv);
+   send_files(flist,STDOUT_FILENO,STDIN_FILENO);
+   report(STDOUT_FILENO);
+   exit_cleanup(0);
+ }
+ 
+ 
+@@ -718,13 +718,13 @@
+ 
+     if (sender) {
+       if (cvs_exclude)
+ 	add_cvs_excludes();
+       if (delete_mode) 
+ 	send_exclude_list(f_out);
+-      flist = send_file_list(f_out,recurse,argc,argv);
++      flist = send_file_list(f_out,argc,argv);
+       if (verbose > 3) 
+ 	fprintf(FERROR,"file list sent\n");
+       send_files(flist,f_out,f_in);
+       if (verbose > 3)
+ 	fprintf(FERROR,"waiting on %d\n",pid);
+       waitpid(pid, &status, 0);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/match.c	1996-07-02 11:14:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/match.c	1996-07-12 22:34:44.000000000 +0800
+@@ -120,34 +120,12 @@
+   if (i != -1)
+     last_match = offset + s->sums[i].len;
+ 
+ }
+ 
+ 
+-static inline char *window_ptr(struct map_struct *buf,int off,int len)
+-{
+-  static char *p=NULL;
+-  static int p_len = 0;
+-  static int p_off = 0;  
+-
+-  if (off == 0) {
+-    p_off = 0;
+-    p_len = CHUNK_SIZE;
+-    p = map_ptr(buf,p_off,p_len);    
+-  }
+-
+-  while (off+len > p_off+p_len) {
+-    p_off += CHUNK_SIZE;
+-    p_len = CHUNK_SIZE;
+-    p = map_ptr(buf,p_off,p_len);  
+-  }
+-
+-  return(p + (off-p_off));
+-}
+-
+-
+ static void hash_search(int f,struct sum_struct *s,
+ 			struct map_struct *buf,off_t len)
+ {
+   int offset,j,k;
+   int end;
+   char sum2[SUM_LENGTH];
+@@ -156,13 +134,13 @@
+ 
+   if (verbose > 2)
+     fprintf(FERROR,"hash search b=%d len=%d\n",s->n,(int)len);
+ 
+   k = MIN(len, s->n);
+ 
+-  map = window_ptr(buf,0,k);
++  map = map_ptr(buf,0,k);
+ 
+   sum = get_checksum1(map, k);
+   s1 = sum & 0xFFFF;
+   s2 = sum >> 16;
+   if (verbose > 3)
+     fprintf(FERROR, "sum=%.8x k=%d\n", sum, k);
+@@ -194,21 +172,21 @@
+ 	  if (verbose > 3)
+ 	    fprintf(FERROR,"potential match at %d target=%d %d sum=%08x\n",
+ 		    offset,j,i,sum);
+ 
+ 	  if (!done_csum2) {
+ 	    int l = MIN(s->n,len-offset);
+-	    map = window_ptr(buf,offset,l);
++	    map = map_ptr(buf,offset,l);
+ 	    get_checksum2(map,l,sum2);
+ 	    done_csum2 = 1;
+ 	  }
+ 	  if (memcmp(sum2,s->sums[i].sum2,csum_length) == 0) {
+ 	    matched(f,s,buf,len,offset,i);
+ 	    offset += s->sums[i].len - 1;
+ 	    k = MIN((len-offset), s->n);
+-	    map = window_ptr(buf,offset,k);
++	    map = map_ptr(buf,offset,k);
+ 	    sum = get_checksum1(map, k);
+ 	    s1 = sum & 0xFFFF;
+ 	    s2 = sum >> 16;
+ 	    ++matches;
+ 	    break;
+ 	  } else {
+@@ -217,34 +195,34 @@
+ 	}
+ 	j++;
+       } while (j<s->count && targets[j].t == t);
+     }
+ 
+     /* Trim off the first byte from the checksum */
+-    map = window_ptr(buf,offset,k+1);
+-    s1 -= map[0];
+-    s2 -= k * map[0];
++    map = map_ptr(buf,offset,k+1);
++    s1 -= map[0] + CHAR_OFFSET;
++    s2 -= k * (map[0]+CHAR_OFFSET);
+ 
+     /* Add on the next byte (if there is one) to the checksum */
+     if (k < (len-offset)) {
+-      s1 += map[k];
++      s1 += (map[k]+CHAR_OFFSET);
+       s2 += s1;
+     } else {
+       --k;
+     }
+ 
+   } while (++offset < end);
+ 
+   matched(f,s,buf,len,len,-1);
+-  window_ptr(buf,len-1,1);
++  map_ptr(buf,len-1,1);
+ }
+ 
+ 
+ void match_sums(int f,struct sum_struct *s,struct map_struct *buf,off_t len)
+ {
+-  char file_sum[SUM_LENGTH];
++  char file_sum[MD4_SUM_LENGTH];
+ 
+   last_match = 0;
+   false_alarms = 0;
+   tag_hits = 0;
+   matches=0;
+   data_transfer=0;
+@@ -267,13 +245,13 @@
+ 
+   sum_end(file_sum);
+ 
+   if (remote_version >= 14) {
+     if (verbose > 2)
+       fprintf(FERROR,"sending file_sum\n");
+-    write_buf(f,file_sum,SUM_LENGTH);
++    write_buf(f,file_sum,MD4_SUM_LENGTH);
+   }
+ 
+   if (targets) {
+     free(targets);
+     targets=NULL;
+   }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/proto.h	1996-07-03 13:24:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/proto.h	1996-07-05 12:49:53.000000000 +0800
+@@ -19,13 +19,13 @@
+ void send_exclude_list(int f);
+ void recv_exclude_list(int f);
+ void add_cvs_excludes(void);
+ void send_file_entry_v11(struct file_struct *file,int f);
+ void receive_file_entry_v11(struct file_struct *file,
+ 			    unsigned char flags,int f);
+-struct file_list *send_file_list(int f,int recurse,int argc,char *argv[]);
++struct file_list *send_file_list(int f,int argc,char *argv[]);
+ struct file_list *recv_file_list(int f);
+ int file_compare(struct file_struct *f1,struct file_struct *f2);
+ int flist_find(struct file_list *flist,struct file_struct *f);
+ void clean_flist(struct file_list *flist);
+ void init_hard_links(struct file_list *flist);
+ int check_hard_link(struct file_struct *file);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/rsync.c	1996-07-03 13:24:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/rsync.c	1996-07-12 22:36:37.000000000 +0800
+@@ -254,13 +254,13 @@
+ void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
+ {  
+   int fd;
+   struct stat st;
+   struct map_struct *buf;
+   struct sum_struct *s;
+-  char sum[SUM_LENGTH];
++  char sum[MD4_SUM_LENGTH];
+   int statret;
+   struct file_struct *file = &flist->files[i];
+ 
+   if (verbose > 2)
+     fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);
+ 
+@@ -405,14 +405,14 @@
+ static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname)
+ {
+   int i,n,remainder,len,count;
+   off_t offset = 0;
+   off_t offset2;
+   char *data;
+-  static char file_sum1[SUM_LENGTH];
+-  static char file_sum2[SUM_LENGTH];
++  static char file_sum1[MD4_SUM_LENGTH];
++  static char file_sum2[MD4_SUM_LENGTH];
+   char *map=NULL;
+ 
+   count = read_int(f_in);
+   n = read_int(f_in);
+   remainder = read_int(f_in);
+ 
+@@ -459,16 +459,16 @@
+     exit_cleanup(1);
+   }
+ 
+   sum_end(file_sum1);
+ 
+   if (remote_version >= 14) {
+-    read_buf(f_in,file_sum2,SUM_LENGTH);
++    read_buf(f_in,file_sum2,MD4_SUM_LENGTH);
+     if (verbose > 2)
+       fprintf(FERROR,"got file_sum\n");
+-    if (memcmp(file_sum1,file_sum2,SUM_LENGTH) != 0)
++    if (memcmp(file_sum1,file_sum2,MD4_SUM_LENGTH) != 0)
+       return 0;
+   }
+   return 1;
+ }
+ 
+ 
+@@ -497,13 +497,13 @@
+   char *dot=".";
+   int i;
+ 
+   if (cvs_exclude)
+     add_cvs_excludes();
+ 
+-  if (!(local_file_list = send_file_list(-1,recurse,1,&dot)))
++  if (!(local_file_list = send_file_list(-1,1,&dot)))
+     return;
+ 
+   for (i=local_file_list->count;i>=0;i--) {
+     if (!local_file_list->files[i].name) continue;
+     if (-1 == flist_find(flist,&local_file_list->files[i])) {
+       delete_one(&local_file_list->files[i]);
+@@ -648,12 +648,14 @@
+ 
+       set_perms(fname,file,NULL,0);
+ 
+       if (!recv_ok) {
+ 	if (verbose > 1)
+ 	  fprintf(FERROR,"redoing %s(%d)\n",fname,i);
++        if (csum_length == SUM_LENGTH)
++	  fprintf(FERROR,"ERROR: file corruption in %s\n",fname);
+ 	write_int(f_gen,i);
+       }
+     }
+ 
+   if (verbose > 2)
+     fprintf(FERROR,"recv_files finished\n");
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/rsync.h	1996-07-02 09:28:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/rsync.h	1996-07-04 21:06:19.000000000 +0800
+@@ -20,12 +20,17 @@
+ #define BLOCK_SIZE 700
+ #define RSYNC_RSH_ENV "RSYNC_RSH"
+ #define RSYNC_RSH "rsh"
+ #define RSYNC_NAME "rsync"
+ #define BACKUP_SUFFIX "~"
+ 
++/* a non-zero CHAR_OFFSET makes the rolling sum stronger, but is
++   imcompatible with older versions :-( */
++#define CHAR_OFFSET 0
++
++
+ #define FILE_VALID 1
+ #define SAME_MODE (1<<1)
+ #define SAME_RDEV (1<<2)
+ #define SAME_UID (1<<3)
+ #define SAME_GID (1<<4)
+ #define SAME_DIR (1<<5)
+@@ -167,12 +172,13 @@
+ 
+ #ifndef MAX
+ #define MAX(a,b) ((a)>(b)?(a):(b))
+ #endif
+ 
+ /* the length of the md4 checksum */
++#define MD4_SUM_LENGTH 16
+ #define SUM_LENGTH 16
+ 
+ #ifndef MAXPATHLEN
+ #define MAXPATHLEN 1024
+ #endif
+ 
+@@ -185,13 +191,13 @@
+   dev_t rdev;
+   uid_t uid;
+   gid_t gid;
+   char *name;
+   char *dir;
+   char *link;
+-  char sum[SUM_LENGTH];
++  char sum[MD4_SUM_LENGTH];
+ };
+ 
+ struct file_list {
+   int count;
+   int malloced;
+   struct file_struct *files;
+@@ -199,13 +205,13 @@
+ 
+ struct sum_buf {
+   off_t offset;			/* offset in file of this chunk */
+   int len;			/* length of chunk of file */
+   int i;			/* index of this chunk */
+   uint32 sum1;	                /* simple checksum */
+-  char sum2[SUM_LENGTH];	/* md4 checksum  */
++  char sum2[SUM_LENGTH];	/* checksum  */
+ };
+ 
+ struct sum_struct {
+   off_t flength;		/* total file length */
+   int count;			/* how many chunks */
+   int remainder;		/* flength % block_length */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5/version.h	1996-07-03 14:24:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.5.1/version.h	1996-07-12 22:34:51.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.5.0"
++#define VERSION "1.5.1"

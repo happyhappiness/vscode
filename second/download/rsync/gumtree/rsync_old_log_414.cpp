@@ -1,0 +1,1 @@
+fprintf(FERROR,"protocol version mismatch - is your shell clean?\n");

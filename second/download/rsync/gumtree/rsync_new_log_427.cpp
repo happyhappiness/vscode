@@ -1,0 +1,1 @@
+rprintf(FINFO,"building file list ... ");

@@ -1,0 +1,1 @@
+fprintf(stderr,"fork: %s\n",strerror(errno));

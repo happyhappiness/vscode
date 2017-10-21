@@ -1,0 +1,1 @@
+fprintf(FERROR,"done hash search\n");

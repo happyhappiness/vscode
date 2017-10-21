@@ -1,0 +1,13 @@
+  fprintf(f,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);
+  fprintf(f,"Options:\n");
+  fprintf(f,"-v, --verbose            increase verbosity\n");
+  fprintf(f,"-c, --checksum           always checksum\n");
+  fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");
+  fprintf(f,"-r, --recursive          recurse into directories\n");
+  fprintf(f,"-R, --relative           use relative path names\n");
+  fprintf(f,"-b, --backup             make backups (default ~ extension)\n");
+  fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
+  fprintf(f,"-l, --links              preserve soft links\n");
+  fprintf(f,"-H, --hard-links         preserve hard links\n");
+  fprintf(f,"-p, --perms              preserve permissions\n");
+  fprintf(f,"-o, --owner              preserve owner (root only)\n");

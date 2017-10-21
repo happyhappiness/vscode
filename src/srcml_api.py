@@ -37,7 +37,7 @@ class SrcmlApi:
     @ involve find call in given loc and set log node
     """
     def set_log_loc(self, log_location):
-        log_location = str(log_location + 1) # from 1
+        log_location = log_location + 1 # from 1
         # iterates all call
         call_nodes = self.tree.findall('//default:call', namespaces=self.namespace_map)
         for call in call_nodes:
@@ -128,14 +128,8 @@ class SrcmlApi:
             for depended_line in depended_lines:
                 depended_info = depended_nodes[depended_line]
                 depended_node = depended_info[0]
-                depended_type = depended_info[1]
-                # call --name or type (--specifier) --name
-                # deal with nested ref type
-                while len(depended_node) <= 0:
-                    depended_node = depended_node.getparent().getprevious()[0]
-                    # print 'can not find name for depended node %s' %depended_node.tag
-                    # continue
-                # get children whose tag is name
+                depended_type = depended_info[1]                
+                # get children whose tag is name [call --name or type (--specifier) --name]
                 depended_sub_nodes = depended_node.getchildren()
                 for depended_sub_node in depended_sub_nodes:
                     if self._remove_prefix(depended_sub_node) == 'name':
@@ -191,7 +185,7 @@ class SrcmlApi:
                     if func_node is not None and self._remove_prefix(func_node) == 'call':
                         depended_nodes[candi_line] = [func_node, my_constant.VAR_FUNC_RETURN]
                         continue
-                # filter by call ----argument --------& --------name
+                # filter by call ----argument ------expr --------& --------name
                 argument_node = candi_node.getparent().getparent()
                 if argument_node is not None and self._remove_prefix(argument_node) == 'argument':
                     func_node = argument_node.getparent().getparent()
@@ -207,6 +201,9 @@ class SrcmlApi:
                 if init_node is not None and self._remove_prefix(init_node) == 'init':
                     # mark is pointer or not
                     type_node = candi_node.getprevious()
+                    # deal with nested ref type
+                    while len(type_node) <= 0:
+                        type_node = type_node.getparent().getprevious()[0]
                     is_ptr = self._is_pointer(type_node)
                     func_nodes = init_node.iterdescendants(tag='{'+self.namespace_map['default']+'}call')
                     if func_nodes is not None:
@@ -219,6 +216,9 @@ class SrcmlApi:
                 if decl_node is not None and self._remove_prefix(decl_node) == 'decl':
                     # mark is pointer or not
                     type_node = candi_node.getprevious()
+                    # deal with nested ref type
+                    while len(type_node) <= 0:
+                        type_node = type_node.getparent().getprevious()[0]
                     is_ptr = self._is_pointer(type_node)
                     depended_nodes[candi_line] = [decl_node[0], my_constant.VAR_TYPE]
                     continue
@@ -296,7 +296,7 @@ class SrcmlApi:
     """
     @ param node and history text
     @ return
-    @ involve text for this node(children whose line is not none)
+    @ involve text for this node(children whose test is not none)
     """
     def _get_text(self, node=None):
         content = ""
@@ -370,12 +370,12 @@ class SrcmlApi:
     @ involve get location if possible
     """
     def _get_location(self, node):
-        return node.attrib.values()[0]
+        return int(node.attrib.values()[0])
         
 if __name__ == "__main__":
     # input function cpp file
-    srcml_api = SrcmlApi('clang/hello.cpp')
-    if srcml_api.set_log_loc(33):
+    srcml_api = SrcmlApi('second/download/git/gumtree/git_function_1916.cpp')
+    if srcml_api.set_log_loc(31):
         if srcml_api.set_control_dependence():
             print srcml_api.get_control_info()
             print srcml_api.get_log_info()

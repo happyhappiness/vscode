@@ -1,0 +1,1 @@
+fprintf(FINFO,"make_file(%s)\n",fname);

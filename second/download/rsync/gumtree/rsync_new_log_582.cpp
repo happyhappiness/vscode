@@ -1,0 +1,1 @@
+rprintf(FERROR,"mktemp %s failed\n",fnametmp);

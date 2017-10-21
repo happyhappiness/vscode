@@ -1,0 +1,1 @@
+rprintf(FERROR,"recv_generator failed to open %s\n",fname);

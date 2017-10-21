@@ -1,0 +1,1 @@
+fprintf(stderr,"deleting %s\n",f->name);

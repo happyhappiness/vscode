@@ -1,0 +1,4662 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/acconfig.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/acconfig.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/acconfig.h	1998-05-10 15:40:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/acconfig.h	1998-07-17 22:46:51.000000000 +0800
+@@ -4,6 +4,7 @@
+ #undef HAVE_OFF64_T
+ #undef HAVE_REMSH
+ #undef HAVE_UNSIGNED_CHAR
+ #undef HAVE_UTIMBUF
+ #undef ino_t
+ #undef HAVE_CONNECT
++#undef HAVE_SHORT_INO_T
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/clientserver.c	1998-05-30 10:08:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/clientserver.c	1998-07-17 22:46:51.000000000 +0800
+@@ -129,15 +129,22 @@
+ 		io_printf(fd,"@ERROR: access denied to %s from %s (%s)\n",
+ 			  name, client_name(fd), client_addr(fd));
+ 		return -1;
+ 	}
+ 
+ 	if (!claim_connection(lp_lock_file(), lp_max_connections())) {
+-		rprintf(FERROR,"max connections (%d) reached\n",
+-			lp_max_connections());
+-		io_printf(fd,"@ERROR: max connections (%d) reached - try again later\n", lp_max_connections());
++		if (errno) {
++			rprintf(FERROR,"failed to open lock file %s : %s\n",
++				lp_lock_file(), strerror(errno));
++			io_printf(fd,"@ERROR: failed to open lock file %s : %s\n",
++				  lp_lock_file(), strerror(errno));
++		} else {
++			rprintf(FERROR,"max connections (%d) reached\n",
++				lp_max_connections());
++			io_printf(fd,"@ERROR: max connections (%d) reached - try again later\n", lp_max_connections());
++		}
+ 		return -1;
+ 	}
+ 
+ 	
+ 	user = auth_server(fd, i, addr, "@RSYNCD: AUTHREQD ");
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/compat.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/compat.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/compat.c	1998-05-27 21:54:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/compat.c	1998-07-17 22:46:51.000000000 +0800
+@@ -50,12 +50,13 @@
+ 		}
+ 	}
+ 
+ 	if (remote_version < MIN_PROTOCOL_VERSION ||
+ 	    remote_version > MAX_PROTOCOL_VERSION) {
+ 		rprintf(FERROR,"protocol version mismatch - is your shell clean?\n");
++		rprintf(FERROR,"(see the rsync man page for an explanation)\n");
+ 		exit_cleanup(1);
+ 	}	
+ 	
+ 	if (verbose > 2)
+ 		rprintf(FINFO, "local_version=%d remote_version=%d\n",
+ 			PROTOCOL_VERSION, remote_version);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/config.h.in	1998-06-18 18:30:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/config.h.in	1998-07-17 22:46:51.000000000 +0800
+@@ -48,12 +48,13 @@
+ #undef HAVE_OFF64_T
+ #undef HAVE_REMSH
+ #undef HAVE_UNSIGNED_CHAR
+ #undef HAVE_UTIMBUF
+ #undef ino_t
+ #undef HAVE_CONNECT
++#undef HAVE_SHORT_INO_T
+ 
+ /* The number of bytes in a int.  */
+ #undef SIZEOF_INT
+ 
+ /* The number of bytes in a long.  */
+ #undef SIZEOF_LONG
+@@ -100,15 +101,12 @@
+ /* Define if you have the munmap function.  */
+ #undef HAVE_MUNMAP
+ 
+ /* Define if you have the readlink function.  */
+ #undef HAVE_READLINK
+ 
+-/* Define if you have the setlinebuf function.  */
+-#undef HAVE_SETLINEBUF
+-
+ /* Define if you have the setsid function.  */
+ #undef HAVE_SETSID
+ 
+ /* Define if you have the strchr function.  */
+ #undef HAVE_STRCHR
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/configure	1998-06-18 18:30:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/configure	1998-07-17 22:46:51.000000000 +0800
+@@ -1938,13 +1938,13 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+-for ac_func in memmove getopt_long lchown setlinebuf vsnprintf setsid glob strpbrk
++for ac_func in memmove getopt_long lchown vsnprintf setsid glob strpbrk
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ echo "configure:1948: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+@@ -2073,23 +2073,51 @@
+   echo no
+ fi
+ rm -fr conftest*
+ fi
+ 
+ 
+-echo $ac_n "checking for unsigned char ... $ac_c"
++echo $ac_n "checking for short ino_t ... $ac_c"
+ if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+ #line 2085 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++main() { if (sizeof(ino_t) < sizeof(unsigned int)) return 0; return 1; }
++EOF
++if { (eval echo configure:2092: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
++then
++  echo yes;cat >> confdefs.h <<\EOF
++#define HAVE_SHORT_INO_T 1
++EOF
++
++else
++  echo "configure: failed program was:" >&5
++  cat conftest.$ac_ext >&5
++  rm -fr conftest*
++  echo no
++fi
++rm -fr conftest*
++fi
++
++
++echo $ac_n "checking for unsigned char ... $ac_c"
++if test "$cross_compiling" = yes; then
++    { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
++else
++  cat > conftest.$ac_ext <<EOF
++#line 2113 "configure"
++#include "confdefs.h"
++#include <stdio.h>
+ main() { char c; c=250; exit((c > 0)?0:1); }
+ EOF
+-if { (eval echo configure:2090: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2118: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
+ then
+   echo yes;cat >> confdefs.h <<\EOF
+ #define HAVE_UNSIGNED_CHAR 1
+ EOF
+ 
+ else
+@@ -2104,21 +2132,21 @@
+ 
+ echo $ac_n "checking for broken readdir ... $ac_c"
+ if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2111 "configure"
++#line 2139 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <dirent.h>
+ main() { struct dirent *di; DIR *d = opendir("."); di = readdir(d);
+ if (di && di->d_name[-2] == '.' && di->d_name[-1] == 0 &&
+ di->d_name[0] == 0) return 0; return 1;} 
+ EOF
+-if { (eval echo configure:2119: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2147: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
+ then
+   echo yes - you are using the broken /usr/ucb/cc;cat >> confdefs.h <<\EOF
+ #define HAVE_BROKEN_READDIR 1
+ EOF
+ 
+ else
+@@ -2130,21 +2158,21 @@
+ rm -fr conftest*
+ fi
+ 
+ 
+ echo $ac_n "checking for utimbuf ... $ac_c"
+ cat > conftest.$ac_ext <<EOF
+-#line 2137 "configure"
++#line 2165 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <utime.h>
+ int main() {
+ struct utimbuf tbuf;  tbuf.actime = 0; tbuf.modtime = 1; return utime("foo.c",&tbuf);
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2145: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:2173: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   echo yes;cat >> confdefs.h <<\EOF
+ #define HAVE_UTIMBUF 1
+ EOF
+ 
+ else
+@@ -2159,18 +2187,18 @@
+ # If we can't find connect, try looking in -lsocket, -lnsl, and -linet.
+ # The Irix 5 libc.so has connect and gethostbyname, but Irix 5 also has
+ # libsocket.so which has a bad implementation of gethostbyname (it
+ # only looks in /etc/hosts), so we only look for -lsocket if we need
+ # it.
+ echo $ac_n "checking for connect""... $ac_c" 1>&6
+-echo "configure:2166: checking for connect" >&5
++echo "configure:2194: checking for connect" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_connect'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2171 "configure"
++#line 2199 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char connect(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2187,13 +2215,13 @@
+ #else
+ connect();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2194: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:2222: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_func_connect=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2207,32 +2235,32 @@
+   :
+ else
+   echo "$ac_t""no" 1>&6
+ case "$LIBS" in
+ *-lnsl*) ;;
+ *) echo $ac_n "checking for printf in -lnsl_s""... $ac_c" 1>&6
+-echo "configure:2214: checking for printf in -lnsl_s" >&5
++echo "configure:2242: checking for printf in -lnsl_s" >&5
+ ac_lib_var=`echo nsl_s'_'printf | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lnsl_s  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2222 "configure"
++#line 2250 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char printf();
+ 
+ int main() {
+ printf()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2233: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:2261: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2257,32 +2285,32 @@
+ fi
+  ;;
+ esac
+ case "$LIBS" in
+ *-lnsl*) ;;
+ *) echo $ac_n "checking for printf in -lnsl""... $ac_c" 1>&6
+-echo "configure:2264: checking for printf in -lnsl" >&5
++echo "configure:2292: checking for printf in -lnsl" >&5
+ ac_lib_var=`echo nsl'_'printf | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lnsl  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2272 "configure"
++#line 2300 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char printf();
+ 
+ int main() {
+ printf()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2283: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:2311: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2307,32 +2335,32 @@
+ fi
+  ;;
+ esac
+ case "$LIBS" in
+ *-lsocket*) ;;
+ *) echo $ac_n "checking for connect in -lsocket""... $ac_c" 1>&6
+-echo "configure:2314: checking for connect in -lsocket" >&5
++echo "configure:2342: checking for connect in -lsocket" >&5
+ ac_lib_var=`echo socket'_'connect | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lsocket  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2322 "configure"
++#line 2350 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char connect();
+ 
+ int main() {
+ connect()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2333: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:2361: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2357,32 +2385,32 @@
+ fi
+  ;;
+ esac
+ case "$LIBS" in
+ *-linet*) ;;
+ *) echo $ac_n "checking for connect in -linet""... $ac_c" 1>&6
+-echo "configure:2364: checking for connect in -linet" >&5
++echo "configure:2392: checking for connect in -linet" >&5
+ ac_lib_var=`echo inet'_'connect | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-linet  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2372 "configure"
++#line 2400 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char connect();
+ 
+ int main() {
+ connect()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2383: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:2411: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/configure.in	1998-06-18 18:30:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/configure.in	1998-07-17 22:46:51.000000000 +0800
+@@ -38,13 +38,13 @@
+ echo no)
+ 
+ AC_FUNC_MEMCMP
+ AC_FUNC_UTIME_NULL
+ AC_CHECK_FUNCS(mmap munmap waitpid getcwd strdup strerror chown chmod mknod)
+ AC_CHECK_FUNCS(fchmod fstat strchr readlink link utime utimes)
+-AC_CHECK_FUNCS(memmove getopt_long lchown setlinebuf vsnprintf setsid glob strpbrk)
++AC_CHECK_FUNCS(memmove getopt_long lchown vsnprintf setsid glob strpbrk)
+ 
+ echo $ac_n "checking for working fnmatch... $ac_c"
+ AC_TRY_RUN([#include <fnmatch.h>
+ main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }],
+ echo yes;AC_DEFINE(HAVE_FNMATCH), 
+ echo no)
+@@ -59,12 +59,20 @@
+ AC_TRY_RUN([#include <stdio.h>
+ #include <sys/stat.h>
+ main() { struct stat64 st; off64_t s; if (sizeof(off_t) == sizeof(off64_t)) return 1; exit((lstat64("/dev/null", &st)==0)?0:1); }],
+ echo yes;AC_DEFINE(HAVE_OFF64_T), 
+ echo no)
+ 
++echo $ac_n "checking for short ino_t ... $ac_c"
++AC_TRY_RUN([#include <stdio.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++main() { if (sizeof(ino_t) < sizeof(unsigned int)) return 0; return 1; }],
++echo yes;AC_DEFINE(HAVE_SHORT_INO_T), 
++echo no)
++
+ echo $ac_n "checking for unsigned char ... $ac_c"
+ AC_TRY_RUN([#include <stdio.h>
+ main() { char c; c=250; exit((c > 0)?0:1); }],
+ echo yes;AC_DEFINE(HAVE_UNSIGNED_CHAR), 
+ echo no)
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/connection.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/connection.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/connection.c	1998-05-13 17:38:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/connection.c	1998-07-17 22:46:51.000000000 +0800
+@@ -26,21 +26,24 @@
+ int claim_connection(char *fname,int max_connections)
+ {
+ 	int fd, i;
+ 
+ 	if (max_connections <= 0)
+ 		return 1;
+-	
++
+ 	fd = open(fname,O_RDWR|O_CREAT, 0600);
+ 
+ 	if (fd == -1) {
+ 		return 0;
+ 	}
+ 
+ 	/* find a free spot */
+ 	for (i=0;i<max_connections;i++) {
+ 		if (lock_range(fd, i*4, 4)) return 1;
+ 	}		
+ 
++	/* only interested in open failures */
++	errno = 0;
++
+ 	close(fd);
+ 	return 0;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/cvs.log	1998-06-18 21:28:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/cvs.log	1998-07-17 22:53:10.000000000 +0800
+@@ -5740,6 +5740,568 @@
+ 	rsync.c 
+ Log Message:
+ fixed chmod bug pointed out by Han Holl <jeholl@euronet.nl>
+ 
+ 
+ 
++
++****************************************
++Date:	Friday June 19, 1998 @ 0:15
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv18205
++
++Modified Files:
++	Makefile.in 
++Log Message:
++use LDFLAGS in Makefile.in (fix from arndt@schoenewald.de)
++
++
++
++****************************************
++Date:	Friday June 19, 1998 @ 10:55
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv13069
++
++Modified Files:
++	io.c 
++Log Message:
++if we get EWOULDBLOCK on a write then reduce the amount of data we are
++trying to write. This guarantees that the maximum amount of data that
++can be written at any one time is written.
++
++
++
++
++
++
++****************************************
++Date:	Wednesday July 1, 1998 @ 13:36
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv18921
++
++Modified Files:
++	main.c options.c rsync.1 rsync.c rsync.yo 
++Log Message:
++added a --partial option which tells rsync to keep partially
++transferred files if the transfer is interrupted.
++
++added a "options summary" section to the man page
++
++
++
++****************************************
++Date:	Wednesday July 1, 1998 @ 15:10
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv4674
++
++Modified Files:
++	socket.c 
++Log Message:
++I've had reports of rsyncd leaving zombies under digital unix. This
++patch tries to address the problem in two ways:
++
++1) reinstall the SIGCHLD handler before each fork
++2) reap any children not caught by the handler using waitpid with
++WNOHANG.
++
++I expect this will fix the problem.
++
++
++
++****************************************
++Date:	Wednesday July 1, 1998 @ 21:03
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv13678
++
++Modified Files:
++	rsync.c 
++Log Message:
++- only keep a partial file if some literal data has been transferred,
++this prevents a second interrupted transfer from reducing the size of
++the transferred file.
++
++- set SIGUSR1 to SIG_IGN early to prevent a race condition that
++prevents the --partial code from working properly
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 10:47
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv13766
++
++Modified Files:
++	log.c match.c options.c proto.h rsync.1 rsync.c rsync.yo 
++	util.c 
++Log Message:
++added --progress option which shows the progress of transfers. This
++gives bored users something to watch.
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 10:48
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv5948
++
++Modified Files:
++	options.c 
++Log Message:
++don't need to send --progress option to server as the server never
++prints progress info.
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 11:27
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv6719
++
++Modified Files:
++	main.c 
++Log Message:
++enable output buffering in the recv generator. This makes a
++significant difference when the transport is ssh as ssh will otherwise
++output a complete frame for each checksum record, which increases the
++checksum data in size by a factor of around 4.
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 11:27
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv9927
++
++Modified Files:
++	rsync.c 
++Log Message:
++the recv_generator can be static
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 11:28
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv10865
++
++Modified Files:
++	util.c 
++Log Message:
++output progress % every 1k instead of every 1%, this is better for
++large files.
++
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 11:28
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv8981
++
++Modified Files:
++	proto.h 
++Log Message:
++updated prototypes
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 12:08
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv13398
++
++Modified Files:
++	main.c match.c 
++Log Message:
++- don't show "created directory" message unless verbose is selected
++
++- check for null buf in show_progress
++
++
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 12:48
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv11314
++
++Modified Files:
++	io.c 
++Log Message:
++fix the problem of --timeout waiting for twice the specified time.
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 12:59
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv11136
++
++Modified Files:
++	io.c 
++Log Message:
++prioritise reading over writing in the select loop. (this is another
++ssh-friendly attempt)
++
++
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 13:02
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv14878
++
++Modified Files:
++	io.c 
++Log Message:
++remove a redundent continue statement
++
++
++
++
++
++
++****************************************
++Date:	Thursday July 2, 1998 @ 20:57
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv22431
++
++Modified Files:
++	config.h.in configure configure.in log.c main.c 
++Log Message:
++- use explicit flushes instead of setlinebuf. I've had reports of
++  verbose info not being line buffered to files.
++
++- add a call to localtime() in open_log() in order to prime the C
++  libraries timezone cache before the chroot(). This should fix the
++  problem of rsyncd log entries being in GMT time.
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 15:37
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv28171
++
++Modified Files:
++	clientserver.c connection.c 
++Log Message:
++use error to detect lockfile open failures vs. max connections reached
++and report an appropriate error message
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 15:37
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv26534
++
++Modified Files:
++	io.c 
++Log Message:
++code style change
++
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 15:38
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv26404
++
++Modified Files:
++	main.c 
++Log Message:
++remove a useless debug message
++
++
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 15:38
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv26771
++
++Modified Files:
++	proto.h rsync.c 
++Log Message:
++make a function static
++
++
++
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 17:07
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv2167
++
++Modified Files:
++	main.c options.c rsync.c 
++Log Message:
++fixed a problem with rsync buffering the debug output when redirected
++to a file.
++
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 17:17
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv38
++
++Modified Files:
++	rsync.h 
++Log Message:
++moved getopt.h above unistd.h to prevent problems with uwin on NT
++
++
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 17:25
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv20084
++
++Modified Files:
++	io.c 
++Log Message:
++changed wording of an error message
++
++
++
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 17:26
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv1896
++
++Modified Files:
++	Makefile.in 
++Log Message:
++removed old "make dist" target
++
++
++
++
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 17:42
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv4665
++
++Modified Files:
++	rsync.c 
++Log Message:
++some code reformatting
++
++
++
++
++
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 20:00
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv12086
++
++Modified Files:
++	options.c proto.h rsync.1 rsync.c rsync.yo util.c 
++Log Message:
++added the --safe-links option to disallow symlinks outside the
++destination tree
++
++
++
++
++
++
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 20:02
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv7073
++
++Modified Files:
++	rsync.1 rsync.yo 
++Log Message:
++added the --safe-links option to disallow symlinks outside the
++destination tree
++
++
++
++
++
++
++
++
++
++****************************************
++Date:	Friday July 17, 1998 @ 23:18
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv18468
++
++Modified Files:
++	flist.c rsync.c 
++Log Message:
++make rsync behave more like GNU cp with regard to file permissions
++when -p (preserve permissions) isn't set.
++
++It works by taking the sending file permissions and masking them with
++the umask to create the destination file permissions. (There is really
++no "correct" way of doing this but at least we now behave like GNU cp
++which fits the principle of least surprise.)
++
++also fixed a race condition in copy_file()
++
++
++
++
++
++
++
++
++
++
++
++
++
++****************************************
++Date:	Saturday July 18, 1998 @ 0:05
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv17091
++
++Modified Files:
++	main.c 
++Log Message:
++check whether there is a / before a : in the rsync command line. If
++there is then assume that the : is from a filename, not a host:dir
++separator. This allows you to copy files with a : in them. (suggestion
++from pfeifer@wait.de)
++
++
++
++****************************************
++Date:	Saturday July 18, 1998 @ 0:25
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv24050
++
++Modified Files:
++	compat.c rsync.1 rsync.yo 
++Log Message:
++added a bit in the man page about the clean shell error
++
++
++
++****************************************
++Date:	Saturday July 18, 1998 @ 0:43
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv19756
++
++Modified Files:
++	acconfig.h config.h.in configure configure.in rsync.c rsync.h 
++Log Message:
++handle hard links on systems with 16 bit ino_t
++
++
++
++
++****************************************
++Date:	Saturday July 18, 1998 @ 0:53
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.19
++
++
++****************************************
++Date:	Saturday July 18, 1998 @ 0:53
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.0.19
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/flist.c	1998-06-18 18:30:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/flist.c	1998-07-17 22:46:51.000000000 +0800
+@@ -91,203 +91,210 @@
+ 
+ static char *flist_dir;
+ 
+ 
+ void send_file_entry(struct file_struct *file,int f,unsigned base_flags)
+ {
+-  unsigned char flags;
+-  static time_t last_time;
+-  static mode_t last_mode;
+-  static dev_t last_rdev;
+-  static uid_t last_uid;
+-  static gid_t last_gid;
+-  static char lastname[MAXPATHLEN];
+-  char *fname;
+-  int l1,l2;
+-
+-  if (f == -1) return;
+-
+-  if (!file) {
+-    write_byte(f,0);
+-    return;
+-  }
+-
+-  fname = f_name(file);
+-
+-  flags = base_flags;
+-
+-  if (file->mode == last_mode) flags |= SAME_MODE;
+-  if (file->rdev == last_rdev) flags |= SAME_RDEV;
+-  if (file->uid == last_uid) flags |= SAME_UID;
+-  if (file->gid == last_gid) flags |= SAME_GID;
+-  if (file->modtime == last_time) flags |= SAME_TIME;
+-
+-  for (l1=0;lastname[l1] && (fname[l1] == lastname[l1]) && (l1 < 255);l1++) ;  
+-  l2 = strlen(fname) - l1;
+-
+-  if (l1 > 0) flags |= SAME_NAME;
+-  if (l2 > 255) flags |= LONG_NAME;
+-
+-  /* we must make sure we don't send a zero flags byte or the other
+-     end will terminate the flist transfer */
+-  if (flags == 0 && !S_ISDIR(file->mode)) flags |= FLAG_DELETE;
+-  if (flags == 0) flags |= LONG_NAME;
+-
+-  write_byte(f,flags);  
+-  if (flags & SAME_NAME)
+-    write_byte(f,l1);
+-  if (flags & LONG_NAME)
+-    write_int(f,l2);
+-  else
+-    write_byte(f,l2);
+-  write_buf(f,fname+l1,l2);
+-
+-  write_longint(f,file->length);
+-  if (!(flags & SAME_TIME))
+-    write_int(f,(int)file->modtime);
+-  if (!(flags & SAME_MODE))
+-    write_int(f,(int)file->mode);
+-  if (preserve_uid && !(flags & SAME_UID)) {
+-	  add_uid(file->uid);
+-	  write_int(f,(int)file->uid);
+-  }
+-  if (preserve_gid && !(flags & SAME_GID)) {
+-	  add_gid(file->gid);
+-	  write_int(f,(int)file->gid);
+-  }
+-  if (preserve_devices && IS_DEVICE(file->mode) && !(flags & SAME_RDEV))
+-    write_int(f,(int)file->rdev);
++	unsigned char flags;
++	static time_t last_time;
++	static mode_t last_mode;
++	static dev_t last_rdev;
++	static uid_t last_uid;
++	static gid_t last_gid;
++	static char lastname[MAXPATHLEN];
++	char *fname;
++	int l1,l2;
++
++	if (f == -1) return;
++
++	if (!file) {
++		write_byte(f,0);
++		return;
++	}
++
++	fname = f_name(file);
++
++	flags = base_flags;
++
++	if (file->mode == last_mode) flags |= SAME_MODE;
++	if (file->rdev == last_rdev) flags |= SAME_RDEV;
++	if (file->uid == last_uid) flags |= SAME_UID;
++	if (file->gid == last_gid) flags |= SAME_GID;
++	if (file->modtime == last_time) flags |= SAME_TIME;
++
++	for (l1=0;lastname[l1] && (fname[l1] == lastname[l1]) && (l1 < 255);l1++) ;  
++	l2 = strlen(fname) - l1;
++
++	if (l1 > 0) flags |= SAME_NAME;
++	if (l2 > 255) flags |= LONG_NAME;
++
++	/* we must make sure we don't send a zero flags byte or the other
++	   end will terminate the flist transfer */
++	if (flags == 0 && !S_ISDIR(file->mode)) flags |= FLAG_DELETE;
++	if (flags == 0) flags |= LONG_NAME;
++
++	write_byte(f,flags);  
++	if (flags & SAME_NAME)
++		write_byte(f,l1);
++	if (flags & LONG_NAME)
++		write_int(f,l2);
++	else
++		write_byte(f,l2);
++	write_buf(f,fname+l1,l2);
++
++	write_longint(f,file->length);
++	if (!(flags & SAME_TIME))
++		write_int(f,(int)file->modtime);
++	if (!(flags & SAME_MODE))
++		write_int(f,(int)file->mode);
++	if (preserve_uid && !(flags & SAME_UID)) {
++		add_uid(file->uid);
++		write_int(f,(int)file->uid);
++	}
++	if (preserve_gid && !(flags & SAME_GID)) {
++		add_gid(file->gid);
++		write_int(f,(int)file->gid);
++	}
++	if (preserve_devices && IS_DEVICE(file->mode) && !(flags & SAME_RDEV))
++		write_int(f,(int)file->rdev);
+ 
+ #if SUPPORT_LINKS
+-  if (preserve_links && S_ISLNK(file->mode)) {
+-    write_int(f,strlen(file->link));
+-    write_buf(f,file->link,strlen(file->link));
+-  }
++	if (preserve_links && S_ISLNK(file->mode)) {
++		write_int(f,strlen(file->link));
++		write_buf(f,file->link,strlen(file->link));
++	}
+ #endif
+ 
+ #if SUPPORT_HARD_LINKS
+-  if (preserve_hard_links && S_ISREG(file->mode)) {
+-    write_int(f,(int)file->dev);
+-    write_int(f,(int)file->inode);
+-  }
++	if (preserve_hard_links && S_ISREG(file->mode)) {
++		write_int(f,(int)file->dev);
++		write_int(f,(int)file->inode);
++	}
+ #endif
+ 
+-  if (always_checksum) {
+-	  write_buf(f,file->sum,csum_length);
+-  }       
+-
+-  last_mode = file->mode;
+-  last_rdev = file->rdev;
+-  last_uid = file->uid;
+-  last_gid = file->gid;
+-  last_time = file->modtime;
++	if (always_checksum) {
++		write_buf(f,file->sum,csum_length);
++	}       
++
++	last_mode = file->mode;
++	last_rdev = file->rdev;
++	last_uid = file->uid;
++	last_gid = file->gid;
++	last_time = file->modtime;
+ 
+-  strlcpy(lastname,fname,MAXPATHLEN-1);
+-  lastname[MAXPATHLEN-1] = 0;
++	strlcpy(lastname,fname,MAXPATHLEN-1);
++	lastname[MAXPATHLEN-1] = 0;
+ }
+ 
+ 
+ 
+ static void receive_file_entry(struct file_struct **fptr,
+ 			       unsigned flags,int f)
+ {
+-  static time_t last_time;
+-  static mode_t last_mode;
+-  static dev_t last_rdev;
+-  static uid_t last_uid;
+-  static gid_t last_gid;
+-  static char lastname[MAXPATHLEN];
+-  char thisname[MAXPATHLEN];
+-  int l1=0,l2=0;
+-  char *p;
+-  struct file_struct *file;
++	static time_t last_time;
++	static mode_t last_mode;
++	static dev_t last_rdev;
++	static uid_t last_uid;
++	static gid_t last_gid;
++	static char lastname[MAXPATHLEN];
++	char thisname[MAXPATHLEN];
++	int l1=0,l2=0;
++	char *p;
++	struct file_struct *file;
+ 
+-  if (flags & SAME_NAME)
+-    l1 = read_byte(f);
++	if (flags & SAME_NAME)
++		l1 = read_byte(f);
+   
+-  if (flags & LONG_NAME)
+-    l2 = read_int(f);
+-  else
+-    l2 = read_byte(f);
+-
+-  file = (struct file_struct *)malloc(sizeof(*file));
+-  if (!file) out_of_memory("receive_file_entry");
+-  memset((char *)file, 0, sizeof(*file));
+-  (*fptr) = file;
+-
+-  if (l2 >= MAXPATHLEN-l1) overflow("receive_file_entry");
+-
+-  strlcpy(thisname,lastname,l1);
+-  read_sbuf(f,&thisname[l1],l2);
+-  thisname[l1+l2] = 0;
+-
+-  strlcpy(lastname,thisname,MAXPATHLEN-1);
+-  lastname[MAXPATHLEN-1] = 0;
+-
+-  clean_fname(thisname);
+-
+-  if (relative_paths && thisname[0] == '/') {
+-	  /* strip / off absolute paths in destination */
+-	  memmove(thisname, thisname+1, strlen(thisname));
+-	  if (!thisname[0]) strcpy(thisname,".");
+-  }
+-
+-  if ((p = strrchr(thisname,'/'))) {
+-	  static char *lastdir;
+-	  *p = 0;
+-	  if (lastdir && strcmp(thisname, lastdir)==0) {
+-		  file->dirname = lastdir;
+-	  } else {
+-		  file->dirname = strdup(thisname);
+-		  lastdir = file->dirname;
+-	  }
+-	  file->basename = strdup(p+1);
+-  } else {
+-	  file->dirname = NULL;
+-	  file->basename = strdup(thisname);
+-  }
+-
+-  if (!file->basename) out_of_memory("receive_file_entry 1");
+-
+-
+-  file->flags = flags;
+-  file->length = read_longint(f);
+-  file->modtime = (flags & SAME_TIME) ? last_time : (time_t)read_int(f);
+-  file->mode = (flags & SAME_MODE) ? last_mode : (mode_t)read_int(f);
+-  if (preserve_uid)
+-    file->uid = (flags & SAME_UID) ? last_uid : (uid_t)read_int(f);
+-  if (preserve_gid)
+-    file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
+-  if (preserve_devices && IS_DEVICE(file->mode))
+-    file->rdev = (flags & SAME_RDEV) ? last_rdev : (dev_t)read_int(f);
+-
+-  if (preserve_links && S_ISLNK(file->mode)) {
+-    int l = read_int(f);
+-    file->link = (char *)malloc(l+1);
+-    if (!file->link) out_of_memory("receive_file_entry 2");
+-    read_sbuf(f,file->link,l);
+-  }
++	if (flags & LONG_NAME)
++		l2 = read_int(f);
++	else
++		l2 = read_byte(f);
++
++	file = (struct file_struct *)malloc(sizeof(*file));
++	if (!file) out_of_memory("receive_file_entry");
++	memset((char *)file, 0, sizeof(*file));
++	(*fptr) = file;
++
++	if (l2 >= MAXPATHLEN-l1) overflow("receive_file_entry");
++
++	strlcpy(thisname,lastname,l1);
++	read_sbuf(f,&thisname[l1],l2);
++	thisname[l1+l2] = 0;
++
++	strlcpy(lastname,thisname,MAXPATHLEN-1);
++	lastname[MAXPATHLEN-1] = 0;
++
++	clean_fname(thisname);
++
++	if (relative_paths && thisname[0] == '/') {
++		/* strip / off absolute paths in destination */
++		memmove(thisname, thisname+1, strlen(thisname));
++		if (!thisname[0]) strcpy(thisname,".");
++	}
++
++	if ((p = strrchr(thisname,'/'))) {
++		static char *lastdir;
++		*p = 0;
++		if (lastdir && strcmp(thisname, lastdir)==0) {
++			file->dirname = lastdir;
++		} else {
++			file->dirname = strdup(thisname);
++			lastdir = file->dirname;
++		}
++		file->basename = strdup(p+1);
++	} else {
++		file->dirname = NULL;
++		file->basename = strdup(thisname);
++	}
++
++	if (!file->basename) out_of_memory("receive_file_entry 1");
++
++
++	file->flags = flags;
++	file->length = read_longint(f);
++	file->modtime = (flags & SAME_TIME) ? last_time : (time_t)read_int(f);
++	file->mode = (flags & SAME_MODE) ? last_mode : (mode_t)read_int(f);
++	if (preserve_uid)
++		file->uid = (flags & SAME_UID) ? last_uid : (uid_t)read_int(f);
++	if (preserve_gid)
++		file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
++	if (preserve_devices && IS_DEVICE(file->mode))
++		file->rdev = (flags & SAME_RDEV) ? last_rdev : (dev_t)read_int(f);
++
++	if (preserve_links && S_ISLNK(file->mode)) {
++		int l = read_int(f);
++		file->link = (char *)malloc(l+1);
++		if (!file->link) out_of_memory("receive_file_entry 2");
++		read_sbuf(f,file->link,l);
++	}
+ 
+ #if SUPPORT_HARD_LINKS
+-  if (preserve_hard_links && S_ISREG(file->mode)) {
+-    file->dev = read_int(f);
+-    file->inode = read_int(f);
+-  }
++	if (preserve_hard_links && S_ISREG(file->mode)) {
++		file->dev = read_int(f);
++		file->inode = read_int(f);
++	}
+ #endif
+   
+-  if (always_checksum) {
+-	  file->sum = (char *)malloc(MD4_SUM_LENGTH);
+-	  if (!file->sum) out_of_memory("md4 sum");
+-	  read_buf(f,file->sum,csum_length);
+-  }
++	if (always_checksum) {
++		file->sum = (char *)malloc(MD4_SUM_LENGTH);
++		if (!file->sum) out_of_memory("md4 sum");
++		read_buf(f,file->sum,csum_length);
++	}
+   
+-  last_mode = file->mode;
+-  last_rdev = file->rdev;
+-  last_uid = file->uid;
+-  last_gid = file->gid;
+-  last_time = file->modtime;
++	last_mode = file->mode;
++	last_rdev = file->rdev;
++	last_uid = file->uid;
++	last_gid = file->gid;
++	last_time = file->modtime;
++
++	if (!preserve_perms) {
++		extern int orig_umask;
++		/* set an appropriate set of permissions based on original
++		   permissions and umask. This emulates what GNU cp does */
++		file->mode &= ~orig_umask;
++	}
+ }
+ 
+ 
+ /* determine if a file in a different filesstem should be skipped
+    when one_file_system is set. We bascally only want to include
+    the mount points - but they can be hard to find! */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/io.c	1998-06-18 18:30:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/io.c	1998-07-17 22:46:51.000000000 +0800
+@@ -51,14 +51,14 @@
+ 		last_io = time(NULL);
+ 		return;
+ 	}
+ 
+ 	t = time(NULL);
+ 
+-	if (last_io && io_timeout && (t-last_io)>io_timeout) {
+-		rprintf(FERROR,"read timeout after %d second - exiting\n", 
++	if (last_io && io_timeout && (t-last_io) >= io_timeout) {
++		rprintf(FERROR,"io timeout after %d second - exiting\n", 
+ 			(int)(t-last_io));
+ 		exit_cleanup(1);
+ 	}
+ }
+ 
+ 
+@@ -116,13 +116,13 @@
+ 			u_sleep(100);
+ 			continue;
+ 		}
+ 
+ 		if (n == 0) {
+ 			if (eof_error) {
+-				rprintf(FERROR,"EOF in read_timeout\n");
++				rprintf(FERROR,"unexpected EOF in read_timeout\n");
+ 			}
+ 			exit_cleanup(1);
+ 		}
+ 
+ 		rprintf(FERROR,"read error: %s\n", strerror(errno));
+ 		exit_cleanup(1);
+@@ -235,13 +235,13 @@
+    have been read. If all N can't be read then exit with an error */
+ static void readfd(int fd,char *buffer,int N)
+ {
+ 	int  ret;
+ 	int total=0;  
+ 	
+-	if (read_buffer_len < N && N < 1024) {
++	if ((read_buffer_len < N) && (N < 1024)) {
+ 		read_check(buffer_f_in);
+ 	}
+ 	
+ 	while (total < N) {
+ 		if (read_buffer_len > 0 && buffer_f_in == fd) {
+ 			ret = MIN(read_buffer_len,N-total);
+@@ -316,23 +316,25 @@
+ {
+ 	int total = 0;
+ 	fd_set w_fds, r_fds;
+ 	int fd_count, count;
+ 	struct timeval tv;
+ 	int reading;
++	int blocked=0;
+ 
+ 	no_flush++;
+ 
+-	reading = (buffer_f_in != -1 && read_buffer_len < MAX_READ_BUFFER);
+-
+ 	while (total < len) {
+ 		FD_ZERO(&w_fds);
+ 		FD_ZERO(&r_fds);
+ 		FD_SET(fd,&w_fds);
+ 		fd_count = fd+1;
+ 
++		reading = (buffer_f_in != -1 && 
++			   read_buffer_len < MAX_READ_BUFFER);
++
+ 		if (reading) {
+ 			FD_SET(buffer_f_in,&r_fds);
+ 			if (buffer_f_in > fd) 
+ 				fd_count = buffer_f_in+1;
+ 		}
+ 
+@@ -346,43 +348,41 @@
+ 
+ 		if (count <= 0) {
+ 			check_timeout();
+ 			continue;
+ 		}
+ 
++		if (reading && FD_ISSET(buffer_f_in, &r_fds)) {
++			read_check(buffer_f_in);
++		}
++
+ 		if (FD_ISSET(fd, &w_fds)) {
+-			int ret = write(fd,buf+total,len-total);
++			int n = (len-total)>>blocked;
++			int ret = write(fd,buf+total,n?n:1);
+ 
+ 			if (ret == -1 && errno == EINTR) {
+ 				continue;
+ 			}
+ 
+ 			if (ret == -1 && 
+ 			    (errno == EAGAIN || errno == EWOULDBLOCK)) {
+-				/* this shouldn't happen, if it does then
+-				   sleep for a short time to prevent us
+-				   chewing too much CPU */
+-				u_sleep(100);
++				blocked++;
+ 				continue;
+ 			}
+ 
+ 			if (ret <= 0) {
+ 				rprintf(FERROR,"erroring writing %d bytes - exiting\n", len);
+ 				exit_cleanup(1);
+ 			}
+ 
++			blocked = 0;
+ 			total += ret;
+ 			stats.total_written += ret;
+ 
+ 			if (io_timeout)
+ 				last_io = time(NULL);
+-			continue;
+-		}
+-
+-		if (reading && FD_ISSET(buffer_f_in, &r_fds)) {
+-			read_check(buffer_f_in);
+ 		}
+ 	}
+ 
+ 	no_flush--;
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/log.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/log.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/log.c	1998-05-18 18:30:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/log.c	1998-07-17 22:46:51.000000000 +0800
+@@ -25,12 +25,13 @@
+ 
+ 
+ void log_open(void)
+ {
+ 	static int initialised;
+ 	int options = LOG_PID;
++	time_t t;
+ 
+ 	if (initialised) return;
+ 	initialised = 1;
+ 
+ #ifdef LOG_NDELAY
+ 	options |= LOG_NDELAY;
+@@ -42,12 +43,18 @@
+ 	openlog("rsyncd", options);
+ #endif
+ 
+ #ifndef LOG_NDELAY
+ 	syslog(LOG_INFO,"rsyncd started\n");
+ #endif
++
++	/* this looks pointless, but it is needed in order for the
++	   C library on some systems to fetch the timezone info
++	   before the chroot */
++	t = time(NULL);
++	localtime(&t);
+ }
+ 		
+ 
+ /* this is the rsync debugging function. Call it with FINFO or FERROR */
+ void rprintf(int fd, const char *format, ...)
+ {
+@@ -99,12 +106,14 @@
+ 	} 
+ 
+ 	if (!f) exit_cleanup(1);
+ 
+ 	if (fwrite(buf, len, 1, f) != 1) exit_cleanup(1);
+ 
++	if (buf[len-1] == '\r' || buf[len-1] == '\n') fflush(f);
++
+ 	depth--;
+ }
+ 
+ void rflush(int fd)
+ {
+ 	FILE *f = NULL;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/main.c	1998-06-18 18:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/main.c	1998-07-17 22:46:51.000000000 +0800
+@@ -60,35 +60,35 @@
+ 		r = read_longint(f);
+ 		stats.total_size = read_longint(f);
+ 		stats.total_read = r;
+ 	}
+ 
+ 	if (do_stats) {
+-		printf("\nNumber of files: %d\n", stats.num_files);
+-		printf("Number of files transferred: %d\n", 
++		rprintf(FINFO,"\nNumber of files: %d\n", stats.num_files);
++		rprintf(FINFO,"Number of files transferred: %d\n", 
+ 		       stats.num_transferred_files);
+-		printf("Total file size: %.0f bytes\n", 
++		rprintf(FINFO,"Total file size: %.0f bytes\n", 
+ 		       (double)stats.total_size);
+-		printf("Total transferred file size: %.0f bytes\n", 
++		rprintf(FINFO,"Total transferred file size: %.0f bytes\n", 
+ 		       (double)stats.total_transferred_size);
+-		printf("Literal data: %.0f bytes\n", 
++		rprintf(FINFO,"Literal data: %.0f bytes\n", 
+ 		       (double)stats.literal_data);
+-		printf("Matched data: %.0f bytes\n", 
++		rprintf(FINFO,"Matched data: %.0f bytes\n", 
+ 		       (double)stats.matched_data);
+-		printf("File list size: %d\n", stats.flist_size);
+-		printf("Total bytes written: %.0f\n", 
++		rprintf(FINFO,"File list size: %d\n", stats.flist_size);
++		rprintf(FINFO,"Total bytes written: %.0f\n", 
+ 		       (double)stats.total_written);
+-		printf("Total bytes read: %.0f\n\n", 
++		rprintf(FINFO,"Total bytes read: %.0f\n\n", 
+ 		       (double)stats.total_read);
+ 	}
+ 	
+-	printf("wrote %.0f bytes  read %.0f bytes  %.2f bytes/sec\n",
++	rprintf(FINFO,"wrote %.0f bytes  read %.0f bytes  %.2f bytes/sec\n",
+ 	       (double)stats.total_written,
+ 	       (double)stats.total_read,
+ 	       (stats.total_written+stats.total_read)/(0.5 + (t-starttime)));
+-	printf("total size is %.0f  speedup is %.2f\n",
++	rprintf(FINFO,"total size is %.0f  speedup is %.2f\n",
+ 	       (double)stats.total_size,
+ 	       (1.0*stats.total_size)/(stats.total_written+stats.total_read));
+ 
+ 	fflush(stdout);
+ 	fflush(stderr);
+ }
+@@ -169,12 +169,16 @@
+ 
+ static char *get_local_name(struct file_list *flist,char *name)
+ {
+ 	STRUCT_STAT st;
+ 	extern int orig_umask;
+ 
++	if (verbose > 2)
++		rprintf(FINFO,"get_local_name count=%d %s\n", 
++			flist->count, name);
++
+ 	if (do_stat(name,&st) == 0) {
+ 		if (S_ISDIR(st.st_mode)) {
+ 			if (!push_dir(name, 0)) {
+ 				rprintf(FERROR,"push_dir %s : %s (1)\n",
+ 					name,strerror(errno));
+ 				exit_cleanup(1);
+@@ -195,13 +199,14 @@
+ 		return NULL;
+ 
+ 	if (do_mkdir(name,0777 & ~orig_umask) != 0) {
+ 		rprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));
+ 		exit_cleanup(1);
+ 	} else {
+-		rprintf(FINFO,"created directory %s\n",name);
++		if (verbose > 0)
++			rprintf(FINFO,"created directory %s\n",name);
+ 	}
+ 
+ 	if (!push_dir(name, 0)) {
+ 		rprintf(FERROR,"push_dir %s : %s (2)\n",
+ 			name,strerror(errno));
+ 		exit_cleanup(1);
+@@ -284,25 +289,24 @@
+ 
+ 		set_nonblocking(f_in);
+ 
+ 		recv_files(f_in,flist,local_name,recv_pipe[1]);
+ 		report(f_in);
+ 
+-		if (verbose > 3)
+-			rprintf(FINFO,"do_recv waiting on %d\n",pid);
+-
+ 		io_flush();
+ 		_exit(0);
+ 	}
+ 
+ 	close(recv_pipe[1]);
+ 	io_close_input(f_in);
+ 	if (f_in != f_out) close(f_in);
+ 
+ 	set_nonblocking(f_out);
+ 
++	io_start_buffering(f_out);
++
+ 	generate_files(f_out,flist,local_name,recv_pipe[0]);
+ 
+ 	io_flush();
+ 	waitpid(pid, &status, 0);
+ 	return status;
+ }
+@@ -425,12 +429,26 @@
+ 		waitpid(pid, &status, 0);
+ 	}
+ 	
+ 	return status | status2;
+ }
+ 
++static char *find_colon(char *s)
++{
++	char *p, *p2;
++
++	p = strchr(s,':');
++	if (!p) return NULL;
++	
++	/* now check to see if there is a / in the string before the : - if there is then
++	   discard the colon on the assumption that the : is part of a filename */
++	p2 = strchr(s,'/');
++	if (p2 && p2 < p) return NULL;
++
++	return p;
++}
+ 
+ static int start_client(int argc, char *argv[])
+ {
+ 	char *p;
+ 	char *shell_machine = NULL;
+ 	char *shell_path = NULL;
+@@ -438,13 +456,13 @@
+ 	int pid, ret;
+ 	int f_in,f_out;
+ 	extern int local_server;
+ 	extern int am_sender;
+ 	extern char *shell_cmd;
+ 
+-	p = strchr(argv[0],':');
++	p = find_colon(argv[0]);
+ 
+ 	if (p) {
+ 		if (p[1] == ':') {
+ 			*p = 0;
+ 			return start_socket_client(argv[0], p+2, argc-1, argv+1);
+ 		}
+@@ -460,13 +478,13 @@
+ 		shell_path = p+1;
+ 		argc--;
+ 		argv++;
+ 	} else {
+ 		am_sender = 1;
+ 
+-		p = strchr(argv[argc-1],':');
++		p = find_colon(argv[argc-1]);
+ 		if (!p) {
+ 			local_server = 1;
+ 		} else if (p[1] == ':') {
+ 			*p = 0;
+ 			return start_socket_client(argv[argc-1], p+2, argc-1, argv);
+ 		}
+@@ -508,17 +526,12 @@
+ 		usage(FERROR);
+ 		exit_cleanup(1);
+ 	}
+ 	
+ 	pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
+ 	
+-#if HAVE_SETLINEBUF
+-	setlinebuf(stdout);
+-	setlinebuf(stderr);
+-#endif
+-
+ 	ret = client_run(f_in, f_out, pid, argc, argv);
+ 
+ 	fflush(stdout);
+ 	fflush(stderr);
+ 
+ 	return ret;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/Makefile.in	1998-05-27 21:54:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/Makefile.in	1998-07-17 22:46:50.000000000 +0800
+@@ -43,13 +43,13 @@
+ 	-mkdir -p ${INSTALL_MAN}/man1
+ 	-mkdir -p ${INSTALL_MAN}/man5
+ 	${INSTALLCMD} -m 644 $(srcdir)/rsync.1 ${INSTALL_MAN}/man1
+ 	${INSTALLCMD} -m 644 $(srcdir)/rsyncd.conf.5 ${INSTALL_MAN}/man5
+ 
+ rsync: $(OBJS)
+-	$(CC) $(CFLAGS) -o rsync $(OBJS) $(LIBS)
++	$(CC) $(CFLAGS) $(LDFLAGS) -o rsync $(OBJS) $(LIBS)
+ 
+ rsync.1: rsync.yo
+ 	yodl2man -o rsync.1 rsync.yo
+ 
+ rsyncd.conf.5: rsyncd.conf.yo
+ 	yodl2man -o rsyncd.conf.5 rsyncd.conf.yo
+@@ -57,13 +57,6 @@
+ proto:
+ 	cat *.c | awk -f mkproto.awk > proto.h
+ 
+ clean:
+ 	rm -f *~ $(OBJS) rsync config.cache config.log config.status
+ 
+-dist:
+-	tar --exclude-from .ignore -czf dist.tar.gz .
+-	-mkdir rsync-$(VERSION)
+-	(cd rsync-$(VERSION) ; tar xzf ../dist.tar.gz)
+-	tar -czf rsync-$(VERSION).tar.gz rsync-$(VERSION)
+-	rm -f dist.tar.gz
+-	echo rsync-$(VERSION) >> .cvsignore
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/match.c	1998-06-18 18:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/match.c	1998-07-17 22:46:51.000000000 +0800
+@@ -115,12 +115,17 @@
+ 
+ 
+ 	if (i >= 0)
+ 		last_match = offset + s->sums[i].len;
+ 	else
+ 		last_match = offset;
++
++	if (buf)
++		show_progress(last_match, buf->size);
++
++	if (i == -1) end_progress();
+ }
+ 
+ 
+ static void hash_search(int f,struct sum_struct *s,
+ 			struct map_struct *buf,OFF_T len)
+ {
+@@ -249,12 +254,18 @@
+ 		
+ 		hash_search(f,s,buf,len);
+ 		
+ 		if (verbose > 2) 
+ 			rprintf(FINFO,"done hash search\n");
+ 	} else {
++		OFF_T j;
++		/* by doing this in pieces we avoid too many seeks */
++		for (j=0;j<(len-CHUNK_SIZE);j+=CHUNK_SIZE) {
++			int n1 = MIN(CHUNK_SIZE,(len-CHUNK_SIZE)-j);
++			matched(f,s,buf,j+n1,-2);
++		}
+ 		matched(f,s,buf,len,-1);
+ 	}
+ 
+ 	sum_end(file_sum);
+ 
+ 	if (remote_version >= 14) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/options.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/options.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/options.c	1998-06-18 18:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/options.c	1998-07-17 22:46:51.000000000 +0800
+@@ -53,12 +53,15 @@
+ int am_server = 0;
+ int am_sender=0;
+ int recurse = 0;
+ int am_daemon=0;
+ int am_client=0;
+ int do_stats=0;
++int do_progress=0;
++int keep_partial=0;
++int safe_symlinks=0;
+ 
+ int block_size=BLOCK_SIZE;
+ 
+ char *backup_suffix = BACKUP_SUFFIX;
+ char *tmpdir = NULL;
+ char *config_file = RSYNCD_CONF;
+@@ -90,12 +93,13 @@
+   rprintf(F," -r, --recursive             recurse into directories\n");
+   rprintf(F," -R, --relative              use relative path names\n");
+   rprintf(F," -b, --backup                make backups (default ~ extension)\n");
+   rprintf(F," -u, --update                update only (don't overwrite newer files)\n");
+   rprintf(F," -l, --links                 preserve soft links\n");
+   rprintf(F," -L, --copy-links            treat soft links like regular files\n");
++  rprintf(F,"     --safe-links            ignore links outside the destination tree\n");
+   rprintf(F," -H, --hard-links            preserve hard links\n");
+   rprintf(F," -p, --perms                 preserve permissions\n");
+   rprintf(F," -o, --owner                 preserve owner (root only)\n");
+   rprintf(F," -g, --group                 preserve group\n");
+   rprintf(F," -D, --devices               preserve devices (root only)\n");
+   rprintf(F," -t, --times                 preserve times\n");  
+@@ -105,12 +109,13 @@
+   rprintf(F," -x, --one-file-system       don't cross filesystem boundaries\n");
+   rprintf(F," -B, --block-size=SIZE       checksum blocking size\n");  
+   rprintf(F," -e, --rsh=COMMAND           specify rsh replacement\n");
+   rprintf(F,"     --rsync-path=PATH       specify path to rsync on the remote machine\n");
+   rprintf(F," -C, --cvs-exclude           auto ignore files in the same way CVS does\n");
+   rprintf(F,"     --delete                delete files that don't exist on the sending side\n");
++  rprintf(F,"     --partial               keep partially transferred files\n");
+   rprintf(F,"     --force                 force deletion of directories even if not empty\n");
+   rprintf(F,"     --numeric-ids           don't map uid/gid values by user/group name\n");
+   rprintf(F,"     --timeout=TIME          set IO timeout in seconds\n");
+   rprintf(F," -I, --ignore-times          don't exclude files that match length and time\n");
+   rprintf(F," -T  --temp-dir=DIR          create temporary files in directory DIR\n");
+   rprintf(F," -z, --compress              compress file data\n");
+@@ -121,12 +126,13 @@
+   rprintf(F,"     --suffix=SUFFIX         override backup suffix\n");  
+   rprintf(F,"     --version               print version number\n");  
+   rprintf(F,"     --daemon                run as a rsync daemon\n");  
+   rprintf(F,"     --config=FILE           specify alternate rsyncd.conf file\n");  
+   rprintf(F,"     --port=PORT             specify alternate rsyncd port number\n");
+   rprintf(F,"     --stats                 give some file transfer stats\n");  
++  rprintf(F,"     --progress              show progress during transfer\n");  
+   rprintf(F," -h, --help                  show this help screen\n");
+ 
+   rprintf(F,"\n");
+   rprintf(F,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+   rprintf(F,"the block size defaults to %d\n",BLOCK_SIZE);  
+ 
+@@ -134,13 +140,14 @@
+   rprintf(F,"See http://samba.anu.edu.au/rsync/ for updates and bug reports\n");
+ }
+ 
+ enum {OPT_VERSION,OPT_SUFFIX,OPT_SENDER,OPT_SERVER,OPT_EXCLUDE,
+       OPT_EXCLUDE_FROM,OPT_DELETE,OPT_NUMERIC_IDS,OPT_RSYNC_PATH,
+       OPT_FORCE,OPT_TIMEOUT,OPT_DAEMON,OPT_CONFIG,OPT_PORT,
+-      OPT_INCLUDE, OPT_INCLUDE_FROM, OPT_STATS};
++      OPT_INCLUDE, OPT_INCLUDE_FROM, OPT_STATS, OPT_PARTIAL, OPT_PROGRESS,
++      OPT_SAFE_LINKS};
+ 
+ static char *short_options = "oblLWHpguDCtcahvrRIxnSe:B:T:z";
+ 
+ static struct option long_options[] = {
+   {"version",     0,     0,    OPT_VERSION},
+   {"server",      0,     0,    OPT_SERVER},
+@@ -167,12 +174,13 @@
+   {"recursive",   0,     0,    'r'},
+   {"relative",    0,     0,    'R'},
+   {"devices",     0,     0,    'D'},
+   {"perms",       0,     0,    'p'},
+   {"links",       0,     0,    'l'},
+   {"copy-links",  0,     0,    'L'},
++  {"safe-links",  0,     0,    OPT_SAFE_LINKS},
+   {"whole-file",  0,     0,    'W'},
+   {"hard-links",  0,     0,    'H'},
+   {"owner",       0,     0,    'o'},
+   {"group",       0,     0,    'g'},
+   {"times",       0,     0,    't'},
+   {"rsh",         1,     0,    'e'},
+@@ -180,314 +188,333 @@
+   {"block-size",  1,     0,    'B'},
+   {"timeout",     1,     0,    OPT_TIMEOUT},
+   {"temp-dir",    1,     0,    'T'},
+   {"compress",	  0,	 0,    'z'},
+   {"daemon",      0,     0,    OPT_DAEMON},
+   {"stats",       0,     0,    OPT_STATS},
++  {"progress",    0,     0,    OPT_PROGRESS},
++  {"partial",     0,     0,    OPT_PARTIAL},
+   {"config",      1,     0,    OPT_CONFIG},
+   {"port",        1,     0,    OPT_PORT},
+   {0,0,0,0}};
+ 
+ void parse_arguments(int argc, char *argv[])
+ {
+-    int opt;
+-    int option_index;
++	int opt;
++	int option_index;
+ 
+-    while ((opt = getopt_long(argc, argv, 
+-			      short_options, long_options, &option_index)) 
+-	   != -1) {
+-      switch (opt) 
+-	{
+-	case OPT_VERSION:
+-	  printf("rsync version %s  protocol version %d\n\n",
+-		 VERSION,PROTOCOL_VERSION);
+-	  printf("Written by Andrew Tridgell and Paul Mackerras\n");
+-	  exit_cleanup(0);
+-
+-	case OPT_SUFFIX:
+-	  backup_suffix = optarg;
+-	  break;
+-
+-	case OPT_RSYNC_PATH:
+-	  rsync_path = optarg;
+-	  break;
+-
+-	case 'I':
+-	  ignore_times = 1;
+-	  break;
+-
+-	case 'x':
+-	  one_file_system=1;
+-	  break;
+-
+-	case OPT_DELETE:
+-	  delete_mode = 1;
+-	  break;
+-
+-	case OPT_FORCE:
+-	  force_delete = 1;
+-	  break;
+-
+-	case OPT_NUMERIC_IDS:
+-	  numeric_ids = 1;
+-	  break;
+-
+-	case OPT_EXCLUDE:
+-	  add_exclude(optarg, 0);
+-	  break;
+-
+-	case OPT_INCLUDE:
+-	  add_exclude(optarg, 1);
+-	  break;
+-
+-	case OPT_EXCLUDE_FROM:
+-	  add_exclude_file(optarg,1, 0);
+-	  break;
+-
+-	case OPT_INCLUDE_FROM:
+-	  add_exclude_file(optarg,1, 1);
+-	  break;
+-
+-	case 'h':
+-	  usage(FINFO);
+-	  exit_cleanup(0);
+-
+-	case 'b':
+-	  make_backups=1;
+-	  break;
+-
+-	case 'n':
+-	  dry_run=1;
+-	  break;
+-
+-	case 'S':
+-	  sparse_files=1;
+-	  break;
+-
+-	case 'C':
+-	  cvs_exclude=1;
+-	  break;
+-
+-	case 'u':
+-	  update_only=1;
+-	  break;
+-
+-	case 'l':
+-	  preserve_links=1;
+-	  break;
+-
+-	case 'L':
+-	  copy_links=1;
+-	  break;
+-
+-	case 'W':
+-	  whole_file=1;
+-	  break;
++	while ((opt = getopt_long(argc, argv, 
++				  short_options, long_options, &option_index)) 
++	       != -1) {
++		switch (opt) {
++		case OPT_VERSION:
++			rprintf(FINFO,"rsync version %s  protocol version %d\n\n",
++				VERSION,PROTOCOL_VERSION);
++			rprintf(FINFO,"Written by Andrew Tridgell and Paul Mackerras\n");
++			exit_cleanup(0);
++			
++		case OPT_SUFFIX:
++			backup_suffix = optarg;
++			break;
++			
++		case OPT_RSYNC_PATH:
++			rsync_path = optarg;
++			break;
++			
++		case 'I':
++			ignore_times = 1;
++			break;
++
++		case 'x':
++			one_file_system=1;
++			break;
++
++		case OPT_DELETE:
++			delete_mode = 1;
++			break;
++
++		case OPT_FORCE:
++			force_delete = 1;
++			break;
++
++		case OPT_NUMERIC_IDS:
++			numeric_ids = 1;
++			break;
++
++		case OPT_EXCLUDE:
++			add_exclude(optarg, 0);
++			break;
++
++		case OPT_INCLUDE:
++			add_exclude(optarg, 1);
++			break;
++
++		case OPT_EXCLUDE_FROM:
++			add_exclude_file(optarg,1, 0);
++			break;
++
++		case OPT_INCLUDE_FROM:
++			add_exclude_file(optarg,1, 1);
++			break;
++
++		case OPT_SAFE_LINKS:
++			safe_symlinks=1;
++			break;
++
++		case 'h':
++			usage(FINFO);
++			exit_cleanup(0);
++
++		case 'b':
++			make_backups=1;
++			break;
++
++		case 'n':
++			dry_run=1;
++			break;
++
++		case 'S':
++			sparse_files=1;
++			break;
++
++		case 'C':
++			cvs_exclude=1;
++			break;
++
++		case 'u':
++			update_only=1;
++			break;
++
++		case 'l':
++			preserve_links=1;
++			break;
++
++		case 'L':
++			copy_links=1;
++			break;
++
++		case 'W':
++			whole_file=1;
++			break;
+ 
+-	case 'H':
++		case 'H':
+ #if SUPPORT_HARD_LINKS
+-	  preserve_hard_links=1;
++			preserve_hard_links=1;
+ #else 
+-	  rprintf(FERROR,"ERROR: hard links not supported on this platform\n");
+-	  exit_cleanup(1);
++			rprintf(FERROR,"ERROR: hard links not supported on this platform\n");
++			exit_cleanup(1);
+ #endif
+-	  break;
++			break;
+ 
+-	case 'p':
+-	  preserve_perms=1;
+-	  break;
+-
+-	case 'o':
+-	  preserve_uid=1;
+-	  break;
+-
+-	case 'g':
+-	  preserve_gid=1;
+-	  break;
+-
+-	case 'D':
+-	  preserve_devices=1;
+-	  break;
+-
+-	case 't':
+-	  preserve_times=1;
+-	  break;
+-
+-	case 'c':
+-	  always_checksum=1;
+-	  break;
+-
+-	case 'v':
+-	  verbose++;
+-	  break;
++		case 'p':
++			preserve_perms=1;
++			break;
++
++		case 'o':
++			preserve_uid=1;
++			break;
++
++		case 'g':
++			preserve_gid=1;
++			break;
++
++		case 'D':
++			preserve_devices=1;
++			break;
++
++		case 't':
++			preserve_times=1;
++			break;
++
++		case 'c':
++			always_checksum=1;
++			break;
++
++		case 'v':
++			verbose++;
++			break;
+ 
+-	case 'a':
+-	  recurse=1;
++		case 'a':
++			recurse=1;
+ #if SUPPORT_LINKS
+-	  preserve_links=1;
++			preserve_links=1;
+ #endif
+-	  preserve_perms=1;
+-	  preserve_times=1;
+-	  preserve_gid=1;
+-	  if (am_root) {
+-	    preserve_devices=1;
+-	    preserve_uid=1;
+-	  }
+-	  break;
+-
+-	case OPT_SERVER:
+-	  am_server = 1;
+-	  break;
+-
+-	case OPT_SENDER:
+-	  if (!am_server) {
+-	    usage(FERROR);
+-	    exit_cleanup(1);
+-	  }
+-	  am_sender = 1;
+-	  break;
+-
+-	case 'r':
+-	  recurse = 1;
+-	  break;
+-
+-	case 'R':
+-	  relative_paths = 1;
+-	  break;
+-
+-	case 'e':
+-	  shell_cmd = optarg;
+-	  break;
+-
+-	case 'B':
+-	  block_size = atoi(optarg);
+-	  break;
+-
+-	case OPT_TIMEOUT:
+-	  io_timeout = atoi(optarg);
+-	  break;
+-
+-	case 'T':
+-		tmpdir = optarg;
+-		break;
+-
+-        case 'z':
+-	  do_compression = 1;
+-	  break;
+-
+-	case OPT_DAEMON:
+-		am_daemon = 1;
+-		break;
+-
+-	case OPT_STATS:
+-		do_stats = 1;
+-		break;
+-
+-	case OPT_CONFIG:
+-		config_file = optarg;
+-		break;
+-
+-	case OPT_PORT:
+-		rsync_port = atoi(optarg);
+-		break;
+-
+-	default:
+-	  /* rprintf(FERROR,"bad option -%c\n",opt); */
+-	  exit_cleanup(1);
++			preserve_perms=1;
++			preserve_times=1;
++			preserve_gid=1;
++			if (am_root) {
++				preserve_devices=1;
++				preserve_uid=1;
++			}
++			break;
++
++		case OPT_SERVER:
++			am_server = 1;
++			break;
++
++		case OPT_SENDER:
++			if (!am_server) {
++				usage(FERROR);
++				exit_cleanup(1);
++			}
++			am_sender = 1;
++			break;
++
++		case 'r':
++			recurse = 1;
++			break;
++
++		case 'R':
++			relative_paths = 1;
++			break;
++
++		case 'e':
++			shell_cmd = optarg;
++			break;
++
++		case 'B':
++			block_size = atoi(optarg);
++			break;
++
++		case OPT_TIMEOUT:
++			io_timeout = atoi(optarg);
++			break;
++
++		case 'T':
++			tmpdir = optarg;
++			break;
++
++		case 'z':
++			do_compression = 1;
++			break;
++
++		case OPT_DAEMON:
++			am_daemon = 1;
++			break;
++
++		case OPT_STATS:
++			do_stats = 1;
++			break;
++
++		case OPT_PROGRESS:
++			do_progress = 1;
++			break;
++
++		case OPT_PARTIAL:
++			keep_partial = 1;
++			break;
++
++		case OPT_CONFIG:
++			config_file = optarg;
++			break;
++
++		case OPT_PORT:
++			rsync_port = atoi(optarg);
++			break;
++
++		default:
++			/* rprintf(FERROR,"bad option -%c\n",opt); */
++			exit_cleanup(1);
++		}
+ 	}
+-    }
+ }
+ 
+ 
+ void server_options(char **args,int *argc)
+ {
+-  int ac = *argc;
+-  static char argstr[50];
+-  static char bsize[30];
+-  static char iotime[30];
+-  int i, x;
+-
+-  args[ac++] = "--server";
+-
+-  if (!am_sender)
+-    args[ac++] = "--sender";
+-
+-  x = 1;
+-  argstr[0] = '-';
+-  for (i=0;i<verbose;i++)
+-    argstr[x++] = 'v';
+-  if (make_backups)
+-    argstr[x++] = 'b';
+-  if (update_only)
+-    argstr[x++] = 'u';
+-  if (dry_run)
+-    argstr[x++] = 'n';
+-  if (preserve_links)
+-    argstr[x++] = 'l';
+-  if (copy_links)
+-    argstr[x++] = 'L';
+-  if (whole_file)
+-    argstr[x++] = 'W';
+-  if (preserve_hard_links)
+-    argstr[x++] = 'H';
+-  if (preserve_uid)
+-    argstr[x++] = 'o';
+-  if (preserve_gid)
+-    argstr[x++] = 'g';
+-  if (preserve_devices)
+-    argstr[x++] = 'D';
+-  if (preserve_times)
+-    argstr[x++] = 't';
+-  if (preserve_perms)
+-    argstr[x++] = 'p';
+-  if (recurse)
+-    argstr[x++] = 'r';
+-  if (always_checksum)
+-    argstr[x++] = 'c';
+-  if (cvs_exclude)
+-    argstr[x++] = 'C';
+-  if (ignore_times)
+-    argstr[x++] = 'I';
+-  if (relative_paths)
+-    argstr[x++] = 'R';
+-  if (one_file_system)
+-    argstr[x++] = 'x';
+-  if (sparse_files)
+-    argstr[x++] = 'S';
+-  if (do_compression)
+-    argstr[x++] = 'z';
+-  argstr[x] = 0;
+-
+-  if (x != 1) args[ac++] = argstr;
+-
+-  if (block_size != BLOCK_SIZE) {
+-    sprintf(bsize,"-B%d",block_size);
+-    args[ac++] = bsize;
+-  }    
+-
+-  if (io_timeout) {
+-    sprintf(iotime,"--timeout=%d",io_timeout);
+-    args[ac++] = iotime;
+-  }    
+-
+-  if (strcmp(backup_suffix, BACKUP_SUFFIX)) {
+-	  args[ac++] = "--suffix";
+-	  args[ac++] = backup_suffix;
+-  }
+-
+-  if (delete_mode)
+-    args[ac++] = "--delete";
+-
+-  if (force_delete)
+-    args[ac++] = "--force";
+-
+-  if (numeric_ids)
+-    args[ac++] = "--numeric-ids";
+-
+-  if (tmpdir) {
+-	  args[ac++] = "--temp-dir";
+-	  args[ac++] = tmpdir;
+-  }
++	int ac = *argc;
++	static char argstr[50];
++	static char bsize[30];
++	static char iotime[30];
++	int i, x;
++
++	args[ac++] = "--server";
++
++	if (!am_sender)
++		args[ac++] = "--sender";
++
++	x = 1;
++	argstr[0] = '-';
++	for (i=0;i<verbose;i++)
++		argstr[x++] = 'v';
++	if (make_backups)
++		argstr[x++] = 'b';
++	if (update_only)
++		argstr[x++] = 'u';
++	if (dry_run)
++		argstr[x++] = 'n';
++	if (preserve_links)
++		argstr[x++] = 'l';
++	if (copy_links)
++		argstr[x++] = 'L';
++	if (whole_file)
++		argstr[x++] = 'W';
++	if (preserve_hard_links)
++		argstr[x++] = 'H';
++	if (preserve_uid)
++		argstr[x++] = 'o';
++	if (preserve_gid)
++		argstr[x++] = 'g';
++	if (preserve_devices)
++		argstr[x++] = 'D';
++	if (preserve_times)
++		argstr[x++] = 't';
++	if (preserve_perms)
++		argstr[x++] = 'p';
++	if (recurse)
++		argstr[x++] = 'r';
++	if (always_checksum)
++		argstr[x++] = 'c';
++	if (cvs_exclude)
++		argstr[x++] = 'C';
++	if (ignore_times)
++		argstr[x++] = 'I';
++	if (relative_paths)
++		argstr[x++] = 'R';
++	if (one_file_system)
++		argstr[x++] = 'x';
++	if (sparse_files)
++		argstr[x++] = 'S';
++	if (do_compression)
++		argstr[x++] = 'z';
++	argstr[x] = 0;
++
++	if (x != 1) args[ac++] = argstr;
++
++	if (block_size != BLOCK_SIZE) {
++		sprintf(bsize,"-B%d",block_size);
++		args[ac++] = bsize;
++	}    
++
++	if (io_timeout) {
++		sprintf(iotime,"--timeout=%d",io_timeout);
++		args[ac++] = iotime;
++	}    
++
++	if (strcmp(backup_suffix, BACKUP_SUFFIX)) {
++		args[ac++] = "--suffix";
++		args[ac++] = backup_suffix;
++	}
++
++	if (delete_mode)
++		args[ac++] = "--delete";
++
++	if (keep_partial)
++		args[ac++] = "--partial";
++
++	if (force_delete)
++		args[ac++] = "--force";
++
++	if (safe_symlinks)
++		args[ac++] = "--safe-links";
++
++	if (numeric_ids)
++		args[ac++] = "--numeric-ids";
++
++	if (tmpdir) {
++		args[ac++] = "--temp-dir";
++		args[ac++] = tmpdir;
++	}
+ 
+-  *argc = ac;
++	*argc = ac;
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/packaging/redhat/5.0/rsync.spec	1998-06-18 21:28:13.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/packaging/redhat/5.0/rsync.spec	1998-07-17 22:52:59.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.0.18
++Version: 2.0.19
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.18.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.19.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/proto.h	1998-06-18 18:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/proto.h	1998-07-17 22:46:51.000000000 +0800
+@@ -96,14 +96,12 @@
+ void usage(int F);
+ void parse_arguments(int argc, char *argv[]);
+ void server_options(char **args,int *argc);
+ BOOL pm_process( char *FileName,
+                  BOOL (*sfunc)(char *),
+                  BOOL (*pfunc)(char *, char *) );
+-int adapt_block_size(struct file_struct *file, int bsize);
+-void recv_generator(char *fname,struct file_list *flist,int i,int f_out);
+ void exit_cleanup(int code);
+ void sig_int(void);
+ int recv_files(int f_in,struct file_list *flist,char *local_name,int f_gen);
+ void send_files(struct file_list *flist,int f_out,int f_in);
+ void generate_files(int f,struct file_list *flist,char *local_name,int f_recv);
+ int open_socket_out(char *host, int port);
+@@ -162,6 +160,9 @@
+ int slprintf(char *str, int n, char *format, ...);
+ void *Realloc(void *p, int size);
+ void clean_fname(char *name);
+ char *push_dir(char *dir, int save);
+ int pop_dir(char *dir);
+ int u_strcmp(const char *cs1, const char *cs2);
++void end_progress(void);
++void show_progress(OFF_T ofs, OFF_T size);
++int unsafe_symlink(char *dest, char *src);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.1	1998-06-18 18:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/rsync.1	1998-07-17 22:46:51.000000000 +0800
+@@ -206,12 +206,77 @@
+ .RS 
+ rsync -az -e ssh --delete ~ftp/pub/samba/ nimbus:"~ftp/pub/tridge/samba"
+ .RE 
+ .PP 
+ this is launched from cron every few hours\&.
+ .PP 
++.SH "OPTIONS SUMMARY" 
++.PP 
++Here is a short summary of the options avalable in rsync\&. Please refer
++to the detailed description below for a complete description\&.
++.PP 
++
++.DS 
++ 
++
++Usage: rsync [OPTION]\&.\&.\&. SRC [USER@]HOST:DEST
++  or   rsync [OPTION]\&.\&.\&. [USER@]HOST:SRC DEST
++  or   rsync [OPTION]\&.\&.\&. SRC DEST
++  or   rsync [OPTION]\&.\&.\&. [USER@]HOST::SRC DEST
++  or   rsync [OPTION]\&.\&.\&. SRC [USER@]HOST::DEST
++
++Options
++ -v, --verbose               increase verbosity
++ -c, --checksum              always checksum
++ -a, --archive               archive mode
++ -r, --recursive             recurse into directories
++ -R, --relative              use relative path names
++ -b, --backup                make backups (default ~ extension)
++ -u, --update                update only (don\'t overwrite newer files)
++ -l, --links                 preserve soft links
++ -L, --copy-links            treat soft links like regular files
++     --safe-links            ignore links outside the destination tree
++ -H, --hard-links            preserve hard links
++ -p, --perms                 preserve permissions
++ -o, --owner                 preserve owner (root only)
++ -g, --group                 preserve group
++ -D, --devices               preserve devices (root only)
++ -t, --times                 preserve times
++ -S, --sparse                handle sparse files efficiently
++ -n, --dry-run               show what would have been transferred
++ -W, --whole-file            copy whole files, no incremental checks
++ -x, --one-file-system       don\'t cross filesystem boundaries
++ -B, --block-size=SIZE       checksum blocking size
++ -e, --rsh=COMMAND           specify rsh replacement
++     --rsync-path=PATH       specify path to rsync on the remote machine
++ -C, --cvs-exclude           auto ignore files in the same way CVS does
++     --delete                delete files that don\'t exist on the sending side
++     --partial               keep partially transferred files
++     --force                 force deletion of directories even if not empty
++     --numeric-ids           don\'t map uid/gid values by user/group name
++     --timeout=TIME          set IO timeout in seconds
++ -I, --ignore-times          don\'t exclude files that match length and time
++ -T  --temp-dir=DIR          create temporary files in directory DIR
++ -z, --compress              compress file data
++     --exclude=PATTERN       exclude file FILE
++     --exclude-from=PATTERN  exclude files listed in FILE
++     --include=PATTERN       don\'t exclude file FILE
++     --include-from=PATTERN  don\'t exclude files listed in FILE
++     --suffix=SUFFIX         override backup suffix
++     --version               print version number
++     --daemon                run as a rsync daemon
++     --config=FILE           specify alternate rsyncd\&.conf file
++     --port=PORT             specify alternate rsyncd port number
++     --stats                 give some file transfer stats
++     --progress              show progress during transfer
++ -h, --help                  show this help screen
++
++.DE 
++ 
++
++.PP 
+ .SH "OPTIONS" 
+ .PP 
+ rsync uses the GNU long options package\&. Many of the command line
+ options have two variants, one short and one long\&.  These are shown
+ below separated by commas\&. Some options only have a long variant\&.
+ .PP 
+@@ -298,12 +363,18 @@
+ option all symbolic links are skipped\&.
+ .IP 
+ .IP "\fB-L, --copy-links\fP" 
+ This tells rsync to treat symbolic links just
+ like  ordinary files\&.
+ .IP 
++.IP "\fB--safe-links\fP" 
++This tells rsync to ignore any symbolic links
++which point outside the destination tree\&. All absolute symlinks are
++also ignored\&. Using this option in conjunction with --relative may
++give unexpecetd results\&. 
++.IP 
+ .IP "\fB-H, --hard-links\fP" 
+ This tells rsync to recreate hard  links  on
+ the  remote system  to  be the same as the local system\&. Without this
+ option hard links are treated like regular files\&.
+ .IP 
+ Note that rsync can only detect hard links if both parts of the link
+@@ -313,12 +384,19 @@
+ .IP 
+ .IP "\fB-W, --whole-file\fP" 
+ With this option the incremental rsync algorithm
+ is  not used  and  the whole file is sent as-is instead\&. This may be
+ useful when using rsync with a local machine\&.
+ .IP 
++.IP "\fB--partial\fP" 
++By default rsync will delete any partially
++transferred file if the transfer is interrupted\&. In some circumstances
++it is more desirable to keep partially transferred files\&. Using the
++--partial option tells rsync to keep the partial file which should
++make a subsequent transfer of the rest of the file much faster\&.
++.IP 
+ .IP "\fB-p, --perms\fP" 
+ This option causes rsync to update the remote
+ permissions to be the same as the local permissions\&.
+ .IP 
+ .IP "\fB-o, --owner\fP" 
+ This option causes rsync to update the  remote  owner
+@@ -343,12 +421,16 @@
+ instead it will just report the actions it would have taken\&.
+ .IP 
+ .IP "\fB-S, --sparse\fP" 
+ Try to handle sparse files efficiently so they take
+ up less space on the destination\&.
+ .IP 
++NOTE: Don\'t use this option when the destination is a Solaris "tmpfs"
++filesystem\&. It doesn\'t seem to handle seeks over null regions
++correctly and ends up corrupting the files\&.
++.IP 
+ .IP "\fB-x, --one-file-system\fP" 
+ This tells rsync not to cross filesystem
+ boundaries  when recursing\&.  This  is useful for transferring the
+ contents of only one filesystem\&.
+ .IP 
+ .IP "\fB--delete\fP" 
+@@ -528,12 +610,17 @@
+ .IP "\fB--stats\fP" 
+ This tells rsync to print a verbose set of statistics
+ on the file transfer, allowing you to tell how effective the rsync
+ algorithm is for your data\&. This option only works in conjunction with
+ the -v (verbose) option\&.
+ .IP 
++.IP "\fB--progress\fP" 
++This option tells rsync to print information
++showing the progress of the transfer\&. This gives a bored user
++something to watch\&.
++.IP 
+ .PP 
+ .SH "EXCLUDE PATTERNS" 
+ .PP 
+ The exclude and include patterns specified to rsync allow for flexible
+ selection of what files to transfer and what files to skip\&.
+ .PP 
+@@ -596,12 +683,41 @@
+ .IP o 
+ --exclude "foo/" would exclude any directory called foo
+ .IP o 
+ --include "*/" --include "*\&.c" --exclude "*" would include all 
+ directories and C source files\&.
+ .PP 
++.SH "DIAGNOSTICS" 
++.PP 
++rsync occasinally produces error messages that may seem a little
++cryptic\&. The one that seems to cause the most confusion is "protocol
++version mismatch - is your shell clean?"\&.
++.PP 
++This message is usually caused by your startup scripts or remote shell
++facility producing unwanted garbage on the stream that rsync is using
++for its transport\&. The way ot diagnose this problem is to run your
++remote shell like this:
++.PP 
++
++.DS 
++ 
++
++   rsh remotehost /bin/true > out\&.dat
++
++.DE 
++ 
++
++.PP 
++then look at out\&.dat\&. If everything is working correctly then out\&.dat
++should be a zero length file\&. You you are getting the above error from
++rsync then you will probably find that out\&.dat contains some text or
++data\&. Look at the contents and try to work out what is producing
++it\&. The most common cause is incorrectly configued shell startup
++scripts (such as \&.cshrc or \&.profile) that contain output statements
++for non-interactive logins\&.
++.PP 
+ .SH "ENVIRONMENT VARIABLES" 
+ .PP 
+ .IP 
+ .IP "\fBCVSIGNORE\fP" 
+ The CVSIGNORE environment variable supplements any
+ ignore patterns in \&.cvsignore files\&. See the --cvs-exclude option for
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.c	1998-06-18 21:27:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/rsync.c	1998-07-17 22:46:51.000000000 +0800
+@@ -50,19 +50,50 @@
+ extern int am_root;
+ extern int relative_paths;
+ extern int io_timeout;
+ extern int io_error;
+ extern struct stats stats;
+ 
++
++/* handling the cleanup when a transfer is interrupted is tricky when
++   --partial is selected. We need to ensure that the partial file is
++   kept if any real data has been transferred */
++static int cleanup_got_literal;
++static char *cleanup_fname;
++static char *cleanup_new_fname;
++static struct file_struct *cleanup_file;
++static void finish_transfer(char *fname, char *fnametmp, struct file_struct *file);
++
++void exit_cleanup(int code)
++{
++	extern int keep_partial;
++
++	signal(SIGUSR1, SIG_IGN);
++
++	if (cleanup_got_literal && cleanup_fname && keep_partial) {
++		char *fname = cleanup_fname;
++		cleanup_fname = NULL;
++		finish_transfer(cleanup_new_fname, fname, cleanup_file);
++	}
++	io_flush();
++	if (cleanup_fname)
++		do_unlink(cleanup_fname);
++	if (code) {
++		kill_all(SIGUSR1);
++	}
++	exit(code);
++}
++
++
+ /*
+   free a sums struct
+   */
+ static void free_sums(struct sum_struct *s)
+ {
+-  if (s->sums) free(s->sums);
+-  free(s);
++	if (s->sums) free(s->sums);
++	free(s);
+ }
+ 
+ 
+ /*
+  * delete a file or directory. If force_delet is set then delete 
+  * recursively 
+@@ -135,135 +166,135 @@
+ 
+ /*
+   send a sums struct down a fd
+   */
+ static void send_sums(struct sum_struct *s,int f_out)
+ {
+-  int i;
++	int i;
+ 
+   /* tell the other guy how many we are going to be doing and how many
+      bytes there are in the last chunk */
+-  write_int(f_out,s?s->count:0);
+-  write_int(f_out,s?s->n:block_size);
+-  write_int(f_out,s?s->remainder:0);
+-  if (s)
+-    for (i=0;i<s->count;i++) {
+-      write_int(f_out,s->sums[i].sum1);
+-      write_buf(f_out,s->sums[i].sum2,csum_length);
+-    }
++	write_int(f_out,s?s->count:0);
++	write_int(f_out,s?s->n:block_size);
++	write_int(f_out,s?s->remainder:0);
++	if (s)
++		for (i=0;i<s->count;i++) {
++			write_int(f_out,s->sums[i].sum1);
++			write_buf(f_out,s->sums[i].sum2,csum_length);
++		}
+ }
+ 
+ 
+ /*
+   generate a stream of signatures/checksums that describe a buffer
+ 
+   generate approximately one checksum every n bytes
+   */
+ static struct sum_struct *generate_sums(struct map_struct *buf,OFF_T len,int n)
+ {
+-  int i;
+-  struct sum_struct *s;
+-  int count;
+-  int block_len = n;
+-  int remainder = (len%block_len);
+-  OFF_T offset = 0;
+-
+-  count = (len+(block_len-1))/block_len;
+-
+-  s = (struct sum_struct *)malloc(sizeof(*s));
+-  if (!s) out_of_memory("generate_sums");
+-
+-  s->count = count;
+-  s->remainder = remainder;
+-  s->n = n;
+-  s->flength = len;
+-
+-  if (count==0) {
+-    s->sums = NULL;
+-    return s;
+-  }
+-
+-  if (verbose > 3)
+-    rprintf(FINFO,"count=%d rem=%d n=%d flength=%d\n",
+-	    s->count,s->remainder,s->n,(int)s->flength);
++	int i;
++	struct sum_struct *s;
++	int count;
++	int block_len = n;
++	int remainder = (len%block_len);
++	OFF_T offset = 0;
++
++	count = (len+(block_len-1))/block_len;
++
++	s = (struct sum_struct *)malloc(sizeof(*s));
++	if (!s) out_of_memory("generate_sums");
++
++	s->count = count;
++	s->remainder = remainder;
++	s->n = n;
++	s->flength = len;
++
++	if (count==0) {
++		s->sums = NULL;
++		return s;
++	}
++
++	if (verbose > 3)
++		rprintf(FINFO,"count=%d rem=%d n=%d flength=%d\n",
++			s->count,s->remainder,s->n,(int)s->flength);
+ 
+-  s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
+-  if (!s->sums) out_of_memory("generate_sums");
++	s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
++	if (!s->sums) out_of_memory("generate_sums");
+   
+-  for (i=0;i<count;i++) {
+-    int n1 = MIN(len,n);
+-    char *map = map_ptr(buf,offset,n1);
+-
+-    s->sums[i].sum1 = get_checksum1(map,n1);
+-    get_checksum2(map,n1,s->sums[i].sum2);
+-
+-    s->sums[i].offset = offset;
+-    s->sums[i].len = n1;
+-    s->sums[i].i = i;
+-
+-    if (verbose > 3)
+-      rprintf(FINFO,"chunk[%d] offset=%d len=%d sum1=%08x\n",
+-	      i,(int)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
+-
+-    len -= n1;
+-    offset += n1;
+-  }
++	for (i=0;i<count;i++) {
++		int n1 = MIN(len,n);
++		char *map = map_ptr(buf,offset,n1);
+ 
+-  return s;
++		s->sums[i].sum1 = get_checksum1(map,n1);
++		get_checksum2(map,n1,s->sums[i].sum2);
++
++		s->sums[i].offset = offset;
++		s->sums[i].len = n1;
++		s->sums[i].i = i;
++
++		if (verbose > 3)
++			rprintf(FINFO,"chunk[%d] offset=%d len=%d sum1=%08x\n",
++				i,(int)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
++
++		len -= n1;
++		offset += n1;
++	}
++
++	return s;
+ }
+ 
+ 
+ /*
+   receive the checksums for a buffer
+   */
+ static struct sum_struct *receive_sums(int f)
+ {
+-  struct sum_struct *s;
+-  int i;
+-  OFF_T offset = 0;
+-
+-  s = (struct sum_struct *)malloc(sizeof(*s));
+-  if (!s) out_of_memory("receive_sums");
+-
+-  s->count = read_int(f);
+-  s->n = read_int(f);
+-  s->remainder = read_int(f);  
+-  s->sums = NULL;
+-
+-  if (verbose > 3)
+-    rprintf(FINFO,"count=%d n=%d rem=%d\n",
+-	    s->count,s->n,s->remainder);
+-
+-  if (s->count == 0) 
+-    return(s);
+-
+-  s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
+-  if (!s->sums) out_of_memory("receive_sums");
+-
+-  for (i=0;i<s->count;i++) {
+-    s->sums[i].sum1 = read_int(f);
+-    read_buf(f,s->sums[i].sum2,csum_length);
+-
+-    s->sums[i].offset = offset;
+-    s->sums[i].i = i;
+-
+-    if (i == s->count-1 && s->remainder != 0) {
+-      s->sums[i].len = s->remainder;
+-    } else {
+-      s->sums[i].len = s->n;
+-    }
+-    offset += s->sums[i].len;
+-
+-    if (verbose > 3)
+-      rprintf(FINFO,"chunk[%d] len=%d offset=%d sum1=%08x\n",
+-	      i,s->sums[i].len,(int)s->sums[i].offset,s->sums[i].sum1);
+-  }
++	struct sum_struct *s;
++	int i;
++	OFF_T offset = 0;
++
++	s = (struct sum_struct *)malloc(sizeof(*s));
++	if (!s) out_of_memory("receive_sums");
++
++	s->count = read_int(f);
++	s->n = read_int(f);
++	s->remainder = read_int(f);  
++	s->sums = NULL;
+ 
+-  s->flength = offset;
++	if (verbose > 3)
++		rprintf(FINFO,"count=%d n=%d rem=%d\n",
++			s->count,s->n,s->remainder);
++
++	if (s->count == 0) 
++		return(s);
++
++	s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
++	if (!s->sums) out_of_memory("receive_sums");
++
++	for (i=0;i<s->count;i++) {
++		s->sums[i].sum1 = read_int(f);
++		read_buf(f,s->sums[i].sum2,csum_length);
++
++		s->sums[i].offset = offset;
++		s->sums[i].i = i;
+ 
+-  return s;
++		if (i == s->count-1 && s->remainder != 0) {
++			s->sums[i].len = s->remainder;
++		} else {
++			s->sums[i].len = s->n;
++		}
++		offset += s->sums[i].len;
++
++		if (verbose > 3)
++			rprintf(FINFO,"chunk[%d] len=%d offset=%d sum1=%08x\n",
++				i,s->sums[i].len,(int)s->sums[i].offset,s->sums[i].sum1);
++	}
++
++	s->flength = offset;
++
++	return s;
+ }
+ 
+ 
+ static int set_perms(char *fname,struct file_struct *file,STRUCT_STAT *st,
+ 		     int report)
+ {
+@@ -354,297 +385,323 @@
+ 
+ 	return (st->st_mtime == file->modtime);
+ }
+ 
+ 
+ /* use a larger block size for really big files */
+-int adapt_block_size(struct file_struct *file, int bsize)
++static int adapt_block_size(struct file_struct *file, int bsize)
+ {
+ 	int ret;
+ 
+ 	if (bsize != BLOCK_SIZE) return bsize;
+ 
+ 	ret = file->length / (10000); /* rough heuristic */
+ 	ret = ret & ~15; /* multiple of 16 */
+ 	if (ret < bsize) ret = bsize;
+ 	if (ret > CHUNK_SIZE/2) ret = CHUNK_SIZE/2;
+ 	return ret;
+ }
+ 
+-void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
++static void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
+ {  
+-  int fd;
+-  STRUCT_STAT st;
+-  struct map_struct *buf;
+-  struct sum_struct *s;
+-  int statret;
+-  struct file_struct *file = flist->files[i];
+-
+-  if (verbose > 2)
+-    rprintf(FINFO,"recv_generator(%s,%d)\n",fname,i);
+-
+-  statret = link_stat(fname,&st);
+-
+-  if (S_ISDIR(file->mode)) {
+-    if (dry_run) return;
+-    if (statret == 0 && !S_ISDIR(st.st_mode)) {
+-      if (do_unlink(fname) != 0) {
+-	rprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
+-	return;
+-      }
+-      statret = -1;
+-    }
+-    if (statret != 0 && do_mkdir(fname,file->mode) != 0 && errno != EEXIST) {
+-	    if (!(relative_paths && errno==ENOENT && 
+-		  create_directory_path(fname)==0 && 
+-		  do_mkdir(fname,file->mode)==0)) {
+-		    rprintf(FERROR,"mkdir %s : %s (2)\n",
+-			    fname,strerror(errno));
+-	    }
+-    }
+-    if (set_perms(fname,file,NULL,0) && verbose) 
+-      rprintf(FINFO,"%s/\n",fname);
+-    return;
+-  }
++	int fd;
++	STRUCT_STAT st;
++	struct map_struct *buf;
++	struct sum_struct *s;
++	int statret;
++	struct file_struct *file = flist->files[i];
++
++	if (verbose > 2)
++		rprintf(FINFO,"recv_generator(%s,%d)\n",fname,i);
++
++	statret = link_stat(fname,&st);
++
++	if (S_ISDIR(file->mode)) {
++		if (dry_run) return;
++		if (statret == 0 && !S_ISDIR(st.st_mode)) {
++			if (do_unlink(fname) != 0) {
++				rprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
++				return;
++			}
++			statret = -1;
++		}
++		if (statret != 0 && do_mkdir(fname,file->mode) != 0 && errno != EEXIST) {
++			if (!(relative_paths && errno==ENOENT && 
++			      create_directory_path(fname)==0 && 
++			      do_mkdir(fname,file->mode)==0)) {
++				rprintf(FERROR,"mkdir %s : %s (2)\n",
++					fname,strerror(errno));
++			}
++		}
++		if (set_perms(fname,file,NULL,0) && verbose) 
++			rprintf(FINFO,"%s/\n",fname);
++		return;
++	}
+ 
+-  if (preserve_links && S_ISLNK(file->mode)) {
++	if (preserve_links && S_ISLNK(file->mode)) {
+ #if SUPPORT_LINKS
+-    char lnk[MAXPATHLEN];
+-    int l;
+-    if (statret == 0) {
+-      l = readlink(fname,lnk,MAXPATHLEN-1);
+-      if (l > 0) {
+-	lnk[l] = 0;
+-	if (strcmp(lnk,file->link) == 0) {
+-	  set_perms(fname,file,&st,1);
+-	  return;
+-	}
+-      }
+-    }
+-    delete_file(fname);
+-    if (do_symlink(file->link,fname) != 0) {
+-      rprintf(FERROR,"link %s -> %s : %s\n",
+-	      fname,file->link,strerror(errno));
+-    } else {
+-      set_perms(fname,file,NULL,0);
+-      if (verbose) 
+-	rprintf(FINFO,"%s -> %s\n",
+-		fname,file->link);
+-    }
++		char lnk[MAXPATHLEN];
++		int l;
++		extern int safe_symlinks;
++
++		if (safe_symlinks && unsafe_symlink(file->link, fname)) {
++			if (verbose) {
++				rprintf(FINFO,"ignoring unsafe symlink %s -> %s\n",
++					fname,file->link);
++			}
++			return;
++		}
++		if (statret == 0) {
++			l = readlink(fname,lnk,MAXPATHLEN-1);
++			if (l > 0) {
++				lnk[l] = 0;
++				if (strcmp(lnk,file->link) == 0) {
++					set_perms(fname,file,&st,1);
++					return;
++				}
++			}
++		}
++		delete_file(fname);
++		if (do_symlink(file->link,fname) != 0) {
++			rprintf(FERROR,"link %s -> %s : %s\n",
++				fname,file->link,strerror(errno));
++		} else {
++			set_perms(fname,file,NULL,0);
++			if (verbose) {
++				rprintf(FINFO,"%s -> %s\n",
++					fname,file->link);
++			}
++		}
+ #endif
+-    return;
+-  }
++		return;
++	}
+ 
+ #ifdef HAVE_MKNOD
+-  if (am_root && preserve_devices && IS_DEVICE(file->mode)) {
+-    if (statret != 0 || 
+-	st.st_mode != file->mode ||
+-	st.st_rdev != file->rdev) {	
+-      delete_file(fname);
+-      if (verbose > 2)
+-	rprintf(FINFO,"mknod(%s,0%o,0x%x)\n",
+-		fname,(int)file->mode,(int)file->rdev);
+-      if (do_mknod(fname,file->mode,file->rdev) != 0) {
+-	rprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));
+-      } else {
+-	set_perms(fname,file,NULL,0);
+-	if (verbose)
+-	  rprintf(FINFO,"%s\n",fname);
+-      }
+-    } else {
+-      set_perms(fname,file,&st,1);
+-    }
+-    return;
+-  }
++	if (am_root && preserve_devices && IS_DEVICE(file->mode)) {
++		if (statret != 0 || 
++		    st.st_mode != file->mode ||
++		    st.st_rdev != file->rdev) {	
++			delete_file(fname);
++			if (verbose > 2)
++				rprintf(FINFO,"mknod(%s,0%o,0x%x)\n",
++					fname,(int)file->mode,(int)file->rdev);
++			if (do_mknod(fname,file->mode,file->rdev) != 0) {
++				rprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));
++			} else {
++				set_perms(fname,file,NULL,0);
++				if (verbose)
++					rprintf(FINFO,"%s\n",fname);
++			}
++		} else {
++			set_perms(fname,file,&st,1);
++		}
++		return;
++	}
+ #endif
+ 
+-  if (preserve_hard_links && check_hard_link(file)) {
+-    if (verbose > 1)
+-      rprintf(FINFO,"%s is a hard link\n",f_name(file));
+-    return;
+-  }
+-
+-  if (!S_ISREG(file->mode)) {
+-    rprintf(FINFO,"skipping non-regular file %s\n",fname);
+-    return;
+-  }
+-
+-  if (statret == -1) {
+-    if (errno == ENOENT) {
+-      write_int(f_out,i);
+-      if (!dry_run) send_sums(NULL,f_out);
+-    } else {
+-      if (verbose > 1)
+-	rprintf(FERROR,"recv_generator failed to open %s\n",fname);
+-    }
+-    return;
+-  }
+-
+-  if (!S_ISREG(st.st_mode)) {
+-    if (delete_file(fname) != 0) {
+-      return;
+-    }
+-
+-    /* now pretend the file didn't exist */
+-    write_int(f_out,i);
+-    if (!dry_run) send_sums(NULL,f_out);    
+-    return;
+-  }
+-
+-  if (update_only && st.st_mtime > file->modtime) {
+-    if (verbose > 1)
+-      rprintf(FINFO,"%s is newer\n",fname);
+-    return;
+-  }
+-
+-  if (skip_file(fname, file, &st)) {
+-    set_perms(fname,file,&st,1);
+-    return;
+-  }
+-
+-  if (dry_run) {
+-    write_int(f_out,i);
+-    return;
+-  }
+-
+-  if (whole_file) {
+-    write_int(f_out,i);
+-    send_sums(NULL,f_out);    
+-    return;
+-  }
+-
+-  /* open the file */  
+-  fd = open(fname,O_RDONLY);
+-
+-  if (fd == -1) {
+-    rprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
+-    rprintf(FERROR,"skipping %s\n",fname);
+-    return;
+-  }
+-
+-  if (st.st_size > 0) {
+-    buf = map_file(fd,st.st_size);
+-  } else {
+-    buf = NULL;
+-  }
+-
+-  if (verbose > 3)
+-    rprintf(FINFO,"gen mapped %s of size %d\n",fname,(int)st.st_size);
+-
+-  s = generate_sums(buf,st.st_size,adapt_block_size(file, block_size));
+-
+-  if (verbose > 2)
+-    rprintf(FINFO,"sending sums for %d\n",i);
+-
+-  write_int(f_out,i);
+-  send_sums(s,f_out);
+-
+-  close(fd);
+-  if (buf) unmap_file(buf);
++	if (preserve_hard_links && check_hard_link(file)) {
++		if (verbose > 1)
++			rprintf(FINFO,"%s is a hard link\n",f_name(file));
++		return;
++	}
++
++	if (!S_ISREG(file->mode)) {
++		rprintf(FINFO,"skipping non-regular file %s\n",fname);
++		return;
++	}
++
++	if (statret == -1) {
++		if (errno == ENOENT) {
++			write_int(f_out,i);
++			if (!dry_run) send_sums(NULL,f_out);
++		} else {
++			if (verbose > 1)
++				rprintf(FERROR,"recv_generator failed to open %s\n",fname);
++		}
++		return;
++	}
++
++	if (!S_ISREG(st.st_mode)) {
++		if (delete_file(fname) != 0) {
++			return;
++		}
++
++		/* now pretend the file didn't exist */
++		write_int(f_out,i);
++		if (!dry_run) send_sums(NULL,f_out);    
++		return;
++	}
++
++	if (update_only && st.st_mtime > file->modtime) {
++		if (verbose > 1)
++			rprintf(FINFO,"%s is newer\n",fname);
++		return;
++	}
++
++	if (skip_file(fname, file, &st)) {
++		set_perms(fname,file,&st,1);
++		return;
++	}
++
++	if (dry_run) {
++		write_int(f_out,i);
++		return;
++	}
+ 
+-  free_sums(s);
++	if (whole_file) {
++		write_int(f_out,i);
++		send_sums(NULL,f_out);    
++		return;
++	}
++
++	/* open the file */  
++	fd = open(fname,O_RDONLY);
++
++	if (fd == -1) {
++		rprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
++		rprintf(FERROR,"skipping %s\n",fname);
++		return;
++	}
++
++	if (st.st_size > 0) {
++		buf = map_file(fd,st.st_size);
++	} else {
++		buf = NULL;
++	}
++
++	if (verbose > 3)
++		rprintf(FINFO,"gen mapped %s of size %d\n",fname,(int)st.st_size);
++
++	s = generate_sums(buf,st.st_size,adapt_block_size(file, block_size));
++
++	if (verbose > 2)
++		rprintf(FINFO,"sending sums for %d\n",i);
++
++	write_int(f_out,i);
++	send_sums(s,f_out);
++
++	close(fd);
++	if (buf) unmap_file(buf);
++
++	free_sums(s);
+ }
+ 
+ 
+ 
+-static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname)
++static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname,
++			OFF_T total_size)
+ {
+-  int i,n,remainder,len,count;
+-  OFF_T offset = 0;
+-  OFF_T offset2;
+-  char *data;
+-  static char file_sum1[MD4_SUM_LENGTH];
+-  static char file_sum2[MD4_SUM_LENGTH];
+-  char *map=NULL;
+-
+-  count = read_int(f_in);
+-  n = read_int(f_in);
+-  remainder = read_int(f_in);
+-
+-  sum_init();
+-
+-  for (i=recv_token(f_in,&data); i != 0; i=recv_token(f_in,&data)) {
+-    if (i > 0) {
+-      if (verbose > 3)
+-	rprintf(FINFO,"data recv %d at %d\n",i,(int)offset);
++	int i,n,remainder,len,count;
++	OFF_T offset = 0;
++	OFF_T offset2;
++	char *data;
++	static char file_sum1[MD4_SUM_LENGTH];
++	static char file_sum2[MD4_SUM_LENGTH];
++	char *map=NULL;
++	
++	count = read_int(f_in);
++	n = read_int(f_in);
++	remainder = read_int(f_in);
++	
++	sum_init();
++	
++	for (i=recv_token(f_in,&data); i != 0; i=recv_token(f_in,&data)) {
+ 
+-      stats.literal_data += i;
+-      sum_update(data,i);
++		show_progress(offset, total_size);
+ 
+-      if (fd != -1 && write_file(fd,data,i) != i) {
+-	rprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+-	exit_cleanup(1);
+-      }
+-      offset += i;
+-    } else {
+-      i = -(i+1);
+-      offset2 = i*n;
+-      len = n;
+-      if (i == count-1 && remainder != 0)
+-	len = remainder;
+-
+-      stats.matched_data += len;
+-
+-      if (verbose > 3)
+-	rprintf(FINFO,"chunk[%d] of size %d at %d offset=%d\n",
+-		i,len,(int)offset2,(int)offset);
++		if (i > 0) {
++			if (verbose > 3) {
++				rprintf(FINFO,"data recv %d at %d\n",
++					i,(int)offset);
++			}
+ 
+-      map = map_ptr(buf,offset2,len);
++			stats.literal_data += i;
++			cleanup_got_literal = 1;
++      
++			sum_update(data,i);
+ 
+-      see_token(map, len);
+-      sum_update(map,len);
++			if (fd != -1 && write_file(fd,data,i) != i) {
++				rprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
++				exit_cleanup(1);
++			}
++			offset += i;
++			continue;
++		} 
+ 
+-      if (fd != -1 && write_file(fd,map,len) != len) {
+-	rprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+-	exit_cleanup(1);
+-      }
+-      offset += len;
+-    }
+-  }
+-
+-  if (fd != -1 && offset > 0 && sparse_end(fd) != 0) {
+-    rprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+-    exit_cleanup(1);
+-  }
+-
+-  sum_end(file_sum1);
+-
+-  if (remote_version >= 14) {
+-    read_buf(f_in,file_sum2,MD4_SUM_LENGTH);
+-    if (verbose > 2)
+-      rprintf(FINFO,"got file_sum\n");
+-    if (fd != -1 && memcmp(file_sum1,file_sum2,MD4_SUM_LENGTH) != 0)
+-      return 0;
+-  }
+-  return 1;
++		i = -(i+1);
++		offset2 = i*n;
++		len = n;
++		if (i == count-1 && remainder != 0)
++			len = remainder;
++		
++		stats.matched_data += len;
++		
++		if (verbose > 3)
++			rprintf(FINFO,"chunk[%d] of size %d at %d offset=%d\n",
++				i,len,(int)offset2,(int)offset);
++		
++		map = map_ptr(buf,offset2,len);
++		
++		see_token(map, len);
++		sum_update(map,len);
++		
++		if (fd != -1 && write_file(fd,map,len) != len) {
++			rprintf(FERROR,"write failed on %s : %s\n",
++				fname,strerror(errno));
++			exit_cleanup(1);
++		}
++		offset += len;
++	}
++
++	end_progress();
++
++	if (fd != -1 && offset > 0 && sparse_end(fd) != 0) {
++		rprintf(FERROR,"write failed on %s : %s\n",
++			fname,strerror(errno));
++		exit_cleanup(1);
++	}
++
++	sum_end(file_sum1);
++
++	if (remote_version >= 14) {
++		read_buf(f_in,file_sum2,MD4_SUM_LENGTH);
++		if (verbose > 2) {
++			rprintf(FINFO,"got file_sum\n");
++		}
++		if (fd != -1 && 
++		    memcmp(file_sum1,file_sum2,MD4_SUM_LENGTH) != 0) {
++			return 0;
++		}
++	}
++	return 1;
+ }
+ 
+ 
+ static void delete_one(struct file_struct *f)
+ {
+-  if (!S_ISDIR(f->mode)) {
+-    if (do_unlink(f_name(f)) != 0) {
+-      rprintf(FERROR,"unlink %s : %s\n",f_name(f),strerror(errno));
+-    } else if (verbose) {
+-      rprintf(FINFO,"deleting %s\n",f_name(f));
+-    }
+-  } else {    
+-    if (do_rmdir(f_name(f)) != 0) {
+-      if (errno != ENOTEMPTY && errno != EEXIST)
+-	rprintf(FERROR,"rmdir %s : %s\n",f_name(f),strerror(errno));
+-    } else if (verbose) {
+-      rprintf(FINFO,"deleting directory %s\n",f_name(f));      
+-    }
+-  }
++	if (!S_ISDIR(f->mode)) {
++		if (do_unlink(f_name(f)) != 0) {
++			rprintf(FERROR,"unlink %s : %s\n",f_name(f),strerror(errno));
++		} else if (verbose) {
++			rprintf(FINFO,"deleting %s\n",f_name(f));
++		}
++	} else {    
++		if (do_rmdir(f_name(f)) != 0) {
++			if (errno != ENOTEMPTY && errno != EEXIST)
++				rprintf(FERROR,"rmdir %s : %s\n",f_name(f),strerror(errno));
++		} else if (verbose) {
++			rprintf(FINFO,"deleting directory %s\n",f_name(f));      
++		}
++	}
+ }
+ 
+ 
+ 
+ static struct delete_list {
+ 	dev_t dev;
+-	ino_t inode;
++	INO_T inode;
+ } *delete_list;
+ static int dlist_len, dlist_alloc_len;
+ 
+ static void add_delete_entry(struct file_struct *file)
+ {
+ 	if (dlist_len == dlist_alloc_len) {
+@@ -727,29 +784,15 @@
+ 		}
+ 		flist_free(local_file_list);
+ 		free(name);
+ 	}
+ }
+ 
+-static char *cleanup_fname;
+-
+-void exit_cleanup(int code)
+-{
+-	io_flush();
+-	if (cleanup_fname)
+-		do_unlink(cleanup_fname);
+-	signal(SIGUSR1, SIG_IGN);
+-	if (code) {
+-		kill_all(SIGUSR1);
+-	}
+-	exit(code);
+-}
+-
+ void sig_int(void)
+ {
+-  exit_cleanup(1);
++	exit_cleanup(1);
+ }
+ 
+ 
+ 
+ 
+ static int get_tmpname(char *fnametmp, char *fname)
+@@ -787,12 +830,52 @@
+ 		slprintf(fnametmp,MAXPATHLEN-1,".%s.XXXXXX",fname);
+ 	}
+ 
+ 	return 1;
+ }
+ 
++/* finish off a file transfer, renaming the file and setting the permissions
++   and ownership */
++static void finish_transfer(char *fname, char *fnametmp, struct file_struct *file)
++{
++	if (make_backups) {
++		char fnamebak[MAXPATHLEN];
++		if (strlen(fname) + strlen(backup_suffix) > (MAXPATHLEN-1)) {
++			rprintf(FERROR,"backup filename too long\n");
++			return;
++		}
++		slprintf(fnamebak,sizeof(fnamebak)-1,"%s%s",fname,backup_suffix);
++		if (do_rename(fname,fnamebak) != 0 && errno != ENOENT) {
++			rprintf(FERROR,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
++			return;
++		}
++	}
++
++	/* move tmp file over real file */
++	if (do_rename(fnametmp,fname) != 0) {
++		if (errno == EXDEV) {
++			/* rename failed on cross-filesystem link.  
++			   Copy the file instead. */
++			if (copy_file(fnametmp,fname, file->mode & ACCESSPERMS)) {
++				rprintf(FERROR,"copy %s -> %s : %s\n",
++					fnametmp,fname,strerror(errno));
++			} else {
++				set_perms(fname,file,NULL,0);
++			}
++			do_unlink(fnametmp);
++		} else {
++			rprintf(FERROR,"rename %s -> %s : %s\n",
++				fnametmp,fname,strerror(errno));
++			do_unlink(fnametmp);
++		}
++	} else {
++		set_perms(fname,file,NULL,0);
++	}
++}
++
++
+ int recv_files(int f_in,struct file_list *flist,char *local_name,int f_gen)
+ {  
+ 	int fd1,fd2;
+ 	STRUCT_STAT st;
+ 	char *fname;
+ 	char fnametmp[MAXPATHLEN];
+@@ -808,12 +891,15 @@
+ 
+ 	if (recurse && delete_mode && !local_name && flist->count>0) {
+ 		delete_files(flist);
+ 	}
+ 
+ 	while (1) {      
++		cleanup_fname = NULL;
++		cleanup_got_literal = 0;
++
+ 		i = read_int(f_in);
+ 		if (i == -1) {
+ 			if (phase==0 && remote_version >= 13) {
+ 				phase++;
+ 				csum_length = SUM_LENGTH;
+ 				if (verbose > 2)
+@@ -838,32 +924,32 @@
+ 
+ 		if (local_name)
+ 			fname = local_name;
+ 
+ 		if (dry_run) {
+ 			if (!am_server && verbose)
+-				printf("%s\n",fname);
++				rprintf(FINFO,"%s\n",fname);
+ 			continue;
+ 		}
+ 
+ 		if (verbose > 2)
+ 			rprintf(FINFO,"recv_files(%s)\n",fname);
+ 
+ 		/* open the file */  
+ 		fd1 = open(fname,O_RDONLY);
+ 
+ 		if (fd1 != -1 && do_fstat(fd1,&st) != 0) {
+ 			rprintf(FERROR,"fstat %s : %s\n",fname,strerror(errno));
+-			receive_data(f_in,NULL,-1,NULL);
++			receive_data(f_in,NULL,-1,NULL,file->length);
+ 			close(fd1);
+ 			continue;
+ 		}
+ 
+ 		if (fd1 != -1 && !S_ISREG(st.st_mode)) {
+ 			rprintf(FERROR,"%s : not a regular file (recv_files)\n",fname);
+-			receive_data(f_in,NULL,-1,NULL);
++			receive_data(f_in,NULL,-1,NULL,file->length);
+ 			close(fd1);
+ 			continue;
+ 		}
+ 
+ 		if (fd1 != -1 && st.st_size > 0) {
+ 			buf = map_file(fd1,st.st_size);
+@@ -878,13 +964,13 @@
+ 			close(fd1);
+ 			continue;
+ 		}
+ 
+ 		if (NULL == do_mktemp(fnametmp)) {
+ 			rprintf(FERROR,"mktemp %s failed\n",fnametmp);
+-			receive_data(f_in,buf,-1,NULL);
++			receive_data(f_in,buf,-1,NULL,file->length);
+ 			if (buf) unmap_file(buf);
+ 			close(fd1);
+ 			continue;
+ 		}
+ 
+ 		/* we initially set the perms without the
+@@ -899,71 +985,40 @@
+ 		    create_directory_path(fnametmp) == 0) {
+ 			fd2 = do_open(fnametmp,O_WRONLY|O_CREAT|O_EXCL,
+ 				      file->mode & ACCESSPERMS);
+ 		}
+ 		if (fd2 == -1) {
+ 			rprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));
+-			receive_data(f_in,buf,-1,NULL);
++			receive_data(f_in,buf,-1,NULL,file->length);
+ 			if (buf) unmap_file(buf);
+ 			close(fd1);
+ 			continue;
+ 		}
+       
+ 		cleanup_fname = fnametmp;
++		cleanup_new_fname = fname;
++		cleanup_file = file;
+ 
+ 		if (!am_server && verbose)
+-			printf("%s\n",fname);
++			rprintf(FINFO,"%s\n",fname);
+ 		
+ 		/* recv file data */
+-		recv_ok = receive_data(f_in,buf,fd2,fname);
++		recv_ok = receive_data(f_in,buf,fd2,fname,file->length);
+ 		
+ 		if (buf) unmap_file(buf);
+ 		if (fd1 != -1) {
+ 			close(fd1);
+ 		}
+ 		close(fd2);
+ 		
+ 		if (verbose > 2)
+ 			rprintf(FINFO,"renaming %s to %s\n",fnametmp,fname);
+-		
+-		if (make_backups) {
+-			char fnamebak[MAXPATHLEN];
+-			if (strlen(fname) + strlen(backup_suffix) > (MAXPATHLEN-1)) {
+-				rprintf(FERROR,"backup filename too long\n");
+-				continue;
+-			}
+-			slprintf(fnamebak,sizeof(fnamebak)-1,"%s%s",fname,backup_suffix);
+-			if (do_rename(fname,fnamebak) != 0 && errno != ENOENT) {
+-				rprintf(FERROR,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
+-				continue;
+-			}
+-		}
+-
+-		/* move tmp file over real file */
+-		if (do_rename(fnametmp,fname) != 0) {
+-			if (errno == EXDEV) {
+-				/* rename failed on cross-filesystem link.  
+-				   Copy the file instead. */
+-				if (copy_file(fnametmp,fname, file->mode)) {
+-					rprintf(FERROR,"copy %s -> %s : %s\n",
+-						fnametmp,fname,strerror(errno));
+-				} else {
+-					set_perms(fname,file,NULL,0);
+-				}
+-				do_unlink(fnametmp);
+-			} else {
+-				rprintf(FERROR,"rename %s -> %s : %s\n",
+-					fnametmp,fname,strerror(errno));
+-				do_unlink(fnametmp);
+-			}
+-		} else {
+-			set_perms(fname,file,NULL,0);
+-		}
+ 
++		finish_transfer(fname, fnametmp, file);
++		
+ 		cleanup_fname = NULL;
+-
+ 		
+ 		if (!recv_ok) {
+ 			if (csum_length == SUM_LENGTH) {
+ 				rprintf(FERROR,"ERROR: file corruption in %s. File changed during transfer?\n",
+ 					fname);
+ 			} else {
+@@ -992,197 +1047,198 @@
+ }
+ 
+ 
+ 
+ void send_files(struct file_list *flist,int f_out,int f_in)
+ { 
+-  int fd;
+-  struct sum_struct *s;
+-  struct map_struct *buf;
+-  STRUCT_STAT st;
+-  char fname[MAXPATHLEN];  
+-  int i;
+-  struct file_struct *file;
+-  int phase = 0;
+-
+-  if (verbose > 2)
+-    rprintf(FINFO,"send_files starting\n");
+-
+-  setup_readbuffer(f_in);
+-
+-  while (1) {
+-	  int offset=0;
+-
+-	  i = read_int(f_in);
+-	  if (i == -1) {
+-		  if (phase==0 && remote_version >= 13) {
+-			  phase++;
+-			  csum_length = SUM_LENGTH;
+-			  write_int(f_out,-1);
+-			  if (verbose > 2)
+-				  rprintf(FINFO,"send_files phase=%d\n",phase);
+-			  continue;
+-		  }
+-		  break;
+-	  }
+-
+-	  if (i < 0 || i >= flist->count) {
+-		  rprintf(FERROR,"Invalid file index %d (count=%d)\n", 
+-			  i, flist->count);
+-		  exit_cleanup(1);
+-	  }
+-
+-	  file = flist->files[i];
+-
+-	  stats.num_transferred_files++;
+-	  stats.total_transferred_size += file->length;
+-
+-	  fname[0] = 0;
+-	  if (file->basedir) {
+-		  strlcpy(fname,file->basedir,MAXPATHLEN-1);
+-		  if (strlen(fname) == MAXPATHLEN-1) {
+-			  io_error = 1;
+-			  rprintf(FERROR, "send_files failed on long-named directory %s\n",
+-				  fname);
+-			  return;
+-		  }
+-		  strlcat(fname,"/",MAXPATHLEN-1);
+-		  offset = strlen(file->basedir)+1;
+-	  }
+-	  strlcat(fname,f_name(file),MAXPATHLEN-strlen(fname));
++	int fd;
++	struct sum_struct *s;
++	struct map_struct *buf;
++	STRUCT_STAT st;
++	char fname[MAXPATHLEN];  
++	int i;
++	struct file_struct *file;
++	int phase = 0;
++
++	if (verbose > 2)
++		rprintf(FINFO,"send_files starting\n");
++
++	setup_readbuffer(f_in);
++
++	while (1) {
++		int offset=0;
++
++		i = read_int(f_in);
++		if (i == -1) {
++			if (phase==0 && remote_version >= 13) {
++				phase++;
++				csum_length = SUM_LENGTH;
++				write_int(f_out,-1);
++				if (verbose > 2)
++					rprintf(FINFO,"send_files phase=%d\n",phase);
++				continue;
++			}
++			break;
++		}
++
++		if (i < 0 || i >= flist->count) {
++			rprintf(FERROR,"Invalid file index %d (count=%d)\n", 
++				i, flist->count);
++			exit_cleanup(1);
++		}
++
++		file = flist->files[i];
++
++		stats.num_transferred_files++;
++		stats.total_transferred_size += file->length;
++
++		fname[0] = 0;
++		if (file->basedir) {
++			strlcpy(fname,file->basedir,MAXPATHLEN-1);
++			if (strlen(fname) == MAXPATHLEN-1) {
++				io_error = 1;
++				rprintf(FERROR, "send_files failed on long-named directory %s\n",
++					fname);
++				return;
++			}
++			strlcat(fname,"/",MAXPATHLEN-1);
++			offset = strlen(file->basedir)+1;
++		}
++		strlcat(fname,f_name(file),MAXPATHLEN-strlen(fname));
+ 	  
+-	  if (verbose > 2) 
+-		  rprintf(FINFO,"send_files(%d,%s)\n",i,fname);
++		if (verbose > 2) 
++			rprintf(FINFO,"send_files(%d,%s)\n",i,fname);
+ 	  
+-	  if (dry_run) {	
+-		  if (!am_server && verbose)
+-			  printf("%s\n",fname);
+-		  write_int(f_out,i);
+-		  continue;
+-	  }
+-
+-	  s = receive_sums(f_in);
+-	  if (!s) {
+-		  io_error = 1;
+-		  rprintf(FERROR,"receive_sums failed\n");
+-		  return;
+-	  }
++		if (dry_run) {	
++			if (!am_server && verbose)
++				rprintf(FINFO,"%s\n",fname);
++			write_int(f_out,i);
++			continue;
++		}
++
++		s = receive_sums(f_in);
++		if (!s) {
++			io_error = 1;
++			rprintf(FERROR,"receive_sums failed\n");
++			return;
++		}
+ 	  
+-	  fd = open(fname,O_RDONLY);
+-	  if (fd == -1) {
+-		  io_error = 1;
+-		  rprintf(FERROR,"send_files failed to open %s: %s\n",
+-			  fname,strerror(errno));
+-		  free_sums(s);
+-		  continue;
+-	  }
++		fd = open(fname,O_RDONLY);
++		if (fd == -1) {
++			io_error = 1;
++			rprintf(FERROR,"send_files failed to open %s: %s\n",
++				fname,strerror(errno));
++			free_sums(s);
++			continue;
++		}
+ 	  
+-	  /* map the local file */
+-	  if (do_fstat(fd,&st) != 0) {
+-		  io_error = 1;
+-		  rprintf(FERROR,"fstat failed : %s\n",strerror(errno));
+-		  free_sums(s);
+-		  close(fd);
+-		  return;
+-	  }
++		/* map the local file */
++		if (do_fstat(fd,&st) != 0) {
++			io_error = 1;
++			rprintf(FERROR,"fstat failed : %s\n",strerror(errno));
++			free_sums(s);
++			close(fd);
++			return;
++		}
+ 	  
+-	  if (st.st_size > 0) {
+-		  buf = map_file(fd,st.st_size);
+-	  } else {
+-		  buf = NULL;
+-	  }
++		if (st.st_size > 0) {
++			buf = map_file(fd,st.st_size);
++		} else {
++			buf = NULL;
++		}
+ 	  
+-	  if (verbose > 2)
+-		  rprintf(FINFO,"send_files mapped %s of size %d\n",
+-			  fname,(int)st.st_size);
++		if (verbose > 2)
++			rprintf(FINFO,"send_files mapped %s of size %d\n",
++				fname,(int)st.st_size);
+ 	  
+-	  write_int(f_out,i);
++		write_int(f_out,i);
+ 	  
+-	  write_int(f_out,s->count);
+-	  write_int(f_out,s->n);
+-	  write_int(f_out,s->remainder);
++		write_int(f_out,s->count);
++		write_int(f_out,s->n);
++		write_int(f_out,s->remainder);
+ 	  
+-	  if (verbose > 2)
+-		  rprintf(FINFO,"calling match_sums %s\n",fname);
++		if (verbose > 2)
++			rprintf(FINFO,"calling match_sums %s\n",fname);
+ 	  
+-	  if (!am_server && verbose)
+-		  printf("%s\n",fname+offset);
++		if (!am_server && verbose)
++			rprintf(FINFO,"%s\n",fname+offset);
+ 	  
+-	  match_sums(f_out,s,buf,st.st_size);
++		match_sums(f_out,s,buf,st.st_size);
+ 	  
+-	  if (buf) unmap_file(buf);
+-	  close(fd);
++		if (buf) unmap_file(buf);
++		close(fd);
+ 	  
+-	  free_sums(s);
++		free_sums(s);
+ 	  
+-	  if (verbose > 2)
+-		  rprintf(FINFO,"sender finished %s\n",fname);
+-  }
++		if (verbose > 2)
++			rprintf(FINFO,"sender finished %s\n",fname);
++	}
+ 
+-  if (verbose > 2)
+-	  rprintf(FINFO,"send files finished\n");
++	if (verbose > 2)
++		rprintf(FINFO,"send files finished\n");
+ 
+-  match_report();
++	match_report();
+ 
+-  write_int(f_out,-1);
++	write_int(f_out,-1);
+ }
+ 
+ 
+ 
+ void generate_files(int f,struct file_list *flist,char *local_name,int f_recv)
+ {
+-  int i;
+-  int phase=0;
++	int i;
++	int phase=0;
+ 
+-  if (verbose > 2)
+-    rprintf(FINFO,"generator starting pid=%d count=%d\n",
+-	    (int)getpid(),flist->count);
+-
+-  for (i = 0; i < flist->count; i++) {
+-    struct file_struct *file = flist->files[i];
+-    mode_t saved_mode = file->mode;
+-    if (!file->basename) continue;
+-
+-    /* we need to ensure that any directories we create have writeable
+-       permissions initially so that we can create the files within
+-       them. This is then fixed after the files are transferred */
+-    if (!am_root && S_ISDIR(file->mode)) {
+-      file->mode |= S_IWUSR; /* user write */
+-    }
+-
+-    recv_generator(local_name?local_name:f_name(file),
+-		   flist,i,f);
+-
+-    file->mode = saved_mode;
+-  }
+-
+-  phase++;
+-  csum_length = SUM_LENGTH;
+-  ignore_times=1;
+-
+-  if (verbose > 2)
+-    rprintf(FINFO,"generate_files phase=%d\n",phase);
+-
+-  write_int(f,-1);
+-
+-  /* we expect to just sit around now, so don't exit on a timeout. If we
+-     really get a timeout then the other process should exit */
+-  io_timeout = 0;
+-
+-  if (remote_version >= 13) {
+-    /* in newer versions of the protocol the files can cycle through
+-       the system more than once to catch initial checksum errors */
+-    for (i=read_int(f_recv); i != -1; i=read_int(f_recv)) {
+-      struct file_struct *file = flist->files[i];
+-      recv_generator(local_name?local_name:f_name(file),
+-		     flist,i,f);    
+-    }
+-
+-    phase++;
+-    if (verbose > 2)
+-      rprintf(FINFO,"generate_files phase=%d\n",phase);
++	if (verbose > 2)
++		rprintf(FINFO,"generator starting pid=%d count=%d\n",
++			(int)getpid(),flist->count);
+ 
+-    write_int(f,-1);
+-  }
++	for (i = 0; i < flist->count; i++) {
++		struct file_struct *file = flist->files[i];
++		mode_t saved_mode = file->mode;
++		if (!file->basename) continue;
++
++		/* we need to ensure that any directories we create have writeable
++		   permissions initially so that we can create the files within
++		   them. This is then fixed after the files are transferred */
++		if (!am_root && S_ISDIR(file->mode)) {
++			file->mode |= S_IWUSR; /* user write */
++		}
++
++		recv_generator(local_name?local_name:f_name(file),
++			       flist,i,f);
++
++		file->mode = saved_mode;
++	}
++
++	phase++;
++	csum_length = SUM_LENGTH;
++	ignore_times=1;
++
++	if (verbose > 2)
++		rprintf(FINFO,"generate_files phase=%d\n",phase);
++
++	write_int(f,-1);
++
++	/* we expect to just sit around now, so don't exit on a
++	   timeout. If we really get a timeout then the other process should
++	   exit */
++	io_timeout = 0;
++
++	if (remote_version >= 13) {
++		/* in newer versions of the protocol the files can cycle through
++		   the system more than once to catch initial checksum errors */
++		for (i=read_int(f_recv); i != -1; i=read_int(f_recv)) {
++			struct file_struct *file = flist->files[i];
++			recv_generator(local_name?local_name:f_name(file),
++				       flist,i,f);    
++		}
++
++		phase++;
++		if (verbose > 2)
++			rprintf(FINFO,"generate_files phase=%d\n",phase);
++
++		write_int(f,-1);
++	}
+ }
+ 
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.h	1998-06-18 20:20:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/rsync.h	1998-07-17 22:46:51.000000000 +0800
+@@ -66,12 +66,19 @@
+ #define RSYNC_RSH "remsh"
+ #else
+ #define RSYNC_RSH "rsh"
+ #endif
+ 
+ #include <sys/types.h>
++
++#ifdef HAVE_GETOPT_LONG
++#include <getopt.h>
++#else
++#include "lib/getopt.h"
++#endif
++
+ #ifdef HAVE_UNISTD_H
+ #include <unistd.h>
+ #endif
+ #include <stdio.h>
+ #include <stddef.h>
+ 
+@@ -159,18 +166,12 @@
+ #ifdef HAVE_FNMATCH
+ #include <fnmatch.h>
+ #else
+ #include "lib/fnmatch.h"
+ #endif
+ 
+-#ifdef HAVE_GETOPT_LONG
+-#include <getopt.h>
+-#else
+-#include "lib/getopt.h"
+-#endif
+-
+ #ifdef HAVE_GLOB
+ #include <glob.h>
+ #endif
+ 
+ /* these are needed for the uid/gid mapping code */
+ #include <pwd.h>
+@@ -255,12 +256,18 @@
+ #define int64 long long
+ #else
+ #define int64 off_t
+ #define NO_INT64
+ #endif
+ 
++#if HAVE_SHORT_INO_T
++#define INO_T uint32
++#else
++#define INO_T ino_t
++#endif
++
+ #ifndef MIN
+ #define MIN(a,b) ((a)<(b)?(a):(b))
+ #endif
+ 
+ #ifndef MAX
+ #define MAX(a,b) ((a)>(b)?(a):(b))
+@@ -280,13 +287,13 @@
+ 
+ struct file_struct {
+ 	unsigned flags;
+ 	time_t modtime;
+ 	OFF_T length;
+ 	mode_t mode;
+-	ino_t inode;
++	INO_T inode;
+ 	dev_t dev;
+ 	dev_t rdev;
+ 	uid_t uid;
+ 	gid_t gid;
+ 	char *basename;
+ 	char *dirname;
+@@ -299,17 +306,17 @@
+ 	int count;
+ 	int malloced;
+ 	struct file_struct **files;
+ };
+ 
+ struct sum_buf {
+-  OFF_T offset;			/* offset in file of this chunk */
+-  int len;			/* length of chunk of file */
+-  int i;			/* index of this chunk */
+-  uint32 sum1;	                /* simple checksum */
+-  char sum2[SUM_LENGTH];	/* checksum  */
++	OFF_T offset;		/* offset in file of this chunk */
++	int len;		/* length of chunk of file */
++	int i;			/* index of this chunk */
++	uint32 sum1;	        /* simple checksum */
++	char sum2[SUM_LENGTH];	/* checksum  */
+ };
+ 
+ struct sum_struct {
+   OFF_T flength;		/* total file length */
+   int count;			/* how many chunks */
+   int remainder;		/* flength % block_length */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.yo	1998-06-18 18:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/rsync.yo	1998-07-17 22:46:51.000000000 +0800
+@@ -184,12 +184,71 @@
+ command
+ 
+ quote(rsync -az -e ssh --delete ~ftp/pub/samba/ nimbus:"~ftp/pub/tridge/samba")
+ 
+ this is launched from cron every few hours.
+ 
++manpagesection(OPTIONS SUMMARY)
++
++Here is a short summary of the options avalable in rsync. Please refer
++to the detailed description below for a complete description.
++
++verb(
++Usage: rsync [OPTION]... SRC [USER@]HOST:DEST
++  or   rsync [OPTION]... [USER@]HOST:SRC DEST
++  or   rsync [OPTION]... SRC DEST
++  or   rsync [OPTION]... [USER@]HOST::SRC DEST
++  or   rsync [OPTION]... SRC [USER@]HOST::DEST
++
++Options
++ -v, --verbose               increase verbosity
++ -c, --checksum              always checksum
++ -a, --archive               archive mode
++ -r, --recursive             recurse into directories
++ -R, --relative              use relative path names
++ -b, --backup                make backups (default ~ extension)
++ -u, --update                update only (don't overwrite newer files)
++ -l, --links                 preserve soft links
++ -L, --copy-links            treat soft links like regular files
++     --safe-links            ignore links outside the destination tree
++ -H, --hard-links            preserve hard links
++ -p, --perms                 preserve permissions
++ -o, --owner                 preserve owner (root only)
++ -g, --group                 preserve group
++ -D, --devices               preserve devices (root only)
++ -t, --times                 preserve times
++ -S, --sparse                handle sparse files efficiently
++ -n, --dry-run               show what would have been transferred
++ -W, --whole-file            copy whole files, no incremental checks
++ -x, --one-file-system       don't cross filesystem boundaries
++ -B, --block-size=SIZE       checksum blocking size
++ -e, --rsh=COMMAND           specify rsh replacement
++     --rsync-path=PATH       specify path to rsync on the remote machine
++ -C, --cvs-exclude           auto ignore files in the same way CVS does
++     --delete                delete files that don't exist on the sending side
++     --partial               keep partially transferred files
++     --force                 force deletion of directories even if not empty
++     --numeric-ids           don't map uid/gid values by user/group name
++     --timeout=TIME          set IO timeout in seconds
++ -I, --ignore-times          don't exclude files that match length and time
++ -T  --temp-dir=DIR          create temporary files in directory DIR
++ -z, --compress              compress file data
++     --exclude=PATTERN       exclude file FILE
++     --exclude-from=PATTERN  exclude files listed in FILE
++     --include=PATTERN       don't exclude file FILE
++     --include-from=PATTERN  don't exclude files listed in FILE
++     --suffix=SUFFIX         override backup suffix
++     --version               print version number
++     --daemon                run as a rsync daemon
++     --config=FILE           specify alternate rsyncd.conf file
++     --port=PORT             specify alternate rsyncd port number
++     --stats                 give some file transfer stats
++     --progress              show progress during transfer
++ -h, --help                  show this help screen
++)
++
+ manpageoptions()
+ 
+ rsync uses the GNU long options package. Many of the command line
+ options have two variants, one short and one long.  These are shown
+ below separated by commas. Some options only have a long variant.
+ 
+@@ -253,12 +312,17 @@
+ remote system  to  be the same as the local system. Without this
+ option all symbolic links are skipped.
+ 
+ dit(bf(-L, --copy-links)) This tells rsync to treat symbolic links just
+ like  ordinary files.
+ 
++dit(bf(--safe-links)) This tells rsync to ignore any symbolic links
++which point outside the destination tree. All absolute symlinks are
++also ignored. Using this option in conjunction with --relative may
++give unexpecetd results. 
++
+ dit(bf(-H, --hard-links)) This tells rsync to recreate hard  links  on
+ the  remote system  to  be the same as the local system. Without this
+ option hard links are treated like regular files.
+ 
+ Note that rsync can only detect hard links if both parts of the link
+ are in the list of files being sent.
+@@ -266,12 +330,18 @@
+ This option can be quite slow, so only use it if you need it.
+ 
+ dit(bf(-W, --whole-file)) With this option the incremental rsync algorithm
+ is  not used  and  the whole file is sent as-is instead. This may be
+ useful when using rsync with a local machine.
+ 
++dit(bf(--partial)) By default rsync will delete any partially
++transferred file if the transfer is interrupted. In some circumstances
++it is more desirable to keep partially transferred files. Using the
++--partial option tells rsync to keep the partial file which should
++make a subsequent transfer of the rest of the file much faster.
++
+ dit(bf(-p, --perms)) This option causes rsync to update the remote
+ permissions to be the same as the local permissions.
+ 
+ dit(bf(-o, --owner)) This option causes rsync to update the  remote  owner
+ of the  file to be the same as the local owner. This is only available
+ to the super-user.
+@@ -289,12 +359,16 @@
+ dit(bf(-n, --dry-run)) This tells rsync to not do any file transfers,
+ instead it will just report the actions it would have taken.
+ 
+ dit(bf(-S, --sparse)) Try to handle sparse files efficiently so they take
+ up less space on the destination.
+ 
++NOTE: Don't use this option when the destination is a Solaris "tmpfs"
++filesystem. It doesn't seem to handle seeks over null regions
++correctly and ends up corrupting the files.
++
+ dit(bf(-x, --one-file-system)) This tells rsync not to cross filesystem
+ boundaries  when recursing.  This  is useful for transferring the
+ contents of only one filesystem.
+ 
+ dit(bf(--delete)) This tells rsync to delete any files on the receiving
+ side that aren't on the sending side. This option can be dangerous if
+@@ -451,12 +525,16 @@
+ 
+ dit(bf(--stats)) This tells rsync to print a verbose set of statistics
+ on the file transfer, allowing you to tell how effective the rsync
+ algorithm is for your data. This option only works in conjunction with
+ the -v (verbose) option.
+ 
++dit(bf(--progress)) This option tells rsync to print information
++showing the progress of the transfer. This gives a bored user
++something to watch.
++
+ enddit()
+ 
+ manpagesection(EXCLUDE PATTERNS)
+ 
+ The exclude and include patterns specified to rsync allow for flexible
+ selection of what files to transfer and what files to skip.
+@@ -513,12 +591,35 @@
+   it() --exclude "/foo" would exclude a file in the base directory called foo
+   it() --exclude "foo/" would exclude any directory called foo
+   it() --include "*/" --include "*.c" --exclude "*" would include all 
+   directories and C source files.
+ )
+ 
++manpagesection(DIAGNOSTICS)
++
++rsync occasinally produces error messages that may seem a little
++cryptic. The one that seems to cause the most confusion is "protocol
++version mismatch - is your shell clean?".
++
++This message is usually caused by your startup scripts or remote shell
++facility producing unwanted garbage on the stream that rsync is using
++for its transport. The way ot diagnose this problem is to run your
++remote shell like this:
++
++verb(
++   rsh remotehost /bin/true > out.dat
++)
++       
++then look at out.dat. If everything is working correctly then out.dat
++should be a zero length file. You you are getting the above error from
++rsync then you will probably find that out.dat contains some text or
++data. Look at the contents and try to work out what is producing
++it. The most common cause is incorrectly configued shell startup
++scripts (such as .cshrc or .profile) that contain output statements
++for non-interactive logins.
++
+ manpagesection(ENVIRONMENT VARIABLES)
+ 
+ startdit()
+ 
+ dit(bf(CVSIGNORE)) The CVSIGNORE environment variable supplements any
+ ignore patterns in .cvsignore files. See the --cvs-exclude option for
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/socket.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/socket.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/socket.c	1998-06-18 18:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/socket.c	1998-07-17 22:46:51.000000000 +0800
+@@ -117,14 +117,12 @@
+ 
+ 
+ void start_accept_loop(int port, int (*fn)(int ))
+ {
+ 	int s;
+ 
+-	signal(SIGCHLD, SIG_IGN);
+-
+ 	/* open an incoming socket */
+ 	s = open_socket_in(SOCK_STREAM, port);
+ 	if (s == -1)
+ 		exit_cleanup(1);
+ 
+ 	/* ready to listen */
+@@ -152,12 +150,21 @@
+ 		if(!FD_ISSET(s, &fds)) continue;
+ 
+ 		fd = accept(s,&addr,&in_addrlen);
+ 
+ 		if (fd == -1) continue;
+ 
++		signal(SIGCHLD, SIG_IGN);
++
++		/* we shouldn't have any children left hanging around
++		   but I have had reports that on Digital Unix zombies
++		   are produced, so this ensures that they are reaped */
++#ifdef WNOHANG
++		waitpid(-1, NULL, WNOHANG);
++#endif
++
+ 		if (fork()==0) {
+ 			close(s);
+ 
+ 			_exit(fn(fd));
+ 		}
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/util.c	1998-06-18 18:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/util.c	1998-07-17 22:46:51.000000000 +0800
+@@ -682,6 +682,78 @@
+ 	while (*s1 && *s2 && (*s1 == *s2)) {
+ 		s1++; s2++;
+ 	}
+ 	
+ 	return (int)*s1 - (int)*s2;
+ }
++
++static OFF_T last_ofs;
++
++void end_progress(void)
++{
++	extern int do_progress, am_server;
++
++	if (do_progress && !am_server) {
++		rprintf(FINFO,"\n");
++	}
++	last_ofs = 0;
++}
++
++void show_progress(OFF_T ofs, OFF_T size)
++{
++	extern int do_progress, am_server;
++
++	if (do_progress && !am_server) {
++		if (ofs > last_ofs + 1000) {
++			int pct = (int)((100.0*ofs)/size);
++			rprintf(FINFO,"%.0f (%d%%)\r", (double)ofs, pct);
++			last_ofs = ofs;
++		}
++	}
++}
++
++/* determine if a symlink points outside the current directory tree */
++int unsafe_symlink(char *dest, char *src)
++{
++	char *tok;
++	int depth = 0;
++
++	/* all absolute and null symlinks are unsafe */
++	if (!dest || !(*dest) || (*dest == '/')) return 1;
++
++	src = strdup(src);
++	if (!src) out_of_memory("unsafe_symlink");
++
++	/* find out what our safety margin is */
++	for (tok=strtok(src,"/"); tok; tok=strtok(NULL,"/")) {
++		if (strcmp(tok,"..") == 0) {
++			depth=0;
++		} else if (strcmp(tok,".") == 0) {
++			/* nothing */
++		} else {
++			depth++;
++		}
++	}
++	free(src);
++
++	/* drop by one to account for the filename portion */
++	depth--;
++
++	dest = strdup(dest);
++	if (!dest) out_of_memory("unsafe_symlink");
++
++	for (tok=strtok(dest,"/"); tok; tok=strtok(NULL,"/")) {
++		if (strcmp(tok,"..") == 0) {
++			depth--;
++		} else if (strcmp(tok,".") == 0) {
++			/* nothing */
++		} else {
++			depth++;
++		}
++		/* if at any point we go outside the current directory then
++		   stop - it is unsafe */
++		if (depth < 0) break;
++	}
++
++	free(dest);
++	return (depth < 0);
++}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/version.h	1998-06-18 21:28:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/version.h	1998-07-17 22:52:57.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.18"
++#define VERSION "2.0.19"

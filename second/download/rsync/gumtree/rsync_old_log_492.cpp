@@ -1,0 +1,1 @@
+fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");

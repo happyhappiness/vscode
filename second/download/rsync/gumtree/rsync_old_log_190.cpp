@@ -1,0 +1,1 @@
+fprintf(stderr,"failed to open %s : %s\n",fname,strerror(errno));

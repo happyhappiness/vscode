@@ -1,0 +1,988 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/configure	2002-03-11 14:45:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/configure	2002-03-13 08:03:50.000000000 +0800
+@@ -975,13 +975,13 @@
+ fi
+ PATH_SEPARATOR="$ac_path_separator"
+ rm -f conftest.sh
+ 
+ ac_config_headers="$ac_config_headers config.h"
+ 
+-RSYNC_VERSION=2.5.3
++RSYNC_VERSION=2.5.4
+ 
+ { echo "$as_me:983: Configuring rsync $RSYNC_VERSION" >&5
+ echo "$as_me: Configuring rsync $RSYNC_VERSION" >&6;}
+ 
+ cat >>confdefs.h <<EOF
+ #define RSYNC_VERSION "$RSYNC_VERSION"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/configure.in	2002-03-11 13:58:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/configure.in	2002-03-13 08:03:34.000000000 +0800
+@@ -2,13 +2,13 @@
+ 
+ AC_INIT()
+ AC_CONFIG_SRCDIR([byteorder.h])
+ AC_CONFIG_HEADER(config.h)
+ AC_PREREQ(2.52)
+ 
+-RSYNC_VERSION=2.5.3
++RSYNC_VERSION=2.5.4
+ AC_SUBST(RSYNC_VERSION)
+ AC_MSG_NOTICE([Configuring rsync $RSYNC_VERSION])
+ 
+ AC_DEFINE_UNQUOTED(RSYNC_VERSION, ["$RSYNC_VERSION"], [rsync release version])
+ 
+ LDFLAGS=${LDFLAGS-""}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/NEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/NEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/NEWS	2002-03-11 13:58:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/NEWS	2002-03-13 08:03:34.000000000 +0800
+@@ -1,49 +1,16 @@
+-rsync 2.5.3 (11 March 2002)
++rsync 2.5.4 (13 March 2002)
+ 
+-  "Happy 26"
+-
+-  SECURITY FIXES:
+-
+-    * Make sure that supplementary groups are removed from a server
+-      process after changing uid and gid. (Ethan Benson) (Debian bug
+-      #132272, CVE CAN-2002-0080)
++  "Imitation lizard skin"
+ 
+   BUG FIXES:
+ 
+-    * Fix zlib double-free bug.  (Owen Taylor, Mark J Cox) (CVE
+-      CAN-2002-0059)
+-
+-    * Fixed problem that in many cases caused the error message 
+-	unexpected read size of 0 in map_ptr
+-      and resulted in the wrong data being copied.
+-
+-    * Fixed compilation errors on some systems caused by the use of
+-      "unsigned int64" in rsync.h.
+-
+-    * Fixed problem on systems such as Sunos4 that do not support realloc
+-      on a NULL pointer; error was "out of memory in flist_expand".
+-
+-    * Fix for rsync server processes hanging around after the client
+-      unexpectedly disconnects.  (Colin Walters) (Debian bug #128632)
+-
+-    * Cope with BSD systems on which mkdir() will not accept a trailing
+-      slash.
+-
++    * Additional fix for zlib double-free bug.  (Martin Pool, Andrew
++      Tridgell) (CVE CAN-2002-0059)
++ 
+   ENHANCEMENTS:
+ 
+-    * Merge in changes from zlib 1.1.2 to zlib 1.1.3.  (Note that
+-      rsync still uses a custom version of zlib; you can not just link
+-      against a system library.  See zlib/README.rsync)
+-
+-    * Command to initiate connections is only shown with -vv, rather
+-      than -v as in 2.5.2.  Output from plain -v is more similar to
+-      what was historically used so as not to break scripts that try
+-      to parse the output.
+-
+-    * Added --no-whole-file and --no-blocking-io options (Dave Dykstra)
+-
+-    * Made the --write-batch and --read-batch options actually work
+-      and added documentation in the man page (Jos Backus)
++    * Merge in changes from zlib 1.1.3 to zlib 1.1.4.  (Jos Backus)
++      (Note that rsync still uses a custom version of zlib; you can
++      not just link against a system library.  See zlib/README.rsync)
+ 
+-    * If the daemon is unable to fork a child to accept a connection,
+-      print an error message.  (Colin Walters)
++    * Additional test cases for --compress.  (Martin Pool)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/OLDNEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/OLDNEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/OLDNEWS	2002-02-05 08:35:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/OLDNEWS	2002-03-12 09:26:01.000000000 +0800
+@@ -1,6 +1,56 @@
++rsync 2.5.3 (11 March 2002)
++
++  "Happy 26"
++
++  SECURITY FIXES:
++
++    * Make sure that supplementary groups are removed from a server
++      process after changing uid and gid. (Ethan Benson) (Debian bug
++      #132272, CVE CAN-2002-0080)
++
++  BUG FIXES:
++
++    * Fix zlib double-free bug.  (Owen Taylor, Mark J Cox) (CVE
++      CAN-2002-0059)
++
++    * Fixed problem that in many cases caused the error message 
++	unexpected read size of 0 in map_ptr
++      and resulted in the wrong data being copied.
++
++    * Fixed compilation errors on some systems caused by the use of
++      "unsigned int64" in rsync.h.
++
++    * Fixed problem on systems such as Sunos4 that do not support realloc
++      on a NULL pointer; error was "out of memory in flist_expand".
++
++    * Fix for rsync server processes hanging around after the client
++      unexpectedly disconnects.  (Colin Walters) (Debian bug #128632)
++
++    * Cope with BSD systems on which mkdir() will not accept a trailing
++      slash.
++
++  ENHANCEMENTS:
++
++    * Merge in changes from zlib 1.1.2 to zlib 1.1.3.  (Note that
++      rsync still uses a custom version of zlib; you can not just link
++      against a system library.  See zlib/README.rsync)
++ 
++    * Command to initiate connections is only shown with -vv, rather
++      than -v as in 2.5.2.  Output from plain -v is more similar to
++      what was historically used so as not to break scripts that try
++      to parse the output.
++
++    * Added --no-whole-file and --no-blocking-io options (Dave Dykstra)
++
++    * Made the --write-batch and --read-batch options actually work
++      and added documentation in the man page (Jos Backus)
++
++    * If the daemon is unable to fork a child to accept a connection,
++      print an error message.  (Colin Walters)
++
+ rsync 2.5.2 (26 Jan 2002)
+ 
+   SECURITY FIXES:
+ 
+     * Signedness security patch from Sebastian Krahmer
+       <krahmer@suse.de> -- in some cases we were not sufficiently
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/testsuite: daemon-gzip-download.test
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/testsuite: daemon-gzip-upload.test
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/testsuite: README
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/testsuite: README.testsuite
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/testsuite/rsync.fns /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/testsuite/rsync.fns
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/testsuite/rsync.fns	2002-02-19 06:55:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/testsuite/rsync.fns	2002-03-12 08:04:03.000000000 +0800
+@@ -198,16 +198,18 @@
+ 
+ pid file = $pidfile
+ use chroot = no
+ hosts allow = localhost, 127.0.0.1
+ log file = $logfile
+ 
+-[test-from] = $scratchdir/daemon-from/
++[test-from]
++	path = $FROM
+ 	read only = yes
+ 
+-[test-to] = $scratchdir/daemon-to/
++[test-to]
++	path = $TO
+ 	read only = no
+ EOF
+ }
+ 
+ 
+ build_symlinks() {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/TODO /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/TODO
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/TODO	2002-03-08 12:41:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/TODO	2002-03-13 07:55:33.000000000 +0800
+@@ -202,12 +202,17 @@
+   little easier on people than needing to run strace/truss.
+ 
+   "The dungeon collapses!  You are killed."  Rather than "unexpected
+   eof" give a message that is more detailed if possible and also more
+   helpful.  
+ 
++  If we get an error writing to a socket, then we should perhaps
++  continue trying to read to see if an error message comes across
++  explaining why the socket is closed.  I'm not sure if this would
++  work, but it would certainly make our messages more helpful.
++
+ File attributes
+ 
+   Device major/minor numbers should be at least 32 bits each.  See
+   http://lists.samba.org/pipermail/rsync/2001-November/005357.html
+ 
+   Transfer ACLs.  Need to think of a standard representation.
+@@ -281,12 +286,45 @@
+   <mbp> there is --stats
+   <mbp> but at the moment it's very tridge-oriented
+   <mbp> rather than user-friendly
+   <mbp> it would be nice to improve it
+   <mbp> that would also work well with --dryrun
+ 
++TDB:
++
++  Rather than storing the file list in memory, store it in a TDB.
++
++  This *might* make memory usage lower while building the file list.
++
++  Hashtable lookup will mean files are not transmitted in order,
++  though... hm.
++
++  This would neatly eliminate one of the major post-fork shared data
++  structures.
++
++
++chmod:
++
++  On 12 Mar 2002, Dave Dykstra <dwd@bell-labs.com> wrote:
++  > If we would add an option to do that functionality, I would vote for one
++  > that was more general which could mask off any set of permission bits and
++  > possibly add any set of bits.  Perhaps a chmod-like syntax if it could be
++  > implemented simply.
++
++  I think that would be good too.  For example, people uploading files   
++  to a web server might like to say
++
++  rsync -avzP --chmod a+rX ./ sourcefrog.net:/home/www/sourcefrog/
++
++  Ideally the patch would implement as many of the gnu chmod semantics
++  as possible.  I think the mode parser should be a separate function
++  that passes back something like (mask,set) description to the rest of
++  the program.  For bonus points there would be a test case for the  
++  parser.
++
++
+ PLATFORMS ------------------------------------------------------------
+ 
+ Win32
+ 
+   Don't detach, because this messes up --srvany.
+ 
+@@ -296,12 +334,37 @@
+   has incorrect behaviour on Windows -- it sends a RST packet to the
+   other side, which gives a "connection reset by peer" error.  On that
+   platform we should probably do shutdown() instead.  However, on Unix
+   we are correct to call close(), because shutdown() discards
+   untransmitted data.
+ 
++DEVELOPMENT ----------------------------------------------------------
++
++Splint
++
++  Build rsync with SPLINT to try to find security holes.  Add
++  annotations as necessary.  Keep track of the number of warnings
++  found initially, and see how many of them are real bugs, or real
++  security bugs.  Knowing the percentage of likely hits would be
++  really interesting for other projects.
++
++Torture test
++
++  Something that just keeps running rsync continuously over a data set
++  likely to generate problems.
++
++Cross-testing
++
++  Run current rsync versions against significant past releases.
++
++Memory debugger
++
++  jra recommends Valgrind:
++
++    http://devel-home.kde.org/~sewardj/
++
+ DOCUMENTATION --------------------------------------------------------
+ 
+ Update README
+ 
+ BUILD FARM -----------------------------------------------------------
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/adler32.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/adler32.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/adler32.c	1998-05-07 14:19:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/adler32.c	2002-03-12 09:14:58.000000000 +0800
+@@ -1,12 +1,12 @@
+ /* adler32.c -- compute the Adler-32 checksum of a data stream
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+-/* @(#) $Id: adler32.c,v 1.1 1998/05/07 06:19:41 paulus Exp $ */
++/* @(#) $Id: adler32.c,v 1.2 2002/03/12 01:14:58 mbp Exp $ */
+ 
+ #include "zlib.h"
+ 
+ #define BASE 65521L /* largest prime smaller than 65536 */
+ #define NMAX 5552
+ /* NMAX is the largest n such that 255n(n+1)/2 + (n+1)(BASE-1) <= 2^32-1 */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/ChangeLog /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/ChangeLog
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/ChangeLog	2002-03-11 11:35:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/ChangeLog	2002-03-12 09:14:58.000000000 +0800
+@@ -1,9 +1,19 @@
+ 
+ 		ChangeLog file for zlib
+ 
++Changes in 1.1.4 (11 March 2002)
++- ZFREE was repeated on same allocation on some error conditions.
++  This creates a security problem described in
++  http://www.zlib.org/advisory-2002-03-11.txt
++- Returned incorrect error (Z_MEM_ERROR) on some invalid data
++- Avoid accesses before window for invalid distances with inflate window
++  less than 32K.
++- force windowBits > 8 to avoid a bug in the encoder for a window size
++  of 256 bytes. (A complete fix will be available in 1.1.5).
++	
+ Changes in 1.1.3 (9 July 1998)
+ - fix "an inflate input buffer bug that shows up on rare but persistent
+   occasions" (Mark)
+ - fix gzread and gztell for concatenated .gz files (Didier Le Botlan)
+ - fix gzseek(..., SEEK_SET) in write mode
+ - fix crc check after a gzeek (Frank Faubert)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/crc32.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/crc32.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/crc32.c	1998-05-07 14:19:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/crc32.c	2002-03-12 09:14:58.000000000 +0800
+@@ -1,12 +1,12 @@
+ /* crc32.c -- compute the CRC-32 of a data stream
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+-/* @(#) $Id: crc32.c,v 1.1 1998/05/07 06:19:41 paulus Exp $ */
++/* @(#) $Id: crc32.c,v 1.2 2002/03/12 01:14:58 mbp Exp $ */
+ 
+ #include "zlib.h"
+ 
+ #define local static
+ 
+ #ifdef DYNAMIC_CRC_TABLE
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/deflate.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/deflate.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/deflate.c	2002-03-11 11:35:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/deflate.c	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* deflate.c -- compress data using the deflation algorithm
+- * Copyright (C) 1995-1998 Jean-loup Gailly.
++ * Copyright (C) 1995-2002 Jean-loup Gailly.
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ /*
+  *  ALGORITHM
+  *
+@@ -44,18 +44,18 @@
+  *
+  *      Fiala,E.R., and Greene,D.H.
+  *         Data Compression with Finite Windows, Comm.ACM, 32,4 (1989) 490-595
+  *
+  */
+ 
+-/* @(#) $Id: deflate.c,v 1.3 2002/03/11 03:35:35 mbp Exp $ */
++/* @(#) $Id: deflate.c,v 1.4 2002/03/12 01:14:58 mbp Exp $ */
+ 
+ #include "deflate.h"
+ 
+ const char deflate_copyright[] =
+-   " deflate 1.1.3 Copyright 1995-1998 Jean-loup Gailly ";
++   " deflate 1.1.4 Copyright 1995-2002 Jean-loup Gailly ";
+ /*
+   If you use the zlib library in a product, an acknowledgment is welcome
+   in the documentation of your product. If for some reason you cannot
+   include such an acknowledgment, I would appreciate that you keep this
+   copyright string in the executable of your product.
+  */
+@@ -239,13 +239,13 @@
+ 
+     if (windowBits < 0) { /* undocumented feature: suppress zlib header */
+         noheader = 1;
+         windowBits = -windowBits;
+     }
+     if (memLevel < 1 || memLevel > MAX_MEM_LEVEL || method != Z_DEFLATED ||
+-        windowBits < 8 || windowBits > 15 || level < 0 || level > 9 ||
++        windowBits < 9 || windowBits > 15 || level < 0 || level > 9 ||
+ 	strategy < 0 || strategy > Z_HUFFMAN_ONLY) {
+         return Z_STREAM_ERROR;
+     }
+     s = (deflate_state *) ZALLOC(strm, 1, sizeof(deflate_state));
+     if (s == Z_NULL) return Z_MEM_ERROR;
+     strm->state = (struct internal_state FAR *)s;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/deflate.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/deflate.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/deflate.h	2002-03-11 11:35:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/deflate.h	2002-03-12 09:14:58.000000000 +0800
+@@ -1,17 +1,17 @@
+ /* deflate.h -- internal compression state
+- * Copyright (C) 1995-1998 Jean-loup Gailly
++ * Copyright (C) 1995-2002 Jean-loup Gailly
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ /* WARNING: this file should *not* be used by applications. It is
+    part of the implementation of the compression library and is
+    subject to change. Applications should only use zlib.h.
+  */
+ 
+-/* @(#) $Id: deflate.h,v 1.2 2002/03/11 03:35:35 mbp Exp $ */
++/* @(#) $Id: deflate.h,v 1.3 2002/03/12 01:14:58 mbp Exp $ */
+ 
+ #ifndef _DEFLATE_H
+ #define _DEFLATE_H
+ 
+ #include "zutil.h"
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infblock.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infblock.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infblock.c	2002-03-11 13:55:33.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infblock.c	2002-03-12 10:07:36.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* infblock.c -- interpret and process block types to last block
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ #include "zutil.h"
+ #include "infblock.h"
+ #include "inftrees.h"
+@@ -312,13 +312,12 @@
+         bl = 9;         /* must be <= 9 for lookahead assumptions */
+         bd = 6;         /* must be <= 9 for lookahead assumptions */
+         t = s->sub.trees.table;
+         t = inflate_trees_dynamic(257 + (t & 0x1f), 1 + ((t >> 5) & 0x1f),
+                                   s->sub.trees.blens, &bl, &bd, &tl, &td,
+                                   s->hufts, z);
+-        ZFREE(z, s->sub.trees.blens);
+         if (t != Z_OK)
+         {
+           if (t == (uInt)Z_DATA_ERROR)
+ 	    {
+ 	      ZFREE(z, s->sub.trees.blens);
+ 	      s->mode = zBAD;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infblock.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infblock.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infblock.h	1998-05-07 14:19:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infblock.h	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* infblock.h -- header to use infblock.c
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ /* WARNING: this file should *not* be used by applications. It is
+    part of the implementation of the compression library and is
+    subject to change. Applications should only use zlib.h.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infcodes.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infcodes.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infcodes.c	2002-03-11 11:35:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infcodes.c	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* infcodes.c -- process literals and length/distance pairs
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ #include "zutil.h"
+ #include "inftrees.h"
+ #include "infblock.h"
+@@ -193,21 +193,15 @@
+       NEEDBITS(j)
+       c->sub.copy.dist += (uInt)b & inflate_mask[j];
+       DUMPBITS(j)
+       Tracevv((stderr, "inflate:         distance %u\n", c->sub.copy.dist));
+       c->mode = COPY;
+     case COPY:          /* o: copying bytes in window, waiting for space */
+-#ifndef __TURBOC__ /* Turbo C bug for following expression */
+-      f = (uInt)(q - s->window) < c->sub.copy.dist ?
+-          s->end - (c->sub.copy.dist - (q - s->window)) :
+-          q - c->sub.copy.dist;
+-#else
+       f = q - c->sub.copy.dist;
+-      if ((uInt)(q - s->window) < c->sub.copy.dist)
+-        f = s->end - (c->sub.copy.dist - (uInt)(q - s->window));
+-#endif
++      while (f < s->window)             /* modulo window size-"while" instead */
++        f += s->end - s->window;        /* of "if" handles invalid distances */
+       while (c->len)
+       {
+         NEEDOUT
+         OUTBYTE(*f++)
+         if (f == s->end)
+           f = s->window;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infcodes.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infcodes.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infcodes.h	1998-05-07 14:19:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infcodes.h	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* infcodes.h -- header to use infcodes.c
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ /* WARNING: this file should *not* be used by applications. It is
+    part of the implementation of the compression library and is
+    subject to change. Applications should only use zlib.h.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/inffast.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/inffast.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/inffast.c	1998-05-07 14:19:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/inffast.c	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* inffast.c -- process literals and length/distance pairs fast
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ #include "zutil.h"
+ #include "inftrees.h"
+ #include "infblock.h"
+@@ -90,34 +90,47 @@
+             d = t->base + ((uInt)b & inflate_mask[e]);
+             DUMPBITS(e)
+             Tracevv((stderr, "inflate:         * distance %u\n", d));
+ 
+             /* do the copy */
+             m -= c;
+-            if ((uInt)(q - s->window) >= d)     /* offset before dest */
+-            {                                   /*  just copy */
+-              r = q - d;
+-              *q++ = *r++;  c--;        /* minimum count is three, */
+-              *q++ = *r++;  c--;        /*  so unroll loop a little */
+-            }
+-            else                        /* else offset after destination */
++            r = q - d;
++            if (r < s->window)                  /* wrap if needed */
+             {
+-              e = d - (uInt)(q - s->window); /* bytes from offset to end */
+-              r = s->end - e;           /* pointer to offset */
+-              if (c > e)                /* if source crosses, */
++              do {
++                r += s->end - s->window;        /* force pointer in window */
++              } while (r < s->window);          /* covers invalid distances */
++              e = s->end - r;
++              if (c > e)
+               {
+-                c -= e;                 /* copy to end of window */
++                c -= e;                         /* wrapped copy */
+                 do {
+-                  *q++ = *r++;
++                    *q++ = *r++;
+                 } while (--e);
+-                r = s->window;          /* copy rest from start of window */
++                r = s->window;
++                do {
++                    *q++ = *r++;
++                } while (--c);
+               }
++              else                              /* normal copy */
++              {
++                *q++ = *r++;  c--;
++                *q++ = *r++;  c--;
++                do {
++                    *q++ = *r++;
++                } while (--c);
++              }
++            }
++            else                                /* normal copy */
++            {
++              *q++ = *r++;  c--;
++              *q++ = *r++;  c--;
++              do {
++                *q++ = *r++;
++              } while (--c);
+             }
+-            do {                        /* copy all or what's left */
+-              *q++ = *r++;
+-            } while (--c);
+             break;
+           }
+           else if ((e & 64) == 0)
+           {
+             t += t->base;
+             e = (t += ((uInt)b & inflate_mask[e]))->exop;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/inffast.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/inffast.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/inffast.h	1998-05-07 14:19:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/inffast.h	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* inffast.h -- header to use inffast.c
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ /* WARNING: this file should *not* be used by applications. It is
+    part of the implementation of the compression library and is
+    subject to change. Applications should only use zlib.h.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/inflate.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/inflate.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/inflate.c	1998-05-30 10:07:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/inflate.c	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* inflate.c -- zlib interface to inflate modules
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ #include "zutil.h"
+ #include "infblock.h"
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/inftrees.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/inftrees.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/inftrees.c	2002-03-11 11:35:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/inftrees.c	2002-03-12 09:14:58.000000000 +0800
+@@ -1,20 +1,20 @@
+ /* inftrees.c -- generate Huffman trees for efficient decoding
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ #include "zutil.h"
+ #include "inftrees.h"
+ 
+ #if !defined(BUILDFIXED) && !defined(STDC)
+ #  define BUILDFIXED   /* non ANSI compilers may not accept inffixed.h */
+ #endif
+ 
+ const char inflate_copyright[] =
+-   " inflate 1.1.3 Copyright 1995-1998 Mark Adler ";
++   " inflate 1.1.4 Copyright 1995-2002 Mark Adler ";
+ /*
+   If you use the zlib library in a product, an acknowledgment is welcome
+   in the documentation of your product. If for some reason you cannot
+   include such an acknowledgment, I would appreciate that you keep this
+   copyright string in the executable of your product.
+  */
+@@ -101,14 +101,13 @@
+ inflate_huft *hp;       /* space for trees */
+ uInt *hn;               /* hufts used in space */
+ uIntf *v;               /* working area: values in order of bit length */
+ /* Given a list of code lengths and a maximum table size, make a set of
+    tables to decode that set of codes.  Return Z_OK on success, Z_BUF_ERROR
+    if the given code set is incomplete (the tables are still built in this
+-   case), Z_DATA_ERROR if the input is invalid (an over-subscribed set of
+-   lengths), or Z_MEM_ERROR if not enough memory. */
++   case), or Z_DATA_ERROR if the input is invalid. */
+ {
+ 
+   uInt a;                       /* counter for codes of length k */
+   uInt c[BMAX+1];               /* bit length count table */
+   uInt f;                       /* i repeats in table every f entries */
+   int g;                        /* maximum code length */
+@@ -228,13 +227,13 @@
+             }
+         }
+         z = 1 << j;             /* table entries for j-bit table */
+ 
+         /* allocate new table */
+         if (*hn + z > MANY)     /* (note: doesn't matter for fixed) */
+-          return Z_MEM_ERROR;   /* not enough memory */
++          return Z_DATA_ERROR;  /* overflow of MANY */
+         u[h] = q = hp + *hn;
+         *hn += z;
+ 
+         /* connect to last table, if there is one */
+         if (h)
+         {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/inftrees.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/inftrees.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/inftrees.h	1998-05-07 14:19:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/inftrees.h	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* inftrees.h -- header to use inftrees.c
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ /* WARNING: this file should *not* be used by applications. It is
+    part of the implementation of the compression library and is
+    subject to change. Applications should only use zlib.h.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infutil.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infutil.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infutil.c	1998-05-07 14:19:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infutil.c	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* inflate_util.c -- data and routines common to blocks and codes
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ #include "zutil.h"
+ #include "infblock.h"
+ #include "inftrees.h"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infutil.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infutil.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/infutil.h	1998-05-30 10:07:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/infutil.h	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* infutil.h -- types and macros common to blocks and codes
+- * Copyright (C) 1995-1998 Mark Adler
++ * Copyright (C) 1995-2002 Mark Adler
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ /* WARNING: this file should *not* be used by applications. It is
+    part of the implementation of the compression library and is
+    subject to change. Applications should only use zlib.h.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/Makefile /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/Makefile
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/Makefile	2002-03-11 11:56:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/Makefile	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ # Makefile for zlib
+-# Copyright (C) 1995-1998 Jean-loup Gailly.
++# Copyright (C) 1995-2002 Jean-loup Gailly.
+ # For conditions of distribution and use, see copyright notice in zlib.h 
+ 
+ # To compile and test, type:
+ #   ./configure; make test
+ # The call of configure is optional if you don't have special requirements
+ # If you wish to build zlib as a shared library, use: ./configure -s
+@@ -21,13 +21,13 @@
+ #           -Wstrict-prototypes -Wmissing-prototypes
+ 
+ LDFLAGS=-L. -lz
+ LDSHARED=$(CC)
+ CPP=$(CC) -E
+ 
+-VER=1.1.3
++VER=1.1.4
+ LIBS=libz.a
+ SHAREDLIB=libz.so
+ 
+ AR=ar rc
+ RANLIB=ranlib
+ TAR=tar
+@@ -44,13 +44,14 @@
+ OBJA =
+ # to use the asm code: make OBJA=match.o
+ 
+ TEST_OBJS = example.o minigzip.o
+ 
+ DISTFILES = README FAQ INDEX ChangeLog configure Make*[a-z0-9] *.[ch] *.mms \
+-  algorithm.txt zlib.3 msdos/Make*[a-z0-9] msdos/zlib.def msdos/zlib.rc \
++  algorithm.txt zlib.3 zlib.html \
++  msdos/Make*[a-z0-9] msdos/zlib.def msdos/zlib.rc \
+   nt/Make*[a-z0-9] nt/zlib.dnt amiga/Make*.??? os2/M*.os2 os2/zlib.def \
+   contrib/RE*.contrib contrib/*.txt contrib/asm386/*.asm contrib/asm386/*.c \
+   contrib/asm386/*.bat contrib/asm386/zlibvc.d?? contrib/asm[56]86/*.?86 \
+   contrib/asm[56]86/*.S contrib/iostream/*.cpp \
+   contrib/iostream/*.h  contrib/iostream2/*.h contrib/iostream2/*.cpp \
+   contrib/untgz/Makefile contrib/untgz/*.c contrib/untgz/*.w32 \
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/README	2002-03-11 11:56:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/README	2002-03-12 09:14:58.000000000 +0800
+@@ -1,67 +1,66 @@
+-zlib 1.1.3 is a general purpose data compression library.  All the code
++zlib 1.1.4 is a general purpose data compression library.  All the code
+ is thread safe.  The data format used by the zlib library
+ is described by RFCs (Request for Comments) 1950 to 1952 in the files 
+-ftp://ds.internic.net/rfc/rfc1950.txt (zlib format), rfc1951.txt (deflate
++http://www.ietf.org/rfc/rfc1950.txt (zlib format), rfc1951.txt (deflate
+ format) and rfc1952.txt (gzip format). These documents are also available in
+ other formats from ftp://ftp.uu.net/graphics/png/documents/zlib/zdoc-index.html
+ 
+ All functions of the compression library are documented in the file zlib.h
+ (volunteer to write man pages welcome, contact jloup@gzip.org). A usage
+ example of the library is given in the file example.c which also tests that
+ the library is working correctly. Another example is given in the file
+ minigzip.c. The compression library itself is composed of all source files
+ except example.c and minigzip.c.
+ 
+ To compile all files and run the test program, follow the instructions
+ given at the top of Makefile. In short "make test; make install"
+-should work for most machines. For Unix: "configure; make test; make install"
++should work for most machines. For Unix: "./configure; make test; make install"
+ For MSDOS, use one of the special makefiles such as Makefile.msc.
+ For VMS, use Make_vms.com or descrip.mms.
+ 
+-Questions about zlib should be sent to <zlib@quest.jpl.nasa.gov>, or to
++Questions about zlib should be sent to <zlib@gzip.org>, or to
+ Gilles Vollant <info@winimage.com> for the Windows DLL version.
+-The zlib home page is http://www.cdrom.com/pub/infozip/zlib/
+-The official zlib ftp site is ftp://ftp.cdrom.com/pub/infozip/zlib/
+-Before reporting a problem, please check those sites to verify that
++The zlib home page is http://www.zlib.org or http://www.gzip.org/zlib/
++Before reporting a problem, please check this site to verify that
+ you have the latest version of zlib; otherwise get the latest version and
+ check whether the problem still exists or not.
+ 
+-Mark Nelson <markn@tiny.com> wrote an article about zlib for the Jan. 1997
++PLEASE read the zlib FAQ http://www.gzip.org/zlib/zlib_faq.html
++before asking for help.
++
++Mark Nelson <markn@ieee.org> wrote an article about zlib for the Jan. 1997
+ issue of  Dr. Dobb's Journal; a copy of the article is available in
+-http://web2.airmail.net/markn/articles/zlibtool/zlibtool.htm
++http://dogma.net/markn/articles/zlibtool/zlibtool.htm
+ 
+-The changes made in version 1.1.3 are documented in the file ChangeLog.
+-The main changes since 1.1.2 are:
++The changes made in version 1.1.4 are documented in the file ChangeLog.
++The only changes made since 1.1.3 are bug corrections:
+ 
+-- fix "an inflate input buffer bug that shows up on rare but persistent
+-  occasions" (Mark)
+-- fix gzread and gztell for concatenated .gz files (Didier Le Botlan)
+-- fix gzseek(..., SEEK_SET) in write mode
+-- fix crc check after a gzeek (Frank Faubert)
+-- fix miniunzip when the last entry in a zip file is itself a zip file
+-  (J Lillge)
+-- add contrib/asm586 and contrib/asm686 (Brian Raiter)
+-  See http://www.muppetlabs.com/~breadbox/software/assembly.html
+-- add support for Delphi 3 in contrib/delphi (Bob Dellaca)
+-- add support for C++Builder 3 and Delphi 3 in contrib/delphi2 (Davide Moretti)
+-- do not exit prematurely in untgz if 0 at start of block (Magnus Holmgren)
+-- use macro EXTERN instead of extern to support DLL for BeOS (Sander Stoks)
+-- added a FAQ file
++- ZFREE was repeated on same allocation on some error conditions.
++  This creates a security problem described in
++  http://www.zlib.org/advisory-2002-03-11.txt
++- Returned incorrect error (Z_MEM_ERROR) on some invalid data
++- Avoid accesses before window for invalid distances with inflate window
++  less than 32K.
++- force windowBits > 8 to avoid a bug in the encoder for a window size
++  of 256 bytes. (A complete fix will be available in 1.1.5).
++
++The beta version 1.1.5beta includes many more changes. A new official
++version 1.1.5 will be released as soon as extensive testing has been
++completed on it.
+ 
+-plus many changes for portability.
+ 
+ Unsupported third party contributions are provided in directory "contrib".
+ 
+-A Java implementation of zlib is available in the Java Development Kit 1.1
++A Java implementation of zlib is available in the Java Development Kit
+ http://www.javasoft.com/products/JDK/1.1/docs/api/Package-java.util.zip.html
+-See the zlib home page http://www.cdrom.com/pub/infozip/zlib/ for details.
++See the zlib home page http://www.zlib.org for details.
+ 
+ A Perl interface to zlib written by Paul Marquess <pmarquess@bfsec.bt.co.uk>
+-is in the CPAN (Comprehensive Perl Archive Network) sites, such as:
+-ftp://ftp.cis.ufl.edu/pub/perl/CPAN/modules/by-module/Compress/Compress-Zlib*
++is in the CPAN (Comprehensive Perl Archive Network) sites
++http://www.cpan.org/modules/by-module/Compress/
+ 
+ A Python interface to zlib written by A.M. Kuchling <amk@magnet.com>
+ is available in Python 1.5 and later versions, see
+ http://www.python.org/doc/lib/module-zlib.html
+ 
+ A zlib binding for TCL written by Andreas Kupries <a.kupries@westend.com>
+@@ -114,13 +113,13 @@
+   and zlib specifications were written by L. Peter Deutsch. Thanks to all the
+   people who reported problems and suggested various improvements in zlib;
+   they are too numerous to cite here.
+ 
+ Copyright notice:
+ 
+- (C) 1995-1998 Jean-loup Gailly and Mark Adler
++ (C) 1995-2002 Jean-loup Gailly and Mark Adler
+ 
+   This software is provided 'as-is', without any express or implied
+   warranty.  In no event will the authors be held liable for any damages
+   arising from the use of this software.
+ 
+   Permission is granted to anyone to use this software for any purpose,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/trees.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/trees.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/trees.c	2002-03-11 11:35:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/trees.c	2002-03-12 09:14:58.000000000 +0800
+@@ -1,8 +1,8 @@
+ /* trees.c -- output deflated data using Huffman coding
+- * Copyright (C) 1995-1998 Jean-loup Gailly
++ * Copyright (C) 1995-2002 Jean-loup Gailly
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+ /*
+  *  ALGORITHM
+  *
+@@ -26,13 +26,13 @@
+  *
+  *      Sedgewick, R.
+  *          Algorithms, p290.
+  *          Addison-Wesley, 1983. ISBN 0-201-06672-6.
+  */
+ 
+-/* @(#) $Id: trees.c,v 1.3 2002/03/11 03:35:35 mbp Exp $ */
++/* @(#) $Id: trees.c,v 1.4 2002/03/12 01:14:58 mbp Exp $ */
+ 
+ /* #define GEN_TREES_H */
+ 
+ #include "deflate.h"
+ 
+ #ifdef DEBUG
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/zconf.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/zconf.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/zconf.h	2002-03-11 11:35:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/zconf.h	2002-03-12 09:14:58.000000000 +0800
+@@ -1,12 +1,12 @@
+ /* zconf.h -- configuration of the zlib compression library
+- * Copyright (C) 1995-1998 Jean-loup Gailly.
++ * Copyright (C) 1995-2002 Jean-loup Gailly.
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+-/* @(#) $Id: zconf.h,v 1.2 2002/03/11 03:35:35 mbp Exp $ */
++/* @(#) $Id: zconf.h,v 1.3 2002/03/12 01:14:58 mbp Exp $ */
+ 
+ #ifndef _ZCONF_H
+ #define _ZCONF_H
+ 
+ /*
+  * If you *really* need a unique prefix for all types and library functions,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/zlib.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/zlib.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/zlib.h	2002-03-11 11:35:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/zlib.h	2002-03-12 09:14:58.000000000 +0800
+@@ -1,10 +1,10 @@
+ /* zlib.h -- interface of the 'zlib' general purpose compression library
+-  version 1.1.3, July 9th, 1998
++  version 1.1.4, March 11th, 2002
+ 
+-  Copyright (C) 1995-1998 Jean-loup Gailly and Mark Adler
++  Copyright (C) 1995-2002 Jean-loup Gailly and Mark Adler
+ 
+   This software is provided 'as-is', without any express or implied
+   warranty.  In no event will the authors be held liable for any damages
+   arising from the use of this software.
+ 
+   Permission is granted to anyone to use this software for any purpose,
+@@ -34,13 +34,13 @@
+ #include "zconf.h"
+ 
+ #ifdef __cplusplus
+ extern "C" {
+ #endif
+ 
+-#define ZLIB_VERSION "1.1.3"
++#define ZLIB_VERSION "1.1.4"
+ 
+ /* 
+      The 'zlib' compression library provides in-memory compression and
+   decompression functions, including integrity checks of the uncompressed
+   data.  This version of the library supports only one compression method
+   (deflation) but other algorithms will be added later and will have the same
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/zutil.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/zutil.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/zutil.c	2002-03-11 11:35:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/zutil.c	2002-03-12 09:14:58.000000000 +0800
+@@ -1,12 +1,12 @@
+ /* zutil.c -- target dependent utility functions for the compression library
+- * Copyright (C) 1995-1998 Jean-loup Gailly.
++ * Copyright (C) 1995-2002 Jean-loup Gailly.
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+-/* @(#) $Id: zutil.c,v 1.3 2002/03/11 03:35:35 mbp Exp $ */
++/* @(#) $Id: zutil.c,v 1.6 2002/03/12 01:14:58 mbp Exp $ */
+ 
+ #include "zutil.h"
+ 
+ struct internal_state      {int dummy;}; /* for buggy compilers */
+ 
+ #ifndef STDC
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/zutil.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/zutil.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.3/zlib/zutil.h	2002-03-11 11:35:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.4/zlib/zutil.h	2002-03-12 09:14:58.000000000 +0800
+@@ -1,17 +1,17 @@
+ /* zutil.h -- internal interface and configuration of the compression library
+- * Copyright (C) 1995-1998 Jean-loup Gailly.
++ * Copyright (C) 1995-2002 Jean-loup Gailly.
+  * For conditions of distribution and use, see copyright notice in zlib.h
+  */
+ 
+ /* WARNING: this file should *not* be used by applications. It is
+    part of the implementation of the compression library and is
+    subject to change. Applications should only use zlib.h.
+  */
+ 
+-/* @(#) $Id: zutil.h,v 1.3 2002/03/11 03:35:35 mbp Exp $ */
++/* @(#) $Id: zutil.h,v 1.6 2002/03/12 01:14:58 mbp Exp $ */
+ 
+ #ifndef _Z_UTIL_H
+ #define _Z_UTIL_H
+ 
+ #include "../rsync.h"
+ #include "zlib.h"

@@ -1,0 +1,1 @@
+fprintf(FINFO,"sending file_sum\n");

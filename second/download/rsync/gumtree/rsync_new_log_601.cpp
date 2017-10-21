@@ -1,0 +1,1 @@
+rprintf(FINFO,"sender finished %s\n",fname);

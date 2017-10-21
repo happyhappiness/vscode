@@ -1,0 +1,1 @@
+fprintf(FINFO,"file list sent\n");

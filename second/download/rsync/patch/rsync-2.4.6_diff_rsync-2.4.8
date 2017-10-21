@@ -1,0 +1,465 @@
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8: .cvsignore
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6: cvs.log
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/exclude.c	2000-09-06 10:46:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/exclude.c	2002-01-25 08:56:35.000000000 +0800
+@@ -260,13 +260,14 @@
+ }
+ 
+ 
+ void recv_exclude_list(int f)
+ {
+ 	char line[MAXPATHLEN];
+-	int l;
++	unsigned int l;
++
+ 	while ((l=read_int(f))) {
+ 		if (l >= MAXPATHLEN) overflow("recv_exclude_list");
+ 		read_sbuf(f,line,l);
+ 		add_exclude(line,0);
+ 	}
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/fileio.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/fileio.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/fileio.c	1999-03-16 05:23:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/fileio.c	2002-01-25 08:56:35.000000000 +0800
+@@ -33,13 +33,13 @@
+ 	}
+ 	last_sparse = 0;
+ 	return 0;
+ }
+ 
+ 
+-static int write_sparse(int f,char *buf,int len)
++static int write_sparse(int f,char *buf,size_t len)
+ {
+ 	int l1=0,l2=0;
+ 	int ret;
+ 
+ 	for (l1=0;l1<len && buf[l1]==0;l1++) ;
+ 	for (l2=0;l2<(len-l1) && buf[len-(l2+1)]==0;l2++) ;
+@@ -66,13 +66,13 @@
+ 	
+ 	return len;
+ }
+ 
+ 
+ 
+-int write_file(int f,char *buf,int len)
++int write_file(int f,char *buf,size_t len)
+ {
+ 	int ret = 0;
+ 
+ 	if (!sparse_files) {
+ 		return write(f,buf,len);
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/flist.c	2000-09-06 10:46:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/flist.c	2002-01-25 08:56:35.000000000 +0800
+@@ -331,13 +331,13 @@
+ 	static mode_t last_mode;
+ 	static dev_t last_rdev;
+ 	static uid_t last_uid;
+ 	static gid_t last_gid;
+ 	static char lastname[MAXPATHLEN];
+ 	char thisname[MAXPATHLEN];
+-	int l1=0,l2=0;
++	unsigned int l1=0,l2=0;
+ 	char *p;
+ 	struct file_struct *file;
+ 
+ 	if (flags & SAME_NAME)
+ 		l1 = read_byte(f);
+   
+@@ -398,12 +398,16 @@
+ 		file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
+ 	if (preserve_devices && IS_DEVICE(file->mode))
+ 		file->rdev = (flags & SAME_RDEV) ? last_rdev : (dev_t)read_int(f);
+ 
+ 	if (preserve_links && S_ISLNK(file->mode)) {
+ 		int l = read_int(f);
++		if (l < 0) {
++			rprintf(FERROR,"overflow: l=%d\n", l);
++			overflow("receive_file_entry");
++		}
+ 		file->link = (char *)malloc(l+1);
+ 		if (!file->link) out_of_memory("receive_file_entry 2");
+ 		read_sbuf(f,file->link,l);
+ 		if (sanitize_paths) {
+ 			sanitize_path(file->link, file->dirname);
+ 		}
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8: .ignore
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/io.c	2000-09-06 10:46:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/io.c	2002-01-25 08:56:35.000000000 +0800
+@@ -38,13 +38,13 @@
+ extern int verbose;
+ extern int io_timeout;
+ extern struct stats stats;
+ 
+ static int io_error_fd = -1;
+ 
+-static void read_loop(int fd, char *buf, int len);
++static void read_loop(int fd, char *buf, size_t len);
+ 
+ static void check_timeout(void)
+ {
+ 	extern int am_server, am_daemon;
+ 	time_t t;
+ 	
+@@ -103,13 +103,13 @@
+ 
+ static int no_flush;
+ 
+ /* read from a socket with IO timeout. return the number of
+    bytes read. If no bytes can be read then exit, never return
+    a number <= 0 */
+-static int read_timeout(int fd, char *buf, int len)
++static int read_timeout(int fd, char *buf, size_t len)
+ {
+ 	int n, ret=0;
+ 
+ 	io_flush();
+ 
+ 	while (ret == 0) {
+@@ -180,26 +180,26 @@
+ 
+ 	return ret;
+ }
+ 
+ /* continue trying to read len bytes - don't return until len
+    has been read */
+-static void read_loop(int fd, char *buf, int len)
++static void read_loop(int fd, char *buf, size_t len)
+ {
+ 	while (len) {
+ 		int n = read_timeout(fd, buf, len);
+ 
+ 		buf += n;
+ 		len -= n;
+ 	}
+ }
+ 
+ /* read from the file descriptor handling multiplexing - 
+    return number of bytes read
+    never return <= 0 */
+-static int read_unbuffered(int fd, char *buf, int len)
++static int read_unbuffered(int fd, char *buf, size_t len)
+ {
+ 	static int remaining;
+ 	int tag, ret=0;
+ 	char line[1024];
+ 
+ 	if (!io_multiplexing_in || fd != multiplex_in_fd) 
+@@ -245,13 +245,13 @@
+ 	return ret;
+ }
+ 
+ 
+ /* do a buffered read from fd. don't return until all N bytes
+    have been read. If all N can't be read then exit with an error */
+-static void readfd(int fd,char *buffer,int N)
++static void readfd(int fd,char *buffer,size_t N)
+ {
+ 	int  ret;
+ 	int total=0;  
+ 	
+ 	while (total < N) {
+ 		io_flush();
+@@ -296,18 +296,18 @@
+ 	}
+ #endif
+ 
+ 	return ret;
+ }
+ 
+-void read_buf(int f,char *buf,int len)
++void read_buf(int f,char *buf,size_t len)
+ {
+ 	readfd(f,buf,len);
+ }
+ 
+-void read_sbuf(int f,char *buf,int len)
++void read_sbuf(int f,char *buf,size_t len)
+ {
+ 	read_buf(f,buf,len);
+ 	buf[len] = 0;
+ }
+ 
+ unsigned char read_byte(int f)
+@@ -315,13 +315,13 @@
+ 	unsigned char c;
+ 	read_buf(f,(char *)&c,1);
+ 	return c;
+ }
+ 
+ /* write len bytes to fd */
+-static void writefd_unbuffered(int fd,char *buf,int len)
++static void writefd_unbuffered(int fd,char *buf,size_t len)
+ {
+ 	int total = 0;
+ 	fd_set w_fds, r_fds;
+ 	int fd_count, count;
+ 	struct timeval tv;
+ 
+@@ -416,13 +416,13 @@
+ 	if (!io_buffer) out_of_memory("writefd");
+ 	io_buffer_count = 0;
+ }
+ 
+ /* write an message to a multiplexed stream. If this fails then rsync
+    exits */
+-static void mplex_write(int fd, enum logcode code, char *buf, int len)
++static void mplex_write(int fd, enum logcode code, char *buf, size_t len)
+ {
+ 	char buffer[4096];
+ 	int n = len;
+ 
+ 	SIVAL(buffer, 0, ((MPLEX_BASE + (int)code)<<24) + len);
+ 
+@@ -472,13 +472,13 @@
+ 	if (io_error_fd != -1) close(io_error_fd);
+ 	multiplex_out_fd = -1;
+ 	io_error_fd = -1;
+ }
+ 
+ 
+-static void writefd(int fd,char *buf,int len)
++static void writefd(int fd,char *buf,size_t len)
+ {
+ 	stats.total_written += len;
+ 
+ 	if (!io_buffer || fd != multiplex_out_fd) {
+ 		writefd_unbuffered(fd, buf, len);
+ 		return;
+@@ -519,13 +519,13 @@
+ 	SIVAL(b,0,(x&0xFFFFFFFF));
+ 	SIVAL(b,4,((x>>32)&0xFFFFFFFF));
+ 
+ 	writefd(f,b,8);
+ }
+ 
+-void write_buf(int f,char *buf,int len)
++void write_buf(int f,char *buf,size_t len)
+ {
+ 	writefd(f,buf,len);
+ }
+ 
+ /* write a string to the connection */
+ static void write_sbuf(int f,char *buf)
+@@ -536,13 +536,13 @@
+ 
+ void write_byte(int f,unsigned char c)
+ {
+ 	write_buf(f,(char *)&c,1);
+ }
+ 
+-int read_line(int f, char *buf, int maxlen)
++int read_line(int f, char *buf, size_t maxlen)
+ {
+ 	eof_error = 0;
+ 
+ 	while (maxlen) {
+ 		buf[0] = 0;
+ 		read_buf(f, buf, 1);
+@@ -598,24 +598,24 @@
+ 	multiplex_in_fd = fd;
+ 	io_flush();
+ 	io_multiplexing_in = 1;
+ }
+ 
+ /* write an message to the multiplexed error stream */
+-int io_multiplex_write(enum logcode code, char *buf, int len)
++int io_multiplex_write(enum logcode code, char *buf, size_t len)
+ {
+ 	if (!io_multiplexing_out) return 0;
+ 
+ 	io_flush();
+ 	stats.total_written += (len+4);
+ 	mplex_write(multiplex_out_fd, code, buf, len);
+ 	return 1;
+ }
+ 
+ /* write a message to the special error fd */
+-int io_error_write(int f, enum logcode code, char *buf, int len)
++int io_error_write(int f, enum logcode code, char *buf, size_t len)
+ {
+ 	if (f == -1) return 0;
+ 	mplex_write(f, code, buf, len);
+ 	return 1;
+ }
+ 
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/lib: .cvsignore
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/log.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/log.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/log.c	2000-01-29 19:35:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/log.c	2002-01-25 08:56:35.000000000 +0800
+@@ -212,12 +212,14 @@
+ 	int l;
+ 	extern struct stats stats;		
+ 	extern int am_sender;
+ 	extern int am_daemon;
+ 	int64 b;
+ 
++	memset(buf,0,sizeof(buf));
++
+ 	strlcpy(buf, format, sizeof(buf));
+ 	
+ 	for (s=&buf[0]; 
+ 	     s && (p=strchr(s,'%')); ) {
+ 		n = NULL;
+ 		s = p + 1;
+@@ -273,13 +275,13 @@
+ 		}
+ 
+ 		if (!n) continue;
+ 
+ 		l = strlen(n);
+ 
+-		if ((l-1) + ((int)(s - &buf[0])) > sizeof(buf)) {
++		if (l + ((int)(s - &buf[0])) > sizeof(buf)) {
+ 			rprintf(FERROR,"buffer overflow expanding %%%c - exiting\n",
+ 				p[0]);
+ 			exit_cleanup(RERR_MESSAGEIO);
+ 		}
+ 
+ 		if (l != 2) {
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8: NEWS
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/packaging/redhat/5.0: rsync.spec.tmpl
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/proto.h	2000-09-06 10:46:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/proto.h	2002-01-25 08:56:35.000000000 +0800
+@@ -32,13 +32,13 @@
+ void recv_exclude_list(int f);
+ char *get_exclude_tok(char *p);
+ void add_exclude_line(char *p);
+ void add_include_line(char *p);
+ void add_cvs_excludes(void);
+ int sparse_end(int f);
+-int write_file(int f,char *buf,int len);
++int write_file(int f,char *buf,size_t len);
+ struct map_struct *map_file(int fd,OFF_T len);
+ char *map_ptr(struct map_struct *map,OFF_T offset,int len);
+ void unmap_file(struct map_struct *map);
+ int readlink_stat(const char *Path, STRUCT_STAT *Buffer, char *Linkbuf) ;
+ int link_stat(const char *Path, STRUCT_STAT *Buffer) ;
+ struct file_struct *make_file(int f, char *fname, struct string_area **ap,
+@@ -58,29 +58,29 @@
+ void init_hard_links(struct file_list *flist);
+ int check_hard_link(struct file_struct *file);
+ void do_hard_links(struct file_list *flist);
+ void io_set_error_fd(int fd);
+ int32 read_int(int f);
+ int64 read_longint(int f);
+-void read_buf(int f,char *buf,int len);
+-void read_sbuf(int f,char *buf,int len);
++void read_buf(int f,char *buf,size_t len);
++void read_sbuf(int f,char *buf,size_t len);
+ unsigned char read_byte(int f);
+ void io_start_buffering(int fd);
+ void io_flush(void);
+ void io_end_buffering(int fd);
+ void io_shutdown(void);
+ void write_int(int f,int32 x);
+ void write_longint(int f, int64 x);
+-void write_buf(int f,char *buf,int len);
++void write_buf(int f,char *buf,size_t len);
+ void write_byte(int f,unsigned char c);
+-int read_line(int f, char *buf, int maxlen);
++int read_line(int f, char *buf, size_t maxlen);
+ void io_printf(int fd, const char *format, ...);
+ void io_start_multiplex_out(int fd);
+ void io_start_multiplex_in(int fd);
+-int io_multiplex_write(enum logcode code, char *buf, int len);
+-int io_error_write(int f, enum logcode code, char *buf, int len);
++int io_multiplex_write(enum logcode code, char *buf, size_t len);
++int io_error_write(int f, enum logcode code, char *buf, size_t len);
+ void io_multiplexing_close(void);
+ char *lp_motd_file(void);
+ char *lp_log_file(void);
+ char *lp_pid_file(void);
+ char *lp_socket_options(void);
+ int lp_syslog_facility(void);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/receiver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/receiver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/receiver.c	2000-03-30 22:23:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/receiver.c	2002-01-25 08:56:35.000000000 +0800
+@@ -201,13 +201,14 @@
+ }
+ 
+ 
+ static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname,
+ 			OFF_T total_size)
+ {
+-	int i,n,remainder,len,count;
++	int i;
++	unsigned int n,remainder,len,count;
+ 	OFF_T offset = 0;
+ 	OFF_T offset2;
+ 	char *data;
+ 	static char file_sum1[MD4_SUM_LENGTH];
+ 	static char file_sum2[MD4_SUM_LENGTH];
+ 	char *map=NULL;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/rsync.h	2000-08-19 21:10:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/rsync.h	2002-01-25 08:56:35.000000000 +0800
+@@ -328,15 +328,15 @@
+ 	uint32 sum1;	        /* simple checksum */
+ 	char sum2[SUM_LENGTH];	/* checksum  */
+ };
+ 
+ struct sum_struct {
+   OFF_T flength;		/* total file length */
+-  int count;			/* how many chunks */
+-  int remainder;		/* flength % block_length */
+-  int n;			/* block_length */
++  size_t count;			/* how many chunks */
++  size_t remainder;		/* flength % block_length */
++  size_t n;			/* block_length */
+   struct sum_buf *sums;		/* points to info for each chunk */
+ };
+ 
+ struct map_struct {
+ 	char *p;
+ 	int fd,p_size,p_len;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/util.c	2000-09-06 10:46:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/util.c	2002-01-25 08:56:35.000000000 +0800
+@@ -266,13 +266,13 @@
+ 
+ /* Write LEN bytes at PTR to descriptor DESC, retrying if interrupted.
+    Return LEN upon success, write's (negative) error code otherwise.  
+ 
+    derived from GNU C's cccp.c.
+ */
+-static int full_write(int desc, char *ptr, int len)
++static int full_write(int desc, char *ptr, size_t len)
+ {
+ 	int total_written;
+ 	
+ 	total_written = 0;
+ 	while (len > 0) {
+ 		int written = write (desc, ptr, len);
+@@ -292,17 +292,17 @@
+ 
+ /* Read LEN bytes at PTR from descriptor DESC, retrying if interrupted.
+    Return the actual number of bytes read, zero for EOF, or negative
+    for an error.  
+ 
+    derived from GNU C's cccp.c. */
+-static int safe_read(int desc, char *ptr, int len)
++static int safe_read(int desc, char *ptr, size_t len)
+ {
+ 	int n_chars;
+  
+-	if (len <= 0)
++	if (len == 0)
+ 		return len;
+  
+ #ifdef EINTR
+ 	do {
+ 		n_chars = read(desc, ptr, len);
+ 	} while (n_chars < 0 && errno == EINTR);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.6/version.h	2000-09-06 10:46:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.8/version.h	2002-01-26 07:33:24.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.4.6"
++#define VERSION "2.4.8"

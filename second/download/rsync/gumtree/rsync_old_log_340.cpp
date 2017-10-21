@@ -1,0 +1,1 @@
+fprintf(FERROR,"waiting on %d\n",pid);

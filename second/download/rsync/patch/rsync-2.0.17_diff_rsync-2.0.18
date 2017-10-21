@@ -1,0 +1,157 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/cvs.log	1998-06-18 18:30:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/cvs.log	1998-06-18 21:28:24.000000000 +0800
+@@ -5677,6 +5677,69 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.0.17
+ 
++
++****************************************
++Date:	Thursday June 18, 1998 @ 22:17
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv9138
++
++Modified Files:
++	rsync.c rsync.h 
++Log Message:
++fixed a race condition in rsync that opened a security hole. The
++temporary files were being created with the same permissions as the
++original file. So if the file was setuid but not owned by the user
++doing the transfer then there was a window of opportunity for a
++malicious user to execute it with the wrong permissions while it was
++being transferred.
++
++Thanks to snabb@epipe.fi for pointing this out.
++
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 23:06
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.18
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 23:06
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.0.18
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 23:26
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv13791
++
++Modified Files:
++	rsync.c 
++Log Message:
++fixed chmod bug pointed out by Han Holl <jeholl@euronet.nl>
++
++
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/packaging/redhat/5.0/rsync.spec	1998-06-18 18:30:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/packaging/redhat/5.0/rsync.spec	1998-06-18 21:28:13.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.0.17
++Version: 2.0.18
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.17.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.18.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.c	1998-06-18 18:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.c	1998-06-18 21:27:56.000000000 +0800
+@@ -308,13 +308,14 @@
+ 			updated = 1;
+ 		}
+ 	}
+ 
+ #ifdef HAVE_CHMOD
+ 	if (preserve_perms && !S_ISLNK(st->st_mode) &&
+-	    st->st_mode != file->mode) {
++	    (st->st_mode != file->mode || 
++	     (updated && (file->mode & ~ACCESSPERMS)))) {
+ 		updated = 1;
+ 		if (do_chmod(fname,file->mode) != 0) {
+ 			rprintf(FERROR,"failed to set permissions on %s : %s\n",
+ 				fname,strerror(errno));
+ 			return 0;
+ 		}
+@@ -883,16 +884,24 @@
+ 			receive_data(f_in,buf,-1,NULL);
+ 			if (buf) unmap_file(buf);
+ 			close(fd1);
+ 			continue;
+ 		}
+ 
+-		fd2 = do_open(fnametmp,O_WRONLY|O_CREAT|O_EXCL,file->mode);
++		/* we initially set the perms without the
++		   setuid/setgid bits to ensure that there is no race
++		   condition. They are then correctly updated after
++		   the lchown. Thanks to snabb@epipe.fi for pointing
++		   this out */
++		fd2 = do_open(fnametmp,O_WRONLY|O_CREAT|O_EXCL,
++			      file->mode & ACCESSPERMS);
++
+ 		if (fd2 == -1 && relative_paths && errno == ENOENT && 
+ 		    create_directory_path(fnametmp) == 0) {
+-			fd2 = do_open(fnametmp,O_WRONLY|O_CREAT|O_EXCL,file->mode);
++			fd2 = do_open(fnametmp,O_WRONLY|O_CREAT|O_EXCL,
++				      file->mode & ACCESSPERMS);
+ 		}
+ 		if (fd2 == -1) {
+ 			rprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));
+ 			receive_data(f_in,buf,-1,NULL);
+ 			if (buf) unmap_file(buf);
+ 			close(fd1);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.h	1998-06-18 18:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/rsync.h	1998-06-18 20:20:06.000000000 +0800
+@@ -434,6 +434,9 @@
+ #define S_ISREG(mode) (((mode) & (_S_IFMT)) == (_S_IFREG))
+ #endif
+ 
+ 
+ #define IS_DEVICE(mode) (S_ISCHR(mode) || S_ISBLK(mode) || S_ISSOCK(mode) || S_ISFIFO(mode))
+ 
++#ifndef ACCESSPERMS
++#define ACCESSPERMS 0777
++#endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/version.h	1998-06-18 18:30:45.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.18/version.h	1998-06-18 21:28:11.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.17"
++#define VERSION "2.0.18"

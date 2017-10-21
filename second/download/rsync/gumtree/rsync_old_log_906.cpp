@@ -1,0 +1,1 @@
+fprintf(stderr, "adding `%s'\n", buf);

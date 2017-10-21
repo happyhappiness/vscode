@@ -1,0 +1,1 @@
+set_perms(fname,&flist->files[i],&st,1);

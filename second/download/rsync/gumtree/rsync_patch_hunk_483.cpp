@@ -1,0 +1,13 @@
+ int num_waiting(int fd);
+ int piped_child(char **command,int *f_in,int *f_out);
+ int local_child(int argc, char **argv,int *f_in,int *f_out);
+ void out_of_memory(char *str);
+ void overflow(char *str);
+ int set_modtime(char *fname,time_t modtime);
+-int set_blocking(int fd, int set);
+ int create_directory_path(char *fname);
+ int full_write(int desc, char *ptr, int len);
+ int safe_read(int desc, char *ptr, int len);
+ int copy_file(char *source, char *dest, mode_t mode);
+ void u_sleep(int usec);
+ pid_t do_fork(void);

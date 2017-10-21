@@ -1,0 +1,1 @@
+io_printf(f_out, "@ERROR: auth failed on module %s\n", name);

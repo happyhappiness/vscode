@@ -1,0 +1,2928 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/compat.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/compat.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/compat.c	2008-03-11 12:39:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/compat.c	2008-08-02 22:04:54.000000000 +0800
+@@ -54,25 +54,28 @@
+ extern char *files_from;
+ extern char *filesfrom_host;
+ extern struct filter_list_struct filter_list;
+ extern int need_unsorted_flist;
+ #ifdef ICONV_OPTION
+ extern iconv_t ic_send, ic_recv;
++extern char *iconv_opt;
+ #endif
+ 
+ /* These index values are for the file-list's extra-attribute array. */
+ int uid_ndx, gid_ndx, acls_ndx, xattrs_ndx, unsort_ndx;
+ 
+ int receiver_symlink_times = 0; /* receiver can set the time on a symlink */
++int sender_symlink_iconv = 0;	/* sender should convert symlink content */
+ 
+ #ifdef ICONV_OPTION
+ int filesfrom_convert = 0;
+ #endif
+ 
+ #define CF_INC_RECURSE	 (1<<0)
+ #define CF_SYMLINK_TIMES (1<<1)
++#define CF_SYMLINK_ICONV (1<<2)
+ 
+ static const char *client_info;
+ 
+ /* The server makes sure that if either side only supports a pre-release
+  * version of a protocol, that both sides must speak a compatible version
+  * of that protocol for it to be advertised as available. */
+@@ -246,12 +249,15 @@
+ 		int compat_flags;
+ 		if (am_server) {
+ 			compat_flags = allow_inc_recurse ? CF_INC_RECURSE : 0;
+ #if defined HAVE_LUTIMES && defined HAVE_UTIMES
+ 			compat_flags |= CF_SYMLINK_TIMES;
+ #endif
++#ifdef ICONV_OPTION
++			compat_flags |= CF_SYMLINK_ICONV;
++#endif
+ 			write_byte(f_out, compat_flags);
+ 		} else
+ 			compat_flags = read_byte(f_in);
+ 		/* The inc_recurse var MUST be set to 0 or 1. */
+ 		inc_recurse = compat_flags & CF_INC_RECURSE ? 1 : 0;
+ 		if (am_sender) {
+@@ -260,12 +266,17 @@
+ 			    : !!(compat_flags & CF_SYMLINK_TIMES);
+ 		}
+ #if defined HAVE_LUTIMES && defined HAVE_UTIMES
+ 		else
+ 			receiver_symlink_times = 1;
+ #endif
++#ifdef ICONV_OPTION
++		sender_symlink_iconv = iconv_opt && (am_server
++		    ? strchr(client_info, 's') != NULL
++		    : !!(compat_flags & CF_SYMLINK_ICONV));
++#endif
+ 		if (inc_recurse && !allow_inc_recurse) {
+ 			/* This should only be able to happen in a batch. */
+ 			fprintf(stderr,
+ 			    "Incompatible options specified for inc-recursive %s.\n",
+ 			    read_batch ? "batch file" : "connection");
+ 			exit_cleanup(RERR_SYNTAX);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/configure.in	2008-06-30 11:15:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/configure.in	2008-09-07 00:32:26.000000000 +0800
+@@ -2,13 +2,13 @@
+ 
+ AC_INIT()
+ AC_CONFIG_SRCDIR([byteorder.h])
+ AC_CONFIG_HEADER(config.h)
+ AC_PREREQ(2.59)
+ 
+-RSYNC_VERSION=3.0.3
++RSYNC_VERSION=3.0.4
+ AC_SUBST(RSYNC_VERSION)
+ AC_MSG_NOTICE([Configuring rsync $RSYNC_VERSION])
+ 
+ AC_DEFINE_UNQUOTED(RSYNC_VERSION, ["$RSYNC_VERSION"], [rsync release version])
+ 
+ LDFLAGS=${LDFLAGS-""}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/configure.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/configure.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/configure.sh	2008-06-30 11:32:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/configure.sh	2008-09-07 00:33:01.000000000 +0800
+@@ -1728,13 +1728,13 @@
+ 
+ 
+ ac_config_headers="$ac_config_headers config.h"
+ 
+ 
+ 
+-RSYNC_VERSION=3.0.3
++RSYNC_VERSION=3.0.4
+ 
+ { echo "$as_me:$LINENO: Configuring rsync $RSYNC_VERSION" >&5
+ echo "$as_me: Configuring rsync $RSYNC_VERSION" >&6;}
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/exclude.c	2008-03-27 05:01:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/exclude.c	2008-07-31 22:57:55.000000000 +0800
+@@ -473,13 +473,13 @@
+ 		if (strlcpy(dirbuf + dirbuf_len, ex->pattern,
+ 		    MAXPATHLEN - dirbuf_len) < MAXPATHLEN - dirbuf_len) {
+ 			parse_filter_file(lp, dirbuf, ex->match_flags,
+ 					  XFLG_ANCHORED2ABS);
+ 		} else {
+ 			io_error |= IOERR_GENERAL;
+-			rprintf(FINFO,
++			rprintf(FERROR,
+ 			    "cannot add local filter rules in long-named directory: %s\n",
+ 			    full_fname(dirbuf));
+ 		}
+ 		dirbuf[dirbuf_len] = '\0';
+ 	}
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/flist.c	2008-06-23 10:00:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/flist.c	2008-08-10 22:31:45.000000000 +0800
+@@ -64,12 +64,13 @@
+ extern int copy_links;
+ extern int copy_unsafe_links;
+ extern int protocol_version;
+ extern int sanitize_paths;
+ extern int munge_symlinks;
+ extern int need_unsorted_flist;
++extern int sender_symlink_iconv;
+ extern int unsort_ndx;
+ extern struct stats stats;
+ extern char *filesfrom_host;
+ 
+ extern char curr_dir[MAXPATHLEN];
+ 
+@@ -372,24 +373,28 @@
+ 	if (!dir)
+ 		dir = orig_dir;
+ 
+ 	if (!change_dir(dir, CD_NORMAL)) {
+ 	  chdir_error:
+ 		io_error |= IOERR_GENERAL;
+-		rsyserr(FERROR, errno, "change_dir %s failed", full_fname(dir));
++		rsyserr(FERROR_XFER, errno, "change_dir %s failed", full_fname(dir));
+ 		if (dir != orig_dir)
+ 			change_dir(orig_dir, CD_NORMAL);
+ 		pathname = NULL;
+ 		pathname_len = 0;
+ 		return 0;
+ 	}
+ 
+ 	return 1;
+ }
+ 
+-static void send_file_entry(int f, const char *fname, struct file_struct *file, int ndx, int first_ndx)
++static void send_file_entry(int f, const char *fname, struct file_struct *file,
++#ifdef SUPPORT_LINKS
++			    const char *symlink_name, int symlink_len,
++#endif
++			    int ndx, int first_ndx)
+ {
+ 	static time_t modtime;
+ 	static mode_t mode;
+ #ifdef SUPPORT_HARD_LINKS
+ 	static int64 dev;
+ #endif
+@@ -572,17 +577,15 @@
+ 			else
+ 				write_int(f, minor(rdev));
+ 		}
+ 	}
+ 
+ #ifdef SUPPORT_LINKS
+-	if (preserve_links && S_ISLNK(mode)) {
+-		const char *sl = F_SYMLINK(file);
+-		int len = strlen(sl);
+-		write_varint30(f, len);
+-		write_buf(f, sl, len);
++	if (symlink_len) {
++		write_varint30(f, symlink_len);
++		write_buf(f, symlink_name, symlink_len);
+ 	}
+ #endif
+ 
+ #ifdef SUPPORT_HARD_LINKS
+ 	if (tmp_dev != 0 && protocol_version < 30) {
+ 		if (protocol_version < 26) {
+@@ -672,18 +675,18 @@
+ 
+ 		INIT_CONST_XBUF(outbuf, thisname);
+ 		INIT_XBUF(inbuf, lastname, basename_len, -1);
+ 
+ 		if (iconvbufs(ic_recv, &inbuf, &outbuf, 0) < 0) {
+ 			io_error |= IOERR_GENERAL;
+-			rprintf(FINFO,
++			rprintf(FERROR_UTF8,
+ 			    "[%s] cannot convert filename: %s (%s)\n",
+ 			    who_am_i(), lastname, strerror(errno));
+ 			outbuf.len = 0;
+ 		}
+-		outbuf.buf[outbuf.len] = '\0';
++		thisname[outbuf.len] = '\0';
+ 	}
+ #endif
+ 
+ 	if (*thisname)
+ 		clean_fname(thisname, 0);
+ 
+@@ -808,12 +811,19 @@
+ 		linkname_len = read_varint30(f) + 1; /* count the '\0' */
+ 		if (linkname_len <= 0 || linkname_len > MAXPATHLEN) {
+ 			rprintf(FERROR, "overflow: linkname_len=%d\n",
+ 				linkname_len - 1);
+ 			overflow_exit("recv_file_entry");
+ 		}
++#ifdef ICONV_OPTION
++		/* We don't know how much extra room we need to convert
++		 * the as-yet-unread symlink data, so let's hope that a
++		 * double-size buffer is plenty. */
++		if (sender_symlink_iconv)
++			linkname_len *= 2;
++#endif
+ 		if (munge_symlinks)
+ 			linkname_len += SYMLINK_PREFIX_LEN;
+ 	}
+ 	else
+ #endif
+ 		linkname_len = 0;
+@@ -942,20 +952,46 @@
+ #ifdef SUPPORT_LINKS
+ 	if (linkname_len) {
+ 		bp += basename_len;
+ 		if (first_hlink_ndx >= flist->ndx_start) {
+ 			struct file_struct *first = flist->files[first_hlink_ndx - flist->ndx_start];
+ 			memcpy(bp, F_SYMLINK(first), linkname_len);
+-		} else if (munge_symlinks) {
+-			strlcpy(bp, SYMLINK_PREFIX, linkname_len);
+-			bp += SYMLINK_PREFIX_LEN;
+-			linkname_len -= SYMLINK_PREFIX_LEN;
+-			read_sbuf(f, bp, linkname_len - 1);
+ 		} else {
+-			read_sbuf(f, bp, linkname_len - 1);
+-			if (sanitize_paths)
++			if (munge_symlinks) {
++				strlcpy(bp, SYMLINK_PREFIX, linkname_len);
++				bp += SYMLINK_PREFIX_LEN;
++				linkname_len -= SYMLINK_PREFIX_LEN;
++			}
++#ifdef ICONV_OPTION
++			if (sender_symlink_iconv) {
++				xbuf outbuf, inbuf;
++
++				alloc_len = linkname_len;
++				linkname_len /= 2;
++
++				/* Read the symlink data into the end of our double-sized
++				 * buffer and then convert it into the right spot. */
++				INIT_XBUF(inbuf, bp + alloc_len - linkname_len,
++					  linkname_len - 1, (size_t)-1);
++				read_sbuf(f, inbuf.buf, inbuf.len);
++				INIT_XBUF(outbuf, bp, 0, alloc_len);
++
++				if (iconvbufs(ic_recv, &inbuf, &outbuf, 0) < 0) {
++					io_error |= IOERR_GENERAL;
++					rprintf(FERROR_XFER,
++					    "[%s] cannot convert symlink data for: %s (%s)\n",
++					    who_am_i(), full_fname(thisname), strerror(errno));
++					bp = (char*)file->basename;
++					*bp++ = '\0';
++					outbuf.len = 0;
++				}
++				bp[outbuf.len] = '\0';
++			} else
++#endif
++				read_sbuf(f, bp, linkname_len - 1);
++			if (sanitize_paths && !munge_symlinks && *bp)
+ 				sanitize_path(bp, bp, "", lastdir_depth, SP_DEFAULT);
+ 		}
+ 	}
+ #endif
+ 
+ #ifdef SUPPORT_HARD_LINKS
+@@ -1042,13 +1078,13 @@
+ 	alloc_pool_t *pool;
+ 	STRUCT_STAT st;
+ 	char *bp;
+ 
+ 	if (strlcpy(thisname, fname, sizeof thisname) >= sizeof thisname) {
+ 		io_error |= IOERR_GENERAL;
+-		rprintf(FINFO, "skipping overly long name: %s\n", fname);
++		rprintf(FERROR_XFER, "skipping overly long name: %s\n", fname);
+ 		return NULL;
+ 	}
+ 	clean_fname(thisname, 0);
+ 	if (sanitize_paths)
+ 		sanitize_path(thisname, thisname, "", 0, SP_DEFAULT);
+ 
+@@ -1087,13 +1123,13 @@
+ 				io_error |= IOERR_VANISHED;
+ 				rprintf(c, "file has vanished: %s\n",
+ 					full_fname(thisname));
+ 			}
+ 		} else {
+ 			io_error |= IOERR_GENERAL;
+-			rsyserr(FERROR_XFER, save_errno, "readlink %s failed",
++			rsyserr(FERROR_XFER, save_errno, "readlink_stat(%s) failed",
+ 				full_fname(thisname));
+ 		}
+ 		return NULL;
+ 	}
+ 
+ 	if (filter_level == NO_FILTERS)
+@@ -1210,14 +1246,14 @@
+ 
+ #ifdef SUPPORT_HARD_LINKS
+ 	if (preserve_hard_links && flist && flist->prev) {
+ 		if (protocol_version >= 28
+ 		 ? (!S_ISDIR(st.st_mode) && st.st_nlink > 1)
+ 		 : S_ISREG(st.st_mode)) {
+-			tmp_dev = st.st_dev;
+-			tmp_ino = st.st_ino;
++			tmp_dev = (int64)st.st_dev + 1;
++			tmp_ino = (int64)st.st_ino;
+ 		} else
+ 			tmp_dev = 0;
+ 	}
+ #endif
+ 
+ #ifdef HAVE_STRUCT_STAT_ST_RDEV
+@@ -1307,41 +1343,77 @@
+ 
+ 	if (chmod_modes && !S_ISLNK(file->mode))
+ 		file->mode = tweak_mode(file->mode, chmod_modes);
+ 
+ 	if (f >= 0) {
+ 		char fbuf[MAXPATHLEN];
++#ifdef SUPPORT_LINKS
++		const char *symlink_name;
++		int symlink_len;
++#ifdef ICONV_OPTION
++		char symlink_buf[MAXPATHLEN];
++#endif
++#endif
+ #if defined SUPPORT_ACLS || defined SUPPORT_XATTRS
+ 		stat_x sx;
+ #endif
+ 
++#ifdef SUPPORT_LINKS
++		if (preserve_links && S_ISLNK(file->mode)) {
++			symlink_name = F_SYMLINK(file);
++			symlink_len = strlen(symlink_name);
++		} else {
++			symlink_name = NULL;
++			symlink_len = 0;
++		}
++#endif
++
+ #ifdef ICONV_OPTION
+ 		if (ic_send != (iconv_t)-1) {
+ 			xbuf outbuf, inbuf;
+ 
+ 			INIT_CONST_XBUF(outbuf, fbuf);
+ 
+ 			if (file->dirname) {
+ 				INIT_XBUF_STRLEN(inbuf, (char*)file->dirname);
+ 				outbuf.size -= 2; /* Reserve room for '/' & 1 more char. */
+ 				if (iconvbufs(ic_send, &inbuf, &outbuf, 0) < 0)
+ 					goto convert_error;
+ 				outbuf.size += 2;
+-				outbuf.buf[outbuf.len++] = '/';
++				fbuf[outbuf.len++] = '/';
+ 			}
+ 
+ 			INIT_XBUF_STRLEN(inbuf, (char*)file->basename);
+ 			if (iconvbufs(ic_send, &inbuf, &outbuf, 0) < 0) {
+ 			  convert_error:
+ 				io_error |= IOERR_GENERAL;
+-				rprintf(FINFO,
++				rprintf(FERROR_XFER,
+ 				    "[%s] cannot convert filename: %s (%s)\n",
+ 				    who_am_i(), f_name(file, fbuf), strerror(errno));
+ 				return NULL;
+ 			}
+-			outbuf.buf[outbuf.len] = '\0';
++			fbuf[outbuf.len] = '\0';
++
++#ifdef SUPPORT_LINKS
++			if (symlink_len && sender_symlink_iconv) {
++				INIT_XBUF(inbuf, (char*)symlink_name, symlink_len, (size_t)-1);
++				INIT_CONST_XBUF(outbuf, symlink_buf);
++				if (iconvbufs(ic_send, &inbuf, &outbuf, 0) < 0) {
++					io_error |= IOERR_GENERAL;
++					f_name(file, fbuf);
++					rprintf(FERROR_XFER,
++					    "[%s] cannot convert symlink data for: %s (%s)\n",
++					    who_am_i(), full_fname(fbuf), strerror(errno));
++					return NULL;
++				}
++				symlink_buf[outbuf.len] = '\0';
++
++				symlink_name = symlink_buf;
++				symlink_len = outbuf.len;
++			}
++#endif
+ 		} else
+ #endif
+ 			f_name(file, fbuf);
+ 
+ #ifdef SUPPORT_ACLS
+ 		if (preserve_acls && !S_ISLNK(file->mode)) {
+@@ -1360,13 +1432,17 @@
+ 				io_error |= IOERR_GENERAL;
+ 				return NULL;
+ 			}
+ 		}
+ #endif
+ 
+-		send_file_entry(f, fbuf, file, flist->used, flist->ndx_start);
++		send_file_entry(f, fbuf, file,
++#ifdef SUPPORT_LINKS
++				symlink_name, symlink_len,
++#endif
++				flist->used, flist->ndx_start);
+ 
+ #ifdef SUPPORT_ACLS
+ 		if (preserve_acls && !S_ISLNK(file->mode)) {
+ 			send_acl(&sx, f);
+ 			free_acl(&sx);
+ 		}
+@@ -1555,20 +1631,20 @@
+ 		char *dname = d_name(di);
+ 		if (dname[0] == '.' && (dname[1] == '\0'
+ 		    || (dname[1] == '.' && dname[2] == '\0')))
+ 			continue;
+ 		if (strlcpy(p, dname, remainder) >= remainder) {
+ 			io_error |= IOERR_GENERAL;
+-			rprintf(FINFO,
++			rprintf(FERROR_XFER,
+ 				"cannot send long-named file %s\n",
+ 				full_fname(fbuf));
+ 			continue;
+ 		}
+ 		if (dname[0] == '\0') {
+ 			io_error |= IOERR_GENERAL;
+-			rprintf(FINFO,
++			rprintf(FERROR_XFER,
+ 				"cannot send file with empty name in %s\n",
+ 				full_fname(fbuf));
+ 			continue;
+ 		}
+ 
+ 		send_file_name(f, flist, fbuf, NULL, flags, filter_level);
+@@ -2161,13 +2237,13 @@
+ 	if (verbose > 2)
+ 		rprintf(FINFO, "send_file_list done\n");
+ 
+ 	if (inc_recurse) {
+ 		send_dir_depth = 1;
+ 		add_dirs_to_tree(-1, flist, dir_count);
+-		if (!file_total || strcmp(flist->sorted[0]->basename, ".") != 0) 
++		if (!file_total || strcmp(flist->sorted[flist->low]->basename, ".") != 0)
+ 			flist->parent_ndx = -1;
+ 		flist_done_allocating(flist);
+ 		if (send_dir_ndx < 0) {
+ 			write_ndx(f, NDX_FLIST_EOF);
+ 			flist_eof = 1;
+ 		}
+@@ -2229,14 +2305,14 @@
+ 
+ 		flist->files[flist->used++] = file;
+ 
+ 		maybe_emit_filelist_progress(flist->used);
+ 
+ 		if (verbose > 2) {
+-			rprintf(FINFO, "recv_file_name(%s)\n",
+-				f_name(file, NULL));
++			char *name = f_name(file, NULL);
++			rprintf(FINFO, "recv_file_name(%s)\n", NS(name));
+ 		}
+ 	}
+ 	file_total += flist->used;
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO, "received %d names\n", flist->used);
+@@ -2285,13 +2361,13 @@
+ 		/* Recv the io_error flag */
+ 		if (ignore_errors)
+ 			read_int(f);
+ 		else
+ 			io_error |= read_int(f);
+ 	} else if (inc_recurse && flist->ndx_start == 1) {
+-		if (!file_total || strcmp(flist->sorted[0]->basename, ".") != 0) 
++		if (!file_total || strcmp(flist->sorted[flist->low]->basename, ".") != 0)
+ 			flist->parent_ndx = -1;
+ 	}
+ 
+ 	if (verbose > 3)
+ 		output_flist(flist);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/generator.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/generator.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/generator.c	2008-06-26 23:14:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/generator.c	2008-09-01 00:51:29.000000000 +0800
+@@ -105,13 +105,13 @@
+ 
+ static dev_t dev_zero;
+ static int deletion_count = 0; /* used to implement --max-delete */
+ static int deldelay_size = 0, deldelay_cnt = 0;
+ static char *deldelay_buf = NULL;
+ static int deldelay_fd = -1;
+-static int lull_mod;
++static int loopchk_limit;
+ static int dir_tweaking;
+ static int symlink_timeset_failed_flags;
+ static int need_retouch_dir_times;
+ static int need_retouch_dir_perms;
+ static const char *solo_file = NULL;
+ 
+@@ -2055,16 +2055,19 @@
+ 		if (need_retouch_dir_times) {
+ 			STRUCT_STAT st;
+ 			if (link_stat(fname, &st, 0) == 0
+ 			 && cmp_time(st.st_mtime, file->modtime) != 0)
+ 				set_modtime(fname, file->modtime, file->mode);
+ 		}
+-		if (allowed_lull && !(counter % lull_mod))
+-			maybe_send_keepalive();
+-		else if (!(counter & 0xFF))
+-			maybe_flush_socket(0);
++		if (counter >= loopchk_limit) {
++			if (allowed_lull)
++				maybe_send_keepalive();
++			else
++				maybe_flush_socket(0);
++			counter = 0;
++		}
+ 	}
+ }
+ 
+ void check_for_finished_files(int itemizing, enum logcode code, int check_redo)
+ {
+ 	struct file_struct *file;
+@@ -2072,14 +2075,13 @@
+ 	char fbuf[MAXPATHLEN];
+ 	int ndx;
+ 
+ 	while (1) {
+ #ifdef SUPPORT_HARD_LINKS
+ 		if (preserve_hard_links && (ndx = get_hlink_num()) != -1) {
+-			flist = flist_for_ndx(ndx);
+-			assert(flist != NULL);
++			flist = flist_for_ndx(ndx, "check_for_finished_files.1");
+ 			file = flist->files[ndx - flist->ndx_start];
+ 			assert(file->flags & FLAG_HLINKED);
+ 			finish_hard_link(file, f_name(file, fbuf), ndx, NULL, itemizing, code, -1);
+ 			flist->in_progress--;
+ 			continue;
+ 		}
+@@ -2096,13 +2098,13 @@
+ 			size_only = -size_only;
+ 			append_mode = -append_mode;
+ 			make_backups = -make_backups; /* avoid dup backup w/inplace */
+ 			ignore_times++;
+ 
+ 			flist = cur_flist;
+-			cur_flist = flist_for_ndx(ndx);
++			cur_flist = flist_for_ndx(ndx, "check_for_finished_files.2");
+ 
+ 			file = cur_flist->files[ndx - cur_flist->ndx_start];
+ 			if (solo_file)
+ 				strlcpy(fbuf, solo_file, sizeof fbuf);
+ 			else
+ 				f_name(file, fbuf);
+@@ -2145,13 +2147,13 @@
+ 		flist_free(first_flist); /* updates first_flist */
+ 	}
+ }
+ 
+ void generate_files(int f_out, const char *local_name)
+ {
+-	int i, ndx;
++	int i, ndx, next_loopchk = 0;
+ 	char fbuf[MAXPATHLEN];
+ 	int itemizing;
+ 	enum logcode code;
+ 	int save_do_progress = do_progress;
+ 
+ 	if (protocol_version >= 29) {
+@@ -2171,13 +2173,13 @@
+ 		maybe_ATTRS_REPORT = ATTRS_REPORT;
+ 		code = FINFO;
+ 	}
+ 	solo_file = local_name;
+ 	dir_tweaking = !(list_only || solo_file || dry_run);
+ 	need_retouch_dir_times = preserve_times > 1;
+-	lull_mod = allowed_lull * 5;
++	loopchk_limit = allowed_lull ? allowed_lull * 5 : 200;
+ 	symlink_timeset_failed_flags = ITEM_REPORT_TIME
+ 	    | (protocol_version >= 30 || !am_server ? ITEM_REPORT_TIMEFAIL : 0);
+ 	implied_dirs_are_missing = relative_paths && !implied_dirs && protocol_version < 30;
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO, "generator starting pid=%ld\n", (long)getpid());
+@@ -2255,16 +2257,19 @@
+ 			else
+ 				f_name(file, fbuf);
+ 			recv_generator(fbuf, file, ndx, itemizing, code, f_out);
+ 
+ 			check_for_finished_files(itemizing, code, 0);
+ 
+-			if (allowed_lull && !(i % lull_mod))
+-				maybe_send_keepalive();
+-			else if (!(i & 0xFF))
+-				maybe_flush_socket(0);
++			if (i + cur_flist->ndx_start >= next_loopchk) {
++				if (allowed_lull)
++					maybe_send_keepalive();
++				else
++					maybe_flush_socket(0);
++				next_loopchk += loopchk_limit;
++			}
+ 		}
+ 
+ 		if (!inc_recurse) {
+ 			write_ndx(f_out, NDX_DONE);
+ 			break;
+ 		}
+@@ -2326,13 +2331,13 @@
+ 
+ 	if ((need_retouch_dir_perms || need_retouch_dir_times)
+ 	 && dir_tweaking && (!inc_recurse || delete_during == 2))
+ 		touch_up_dirs(dir_flist, -1);
+ 
+ 	if (max_delete >= 0 && deletion_count > max_delete) {
+-		rprintf(FINFO,
++		rprintf(FWARNING,
+ 			"Deletions stopped due to --max-delete limit (%d skipped)\n",
+ 			deletion_count - max_delete);
+ 		io_error |= IOERR_DEL_LIMIT;
+ 	}
+ 
+ 	if (verbose > 2)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/.gitignore /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/.gitignore
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/.gitignore	2008-01-02 02:27:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/.gitignore	2008-08-18 00:28:06.000000000 +0800
+@@ -1,15 +1,18 @@
+ *.[oa]
+ *~
+ dummy
+ ID
+ Makefile
++Makefile.old
+ configure.sh
++configure.sh.old
+ config.cache
+ config.h
+ config.h.in
++config.h.in.old
+ config.log
+ config.status
+ /proto.h
+ /proto.h-tstamp
+ /rsync.1
+ /rsyncd.conf.5
+@@ -29,9 +32,10 @@
+ /t_unsafe
+ /wildtest
+ /getfsdev
+ /rounding.h
+ /doc/rsync.pdf
+ /doc/rsync.ps
++/support/savetransfer
+ /testsuite/chown-fake.test
+ /testsuite/devices-fake.test
+ /patches
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/hlink.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/hlink.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/hlink.c	2008-04-29 12:17:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/hlink.c	2008-08-14 22:32:18.000000000 +0800
+@@ -34,13 +34,13 @@
+ extern int protocol_version;
+ extern int remove_source_files;
+ extern int stdout_format_has_i;
+ extern int maybe_ATTRS_REPORT;
+ extern int unsort_ndx;
+ extern char *basis_dir[];
+-extern struct file_list *cur_flist, *first_flist;
++extern struct file_list *cur_flist;
+ 
+ #ifdef SUPPORT_HARD_LINKS
+ 
+ /* Starting with protocol 30, we use a simple hashtable on the sending side
+  * for hashing the st_dev and st_ino info.  The receiving side gets told
+  * (via flags and a "group index") which items are hard-linked together, so
+@@ -116,20 +116,21 @@
+ 	for (from = 0; from < ndx_count; from++) {
+ 		file = hlink_flist->sorted[ndx_list[from]];
+ 		gnum = F_HL_GNUM(file);
+ 		if (inc_recurse) {
+ 			node = hashtable_find(prior_hlinks, gnum, 1);
+ 			if (!node->data) {
+-				node->data = new_array0(char, 5);
++				if (!(node->data = new_array0(char, 5)))
++					out_of_memory("match_gnums");
+ 				assert(gnum >= hlink_flist->ndx_start);
+ 				file->flags |= FLAG_HLINK_FIRST;
+ 				prev = -1;
+ 			} else if (CVAL(node->data, 0) == 0) {
+ 				struct file_list *flist;
+ 				prev = IVAL(node->data, 1);
+-				flist = flist_for_ndx(prev);
++				flist = flist_for_ndx(prev, NULL);
+ 				if (flist)
+ 					flist->files[prev - flist->ndx_start]->flags &= ~FLAG_HLINK_LAST;
+ 				else {
+ 					/* We skipped all prior files in this
+ 					 * group, so mark this as a "first". */
+ 					file->flags |= FLAG_HLINK_FIRST;
+@@ -176,13 +177,13 @@
+ /* Analyze the hard-links in the file-list by creating a list of all the
+  * items that have hlink data, sorting them, and matching up identical
+  * values into clusters.  These will be a single linked list from last
+  * to first when we're done. */
+ void match_hard_links(struct file_list *flist)
+ {
+-	if (!list_only) {
++	if (!list_only && flist->used) {
+ 		int i, ndx_count = 0;
+ 		int32 *ndx_list;
+ 
+ 		if (!(ndx_list = new_array(int32, flist->used)))
+ 			out_of_memory("match_hard_links");
+ 
+@@ -252,13 +253,13 @@
+ 	struct ht_int32_node *node;
+ 	int prev_ndx = F_HL_PREV(file);
+ 
+ 	while (1) {
+ 		struct file_list *flist;
+ 		if (prev_ndx < 0
+-		 || (flist = flist_for_ndx(prev_ndx)) == NULL)
++		 || (flist = flist_for_ndx(prev_ndx, NULL)) == NULL)
+ 			break;
+ 		fp = flist->files[prev_ndx - flist->ndx_start];
+ 		if (!(fp->flags & FLAG_SKIP_HLINK)) {
+ 			*prev_ndx_p = prev_ndx;
+ 			*flist_p = flist;
+ 			return NULL;
+@@ -474,22 +475,13 @@
+ #ifdef SUPPORT_ACLS
+ 	prev_sx.acc_acl = prev_sx.def_acl = NULL;
+ #endif
+ 
+ 	while ((ndx = prev_ndx) >= 0) {
+ 		int val;
+-		flist = flist_for_ndx(ndx);
+-		if (flist == NULL) {
+-			int start1 = first_flist ? first_flist->ndx_start : 0;
+-			int start2 = first_flist ? first_flist->prev->ndx_start : 0;
+-			int used = first_flist ? first_flist->prev->used : 0;
+-			rprintf(FERROR,
+-				"File index not found: %d (%d - %d)\n",
+-				ndx, start1 - 1, start2 + used - 1);
+-			exit_cleanup(RERR_PROTOCOL);
+-		}
++		flist = flist_for_ndx(ndx, "finish_hard_link");
+ 		file = flist->files[ndx - flist->ndx_start];
+ 		file->flags = (file->flags & ~FLAG_HLINK_FIRST) | FLAG_HLINK_DONE;
+ 		prev_ndx = F_HL_PREV(file);
+ 		F_HL_PREV(file) = fin_ndx;
+ 		prev_statret = link_stat(f_name(file, prev_name), &prev_sx.st, 0);
+ 		val = maybe_hard_link(file, ndx, prev_name, prev_statret, &prev_sx,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/io.c	2008-06-24 00:17:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/io.c	2008-09-01 00:51:29.000000000 +0800
+@@ -98,13 +98,13 @@
+ static int io_filesfrom_f_out = -1;
+ static xbuf ff_buf = EMPTY_XBUF;
+ static char ff_lastchar;
+ #ifdef ICONV_OPTION
+ static xbuf iconv_buf = EMPTY_XBUF;
+ #endif
+-static int defer_forwarding_messages = 0, defer_forwarding_keep = 0;
++static int defer_forwarding_messages = 0, keep_defer_forwarding = 0;
+ static int select_timeout = SELECT_TIMEOUT;
+ static int active_filecnt = 0;
+ static OFF_T active_bytecnt = 0;
+ static int first_message = 1;
+ 
+ static char int_byte_extra[64] = {
+@@ -180,15 +180,13 @@
+ 	return ndx;
+ }
+ 
+ static void got_flist_entry_status(enum festatus status, const char *buf)
+ {
+ 	int ndx = IVAL(buf, 0);
+-	struct file_list *flist = flist_for_ndx(ndx);
+-
+-	assert(flist != NULL);
++	struct file_list *flist = flist_for_ndx(ndx, "got_flist_entry_status");
+ 
+ 	if (remove_source_files) {
+ 		active_filecnt--;
+ 		active_bytecnt -= F_LENGTH(flist->files[ndx - flist->ndx_start]);
+ 	}
+ 
+@@ -293,39 +291,38 @@
+ 		lst->tail->next = m;
+ 	else
+ 		lst->head = m;
+ 	lst->tail = m;
+ }
+ 
++static inline int flush_a_msg(int fd)
++{
++	struct msg_list_item *m = msg_queue.head;
++	int len = IVAL(m->buf, 0) & 0xFFFFFF;
++	int tag = *((uchar*)m->buf+3) - MPLEX_BASE;
++
++	if (!(msg_queue.head = m->next))
++		msg_queue.tail = NULL;
++
++	defer_forwarding_messages++;
++	mplex_write(fd, tag, m->buf + 4, len, m->convert);
++	defer_forwarding_messages--;
++
++	free(m);
++
++	return len;
++}
++
+ static void msg_flush(void)
+ {
+ 	if (am_generator) {
+-		while (msg_queue.head && io_multiplexing_out) {
+-			struct msg_list_item *m = msg_queue.head;
+-			int len = IVAL(m->buf, 0) & 0xFFFFFF;
+-			int tag = *((uchar*)m->buf+3) - MPLEX_BASE;
+-			if (!(msg_queue.head = m->next))
+-				msg_queue.tail = NULL;
+-			stats.total_written += len + 4;
+-			defer_forwarding_messages++;
+-			mplex_write(sock_f_out, tag, m->buf + 4, len, m->convert);
+-			defer_forwarding_messages--;
+-			free(m);
+-		}
++		while (msg_queue.head && io_multiplexing_out)
++			stats.total_written += flush_a_msg(sock_f_out) + 4;
+ 	} else {
+-		while (msg_queue.head) {
+-			struct msg_list_item *m = msg_queue.head;
+-			int len = IVAL(m->buf, 0) & 0xFFFFFF;
+-			int tag = *((uchar*)m->buf+3) - MPLEX_BASE;
+-			if (!(msg_queue.head = m->next))
+-				msg_queue.tail = NULL;
+-			defer_forwarding_messages++;
+-			mplex_write(msg_fd_out, tag, m->buf + 4, len, m->convert);
+-			defer_forwarding_messages--;
+-			free(m);
+-		}
++		while (msg_queue.head)
++			(void)flush_a_msg(msg_fd_out);
+ 	}
+ }
+ 
+ static void check_for_d_option_error(const char *msg)
+ {
+ 	static char rsync263_opts[] = "BCDHIKLPRSTWabceghlnopqrtuvxz";
+@@ -446,12 +443,13 @@
+ 		if (len != 4 || !am_generator)
+ 			goto invalid_msg;
+ 		readfd(fd, buf, 4);
+ 		got_flist_entry_status(FES_NO_SEND, buf);
+ 		break;
+ 	case MSG_ERROR_SOCKET:
++	case MSG_ERROR_UTF8:
+ 	case MSG_CLIENT:
+ 		if (!am_generator)
+ 			goto invalid_msg;
+ 		if (tag == MSG_ERROR_SOCKET)
+ 			io_end_multiplex_out();
+ 		/* FALL THROUGH */
+@@ -528,15 +526,15 @@
+ 		n = 0;    /* We'd rather do 2 writes than too much memcpy(). */
+ 	else
+ 		memcpy(buffer + 4, buf, n);
+ 
+ 	SIVAL(buffer, 0, ((MPLEX_BASE + (int)code)<<24) + len);
+ 
+-	defer_forwarding_keep = 1; /* defer_forwarding_messages++ on return */
++	keep_defer_forwarding++; /* defer_forwarding_messages++ on return */
+ 	writefd_unbuffered(fd, buffer, n+4);
+-	defer_forwarding_keep = 0;
++	keep_defer_forwarding--;
+ 
+ 	if (len > n)
+ 		writefd_unbuffered(fd, buf+n, len-n);
+ 
+ 	if (!--defer_forwarding_messages && !no_flush)
+ 		msg_flush();
+@@ -565,16 +563,15 @@
+ 	SIVAL(numbuf, 0, num);
+ 	send_msg(code, numbuf, 4, 0);
+ }
+ 
+ void wait_for_receiver(void)
+ {
+-	if (iobuf_out_cnt)
+-		io_flush(NORMAL_FLUSH);
+-	else
+-		read_msg_fd();
++	if (io_flush(NORMAL_FLUSH))
++		return;
++	read_msg_fd();
+ }
+ 
+ int get_redo_num(void)
+ {
+ 	return flist_ndx_pop(&redo_list);
+ }
+@@ -1552,30 +1549,40 @@
+ 				last_io_out = time(NULL);
+ 			sleep_for_bwlimit(cnt);
+ 		}
+ 	}
+ 
+ 	no_flush--;
+-	defer_inc -= defer_forwarding_keep;
++	if (keep_defer_forwarding)
++		defer_inc--;
+ 	if (!(defer_forwarding_messages -= defer_inc) && !no_flush)
+ 		msg_flush();
+ }
+ 
+-void io_flush(int flush_it_all)
++int io_flush(int flush_it_all)
+ {
+-	if (!iobuf_out_cnt || no_flush)
+-		return;
++	int flushed_something = 0;
+ 
+-	if (io_multiplexing_out)
+-		mplex_write(sock_f_out, MSG_DATA, iobuf_out, iobuf_out_cnt, 0);
+-	else
+-		writefd_unbuffered(iobuf_f_out, iobuf_out, iobuf_out_cnt);
+-	iobuf_out_cnt = 0;
++	if (no_flush)
++		return 0;
++
++	if (iobuf_out_cnt) {
++		if (io_multiplexing_out)
++			mplex_write(sock_f_out, MSG_DATA, iobuf_out, iobuf_out_cnt, 0);
++		else
++			writefd_unbuffered(iobuf_f_out, iobuf_out, iobuf_out_cnt);
++		iobuf_out_cnt = 0;
++		flushed_something = 1;
++	}
+ 
+-	if (flush_it_all && !defer_forwarding_messages)
++	if (flush_it_all && !defer_forwarding_messages && msg_queue.head) {
+ 		msg_flush();
++		flushed_something = 1;
++	}
++
++	return flushed_something;
+ }
+ 
+ static void writefd(int fd, const char *buf, size_t len)
+ {
+ 	if (fd == sock_f_out)
+ 		stats.total_written += len;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/lib/sysacls.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/lib/sysacls.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/lib/sysacls.c	2008-03-02 04:01:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/lib/sysacls.c	2008-07-23 12:35:21.000000000 +0800
+@@ -548,13 +548,13 @@
+ 	/*
+ 	 * note that since the definition of the structure pointed
+ 	 * to by the SMB_ACL_T includes the first element of the
+ 	 * acl[] array, this actually allocates an ACL with room
+ 	 * for (count+1) entries
+ 	 */
+-	if ((a = (SMB_ACL_T)SMB_MALLOC(sizeof(struct SMB_ACL_T) + count * sizeof(struct acl))) == NULL) {
++	if ((a = (SMB_ACL_T)SMB_MALLOC(sizeof a[0] + count * sizeof (struct acl))) == NULL) {
+ 		errno = ENOMEM;
+ 		return NULL;
+ 	}
+ 
+ 	a->size = count + 1;
+ 	a->count = 0;
+@@ -1004,13 +1004,13 @@
+ 	/*
+ 	 * note that since the definition of the structure pointed
+ 	 * to by the SMB_ACL_T includes the first element of the
+ 	 * acl[] array, this actually allocates an ACL with room
+ 	 * for (count+1) entries
+ 	 */
+-	if ((a = SMB_MALLOC(sizeof(struct SMB_ACL_T) + count * sizeof(struct acl))) == NULL) {
++	if ((a = (SMB_ACL_T)SMB_MALLOC(sizeof a[0] + count * sizeof(struct acl))) == NULL) {
+ 		errno = ENOMEM;
+ 		return NULL;
+ 	}
+ 
+ 	a->size = count + 1;
+ 	a->count = 0;
+@@ -1635,20 +1635,20 @@
+ 
+ 	if (count < 0) {
+ 		errno = EINVAL;
+ 		return NULL;
+ 	}
+ 
+-	if ((a = SMB_MALLOC(sizeof(struct SMB_ACL_T) + sizeof(struct acl))) == NULL) {
++	if ((a = (SMB_ACL_T)SMB_MALLOC(sizeof a[0] + sizeof (struct acl))) == NULL) {
+ 		errno = ENOMEM;
+ 		return NULL;
+ 	}
+ 
+ 	a->next = -1;
+ 	a->freeaclp = False;
+-	a->aclp = (struct acl *)(&a->aclp + sizeof(struct acl *));
++	a->aclp = (struct acl *)((char *)a + sizeof a[0]);
+ 	a->aclp->acl_cnt = 0;
+ 
+ 	return a;
+ }
+ 
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/log.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/log.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/log.c	2008-06-05 00:01:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/log.c	2008-08-18 00:25:34.000000000 +0800
+@@ -82,13 +82,13 @@
+ 	{ RERR_CRASHED    , "sibling process crashed" },
+ 	{ RERR_TERMINATED , "sibling process terminated abnormally" },
+ 	{ RERR_SIGNAL1    , "received SIGUSR1" },
+ 	{ RERR_SIGNAL     , "received SIGINT, SIGTERM, or SIGHUP" },
+ 	{ RERR_WAITCHILD  , "waitpid() failed" },
+ 	{ RERR_MALLOC     , "error allocating core memory buffers" },
+-	{ RERR_PARTIAL    , "some files could not be transferred" },
++	{ RERR_PARTIAL    , "some files/attrs were not transferred (see previous errors)" },
+ 	{ RERR_VANISHED   , "some files vanished before they could be transferred" },
+ 	{ RERR_TIMEOUT    , "timeout in data send/receive" },
+ 	{ RERR_CONTIMEOUT , "timeout waiting for daemon connection" },
+ 	{ RERR_CMD_FAILED , "remote shell failed" },
+ 	{ RERR_CMD_KILLED , "remote shell killed" },
+ 	{ RERR_CMD_RUN    , "remote command could not be run" },
+@@ -254,19 +254,23 @@
+ 
+ 	if (len < 0)
+ 		exit_cleanup(RERR_MESSAGEIO);
+ 
+ 	if (am_server && msg_fd_out >= 0) {
+ 		assert(!is_utf8);
+-		/* Pass the message to our sibling. */
++		/* Pass the message to our sibling in native charset. */
+ 		send_msg((enum msgcode)code, buf, len, 0);
+ 		return;
+ 	}
+ 
+ 	if (code == FERROR_SOCKET) /* This gets simplified for a non-sibling. */
+ 		code = FERROR;
++	else if (code == FERROR_UTF8) {
++		is_utf8 = 1;
++		code = FERROR;
++	}
+ 
+ 	if (code == FCLIENT)
+ 		code = FINFO;
+ 	else if (am_daemon || logfile_name) {
+ 		static int in_block;
+ 		char msg[2048];
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/Makefile.in	2008-06-23 09:26:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/Makefile.in	2008-07-24 14:28:57.000000000 +0800
+@@ -123,28 +123,46 @@
+ conf:
+ 	cd $(srcdir) && $(MAKE) -f prepare-source.mak conf
+ 
+ conf_stop: configure.sh config.h.in
+ 
+ configure.sh config.h.in: configure.in aclocal.m4
++	@if test -f configure.sh; then cp -p configure.sh configure.sh.old; else touch configure.sh.old; fi
++	@if test -f config.h.in; then cp -p config.h.in config.h.in.old; else touch config.h.in.old; fi
+ 	autoconf -o configure.sh
+ 	autoheader && touch config.h.in
+-	@echo 'Configure files changed -- perhaps run:'
+-	@echo '  make reconfigure'
+-	@exit 1
++	@if diff configure.sh configure.sh.old >/dev/null 2>&1; then \
++	    echo "configure.sh is unchanged."; \
++	    rm configure.sh.old; \
++	fi
++	@if diff config.h.in config.h.in.old >/dev/null 2>&1; then \
++	    echo "config.h.in is unchanged."; \
++	    rm config.h.in.old; \
++	fi
++	@if test -f configure.sh.old -o -f config.h.in.old; then \
++	    echo 'Configure files changed -- perhaps run:'; \
++	    echo '  make reconfigure'; \
++	    exit 1; \
++	fi
+ 
+ reconfigure: configure.sh
+ 	./config.status --recheck
+ 	./config.status
+ 
+ make_stop: Makefile
+ 
+ Makefile: Makefile.in config.status
++	@if test -f Makefile; then cp -p Makefile Makefile.old; else touch Makefile.old; fi
+ 	@./config.status
+-	@echo "Makefile updated -- rerun your make command."
+-	@exit 1
++	@if diff Makefile Makefile.old >/dev/null 2>&1; then \
++	    echo "Makefile is unchanged."; \
++	    rm Makefile.old; \
++	else \
++	    echo "Makefile updated -- rerun your make command."; \
++	    exit 1; \
++	fi
+ 
+ proto: proto.h-tstamp
+ 
+ proto.h: proto.h-tstamp
+ 	@if test -f proto.h; then :; else cp -p $(srcdir)/proto.h .; fi
+ 
+@@ -162,13 +180,13 @@
+ rsyncd.conf.5: rsyncd.conf.yo
+ 	yodl2man -o rsyncd.conf.5 $(srcdir)/rsyncd.conf.yo
+ 	-$(srcdir)/tweak_manpage rsyncd.conf.5
+ 
+ clean: cleantests
+ 	rm -f *~ $(OBJS) $(CHECK_PROGS) $(CHECK_OBJS) $(CHECK_SYMLINKS) \
+-		rounding rounding.h
++		rounding rounding.h *.old
+ 
+ cleantests:
+ 	rm -rf ./testtmp*
+ 
+ # We try to delete built files from both the source and build
+ # directories, just in case somebody previously configured things in
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/NEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/NEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/NEWS	2008-06-30 11:15:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/NEWS	2008-09-07 00:32:26.000000000 +0800
+@@ -1,89 +1,64 @@
+-NEWS for rsync 3.0.3 (29 Jun 2008)
++NEWS for rsync 3.0.4 (6 Sep 2008)
+ Protocol: 30 (unchanged)
+-Changes since 3.0.2:
++Changes since 3.0.3:
+ 
+   BUG FIXES:
+ 
+-    - Fixed a wildcard matching problem in the daemon when a module has
+-      "use chroot" enabled.
++    - Fixed a bug in the hard-linking code where it would sometimes try to
++      allocate 0 bytes of memory (which fails on some OSes, such as AIX).
+ 
+-    - Fixed a crash bug in the hard-link code.
++    - Fixed the hard-linking of files from a device that has a device number
++      of 0 (which seems to be a common device number on NetBSD).
+ 
+-    - Fixed the sending of xattr directory information when the code finds a
+-      --link-dest or --copy-dest directory with unchanged xattrs -- the
+-      destination directory now gets these unchanged xattrs properly applied.
++    - Fixed the handling of a --partial-dir that cannot be created.  This
++      particularly impacts the --delay-updates option (since the files cannot
++      be delayed without a partial-dir), and was potentially destructive if
++      the --remove-source-files was also specified.
+ 
+-    - Fixed an xattr-sending glitch that could cause an "Internal abbrev"
+-      error.
++    - Fixed a couple issues in the --fake-super handling of xattrs when the
++      destination files have root-level attributes (e.g. selinux values) that
++      a non-root copy can't affect.
+ 
+-    - Fixed the combination of --xattrs and --backup.
++    - Improved the keep-alive check in the generator to fire consistently in
++      incremental-recursion mode when --timeout is enabled.
+ 
+-    - The generator no longer allows a '.' dir to be excluded by a daemon-
+-      exclude rule.
++    - The --iconv option now converts the content of a symlink too, instead
++      of leaving it in the wrong character-set (requires 3.0.4 on both sides
++      of the transfer).
+ 
+-    - Fixed deletion handling when copying a single, empty directory (with no
+-      files) to a differently named, non-existent directory.
++    - When using --iconv, if a filename fails to convert on the receiving side,
++      this no longer makes deletions in the root-dir of the transfer fail
++      silently (the user now gets a warning about deletions being disabled
++      due to IO error as long as --ignore-errors was not specified).
+ 
+-    - Fixed the conversion of spaces into dashes in the %M log escape.
++    - When using --iconv, if a server-side receiver can't convert a filename,
++      the error message sent back to the client no longer mangles the name
++      with the wrong charset conversion.
+ 
+-    - Fixed several places in the code that were not returning the right
+-      errno when a function failed.
++    - Fixed a potential alignment issue in the IRIX ACL code when allocating
++      the initial "struct acl" object.  Also, cast mallocs to avoid warnings.
+ 
+-    - Fixed the backing up of a device or special file into a backup dir.
++    - Changed some errors that were going to stdout to go to stderr.
+ 
+-    - Moved the setting of the socket options prior to the connect().
+-
+-    - If rsync exits in the middle of a --progress output, it now outputs a
+-      newline to help prevent the progress line from being overwritten.
+-
+-    - Fixed a problem with how a destination path with a trailing slash or
+-      a trailing dot-dir was compared against the daemon excludes.
+-
+-    - Fixed the sending of large (size > 16GB) files when talking to an older
+-      rsync (protocols < 30):  we now use a compatible block size limit.
+-
+-    - If a file's length is so huge that we overflow a checksum buffer count
+-      (i.e. several hundred TB), warn the user and avoid sending an invalid
+-      checksum struct over the wire.
+-
+-    - If a source arg is excluded, --relative no longer adds the excluded
+-      arg's implied dirs to the transfer.  This fix also made the exclude
+-      check happen in the better place in the sending code.
+-
+-    - Use the overflow_exit() function for overflows, not out_of_memory().
+-
+-    - Improved the code to better handle a system that has only 32-bit file
+-      offsets.
++    - Made human_num() and human_dnum() able to output a negative number
++      (rather than outputting a cryptic string of punctuation).
+ 
+   ENHANCEMENTS:
+ 
+-    - The rsyncd.conf manpage now consistently refers to the parameters in
+-      the daemon config file as "parameters".
+-
+-    - The description of the --inplace option was improved.
++    - Rsync will avoid sending an -e option to the server if an older protocol
++      is requested (and thus the option would not be useful).  This lets the
++      user specify the --protocol=29 option to access an overly-restrictive
++      server that is rejecting the protocol-30 use of -e to the server.
+ 
+-  EXTRAS:
+-
+-    - Added a new script in the support directory, deny-rsync, which allows
+-      an admin to (temporarily) replace the rsync command with a script that
+-      sends an error message to the remote client via the rsync protocol.
++    - Improved the message output for an RERR_PARTIAL exit.
+ 
+   DEVELOPER RELATED:
+ 
+-    - Fixed a testcase failure if the tests are run as root and made some
+-      compatibility improvements.
+-
+-    - Improved the daemon tests, including checking module comments, the
+-      listing of files, and the ensuring that daemon excludes can't affect
+-      a dot-dir arg.
+-
+-    - Improved some build rules for those that build in a separate directory
+-      from the source, including better install rules for the man pages, and
+-      the fixing of a proto.h-tstamp rule that could make the binaries get
+-      rebuild without cause.
++    - The Makefile will not halt for just a timestamp change on the Makefile
++      or the configure files, only for actual changes in content.
+ 
+-    - Improved the testsuite to work around a problem with some utilities
+-      (e.g. cp -p & touch -r) rounding sub-second timestamps.
++    - Changed some commands in the testsuite's xattrs.test that called "rsync"
++      instead of "$RSYNC".
+ 
+-    - Ensure that the early patches don't cause any generated-file hunks to
+-      bleed-over into patches that follow.
++    - Enhanced the release scripts to be able to handle a branch release and
++      to do even more consistency checks on the files.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/OLDNEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/OLDNEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/OLDNEWS	2008-06-30 11:15:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/OLDNEWS	2008-09-07 00:32:26.000000000 +0800
+@@ -1,6 +1,97 @@
++NEWS for rsync 3.0.3 (29 Jun 2008)
++Protocol: 30 (unchanged)
++Changes since 3.0.2:
++
++  BUG FIXES:
++
++    - Fixed a wildcard matching problem in the daemon when a module has
++      "use chroot" enabled.
++
++    - Fixed a crash bug in the hard-link code.
++
++    - Fixed the sending of xattr directory information when the code finds a
++      --link-dest or --copy-dest directory with unchanged xattrs -- the
++      destination directory now gets these unchanged xattrs properly applied.
++
++    - Fixed an xattr-sending glitch that could cause an "Internal abbrev"
++      error.
++
++    - Fixed the combination of --xattrs and --backup.
++
++    - The generator no longer allows a '.' dir to be excluded by a daemon-
++      exclude rule.
++
++    - Fixed deletion handling when copying a single, empty directory (with no
++      files) to a differently named, non-existent directory.
++
++    - Fixed the conversion of spaces into dashes in the %M log escape.
++
++    - Fixed several places in the code that were not returning the right
++      errno when a function failed.
++
++    - Fixed the backing up of a device or special file into a backup dir.
++
++    - Moved the setting of the socket options prior to the connect().
++
++    - If rsync exits in the middle of a --progress output, it now outputs a
++      newline to help prevent the progress line from being overwritten.
++
++    - Fixed a problem with how a destination path with a trailing slash or
++      a trailing dot-dir was compared against the daemon excludes.
++
++    - Fixed the sending of large (size > 16GB) files when talking to an older
++      rsync (protocols < 30):  we now use a compatible block size limit.
++
++    - If a file's length is so huge that we overflow a checksum buffer count
++      (i.e. several hundred TB), warn the user and avoid sending an invalid
++      checksum struct over the wire.
++
++    - If a source arg is excluded, --relative no longer adds the excluded
++      arg's implied dirs to the transfer.  This fix also made the exclude
++      check happen in the better place in the sending code.
++
++    - Use the overflow_exit() function for overflows, not out_of_memory().
++
++    - Improved the code to better handle a system that has only 32-bit file
++      offsets.
++
++  ENHANCEMENTS:
++
++    - The rsyncd.conf manpage now consistently refers to the parameters in
++      the daemon config file as "parameters".
++
++    - The description of the --inplace option was improved.
++
++  EXTRAS:
++
++    - Added a new script in the support directory, deny-rsync, which allows
++      an admin to (temporarily) replace the rsync command with a script that
++      sends an error message to the remote client via the rsync protocol.
++
++  DEVELOPER RELATED:
++
++    - Fixed a testcase failure if the tests are run as root and made some
++      compatibility improvements.
++
++    - Improved the daemon tests, including checking module comments, the
++      listing of files, and the ensuring that daemon excludes can't affect
++      a dot-dir arg.
++
++    - Improved some build rules for those that build in a separate directory
++      from the source, including better install rules for the man pages, and
++      the fixing of a proto.h-tstamp rule that could make the binaries get
++      rebuild without cause.
++
++    - Improved the testsuite to work around a problem with some utilities
++      (e.g. cp -p & touch -r) rounding sub-second timestamps.
++
++    - Ensure that the early patches don't cause any generated-file hunks to
++      bleed-over into patches that follow.
++
++
+ NEWS for rsync 3.0.2 (8 Apr 2008)
+ Protocol: 30 (unchanged)
+ Changes since 3.0.1:
+ 
+   BUG FIXES:
+ 
+@@ -287,12 +378,17 @@
+ 
+     - Fixed the combination of --only-write-batch and --dry-run.
+ 
+     - Fixed rsync's ability to remove files that are not writable by the file's
+       owner when rsync is running as the same user.
+ 
++    - When transferring large files, the sender's hashtable of checksums is
++      kept at a more reasonable state of fullness (no more than 80% full) so
++      that the scanning of the hashtable will not bog down as the number of
++      blocks increases.
++
+   ENHANCEMENTS:
+ 
+     - A new incremental-recursion algorithm is now used when rsync is talking
+       to another 3.x version.  This starts the transfer going more quickly
+       (before all the files have been found), and requires much less memory.
+       See the --recursive option in the manpage for some restrictions.
+@@ -2742,12 +2838,13 @@
+     * The existing test.sh script by Phil Hands has been merged into a
+       test framework that works from both "make check" and the Samba
+       build farm.
+ 
+ Partial Protocol History
+ 	RELEASE DATE	VER.	DATE OF COMMIT*	PROTOCOL
++	06 Sep 2008	3.0.4			30
+ 	29 Jun 2008	3.0.3			30
+ 	08 Apr 2008	3.0.2			30
+ 	03 Apr 2008	3.0.1			30
+ 	01 Mar 2008	3.0.0	11 Nov 2006	30
+ 	06 Nov 2006	2.6.9			29
+ 	22 Apr 2006	2.6.8			29
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/options.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/options.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/options.c	2008-03-30 23:05:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/options.c	2008-08-02 22:04:54.000000000 +0800
+@@ -1805,28 +1805,42 @@
+ 	}
+ 	if (sparse_files)
+ 		argstr[x++] = 'S';
+ 	if (do_compression)
+ 		argstr[x++] = 'z';
+ 
+-	/* We make use of the -e option to let the server know about any
+-	 * pre-release protocol version && some behavior flags. */
+-	argstr[x++] = 'e';
++	set_allow_inc_recurse();
++
++	/* Checking the pre-negotiated value allows --protocol=29 override. */
++	if (protocol_version >= 30) {
++		/* We make use of the -e option to let the server know about
++		 * any pre-release protocol version && some behavior flags. */
++		argstr[x++] = 'e';
+ #if SUBPROTOCOL_VERSION != 0
+-	if (protocol_version == PROTOCOL_VERSION) {
+-		x += snprintf(argstr+x, sizeof argstr - x,
+-			      "%d.%d", PROTOCOL_VERSION, SUBPROTOCOL_VERSION);
+-	} else
++		if (protocol_version == PROTOCOL_VERSION) {
++			x += snprintf(argstr+x, sizeof argstr - x,
++				      "%d.%d",
++				      PROTOCOL_VERSION, SUBPROTOCOL_VERSION);
++		} else
+ #endif
+-		argstr[x++] = '.';
+-	set_allow_inc_recurse();
+-	if (allow_inc_recurse)
+-		argstr[x++] = 'i';
++			argstr[x++] = '.';
++		if (allow_inc_recurse)
++			argstr[x++] = 'i';
+ #if defined HAVE_LUTIMES && defined HAVE_UTIMES
+-	argstr[x++] = 'L';
++		argstr[x++] = 'L';
+ #endif
++#ifdef ICONV_OPTION
++		argstr[x++] = 's';
++#endif
++	}
++
++	if (x >= (int)sizeof argstr) { /* Not possible... */
++		rprintf(FERROR, "argstr overflow in server_options().\n");
++		exit_cleanup(RERR_MALLOC);
++	}
++
+ 	argstr[x] = '\0';
+ 
+ 	args[ac++] = argstr;
+ 
+ #ifdef ICONV_OPTION
+ 	if (iconv_opt) {
+@@ -2005,13 +2019,12 @@
+ 
+ 		if (basis_dir[0]) {
+ 			/* the server only needs this option if it is not the sender,
+ 			 *   and it may be an older version that doesn't know this
+ 			 *   option, so don't send it if client is the sender.
+ 			 */
+-			int i;
+ 			for (i = 0; i < basis_dir_cnt; i++) {
+ 				args[ac++] = dest_option;
+ 				args[ac++] = basis_dir[i];
+ 			}
+ 		}
+ 	}
+@@ -2045,12 +2058,17 @@
+ 
+ 	if (remove_source_files == 1)
+ 		args[ac++] = "--remove-source-files";
+ 	else if (remove_source_files)
+ 		args[ac++] = "--remove-sent-files";
+ 
++	if (ac > MAX_SERVER_ARGS) { /* Not possible... */
++		rprintf(FERROR, "argc overflow in server_options().\n");
++		exit_cleanup(RERR_MALLOC);
++	}
++
+ 	*argc_p = ac;
+ 	return;
+ 
+     oom:
+ 	out_of_memory("server_options");
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/packaging/lsb/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/packaging/lsb/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/packaging/lsb/rsync.spec	2008-06-30 11:15:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/packaging/lsb/rsync.spec	2008-09-07 00:32:26.000000000 +0800
+@@ -1,9 +1,9 @@
+ Summary: A fast, versatile, remote (and local) file-copying tool
+ Name: rsync
+-Version: 3.0.3
++Version: 3.0.4
+ %define fullversion %{version}
+ Release: 1
+ %define srcdir src
+ Group: Applications/Internet
+ Source0: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-%{fullversion}.tar.gz
+ #Source1: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-patches-%{fullversion}.tar.gz
+@@ -63,12 +63,12 @@
+ %config(noreplace) /etc/xinetd.d/rsync
+ %{_prefix}/bin/rsync*
+ %{_mandir}/man1/rsync.1*
+ %{_mandir}/man5/rsyncd.conf.5*
+ 
+ %changelog
+-* Sun Jun 29 2008 Wayne Davison <wayned@samba.org>
+-Released 3.0.3.
++* Sat Sep 06 2008 Wayne Davison <wayned@samba.org>
++Released 3.0.4.
+ 
+ * Fri Mar 21 2008 Wayne Davison <wayned@samba.org>
+ Added installation of /etc/xinetd.d/rsync file and some commented-out
+ lines that demonstrate how to use the rsync-patches tar file.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/packaging/patch-update /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/packaging/patch-update
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/packaging/patch-update	2008-04-17 00:11:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/packaging/patch-update	2008-07-24 05:32:58.000000000 +0800
+@@ -10,12 +10,13 @@
+ 
+ my $patches_dir = 'patches';
+ my $tmp_dir = "patches.$$";
+ 
+ &Getopt::Long::Configure('bundling');
+ &usage if !&GetOptions(
++    'branch|b=s' => \( my $master_branch = 'master' ),
+     'skip-check' => \( my $skip_branch_check ),
+     'shell|s' => \( my $launch_shell ),
+     'gen:s' => \( my $incl_generated_files ),
+     'help|h' => \( my $help_opt ),
+ );
+ &usage if $help_opt;
+@@ -50,51 +51,56 @@
+     die "'$tmp_dir' must not exist in the current directory.\n" if -e $tmp_dir;
+     mkdir($tmp_dir, 0700) or die "Unable to mkdir($tmp_dir): $!\n";
+     system "./config.status Makefile && make gen && rsync -a @extra_files $tmp_dir/master/" and exit 1;
+ }
+ our $last_touch = time;
+ 
+-my(%patches, %local_patch);
++my %patches;
+ 
+ # Start by finding all patches so that we can load all possible parents.
+-open(PIPE, '-|', 'git', 'branch', '-a') or die $!;
++open(PIPE, '-|', 'git', 'branch', '-l') or die $!;
+ while (<PIPE>) {
+-    if (m# origin/patch/(.*)#) {
++    if (m# patch/(.*)#) {
+ 	$patches{$1} = 1;
+-    } elsif (m# patch/(.*)#) {
+-	$patches{$1} = $local_patch{$1} = 1;
+     }
+ }
+ close PIPE;
+ 
+ my @patches = sort keys %patches;
+ 
+ my(%parent, %description);
+ foreach my $patch (@patches) {
+-    my $branch = ($local_patch{$patch} ? '' : 'origin/') . "patch/$patch";
++    my $branch = "patch/$patch";
+     my $desc = '';
+-    open(PIPE, '-|', 'git', 'diff', '-U1000', "master...$branch", '--', "PATCH.$patch") or die $!;
++    open(PIPE, '-|', 'git', 'diff', '-U1000', "$master_branch...$branch", '--', "PATCH.$patch") or die $!;
+     while (<PIPE>) {
+ 	last if /^@@ /;
+     }
+     while (<PIPE>) {
+ 	next unless s/^[ +]//;
+ 	if (m#patch -p1 <patches/(\S+)\.diff# && $1 ne $patch) {
+-	    $parent{$patch} = $1;
++	    my $parent = $parent{$patch} = $1;
++	    if (!$patches{$parent}) {
++		die "Parent of $patch is not a local branch: $parent\n";
++	    }
+ 	}
+ 	$desc .= $_;
+     }
++    close PIPE;
+     $description{$patch} = $desc;
+ }
+ 
+ if (@ARGV) {
+     # Limit the list of patches to actually process based on @ARGV.
+     @patches = ( );
+     foreach (@ARGV) {
+-	s{^(patches|patch|origin/patch)/} {};
++	s{^patch(es)?/} {};
+ 	s{\.diff$} {};
++	if (!$patches{$_}) {
++	    die "Local branch not available for patch: $_\n";
++	}
+ 	push(@patches, $_);
+     }
+ }
+ 
+ my %completed;
+ foreach my $patch (@patches) {
+@@ -120,23 +126,19 @@
+     if (defined $parent) {
+ 	unless ($completed{$parent}++) {
+ 	    update_patch($parent);
+ 	}
+ 	$parent = "patch/$parent";
+     } else {
+-	$parent = 'master';
++	$parent = $master_branch;
+     }
+ 
+     print "======== $patch ========\n";
+ 
+     sleep 1 while $incl_generated_files && $last_touch >= time;
+-    if ($local_patch{$patch}) {
+-	system "git checkout patch/$patch" and return 0;
+-    } else {
+-	system "git checkout --track -b patch/$patch origin/patch/$patch" and return 0;
+-    }
++    system "git checkout patch/$patch" and return 0;
+ 
+     my $ok = system("git merge $parent") == 0;
+     if (!$ok || $launch_shell) {
+ 	print qq|"git merge $parent" incomplete -- please fix.\n| if !$ok;
+ 	$ENV{PS1} = "[$parent] patch/$patch: ";
+ 	while (1) {
+@@ -171,14 +173,19 @@
+ 	next if /^index /;
+ 	print OUT $_;
+     }
+     close PIPE;
+ 
+     if ($incl_generated_files) {
+-	$parent =~ s#.*/##;
+-	open(PIPE, '-|', 'diff', '-up', "$tmp_dir/$parent", "$tmp_dir/$patch") or die $!;
++	my $parent_dir;
++	if ($parent eq $master_branch) {
++	    $parent_dir = 'master';
++	} else {
++	    ($parent_dir) = $parent =~ m{([^/]+)$};
++	}
++	open(PIPE, '-|', 'diff', '-up', "$tmp_dir/$parent_dir", "$tmp_dir/$patch") or die $!;
+ 	while (<PIPE>) {
+ 	    s#^(diff -up) $tmp_dir/[^/]+/(.*?) $tmp_dir/[^/]+/(.*)#$1 a/$2 b/$3#o;
+ 	    s#^\Q---\E $tmp_dir/[^/]+/([^\t]+)\t.*#--- a/$1#o;
+ 	    s#^\Q+++\E $tmp_dir/[^/]+/([^\t]+)\t.*#+++ b/$1#o;
+ 	    print OUT $_;
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/packaging/release-rsync /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/packaging/release-rsync
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/packaging/release-rsync	2008-04-08 23:15:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/packaging/release-rsync	2008-07-24 08:13:29.000000000 +0800
+@@ -4,19 +4,27 @@
+ # This script expects the directory ~/samba-rsync-ftp to exist and to be a
+ # copy of the /home/ftp/pub/rsync dir on samba.org.  When the script is done,
+ # the git repository in the current directory will be updated, and the local
+ # ~/samba-rsync-ftp dir will be ready to be rsynced to samba.org.
+ 
+ use Cwd;
++use Getopt::Long;
+ use Term::ReadKey;
+ use Date::Format;
+ 
+ my $dest = $ENV{HOME} . '/samba-rsync-ftp';
+ my $passfile = $ENV{HOME} . '/.rsyncpass';
+ my $path = $ENV{PATH};
+ 
++&Getopt::Long::Configure('bundling');
++&usage if !&GetOptions(
++    'branch|b=s' => \( my $master_branch = 'master' ),
++    'help|h' => \( my $help_opt ),
++);
++&usage if $help_opt;
++
+ my $now = time;
+ my $cl_today = time2str('* %a %b %d %Y', $now);
+ my $year = time2str('%Y', $now);
+ my $ztoday = time2str('%d %b %Y', $now);
+ (my $today = $ztoday) =~ s/^0//;
+ 
+@@ -53,13 +61,13 @@
+ die "'b' must not exist in the current directory.\n" if -e 'b';
+ 
+ open(IN, '-|', 'git status') or die $!;
+ my $status = join('', <IN>);
+ close IN;
+ die "The checkout is not clean:\n", $status unless $status =~ /\nnothing to commit \(working directory clean\)/;
+-die "The checkout is not on the master branch.\n" unless $status =~ /^# On branch master\n/;
++die "The checkout is not on the $master_branch branch.\n" unless $status =~ /^# On branch $master_branch\n/;
+ 
+ my $confversion;
+ open(IN, '<', 'configure.in') or die $!;
+ while (<IN>) {
+     if (/^RSYNC_VERSION=(.*)/) {
+ 	$confversion = $1;
+@@ -218,28 +226,28 @@
+ my $lasttar_file = "$dest/$lastsrcdir/rsync-$lastversion.tar.gz";
+ 
+ print $break, <<EOT;
+ 
+ About to:
+     - commit all version changes
+-    - merge the master branch into the patch/* branches
++    - merge the $master_branch branch into the patch/* branches
+     - update the files in the "patches" dir and OPTIONALLY
+       (if you type 'y') to launch a shell for each patch
+ 
+ EOT
+ print "<Press Enter OR 'y' to continue> ";
+ my $ans = <STDIN>;
+ 
+ system "git commit -a -m 'Preparing for release of $version'" and exit 1;
+ 
+ print "Updating files in \"patches\" dir ...\n";
+-system "packaging/patch-update";
++system "packaging/patch-update --branch=$master_branch";
+ 
+ if ($ans =~ /^y/i) {
+     print "\nVisiting all \"patch/*\" branches ...\n";
+-    system "packaging/patch-update --shell";
++    system "packaging/patch-update --branch=$master_branch --shell";
+ }
+ 
+ print $break, <<EOT;
+ 
+ About to:
+     - create signed tag for this release: v$version
+@@ -302,13 +310,13 @@
+ system "support/git-set-file-times --prefix=rsync-$version/";
+ system "fakeroot tar czf $srctar_file rsync-$version; rm -rf rsync-$version";
+ 
+ print "Updating files in \"rsync-$version/patches\" dir ...\n";
+ mkdir("rsync-$version", 0755);
+ mkdir("rsync-$version/patches", 0755);
+-system "packaging/patch-update --skip-check --gen=rsync-$version/patches";
++system "packaging/patch-update --skip-check --branch=$master_branch --gen=rsync-$version/patches";
+ 
+ print "Creating $pattar_file ...\n";
+ system "fakeroot tar chzf $pattar_file rsync-$version/patches; rm -rf rsync-$version";
+ 
+ print "Updating the other files in $dest ...\n";
+ system "rsync -a README NEWS OLDNEWS TODO $dest";
+@@ -340,6 +348,18 @@
+ print $break, <<'EOT';
+ 
+ Local changes are done.  When you're satisfied, push the git repository
+ and rsync the release files.  Remember to announce the release on *BOTH*
+ rsync-announce@lists.samba.org and rsync@lists.samba.org (and the web)!
+ EOT
++
++exit;
++
++sub usage
++{
++    die <<EOT;
++Usage: release-rsync [OPTIONS]
++
++-b, --branch=BRANCH   The branch to release (default: master)
++-h, --help            Display this help message
++EOT
++}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/proto.h	2008-06-30 11:59:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/proto.h	2008-09-07 00:33:01.000000000 +0800
+@@ -152,13 +152,13 @@
+ void read_buf(int f, char *buf, size_t len);
+ void read_sbuf(int f, char *buf, size_t len);
+ uchar read_byte(int f);
+ int read_vstring(int f, char *buf, int bufsize);
+ void read_sum_head(int f, struct sum_struct *sum);
+ void write_sum_head(int f, struct sum_struct *sum);
+-void io_flush(int flush_it_all);
++int io_flush(int flush_it_all);
+ void write_shortint(int f, unsigned short x);
+ void write_int(int f, int32 x);
+ void write_varint(int f, int32 x);
+ void write_varlong(int f, int64 x, uchar min_bytes);
+ void write_longint(int f, int64 x);
+ void write_buf(int f, const char *buf, size_t len);
+@@ -276,13 +276,13 @@
+ 		   const char *fnamecmp, int flags);
+ RETSIGTYPE sig_int(UNUSED(int val));
+ int finish_transfer(const char *fname, const char *fnametmp,
+ 		    const char *fnamecmp, const char *partialptr,
+ 		    struct file_struct *file, int ok_to_set_time,
+ 		    int overwriting_basis);
+-struct file_list *flist_for_ndx(int ndx);
++struct file_list *flist_for_ndx(int ndx, const char *fatal_error_loc);
+ const char *who_am_i(void);
+ void successful_send(int ndx);
+ void send_files(int f_in, int f_out);
+ int try_bind_local(int s, int ai_family, int ai_socktype,
+ 		   const char *bind_addr);
+ int open_socket_out(char *host, int port, const char *bind_addr,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/receiver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/receiver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/receiver.c	2008-03-25 01:14:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/receiver.c	2008-08-02 09:00:09.000000000 +0800
+@@ -695,29 +695,36 @@
+ 					     partialptr, file, recv_ok, 1))
+ 				recv_ok = -1;
+ 			else if (fnamecmp == partialptr) {
+ 				do_unlink(partialptr);
+ 				handle_partial_dir(partialptr, PDIR_DELETE);
+ 			}
+-		} else if (keep_partial && partialptr
+-		    && handle_partial_dir(partialptr, PDIR_CREATE)) {
+-			if (!finish_transfer(partialptr, fnametmp, fnamecmp, NULL,
+-					     file, recv_ok, !partial_dir))
++		} else if (keep_partial && partialptr) {
++			if (!handle_partial_dir(partialptr, PDIR_CREATE)) {
++				rprintf(FERROR,
++				    "Unable to create partial-dir for %s -- discarding %s.\n",
++				    local_name ? local_name : f_name(file, NULL),
++				    recv_ok ? "completed file" : "partial file");
++				do_unlink(fnametmp);
++				recv_ok = -1;
++			} else if (!finish_transfer(partialptr, fnametmp, fnamecmp, NULL,
++						    file, recv_ok, !partial_dir))
+ 				recv_ok = -1;
+ 			else if (delay_updates && recv_ok) {
+ 				bitbag_set_bit(delayed_bits, ndx);
+ 				recv_ok = 2;
+-			}
+-		} else {
+-			partialptr = NULL;
++			} else
++				partialptr = NULL;
++		} else
+ 			do_unlink(fnametmp);
+-		}
+ 
+ 		cleanup_disable();
+ 
+ 		switch (recv_ok) {
++		case 2:
++			break;
+ 		case 1:
+ 			if (remove_source_files || inc_recurse
+ 			 || (preserve_hard_links && F_IS_HLINKED(file)))
+ 				send_msg_int(MSG_SUCCESS, ndx);
+ 			break;
+ 		case 0: {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.1	2008-06-30 11:35:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.1	2008-09-07 00:33:02.000000000 +0800
+@@ -1,7 +1,7 @@
+-.TH "rsync" "1" "29 Jun 2008" "" ""
++.TH "rsync" "1" "6 Sep 2008" "" ""
+ .SH "NAME"
+ rsync \(em a fast, versatile, remote (and local) file-copying tool
+ .SH "SYNOPSIS"
+ 
+ .PP 
+ .nf 
+@@ -545,15 +545,15 @@
+ print the rsync version number and exit.
+ .IP 
+ .IP "\fB\-v, \-\-verbose\fP"
+ This option increases the amount of information you
+ are given during the transfer.  By default, rsync works silently. A
+ single \fB\-v\fP will give you information about what files are being
+-transferred and a brief summary at the end. Two \fB\-v\fP flags will give you
++transferred and a brief summary at the end. Two \fB\-v\fP options will give you
+ information on what files are being skipped and slightly more
+-information at the end. More than two \fB\-v\fP flags should only be used if
++information at the end. More than two \fB\-v\fP options should only be used if
+ you are debugging rsync.
+ .IP 
+ Note that the names of the transferred files that are output are done using
+ a default \fB\-\-out\-format\fP of \(lq%n%L\(rq, which tells you just the name of the
+ file and, if the item is a link, where it points.  At the single \fB\-v\fP
+ level of verbosity, this does not mention when a file gets its attributes
+@@ -562,13 +562,13 @@
+ output (on the client) increases to mention all items that are changed in
+ any way.  See the \fB\-\-out\-format\fP option for more details.
+ .IP 
+ .IP "\fB\-q, \-\-quiet\fP"
+ This option decreases the amount of information you
+ are given during the transfer, notably suppressing information messages
+-from the remote server. This flag is useful when invoking rsync from
++from the remote server. This option is useful when invoking rsync from
+ cron.
+ .IP 
+ .IP "\fB\-\-no\-motd\fP"
+ This option affects the information that is output
+ by the client at the start of a daemon transfer.  This suppresses the
+ message-of-the-day (MOTD) text, but it also affects the list of modules
+@@ -1278,13 +1278,13 @@
+ This tells rsync to delete extraneous files from the
+ receiving side (ones that aren't on the sending side), but only for the
+ directories that are being synchronized.  You must have asked rsync to
+ send the whole directory (e.g. \(lqdir\(rq or \(lqdir/\(rq) without using a wildcard
+ for the directory's contents (e.g. \(lqdir/*\(rq) since the wildcard is expanded
+ by the shell and rsync thus gets a request to transfer individual files, not
+-the files' parent directory.  Files that are excluded from transfer are
++the files' parent directory.  Files that are excluded from the transfer are
+ also excluded from being deleted unless you use the \fB\-\-delete\-excluded\fP
+ option or mark the rules as only matching on the sending side (see the
+ include/exclude modifiers in the FILTER RULES section).
+ .IP 
+ Prior to rsync 2.6.7, this option would have no effect unless \fB\-\-recursive\fP
+ was enabled.  Beginning with 2.6.7, deletions will also occur when \fB\-\-dirs\fP
+@@ -1300,13 +1300,13 @@
+ sending side causing a massive deletion of files on the
+ destination.  You can override this with the \fB\-\-ignore\-errors\fP option.
+ .IP 
+ The \fB\-\-delete\fP option may be combined with one of the \-\-delete\-WHEN options
+ without conflict, as well as \fB\-\-delete\-excluded\fP.  However, if none of the
+ \-\-delete\-WHEN options are specified, rsync will choose the
+-\fB\-\-delete\-during\fP algorithm when talking to an rsync 3.0.0 or newer, and
++\fB\-\-delete\-during\fP algorithm when talking to rsync 3.0.0 or newer, and
+ the \fB\-\-delete\-before\fP algorithm when talking to an older rsync.  See also
+ \fB\-\-delete\-delay\fP and \fB\-\-delete\-after\fP.
+ .IP 
+ .IP "\fB\-\-delete\-before\fP"
+ Request that the file-deletions on the receiving
+ side be done before the transfer starts.
+@@ -1319,26 +1319,33 @@
+ specified).  It also forces rsync to use the old, non-incremental recursion
+ algorithm that requires rsync to scan all the files in the transfer into
+ memory at once (see \fB\-\-recursive\fP).
+ .IP 
+ .IP "\fB\-\-delete\-during, \-\-del\fP"
+ Request that the file-deletions on the
+-receiving side be done incrementally as the transfer happens.  This is
+-a faster method than choosing the before- or after-transfer algorithm,
+-but it is only supported beginning with rsync version 2.6.4.
++receiving side be done incrementally as the transfer happens.  The
++per-directory delete scan is done right before each directory is checked
++for updates, so it behaves like a more efficient \fB\-\-delete\-before\fP,
++including doing the deletions prior to any per-directory filter files
++being updated.  This option was first added in rsync version 2.6.4.
+ See \fB\-\-delete\fP (which is implied) for more details on file-deletion.
+ .IP 
+ .IP "\fB\-\-delete\-delay\fP"
+ Request that the file-deletions on the receiving
+-side be computed during the transfer, and then removed after the transfer
+-completes.  If the number of removed files overflows an internal buffer, a
++side be computed during the transfer (like \fB\-\-delete\-during\fP), and then
++removed after the transfer completes.  This is useful when combined with
++\fB\-\-delay\-updates\fP and/or \fB\-\-fuzzy\fP, and is more efficient than using
++\fB\-\-delete\-after\fP (but can behave differently, since \fB\-\-delete\-after\fP
++computes the deletions in a separate pass after all updates are done).
++If the number of removed files overflows an internal buffer, a
+ temporary file will be created on the receiving side to hold the names (it
+ is removed while open, so you shouldn't see it during the transfer).  If
+ the creation of the temporary file fails, rsync will try to fall back to
+ using \fB\-\-delete\-after\fP (which it cannot do if \fB\-\-recursive\fP is doing an
+ incremental scan).
++See \fB\-\-delete\fP (which is implied) for more details on file-deletion.
+ .IP 
+ .IP "\fB\-\-delete\-after\fP"
+ Request that the file-deletions on the receiving
+ side be done after the transfer has completed.  This is useful if you
+ are sending new per-directory merge files as a part of the transfer and
+ you want their exclusions to take effect for the delete phase of the
+@@ -1742,12 +1749,17 @@
+ .IP 
+ .RS 
+ \f(CW  rsync \-av \-\-link\-dest=$PWD/prior_dir host:src_dir/ new_dir/\fP
+ .RE
+ 
+ .IP 
++If file's aren't linking, double-check their attributes.  Also check if some
++attributes are getting forced outside of rsync's control, such a mount option
++that squishes root to a single user, or mounts a removable drive with generic
++ownership (such as OS X's \(lqIgnore ownership on this volume\(rq option).
++.IP 
+ Beginning in version 2.6.4, multiple \fB\-\-link\-dest\fP directories may be
+ provided, which will cause rsync to search the list in the order specified
+ for an exact match.
+ If a match is found that differs only in attributes, a local copy is made
+ and the attributes updated.
+ If a match is not found, a basis file from one of the \fIDIR\fPs will be
+@@ -1975,28 +1987,28 @@
+ the string \(lq*deleting\(rq for each item that is being removed (assuming that
+ you are talking to a recent enough rsync that it logs deletions instead of
+ outputting them as a verbose message).
+ .IP 
+ .IP "\fB\-\-out\-format=FORMAT\fP"
+ This allows you to specify exactly what the
+-rsync client outputs to the user on a per-update basis.  The format is a text
+-string containing embedded single-character escape sequences prefixed with
+-a percent (%) character.  For a list of the possible escape characters, see
+-the \(lqlog format\(rq setting in the rsyncd.conf manpage.
+-.IP 
+-Specifying this option will mention each file, dir, etc. that gets updated
+-in a significant way (a transferred file, a recreated symlink/device, or a
+-touched directory).  In addition, if the itemize-changes escape (%i) is
+-included in the string, the logging of names increases to mention any
+-item that is changed in any way (as long as the receiving side is at least
+-2.6.4).  See the \fB\-\-itemize\-changes\fP option for a description of the
+-output of \(lq%i\(rq.
+-.IP 
+-The \fB\-\-verbose\fP option implies a format of \(lq%n%L\(rq, but you can use
+-\fB\-\-out\-format\fP without \fB\-\-verbose\fP if you like, or you can override
+-the format of its per-file output using this option.
++rsync client outputs to the user on a per-update basis.  The format is a
++text string containing embedded single-character escape sequences prefixed
++with a percent (%) character.   A default format of \(lq%n%L\(rq is assumed if
++\fB\-v\fP is specified (which reports the name
++of the file and, if the item is a link, where it points).  For a full list
++of the possible escape characters, see the \(lqlog format\(rq setting in the
++rsyncd.conf manpage.
++.IP 
++Specifying the \fB\-\-out\-format\fP option
++will mention each file, dir, etc. that gets updated in a significant
++way (a transferred file, a recreated symlink/device, or a touched
++directory).  In addition, if the itemize-changes escape (%i) is included in
++the string (e.g. if the \fB\-\-itemize\-changes\fP option was used), the logging
++of names increases to mention any item that is changed in any way (as long
++as the receiving side is at least 2.6.4).  See the \fB\-\-itemize\-changes\fP
++option for a description of the output of \(lq%i\(rq.
+ .IP 
+ Rsync will output the out-format string prior to a file's transfer unless
+ one of the transfer-statistic escapes is requested, in which case the
+ logging is done at the end of the file's transfer.  When this late logging
+ is in effect and \fB\-\-progress\fP is also specified, rsync will also output
+ the name of the file being transferred prior to its progress information
+@@ -2404,13 +2416,13 @@
+ by the server and defaults to the current 
+ \f(CWtime()\fP
+ \&.  This option
+ is used to set a specific checksum seed, which is useful for
+ applications that want repeatable block and file checksums, or
+ in the case where the user wants a more random checksum seed.
+-Note that setting NUM to 0 causes rsync to use the default of 
++Setting NUM to 0 causes rsync to use the default of 
+ \f(CWtime()\fP
+ for checksum seed.
+ 
+ .PP 
+ .SH "DAEMON OPTIONS"
+ 
+@@ -3375,13 +3387,13 @@
+ Please report bugs! See the web site at
+ http://rsync.samba.org/
+ .PP 
+ .SH "VERSION"
+ 
+ .PP 
+-This man page is current for version 3.0.3 of rsync.
++This man page is current for version 3.0.4 of rsync.
+ .PP 
+ .SH "INTERNAL OPTIONS"
+ 
+ .PP 
+ The options \fB\-\-server\fP and \fB\-\-sender\fP are used internally by rsync,
+ and should never be typed by a user under normal circumstances.  Some
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.c	2008-05-22 22:32:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.c	2008-09-01 00:51:29.000000000 +0800
+@@ -254,26 +254,36 @@
+ 		ndx = read_ndx(f_in);
+ 
+ 		if (ndx >= 0)
+ 			break;
+ 		if (ndx == NDX_DONE)
+ 			return ndx;
+-		if (!inc_recurse || am_sender)
+-			goto invalid_ndx;
++		if (!inc_recurse || am_sender) {
++			int last;
++			if (first_flist)
++				last = first_flist->prev->ndx_start + first_flist->prev->used - 1;
++			else
++				last = -1;
++			rprintf(FERROR,
++				"Invalid file index: %d (%d - %d) [%s]\n",
++				ndx, NDX_DONE, last, who_am_i());
++			exit_cleanup(RERR_PROTOCOL);
++		}
+ 		if (ndx == NDX_FLIST_EOF) {
+ 			flist_eof = 1;
+ 			send_msg(MSG_FLIST_EOF, "", 0, 0);
+ 			continue;
+ 		}
+ 		ndx = NDX_FLIST_OFFSET - ndx;
+ 		if (ndx < 0 || ndx >= dir_flist->used) {
+ 			ndx = NDX_FLIST_OFFSET - ndx;
+ 			rprintf(FERROR,
+-				"[%s] Invalid dir index: %d (%d - %d)\n",
+-				who_am_i(), ndx, NDX_FLIST_OFFSET,
+-				NDX_FLIST_OFFSET - dir_flist->used + 1);
++				"Invalid dir index: %d (%d - %d) [%s]\n",
++				ndx, NDX_FLIST_OFFSET,
++				NDX_FLIST_OFFSET - dir_flist->used + 1,
++				who_am_i());
+ 			exit_cleanup(RERR_PROTOCOL);
+ 		}
+ 
+ 		/* Send everything read from f_in to msg_fd_out. */
+ 		if (verbose > 3) {
+ 			rprintf(FINFO, "[%s] receiving flist for dir %d\n",
+@@ -296,23 +306,13 @@
+ 	 && ndx == cur_flist->used && iflags == ITEM_IS_NEW) {
+ 		if (am_sender)
+ 			maybe_send_keepalive();
+ 		goto read_loop;
+ 	}
+ 
+-	if (!(flist = flist_for_ndx(ndx))) {
+-		int start, used;
+-	  invalid_ndx:
+-		start = first_flist ? first_flist->ndx_start : 0;
+-		used = first_flist ? first_flist->used : 0;
+-		rprintf(FERROR,
+-			"Invalid file index: %d (%d - %d) with iflags %x [%s]\n",
+-			ndx, start - 1, start + used -1, iflags, who_am_i());
+-		exit_cleanup(RERR_PROTOCOL);
+-	}
+-	cur_flist = flist;
++	cur_flist = flist_for_ndx(ndx, "read_ndx_and_attrs");
+ 
+ 	if (iflags & ITEM_BASIS_TYPE_FOLLOWS)
+ 		fnamecmp_type = read_byte(f_in);
+ 	*type_ptr = fnamecmp_type;
+ 
+ 	if (iflags & ITEM_XNAME_FOLLOWS) {
+@@ -607,29 +607,46 @@
+ 		}
+ 		handle_partial_dir(temp_copy_name, PDIR_DELETE);
+ 	}
+ 	return 1;
+ }
+ 
+-struct file_list *flist_for_ndx(int ndx)
++struct file_list *flist_for_ndx(int ndx, const char *fatal_error_loc)
+ {
+ 	struct file_list *flist = cur_flist;
+ 
+ 	if (!flist && !(flist = first_flist))
+-		return NULL;
++		goto not_found;
+ 
+ 	while (ndx < flist->ndx_start-1) {
+ 		if (flist == first_flist)
+-			return NULL;
++			goto not_found;
+ 		flist = flist->prev;
+ 	}
+ 	while (ndx >= flist->ndx_start + flist->used) {
+ 		if (!(flist = flist->next))
+-			return NULL;
++			goto not_found;
+ 	}
+ 	return flist;
++
++  not_found:
++	if (fatal_error_loc) {
++		int first, last;
++		if (first_flist) {
++			first = first_flist->ndx_start - 1;
++			last = first_flist->prev->ndx_start + first_flist->prev->used - 1;
++		} else {
++			first = 0;
++			last = -1;
++		}
++		rprintf(FERROR,
++			"File-list index %d not in %d - %d (%s) [%s]\n",
++			ndx, first, last, fatal_error_loc, who_am_i());
++		exit_cleanup(RERR_PROTOCOL);
++	}
++	return NULL;
+ }
+ 
+ const char *who_am_i(void)
+ {
+ 	if (am_starting_up)
+ 		return am_server ? "server" : "client";
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsyncd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsyncd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsyncd.conf.5	2008-06-30 11:32:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsyncd.conf.5	2008-09-07 00:33:03.000000000 +0800
+@@ -1,7 +1,7 @@
+-.TH "rsyncd.conf" "5" "29 Jun 2008" "" ""
++.TH "rsyncd.conf" "5" "6 Sep 2008" "" ""
+ .SH "NAME"
+ rsyncd.conf \(em configuration file for rsync in daemon mode
+ .SH "SYNOPSIS"
+ 
+ .PP 
+ rsyncd.conf
+@@ -115,14 +115,14 @@
+ who like to tune their systems to the utmost degree. You can set all
+ sorts of socket options which may make transfers faster (or
+ slower!). Read the man page for the 
+ \f(CWsetsockopt()\fP
+ system call for
+ details on some of the options you may be able to set. By default no
+-special socket options are set.  These settings are superseded by the
+-\fB\-\-sockopts\fP command-line option.
++special socket options are set.  These settings can also be specified
++via the \fB\-\-sockopts\fP command-line option.
+ .IP 
+ .SH "MODULE PARAMETERS"
+ 
+ .PP 
+ After the global parameters you should define a number of modules, each
+ module exports a directory tree as a symbolic name. Modules are
+@@ -235,13 +235,14 @@
+ a directory.  When using the \(lqmunge symlinks\(rq parameter in a chroot area
+ that has an inside-chroot path of \(lq/\(rq, you should add \(lq/rsyncd-munged/\(rq
+ to the exclude setting for the module so that
+ a user can't try to create it.
+ .IP 
+ Note:  rsync makes no attempt to verify that any pre-existing symlinks in
+-the hierarchy are as safe as you want them to be.  If you setup an rsync
++the module's hierarchy are as safe as you want them to be (unless, of
++course, it just copied in the whole hierarchy).  If you setup an rsync
+ daemon on a new area or locally add symlinks, you can manually protect your
+ symlinks from being abused by prefixing \(lq/rsyncd-munged/\(rq to the start of
+ every symlink's value.  There is a perl script in the support directory
+ of the source code named \(lqmunge-symlinks\(rq that can be used to add or remove
+ this prefix from your symlinks.
+ .IP 
+@@ -285,13 +286,13 @@
+ \f(CWchroot()\fP
+ is called, allowing it to be placed outside
+ the transfer.  If this value is set on a per-module basis instead of
+ globally, the global log will still contain any authorization failures
+ or config-file error messages.
+ .IP 
+-If the daemon fails to open to specified file, it will fall back to
++If the daemon fails to open the specified file, it will fall back to
+ using syslog and output an error about the failure.  (Note that the
+ failure to open the specified log file used to be a fatal error.)
+ .IP 
+ .IP "\fBsyslog facility\fP"
+ This parameter allows you to
+ specify the syslog facility name to use when logging messages from the
+@@ -577,13 +578,13 @@
+ %a the remote IP address
+ .IP o 
+ %b the number of bytes actually transferred
+ .IP o 
+ %B the permission bits of the file (e.g. rwxrwxrwt)
+ .IP o 
+-%c the checksum bytes received for this file (only when sending)
++%c the total size of the block checksums received for the basis file (only when sending)
+ .IP o 
+ %f the filename (long form on sender; no trailing \(lq/\(rq)
+ .IP o 
+ %G the gid of the file (decimal) or \(lqDEFAULT\(rq
+ .IP o 
+ %h the remote host name
+@@ -818,13 +819,13 @@
+ Please report bugs! The rsync bug tracking system is online at
+ http://rsync.samba.org/
+ .PP 
+ .SH "VERSION"
+ 
+ .PP 
+-This man page is current for version 3.0.3 of rsync.
++This man page is current for version 3.0.4 of rsync.
+ .PP 
+ .SH "CREDITS"
+ 
+ .PP 
+ rsync is distributed under the GNU public license.  See the file
+ COPYING for details.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsyncd.conf.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsyncd.conf.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsyncd.conf.yo	2008-06-30 11:15:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsyncd.conf.yo	2008-09-07 00:32:26.000000000 +0800
+@@ -1,8 +1,8 @@
+ mailto(rsync-bugs@samba.org)
+-manpage(rsyncd.conf)(5)(29 Jun 2008)()()
++manpage(rsyncd.conf)(5)(6 Sep 2008)()()
+ manpagename(rsyncd.conf)(configuration file for rsync in daemon mode)
+ manpagesynopsis()
+ 
+ rsyncd.conf
+ 
+ manpagedescription()
+@@ -98,18 +98,17 @@
+ 
+ dit(bf(socket options)) This parameter can provide endless fun for people
+ who like to tune their systems to the utmost degree. You can set all
+ sorts of socket options which may make transfers faster (or
+ slower!). Read the man page for the code(setsockopt()) system call for
+ details on some of the options you may be able to set. By default no
+-special socket options are set.  These settings are superseded by the
+-bf(--sockopts) command-line option.
++special socket options are set.  These settings can also be specified
++via the bf(--sockopts) command-line option.
+ 
+ enddit()
+ 
+-
+ manpagesection(MODULE PARAMETERS)
+ 
+ After the global parameters you should define a number of modules, each
+ module exports a directory tree as a symbolic name. Modules are
+ exported by specifying a module name in square brackets [module]
+ followed by the parameters for that module.
+@@ -210,13 +209,14 @@
+ a directory.  When using the "munge symlinks" parameter in a chroot area
+ that has an inside-chroot path of "/", you should add "/rsyncd-munged/"
+ to the exclude setting for the module so that
+ a user can't try to create it.
+ 
+ Note:  rsync makes no attempt to verify that any pre-existing symlinks in
+-the hierarchy are as safe as you want them to be.  If you setup an rsync
++the module's hierarchy are as safe as you want them to be (unless, of
++course, it just copied in the whole hierarchy).  If you setup an rsync
+ daemon on a new area or locally add symlinks, you can manually protect your
+ symlinks from being abused by prefixing "/rsyncd-munged/" to the start of
+ every symlink's value.  There is a perl script in the support directory
+ of the source code named "munge-symlinks" that can be used to add or remove
+ this prefix from your symlinks.
+ 
+@@ -253,13 +253,13 @@
+ where code(syslog()) doesn't work for chrooted programs.  The file is
+ opened before code(chroot()) is called, allowing it to be placed outside
+ the transfer.  If this value is set on a per-module basis instead of
+ globally, the global log will still contain any authorization failures
+ or config-file error messages.
+ 
+-If the daemon fails to open to specified file, it will fall back to
++If the daemon fails to open the specified file, it will fall back to
+ using syslog and output an error about the failure.  (Note that the
+ failure to open the specified log file used to be a fatal error.)
+ 
+ dit(bf(syslog facility)) This parameter allows you to
+ specify the syslog facility name to use when logging messages from the
+ rsync daemon. You may use any standard syslog facility name which is
+@@ -506,13 +506,13 @@
+ The single-character escapes that are understood are as follows:
+ 
+ quote(itemization(
+   it() %a the remote IP address
+   it() %b the number of bytes actually transferred
+   it() %B the permission bits of the file (e.g. rwxrwxrwt)
+-  it() %c the checksum bytes received for this file (only when sending)
++  it() %c the total size of the block checksums received for the basis file (only when sending)
+   it() %f the filename (long form on sender; no trailing "/")
+   it() %G the gid of the file (decimal) or "DEFAULT"
+   it() %h the remote host name
+   it() %i an itemized list of what is being updated
+   it() %l the length of the file in bytes
+   it() %L the string " -> SYMLINK", " => HARDLINK", or "" (where bf(SYMLINK) or bf(HARDLINK) is a filename)
+@@ -697,13 +697,13 @@
+ 
+ Please report bugs! The rsync bug tracking system is online at
+ url(http://rsync.samba.org/)(http://rsync.samba.org/)
+ 
+ manpagesection(VERSION)
+ 
+-This man page is current for version 3.0.3 of rsync.
++This man page is current for version 3.0.4 of rsync.
+ 
+ manpagesection(CREDITS)
+ 
+ rsync is distributed under the GNU public license.  See the file
+ COPYING for details.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.h	2008-06-24 00:17:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.h	2008-08-03 01:25:17.000000000 +0800
+@@ -208,22 +208,24 @@
+  * FCLIENT is the opposite. */
+ enum logcode {
+     FNONE=0, /* never sent */
+     FERROR_XFER=1, FINFO=2, /* sent over socket for any protocol */
+     FERROR=3, FWARNING=4, /* sent over socket for protocols >= 30 */
+     FERROR_SOCKET=5, FLOG=6, /* only sent via receiver -> generator pipe */
++    FERROR_UTF8=8, /* only sent via receiver -> generator pipe */
+     FCLIENT=7 /* never transmitted (e.g. server converts to FINFO) */
+ };
+ 
+ /* Messages types that are sent over the message channel.  The logcode
+  * values must all be present here with identical numbers. */
+ enum msgcode {
+ 	MSG_DATA=0,	/* raw data on the multiplexed stream */
+ 	MSG_ERROR_XFER=FERROR_XFER, MSG_INFO=FINFO, /* remote logging */
+ 	MSG_ERROR=FERROR, MSG_WARNING=FWARNING, /* protocol-30 remote logging */
+ 	MSG_ERROR_SOCKET=FERROR_SOCKET, /* sibling logging */
++	MSG_ERROR_UTF8=FERROR_UTF8, /* sibling logging */
+ 	MSG_LOG=FLOG, MSG_CLIENT=FCLIENT, /* sibling logging */
+ 	MSG_REDO=9,	/* reprocess indicated flist index */
+ 	MSG_FLIST=20,	/* extra file list over sibling socket */
+ 	MSG_FLIST_EOF=21,/* we've transmitted all the file lists */
+ 	MSG_IO_ERROR=22,/* the sending side had an I/O error */
+ 	MSG_NOOP=42,	/* a do-nothing message */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.yo	2008-06-30 11:15:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.yo	2008-09-07 00:32:26.000000000 +0800
+@@ -1,8 +1,8 @@
+ mailto(rsync-bugs@samba.org)
+-manpage(rsync)(1)(29 Jun 2008)()()
++manpage(rsync)(1)(6 Sep 2008)()()
+ manpagename(rsync)(a fast, versatile, remote (and local) file-copying tool)
+ manpagesynopsis()
+ 
+ verb(Local:  rsync [OPTION...] SRC... [DEST]
+ 
+ Access via remote shell:
+@@ -461,15 +461,15 @@
+ 
+ dit(bf(--version)) print the rsync version number and exit.
+ 
+ dit(bf(-v, --verbose)) This option increases the amount of information you
+ are given during the transfer.  By default, rsync works silently. A
+ single bf(-v) will give you information about what files are being
+-transferred and a brief summary at the end. Two bf(-v) flags will give you
++transferred and a brief summary at the end. Two bf(-v) options will give you
+ information on what files are being skipped and slightly more
+-information at the end. More than two bf(-v) flags should only be used if
++information at the end. More than two bf(-v) options should only be used if
+ you are debugging rsync.
+ 
+ Note that the names of the transferred files that are output are done using
+ a default bf(--out-format) of "%n%L", which tells you just the name of the
+ file and, if the item is a link, where it points.  At the single bf(-v)
+ level of verbosity, this does not mention when a file gets its attributes
+@@ -477,13 +477,13 @@
+ bf(--itemize-changes) or adding "%i" to the bf(--out-format) setting), the
+ output (on the client) increases to mention all items that are changed in
+ any way.  See the bf(--out-format) option for more details.
+ 
+ dit(bf(-q, --quiet)) This option decreases the amount of information you
+ are given during the transfer, notably suppressing information messages
+-from the remote server. This flag is useful when invoking rsync from
++from the remote server. This option is useful when invoking rsync from
+ cron.
+ 
+ dit(bf(--no-motd)) This option affects the information that is output
+ by the client at the start of a daemon transfer.  This suppresses the
+ message-of-the-day (MOTD) text, but it also affects the list of modules
+ that the daemon sends in response to the "rsync host::" request (due to
+@@ -1114,13 +1114,13 @@
+ dit(bf(--delete)) This tells rsync to delete extraneous files from the
+ receiving side (ones that aren't on the sending side), but only for the
+ directories that are being synchronized.  You must have asked rsync to
+ send the whole directory (e.g. "dir" or "dir/") without using a wildcard
+ for the directory's contents (e.g. "dir/*") since the wildcard is expanded
+ by the shell and rsync thus gets a request to transfer individual files, not
+-the files' parent directory.  Files that are excluded from transfer are
++the files' parent directory.  Files that are excluded from the transfer are
+ also excluded from being deleted unless you use the bf(--delete-excluded)
+ option or mark the rules as only matching on the sending side (see the
+ include/exclude modifiers in the FILTER RULES section).
+ 
+ Prior to rsync 2.6.7, this option would have no effect unless bf(--recursive)
+ was enabled.  Beginning with 2.6.7, deletions will also occur when bf(--dirs)
+@@ -1136,13 +1136,13 @@
+ sending side causing a massive deletion of files on the
+ destination.  You can override this with the bf(--ignore-errors) option.
+ 
+ The bf(--delete) option may be combined with one of the --delete-WHEN options
+ without conflict, as well as bf(--delete-excluded).  However, if none of the
+ --delete-WHEN options are specified, rsync will choose the
+-bf(--delete-during) algorithm when talking to an rsync 3.0.0 or newer, and
++bf(--delete-during) algorithm when talking to rsync 3.0.0 or newer, and
+ the bf(--delete-before) algorithm when talking to an older rsync.  See also
+ bf(--delete-delay) and bf(--delete-after).
+ 
+ dit(bf(--delete-before)) Request that the file-deletions on the receiving
+ side be done before the transfer starts.
+ See bf(--delete) (which is implied) for more details on file-deletion.
+@@ -1153,25 +1153,32 @@
+ and this delay might cause the transfer to timeout (if bf(--timeout) was
+ specified).  It also forces rsync to use the old, non-incremental recursion
+ algorithm that requires rsync to scan all the files in the transfer into
+ memory at once (see bf(--recursive)).
+ 
+ dit(bf(--delete-during, --del)) Request that the file-deletions on the
+-receiving side be done incrementally as the transfer happens.  This is
+-a faster method than choosing the before- or after-transfer algorithm,
+-but it is only supported beginning with rsync version 2.6.4.
++receiving side be done incrementally as the transfer happens.  The
++per-directory delete scan is done right before each directory is checked
++for updates, so it behaves like a more efficient bf(--delete-before),
++including doing the deletions prior to any per-directory filter files
++being updated.  This option was first added in rsync version 2.6.4.
+ See bf(--delete) (which is implied) for more details on file-deletion.
+ 
+ dit(bf(--delete-delay)) Request that the file-deletions on the receiving
+-side be computed during the transfer, and then removed after the transfer
+-completes.  If the number of removed files overflows an internal buffer, a
++side be computed during the transfer (like bf(--delete-during)), and then
++removed after the transfer completes.  This is useful when combined with
++bf(--delay-updates) and/or bf(--fuzzy), and is more efficient than using
++bf(--delete-after) (but can behave differently, since bf(--delete-after)
++computes the deletions in a separate pass after all updates are done).
++If the number of removed files overflows an internal buffer, a
+ temporary file will be created on the receiving side to hold the names (it
+ is removed while open, so you shouldn't see it during the transfer).  If
+ the creation of the temporary file fails, rsync will try to fall back to
+ using bf(--delete-after) (which it cannot do if bf(--recursive) is doing an
+ incremental scan).
++See bf(--delete) (which is implied) for more details on file-deletion.
+ 
+ dit(bf(--delete-after)) Request that the file-deletions on the receiving
+ side be done after the transfer has completed.  This is useful if you
+ are sending new per-directory merge files as a part of the transfer and
+ you want their exclusions to take effect for the delete phase of the
+ current transfer.  It also forces rsync to use the old, non-incremental
+@@ -1519,12 +1526,17 @@
+ The files must be identical in all preserved attributes (e.g. permissions,
+ possibly ownership) in order for the files to be linked together.
+ An example:
+ 
+ quote(tt(  rsync -av --link-dest=$PWD/prior_dir host:src_dir/ new_dir/))
+ 
++If file's aren't linking, double-check their attributes.  Also check if some
++attributes are getting forced outside of rsync's control, such a mount option
++that squishes root to a single user, or mounts a removable drive with generic
++ownership (such as OS X's "Ignore ownership on this volume" option).
++
+ Beginning in version 2.6.4, multiple bf(--link-dest) directories may be
+ provided, which will cause rsync to search the list in the order specified
+ for an exact match.
+ If a match is found that differs only in attributes, a local copy is made
+ and the attributes updated.
+ If a match is not found, a basis file from one of the em(DIR)s will be
+@@ -1715,28 +1727,28 @@
+ One other output is possible:  when deleting files, the "%i" will output
+ the string "*deleting" for each item that is being removed (assuming that
+ you are talking to a recent enough rsync that it logs deletions instead of
+ outputting them as a verbose message).
+ 
+ dit(bf(--out-format=FORMAT)) This allows you to specify exactly what the
+-rsync client outputs to the user on a per-update basis.  The format is a text
+-string containing embedded single-character escape sequences prefixed with
+-a percent (%) character.  For a list of the possible escape characters, see
+-the "log format" setting in the rsyncd.conf manpage.
+-
+-Specifying this option will mention each file, dir, etc. that gets updated
+-in a significant way (a transferred file, a recreated symlink/device, or a
+-touched directory).  In addition, if the itemize-changes escape (%i) is
+-included in the string, the logging of names increases to mention any
+-item that is changed in any way (as long as the receiving side is at least
+-2.6.4).  See the bf(--itemize-changes) option for a description of the
+-output of "%i".
+-
+-The bf(--verbose) option implies a format of "%n%L", but you can use
+-bf(--out-format) without bf(--verbose) if you like, or you can override
+-the format of its per-file output using this option.
++rsync client outputs to the user on a per-update basis.  The format is a
++text string containing embedded single-character escape sequences prefixed
++with a percent (%) character.   A default format of "%n%L" is assumed if
++bf(-v) is specified (which reports the name
++of the file and, if the item is a link, where it points).  For a full list
++of the possible escape characters, see the "log format" setting in the
++rsyncd.conf manpage.
++
++Specifying the bf(--out-format) option
++will mention each file, dir, etc. that gets updated in a significant
++way (a transferred file, a recreated symlink/device, or a touched
++directory).  In addition, if the itemize-changes escape (%i) is included in
++the string (e.g. if the bf(--itemize-changes) option was used), the logging
++of names increases to mention any item that is changed in any way (as long
++as the receiving side is at least 2.6.4).  See the bf(--itemize-changes)
++option for a description of the output of "%i".
+ 
+ Rsync will output the out-format string prior to a file's transfer unless
+ one of the transfer-statistic escapes is requested, in which case the
+ logging is done at the end of the file's transfer.  When this late logging
+ is in effect and bf(--progress) is also specified, rsync will also output
+ the name of the file being transferred prior to its progress information
+@@ -2090,13 +2102,13 @@
+ NUM.  This 4 byte checksum seed is included in each block and file
+ MD4 checksum calculation.  By default the checksum seed is generated
+ by the server and defaults to the current code(time()).  This option
+ is used to set a specific checksum seed, which is useful for
+ applications that want repeatable block and file checksums, or
+ in the case where the user wants a more random checksum seed.
+-Note that setting NUM to 0 causes rsync to use the default of code(time())
++Setting NUM to 0 causes rsync to use the default of code(time())
+ for checksum seed.
+ enddit()
+ 
+ manpagesection(DAEMON OPTIONS)
+ 
+ The options allowed when starting an rsync daemon are as follows:
+@@ -2879,13 +2891,13 @@
+ 
+ Please report bugs! See the web site at
+ url(http://rsync.samba.org/)(http://rsync.samba.org/)
+ 
+ manpagesection(VERSION)
+ 
+-This man page is current for version 3.0.3 of rsync.
++This man page is current for version 3.0.4 of rsync.
+ 
+ manpagesection(INTERNAL OPTIONS)
+ 
+ The options bf(--server) and bf(--sender) are used internally by rsync,
+ and should never be typed by a user under normal circumstances.  Some
+ awareness of these options may be needed in certain scenarios, such as
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/sender.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/sender.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/sender.c	2008-03-31 06:44:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/sender.c	2008-08-14 22:32:18.000000000 +0800
+@@ -124,19 +124,13 @@
+ 	struct file_struct *file;
+ 	struct file_list *flist;
+ 
+ 	if (!remove_source_files)
+ 		return;
+ 
+-	if (!(flist = flist_for_ndx(ndx))) {
+-		rprintf(FERROR,
+-			"INTERNAL ERROR: unable to find flist for item %d\n",
+-			ndx);
+-		return;
+-	}
+-
++	flist = flist_for_ndx(ndx, "successful_send");
+ 	file = flist->files[ndx - flist->ndx_start];
+ 	if (!change_pathname(file, NULL, 0))
+ 		return;
+ 	f_name(file, fname);
+ 
+ 	if (do_unlink(fname) == 0) {
+@@ -278,13 +272,13 @@
+ 		}
+ 
+ 		initial_stats = stats;
+ 
+ 		if (!(s = receive_sums(f_in))) {
+ 			io_error |= IOERR_GENERAL;
+-			rprintf(FERROR, "receive_sums failed\n");
++			rprintf(FERROR_XFER, "receive_sums failed\n");
+ 			exit_cleanup(RERR_PROTOCOL);
+ 		}
+ 
+ 		fd = do_open(fname, O_RDONLY, 0);
+ 		if (fd == -1) {
+ 			if (errno == ENOENT) {
+@@ -306,13 +300,13 @@
+ 			continue;
+ 		}
+ 
+ 		/* map the local file */
+ 		if (do_fstat(fd, &st) != 0) {
+ 			io_error |= IOERR_GENERAL;
+-			rsyserr(FERROR, errno, "fstat failed");
++			rsyserr(FERROR_XFER, errno, "fstat failed");
+ 			free_sums(s);
+ 			close(fd);
+ 			exit_cleanup(RERR_PROTOCOL);
+ 		}
+ 
+ 		if (st.st_size) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/xattrs.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/testsuite/xattrs.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/xattrs.test	2008-06-18 06:59:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/testsuite/xattrs.test	2008-09-04 03:14:13.000000000 +0800
+@@ -96,14 +96,18 @@
+ 
+ cd "$fromdir"
+ rm -rf "$todir"
+ 
+ xset user.nice 'this is nice, but different' file1
+ 
++checkit "$RSYNC -aiX --fake-super . ../chk" "$fromdir" "$chkdir"
++
++cd "$chkdir"
+ xls $files >"$scratchdir/xattrs.txt"
+ 
++cd "$fromdir"
+ checkit "$RSYNC -aiX --fake-super --link-dest=../chk . ../to" "$chkdir" "$todir"
+ 
+ cd "$todir"
+ xls $files | diff $diffopt "$scratchdir/xattrs.txt" -
+ 
+ sed -n -e '/\.\/file1$/d' -e '/^[^ ][^ ]*  *[^ ][^ ]*  *[^ ][^ ]*  *1 /p' "$scratchdir/ls-to" >"$scratchdir/ls-diff"
+@@ -113,29 +117,29 @@
+     exit 1
+ fi
+ 
+ cd "$fromdir"
+ rm -rf "$todir" "$chkdir"
+ 
+-rsync -aX file1 file2
+-rsync -aX file1 file2 ../chk/
+-rsync -aX --del ../chk/ .
+-rsync -aX file1 ../lnk/
++$RSYNC -aX file1 file2
++$RSYNC -aX file1 file2 ../chk/
++$RSYNC -aX --del ../chk/ .
++$RSYNC -aX file1 ../lnk/
+ 
+ xls file1 file2 >"$scratchdir/xattrs.txt"
+ 
+ checkit "$RSYNC -aiiX --copy-dest=../lnk . ../to" "$chkdir" "$todir"
+ 
+ cd "$todir"
+ xls file1 file2 | diff $diffopt "$scratchdir/xattrs.txt" -
+ 
+ cd "$fromdir"
+ rm "$todir/file2"
+ 
+ echo extra >file1
+-rsync -aX . ../chk/
++$RSYNC -aX . ../chk/
+ 
+ checkit "$RSYNC -aiiX . ../to" "$chkdir" "$todir"
+ 
+ cd "$todir"
+ xls file1 file2 | diff $diffopt "$scratchdir/xattrs.txt" -
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/util.c	2008-05-18 00:35:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/util.c	2008-09-02 04:25:41.000000000 +0800
+@@ -434,13 +434,13 @@
+ 			errno = ETXTBSY;
+ 			break;
+ #endif
+ 		case EXDEV:
+ 			if (partialptr) {
+ 				if (!handle_partial_dir(partialptr,PDIR_CREATE))
+-					return -1;
++					return -2;
+ 				to = partialptr;
+ 			}
+ 			if (copy_file(from, to, -1, mode, 0) != 0)
+ 				return -2;
+ 			do_unlink(from);
+ 			return 1;
+@@ -1109,18 +1109,22 @@
+ 	*fn = '\0';
+ 	dir = partial_fname;
+ 	if (create) {
+ 		STRUCT_STAT st;
+ 		int statret = do_lstat(dir, &st);
+ 		if (statret == 0 && !S_ISDIR(st.st_mode)) {
+-			if (do_unlink(dir) < 0)
++			if (do_unlink(dir) < 0) {
++				*fn = '/';
+ 				return 0;
++			}
+ 			statret = -1;
+ 		}
+-		if (statret < 0 && do_mkdir(dir, 0700) < 0)
++		if (statret < 0 && do_mkdir(dir, 0700) < 0) {
++			*fn = '/';
+ 			return 0;
++		}
+ 	} else
+ 		do_rmdir(dir);
+ 	*fn = '/';
+ 
+ 	return 1;
+ }
+@@ -1186,66 +1190,89 @@
+ 	if (strcmp(name, "..") == 0)
+ 		depth--;
+ 
+ 	return (depth < 0);
+ }
+ 
++#define HUMANIFY(mult) \
++	do { \
++		if (num >= mult || num <= -mult) { \
++			double dnum = (double)num / mult; \
++			char units; \
++			if (num < 0) \
++				dnum = -dnum; \
++			if (dnum < mult) \
++				units = 'K'; \
++			else if ((dnum /= mult) < mult) \
++				units = 'M'; \
++			else { \
++				dnum /= mult; \
++				units = 'G'; \
++			} \
++			if (num < 0) \
++				dnum = -dnum; \
++			snprintf(bufs[n], sizeof bufs[0], "%.2f%c", dnum, units); \
++			return bufs[n]; \
++		} \
++	} while (0)
++
+ /* Return the int64 number as a string.  If the --human-readable option was
+  * specified, we may output the number in K, M, or G units.  We can return
+  * up to 4 buffers at a time. */
+ char *human_num(int64 num)
+ {
+ 	static char bufs[4][128]; /* more than enough room */
+ 	static unsigned int n;
+ 	char *s;
++	int negated;
+ 
+ 	n = (n + 1) % (sizeof bufs / sizeof bufs[0]);
+ 
+ 	if (human_readable) {
+-		char units = '\0';
+-		int mult = human_readable == 1 ? 1000 : 1024;
+-		double dnum = 0;
+-		if (num > mult*mult*mult) {
+-			dnum = (double)num / (mult*mult*mult);
+-			units = 'G';
+-		} else if (num > mult*mult) {
+-			dnum = (double)num / (mult*mult);
+-			units = 'M';
+-		} else if (num > mult) {
+-			dnum = (double)num / mult;
+-			units = 'K';
+-		}
+-		if (units) {
+-			snprintf(bufs[n], sizeof bufs[0], "%.2f%c", dnum, units);
+-			return bufs[n];
+-		}
++		if (human_readable == 1)
++			HUMANIFY(1000);
++		else
++			HUMANIFY(1024);
+ 	}
+ 
+ 	s = bufs[n] + sizeof bufs[0] - 1;
+ 	*s = '\0';
+ 
+ 	if (!num)
+ 		*--s = '0';
++	if (num < 0) {
++		/* A maximum-size negated number can't fit as a positive,
++		 * so do one digit in negated form to start us off. */
++		*--s = (char)(-(num % 10)) + '0';
++		num = -(num / 10);
++		negated = 1;
++	} else
++		negated = 0;
++
+ 	while (num) {
+ 		*--s = (char)(num % 10) + '0';
+ 		num /= 10;
+ 	}
++
++	if (negated)
++		*--s = '-';
++
+ 	return s;
+ }
+ 
+ /* Return the double number as a string.  If the --human-readable option was
+  * specified, we may output the number in K, M, or G units.  We use a buffer
+  * from human_num() to return our result. */
+ char *human_dnum(double dnum, int decimal_digits)
+ {
+ 	char *buf = human_num(dnum);
+ 	int len = strlen(buf);
+ 	if (isDigit(buf + len - 1)) {
+ 		/* There's extra room in buf prior to the start of the num. */
+-		buf -= decimal_digits + 1;
+-		snprintf(buf, len + decimal_digits + 2, "%.*f", decimal_digits, dnum);
++		buf -= decimal_digits + 2;
++		snprintf(buf, len + decimal_digits + 3, "%.*f", decimal_digits, dnum);
+ 	}
+ 	return buf;
+ }
+ 
+ /* Return the date and time as a string.  Some callers tweak returned buf. */
+ char *timestring(time_t t)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/xattrs.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/xattrs.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/xattrs.c	2008-06-12 21:59:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/xattrs.c	2008-07-24 22:57:57.000000000 +0800
+@@ -207,13 +207,13 @@
+ static int rsync_xal_get(const char *fname, item_list *xalp)
+ {
+ 	ssize_t list_len, name_len;
+ 	size_t datum_len, name_offset;
+ 	char *name, *ptr;
+ #ifdef HAVE_LINUX_XATTRS
+-	int user_only = am_sender ? 0 : !am_root;
++	int user_only = am_sender ? 0 : am_root <= 0;
+ #endif
+ 	rsync_xa *rxa;
+ 	int count;
+ 
+ 	/* This puts the name list into the "namebuf" buffer. */
+ 	if ((list_len = get_xattr_names(fname)) < 0)
+@@ -291,13 +291,13 @@
+ int copy_xattrs(const char *source, const char *dest)
+ {
+ 	ssize_t list_len, name_len;
+ 	size_t datum_len;
+ 	char *name, *ptr;
+ #ifdef HAVE_LINUX_XATTRS
+-	int user_only = am_sender ? 0 : !am_root;
++	int user_only = am_root <= 0;
+ #endif
+ 
+ 	/* This puts the name list into the "namebuf" buffer. */
+ 	if ((list_len = get_xattr_names(source)) < 0)
+ 		return -1;
+ 
+@@ -742,12 +742,15 @@
+ 			 const char *fnamecmp, stat_x *sxp)
+ {
+ 	rsync_xa *rxas = xalp->items;
+ 	ssize_t list_len;
+ 	size_t i, len;
+ 	char *name, *ptr, sum[MAX_DIGEST_LEN];
++#ifdef HAVE_LINUX_XATTRS
++	int user_only = am_root <= 0;
++#endif
+ 	size_t name_len;
+ 	int ret = 0;
+ 
+ 	/* This puts the current name list into the "namebuf" buffer. */
+ 	if ((list_len = get_xattr_names(fname)) < 0)
+ 		return -1;
+@@ -817,14 +820,14 @@
+ 		name_len = strlen(name) + 1;
+ 		list_len -= name_len;
+ 
+ #ifdef HAVE_LINUX_XATTRS
+ 		/* We always ignore the system namespace, and non-root
+ 		 * ignores everything but the user namespace. */
+-		if (am_root ? HAS_PREFIX(name, SYSTEM_PREFIX)
+-			    : !HAS_PREFIX(name, USER_PREFIX))
++		if (user_only ? !HAS_PREFIX(name, USER_PREFIX)
++			      : HAS_PREFIX(name, SYSTEM_PREFIX))
+ 			continue;
+ #endif
+ 		if (am_root < 0 && name_len > RPRE_LEN
+ 		 && name[RPRE_LEN] == '%' && strcmp(name, XSTAT_ATTR) == 0)
+ 			continue;
+ 

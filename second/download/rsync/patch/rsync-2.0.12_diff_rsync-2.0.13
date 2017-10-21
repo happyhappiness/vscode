@@ -1,0 +1,2388 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/clientserver.c	1998-05-26 22:43:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/clientserver.c	1998-05-27 21:54:31.000000000 +0800
+@@ -171,13 +171,13 @@
+ 			return -1;
+ 		} 
+ 		gid = atoi(p);
+ 	}
+ 
+ 	p = lp_exclude_from(i);
+-	add_exclude_file(p, 1);
++	add_exclude_file(p, 1, 0);
+ 
+ 	p = lp_exclude(i);
+ 	add_exclude_line(p);
+ 
+ 	log_open();
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/compat.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/compat.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/compat.c	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/compat.c	1998-05-27 21:54:31.000000000 +0800
+@@ -41,16 +41,14 @@
+ void setup_protocol(int f_out,int f_in)
+ {
+ 	if (remote_version == 0) {
+ 		if (am_server) {
+ 			remote_version = read_int(f_in);
+ 			write_int(f_out,PROTOCOL_VERSION);
+-			write_flush(f_out);
+ 		} else {
+ 			write_int(f_out,PROTOCOL_VERSION);
+-			write_flush(f_out);
+ 			remote_version = read_int(f_in);
+ 		}
+ 	}
+ 
+ 	if (remote_version < MIN_PROTOCOL_VERSION ||
+ 	    remote_version > MAX_PROTOCOL_VERSION) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/config.h.in	1998-05-26 22:43:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/config.h.in	1998-05-27 21:54:31.000000000 +0800
+@@ -121,12 +121,15 @@
+ /* Define if you have the strdup function.  */
+ #undef HAVE_STRDUP
+ 
+ /* Define if you have the strerror function.  */
+ #undef HAVE_STRERROR
+ 
++/* Define if you have the strpbrk function.  */
++#undef HAVE_STRPBRK
++
+ /* Define if you have the utime function.  */
+ #undef HAVE_UTIME
+ 
+ /* Define if you have the utimes function.  */
+ #undef HAVE_UTIMES
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/configure	1998-05-26 22:43:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/configure	1998-05-27 21:54:31.000000000 +0800
+@@ -1938,13 +1938,13 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+-for ac_func in memmove getopt_long lchown setlinebuf vsnprintf setsid glob
++for ac_func in memmove getopt_long lchown setlinebuf vsnprintf setsid glob strpbrk
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ echo "configure:1948: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/configure.in	1998-05-26 22:43:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/configure.in	1998-05-27 21:54:31.000000000 +0800
+@@ -38,13 +38,13 @@
+ echo no)
+ 
+ AC_FUNC_MEMCMP
+ AC_FUNC_UTIME_NULL
+ AC_CHECK_FUNCS(mmap munmap waitpid getcwd strdup strerror chown chmod mknod)
+ AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink link utime utimes)
+-AC_CHECK_FUNCS(memmove getopt_long lchown setlinebuf vsnprintf setsid glob)
++AC_CHECK_FUNCS(memmove getopt_long lchown setlinebuf vsnprintf setsid glob strpbrk)
+ 
+ echo $ac_n "checking for working fnmatch... $ac_c"
+ AC_TRY_RUN([#include <fnmatch.h>
+ main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }],
+ echo yes;AC_DEFINE(HAVE_FNMATCH), 
+ echo no)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/cvs.log	1998-05-26 22:46:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/cvs.log	1998-05-27 21:55:00.000000000 +0800
+@@ -4958,6 +4958,178 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.0.12
+ 
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 16:30
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv1095
++
++Modified Files:
++	flist.c rsync.c rsync.h 
++Log Message:
++fixed a race condition in the --delete handling code. The bug led to
++spurious error messages about not be able to delete some files.
++
++this fix also makes --delete processing more efficient
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 16:31
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv9773
++
++Modified Files:
++	test.sh 
++Log Message:
++new test code from Phil
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 21:02
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv10826
++
++Modified Files:
++	clientserver.c config.h.in configure configure.in exclude.c 
++	flist.c options.c proto.h rsync.h 
++Log Message:
++added support for --include, --include-from and the +/- syntax
++
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 21:02
++Author:	tridge
++
++Update of /data/cvs/rsync/lib
++In directory samba:/tmp/cvs-serv7255
++
++Modified Files:
++	compat.c 
++Log Message:
++added support for --include, --include-from and the +/- syntax
++
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 21:03
++Author:	tridge
++
++Update of /data/cvs/rsync/zlib
++In directory samba:/tmp/cvs-serv28030
++
++Modified Files:
++	zutil.c 
++Log Message:
++added support for --include, --include-from and the +/- syntax
++
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 22:37
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv26009
++
++Modified Files:
++	Makefile.in compat.c flist.c io.c main.c match.c proto.h 
++	rsync.c rsync.h util.c 
++Added Files:
++	fileio.c 
++Log Message:
++heaps of cleanup in the io code.
++
++we no longer use non-blocking IO, instead it uses select a lot more,
++being careful to always allow for reading whenever a valid read fd is
++available and chcking timeouts.
++
++also split the file io calls into fileio.c
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 23:05
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv10186
++
++Modified Files:
++	exclude.c io.c 
++Log Message:
++- always flush the IO write buffer when reading
++
++- handle start of line in exclude properly
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 23:39
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv28139
++
++Modified Files:
++	rsync.1 rsync.yo 
++Log Message:
++added new include/exclude options to man page
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 23:47
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv20743
++
++Modified Files:
++	rsync.h 
++Log Message:
++reduce IO_BUFFER_SIZE by 4 bytes so when then length word gets added
++it is a power of 2.
++
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 23:54
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.13
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 23:54
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.0.13
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/exclude.c	1998-05-15 18:57:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/exclude.c	1998-05-27 21:54:32.000000000 +0800
+@@ -14,177 +14,250 @@
+    
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
+-/*
+-  a lot of this stuff was derived from GNU tar
+-  */
++/* a lot of this stuff was originally derived from GNU tar, although
++   it has now changed so much that it is hard to tell :) */
+ 
+ #include "rsync.h"
+ 
+ extern int verbose;
+ 
+-static char **exclude_list;
++static struct exclude_struct **exclude_list;
+ 
+-static int is_regex(char *str)
++/* build an exclude structure given a exclude pattern */
++static struct exclude_struct *make_exclude(char *pattern, int include)
+ {
+-  return strchr(str, '*') || strchr(str, '[') || strchr(str, '?');
+-}
++	struct exclude_struct *ret;
+ 
++	ret = (struct exclude_struct *)malloc(sizeof(*ret));
++	if (!ret) out_of_memory("make_exclude");
+ 
+-static int check_one_exclude(char *name,char *pattern)
+-{
+-  char *p;
++	memset(ret, 0, sizeof(*ret));
++
++	ret->orig = strdup(pattern);
++
++	if (strncmp(pattern,"- ",2) == 0) {
++		pattern += 2;
++	} else if (strncmp(pattern,"+ ",2) == 0) {
++		ret->include = 1;
++		pattern += 2;
++	} else {
++		ret->include = include;
++	}
++
++	ret->pattern = strdup(pattern);
+ 
+-  if (!strchr(pattern,'/') && (p=strrchr(name,'/')))
+-    name = p+1;
++	if (!ret->orig || !ret->pattern) out_of_memory("make_exclude");
+ 
+-  if (!name[0]) return 0;
++	if (strpbrk(pattern, "*[?")) ret->regular_exp = 1;
+ 
+-  if (*pattern == '/' && *name != '/') pattern++;
++	if (strlen(pattern) > 1 && pattern[strlen(pattern)-1] == '/') {
++		ret->pattern[strlen(pattern)-1] = 0;
++		ret->directory = 1;
++	}
+ 
+-  if (is_regex(pattern)) {
+-    if (fnmatch(pattern, name, 0) == 0)
+-      return 1;
+-  } else {
+-    int l1 = strlen(name);
+-    int l2 = strlen(pattern);
+-    if (l2 <= l1 && 
+-	strcmp(name+(l1-l2),pattern) == 0 &&
+-	(l1==l2 || name[l1-(l2+1)] == '/'))
+-      return 1;
+-  }
++	if (!strchr(ret->pattern,'/')) {
++		ret->local = 1;
++	}
+ 
+-  return 0;
++	return ret;
+ }
+ 
++static void free_exclude(struct exclude_struct *ex)
++{
++	free(ex->orig);
++	free(ex->pattern);
++	memset(ex,0,sizeof(*ex));
++	free(ex);
++}
+ 
+-int check_exclude(char *name,char **local_exclude_list)
++static int check_one_exclude(char *name,struct exclude_struct *ex,
++			     STRUCT_STAT *st)
+ {
+-  int n;
++	char *p;
++	int match_start=0;
++	char *pattern = ex->pattern;
++
++	if (ex->local && (p=strrchr(name,'/')))
++		name = p+1;
++
++	if (!name[0]) return 0;
+ 
+-  if (exclude_list) {
+-    for (n=0; exclude_list[n]; n++)
+-      if (check_one_exclude(name,exclude_list[n]))
+-	return 1;
+-  }
++	if (ex->directory && !S_ISDIR(st->st_mode)) return 0;
+ 
+-  if (local_exclude_list) {
+-    for (n=0; local_exclude_list[n]; n++)
+-      if (check_one_exclude(name,local_exclude_list[n]))
+-	return 1;      
+-  }
++	if (*pattern == '/' && *name != '/') {
++		match_start = 1;
++		pattern++;
++	}
+ 
+-  return 0;
++	if (ex->regular_exp) {
++		if (fnmatch(pattern, name, 0) == 0)
++			return 1;
++	} else {
++		int l1 = strlen(name);
++		int l2 = strlen(pattern);
++		if (l2 <= l1 && 
++		    strcmp(name+(l1-l2),pattern) == 0 &&
++		    (l1==l2 || (!match_start && name[l1-(l2+1)] == '/')))
++			return 1;
++	}
++
++	return 0;
+ }
+ 
+ 
+-void add_exclude_list(char *pattern,char ***list)
++int check_exclude(char *name,struct exclude_struct **local_exclude_list,
++		  STRUCT_STAT *st)
+ {
+-  int len=0;
+-  if (list && *list)
+-    for (; (*list)[len]; len++) ;
++	int n;
+ 
+-  if (strcmp(pattern,"!") == 0) {
+-    if (verbose > 2)
+-      rprintf(FINFO,"clearing exclude list\n");
+-    while ((len)--) 
+-      free((*list)[len]);
+-    free((*list));
+-    *list = NULL;
+-    return;
+-  }
++	if (exclude_list) {
++		for (n=0; exclude_list[n]; n++)
++			if (check_one_exclude(name,exclude_list[n],st))
++				return !exclude_list[n]->include;
++	}
+ 
+-  if (!*list) {
+-    *list = (char **)malloc(sizeof(char *)*2);
+-  } else {
+-    *list = (char **)realloc(*list,sizeof(char *)*(len+2));
+-  }
++	if (local_exclude_list) {
++		for (n=0; local_exclude_list[n]; n++)
++			if (check_one_exclude(name,local_exclude_list[n],st))
++				return !local_exclude_list[n]->include;
++	}
+ 
+-  if (!*list || !((*list)[len] = strdup(pattern)))
+-    out_of_memory("add_exclude");
++	return 0;
++}
+ 
+-  if (verbose > 2)
+-    rprintf(FINFO,"add_exclude(%s)\n",pattern);
+-  
+-  (*list)[len+1] = NULL;
++
++void add_exclude_list(char *pattern,struct exclude_struct ***list, int include)
++{
++	int len=0;
++	if (list && *list)
++		for (; (*list)[len]; len++) ;
++
++	if (strcmp(pattern,"!") == 0) {
++		if (verbose > 2)
++			rprintf(FINFO,"clearing exclude list\n");
++		while ((len)--) {
++			free_exclude((*list)[len]);
++		}
++		free((*list));
++		*list = NULL;
++		return;
++	}
++
++	if (!*list) {
++		*list = (struct exclude_struct **)malloc(sizeof(struct exclude_struct *)*2);
++	} else {
++		*list = (struct exclude_struct **)realloc(*list,sizeof(struct exclude_struct *)*(len+2));
++	}
++	
++	if (!*list || !((*list)[len] = make_exclude(pattern, include)))
++		out_of_memory("add_exclude");
++	
++	if (verbose > 2)
++		rprintf(FINFO,"add_exclude(%s)\n",pattern);
++	
++	(*list)[len+1] = NULL;
+ }
+ 
+-void add_exclude(char *pattern)
++void add_exclude(char *pattern, int include)
+ {
+-  add_exclude_list(pattern,&exclude_list);
++	add_exclude_list(pattern,&exclude_list, include);
+ }
+ 
+-char **make_exclude_list(char *fname,char **list1,int fatal)
++struct exclude_struct **make_exclude_list(char *fname,
++					  struct exclude_struct **list1,
++					  int fatal, int include)
+ {
+-  char **list=list1;
+-  FILE *f = fopen(fname,"r");
+-  char line[MAXPATHLEN];
+-  if (!f) {
+-    if (fatal) {
+-      rprintf(FERROR,"%s : %s\n",fname,strerror(errno));
+-      exit_cleanup(1);
+-    }
+-    return list;
+-  }
++	struct exclude_struct **list=list1;
++	FILE *f = fopen(fname,"r");
++	char line[MAXPATHLEN];
++	if (!f) {
++		if (fatal) {
++			rprintf(FERROR,"%s : %s\n",fname,strerror(errno));
++			exit_cleanup(1);
++		}
++		return list;
++	}
+ 
+-  while (fgets(line,MAXPATHLEN,f)) {
+-    int l = strlen(line);
+-    if (l && line[l-1] == '\n') l--;
+-    line[l] = 0;
+-    if (line[0]) add_exclude_list(line,&list);
+-  }
+-  fclose(f);
+-  return list;
++	while (fgets(line,MAXPATHLEN,f)) {
++		int l = strlen(line);
++		if (l && line[l-1] == '\n') l--;
++		line[l] = 0;
++		if (line[0]) add_exclude_list(line,&list,include);
++	}
++	fclose(f);
++	return list;
+ }
+ 
+ 
+-void add_exclude_file(char *fname,int fatal)
++void add_exclude_file(char *fname,int fatal,int include)
+ {
+ 	if (!fname || !*fname) return;
+ 
+-	exclude_list = make_exclude_list(fname,exclude_list,fatal);
++	exclude_list = make_exclude_list(fname,exclude_list,fatal,include);
+ }
+ 
+ 
+ void send_exclude_list(int f)
+ {
+-  int i;
+-  if (exclude_list) 
+-    for (i=0;exclude_list[i];i++) {
+-      int l = strlen(exclude_list[i]);
+-      if (l == 0) continue;
+-      write_int(f,l);
+-      write_buf(f,exclude_list[i],l);
+-    }    
+-  write_int(f,0);
++	int i;
++	extern int remote_version;
++
++	if (!exclude_list) {
++		write_int(f,0);
++		return;
++	}
++
++	for (i=0;exclude_list[i];i++) {
++		char *pattern = exclude_list[i]->orig; 
++		int l;
++
++		if (remote_version < 19) {
++			if (strncmp(pattern,"+ ", 2)==0) {
++				rprintf(FERROR,"remote rsync does not support include syntax - aborting\n");
++				exit_cleanup(1);
++			}
++			
++			if (strncmp(pattern,"- ", 2) == 0) {
++				pattern += 2;
++			}
++		}
++		
++		l = strlen(pattern);
++		if (l == 0) continue;
++		write_int(f,l);
++		write_buf(f,pattern,l);
++	}    
++
++	write_int(f,0);
+ }
+ 
+ 
+ void recv_exclude_list(int f)
+ {
+-  char line[MAXPATHLEN];
+-  int l;
+-  while ((l=read_int(f))) {
+-	  if (l >= MAXPATHLEN) overflow("recv_exclude_list");
+-	  read_sbuf(f,line,l);
+-	  add_exclude(line);
+-  }
++	char line[MAXPATHLEN];
++	int l;
++	while ((l=read_int(f))) {
++		if (l >= MAXPATHLEN) overflow("recv_exclude_list");
++		read_sbuf(f,line,l);
++		add_exclude(line,0);
++	}
+ }
+ 
+ 
+ void add_exclude_line(char *p)
+ {
+ 	char *tok;
+ 	if (!p || !*p) return;
+ 	p = strdup(p);
+ 	if (!p) out_of_memory("add_exclude_line");
+ 	for (tok=strtok(p," "); tok; tok=strtok(NULL," "))
+-		add_exclude(tok);
++		add_exclude(tok, 0);
+ 	free(p);
+ }
+ 
+ 
+ static char *cvs_ignore_list[] = {
+   "RCS","SCCS","CVS","CVS.adm","RCSLOG","cvslog.*",
+@@ -194,20 +267,20 @@
+   "core",NULL};
+ 
+ 
+ 
+ void add_cvs_excludes(void)
+ {
+-  char fname[MAXPATHLEN];
+-  char *p;
+-  int i;
++	char fname[MAXPATHLEN];
++	char *p;
++	int i;
+   
+-  for (i=0; cvs_ignore_list[i]; i++)
+-    add_exclude(cvs_ignore_list[i]);
++	for (i=0; cvs_ignore_list[i]; i++)
++		add_exclude(cvs_ignore_list[i], 0);
+ 
+-  if ((p=getenv("HOME")) && strlen(p) < (MAXPATHLEN-12)) {
+-	  slprintf(fname,sizeof(fname)-1, "%s/.cvsignore",p);
+-	  add_exclude_file(fname,0);
+-  }
++	if ((p=getenv("HOME")) && strlen(p) < (MAXPATHLEN-12)) {
++		slprintf(fname,sizeof(fname)-1, "%s/.cvsignore",p);
++		add_exclude_file(fname,0,0);
++	}
+ 
+-  add_exclude_line(getenv("CVSIGNORE"));
++	add_exclude_line(getenv("CVSIGNORE"));
+ }
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13: fileio.c
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/flist.c	1998-05-26 22:43:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/flist.c	1998-05-27 21:54:32.000000000 +0800
+@@ -43,13 +43,13 @@
+ extern int preserve_times;
+ extern int relative_paths;
+ extern int copy_links;
+ extern int remote_version;
+ extern int io_error;
+ 
+-static char **local_exclude_list;
++static struct exclude_struct **local_exclude_list;
+ 
+ int link_stat(const char *Path, STRUCT_STAT *Buffer) 
+ {
+ #if SUPPORT_LINKS
+     if (copy_links) {
+ 	return do_stat(Path, Buffer);
+@@ -64,13 +64,13 @@
+ /*
+   This function is used to check if a file should be included/excluded
+   from the list of files based on its name and type etc
+  */
+ static int match_file_name(char *fname,STRUCT_STAT *st)
+ {
+-  if (check_exclude(fname,local_exclude_list)) {
++  if (check_exclude(fname,local_exclude_list,st)) {
+     if (verbose > 2)
+       rprintf(FINFO,"excluding file %s\n",fname);
+     return 0;
+   }
+   return 1;
+ }
+@@ -490,16 +490,16 @@
+   if (strcmp(file->basename,"")) {
+     flist->files[flist->count++] = file;
+     send_file_entry(file,f,base_flags);
+   }
+ 
+   if (S_ISDIR(file->mode) && recursive) {
+-    char **last_exclude_list = local_exclude_list;
+-    send_directory(f,flist,f_name(file));
+-    local_exclude_list = last_exclude_list;
+-    return;
++	  struct exclude_struct **last_exclude_list = local_exclude_list;
++	  send_directory(f,flist,f_name(file));
++	  local_exclude_list = last_exclude_list;
++	  return;
+   }
+ }
+ 
+ 
+ 
+ static void send_directory(int f,struct file_list *flist,char *dir)
+@@ -532,26 +532,26 @@
+ 	}
+ 	p = fname + strlen(fname);
+ 
+ 	if (cvs_exclude) {
+ 		if (strlen(fname) + strlen(".cvsignore") <= MAXPATHLEN-1) {
+ 			strcpy(p,".cvsignore");
+-			local_exclude_list = make_exclude_list(fname,NULL,0);
++			local_exclude_list = make_exclude_list(fname,NULL,0,0);
+ 		} else {
+ 			io_error = 1;
+ 			rprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);
+ 		}
+ 	}  
+ 	
+ 	for (di=readdir(d); di; di=readdir(d)) {
+ 		char *dname = d_name(di);
+ 		if (strcmp(dname,".")==0 ||
+ 		    strcmp(dname,"..")==0)
+ 			continue;
+ 		strlcpy(p,dname,MAXPATHLEN-(l+1));
+-		send_file_name(f,flist,fname,recurse,FLAG_DELETE);
++		send_file_name(f,flist,fname,recurse,0);
+ 	}
+ 
+ 	closedir(d);
+ }
+ 
+ 
+@@ -688,13 +688,12 @@
+ 	if (f != -1 && remote_version >= 17) {
+ 		write_int(f, io_error);
+ 	}
+ 
+ 	if (f != -1) {
+ 		io_end_buffering(f);
+-		write_flush(f);
+ 	}
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"send_file_list done\n");
+ 
+ 	return flist;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/io.c	1998-05-18 18:30:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/io.c	1998-05-27 21:54:32.000000000 +0800
+@@ -31,13 +31,12 @@
+ static int io_multiplexing_in;
+ static int multiplex_in_fd;
+ static int multiplex_out_fd;
+ static time_t last_io;
+ 
+ extern int verbose;
+-extern int sparse_files;
+ extern int io_timeout;
+ 
+ int64 write_total(void)
+ {
+ 	return total_written;
+ }
+@@ -46,15 +45,14 @@
+ {
+ 	return total_read;
+ }
+ 
+ static int buffer_f_in = -1;
+ 
+-void setup_nonblocking(int f_in,int f_out)
++void setup_readbuffer(int f_in)
+ {
+-	set_blocking(f_out,0);
+ 	buffer_f_in = f_in;
+ }
+ 
+ static void check_timeout(void)
+ {
+ 	time_t t;
+@@ -78,59 +76,87 @@
+ 
+ static char *read_buffer;
+ static char *read_buffer_p;
+ static int read_buffer_len;
+ static int read_buffer_size;
+ 
+-
+-/* continue trying to read len bytes - don't return until len
+-   has been read */
+-static void read_loop(int fd, char *buf, int len)
++/* read from a socket with IO timeout. return the number of
++   bytes read. If no bytes can be read then exit, never return
++   a number <= 0 */
++static int read_timeout(int fd, char *buf, int len)
+ {
+-	while (len) {
+-		int n = read(fd, buf, len);
++	int n, ret=0;
++
++	io_flush();
++
++	while (ret == 0) {
++		fd_set fds;
++		struct timeval tv;
++
++		FD_ZERO(&fds);
++		FD_SET(fd, &fds);
++		tv.tv_sec = io_timeout;
++		tv.tv_usec = 0;
++
++		if (select(fd+1, &fds, NULL, NULL, 
++			   io_timeout?&tv:NULL) != 1) {
++			check_timeout();
++			continue;
++		}
++
++		n = read(fd, buf, len);
++
+ 		if (n > 0) {
+ 			buf += n;
+ 			len -= n;
++			ret += n;
++			if (io_timeout)
++				last_io = time(NULL);
++			continue;
+ 		}
++
++		if (n == -1 && errno == EINTR) {
++			continue;
++		}
++
+ 		if (n == 0) {
+-			rprintf(FERROR,"EOF in read_loop\n");
++			rprintf(FERROR,"EOF in read_timeout\n");
+ 			exit_cleanup(1);
+ 		}
+-		if (n == -1) {
+-			fd_set fds;
+-			struct timeval tv;
+-
+-			if (errno != EAGAIN && errno != EWOULDBLOCK) {
+-				rprintf(FERROR,"io error: %s\n", 
+-					strerror(errno));
+-				exit_cleanup(1);
+-			}
+ 
+-			FD_ZERO(&fds);
+-			FD_SET(fd, &fds);
+-			tv.tv_sec = io_timeout;
+-			tv.tv_usec = 0;
+-
+-			if (select(fd+1, &fds, NULL, NULL, 
+-				   io_timeout?&tv:NULL) != 1) {
+-				check_timeout();
+-			}
+-		}
++		rprintf(FERROR,"read error: %s\n", strerror(errno));
++		exit_cleanup(1);
++	}
++
++	return ret;
++}
++
++/* continue trying to read len bytes - don't return until len
++   has been read */
++static void read_loop(int fd, char *buf, int len)
++{
++	while (len) {
++		int n = read_timeout(fd, buf, len);
++
++		buf += n;
++		len -= n;
+ 	}
+ }
+ 
++/* read from the file descriptor handing multiplexing - 
++   return number of bytes read
++   never return <= 0 */
+ static int read_unbuffered(int fd, char *buf, int len)
+ {
+ 	static int remaining;
+ 	char ibuf[4];
+ 	int tag, ret=0;
+ 	char line[1024];
+ 
+ 	if (!io_multiplexing_in || fd != multiplex_in_fd) 
+-		return read(fd, buf, len);
++		return read_timeout(fd, buf, len);
+ 
+ 	while (ret == 0) {
+ 		if (remaining) {
+ 			len = MIN(len, remaining);
+ 			read_loop(fd, buf, len);
+ 			remaining -= len;
+@@ -167,31 +193,26 @@
+ 	}
+ 
+ 	return ret;
+ }
+ 
+ 
++
+ /* This function was added to overcome a deadlock problem when using
+  * ssh.  It looks like we can't allow our receive queue to get full or
+  * ssh will clag up. Uggh.  */
+ static void read_check(int f)
+ {
+-	int n;
++	int n = 8192;
+ 
+ 	if (f == -1) return;
+ 
+ 	if (read_buffer_len == 0) {
+ 		read_buffer_p = read_buffer;
+ 	}
+ 
+-	if ((n=num_waiting(f)) <= 0)
+-		return;
+-
+-	/* things could deteriorate if we read in really small chunks */
+-	if (n < 10) n = 1024;
+-
+ 	if (n > MAX_READ_BUFFER/4)
+ 		n = MAX_READ_BUFFER/4;
+ 
+ 	if (read_buffer_p != read_buffer) {
+ 		memmove(read_buffer,read_buffer_p,read_buffer_len);
+ 		read_buffer_p = read_buffer;
+@@ -205,25 +226,26 @@
+ 			read_buffer = (char *)realloc(read_buffer,read_buffer_size);
+ 		if (!read_buffer) out_of_memory("read check");      
+ 		read_buffer_p = read_buffer;      
+ 	}
+ 
+ 	n = read_unbuffered(f,read_buffer+read_buffer_len,n);
+-	if (n > 0) {
+-		read_buffer_len += n;
+-	}
++	read_buffer_len += n;
+ }
+ 
+-static int readfd(int fd,char *buffer,int N)
++
++/* do a buffered read from fd. don't return until all N bytes
++   have been read. If all N can't be read then exit with an error */
++static void readfd(int fd,char *buffer,int N)
+ {
+ 	int  ret;
+ 	int total=0;  
+-	struct timeval tv;
+ 	
+-	if (read_buffer_len < N)
++	if (read_buffer_len < N && N < 1024) {
+ 		read_check(buffer_f_in);
++	}
+ 	
+ 	while (total < N) {
+ 		if (read_buffer_len > 0 && buffer_f_in == fd) {
+ 			ret = MIN(read_buffer_len,N-total);
+ 			memcpy(buffer+total,read_buffer_p,ret);
+ 			read_buffer_p += ret;
+@@ -231,51 +253,24 @@
+ 			total += ret;
+ 			continue;
+ 		} 
+ 
+ 		io_flush();
+ 
+-		while ((ret = read_unbuffered(fd,buffer + total,N-total)) == -1) {
+-			fd_set fds;
+-
+-			if (errno != EAGAIN && errno != EWOULDBLOCK)
+-				return -1;
+-			FD_ZERO(&fds);
+-			FD_SET(fd, &fds);
+-			tv.tv_sec = io_timeout;
+-			tv.tv_usec = 0;
+-
+-			if (select(fd+1, &fds, NULL, NULL, 
+-				   io_timeout?&tv:NULL) != 1) {
+-				check_timeout();
+-			}
+-		}
+-
+-		if (ret <= 0)
+-			return total;
++		ret = read_unbuffered(fd,buffer + total,N-total);
+ 		total += ret;
+ 	}
+-
+-	if (io_timeout)
+-		last_io = time(NULL);
+-	return total;
+ }
+ 
+ 
+ int32 read_int(int f)
+ {
+-  int ret;
+-  char b[4];
+-  if ((ret=readfd(f,b,4)) != 4) {
+-    if (verbose > 1) 
+-      rprintf(FERROR,"(%d) read_int: Error reading %d bytes : %s\n",
+-	      getpid(),4,ret==-1?strerror(errno):"EOF");
+-    exit_cleanup(1);
+-  }
+-  total_read += 4;
+-  return IVAL(b,0);
++	char b[4];
++	readfd(f,b,4);
++	total_read += 4;
++	return IVAL(b,0);
+ }
+ 
+ int64 read_longint(int f)
+ {
+ 	extern int remote_version;
+ 	int64 ret;
+@@ -286,189 +281,102 @@
+ 
+ #ifdef NO_INT64
+ 	rprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");
+ 	exit_cleanup(1);
+ #else
+ 	if (remote_version >= 16) {
+-		if ((ret=readfd(f,b,8)) != 8) {
+-			if (verbose > 1) 
+-				rprintf(FERROR,"(%d) read_longint: Error reading %d bytes : %s\n",
+-					getpid(),8,ret==-1?strerror(errno):"EOF");
+-			exit_cleanup(1);
+-		}
++		readfd(f,b,8);
+ 		total_read += 8;
+ 		ret = IVAL(b,0) | (((int64)IVAL(b,4))<<32);
+ 	}
+ #endif
+ 
+ 	return ret;
+ }
+ 
+ void read_buf(int f,char *buf,int len)
+ {
+-  int ret;
+-  if ((ret=readfd(f,buf,len)) != len) {
+-    if (verbose > 1) 
+-      rprintf(FERROR,"(%d) read_buf: Error reading %d bytes : %s\n",
+-	      getpid(),len,ret==-1?strerror(errno):"EOF");
+-    exit_cleanup(1);
+-  }
+-  total_read += len;
++	readfd(f,buf,len);
++	total_read += len;
+ }
+ 
+ void read_sbuf(int f,char *buf,int len)
+ {
+ 	read_buf(f,buf,len);
+ 	buf[len] = 0;
+ }
+ 
+ unsigned char read_byte(int f)
+ {
+-  unsigned char c;
+-  read_buf(f,(char *)&c,1);
+-  return c;
+-}
+-
+-
+-static char last_byte;
+-static int last_sparse;
+-
+-int sparse_end(int f)
+-{
+-	if (last_sparse) {
+-		do_lseek(f,-1,SEEK_CUR);
+-		return (write(f,&last_byte,1) == 1 ? 0 : -1);
+-	}
+-	last_sparse = 0;
+-	return 0;
+-}
+-
+-
+-static int write_sparse(int f,char *buf,int len)
+-{
+-	int l1=0,l2=0;
+-	int ret;
+-
+-	for (l1=0;l1<len && buf[l1]==0;l1++) ;
+-	for (l2=0;l2<(len-l1) && buf[len-(l2+1)]==0;l2++) ;
+-
+-	last_byte = buf[len-1];
+-
+-	if (l1 == len || l2 > 0)
+-		last_sparse=1;
+-
+-	if (l1 > 0)
+-		do_lseek(f,l1,SEEK_CUR);  
+-
+-	if (l1 == len) 
+-		return len;
+-
+-	if ((ret=write(f,buf+l1,len-(l1+l2))) != len-(l1+l2)) {
+-		if (ret == -1 || ret == 0) return ret;
+-		return (l1+ret);
+-	}
+-
+-	if (l2 > 0)
+-		do_lseek(f,l2,SEEK_CUR);
+-	
+-	return len;
++	unsigned char c;
++	read_buf(f,(char *)&c,1);
++	return c;
+ }
+ 
+ 
+ 
+-int write_file(int f,char *buf,int len)
+-{
+-	int ret = 0;
+-
+-	if (!sparse_files) 
+-		return write(f,buf,len);
+-
+-	while (len>0) {
+-		int len1 = MIN(len, SPARSE_WRITE_SIZE);
+-		int r1 = write_sparse(f, buf, len1);
+-		if (r1 <= 0) {
+-			if (ret > 0) return ret;
+-			return r1;
+-		}
+-		len -= r1;
+-		buf += r1;
+-		ret += r1;
+-	}
+-	return ret;
+-}
+-
+-
+-static int writefd_unbuffered(int fd,char *buf,int len)
++/* write len bytes to fd, possibly reading from buffer_f_in if set
++   in order to unclog the pipe. don't return until all len
++   bytes have been written */
++static void writefd_unbuffered(int fd,char *buf,int len)
+ {
+ 	int total = 0;
+ 	fd_set w_fds, r_fds;
+-	int fd_count, count, got_select=0;
++	int fd_count, count;
+ 	struct timeval tv;
++	int reading;
+ 
+-	while (total < len) {
+-		int ret = write(fd,buf+total,len-total);
+-
+-		if (ret == 0) return total;
+-
+-		if (ret == -1 && !(errno == EWOULDBLOCK || errno == EAGAIN)) 
+-			return -1;
+-
+-		if (ret == -1 && got_select) {
+-			/* hmmm, we got a write select on the fd and
+-			   then failed to write.  Why doesn't that
+-			   mean that the fd is dead? It doesn't on
+-			   some systems it seems (eg. IRIX) */
+-			u_sleep(1000);
+-		}
++	reading = (buffer_f_in != -1 && read_buffer_len < MAX_READ_BUFFER);
+ 
+-		got_select = 0;
+-
+-
+-		if (ret != -1) {
+-			total += ret;
+-			continue;
+-		}
+-
+-		if (read_buffer_len < MAX_READ_BUFFER && buffer_f_in != -1)
+-			read_check(buffer_f_in);
+-
+-		fd_count = fd+1;
++	while (total < len) {
+ 		FD_ZERO(&w_fds);
+ 		FD_ZERO(&r_fds);
+ 		FD_SET(fd,&w_fds);
+-		if (buffer_f_in != -1) {
++		fd_count = fd+1;
++
++		if (reading) {
+ 			FD_SET(buffer_f_in,&r_fds);
+ 			if (buffer_f_in > fd) 
+ 				fd_count = buffer_f_in+1;
+ 		}
+ 
+-		tv.tv_sec = BLOCKING_TIMEOUT;
++		tv.tv_sec = io_timeout;
+ 		tv.tv_usec = 0;
+-		count = select(fd_count,buffer_f_in == -1? NULL: &r_fds,
+-			       &w_fds,NULL,&tv);
+-		
+-		if (count == -1 && errno != EINTR) {
+-			if (verbose > 1) 
+-				rprintf(FERROR,"select error: %s\n", strerror(errno));
+-			exit_cleanup(1);
+-		}
+-		
+-		if (count == 0) {
++
++		count = select(fd_count,
++			       reading?&r_fds:NULL,
++			       &w_fds,NULL,
++			       io_timeout?&tv:NULL);
++
++		if (count <= 0) {
+ 			check_timeout();
+ 			continue;
+ 		}
+-		
++
+ 		if (FD_ISSET(fd, &w_fds)) {
+-			got_select = 1;
++			int ret = write(fd,buf+total,len-total);
++
++			if (ret == -1 && errno == EINTR) {
++				continue;
++			}
++
++			if (ret <= 0) {
++				rprintf(FERROR,"erroring writing %d bytes - exiting\n", len);
++				exit_cleanup(1);
++			}
++
++			total += ret;
++			if (io_timeout)
++				last_io = time(NULL);
++			continue;
+ 		}
+-	}
+ 
+-	if (io_timeout)
+-		last_io = time(NULL);
+-	
+-	return total;
++		if (reading && FD_ISSET(buffer_f_in, &r_fds)) {
++			read_check(buffer_f_in);
++		}
++	}
+ }
+ 
+ 
+ static char *io_buffer;
+ static int io_buffer_count;
+ 
+@@ -488,23 +396,15 @@
+ {
+ 	int fd = multiplex_out_fd;
+ 	if (!io_buffer_count) return;
+ 
+ 	if (io_multiplexing_out) {
+ 		SIVAL(io_buffer-4, 0, (MPLEX_BASE<<24) + io_buffer_count);
+-		if (writefd_unbuffered(fd, io_buffer-4, io_buffer_count+4) !=
+-		    io_buffer_count+4) {
+-			rprintf(FERROR,"write failed\n");
+-			exit_cleanup(1);
+-		}
++		writefd_unbuffered(fd, io_buffer-4, io_buffer_count+4);
+ 	} else {
+-		if (writefd_unbuffered(fd, io_buffer, io_buffer_count) != 
+-		    io_buffer_count) {
+-			rprintf(FERROR,"write failed\n");
+-			exit_cleanup(1);
+-		}
++		writefd_unbuffered(fd, io_buffer, io_buffer_count);
+ 	}
+ 	io_buffer_count = 0;
+ }
+ 
+ void io_end_buffering(int fd)
+ {
+@@ -512,78 +412,62 @@
+ 	if (!io_multiplexing_out) {
+ 		free(io_buffer-4);
+ 		io_buffer = NULL;
+ 	}
+ }
+ 
+-static int writefd(int fd,char *buf,int len1)
++static void writefd(int fd,char *buf,int len)
+ {
+-	int len = len1;
+-
+-	if (!io_buffer) return writefd_unbuffered(fd, buf, len);
++	if (!io_buffer) {
++		writefd_unbuffered(fd, buf, len);
++		return;
++	}
+ 
+ 	while (len) {
+ 		int n = MIN(len, IO_BUFFER_SIZE-io_buffer_count);
+ 		if (n > 0) {
+ 			memcpy(io_buffer+io_buffer_count, buf, n);
+ 			buf += n;
+ 			len -= n;
+ 			io_buffer_count += n;
+ 		}
+ 		
+ 		if (io_buffer_count == IO_BUFFER_SIZE) io_flush();
+ 	}
+-
+-	return len1;
+ }
+ 
+ 
+ void write_int(int f,int32 x)
+ {
+-	int ret;
+ 	char b[4];
+ 	SIVAL(b,0,x);
+-	if ((ret=writefd(f,b,4)) != 4) {
+-		rprintf(FERROR,"write_int failed : %s\n",
+-			ret==-1?strerror(errno):"EOF");
+-		exit_cleanup(1);
+-	}
++	writefd(f,b,4);
+ 	total_written += 4;
+ }
+ 
+ void write_longint(int f, int64 x)
+ {
+ 	extern int remote_version;
+ 	char b[8];
+-	int ret;
+ 
+ 	if (remote_version < 16 || x <= 0x7FFFFFFF) {
+ 		write_int(f, (int)x);
+ 		return;
+ 	}
+ 
+ 	write_int(f, -1);
+ 	SIVAL(b,0,(x&0xFFFFFFFF));
+ 	SIVAL(b,4,((x>>32)&0xFFFFFFFF));
+ 
+-	if ((ret=writefd(f,b,8)) != 8) {
+-		rprintf(FERROR,"write_longint failed : %s\n",
+-			ret==-1?strerror(errno):"EOF");
+-		exit_cleanup(1);
+-	}
++	writefd(f,b,8);
+ 	total_written += 8;
+ }
+ 
+ void write_buf(int f,char *buf,int len)
+ {
+-	int ret;
+-	if ((ret=writefd(f,buf,len)) != len) {
+-		rprintf(FERROR,"write_buf failed : %s\n",
+-			ret==-1?strerror(errno):"EOF");
+-		exit_cleanup(1);
+-	}
++	writefd(f,buf,len);
+ 	total_written += len;
+ }
+ 
+ /* write a string to the connection */
+ void write_sbuf(int f,char *buf)
+ {
+@@ -593,17 +477,12 @@
+ 
+ void write_byte(int f,unsigned char c)
+ {
+ 	write_buf(f,(char *)&c,1);
+ }
+ 
+-void write_flush(int f)
+-{
+-}
+-
+-
+ int read_line(int f, char *buf, int maxlen)
+ {
+ 	while (maxlen) {
+ 		read_buf(f, buf, 1);
+ 		if (buf[0] == '\n') {
+ 			buf[0] = 0;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/lib/compat.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/lib/compat.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/lib/compat.c	1998-05-14 15:07:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/lib/compat.c	1998-05-27 21:54:35.000000000 +0800
+@@ -55,6 +55,24 @@
+ void *memmove(void *dest, const void *src, size_t n)
+ {
+ 	bcopy(src, dest, n);
+ 	return dest;
+ }
+ #endif
++
++#ifndef HAVE_STRPBRK
++/* Find the first ocurrence in S of any character in ACCEPT.  
++   derived from glibc 
++*/
++char *strpbrk(const char *s, const char *accept)
++{
++	while (*s != '\0')  {
++		const char *a = accept;
++		while (*a != '\0') {
++			if (*a++ == *s)	return (char *)s;
++		}
++		++s;
++	}
++
++	return NULL;
++}
++#endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/main.c	1998-05-26 22:43:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/main.c	1998-05-27 21:54:32.000000000 +0800
+@@ -46,13 +46,12 @@
+ 	if (am_server && !am_sender) return;
+ 
+ 	if (am_server && am_sender) {
+ 		write_longint(f,read_total());
+ 		write_longint(f,write_total());
+ 		write_longint(f,total_size);
+-		write_flush(f);
+ 		return;
+ 	}
+     
+ 	if (am_sender) {
+ 		in = read_total();
+ 		out = write_total();
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/Makefile.in	1998-05-22 21:45:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/Makefile.in	1998-05-27 21:54:30.000000000 +0800
+@@ -22,13 +22,13 @@
+ 
+ LIBOBJ=lib/getopt.o lib/fnmatch.o lib/compat.o
+ ZLIBOBJ=zlib/deflate.o zlib/infblock.o zlib/infcodes.o zlib/inffast.o \
+ 	zlib/inflate.o zlib/inftrees.o zlib/infutil.o zlib/trees.o \
+ 	zlib/zutil.o zlib/adler32.o
+ OBJS1=rsync.o exclude.o util.o md4.o main.o checksum.o match.o syscall.o log.o
+-OBJS2=options.o flist.o io.o compat.o hlink.o token.o uidlist.o socket.o 
++OBJS2=options.o flist.o io.o compat.o hlink.o token.o uidlist.o socket.o fileio.o
+ DAEMON_OBJ = params.o loadparm.o clientserver.o access.o connection.o authenticate.o
+ OBJS=$(OBJS1) $(OBJS2) $(DAEMON_OBJ) $(LIBOBJ) $(ZLIBOBJ)
+ 
+ # note that the -I. is needed to handle config.h when using VPATH
+ .c.o:
+ 	$(CC) -I. -I$(srcdir) $(CFLAGS) -c $< -o $@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/match.c	1998-05-22 21:45:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/match.c	1998-05-27 21:54:32.000000000 +0800
+@@ -100,15 +100,12 @@
+ 		rprintf(FINFO,"match at %d last_match=%d j=%d len=%d n=%d\n",
+ 			(int)offset,(int)last_match,i,(int)s->sums[i].len,(int)n);
+ 
+ 	send_token(f,i,buf,last_match,n,i<0?0:s->sums[i].len);
+ 	data_transfer += n;
+ 
+-	if (n > 0)
+-		write_flush(f);
+-
+ 	if (i >= 0)
+ 		n += s->sums[i].len;
+   
+ 	for (j=0;j<n;j+=CHUNK_SIZE) {
+ 		int n1 = MIN(CHUNK_SIZE,n-j);
+ 		sum_update(map_ptr(buf,last_match+j,n1),n1);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/options.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/options.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/options.c	1998-05-18 18:30:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/options.c	1998-05-27 21:54:33.000000000 +0800
+@@ -106,12 +106,14 @@
+   rprintf(F,"    --timeout TIME       set IO timeout in seconds\n");
+   rprintf(F,"-I, --ignore-times       don't exclude files that match length and time\n");
+   rprintf(F,"-T  --temp-dir DIR       create temporary files in directory DIR\n");
+   rprintf(F,"-z, --compress           compress file data\n");
+   rprintf(F,"    --exclude FILE       exclude file FILE\n");
+   rprintf(F,"    --exclude-from FILE  exclude files listed in FILE\n");
++  rprintf(F,"    --include FILE       don't exclude file FILE\n");
++  rprintf(F,"    --include-from FILE  don't exclude files listed in FILE\n");
+   rprintf(F,"    --suffix SUFFIX      override backup suffix\n");  
+   rprintf(F,"    --version            print version number\n");  
+   rprintf(F,"    --daemon             run as a rsync daemon\n");  
+   rprintf(F,"    --config FILE        specify alternate rsyncd.conf file\n");  
+   rprintf(F,"    --port PORT          specify alternate rsyncd port number\n");  
+ 
+@@ -119,25 +121,28 @@
+   rprintf(F,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+   rprintf(F,"the block size defaults to %d\n",BLOCK_SIZE);  
+ }
+ 
+ enum {OPT_VERSION,OPT_SUFFIX,OPT_SENDER,OPT_SERVER,OPT_EXCLUDE,
+       OPT_EXCLUDE_FROM,OPT_DELETE,OPT_NUMERIC_IDS,OPT_RSYNC_PATH,
+-      OPT_FORCE,OPT_TIMEOUT,OPT_DAEMON,OPT_CONFIG,OPT_PORT};
++      OPT_FORCE,OPT_TIMEOUT,OPT_DAEMON,OPT_CONFIG,OPT_PORT,
++      OPT_INCLUDE, OPT_INCLUDE_FROM};
+ 
+ static char *short_options = "oblLWHpguDCtcahvrRIxnSe:B:T:z";
+ 
+ static struct option long_options[] = {
+   {"version",     0,     0,    OPT_VERSION},
+   {"server",      0,     0,    OPT_SERVER},
+   {"sender",      0,     0,    OPT_SENDER},
+   {"delete",      0,     0,    OPT_DELETE},
+   {"force",       0,     0,    OPT_FORCE},
+   {"numeric-ids", 0,     0,    OPT_NUMERIC_IDS},
+   {"exclude",     1,     0,    OPT_EXCLUDE},
+   {"exclude-from",1,     0,    OPT_EXCLUDE_FROM},
++  {"include",     1,     0,    OPT_INCLUDE},
++  {"include-from",1,     0,    OPT_INCLUDE_FROM},
+   {"rsync-path",  1,     0,    OPT_RSYNC_PATH},
+   {"one-file-system",0,  0,    'x'},
+   {"ignore-times",0,     0,    'I'},
+   {"help",        0,     0,    'h'},
+   {"dry-run",     0,     0,    'n'},
+   {"sparse",      0,     0,    'S'},
+@@ -210,17 +215,25 @@
+ 
+ 	case OPT_NUMERIC_IDS:
+ 	  numeric_ids = 1;
+ 	  break;
+ 
+ 	case OPT_EXCLUDE:
+-	  add_exclude(optarg);
++	  add_exclude(optarg, 0);
++	  break;
++
++	case OPT_INCLUDE:
++	  add_exclude(optarg, 1);
+ 	  break;
+ 
+ 	case OPT_EXCLUDE_FROM:
+-	  add_exclude_file(optarg,1);
++	  add_exclude_file(optarg,1, 0);
++	  break;
++
++	case OPT_INCLUDE_FROM:
++	  add_exclude_file(optarg,1, 1);
+ 	  break;
+ 
+ 	case 'h':
+ 	  usage(FINFO);
+ 	  exit_cleanup(0);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/packaging/redhat/5.0/rsync.spec	1998-05-26 22:46:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/packaging/redhat/5.0/rsync.spec	1998-05-27 21:54:40.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.0.12
++Version: 2.0.13
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.12.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.13.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/proto.h	1998-05-22 21:45:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/proto.h	1998-05-27 21:54:33.000000000 +0800
+@@ -11,25 +11,30 @@
+ void sum_init(void);
+ void sum_update(char *p,int len);
+ void sum_end(char *sum);
+ int start_socket_client(char *host, char *path, int argc, char *argv[]);
+ int daemon_main(void);
+ void setup_protocol(int f_out,int f_in);
+-void def_initialise(void);
+-void def_reset(void);
+-void def_write(int f, char *buf, int nb, int flush);
+ int claim_connection(char *fname,int max_connections);
+-int check_exclude(char *name,char **local_exclude_list);
+-void add_exclude_list(char *pattern,char ***list);
+-void add_exclude(char *pattern);
+-char **make_exclude_list(char *fname,char **list1,int fatal);
+-void add_exclude_file(char *fname,int fatal);
++int check_exclude(char *name,struct exclude_struct **local_exclude_list,
++		  STRUCT_STAT *st);
++void add_exclude_list(char *pattern,struct exclude_struct ***list, int include);
++void add_exclude(char *pattern, int include);
++struct exclude_struct **make_exclude_list(char *fname,
++					  struct exclude_struct **list1,
++					  int fatal, int include);
++void add_exclude_file(char *fname,int fatal,int include);
+ void send_exclude_list(int f);
+ void recv_exclude_list(int f);
+ void add_exclude_line(char *p);
+ void add_cvs_excludes(void);
++int sparse_end(int f);
++int write_file(int f,char *buf,int len);
++struct map_struct *map_file(int fd,OFF_T len);
++char *map_ptr(struct map_struct *map,OFF_T offset,int len);
++void unmap_file(struct map_struct *map);
+ int link_stat(const char *Path, STRUCT_STAT *Buffer) ;
+ void send_file_entry(struct file_struct *file,int f,unsigned base_flags);
+ struct file_list *send_file_list(int f,int argc,char *argv[]);
+ struct file_list *recv_file_list(int f);
+ int file_compare(struct file_struct **f1,struct file_struct **f2);
+ int flist_find(struct file_list *flist,struct file_struct *f);
+@@ -38,20 +43,18 @@
+ char *f_name(struct file_struct *f);
+ void init_hard_links(struct file_list *flist);
+ int check_hard_link(struct file_struct *file);
+ void do_hard_links(struct file_list *flist);
+ int64 write_total(void);
+ int64 read_total(void);
+-void setup_nonblocking(int f_in,int f_out);
++void setup_readbuffer(int f_in);
+ int32 read_int(int f);
+ int64 read_longint(int f);
+ void read_buf(int f,char *buf,int len);
+ void read_sbuf(int f,char *buf,int len);
+ unsigned char read_byte(int f);
+-int sparse_end(int f);
+-int write_file(int f,char *buf,int len);
+ void io_start_buffering(int fd);
+ void io_flush(void);
+ void io_end_buffering(int fd);
+ void write_int(int f,int32 x);
+ void write_longint(int f, int64 x);
+ void write_buf(int f,char *buf,int len);
+@@ -149,15 +152,12 @@
+ void see_token(char *data, int toklen);
+ void add_uid(uid_t uid);
+ void add_gid(gid_t gid);
+ void send_uid_list(int f);
+ void recv_uid_list(int f, struct file_list *flist);
+ int num_waiting(int fd);
+-struct map_struct *map_file(int fd,OFF_T len);
+-char *map_ptr(struct map_struct *map,OFF_T offset,int len);
+-void unmap_file(struct map_struct *map);
+ int piped_child(char **command,int *f_in,int *f_out);
+ int local_child(int argc, char **argv,int *f_in,int *f_out);
+ void out_of_memory(char *str);
+ void overflow(char *str);
+ int set_modtime(char *fname,time_t modtime);
+ int set_blocking(int fd, int set);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.1	1998-05-15 15:54:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/rsync.1	1998-05-27 21:54:33.000000000 +0800
+@@ -86,12 +86,15 @@
+ You can also specify a alternative to rsh, by either using the -e
+ command line option, or by setting the RSYNC_RSH environment variable\&.
+ .PP 
+ One common substitute is to use ssh, which offers a high degree of
+ security\&.
+ .PP 
++Note that rsync must be installed on both the source and destination
++machines\&. 
++.PP 
+ .SH "USAGE" 
+ .PP 
+ You use rsync in the same way you use rcp\&. You must specify a source
+ and a destination, one of which may be remote\&.
+ .PP 
+ Perhaps the best way to explain the syntax is some examples:
+@@ -391,31 +394,40 @@
+ environment variable\&.
+ .IP 
+ .IP "\fB--rsync-path PATH\fP" 
+ Use this to specify the path to the copy of
+ rsync on the remote machine\&. Useful when its not in your path\&.
+ .IP 
+-.IP "\fB--exclude FILE\fP" 
++.IP "\fB--exclude pattern\fP" 
+ This option allows you to selectively exclude
+ certain files from the list of files to be transferred\&. This is most
+ useful in combination with a recursive transfer\&.
+ .IP 
+-The option FILE can either be a file name or a shell wildcard
+-expression\&. If it is a directory name then rsync will not recurse into
+-directories of that name\&.
+-.IP 
+ You may use as many --exclude options on the command line as you like
+ to build up the list of files to exclude\&.
+ .IP 
+-If the filename is a single ! then the exclude list is reset\&.
++See the section of exclude patterns for information on the syntax of 
++this option\&.
+ .IP 
+ .IP "\fB--exclude-from FILE\fP" 
+ This option is similar to the --exclude
+ option, but instead it adds all filenames listed in the file FILE to
+ the exclude list\&.
+ .IP 
++.IP "\fB--include pattern\fP" 
++This option tells rsync to not exclude the
++specified pattern of filenames\&. This is useful as it allows you to
++build up quite complex exclude/include rules\&.
++.IP 
++See the section of exclude patterns for information on the syntax of 
++this option\&.
++.IP 
++.IP "\fB--include-from FILE\fP" 
++This specifies a list of include patterns
++from a file\&.
++.IP 
+ .IP "\fB-C, --cvs-exclude\fP" 
+ This is a useful shorthand for excluding a
+ broad range of files that you often don\'t want to transfer between
+ systems\&. It uses the same algorithm that CVS uses to determine if
+ a file should be ignored\&.
+ .IP 
+@@ -503,12 +515,75 @@
+ .IP 
+ .IP "\fB--port PORT\fP" 
+ This specifies an alternate TCP port number to use
+ rather than the default port 873\&. 
+ .IP 
+ .PP 
++.SH "EXCLUDE PATTERNS" 
++.PP 
++The exclude and include patterns specified to rsync allow for flexible
++selection of what files to transfer and what files to skip\&.
++.PP 
++rsync build a ordered list of include/exclude options as specified on
++the command line\&. When a filename is encountered rsync then checks the
++name against each exclude/include pattern in turn\&. The first matching
++pattern is acted on\&. If it is an exclude pattern than that file is
++skipped\&. If it is an include pattern then that filename is not
++skipped\&. If no matching include/exclude pattern is found then the
++filename is not skipped\&.
++.PP 
++The patterns themselves can take several forms\&. The rules are:
++.PP 
++.IP o 
++if the pattern starts with a / then it is matched against the
++start of the filename, otherwise it is matched against the end of
++the filename\&. Thus /foo would match a file called foo
++at the base of the tree whereas foo would match any file
++called foo anywhere in the tree\&.
++.IP 
++.IP o 
++if the pattern ends with a / then it will only match a
++directory, not a file, link or device\&.
++.IP 
++.IP o 
++if the pattern contains a wildcard character from the set
++*?[ then regular expression matching is applied using the
++normal shell filename matching rules\&. Otherwise a simple string
++match is used\&.
++.IP 
++.IP o 
++if the pattern contains a / (not counting a trailing /) then it
++is matched against the full filename, including any leading
++directory\&. If the pattern doesn\'t contain a / then it is matched
++only against the final component of the filename\&.
++.IP 
++.IP o 
++if the pattern starts with "+ " (a plus followed by a space)
++then it is always considered a include pattern, even if specified as
++part of an exclude option\&. The "+ " part is discarded before matching\&.
++.IP 
++.IP o 
++if the pattern starts with "- " (a minus followed by a space)
++then it is always considered a exclude pattern, even if specified as
++part of an include option\&. The "- " part is discarded before matching\&.
++.PP 
++The +/- rules are most useful in exclude lists, allowing you to have a
++single exclude list that contains both include and exclude options\&.
++.PP 
++Here are some examples:
++.PP 
++.IP o 
++--exclude "*\&.o" would exclude all filenames matching *\&.o
++.IP o 
++--exclude "/foo" would exclude a file in the base directory called foo
++.IP o 
++--exclude "foo/" would exclude any directory called foo
++.IP o 
++--include "*/" --include "*\&.c" --exclude "*" would include all 
++directories and C source files\&.
++.PP 
+ .SH "FILES" 
+ .PP 
+ /etc/rsyncd\&.conf
+ .PP 
+ .SH "SEE ALSO" 
+ .PP 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.c	1998-05-26 22:43:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/rsync.c	1998-05-27 21:54:33.000000000 +0800
+@@ -144,13 +144,12 @@
+   write_int(f_out,s?s->remainder:0);
+   if (s)
+     for (i=0;i<s->count;i++) {
+       write_int(f_out,s->sums[i].sum1);
+       write_buf(f_out,s->sums[i].sum2,csum_length);
+     }
+-  write_flush(f_out);
+ }
+ 
+ 
+ /*
+   generate a stream of signatures/checksums that describe a buffer
+ 
+@@ -525,13 +524,12 @@
+ 
+   if (verbose > 2)
+     rprintf(FINFO,"sending sums for %d\n",i);
+ 
+   write_int(f_out,i);
+   send_sums(s,f_out);
+-  write_flush(f_out);
+ 
+   close(fd);
+   if (buf) unmap_file(buf);
+ 
+   free_sums(s);
+ }
+@@ -693,13 +691,14 @@
+ 	}
+ 
+ 	for (j=0;j<flist->count;j++) {
+ 		if (!S_ISDIR(flist->files[j]->mode) || 
+ 		    !(flist->files[j]->flags & FLAG_DELETE)) continue;
+ 
+-		if (delete_already_done(flist, j)) continue;
++		if (remote_version < 19 &&
++		    delete_already_done(flist, j)) continue;
+ 
+ 		name = strdup(f_name(flist->files[j]));
+ 
+ 		if (!(local_file_list = send_file_list(-1,1,&name))) {
+ 			free(name);
+ 			continue;
+@@ -707,13 +706,14 @@
+ 
+ 		if (verbose > 1)
+ 			rprintf(FINFO,"deleting in %s\n", name);
+ 
+ 		for (i=local_file_list->count-1;i>=0;i--) {
+ 			if (!local_file_list->files[i]->basename) continue;
+-			if (S_ISDIR(local_file_list->files[i]->mode))
++			if (remote_version < 19 &&
++			    S_ISDIR(local_file_list->files[i]->mode))
+ 				add_delete_entry(local_file_list->files[i]);
+ 			if (-1 == flist_find(flist,local_file_list->files[i])) {
+ 				delete_one(local_file_list->files[i]);
+ 			}    
+ 		}
+ 		flist_free(local_file_list);
+@@ -768,13 +768,12 @@
+ 	if (phase==0 && remote_version >= 13) {
+ 	  phase++;
+ 	  csum_length = SUM_LENGTH;
+ 	  if (verbose > 2)
+ 	    rprintf(FINFO,"recv_files phase=%d\n",phase);
+ 	  write_int(f_gen,-1);
+-	  write_flush(f_gen);
+ 	  continue;
+ 	}
+ 	break;
+       }
+ 
+       file = flist->files[i];
+@@ -967,22 +966,21 @@
+   int phase = 0;
+   int offset=0;
+ 
+   if (verbose > 2)
+     rprintf(FINFO,"send_files starting\n");
+ 
+-  setup_nonblocking(f_in,f_out);
++  setup_readbuffer(f_in);
+ 
+   while (1) {
+ 	  i = read_int(f_in);
+ 	  if (i == -1) {
+ 		  if (phase==0 && remote_version >= 13) {
+ 			  phase++;
+ 			  csum_length = SUM_LENGTH;
+ 			  write_int(f_out,-1);
+-			  write_flush(f_out);
+ 			  if (verbose > 2)
+ 				  rprintf(FINFO,"send_files phase=%d\n",phase);
+ 			  continue;
+ 		  }
+ 		  break;
+ 	  }
+@@ -1058,13 +1056,12 @@
+ 		  rprintf(FINFO,"calling match_sums %s\n",fname);
+ 	  
+ 	  if (!am_server && verbose)
+ 		  printf("%s\n",fname+offset);
+ 	  
+ 	  match_sums(f_out,s,buf,st.st_size);
+-	  write_flush(f_out);
+ 	  
+ 	  if (buf) unmap_file(buf);
+ 	  close(fd);
+ 	  
+ 	  free_sums(s);
+ 	  
+@@ -1075,13 +1072,12 @@
+   if (verbose > 2)
+ 	  rprintf(FINFO,"send files finished\n");
+ 
+   match_report();
+ 
+   write_int(f_out,-1);
+-  write_flush(f_out);
+ }
+ 
+ 
+ 
+ void generate_files(int f,struct file_list *flist,char *local_name,int f_recv)
+ {
+@@ -1115,13 +1111,12 @@
+   ignore_times=1;
+ 
+   if (verbose > 2)
+     rprintf(FINFO,"generate_files phase=%d\n",phase);
+ 
+   write_int(f,-1);
+-  write_flush(f);
+ 
+   /* we expect to just sit around now, so don't exit on a timeout. If we
+      really get a timeout then the other process should exit */
+   io_timeout = 0;
+ 
+   if (remote_version >= 13) {
+@@ -1135,13 +1130,12 @@
+ 
+     phase++;
+     if (verbose > 2)
+       rprintf(FINFO,"generate_files phase=%d\n",phase);
+ 
+     write_int(f,-1);
+-    write_flush(f);
+   }
+ 
+ 
+   if (verbose > 2)
+     rprintf(FINFO,"generator wrote %ld\n",(long)write_total());
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.h	1998-05-26 22:43:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/rsync.h	1998-05-27 21:54:33.000000000 +0800
+@@ -38,29 +38,27 @@
+ #define SAME_DIR (1<<5)
+ #define SAME_NAME SAME_DIR
+ #define LONG_NAME (1<<6)
+ #define SAME_TIME (1<<7)
+ 
+ /* update this if you make incompatible changes */
+-#define PROTOCOL_VERSION 18
++#define PROTOCOL_VERSION 19
+ #define MIN_PROTOCOL_VERSION 11
+ #define MAX_PROTOCOL_VERSION 30
+ 
+ #define RSYNC_PORT 873
+ 
+ #define SPARSE_WRITE_SIZE (1024)
+ #define WRITE_SIZE (32*1024)
+ #define CHUNK_SIZE (32*1024)
+ #define MAX_MAP_SIZE (1*1024*1024)
+-#define IO_BUFFER_SIZE (4096)
++#define IO_BUFFER_SIZE (4092)
+ #define MAX_READ_BUFFER (1024*1024)
+ 
+ #define MAX_ARGS 1000
+ 
+-#define BLOCKING_TIMEOUT 10
+-
+ #define MPLEX_BASE 7
+ #define FERROR 1
+ #define FINFO 2
+ 
+ #include "config.h"
+ 
+@@ -306,12 +304,22 @@
+ struct map_struct {
+ 	char *map,*p;
+ 	int fd,p_size,p_len;
+ 	OFF_T size, p_offset;
+ };
+ 
++struct exclude_struct {
++	char *orig;
++	char *pattern;
++	int regular_exp;
++	int include;
++	int directory;
++	int local;
++};
++
++
+ /* we need this function because of the silly way in which duplicate
+    entries are handled in the file lists - we can't change this
+    without breaking existing versions */
+ static inline int flist_up(struct file_list *flist, int i)
+ {
+ 	while (!flist->files[i]->basename) i++;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.yo	1998-05-22 21:45:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/rsync.yo	1998-05-27 21:54:33.000000000 +0800
+@@ -334,29 +334,36 @@
+ You can also choose the remote shell program using the RSYNC_RSH
+ environment variable.
+ 
+ dit(bf(--rsync-path PATH)) Use this to specify the path to the copy of
+ rsync on the remote machine. Useful when its not in your path.
+ 
+-dit(bf(--exclude FILE)) This option allows you to selectively exclude
++dit(bf(--exclude pattern)) This option allows you to selectively exclude
+ certain files from the list of files to be transferred. This is most
+ useful in combination with a recursive transfer.
+ 
+-The option FILE can either be a file name or a shell wildcard
+-expression. If it is a directory name then rsync will not recurse into
+-directories of that name.
+-
+ You may use as many --exclude options on the command line as you like
+ to build up the list of files to exclude.
+ 
+-If the filename is a single ! then the exclude list is reset.
++See the section of exclude patterns for information on the syntax of 
++this option.
+ 
+ dit(bf(--exclude-from FILE)) This option is similar to the --exclude
+ option, but instead it adds all filenames listed in the file FILE to
+ the exclude list.
+ 
++dit(bf(--include pattern)) This option tells rsync to not exclude the
++specified pattern of filenames. This is useful as it allows you to
++build up quite complex exclude/include rules.
++
++See the section of exclude patterns for information on the syntax of 
++this option.
++
++dit(bf(--include-from FILE)) This specifies a list of include patterns
++from a file.
++
+ dit(bf(-C, --cvs-exclude)) This is a useful shorthand for excluding a
+ broad range of files that you often don't want to transfer between
+ systems. It uses the same algorithm that CVS uses to determine if
+ a file should be ignored.
+ 
+ The exclude list is initialized to:
+@@ -433,12 +440,69 @@
+ 
+ dit(bf(--port PORT)) This specifies an alternate TCP port number to use
+ rather than the default port 873. 
+ 
+ enddit()
+ 
++manpagesection(EXCLUDE PATTERNS)
++
++The exclude and include patterns specified to rsync allow for flexible
++selection of what files to transfer and what files to skip.
++
++rsync build a ordered list of include/exclude options as specified on
++the command line. When a filename is encountered rsync then checks the
++name against each exclude/include pattern in turn. The first matching
++pattern is acted on. If it is an exclude pattern than that file is
++skipped. If it is an include pattern then that filename is not
++skipped. If no matching include/exclude pattern is found then the
++filename is not skipped.
++
++The patterns themselves can take several forms. The rules are:
++
++itemize(
++  it() if the pattern starts with a / then it is matched against the
++  start of the filename, otherwise it is matched against the end of
++  the filename. Thus /foo would match a file called foo
++  at the base of the tree whereas foo would match any file
++  called foo anywhere in the tree.
++
++  it() if the pattern ends with a / then it will only match a
++  directory, not a file, link or device.
++
++  it() if the pattern contains a wildcard character from the set
++  *?[ then regular expression matching is applied using the
++  normal shell filename matching rules. Otherwise a simple string
++  match is used.
++
++  it() if the pattern contains a / (not counting a trailing /) then it
++  is matched against the full filename, including any leading
++  directory. If the pattern doesn't contain a / then it is matched
++  only against the final component of the filename.
++
++  it() if the pattern starts with "+ " (a plus followed by a space)
++  then it is always considered a include pattern, even if specified as
++  part of an exclude option. The "+ " part is discarded before matching.
++
++  it() if the pattern starts with "- " (a minus followed by a space)
++  then it is always considered a exclude pattern, even if specified as
++  part of an include option. The "- " part is discarded before matching.
++)
++
++The +/- rules are most useful in exclude lists, allowing you to have a
++single exclude list that contains both include and exclude options.
++
++Here are some examples:
++
++itemize(
++  it() --exclude "*.o" would exclude all filenames matching *.o
++  it() --exclude "/foo" would exclude a file in the base directory called foo
++  it() --exclude "foo/" would exclude any directory called foo
++  it() --include "*/" --include "*.c" --exclude "*" would include all 
++  directories and C source files.
++)
++
+ manpagefiles()
+ 
+ /etc/rsyncd.conf
+ 
+ manpageseealso()
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/test.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/test.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/test.sh	1998-05-14 15:07:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/test.sh	1998-05-27 21:54:34.000000000 +0800
+@@ -95,20 +95,27 @@
+   4 "extra data"
+ 
+ cp ${FROM}/${F1} ${TO}/ThisShouldGo
+ checkit "rsync --delete -avH ${FROM}/ ${TO}" ${FROM}/ ${TO} \
+   5 " --delete"
+ 
++LONGDIR=${FROM}/This-is-a-directory-with-a-stupidly-long-name-created-in-an-attempt-to-provoke-an-error-found-in-2.0.11-that-should-hopefully-never-appear-again-if-this-test-does-its-job/This-is-a-directory-with-a-stupidly-long-name-created-in-an-attempt-to-provoke-an-error-found-in-2.0.11-that-should-hopefully-never-appear-again-if-this-test-does-its-job/This-is-a-directory-with-a-stupidly-long-name-created-in-an-attempt-to-provoke-an-error-found-in-2.0.11-that-should-hopefully-never-appear-again-if-this-test-does-its-job
++mkdir -p ${LONGDIR}
++date > ${LONGDIR}/1
++ls -la / > ${LONGDIR}/2
++checkit "rsync --delete -avH ${FROM}/ ${TO}" ${FROM}/ ${TO} \
++  6 "long paths"
++
+ if type ssh >/dev/null ; then
+ rm -rf ${TO}
+   checkit "rsync -avH -e ssh ${FROM}/ localhost:${TO}" ${FROM}/ ${TO} \
+-    6 "ssh: basic test"
++    7 "ssh: basic test"
+ 
+   mv ${TO}/${F1} ${TO}/ThisShouldGo
+   checkit "rsync --delete -avH -e ssh ${FROM}/ localhost:${TO}" ${FROM}/ ${TO}\
+-    7 "ssh: renamed file"
++    8 "ssh: renamed file"
+ else
+   echo ""
+   echo "**** Skipping SSH tests because ssh is not in the path ****"
+   echo ""
+ fi
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/util.c	1998-05-26 22:43:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/util.c	1998-05-27 21:54:34.000000000 +0800
+@@ -29,137 +29,12 @@
+   int len=0;
+   ioctl(fd,FIONREAD,&len);
+   return(len);
+ }
+ 
+ 
+-struct map_struct *map_file(int fd,OFF_T len)
+-{
+-	struct map_struct *ret;
+-	ret = (struct map_struct *)malloc(sizeof(*ret));
+-	if (!ret) out_of_memory("map_file");
+-
+-	ret->map = NULL;
+-	ret->fd = fd;
+-	ret->size = len;
+-	ret->p = NULL;
+-	ret->p_size = 0;
+-	ret->p_offset = 0;
+-	ret->p_len = 0;
+-
+-#ifdef USE_MMAP
+-	len = MIN(len, MAX_MAP_SIZE);
+-	ret->map = (char *)do_mmap(NULL,len,PROT_READ,MAP_SHARED,fd,0);
+-	if (ret->map == (char *)-1) {
+-		ret->map = NULL;
+-	} else {
+-		ret->p_len = len;
+-	}
+-#endif
+-	return ret;
+-}
+-
+-
+-char *map_ptr(struct map_struct *map,OFF_T offset,int len)
+-{
+-	int nread;
+-
+-	if (len == 0) 
+-		return NULL;
+-
+-	if (len > (map->size-offset))
+-		len = map->size-offset;
+-
+-#ifdef USE_MMAP
+-	if (map->map) {
+-		if (offset >= map->p_offset && 
+-		    offset+len <= map->p_offset+map->p_len) {
+-			return (map->map + (offset - map->p_offset));
+-		}
+-		if (munmap(map->map, map->p_len) != 0) {
+-			rprintf(FERROR,"munmap failed : %s\n", strerror(errno));
+-			exit_cleanup(1);
+-		}
+-
+-		/* align the mmap region on a nice boundary back a bit from
+-		   where it is asked for to allow for some seeking */
+-		if (offset > 2*CHUNK_SIZE) {
+-			map->p_offset = offset - 2*CHUNK_SIZE;
+-			map->p_offset &= ~((OFF_T)(CHUNK_SIZE-1));
+-		} else {
+-			map->p_offset = 0;
+-		}
+-		
+-		/* map up to MAX_MAP_SIZE */
+-		map->p_len = MAX(len, MAX_MAP_SIZE);
+-		map->p_len = MIN(map->p_len, map->size - map->p_offset);
+-
+-		map->map = (char *)do_mmap(NULL,map->p_len,PROT_READ,
+-					   MAP_SHARED,map->fd,map->p_offset);
+-
+-		if (map->map == (char *)-1) {
+-			map->map = NULL;
+-			map->p_len = 0;
+-			map->p_offset = 0;
+-		} else {
+-			return (map->map + (offset - map->p_offset));
+-		}
+-	}
+-#endif
+-
+-	if (offset >= map->p_offset && 
+-	    offset+len <= map->p_offset+map->p_len) {
+-		return (map->p + (offset - map->p_offset));
+-	}
+-
+-	len = MAX(len,CHUNK_SIZE);
+-	if (len > (map->size-offset))
+-		len = map->size-offset;
+-
+-	if (len > map->p_size) {
+-		if (map->p) free(map->p);
+-		map->p = (char *)malloc(len);
+-		if (!map->p) out_of_memory("map_ptr");
+-		map->p_size = len;
+-	}
+-
+-	map->p_offset = offset;
+-	map->p_len = len;
+-
+-	if (do_lseek(map->fd,offset,SEEK_SET) != offset) {
+-		rprintf(FERROR,"lseek failed in map_ptr\n");
+-		exit_cleanup(1);
+-	}
+-
+-	if ((nread=read(map->fd,map->p,len)) != len) {		
+-		if (nread < 0) nread = 0;
+-		/* the best we can do is zero the buffer - the file
+-                   has changed mid transfer! */
+-		memset(map->p+nread, 0, len - nread);
+-	}
+-  
+-	return map->p; 
+-}
+-
+-
+-void unmap_file(struct map_struct *map)
+-{
+-#ifdef USE_MMAP
+-	if (map->map) {
+-		munmap(map->map,map->p_len);
+-		map->map = NULL;
+-	}
+-#endif
+-	if (map->p) {
+-		free(map->p);
+-		map->p = NULL;
+-	}
+-	memset(map, 0, sizeof(*map));
+-	free(map);
+-}
+-
+ 
+ /* this is taken from CVS */
+ int piped_child(char **command,int *f_in,int *f_out)
+ {
+   int pid;
+   int to_child_pipe[2];
+@@ -299,42 +174,12 @@
+ 		return utimes(fname,t);
+ #endif
+ 	}
+ }
+ 
+ 
+-
+-/****************************************************************************
+-Set a fd into blocking/nonblocking mode. Uses POSIX O_NONBLOCK if available,
+-else
+-if SYSV use O_NDELAY
+-if BSD use FNDELAY
+-****************************************************************************/
+-int set_blocking(int fd, int set)
+-{
+-  int val;
+-#ifdef O_NONBLOCK
+-#define FLAG_TO_SET O_NONBLOCK
+-#else
+-#ifdef SYSV
+-#define FLAG_TO_SET O_NDELAY
+-#else /* BSD */
+-#define FLAG_TO_SET FNDELAY
+-#endif
+-#endif
+-
+-  if((val = fcntl(fd, F_GETFL, 0)) == -1)
+-	return -1;
+-  if(set) /* Turn blocking on - ie. clear nonblock flag */
+-	val &= ~FLAG_TO_SET;
+-  else
+-    val |= FLAG_TO_SET;
+-  return fcntl( fd, F_SETFL, val);
+-#undef FLAG_TO_SET
+-}
+-
+ /****************************************************************************
+ create any necessary directories in fname. Unfortunately we don't know
+ what perms to give the directory when this is called so we need to rely
+ on the umask
+ ****************************************************************************/
+ int create_directory_path(char *fname)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/version.h	1998-05-26 22:46:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/version.h	1998-05-27 21:54:40.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.12"
++#define VERSION "2.0.13"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/zlib/zutil.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/zlib/zutil.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/zlib/zutil.c	1998-05-07 14:19:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/zlib/zutil.c	1998-05-27 21:54:39.000000000 +0800
+@@ -1,12 +1,12 @@
+ /* zutil.c -- target dependent utility functions for the compression library
+  * Copyright (C) 1995-1998 Jean-loup Gailly.
+  * For conditions of distribution and use, see copyright notice in zlib.h 
+  */
+ 
+-/* @(#) $Id: zutil.c,v 1.1 1998/05/07 06:19:44 paulus Exp $ */
++/* @(#) $Id: zutil.c,v 1.2 1998/05/27 11:02:59 tridge Exp $ */
+ 
+ #include "zutil.h"
+ 
+ struct internal_state      {int dummy;}; /* for buggy compilers */
+ 
+ #ifndef STDC
+@@ -197,17 +197,12 @@
+ 
+ #endif /* MSC */
+ 
+ 
+ #ifndef MY_ZCALLOC /* Any system without a special alloc function */
+ 
+-#ifndef STDC
+-extern voidp  calloc OF((uInt items, uInt size));
+-extern void   free   OF((voidpf ptr));
+-#endif
+-
+ voidpf zcalloc (opaque, items, size)
+     voidpf opaque;
+     unsigned items;
+     unsigned size;
+ {
+     if (opaque) items += size - size; /* make compiler happy */

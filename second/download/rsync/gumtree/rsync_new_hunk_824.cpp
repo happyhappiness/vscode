@@ -1,0 +1,20 @@
+void set_nonblocking(int fd);
+void set_blocking(int fd);
+int fd_pair(int fd[2]);
+void print_child_argv(char **cmd);
+void out_of_memory(char *str);
+void overflow_exit(char *str);
+int set_modtime(char *fname, time_t modtime, mode_t mode);
+int mkdir_defmode(char *fname);
+int create_directory_path(char *fname);
+int full_write(int desc, char *ptr, size_t len);
+int copy_file(const char *source, const char *dest, mode_t mode);
+int robust_unlink(const char *fname);
+int robust_rename(char *from, char *to, char *partialptr,
+		  int mode);
+pid_t do_fork(void);
+void kill_all(int sig);
+int name_to_uid(char *name, uid_t *uid);
+int name_to_gid(char *name, gid_t *gid);
+int lock_range(int fd, int offset, int len);
+void glob_expand(char *base1, char ***argv_ptr, int *argc_ptr, int *maxargs_ptr);

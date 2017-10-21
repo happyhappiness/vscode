@@ -1,0 +1,871 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/checksum.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/checksum.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/checksum.c	1996-06-27 13:05:19.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/checksum.c	1996-06-28 22:26:19.000000000 +0800
+@@ -16,67 +16,123 @@
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
+ #include "rsync.h"
+ 
+-extern int csum_length;
++int csum_length=SUM_LENGTH;
++
++#define CSUM_CHUNK 64
++
++static char *tmpchunk = NULL;
++
+ 
+ /*
+   a simple 32 bit checksum that can be upadted from either end
+   (inspired by Mark Adler's Adler-32 checksum)
+   */
+ uint32 get_checksum1(char *buf,int len)
+ {
+     int i;
+     uint32 s1, s2;
+ 
+     s1 = s2 = 0;
+-    for (i = 0; i < len; i++) {
+-	s1 += buf[i];
+-	s2 += s1;
++    for (i = 0; i < (len-4); i+=4) {
++	s2 += 4*(s1 + buf[i]) + 3*buf[i+1] + 2*buf[i+2] + buf[i+3];
++	s1 += (buf[i+0] + buf[i+1] + buf[i+2] + buf[i+3]); 
++    }
++    for (; i < len; i++) {
++	s1 += buf[i]; s2 += s1;
+     }
+     return (s1 & 0xffff) + (s2 << 16);
+ }
+ 
+ 
++static void sum_put(MDstruct *md,char *sum)
++{
++  SIVAL(sum,0,md->buffer[0]);
++  if (csum_length <= 4) return;
++  SIVAL(sum,4,md->buffer[1]);
++  if (csum_length <= 8) return;
++  SIVAL(sum,8,md->buffer[2]);
++  if (csum_length <= 12) return;
++  SIVAL(sum,12,md->buffer[3]);
++}
++
++
+ void get_checksum2(char *buf,int len,char *sum)
+ {
+-  char buf2[64];
+   int i;
+   MDstruct MD;
+ 
+   MDbegin(&MD);
+-  for(i = 0; i + 64 <= len; i += 64) {
+-    bcopy(buf+i,buf2,64);
+-    MDupdate(&MD, buf2, 512);
++
++  for(i = 0; i + CSUM_CHUNK <= len; i += CSUM_CHUNK) {
++    bcopy(buf+i,tmpchunk,CSUM_CHUNK);
++    MDupdate(&MD, tmpchunk, CSUM_CHUNK*8);
+   }
+-  bcopy(buf+i,buf2,len-i);
+-  MDupdate(&MD, buf2, (len-i)*8);
+-  SIVAL(sum,0,MD.buffer[0]);
+-  if (csum_length <= 4) return;
+-  SIVAL(sum,4,MD.buffer[1]);
+-  if (csum_length <= 8) return;
+-  SIVAL(sum,8,MD.buffer[2]);
+-  if (csum_length <= 12) return;
+-  SIVAL(sum,12,MD.buffer[3]);
++
++  bcopy(buf+i,tmpchunk,len-i);
++  MDupdate(&MD, tmpchunk, (len-i)*8);
++
++  sum_put(&MD,sum);
+ }
+ 
++
+ void file_checksum(char *fname,char *sum,off_t size)
+ {
++  int i;
++  MDstruct MD;
+   char *buf;
+   int fd;
++  int len = size;
++
+   bzero(sum,csum_length);
+ 
+   fd = open(fname,O_RDONLY);
+   if (fd == -1) return;
+ 
+   buf = map_file(fd,size);
+-  if (!buf) {
+-    close(fd);
+-    return;
++
++  MDbegin(&MD);
++
++  for(i = 0; i + CSUM_CHUNK <= len; i += CSUM_CHUNK) {
++    bcopy(map_ptr(buf,i,CSUM_CHUNK),tmpchunk,CSUM_CHUNK);
++    MDupdate(&MD, tmpchunk, CSUM_CHUNK*8);
+   }
+ 
+-  get_checksum2(buf,size,sum);
++  bcopy(map_ptr(buf,i,len-i),tmpchunk,len-i);
++  MDupdate(&MD, tmpchunk, (len-i)*8);
++
++  sum_put(&MD,sum);
++
+   close(fd);
+   unmap_file(buf,size);
+ }
++
++
++void checksum_init(void)
++{
++  tmpchunk = (char *)malloc(CSUM_CHUNK);
++  if (!tmpchunk) out_of_memory("checksum_init");
++}
++
++
++#ifdef CHECKSUM_MAIN
++ int main(int argc,char *argv[])
++{
++  char sum[SUM_LENGTH];
++  int i,j;
++
++  checksum_init();
++
++  for (i=1;i<argc;i++) {
++    struct stat st;
++    if (stat(argv[i],&st) == 0) {
++      file_checksum(argv[i],sum,st.st_size);
++      for (j=0;j<SUM_LENGTH;j++)
++	printf("%02X",(unsigned char)sum[j]);
++      printf("  %s\n",argv[i]);
++    }
++  }
++}
++#endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/exclude.c	1996-06-26 09:25:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/exclude.c	1996-06-28 22:26:20.000000000 +0800
+@@ -119,13 +119,13 @@
+   char **list=list1;
+   FILE *f = fopen(fname,"r");
+   char line[MAXPATHLEN];
+   if (!f) {
+     if (fatal) {
+       fprintf(stderr,"%s : %s\n",fname,strerror(errno));
+-      exit(1);
++      exit_cleanup(1);
+     }
+     return list;
+   }
+ 
+   while (fgets(line,MAXPATHLEN,f)) {
+     int l = strlen(line);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/flist.c	1996-06-27 13:04:23.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/flist.c	1996-06-28 22:26:20.000000000 +0800
+@@ -408,26 +408,26 @@
+     if (!*fname)
+       fname = ".";
+ 
+     if (dir && *dir) {
+       if (getcwd(dbuf,MAXPATHLEN-1) == NULL) {
+ 	fprintf(stderr,"getwd : %s\n",strerror(errno));
+-	exit(1);
++	exit_cleanup(1);
+       }
+       if (chdir(dir) != 0) {
+ 	fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+ 	continue;
+       }
+       flist_dir = dir;
+       if (one_file_system)
+ 	set_filesystem(fname);
+       send_file_name(f,flist,recurse,fname);
+       flist_dir = NULL;
+       if (chdir(dbuf) != 0) {
+ 	fprintf(stderr,"chdir %s : %s\n",dbuf,strerror(errno));
+-	exit(1);
++	exit_cleanup(1);
+       }
+       continue;
+     }
+ 
+     if (one_file_system)
+       set_filesystem(fname);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/io.c	1996-06-28 15:44:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/io.c	1996-06-28 22:26:20.000000000 +0800
+@@ -127,26 +127,26 @@
+   int ret;
+   char b[4];
+   if ((ret=readfd(f,b,4)) != 4) {
+     if (verbose > 1) 
+       fprintf(stderr,"Error reading %d bytes : %s\n",
+ 	      4,ret==-1?strerror(errno):"EOF");
+-    exit(1);
++    exit_cleanup(1);
+   }
+   total_read += 4;
+   return IVAL(b,0);
+ }
+ 
+ void read_buf(int f,char *buf,int len)
+ {
+   int ret;
+   if ((ret=readfd(f,buf,len)) != len) {
+     if (verbose > 1) 
+       fprintf(stderr,"Error reading %d bytes : %s\n",
+ 	      len,ret==-1?strerror(errno):"EOF");
+-    exit(1);
++    exit_cleanup(1);
+   }
+   total_read += len;
+ }
+ 
+ unsigned char read_byte(int f)
+ {
+@@ -193,13 +193,13 @@
+   return (l + write(f,buf+l,len-l));
+ }
+ 
+ int read_write(int fd_in,int fd_out,int size)
+ {
+   static char *buf=NULL;
+-  static int bufsize = WRITE_BLOCK_SIZE;
++  static int bufsize = CHUNK_SIZE;
+   int total=0;
+   
+   if (!buf) {
+     buf = (char *)malloc(bufsize);
+     if (!buf) out_of_memory("read_write");
+   }
+@@ -255,24 +255,24 @@
+   int ret;
+   char b[4];
+   SIVAL(b,0,x);
+   if ((ret=writefd(f,b,4)) != 4) {
+     fprintf(stderr,"write_int failed : %s\n",
+ 	    ret==-1?strerror(errno):"EOF");
+-    exit(1);
++    exit_cleanup(1);
+   }
+   total_written += 4;
+ }
+ 
+ void write_buf(int f,char *buf,int len)
+ {
+   int ret;
+   if ((ret=writefd(f,buf,len)) != len) {
+     fprintf(stderr,"write_buf failed : %s\n",
+ 	    ret==-1?strerror(errno):"EOF");
+-    exit(1);
++    exit_cleanup(1);
+   }
+   total_written += len;
+ }
+ 
+ 
+ void write_byte(int f,unsigned char c)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/main.c	1996-06-28 16:00:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/main.c	1996-06-28 22:26:20.000000000 +0800
+@@ -41,13 +41,13 @@
+ int dry_run=0;
+ int local_server=0;
+ int ignore_times=0;
+ int delete_mode=0;
+ int one_file_system=0;
+ int remote_version=0;
+-int csum_length=SUM_LENGTH;
++extern int csum_length;
+ 
+ int am_server = 0;
+ static int sender = 0;
+ int recurse = 0;
+ 
+ static void usage(FILE *f);
+@@ -220,39 +220,39 @@
+   struct stat st;
+ 
+   if (stat(name,&st) == 0) {
+     if (S_ISDIR(st.st_mode)) {
+       if (chdir(name) != 0) {
+ 	fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
+-	exit(1);
++	exit_cleanup(1);
+       }
+       return NULL;
+     }
+     if (flist->count > 1) {
+       fprintf(stderr,"ERROR: destination must be a directory when copying more than 1 file\n");
+-      exit(1);
++      exit_cleanup(1);
+     }
+     return name;
+   }
+ 
+   if (flist->count == 1)
+     return name;
+ 
+   if (!name) 
+     return NULL;
+ 
+   if (mkdir(name,0777) != 0) {
+     fprintf(stderr,"mkdir %s : %s\n",name,strerror(errno));
+-    exit(1);
++    exit_cleanup(1);
+   } else {
+     fprintf(am_server?stderr:stdout,"created directory %s\n",name);
+   }
+ 
+   if (chdir(name) != 0) {
+     fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
+-    exit(1);
++    exit_cleanup(1);
+   }
+ 
+   return NULL;
+ }
+ 
+ 
+@@ -266,13 +266,13 @@
+ 
+   if (verbose > 2)
+     fprintf(stderr,"server_sender starting pid=%d\n",(int)getpid());
+   
+   if (chdir(dir) != 0) {
+     fprintf(stderr,"chdir %s: %s\n",dir,strerror(errno));
+-    exit(1);
++    exit_cleanup(1);
+   }
+   argc--;
+   argv++;
+   
+   if (strcmp(dir,".")) {
+     int l = strlen(dir);
+@@ -287,13 +287,13 @@
+   }
+     
+ 
+   flist = send_file_list(STDOUT_FILENO,recurse,argc,argv);
+   send_files(flist,STDOUT_FILENO,STDIN_FILENO);
+   report(STDOUT_FILENO);
+-  exit(0);
++  exit_cleanup(0);
+ }
+ 
+ 
+ 
+ void do_server_recv(int argc,char *argv[])
+ {
+@@ -308,23 +308,23 @@
+   if (argc > 0) {
+     dir = argv[0];
+     argc--;
+     argv++;
+     if (chdir(dir) != 0) {
+       fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+-      exit(1);
++      exit_cleanup(1);
+     }    
+   }
+ 
+   if (delete_mode)
+     recv_exclude_list(STDIN_FILENO);
+ 
+   flist = recv_file_list(STDIN_FILENO);
+   if (!flist || flist->count == 0) {
+     fprintf(stderr,"nothing to do\n");
+-    exit(1);
++    exit_cleanup(1);
+   }
+ 
+   if (argc > 0) {    
+     if (strcmp(dir,".")) {
+       argv[0] += strlen(dir);
+       if (argv[0][0] == '/') argv[0]++;
+@@ -333,19 +333,19 @@
+   }
+ 
+   if ((pid=fork()) == 0) {
+     recv_files(STDIN_FILENO,flist,local_name);
+     if (verbose > 2)
+       fprintf(stderr,"receiver read %d\n",read_total());
+-    exit(0);
++    exit_cleanup(0);
+   }
+ 
+   generate_files(STDOUT_FILENO,flist,local_name);
+ 
+   waitpid(pid, &status, 0);
+-  exit(status);
++  exit_cleanup(status);
+ }
+ 
+ 
+ static void usage(FILE *f)
+ {
+   fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
+@@ -433,21 +433,23 @@
+     int f_in,f_out;
+     struct file_list *flist;
+     char *local_name = NULL;
+ 
+     starttime = time(NULL);
+ 
++    checksum_init();
++
+     while ((opt = getopt_long(argc, argv, 
+ 			      short_options, long_options, &option_index)) 
+ 	   != -1) {
+       switch (opt) 
+ 	{
+ 	case OPT_VERSION:
+ 	  printf("rsync version %s  protocol version %d\n",
+ 		 VERSION,PROTOCOL_VERSION);
+-	  exit(0);
++	  exit_cleanup(0);
+ 
+ 	case OPT_SUFFIX:
+ 	  backup_suffix = optarg;
+ 	  break;
+ 
+ 	case OPT_RSYNC_PATH:
+@@ -478,13 +480,13 @@
+ 	case OPT_EXCLUDE_FROM:
+ 	  add_exclude_file(optarg,1);
+ 	  break;
+ 
+ 	case 'h':
+ 	  usage(stdout);
+-	  exit(0);
++	  exit_cleanup(0);
+ 
+ 	case 'b':
+ 	  make_backups=1;
+ 	  break;
+ 
+ 	case 'n':
+@@ -511,26 +513,26 @@
+ 
+ 	case 'o':
+ 	  if (getuid() == 0) {
+ 	    preserve_uid=1;
+ 	  } else {
+ 	    fprintf(stderr,"-o only allowed for root\n");
+-	    exit(1);
++	    exit_cleanup(1);
+ 	  }
+ 	  break;
+ 
+ 	case 'g':
+ 	  preserve_gid=1;
+ 	  break;
+ 
+ 	case 'D':
+ 	  if (getuid() == 0) {
+ 	    preserve_devices=1;
+ 	  } else {
+ 	    fprintf(stderr,"-D only allowed for root\n");
+-	    exit(1);
++	    exit_cleanup(1);
+ 	  }
+ 	  break;
+ 
+ 	case 't':
+ 	  preserve_times=1;
+ 	  break;
+@@ -561,13 +563,13 @@
+ 	  am_server = 1;
+ 	  break;
+ 
+ 	case OPT_SENDER:
+ 	  if (!am_server) {
+ 	    usage(stderr);
+-	    exit(1);
++	    exit_cleanup(1);
+ 	  }
+ 	  sender = 1;
+ 	  break;
+ 
+ 	case 'r':
+ 	  recurse = 1;
+@@ -580,30 +582,35 @@
+ 	case 'B':
+ 	  block_size = atoi(optarg);
+ 	  break;
+ 
+ 	default:
+ 	  fprintf(stderr,"bad option -%c\n",opt);
+-	  exit(1);
++	  exit_cleanup(1);
+ 	}
+     }
+ 
+     while (optind--) {
+       argc--;
+       argv++;
+     }
+ 
++    signal(SIGCHLD,SIG_IGN);
++    signal(SIGINT,SIGNAL_CAST sig_int);
++    signal(SIGPIPE,SIGNAL_CAST sig_int);
++    signal(SIGHUP,SIGNAL_CAST sig_int);
++
+     if (dry_run)
+       verbose = MAX(verbose,1);
+ 
+     if (am_server) {
+       remote_version = read_int(STDIN_FILENO);
+       if (remote_version < MIN_PROTOCOL_VERSION ||
+ 	  remote_version > MAX_PROTOCOL_VERSION) {
+ 	fprintf(stderr,"protocol version mismatch - is your shell clean?\n");
+-	exit(1);
++	exit_cleanup(1);
+       }
+       write_int(STDOUT_FILENO,PROTOCOL_VERSION);
+       write_flush(STDOUT_FILENO);
+ 
+       setup_protocol();
+ 	
+@@ -612,18 +619,18 @@
+ 	if (cvs_exclude)
+ 	  add_cvs_excludes();
+ 	do_server_sender(argc,argv);
+       } else {
+ 	do_server_recv(argc,argv);
+       }
+-      exit(0);
++      exit_cleanup(0);
+     }
+ 
+     if (argc < 2) {
+       usage(stderr);
+-      exit(1);
++      exit_cleanup(1);
+     }
+ 
+     p = strchr(argv[0],':');
+ 
+     if (p) {
+       sender = 0;
+@@ -665,31 +672,27 @@
+ 	      shell_cmd?shell_cmd:"",
+ 	      shell_machine?shell_machine:"",
+ 	      shell_user?shell_user:"",
+ 	      shell_path?shell_path:"");
+     }
+     
+-    signal(SIGCHLD,SIG_IGN);
+-    signal(SIGINT,SIGNAL_CAST sig_int);
+-    signal(SIGPIPE,SIGNAL_CAST sig_int);
+-
+     if (!sender && argc != 1) {
+       usage(stderr);
+-      exit(1);
++      exit_cleanup(1);
+     }
+ 
+     pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
+ 
+     write_int(f_out,PROTOCOL_VERSION);
+     write_flush(f_out);
+     {
+       remote_version = read_int(f_in);
+       if (remote_version < MIN_PROTOCOL_VERSION ||
+ 	  remote_version > MAX_PROTOCOL_VERSION) {
+ 	fprintf(stderr,"protocol version mismatch - is your shell clean?\n");
+-	exit(1);
++	exit_cleanup(1);
+       }	
+     }
+ 
+     setup_protocol();
+ 
+     if (verbose > 3) 
+@@ -706,30 +709,30 @@
+ 	fprintf(stderr,"file list sent\n");
+       send_files(flist,f_out,f_in);
+       if (verbose > 3)
+ 	fprintf(stderr,"waiting on %d\n",pid);
+       waitpid(pid, &status, 0);
+       report(-1);
+-      exit(status);
++      exit_cleanup(status);
+     }
+ 
+     send_exclude_list(f_out);
+ 
+     flist = recv_file_list(f_in);
+     if (!flist || flist->count == 0) {
+       fprintf(stderr,"nothing to do\n");
+-      exit(0);
++      exit_cleanup(0);
+     }
+ 
+     local_name = get_local_name(flist,argv[0]);
+ 
+     if ((pid2=fork()) == 0) {
+       recv_files(f_in,flist,local_name);
+       if (verbose > 1)
+ 	fprintf(stderr,"receiver read %d\n",read_total());
+-      exit(0);
++      exit_cleanup(0);
+     }
+ 
+     generate_files(f_out,flist,local_name);
+ 
+     waitpid(pid2, &status2, 0);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/match.c	1996-06-27 13:04:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/match.c	1996-06-28 22:26:20.000000000 +0800
+@@ -100,13 +100,13 @@
+ 	      (int)offset,(int)last_match,i,(int)s->sums[i].len,n);
+ 
+   if (n > 0) {
+     int l = 0;
+     write_int(f,n);
+     while (l < n) {
+-      int n1 = MIN(WRITE_BLOCK_SIZE,n-l);
++      int n1 = MIN(CHUNK_SIZE,n-l);
+       write_buf(f,map_ptr(buf,last_match+l,n1),n1);
+       l += n1;
+     }
+     data_transfer += n;
+   }
+   write_int(f,-(i+1));
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/proto.h	1996-06-27 14:01:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/proto.h	1996-06-28 22:26:20.000000000 +0800
+@@ -1,11 +1,12 @@
+ /* This file is automatically generated with "make proto". DO NOT EDIT */
+ 
+ uint32 get_checksum1(char *buf,int len);
+ void get_checksum2(char *buf,int len,char *sum);
+ void file_checksum(char *fname,char *sum,off_t size);
++void checksum_init(void);
+ void send_file_entry_v10(struct file_struct *file,int f);
+ void receive_file_entry_v10(struct file_struct *file,
+ 			    unsigned char flags,int f);
+ void setup_protocol(void);
+ int check_exclude(char *name,char **local_exclude_list);
+ void add_exclude_list(char *pattern,char ***list);
+@@ -39,12 +40,13 @@
+ void do_server_sender(int argc,char *argv[]);
+ void do_server_recv(int argc,char *argv[]);
+ int main(int argc,char *argv[]);
+ void match_sums(int f,struct sum_struct *s,char *buf,off_t len);
+ void match_report(void);
+ void recv_generator(char *fname,struct file_list *flist,int i,int f_out);
++void exit_cleanup(int code);
+ void sig_int(void);
+ int recv_files(int f_in,struct file_list *flist,char *local_name);
+ off_t send_files(struct file_list *flist,int f_out,int f_in);
+ void generate_files(int f,struct file_list *flist,char *local_name);
+ int num_waiting(int fd);
+ char *map_file(int fd,off_t len);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/rsync.c	1996-06-28 15:56:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/rsync.c	1996-06-28 22:26:20.000000000 +0800
+@@ -403,13 +403,13 @@
+     if (i > 0) {
+       if (verbose > 3)
+ 	fprintf(stderr,"data recv %d at %d\n",i,(int)offset);
+ 
+       if (read_write(f_in,fd,i) != i) {
+ 	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+-	exit(1);
++	exit_cleanup(1);
+       }
+       offset += i;
+     } else {
+       i = -(i+1);
+       offset2 = i*n;
+       len = n;
+@@ -419,21 +419,21 @@
+       if (verbose > 3)
+ 	fprintf(stderr,"chunk[%d] of size %d at %d offset=%d\n",
+ 		i,len,(int)offset2,(int)offset);
+ 
+       if (write_sparse(fd,map_ptr(buf,offset2,len),len) != len) {
+ 	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+-	exit(1);
++	exit_cleanup(1);
+       }
+       offset += len;
+     }
+   }
+ 
+   if (offset > 0 && sparse_end(fd) != 0) {
+     fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+-    exit(1);
++    exit_cleanup(1);
+   }
+ }
+ 
+ 
+ static void delete_one(struct file_struct *f)
+ {
+@@ -473,17 +473,22 @@
+     }    
+   }
+ }
+ 
+ static char *cleanup_fname = NULL;
+ 
+-void sig_int(void)
++void exit_cleanup(int code)
+ {
+   if (cleanup_fname)
+     unlink(cleanup_fname);
+-  exit(1);
++  exit(code);
++}
++
++void sig_int(void)
++{
++  exit_cleanup(1);
+ }
+ 
+ 
+ int recv_files(int f_in,struct file_list *flist,char *local_name)
+ {  
+   int fd1,fd2;
+@@ -575,13 +580,13 @@
+ 
+       if (make_backups) {
+ 	char fnamebak[MAXPATHLEN];
+ 	sprintf(fnamebak,"%s%s",fname,backup_suffix);
+ 	if (rename(fname,fnamebak) != 0 && errno != ENOENT) {
+ 	  fprintf(stderr,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
+-	  exit(1);
++	  exit_cleanup(1);
+ 	}
+       }
+ 
+       /* move tmp file over real file */
+       if (rename(fnametmp,fname) != 0) {
+ 	fprintf(stderr,"rename %s -> %s : %s\n",
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/rsync.h	1996-06-28 15:52:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/rsync.h	1996-06-28 22:26:20.000000000 +0800
+@@ -35,14 +35,13 @@
+ 
+ /* update this if you make incompatible changes */
+ #define PROTOCOL_VERSION 11
+ #define MIN_PROTOCOL_VERSION 10
+ #define MAX_PROTOCOL_VERSION 20
+ 
+-/* block size to write files in */
+-#define WRITE_BLOCK_SIZE (32*1024)
++#define CHUNK_SIZE (32*1024)
+ #define MAX_MAP_SIZE (4*1024*1024)
+ 
+ #define BLOCKING_TIMEOUT 10
+ 
+ /* do we try to create sparse files */
+ #define SPARSE_FILES 1
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/util.c	1996-06-28 15:44:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/util.c	1996-06-28 22:26:20.000000000 +0800
+@@ -63,26 +63,26 @@
+ 
+   if (offset >= p_offset && 
+       offset+len <= p_offset+p_len) {
+     return (p + (offset - p_offset));
+   }
+ 
+-  len = MAX(len,WRITE_BLOCK_SIZE);
++  len = MAX(len,CHUNK_SIZE);
+   len = MIN(len,map_size - offset);  
+ 
+   if (len > p_size) {
+     if (p) free(p);
+     p = (char *)malloc(len);
+     if (!p) out_of_memory("map_ptr");
+     p_size = len;
+   }
+ 
+   if (lseek(map_fd,offset,SEEK_SET) != offset ||
+       read(map_fd,p,len) != len) {
+     fprintf(stderr,"EOF in map_ptr!\n");
+-    exit(1);
++    exit_cleanup(1);
+   }
+ 
+   p_offset = offset;
+   p_len = len;
+ 
+   return p; 
+@@ -108,54 +108,54 @@
+   int to_child_pipe[2];
+   int from_child_pipe[2];
+ 
+   if (pipe(to_child_pipe) < 0 ||
+       pipe(from_child_pipe) < 0) {
+     fprintf(stderr,"pipe: %s\n",strerror(errno));
+-    exit(1);
++    exit_cleanup(1);
+   }
+ 
+ 
+   pid = fork();
+   if (pid < 0) {
+     fprintf(stderr,"fork: %s\n",strerror(errno));
+-    exit(1);
++    exit_cleanup(1);
+   }
+ 
+   if (pid == 0)
+     {
+       if (dup2(to_child_pipe[0], STDIN_FILENO) < 0 ||
+ 	  close(to_child_pipe[1]) < 0 ||
+ 	  close(from_child_pipe[0]) < 0 ||
+ 	  dup2(from_child_pipe[1], STDOUT_FILENO) < 0) {
+ 	fprintf(stderr,"Failed to dup/close : %s\n",strerror(errno));
+-	exit(1);
++	exit_cleanup(1);
+       }
+       execvp(command[0], command);
+       fprintf(stderr,"Failed to exec %s : %s\n",
+ 	      command[0],strerror(errno));
+-      exit(1);
++      exit_cleanup(1);
+     }
+ 
+   if (close(from_child_pipe[1]) < 0 ||
+       close(to_child_pipe[0]) < 0) {
+     fprintf(stderr,"Failed to close : %s\n",strerror(errno));   
+-    exit(1);
++    exit_cleanup(1);
+   }
+ 
+   *f_in = from_child_pipe[0];
+   *f_out = to_child_pipe[1];
+   
+   return pid;
+ }
+ 
+ 
+ void out_of_memory(char *str)
+ {
+   fprintf(stderr,"out of memory in %s\n",str);
+-  exit(1);
++  exit_cleanup(1);
+ }
+ 
+ 
+ #ifndef HAVE_STRDUP
+  char *strdup(char *s)
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.2/version.h	1996-06-28 16:04:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/version.h	1996-06-28 22:26:47.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.4.2"
++#define VERSION "1.4.3"

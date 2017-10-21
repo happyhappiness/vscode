@@ -1,0 +1,1 @@
+io_printf(f_out, "@ERROR: invalid gid setting.\n");

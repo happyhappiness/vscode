@@ -1,0 +1,1 @@
+fprintf(stderr,"failed to load config file %s\n", config_file);

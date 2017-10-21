@@ -1,0 +1,1 @@
+fprintf(FERROR,"generator wrote %d\n",write_total());

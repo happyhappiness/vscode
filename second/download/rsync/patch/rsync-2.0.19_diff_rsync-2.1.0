@@ -1,0 +1,524 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/clientserver.c	1998-07-17 22:46:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/clientserver.c	1998-07-20 13:43:27.000000000 +0800
+@@ -115,12 +115,13 @@
+ 	char *p;
+ 	char *addr = client_addr(fd);
+ 	char *host = client_name(fd);
+ 	char *name = lp_name(i);
+ 	char *user;
+ 	int start_glob=0;
++	int ret;
+ 	char *request=NULL;
+ 	extern int am_sender;
+ 	extern int remote_version;
+ 	extern int am_root;
+ 
+ 	if (!allow_access(addr, host, lp_hosts_allow(i), lp_hosts_deny(i))) {
+@@ -248,13 +249,13 @@
+ 
+ 		if (argc == MAX_ARGS) {
+ 			return -1;
+ 		}
+ 	}
+ 
+-	parse_arguments(argc, argv);
++	ret = parse_arguments(argc, argv);
+ 
+ 	if (request) {
+ 		if (*user) {
+ 			rprintf(FINFO,"rsync %s %s from %s@%s (%s)\n",
+ 				am_sender?"on":"to",
+ 				request, user, host, addr);
+@@ -273,12 +274,17 @@
+ 	argp = argv + optind;
+ 	optind = 0;
+ 
+ 	if (remote_version > 17 && am_sender)
+ 		io_start_multiplex_out(fd);
+ 
++	if (!ret) {
++		rprintf(FERROR,"Error parsing options (unsupported option?) - aborting\n");
++		exit_cleanup(1);
++	}
++
+ 	start_server(fd, fd, argc, argp);
+ 
+ 	return 0;
+ }
+ 
+ /* send a list of available modules to the client. Don't list those
+@@ -372,13 +378,21 @@
+ 	/* this ensures that we don't call getcwd after the chroot,
+            which doesn't work on platforms that use popen("pwd","r")
+            for getcwd */
+ 	push_dir("/", 0);
+ 
+ 	if (is_a_socket(STDIN_FILENO)) {
+-		/* we are running via inetd */
++		int i;
++
++		/* we are running via inetd - close off stdout and
++		   stderr so that library functions (and getopt) don't
++		   try to use them. Redirect them to /dev/null */
++		for (i=1;i<3;i++) {
++			close(i); 
++			open("/dev/null", O_RDWR);
++		}
+ 		return start_daemon(STDIN_FILENO);
+ 	}
+ 
+ 	become_daemon();
+ 
+ 	if (!lp_load(config_file, 1)) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/cvs.log	1998-07-17 22:53:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/cvs.log	1998-07-20 13:43:59.000000000 +0800
+@@ -6302,6 +6302,99 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.0.19
+ 
++
++****************************************
++Date:	Sunday July 19, 1998 @ 14:50
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv19094
++
++Modified Files:
++	main.c options.c proto.h socket.c 
++Log Message:
++- close stdout and stderr and reopen then as /dev/null when running as
++a daemon. This prevents library functions (such as getopt) stuffing up
++our protocol stream when errors are detected.
++
++- defer the error message from the options parsing until after the
++socket is multiplexed. This allows clients sending new options which
++the remote server doesn't understand to get a sensible error message.
++
++
++
++****************************************
++Date:	Sunday July 19, 1998 @ 15:22
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv22203
++
++Modified Files:
++	clientserver.c 
++Log Message:
++- defer the error message from the options parsing until after the
++socket is multiplexed. This allows clients sending new options which
++the remote server doesn't understand to get a sensible error message.
++
++
++
++****************************************
++Date:	Sunday July 19, 1998 @ 20:51
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv24080
++
++Modified Files:
++	io.c 
++Log Message:
++always use a timeout to select, even if --timeout is not
++specified. This makes things easier to debug.
++
++
++
++****************************************
++Date:	Monday July 20, 1998 @ 15:36
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv12483
++
++Modified Files:
++	io.c rsync.c socket.c util.c 
++Log Message:
++I think I might havefinally fixed the rsync hanging bug. It was caused
++by a read during an io_flush() triggered during a readfd(). A simple
++logic bug in the io code :(
++
++
++
++****************************************
++Date:	Monday July 20, 1998 @ 15:43
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.1.0
++
++
++****************************************
++Date:	Monday July 20, 1998 @ 15:43
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.1.0
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/io.c	1998-07-17 22:46:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/io.c	1998-07-20 13:43:27.000000000 +0800
+@@ -21,12 +21,15 @@
+   Utilities used in rsync 
+ 
+   tridge, June 1996
+   */
+ #include "rsync.h"
+ 
++/* if no timeout is specified then use a 60 second select timeout */
++#define SELECT_TIMEOUT 60
++
+ static int io_multiplexing_out;
+ static int io_multiplexing_in;
+ static int multiplex_in_fd;
+ static int multiplex_out_fd;
+ static time_t last_io;
+ static int eof_error=1;
+@@ -64,33 +67,35 @@
+ 
+ static char *read_buffer;
+ static char *read_buffer_p;
+ static int read_buffer_len;
+ static int read_buffer_size;
+ static int no_flush;
++static int no_flush_read;
+ 
+ /* read from a socket with IO timeout. return the number of
+    bytes read. If no bytes can be read then exit, never return
+    a number <= 0 */
+ static int read_timeout(int fd, char *buf, int len)
+ {
+ 	int n, ret=0;
+ 
++	no_flush_read++;
+ 	io_flush();
++	no_flush_read--;
+ 
+ 	while (ret == 0) {
+ 		fd_set fds;
+ 		struct timeval tv;
+ 
+ 		FD_ZERO(&fds);
+ 		FD_SET(fd, &fds);
+-		tv.tv_sec = io_timeout;
++		tv.tv_sec = io_timeout?io_timeout:SELECT_TIMEOUT;
+ 		tv.tv_usec = 0;
+ 
+-		if (select(fd+1, &fds, NULL, NULL, 
+-			   io_timeout?&tv:NULL) != 1) {
++		if (select(fd+1, &fds, NULL, NULL, &tv) != 1) {
+ 			check_timeout();
+ 			continue;
+ 		}
+ 
+ 		n = read(fd, buf, len);
+ 
+@@ -249,13 +254,15 @@
+ 			read_buffer_p += ret;
+ 			read_buffer_len -= ret;
+ 			total += ret;
+ 			continue;
+ 		} 
+ 
++		no_flush_read++;
+ 		io_flush();
++		no_flush_read--;
+ 
+ 		ret = read_unbuffered(fd,buffer + total,N-total);
+ 		total += ret;
+ 	}
+ }
+ 
+@@ -315,39 +322,41 @@
+ static void writefd_unbuffered(int fd,char *buf,int len)
+ {
+ 	int total = 0;
+ 	fd_set w_fds, r_fds;
+ 	int fd_count, count;
+ 	struct timeval tv;
+-	int reading;
++	int reading=0;
+ 	int blocked=0;
+ 
+ 	no_flush++;
+ 
+ 	while (total < len) {
+ 		FD_ZERO(&w_fds);
+ 		FD_ZERO(&r_fds);
+ 		FD_SET(fd,&w_fds);
+ 		fd_count = fd+1;
+ 
+-		reading = (buffer_f_in != -1 && 
+-			   read_buffer_len < MAX_READ_BUFFER);
++		if (!no_flush_read) {
++			reading = (buffer_f_in != -1 && 
++				   read_buffer_len < MAX_READ_BUFFER);
++		}
+ 
+ 		if (reading) {
+ 			FD_SET(buffer_f_in,&r_fds);
+ 			if (buffer_f_in > fd) 
+ 				fd_count = buffer_f_in+1;
+ 		}
+ 
+-		tv.tv_sec = io_timeout;
++		tv.tv_sec = io_timeout?io_timeout:SELECT_TIMEOUT;
+ 		tv.tv_usec = 0;
+ 
+ 		count = select(fd_count,
+ 			       reading?&r_fds:NULL,
+ 			       &w_fds,NULL,
+-			       io_timeout?&tv:NULL);
++			       &tv);
+ 
+ 		if (count <= 0) {
+ 			check_timeout();
+ 			continue;
+ 		}
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/main.c	1998-07-17 22:46:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/main.c	1998-07-20 13:43:27.000000000 +0800
+@@ -563,13 +563,15 @@
+ 	}
+ 
+ 	/* we set a 0 umask so that correct file permissions can be
+ 	   carried across */
+ 	orig_umask = (int)umask(0);
+ 
+-	parse_arguments(argc, argv);
++	if (!parse_arguments(argc, argv)) {
++		exit_cleanup(1);
++	}
+ 
+ 	argc -= optind;
+ 	argv += optind;
+ 	optind = 0;
+ 
+ 	signal(SIGCHLD,SIG_IGN);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/options.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/options.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/options.c	1998-07-17 22:46:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/options.c	1998-07-20 13:43:27.000000000 +0800
+@@ -194,13 +194,14 @@
+   {"progress",    0,     0,    OPT_PROGRESS},
+   {"partial",     0,     0,    OPT_PARTIAL},
+   {"config",      1,     0,    OPT_CONFIG},
+   {"port",        1,     0,    OPT_PORT},
+   {0,0,0,0}};
+ 
+-void parse_arguments(int argc, char *argv[])
++
++int parse_arguments(int argc, char *argv[])
+ {
+ 	int opt;
+ 	int option_index;
+ 
+ 	while ((opt = getopt_long(argc, argv, 
+ 				  short_options, long_options, &option_index)) 
+@@ -298,13 +299,13 @@
+ 
+ 		case 'H':
+ #if SUPPORT_HARD_LINKS
+ 			preserve_hard_links=1;
+ #else 
+ 			rprintf(FERROR,"ERROR: hard links not supported on this platform\n");
+-			exit_cleanup(1);
++			return 0;
+ #endif
+ 			break;
+ 
+ 		case 'p':
+ 			preserve_perms=1;
+ 			break;
+@@ -409,16 +410,16 @@
+ 
+ 		case OPT_PORT:
+ 			rsync_port = atoi(optarg);
+ 			break;
+ 
+ 		default:
+-			/* rprintf(FERROR,"bad option -%c\n",opt); */
+-			exit_cleanup(1);
++			return 0;
+ 		}
+ 	}
++	return 1;
+ }
+ 
+ 
+ void server_options(char **args,int *argc)
+ {
+ 	int ac = *argc;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/packaging/redhat/5.0/rsync.spec	1998-07-17 22:52:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/packaging/redhat/5.0/rsync.spec	1998-07-20 13:43:49.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.0.19
++Version: 2.1.0
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.19.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.1.0.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/proto.h	1998-07-17 22:46:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/proto.h	1998-07-20 13:43:27.000000000 +0800
+@@ -91,13 +91,13 @@
+ void start_server(int f_in, int f_out, int argc, char *argv[]);
+ int client_run(int f_in, int f_out, int pid, int argc, char *argv[]);
+ int main(int argc,char *argv[]);
+ void match_sums(int f,struct sum_struct *s,struct map_struct *buf,OFF_T len);
+ void match_report(void);
+ void usage(int F);
+-void parse_arguments(int argc, char *argv[]);
++int parse_arguments(int argc, char *argv[]);
+ void server_options(char **args,int *argc);
+ BOOL pm_process( char *FileName,
+                  BOOL (*sfunc)(char *),
+                  BOOL (*pfunc)(char *, char *) );
+ void exit_cleanup(int code);
+ void sig_int(void);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/rsync.c	1998-07-17 22:46:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/rsync.c	1998-07-20 13:43:27.000000000 +0800
+@@ -958,21 +958,21 @@
+ 		} else {
+ 			buf = NULL;
+ 		}
+ 
+ 		if (!get_tmpname(fnametmp,fname)) {
+ 			if (buf) unmap_file(buf);
+-			close(fd1);
++			if (fd1 != -1) close(fd1);
+ 			continue;
+ 		}
+ 
+ 		if (NULL == do_mktemp(fnametmp)) {
+ 			rprintf(FERROR,"mktemp %s failed\n",fnametmp);
+ 			receive_data(f_in,buf,-1,NULL,file->length);
+ 			if (buf) unmap_file(buf);
+-			close(fd1);
++			if (fd1 != -1) close(fd1);
+ 			continue;
+ 		}
+ 
+ 		/* we initially set the perms without the
+ 		   setuid/setgid bits to ensure that there is no race
+ 		   condition. They are then correctly updated after
+@@ -987,13 +987,13 @@
+ 				      file->mode & ACCESSPERMS);
+ 		}
+ 		if (fd2 == -1) {
+ 			rprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));
+ 			receive_data(f_in,buf,-1,NULL,file->length);
+ 			if (buf) unmap_file(buf);
+-			close(fd1);
++			if (fd1 != -1) close(fd1);
+ 			continue;
+ 		}
+       
+ 		cleanup_fname = fnametmp;
+ 		cleanup_new_fname = fname;
+ 		cleanup_file = file;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/socket.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/socket.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/socket.c	1998-07-17 22:46:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/socket.c	1998-07-20 13:43:27.000000000 +0800
+@@ -278,33 +278,36 @@
+ 
+ /****************************************************************************
+ become a daemon, discarding the controlling terminal
+ ****************************************************************************/
+ void become_daemon(void)
+ {
+-	if (fork())
++	int i;
++
++	if (fork()) {
+ 		_exit(0);
++	}
+ 
+ 	/* detach from the terminal */
+ #ifdef HAVE_SETSID
+ 	setsid();
+ #else
+ #ifdef TIOCNOTTY
+-	{
+-		int i = open("/dev/tty", O_RDWR);
+-		if (i >= 0) 
+-			{
+-				ioctl(i, (int) TIOCNOTTY, (char *)0);      
+-				close(i);
+-			}
++	i = open("/dev/tty", O_RDWR);
++	if (i >= 0) {
++		ioctl(i, (int) TIOCNOTTY, (char *)0);      
++		close(i);
+ 	}
+ #endif /* TIOCNOTTY */
+ #endif
+-	close(0);
+-	close(1);
+-	close(2);
++	/* make sure that stdin, stdout an stderr don't stuff things
++           up (library functions, for example) */
++	for (i=0;i<3;i++) {
++		close(i); 
++		open("/dev/null", O_RDWR);
++	}
+ }
+ 
+ /*******************************************************************
+  return the IP addr of the client as a string 
+  ******************************************************************/
+ char *client_addr(int fd)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/util.c	1998-07-17 22:46:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/util.c	1998-07-20 13:43:27.000000000 +0800
+@@ -288,13 +288,13 @@
+ 		rprintf(FERROR,"unlink %s: %s\n",
+ 			dest,strerror(errno));
+ 		return -1;
+ 	}
+ 
+ 	ofd = do_open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode);
+-	if (ofd < 0) {
++	if (ofd == -1) {
+ 		rprintf(FERROR,"open %s: %s\n",
+ 			dest,strerror(errno));
+ 		close(ifd);
+ 		return -1;
+ 	}
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.19/version.h	1998-07-17 22:52:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.1.0/version.h	1998-07-20 13:43:48.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.19"
++#define VERSION "2.1.0"

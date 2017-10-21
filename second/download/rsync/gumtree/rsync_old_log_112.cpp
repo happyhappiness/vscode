@@ -1,0 +1,1 @@
+fprintf(stderr,"excluding file %s\n",fname);

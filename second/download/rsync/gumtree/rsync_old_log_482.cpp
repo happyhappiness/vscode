@@ -1,0 +1,1 @@
+fprintf(f,"-p, --perms              preserve permissions\n");

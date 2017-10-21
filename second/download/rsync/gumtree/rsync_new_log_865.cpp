@@ -1,0 +1,1 @@
+fprintf(stderr, "virtual memory exhausted.\n");

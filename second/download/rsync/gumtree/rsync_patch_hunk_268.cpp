@@ -1,0 +1,19 @@
+       }
+ 
+       file = &flist->files[i];
+ 
+       fname[0] = 0;
+       if (file->dir) {
+-	strcpy(fname,file->dir);
++	strncpy(fname,file->dir,MAXPATHLEN-1);
++	fname[MAXPATHLEN-1] = 0;
+ 	strcat(fname,"/");
+       }
+-      strcat(fname,file->name);
++      strncat(fname,file->name,MAXPATHLEN-strlen(fname));
+ 
+       if (verbose > 2) 
+ 	fprintf(FERROR,"send_files(%d,%s)\n",i,fname);
+ 
+       if (dry_run) {	
+ 	if (!am_server && verbose)
