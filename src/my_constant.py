@@ -92,7 +92,8 @@ FETCH_LOG_ACTION_TYPE = FETCH_LOG_TITLE.index('action_type')
 analyze old new title and index
 """
 # 'old_block', 'old_block_file', 'old_block_feature',
-ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file', 'function', 'function_loc', 'edit_words', 'edit_feature']
+ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file', 'function', 'function_loc', 'edit_types', 'edit_words', 'edit_feature']
+ANALYZE_EDIT_TYPE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('edit_types')
 ANALYZE_EDIT_WORD = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('edit_words')
 ANALYZE_EDIT_FEATURE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('edit_feature')
 ANALYZE_FUNCTION = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('function')

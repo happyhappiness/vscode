@@ -5,6 +5,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -112,23 +113,23 @@ public class GumTreeApi {
 //		 }
 		
 //		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.9.5/config.c";
-		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/clang/hello.cpp";
-					
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.0.0/builtin/blame.c";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.0.1/builtin/blame.c";
-		GumTreeApi g = new GumTreeApi();
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/clang/hello.cpp";
+//					
+//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.0.0/builtin/blame.c";
+//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.0.1/builtin/blame.c";
+//		GumTreeApi g = new GumTreeApi();
 //		g.setOldAndNewFile(oldFile, newFile);
-		g.setFile(filename);
-		g.setLoc(73);
-		System.out.println(g.getLog());
+//		g.setFile(filename);
+//		g.setLoc(73);
+//		System.out.println(g.getLog());
 //		g.printSpliter();
 //		System.out.println(g.getBlock());
 //		g.printSpliter();
 //		System.out.println(g.getControl());
-		g.printSpliter();
-		System.out.println(g.getFunction());
-		g.printSpliter();
-		System.out.println(g.getFunctionLoc());
+//		g.printSpliter();
+//		System.out.println(g.getFunction());
+//		g.printSpliter();
+//		System.out.println(g.getFunctionLoc());
 		
 //		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_old_hunk_57.cpp";
 //		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_new_hunk_57.cpp";
@@ -144,21 +145,21 @@ public class GumTreeApi {
 //		System.out.println(g.getActionType());
 		
 		
-//		GumTreeApi g = new GumTreeApi();
-//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
-//		g.setOldAndNewFile(oldFile, newFile);
-////		old loc 9,10
-//		g.addOldLogNode(9);
-//		g.addOldLogNode(10);
-////		new loc 9, 10, 11
-//		g.addNewLogNode(9);
-//		g.addNewLogNode(10);
-//		g.addNewLogNode(11);
-//		System.out.println(g.getActionType());
-//		g.setNewLoc(10);
-//		System.out.println(g.getOldLoc());
-		
+		GumTreeApi g = new GumTreeApi();
+		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/old.cpp";
+		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/new.cpp";
+		g.setOldAndNewFile(oldFile, newFile);
+		g.setOldLoc(0);
+		System.out.println(g.getOldLog());
+		System.out.println(g.getNewLog());	
+		Set<String> edits = g.getLogEditType();
+		// show result
+		g.printSpliter();
+		Iterator<String> editIter = edits.iterator();
+		while(editIter.hasNext())
+		{
+			System.out.println(editIter.next());
+		}
 	}
 
 	public boolean setOldLoc(int oldLoc) {
@@ -262,7 +263,7 @@ public class GumTreeApi {
 		}
 	}
 	
-	public void addDDGNode(int line) {
+	protected void addDDGNode(int line) {
 		ITree ddgNode = this.getDDGNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
 		if (ddgNode != null)
 			this.ddgNodes.add(ddgNode);
@@ -348,7 +349,7 @@ public class GumTreeApi {
 	}
 	
 	// judge edition type based on ddg locations
-	public boolean isDDGModified() {
+	protected boolean isDDGModified() {
 		
 		Iterator<Action> actionIter = actions.iterator();
 		Action action;
@@ -406,7 +407,7 @@ public class GumTreeApi {
 		return getValue(this.logNode, this.filename);
 	}
 
-	public String getBlock(){
+	protected String getBlock(){
 		// first parent that contains block type
 		ITree parentNode = this.logNode.getParent();
 		while(parentNode != null)
@@ -425,7 +426,7 @@ public class GumTreeApi {
 		return "";
 	}
 	
-	public String getControl(){
+	protected String getControl(){
 		// first parent that contains block type
 		ITree parentNode = this.logNode.getParent();
 		ITree conditionNode = null;
@@ -570,7 +571,7 @@ public class GumTreeApi {
 			"define");
 	
 	// syntax feature of block file 
-	public String getBlockFeature()
+	protected String getBlockFeature()
 	{
 		int ast_type_num = this.AST_TYPE.size();
 		Integer[] frequence = new Integer[ast_type_num];
@@ -601,7 +602,7 @@ public class GumTreeApi {
 		return Arrays.asList(frequence).toString();
 	}
 	
-	public String getBlockType()
+	protected String getBlockType()
 	{
 		String type = "";
 		Iterator<ITree> allNodesIter = this.tree.postOrder().iterator();
@@ -623,7 +624,71 @@ public class GumTreeApi {
 		return type;
 	}
 	
-	public void getEditedNodes()
+	// old file: old log file
+	// new file: new log file
+	// edit type: content/ variable [add, remove, update]
+	public Set<String> getLogEditType()
+	{
+		Set<String> editType = new HashSet<String>();
+		// judge its action type
+		String prefix; String postfix; Action currAction;
+		ITree currNode; TreeContext treeContext; String filename;
+		Iterator<Action> actionIter = this.actions.iterator();
+		while(actionIter.hasNext())
+		{
+			prefix = null;
+			postfix = null;
+			// mov, del and update: old tree context and old file
+			treeContext = this.oldTreeContext;
+			filename = this.oldFile;
+			currAction = actionIter.next();
+			// action type -> prefix
+			switch(currAction.getName())
+			{
+			case "INS":
+				prefix = "add";
+				// insert: new tree context and new file
+				treeContext = this.newTreeContext;
+				filename = this.newFile;
+				break;
+			case "DEL":
+				prefix = "remove";
+				break;
+			case "UPD":
+				prefix = "update";
+				break;
+			case "MOV":
+				prefix = "move";
+				System.out.printf("WARN: DO NOT DEAL WITH MOVE in %s: %d\n", this.oldFile, this.oldLoc);
+				break;
+			}
+			// node type -> postfix
+			currNode = currAction.getNode();
+			// constant -> content
+			if(this.isConstant(currNode, treeContext, filename))
+			{
+				postfix = "Content";
+			}
+			// name -> argument -> variable
+			else if(this.isChildOfArgument(currNode, treeContext, filename))
+			{
+				postfix = "Variable";
+			}
+			// name -> non-argument -> log
+			else
+			{
+				postfix = "Log";
+			}
+			
+			// add to result set
+//			System.out.println(prefix + postfix);
+			editType.add(prefix + postfix);
+		}
+		
+		return editType;
+	
+	}
+	protected void getEditedNodes()
 	{
 //		System.out.println(actions.size());
 		Iterator<Action> actionIter = actions.iterator();
@@ -644,7 +709,7 @@ public class GumTreeApi {
 		}
 	}
 	
-	public LinkedList<String[]> getWordEdit()
+	protected LinkedList<String[]> getWordEdit()
 	{
 //		System.out.println(actions.size());
 		Iterator<Action> actionIter = actions.iterator();
@@ -711,7 +776,7 @@ public class GumTreeApi {
 		return editElements;
 	}
 	
-	public boolean isMatchWithEdit(String reposFile)
+	protected boolean isMatchWithEdit(String reposFile)
 	{
 		this.setNewFile(reposFile);
 		Iterator<Action> actionIter = actions.iterator();
@@ -724,7 +789,7 @@ public class GumTreeApi {
 	}
 	
 //	judge match by allowing update actions
-	public boolean isMatch() {
+	protected boolean isMatch() {
 		Iterator<Action> actionIter = actions.iterator();
 		Action action;
 		while (actionIter.hasNext()) {
@@ -776,6 +841,7 @@ public class GumTreeApi {
 		
 	}
 	
+	// old file, new file
 	private void getActions()
 	{
 		// initialize matcher
@@ -880,14 +946,15 @@ public class GumTreeApi {
 	}
 
 	
-	// is parentNode is one of the parents of node[include node itself]
+	// first argument: child node
+	// second argument: parent node
 	private boolean isChildrenOf(ITree child, ITree parentNode) {
-//		children size must less than parent
+		//	children size must less than parent
 		if(child.getSize() > parentNode.getSize())
 		{
 			return false;
 		}
-//		compare
+		//	traverse all ancestors to validate whether parent node is a "real parent"
 		boolean isChildren = parentNode.equals(child);
 		Iterator<ITree> parents = child.getParents().iterator();
 		ITree tempNode;
@@ -900,6 +967,22 @@ public class GumTreeApi {
 
 		return isChildren;
 	}
+	// is parentNode is one of the parents of node[include node itself]
+	private boolean isChildOfArgument(ITree child, TreeContext treeContext, String filename) {
+		//	traverse ancestors to validate whether has a parent whose type is argument
+		boolean isArgument = this.isArgument(child, treeContext, filename);
+		Iterator<ITree> parents = child.getParents().iterator();
+		ITree tempNode;
+		while (!isArgument && parents.hasNext()) {
+			tempNode = parents.next();
+			if (this.isArgument(tempNode, treeContext, filename)) {
+				isArgument = true;
+			}
+		}
+
+			return isArgument;
+		}
+		
 
 	// print node
 	private void printNode(ITree node, TreeContext treeContext, String filename) {
@@ -1026,6 +1109,26 @@ public class GumTreeApi {
 			return false;
 	}
 	
+	private boolean isConstant(ITree node, TreeContext treeContext, String filename)
+	{
+		String constant = filename.endsWith(".cpp") ? "literal" : "Constant";
+		String type = getType(node, treeContext);
+		if(type.equals(constant))
+			return true;
+		else
+			return false;
+	}
+	
+	private boolean isArgument(ITree node, TreeContext treeContext, String filename)
+	{
+		String argument = filename.endsWith(".cpp") ? "argument" : "Argument";
+		String type = getType(node, treeContext);
+		if(type.equals(argument))
+			return true;
+		else
+			return false;
+	}
+	
 	private boolean isStatement(ITree node, TreeContext treeContext, String filename)
 	{
 		String statement = filename.endsWith(".cpp") ? "stmt" : "Statement";
@@ -1060,7 +1163,7 @@ public class GumTreeApi {
 		}
 	}
 	
-	public void getDeltaBlockfeature()
+	protected void getDeltaBlockfeature()
 	{
 		List<Integer> oldBlockFeature = getBlockFeature(this.oldTree, this.oldTreeContext);
 		List<Integer> newBlockFeature = getBlockFeature(this.newTree, this.newTreeContext);

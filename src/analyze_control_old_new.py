@@ -74,9 +74,17 @@ def deal_log( log_record, gumtree, writer, total_log):
     myUtil.save_file(old_log, old_log_file_name)
     new_log_file_name = my_constant.SAVE_NEW_LOG + str(total_log) + '.cpp'
     myUtil.save_file(new_log, new_log_file_name)
+    # get edit type
+    gumtree.set_old_new_file(old_log_file_name, new_log_file_name)
+    if new_loc == '-1':
+        edit_types = ['removeLog']
+    elif old_loc == '-1':
+        edit_types = ['addLog']
+    else:
+        edit_types = gumtree.get_log_edited_type()
     log_record[my_constant.FETCH_LOG_OLD_LOG] = old_log
     log_record[my_constant.FETCH_LOG_NEW_LOG] = new_log
-    writer.writerow(log_record + [old_log_file_name, new_log_file_name, function_file_name, function_loc, edit_words, json.dumps(edit_feature)])
+    writer.writerow(log_record + [old_log_file_name, new_log_file_name, function_file_name, function_loc, json.dumps(edit_types), edit_words, json.dumps(edit_feature)])
     total_log += 1
 
     return total_log
