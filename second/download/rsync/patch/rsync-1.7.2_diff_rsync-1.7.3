@@ -1,0 +1,196 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.2/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.3/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.2/cvs.log	1998-04-05 14:46:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.3/cvs.log	1998-04-13 15:01:04.000000000 +0800
+@@ -2323,6 +2323,72 @@
+ 
+ Modified Files:
+ 	version.h 
+ Log Message:
+ preparing for release of 1.7.2
+ 
++
++****************************************
++Date:	Thursday April 9, 1998 @ 10:38
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv4998
++
++Modified Files:
++	flist.c 
++Log Message:
++
++fixed a bug in handling the -c option and non-regular files. It hadn't
++turned up before because Linux had a bug in the handling of NULL
++pointers to read()/write() on pipes, so I never noticed the bug in my
++testing.
++
++I've also sent a patch to Linus.
++
++
++
++****************************************
++Date:	Monday April 13, 1998 @ 14:44
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv23368
++
++Modified Files:
++	main.c 
++Log Message:
++
++not quite so many decimal places in "speedup" :-)
++
++
++
++****************************************
++Date:	Monday April 13, 1998 @ 16:39
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv948
++
++Modified Files:
++	rsync.c 
++Log Message:
++
++fixed a bug in the handling of -R with --delete 
++
++I introduced this bug in the last version as a side effect of fixing
++the permissions on intermediate directories with -R. drat.
++
++
++
++****************************************
++Date:	Monday April 13, 1998 @ 17:00
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 1.7.3
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.2/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.3/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.2/flist.c	1998-04-05 14:10:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.3/flist.c	1998-04-13 14:42:13.000000000 +0800
+@@ -206,13 +206,13 @@
+     write_int(f,(int)file->dev);
+     write_int(f,(int)file->inode);
+   }
+ #endif
+ 
+   if (always_checksum) {
+-    write_buf(f,file->sum,csum_length);
++	  write_buf(f,file->sum,csum_length);
+   }       
+ 
+   last_mode = file->mode;
+   last_rdev = file->rdev;
+   last_uid = file->uid;
+   last_gid = file->gid;
+@@ -423,16 +423,23 @@
+ 		}
+ 		lnk[l] = 0;
+ 		file->link = strdup(lnk);
+ 	}
+ #endif
+ 
+-	if (always_checksum && S_ISREG(st.st_mode)) {
++	if (always_checksum) {
+ 		file->sum = (char *)malloc(MD4_SUM_LENGTH);
+ 		if (!file->sum) out_of_memory("md4 sum");
+-		file_checksum(fname,file->sum,st.st_size);
++		/* drat. we have to provide a null checksum for non-regular
++		   files in order to be compatible with earlier versions
++		   of rsync */
++		if (S_ISREG(st.st_mode)) {
++			file_checksum(fname,file->sum,st.st_size);
++		} else {
++			memset(file->sum, 0, MD4_SUM_LENGTH);
++		}
+ 	}       
+ 
+ 	if (flist_dir) {
+ 		static char *lastdir;
+ 		if (lastdir && strcmp(lastdir, flist_dir)==0) {
+ 			file->basedir = lastdir;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.2/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.3/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.2/main.c	1998-04-05 14:45:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.3/main.c	1998-04-13 14:42:13.000000000 +0800
+@@ -89,20 +89,20 @@
+     in = read_longint(f);
+     out = read_longint(f);
+     tsize = read_longint(f);
+   }
+ 
+ #if HAVE_LONGLONG
+-  printf("wrote %lld bytes  read %lld bytes  %g bytes/sec\n",
++  printf("wrote %lld bytes  read %lld bytes  %.2f bytes/sec\n",
+ 	 (long long)out,(long long)in,(in+out)/(0.5 + (t-starttime)));
+-  printf("total size is %lld  speedup is %g\n",
++  printf("total size is %lld  speedup is %.2f\n",
+ 	 (long long)tsize,(1.0*tsize)/(in+out));
+ #else
+-  printf("wrote %ld bytes  read %ld bytes  %g bytes/sec\n",
++  printf("wrote %ld bytes  read %ld bytes  %.2f bytes/sec\n",
+ 	 (long)out,(long)in,(in+out)/(0.5 + (t-starttime)));
+-  printf("total size is %ld  speedup is %g\n",
++  printf("total size is %ld  speedup is %.2f\n",
+ 	 (long)tsize,(1.0*tsize)/(in+out));
+ #endif
+ }
+ 
+ 
+ static void server_options(char **args,int *argc)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.2/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.3/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.2/rsync.c	1998-04-05 14:45:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.3/rsync.c	1998-04-13 14:42:13.000000000 +0800
+@@ -646,19 +646,23 @@
+ 
+ 	if (!name) {
+ 		fprintf(FERROR,"out of memory in delete_already_done");
+ 		exit_cleanup(1);
+ 	}
+ 
++	name[strlen(name)-2] = 0;
++
+ 	p = strrchr(name,'/');
+ 	if (!p) {
+ 		free(name);
+ 		return 0;
+ 	}
+ 	*p = 0;
+ 
++	strcat(name,"/.");
++
+ 	while (low != high) {
+ 		int mid = (low+high)/2;
+ 		int ret = strcmp(f_name(flist->files[flist_up(flist, mid)]),name);
+ 		if (ret == 0) {
+ 			free(name);
+ 			return 1;
+@@ -700,12 +704,14 @@
+ 
+   for (j=0;j<flist->count;j++) {
+ 	  char *name = f_name(flist->files[j]);
+ 
+ 	  if (!S_ISDIR(flist->files[j]->mode)) continue;
+ 
++	  if (strlen(name)<2 || strcmp(name+strlen(name)-2,"/.")!=0) continue;
++
+ 	  if (delete_already_done(flist, j)) continue;
+ 
+ 	  if (!(local_file_list = send_file_list(-1,1,&name)))
+ 		  continue;
+ 
+ 	  if (verbose > 1)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.2/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.3/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.2/version.h	1998-04-05 14:46:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.3/version.h	1998-04-13 15:00:52.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.7.2"
++#define VERSION "1.7.3"

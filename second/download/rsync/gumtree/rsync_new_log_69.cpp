@@ -1,0 +1,1 @@
+fprintf(stderr,"fstat failed : %s\n",strerror(errno));

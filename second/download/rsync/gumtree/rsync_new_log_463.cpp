@@ -1,0 +1,1 @@
+rprintf(FERROR,"pipe failed in do_recv\n");

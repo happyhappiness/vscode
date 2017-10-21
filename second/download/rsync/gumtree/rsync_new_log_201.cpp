@@ -1,0 +1,1 @@
+fprintf(FERROR,"deleting directory %s\n",f->name);

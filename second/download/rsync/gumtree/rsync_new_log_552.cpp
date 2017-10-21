@@ -1,0 +1,1 @@
+rprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));

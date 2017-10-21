@@ -1,0 +1,1 @@
+rprintf(FERROR,"ERROR: out of memory in %s\n",str);

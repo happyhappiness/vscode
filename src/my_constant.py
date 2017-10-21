@@ -14,9 +14,10 @@
 # REPOS = 'httpd'
 # REPOS = 'git'
 # REPOS = 'mutt'
-REPOS = 'rtorrent'
+# REPOS = 'rtorrent'
 # REPOS = 'curl'
 # REPOS = 'sqlite'
+REPOS = 'rsync'
 
 """
 stroed file name prefix
@@ -150,15 +151,15 @@ data dependence type
 # level 1
 VAR_FUNC_RETURN = 0
 FlAG_FUNC_RETURN = '_ret'
+# level 2
 VAR_FUNC_ARG_RETURN = 1
 FlAG_FUNC_ARG_RETURN = '_arg_ret'
-# level 2
-FlAG_FUNC_ARG = '_arg'
 # level 3
 VAR_FUNC_ARG = 3
-FlAG_TYPE = ''
+FlAG_FUNC_ARG = '_arg'
 # level 4
 VAR_TYPE = 4
+FlAG_TYPE = ''
 
 """
 split string for statement to get tokens

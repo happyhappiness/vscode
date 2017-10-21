@@ -1,0 +1,279 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/cvs.log	2000-03-30 22:24:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/cvs.log	2000-04-09 10:54:04.000000000 +0800
+@@ -11119,6 +11119,97 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.4.2
+ 
++
++****************************************
++Date:	Sunday April 9, 2000 @ 12:16
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv23523
++
++Modified Files:
++	util.c 
++Log Message:
++a very simple fix - if I'd only thought if it last week :)
++
++rsh relies on stdin being blocking
++ssh relies on stdout being non-blocking
++
++what we've done before is to set both stdin and stdout to either
++blocking or non-blocking. Now I set stdin to blocking and stdout to
++non-blocking. This seems to fix all cases I've tested.
++
++
++
++****************************************
++Date:	Sunday April 9, 2000 @ 12:32
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv3802
++
++Modified Files:
++	io.c 
++Log Message:
++don't pprint the IO timeout message if we are a server or daemon (can
++cause recursive error messages)
++
++
++
++****************************************
++Date:	Sunday April 9, 2000 @ 12:32
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv20063
++
++Modified Files:
++	main.c 
++Log Message:
++use 1 second sleeps in the sleep loop as some OSes (NT for example)
++don't get interrupted during a sleep.
++
++
++
++****************************************
++Date:	Sunday April 9, 2000 @ 12:36
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv5599
++
++Modified Files:
++	proto.h 
++Log Message:
++prototype for set_blocking() function
++
++
++
++****************************************
++Date:	Sunday April 9, 2000 @ 12:53
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.4.3
++
++
++****************************************
++Date:	Sunday April 9, 2000 @ 12:53
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.4.3
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/io.c	2000-03-30 22:23:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/io.c	2000-04-09 10:53:30.000000000 +0800
+@@ -46,26 +46,29 @@
+ {
+ 	buffer_f_in = f_in;
+ }
+ 
+ static void check_timeout(void)
+ {
++	extern int am_server, am_daemon;
+ 	time_t t;
+ 	
+ 	if (!io_timeout) return;
+ 
+ 	if (!last_io) {
+ 		last_io = time(NULL);
+ 		return;
+ 	}
+ 
+ 	t = time(NULL);
+ 
+ 	if (last_io && io_timeout && (t-last_io) >= io_timeout) {
+-		rprintf(FERROR,"io timeout after %d second - exiting\n", 
+-			(int)(t-last_io));
++		if (!am_server && !am_daemon) {
++			rprintf(FERROR,"io timeout after %d second - exiting\n", 
++				(int)(t-last_io));
++		}
+ 		exit_cleanup(RERR_TIMEOUT);
+ 	}
+ }
+ 
+ /* setup the fd used to propogate errors */
+ void io_set_error_fd(int fd)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/main.c	2000-03-30 22:23:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/main.c	2000-04-09 10:53:30.000000000 +0800
+@@ -321,15 +321,16 @@
+ 		recv_files(f_in,flist,local_name,recv_pipe[1]);
+ 		report(f_in);
+ 
+ 		write_int(recv_pipe[1],1);
+ 		close(recv_pipe[1]);
+ 		io_flush();
+-		/* finally we go to sleep until our parent kills us with
+-		   a USR2 signal */
+-		while (1) sleep(60);
++		/* finally we go to sleep until our parent kills us
++		   with a USR2 signal. We sleepp for a short time as on
++		   some OSes a signal won't interrupt a sleep! */
++		while (1) sleep(1);
+ 	}
+ 
+ 	close(recv_pipe[1]);
+ 	close(error_pipe[1]);
+ 	io_close_input(f_in);
+ 	if (f_in != f_out) close(f_in);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/packaging/redhat/5.0/rsync.spec	2000-03-30 22:24:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/packaging/redhat/5.0/rsync.spec	2000-04-09 10:53:56.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.4.2
++Version: 2.4.3
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.4.2.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.4.3.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/proto.h	2000-03-30 22:23:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/proto.h	2000-04-09 10:53:30.000000000 +0800
+@@ -172,12 +172,13 @@
+ void see_token(char *data, int toklen);
+ void add_uid(uid_t uid);
+ void add_gid(gid_t gid);
+ void send_uid_list(int f);
+ void recv_uid_list(int f, struct file_list *flist);
+ void set_nonblocking(int fd);
++void set_blocking(int fd);
+ int fd_pair(int fd[2]);
+ int piped_child(char **command,int *f_in,int *f_out);
+ int local_child(int argc, char **argv,int *f_in,int *f_out);
+ void out_of_memory(char *str);
+ void overflow(char *str);
+ int set_modtime(char *fname,time_t modtime);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/util.c	2000-03-30 22:23:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/util.c	2000-04-09 10:53:31.000000000 +0800
+@@ -25,16 +25,13 @@
+ #include "rsync.h"
+ 
+ extern int verbose;
+ 
+ 
+ /****************************************************************************
+-Set a fd into nonblocking mode. Uses POSIX O_NONBLOCK if available,
+-else
+-if SYSV use O_NDELAY
+-if BSD use FNDELAY
++Set a fd into nonblocking mode
+ ****************************************************************************/
+ void set_nonblocking(int fd)
+ {
+ 	int val;
+ 
+ 	if((val = fcntl(fd, F_GETFL, 0)) == -1)
+@@ -42,12 +39,27 @@
+ 	if (!(val & NONBLOCK_FLAG)) {
+ 		val |= NONBLOCK_FLAG;
+ 		fcntl(fd, F_SETFL, val);
+ 	}
+ }
+ 
++/****************************************************************************
++Set a fd into blocking mode
++****************************************************************************/
++void set_blocking(int fd)
++{
++	int val;
++
++	if((val = fcntl(fd, F_GETFL, 0)) == -1)
++		return;
++	if (val & NONBLOCK_FLAG) {
++		val &= ~NONBLOCK_FLAG;
++		fcntl(fd, F_SETFL, val);
++	}
++}
++
+ 
+ /* create a file descriptor pair - like pipe() but use socketpair if
+    possible (because of blocking issues on pipes)
+ 
+    always set non-blocking
+  */
+@@ -67,13 +79,13 @@
+ 	}
+ 	
+ 	return ret;
+ }
+ 
+ 
+-/* this is taken from CVS */
++/* this is derived from CVS code */
+ int piped_child(char **command,int *f_in,int *f_out)
+ {
+   int pid;
+   int to_child_pipe[2];
+   int from_child_pipe[2];
+ 
+@@ -100,12 +112,13 @@
+ 	rprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+ 	exit_cleanup(RERR_IPC);
+       }
+       if (to_child_pipe[0] != STDIN_FILENO) close(to_child_pipe[0]);
+       if (from_child_pipe[1] != STDOUT_FILENO) close(from_child_pipe[1]);
+       umask(orig_umask);
++      set_blocking(STDIN_FILENO);
+       execvp(command[0], command);
+       rprintf(FERROR,"Failed to exec %s : %s\n",
+ 	      command[0],strerror(errno));
+       exit_cleanup(RERR_IPC);
+     }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.2/version.h	2000-03-30 22:24:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.3/version.h	2000-04-09 10:53:55.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.4.2"
++#define VERSION "2.4.3"

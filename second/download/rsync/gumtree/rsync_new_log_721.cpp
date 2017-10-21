@@ -1,0 +1,1 @@
+fprintf(fp, " %s\n", con->otherHelp);

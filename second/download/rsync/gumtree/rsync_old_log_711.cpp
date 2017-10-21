@@ -1,0 +1,1 @@
+fprintf(f, POPT_("Usage:"));

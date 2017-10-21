@@ -1,0 +1,1 @@
+fprintf(f,"-z, --compress           compress file data\n");

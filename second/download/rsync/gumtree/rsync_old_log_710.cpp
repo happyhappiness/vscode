@@ -1,0 +1,1 @@
+fprintf(f, "\n%s\n", D_(sub_transdom, opt->descrip));

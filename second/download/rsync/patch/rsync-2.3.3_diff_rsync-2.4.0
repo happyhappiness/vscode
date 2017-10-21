@@ -1,0 +1,5443 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/acconfig.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/acconfig.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/acconfig.h	1999-03-13 02:21:53.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/acconfig.h	2000-01-29 19:35:03.000000000 +0800
+@@ -7,6 +7,7 @@
+ #undef HAVE_UTIMBUF
+ #undef ino_t
+ #undef HAVE_CONNECT
+ #undef HAVE_SHORT_INO_T
+ #undef HAVE_GETOPT_LONG
+ #undef REPLACE_INET_NTOA
++#undef HAVE_GETTIMEOFDAY_TZ
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/authenticate.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/authenticate.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/authenticate.c	1999-02-10 03:27:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/authenticate.c	2000-01-29 19:35:03.000000000 +0800
+@@ -53,13 +53,13 @@
+ 	char input[32];
+ 	struct timeval tv;
+ 
+ 	memset(input, 0, sizeof(input));
+ 
+ 	strlcpy((char *)input, addr, 17);
+-	gettimeofday(&tv, NULL);
++	sys_gettimeofday(&tv);
+ 	SIVAL(input, 16, tv.tv_sec);
+ 	SIVAL(input, 20, tv.tv_usec);
+ 	SIVAL(input, 24, getpid());
+ 
+ 	sum_init();
+ 	sum_update(input, sizeof(input));
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/backup.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/backup.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/backup.c	1999-08-30 16:19:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/backup.c	2000-01-29 19:35:03.000000000 +0800
+@@ -19,15 +19,22 @@
+ /* backup handling code */
+ 
+ #include "rsync.h"
+ 
+ extern int verbose;
+ extern char *backup_suffix;
++extern char *backup_dir;
+ 
+ 
+-int make_backup(char *fname)
++extern int am_root;
++extern int preserve_devices;
++extern int preserve_links;
++extern int preserve_hard_links;
++
++/* simple backup creates a backup with a suffix in the same directory */
++static int make_simple_backup(char *fname)
+ {
+ 	char fnamebak[MAXPATHLEN];
+ 	if (strlen(fname) + strlen(backup_suffix) > (MAXPATHLEN-1)) {
+ 		rprintf(FERROR,"backup filename too long\n");
+ 		return 0;
+ 	}
+@@ -41,6 +48,237 @@
+ 		}
+ 	} else if (verbose > 1) {
+ 		rprintf(FINFO,"backed up %s to %s\n",fname,fnamebak);
+ 	}
+ 	return 1;
+ }
++
++
++/* recursively make a directory path */
++static int make_dir(char *name, int mask)
++{
++	char newdir [MAXPATHLEN];
++	char *p, *d;
++
++	/* copy pathname over, look for last '/' */
++	for (p = d = newdir; *name; *d++ = *name++)
++		if (*name == '/')
++			p = d;
++	if (p == newdir)
++		return 0;
++	*p = 0;
++
++	/* make the new directory, if that fails then make its parent */
++	while (do_mkdir (newdir, mask) != 0)
++		if ((errno != ENOENT) || !make_dir (newdir, mask))
++			return 0;
++
++	return 1;
++} /* make_dir */
++
++
++/****************************************************************************
++Create a directory given an absolute path, perms based upon another directory
++path
++****************************************************************************/
++static int make_bak_dir(char *fname,char *bak_path)
++{
++        STRUCT_STAT st;
++        STRUCT_STAT *st2;
++        char fullpath[MAXPATHLEN];
++        extern int orig_umask;
++        char *p;
++        char *q;
++
++        while(strncmp(bak_path,"./",2)==0) bak_path += 2;
++
++        if(bak_path[strlen(bak_path)-1]!='/') {
++                slprintf(fullpath,sizeof(fullpath),"%s/",bak_path);
++        } else {
++                slprintf(fullpath,sizeof(fullpath),"%s",bak_path);
++        }
++        p=fullpath;
++        q=&fullpath[strlen(fullpath)];  /* End of bak_path string */
++        strcat(fullpath,fname);
++
++        /* Make the directories */
++        while ((p=strchr(p,'/'))) {
++                *p = 0;
++                if(do_lstat(fullpath,&st)!=0) {
++                        do_mkdir(fullpath,0777 & ~orig_umask);
++                        if(p>q) {
++                                if(do_lstat(q,&st)!=0) {
++                                        rprintf(FERROR,"make_bak_dir stat %s : %s\n",fullpath,strerror(errno));
++                                } else {
++                                        st2=&st;
++                                        set_modtime(fullpath,st2->st_mtime);
++                                        if(do_lchown(fullpath,st2->st_uid,st2->st_gid)!=0) {
++                                                rprintf(FERROR,"make_bak_dir chown %s : %s\n",fullpath,strerror(errno));
++                                        };
++                                        if(do_chmod(fullpath,st2->st_mode)!=0) {
++                                                rprintf(FERROR,"make_bak_dir failed to set permissions on %s : %s\n",fullpath,strerror(errno));
++                                        };
++                                };
++                        }
++                };
++                *p = '/';
++                p++;
++        }
++        return 0;
++}
++
++/* robustly move a file, creating new directory structures if necessary */
++static int robust_move(char *src, char *dst)
++{
++	int keep_trying = 4;
++	int keep_path_extfs = 0;
++	int failed;
++
++	while (keep_trying) {
++		if (keep_path_extfs)
++			failed = copy_file (src, dst, 0755);
++		else
++			failed = robust_rename (src, dst);
++
++		if (failed) {
++			if (verbose > 2)
++				rprintf (FERROR, "robust_move failed: %s(%d)\n",
++					strerror (errno), errno);
++			switch (errno) {
++				/* external filesystem */
++				case EXDEV:
++					keep_path_extfs = 1;
++					keep_trying--;
++					break;
++				/* no directory to write to */
++				case ENOENT:
++					make_dir (dst, 0755);
++					keep_trying--;
++					break;
++				default:
++					keep_trying = 0;
++			} /* switch */
++		} else
++			keep_trying = 0;
++	} /* while */
++	return (!failed);
++} /* robust_move */
++
++
++/* if we have a backup_dir, then we get here from make_backup().
++   We will move the file to be deleted into a parallel directory tree */
++static int keep_backup(char *fname)
++{
++
++	static int initialised;
++
++	char keep_name [MAXPATHLEN];
++	STRUCT_STAT st;
++	struct file_struct *file;
++
++	int kept=0;
++	int ret_code;
++
++	if (!initialised) {
++		if (backup_dir[strlen(backup_dir) - 1] == '/')
++			backup_dir[strlen(backup_dir) - 1] = 0;
++		if (verbose > 0)
++			rprintf (FINFO, "backup_dir is %s\n", backup_dir);
++		initialised = 1;
++	}
++
++	/* return if no file to keep */
++#if SUPPORT_LINKS
++	if (do_lstat (fname, &st)) return 1;
++#else
++	if (do_stat (fname, &st)) return 1;
++#endif
++
++	file = make_file (0, fname);
++
++        /* make a complete pathname for backup file */
++        if (strlen(backup_dir) + strlen(fname) > (MAXPATHLEN - 1)) {
++                rprintf (FERROR, "keep_backup filename too long\n");
++                return 0;
++        }
++
++        slprintf(keep_name, sizeof (keep_name), "%s/%s", backup_dir, fname);
++
++
++#ifdef HAVE_MKNOD
++	/* Check to see if this is a device file, or link */
++        if(IS_DEVICE(file->mode)) {
++                if(am_root && preserve_devices) {
++                        make_bak_dir(fname,backup_dir);
++                        if(do_mknod(keep_name,file->mode,file->rdev)!=0) {
++                                rprintf(FERROR,"mknod %s : %s\n",keep_name,strerror(errno));
++                        } else {
++                                if(verbose>2)
++                                        rprintf(FINFO,"make_backup : DEVICE %s successful.\n",fname);
++                        };
++                };
++		kept=1;
++                do_unlink(fname);
++        };
++#endif
++
++	if(!kept && S_ISDIR(file->mode)) {
++		/* make an empty directory */
++                make_bak_dir(fname,backup_dir);
++                do_mkdir(keep_name,file->mode);
++                ret_code=do_rmdir(fname);
++                if(verbose>2)
++                        rprintf(FINFO,"make_backup : RMDIR %s returns %i\n",fname,ret_code);
++		kept=1;
++        };
++
++#if SUPPORT_LINKS
++        if(!kept && preserve_links && S_ISLNK(file->mode)) {
++                extern int safe_symlinks;
++                if (safe_symlinks && unsafe_symlink(file->link, keep_name)) {
++                        if (verbose) {
++                                rprintf(FINFO,"ignoring unsafe symlink %s -> %s\n",
++                                        keep_name,file->link);
++                        }
++			kept=1;
++                }
++                make_bak_dir(fname,backup_dir);
++                if(do_symlink(file->link,keep_name) != 0) {
++                        rprintf(FERROR,"link %s -> %s : %s\n",keep_name,file->link,strerror(errno));
++                };
++                do_unlink(fname);
++		kept=1;
++        };
++#endif
++        if(!kept && preserve_hard_links && check_hard_link(file)) {
++                if(verbose > 1) rprintf(FINFO,"%s is a hard link\n",f_name(file));
++        };
++
++        if(!kept && !S_ISREG(file->mode)) {
++                rprintf(FINFO,"make_bak: skipping non-regular file %s\n",fname);
++        }
++
++	/* move to keep tree if a file */
++	if(!kept) {
++		if (!robust_move (fname, keep_name))
++			rprintf(FERROR, "keep_backup failed %s -> %s : %s\n",
++				fname, keep_name, strerror(errno));
++	};
++	set_perms (keep_name, file, NULL, 0);
++	free_file (file);
++	free (file);
++
++	if (verbose > 1)
++		rprintf (FINFO, "keep_backup %s -> %s\n", fname, keep_name);
++	return 1;
++} /* keep_backup */
++
++
++/* main backup switch routine */
++int make_backup(char *fname)
++{
++	if (backup_dir)
++		return (keep_backup(fname));
++	else
++		return (make_simple_backup(fname));
++}
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/clientserver.c	1999-07-09 23:49:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/clientserver.c	2000-01-29 19:35:03.000000000 +0800
+@@ -33,12 +33,13 @@
+ 	char *sargs[MAX_ARGS];
+ 	int sargc=0;
+ 	char line[MAXPATHLEN];
+ 	char *p, *user=NULL;
+ 	extern int remote_version;
+ 	extern int am_sender;
++	extern struct in_addr socket_address;
+ 
+ 	if (*path == '/') {
+ 		rprintf(FERROR,"ERROR: The remote path must start with a module name\n");
+ 		return -1;
+ 	}
+ 
+@@ -49,13 +50,13 @@
+ 		*p = 0;
+ 	}
+ 
+ 	if (!user) user = getenv("USER");
+ 	if (!user) user = getenv("LOGNAME");
+ 
+-	fd = open_socket_out(host, rsync_port);
++	fd = open_socket_out(host, rsync_port, &socket_address);
+ 	if (fd == -1) {
+ 		exit_cleanup(RERR_SOCKETIO);
+ 	}
+ 	
+ 	server_options(sargs,&sargc);
+ 
+@@ -97,14 +98,16 @@
+ 
+ 	for (i=0;i<sargc;i++) {
+ 		io_printf(fd,"%s\n", sargs[i]);
+ 	}
+ 	io_printf(fd,"\n");
+ 
+-	if (remote_version > 17 && !am_sender)
+-		io_start_multiplex_in(fd);
++	if (remote_version < 23) {
++		if (remote_version == 22 || (remote_version > 17 && !am_sender))
++			io_start_multiplex_in(fd);
++	}
+ 
+ 	return client_run(fd, fd, -1, argc, argv);
+ }
+ 
+ 
+ 
+@@ -159,15 +162,12 @@
+ 		io_printf(fd,"@ERROR: auth failed on module %s\n",name);
+ 		return -1;		
+ 	}
+ 
+ 	module_id = i;
+ 
+-	if (lp_read_only(i))
+-		read_only = 1;
+-
+ 	am_root = (getuid() == 0);
+ 
+ 	if (am_root) {
+ 		p = lp_uid(i);
+ 		if (!name_to_uid(p, &uid)) {
+ 			if (!isdigit(*p)) {
+@@ -312,14 +312,16 @@
+ #endif
+ 
+ 	argc -= optind;
+ 	argp = argv + optind;
+ 	optind = 0;
+ 
+-	if (remote_version > 17 && am_sender)
+-		io_start_multiplex_out(fd);
++	if (remote_version < 23) {
++		if (remote_version == 22 || (remote_version > 17 && am_sender))
++			io_start_multiplex_out(fd);
++	}
+ 
+ 	if (!ret) {
+ 		option_error();
+ 	}
+ 
+ 	if (lp_timeout(i)) {
+@@ -430,21 +432,18 @@
+ 		   try to use them. Redirect them to /dev/null */
+ 		for (i=1;i<3;i++) {
+ 			close(i); 
+ 			open("/dev/null", O_RDWR);
+ 		}
+ 
+-		set_nonblocking(STDIN_FILENO);
+-
+ 		return start_daemon(STDIN_FILENO);
+ 	}
+ 
+ 	become_daemon();
+ 
+ 	if (!lp_load(config_file, 1)) {
+-		fprintf(stderr,"failed to load config file %s\n", config_file);
+ 		exit_cleanup(RERR_SYNTAX);
+ 	}
+ 
+ 	log_open();
+ 
+ 	rprintf(FINFO,"rsyncd version %s starting\n",VERSION);
+@@ -454,13 +453,13 @@
+ 		int fd;
+ 		int pid = (int) getpid();
+ 		cleanup_set_pid(pid);
+ 		if ((fd = do_open(lp_pid_file(), O_WRONLY|O_CREAT|O_TRUNC,
+ 					0666 & ~orig_umask)) == -1) {
+ 		    cleanup_set_pid(0);
+-		    fprintf(stderr,"failed to create pid file %s\n", pid_file);
++		    rprintf(FLOG,"failed to create pid file %s\n", pid_file);
+ 		    exit_cleanup(RERR_FILEIO);
+ 		}
+ 		slprintf(pidbuf, sizeof(pidbuf), "%d\n", pid);
+ 		write(fd, pidbuf, strlen(pidbuf));
+ 		close(fd);
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/config.guess /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/config.guess
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/config.guess	1999-03-06 00:37:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/config.guess	2000-01-29 19:35:03.000000000 +0800
+@@ -1,9 +1,10 @@
+ #! /bin/sh
+ # Attempt to guess a canonical system name.
+-#   Copyright (C) 1992, 93, 94, 95, 96, 97, 1998 Free Software Foundation, Inc.
++#   Copyright (C) 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999
++#   Free Software Foundation, Inc.
+ #
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+ # the Free Software Foundation; either version 2 of the License, or
+ # (at your option) any later version.
+ #
+@@ -20,24 +21,39 @@
+ # distribute this file as part of a program that contains a
+ # configuration script generated by Autoconf, you may include it under
+ # the same distribution terms that you use for the rest of that program.
+ 
+ # Written by Per Bothner <bothner@cygnus.com>.
+ # The master version of this file is at the FSF in /home/gd/gnu/lib.
++# Please send patches to <autoconf-patches@gnu.org>.
+ #
+ # This script attempts to guess a canonical system name similar to
+ # config.sub.  If it succeeds, it prints the system name on stdout, and
+ # exits with 0.  Otherwise, it exits with 1.
+ #
+ # The plan is that this can be called by configure scripts if you
+ # don't specify an explicit system type (host/target name).
+ #
+ # Only a few systems have been added to this list; please add others
+ # (but try to keep the structure clean).
+ #
+ 
++# Use $HOST_CC if defined. $CC may point to a cross-compiler
++if test x"$CC_FOR_BUILD" = x; then
++  if test x"$HOST_CC" != x; then
++    CC_FOR_BUILD="$HOST_CC"
++  else
++    if test x"$CC" != x; then
++      CC_FOR_BUILD="$CC"
++    else
++      CC_FOR_BUILD=cc
++    fi
++  fi
++fi
++
++
+ # This is needed to find uname on a Pyramid OSx when run in the BSD universe.
+ # (ghazi@noc.rutgers.edu 8/24/94.)
+ if (test -f /.attbin/uname) >/dev/null 2>&1 ; then
+ 	PATH=$PATH:/.attbin ; export PATH
+ fi
+ 
+@@ -74,13 +90,13 @@
+ 	sll \$0,3,\$0
+ 	addl \$1,\$0,\$0
+ 	addl \$2,\$0,\$0
+ 	ret \$31,(\$26),1
+ 	.end main
+ EOF
+-	${CC-cc} $dummy.s -o $dummy 2>/dev/null
++	$CC_FOR_BUILD $dummy.s -o $dummy 2>/dev/null
+ 	if test "$?" = 0 ; then
+ 		./$dummy
+ 		case "$?" in
+ 			7)
+ 				UNAME_MACHINE="alpha"
+ 				;;
+@@ -96,13 +112,19 @@
+ 			16)
+ 				UNAME_MACHINE="alphaev6"
+ 				;;
+ 		esac
+ 	fi
+ 	rm -f $dummy.s $dummy
+-	echo ${UNAME_MACHINE}-dec-osf`echo ${UNAME_RELEASE} | sed -e 's/^[VTX]//' | tr [[A-Z]] [[a-z]]`
++	echo ${UNAME_MACHINE}-dec-osf`echo ${UNAME_RELEASE} | sed -e 's/^[VTX]//' | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz'`
++	exit 0 ;;
++    Alpha\ *:Windows_NT*:*)
++	# How do we know it's Interix rather than the generic POSIX subsystem?
++	# Should we change UNAME_MACHINE based on the output of uname instead
++	# of the specific Alpha model?
++	echo alpha-pc-interix
+ 	exit 0 ;;
+     21064:Windows_NT:50:3)
+ 	echo alpha-dec-winnt3.5
+ 	exit 0 ;;
+     Amiga*:UNIX_System_V:4.0:*)
+ 	echo m68k-cbm-sysv4
+@@ -131,30 +153,33 @@
+     sgi:OpenBSD:*:*)
+ 	echo mips-unknown-openbsd${UNAME_RELEASE}
+ 	exit 0 ;;
+     wgrisc:OpenBSD:*:*)
+ 	echo mipsel-unknown-openbsd${UNAME_RELEASE}
+ 	exit 0 ;;
++    *:OS/390:*:*)
++	echo i370-ibm-openedition
++	exit 0 ;;
+     arm:RISC*:1.[012]*:*|arm:riscix:1.[012]*:*)
+ 	echo arm-acorn-riscix${UNAME_RELEASE}
+ 	exit 0;;
+     arm32:NetBSD:*:*)
+ 	echo arm-unknown-netbsd`echo ${UNAME_RELEASE}|sed -e 's/[-_].*/\./'`
+ 	exit 0 ;;
+     SR2?01:HI-UX/MPP:*:*)
+ 	echo hppa1.1-hitachi-hiuxmpp
+ 	exit 0;;
+-    Pyramid*:OSx*:*:*|MIS*:OSx*:*:*|MIS*:SMP_DC-OSx*:*:*)
++    Pyramid*:OSx*:*:* | MIS*:OSx*:*:* | MIS*:SMP_DC-OSx*:*:*)
+ 	# akee@wpdis03.wpafb.af.mil (Earle F. Ake) contributed MIS and NILE.
+ 	if test "`(/bin/universe) 2>/dev/null`" = att ; then
+ 		echo pyramid-pyramid-sysv3
+ 	else
+ 		echo pyramid-pyramid-bsd
+ 	fi
+ 	exit 0 ;;
+-    NILE:*:*:dcosx)
++    NILE*:*:*:dcosx)
+ 	echo pyramid-pyramid-svr4
+ 	exit 0 ;;
+     sun4H:SunOS:5.*:*)
+ 	echo sparc-hal-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit 0 ;;
+     sun4*:SunOS:5.*:* | tadpole*:SunOS:5.*:*)
+@@ -199,12 +224,38 @@
+     atari*:NetBSD:*:*)
+ 	echo m68k-atari-netbsd${UNAME_RELEASE}
+ 	exit 0 ;;
+     atari*:OpenBSD:*:*)
+ 	echo m68k-unknown-openbsd${UNAME_RELEASE}
+ 	exit 0 ;;
++    # The situation for MiNT is a little confusing.  The machine name
++    # can be virtually everything (everything which is not
++    # "atarist" or "atariste" at least should have a processor 
++    # > m68000).  The system name ranges from "MiNT" over "FreeMiNT"
++    # to the lowercase version "mint" (or "freemint").  Finally
++    # the system name "TOS" denotes a system which is actually not
++    # MiNT.  But MiNT is downward compatible to TOS, so this should
++    # be no problem.
++    atarist[e]:*MiNT:*:* | atarist[e]:*mint:*:* | atarist[e]:*TOS:*:*)
++        echo m68k-atari-mint${UNAME_RELEASE}
++	exit 0 ;;
++    atari*:*MiNT:*:* | atari*:*mint:*:* | atarist[e]:*TOS:*:*)
++	echo m68k-atari-mint${UNAME_RELEASE}
++        exit 0 ;;
++    *falcon*:*MiNT:*:* | *falcon*:*mint:*:* | *falcon*:*TOS:*:*)
++        echo m68k-atari-mint${UNAME_RELEASE}
++	exit 0 ;;
++    milan*:*MiNT:*:* | milan*:*mint:*:* | *milan*:*TOS:*:*)
++        echo m68k-milan-mint${UNAME_RELEASE}
++        exit 0 ;;
++    hades*:*MiNT:*:* | hades*:*mint:*:* | *hades*:*TOS:*:*)
++        echo m68k-hades-mint${UNAME_RELEASE}
++        exit 0 ;;
++    *:*MiNT:*:* | *:*mint:*:* | *:*TOS:*:*)
++        echo m68k-unknown-mint${UNAME_RELEASE}
++        exit 0 ;;
+     sun3*:NetBSD:*:*)
+ 	echo m68k-sun-netbsd${UNAME_RELEASE}
+ 	exit 0 ;;
+     sun3*:OpenBSD:*:*)
+ 	echo m68k-unknown-openbsd${UNAME_RELEASE}
+ 	exit 0 ;;
+@@ -232,18 +283,22 @@
+     RISC*:ULTRIX:*:*)
+ 	echo mips-dec-ultrix${UNAME_RELEASE}
+ 	exit 0 ;;
+     VAX*:ULTRIX*:*:*)
+ 	echo vax-dec-ultrix${UNAME_RELEASE}
+ 	exit 0 ;;
+-    2020:CLIX:*:*)
++    2020:CLIX:*:* | 2430:CLIX:*:*)
+ 	echo clipper-intergraph-clix${UNAME_RELEASE}
+ 	exit 0 ;;
+     mips:*:*:UMIPS | mips:*:*:RISCos)
+ 	sed 's/^	//' << EOF >$dummy.c
+-	int main (argc, argv) int argc; char **argv; {
++#ifdef __cplusplus
++	int main (int argc, char *argv[]) {
++#else
++	int main (argc, argv) int argc; char *argv[]; {
++#endif
+ 	#if defined (host_mips) && defined (MIPSEB)
+ 	#if defined (SYSTYPE_SYSV)
+ 	  printf ("mips-mips-riscos%ssysv\n", argv[1]); exit (0);
+ 	#endif
+ 	#if defined (SYSTYPE_SVR4)
+ 	  printf ("mips-mips-riscos%ssvr4\n", argv[1]); exit (0);
+@@ -252,13 +307,13 @@
+ 	  printf ("mips-mips-riscos%sbsd\n", argv[1]); exit (0);
+ 	#endif
+ 	#endif
+ 	  exit (-1);
+ 	}
+ EOF
+-	${CC-cc} $dummy.c -o $dummy \
++	$CC_FOR_BUILD $dummy.c -o $dummy \
+ 	  && ./$dummy `echo "${UNAME_RELEASE}" | sed -n 's/\([0-9]*\).*/\1/p'` \
+ 	  && rm $dummy.c $dummy && exit 0
+ 	rm -f $dummy.c $dummy
+ 	echo mips-mips-riscos${UNAME_RELEASE}
+ 	exit 0 ;;
+     Night_Hawk:Power_UNIX:*:*)
+@@ -273,20 +328,23 @@
+     m88k:*:3*:R3*)
+ 	echo m88k-motorola-sysv3
+ 	exit 0 ;;
+     AViiON:dgux:*:*)
+         # DG/UX returns AViiON for all architectures
+         UNAME_PROCESSOR=`/usr/bin/uname -p`
+-        if [ $UNAME_PROCESSOR = mc88100 -o $UNAME_PROCESSOR = mc88110 ] ; then
+-	if [ ${TARGET_BINARY_INTERFACE}x = m88kdguxelfx \
+-	     -o ${TARGET_BINARY_INTERFACE}x = x ] ; then
++	if [ $UNAME_PROCESSOR = mc88100 ] || [ $UNAME_PROCESSOR = mc88110]
++	then
++	    if [ ${TARGET_BINARY_INTERFACE}x = m88kdguxelfx ] || \
++	       [ ${TARGET_BINARY_INTERFACE}x = x ]
++	    then
+ 		echo m88k-dg-dgux${UNAME_RELEASE}
+-	else
++	    else
+ 		echo m88k-dg-dguxbcs${UNAME_RELEASE}
+-	fi
+-        else echo i586-dg-dgux${UNAME_RELEASE}
++	    fi
++	else
++	    echo i586-dg-dgux${UNAME_RELEASE}
+         fi
+  	exit 0 ;;
+     M88*:DolphinOS:*:*)	# DolphinOS (SVR3)
+ 	echo m88k-dolphin-sysv3
+ 	exit 0 ;;
+     M88*:*:R3*:*)
+@@ -318,13 +376,13 @@
+ 			if (!__power_pc())
+ 				exit(1);
+ 			puts("powerpc-ibm-aix3.2.5");
+ 			exit(0);
+ 			}
+ EOF
+-		${CC-cc} $dummy.c -o $dummy && ./$dummy && rm $dummy.c $dummy && exit 0
++		$CC_FOR_BUILD $dummy.c -o $dummy && ./$dummy && rm $dummy.c $dummy && exit 0
+ 		rm -f $dummy.c $dummy
+ 		echo rs6000-ibm-aix3.2.5
+ 	elif grep bos324 /usr/include/stdio.h >/dev/null 2>&1; then
+ 		echo rs6000-ibm-aix3.2.4
+ 	else
+ 		echo rs6000-ibm-aix3.2
+@@ -366,45 +424,45 @@
+ 	echo m68k-hp-bsd4.4
+ 	exit 0 ;;
+     9000/[34678]??:HP-UX:*:*)
+ 	case "${UNAME_MACHINE}" in
+ 	    9000/31? )            HP_ARCH=m68000 ;;
+ 	    9000/[34]?? )         HP_ARCH=m68k ;;
+-	    9000/6?? | 9000/7?? | 9000/80[24] | 9000/8?[13679] | 9000/892 )
++	    9000/[678][0-9][0-9])
+               sed 's/^              //' << EOF >$dummy.c
+               #include <stdlib.h>
+               #include <unistd.h>
+-              
++
+               int main ()
+               {
+               #if defined(_SC_KERNEL_BITS)
+                   long bits = sysconf(_SC_KERNEL_BITS);
+-              #endif 
++              #endif
+                   long cpu  = sysconf (_SC_CPU_VERSION);
+-              
+-                  switch (cpu) 
++
++                  switch (cpu)
+               	{
+               	case CPU_PA_RISC1_0: puts ("hppa1.0"); break;
+               	case CPU_PA_RISC1_1: puts ("hppa1.1"); break;
+-              	case CPU_PA_RISC2_0: 
++              	case CPU_PA_RISC2_0:
+               #if defined(_SC_KERNEL_BITS)
+-              	    switch (bits) 
++              	    switch (bits)
+               		{
+               		case 64: puts ("hppa2.0w"); break;
+               		case 32: puts ("hppa2.0n"); break;
+               		default: puts ("hppa2.0"); break;
+               		} break;
+               #else  /* !defined(_SC_KERNEL_BITS) */
+               	    puts ("hppa2.0"); break;
+-              #endif 
++              #endif
+               	default: puts ("hppa1.0"); break;
+               	}
+                   exit (0);
+               }
+ EOF
+-	(${CC-cc} $dummy.c -o $dummy 2>/dev/null ) && HP_ARCH=`./$dummy`
++	(CCOPTS= $CC_FOR_BUILD $dummy.c -o $dummy 2>/dev/null ) && HP_ARCH=`./$dummy`
+ 	rm -f $dummy.c $dummy
+ 	esac
+ 	HPUX_REV=`echo ${UNAME_RELEASE}|sed -e 's/[^.]*.[0B]*//'`
+ 	echo ${HP_ARCH}-hp-hpux${HPUX_REV}
+ 	exit 0 ;;
+     3050*:HI-UX:*:*)
+@@ -430,22 +488,25 @@
+ 	  else if (CPU_IS_HP_MC68K (cpu))
+ 	    puts ("m68k-hitachi-hiuxwe2");
+ 	  else puts ("unknown-hitachi-hiuxwe2");
+ 	  exit (0);
+ 	}
+ EOF
+-	${CC-cc} $dummy.c -o $dummy && ./$dummy && rm $dummy.c $dummy && exit 0
++	$CC_FOR_BUILD $dummy.c -o $dummy && ./$dummy && rm $dummy.c $dummy && exit 0
+ 	rm -f $dummy.c $dummy
+ 	echo unknown-hitachi-hiuxwe2
+ 	exit 0 ;;
+     9000/7??:4.3bsd:*:* | 9000/8?[79]:4.3bsd:*:* )
+ 	echo hppa1.1-hp-bsd
+ 	exit 0 ;;
+     9000/8??:4.3bsd:*:*)
+ 	echo hppa1.0-hp-bsd
+ 	exit 0 ;;
++    *9??*:MPE/iX:*:*)
++	echo hppa1.0-hp-mpeix
++	exit 0 ;;
+     hp7??:OSF1:*:* | hp8?[79]:OSF1:*:* )
+ 	echo hppa1.1-hp-osf
+ 	exit 0 ;;
+     hp8??:OSF1:*:*)
+ 	echo hppa1.0-hp-osf
+ 	exit 0 ;;
+@@ -456,12 +517,15 @@
+ 	    echo ${UNAME_MACHINE}-unknown-osf1
+ 	fi
+ 	exit 0 ;;
+     parisc*:Lites*:*:*)
+ 	echo hppa1.1-hp-lites
+ 	exit 0 ;;
++    hppa*:OpenBSD:*:*)
++	echo hppa-unknown-openbsd
++	exit 0 ;;
+     C1*:ConvexOS:*:* | convex:ConvexOS:C1*:*)
+ 	echo c1-convex-bsd
+         exit 0 ;;
+     C2*:ConvexOS:*:* | convex:ConvexOS:C2*:*)
+ 	if getsysinfo -f scalar_acc
+ 	then echo c32-convex-bsd
+@@ -489,87 +553,156 @@
+ 	      -e y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/
+ 	exit 0 ;;
+     CRAY*TS:*:*:*)
+ 	echo t90-cray-unicos${UNAME_RELEASE}
+ 	exit 0 ;;
+     CRAY*T3E:*:*:*)
+-	echo t3e-cray-unicosmk${UNAME_RELEASE}
++	echo alpha-cray-unicosmk${UNAME_RELEASE}
+ 	exit 0 ;;
+     CRAY-2:*:*:*)
+ 	echo cray2-cray-unicos
+         exit 0 ;;
+     F300:UNIX_System_V:*:*)
+-        FUJITSU_SYS=`uname -p | tr [A-Z] [a-z] | sed -e 's/\///'`
++        FUJITSU_SYS=`uname -p | tr 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' 'abcdefghijklmnopqrstuvwxyz' | sed -e 's/\///'`
+         FUJITSU_REL=`echo ${UNAME_RELEASE} | sed -e 's/ /_/'`
+         echo "f300-fujitsu-${FUJITSU_SYS}${FUJITSU_REL}"
+         exit 0 ;;
+     F301:UNIX_System_V:*:*)
+        echo f301-fujitsu-uxpv`echo $UNAME_RELEASE | sed 's/ .*//'`
+        exit 0 ;;
+     hp3[0-9][05]:NetBSD:*:*)
+ 	echo m68k-hp-netbsd${UNAME_RELEASE}
+ 	exit 0 ;;
+     hp300:OpenBSD:*:*)
+ 	echo m68k-unknown-openbsd${UNAME_RELEASE}
+ 	exit 0 ;;
+-    sparc*:BSD/OS:*:*)
+-	echo sparc-unknown-bsdi${UNAME_RELEASE}
+-	exit 0 ;;
+     i?86:BSD/386:*:* | i?86:BSD/OS:*:*)
+ 	echo ${UNAME_MACHINE}-pc-bsdi${UNAME_RELEASE}
+ 	exit 0 ;;
++    sparc*:BSD/OS:*:*)
++	echo sparc-unknown-bsdi${UNAME_RELEASE}
++	exit 0 ;;
+     *:BSD/OS:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-bsdi${UNAME_RELEASE}
+ 	exit 0 ;;
+     *:FreeBSD:*:*)
++	if test -x /usr/bin/objformat; then
++	    if test "elf" = "`/usr/bin/objformat`"; then
++		echo ${UNAME_MACHINE}-unknown-freebsdelf`echo ${UNAME_RELEASE}|sed -e 's/[-_].*//'`
++		exit 0
++	    fi
++	fi
+ 	echo ${UNAME_MACHINE}-unknown-freebsd`echo ${UNAME_RELEASE}|sed -e 's/[-(].*//'`
+ 	exit 0 ;;
+     *:NetBSD:*:*)
+-	echo ${UNAME_MACHINE}-unknown-netbsd`echo ${UNAME_RELEASE}|sed -e 's/[-_].*/\./'`
++	echo ${UNAME_MACHINE}-unknown-netbsd`echo ${UNAME_RELEASE}|sed -e 's/[-_].*//'`
+ 	exit 0 ;;
+     *:OpenBSD:*:*)
+ 	echo ${UNAME_MACHINE}-unknown-openbsd`echo ${UNAME_RELEASE}|sed -e 's/[-_].*/\./'`
+ 	exit 0 ;;
+     i*:CYGWIN*:*)
+ 	echo ${UNAME_MACHINE}-pc-cygwin
+ 	exit 0 ;;
+     i*:MINGW*:*)
+ 	echo ${UNAME_MACHINE}-pc-mingw32
+ 	exit 0 ;;
++    i*:Windows_NT*:* | Pentium*:Windows_NT*:*)
++	# How do we know it's Interix rather than the generic POSIX subsystem?
++	# It also conflicts with pre-2.0 versions of AT&T UWIN. Should we
++	# UNAME_MACHINE based on the output of uname instead of i386?
++	echo i386-pc-interix
++	exit 0 ;;
++    i*:UWIN*:*)
++	echo ${UNAME_MACHINE}-pc-uwin
++	exit 0 ;;
+     p*:CYGWIN*:*)
+ 	echo powerpcle-unknown-cygwin
+ 	exit 0 ;;
+     prep*:SunOS:5.*:*)
+ 	echo powerpcle-unknown-solaris2`echo ${UNAME_RELEASE}|sed -e 's/[^.]*//'`
+ 	exit 0 ;;
+     *:GNU:*:*)
+ 	echo `echo ${UNAME_MACHINE}|sed -e 's,[-/].*$,,'`-unknown-gnu`echo ${UNAME_RELEASE}|sed -e 's,/.*$,,'`
+ 	exit 0 ;;
+     *:Linux:*:*)
+-	# uname on the ARM produces all sorts of strangeness, and we need to
+-	# filter it out.
+-	case "$UNAME_MACHINE" in
+-	  arm* | sa110*)	      UNAME_MACHINE="arm" ;;
+-	esac
+ 
+ 	# The BFD linker knows what the default object file format is, so
+-	# first see if it will tell us.
+-	ld_help_string=`ld --help 2>&1`
++	# first see if it will tell us. cd to the root directory to prevent
++	# problems with other programs or directories called `ld' in the path.
++	ld_help_string=`cd /; ld --help 2>&1`
+ 	ld_supported_emulations=`echo $ld_help_string \
+ 			 | sed -ne '/supported emulations:/!d
+ 				    s/[ 	][ 	]*/ /g
+ 				    s/.*supported emulations: *//
+ 				    s/ .*//
+ 				    p'`
+         case "$ld_supported_emulations" in
+-	  i?86linux)  echo "${UNAME_MACHINE}-pc-linux-gnuaout"      ; exit 0 ;;
+-	  i?86coff)   echo "${UNAME_MACHINE}-pc-linux-gnucoff"      ; exit 0 ;;
+-	  sparclinux) echo "${UNAME_MACHINE}-unknown-linux-gnuaout" ; exit 0 ;;
+-	  armlinux)   echo "${UNAME_MACHINE}-unknown-linux-gnuaout" ; exit 0 ;;
+-	  m68klinux)  echo "${UNAME_MACHINE}-unknown-linux-gnuaout" ; exit 0 ;;
+-	  elf32ppc)   echo "powerpc-unknown-linux-gnu"              ; exit 0 ;;
++	  *ia64)
++		echo "${UNAME_MACHINE}-unknown-linux"
++		exit 0
++		;;
++	  i?86linux)
++		echo "${UNAME_MACHINE}-pc-linux-gnuaout"
++		exit 0
++		;;
++	  i?86coff)
++		echo "${UNAME_MACHINE}-pc-linux-gnucoff"
++		exit 0
++		;;
++	  sparclinux)
++		echo "${UNAME_MACHINE}-unknown-linux-gnuaout"
++		exit 0
++		;;
++	  armlinux)
++		echo "${UNAME_MACHINE}-unknown-linux-gnuaout"
++		exit 0
++		;;
++	  elf32arm*)
++		echo "${UNAME_MACHINE}-unknown-linux-gnu"
++		exit 0
++		;;
++	  armelf_linux*)
++		echo "${UNAME_MACHINE}-unknown-linux-gnu"
++		exit 0
++		;;
++	  m68klinux)
++		echo "${UNAME_MACHINE}-unknown-linux-gnuaout"
++		exit 0
++		;;
++	  elf32ppc)
++		# Determine Lib Version
++		cat >$dummy.c <<EOF
++#include <features.h>
++#if defined(__GLIBC__)
++extern char __libc_version[];
++extern char __libc_release[];
++#endif
++main(argc, argv)
++     int argc;
++     char *argv[];
++{
++#if defined(__GLIBC__)
++  printf("%s %s\n", __libc_version, __libc_release);
++#else
++  printf("unkown\n");
++#endif
++  return 0;
++}
++EOF
++		LIBC=""
++		$CC_FOR_BUILD $dummy.c -o $dummy 2>/dev/null
++		if test "$?" = 0 ; then
++			./$dummy | grep 1\.99 > /dev/null
++			if test "$?" = 0 ; then
++				LIBC="libc1"
++			fi
++		fi	
++		rm -f $dummy.c $dummy
++		echo powerpc-unknown-linux-gnu${LIBC}
++		exit 0
++		;;
+ 	esac
+ 
+ 	if test "${UNAME_MACHINE}" = "alpha" ; then
+ 		sed 's/^	//'  <<EOF >$dummy.s
+ 		.globl main
+ 		.ent main
+@@ -585,13 +718,13 @@
+ 		addl \$1,\$0,\$0
+ 		addl \$2,\$0,\$0
+ 		ret \$31,(\$26),1
+ 		.end main
+ EOF
+ 		LIBC=""
+-		${CC-cc} $dummy.s -o $dummy 2>/dev/null
++		$CC_FOR_BUILD $dummy.s -o $dummy 2>/dev/null
+ 		if test "$?" = 0 ; then
+ 			./$dummy
+ 			case "$?" in
+ 			7)
+ 				UNAME_MACHINE="alpha"
+ 				;;
+@@ -604,38 +737,39 @@
+ 			10)
+ 				UNAME_MACHINE="alphapca56"
+ 				;;
+ 			16)
+ 				UNAME_MACHINE="alphaev6"
+ 				;;
+-			esac	
++			esac
+ 
+ 			objdump --private-headers $dummy | \
+ 			  grep ld.so.1 > /dev/null
+ 			if test "$?" = 0 ; then
+ 				LIBC="libc1"
+ 			fi
+-		fi	
++		fi
+ 		rm -f $dummy.s $dummy
+ 		echo ${UNAME_MACHINE}-unknown-linux-gnu${LIBC} ; exit 0
+ 	elif test "${UNAME_MACHINE}" = "mips" ; then
+ 	  cat >$dummy.c <<EOF
+-main(argc, argv)
+-     int argc;
+-     char *argv[];
+-{
++#ifdef __cplusplus
++	int main (int argc, char *argv[]) {
++#else
++	int main (argc, argv) int argc; char *argv[]; {
++#endif
+ #ifdef __MIPSEB__
+   printf ("%s-unknown-linux-gnu\n", argv[1]);
+ #endif
+ #ifdef __MIPSEL__
+   printf ("%sel-unknown-linux-gnu\n", argv[1]);
+ #endif
+   return 0;
+ }
+ EOF
+-	  ${CC-cc} $dummy.c -o $dummy 2>/dev/null && ./$dummy "${UNAME_MACHINE}" && rm $dummy.c $dummy && exit 0
++	  $CC_FOR_BUILD $dummy.c -o $dummy 2>/dev/null && ./$dummy "${UNAME_MACHINE}" && rm $dummy.c $dummy && exit 0
+ 	  rm -f $dummy.c $dummy
+ 	else
+ 	  # Either a pre-BFD a.out linker (linux-gnuoldld)
+ 	  # or one that does not give us useful --help.
+ 	  # GCC wants to distinguish between linux-gnuoldld and linux-gnuaout.
+ 	  # If ld does not provide *any* "supported emulations:"
+@@ -651,16 +785,17 @@
+ 	    VENDOR=unknown;
+ 	    ;;
+ 	  esac
+ 	  # Determine whether the default compiler is a.out or elf
+ 	  cat >$dummy.c <<EOF
+ #include <features.h>
+-main(argc, argv)
+-     int argc;
+-     char *argv[];
+-{
++#ifdef __cplusplus
++	int main (int argc, char *argv[]) {
++#else
++	int main (argc, argv) int argc; char *argv[]; {
++#endif
+ #ifdef __ELF__
+ # ifdef __GLIBC__
+ #  if __GLIBC__ >= 2
+     printf ("%s-${VENDOR}-linux-gnu\n", argv[1]);
+ #  else
+     printf ("%s-${VENDOR}-linux-gnulibc1\n", argv[1]);
+@@ -671,13 +806,13 @@
+ #else
+   printf ("%s-${VENDOR}-linux-gnuaout\n", argv[1]);
+ #endif
+   return 0;
+ }
+ EOF
+-	  ${CC-cc} $dummy.c -o $dummy 2>/dev/null && ./$dummy "${UNAME_MACHINE}" && rm $dummy.c $dummy && exit 0
++	  $CC_FOR_BUILD $dummy.c -o $dummy 2>/dev/null && ./$dummy "${UNAME_MACHINE}" && rm $dummy.c $dummy && exit 0
+ 	  rm -f $dummy.c $dummy
+ 	fi ;;
+ # ptx 4.0 does uname -s correctly, with DYNIX/ptx in there.  earlier versions
+ # are messed up and put the nodename in both sysname and nodename.
+     i?86:DYNIX/ptx:4*:*)
+ 	echo i386-sequent-sysv4
+@@ -688,39 +823,46 @@
+         # I am not positive that other SVR4 systems won't match this,
+ 	# I just have to hope.  -- rms.
+         # Use sysv4.2uw... so that sysv4* matches it.
+ 	echo ${UNAME_MACHINE}-pc-sysv4.2uw${UNAME_VERSION}
+ 	exit 0 ;;
+     i?86:*:4.*:* | i?86:SYSTEM_V:4.*:*)
++	UNAME_REL=`echo ${UNAME_RELEASE} | sed 's/\/MP$//'`
+ 	if grep Novell /usr/include/link.h >/dev/null 2>/dev/null; then
+-		echo ${UNAME_MACHINE}-univel-sysv${UNAME_RELEASE}
++		echo ${UNAME_MACHINE}-univel-sysv${UNAME_REL}
+ 	else
+-		echo ${UNAME_MACHINE}-pc-sysv${UNAME_RELEASE}
++		echo ${UNAME_MACHINE}-pc-sysv${UNAME_REL}
++	fi
++	exit 0 ;;
++    i?86:*:5:7*)
++        # Fixed at (any) Pentium or better
++        UNAME_MACHINE=i586
++        if [ ${UNAME_SYSTEM} = "UnixWare" ] ; then
++	    echo ${UNAME_MACHINE}-sco-sysv${UNAME_RELEASE}uw${UNAME_VERSION}
++	else
++	    echo ${UNAME_MACHINE}-pc-sysv${UNAME_RELEASE}
+ 	fi
+ 	exit 0 ;;
+     i?86:*:3.2:*)
+ 	if test -f /usr/options/cb.name; then
+ 		UNAME_REL=`sed -n 's/.*Version //p' </usr/options/cb.name`
+ 		echo ${UNAME_MACHINE}-pc-isc$UNAME_REL
+ 	elif /bin/uname -X 2>/dev/null >/dev/null ; then
+ 		UNAME_REL=`(/bin/uname -X|egrep Release|sed -e 's/.*= //')`
+ 		(/bin/uname -X|egrep i80486 >/dev/null) && UNAME_MACHINE=i486
+ 		(/bin/uname -X|egrep '^Machine.*Pentium' >/dev/null) \
+ 			&& UNAME_MACHINE=i586
++		(/bin/uname -X|egrep '^Machine.*Pent ?II' >/dev/null) \
++			&& UNAME_MACHINE=i686
++		(/bin/uname -X|egrep '^Machine.*Pentium Pro' >/dev/null) \
++			&& UNAME_MACHINE=i686
+ 		echo ${UNAME_MACHINE}-pc-sco$UNAME_REL
+ 	else
+ 		echo ${UNAME_MACHINE}-pc-sysv32
+ 	fi
+ 	exit 0 ;;
+-    i?86:UnixWare:*:*)
+-	if /bin/uname -X 2>/dev/null >/dev/null ; then
+-	  (/bin/uname -X|egrep '^Machine.*Pentium' >/dev/null) \
+-	    && UNAME_MACHINE=i586
+-	fi
+-	echo ${UNAME_MACHINE}-unixware-${UNAME_RELEASE}-${UNAME_VERSION}
+-	exit 0 ;;
+     pc:*:*:*)
+         # uname -m prints for DJGPP always 'pc', but it prints nothing about
+         # the processor, so we play safe by assuming i386.
+ 	echo i386-pc-msdosdjgpp
+         exit 0 ;;
+     Intel:Mach:3*:*)
+@@ -756,24 +898,27 @@
+     m68*:LynxOS:2.*:*)
+ 	echo m68k-unknown-lynxos${UNAME_RELEASE}
+ 	exit 0 ;;
+     mc68030:UNIX_System_V:4.*:*)
+ 	echo m68k-atari-sysv4
+ 	exit 0 ;;
+-    i?86:LynxOS:2.*:*)
++    i?86:LynxOS:2.*:* | i?86:LynxOS:3.[01]*:*)
+ 	echo i386-unknown-lynxos${UNAME_RELEASE}
+ 	exit 0 ;;
+     TSUNAMI:LynxOS:2.*:*)
+ 	echo sparc-unknown-lynxos${UNAME_RELEASE}
+ 	exit 0 ;;
+     rs6000:LynxOS:2.*:* | PowerPC:LynxOS:2.*:*)
+ 	echo rs6000-unknown-lynxos${UNAME_RELEASE}
+ 	exit 0 ;;
+     SM[BE]S:UNIX_SV:*:*)
+ 	echo mips-dde-sysv${UNAME_RELEASE}
+ 	exit 0 ;;
++    RM*:ReliantUNIX-*:*:*)
++	echo mips-sni-sysv4
++	exit 0 ;;
+     RM*:SINIX-*:*:*)
+ 	echo mips-sni-sysv4
+ 	exit 0 ;;
+     *:SINIX-*:*:*)
+ 	if uname -p 2>/dev/null >/dev/null ; then
+ 		UNAME_MACHINE=`(uname -p) 2>/dev/null`
+@@ -798,13 +943,13 @@
+     mc68*:A/UX:*:*)
+ 	echo m68k-apple-aux${UNAME_RELEASE}
+ 	exit 0 ;;
+     news*:NEWS-OS:*:6*)
+ 	echo mips-sony-newsos6
+ 	exit 0 ;;
+-    R3000:*System_V*:*:* | R4000:UNIX_SYSV:*:* | R4000:UNIX_SV:*:*)
++    R[34]000:*System_V*:*:* | R4000:UNIX_SYSV:*:* | R*000:UNIX_SV:*:*)
+ 	if [ -d /usr/nec ]; then
+ 	        echo mips-nec-sysv${UNAME_RELEASE}
+ 	else
+ 	        echo mips-unknown-sysv${UNAME_RELEASE}
+ 	fi
+         exit 0 ;;
+@@ -826,12 +971,15 @@
+     Power*:Rhapsody:*:*)
+ 	echo powerpc-apple-rhapsody${UNAME_RELEASE}
+ 	exit 0 ;;
+     *:Rhapsody:*:*)
+ 	echo ${UNAME_MACHINE}-apple-rhapsody${UNAME_RELEASE}
+ 	exit 0 ;;
++    *:QNX:*:4*)
++	echo i386-qnx-qnx${UNAME_VERSION}
++	exit 0 ;;
+ esac
+ 
+ #echo '(No uname command or uname output not recognized.)' 1>&2
+ #echo "${UNAME_MACHINE}:${UNAME_SYSTEM}:${UNAME_RELEASE}:${UNAME_VERSION}" 1>&2
+ 
+ cat >$dummy.c <<EOF
+@@ -932,13 +1080,13 @@
+ #endif
+ 
+   exit (1);
+ }
+ EOF
+ 
+-${CC-cc} $dummy.c -o $dummy 2>/dev/null && ./$dummy && rm $dummy.c $dummy && exit 0
++$CC_FOR_BUILD $dummy.c -o $dummy 2>/dev/null && ./$dummy && rm $dummy.c $dummy && exit 0
+ rm -f $dummy.c $dummy
+ 
+ # Apollos put the system type in the environment.
+ 
+ test -d /usr/apollo && { echo ${ISP}-apollo-${SYSTYPE}; exit 0; }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/config.h.in	1999-11-02 05:35:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/config.h.in	2000-01-29 19:35:03.000000000 +0800
+@@ -59,12 +59,13 @@
+ #undef HAVE_UTIMBUF
+ #undef ino_t
+ #undef HAVE_CONNECT
+ #undef HAVE_SHORT_INO_T
+ #undef HAVE_GETOPT_LONG
+ #undef REPLACE_INET_NTOA
++#undef HAVE_GETTIMEOFDAY_TZ
+ 
+ /* The number of bytes in a int.  */
+ #undef SIZEOF_INT
+ 
+ /* The number of bytes in a long.  */
+ #undef SIZEOF_LONG
+@@ -114,12 +115,15 @@
+ /* Define if you have the setsid function.  */
+ #undef HAVE_SETSID
+ 
+ /* Define if you have the snprintf function.  */
+ #undef HAVE_SNPRINTF
+ 
++/* Define if you have the socketpair function.  */
++#undef HAVE_SOCKETPAIR
++
+ /* Define if you have the strcasecmp function.  */
+ #undef HAVE_STRCASECMP
+ 
+ /* Define if you have the strchr function.  */
+ #undef HAVE_STRCHR
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/configure	1999-11-02 05:35:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/configure	2000-01-29 19:35:03.000000000 +0800
+@@ -2396,13 +2396,13 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+-for ac_func in strlcat strlcpy inet_aton
++for ac_func in strlcat strlcpy inet_aton socketpair
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ echo "configure:2406: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+@@ -2761,35 +2761,75 @@
+     cat >> confdefs.h <<\EOF
+ #define HAVE_UTIMBUF 1
+ EOF
+ 
+ fi
+ 
++echo $ac_n "checking if gettimeofday takes tz argument""... $ac_c" 1>&6
++echo "configure:2769: checking if gettimeofday takes tz argument" >&5
++if eval "test \"`echo '$''{'rsync_cv_HAVE_GETTIMEOFDAY_TZ'+set}'`\" = set"; then
++  echo $ac_n "(cached) $ac_c" 1>&6
++else
++  
++if test "$cross_compiling" = yes; then
++  rsync_cv_HAVE_GETTIMEOFDAY_TZ=cross
++else
++  cat > conftest.$ac_ext <<EOF
++#line 2778 "configure"
++#include "confdefs.h"
++
++#include <sys/time.h>
++#include <unistd.h>
++main() { struct timeval tv; exit(gettimeofday(&tv, NULL));}
++EOF
++if { (eval echo configure:2785: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++then
++  rsync_cv_HAVE_GETTIMEOFDAY_TZ=yes
++else
++  echo "configure: failed program was:" >&5
++  cat conftest.$ac_ext >&5
++  rm -fr conftest*
++  rsync_cv_HAVE_GETTIMEOFDAY_TZ=no
++fi
++rm -fr conftest*
++fi
++
++fi
++
++echo "$ac_t""$rsync_cv_HAVE_GETTIMEOFDAY_TZ" 1>&6
++if test x"$rsync_cv_HAVE_GETTIMEOFDAY_TZ" = x"yes"; then
++    cat >> confdefs.h <<\EOF
++#define HAVE_GETTIMEOFDAY_TZ 1
++EOF
++
++fi
++
++
+ echo $ac_n "checking for broken inet_ntoa""... $ac_c" 1>&6
+-echo "configure:2769: checking for broken inet_ntoa" >&5
++echo "configure:2809: checking for broken inet_ntoa" >&5
+ if eval "test \"`echo '$''{'rsync_cv_REPLACE_INET_NTOA'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ if test "$cross_compiling" = yes; then
+   rsync_cv_REPLACE_INET_NTOA=cross
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2778 "configure"
++#line 2818 "configure"
+ #include "confdefs.h"
+ 
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <netinet/in.h>
+ #include <arpa/inet.h>
+ main() { struct in_addr ip; ip.s_addr = 0x12345678;
+ if (strcmp(inet_ntoa(ip),"18.52.86.120") &&
+     strcmp(inet_ntoa(ip),"120.86.52.18")) { exit(0); } 
+ exit(1);}
+ EOF
+-if { (eval echo configure:2790: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2830: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext} && (./conftest; exit) 2>/dev/null
+ then
+   rsync_cv_REPLACE_INET_NTOA=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -2814,18 +2854,18 @@
+ # libsocket.so which has a bad implementation of gethostbyname (it
+ # only looks in /etc/hosts), so we only look for -lsocket if we need
+ # it.
+ for ac_func in connect
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:2821: checking for $ac_func" >&5
++echo "configure:2861: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2826 "configure"
++#line 2866 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2842,13 +2882,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2849: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2889: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2870,32 +2910,32 @@
+ done
+ 
+ if test x"$ac_cv_func_connect" = x"no"; then
+     case "$LIBS" in
+     *-lnsl*) ;;
+     *) echo $ac_n "checking for printf in -lnsl_s""... $ac_c" 1>&6
+-echo "configure:2877: checking for printf in -lnsl_s" >&5
++echo "configure:2917: checking for printf in -lnsl_s" >&5
+ ac_lib_var=`echo nsl_s'_'printf | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lnsl_s  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2885 "configure"
++#line 2925 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char printf();
+ 
+ int main() {
+ printf()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2896: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2936: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2920,32 +2960,32 @@
+ fi
+  ;;
+     esac
+     case "$LIBS" in
+     *-lnsl*) ;;
+     *) echo $ac_n "checking for printf in -lnsl""... $ac_c" 1>&6
+-echo "configure:2927: checking for printf in -lnsl" >&5
++echo "configure:2967: checking for printf in -lnsl" >&5
+ ac_lib_var=`echo nsl'_'printf | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lnsl  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2935 "configure"
++#line 2975 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char printf();
+ 
+ int main() {
+ printf()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2946: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:2986: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2970,32 +3010,32 @@
+ fi
+  ;;
+     esac
+     case "$LIBS" in
+     *-lsocket*) ;;
+     *) echo $ac_n "checking for connect in -lsocket""... $ac_c" 1>&6
+-echo "configure:2977: checking for connect in -lsocket" >&5
++echo "configure:3017: checking for connect in -lsocket" >&5
+ ac_lib_var=`echo socket'_'connect | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lsocket  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2985 "configure"
++#line 3025 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char connect();
+ 
+ int main() {
+ connect()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2996: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:3036: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -3020,32 +3060,32 @@
+ fi
+  ;;
+     esac
+     case "$LIBS" in
+     *-linet*) ;;
+     *) echo $ac_n "checking for connect in -linet""... $ac_c" 1>&6
+-echo "configure:3027: checking for connect in -linet" >&5
++echo "configure:3067: checking for connect in -linet" >&5
+ ac_lib_var=`echo inet'_'connect | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-linet  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 3035 "configure"
++#line 3075 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char connect();
+ 
+ int main() {
+ connect()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:3046: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:3086: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -3084,18 +3124,18 @@
+ # 
+ # if we can't find strcasecmp, look in -lresolv (for Unixware at least)
+ #
+ for ac_func in strcasecmp
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:3091: checking for $ac_func" >&5
++echo "configure:3131: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 3096 "configure"
++#line 3136 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -3112,13 +3152,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:3119: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:3159: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -3138,32 +3178,32 @@
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+ if test x"$ac_cv_func_strcasecmp" = x"no"; then
+     echo $ac_n "checking for strcasecmp in -lresolv""... $ac_c" 1>&6
+-echo "configure:3145: checking for strcasecmp in -lresolv" >&5
++echo "configure:3185: checking for strcasecmp in -lresolv" >&5
+ ac_lib_var=`echo resolv'_'strcasecmp | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lresolv  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 3153 "configure"
++#line 3193 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char strcasecmp();
+ 
+ int main() {
+ strcasecmp()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:3164: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
++if { (eval echo configure:3204: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest${ac_exeext}; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -3190,13 +3230,13 @@
+ fi
+ 
+ #
+ # The following test was mostly taken from the tcl/tk plus patches
+ #
+ echo $ac_n "checking whether -c -o works""... $ac_c" 1>&6
+-echo "configure:3197: checking whether -c -o works" >&5
++echo "configure:3237: checking whether -c -o works" >&5
+ if eval "test \"`echo '$''{'rsync_cv_DASHC_WORKS_WITH_DASHO'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   
+ rm -rf conftest*
+ cat > conftest.$ac_ext <<EOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/configure.in	1999-11-02 05:35:15.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/configure.in	2000-01-29 19:35:03.000000000 +0800
+@@ -50,13 +50,13 @@
+ 
+ AC_FUNC_MEMCMP
+ AC_FUNC_UTIME_NULL
+ AC_CHECK_FUNCS(waitpid wait4 getcwd strdup strerror chown chmod mknod)
+ AC_CHECK_FUNCS(fchmod fstat strchr readlink link utime utimes strftime)
+ AC_CHECK_FUNCS(memmove lchown vsnprintf snprintf setsid glob strpbrk)
+-AC_CHECK_FUNCS(strlcat strlcpy inet_aton)
++AC_CHECK_FUNCS(strlcat strlcpy inet_aton socketpair)
+ 
+ AC_CACHE_CHECK([for working fnmatch],rsync_cv_HAVE_FNMATCH,[
+ AC_TRY_RUN([#include <fnmatch.h>
+ main() { exit((fnmatch("*.o", "x.o", FNM_PATHNAME) == 0 &&
+                fnmatch("a/b/*", "a/b/c/d", FNM_PATHNAME) != 0) ? 0: 1); }],
+ rsync_cv_HAVE_FNMATCH=yes,rsync_cv_HAVE_FNMATCH=no,rsync_cv_HAVE_FNMATCH=cross)])
+@@ -132,12 +132,23 @@
+ [struct utimbuf tbuf;  tbuf.actime = 0; tbuf.modtime = 1; exit(utime("foo.c",&tbuf));],
+ rsync_cv_HAVE_UTIMBUF=yes,rsync_cv_HAVE_UTIMBUF=no,rsync_cv_HAVE_UTIMBUF=cross)])
+ if test x"$rsync_cv_HAVE_UTIMBUF" = x"yes"; then
+     AC_DEFINE(HAVE_UTIMBUF)
+ fi
+ 
++AC_CACHE_CHECK([if gettimeofday takes tz argument],rsync_cv_HAVE_GETTIMEOFDAY_TZ,[
++AC_TRY_RUN([
++#include <sys/time.h>
++#include <unistd.h>
++main() { struct timeval tv; exit(gettimeofday(&tv, NULL));}],
++           rsync_cv_HAVE_GETTIMEOFDAY_TZ=yes,rsync_cv_HAVE_GETTIMEOFDAY_TZ=no,rsync_cv_HAVE_GETTIMEOFDAY_TZ=cross)])
++if test x"$rsync_cv_HAVE_GETTIMEOFDAY_TZ" = x"yes"; then
++    AC_DEFINE(HAVE_GETTIMEOFDAY_TZ)
++fi
++
++
+ AC_CACHE_CHECK([for broken inet_ntoa],rsync_cv_REPLACE_INET_NTOA,[
+ AC_TRY_RUN([
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <netinet/in.h>
+ #include <arpa/inet.h>
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3: .cvsignore
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0: cvs.log
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/exclude.c	2002-01-25 11:13:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/exclude.c	2000-01-29 19:35:03.000000000 +0800
+@@ -24,56 +24,12 @@
+ 
+ extern int verbose;
+ extern int delete_mode;
+ 
+ static struct exclude_struct **exclude_list;
+ 
+-/*
+- * Optimization for special case when all included files are explicitly
+- *   listed without wildcards in the "exclude" list followed by a "- *"
+- *   to exclude the rest.
+- * Contributed by Dave Dykstra <dwd@bell-labs.com>
+- */
+-static int only_included_files = 1;
+-static struct exclude_struct *exclude_the_rest;
+-
+-int send_included_file_names(int f,struct file_list *flist)
+-{
+-	struct exclude_struct *ex, **ex_list;
+-	int n;
+-	char *p;
+-
+-	if (!only_included_files || (exclude_the_rest == NULL) || delete_mode)
+-		return 0;
+-
+-	if (verbose > 1) {
+-		rprintf(FINFO,"(using include-only optimization) ");
+-	}
+-
+-	/* set exclude_list to NULL temporarily so check_exclude */
+-	/*   will always return true */
+-	ex_list = exclude_list;
+-	exclude_list = NULL;
+-	for (n=0; (ex = ex_list[n]) != NULL; n++) {
+-		if (ex == exclude_the_rest)
+-			break;
+-		p = ex->pattern;
+-		while (*p == '/') {
+-			/* skip the allowed beginning slashes */
+-			p++;
+-		}
+-		/* silently skip files that don't exist to
+-		   be more like non-optimized case */
+-		if (access(p,0) == 0)
+-			send_file_name(f,flist,p,0,0);
+-	}
+-	exclude_list = ex_list;
+-	
+-	return 1;
+-}
+-
+ /* build an exclude structure given a exclude pattern */
+ static struct exclude_struct *make_exclude(char *pattern, int include)
+ {
+ 	struct exclude_struct *ret;
+ 
+ 	ret = (struct exclude_struct *)malloc(sizeof(*ret));
+@@ -92,21 +48,24 @@
+ 
+ 	ret->pattern = strdup(pattern);
+ 
+ 	if (!ret->pattern) out_of_memory("make_exclude");
+ 
+ 	if (strpbrk(pattern, "*[?")) {
+-	    if (!ret->include && (*pattern == '*') && (*(pattern+1) == '\0')) {
+-		    exclude_the_rest = ret;
+-	    } else {
+-		    only_included_files = 0;
+-	    }
+ 	    ret->regular_exp = 1;
+-	    ret->fnmatch_flags = strstr(pattern, "**") ? 0 : FNM_PATHNAME;
+-	} else if (!ret->include) {
+-		only_included_files = 0;
++	    ret->fnmatch_flags = FNM_PATHNAME;
++	    if (strstr(pattern, "**")) {
++		    static int tested;
++		    if (!tested) {
++			    tested = 1;
++			    if (fnmatch("a/b/*", "a/b/c/d", FNM_PATHNAME)==0) {
++				    rprintf(FERROR,"WARNING: fnmatch FNM_PATHNAME is broken on your system\n");
++			    }
++		    }
++		    ret->fnmatch_flags = 0;
++	    }
+ 	}
+ 
+ 	if (strlen(pattern) > 1 && pattern[strlen(pattern)-1] == '/') {
+ 		ret->pattern[strlen(pattern)-1] = 0;
+ 		ret->directory = 1;
+ 	}
+@@ -142,21 +101,23 @@
+ 	if (*pattern == '/' && *name != '/') {
+ 		match_start = 1;
+ 		pattern++;
+ 	}
+ 
+ 	if (ex->regular_exp) {
+-		if (fnmatch(pattern, name, ex->fnmatch_flags) == 0)
++		if (fnmatch(pattern, name, ex->fnmatch_flags) == 0) {
+ 			return 1;
++		}
+ 	} else {
+ 		int l1 = strlen(name);
+ 		int l2 = strlen(pattern);
+ 		if (l2 <= l1 && 
+ 		    strcmp(name+(l1-l2),pattern) == 0 &&
+-		    (l1==l2 || (!match_start && name[l1-(l2+1)] == '/')))
++		    (l1==l2 || (!match_start && name[l1-(l2+1)] == '/'))) {
+ 			return 1;
++		}
+ 	}
+ 
+ 	return 0;
+ }
+ 
+ 
+@@ -196,14 +157,12 @@
+ 			rprintf(FINFO,"clearing exclude list\n");
+ 		while ((len)--) {
+ 			free_exclude((*list)[len]);
+ 		}
+ 		free((*list));
+ 		*list = NULL;
+-		only_included_files = 1;
+-		exclude_the_rest = NULL;
+ 		return;
+ 	}
+ 
+ 	*list = (struct exclude_struct **)Realloc(*list,sizeof(struct exclude_struct *)*(len+2));
+ 	
+ 	if (!*list || !((*list)[len] = make_exclude(pattern, include)))
+@@ -295,14 +254,13 @@
+ }
+ 
+ 
+ void recv_exclude_list(int f)
+ {
+ 	char line[MAXPATHLEN];
+-	unsigned int l;
+-
++	int l;
+ 	while ((l=read_int(f))) {
+ 		if (l >= MAXPATHLEN) overflow("recv_exclude_list");
+ 		read_sbuf(f,line,l);
+ 		add_exclude(line,0);
+ 	}
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/fileio.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/fileio.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/fileio.c	2002-01-25 11:13:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/fileio.c	1999-03-16 05:23:11.000000000 +0800
+@@ -33,13 +33,13 @@
+ 	}
+ 	last_sparse = 0;
+ 	return 0;
+ }
+ 
+ 
+-static int write_sparse(int f,char *buf,size_t len)
++static int write_sparse(int f,char *buf,int len)
+ {
+ 	int l1=0,l2=0;
+ 	int ret;
+ 
+ 	for (l1=0;l1<len && buf[l1]==0;l1++) ;
+ 	for (l2=0;l2<(len-l1) && buf[len-(l2+1)]==0;l2++) ;
+@@ -66,13 +66,13 @@
+ 	
+ 	return len;
+ }
+ 
+ 
+ 
+-int write_file(int f,char *buf,size_t len)
++int write_file(int f,char *buf,int len)
+ {
+ 	int ret = 0;
+ 
+ 	if (!sparse_files) {
+ 		return write(f,buf,len);
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/flist.c	2002-01-25 11:13:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/flist.c	2000-01-29 19:35:03.000000000 +0800
+@@ -279,13 +279,13 @@
+ 	static mode_t last_mode;
+ 	static dev_t last_rdev;
+ 	static uid_t last_uid;
+ 	static gid_t last_gid;
+ 	static char lastname[MAXPATHLEN];
+ 	char thisname[MAXPATHLEN];
+-	unsigned int l1=0,l2=0;
++	int l1=0,l2=0;
+ 	char *p;
+ 	struct file_struct *file;
+ 
+ 	if (flags & SAME_NAME)
+ 		l1 = read_byte(f);
+   
+@@ -296,13 +296,17 @@
+ 
+ 	file = (struct file_struct *)malloc(sizeof(*file));
+ 	if (!file) out_of_memory("receive_file_entry");
+ 	memset((char *)file, 0, sizeof(*file));
+ 	(*fptr) = file;
+ 
+-	if (l2 >= MAXPATHLEN-l1) overflow("receive_file_entry");
++	if (l2 >= MAXPATHLEN-l1) {
++		rprintf(FERROR,"overflow: flags=0x%x l1=%d l2=%d lastname=%s\n",
++			flags, l1, l2, lastname);
++		overflow("receive_file_entry");
++	}
+ 
+ 	strlcpy(thisname,lastname,l1+1);
+ 	read_sbuf(f,&thisname[l1],l2);
+ 	thisname[l1+l2] = 0;
+ 
+ 	strlcpy(lastname,thisname,MAXPATHLEN);
+@@ -342,16 +346,12 @@
+ 		file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
+ 	if (preserve_devices && IS_DEVICE(file->mode))
+ 		file->rdev = (flags & SAME_RDEV) ? last_rdev : (dev_t)read_int(f);
+ 
+ 	if (preserve_links && S_ISLNK(file->mode)) {
+ 		int l = read_int(f);
+-		if (l < 0) {
+-			rprintf(FERROR,"overflow: l=%d\n", l);
+-			overflow("receive_file_entry");
+-		}
+ 		file->link = (char *)malloc(l+1);
+ 		if (!file->link) out_of_memory("receive_file_entry 2");
+ 		read_sbuf(f,file->link,l);
+ 		if (sanitize_paths) {
+ 			sanitize_path(file->link, file->dirname);
+ 		}
+@@ -410,13 +410,14 @@
+ 	}
+ 	*p = '/';
+ 	
+ 	return (st2.st_dev != filesystem_dev);
+ }
+ 
+-static struct file_struct *make_file(int f, char *fname)
++/* create a file_struct for a named file */
++struct file_struct *make_file(int f, char *fname)
+ {
+ 	struct file_struct *file;
+ 	STRUCT_STAT st;
+ 	char sum[SUM_LENGTH];
+ 	char *p;
+ 	char cleaned_name[MAXPATHLEN];
+@@ -432,13 +433,13 @@
+ 	fname = cleaned_name;
+ 
+ 	memset(sum,0,SUM_LENGTH);
+ 
+ 	if (readlink_stat(fname,&st,linkbuf) != 0) {
+ 		io_error = 1;
+-		rprintf(FERROR,"%s: %s\n",
++		rprintf(FERROR,"readlink %s: %s\n",
+ 			fname,strerror(errno));
+ 		return NULL;
+ 	}
+ 
+ 	if (S_ISDIR(st.st_mode) && !recurse) {
+ 		rprintf(FINFO,"skipping directory %s\n",fname);
+@@ -669,14 +670,16 @@
+ 			} else {
+ 				strlcat(fname,".",MAXPATHLEN);
+ 			}
+ 		}
+ 
+ 		if (link_stat(fname,&st) != 0) {
+-			io_error=1;
+-			rprintf(FERROR,"%s : %s\n",fname,strerror(errno));
++			if (f != -1) {
++				io_error=1;
++				rprintf(FERROR,"link_stat %s : %s\n",fname,strerror(errno));
++			}
+ 			continue;
+ 		}
+ 
+ 		if (S_ISDIR(st.st_mode) && !recurse) {
+ 			rprintf(FINFO,"skipping directory %s\n",fname);
+ 			continue;
+@@ -738,14 +741,13 @@
+ 			flist_dir = dir;
+ 		}
+ 		
+ 		if (one_file_system)
+ 			set_filesystem(fname);
+ 
+-		if (!recurse || !send_included_file_names(f,flist))
+-			send_file_name(f,flist,fname,recurse,FLAG_DELETE);
++		send_file_name(f,flist,fname,recurse,FLAG_DELETE);
+ 
+ 		if (olddir != NULL) {
+ 			flist_dir = NULL;
+ 			if (pop_dir(olddir) != 0) {
+ 				rprintf(FERROR,"pop_dir %s : %s\n",
+ 					dir,strerror(errno));
+@@ -923,13 +925,13 @@
+ }
+ 
+ 
+ /*
+  * free up one file
+  */
+-static void free_file(struct file_struct *file)
++void free_file(struct file_struct *file)
+ {
+ 	if (!file) return;
+ 	if (file->basename) free(file->basename);
+ 	if (file->link) free(file->link);
+ 	if (file->sum) free(file->sum);
+ 	memset((char *)file, 0, sizeof(*file));
+@@ -1000,18 +1002,18 @@
+ 	}
+ 
+ 
+ 	if (verbose <= 3) return;
+ 
+ 	for (i=0;i<flist->count;i++) {
+-		rprintf(FINFO,"[%d] i=%d %s %s mode=0%o len=%d\n",
++		rprintf(FINFO,"[%d] i=%d %s %s mode=0%o len=%.0f\n",
+ 			getpid(), i, 
+ 			NS(flist->files[i]->dirname),
+ 			NS(flist->files[i]->basename),
+ 			flist->files[i]->mode,
+-			(int)flist->files[i]->length);
++			(double)flist->files[i]->length);
+ 	}
+ }
+ 
+ 
+ /*
+  * return the full filename of a flist entry
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/generator.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/generator.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/generator.c	1999-10-31 12:28:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/generator.c	2000-01-29 19:35:03.000000000 +0800
+@@ -133,14 +133,14 @@
+ 	if (count==0) {
+ 		s->sums = NULL;
+ 		return s;
+ 	}
+ 
+ 	if (verbose > 3)
+-		rprintf(FINFO,"count=%d rem=%d n=%d flength=%d\n",
+-			s->count,s->remainder,s->n,(int)s->flength);
++		rprintf(FINFO,"count=%d rem=%d n=%d flength=%.0f\n",
++			s->count,s->remainder,s->n,(double)s->flength);
+ 
+ 	s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
+ 	if (!s->sums) out_of_memory("generate_sums");
+   
+ 	for (i=0;i<count;i++) {
+ 		int n1 = MIN(len,n);
+@@ -151,14 +151,14 @@
+ 
+ 		s->sums[i].offset = offset;
+ 		s->sums[i].len = n1;
+ 		s->sums[i].i = i;
+ 
+ 		if (verbose > 3)
+-			rprintf(FINFO,"chunk[%d] offset=%d len=%d sum1=%08x\n",
+-				i,(int)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
++			rprintf(FINFO,"chunk[%d] offset=%.0f len=%d sum1=%08x\n",
++				i,(double)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
+ 
+ 		len -= n1;
+ 		offset += n1;
+ 	}
+ 
+ 	return s;
+@@ -175,27 +175,34 @@
+ 	struct file_struct *file = flist->files[i];
+ 	char *fnamecmp;
+ 	char fnamecmpbuf[MAXPATHLEN];
+ 	extern char *compare_dest;
+ 	extern int list_only;
+ 	extern int preserve_perms;
++	extern int only_existing;
+ 
+ 	if (list_only) return;
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"recv_generator(%s,%d)\n",fname,i);
+ 
+ 	statret = link_stat(fname,&st);
+ 
++	if (only_existing && statret == -1 && errno == ENOENT) {
++		/* we only want to update existing files */
++		if (verbose > 1) rprintf(FINFO,"not creating %s\n",fname);
++		return;
++	}
++
+ 	if (statret == 0 && 
+ 	    !preserve_perms && 
+ 	    (S_ISDIR(st.st_mode) == S_ISDIR(file->mode))) {
+ 		/* if the file exists already and we aren't perserving
+                    presmissions then act as though the remote end sent
+                    us the file permissions we already have */
+-		file->mode = st.st_mode;
++		file->mode = (file->mode & _S_IFMT) | (st.st_mode & ~_S_IFMT);
+ 	}
+ 
+ 	if (S_ISDIR(file->mode)) {
+ 		if (dry_run) return;
+ 		if (statret == 0 && !S_ISDIR(st.st_mode)) {
+ 			if (robust_unlink(fname) != 0) {
+@@ -239,13 +246,13 @@
+ 					return;
+ 				}
+ 			}
+ 		}
+ 		delete_file(fname);
+ 		if (do_symlink(file->link,fname) != 0) {
+-			rprintf(FERROR,"link %s -> %s : %s\n",
++			rprintf(FERROR,"symlink %s -> %s : %s\n",
+ 				fname,file->link,strerror(errno));
+ 		} else {
+ 			set_perms(fname,file,NULL,0);
+ 			if (verbose) {
+ 				rprintf(FINFO,"%s -> %s\n",
+ 					fname,file->link);
+@@ -350,25 +357,27 @@
+ 	}
+ 
+ 	/* open the file */  
+ 	fd = do_open(fnamecmp, O_RDONLY, 0);
+ 
+ 	if (fd == -1) {
+-		rprintf(FERROR,"failed to open %s : %s\n",fnamecmp,strerror(errno));
+-		rprintf(FERROR,"skipping %s\n",fname);
++		rprintf(FERROR,"failed to open %s, continuing : %s\n",fnamecmp,strerror(errno));
++		/* pretend the file didn't exist */
++		write_int(f_out,i);
++		send_sums(NULL,f_out);
+ 		return;
+ 	}
+ 
+ 	if (st.st_size > 0) {
+ 		buf = map_file(fd,st.st_size);
+ 	} else {
+ 		buf = NULL;
+ 	}
+ 
+ 	if (verbose > 3)
+-		rprintf(FINFO,"gen mapped %s of size %d\n",fnamecmp,(int)st.st_size);
++		rprintf(FINFO,"gen mapped %s of size %.0f\n",fnamecmp,(double)st.st_size);
+ 
+ 	s = generate_sums(buf,st.st_size,adapt_block_size(file, block_size));
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"sending sums for %d\n",i);
+ 
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3: .ignore
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/io.c	2002-01-25 11:13:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/io.c	2000-01-29 19:35:03.000000000 +0800
+@@ -15,13 +15,13 @@
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
+ /*
+-  Utilities used in rsync 
++  socket and pipe IO utilities used in rsync 
+ 
+   tridge, June 1996
+   */
+ #include "rsync.h"
+ 
+ /* if no timeout is specified then use a 60 second select timeout */
+@@ -35,12 +35,15 @@
+ static int eof_error=1;
+ extern int verbose;
+ extern int io_timeout;
+ extern struct stats stats;
+ 
+ static int buffer_f_in = -1;
++static int io_error_fd = -1;
++
++static void read_loop(int fd, char *buf, int len);
+ 
+ void setup_readbuffer(int f_in)
+ {
+ 	buffer_f_in = f_in;
+ }
+ 
+@@ -61,45 +64,89 @@
+ 		rprintf(FERROR,"io timeout after %d second - exiting\n", 
+ 			(int)(t-last_io));
+ 		exit_cleanup(RERR_TIMEOUT);
+ 	}
+ }
+ 
++/* setup the fd used to propogate errors */
++void io_set_error_fd(int fd)
++{
++	io_error_fd = fd;
++}
++
++/* read some data from the error fd and write it to the write log code */
++static void read_error_fd(void)
++{
++	char buf[200];
++	int n;
++	int fd = io_error_fd;
++	int tag, len;
++
++	io_error_fd = -1;
++
++	read_loop(fd, buf, 4);
++	tag = IVAL(buf, 0);
++
++	len = tag & 0xFFFFFF;
++	tag = tag >> 24;
++	tag -= MPLEX_BASE;
++
++	while (len) {
++		n = len;
++		if (n > (sizeof(buf)-1)) n = sizeof(buf)-1;
++		read_loop(fd, buf, n);
++		rwrite((enum logcode)tag, buf, n);
++		len -= n;
++	}
++
++	io_error_fd = fd;
++}
++
+ 
+-static char *read_buffer;
+-static char *read_buffer_p;
+-static int read_buffer_len;
+-static int read_buffer_size;
+ static int no_flush;
+-static int no_flush_read;
+ 
+ /* read from a socket with IO timeout. return the number of
+    bytes read. If no bytes can be read then exit, never return
+    a number <= 0 */
+-static int read_timeout(int fd, char *buf, size_t len)
++static int read_timeout(int fd, char *buf, int len)
+ {
+ 	int n, ret=0;
+ 
+-	no_flush_read++;
+ 	io_flush();
+-	no_flush_read--;
+ 
+ 	while (ret == 0) {
+ 		fd_set fds;
+ 		struct timeval tv;
++		int fd_count = fd+1;
+ 
+ 		FD_ZERO(&fds);
+ 		FD_SET(fd, &fds);
++		if (io_error_fd != -1) {
++			FD_SET(io_error_fd, &fds);
++			if (io_error_fd > fd) fd_count = io_error_fd+1;
++		}
++
+ 		tv.tv_sec = io_timeout?io_timeout:SELECT_TIMEOUT;
+ 		tv.tv_usec = 0;
+ 
+-		if (select(fd+1, &fds, NULL, NULL, &tv) != 1) {
++		errno = 0;
++
++		if (select(fd_count, &fds, NULL, NULL, &tv) < 1) {
++			if (errno == EBADF) {
++				exit_cleanup(RERR_SOCKETIO);
++			}
+ 			check_timeout();
+ 			continue;
+ 		}
+ 
++		if (io_error_fd != -1 && FD_ISSET(io_error_fd, &fds)) {
++			read_error_fd();
++		}
++
++		if (!FD_ISSET(fd, &fds)) continue;
++
+ 		n = read(fd, buf, len);
+ 
+ 		if (n > 0) {
+ 			buf += n;
+ 			len -= n;
+ 			ret += n;
+@@ -109,54 +156,48 @@
+ 		}
+ 
+ 		if (n == -1 && errno == EINTR) {
+ 			continue;
+ 		}
+ 
+-		if (n == -1 && 
+-		    (errno == EAGAIN || errno == EWOULDBLOCK)) {
+-			/* this shouldn't happen, if it does then
+-			   sleep for a short time to prevent us
+-			   chewing too much CPU */
+-			u_sleep(100);
+-			continue;
+-		}
+ 
+ 		if (n == 0) {
+ 			if (eof_error) {
+ 				rprintf(FERROR,"unexpected EOF in read_timeout\n");
+ 			}
+ 			exit_cleanup(RERR_STREAMIO);
+ 		}
+ 
++		/* this prevents us trying to write errors on a dead socket */
++		io_multiplexing_close();
++
+ 		rprintf(FERROR,"read error: %s\n", strerror(errno));
+ 		exit_cleanup(RERR_STREAMIO);
+ 	}
+ 
+ 	return ret;
+ }
+ 
+ /* continue trying to read len bytes - don't return until len
+    has been read */
+-static void read_loop(int fd, char *buf, size_t len)
++static void read_loop(int fd, char *buf, int len)
+ {
+ 	while (len) {
+ 		int n = read_timeout(fd, buf, len);
+ 
+ 		buf += n;
+ 		len -= n;
+ 	}
+ }
+ 
+ /* read from the file descriptor handling multiplexing - 
+    return number of bytes read
+    never return <= 0 */
+-static int read_unbuffered(int fd, char *buf, size_t len)
++static int read_unbuffered(int fd, char *buf, int len)
+ {
+ 	static int remaining;
+-	char ibuf[4];
+ 	int tag, ret=0;
+ 	char line[1024];
+ 
+ 	if (!io_multiplexing_in || fd != multiplex_in_fd) 
+ 		return read_timeout(fd, buf, len);
+ 
+@@ -166,14 +207,14 @@
+ 			read_loop(fd, buf, len);
+ 			remaining -= len;
+ 			ret = len;
+ 			continue;
+ 		}
+ 
+-		read_loop(fd, ibuf, 4);
+-		tag = IVAL(ibuf, 0);
++		read_loop(fd, line, 4);
++		tag = IVAL(line, 0);
+ 
+ 		remaining = tag & 0xFFFFFF;
+ 		tag = tag >> 24;
+ 
+ 		if (tag == MPLEX_BASE) continue;
+ 
+@@ -190,78 +231,29 @@
+ 			exit_cleanup(RERR_STREAMIO);
+ 		}
+ 
+ 		read_loop(fd, line, remaining);
+ 		line[remaining] = 0;
+ 
+-		rprintf(tag,"%s", line);
++		rprintf((enum logcode)tag,"%s", line);
+ 		remaining = 0;
+ 	}
+ 
+ 	return ret;
+ }
+ 
+ 
+-
+-/* This function was added to overcome a deadlock problem when using
+- * ssh.  It looks like we can't allow our receive queue to get full or
+- * ssh will clag up. Uggh.  */
+-static void read_check(int f)
+-{
+-	int n = 8192;
+-
+-	if (f == -1) return;
+-
+-	if (read_buffer_len == 0) {
+-		read_buffer_p = read_buffer;
+-	}
+-
+-	if (n > MAX_READ_BUFFER/4)
+-		n = MAX_READ_BUFFER/4;
+-
+-	if (read_buffer_p != read_buffer) {
+-		memmove(read_buffer,read_buffer_p,read_buffer_len);
+-		read_buffer_p = read_buffer;
+-	}
+-
+-	if (n > (read_buffer_size - read_buffer_len)) {
+-		read_buffer_size += n;
+-		read_buffer = (char *)Realloc(read_buffer,read_buffer_size);
+-		if (!read_buffer) out_of_memory("read check");      
+-		read_buffer_p = read_buffer;      
+-	}
+-
+-	n = read_unbuffered(f,read_buffer+read_buffer_len,n);
+-	read_buffer_len += n;
+-}
+-
+-
+ /* do a buffered read from fd. don't return until all N bytes
+    have been read. If all N can't be read then exit with an error */
+-static void readfd(int fd,char *buffer,size_t N)
++static void readfd(int fd,char *buffer,int N)
+ {
+ 	int  ret;
+ 	int total=0;  
+ 	
+-	if ((read_buffer_len < N) && (N < 1024)) {
+-		read_check(buffer_f_in);
+-	}
+-	
+ 	while (total < N) {
+-		if (read_buffer_len > 0 && buffer_f_in == fd) {
+-			ret = MIN(read_buffer_len,N-total);
+-			memcpy(buffer+total,read_buffer_p,ret);
+-			read_buffer_p += ret;
+-			read_buffer_len -= ret;
+-			total += ret;
+-			continue;
+-		} 
+-
+-		no_flush_read++;
+ 		io_flush();
+-		no_flush_read--;
+ 
+ 		ret = read_unbuffered(fd,buffer + total,N-total);
+ 		total += ret;
+ 	}
+ 
+ 	stats.total_read += total;
+@@ -300,18 +292,18 @@
+ 	}
+ #endif
+ 
+ 	return ret;
+ }
+ 
+-void read_buf(int f,char *buf,size_t len)
++void read_buf(int f,char *buf,int len)
+ {
+ 	readfd(f,buf,len);
+ }
+ 
+-void read_sbuf(int f,char *buf,size_t len)
++void read_sbuf(int f,char *buf,int len)
+ {
+ 	read_buf(f,buf,len);
+ 	buf[len] = 0;
+ }
+ 
+ unsigned char read_byte(int f)
+@@ -323,76 +315,69 @@
+ 
+ 
+ 
+ /* write len bytes to fd, possibly reading from buffer_f_in if set
+    in order to unclog the pipe. don't return until all len
+    bytes have been written */
+-static void writefd_unbuffered(int fd,char *buf,size_t len)
++static void writefd_unbuffered(int fd,char *buf,int len)
+ {
+ 	int total = 0;
+ 	fd_set w_fds, r_fds;
+ 	int fd_count, count;
+ 	struct timeval tv;
+-	int reading=0;
+-	int blocked=0;
+ 
+ 	no_flush++;
+ 
+ 	while (total < len) {
+ 		FD_ZERO(&w_fds);
+ 		FD_ZERO(&r_fds);
+ 		FD_SET(fd,&w_fds);
+-		fd_count = fd+1;
+-
+-		if (!no_flush_read) {
+-			reading = (buffer_f_in != -1);
+-		}
++		fd_count = fd;
+ 
+-		if (reading) {
+-			FD_SET(buffer_f_in,&r_fds);
+-			if (buffer_f_in > fd) 
+-				fd_count = buffer_f_in+1;
++		if (io_error_fd != -1) {
++			FD_SET(io_error_fd,&r_fds);
++			if (io_error_fd > fd_count) 
++				fd_count = io_error_fd;
+ 		}
+ 
+ 		tv.tv_sec = io_timeout?io_timeout:SELECT_TIMEOUT;
+ 		tv.tv_usec = 0;
+ 
+-		count = select(fd_count,
+-			       reading?&r_fds:NULL,
++		errno = 0;
++
++		count = select(fd_count+1,
++			       io_error_fd != -1?&r_fds:NULL,
+ 			       &w_fds,NULL,
+ 			       &tv);
+ 
+ 		if (count <= 0) {
++			if (errno == EBADF) {
++				exit_cleanup(RERR_SOCKETIO);
++			}
+ 			check_timeout();
+ 			continue;
+ 		}
+ 
+-		if (reading && FD_ISSET(buffer_f_in, &r_fds)) {
+-			read_check(buffer_f_in);
++		if (io_error_fd != -1 && FD_ISSET(io_error_fd, &r_fds)) {
++			read_error_fd();
+ 		}
+ 
+ 		if (FD_ISSET(fd, &w_fds)) {
+-			int n = (len-total)>>blocked;
+-			int ret = write(fd,buf+total,n?n:1);
++			int ret, n = len-total;
++			
++			ret = write(fd,buf+total,n?n:1);
+ 
+ 			if (ret == -1 && errno == EINTR) {
+ 				continue;
+ 			}
+ 
+-			if (ret == -1 && 
+-			    (errno == EAGAIN || errno == EWOULDBLOCK)) {
+-				blocked++;
+-				continue;
+-			}
+-
+ 			if (ret <= 0) {
+ 				rprintf(FERROR,"erroring writing %d bytes - exiting\n", len);
+ 				exit_cleanup(RERR_STREAMIO);
+ 			}
+ 
+-			blocked = 0;
+ 			total += ret;
+ 
+ 			if (io_timeout)
+ 				last_io = time(NULL);
+ 		}
+ 	}
+@@ -405,20 +390,42 @@
+ static int io_buffer_count;
+ 
+ void io_start_buffering(int fd)
+ {
+ 	if (io_buffer) return;
+ 	multiplex_out_fd = fd;
+-	io_buffer = (char *)malloc(IO_BUFFER_SIZE+4);
++	io_buffer = (char *)malloc(IO_BUFFER_SIZE);
+ 	if (!io_buffer) out_of_memory("writefd");
+ 	io_buffer_count = 0;
++}
++
++/* write an message to a multiplexed stream. If this fails then rsync
++   exits */
++static void mplex_write(int fd, enum logcode code, char *buf, int len)
++{
++	char buffer[4096];
++	int n = len;
++
++	SIVAL(buffer, 0, ((MPLEX_BASE + (int)code)<<24) + len);
+ 
+-	/* leave room for the multiplex header in case it's needed */
+-	io_buffer += 4;
++	if (n > (sizeof(buffer)-4)) {
++		n = sizeof(buffer)-4;
++	}
++
++	memcpy(&buffer[4], buf, n);
++	writefd_unbuffered(fd, buffer, n+4);
++
++	len -= n;
++	buf += n;
++
++	if (len) {
++		writefd_unbuffered(fd, buf, len);
++	}
+ }
+ 
++
+ void io_flush(void)
+ {
+ 	int fd = multiplex_out_fd;
+ 	if (!io_buffer_count || no_flush) return;
+ 
+ 	if (io_multiplexing_out) {
+@@ -419,34 +426,33 @@
+ void io_flush(void)
+ {
+ 	int fd = multiplex_out_fd;
+ 	if (!io_buffer_count || no_flush) return;
+ 
+ 	if (io_multiplexing_out) {
+-		SIVAL(io_buffer-4, 0, (MPLEX_BASE<<24) + io_buffer_count);
+-		writefd_unbuffered(fd, io_buffer-4, io_buffer_count+4);
++		mplex_write(fd, FNONE, io_buffer, io_buffer_count);
+ 	} else {
+ 		writefd_unbuffered(fd, io_buffer, io_buffer_count);
+ 	}
+ 	io_buffer_count = 0;
+ }
+ 
+ void io_end_buffering(int fd)
+ {
+ 	io_flush();
+ 	if (!io_multiplexing_out) {
+-		free(io_buffer-4);
++		free(io_buffer);
+ 		io_buffer = NULL;
+ 	}
+ }
+ 
+-static void writefd(int fd,char *buf,size_t len)
++static void writefd(int fd,char *buf,int len)
+ {
+ 	stats.total_written += len;
+ 
+-	if (!io_buffer) {
++	if (!io_buffer || fd != multiplex_out_fd) {
+ 		writefd_unbuffered(fd, buf, len);
+ 		return;
+ 	}
+ 
+ 	while (len) {
+ 		int n = MIN(len, IO_BUFFER_SIZE-io_buffer_count);
+@@ -483,13 +489,13 @@
+ 	SIVAL(b,0,(x&0xFFFFFFFF));
+ 	SIVAL(b,4,((x>>32)&0xFFFFFFFF));
+ 
+ 	writefd(f,b,8);
+ }
+ 
+-void write_buf(int f,char *buf,size_t len)
++void write_buf(int f,char *buf,int len)
+ {
+ 	writefd(f,buf,len);
+ }
+ 
+ /* write a string to the connection */
+ static void write_sbuf(int f,char *buf)
+@@ -500,13 +506,13 @@
+ 
+ void write_byte(int f,unsigned char c)
+ {
+ 	write_buf(f,(char *)&c,1);
+ }
+ 
+-int read_line(int f, char *buf, size_t maxlen)
++int read_line(int f, char *buf, int maxlen)
+ {
+ 	eof_error = 0;
+ 
+ 	while (maxlen) {
+ 		buf[0] = 0;
+ 		read_buf(f, buf, 1);
+@@ -558,34 +564,38 @@
+ 
+ /* setup for multiplexing an error stream with the data stream */
+ void io_start_multiplex_in(int fd)
+ {
+ 	multiplex_in_fd = fd;
+ 	io_flush();
+-	if (read_buffer_len) {
+-		fprintf(stderr,"ERROR: data in read buffer at mplx start\n");
+-		exit_cleanup(RERR_STREAMIO);
+-	}
+-
+ 	io_multiplexing_in = 1;
+ }
+ 
+-/* write an message to the error stream */
+-int io_multiplex_write(int f, char *buf, size_t len)
++/* write an message to the multiplexed error stream */
++int io_multiplex_write(enum logcode code, char *buf, int len)
+ {
+ 	if (!io_multiplexing_out) return 0;
+ 
+ 	io_flush();
+-
+-	SIVAL(io_buffer-4, 0, ((MPLEX_BASE + f)<<24) + len);
+-	memcpy(io_buffer, buf, len);
+-
+ 	stats.total_written += (len+4);
++	mplex_write(multiplex_out_fd, code, buf, len);
++	return 1;
++}
+ 
+-	writefd_unbuffered(multiplex_out_fd, io_buffer-4, len+4);
++/* write a message to the special error fd */
++int io_error_write(int f, enum logcode code, char *buf, int len)
++{
++	if (f == -1) return 0;
++	mplex_write(f, code, buf, len);
+ 	return 1;
+ }
+ 
++/* stop output multiplexing */
++void io_multiplexing_close(void)
++{
++	io_multiplexing_out = 0;
++}
++
+ void io_close_input(int fd)
+ {
+ 	buffer_f_in = -1;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/lib/compat.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/lib/compat.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/lib/compat.c	1999-11-02 05:35:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/lib/compat.c	2000-01-29 19:35:04.000000000 +0800
+@@ -146,18 +146,39 @@
+ }
+ #endif
+ 
+ #ifndef HAVE_INET_ATON
+  int inet_aton(const char *cp, struct in_addr *inp)
+ {
++	unsigned int a1, a2, a3, a4;
++	unsigned long ret;
++
+ 	if (strcmp(cp, "255.255.255.255") == 0) {
+ 		inp->s_addr = (unsigned) -1;
+ 		return 1;
+ 	}
+ 
+-	inp->s_addr = inet_addr(cp);
++	if (sscanf(cp, "%u.%u.%u.%u", &a1, &a2, &a3, &a4) != 4 ||
++	    a1 > 255 || a2 > 255 || a3 > 255 || a4 > 255) {
++		return 1;
++	}
++
++	ret = (a1 << 24) | (a2 << 16) | (a3 << 8) | a4;
++
++	inp->s_addr = htonl(ret);
++	
+ 	if (inp->s_addr == (unsigned) -1) {
+ 		return 0;
+ 	}
+ 	return 1;
+ }
+ #endif
++
++/* some systems don't take the 2nd argument */
++int sys_gettimeofday(struct timeval *tv)
++{
++#if HAVE_GETTIMEOFDAY_TZ
++	return gettimeofday(tv, NULL);
++#else
++	return gettimeofday(tv);
++#endif
++}
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/lib: .cvsignore
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/lib/fnmatch.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/lib/fnmatch.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/lib/fnmatch.c	1996-06-22 13:04:23.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/lib/fnmatch.c	2000-01-29 19:35:04.000000000 +0800
+@@ -1,191 +1,454 @@
+ #include "../rsync.h"
+ #ifndef HAVE_FNMATCH
+ 
+-/* Copyright (C) 1991, 1992, 1993 Free Software Foundation, Inc.
++/* ----- THE FOLLOWING UP TO 'END' is glibc-2.1.2 posix/fnmatch.c
++     except for the parts with '#if 0' */
+ 
+-NOTE: The canonical source of this file is maintained with the GNU C Library.
+-Bugs can be reported to bug-glibc@prep.ai.mit.edu.
++/* Copyright (C) 1991, 92, 93, 96, 97, 98, 99 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
+ 
+-This program is free software; you can redistribute it and/or modify it
+-under the terms of the GNU General Public License as published by the
+-Free Software Foundation; either version 2, or (at your option) any
+-later version.
+-
+-This program is distributed in the hope that it will be useful,
+-but WITHOUT ANY WARRANTY; without even the implied warranty of
+-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-GNU General Public License for more details.
+-
+-You should have received a copy of the GNU General Public License
+-along with this program; if not, write to the Free Software
+-Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.  */
++   This library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Library General Public License as
++   published by the Free Software Foundation; either version 2 of the
++   License, or (at your option) any later version.
++
++   This library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Library General Public License for more details.
++
++   You should have received a copy of the GNU Library General Public
++   License along with this library; see the file COPYING.LIB.  If not,
++   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
++   Boston, MA 02111-1307, USA.  */
+ 
+-#if defined (STDC_HEADERS) || !defined (isascii)
+-#define ISASCII(c) 1
++#if 0	/* header files included better by ../rsync.h */
++
++#if HAVE_CONFIG_H
++# include <config.h>
++#endif
++
++/* Enable GNU extensions in fnmatch.h.  */
++#ifndef _GNU_SOURCE
++# define _GNU_SOURCE	1
++#endif
++
++#include <errno.h>
++#include <fnmatch.h>
++#include <ctype.h>
++
++#if HAVE_STRING_H || defined _LIBC
++# include <string.h>
+ #else
+-#define ISASCII(c) isascii(c)
++# include <strings.h>
+ #endif
+ 
+-#define ISUPPER(c) (ISASCII (c) && isupper (c))
++#if defined STDC_HEADERS || defined _LIBC
++# include <stdlib.h>
++#endif
+ 
++#endif /* 0 */
++/* For platform which support the ISO C amendement 1 functionality we
++   support user defined character classes.  */
++#if defined _LIBC || (defined HAVE_WCTYPE_H && defined HAVE_WCHAR_H)
++/* Solaris 2.5 has a bug: <wchar.h> must be included before <wctype.h>.  */
++# include <wchar.h>
++# include <wctype.h>
++#endif
+ 
+ /* Comment out all this code if we are using the GNU C Library, and are not
+    actually compiling the library itself.  This code is part of the GNU C
+    Library, but also included in many other GNU distributions.  Compiling
+    and linking in this code is a waste when using the GNU C library
+    (especially if it is a shared library).  Rather than having every GNU
+    program understand `configure --with-gnu-libc' and omit the object files,
+    it is simpler to just do this in the source for each such file.  */
+ 
+-#if !defined(__GNU_LIBRARY__) && !defined(STDC_HEADERS)
+-extern int errno;
++#if 1
++
++# if defined STDC_HEADERS || !defined isascii
++#  define ISASCII(c) 1
++# else
++#  define ISASCII(c) isascii(c)
++# endif
++
++#ifdef isblank
++# define ISBLANK(c) (ISASCII (c) && isblank (c))
++#else
++# define ISBLANK(c) ((c) == ' ' || (c) == '\t')
++#endif
++#ifdef isgraph
++# define ISGRAPH(c) (ISASCII (c) && isgraph (c))
++#else
++# define ISGRAPH(c) (ISASCII (c) && isprint (c) && !isspace (c))
+ #endif
+ 
++#define ISPRINT(c) (ISASCII (c) && isprint (c))
++#define ISDIGIT(c) (ISASCII (c) && isdigit (c))
++#define ISALNUM(c) (ISASCII (c) && isalnum (c))
++#define ISALPHA(c) (ISASCII (c) && isalpha (c))
++#define ISCNTRL(c) (ISASCII (c) && iscntrl (c))
++#define ISLOWER(c) (ISASCII (c) && islower (c))
++#define ISPUNCT(c) (ISASCII (c) && ispunct (c))
++#define ISSPACE(c) (ISASCII (c) && isspace (c))
++#define ISUPPER(c) (ISASCII (c) && isupper (c))
++#define ISXDIGIT(c) (ISASCII (c) && isxdigit (c))
++
++# define STREQ(s1, s2) ((strcmp (s1, s2) == 0))
++
++# if defined _LIBC || (defined HAVE_WCTYPE_H && defined HAVE_WCHAR_H)
++/* The GNU C library provides support for user-defined character classes
++   and the functions from ISO C amendement 1.  */
++#  ifdef CHARCLASS_NAME_MAX
++#   define CHAR_CLASS_MAX_LENGTH CHARCLASS_NAME_MAX
++#  else
++/* This shouldn't happen but some implementation might still have this
++   problem.  Use a reasonable default value.  */
++#   define CHAR_CLASS_MAX_LENGTH 256
++#  endif
++
++#  ifdef _LIBC
++#   define IS_CHAR_CLASS(string) __wctype (string)
++#  else
++#   define IS_CHAR_CLASS(string) wctype (string)
++#  endif
++# else
++#  define CHAR_CLASS_MAX_LENGTH  6 /* Namely, `xdigit'.  */
++
++#  define IS_CHAR_CLASS(string)						      \
++   (STREQ (string, "alpha") || STREQ (string, "upper")			      \
++    || STREQ (string, "lower") || STREQ (string, "digit")		      \
++    || STREQ (string, "alnum") || STREQ (string, "xdigit")		      \
++    || STREQ (string, "space") || STREQ (string, "print")		      \
++    || STREQ (string, "punct") || STREQ (string, "graph")		      \
++    || STREQ (string, "cntrl") || STREQ (string, "blank"))
++# endif
++
++/* Avoid depending on library functions or files
++   whose names are inconsistent.  */
++
++# if !defined _LIBC && !defined getenv
++extern char *getenv ();
++# endif
++
++# ifndef errno
++extern int errno;
++# endif
++
+ /* Match STRING against the filename pattern PATTERN, returning zero if
+    it matches, nonzero if not.  */
+-int
+-fnmatch (pattern, string, flags)
+-     const char *pattern;
+-     const char *string;
+-     int flags;
++static int
++#ifdef _LIBC
++internal_function
++#endif
++internal_fnmatch (const char *pattern, const char *string,
++		  int no_leading_period, int flags)
+ {
+   register const char *p = pattern, *n = string;
+-  register char c;
++  register unsigned char c;
+ 
+-/* Note that this evalutes C many times.  */
+-#define FOLD(c)	((flags & FNM_CASEFOLD) && ISUPPER (c) ? tolower (c) : (c))
++/* Note that this evaluates C many times.  */
++# ifdef _LIBC
++#  define FOLD(c) ((flags & FNM_CASEFOLD) ? tolower (c) : (c))
++# else
++#  define FOLD(c) ((flags & FNM_CASEFOLD) && ISUPPER (c) ? tolower (c) : (c))
++# endif
+ 
+   while ((c = *p++) != '\0')
+     {
+       c = FOLD (c);
+ 
+       switch (c)
+ 	{
+ 	case '?':
+ 	  if (*n == '\0')
+ 	    return FNM_NOMATCH;
+-	  else if ((flags & FNM_FILE_NAME) && *n == '/')
++	  else if (*n == '/' && (flags & FNM_FILE_NAME))
+ 	    return FNM_NOMATCH;
+-	  else if ((flags & FNM_PERIOD) && *n == '.' &&
+-		   (n == string || ((flags & FNM_FILE_NAME) && n[-1] == '/')))
++	  else if (*n == '.' && no_leading_period
++		   && (n == string
++		       || (n[-1] == '/' && (flags & FNM_FILE_NAME))))
+ 	    return FNM_NOMATCH;
+ 	  break;
+ 
+ 	case '\\':
+ 	  if (!(flags & FNM_NOESCAPE))
+ 	    {
+ 	      c = *p++;
++	      if (c == '\0')
++		/* Trailing \ loses.  */
++		return FNM_NOMATCH;
+ 	      c = FOLD (c);
+ 	    }
+-	  if (FOLD (*n) != c)
++	  if (FOLD ((unsigned char) *n) != c)
+ 	    return FNM_NOMATCH;
+ 	  break;
+ 
+ 	case '*':
+-	  if ((flags & FNM_PERIOD) && *n == '.' &&
+-	      (n == string || ((flags & FNM_FILE_NAME) && n[-1] == '/')))
++	  if (*n == '.' && no_leading_period
++	      && (n == string
++		  || (n[-1] == '/' && (flags & FNM_FILE_NAME))))
+ 	    return FNM_NOMATCH;
+ 
+-	  for (c = *p++; c == '?' || c == '*'; c = *p++, ++n)
+-	    if (((flags & FNM_FILE_NAME) && *n == '/') ||
+-		(c == '?' && *n == '\0'))
+-	      return FNM_NOMATCH;
++	  for (c = *p++; c == '?' || c == '*'; c = *p++)
++	    {
++	      if (*n == '/' && (flags & FNM_FILE_NAME))
++		/* A slash does not match a wildcard under FNM_FILE_NAME.  */
++		return FNM_NOMATCH;
++	      else if (c == '?')
++		{
++		  /* A ? needs to match one character.  */
++		  if (*n == '\0')
++		    /* There isn't another character; no match.  */
++		    return FNM_NOMATCH;
++		  else
++		    /* One character of the string is consumed in matching
++		       this ? wildcard, so *??? won't match if there are
++		       less than three characters.  */
++		    ++n;
++		}
++	    }
+ 
+ 	  if (c == '\0')
+-	    return 0;
++	    /* The wildcard(s) is/are the last element of the pattern.
++	       If the name is a file name and contains another slash
++	       this does mean it cannot match.  */
++	    return ((flags & FNM_FILE_NAME) && strchr (n, '/') != NULL
++		    ? FNM_NOMATCH : 0);
++	  else
++	    {
++	      const char *endp;
+ 
+-	  {
+-	    char c1 = (!(flags & FNM_NOESCAPE) && c == '\\') ? *p : c;
+-	    c1 = FOLD (c1);
+-	    for (--p; *n != '\0'; ++n)
+-	      if ((c == '[' || FOLD (*n) == c1) &&
+-		  fnmatch (p, n, flags & ~FNM_PERIOD) == 0)
+-		return 0;
+-	    return FNM_NOMATCH;
+-	  }
++#if 0
++	      endp = __strchrnul (n, (flags & FNM_FILE_NAME) ? '/' : '\0');
++#else
++/* replace call to internal glibc function with equivalent */
++	      if (!(flags & FNM_FILE_NAME) || ((endp = strchr(n, '/')) == NULL))
++		endp = n + strlen(n);
++#endif
++
++	      if (c == '[')
++		{
++		  int flags2 = ((flags & FNM_FILE_NAME)
++				? flags : (flags & ~FNM_PERIOD));
++
++		  for (--p; n < endp; ++n)
++		    if (internal_fnmatch (p, n,
++					  (no_leading_period
++					   && (n == string
++					       || (n[-1] == '/'
++						   && (flags
++						       & FNM_FILE_NAME)))),
++					  flags2)
++			== 0)
++		      return 0;
++		}
++	      else if (c == '/' && (flags & FNM_FILE_NAME))
++		{
++		  while (*n != '\0' && *n != '/')
++		    ++n;
++		  if (*n == '/'
++		      && (internal_fnmatch (p, n + 1, flags & FNM_PERIOD,
++					    flags) == 0))
++		    return 0;
++		}
++	      else
++		{
++		  int flags2 = ((flags & FNM_FILE_NAME)
++				? flags : (flags & ~FNM_PERIOD));
++
++		  if (c == '\\' && !(flags & FNM_NOESCAPE))
++		    c = *p;
++		  c = FOLD (c);
++		  for (--p; n < endp; ++n)
++		    if (FOLD ((unsigned char) *n) == c
++			&& (internal_fnmatch (p, n,
++					      (no_leading_period
++					       && (n == string
++						   || (n[-1] == '/'
++						       && (flags
++							   & FNM_FILE_NAME)))),
++					      flags2) == 0))
++		      return 0;
++		}
++	    }
++
++	  /* If we come here no match is possible with the wildcard.  */
++	  return FNM_NOMATCH;
+ 
+ 	case '[':
+ 	  {
+ 	    /* Nonzero if the sense of the character class is inverted.  */
++	    static int posixly_correct;
+ 	    register int not;
++	    char cold;
++
++	    if (posixly_correct == 0)
++	      posixly_correct = getenv ("POSIXLY_CORRECT") != NULL ? 1 : -1;
+ 
+ 	    if (*n == '\0')
+ 	      return FNM_NOMATCH;
+ 
+-	    if ((flags & FNM_PERIOD) && *n == '.' &&
+-		(n == string || ((flags & FNM_FILE_NAME) && n[-1] == '/')))
++	    if (*n == '.' && no_leading_period && (n == string
++						   || (n[-1] == '/'
++						       && (flags
++							   & FNM_FILE_NAME))))
++	      return FNM_NOMATCH;
++
++	    if (*n == '/' && (flags & FNM_FILE_NAME))
++	      /* `/' cannot be matched.  */
+ 	      return FNM_NOMATCH;
+ 
+-	    not = (*p == '!' || *p == '^');
++	    not = (*p == '!' || (posixly_correct < 0 && *p == '^'));
+ 	    if (not)
+ 	      ++p;
+ 
+ 	    c = *p++;
+ 	    for (;;)
+ 	      {
+-		register char cstart = c, cend = c;
++		unsigned char fn = FOLD ((unsigned char) *n);
+ 
+ 		if (!(flags & FNM_NOESCAPE) && c == '\\')
+-		  cstart = cend = *p++;
++		  {
++		    if (*p == '\0')
++		      return FNM_NOMATCH;
++		    c = FOLD ((unsigned char) *p);
++		    ++p;
+ 
+-		cstart = cend = FOLD (cstart);
++		    if (c == fn)
++		      goto matched;
++		  }
++		else if (c == '[' && *p == ':')
++		  {
++		    /* Leave room for the null.  */
++		    char str[CHAR_CLASS_MAX_LENGTH + 1];
++		    size_t c1 = 0;
++# if defined _LIBC || (defined HAVE_WCTYPE_H && defined HAVE_WCHAR_H)
++		    wctype_t wt;
++# endif
++		    const char *startp = p;
++
++		    for (;;)
++		      {
++			if (c1 == CHAR_CLASS_MAX_LENGTH)
++			  /* The name is too long and therefore the pattern
++			     is ill-formed.  */
++			  return FNM_NOMATCH;
++
++			c = *++p;
++			if (c == ':' && p[1] == ']')
++			  {
++			    p += 2;
++			    break;
++			  }
++			if (c < 'a' || c >= 'z')
++			  {
++			    /* This cannot possibly be a character class name.
++			       Match it as a normal range.  */
++			    p = startp;
++			    c = '[';
++			    goto normal_bracket;
++			  }
++			str[c1++] = c;
++		      }
++		    str[c1] = '\0';
++
++# if defined _LIBC || (defined HAVE_WCTYPE_H && defined HAVE_WCHAR_H)
++		    wt = IS_CHAR_CLASS (str);
++		    if (wt == 0)
++		      /* Invalid character class name.  */
++		      return FNM_NOMATCH;
+ 
+-		if (c == '\0')
++		    if (__iswctype (__btowc ((unsigned char) *n), wt))
++		      goto matched;
++# else
++		    if ((STREQ (str, "alnum") && ISALNUM ((unsigned char) *n))
++			|| (STREQ (str, "alpha") && ISALPHA ((unsigned char) *n))
++			|| (STREQ (str, "blank") && ISBLANK ((unsigned char) *n))
++			|| (STREQ (str, "cntrl") && ISCNTRL ((unsigned char) *n))
++			|| (STREQ (str, "digit") && ISDIGIT ((unsigned char) *n))
++			|| (STREQ (str, "graph") && ISGRAPH ((unsigned char) *n))
++			|| (STREQ (str, "lower") && ISLOWER ((unsigned char) *n))
++			|| (STREQ (str, "print") && ISPRINT ((unsigned char) *n))
++			|| (STREQ (str, "punct") && ISPUNCT ((unsigned char) *n))
++			|| (STREQ (str, "space") && ISSPACE ((unsigned char) *n))
++			|| (STREQ (str, "upper") && ISUPPER ((unsigned char) *n))
++			|| (STREQ (str, "xdigit") && ISXDIGIT ((unsigned char) *n)))
++		      goto matched;
++# endif
++		  }
++		else if (c == '\0')
+ 		  /* [ (unterminated) loses.  */
+ 		  return FNM_NOMATCH;
++		else
++		  {
++		  normal_bracket:
++		    if (FOLD (c) == fn)
++		      goto matched;
+ 
+-		c = *p++;
+-		c = FOLD (c);
++		    cold = c;
++		    c = *p++;
+ 
+-		if ((flags & FNM_FILE_NAME) && c == '/')
+-		  /* [/] can never match.  */
+-		  return FNM_NOMATCH;
++		    if (c == '-' && *p != ']')
++		      {
++			/* It is a range.  */
++			unsigned char cend = *p++;
++			if (!(flags & FNM_NOESCAPE) && cend == '\\')
++			  cend = *p++;
++			if (cend == '\0')
++			  return FNM_NOMATCH;
+ 
+-		if (c == '-' && *p != ']')
+-		  {
+-		    cend = *p++;
+-		    if (!(flags & FNM_NOESCAPE) && cend == '\\')
+-		      cend = *p++;
+-		    if (cend == '\0')
+-		      return FNM_NOMATCH;
+-		    cend = FOLD (cend);
++			if (cold <= fn && fn <= FOLD (cend))
++			  goto matched;
+ 
+-		    c = *p++;
++			c = *p++;
++		      }
+ 		  }
+ 
+-		if (FOLD (*n) >= cstart && FOLD (*n) <= cend)
+-		  goto matched;
+-
+ 		if (c == ']')
+ 		  break;
+ 	      }
++
+ 	    if (!not)
+ 	      return FNM_NOMATCH;
+ 	    break;
+ 
+-	  matched:;
++	  matched:
+ 	    /* Skip the rest of the [...] that already matched.  */
+ 	    while (c != ']')
+ 	      {
+ 		if (c == '\0')
+ 		  /* [... (unterminated) loses.  */
+ 		  return FNM_NOMATCH;
+ 
+ 		c = *p++;
+ 		if (!(flags & FNM_NOESCAPE) && c == '\\')
+-		  /* XXX 1003.2d11 is unclear if this is right.  */
+-		  ++p;
++		  {
++		    if (*p == '\0')
++		      return FNM_NOMATCH;
++		    /* XXX 1003.2d11 is unclear if this is right.  */
++		    ++p;
++		  }
++		else if (c == '[' && *p == ':')
++		  {
++		    do
++		      if (*++p == '\0')
++			return FNM_NOMATCH;
++		    while (*p != ':' || p[1] == ']');
++		    p += 2;
++		    c = *p;
++		  }
+ 	      }
+ 	    if (not)
+ 	      return FNM_NOMATCH;
+ 	  }
+ 	  break;
+ 
+ 	default:
+-	  if (c != FOLD (*n))
++	  if (c != FOLD ((unsigned char) *n))
+ 	    return FNM_NOMATCH;
+ 	}
+ 
+       ++n;
+     }
+ 
+@@ -194,11 +457,26 @@
+ 
+   if ((flags & FNM_LEADING_DIR) && *n == '/')
+     /* The FNM_LEADING_DIR flag says that "foo*" matches "foobar/frobozz".  */
+     return 0;
+ 
+   return FNM_NOMATCH;
++
++# undef FOLD
++}
++
++
++int
++fnmatch (pattern, string, flags)
++     const char *pattern;
++     const char *string;
++     int flags;
++{
++  return internal_fnmatch (pattern, string, flags & FNM_PERIOD, flags);
+ }
+ 
++#endif	/* _LIBC or not __GNU_LIBRARY__.  */
++/* ----- END glibc-2.1.2 posix/fnmatch.c */
++
+ #else	/* HAVE_FNMATCH */
+ void fnmatch_dummy(void) {}
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/lib/fnmatch.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/lib/fnmatch.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/lib/fnmatch.h	1999-11-02 05:25:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/lib/fnmatch.h	2000-01-29 19:35:04.000000000 +0800
+@@ -1,27 +1,25 @@
+-/* Copyright (C) 1991, 1992, 1993 Free Software Foundation, Inc.
++/* Copyright (C) 1991, 92, 93, 96, 97, 98 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
+ 
+-NOTE: The canonical source of this file is maintained with the GNU C Library.
+-Bugs can be reported to bug-glibc@prep.ai.mit.edu.
+-
+-This program is free software; you can redistribute it and/or modify it
+-under the terms of the GNU General Public License as published by the
+-Free Software Foundation; either version 2, or (at your option) any
+-later version.
+-
+-This program is distributed in the hope that it will be useful,
+-but WITHOUT ANY WARRANTY; without even the implied warranty of
+-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-GNU General Public License for more details.
+-
+-You should have received a copy of the GNU General Public License
+-along with this program; if not, write to the Free Software
+-Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.  */
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Library General Public License as
++   published by the Free Software Foundation; either version 2 of the
++   License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Library General Public License for more details.
++
++   You should have received a copy of the GNU Library General Public
++   License along with the GNU C Library; see the file COPYING.LIB.  If not,
++   write to the Free Software Foundation, Inc., 59 Temple Place - Suite 330,
++   Boston, MA 02111-1307, USA.  */
+ 
+ #ifndef	_FNMATCH_H
+-
+ #define	_FNMATCH_H	1
+ 
+ #ifdef	__cplusplus
+ extern "C" {
+ #endif
+ 
+@@ -22,23 +20,32 @@
+ #define	_FNMATCH_H	1
+ 
+ #ifdef	__cplusplus
+ extern "C" {
+ #endif
+ 
+-#if defined (__cplusplus) || (defined (__STDC__) && __STDC__)
+-#undef	__P
+-#define	__P(protos)	protos
++#if defined __cplusplus || (defined __STDC__ && __STDC__) || defined WINDOWS32
++# if !defined __GLIBC__ || !defined __P
++#  undef	__P
++#  define __P(protos)	protos
++# endif
+ #else /* Not C++ or ANSI C.  */
+-#undef	__P
+-#define	__P(protos)	()
++# undef	__P
++# define __P(protos)	()
+ /* We can get away without defining `const' here only because in this file
+    it is used only inside the prototype for `fnmatch', which is elided in
+    non-ANSI C where `const' is problematical.  */
+ #endif /* C++ or ANSI C.  */
+ 
++#ifndef const
++# if (defined __STDC__ && __STDC__) || defined __cplusplus
++#  define __const	const
++# else
++#  define __const
++# endif
++#endif
+ 
+ /* We #undef these before defining them because some losing systems
+    (HP-UX A.08.07 for example) define these in <unistd.h>.  */
+ #undef	FNM_PATHNAME
+ #undef	FNM_NOESCAPE
+ #undef	FNM_PERIOD
+@@ -46,27 +53,35 @@
+ /* Bits set in the FLAGS argument to `fnmatch'.  */
+ #define	FNM_PATHNAME	(1 << 0) /* No wildcard can ever match `/'.  */
+ #define	FNM_NOESCAPE	(1 << 1) /* Backslashes don't quote special chars.  */
+ #define	FNM_PERIOD	(1 << 2) /* Leading `.' is matched only explicitly.  */
+ 
+ #ifndef FNM_FILE_NAME
+-#define	FNM_FILE_NAME	FNM_PATHNAME /* Preferred GNU name.  */
++# define FNM_FILE_NAME	 FNM_PATHNAME	/* Preferred GNU name.  */
+ #endif
+ #ifndef FNM_LEADING_DIR
+-#define	FNM_LEADING_DIR	(1 << 3) /* Ignore `/...' after a match.  */
++# define FNM_LEADING_DIR (1 << 3)	/* Ignore `/...' after a match.  */
+ #endif
+ #ifndef FNM_CASEFOLD
+-#define	FNM_CASEFOLD	(1 << 4) /* Compare without regard to case.  */
++# define FNM_CASEFOLD	 (1 << 4)	/* Compare without regard to case.  */
+ #endif
+ 
+ /* Value returned by `fnmatch' if STRING does not match PATTERN.  */
+ #define	FNM_NOMATCH	1
+ 
++/* This value is returned if the implementation does not support
++   `fnmatch'.  Since this is not the case here it will never be
++   returned but the conformance test suites still require the symbol
++   to be defined.  */
++#ifdef _XOPEN_SOURCE
++# define FNM_NOSYS	(-1)
++#endif
++
+ /* Match STRING against the filename pattern PATTERN,
+    returning zero if it matches, FNM_NOMATCH if not.  */
+-extern int fnmatch __P ((const char *__pattern, const char *__string,
++extern int fnmatch __P ((__const char *__pattern, __const char *__string,
+ 			 int __flags));
+ 
+ #ifdef	__cplusplus
+ }
+ #endif
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/lib/mdfour.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/lib/mdfour.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/lib/mdfour.c	1998-11-04 10:35:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/lib/mdfour.c	2000-01-29 19:35:04.000000000 +0800
+@@ -34,15 +34,15 @@
+ #ifdef LARGE_INT32
+ #define lshift(x,s) ((((x)<<(s))&0xFFFFFFFF) | (((x)>>(32-(s)))&0xFFFFFFFF))
+ #else
+ #define lshift(x,s) (((x)<<(s)) | ((x)>>(32-(s))))
+ #endif
+ 
+-#define ROUND1(a,b,c,d,k,s) a = lshift(a + F(b,c,d) + X[k], s)
+-#define ROUND2(a,b,c,d,k,s) a = lshift(a + G(b,c,d) + X[k] + 0x5A827999,s)
+-#define ROUND3(a,b,c,d,k,s) a = lshift(a + H(b,c,d) + X[k] + 0x6ED9EBA1,s)
++#define ROUND1(a,b,c,d,k,s) a = lshift((uint32)(a + F(b,c,d) + X[k]), s)
++#define ROUND2(a,b,c,d,k,s) a = lshift((uint32)(a + G(b,c,d) + X[k] + 0x5A827999),s)
++#define ROUND3(a,b,c,d,k,s) a = lshift((uint32)(a + H(b,c,d) + X[k] + 0x6ED9EBA1),s)
+ 
+ /* this applies md4 to 64 byte chunks */
+ static void mdfour64(uint32 *M)
+ {
+ 	int j;
+ 	uint32 AA, BB, CC, DD;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/log.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/log.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/log.c	2002-01-25 11:13:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/log.c	2000-01-29 19:35:03.000000000 +0800
+@@ -21,13 +21,13 @@
+ 
+   tridge, May 1998
+   */
+ #include "rsync.h"
+ 
+ static FILE *logfile;
+-
++static int log_error_fd = -1;
+ 
+ static void logit(int priority, char *buf)
+ {
+ 	if (logfile) {
+ 		fprintf(logfile,"%s [%d] %s", 
+ 			timestring(time(NULL)), (int)getpid(), buf);
+@@ -74,97 +74,120 @@
+ #endif
+ 
+ #ifndef LOG_NDELAY
+ 	logit(LOG_INFO,"rsyncd started\n");
+ #endif
+ }
+-		
+ 
+-/* this is the rsync debugging function. Call it with FINFO, FERROR or FLOG */
+- void rprintf(int fd, const char *format, ...)
++/* setup the error file descriptor - used when we are a server
++   that is receiving files */
++void set_error_fd(int fd)
++{
++	log_error_fd = fd;
++}
++
++/* this is the underlying (unformatted) rsync debugging function. Call
++   it with FINFO, FERROR or FLOG */
++void rwrite(enum logcode code, char *buf, int len)
+ {
+-	va_list ap;  
+-	char buf[1024];
+-	int len;
+ 	FILE *f=NULL;
+ 	extern int am_daemon;
++	extern int am_server;
+ 	extern int quiet;
+ 	/* recursion can happen with certain fatal conditions */
+ 
+-	if (quiet != 0 && fd == FINFO) return;
+-
+-	va_start(ap, format);
+-	len = vslprintf(buf, sizeof(buf), format, ap);
+-	va_end(ap);
++	if (quiet && code == FINFO) return;
+ 
+ 	if (len < 0) exit_cleanup(RERR_MESSAGEIO);
+ 
+-	if (len > sizeof(buf)-1) exit_cleanup(RERR_MESSAGEIO);
+-
+ 	buf[len] = 0;
+ 
+-	if (fd == FLOG) {
++	if (code == FLOG) {
+ 		if (am_daemon) logit(LOG_INFO, buf);
+ 		return;
+ 	}
+ 
++	/* first try to pass it off the our sibling */
++	if (am_server && io_error_write(log_error_fd, code, buf, len)) {
++		return;
++	}
++
++	/* then try to pass it to the other end */
++	if (am_server && io_multiplex_write(code, buf, len)) {
++		return;
++	}
++
+ 	if (am_daemon) {
+ 		static int depth;
+ 		int priority = LOG_INFO;
+-		if (fd == FERROR) priority = LOG_WARNING;
++		if (code == FERROR) priority = LOG_WARNING;
+ 
+ 		if (depth) return;
+ 
+ 		depth++;
+ 
+ 		log_open();
+-		if (!io_multiplex_write(fd, buf, strlen(buf))) {
+-			logit(priority, buf);
+-		}
++		logit(priority, buf);
+ 
+ 		depth--;
+ 		return;
+ 	}
+ 
+-	if (fd == FERROR) {
++	if (code == FERROR) {
+ 		f = stderr;
+ 	} 
+ 
+-	if (fd == FINFO) {
+-		extern int am_server;
++	if (code == FINFO) {
+ 		if (am_server) 
+ 			f = stderr;
+ 		else
+ 			f = stdout;
+ 	} 
+ 
+ 	if (!f) exit_cleanup(RERR_MESSAGEIO);
+ 
+ 	if (fwrite(buf, len, 1, f) != 1) exit_cleanup(RERR_MESSAGEIO);
+ 
+ 	if (buf[len-1] == '\r' || buf[len-1] == '\n') fflush(f);
+ }
++		
+ 
+-void rflush(int fd)
++/* this is the rsync debugging function. Call it with FINFO, FERROR or FLOG */
++ void rprintf(enum logcode code, const char *format, ...)
++{
++	va_list ap;  
++	char buf[1024];
++	int len;
++
++	va_start(ap, format);
++	len = vslprintf(buf, sizeof(buf), format, ap);
++	va_end(ap);
++
++	if (len > sizeof(buf)-1) exit_cleanup(RERR_MESSAGEIO);
++
++	rwrite(code, buf, len);
++}
++
++void rflush(enum logcode code)
+ {
+ 	FILE *f = NULL;
+ 	extern int am_daemon;
+ 	
+ 	if (am_daemon) {
+ 		return;
+ 	}
+ 
+-	if (fd == FLOG) {
++	if (code == FLOG) {
+ 		return;
+ 	} 
+ 
+-	if (fd == FERROR) {
++	if (code == FERROR) {
+ 		f = stderr;
+ 	} 
+ 
+-	if (fd == FINFO) {
++	if (code == FINFO) {
+ 		extern int am_server;
+ 		if (am_server) 
+ 			f = stderr;
+ 		else
+ 			f = stdout;
+ 	} 
+@@ -174,13 +197,13 @@
+ }
+ 
+ 
+ 
+ /* a generic logging routine for send/recv, with parameter
+    substitiution */
+-static void log_formatted(int fd,
++static void log_formatted(enum logcode code,
+ 			  char *format, char *op, struct file_struct *file,
+ 			  struct stats *initial_stats)
+ {
+ 	extern int module_id;
+ 	extern char *auth_user;
+ 	char buf[1024];
+@@ -189,14 +212,12 @@
+ 	int l;
+ 	extern struct stats stats;		
+ 	extern int am_sender;
+ 	extern int am_daemon;
+ 	int64 b;
+ 
+-	memset(buf,0,sizeof(buf));
+-
+ 	strlcpy(buf, format, sizeof(buf));
+ 	
+ 	for (s=&buf[0]; 
+ 	     s && (p=strchr(s,'%')); ) {
+ 		n = NULL;
+ 		s = p + 1;
+@@ -252,13 +273,13 @@
+ 		}
+ 
+ 		if (!n) continue;
+ 
+ 		l = strlen(n);
+ 
+-		if (l + ((int)(s - &buf[0])) > sizeof(buf)) {
++		if ((l-1) + ((int)(s - &buf[0])) > sizeof(buf)) {
+ 			rprintf(FERROR,"buffer overflow expanding %%%c - exiting\n",
+ 				p[0]);
+ 			exit_cleanup(RERR_MESSAGEIO);
+ 		}
+ 
+ 		if (l != 2) {
+@@ -266,13 +287,13 @@
+ 		}
+ 		memcpy(p, n, l);
+ 
+ 		s = p+l;
+ 	}
+ 
+-	rprintf(fd,"%s\n", buf);
++	rprintf(code,"%s\n", buf);
+ }
+ 
+ /* log the outgoing transfer of a file */
+ void log_send(struct file_struct *file, struct stats *initial_stats)
+ {
+ 	extern int module_id;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/main.c	1999-06-26 09:06:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/main.c	2000-01-29 19:35:03.000000000 +0800
+@@ -258,16 +258,12 @@
+ 	if (argc == 0 && recurse) {
+ 		argc=1;
+ 		argv--;
+ 		argv[0] = ".";
+ 	}
+ 	
+-	set_nonblocking(f_out);
+-	if (f_in != f_out)
+-		set_nonblocking(f_in);
+-		
+ 	flist = send_file_list(f_out,argc,argv);
+ 	if (!flist || flist->count == 0) {
+ 		exit_cleanup(0);
+ 	}
+ 
+ 	send_files(flist,f_out,f_in);
+@@ -279,51 +275,71 @@
+ 
+ static int do_recv(int f_in,int f_out,struct file_list *flist,char *local_name)
+ {
+ 	int pid;
+ 	int status=0;
+ 	int recv_pipe[2];
++	int error_pipe[2];
+ 	extern int preserve_hard_links;
++	extern int delete_after;
++	extern int recurse;
++	extern int delete_mode;
+ 
+ 	if (preserve_hard_links)
+ 		init_hard_links(flist);
+ 
+-	if (pipe(recv_pipe) < 0) {
++	if (!delete_after) {
++		/* I moved this here from recv_files() to prevent a race condition */
++		if (recurse && delete_mode && !local_name && flist->count>0) {
++			delete_files(flist);
++		}
++	}
++
++	if (fd_pair(recv_pipe) < 0) {
+ 		rprintf(FERROR,"pipe failed in do_recv\n");
+ 		exit_cleanup(RERR_SOCKETIO);
+ 	}
++
++	if (fd_pair(error_pipe) < 0) {
++		rprintf(FERROR,"error pipe failed in do_recv\n");
++		exit_cleanup(RERR_SOCKETIO);
++	}
+   
+ 	io_flush();
+ 
+ 	if ((pid=do_fork()) == 0) {
+ 		close(recv_pipe[0]);
++		close(error_pipe[0]);
+ 		if (f_in != f_out) close(f_out);
+ 
+-		set_nonblocking(f_in);
+-		set_nonblocking(recv_pipe[1]);
++		/* we can't let two processes write to the socket at one time */
++		io_multiplexing_close();
++
++		/* set place to send errors */
++		set_error_fd(error_pipe[1]);
+ 
+ 		recv_files(f_in,flist,local_name,recv_pipe[1]);
+ 		report(f_in);
+ 
+ 		io_flush();
+ 		_exit(0);
+ 	}
+ 
+ 	close(recv_pipe[1]);
++	close(error_pipe[1]);
+ 	io_close_input(f_in);
+ 	if (f_in != f_out) close(f_in);
+ 
+-	set_nonblocking(f_out);
+-	set_nonblocking(recv_pipe[0]);
+-
+ 	io_start_buffering(f_out);
+ 
++	io_set_error_fd(error_pipe[0]);
++
+ 	generate_files(f_out,flist,local_name,recv_pipe[0]);
+ 
+ 	io_flush();
+-	waitpid(pid, &status, 0);
++	wait_process(pid, &status);
+ 	return status;
+ }
+ 
+ 
+ static void do_server_recv(int f_in, int f_out, int argc,char *argv[])
+ {
+@@ -331,15 +347,24 @@
+ 	struct file_list *flist;
+ 	char *local_name=NULL;
+ 	char *dir = NULL;
+ 	extern int delete_mode;
+ 	extern int delete_excluded;
+ 	extern int am_daemon;
++	extern int module_id;
++	extern int am_sender;
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
++
++	if (am_daemon && lp_read_only(module_id) && !am_sender) {
++		rprintf(FERROR,"ERROR: module is read only\n");
++		exit_cleanup(RERR_SYNTAX);
++		return;
++	}
++
+ 	
+ 	if (argc > 0) {
+ 		dir = argv[0];
+ 		argc--;
+ 		argv++;
+ 		if (!am_daemon && !push_dir(dir, 0)) {
+@@ -372,19 +397,19 @@
+ 
+ 
+ void start_server(int f_in, int f_out, int argc, char *argv[])
+ {
+ 	extern int cvs_exclude;
+ 	extern int am_sender;
++	extern int remote_version;
+ 
+-	set_nonblocking(f_out);
+-	if (f_in != f_out)
+-		set_nonblocking(f_in);
+-			
+ 	setup_protocol(f_out, f_in);
+ 
++	if (remote_version >= 23)
++		io_start_multiplex_out(f_out);
++
+ 	if (am_sender) {
+ 		recv_exclude_list(f_in);
+ 		if (cvs_exclude)
+ 			add_cvs_excludes();
+ 		do_server_sender(f_in, f_out, argc, argv);
+ 	} else {
+@@ -397,14 +422,18 @@
+ {
+ 	struct file_list *flist;
+ 	int status = 0, status2 = 0;
+ 	char *local_name = NULL;
+ 	extern int am_sender;
+ 	extern int list_only;
++	extern int remote_version;
+ 
+ 	setup_protocol(f_out,f_in);
++
++	if (remote_version >= 23)
++		io_start_multiplex_in(f_in);
+ 	
+ 	if (am_sender) {
+ 		extern int cvs_exclude;
+ 		extern int delete_mode;
+ 		extern int delete_excluded;
+ 		if (cvs_exclude)
+@@ -412,22 +441,18 @@
+ 		if (delete_mode && !delete_excluded) 
+ 			send_exclude_list(f_out);
+ 		flist = send_file_list(f_out,argc,argv);
+ 		if (verbose > 3) 
+ 			rprintf(FINFO,"file list sent\n");
+ 
+-		set_nonblocking(f_out);
+-		if (f_in != f_out)
+-			set_nonblocking(f_in);
+-
+ 		send_files(flist,f_out,f_in);
+ 		if (pid != -1) {
+ 			if (verbose > 3)
+ 				rprintf(FINFO,"client_run waiting on %d\n",pid);
+ 			io_flush();
+-			waitpid(pid, &status, 0);
++			wait_process(pid, &status);
+ 		}
+ 		report(-1);
+ 		exit_cleanup(status);
+ 	}
+ 
+ 	if (argc == 0) list_only = 1;
+@@ -445,13 +470,13 @@
+ 	status2 = do_recv(f_in,f_out,flist,local_name);
+ 	
+ 	if (pid != -1) {
+ 		if (verbose > 3)
+ 			rprintf(FINFO,"client_run2 waiting on %d\n",pid);
+ 		io_flush();
+-		waitpid(pid, &status, 0);
++		wait_process(pid, &status);
+ 	}
+ 	
+ 	return status | status2;
+ }
+ 
+ static char *find_colon(char *s)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/Makefile.in	1999-08-30 16:19:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/Makefile.in	2000-01-29 19:35:03.000000000 +0800
+@@ -17,12 +17,14 @@
+ SHELL=/bin/sh
+ 
+ 
+ .SUFFIXES:
+ .SUFFIXES: .c .o
+ 
++HEADS=byteorder.h config.h errcode.h proto.h rsync.h version.h \
++	lib/fnmatch.h lib/getopt.h lib/mdfour.h
+ LIBOBJ=lib/getopt.o lib/fnmatch.o lib/compat.o lib/snprintf.o lib/mdfour.o
+ ZLIBOBJ=zlib/deflate.o zlib/infblock.o zlib/infcodes.o zlib/inffast.o \
+ 	zlib/inflate.o zlib/inftrees.o zlib/infutil.o zlib/trees.o \
+ 	zlib/zutil.o zlib/adler32.o 
+ OBJS1=rsync.o generator.o receiver.o cleanup.o sender.o exclude.o util.o main.o checksum.o match.o syscall.o log.o backup.o
+ OBJS2=options.o flist.o io.o compat.o hlink.o token.o uidlist.o socket.o fileio.o
+@@ -50,20 +52,22 @@
+ install-strip:
+ 	$(MAKE) INSTALLCMD='$(INSTALLCMD) -s' install
+ 
+ rsync: $(OBJS)
+ 	$(CC) $(CFLAGS) $(LDFLAGS) -o rsync $(OBJS) $(LIBS)
+ 
++$(OBJS): $(HEADS)
++
+ rsync.1: rsync.yo
+ 	yodl2man -o rsync.1 rsync.yo
+ 
+ rsyncd.conf.5: rsyncd.conf.yo
+ 	yodl2man -o rsyncd.conf.5 rsyncd.conf.yo
+ 
+ proto:
+-	cat *.c | awk -f mkproto.awk > proto.h
++	cat *.c lib/compat.c | awk -f mkproto.awk > proto.h
+ 
+ clean:
+ 	rm -f *~ $(OBJS) rsync 
+ 
+ distclean: clean
+ 	rm -f config.h config.cache config.status Makefile
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/match.c	1999-01-05 14:43:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/match.c	2000-01-29 19:35:03.000000000 +0800
+@@ -94,14 +94,14 @@
+ 		    OFF_T offset,int i)
+ {
+ 	OFF_T n = offset - last_match;
+ 	OFF_T j;
+ 
+ 	if (verbose > 2 && i >= 0)
+-		rprintf(FINFO,"match at %d last_match=%d j=%d len=%d n=%d\n",
+-			(int)offset,(int)last_match,i,(int)s->sums[i].len,(int)n);
++		rprintf(FINFO,"match at %.0f last_match=%.0f j=%d len=%d n=%.0f\n",
++			(double)offset,(double)last_match,i,s->sums[i].len,(double)n);
+ 
+ 	send_token(f,i,buf,last_match,n,i<0?0:s->sums[i].len);
+ 	data_transfer += n;
+ 
+ 	if (i >= 0) {
+ 		stats.matched_data += s->sums[i].len;
+@@ -116,35 +116,35 @@
+ 
+ 	if (i >= 0)
+ 		last_match = offset + s->sums[i].len;
+ 	else
+ 		last_match = offset;
+ 
+-	if (buf)
++	if (buf) {
+ 		show_progress(last_match, buf->file_size);
+ 
+-	if (i == -1) end_progress();
++		if (i == -1) end_progress(buf->file_size);
++	}
+ }
+ 
+ 
+ static void hash_search(int f,struct sum_struct *s,
+ 			struct map_struct *buf,OFF_T len)
+ {
+-	OFF_T offset;
++	OFF_T offset, end;
+ 	int j,k, last_i;
+-	int end;
+ 	char sum2[SUM_LENGTH];
+ 	uint32 s1, s2, sum; 
+ 	schar *map;
+ 
+ 	/* last_i is used to encourage adjacent matches, allowing the RLL coding of the
+ 	   output to work more efficiently */
+ 	last_i = -1;
+ 
+ 	if (verbose > 2)
+-		rprintf(FINFO,"hash search b=%d len=%d\n",s->n,(int)len);
++		rprintf(FINFO,"hash search b=%d len=%.0f\n",s->n,(double)len);
+ 
+ 	k = MIN(len, s->n);
+ 	
+ 	map = (schar *)map_ptr(buf,0,k);
+ 	
+ 	sum = get_checksum1((char *)map, k);
+@@ -155,22 +155,22 @@
+ 	
+ 	offset = 0;
+ 	
+ 	end = len + 1 - s->sums[s->count-1].len;
+ 	
+ 	if (verbose > 3)
+-		rprintf(FINFO,"hash search s->n=%d len=%d count=%d\n",
+-			s->n,(int)len,s->count);
++		rprintf(FINFO,"hash search s->n=%d len=%.0f count=%d\n",
++			s->n,(double)len,s->count);
+ 	
+ 	do {
+ 		tag t = gettag2(s1,s2);
+ 		int done_csum2 = 0;
+ 			
+ 		j = tag_table[t];
+ 		if (verbose > 4)
+-			rprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);
++			rprintf(FINFO,"offset=%.0f sum=%08x\n",(double)offset,sum);
+ 		
+ 		if (j == NULL_TAG) {
+ 			goto null_tag;
+ 		}
+ 
+ 		sum = (s1 & 0xffff) | (s2 << 16);
+@@ -182,14 +182,14 @@
+ 			
+ 			/* also make sure the two blocks are the same length */
+ 			l = MIN(s->n,len-offset);
+ 			if (l != s->sums[i].len) continue;			
+ 
+ 			if (verbose > 3)
+-				rprintf(FINFO,"potential match at %d target=%d %d sum=%08x\n",
+-					(int)offset,j,i,sum);
++				rprintf(FINFO,"potential match at %.0f target=%d %d sum=%08x\n",
++					(double)offset,j,i,sum);
+ 			
+ 			if (!done_csum2) {
+ 				map = (schar *)map_ptr(buf,offset,l);
+ 				get_checksum2((char *)map,l,sum2);
+ 				done_csum2 = 1;
+ 			}
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3: NEWS
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/options.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/options.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/options.c	1999-11-08 21:03:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/options.c	2000-01-29 19:35:03.000000000 +0800
+@@ -60,31 +60,34 @@
+ int keep_partial=0;
+ int safe_symlinks=0;
+ int copy_unsafe_links=0;
+ int block_size=BLOCK_SIZE;
+ int size_only=0;
+ int delete_after=0;
++int only_existing=0;
++int max_delete=0;
+ 
+ char *backup_suffix = BACKUP_SUFFIX;
+ char *tmpdir = NULL;
+ char *compare_dest = NULL;
+ char *config_file = RSYNCD_CONF;
+ char *shell_cmd = NULL;
+ char *log_format = NULL;
+ char *password_file = NULL;
+ char *rsync_path = RSYNC_NAME;
++char *backup_dir = NULL;
+ int rsync_port = RSYNC_PORT;
+ 
+ int verbose = 0;
+ int quiet = 0;
+ int always_checksum = 0;
+ int list_only = 0;
+ 
+ struct in_addr socket_address = {INADDR_ANY};
+ 
+-void usage(int F)
++void usage(enum logcode F)
+ {
+   rprintf(F,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
+ 	  VERSION);
+ 
+   rprintf(F,"rsync is a file transfer program capable of efficient remote update\nvia a fast differencing algorithm.\n\n");
+ 
+@@ -102,12 +105,13 @@
+   rprintf(F," -q, --quiet                 decrease verbosity\n");
+   rprintf(F," -c, --checksum              always checksum\n");
+   rprintf(F," -a, --archive               archive mode\n");
+   rprintf(F," -r, --recursive             recurse into directories\n");
+   rprintf(F," -R, --relative              use relative path names\n");
+   rprintf(F," -b, --backup                make backups (default %s suffix)\n",BACKUP_SUFFIX);
++  rprintf(F,"     --backup-dir            make backups into this directory\n");
+   rprintf(F,"     --suffix=SUFFIX         override backup suffix\n");  
+   rprintf(F," -u, --update                update only (don't overwrite newer files)\n");
+   rprintf(F," -l, --links                 preserve soft links\n");
+   rprintf(F," -L, --copy-links            treat soft links like regular files\n");
+   rprintf(F,"     --copy-unsafe-links     copy links outside the source tree\n");
+   rprintf(F,"     --safe-links            ignore links outside the destination tree\n");
+@@ -122,15 +126,17 @@
+   rprintf(F," -W, --whole-file            copy whole files, no incremental checks\n");
+   rprintf(F," -x, --one-file-system       don't cross filesystem boundaries\n");
+   rprintf(F," -B, --block-size=SIZE       checksum blocking size (default %d)\n",BLOCK_SIZE);  
+   rprintf(F," -e, --rsh=COMMAND           specify rsh replacement\n");
+   rprintf(F,"     --rsync-path=PATH       specify path to rsync on the remote machine\n");
+   rprintf(F," -C, --cvs-exclude           auto ignore files in the same way CVS does\n");
++  rprintf(F,"     --existing              only update files that already exist\n");
+   rprintf(F,"     --delete                delete files that don't exist on the sending side\n");
+   rprintf(F,"     --delete-excluded       also delete excluded files on the receiving side\n");
+   rprintf(F,"     --delete-after          delete after transferring, not before\n");
++  rprintf(F,"     --max-delete=NUM        don't delete more than NUM files\n");
+   rprintf(F,"     --partial               keep partially transferred files\n");
+   rprintf(F,"     --force                 force deletion of directories even if not empty\n");
+   rprintf(F,"     --numeric-ids           don't map uid/gid values by user/group name\n");
+   rprintf(F,"     --timeout=TIME          set IO timeout in seconds\n");
+   rprintf(F," -I, --ignore-times          don't exclude files that match length and time\n");
+   rprintf(F,"     --size-only             only use file size when determining if a file should be transferred\n");
+@@ -162,20 +168,21 @@
+ enum {OPT_VERSION, OPT_SUFFIX, OPT_SENDER, OPT_SERVER, OPT_EXCLUDE,
+       OPT_EXCLUDE_FROM, OPT_DELETE, OPT_DELETE_EXCLUDED, OPT_NUMERIC_IDS,
+       OPT_RSYNC_PATH, OPT_FORCE, OPT_TIMEOUT, OPT_DAEMON, OPT_CONFIG, OPT_PORT,
+       OPT_INCLUDE, OPT_INCLUDE_FROM, OPT_STATS, OPT_PARTIAL, OPT_PROGRESS,
+       OPT_COPY_UNSAFE_LINKS, OPT_SAFE_LINKS, OPT_COMPARE_DEST,
+       OPT_LOG_FORMAT, OPT_PASSWORD_FILE, OPT_SIZE_ONLY, OPT_ADDRESS,
+-      OPT_DELETE_AFTER};
++      OPT_DELETE_AFTER, OPT_EXISTING, OPT_MAX_DELETE, OPT_BACKUP_DIR};
+ 
+ static char *short_options = "oblLWHpguDCtcahvqrRIxnSe:B:T:zP";
+ 
+ static struct option long_options[] = {
+   {"version",     0,     0,    OPT_VERSION},
+   {"server",      0,     0,    OPT_SERVER},
+   {"sender",      0,     0,    OPT_SENDER},
++  {"existing",    0,     0,    OPT_EXISTING},
+   {"delete",      0,     0,    OPT_DELETE},
+   {"delete-excluded", 0, 0,    OPT_DELETE_EXCLUDED},
+   {"force",       0,     0,    OPT_FORCE},
+   {"numeric-ids", 0,     0,    OPT_NUMERIC_IDS},
+   {"exclude",     1,     0,    OPT_EXCLUDE},
+   {"exclude-from",1,     0,    OPT_EXCLUDE_FROM},
+@@ -222,12 +229,14 @@
+   {"partial",     0,     0,    OPT_PARTIAL},
+   {"delete-after",0,     0,    OPT_DELETE_AFTER},
+   {"config",      1,     0,    OPT_CONFIG},
+   {"port",        1,     0,    OPT_PORT},
+   {"log-format",  1,     0,    OPT_LOG_FORMAT},
+   {"address",     1,     0,    OPT_ADDRESS},
++  {"max-delete",  1,     0,    OPT_MAX_DELETE},
++  {"backup-dir",  1,     0,    OPT_BACKUP_DIR},
+   {0,0,0,0}};
+ 
+ 
+ static char err_buf[100];
+ 
+ void option_error(void)
+@@ -317,12 +326,16 @@
+ 			break;
+ 
+ 		case OPT_DELETE:
+ 			delete_mode = 1;
+ 			break;
+ 
++		case OPT_EXISTING:
++			only_existing = 1;
++			break;
++
+ 		case OPT_DELETE_AFTER:
+ 			delete_after = 1;
+ 			break;
+ 
+ 		case OPT_DELETE_EXCLUDED:
+ 			delete_excluded = 1;
+@@ -444,16 +457,14 @@
+ #if SUPPORT_LINKS
+ 			preserve_links=1;
+ #endif
+ 			preserve_perms=1;
+ 			preserve_times=1;
+ 			preserve_gid=1;
+-			if (am_root) {
+-				preserve_devices=1;
+-				preserve_uid=1;
+-			}
++			preserve_uid=1;
++			preserve_devices=1;
+ 			break;
+ 
+ 		case OPT_SERVER:
+ 			am_server = 1;
+ 			break;
+ 
+@@ -478,12 +489,16 @@
+ 			break;
+ 
+ 		case 'B':
+ 			block_size = atoi(optarg);
+ 			break;
+ 
++		case OPT_MAX_DELETE:
++			max_delete = atoi(optarg);
++			break;
++
+ 		case OPT_TIMEOUT:
+ 			io_timeout = atoi(optarg);
+ 			break;
+ 
+ 		case 'T':
+ 			tmpdir = optarg;
+@@ -536,27 +551,34 @@
+ 				if ((ia = ip_address(optarg))) {
+ 					socket_address = *ia;
+ 				}
+ 			}
+ 			break;
+ 
++		case OPT_BACKUP_DIR:
++			backup_dir = optarg;
++			break;
++
+ 		default:
+ 			slprintf(err_buf,sizeof(err_buf),"unrecognised option\n");
+ 			return 0;
+ 		}
+ 	}
+ 	return 1;
+ }
+ 
+ 
++/* need to pass all the valid options from the client to the server */
++
+ void server_options(char **args,int *argc)
+ {
+ 	int ac = *argc;
+ 	static char argstr[50];
+ 	static char bsize[30];
+ 	static char iotime[30];
++	static char mdelete[30];
+ 	int i, x;
+ 
+ 	args[ac++] = "--server";
+ 
+ 	if (!am_sender)
+ 		args[ac++] = "--sender";
+@@ -608,18 +630,23 @@
+ 		argstr[x++] = 'z';
+ 	argstr[x] = 0;
+ 
+ 	if (x != 1) args[ac++] = argstr;
+ 
+ 	if (block_size != BLOCK_SIZE) {
+-		sprintf(bsize,"-B%d",block_size);
++		slprintf(bsize,sizeof(bsize),"-B%d",block_size);
+ 		args[ac++] = bsize;
+ 	}    
+ 
++	if (max_delete && am_sender) {
++		slprintf(mdelete,sizeof(mdelete),"--max-delete=%d",max_delete);
++		args[ac++] = mdelete;
++	}    
++
+ 	if (io_timeout) {
+-		sprintf(iotime,"--timeout=%d",io_timeout);
++		slprintf(iotime,sizeof(iotime),"--timeout=%d",io_timeout);
+ 		args[ac++] = iotime;
+ 	}    
+ 
+ 	if (strcmp(backup_suffix, BACKUP_SUFFIX)) {
+ 		args[ac++] = "--suffix";
+ 		args[ac++] = backup_suffix;
+@@ -649,17 +676,28 @@
+ 	if (safe_symlinks)
+ 		args[ac++] = "--safe-links";
+ 
+ 	if (numeric_ids)
+ 		args[ac++] = "--numeric-ids";
+ 
++	if (only_existing && am_sender)
++		args[ac++] = "--existing";
++
+ 	if (tmpdir) {
+ 		args[ac++] = "--temp-dir";
+ 		args[ac++] = tmpdir;
+ 	}
+ 
++	if (backup_dir && am_sender) {
++		/* only the receiver needs this option, if we are the sender
++		 *   then we need to send it to the receiver.
++		 */
++		args[ac++] = "--backup-dir";
++		args[ac++] = backup_dir;
++	}
++
+ 	if (compare_dest && am_sender) {
+ 		/* the server only needs this option if it is not the sender,
+ 		 *   and it may be an older version that doesn't know this
+ 		 *   option, so don't send it if client is the sender.
+ 		 */
+ 		args[ac++] = "--compare-dest";
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/packaging/redhat/5.0/rsync.spec	1999-11-08 21:15:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/packaging/redhat/5.0/rsync.spec	2000-01-29 19:35:34.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.3.2
++Version: 2.4.0
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.3.2.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.4.0.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/packaging/redhat/5.0: rsync.spec.tmpl
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/proto.h	2002-01-25 11:13:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/proto.h	2000-01-29 19:35:03.000000000 +0800
+@@ -17,13 +17,12 @@
+ 		 struct map_struct *buf, int fd1, int fd2);
+ void cleanup_set_pid(int pid);
+ int start_socket_client(char *host, char *path, int argc, char *argv[]);
+ int daemon_main(void);
+ void setup_protocol(int f_out,int f_in);
+ int claim_connection(char *fname,int max_connections);
+-int send_included_file_names(int f,struct file_list *flist);
+ int check_exclude(char *name,struct exclude_struct **local_exclude_list,
+ 		  STRUCT_STAT *st);
+ void add_exclude_list(char *pattern,struct exclude_struct ***list, int include);
+ void add_exclude(char *pattern, int include);
+ struct exclude_struct **make_exclude_list(char *fname,
+ 					  struct exclude_struct **list1,
+@@ -33,49 +32,54 @@
+ void recv_exclude_list(int f);
+ char *get_exclude_tok(char *p);
+ void add_exclude_line(char *p);
+ void add_include_line(char *p);
+ void add_cvs_excludes(void);
+ int sparse_end(int f);
+-int write_file(int f,char *buf,size_t len);
++int write_file(int f,char *buf,int len);
+ struct map_struct *map_file(int fd,OFF_T len);
+ char *map_ptr(struct map_struct *map,OFF_T offset,int len);
+ void unmap_file(struct map_struct *map);
+ int readlink_stat(const char *Path, STRUCT_STAT *Buffer, char *Linkbuf) ;
+ int link_stat(const char *Path, STRUCT_STAT *Buffer) ;
++struct file_struct *make_file(int f, char *fname);
+ void send_file_name(int f,struct file_list *flist,char *fname,
+ 			   int recursive, unsigned base_flags);
+ struct file_list *send_file_list(int f,int argc,char *argv[]);
+ struct file_list *recv_file_list(int f);
+ int file_compare(struct file_struct **f1,struct file_struct **f2);
+ int flist_find(struct file_list *flist,struct file_struct *f);
++void free_file(struct file_struct *file);
+ void flist_free(struct file_list *flist);
+ char *f_name(struct file_struct *f);
+ void recv_generator(char *fname,struct file_list *flist,int i,int f_out);
+ void generate_files(int f,struct file_list *flist,char *local_name,int f_recv);
+ void init_hard_links(struct file_list *flist);
+ int check_hard_link(struct file_struct *file);
+ void do_hard_links(struct file_list *flist);
+ void setup_readbuffer(int f_in);
++void io_set_error_fd(int fd);
+ int32 read_int(int f);
+ int64 read_longint(int f);
+-void read_buf(int f,char *buf,size_t len);
+-void read_sbuf(int f,char *buf,size_t len);
++void read_buf(int f,char *buf,int len);
++void read_sbuf(int f,char *buf,int len);
+ unsigned char read_byte(int f);
+ void io_start_buffering(int fd);
+ void io_flush(void);
+ void io_end_buffering(int fd);
+ void write_int(int f,int32 x);
+ void write_longint(int f, int64 x);
+-void write_buf(int f,char *buf,size_t len);
++void write_buf(int f,char *buf,int len);
+ void write_byte(int f,unsigned char c);
+-int read_line(int f, char *buf, size_t maxlen);
++int read_line(int f, char *buf, int maxlen);
+ void io_printf(int fd, const char *format, ...);
+ void io_start_multiplex_out(int fd);
+ void io_start_multiplex_in(int fd);
+-int io_multiplex_write(int f, char *buf, size_t len);
++int io_multiplex_write(enum logcode code, char *buf, int len);
++int io_error_write(int f, enum logcode code, char *buf, int len);
++void io_multiplexing_close(void);
+ void io_close_input(int fd);
+ char *lp_motd_file(void);
+ char *lp_log_file(void);
+ char *lp_pid_file(void);
+ char *lp_socket_options(void);
+ int lp_syslog_facility(void);
+@@ -105,38 +109,42 @@
+ int lp_timeout(int );
+ int lp_max_connections(int );
+ BOOL lp_load(char *pszFname, int globals_only);
+ int lp_numservices(void);
+ int lp_number(char *name);
+ void log_open(void);
+-void rflush(int fd);
++void set_error_fd(int fd);
++void rwrite(enum logcode code, char *buf, int len);
++void rflush(enum logcode code);
+ void log_send(struct file_struct *file, struct stats *initial_stats);
+ void log_recv(struct file_struct *file, struct stats *initial_stats);
+ void log_exit(int code, const char *file, int line);
+ void log_transfer(struct file_struct *file, const char *fname);
+ void start_server(int f_in, int f_out, int argc, char *argv[]);
+ int client_run(int f_in, int f_out, int pid, int argc, char *argv[]);
+ int main(int argc,char *argv[]);
+ void match_sums(int f,struct sum_struct *s,struct map_struct *buf,OFF_T len);
+ void match_report(void);
+-void usage(int F);
++void usage(enum logcode F);
+ void option_error(void);
+ int parse_arguments(int argc, char *argv[], int frommain);
+ void server_options(char **args,int *argc);
+ BOOL pm_process( char *FileName,
+                  BOOL (*sfunc)(char *),
+                  BOOL (*pfunc)(char *, char *) );
++int pipe(int fd[2]);
++void delete_files(struct file_list *flist);
+ int recv_files(int f_in,struct file_list *flist,char *local_name,int f_gen);
+ void free_sums(struct sum_struct *s);
+ int delete_file(char *fname);
+ int set_perms(char *fname,struct file_struct *file,STRUCT_STAT *st,
+ 	      int report);
+ void sig_int(void);
+ void finish_transfer(char *fname, char *fnametmp, struct file_struct *file);
+ void send_files(struct file_list *flist,int f_out,int f_in);
+-int open_socket_out(char *host, int port);
++int open_socket_out(char *host, int port, struct in_addr *address);
+ int is_a_socket(int fd);
+ void start_accept_loop(int port, int (*fn)(int ));
+ void set_socket_options(int fd, char *options);
+ void become_daemon(void);
+ char *client_addr(int fd);
+ char *client_name(int fd);
+@@ -164,23 +172,22 @@
+ int recv_token(int f,char **data);
+ void see_token(char *data, int toklen);
+ void add_uid(uid_t uid);
+ void add_gid(gid_t gid);
+ void send_uid_list(int f);
+ void recv_uid_list(int f, struct file_list *flist);
+-int set_nonblocking(int fd);
++int fd_pair(int fd[2]);
+ int piped_child(char **command,int *f_in,int *f_out);
+ int local_child(int argc, char **argv,int *f_in,int *f_out);
+ void out_of_memory(char *str);
+ void overflow(char *str);
+ int set_modtime(char *fname,time_t modtime);
+ int create_directory_path(char *fname);
+ int copy_file(char *source, char *dest, mode_t mode);
+ int robust_unlink(char *fname);
+ int robust_rename(char *from, char *to);
+-void u_sleep(int usec);
+ pid_t do_fork(void);
+ void kill_all(int sig);
+ int name_to_uid(char *name, uid_t *uid);
+ int name_to_gid(char *name, gid_t *gid);
+ int lock_range(int fd, int offset, int len);
+ void glob_expand(char *base1, char **argv, int *argc, int maxargs);
+@@ -190,10 +197,12 @@
+ void *Realloc(void *p, int size);
+ void clean_fname(char *name);
+ void sanitize_path(char *p, char *reldir);
+ char *push_dir(char *dir, int save);
+ int pop_dir(char *dir);
+ int u_strcmp(const char *cs1, const char *cs2);
+-void end_progress(void);
++void end_progress(OFF_T size);
+ void show_progress(OFF_T ofs, OFF_T size);
+ int unsafe_symlink(char *dest, char *src);
+ char *timestring(time_t t);
++void wait_process(pid_t pid, int *status);
++int sys_gettimeofday(struct timeval *tv);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/receiver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/receiver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/receiver.c	2002-01-25 11:13:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/receiver.c	2000-01-29 19:35:03.000000000 +0800
+@@ -101,18 +99,20 @@
+ 
+ 
+ 
+ /* this deletes any files on the receiving side that are not present
+    on the sending side. For version 1.6.4 I have changed the behaviour
+    to match more closely what most people seem to expect of this option */
+-static void delete_files(struct file_list *flist)
++void delete_files(struct file_list *flist)
+ {
+ 	struct file_list *local_file_list;
+ 	int i, j;
+ 	char *name;
+ 	extern int module_id;
++	extern int max_delete;
++	static int deletion_count;
+ 
+ 	if (cvs_exclude)
+ 		add_cvs_excludes();
+ 
+ 	if (io_error && !lp_ignore_errors(module_id)) {
+ 		rprintf(FINFO,"IO error encountered - skipping file deletion\n");
+@@ -134,23 +134,26 @@
+ 		}
+ 
+ 		if (verbose > 1)
+ 			rprintf(FINFO,"deleting in %s\n", name);
+ 
+ 		for (i=local_file_list->count-1;i>=0;i--) {
++			if (max_delete && deletion_count > max_delete) break;
+ 			if (!local_file_list->files[i]->basename) continue;
+ 			if (remote_version < 19 &&
+ 			    S_ISDIR(local_file_list->files[i]->mode))
+ 				add_delete_entry(local_file_list->files[i]);
+ 			if (-1 == flist_find(flist,local_file_list->files[i])) {
+ 				char *f = f_name(local_file_list->files[i]);
+ 				int k = strlen(f) - strlen(backup_suffix);
++/* Hi Andrew, do we really need to play with backup_suffix here? */
+ 				if (make_backups && ((k <= 0) ||
+ 					    (strcmp(f+k,backup_suffix) != 0))) {
+ 					(void) make_backup(f);
+ 				} else {
++					deletion_count++;
+ 					delete_one(local_file_list->files[i]);
+ 				}
+ 			}
+ 		}
+ 		flist_free(local_file_list);
+ 		free(name);
+@@ -197,14 +200,13 @@
+ }
+ 
+ 
+ static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname,
+ 			OFF_T total_size)
+ {
+-	int i;
+-	unsigned int n,remainder,len,count;
++	int i,n,remainder,len,count;
+ 	OFF_T offset = 0;
+ 	OFF_T offset2;
+ 	char *data;
+ 	static char file_sum1[MD4_SUM_LENGTH];
+ 	static char file_sum2[MD4_SUM_LENGTH];
+ 	char *map=NULL;
+@@ -220,14 +222,14 @@
+ 		show_progress(offset, total_size);
+ 
+ 		if (i > 0) {
+ 			extern int cleanup_got_literal;
+ 
+ 			if (verbose > 3) {
+-				rprintf(FINFO,"data recv %d at %d\n",
+-					i,(int)offset);
++				rprintf(FINFO,"data recv %d at %.0f\n",
++					i,(double)offset);
+ 			}
+ 
+ 			stats.literal_data += i;
+ 			cleanup_got_literal = 1;
+       
+ 			sum_update(data,i);
+@@ -238,37 +240,39 @@
+ 			}
+ 			offset += i;
+ 			continue;
+ 		} 
+ 
+ 		i = -(i+1);
+-		offset2 = i*n;
++		offset2 = i*(OFF_T)n;
+ 		len = n;
+ 		if (i == count-1 && remainder != 0)
+ 			len = remainder;
+ 		
+ 		stats.matched_data += len;
+ 		
+ 		if (verbose > 3)
+-			rprintf(FINFO,"chunk[%d] of size %d at %d offset=%d\n",
+-				i,len,(int)offset2,(int)offset);
++			rprintf(FINFO,"chunk[%d] of size %d at %.0f offset=%.0f\n",
++				i,len,(double)offset2,(double)offset);
+ 		
+-		map = map_ptr(buf,offset2,len);
++		if (buf) {
++			map = map_ptr(buf,offset2,len);
+ 		
+-		see_token(map, len);
+-		sum_update(map,len);
++			see_token(map, len);
++			sum_update(map,len);
++		}
+ 		
+ 		if (fd != -1 && write_file(fd,map,len) != len) {
+ 			rprintf(FERROR,"write failed on %s : %s\n",
+ 				fname,strerror(errno));
+ 			exit_cleanup(RERR_FILEIO);
+ 		}
+ 		offset += len;
+ 	}
+ 
+-	end_progress();
++	end_progress(total_size);
+ 
+ 	if (fd != -1 && offset > 0 && sparse_end(fd) != 0) {
+ 		rprintf(FERROR,"write failed on %s : %s\n",
+ 			fname,strerror(errno));
+ 		exit_cleanup(RERR_FILEIO);
+ 	}
+@@ -286,12 +290,14 @@
+ 		}
+ 	}
+ 	return 1;
+ }
+ 
+ 
++/* main routine for receiver process. Receiver process runs on the
++	same host as the generator process. */
+ 
+ int recv_files(int f_in,struct file_list *flist,char *local_name,int f_gen)
+ {  
+ 	int fd1,fd2;
+ 	STRUCT_STAT st;
+ 	char *fname;
+@@ -309,18 +315,12 @@
+ 	struct stats initial_stats;
+ 
+ 	if (verbose > 2) {
+ 		rprintf(FINFO,"recv_files(%d) starting\n",flist->count);
+ 	}
+ 
+-	if (!delete_after) {
+-		if (recurse && delete_mode && !local_name && flist->count>0) {
+-			delete_files(flist);
+-		}
+-	}
+-
+ 	while (1) {      
+ 		cleanup_disable();
+ 
+ 		i = read_int(f_in);
+ 		if (i == -1) {
+ 			if (phase==0 && remote_version >= 13) {
+@@ -395,13 +395,13 @@
+ 			file->mode = st.st_mode;
+ 		}
+ 
+ 		if (fd1 != -1 && st.st_size > 0) {
+ 			buf = map_file(fd1,st.st_size);
+ 			if (verbose > 2)
+-				rprintf(FINFO,"recv mapped %s of size %d\n",fnamecmp,(int)st.st_size);
++				rprintf(FINFO,"recv mapped %s of size %.0f\n",fnamecmp,(double)st.st_size);
+ 		} else {
+ 			buf = NULL;
+ 		}
+ 
+ 		if (!get_tmpname(fnametmp,fname)) {
+ 			if (buf) unmap_file(buf);
+@@ -466,13 +466,13 @@
+ 		if (verbose > 2)
+ 			rprintf(FINFO,"renaming %s to %s\n",fnametmp,fname);
+ 
+ 		finish_transfer(fname, fnametmp, file);
+ 
+ 		cleanup_disable();
+-				
++
+ 		if (!recv_ok) {
+ 			if (csum_length == SUM_LENGTH) {
+ 				rprintf(FERROR,"ERROR: file corruption in %s. File changed during transfer?\n",
+ 					fname);
+ 			} else {
+ 				if (verbose > 1)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/rsync.1	1999-11-08 21:03:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/rsync.1	2000-01-29 19:35:03.000000000 +0800
+@@ -242,30 +242,20 @@
+ to the detailed description below for a complete description\&.
+ .PP 
+ 
+ .DS 
+  
+ 
+-Usage: rsync [OPTION]\&.\&.\&. SRC [SRC]\&.\&.\&. [USER@]HOST:DEST
+-  or   rsync [OPTION]\&.\&.\&. [USER@]HOST:SRC DEST
+-  or   rsync [OPTION]\&.\&.\&. SRC [SRC]\&.\&.\&. DEST
+-  or   rsync [OPTION]\&.\&.\&. [USER@]HOST::SRC [DEST]
+-  or   rsync [OPTION]\&.\&.\&. SRC [SRC]\&.\&.\&. [USER@]HOST::DEST
+-  or   rsync [OPTION]\&.\&.\&. rsync://[USER@]HOST[:PORT]/SRC [DEST]
+-SRC on single-colon remote HOST will be expanded by remote shell
+-SRC on server remote HOST may contain shell wildcards or multiple
+-  sources separated by space as long as they have same top-level
+-
+-Options
+  -v, --verbose               increase verbosity
+  -q, --quiet                 decrease verbosity
+  -c, --checksum              always checksum
+  -a, --archive               archive mode
+  -r, --recursive             recurse into directories
+  -R, --relative              use relative path names
+  -b, --backup                make backups (default ~ suffix)
++     --backup-dir=DIR        put backups in the specified directory
+      --suffix=SUFFIX         override backup suffix
+  -u, --update                update only (don\'t overwrite newer files)
+  -l, --links                 preserve soft links
+  -L, --copy-links            treat soft links like regular files
+      --copy-unsafe-links     copy links outside the source tree
+      --safe-links            ignore links outside the destination tree
+@@ -280,14 +270,17 @@
+  -W, --whole-file            copy whole files, no incremental checks
+  -x, --one-file-system       don\'t cross filesystem boundaries
+  -B, --block-size=SIZE       checksum blocking size (default 700)
+  -e, --rsh=COMMAND           specify rsh replacement
+      --rsync-path=PATH       specify path to rsync on the remote machine
+  -C, --cvs-exclude           auto ignore files in the same way CVS does
++     --existing              only update files that already exist
+      --delete                delete files that don\'t exist on the sending side
+      --delete-excluded       also delete excluded files on the receiving side
++     --delete-after          delete after transferring, not before
++     --max-delete=NUM        don\'t delete more than NUM files
+      --partial               keep partially transferred files
+      --force                 force deletion of directories even if not empty
+      --numeric-ids           don\'t map uid/gid values by user/group name
+      --timeout=TIME          set IO timeout in seconds
+  -I, --ignore-times          don\'t exclude files that match length and time
+      --size-only             only use file size when determining if a file should be transferred
+@@ -346,13 +339,13 @@
+ .IP 
+ .IP "\fB-I, --ignore-times\fP" 
+ Normally rsync will skip any files that are
+ already the same length and have the same time-stamp\&. This option turns
+ off this behavior\&.
+ .IP 
+-.IP "\fB-I, --size-only\fP" 
++.IP "\fB--size-only\fP" 
+ Normally rsync will skip any files that are
+ already the same length and have the same time-stamp\&. With the
+ --size-only option files will be skipped if they have the same size,
+ regardless of timestamp\&. This is useful when starting to use rsync
+ after using another mirroring system which may not preserve timestamps
+ exactly\&.
+@@ -362,18 +355,15 @@
+ a 128-bit MD4 checksum before transfer\&. The checksum is then
+ explicitly checked on the receiver and any files of the same name
+ which already exist and have the same checksum and size on the
+ receiver are skipped\&.  This option can be quite slow\&.
+ .IP 
+ .IP "\fB-a, --archive\fP" 
+-This is equivalent to -rlptg\&. It is a quick way
++This is equivalent to -rlptgoD\&. It is a quick way
+ of saying you want recursion and want to preserve everything\&.
+ .IP 
+-Note: if the user launching rsync is root then the -o (preserve
+-uid) and -D (preserve devices) options are also implied\&.
+-.IP 
+ .IP "\fB-r, --recursive\fP" 
+ This tells rsync to copy directories
+ recursively\&. If you don\'t specify this then rsync won\'t copy
+ directories at all\&.
+ .IP 
+ .IP "\fB-R, --relative\fP" 
+@@ -407,12 +397,17 @@
+ .IP 
+ .IP "\fB-b, --backup\fP" 
+ With this option preexisting destination files are
+ renamed with a ~ extension as each file is transferred\&.  You can
+ control the backup suffix using the --suffix option\&.
+ .IP 
++.IP "\fB--backup-dir=DIR\fP" 
++In combination with the --backup option, this
++tells rsync to store all backups in the specified directory\&. This is
++very useful for incremental backups\&.
++.IP 
+ .IP "\fB--suffix=SUFFIX\fP" 
+ This option allows you to override the default
+ backup suffix used with the -b option\&. The default is a ~\&.
+ .IP 
+ .IP "\fB-u, --update\fP" 
+ This forces rsync to skip any files for which the
+@@ -500,12 +495,21 @@
+ .IP 
+ .IP "\fB-x, --one-file-system\fP" 
+ This tells rsync not to cross filesystem
+ boundaries  when recursing\&.  This  is useful for transferring the
+ contents of only one filesystem\&.
+ .IP 
++.IP "\fB--existing\fP" 
++This tells rsync not to create any new files -
++only update files that already exist on the destination\&.
++.IP 
++.IP "\fB--max-delete=NUM\fP" 
++This tells rsync not to delete more than NUM
++files or directories\&. This is useful when mirroring very large trees
++to prevent disasters\&.
++.IP 
+ .IP "\fB--delete\fP" 
+ This tells rsync to delete any files on the receiving
+ side that aren\'t on the sending side\&.   Files that are excluded from
+ transfer are excluded from being deleted unless you use --delete-excluded\&.
+ .IP 
+ This option has no effect if directory recursion is not selected\&.
+@@ -685,16 +689,16 @@
+ config file (/etc/rsyncd\&.conf) on each connect made by a client and
+ respond to requests accordingly\&. See the rsyncd\&.conf(5) man page for more
+ details\&. 
+ .IP 
+ .IP "\fB--address\fP" 
+ By default rsync will bind to the wildcard address
+-when run as a daemon with the --daemon option\&. The --address option
+-allows you to specify a specific IP address (or hostname) to bind
+-to\&. This makes virtual hosting possible in conjunction with the
+---config option\&.
++when run as a daemon with the --daemon option or when connecting to a
++rsync server\&. The --address option allows you to specify a specific IP
++address (or hostname) to bind to\&. This makes virtual hosting possible
++in conjunction with the --config option\&.
+ .IP 
+ .IP "\fB--config=FILE\fP" 
+ This specifies an alternate config file than
+ the default /etc/rsyncd\&.conf\&. This is only relevant when --daemon is
+ specified\&. 
+ .IP 
+@@ -735,13 +739,14 @@
+ .IP 
+ .IP "\fB--password-file\fP" 
+ This option allows you to provide a password
+ in a file for accessing a remote rsync server\&. Note that this option
+ is only useful when accessing a rsync server using the built in
+ transport, not when using a remote shell as the transport\&. The file
+-must not be world readable\&.
++must not be world readable\&. It should contain just the password as a
++single line\&.
+ .IP 
+ .PP 
+ .SH "EXCLUDE PATTERNS" 
+ .PP 
+ The exclude and include patterns specified to rsync allow for flexible
+ selection of which files to transfer and which files to skip\&.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/rsync.c	1999-11-08 18:47:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/rsync.c	2000-01-29 19:35:03.000000000 +0800
+@@ -53,25 +53,24 @@
+ 	char buf[MAXPATHLEN];
+ 	extern int force_delete;
+ 	STRUCT_STAT st;
+ 	int ret;
+ 	extern int recurse;
+ 
+-	if (robust_unlink(fname) == 0 || errno == ENOENT) return 0;
+-
+ #if SUPPORT_LINKS
+ 	ret = do_lstat(fname, &st);
+ #else
+ 	ret = do_stat(fname, &st);
+ #endif
+ 	if (ret) {
+ 		rprintf(FERROR,"stat(%s) : %s\n", fname, strerror(errno));
+ 		return -1;
+ 	}
+ 
+ 	if (!S_ISDIR(st.st_mode)) {
++		if (robust_unlink(fname) == 0 || errno == ENOENT) return 0;
+ 		rprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));
+ 		return -1;
+ 	}
+ 
+ 	if (do_rmdir(fname) == 0 || errno == ENOENT) return 0;
+ 	if (!force_delete || !recurse || 
+@@ -149,13 +148,12 @@
+ int set_perms(char *fname,struct file_struct *file,STRUCT_STAT *st,
+ 	      int report)
+ {
+ 	int updated = 0;
+ 	STRUCT_STAT st2;
+ 	int change_uid, change_gid;
+-	extern int am_daemon;
+ 
+ 	if (dry_run) return 0;
+ 
+ 	if (!st) {
+ 		if (link_stat(fname,&st2) != 0) {
+ 			rprintf(FERROR,"stat %s : %s\n",fname,strerror(errno));
+@@ -176,13 +174,13 @@
+ 		} else {
+ 			updated = 1;
+ 		}
+ 	}
+ 
+ 	change_uid = am_root && preserve_uid && st->st_uid != file->uid;
+-	change_gid = !am_daemon && preserve_gid && file->gid != (gid_t) -1 && \
++	change_gid = preserve_gid && file->gid != (gid_t) -1 && \
+ 				st->st_gid != file->gid;
+ 	if (change_gid && !am_root) {
+ 		/* enforce bsd-style group semantics: non-root can only
+ 		    change to groups that the user is a member of */
+ 		change_gid = is_in_group(file->gid);
+ 	}
+@@ -192,12 +190,18 @@
+ 			      change_gid?file->gid:st->st_gid) != 0) {
+ 			/* shouldn't have attempted to change uid or gid
+ 			     unless have the privilege */
+ 			rprintf(FERROR,"chown %s : %s\n", fname,strerror(errno));
+ 			return 0;
+ 		}
++		/* a lchown had been done - we have to re-stat if the
++                   destination had the setuid or setgid bits set due
++                   to the side effect of the chown call */
++		if (st->st_mode & (S_ISUID | S_ISGID)) {
++			link_stat(fname, st);
++		}
+ 		updated = 1;
+ 	}
+ 
+ #ifdef HAVE_CHMOD
+ 	if (!S_ISLNK(st->st_mode)) {
+ 		if (st->st_mode != file->mode) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/rsync.h	2002-01-25 11:13:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/rsync.h	2000-01-29 19:35:03.000000000 +0800
+@@ -44,31 +44,29 @@
+ #define SAME_DIR (1<<5)
+ #define SAME_NAME SAME_DIR
+ #define LONG_NAME (1<<6)
+ #define SAME_TIME (1<<7)
+ 
+ /* update this if you make incompatible changes */
+-#define PROTOCOL_VERSION 21
+-#define MIN_PROTOCOL_VERSION 11
++#define PROTOCOL_VERSION 23
++#define MIN_PROTOCOL_VERSION 15
+ #define MAX_PROTOCOL_VERSION 30
+ 
+ #define RSYNC_PORT 873
+ 
+ #define SPARSE_WRITE_SIZE (1024)
+ #define WRITE_SIZE (32*1024)
+ #define CHUNK_SIZE (32*1024)
+ #define MAX_MAP_SIZE (256*1024)
+ #define IO_BUFFER_SIZE (4092)
+-#define MAX_READ_BUFFER (1024*1024)
+ 
+ #define MAX_ARGS 1000
+ 
+ #define MPLEX_BASE 7
+-#define FERROR 1
+-#define FINFO 2
+-#define FLOG 3
++
++enum logcode {FNONE=0, FERROR=1, FINFO=2, FLOG=3};
+ 
+ #include "errcode.h"
+ 
+ #include "config.h"
+ 
+ #if HAVE_REMSH
+@@ -320,15 +318,15 @@
+ 	uint32 sum1;	        /* simple checksum */
+ 	char sum2[SUM_LENGTH];	/* checksum  */
+ };
+ 
+ struct sum_struct {
+   OFF_T flength;		/* total file length */
+-  size_t count;			/* how many chunks */
+-  size_t remainder;		/* flength % block_length */
+-  size_t n;			/* block_length */
++  int count;			/* how many chunks */
++  int remainder;		/* flength % block_length */
++  int n;			/* block_length */
+   struct sum_buf *sums;		/* points to info for each chunk */
+ };
+ 
+ struct map_struct {
+ 	char *p;
+ 	int fd,p_size,p_len;
+@@ -471,13 +469,13 @@
+ #define INITACCESSPERMS 0700
+ 
+ /* handler for null strings in printf format */
+ #define NS(s) ((s)?(s):"<NULL>")
+ 
+ /* use magic gcc attributes to catch format errors */
+- void rprintf(int , const char *, ...)
++ void rprintf(enum logcode , const char *, ...)
+ #ifdef __GNUC__
+      __attribute__ ((format (printf, 2, 3)))
+ #endif
+ ;
+ 
+ #ifdef REPLACE_INET_NTOA
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/rsync.yo	1999-11-08 21:03:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/rsync.yo	2000-01-29 19:35:03.000000000 +0800
+@@ -213,30 +213,20 @@
+ manpagesection(OPTIONS SUMMARY)
+ 
+ Here is a short summary of the options available in rsync. Please refer
+ to the detailed description below for a complete description.
+ 
+ verb(
+-Usage: rsync [OPTION]... SRC [SRC]... [USER@]HOST:DEST
+-  or   rsync [OPTION]... [USER@]HOST:SRC DEST
+-  or   rsync [OPTION]... SRC [SRC]... DEST
+-  or   rsync [OPTION]... [USER@]HOST::SRC [DEST]
+-  or   rsync [OPTION]... SRC [SRC]... [USER@]HOST::DEST
+-  or   rsync [OPTION]... rsync://[USER@]HOST[:PORT]/SRC [DEST]
+-SRC on single-colon remote HOST will be expanded by remote shell
+-SRC on server remote HOST may contain shell wildcards or multiple
+-  sources separated by space as long as they have same top-level
+-
+-Options
+  -v, --verbose               increase verbosity
+  -q, --quiet                 decrease verbosity
+  -c, --checksum              always checksum
+  -a, --archive               archive mode
+  -r, --recursive             recurse into directories
+  -R, --relative              use relative path names
+  -b, --backup                make backups (default ~ suffix)
++     --backup-dir=DIR        put backups in the specified directory
+      --suffix=SUFFIX         override backup suffix
+  -u, --update                update only (don't overwrite newer files)
+  -l, --links                 preserve soft links
+  -L, --copy-links            treat soft links like regular files
+      --copy-unsafe-links     copy links outside the source tree
+      --safe-links            ignore links outside the destination tree
+@@ -251,14 +241,17 @@
+  -W, --whole-file            copy whole files, no incremental checks
+  -x, --one-file-system       don't cross filesystem boundaries
+  -B, --block-size=SIZE       checksum blocking size (default 700)
+  -e, --rsh=COMMAND           specify rsh replacement
+      --rsync-path=PATH       specify path to rsync on the remote machine
+  -C, --cvs-exclude           auto ignore files in the same way CVS does
++     --existing              only update files that already exist
+      --delete                delete files that don't exist on the sending side
+      --delete-excluded       also delete excluded files on the receiving side
++     --delete-after          delete after transferring, not before
++     --max-delete=NUM        don't delete more than NUM files
+      --partial               keep partially transferred files
+      --force                 force deletion of directories even if not empty
+      --numeric-ids           don't map uid/gid values by user/group name
+      --timeout=TIME          set IO timeout in seconds
+  -I, --ignore-times          don't exclude files that match length and time
+      --size-only             only use file size when determining if a file should be transferred
+@@ -310,31 +303,28 @@
+ cron.
+ 
+ dit(bf(-I, --ignore-times)) Normally rsync will skip any files that are
+ already the same length and have the same time-stamp. This option turns
+ off this behavior.
+ 
+-dit(bf(-I, --size-only)) Normally rsync will skip any files that are
++dit(bf(--size-only)) Normally rsync will skip any files that are
+ already the same length and have the same time-stamp. With the
+ --size-only option files will be skipped if they have the same size,
+ regardless of timestamp. This is useful when starting to use rsync
+ after using another mirroring system which may not preserve timestamps
+ exactly.
+ 
+ dit(bf(-c, --checksum)) This forces the sender to checksum all files using
+ a 128-bit MD4 checksum before transfer. The checksum is then
+ explicitly checked on the receiver and any files of the same name
+ which already exist and have the same checksum and size on the
+ receiver are skipped.  This option can be quite slow.
+ 
+-dit(bf(-a, --archive)) This is equivalent to -rlptg. It is a quick way
++dit(bf(-a, --archive)) This is equivalent to -rlptgoD. It is a quick way
+ of saying you want recursion and want to preserve everything.
+ 
+-Note: if the user launching rsync is root then the -o (preserve
+-uid) and -D (preserve devices) options are also implied.
+-
+ dit(bf(-r, --recursive)) This tells rsync to copy directories
+ recursively. If you don't specify this then rsync won't copy
+ directories at all.
+ 
+ dit(bf(-R, --relative)) Use relative paths. This means that the full path
+ names specified on the command line are sent to the server rather than
+@@ -353,12 +343,16 @@
+ machine. The full path name is preserved.
+ 
+ dit(bf(-b, --backup)) With this option preexisting destination files are
+ renamed with a ~ extension as each file is transferred.  You can
+ control the backup suffix using the --suffix option.
+ 
++dit(bf(--backup-dir=DIR)) In combination with the --backup option, this
++tells rsync to store all backups in the specified directory. This is
++very useful for incremental backups.
++
+ dit(bf(--suffix=SUFFIX)) This option allows you to override the default
+ backup suffix used with the -b option. The default is a ~.
+ 
+ dit(bf(-u, --update)) This forces rsync to skip any files for which the
+ destination file already exists and has a date later than the source
+ file.
+@@ -430,12 +424,19 @@
+ correctly and ends up corrupting the files.
+ 
+ dit(bf(-x, --one-file-system)) This tells rsync not to cross filesystem
+ boundaries  when recursing.  This  is useful for transferring the
+ contents of only one filesystem.
+ 
++dit(bf(--existing)) This tells rsync not to create any new files -
++only update files that already exist on the destination.
++
++dit(bf(--max-delete=NUM)) This tells rsync not to delete more than NUM
++files or directories. This is useful when mirroring very large trees
++to prevent disasters.
++
+ dit(bf(--delete)) This tells rsync to delete any files on the receiving
+ side that aren't on the sending side.   Files that are excluded from
+ transfer are excluded from being deleted unless you use --delete-excluded.
+ 
+ This option has no effect if directory recursion is not selected.
+ 
+@@ -593,16 +594,16 @@
+ terminal and become a background daemon. The daemon will read the
+ config file (/etc/rsyncd.conf) on each connect made by a client and
+ respond to requests accordingly. See the rsyncd.conf(5) man page for more
+ details. 
+ 
+ dit(bf(--address)) By default rsync will bind to the wildcard address
+-when run as a daemon with the --daemon option. The --address option
+-allows you to specify a specific IP address (or hostname) to bind
+-to. This makes virtual hosting possible in conjunction with the
+---config option.
++when run as a daemon with the --daemon option or when connecting to a
++rsync server. The --address option allows you to specify a specific IP
++address (or hostname) to bind to. This makes virtual hosting possible
++in conjunction with the --config option.
+ 
+ dit(bf(--config=FILE)) This specifies an alternate config file than
+ the default /etc/rsyncd.conf. This is only relevant when --daemon is
+ specified. 
+ 
+ dit(bf(--port=PORT)) This specifies an alternate TCP port number to use
+@@ -635,13 +636,14 @@
+ option to make it easier.
+ 
+ dit(bf(--password-file)) This option allows you to provide a password
+ in a file for accessing a remote rsync server. Note that this option
+ is only useful when accessing a rsync server using the built in
+ transport, not when using a remote shell as the transport. The file
+-must not be world readable.
++must not be world readable. It should contain just the password as a
++single line.
+ 
+ enddit()
+ 
+ manpagesection(EXCLUDE PATTERNS)
+ 
+ The exclude and include patterns specified to rsync allow for flexible
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/sender.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/sender.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/sender.c	1999-10-26 06:04:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/sender.c	2000-01-29 19:35:03.000000000 +0800
+@@ -67,14 +67,14 @@
+ 		} else {
+ 			s->sums[i].len = s->n;
+ 		}
+ 		offset += s->sums[i].len;
+ 
+ 		if (verbose > 3)
+-			rprintf(FINFO,"chunk[%d] len=%d offset=%d sum1=%08x\n",
+-				i,s->sums[i].len,(int)s->sums[i].offset,s->sums[i].sum1);
++			rprintf(FINFO,"chunk[%d] len=%d offset=%.0f sum1=%08x\n",
++				i,s->sums[i].len,(double)s->sums[i].offset,s->sums[i].sum1);
+ 	}
+ 
+ 	s->flength = offset;
+ 
+ 	return s;
+ }
+@@ -182,14 +182,14 @@
+ 			buf = map_file(fd,st.st_size);
+ 		} else {
+ 			buf = NULL;
+ 		}
+ 	  
+ 		if (verbose > 2)
+-			rprintf(FINFO,"send_files mapped %s of size %d\n",
+-				fname,(int)st.st_size);
++			rprintf(FINFO,"send_files mapped %s of size %.0f\n",
++				fname,(double)st.st_size);
+ 
+ 		write_int(f_out,i);
+ 	  
+ 		write_int(f_out,s->count);
+ 		write_int(f_out,s->n);
+ 		write_int(f_out,s->remainder);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/socket.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/socket.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/socket.c	1999-10-31 11:21:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/socket.c	2000-01-29 19:35:03.000000000 +0800
+@@ -86,16 +86,17 @@
+ }
+ 
+ 
+ /* open a socket to a tcp remote host with the specified port 
+    based on code from Warren
+    proxy support by Stephen Rothwell */
+-int open_socket_out(char *host, int port)
++int open_socket_out(char *host, int port, struct in_addr *address)
+ {
+ 	int type = SOCK_STREAM;
+ 	struct sockaddr_in sock_out;
++	struct sockaddr_in sock;
+ 	int res;
+ 	struct hostent *hp;
+ 	char *h;
+ 	unsigned p;
+ 	int proxied = 0;
+ 	char buffer[1024];
+@@ -134,25 +135,30 @@
+ 	}
+ 
+ 	memcpy(&sock_out.sin_addr, hp->h_addr, hp->h_length);
+ 	sock_out.sin_port = htons(p);
+ 	sock_out.sin_family = PF_INET;
+ 
++	if (address) {
++		sock.sin_addr = *address;
++		sock.sin_port = 0;
++		sock.sin_family = hp->h_addrtype;
++		bind(res, (struct sockaddr * ) &sock,sizeof(sock));
++	}
++
+ 	if (connect(res,(struct sockaddr *)&sock_out,sizeof(sock_out))) {
+ 		rprintf(FERROR,"failed to connect to %s - %s\n", h, strerror(errno));
+ 		close(res);
+ 		return -1;
+ 	}
+ 
+ 	if (proxied && establish_proxy_connection(res, host, port) != 0) {
+ 		close(res);
+ 		return -1;
+ 	}
+ 
+-	set_nonblocking(res);
+-
+ 	return res;
+ }
+ 
+ 
+ /****************************************************************************
+ open a socket of the specified type, port and address for incoming data
+@@ -263,14 +269,12 @@
+                 while (waitpid(-1, NULL, WNOHANG) > 0);
+ #endif
+ 
+ 		if (fork()==0) {
+ 			close(s);
+ 
+-			set_nonblocking(fd);
+-
+ 			_exit(fn(fd));
+ 		}
+ 
+ 		close(fd);
+ 	}
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/syscall.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/syscall.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/syscall.c	1999-11-04 23:43:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/syscall.c	2000-01-29 19:35:03.000000000 +0800
+@@ -81,12 +81,15 @@
+ 	    CHECK_RO
+ 	}
+ #ifdef O_BINARY
+ 	/* for Windows */
+ 	flags |= O_BINARY;
+ #endif
++	/* some systems can't handle a double / */
++	if (pathname[0] == '/' && pathname[1] == '/') pathname++;
++
+ 	return open(pathname, flags, mode);
+ }
+ 
+ #if HAVE_CHMOD
+ int do_chmod(const char *path, mode_t mode)
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/test.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/test.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/test.sh	1999-10-31 10:39:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/test.sh	2000-01-29 19:35:03.000000000 +0800
+@@ -64,14 +64,17 @@
+ checkit() {
+   testnum=`expr 0${testnum} + 1`
+   log=${LOG}.${testnum}
+   failed=
+   echo "Running: \"$1\""  >${log}
+   echo "">>${log}
+-  eval "$1 || failed=YES"  >>${log} 2>&1
+-
++  eval "$1"  >>${log} 2>&1
++  status=$?
++  if [ $status != 0 ]; then
++    failed="YES";
++  fi
+   echo "-------------">>${log}
+   echo "check how the files compare with diff:">>${log}
+   echo "">>${log}
+   diff -ur $2 $3 >>${log} 2>&1 || failed=YES
+   echo "-------------">>${log}
+   echo "check how the directory listings compare with diff:">>${log}
+@@ -85,13 +88,13 @@
+     return 0
+   else
+     if test -n "${Debian}" ; then
+       cat ${log}
+       rm ${log}
+     else
+-      echo "	FAILED (test # ${testnum})."
++      echo "	FAILED (test # ${testnum} status=$status)."
+     fi
+     return 1
+   fi
+ }
+ 
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/util.c	2002-01-25 11:13:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/util.c	2000-01-29 19:35:03.000000000 +0800
+@@ -23,48 +23,33 @@
+   tridge, June 1996
+   */
+ #include "rsync.h"
+ 
+ extern int verbose;
+ 
+-/****************************************************************************
+-Set a fd into nonblocking mode. Uses POSIX O_NONBLOCK if available,
+-else
+-if SYSV use O_NDELAY
+-if BSD use FNDELAY
+-****************************************************************************/
+-int set_nonblocking(int fd)
++/* create a file descriptor - like pipe() but use socketpair if
++   possible (because of blocking issues on pipes */
++int fd_pair(int fd[2])
+ {
+-	int val;
+-#ifdef O_NONBLOCK
+-#define FLAG_TO_SET O_NONBLOCK
++#if HAVE_SOCKETPAIR
++	return socketpair(AF_UNIX, SOCK_STREAM, 0, fd);
+ #else
+-#ifdef SYSV
+-#define FLAG_TO_SET O_NDELAY
+-#else /* BSD */
+-#define FLAG_TO_SET FNDELAY
+-#endif
++	return pipe(fd);
+ #endif
+-	
+-	if((val = fcntl(fd, F_GETFL, 0)) == -1)
+-		return -1;
+-	val |= FLAG_TO_SET;
+-	return fcntl( fd, F_SETFL, val);
+-#undef FLAG_TO_SET
+ }
+ 
+ 
+ /* this is taken from CVS */
+ int piped_child(char **command,int *f_in,int *f_out)
+ {
+   int pid;
+   int to_child_pipe[2];
+   int from_child_pipe[2];
+ 
+-  if (pipe(to_child_pipe) < 0 ||
+-      pipe(from_child_pipe) < 0) {
++  if (fd_pair(to_child_pipe) < 0 ||
++      fd_pair(from_child_pipe) < 0) {
+     rprintf(FERROR,"pipe: %s\n",strerror(errno));
+     exit_cleanup(RERR_IPC);
+   }
+ 
+ 
+   pid = do_fork();
+@@ -98,26 +83,23 @@
+     exit_cleanup(RERR_IPC);
+   }
+ 
+   *f_in = from_child_pipe[0];
+   *f_out = to_child_pipe[1];
+ 
+-  set_nonblocking(*f_in);
+-  set_nonblocking(*f_out);
+-  
+   return pid;
+ }
+ 
+ int local_child(int argc, char **argv,int *f_in,int *f_out)
+ {
+ 	int pid;
+ 	int to_child_pipe[2];
+ 	int from_child_pipe[2];
+ 
+-	if (pipe(to_child_pipe) < 0 ||
+-	    pipe(from_child_pipe) < 0) {
++	if (fd_pair(to_child_pipe) < 0 ||
++	    fd_pair(from_child_pipe) < 0) {
+ 		rprintf(FERROR,"pipe: %s\n",strerror(errno));
+ 		exit_cleanup(RERR_IPC);
+ 	}
+ 
+ 
+ 	pid = do_fork();
+@@ -226,13 +208,13 @@
+ 
+ /* Write LEN bytes at PTR to descriptor DESC, retrying if interrupted.
+    Return LEN upon success, write's (negative) error code otherwise.  
+ 
+    derived from GNU C's cccp.c.
+ */
+-static int full_write(int desc, char *ptr, size_t len)
++static int full_write(int desc, char *ptr, int len)
+ {
+ 	int total_written;
+ 	
+ 	total_written = 0;
+ 	while (len > 0) {
+ 		int written = write (desc, ptr, len);
+@@ -252,17 +234,17 @@
+ 
+ /* Read LEN bytes at PTR from descriptor DESC, retrying if interrupted.
+    Return the actual number of bytes read, zero for EOF, or negative
+    for an error.  
+ 
+    derived from GNU C's cccp.c. */
+-static int safe_read(int desc, char *ptr, size_t len)
++static int safe_read(int desc, char *ptr, int len)
+ {
+ 	int n_chars;
+  
+-	if (len == 0)
++	if (len <= 0)
+ 		return len;
+  
+ #ifdef EINTR
+ 	do {
+ 		n_chars = read(desc, ptr, len);
+ 	} while (n_chars < 0 && errno == EINTR);
+@@ -394,23 +376,12 @@
+ 	if ((rc == 0) || (errno != ETXTBSY))
+ 		return rc;
+ 	if (robust_unlink(to) != 0)
+ 		return -1;
+ 	return do_rename(from, to);
+ #endif
+-    }
+-
+-
+-/* sleep for a while via select */
+-void u_sleep(int usec)
+-{
+-	struct timeval tv;
+-
+-	tv.tv_sec = 0;
+-	tv.tv_usec = usec;
+-	select(0, NULL, NULL, NULL, &tv);
+ }
+ 
+ 
+ static pid_t all_pids[10];
+ static int num_pids;
+ 
+@@ -805,18 +776,18 @@
+ 	
+ 	return (int)*s1 - (int)*s2;
+ }
+ 
+ static OFF_T last_ofs;
+ 
+-void end_progress(void)
++void end_progress(OFF_T size)
+ {
+ 	extern int do_progress, am_server;
+ 
+ 	if (do_progress && !am_server) {
+-		rprintf(FINFO,"\n");
++		rprintf(FINFO,"%.0f (100%%)\n", (double)size);
+ 	}
+ 	last_ofs = 0;
+ }
+ 
+ void show_progress(OFF_T ofs, OFF_T size)
+ {
+@@ -897,6 +868,18 @@
+ 		TimeBuf[strlen(TimeBuf)-1] = 0;
+ 	}
+ 
+ 	return(TimeBuf);
+ }
+ 
++
++/****************************************************************************
++ like waitpid but does the WEXITSTATUS
++****************************************************************************/
++#ifndef WEXITSTATUS
++#define	WEXITSTATUS(stat)	((int)(((stat)>>8)&0xFF))
++#endif
++void wait_process(pid_t pid, int *status)
++{
++	waitpid(pid, status, 0);
++	*status = WEXITSTATUS(*status);
++}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.3.3/version.h	2002-01-26 07:31:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.4.0/version.h	2000-01-29 19:35:33.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.3.3"
++#define VERSION "2.4.0"

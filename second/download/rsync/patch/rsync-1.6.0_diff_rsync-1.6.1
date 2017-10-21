@@ -1,0 +1,368 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/config.h.in	1996-10-01 11:38:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/config.h.in	1996-10-01 14:07:07.000000000 +0800
+@@ -19,12 +19,13 @@
+ #undef SIZEOF_SHORT
+ 
+ /* defines for header files */
+ #undef HAVE_SYS_WAIT_H
+ #undef HAVE_FCNTL_H
+ #undef HAVE_SYS_FCNTL_H
++#undef HAVE_SYS_SELECT_H
+ #undef HAVE_SYS_PARAM_H
+ #undef TIME_WITH_SYS_TIME
+ #undef HAVE_DIRENT_H
+ #undef HAVE_MALLOC_H
+ #undef HAVE_SYS_DIR_H
+ #undef HAVE_SYS_TIME_H
+@@ -55,12 +56,13 @@
+ #undef HAVE_UTIME
+ #undef HAVE_UTIMES
+ #undef HAVE_GETOPT_LONG
+ #undef HAVE_FNMATCH
+ #undef HAVE_MEMMOVE
+ #undef HAVE_MMAP
++#undef HAVE_LCHOWN
+ 
+ /* specific programs */
+ #undef HAVE_REMSH
+ 
+ #ifndef HAVE_MEMMOVE
+ #define memmove(d,s,n) bcopy(s,d,n)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/configure	1996-10-01 11:39:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/configure	1996-10-01 14:37:24.000000000 +0800
+@@ -994,13 +994,13 @@
+   CPP="$ac_cv_prog_CPP"
+ else
+   ac_cv_prog_CPP="$CPP"
+ fi
+ echo "$ac_t""$CPP" 1>&6
+ 
+-for ac_hdr in sys/fcntl.h fcntl.h sys/time.h unistd.h utime.h grp.h
++for ac_hdr in sys/fcntl.h sys/select.h fcntl.h sys/time.h sys/unistd.h unistd.h utime.h grp.h
+ do
+ ac_safe=`echo "$ac_hdr" | tr './\055' '___'`
+ echo $ac_n "checking for $ac_hdr""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_header_$ac_safe'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+@@ -1975,13 +1975,13 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+-for ac_func in memmove getopt_long
++for ac_func in memmove getopt_long lchown
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/configure.in	1996-10-01 11:46:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/configure.in	1996-10-01 14:06:41.000000000 +0800
+@@ -10,13 +10,13 @@
+ AC_CHECK_PROG(HAVE_REMSH, remsh, 1, 0)
+ AC_DEFINE_UNQUOTED(HAVE_REMSH, $HAVE_REMSH)
+ 
+ AC_HEADER_DIRENT
+ AC_HEADER_TIME
+ AC_HEADER_SYS_WAIT
+-AC_CHECK_HEADERS(sys/fcntl.h fcntl.h sys/time.h sys/unistd.h unistd.h utime.h grp.h)
++AC_CHECK_HEADERS(sys/fcntl.h sys/select.h fcntl.h sys/time.h sys/unistd.h unistd.h utime.h grp.h)
+ AC_CHECK_HEADERS(compat.h sys/param.h ctype.h sys/wait.h sys/ioctl.h)
+ AC_CHECK_HEADERS(sys/filio.h string.h stdlib.h)
+ 
+ AC_CHECK_SIZEOF(int)
+ AC_CHECK_SIZEOF(long)
+ AC_CHECK_SIZEOF(short)
+@@ -39,13 +39,13 @@
+ 
+ AC_FUNC_MEMCMP
+ AC_FUNC_MMAP
+ AC_FUNC_UTIME_NULL
+ AC_CHECK_FUNCS(waitpid strtok pipe getcwd mkdir strdup strerror chown chmod mknod)
+ AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink link utime utimes)
+-AC_CHECK_FUNCS(memmove getopt_long)
++AC_CHECK_FUNCS(memmove getopt_long lchown)
+ 
+ echo $ac_n "checking for working fnmatch... $ac_c"
+ AC_TRY_RUN([#include <fnmatch.h>
+ main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }],
+ echo yes;AC_DEFINE(HAVE_FNMATCH), 
+ echo no)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/flist.c	1996-07-05 12:44:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/flist.c	1996-10-01 14:22:09.000000000 +0800
+@@ -421,13 +421,16 @@
+     }
+ 
+     dir = NULL;
+     p = strrchr(fname,'/');
+     if (p) {
+       *p = 0;
+-      dir = fname;
++      if (p == fname) 
++	dir = "/";
++      else
++	dir = fname;      
+       fname = p+1;      
+     }
+     if (!*fname)
+       fname = ".";
+ 
+     if (dir && *dir) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/lib/zlib.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/lib/zlib.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/lib/zlib.c	1996-07-03 13:23:45.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/lib/zlib.c	1996-10-01 14:05:50.000000000 +0800
+@@ -2739,23 +2739,23 @@
+       BLOCKS,   /* decompressing blocks */
+       CHECK4,   /* four check bytes to go */
+       CHECK3,   /* three check bytes to go */
+       CHECK2,   /* two check bytes to go */
+       CHECK1,   /* one check byte to go */
+       DONE,     /* finished check, done */
+-      BAD}      /* got an error--stay here */
++      ZBAD}      /* got an error--stay here */
+     mode;               /* current inflate mode */
+ 
+   /* mode dependent information */
+   union {
+     uInt method;        /* if FLAGS, method byte */
+     struct {
+       uLong was;                /* computed check value */
+       uLong need;               /* stream check value */
+     } check;            /* if CHECK, check values to compare */
+-    uInt marker;        /* if BAD, inflateSync's marker bytes count */
++    uInt marker;        /* if ZBAD, inflateSync's marker bytes count */
+   } sub;        /* submode */
+ 
+   /* mode independent information */
+   int  nowrap;          /* flag for no wrapper */
+   uInt wbits;           /* log2(window size)  (8..15, defaults to 15) */
+   inflate_blocks_statef 
+@@ -2865,50 +2865,50 @@
+   while (1) switch (z->state->mode)
+   {
+     case METHOD:
+       NEEDBYTE
+       if (((z->state->sub.method = NEXTBYTE) & 0xf) != DEFLATED)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = ZBAD;
+         z->msg = "unknown compression method";
+         z->state->sub.marker = 5;       /* can't try inflateSync */
+         break;
+       }
+       if ((z->state->sub.method >> 4) + 8 > z->state->wbits)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = ZBAD;
+         z->msg = "invalid window size";
+         z->state->sub.marker = 5;       /* can't try inflateSync */
+         break;
+       }
+       z->state->mode = FLAG;
+     case FLAG:
+       NEEDBYTE
+       if ((b = NEXTBYTE) & 0x20)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = ZBAD;
+         z->msg = "invalid reserved bit";
+         z->state->sub.marker = 5;       /* can't try inflateSync */
+         break;
+       }
+       if (((z->state->sub.method << 8) + b) % 31)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = ZBAD;
+         z->msg = "incorrect header check";
+         z->state->sub.marker = 5;       /* can't try inflateSync */
+         break;
+       }
+       Trace((stderr, "inflate: zlib header ok\n"));
+       z->state->mode = BLOCKS;
+     case BLOCKS:
+       r = inflate_blocks(z->state->blocks, z, r);
+       if (f == Z_PACKET_FLUSH && z->avail_in == 0 && z->avail_out != 0)
+ 	  r = inflate_packet_flush(z->state->blocks);
+       if (r == Z_DATA_ERROR)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = ZBAD;
+         z->state->sub.marker = 0;       /* can try inflateSync */
+         break;
+       }
+       if (r != Z_STREAM_END)
+         return r;
+       r = Z_OK;
+@@ -2934,31 +2934,31 @@
+     case CHECK1:
+       NEEDBYTE
+       z->state->sub.check.need += (uLong)NEXTBYTE;
+ 
+       if (z->state->sub.check.was != z->state->sub.check.need)
+       {
+-        z->state->mode = BAD;
++        z->state->mode = ZBAD;
+         z->msg = "incorrect data check";
+         z->state->sub.marker = 5;       /* can't try inflateSync */
+         break;
+       }
+       Trace((stderr, "inflate: zlib check ok\n"));
+       z->state->mode = DONE;
+     case DONE:
+       return Z_STREAM_END;
+-    case BAD:
++    case ZBAD:
+       return Z_DATA_ERROR;
+     default:
+       return Z_STREAM_ERROR;
+   }
+ 
+  empty:
+   if (f != Z_PACKET_FLUSH)
+     return r;
+-  z->state->mode = BAD;
++  z->state->mode = ZBAD;
+   z->state->sub.marker = 0;       /* can try inflateSync */
+   return Z_DATA_ERROR;
+ }
+ 
+ /*
+  * This subroutine adds the data at next_in/avail_in to the output history
+@@ -2986,15 +2986,15 @@
+   uInt m;       /* number of marker bytes found in a row */
+   uLong r, w;   /* temporaries to save total_in and total_out */
+ 
+   /* set up */
+   if (z == Z_NULL || z->state == Z_NULL)
+     return Z_STREAM_ERROR;
+-  if (z->state->mode != BAD)
++  if (z->state->mode != ZBAD)
+   {
+-    z->state->mode = BAD;
++    z->state->mode = ZBAD;
+     z->state->sub.marker = 0;
+   }
+   if ((n = z->avail_in) == 0)
+     return Z_BUF_ERROR;
+   p = z->next_in;
+   m = z->state->sub.marker;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/main.c	1996-10-01 11:53:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/main.c	1996-10-01 14:35:39.000000000 +0800
+@@ -291,12 +291,14 @@
+   }
+   argc--;
+   argv++;
+   
+   if (strcmp(dir,".")) {
+     int l = strlen(dir);
++    if (strcmp(dir,"/") == 0) 
++      l = 0;
+     for (i=0;i<argc;i++)
+       argv[i] += l+1;
+   }
+ 
+   if (argc == 0 && recurse) {
+     argc=1;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/README	1996-07-03 13:55:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/README	1996-10-01 12:29:02.000000000 +0800
+@@ -65,12 +65,25 @@
+ "make". 
+ 
+ Once built put a copy of rsync in your search path on the local and
+ remote systems (or use "make install"). That's it!
+ 
+ 
++MAILING LIST
++------------
++
++There is a mailing list for the discussion of rsync and its
++applications. It is open to anyone to join. I will announce new
++versions on this list. 
++
++To join the mailing list send mail to listproc@samba.anu.edu.au with
++no subject and a body of "subscribe rsync Your Name".
++
++To send mail to everyone on the list send it to rsync@samba.anu.edu.au
++
++
+ COPYRIGHT
+ ---------
+ 
+ Rsync was written by Andrew Tridgell and Paul Mackerras, and is
+ available under the GPL.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/rsync.c	1996-10-01 12:01:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/rsync.c	1996-10-01 13:50:30.000000000 +0800
+@@ -231,15 +231,15 @@
+   }
+ #endif
+ 
+   if ((am_root && preserve_uid && st->st_uid != file->uid) || 
+       (preserve_gid && st->st_gid != file->gid)) {
+     updated = 1;
+-    if (chown(fname,
+-	      (am_root&&preserve_uid)?file->uid:-1,
+-	      preserve_gid?file->gid:-1) != 0) {
++    if (lchown(fname,
++	       (am_root&&preserve_uid)?file->uid:-1,
++	       preserve_gid?file->gid:-1) != 0) {
+       if (verbose>1 || preserve_uid)
+ 	fprintf(FERROR,"chown %s : %s\n",fname,strerror(errno));
+       return updated;
+     }
+   }
+     
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/rsync.h	1996-10-01 11:40:56.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/rsync.h	1996-10-01 14:07:39.000000000 +0800
+@@ -133,12 +133,16 @@
+ #endif
+ 
+ #ifdef HAVE_UTIME_H
+ #include <utime.h>
+ #endif
+ 
++#ifdef HAVE_SYS_SELECT_H
++#include <sys/select.h>
++#endif
++
+ #ifdef HAVE_FNMATCH
+ #include <fnmatch.h>
+ #else
+ #include "lib/fnmatch.h"
+ #endif
+ 
+@@ -280,12 +284,16 @@
+ #endif
+ 
+ #if !SUPPORT_LINKS
+ #define lstat stat
+ #endif
+ 
++#ifndef HAVE_LCHOWN
++#define lchown chown
++#endif
++
+ #define SIGNAL_CAST (RETSIGTYPE (*)())
+ 
+ #ifndef EWOULDBLOCK
+ #define EWOULDBLOCK EAGAIN
+ #endif
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.0/version.h	1996-10-01 12:12:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.1/version.h	1996-10-01 14:36:41.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.6.0"
++#define VERSION "1.6.1"

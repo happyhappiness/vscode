@@ -1,0 +1,13 @@
+		m1 = " (in ";
+		m2 = lp_name(module_id);
+		m3 = ")";
+	} else
+		m1 = m2 = m3 = "";
+
+	if (asprintf(&result, "\"%s%s%s\"%s%s%s", p1, p2, fn, m1, m2, m3) < 0)
+		out_of_memory("full_fname");
+
+	return result;
+}
+
+static char partial_fname[MAXPATHLEN];

@@ -1,0 +1,1 @@
+fprintf(FINFO,"recv mapped %s of size %d\n",fname,(int)st.st_size);

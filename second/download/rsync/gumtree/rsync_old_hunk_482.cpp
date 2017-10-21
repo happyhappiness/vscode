@@ -1,0 +1,13 @@
+void io_end_buffering(int fd);
+void write_int(int f,int32 x);
+void write_longint(int f, int64 x);
+void write_buf(int f,char *buf,int len);
+void write_sbuf(int f,char *buf);
+void write_byte(int f,unsigned char c);
+void write_flush(int f);
+int read_line(int f, char *buf, int maxlen);
+void io_printf(int fd, const char *format, ...);
+void io_start_multiplex_out(int fd);
+void io_start_multiplex_in(int fd);
+int io_multiplex_write(int f, char *buf, int len);
+void io_close_input(int fd);

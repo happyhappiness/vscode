@@ -1,0 +1,1 @@
+fprintf(stderr,"generator wrote %d\n",write_total());

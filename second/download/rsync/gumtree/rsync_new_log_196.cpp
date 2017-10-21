@@ -1,0 +1,1 @@
+fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));

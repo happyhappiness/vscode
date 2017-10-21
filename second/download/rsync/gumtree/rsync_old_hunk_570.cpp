@@ -1,0 +1,12 @@
+void see_token(char *data, int toklen);
+void add_uid(uid_t uid);
+void add_gid(gid_t gid);
+void send_uid_list(int f);
+void recv_uid_list(int f, struct file_list *flist);
+void set_nonblocking(int fd);
+int fd_pair(int fd[2]);
+int piped_child(char **command,int *f_in,int *f_out);
+int local_child(int argc, char **argv,int *f_in,int *f_out);
+void out_of_memory(char *str);
+void overflow(char *str);
+int set_modtime(char *fname,time_t modtime);

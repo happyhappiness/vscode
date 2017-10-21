@@ -1,0 +1,82 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/cvs.log	1998-05-15 22:12:17.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/cvs.log	1998-05-16 08:57:44.000000000 +0800
+@@ -4018,6 +4018,33 @@
+ 
+ Modified Files:
+ 	version.h 
+ Log Message:
+ preparing for release of 2.0.5
+ 
++
++****************************************
++Date:	Saturday May 16, 1998 @ 10:46
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv11101
++
++Modified Files:
++	util.c 
++Log Message:
++fixed handling of vsprintf on SunOS
++
++
++
++****************************************
++Date:	Saturday May 16, 1998 @ 10:57
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.6
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/util.c	1998-05-15 22:10:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/util.c	1998-05-16 08:54:47.000000000 +0800
+@@ -634,28 +634,21 @@
+ 		if (!buf) {
+ 			/* can't call debug or we would recurse */
+ 			exit(1);
+ 		}
+ 	}
+ 
+-	ret = vsprintf(buf, format, ap);
+-
+-	if (ret < 0) {
+-		str[0] = 0;
+-		return -1;
+-	}
+-
+-	if (ret < n) {
+-		n = ret;
+-	} else if (ret > n) {
+-		ret = -1;
++	vsprintf(buf, format, ap);
++	ret = strlen(buf);
++	if (ret > n) {
++		/* yikes! */
++		exit(1);
+ 	}
+-
+-	buf[n] = 0;
++	buf[ret] = 0;
+ 	
+-	memcpy(str, buf, n+1);
++	memcpy(str, buf, ret+1);
+ 
+ 	return ret;
+ #endif
+ }
+ 
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.5/version.h	1998-05-15 22:12:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.6/version.h	1998-05-16 08:57:35.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.5"
++#define VERSION "2.0.6"

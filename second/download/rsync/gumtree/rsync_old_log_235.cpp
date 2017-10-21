@@ -1,0 +1,1 @@
+fprintf(f,"    --csum-length LENGTH set the checksum length\n");

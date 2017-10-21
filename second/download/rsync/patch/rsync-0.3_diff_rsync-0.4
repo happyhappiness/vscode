@@ -1,0 +1,571 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/exclude.c	1996-06-16 13:05:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/exclude.c	1996-06-17 10:19:09.000000000 +0800
+@@ -35,13 +35,13 @@
+ 
+ static int check_one_exclude(char *name,char *pattern)
+ {
+   char *str;
+ 
+   if (is_regex(pattern)) {
+-    if (fnmatch(pattern, name, FNM_LEADING_DIR) == 0)
++    if (fnmatch(pattern, name, 0) == 0)
+       return 1;
+   } else {
+     if (str = strstr(name, pattern),
+ 	(str && (str == name || str[-1] == '/')
+ 	 && str[strlen(pattern)] == '\0'))
+       return 1;
+@@ -104,18 +104,24 @@
+ 
+ void add_exclude(char *pattern)
+ {
+   add_exclude_list(pattern,&exclude_list);
+ }
+ 
+-char **make_exclude_list(char *fname,char **list1)
++char **make_exclude_list(char *fname,char **list1,int fatal)
+ {
+   char **list=list1;
+   FILE *f = fopen(fname,"r");
+   char line[MAXPATHLEN];
+-  if (!f) return list;
++  if (!f) {
++    if (fatal) {
++      fprintf(stderr,"%s : %s\n",fname,strerror(errno));
++      exit(1);
++    }
++    return list;
++  }
+ 
+   while (fgets(line,MAXPATHLEN,f)) {
+     int l = strlen(line);
+     if (l && line[l-1] == '\n') l--;
+     line[l] = 0;
+     if (line[0]) add_exclude_list(line,&list);
+@@ -124,13 +130,13 @@
+   return list;
+ }
+ 
+ 
+ void add_exclude_file(char *fname)
+ {
+-  exclude_list = make_exclude_list(fname,exclude_list);
++  exclude_list = make_exclude_list(fname,exclude_list,1);
+ }
+ 
+ 
+ void send_exclude_list(int f)
+ {
+   int i;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/flist.c	1996-06-16 12:53:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/flist.c	1996-06-17 10:48:59.000000000 +0800
+@@ -200,13 +200,13 @@
+   if (fname[l-1] != '/')
+     strcat(fname,"/");
+   p = fname + strlen(fname);
+ 
+   if (cvs_exclude) {
+     strcpy(p,".cvsignore");
+-    local_exclude_list = make_exclude_list(fname,NULL);
++    local_exclude_list = make_exclude_list(fname,NULL,0);
+   }  
+ 
+   for (di=readdir(d); di; di=readdir(d)) {
+     if (strcmp(di->d_name,".")==0 ||
+ 	strcmp(di->d_name,"..")==0)
+       continue;
+@@ -234,48 +234,41 @@
+   flist_malloced = 100;
+   flist->files = (struct file_struct *)malloc(sizeof(flist->files[0])*
+ 					      flist_malloced);
+   if (!flist->files) out_of_memory("send_file_list");
+ 
+   for (i=0;i<argc;i++) {
+-    char *fname = argv[i];
++    char fname2[MAXPATHLEN];
++    char *fname = fname2;
++
++    strcpy(fname,argv[i]);
+ 
+     l = strlen(fname);
+-    if (l != 1 && fname[l-1] == '/')
+-      fname[l-1] = 0;
++    if (l != 1 && fname[l-1] == '/') {
++      strcat(fname,".");
++    }
+ 
+     if (lstat(fname,&st) != 0) {
+       fprintf(stderr,"%s : %s\n",fname,strerror(errno));
+       continue;
+     }
+ 
+     if (S_ISDIR(st.st_mode) && !recurse) {
+       fprintf(stderr,"skipping directory %s\n",fname);
+       continue;
+     }
+ 
+-    if (S_ISDIR(st.st_mode) && argc == 1) {
+-      if (chdir(fname) != 0) {
+-	fprintf(stderr,"chdir %s : %s\n",fname,strerror(errno));
+-	continue;
+-      }
+-      send_file_name(f,flist,recurse,".");
+-      continue;
+-    } 
+-
+     dir = NULL;
+     p = strrchr(fname,'/');
+-    if (p && !p[1]) {
+-      *p = 0;
+-      p = strrchr(fname,'/');
+-    }
+     if (p) {
+       *p = 0;
+       dir = fname;
+       fname = p+1;      
+     }
++    if (!*fname)
++      fname = ".";
+ 
+     if (dir && *dir) {
+       if (getcwd(dbuf,MAXPATHLEN-1) == NULL) {
+ 	fprintf(stderr,"getwd : %s\n",strerror(errno));
+ 	exit(1);
+       }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/main.c	1996-06-16 15:06:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/main.c	1996-06-17 13:05:58.000000000 +0800
+@@ -39,12 +39,14 @@
+ int dry_run=0;
+ 
+ int am_server = 0;
+ static int sender = 0;
+ static int recurse = 0;
+ 
++static void usage(FILE *f);
++
+ static void report(int f)
+ {
+   int in,out,tsize;
+   time_t t = time(NULL);
+   
+   if (!verbose) return;
+@@ -184,12 +186,52 @@
+ oom:
+   out_of_memory("do_cmd");
+   return 0; /* not reached */
+ }
+ 
+ 
++
++
++static char *get_local_name(struct file_list *flist,char *name)
++{
++  struct stat st;
++
++  if (stat(name,&st) == 0) {
++    if (S_ISDIR(st.st_mode)) {
++      if (chdir(name) != 0) {
++	fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
++	exit(1);
++      }
++      return NULL;
++    }
++    if (flist->count > 1) {
++      fprintf(stderr,"ERROR: destination must be a diirectory when copying more than 1 file\n");
++      exit(1);
++    }
++    return name;
++  }
++
++  if (flist->count == 1)
++    return name;
++
++  if (mkdir(name,0777) != 0) {
++    fprintf(stderr,"mkdir %s : %s\n",name,strerror(errno));
++    exit(1);
++  }
++
++  if (chdir(name) != 0) {
++    fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));
++    exit(1);
++  }
++
++  return NULL;
++}
++
++
++
++
+ void do_server_sender(int argc,char *argv[])
+ {
+   int i;
+   char *dir = argv[0];
+   struct file_list *flist;
+ 
+@@ -223,94 +265,43 @@
+ }
+ 
+ 
+ 
+ void do_server_recv(int argc,char *argv[])
+ {
+-  int pid,i,status;
++  int pid,status;
+   char *dir = NULL;
+   struct file_list *flist;
+-  char *fname=NULL;
+-  struct stat st;
++  char *local_name=NULL;
+   
+   if (verbose > 2)
+     fprintf(stderr,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
+ 
+   if (argc > 0) {
+     dir = argv[0];
+     argc--;
+     argv++;
+   }
+ 
+-  if (argc > 0) {
+-    fname = argv[0];
+-    dir = NULL;
+-
+-    if (stat(fname,&st) != 0) {
+-      if (!recurse || mkdir(fname,0777) != 0) {
+-	fprintf(stderr,"stat %s : %s\n",fname,strerror(errno));
+-	exit(1);
+-      }
+-      stat(fname,&st);
+-    }
+-
+-    if (S_ISDIR(st.st_mode)) {
+-      dir = fname;
+-      fname = NULL;
+-    }
+-  }
+-
+-  if (dir) {
+-    if (chdir(dir) != 0) {
+-      fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+-      exit(1);
+-    } else {
+-      if (verbose > 2) {
+-	fprintf(stderr,"server changed to directory %s\n",dir);
+-      }
+-    }
+-  }
+-
+   flist = recv_file_list(STDIN_FILENO);
+-  if (!flist) {
++  if (!flist || flist->count == 0) {
+     fprintf(stderr,"nothing to do\n");
+     exit(1);
+   }
+ 
++
++  local_name = get_local_name(flist,argv[0]);
++
+   if ((pid=fork()) == 0) {
+-    recv_files(STDIN_FILENO,flist,fname);
++    recv_files(STDIN_FILENO,flist,local_name);
+     if (verbose > 1)
+       fprintf(stderr,"receiver read %d\n",read_total());
+     exit(0);
+   }
+ 
+-  if (verbose > 2)
+-    fprintf(stderr,"generator starting pid=%d count=%d\n",
+-	    (int)getpid(),flist->count);
+-
+-  for (i = 0; i < flist->count; i++) {
+-    if (S_ISDIR(flist->files[i].mode)) {
+-      if (dry_run) continue;
+-      if (mkdir(flist->files[i].name,flist->files[i].mode) != 0 && 
+-	  errno != EEXIST) {	 
+-	fprintf(stderr,"mkdir %s: %s\n",
+-		flist->files[i].name,strerror(errno));
+-	exit(1);
+-      }
+-      continue;
+-    }
+-    fname = flist->files[i].name;
+-    if (flist->count == 1 &&
+-	argc > 0)
+-      fname = argv[0];
+-    recv_generator(fname,flist,i,STDOUT_FILENO);
+-  }
+-  write_int(STDOUT_FILENO,-1);
+-  write_flush(STDOUT_FILENO);
+-  if (verbose > 1)
+-    fprintf(stderr,"generator wrote %d\n",write_total());
++  generate_files(STDOUT_FILENO,flist,local_name);
+ 
+   waitpid(pid, &status, 0);
+   exit(status);
+ }
+ 
+ 
+@@ -344,13 +335,14 @@
+ 
+   fprintf(f,"\n");
+   fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+   fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
+ }
+ 
+-enum {OPT_VERSION,OPT_SUFFIX,OPT_SENDER,OPT_SERVER,OPT_EXCLUDE,OPT_EXCLUDE_FROM};
++enum {OPT_VERSION,OPT_SUFFIX,OPT_SENDER,OPT_SERVER,OPT_EXCLUDE,
++      OPT_EXCLUDE_FROM};
+ 
+ static char *short_options = "oblpguDCtcahvrne:B:";
+ 
+ static struct option long_options[] = {
+   {"version",     0,     0,    OPT_VERSION},
+   {"server",      0,     0,    OPT_SERVER},
+@@ -376,13 +368,13 @@
+   {"suffix",      1,     0,    OPT_SUFFIX},
+   {"block-size",  1,     0,    'B'},
+   {0,0,0,0}};
+ 
+ int main(int argc,char *argv[])
+ {
+-    int i, pid, status, pid2, status2;
++    int pid, status, pid2, status2;
+     int opt;
+     int option_index;
+     char *shell_cmd = NULL;
+     char *shell_machine = NULL;
+     char *shell_path = NULL;
+     char *shell_user = NULL;
+@@ -632,62 +624,28 @@
+       exit(status);
+     }
+ 
+     send_exclude_list(f_out);
+ 
+     flist = recv_file_list(f_in);
+-    if (flist->count == 0) {
++    if (!flist || flist->count == 0) {
++      fprintf(stderr,"nothing to do\n");
+       exit(0);
+     }
+ 
+-    {
+-      struct stat st;
+-      if (stat(argv[0],&st) != 0) {
+-	if (mkdir(argv[0],0777) != 0) {
+-	  fprintf(stderr,"mkdir %s : %s\n",argv[0],strerror(errno));
+-	  exit(1);
+-	}
+-	stat(argv[0],&st);
+-      }
+-      
+-      if (S_ISDIR(st.st_mode)) {
+-	if (chdir(argv[0]) != 0) {
+-	  fprintf(stderr,"chdir %s : %s\n",argv[0],strerror(errno));
+-	  exit(1);
+-	}
+-      } else {
+-	local_name = argv[0];
+-      }
+-    }
+-
++    local_name = get_local_name(flist,argv[0]);
+ 
+     if ((pid2=fork()) == 0) {
+       recv_files(f_in,flist,local_name);
+       if (verbose > 1)
+ 	fprintf(stderr,"receiver read %d\n",read_total());
+       exit(0);
+     }
+ 
+-    for (i = 0; i < flist->count; i++) {
+-      if (S_ISDIR(flist->files[i].mode)) {
+-	if (dry_run) continue;
+-	if (mkdir(flist->files[i].name,flist->files[i].mode) != 0 &&
+-	    errno != EEXIST) {
+-	  fprintf(stderr,"mkdir %s : %s\n",
+-		  flist->files[i].name,strerror(errno));
+-	}
+-	continue;
+-      }
+-      recv_generator(local_name?local_name:flist->files[i].name,
+-		     flist,i,f_out);
+-    }
+-    write_int(f_out,-1);
+-    write_flush(f_out);
+-    if (verbose > 1)
+-      fprintf(stderr,"generator wrote %d\n",write_total());
+-    
++    generate_files(f_out,flist,local_name);
++
+     waitpid(pid2, &status2, 0);
+ 
+     report(f_in);
+ 
+     waitpid(pid, &status, 0);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/proto.h	1996-06-16 12:53:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/proto.h	1996-06-17 12:51:34.000000000 +0800
+@@ -3,13 +3,13 @@
+ uint32 get_checksum1(char *buf,int len);
+ void get_checksum2(char *buf,int len,char *sum);
+ void file_checksum(char *fname,char *sum,off_t size);
+ int check_exclude(char *name,char **local_exclude_list);
+ void add_exclude_list(char *pattern,char ***list);
+ void add_exclude(char *pattern);
+-char **make_exclude_list(char *fname,char **list1);
++char **make_exclude_list(char *fname,char **list1,int fatal);
+ void add_exclude_file(char *fname);
+ void send_exclude_list(int f);
+ void recv_exclude_list(int f);
+ void add_cvs_excludes(void);
+ struct file_list *send_file_list(int f,int recurse,int argc,char *argv[]);
+ struct file_list *recv_file_list(int f);
+@@ -18,12 +18,13 @@
+ void do_server_recv(int argc,char *argv[]);
+ int main(int argc,char *argv[]);
+ void match_sums(int f,struct sum_struct *s,char *buf,off_t len);
+ void recv_generator(char *fname,struct file_list *flist,int i,int f_out);
+ int recv_files(int f_in,struct file_list *flist,char *local_name);
+ off_t send_files(struct file_list *flist,int f_out,int f_in);
++void generate_files(int f,struct file_list *flist,char *local_name);
+ int write_total(void);
+ int read_total(void);
+ void write_int(int f,int x);
+ void write_buf(int f,char *buf,int len);
+ void write_flush(int f);
+ int readfd(int fd,char *buffer,int N);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/README	1996-06-16 08:10:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/README	1996-06-17 13:03:20.000000000 +0800
+@@ -50,14 +50,49 @@
+ You use rsync just like rcp. rsync has many more options than rcp, but
+ uses the same basic syntax.
+ 
+ Use "rsync -h" for some info on extra options in rsync
+ 
+ Many of the options in rsync were inspired by similar options in the
+-GNU cp program. It can handle device files, links, attributes, "update
+-only", recursion etc etc. A man page will be written sometime :-)
++GNU cp and GNU tar programs. It can handle device files, links,
++attributes, "update only", recursion etc etc. A man page will be
++written sometime :-)
++
++EXAMPLES
++--------
++
++Here are some examples to get you started. 
++
++	rsync myfile.c foo:src/otherfile.c
++
++The above command would update the file src/otherfile.c on the machine
++foo to be the same as myfile.c. If otherfile.c doesn't exist it will
++be created.
++
++	rsync -av mydir foo:some/otherdir
++
++The above command would recursively copy the contents of the local
++directory mydir to the directory some/otherdir on machine foo. The
++times, permissions, links, devices etc in mydir will be replicated on
++foo. The 'v' option means that you will be told what is happening.
++
++	rsync -av foo:some/otherdir mydir
++
++the above command would do the same as the previous one, but the copy
++would happen in the opposite direction. 
++
++	rsync -avC . foo:some/otherdir
++
++This will recursively copy all files in the current directory to the
++remote directory some/otherdir on foo, but will skip the same files
++that a cvs operation would skip. It will check the .cvsignore files,
++the CVSIGNORE environment variable and the standard cvs ignore list
++(.o, .a etc) an skip any matching files.
++
++There are lots of other possabilities. Either try "rsync -h" and
++experiment or wait for the man page.
+ 
+ 
+ SETUP
+ -----
+ 
+ Rsync uses rsh or ssh for communication. It does not need to be setuid
+@@ -78,6 +113,11 @@
+ Rsync was written by Andrew Tridgell and Paul Mackerras, and is
+ available under the GPL.
+ 
+ Andrew.Tridgell@anu.edu.au
+ paulus@cs.anu.edu.au
+ 
++
++AVAILABILITY
++------------
++
++The main ftp site for rsync is ftp://samba.anu.edu.au/pub/rsync
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4: rsync.aux
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/rsync.c	1996-06-16 15:51:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/rsync.c	1996-06-17 12:50:33.000000000 +0800
+@@ -435,15 +435,14 @@
+       }
+ 
+       if (verbose > 2)
+ 	fprintf(stderr,"recv_files(%s)\n",fname);
+ 
+       /* open the file */  
+-      fd1 = open(fname,O_RDONLY|O_CREAT,flist->files[i].mode);
+-
+-      if (fd1 == -1) {
++      if ((fd1 = open(fname,O_RDONLY)) == -1 &&
++	  (fd1 = open(fname,O_RDONLY|O_CREAT,flist->files[i].mode)) == -1) {
+ 	fprintf(stderr,"recv_files failed to open %s\n",fname);
+ 	return -1;
+       }
+ 
+       if (fstat(fd1,&st) != 0) {
+ 	fprintf(stderr,"fstat %s : %s\n",fname,strerror(errno));
+@@ -605,6 +604,32 @@
+ 
+   return total;
+ }
+ 
+ 
+ 
++void generate_files(int f,struct file_list *flist,char *local_name)
++{
++  int i;
++
++  if (verbose > 2)
++    fprintf(stderr,"generator starting pid=%d count=%d\n",
++	    (int)getpid(),flist->count);
++
++  for (i = 0; i < flist->count; i++) {
++    if (S_ISDIR(flist->files[i].mode)) {
++      if (dry_run) continue;
++      if (mkdir(flist->files[i].name,flist->files[i].mode) != 0 &&
++	  errno != EEXIST) {
++	fprintf(stderr,"mkdir %s : %s\n",
++		flist->files[i].name,strerror(errno));
++      }
++      continue;
++    }
++    recv_generator(local_name?local_name:flist->files[i].name,
++		   flist,i,f);
++  }
++  write_int(f,-1);
++  write_flush(f);
++  if (verbose > 1)
++    fprintf(stderr,"generator wrote %d\n",write_total());
++}
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4: rsync.dvi
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4: rsync.log
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.3/version.h	1996-06-16 15:52:17.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.4/version.h	1996-06-16 15:53:07.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "0.3"
++#define VERSION "0.4"

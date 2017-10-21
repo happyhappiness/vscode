@@ -1,0 +1,1 @@
+fprintf(FERROR,"ERROR: file corruption in %s\n",fname);

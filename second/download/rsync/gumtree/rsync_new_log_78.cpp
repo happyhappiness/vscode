@@ -1,0 +1,1 @@
+fprintf(stderr,"rmdir %s : %s\n",f->name,strerror(errno));

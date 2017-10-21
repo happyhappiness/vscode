@@ -1,0 +1,1 @@
+rprintf(FERROR, "compression init failed\n");

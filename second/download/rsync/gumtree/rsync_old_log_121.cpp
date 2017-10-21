@@ -1,0 +1,1 @@
+fprintf(stderr,"getwd : %s\n",strerror(errno));

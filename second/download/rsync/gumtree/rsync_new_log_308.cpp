@@ -1,0 +1,1 @@
+fprintf(FINFO,"clearing exclude list\n");

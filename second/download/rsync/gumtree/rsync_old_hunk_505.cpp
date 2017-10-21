@@ -1,0 +1,12 @@
+void write_byte(int f,unsigned char c);
+void write_flush(int f);
+int read_line(int f, char *buf, int maxlen);
+void io_printf(int fd, const char *format, ...);
+char *lp_motd_file(void);
+char *lp_lock_file(void);
+int lp_max_connections(void);
+int lp_syslog_facility(void);
+char *lp_name(int );
+char *lp_comment(int );
+char *lp_path(int );
+BOOL lp_read_only(int );

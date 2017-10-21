@@ -1,0 +1,1 @@
+fprintf(stderr,"waiting on %d\n",pid);

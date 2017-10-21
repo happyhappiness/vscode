@@ -1,0 +1,1 @@
+rprintf(FINFO,"receiver read %ld\n",(long)read_total());

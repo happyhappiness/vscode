@@ -1,0 +1,1 @@
+fprintf(stderr,"%s is newer\n",fname);

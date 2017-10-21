@@ -1,0 +1,1 @@
+fprintf(stderr,"bad option -%c\n",opt);

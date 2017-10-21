@@ -1,0 +1,1 @@
+fprintf(f,"\t%s [options] user@host:src dest\n\n",RSYNC_NAME);

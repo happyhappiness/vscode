@@ -1,0 +1,1 @@
+fprintf(fp,"  %-*s   ", (int)maxLeftCol+displaypad, left);

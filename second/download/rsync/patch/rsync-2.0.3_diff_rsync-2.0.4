@@ -1,0 +1,962 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/authenticate.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/authenticate.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/authenticate.c	1998-05-13 20:21:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/authenticate.c	1998-05-15 18:57:36.000000000 +0800
+@@ -25,13 +25,12 @@
+   ***************************************************************************/
+ static void base64_encode(char *buf, int len, char *out)
+ {
+ 	char *b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+ 	int bit_offset, byte_offset, idx, i;
+ 	unsigned char *d = (unsigned char *)buf;
+-	char *p;
+ 	int bytes = (len*8 + 5)/6;
+ 
+ 	memset(out, 0, bytes+1);
+ 
+ 	for (i=0;i<bytes;i++) {
+ 		byte_offset = (i*6)/8;
+@@ -53,13 +52,13 @@
+ {
+ 	char input[32];
+ 	struct timeval tv;
+ 
+ 	memset(input, 0, sizeof(input));
+ 
+-	strncpy((char *)input, addr, 16);
++	strlcpy((char *)input, addr, 16);
+ 	gettimeofday(&tv, NULL);
+ 	SIVAL(input, 16, tv.tv_sec);
+ 	SIVAL(input, 20, tv.tv_usec);
+ 	SIVAL(input, 24, getpid());
+ 
+ 	sum_init();
+@@ -71,14 +70,14 @@
+ /* return the secret for a user from the sercret file. maximum length
+    is len. null terminate it */
+ static int get_secret(int module, char *user, char *secret, int len)
+ {
+ 	char *fname = lp_secrets_file(module);
+ 	int fd, found=0;
+-	char line[1024];
+-	char *p, *pass;
++	char line[MAXPATHLEN];
++	char *p, *pass=NULL;
+ 
+ 	if (!fname || !*fname) return 0;
+ 
+ 	fd = open(fname,O_RDONLY);
+ 	if (fd == -1) return 0;
+ 
+@@ -105,18 +104,13 @@
+ 		found = 1;
+ 	}
+ 
+ 	close(fd);
+ 	if (!found) return 0;
+ 
+-	if (strlen(pass) > len-1) {
+-		memset(line, 0, sizeof(line));
+-		return 0;
+-	}
+-
+-	strcpy(secret, pass);
++	strlcpy(secret, pass, len);
+ 	return 1;
+ }
+ 
+ /* generate a 16 byte hash from a password and challenge */
+ void generate_hash(char *in, char *challenge, char *out)
+ {
+@@ -134,13 +128,13 @@
+    start off the auth if necessary */
+ int auth_server(int fd, int module, char *addr, char *leader)
+ {
+ 	char *users = lp_auth_users(module);
+ 	char challenge[16];
+ 	char b64_challenge[30];
+-	char line[1024];
++	char line[MAXPATHLEN];
+ 	char user[100];
+ 	char secret[100];
+ 	char pass[30];
+ 	char pass2[30];
+ 	char *tok;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/clientserver.c	1998-05-15 09:19:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/clientserver.c	1998-05-15 18:57:36.000000000 +0800
+@@ -27,13 +27,13 @@
+ 
+ int start_socket_client(char *host, char *path, int argc, char *argv[])
+ {
+ 	int fd, i;
+ 	char *sargs[MAX_ARGS];
+ 	int sargc=0;
+-	char line[1024];
++	char line[MAXPATHLEN];
+ 	char *p, *user=NULL;
+ 	extern int remote_version;
+ 
+ 	p = strchr(host, '@');
+ 	if (p) {
+ 		user = host;
+@@ -99,19 +99,18 @@
+ 
+ static int rsync_module(int fd, int i)
+ {
+ 	int argc=0;
+ 	char *argv[MAX_ARGS];
+ 	char **argp;
+-	char line[1024];
+-	uid_t uid;
+-	gid_t gid;
++	char line[MAXPATHLEN];
++	uid_t uid = (uid_t)-2;
++	gid_t gid = (gid_t)-2;
+ 	char *p;
+ 	char *addr = client_addr(fd);
+ 	char *host = client_name(fd);
+-	char *auth;
+ 	char *name = lp_name(i);
+ 	int start_glob=0;
+ 
+ 	if (!allow_access(addr, host, lp_hosts_allow(i), lp_hosts_deny(i))) {
+ 		rprintf(FERROR,"rsync denied on module %s from %s (%s)\n",
+ 			name, client_name(fd), client_addr(fd));
+@@ -131,14 +130,12 @@
+ 		rprintf(FERROR,"max connections (%d) reached\n",
+ 			lp_max_connections());
+ 		io_printf(fd,"@ERROR: max connections (%d) reached - try again later\n", lp_max_connections());
+ 		return -1;
+ 	}
+ 
+-	rprintf(FINFO,"rsync on module %s from %s (%s)\n",
+-		name, host, addr);
+ 	
+ 	module_id = i;
+ 
+ 	if (lp_read_only(i))
+ 		read_only = 1;
+ 
+@@ -165,28 +162,34 @@
+ 	p = lp_exclude_from(i);
+ 	add_exclude_file(p, 1);
+ 
+ 	p = lp_exclude(i);
+ 	add_exclude_line(p);
+ 
++	log_open();
++
+ 	if (chroot(lp_path(i))) {
++		rprintf(FERROR,"chroot %s failed\n", lp_path(i));
+ 		io_printf(fd,"@ERROR: chroot failed\n");
+ 		return -1;
+ 	}
+ 
+ 	if (chdir("/")) {
++		rprintf(FERROR,"chdir %s failed\n", lp_path(i));
+ 		io_printf(fd,"@ERROR: chdir failed\n");
+ 		return -1;
+ 	}
+ 
+-	if (setgid(gid)) {
++	if (setgid(gid) || getgid() != gid) {
++		rprintf(FERROR,"setgid %d failed\n", gid);
+ 		io_printf(fd,"@ERROR: setgid failed\n");
+ 		return -1;
+ 	}
+ 
+-	if (setuid(uid)) {
++	if (setuid(uid) || getuid() != uid) {
++		rprintf(FERROR,"setuid %d failed\n", uid);
+ 		io_printf(fd,"@ERROR: setuid failed\n");
+ 		return -1;
+ 	}
+ 
+ 	io_printf(fd,"@RSYNCD: OK\n");
+ 
+@@ -198,24 +201,24 @@
+ 		}
+ 
+ 		if (!*line) break;
+ 
+ 		p = line;
+ 
+-		if (start_glob && strncmp(p, name, strlen(name)) == 0) {
+-			p += strlen(name);
+-			if (!*p) p = ".";
+-		}
+-
+ 		argv[argc] = strdup(p);
+ 		if (!argv[argc]) {
+ 			return -1;
+ 		}
+ 
+ 		if (start_glob) {
+-			glob_expand(argv, &argc, MAX_ARGS);
++			if (start_glob == 1) {
++				rprintf(FINFO,"rsync on %s from %s (%s)\n",
++					p, host, addr);
++				start_glob++;
++			}
++			glob_expand(name, argv, &argc, MAX_ARGS);
+ 		} else {
+ 			argc++;
+ 		}
+ 
+ 		if (strcmp(line,".") == 0) {
+ 			start_glob = 1;
+@@ -260,13 +263,13 @@
+ 	char line[200];
+ 	char *motd;
+ 	int i = -1;
+ 	extern char *config_file;
+ 	extern int remote_version;
+ 
+-	if (!lp_load(config_file)) {
++	if (!lp_load(config_file, 0)) {
+ 		exit_cleanup(1);
+ 	}
+ 
+ 	set_socket_options(fd,"SO_KEEPALIVE");
+ 
+ 	io_printf(fd,"@RSYNCD: %d\n", PROTOCOL_VERSION);
+@@ -321,17 +324,28 @@
+ 	return rsync_module(fd, i);
+ }
+ 
+ 
+ int daemon_main(void)
+ {
++	extern char *config_file;
++
+ 	if (is_a_socket(STDIN_FILENO)) {
+ 		/* we are running via inetd */
+ 		return start_daemon(STDIN_FILENO);
+ 	}
+ 
+ 	become_daemon();
+ 
++	if (!lp_load(config_file, 1)) {
++		fprintf(stderr,"failed to load config file %s\n", config_file);
++		exit_cleanup(1);
++	}
++
++	log_open();
++
++	rprintf(FINFO,"rsyncd version %s starting\n",VERSION);
++
+ 	start_accept_loop(rsync_port, start_daemon);
+ 	return -1;
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/cvs.log	1998-05-15 15:55:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/cvs.log	1998-05-15 18:58:09.000000000 +0800
+@@ -3874,6 +3874,89 @@
+ 
+ Modified Files:
+ 	version.h 
+ Log Message:
+ preparing for release of 2.0.3
+ 
++
++****************************************
++Date:	Friday May 15, 1998 @ 18:43
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv22057
++
++Modified Files:
++	clientserver.c proto.h util.c 
++Log Message:
++allow the specification of multiple filenames (with or without
++wildcards) to a rsync server. For example you can do:
++
++rsync -avz samba::'ftp/pub/samba/README ftp/pub/samba/*.gz' .
++
++
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 19:26
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv10988
++
++Modified Files:
++	authenticate.c clientserver.c exclude.c flist.c io.c log.c 
++	main.c proto.h rsync.c util.c 
++Log Message:
++use strlcat() strlcpy() and slprintf() whenever possible to avoid any
++chance of a buffer overflow
++
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 20:34
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv6224
++
++Modified Files:
++	authenticate.c clientserver.c flist.c loadparm.c log.c 
++Log Message:
++- changed the log messages to show the requested path 
++- some more paranoid buffer size checks
++- separate open syslog call
++- handle systems without LOG_NDELAY
++
++
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 20:52
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv968
++
++Modified Files:
++	clientserver.c loadparm.c params.c proto.h 
++Log Message:
++load just the globals section of the config file when the daemon
++starts so we know the syslog facility for the "starting" message
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 20:58
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.4
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/exclude.c	1998-05-15 09:03:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/exclude.c	1998-05-15 18:57:36.000000000 +0800
+@@ -202,12 +202,12 @@
+   int i;
+   
+   for (i=0; cvs_ignore_list[i]; i++)
+     add_exclude(cvs_ignore_list[i]);
+ 
+   if ((p=getenv("HOME")) && strlen(p) < (MAXPATHLEN-12)) {
+-    sprintf(fname,"%s/.cvsignore",p);
+-    add_exclude_file(fname,0);
++	  slprintf(fname,sizeof(fname)-1, "%s/.cvsignore",p);
++	  add_exclude_file(fname,0);
+   }
+ 
+   add_exclude_line(getenv("CVSIGNORE"));
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/flist.c	1998-05-15 15:35:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/flist.c	1998-05-15 18:57:36.000000000 +0800
+@@ -518,13 +518,13 @@
+ 		if (l == MAXPATHLEN-1) {
+ 			io_error = 1;
+ 			rprintf(FERROR,"skipping long-named directory %s\n",fname);
+ 			closedir(d);
+ 			return;
+ 		}
+-		strcat(fname,"/");
++		strlcat(fname,"/", MAXPATHLEN-1);
+ 		l++;
+ 	}
+ 	p = fname + strlen(fname);
+ 
+ 	if (cvs_exclude) {
+ 		if (strlen(fname) + strlen(".cvsignore") <= MAXPATHLEN-1) {
+@@ -582,13 +582,13 @@
+ 		char *fname = fname2;
+ 
+ 		strlcpy(fname,argv[i],MAXPATHLEN-1);
+ 
+ 		l = strlen(fname);
+ 		if (l != 1 && fname[l-1] == '/') {
+-			strcat(fname,".");
++			strlcat(fname,".",MAXPATHLEN-1);
+ 		}
+ 
+ 		if (link_stat(fname,&st) != 0) {
+ 			io_error=1;
+ 			rprintf(FERROR,"%s : %s\n",fname,strerror(errno));
+ 			continue;
+@@ -613,13 +613,13 @@
+ 			}
+ 		} else if (f != -1 && (p=strrchr(fname,'/'))) {
+ 			/* this ensures we send the intermediate directories,
+ 			   thus getting their permissions right */
+ 			*p = 0;
+ 			if (strcmp(lastpath,fname)) {
+-				strcpy(lastpath, fname);
++				strlcpy(lastpath, fname, sizeof(lastpath)-1);
+ 				*p = '/';
+ 				for (p=fname+1; (p=strchr(p,'/')); p++) {
+ 					*p = 0;
+ 					send_file_name(f, flist, fname, 0, 0);
+ 					*p = '/';
+ 				}
+@@ -875,13 +875,13 @@
+ 
+ 	if (!f || !f->basename) return NULL;
+ 
+ 	n = (n+1)%10;
+ 
+ 	if (f->dirname) {
+-		sprintf(p, "%s/%s", f->dirname, f->basename);
++		slprintf(p, MAXPATHLEN-1, "%s/%s", f->dirname, f->basename);
+ 	} else {
+ 		strlcpy(p, f->basename, MAXPATHLEN-1);
+ 	}
+ 
+ 	return p;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/io.c	1998-05-15 15:35:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/io.c	1998-05-15 18:57:36.000000000 +0800
+@@ -518,19 +518,13 @@
+ {
+ 	va_list ap;  
+ 	char buf[1024];
+ 	int len;
+ 	
+ 	va_start(ap, format);
+-
+-#if HAVE_VSNPRINTF
+-	len = vsnprintf(buf, sizeof(buf)-1, format, ap);
+-#else
+-	vsprintf(buf, format, ap);
+-	len = strlen(buf);
+-#endif
++	len = vslprintf(buf, sizeof(buf)-1, format, ap);
+ 	va_end(ap);
+ 
+ 	if (len < 0) exit_cleanup(1);
+ 
+ 	write_sbuf(fd, buf);
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/loadparm.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/loadparm.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/loadparm.c	1998-05-15 09:03:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/loadparm.c	1998-05-15 18:57:36.000000000 +0800
+@@ -250,12 +250,13 @@
+ 
+ /***************************************************************************
+ Initialise the global parameter structure.
+ ***************************************************************************/
+ static void init_globals(void)
+ {
++	memset(&Globals, 0, sizeof(Globals));
+ #ifdef LOG_DAEMON
+ 	Globals.syslog_facility = LOG_DAEMON;
+ #endif
+ 	Globals.lock_file = "/var/run/rsyncd.lock";
+ }
+ 
+@@ -580,13 +581,13 @@
+ 
+      case P_STRING:
+        string_set(parm_ptr,parmvalue);
+        break;
+ 
+      case P_GSTRING:
+-       strcpy((char *)parm_ptr,parmvalue);
++       strlcpy((char *)parm_ptr,parmvalue,sizeof(pstring)-1);
+        break;
+ 
+      case P_ENUM:
+ 	     for (i=0;parm_table[parmnum].enum_list[i].name;i++) {
+ 		     if (strequal(parmvalue, parm_table[parmnum].enum_list[i].name)) {
+ 			     *(int *)parm_ptr = parm_table[parmnum].enum_list[i].value;
+@@ -661,32 +662,32 @@
+ 
+ 
+ /***************************************************************************
+ Load the services array from the services file. Return True on success, 
+ False on failure.
+ ***************************************************************************/
+-BOOL lp_load(char *pszFname)
++BOOL lp_load(char *pszFname, int globals_only)
+ {
+-  pstring n2;
+-  BOOL bRetval;
++	pstring n2;
++	BOOL bRetval;
+  
+-  bRetval = False;
++	bRetval = False;
+ 
+-  bInGlobalSection = True;
++	bInGlobalSection = True;
+   
+-  init_globals();
++	init_globals();
+ 
+-  pstrcpy(n2,pszFname);
++	pstrcpy(n2,pszFname);
+ 
+-  /* We get sections first, so have to start 'behind' to make up */
+-  iServiceIndex = -1;
+-  bRetval = pm_process(n2, do_section, do_parameter);
++	/* We get sections first, so have to start 'behind' to make up */
++	iServiceIndex = -1;
++	bRetval = pm_process(n2, globals_only?NULL:do_section, do_parameter);
+   
+-  bLoaded = True;
++	bLoaded = True;
+ 
+-  return (bRetval);
++	return (bRetval);
+ }
+ 
+ 
+ /***************************************************************************
+ return the max number of services
+ ***************************************************************************/
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/log.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/log.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/log.c	1998-05-13 21:48:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/log.c	1998-05-15 18:57:36.000000000 +0800
+@@ -20,51 +20,61 @@
+   logging and utility functions
+ 
+   tridge, May 1998
+   */
+ #include "rsync.h"
+ 
++
++void log_open(void)
++{
++	static int initialised;
++	int options = LOG_PID;
++
++	if (initialised) return;
++	initialised = 1;
++
++#ifdef LOG_NDELAY
++	options |= LOG_NDELAY;
++#endif
++
++#ifdef LOG_DAEMON
++	openlog("rsyncd", options, lp_syslog_facility());
++#else
++	openlog("rsyncd", options);
++#endif
++
++#ifndef LOG_NDELAY
++	syslog(LOG_INFO,"rsyncd started\n");
++#endif
++}
++		
++
+ /* this is the rsync debugging function. Call it with FINFO or FERROR */
+ void rprintf(int fd, const char *format, ...)
+ {
+ 	va_list ap;  
+ 	char buf[1024];
+ 	int len;
+ 	FILE *f=NULL;
+ 	extern int am_daemon;
+ 
+ 	va_start(ap, format);
+-
+-#if HAVE_VSNPRINTF
+-	len = vsnprintf(buf, sizeof(buf)-1, format, ap);
+-#else
+-	vsprintf(buf, format, ap);
+-	len = strlen(buf);
+-#endif
++	len = vslprintf(buf, sizeof(buf)-1, format, ap);
+ 	va_end(ap);
+ 
+ 	if (len < 0) exit_cleanup(1);
+ 
+ 	if (len > sizeof(buf)-1) exit_cleanup(1);
+ 
+ 	buf[len] = 0;
+ 
+ 	if (am_daemon) {
+-		static int initialised;
+ 		int priority = LOG_INFO;
+ 		if (fd == FERROR) priority = LOG_WARNING;
+ 
+-		if (!initialised) {
+-			initialised = 1;
+-#ifdef LOG_DAEMON
+-			openlog("rsyncd", LOG_PID, lp_syslog_facility());
+-#else
+-			openlog("rsyncd", LOG_PID);
+-#endif
+-		}
+-		
++		log_open();
+ 		syslog(priority, "%s", buf);
+ 		return;
+ 	}
+ 
+ 	if (fd == FERROR) {
+ 		f = stderr;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/main.c	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/main.c	1998-05-15 18:57:36.000000000 +0800
+@@ -187,13 +187,12 @@
+ static void do_server_sender(int f_in, int f_out, int argc,char *argv[])
+ {
+ 	int i;
+ 	struct file_list *flist;
+ 	char *dir = argv[0];
+ 	extern int relative_paths;
+-	extern int am_daemon;
+ 	extern int recurse;
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"server_sender starting pid=%d\n",(int)getpid());
+   
+ 	if (!relative_paths && chdir(dir) != 0) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/params.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/params.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/params.c	1998-05-09 22:00:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/params.c	1998-05-15 18:57:36.000000000 +0800
+@@ -448,16 +448,17 @@
+       case ';':                         /* Comment line. */
+       case '#':
+         c = EatComment( InFile );
+         break;
+ 
+       case '[':                         /* Section Header. */
+-        if( !Section( InFile, sfunc ) )
+-          return( False );
+-        c = EatWhitespace( InFile );
+-        break;
++	      if (!sfunc) return True;
++	      if( !Section( InFile, sfunc ) )
++		      return( False );
++	      c = EatWhitespace( InFile );
++	      break;
+ 
+       case '\\':                        /* Bogus backslash. */
+         c = EatWhitespace( InFile );
+         break;
+ 
+       default:                          /* Parameter line. */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/proto.h	1998-05-15 15:54:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/proto.h	1998-05-15 18:57:36.000000000 +0800
+@@ -73,15 +73,16 @@
+ char *lp_hosts_allow(int );
+ char *lp_hosts_deny(int );
+ char *lp_auth_users(int );
+ char *lp_secrets_file(int );
+ char *lp_exclude(int );
+ char *lp_exclude_from(int );
+-BOOL lp_load(char *pszFname);
++BOOL lp_load(char *pszFname, int globals_only);
+ int lp_numservices(void);
+ int lp_number(char *name);
++void log_open(void);
+ void rprintf(int fd, const char *format, ...);
+ void rflush(int fd);
+ void start_server(int f_in, int f_out, int argc, char *argv[]);
+ int client_run(int f_in, int f_out, int pid, int argc, char *argv[]);
+ int start_client(int argc, char *argv[]);
+ int main(int argc,char *argv[]);
+@@ -158,12 +159,15 @@
+ int safe_read(int desc, char *ptr, int len);
+ int copy_file(char *source, char *dest, mode_t mode);
+ void u_sleep(int usec);
+ pid_t do_fork(void);
+ void kill_all(int sig);
+ void strlcpy(char *d, char *s, int maxlen);
++void strlcat(char *d, char *s, int maxlen);
+ int name_to_uid(char *name, uid_t *uid);
+ int name_to_gid(char *name, gid_t *gid);
+ int process_exists(int pid);
+ int lock_range(int fd, int offset, int len);
+-void glob_expand(char **argv, int *argc, int maxargs);
++void glob_expand(char *base, char **argv, int *argc, int maxargs);
+ void strlower(char *s);
++int vslprintf(char *str, int n, const char *format, va_list ap);
++int slprintf(char *str, int n, char *format, ...);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/rsync.c	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/rsync.c	1998-05-15 18:57:36.000000000 +0800
+@@ -108,16 +108,13 @@
+ 
+ 	for (di=readdir(d); di; di=readdir(d)) {
+ 		char *dname = d_name(di);
+ 		if (strcmp(dname,".")==0 ||
+ 		    strcmp(dname,"..")==0)
+ 			continue;
+-		strlcpy(buf, fname, (MAXPATHLEN-strlen(dname))-2);
+-		strcat(buf, "/");
+-		strcat(buf, dname);
+-		buf[MAXPATHLEN-1] = 0;
++		slprintf(buf, sizeof(buf)-1, "%s/%s", fname, dname);
+ 		if (verbose > 0)
+ 			rprintf(FINFO,"deleting %s\n", buf);
+ 		if (delete_file(buf) != 0) {
+ 			closedir(d);
+ 			return -1;
+ 		}
+@@ -828,29 +825,29 @@
+ 	      if (strlen(tmpdir)+strlen(f)+10 > MAXPATHLEN) {
+ 		      rprintf(FERROR,"filename too long\n");
+ 		      if (buf) unmap_file(buf);
+ 		      close(fd1);
+ 		      continue;
+ 	      }
+-	      sprintf(fnametmp,"%s/.%s.XXXXXX",tmpdir,f);
++	      slprintf(fnametmp,sizeof(fnametmp)-1, "%s/.%s.XXXXXX",tmpdir,f);
+       } else {
+ 	      char *f = strrchr(fname,'/');
+ 
+ 	      if (strlen(fname)+9 > MAXPATHLEN) {
+ 		      rprintf(FERROR,"filename too long\n");
+ 		      if (buf) unmap_file(buf);
+ 		      close(fd1);
+ 		      continue;
+ 	      }
+ 
+ 	      if (f) {
+ 		      *f = 0;
+-		      sprintf(fnametmp,"%s/.%s.XXXXXX",fname,f+1);
++		      slprintf(fnametmp,sizeof(fnametmp)-1,"%s/.%s.XXXXXX",fname,f+1);
+ 		      *f = '/';
+ 	      } else {
+-		      sprintf(fnametmp,".%s.XXXXXX",fname);
++		      slprintf(fnametmp,sizeof(fnametmp)-1,".%s.XXXXXX",fname);
+ 	      }
+       }
+       if (NULL == do_mktemp(fnametmp)) {
+ 	rprintf(FERROR,"mktemp %s failed\n",fnametmp);
+ 	receive_data(f_in,buf,-1,NULL);
+ 	if (buf) unmap_file(buf);
+@@ -890,13 +887,13 @@
+       if (make_backups) {
+ 	char fnamebak[MAXPATHLEN];
+ 	if (strlen(fname) + strlen(backup_suffix) > (MAXPATHLEN-1)) {
+ 		rprintf(FERROR,"backup filename too long\n");
+ 		continue;
+ 	}
+-	sprintf(fnamebak,"%s%s",fname,backup_suffix);
++	slprintf(fnamebak,sizeof(fnamebak)-1,"%s%s",fname,backup_suffix);
+ 	if (do_rename(fname,fnamebak) != 0 && errno != ENOENT) {
+ 	  rprintf(FERROR,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
+ 	  continue;
+ 	}
+       }
+ 
+@@ -995,16 +992,16 @@
+ 		  if (strlen(fname) == MAXPATHLEN-1) {
+ 			  io_error = 1;
+ 			  rprintf(FERROR, "send_files failed on long-named directory %s\n",
+ 				  fname);
+ 			  return;
+ 		  }
+-		  strcat(fname,"/");
++		  strlcat(fname,"/",MAXPATHLEN-1);
+ 		  offset = strlen(file->basedir)+1;
+ 	  }
+-	  strncat(fname,f_name(file),MAXPATHLEN-strlen(fname));
++	  strlcat(fname,f_name(file),MAXPATHLEN-strlen(fname));
+ 	  
+ 	  if (verbose > 2) 
+ 		  rprintf(FINFO,"send_files(%d,%s)\n",i,fname);
+ 	  
+ 	  if (dry_run) {	
+ 		  if (!am_server && verbose)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/util.c	1998-05-14 15:07:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/util.c	1998-05-15 18:57:36.000000000 +0800
+@@ -453,12 +453,27 @@
+ 	int len = strlen(s);
+ 	if (len > maxlen) len = maxlen;
+ 	memcpy(d, s, len);
+ 	d[len] = 0;
+ }
+ 
++/* like strncat but does not 0 fill the buffer and always null 
++   terminates (thus it can use maxlen+1 space in d) */
++void strlcat(char *d, char *s, int maxlen)
++{
++	int len1 = strlen(d);
++	int len2 = strlen(s);
++	if (len1+len2 > maxlen) {
++		len2 = maxlen-len1;
++	}
++	if (len2 > 0) {
++		memcpy(d+len1, s, len2);
++		d[len1+len2] = 0;
++	}
++}
++
+ /* turn a user name into a uid */
+ int name_to_uid(char *name, uid_t *uid)
+ {
+ 	struct passwd *pass;
+ 	if (!name || !*name) return 0;
+ 	pass = getpwnam(name);
+@@ -503,21 +518,27 @@
+ 	lock.l_pid = 0;
+ 	
+ 	return fcntl(fd,F_SETLK,&lock) == 0;
+ }
+ 
+ 
+-void glob_expand(char **argv, int *argc, int maxargs)
++static void glob_expand_one(char *s, char **argv, int *argc, int maxargs)
+ {
+ #ifndef HAVE_GLOB
++	if (!*s) s = ".";
++	argv[*argc] = strdup(s);
+ 	(*argc)++;
+ 	return;
+ #else
+ 	glob_t globbuf;
+ 	int i;
+ 
++	if (!*s) s = ".";
++
++	argv[*argc] = strdup(s);
++
+ 	memset(&globbuf, 0, sizeof(globbuf));
+ 	glob(argv[*argc], 0, NULL, &globbuf);
+ 	if (globbuf.gl_pathc == 0) {
+ 		(*argc)++;
+ 		globfree(&globbuf);
+ 		return;
+@@ -529,17 +550,118 @@
+ 	}
+ 	globfree(&globbuf);
+ 	(*argc) += i;
+ #endif
+ }
+ 
++void glob_expand(char *base, char **argv, int *argc, int maxargs)
++{
++	char *s = argv[*argc];
++	char *p, *q;
++
++	if (!s || !*s) return;
++
++	if (strncmp(s, base, strlen(base)) == 0) {
++		s += strlen(base);
++	}
++
++	s = strdup(s);
++	if (!s) out_of_memory("glob_expand");
++
++	q = s;
++	while ((p = strstr(q,base)) && ((*argc) < maxargs)) {
++		if (p != q && *(p-1) == ' ' && p[strlen(base)] == '/') {
++			/* split it at this point */
++			*(p-1) = 0;
++			glob_expand_one(q, argv, argc, maxargs);
++			q = p+strlen(base)+1;
++		} else {
++			q++;
++		}
++	}
++
++	if (*q && (*argc < maxargs)) glob_expand_one(q, argv, argc, maxargs);
++
++	free(s);
++}
+ 
+ /*******************************************************************
+   convert a string to lower case
+ ********************************************************************/
+ void strlower(char *s)
+ {
+ 	while (*s) {
+ 		if (isupper(*s)) *s = tolower(*s);
+ 		s++;
+ 	}
+ }
++
++/* this is like vsnprintf but the 'n' limit does not include
++   the terminating null. So if you have a 1024 byte buffer then
++   pass 1023 for n */
++int vslprintf(char *str, int n, const char *format, va_list ap)
++{
++#ifdef HAVE_VSNPRINTF
++	int ret = vsnprintf(str, n, format, ap);
++	if (ret > n || ret < 0) {
++		str[n] = 0;
++		return -1;
++	}
++	str[ret] = 0;
++	return ret;
++#else
++	static char *buf;
++	static int len=MAXPATHLEN*8;
++	int ret;
++
++	/* this code is NOT a proper vsnprintf() implementation. It
++	   relies on the fact that all calls to slprintf() in rsync
++	   pass strings which have already been checked to be less
++	   than MAXPATHLEN in length and never more than 2 strings are
++	   concatenated. This means the above buffer is absolutely
++	   ample and can never be overflowed.
++
++	   In the future we would like to replace this with a proper
++	   vsnprintf() implementation but right now we need a solution
++	   that is secure and portable. This is it.  */
++
++	if (!buf) {
++		buf = malloc(len);
++		if (!buf) {
++			/* can't call debug or we would recurse */
++			exit(1);
++		}
++	}
++
++	ret = vsprintf(buf, format, ap);
++
++	if (ret < 0) {
++		str[0] = 0;
++		return -1;
++	}
++
++	if (ret < n) {
++		n = ret;
++	} else if (ret > n) {
++		ret = -1;
++	}
++
++	buf[n] = 0;
++	
++	memcpy(str, buf, n+1);
++
++	return ret;
++#endif
++}
++
++
++/* like snprintf but always null terminates */
++int slprintf(char *str, int n, char *format, ...)
++{
++	va_list ap;  
++	int ret;
++
++	va_start(ap, format);
++	ret = vslprintf(str,n,format,ap);
++	va_end(ap);
++	return ret;
++}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/version.h	1998-05-15 15:55:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.4/version.h	1998-05-15 18:58:02.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.3"
++#define VERSION "2.0.4"

@@ -1,0 +1,14 @@
+void send_uid_list(int f);
+void recv_uid_list(int f, struct file_list *flist);
+void set_nonblocking(int fd);
+void set_blocking(int fd);
+int fd_pair(int fd[2]);
+void print_child_argv(char **cmd);
+NORETURN void out_of_memory(char *str);
+NORETURN void overflow_exit(char *str);
+int set_modtime(char *fname, time_t modtime, mode_t mode);
+int mkdir_defmode(char *fname);
+int create_directory_path(char *fname);
+int full_write(int desc, char *ptr, size_t len);
+int copy_file(const char *source, const char *dest, mode_t mode);
+int robust_unlink(const char *fname);

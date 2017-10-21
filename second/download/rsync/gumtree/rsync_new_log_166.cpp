@@ -1,0 +1,1 @@
+fprintf(FERROR,"built hash table\n");

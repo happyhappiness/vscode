@@ -1,0 +1,1 @@
+fprintf(f,"-c, --checksum           always checksum\n");

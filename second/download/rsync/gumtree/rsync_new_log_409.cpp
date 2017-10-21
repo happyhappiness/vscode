@@ -1,0 +1,1 @@
+hard_link_one(i);

@@ -1,0 +1,4185 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/backup.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/backup.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/backup.c	2008-03-02 04:01:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/backup.c	2008-05-23 07:44:01.000000000 +0800
+@@ -177,27 +177,37 @@
+ 	return 0;
+ }
+ 
+ /* robustly move a file, creating new directory structures if necessary */
+ static int robust_move(const char *src, char *dst)
+ {
+-	if (robust_rename(src, dst, NULL, 0755) < 0
+-	 && (errno != ENOENT || make_bak_dir(dst) < 0
+-	  || robust_rename(src, dst, NULL, 0755) < 0))
+-		return -1;
++	if (robust_rename(src, dst, NULL, 0755) < 0) {
++		int save_errno = errno ? errno : EINVAL; /* 0 paranoia */
++		if (errno == ENOENT && make_bak_dir(dst) == 0) {
++			if (robust_rename(src, dst, NULL, 0755) < 0)
++				save_errno = errno ? errno : save_errno;
++			else
++				save_errno = 0;
++		}
++		if (save_errno) {
++			errno = save_errno;
++			return -1;
++		}
++	}
+ 	return 0;
+ }
+ 
+ 
+ /* If we have a --backup-dir, then we get here from make_backup().
+  * We will move the file to be deleted into a parallel directory tree. */
+ static int keep_backup(const char *fname)
+ {
+ 	stat_x sx;
+ 	struct file_struct *file;
+ 	char *buf;
++	int save_preserve_xattrs = preserve_xattrs;
+ 	int kept = 0;
+ 	int ret_code;
+ 
+ 	/* return if no file to keep */
+ 	if (x_lstat(fname, &sx.st, NULL) < 0)
+ 		return 1;
+@@ -231,35 +241,50 @@
+ 	}
+ #endif
+ 
+ 	/* Check to see if this is a device file, or link */
+ 	if ((am_root && preserve_devices && IS_DEVICE(file->mode))
+ 	 || (preserve_specials && IS_SPECIAL(file->mode))) {
+-		uint32 *devp = F_RDEV_P(file);
+-		dev_t rdev = MAKEDEV(DEV_MAJOR(devp), DEV_MINOR(devp));
++		int save_errno;
+ 		do_unlink(buf);
+-		if (do_mknod(buf, file->mode, rdev) < 0
+-		    && (errno != ENOENT || make_bak_dir(buf) < 0
+-		     || do_mknod(buf, file->mode, rdev) < 0)) {
+-			rsyserr(FERROR, errno, "mknod %s failed",
+-				full_fname(buf));
+-		} else if (verbose > 2) {
++		if (do_mknod(buf, file->mode, sx.st.st_rdev) < 0) {
++			save_errno = errno ? errno : EINVAL; /* 0 paranoia */
++			if (errno == ENOENT && make_bak_dir(buf) == 0) {
++				if (do_mknod(buf, file->mode, sx.st.st_rdev) < 0)
++					save_errno = errno ? errno : save_errno;
++				else
++					save_errno = 0;
++			}
++			if (save_errno) {
++				rsyserr(FERROR, save_errno, "mknod %s failed",
++					full_fname(buf));
++			}
++		} else
++			save_errno = 0;
++		if (verbose > 2 && save_errno == 0) {
+ 			rprintf(FINFO, "make_backup: DEVICE %s successful.\n",
+ 				fname);
+ 		}
+ 		kept = 1;
+ 		do_unlink(fname);
+ 	}
+ 
+ 	if (!kept && S_ISDIR(file->mode)) {
+ 		/* make an empty directory */
+-		if (do_mkdir(buf, file->mode) < 0
+-		    && (errno != ENOENT || make_bak_dir(buf) < 0
+-		     || do_mkdir(buf, file->mode) < 0)) {
+-			rsyserr(FINFO, errno, "mkdir %s failed",
+-				full_fname(buf));
++		if (do_mkdir(buf, file->mode) < 0) {
++			int save_errno = errno ? errno : EINVAL; /* 0 paranoia */
++			if (errno == ENOENT && make_bak_dir(buf) == 0) {
++				if (do_mkdir(buf, file->mode) < 0)
++					save_errno = errno ? errno : save_errno;
++				else
++					save_errno = 0;
++			}
++			if (save_errno) {
++				rsyserr(FINFO, save_errno, "mkdir %s failed",
++					full_fname(buf));
++			}
+ 		}
+ 
+ 		ret_code = do_rmdir(fname);
+ 		if (verbose > 2) {
+ 			rprintf(FINFO, "make_backup: RMDIR %s returns %i\n",
+ 				full_fname(fname), ret_code);
+@@ -275,17 +300,24 @@
+ 				rprintf(FINFO, "ignoring unsafe symlink %s -> %s\n",
+ 					full_fname(buf), sl);
+ 			}
+ 			kept = 1;
+ 		} else {
+ 			do_unlink(buf);
+-			if (do_symlink(sl, buf) < 0
+-			    && (errno != ENOENT || make_bak_dir(buf) < 0
+-			     || do_symlink(sl, buf) < 0)) {
+-				rsyserr(FERROR, errno, "link %s -> \"%s\"",
+-					full_fname(buf), sl);
++			if (do_symlink(sl, buf) < 0) {
++				int save_errno = errno ? errno : EINVAL; /* 0 paranoia */
++				if (errno == ENOENT && make_bak_dir(buf) == 0) {
++					if (do_symlink(sl, buf) < 0)
++						save_errno = errno ? errno : save_errno;
++					else
++						save_errno = 0;
++				}
++				if (save_errno) {
++					rsyserr(FERROR, save_errno, "link %s -> \"%s\"",
++						full_fname(buf), sl);
++				}
+ 			}
+ 			do_unlink(fname);
+ 			kept = 1;
+ 		}
+ 	}
+ #endif
+@@ -305,13 +337,15 @@
+ 		} else if (sx.st.st_nlink > 1) {
+ 			/* If someone has hard-linked the file into the backup
+ 			 * dir, rename() might return success but do nothing! */
+ 			robust_unlink(fname); /* Just in case... */
+ 		}
+ 	}
++	preserve_xattrs = 0;
+ 	set_file_attrs(buf, file, NULL, fname, 0);
++	preserve_xattrs = save_preserve_xattrs;
+ 	unmake_file(file);
+ 
+ 	if (verbose > 1) {
+ 		rprintf(FINFO, "backed up %s to %s\n",
+ 			fname, buf);
+ 	}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/clientserver.c	2008-03-31 06:44:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/clientserver.c	2008-04-15 23:34:17.000000000 +0800
+@@ -118,14 +118,12 @@
+ 
+ 	fd = open_socket_out_wrapped(host, rsync_port, bind_address,
+ 				     default_af_hint);
+ 	if (fd == -1)
+ 		exit_cleanup(RERR_SOCKETIO);
+ 
+-	set_socket_options(fd, sockopts);
+-
+ #ifdef ICONV_CONST
+ 	setup_iconv();
+ #endif
+ 
+ 	ret = start_inband_exchange(fd, fd, user, remote_argc, remote_argv);
+ 
+@@ -928,16 +926,12 @@
+ 	addr = client_addr(f_in);
+ 	host = client_name(f_in);
+ 	rprintf(FLOG, "connect from %s (%s)\n", host, addr);
+ 
+ 	if (!am_server) {
+ 		set_socket_options(f_in, "SO_KEEPALIVE");
+-		if (sockopts)
+-			set_socket_options(f_in, sockopts);
+-		else
+-			set_socket_options(f_in, lp_socket_options());
+ 		set_nonblocking(f_in);
+ 	}
+ 
+ 	if (exchange_protocols(f_in, f_out, line, sizeof line, 0) < 0)
+ 		return -1;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/configure.in	2008-04-08 23:16:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/configure.in	2008-06-30 11:15:37.000000000 +0800
+@@ -2,13 +2,13 @@
+ 
+ AC_INIT()
+ AC_CONFIG_SRCDIR([byteorder.h])
+ AC_CONFIG_HEADER(config.h)
+ AC_PREREQ(2.59)
+ 
+-RSYNC_VERSION=3.0.2
++RSYNC_VERSION=3.0.3
+ AC_SUBST(RSYNC_VERSION)
+ AC_MSG_NOTICE([Configuring rsync $RSYNC_VERSION])
+ 
+ AC_DEFINE_UNQUOTED(RSYNC_VERSION, ["$RSYNC_VERSION"], [rsync release version])
+ 
+ LDFLAGS=${LDFLAGS-""}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/configure.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/configure.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/configure.sh	2008-04-08 23:17:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/configure.sh	2008-06-30 11:32:10.000000000 +0800
+@@ -1728,13 +1728,13 @@
+ 
+ 
+ ac_config_headers="$ac_config_headers config.h"
+ 
+ 
+ 
+-RSYNC_VERSION=3.0.2
++RSYNC_VERSION=3.0.3
+ 
+ { echo "$as_me:$LINENO: Configuring rsync $RSYNC_VERSION" >&5
+ echo "$as_me: Configuring rsync $RSYNC_VERSION" >&6;}
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/flist.c	2008-03-31 22:46:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/flist.c	2008-06-23 10:00:51.000000000 +0800
+@@ -635,13 +635,13 @@
+ 	static int in_del_hier = 0;
+ 	char thisname[MAXPATHLEN];
+ 	unsigned int l1 = 0, l2 = 0;
+ 	int alloc_len, basename_len, linkname_len;
+ 	int extra_len = file_extra_cnt * EXTRA_LEN;
+ 	int first_hlink_ndx = -1;
+-	OFF_T file_length;
++	int64 file_length;
+ 	const char *basename;
+ 	struct file_struct *file;
+ 	alloc_pool_t *pool;
+ 	char *bp;
+ 
+ 	if (xflags & XMIT_SAME_NAME)
+@@ -834,14 +834,20 @@
+ 		extra_len += EXTRA_LEN;
+ #endif
+ 
+ 	if (always_checksum && S_ISREG(mode))
+ 		extra_len += SUM_EXTRA_CNT * EXTRA_LEN;
+ 
++#if SIZEOF_INT64 >= 8
+ 	if (file_length > 0xFFFFFFFFu && S_ISREG(mode))
+ 		extra_len += EXTRA_LEN;
++#endif
++	if (file_length < 0) {
++		rprintf(FERROR, "Offset underflow: file-length is negative\n");
++		exit_cleanup(RERR_UNSUPPORTED);
++	}
+ 
+ 	if (inc_recurse && S_ISDIR(mode)) {
+ 		if (one_file_system) {
+ 			/* Room to save the dir's device for -x */
+ 			extra_len += DEV_EXTRA_CNT * EXTRA_LEN;
+ 		}
+@@ -868,16 +874,23 @@
+ #ifdef SUPPORT_HARD_LINKS
+ 	if (xflags & XMIT_HLINKED)
+ 		file->flags |= FLAG_HLINKED;
+ #endif
+ 	file->modtime = (time_t)modtime;
+ 	file->len32 = (uint32)file_length;
++#if SIZEOF_INT64 >= 8
+ 	if (file_length > 0xFFFFFFFFu && S_ISREG(mode)) {
++#if SIZEOF_CAPITAL_OFF_T < 8
++		rprintf(FERROR, "Offset overflow: attempted 64-bit file-length\n");
++		exit_cleanup(RERR_UNSUPPORTED);
++#else
+ 		file->flags |= FLAG_LENGTH64;
+ 		OPT_EXTRA(file, 0)->unum = (uint32)(file_length >> 32);
++#endif
+ 	}
++#endif
+ 	file->mode = mode;
+ 	if (preserve_uid)
+ 		F_OWNER(file) = uid;
+ 	if (preserve_gid) {
+ 		F_GROUP(file) = gid;
+ 		file->flags |= gid_flags;
+@@ -1006,13 +1019,18 @@
+ }
+ 
+ /* Create a file_struct for a named file by reading its stat() information
+  * and performing extensive checks against global options.
+  *
+  * Returns a pointer to the new file struct, or NULL if there was an error
+- * or this file should be excluded. */
++ * or this file should be excluded.
++ *
++ * Note: Any error (here or in send_file_name) that results in the omission of
++ * an existent source file from the file list should set
++ * "io_error |= IOERR_GENERAL" to avoid deletion of the file from the
++ * destination if --delete is on. */
+ struct file_struct *make_file(const char *fname, struct file_list *flist,
+ 			      STRUCT_STAT *stp, int flags, int filter_level)
+ {
+ 	static char *lastdir;
+ 	static int lastdir_len = -1;
+ 	struct file_struct *file;
+@@ -1020,16 +1038,16 @@
+ 	char linkname[MAXPATHLEN];
+ 	int alloc_len, basename_len, linkname_len;
+ 	int extra_len = file_extra_cnt * EXTRA_LEN;
+ 	const char *basename;
+ 	alloc_pool_t *pool;
+ 	STRUCT_STAT st;
+-	int excl_ret;
+ 	char *bp;
+ 
+ 	if (strlcpy(thisname, fname, sizeof thisname) >= sizeof thisname) {
++		io_error |= IOERR_GENERAL;
+ 		rprintf(FINFO, "skipping overly long name: %s\n", fname);
+ 		return NULL;
+ 	}
+ 	clean_fname(thisname, 0);
+ 	if (sanitize_paths)
+ 		sanitize_path(thisname, thisname, "", 0, SP_DEFAULT);
+@@ -1075,13 +1093,12 @@
+ 			rsyserr(FERROR_XFER, save_errno, "readlink %s failed",
+ 				full_fname(thisname));
+ 		}
+ 		return NULL;
+ 	}
+ 
+-	/* backup.c calls us with filter_level set to NO_FILTERS. */
+ 	if (filter_level == NO_FILTERS)
+ 		goto skip_filters;
+ 
+ 	if (S_ISDIR(st.st_mode)) {
+ 		if (!xfer_dirs) {
+ 			rprintf(FINFO, "skipping directory %s\n", thisname);
+@@ -1103,23 +1120,13 @@
+ 			flags |= FLAG_MOUNT_DIR;
+ 			flags &= ~FLAG_CONTENT_DIR;
+ 		}
+ 	} else
+ 		flags &= ~FLAG_CONTENT_DIR;
+ 
+-	if (S_ISDIR(st.st_mode)) {
+-		if (flags & FLAG_DOTDIR_NAME) {
+-			/* A "." fname (or "/." fname in relative mode) is
+-			 * never excluded.  No other trailing-dotdir names
+-			 * are possible. */
+-			excl_ret = 0;
+-		} else
+-			excl_ret = is_excluded(thisname, 1, filter_level);
+-	} else
+-		excl_ret = is_excluded(thisname, 0, filter_level);
+-	if (excl_ret) {
++	if (is_excluded(thisname, S_ISDIR(st.st_mode) != 0, filter_level)) {
+ 		if (ignore_perishable)
+ 			non_perishable_cnt++;
+ 		return NULL;
+ 	}
+ 
+ 	if (lp_ignore_nonreadable(module_id)) {
+@@ -1172,14 +1179,16 @@
+ #ifdef SUPPORT_LINKS
+ 	linkname_len = S_ISLNK(st.st_mode) ? strlen(linkname) + 1 : 0;
+ #else
+ 	linkname_len = 0;
+ #endif
+ 
++#if SIZEOF_CAPITAL_OFF_T >= 8
+ 	if (st.st_size > 0xFFFFFFFFu && S_ISREG(st.st_mode))
+ 		extra_len += EXTRA_LEN;
++#endif
+ 
+ #if EXTRA_ROUNDING > 0
+ 	if (extra_len & (EXTRA_ROUNDING * EXTRA_LEN))
+ 		extra_len = (extra_len | (EXTRA_ROUNDING * EXTRA_LEN)) + EXTRA_LEN;
+ #endif
+ 
+@@ -1218,16 +1227,18 @@
+ 	}
+ #endif
+ 
+ 	file->flags = flags;
+ 	file->modtime = st.st_mtime;
+ 	file->len32 = (uint32)st.st_size;
++#if SIZEOF_CAPITAL_OFF_T >= 8
+ 	if (st.st_size > 0xFFFFFFFFu && S_ISREG(st.st_mode)) {
+ 		file->flags |= FLAG_LENGTH64;
+ 		OPT_EXTRA(file, 0)->unum = (uint32)(st.st_size >> 32);
+ 	}
++#endif
+ 	file->mode = st.st_mode;
+ 	if (uid_ndx) /* Check uid_ndx instead of preserve_uid for del support */
+ 		F_OWNER(file) = st.st_uid;
+ 	if (gid_ndx) /* Check gid_ndx instead of preserve_gid for del support */
+ 		F_GROUP(file) = st.st_gid;
+ 
+@@ -1333,21 +1344,25 @@
+ 			f_name(file, fbuf);
+ 
+ #ifdef SUPPORT_ACLS
+ 		if (preserve_acls && !S_ISLNK(file->mode)) {
+ 			sx.st.st_mode = file->mode;
+ 			sx.acc_acl = sx.def_acl = NULL;
+-			if (get_acl(fname, &sx) < 0)
++			if (get_acl(fname, &sx) < 0) {
++				io_error |= IOERR_GENERAL;
+ 				return NULL;
++			}
+ 		}
+ #endif
+ #ifdef SUPPORT_XATTRS
+ 		if (preserve_xattrs) {
+ 			sx.xattr = NULL;
+-			if (get_xattr(fname, &sx) < 0)
++			if (get_xattr(fname, &sx) < 0) {
++				io_error |= IOERR_GENERAL;
+ 				return NULL;
++			}
+ 		}
+ #endif
+ 
+ 		send_file_entry(f, fbuf, file, flist->used, flist->ndx_start);
+ 
+ #ifdef SUPPORT_ACLS
+@@ -1850,13 +1865,13 @@
+ 	char *p, *dir;
+ 	struct file_list *flist;
+ 	struct timeval start_tv, end_tv;
+ 	int64 start_write;
+ 	int use_ff_fd = 0;
+ 	int disable_buffering;
+-	int arg_flags, flags = recurse ? FLAG_CONTENT_DIR : 0;
++	int flags = recurse ? FLAG_CONTENT_DIR : 0;
+ 	int reading_remotely = filesfrom_host != NULL;
+ 	int rl_flags = (reading_remotely ? 0 : RL_DUMP_COMMENTS)
+ #ifdef ICONV_OPTION
+ 		     | (filesfrom_convert ? RL_CONVERT : 0)
+ #endif
+ 		     | (eol_nulls || reading_remotely ? RL_EOL_NULLS : 0);
+@@ -2032,12 +2047,17 @@
+ 			io_error |= IOERR_GENERAL;
+ 			rsyserr(FERROR_XFER, errno, "link_stat %s failed",
+ 				full_fname(fbuf));
+ 			continue;
+ 		}
+ 
++		/* A dot-dir should not be excluded! */
++		if (name_type != DOTDIR_NAME
++		 && is_excluded(fbuf, S_ISDIR(st.st_mode) != 0, ALL_FILTERS))
++			continue;
++
+ 		if (S_ISDIR(st.st_mode) && !xfer_dirs) {
+ 			rprintf(FINFO, "skipping directory %s\n", fbuf);
+ 			continue;
+ 		}
+ 
+ 		if (inc_recurse && relative_paths && *fbuf) {
+@@ -2057,19 +2077,17 @@
+ 			send_implied_dirs(f, flist, fbuf, fbuf, p, flags, 0);
+ 		}
+ 
+ 		if (one_file_system)
+ 			filesystem_dev = st.st_dev;
+ 
+-		arg_flags = name_type == DOTDIR_NAME ? FLAG_DOTDIR_NAME : 0;
+-
+ 		if (recurse || (xfer_dirs && name_type != NORMAL_NAME)) {
+ 			struct file_struct *file;
+-			arg_flags |= FLAG_TOP_DIR | FLAG_CONTENT_DIR;
+ 			file = send_file_name(f, flist, fbuf, &st,
+-					      arg_flags | flags, ALL_FILTERS);
++					      FLAG_TOP_DIR | FLAG_CONTENT_DIR | flags,
++					      NO_FILTERS);
+ 			if (!file)
+ 				continue;
+ 			if (inc_recurse) {
+ 				if (name_type == DOTDIR_NAME) {
+ 					if (send_dir_depth < 0) {
+ 						send_dir_depth = 0;
+@@ -2077,13 +2095,13 @@
+ 					}
+ 					send_directory(f, flist, fbuf, len, flags);
+ 				}
+ 			} else
+ 				send_if_directory(f, flist, file, fbuf, len, flags);
+ 		} else
+-			send_file_name(f, flist, fbuf, &st, arg_flags | flags, ALL_FILTERS);
++			send_file_name(f, flist, fbuf, &st, flags, NO_FILTERS);
+ 	}
+ 
+ 	gettimeofday(&end_tv, NULL);
+ 	stats.flist_buildtime = (int64)(end_tv.tv_sec - start_tv.tv_sec) * 1000
+ 			      + (end_tv.tv_usec - start_tv.tv_usec) / 1000;
+ 	if (stats.flist_buildtime == 0)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/generator.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/generator.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/generator.c	2008-03-29 01:30:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/generator.c	2008-06-26 23:14:11.000000000 +0800
+@@ -694,14 +694,17 @@
+ 			write_shortint(sock_f_out, iflags);
+ 			if (iflags & ITEM_BASIS_TYPE_FOLLOWS)
+ 				write_byte(sock_f_out, fnamecmp_type);
+ 			if (iflags & ITEM_XNAME_FOLLOWS)
+ 				write_vstring(sock_f_out, xname, strlen(xname));
+ #ifdef SUPPORT_XATTRS
+-			if (iflags & ITEM_REPORT_XATTR && !dry_run)
+-				send_xattr_request(NULL, file, sock_f_out);
++			if (preserve_xattrs && !dry_run
++			 && iflags & (ITEM_REPORT_XATTR|ITEM_TRANSFER)) {
++				send_xattr_request(NULL, file,
++					iflags & ITEM_REPORT_XATTR ? sock_f_out : -1);
++			}
+ #endif
+ 		} else if (ndx >= 0) {
+ 			enum logcode code = logfile_format_has_i ? FINFO : FCLIENT;
+ 			log_item(code, file, &stats, iflags, xname);
+ 		}
+ 	}
+@@ -750,24 +753,25 @@
+  * This might be made one of several selectable heuristics.
+  */
+ static void sum_sizes_sqroot(struct sum_struct *sum, int64 len)
+ {
+ 	int32 blength;
+ 	int s2length;
++	int64 l;
+ 
+ 	if (block_size)
+ 		blength = block_size;
+ 	else if (len <= BLOCK_SIZE * BLOCK_SIZE)
+ 		blength = BLOCK_SIZE;
+ 	else {
++		int32 max_blength = protocol_version < 30 ? OLD_MAX_BLOCK_SIZE : MAX_BLOCK_SIZE;
+ 		int32 c;
+-		int64 l;
+ 		int cnt;
+ 		for (c = 1, l = len, cnt = 0; l >>= 2; c <<= 1, cnt++) {}
+-		if (cnt >= 31 || c >= MAX_BLOCK_SIZE)
+-			blength = MAX_BLOCK_SIZE;
++		if (c < 0 || c >= max_blength)
++			blength = max_blength;
+ 		else {
+ 		    blength = 0;
+ 		    do {
+ 			    blength |= c;
+ 			    if (len < (int64)blength * blength)
+ 				    blength &= ~c;
+@@ -780,13 +784,12 @@
+ 	if (protocol_version < 27) {
+ 		s2length = csum_length;
+ 	} else if (csum_length == SUM_LENGTH) {
+ 		s2length = SUM_LENGTH;
+ 	} else {
+ 		int32 c;
+-		int64 l;
+ 		int b = BLOCKSUM_BIAS;
+ 		for (l = len; l >>= 1; b += 2) {}
+ 		for (c = blength; (c >>= 1) && b; b--) {}
+ 		/* add a bit, subtract rollsum, round up. */
+ 		s2length = (b + 1 - 32 + 7) / 8; /* --optimize in compiler-- */
+ 		s2length = MAX(s2length, csum_length);
+@@ -794,13 +797,16 @@
+ 	}
+ 
+ 	sum->flength	= len;
+ 	sum->blength	= blength;
+ 	sum->s2length	= s2length;
+ 	sum->remainder	= (int32)(len % blength);
+-	sum->count	= (int32)(len / blength) + (sum->remainder != 0);
++	sum->count	= (int32)(l = (len / blength) + (sum->remainder != 0));
++
++	if ((int64)sum->count != l)
++		sum->count = -1;
+ 
+ 	if (sum->count && verbose > 2) {
+ 		rprintf(FINFO,
+ 			"count=%.0f rem=%ld blength=%ld s2length=%d flength=%.0f\n",
+ 			(double)sum->count, (long)sum->remainder, (long)sum->blength,
+ 			sum->s2length, (double)sum->flength);
+@@ -810,24 +816,26 @@
+ 
+ /*
+  * Generate and send a stream of signatures/checksums that describe a buffer
+  *
+  * Generate approximately one checksum every block_len bytes.
+  */
+-static void generate_and_send_sums(int fd, OFF_T len, int f_out, int f_copy)
++static int generate_and_send_sums(int fd, OFF_T len, int f_out, int f_copy)
+ {
+ 	int32 i;
+ 	struct map_struct *mapbuf;
+ 	struct sum_struct sum;
+ 	OFF_T offset = 0;
+ 
+ 	sum_sizes_sqroot(&sum, len);
++	if (sum.count < 0)
++		return -1;
+ 	write_sum_head(f_out, &sum);
+ 
+ 	if (append_mode > 0 && f_copy < 0)
+-		return;
++		return 0;
+ 
+ 	if (len > 0)
+ 		mapbuf = map_file(fd, len, MAX_MAP_SIZE, sum.blength);
+ 	else
+ 		mapbuf = NULL;
+ 
+@@ -858,12 +866,14 @@
+ 		write_int(f_out, sum1);
+ 		write_buf(f_out, sum2, sum.s2length);
+ 	}
+ 
+ 	if (mapbuf)
+ 		unmap_file(mapbuf);
++
++	return 0;
+ }
+ 
+ 
+ /* Try to find a filename in the same dir as "fname" with a similar name. */
+ static int find_fuzzy(struct file_struct *file, struct file_list *dirlist)
+ {
+@@ -919,12 +929,13 @@
+ 
+ /* Copy a file found in our --copy-dest handling. */
+ static int copy_altdest_file(const char *src, const char *dest, struct file_struct *file)
+ {
+ 	char buf[MAXPATHLEN];
+ 	const char *copy_to, *partialptr;
++	int save_preserve_xattrs = preserve_xattrs;
+ 	int ok, fd_w;
+ 
+ 	if (inplace) {
+ 		/* Let copy_file open the destination in place. */
+ 		fd_w = -1;
+ 		copy_to = dest;
+@@ -943,13 +954,15 @@
+ 		/* Try to clean up. */
+ 		unlink(copy_to);
+ 		cleanup_disable();
+ 		return -1;
+ 	}
+ 	partialptr = partial_dir ? partial_dir_fname(dest) : NULL;
++	preserve_xattrs = 0; /* xattrs were copied with file */
+ 	ok = finish_transfer(dest, copy_to, src, partialptr, file, 1, 0);
++	preserve_xattrs = save_preserve_xattrs;
+ 	cleanup_disable();
+ 	return ok ? 0 : -1;
+ }
+ 
+ /* This is only called for regular files.  We return -2 if we've finished
+  * handling the file, -1 if no dest-linking occurred, or a non-negative
+@@ -1281,13 +1294,13 @@
+ #endif
+ 			return;
+ 		}
+ 		skip_dir = NULL;
+ 	}
+ 
+-	if (daemon_filter_list.head) {
++	if (daemon_filter_list.head && (*fname != '.' || fname[1])) {
+ 		if (check_filter(&daemon_filter_list, FLOG, fname, is_dir) < 0) {
+ 			if (is_dir < 0)
+ 				return;
+ #ifdef SUPPORT_HARD_LINKS
+ 			if (F_IS_HLINKED(file))
+ 				handle_skipped_hlink(file, itemizing, code, f_out);
+@@ -1429,12 +1442,13 @@
+ 		if (statret != 0 && basis_dir[0] != NULL) {
+ 			int j = try_dests_non(file, fname, ndx, fnamecmpbuf, &sx,
+ 					      itemizing, code);
+ 			if (j == -2) {
+ 				itemizing = 0;
+ 				code = FNONE;
++				statret = 1;
+ 			} else if (j >= 0)
+ 				statret = 1;
+ 		}
+ 		if (itemizing && f_out != -1) {
+ 			itemize(fname, file, ndx, statret, &sx,
+ 				statret ? ITEM_LOCAL_CHANGE : 0, 0, NULL);
+@@ -1451,12 +1465,16 @@
+ 				    "*** Skipping any contents from this failed directory ***\n");
+ 				skip_dir = file;
+ 				file->flags |= FLAG_MISSING_DIR;
+ 				goto cleanup;
+ 			}
+ 		}
++#ifdef SUPPORT_XATTRS
++		if (preserve_xattrs && statret == 1)
++			copy_xattrs(fnamecmpbuf, fname);
++#endif
+ 		if (set_file_attrs(fname, file, real_ret ? NULL : &real_sx, NULL, 0)
+ 		    && verbose && code != FNONE && f_out != -1)
+ 			rprintf(code, "%s/\n", fname);
+ 
+ 		/* We need to ensure that the dirs in the transfer have writable
+ 		 * permissions during the time we are putting files within them.
+@@ -1865,21 +1883,27 @@
+ 				full_fname(backupptr));
+ 			unmake_file(back_file);
+ 			back_file = NULL;
+ 			close(fd);
+ 			goto cleanup;
+ 		}
+-		if ((f_copy = do_open(backupptr, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, 0600)) < 0
+-		 && (errno != ENOENT || make_bak_dir(backupptr) < 0
+-		  || (f_copy = do_open(backupptr, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, 0600)) < 0)) {
+-			rsyserr(FERROR_XFER, errno, "open %s",
+-				full_fname(backupptr));
+-			unmake_file(back_file);
+-			back_file = NULL;
+-			close(fd);
+-			goto cleanup;
++		if ((f_copy = do_open(backupptr, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, 0600)) < 0) {
++			int save_errno = errno ? errno : EINVAL; /* 0 paranoia */
++			if (errno == ENOENT && make_bak_dir(backupptr) == 0) {
++				if ((f_copy = do_open(backupptr, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, 0600)) < 0)
++					save_errno = errno ? errno : save_errno;
++				else
++					save_errno = 0;
++			}
++			if (save_errno) {
++				rsyserr(FERROR_XFER, save_errno, "open %s", full_fname(backupptr));
++				unmake_file(back_file);
++				back_file = NULL;
++				close(fd);
++				goto cleanup;
++			}
+ 		}
+ 		fnamecmp_type = FNAMECMP_BACKUP;
+ 	}
+ 
+ 	if (verbose > 3) {
+ 		rprintf(FINFO, "gen mapped %s of size %.0f\n",
+@@ -1928,22 +1952,38 @@
+ 	}
+ 	if (read_batch)
+ 		goto cleanup;
+ 
+ 	if (statret != 0 || whole_file)
+ 		write_sum_head(f_out, NULL);
+-	else {
+-		generate_and_send_sums(fd, sx.st.st_size, f_out, f_copy);
++	else if (sx.st.st_size <= 0) {
++		write_sum_head(f_out, NULL);
++		close(fd);
++	} else {
++		if (generate_and_send_sums(fd, sx.st.st_size, f_out, f_copy) < 0) {
++			rprintf(FWARNING,
++			    "WARNING: file is too large for checksum sending: %s\n",
++			    fnamecmp);
++			write_sum_head(f_out, NULL);
++		}
+ 		close(fd);
+ 	}
+ 
+   cleanup:
+ 	if (back_file) {
++		int save_preserve_xattrs = preserve_xattrs;
+ 		if (f_copy >= 0)
+ 			close(f_copy);
++#ifdef SUPPORT_XATTRS
++		if (preserve_xattrs) {
++			copy_xattrs(fname, backupptr);
++			preserve_xattrs = 0;
++		}
++#endif
+ 		set_file_attrs(backupptr, back_file, NULL, NULL, 0);
++		preserve_xattrs = save_preserve_xattrs;
+ 		if (verbose > 1) {
+ 			rprintf(FINFO, "backed up %s to %s\n",
+ 				fname, backupptr);
+ 		}
+ 		unmake_file(back_file);
+ 	}
+@@ -2176,13 +2216,16 @@
+ 				wait_for_receiver();
+ 		}
+ #endif
+ 
+ 		if (inc_recurse && cur_flist->parent_ndx >= 0) {
+ 			struct file_struct *fp = dir_flist->files[cur_flist->parent_ndx];
+-			f_name(fp, fbuf);
++			if (solo_file)
++				strlcpy(fbuf, solo_file, sizeof fbuf);
++			else
++				f_name(fp, fbuf);
+ 			ndx = cur_flist->ndx_start - 1;
+ 			recv_generator(fbuf, fp, ndx, itemizing, code, f_out);
+ 			if (delete_during && dry_run < 2 && !list_only
+ 			 && !(fp->flags & FLAG_MISSING_DIR)) {
+ 				if (fp->flags & FLAG_CONTENT_DIR) {
+ 					dev_t dirdev;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/hashtable.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/hashtable.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/hashtable.c	2008-03-02 04:01:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/hashtable.c	2008-06-04 23:15:51.000000000 +0800
+@@ -101,13 +101,15 @@
+ 		uint32 a, b, c;
+ 
+ 		/* Set up the internal state */
+ 		a = b = c = 0xdeadbeef + (8 << 2);
+ 
+ #define rot(x,k) (((x)<<(k)) ^ ((x)>>(32-(k))))
++#if SIZEOF_INT64 >= 8
+ 		b += (uint32)(key >> 32);
++#endif
+ 		a += (uint32)key;
+ 		c ^= b; c -= rot(b, 14);
+ 		a ^= c; a -= rot(c, 11);
+ 		b ^= a; b -= rot(a, 25);
+ 		c ^= b; c -= rot(b, 16);
+ 		a ^= c; a -= rot(c, 4);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/hlink.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/hlink.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/hlink.c	2008-03-27 07:12:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/hlink.c	2008-04-29 12:17:36.000000000 +0800
+@@ -34,13 +34,13 @@
+ extern int protocol_version;
+ extern int remove_source_files;
+ extern int stdout_format_has_i;
+ extern int maybe_ATTRS_REPORT;
+ extern int unsort_ndx;
+ extern char *basis_dir[];
+-extern struct file_list *cur_flist;
++extern struct file_list *cur_flist, *first_flist;
+ 
+ #ifdef SUPPORT_HARD_LINKS
+ 
+ /* Starting with protocol 30, we use a simple hashtable on the sending side
+  * for hashing the st_dev and st_ino info.  The receiving side gets told
+  * (via flags and a "group index") which items are hard-linked together, so
+@@ -263,13 +263,14 @@
+ 			*flist_p = flist;
+ 			return NULL;
+ 		}
+ 		F_HL_PREV(file) = prev_ndx = F_HL_PREV(fp);
+ 	}
+ 
+-	if ((node = hashtable_find(prior_hlinks, gnum, 0)) != NULL) {
++	if (inc_recurse
++	 && (node = hashtable_find(prior_hlinks, gnum, 0)) != NULL) {
+ 		assert(node->data != NULL);
+ 		if (CVAL(node->data, 0) != 0) {
+ 			*prev_ndx_p = -1;
+ 			*flist_p = NULL;
+ 			return node->data;
+ 		}
+@@ -443,13 +444,13 @@
+ void finish_hard_link(struct file_struct *file, const char *fname, int fin_ndx,
+ 		      STRUCT_STAT *stp, int itemizing, enum logcode code,
+ 		      int alt_dest)
+ {
+ 	stat_x prev_sx;
+ 	STRUCT_STAT st;
+-	char alt_name[MAXPATHLEN], *prev_name;
++	char prev_name[MAXPATHLEN], alt_name[MAXPATHLEN];
+ 	const char *our_name;
+ 	struct file_list *flist;
+ 	int prev_statret, ndx, prev_ndx = F_HL_PREV(file);
+ 
+ 	if (stp == NULL && prev_ndx >= 0) {
+ 		if (link_stat(fname, &st, 0) < 0) {
+@@ -474,19 +475,26 @@
+ 	prev_sx.acc_acl = prev_sx.def_acl = NULL;
+ #endif
+ 
+ 	while ((ndx = prev_ndx) >= 0) {
+ 		int val;
+ 		flist = flist_for_ndx(ndx);
+-		assert(flist != NULL);
++		if (flist == NULL) {
++			int start1 = first_flist ? first_flist->ndx_start : 0;
++			int start2 = first_flist ? first_flist->prev->ndx_start : 0;
++			int used = first_flist ? first_flist->prev->used : 0;
++			rprintf(FERROR,
++				"File index not found: %d (%d - %d)\n",
++				ndx, start1 - 1, start2 + used - 1);
++			exit_cleanup(RERR_PROTOCOL);
++		}
+ 		file = flist->files[ndx - flist->ndx_start];
+ 		file->flags = (file->flags & ~FLAG_HLINK_FIRST) | FLAG_HLINK_DONE;
+ 		prev_ndx = F_HL_PREV(file);
+ 		F_HL_PREV(file) = fin_ndx;
+-		prev_name = f_name(file, NULL);
+-		prev_statret = link_stat(prev_name, &prev_sx.st, 0);
++		prev_statret = link_stat(f_name(file, prev_name), &prev_sx.st, 0);
+ 		val = maybe_hard_link(file, ndx, prev_name, prev_statret, &prev_sx,
+ 				      our_name, stp, fname, itemizing, code);
+ 		flist->in_progress--;
+ #ifdef SUPPORT_ACLS
+ 		if (preserve_acls)
+ 			free_acl(&prev_sx);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/io.c	2008-03-25 00:54:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/io.c	2008-06-24 00:17:55.000000000 +0800
+@@ -1351,20 +1351,21 @@
+ }
+ 
+ /* Populate a sum_struct with values from the socket.  This is
+  * called by both the sender and the receiver. */
+ void read_sum_head(int f, struct sum_struct *sum)
+ {
++	int32 max_blength = protocol_version < 30 ? OLD_MAX_BLOCK_SIZE : MAX_BLOCK_SIZE;
+ 	sum->count = read_int(f);
+ 	if (sum->count < 0) {
+ 		rprintf(FERROR, "Invalid checksum count %ld [%s]\n",
+ 			(long)sum->count, who_am_i());
+ 		exit_cleanup(RERR_PROTOCOL);
+ 	}
+ 	sum->blength = read_int(f);
+-	if (sum->blength < 0 || sum->blength > MAX_BLOCK_SIZE) {
++	if (sum->blength < 0 || sum->blength > max_blength) {
+ 		rprintf(FERROR, "Invalid block length %ld [%s]\n",
+ 			(long)sum->blength, who_am_i());
+ 		exit_cleanup(RERR_PROTOCOL);
+ 	}
+ 	sum->s2length = protocol_version < 27 ? csum_length : (int)read_int(f);
+ 	if (sum->s2length < 0 || sum->s2length > MAX_DIGEST_LEN) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/log.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/log.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/log.c	2008-03-11 12:39:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/log.c	2008-06-05 00:01:02.000000000 +0800
+@@ -34,12 +34,13 @@
+ extern int msg_fd_out;
+ extern int allow_8bit_chars;
+ extern int protocol_version;
+ extern int preserve_times;
+ extern int uid_ndx;
+ extern int gid_ndx;
++extern int progress_is_active;
+ extern int stdout_format_has_i;
+ extern int stdout_format_has_o_or_i;
+ extern int logfile_format_has_i;
+ extern int logfile_format_has_o_or_i;
+ extern int receiver_symlink_times;
+ extern mode_t orig_umask;
+@@ -317,12 +318,17 @@
+ 		f = am_server ? stderr : stdout;
+ 		break;
+ 	default:
+ 		exit_cleanup(RERR_MESSAGEIO);
+ 	}
+ 
++	if (progress_is_active && !am_server) {
++		fputc('\n', f);
++		progress_is_active = 0;
++	}
++
+ 	trailing_CR_or_NL = len && (buf[len-1] == '\n' || buf[len-1] == '\r')
+ 			  ? buf[--len] : 0;
+ 
+ #ifdef ICONV_CONST
+ 	if (ic != (iconv_t)-1) {
+ 		xbuf outbuf, inbuf;
+@@ -514,13 +520,13 @@
+ 			snprintf(buf2, sizeof buf2, fmt,
+ 				 (long)getpid());
+ 			n = buf2;
+ 			break;
+ 		case 'M':
+ 			n = c = timestring(file->modtime);
+-			while ((c = strchr(p, ' ')) != NULL)
++			while ((c = strchr(c, ' ')) != NULL)
+ 				*c = '-';
+ 			break;
+ 		case 'B':
+ 			c = buf2 + MAXPATHLEN - PERMSTRING_SIZE - 1;
+ 			permstring(c, file->mode);
+ 			n = c + 1; /* skip the type char */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/main.c	2008-03-31 06:44:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/main.c	2008-06-01 05:51:38.000000000 +0800
+@@ -504,18 +504,27 @@
+ 			file_total, NS(dest_path));
+ 	}
+ 
+ 	if (!dest_path || list_only)
+ 		return NULL;
+ 
+-	if (daemon_filter_list.head
+-	 && (check_filter(&daemon_filter_list, FLOG, dest_path, 0 != 0) < 0
+-	  || check_filter(&daemon_filter_list, FLOG, dest_path, 1 != 0) < 0)) {
+-		rprintf(FERROR, "skipping daemon-excluded destination \"%s\"\n",
+-			dest_path);
+-		exit_cleanup(RERR_FILESELECT);
++	if (daemon_filter_list.head) {
++		char *slash = strrchr(dest_path, '/');
++		if (slash && (slash[1] == '\0' || (slash[1] == '.' && slash[2] == '\0')))
++			*slash = '\0';
++		else
++			slash = NULL;
++		if ((*dest_path != '.' || dest_path[1] != '\0')
++		 && (check_filter(&daemon_filter_list, FLOG, dest_path, 0) < 0
++		  || check_filter(&daemon_filter_list, FLOG, dest_path, 1) < 0)) {
++			rprintf(FERROR, "skipping daemon-excluded destination \"%s\"\n",
++				dest_path);
++			exit_cleanup(RERR_FILESELECT);
++		}
++		if (slash)
++			*slash = '/';
+ 	}
+ 
+ 	/* See what currently exists at the destination. */
+ 	if ((statret = do_stat(dest_path, &st)) == 0) {
+ 		/* If the destination is a dir, enter it and use mode 1. */
+ 		if (S_ISDIR(st.st_mode)) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/Makefile.in	2008-03-21 14:30:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/Makefile.in	2008-06-23 09:26:15.000000000 +0800
+@@ -63,14 +63,14 @@
+ 
+ install: all
+ 	-mkdir -p ${DESTDIR}${bindir}
+ 	${INSTALLCMD} ${INSTALL_STRIP} -m 755 rsync$(EXEEXT) ${DESTDIR}${bindir}
+ 	-mkdir -p ${DESTDIR}${mandir}/man1
+ 	-mkdir -p ${DESTDIR}${mandir}/man5
+-	if test -f $(srcdir)/rsync.1; then ${INSTALLMAN} -m 644 $(srcdir)/rsync.1 ${DESTDIR}${mandir}/man1; fi
+-	if test -f $(srcdir)/rsyncd.conf.5; then ${INSTALLMAN} -m 644 $(srcdir)/rsyncd.conf.5 ${DESTDIR}${mandir}/man5; fi
++	if test -f rsync.1; then ${INSTALLMAN} -m 644 rsync.1 ${DESTDIR}${mandir}/man1; fi
++	if test -f rsyncd.conf.5; then ${INSTALLMAN} -m 644 rsyncd.conf.5 ${DESTDIR}${mandir}/man5; fi
+ 
+ install-strip:
+ 	$(MAKE) INSTALL_STRIP='-s' install
+ 
+ rsync$(EXEEXT): $(OBJS)
+ 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $(LIBS)
+@@ -143,18 +143,20 @@
+ 	@echo "Makefile updated -- rerun your make command."
+ 	@exit 1
+ 
+ proto: proto.h-tstamp
+ 
+ proto.h: proto.h-tstamp
+-	@echo ' ' >/dev/null
++	@if test -f proto.h; then :; else cp -p $(srcdir)/proto.h .; fi
+ 
+ proto.h-tstamp: $(srcdir)/*.c $(srcdir)/lib/compat.c
+ 	perl $(srcdir)/mkproto.pl $(srcdir)/*.c $(srcdir)/lib/compat.c
+ 
+ man: rsync.1 rsyncd.conf.5
++	@if test -f rsync.1; then :; else cp -p $(srcdir)/rsync.1 .; fi
++	@if test -f rsyncd.conf.5; then :; else cp -p $(srcdir)/rsyncd.conf.5 .; fi
+ 
+ rsync.1: rsync.yo
+ 	yodl2man -o rsync.1 $(srcdir)/rsync.yo
+ 	-$(srcdir)/tweak_manpage rsync.1
+ 
+ rsyncd.conf.5: rsyncd.conf.yo
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/NEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/NEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/NEWS	2008-04-08 23:16:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/NEWS	2008-06-30 11:15:37.000000000 +0800
+@@ -1,18 +1,89 @@
+-NEWS for rsync 3.0.2 (8 Apr 2008)
++NEWS for rsync 3.0.3 (29 Jun 2008)
+ Protocol: 30 (unchanged)
+-Changes since 3.0.1:
++Changes since 3.0.2:
+ 
+   BUG FIXES:
+ 
+-    - Fixed a potential buffer overflow in the xattr code.
++    - Fixed a wildcard matching problem in the daemon when a module has
++      "use chroot" enabled.
++
++    - Fixed a crash bug in the hard-link code.
++
++    - Fixed the sending of xattr directory information when the code finds a
++      --link-dest or --copy-dest directory with unchanged xattrs -- the
++      destination directory now gets these unchanged xattrs properly applied.
++
++    - Fixed an xattr-sending glitch that could cause an "Internal abbrev"
++      error.
++
++    - Fixed the combination of --xattrs and --backup.
++
++    - The generator no longer allows a '.' dir to be excluded by a daemon-
++      exclude rule.
++
++    - Fixed deletion handling when copying a single, empty directory (with no
++      files) to a differently named, non-existent directory.
++
++    - Fixed the conversion of spaces into dashes in the %M log escape.
++
++    - Fixed several places in the code that were not returning the right
++      errno when a function failed.
++
++    - Fixed the backing up of a device or special file into a backup dir.
++
++    - Moved the setting of the socket options prior to the connect().
++
++    - If rsync exits in the middle of a --progress output, it now outputs a
++      newline to help prevent the progress line from being overwritten.
++
++    - Fixed a problem with how a destination path with a trailing slash or
++      a trailing dot-dir was compared against the daemon excludes.
++
++    - Fixed the sending of large (size > 16GB) files when talking to an older
++      rsync (protocols < 30):  we now use a compatible block size limit.
++
++    - If a file's length is so huge that we overflow a checksum buffer count
++      (i.e. several hundred TB), warn the user and avoid sending an invalid
++      checksum struct over the wire.
++
++    - If a source arg is excluded, --relative no longer adds the excluded
++      arg's implied dirs to the transfer.  This fix also made the exclude
++      check happen in the better place in the sending code.
++
++    - Use the overflow_exit() function for overflows, not out_of_memory().
++
++    - Improved the code to better handle a system that has only 32-bit file
++      offsets.
+ 
+   ENHANCEMENTS:
+ 
+-    - None.
++    - The rsyncd.conf manpage now consistently refers to the parameters in
++      the daemon config file as "parameters".
++
++    - The description of the --inplace option was improved.
++
++  EXTRAS:
++
++    - Added a new script in the support directory, deny-rsync, which allows
++      an admin to (temporarily) replace the rsync command with a script that
++      sends an error message to the remote client via the rsync protocol.
+ 
+   DEVELOPER RELATED:
+ 
+-    - The RPM spec file was improved to install more useful files.
++    - Fixed a testcase failure if the tests are run as root and made some
++      compatibility improvements.
++
++    - Improved the daemon tests, including checking module comments, the
++      listing of files, and the ensuring that daemon excludes can't affect
++      a dot-dir arg.
++
++    - Improved some build rules for those that build in a separate directory
++      from the source, including better install rules for the man pages, and
++      the fixing of a proto.h-tstamp rule that could make the binaries get
++      rebuild without cause.
++
++    - Improved the testsuite to work around a problem with some utilities
++      (e.g. cp -p & touch -r) rounding sub-second timestamps.
+ 
+-    - A few developer-oriented scripts were moved from the support dir
+-      to the packaging dir.
++    - Ensure that the early patches don't cause any generated-file hunks to
++      bleed-over into patches that follow.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/OLDNEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/OLDNEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/OLDNEWS	2008-04-08 23:16:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/OLDNEWS	2008-06-30 11:15:37.000000000 +0800
+@@ -1,6 +1,26 @@
++NEWS for rsync 3.0.2 (8 Apr 2008)
++Protocol: 30 (unchanged)
++Changes since 3.0.1:
++
++  BUG FIXES:
++
++    - Fixed a potential buffer overflow in the xattr code.
++
++  ENHANCEMENTS:
++
++    - None.
++
++  DEVELOPER RELATED:
++
++    - The RPM spec file was improved to install more useful files.
++
++    - A few developer-oriented scripts were moved from the support dir
++      to the packaging dir.
++
++
+ NEWS for rsync 3.0.1 (3 Apr 2008)
+ Protocol: 30 (unchanged)
+ Changes since 3.0.0:
+ 
+   NOTABLE CHANGES IN BEHAVIOR:
+ 
+@@ -2722,12 +2742,13 @@
+     * The existing test.sh script by Phil Hands has been merged into a
+       test framework that works from both "make check" and the Samba
+       build farm.
+ 
+ Partial Protocol History
+ 	RELEASE DATE	VER.	DATE OF COMMIT*	PROTOCOL
++	29 Jun 2008	3.0.3			30
+ 	08 Apr 2008	3.0.2			30
+ 	03 Apr 2008	3.0.1			30
+ 	01 Mar 2008	3.0.0	11 Nov 2006	30
+ 	06 Nov 2006	2.6.9			29
+ 	22 Apr 2006	2.6.8			29
+ 	11 Mar 2006	2.6.7			29
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging/lsb/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/packaging/lsb/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging/lsb/rsync.spec	2008-04-08 23:16:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/packaging/lsb/rsync.spec	2008-06-30 11:15:37.000000000 +0800
+@@ -1,9 +1,9 @@
+ Summary: A fast, versatile, remote (and local) file-copying tool
+ Name: rsync
+-Version: 3.0.2
++Version: 3.0.3
+ %define fullversion %{version}
+ Release: 1
+ %define srcdir src
+ Group: Applications/Internet
+ Source0: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-%{fullversion}.tar.gz
+ #Source1: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-patches-%{fullversion}.tar.gz
+@@ -63,12 +63,12 @@
+ %config(noreplace) /etc/xinetd.d/rsync
+ %{_prefix}/bin/rsync*
+ %{_mandir}/man1/rsync.1*
+ %{_mandir}/man5/rsyncd.conf.5*
+ 
+ %changelog
+-* Tue Apr 08 2008 Wayne Davison <wayned@samba.org>
+-Released 3.0.2.
++* Sun Jun 29 2008 Wayne Davison <wayned@samba.org>
++Released 3.0.3.
+ 
+ * Fri Mar 21 2008 Wayne Davison <wayned@samba.org>
+ Added installation of /etc/xinetd.d/rsync file and some commented-out
+ lines that demonstrate how to use the rsync-patches tar file.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging/patch-update /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/packaging/patch-update
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging/patch-update	2008-04-06 13:45:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/packaging/patch-update	2008-04-17 00:11:15.000000000 +0800
+@@ -48,13 +48,13 @@
+ 
+ if ($incl_generated_files) {
+     die "'$tmp_dir' must not exist in the current directory.\n" if -e $tmp_dir;
+     mkdir($tmp_dir, 0700) or die "Unable to mkdir($tmp_dir): $!\n";
+     system "./config.status Makefile && make gen && rsync -a @extra_files $tmp_dir/master/" and exit 1;
+ }
+-my $last_touch = time;
++our $last_touch = time;
+ 
+ my(%patches, %local_patch);
+ 
+ # Start by finding all patches so that we can load all possible parents.
+ open(PIPE, '-|', 'git', 'branch', '-a') or die $!;
+ while (<PIPE>) {
+@@ -103,13 +103,13 @@
+ }
+ 
+ if ($incl_generated_files) {
+     system "rm -rf $tmp_dir";
+ }
+ 
+-sleep 1 if $last_touch == time;
++sleep 1 while $last_touch >= time;
+ system "git checkout $starting_branch" and exit 1;
+ 
+ exit;
+ 
+ 
+ sub update_patch
+@@ -125,13 +125,13 @@
+     } else {
+ 	$parent = 'master';
+     }
+ 
+     print "======== $patch ========\n";
+ 
+-    sleep 1 if $incl_generated_files && $last_touch == time;
++    sleep 1 while $incl_generated_files && $last_touch >= time;
+     if ($local_patch{$patch}) {
+ 	system "git checkout patch/$patch" and return 0;
+     } else {
+ 	system "git checkout --track -b patch/$patch origin/patch/$patch" and return 0;
+     }
+ 
+@@ -153,13 +153,13 @@
+     }
+ 
+     open(OUT, '>', "$patches_dir/$patch.diff") or die $!;
+     print OUT $description{$patch}, "\n";
+ 
+     if ($incl_generated_files) {
+-	system "./config.status Makefile && make gen && rsync -a @extra_files $tmp_dir/$patch/";
++	system "./config.status Makefile && make gen && rsync -a @extra_files $tmp_dir/$patch/" and exit 1;
+     }
+     $last_touch = time;
+ 
+     open(PIPE, '-|', 'git', 'diff', $parent) or die $!;
+     DIFF: while (<PIPE>) {
+ 	while (m{^diff --git a/PATCH}) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/progress.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/progress.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/progress.c	2008-03-02 04:01:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/progress.c	2008-06-05 00:01:02.000000000 +0800
+@@ -37,12 +37,14 @@
+ 
+ struct progress_history {
+ 	struct timeval time;
+ 	OFF_T ofs;
+ };
+ 
++int progress_is_active = 0;
++
+ static struct progress_history ph_start;
+ static struct progress_history ph_list[PROGRESS_HISTORY_SECS];
+ static int newest_hpos, oldest_hpos;
+ static int current_file_index;
+ 
+ static unsigned long msdiff(struct timeval *t1, struct timeval *t2)
+@@ -108,14 +110,17 @@
+ 		snprintf(eol, sizeof eol, " (xfer#%d, to-check=%d/%d)\n",
+ 			stats.num_transferred_files,
+ 			stats.num_files - current_file_index - 1,
+ 			stats.num_files);
+ 	} else
+ 		strlcpy(eol, "\r", sizeof eol);
++	progress_is_active = 0;
+ 	rprintf(FCLIENT, "%12s %3d%% %7.2f%s %s%s",
+ 		human_num(ofs), pct, rate, units, rembuf, eol);
++	if (!is_last)
++		progress_is_active = 1;
+ }
+ 
+ void set_current_file_index(struct file_struct *file, int ndx)
+ {
+ 	if (need_unsorted_flist)
+ 		current_file_index = flist_find(cur_flist, file) + cur_flist->ndx_start;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/proto.h	2008-04-07 22:33:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/proto.h	2008-06-30 11:59:25.000000000 +0800
+@@ -372,12 +372,13 @@
+ int bitbag_check_bit(struct bitbag *bb, int ndx);
+ int bitbag_next_bit(struct bitbag *bb, int after);
+ void *expand_item_list(item_list *lp, size_t item_size,
+ 		       const char *desc, int incr);
+ void free_xattr(stat_x *sxp);
+ int get_xattr(const char *fname, stat_x *sxp);
++int copy_xattrs(const char *source, const char *dest);
+ int send_xattr(stat_x *sxp, int f);
+ int xattr_diff(struct file_struct *file, stat_x *sxp, int find_all);
+ void send_xattr_request(const char *fname, struct file_struct *file, int f_out);
+ int recv_xattr_request(struct file_struct *file, int f_in);
+ void receive_xattr(struct file_struct *file, int f);
+ void cache_xattr(struct file_struct *file, stat_x *sxp);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/README	2007-01-28 14:39:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/README	2008-04-15 23:12:56.000000000 +0800
+@@ -1,125 +1,138 @@
+ WHAT IS RSYNC?
+ --------------
+ 
+-rsync is a replacement for scp/rcp that has many more features.
++Rsync is a fast and extraordinarily versatile file copying tool for
++both remote and local files.
+ 
+-rsync uses the "rsync algorithm" which provides a very fast method for
+-bringing remote files into sync. It does this by sending just the
++Rsync uses a delta-transfer algorithm which provides a very fast method
++for bringing remote files into sync.  It does this by sending just the
+ differences in the files across the link, without requiring that both
+-sets of files are present at one of the ends of the link beforehand.
+-At first glance this may seem impossible because the calculation of
+-diffs between two files normally requires local access to both
+-files. 
++sets of files are present at one of the ends of the link beforehand.  At
++first glance this may seem impossible because the calculation of diffs
++between two files normally requires local access to both files.
+ 
+-A technical report describing the rsync algorithm is included with
+-this package. 
++A technical report describing the rsync algorithm is included with this
++package.
+ 
+ 
+ USAGE
+ -----
+ 
+-Basically you use rsync just like rcp, but rsync has many additional
+-options.  To get a complete list of supported options type
++Basically you use rsync just like scp, but rsync has many additional
++options.  To get a complete list of supported options type:
+ 
+-  rsync --help
++    rsync --help
+ 
+-and see the manual for more information.
++See the manpage for more detailed information.
+ 
+ 
+ SETUP
+ -----
+ 
+-Rsync normally uses ssh or rsh for communication.  It does not need to
+-be setuid and requires no special privileges for installation.  You
+-must, however, have a working ssh or rsh system.  Using ssh is
+-recommended for its security features.
++Rsync normally uses ssh or rsh for communication with remote systems.
++It does not need to be setuid and requires no special privileges for
++installation.  You must, however, have a working ssh or rsh system.
++Using ssh is recommended for its security features.
+ 
+ Alternatively, rsync can run in `daemon' mode, listening on a socket.
+ This is generally used for public file distribution, although
+ authentication and access control are available.
+ 
+-To install rsync, first run the "configure" script. This will create a
+-Makefile and config.h appropriate for your system. Then type
+-"make". 
++To install rsync, first run the "configure" script.  This will create a
++Makefile and config.h appropriate for your system.  Then type "make".
+ 
+ Note that on some systems you will have to force configure not to use
+ gcc because gcc may not support some features (such as 64 bit file
+-offsets) that your system may support. Set the environment variable CC
++offsets) that your system may support.  Set the environment variable CC
+ to the name of your native compiler before running configure in this
+-case. 
++case.
+ 
+ Once built put a copy of rsync in your search path on the local and
+-remote systems (or use "make install"). That's it!
++remote systems (or use "make install").  That's it!
++
+ 
+ RSYNC DAEMONS
+ -------------
+ 
+-rsync can also talk to "rsync daemons" which can provide anonymous or
+-authenticated rsync. See the rsyncd.conf(5) man page for details on how
+-to setup an rsync daemon. See the rsync(1) man page for info on how to
++Rsync can also talk to "rsync daemons" which can provide anonymous or
++authenticated rsync.  See the rsyncd.conf(5) man page for details on how
++to setup an rsync daemon.  See the rsync(1) man page for info on how to
+ connect to an rsync daemon.
+ 
+ 
+-MAILING LIST
+-------------
++WEB SITE
++--------
++
++The main rsync web site is here:
++
++    http://rsync.samba.org/
+ 
+-There is a mailing list for the discussion of rsync and its
+-applications. It is open to anyone to join. I will announce new
+-versions on this list. 
++You'll find a FAQ list, downloads, resources, HTML versions of the
++manpages, etc.
+ 
+-To join the mailing list see the web page at http://lists.samba.org/
+ 
+-To send mail to everyone on the list send it to rsync@lists.samba.org
++MAILING LISTS
++-------------
++
++There is a mailing list for the discussion of rsync and its applications
++that is open to anyone to join.  New releases are announced on this
++list, and there is also an announcement-only mailing list for those that
++want official announcements.  See the mailing-list page for full
++details:
++
++    http://rsync.samba.org/lists.html
+ 
+ 
+ BUG REPORTS
+ -----------
+ 
+-If you have web access then please look at
++To visit this web page for full the details on bug reporting:
+ 
+-  http://rsync.samba.org/
++    http://rsync.samba.org/bugzilla.html
+ 
+-That page contains links to the current bug list, and information on
+-how to report a bug well.  You might also like to try searching the
+-internet for the error message you've received, or looking in the
+-mailing list archives at
++That page contains links to the current bug list, and information on how
++to report a bug well.  You might also like to try searching the Internet
++for the error message you've received, or looking in the mailing list
++archives at:
+ 
+-  http://mail-archive.com/rsync@lists.samba.org/
++    http://mail-archive.com/rsync@lists.samba.org/
+ 
+ To send a bug report, follow the instructions on the bug-tracking
+ page of the web site.
+ 
+-If you don't have web access, email your bug report to
+-rsync@lists.samba.org.
++Alternately, email your bug report to rsync@lists.samba.org .
+ 
+ 
+-CVS TREE
+---------
++GIT REPOSITORY
++--------------
+ 
+ If you want to get the very latest version of rsync direct from the
+-source code repository then you can use anonymous cvs. You will need a
+-recent version of cvs then use the following commands:
++source code repository then you can use git:
+ 
+-	cvs -d :pserver:cvs@pserver.samba.org:/cvsroot login
+-	Password: cvs
++    git clone git://git.samba.org/rsync.git
+ 
+-	cvs -d :pserver:cvs@pserver.samba.org:/cvsroot co rsync
++See the download page for full details on all the ways to grab the
++source, including nightly tar files, web-browsing of the git repository,
++etc.:
+ 
+-Look at the cvs documentation for more details.
++    http://rsync.samba.org/download.html
+ 
+ 
+ COPYRIGHT
+ ---------
+ 
+-rsync was originally written by Andrew Tridgell and has been improved
+-by many developers around the world.  rsync may be used, modified and
+-redistributed only under the terms of the GNU General Public License,
+-found in the file COPYING in this distribution, or at 
++Rsync was originally written by Andrew Tridgell and is currently
++maintained by Wayne Davison.   It has been improved by many developers
++from around the world.
++
++Rsync may be used, modified and redistributed only under the terms of
++the GNU General Public License, found in the file COPYING in this
++distribution, or at:
+ 
+-  http://www.fsf.org/licenses/gpl.html
++    http://www.fsf.org/licenses/gpl.html
+ 
+ 
+ AVAILABILITY
+ ------------
+ 
+ The main web site for rsync is http://rsync.samba.org/
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.1	2008-04-08 23:17:45.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.1	2008-06-30 11:35:53.000000000 +0800
+@@ -1,7 +1,7 @@
+-.TH "rsync" "1" "8 Apr 2008" "" ""
++.TH "rsync" "1" "29 Jun 2008" "" ""
+ .SH "NAME"
+ rsync \(em a fast, versatile, remote (and local) file-copying tool
+ .SH "SYNOPSIS"
+ 
+ .PP 
+ .nf 
+@@ -808,35 +808,41 @@
+ is always considered to be important enough for an update, no matter what
+ date is on the objects.  In other words, if the source has a directory
+ where the destination has a file, the transfer would occur regardless of
+ the timestamps.
+ .IP 
+ .IP "\fB\-\-inplace\fP"
+-This causes rsync not to create a new copy of the file
+-and then move it into place.  Instead rsync will overwrite the existing
+-file, meaning that the rsync algorithm can't accomplish the full amount of
+-network reduction it might be able to otherwise (since it does not yet try
+-to sort data matches).  One exception to this is if you combine the option
+-with \fB\-\-backup\fP, since rsync is smart enough to use the backup file as the
+-basis file for the transfer.
++This option changes how rsync transfers a file when the
++file's data needs to be updated: instead of the default method of creating
++a new copy of the file and moving it into place when it is complete, rsync
++instead writes the updated data directly to the destination file.
++.IP 
++This has several effects: (1) in-use binaries cannot be updated (either the
++OS will prevent this from happening, or binaries that attempt to swap-in
++their data will misbehave or crash), (2) the file's data will be in an
++inconsistent state during the transfer, (3) a file's data may be left in an
++inconsistent state after the transfer if the transfer is interrupted or if
++an update fails, (4) a file that does not have write permissions can not be
++updated, and (5) the efficiency of rsync's delta-transfer algorithm may be
++reduced if some data in the destination file is overwritten before it can
++be copied to a position later in the file (one exception to this is if you
++combine this option with \fB\-\-backup\fP, since rsync is smart enough to use
++the backup file as the basis file for the transfer).
++.IP 
++WARNING: you should not use this option to update files that are being
++accessed by others, so be careful when choosing to use this for a copy.
+ .IP 
+ This option is useful for transfer of large files with block-based changes
+ or appended data, and also on systems that are disk bound, not network
+ bound.
+ .IP 
+ The option implies \fB\-\-partial\fP (since an interrupted transfer does not delete
+ the file), but conflicts with \fB\-\-partial\-dir\fP and \fB\-\-delay\-updates\fP.
+ Prior to rsync 2.6.4 \fB\-\-inplace\fP was also incompatible with \fB\-\-compare\-dest\fP
+ and \fB\-\-link\-dest\fP.
+ .IP 
+-WARNING: The file's data will be in an inconsistent state during the
+-transfer (and possibly afterward if the transfer gets interrupted), so you
+-should not use this option to update files that are in use.  Also note that
+-rsync will be unable to update a file in-place that is not writable by the
+-receiving user.
+-.IP 
+ .IP "\fB\-\-append\fP"
+ This causes rsync to update a file by appending data onto
+ the end of the file, which presumes that the data that already exists on
+ the receiving side is identical with the start of the file on the sending
+ side.  If a file needs to be transferred and its size on the receiver is
+ the same or longer than the size on the sender, the file is skipped.  This
+@@ -1133,13 +1139,13 @@
+ .IP "\fB\-t, \-\-times\fP"
+ This tells rsync to transfer modification times along
+ with the files and update them on the remote system.  Note that if this
+ option is not used, the optimization that excludes files that have not been
+ modified cannot be effective; in other words, a missing \fB\-t\fP or \fB\-a\fP will
+ cause the next transfer to behave as if it used \fB\-I\fP, causing all files to be
+-updated (though the rsync algorithm will make the update fairly efficient
++updated (though rsync's delta-transfer algorithm will make the update fairly efficient
+ if the files haven't actually changed, you're much better off using \fB\-t\fP).
+ .IP 
+ .IP "\fB\-O, \-\-omit\-dir\-times\fP"
+ This tells rsync to omit directories when
+ it is preserving modification times (see \fB\-\-times\fP).  If NFS is sharing
+ the directories on the receiving side, it is a good idea to use \fB\-O\fP.
+@@ -1214,13 +1220,13 @@
+ send the actual data for file transfers, so \fB\-\-progress\fP has no effect,
+ the \(lqbytes sent\(rq, \(lqbytes received\(rq, \(lqliteral data\(rq, and \(lqmatched data\(rq
+ statistics are too small, and the \(lqspeedup\(rq value is equivalent to a run
+ where no file transfers are needed.
+ .IP 
+ .IP "\fB\-W, \-\-whole\-file\fP"
+-With this option the delta-transfer algorithm
++With this option rsync's delta-transfer algorithm
+ is not used and the whole file is sent as-is instead.  The transfer may be
+ faster if this option is used when the bandwidth between the source and
+ destination machines is higher than the bandwidth to disk (especially when the
+ \(lqdisk\(rq is actually a networked filesystem).  This is the default when both
+ the source and destination are specified as local paths.
+ .IP 
+@@ -1397,13 +1403,13 @@
+ file that is smaller than the specified SIZE, which can help in not
+ transferring small, junk files.
+ See the \fB\-\-max\-size\fP option for a description of SIZE.
+ .IP 
+ .IP "\fB\-B, \-\-block\-size=BLOCKSIZE\fP"
+ This forces the block size used in
+-the rsync algorithm to a fixed value.  It is normally selected based on
++rsync's delta-transfer algorithm to a fixed value.  It is normally selected based on
+ the size of each file being updated.  See the technical report for details.
+ .IP 
+ .IP "\fB\-e, \-\-rsh=COMMAND\fP"
+ This option allows you to choose an alternative
+ remote shell program to use for communication between the local and
+ remote copies of rsync. Typically, rsync is configured to use ssh by
+@@ -2022,23 +2028,23 @@
+ specify an empty string, updated files will not be mentioned in the log file.
+ For a list of the possible escape characters, see the \(lqlog format\(rq setting
+ in the rsyncd.conf manpage.
+ .IP 
+ .IP "\fB\-\-stats\fP"
+ This tells rsync to print a verbose set of statistics
+-on the file transfer, allowing you to tell how effective the rsync
++on the file transfer, allowing you to tell how effective rsync's delta-transfer
+ algorithm is for your data.
+ .IP 
+ The current statistics are as follows: 
+ .RS 
+ .IP o 
+ \fBNumber of files\fP is the count of all \(lqfiles\(rq (in the generic
+ sense), which includes directories, symlinks, etc.
+ .IP o 
+ \fBNumber of files transferred\fP is the count of normal files that
+-were updated via the rsync algorithm, which does not include created
++were updated via rsync's delta-transfer algorithm, which does not include created
+ dirs, symlinks, etc.
+ .IP o 
+ \fBTotal file size\fP is the total sum of all file sizes in the transfer.
+ This does not count any size for directories or special files, but does
+ include the size of symlinks.
+ .IP o 
+@@ -2107,13 +2113,13 @@
+ dir as data to speed up the resumption of the transfer and then delete it
+ after it has served its purpose.
+ .IP 
+ Note that if \fB\-\-whole\-file\fP is specified (or implied), any partial-dir
+ file that is found for a file that is being updated will simply be removed
+ (since
+-rsync is sending files without using the delta transfer algorithm).
++rsync is sending files without using rsync's delta-transfer algorithm).
+ .IP 
+ Rsync will create the \fIDIR\fP if it is missing (just the last dir \(em not
+ the whole path).  This makes it easy to use a relative path (such as
+ \(lq\fB\-\-partial\-dir=.rsync\-partial\fP\(rq) to have rsync create the
+ partial-directory in the destination file's directory when needed, and then
+ remove it again when the partial file is deleted.
+@@ -2237,13 +2243,13 @@
+ .IP 
+ In this example, the receiver has reconstructed 782448 bytes or 63% of the
+ sender's file, which is being reconstructed at a rate of 110.64 kilobytes
+ per second, and the transfer will finish in 4 seconds if the current rate
+ is maintained until the end.
+ .IP 
+-These statistics can be misleading if the delta transfer algorithm is
++These statistics can be misleading if rsync's delta-transfer algorithm is
+ in use.  For example, if the sender's file consists of the basis file
+ followed by additional data, the reported rate will probably drop
+ dramatically when the receiver gets to the literal data, and the transfer
+ will probably take much longer to finish than the receiver estimated as it
+ was finishing the matched part of the file.
+ .IP 
+@@ -3369,13 +3375,13 @@
+ Please report bugs! See the web site at
+ http://rsync.samba.org/
+ .PP 
+ .SH "VERSION"
+ 
+ .PP 
+-This man page is current for version 3.0.2 of rsync.
++This man page is current for version 3.0.3 of rsync.
+ .PP 
+ .SH "INTERNAL OPTIONS"
+ 
+ .PP 
+ The options \fB\-\-server\fP and \fB\-\-sender\fP are used internally by rsync,
+ and should never be typed by a user under normal circumstances.  Some
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.c	2008-03-17 11:39:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.c	2008-05-22 22:32:11.000000000 +0800
+@@ -558,14 +558,18 @@
+ 		if (verbose > 2)
+ 			rprintf(FINFO, "finishing %s\n", fname);
+ 		fnametmp = fname;
+ 		goto do_set_file_attrs;
+ 	}
+ 
+-	if (make_backups > 0 && overwriting_basis && !make_backup(fname))
+-		return 1;
++	if (make_backups > 0 && overwriting_basis) {
++		if (!make_backup(fname))
++			return 1;
++		if (fnamecmp == fname)
++			fnamecmp = get_backup_name(fname);
++	}
+ 
+ 	/* Change permissions before putting the file into place. */
+ 	set_file_attrs(fnametmp, file, NULL, fnamecmp,
+ 		       ok_to_set_time ? 0 : ATTRS_SKIP_MTIME);
+ 
+ 	/* move tmp file over real file */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsyncd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsyncd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsyncd.conf.5	2008-04-08 23:17:45.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsyncd.conf.5	2008-06-30 11:32:50.000000000 +0800
+@@ -1,7 +1,7 @@
+-.TH "rsyncd.conf" "5" "8 Apr 2008" "" ""
++.TH "rsyncd.conf" "5" "29 Jun 2008" "" ""
+ .SH "NAME"
+ rsyncd.conf \(em configuration file for rsync in daemon mode
+ .SH "SYNOPSIS"
+ 
+ .PP 
+ rsyncd.conf
+@@ -76,30 +76,30 @@
+ reread its config file.
+ .PP 
+ Note that you should \fBnot\fP send the rsync daemon a HUP signal to force
+ it to reread the \f(CWrsyncd.conf\fP file. The file is re-read on each client
+ connection.
+ .PP 
+-.SH "GLOBAL OPTIONS"
++.SH "GLOBAL PARAMETERS"
+ 
+ .PP 
+ The first parameters in the file (before a [module] header) are the
+ global parameters.
+ .PP 
+ You may also include any module parameters in the global part of the
+ config file in which case the supplied value will override the
+ default for that parameter.
+ .PP 
+ .IP "\fBmotd file\fP"
+-The \(lqmotd file\(rq option allows you to specify a
++This parameter allows you to specify a
+ \(lqmessage of the day\(rq to display to clients on each connect. This
+ usually contains site information and any legal notices. The default
+ is no motd file.
+ .IP 
+ .IP "\fBpid file\fP"
+-The \(lqpid file\(rq option tells the rsync daemon to write
++This parameter tells the rsync daemon to write
+ its process ID to that file.  If the file already exists, the rsync
+ daemon will abort rather than overwrite the file.
+ .IP 
+ .IP "\fBport\fP"
+ You can override the default port the daemon will listen on
+ by specifying this value (defaults to 873).  This is ignored if the daemon
+@@ -108,42 +108,42 @@
+ .IP "\fBaddress\fP"
+ You can override the default IP address the daemon
+ will listen on by specifying this value.  This is ignored if the daemon is
+ being run by inetd, and is superseded by the \fB\-\-address\fP command-line option.
+ .IP 
+ .IP "\fBsocket options\fP"
+-This option can provide endless fun for people
++This parameter can provide endless fun for people
+ who like to tune their systems to the utmost degree. You can set all
+ sorts of socket options which may make transfers faster (or
+ slower!). Read the man page for the 
+ \f(CWsetsockopt()\fP
+ system call for
+ details on some of the options you may be able to set. By default no
+ special socket options are set.  These settings are superseded by the
+ \fB\-\-sockopts\fP command-line option.
+ .IP 
+-.SH "MODULE OPTIONS"
++.SH "MODULE PARAMETERS"
+ 
+ .PP 
+-After the global options you should define a number of modules, each
++After the global parameters you should define a number of modules, each
+ module exports a directory tree as a symbolic name. Modules are
+ exported by specifying a module name in square brackets [module]
+-followed by the options for that module.
++followed by the parameters for that module.
+ The module name cannot contain a slash or a closing square bracket.  If the
+ name contains whitespace, each internal sequence of whitespace will be
+ changed into a single space, while leading or trailing whitespace will be
+ discarded.
+ .PP 
+ .IP "\fBcomment\fP"
+-The \(lqcomment\(rq option specifies a description string
++This parameter specifies a description string
+ that is displayed next to the module name when clients obtain a list
+ of available modules. The default is no comment.
+ .IP 
+ .IP "\fBpath\fP"
+-The \(lqpath\(rq option specifies the directory in the daemon's
+-filesystem to make available in this module.  You must specify this option
++This parameter specifies the directory in the daemon's
++filesystem to make available in this module.  You must specify this parameter
+ for each module in \f(CWrsyncd.conf\fP.
+ .IP 
+ .IP "\fBuse chroot\fP"
+ If \(lquse chroot\(rq is true, the rsync daemon will chroot
+ to the \(lqpath\(rq before starting the file transfer with the client.  This has
+ the advantage of extra protection against possible implementation security
+@@ -171,13 +171,13 @@
+ \fB\-\-backup\-dir\fP, \fB\-\-compare\-dest\fP, etc. interpret an absolute path as
+ rooted in the module's \(lqpath\(rq dir), and (3) trim \(lq..\(rq path elements from
+ args if rsync believes they would escape the module hierarchy.
+ The default for \(lquse chroot\(rq is true, and is the safer choice (especially
+ if the module is not read-only).
+ .IP 
+-When this option is enabled, rsync will not attempt to map users and groups
++When this parameter is enabled, rsync will not attempt to map users and groups
+ by name (by default), but instead copy IDs as though \fB\-\-numeric\-ids\fP had
+ been specified.  In order to enable name-mapping, rsync needs to be able to
+ use the standard library functions for looking up names and IDs (i.e.
+ \f(CWgetpwuid()\fP
+ , 
+ \f(CWgetgrgid()\fP
+@@ -192,68 +192,68 @@
+ /etc/group, but perhaps additional dynamic libraries as well).
+ .IP 
+ If you copy the necessary resources into the module's chroot area, you
+ should protect them through your OS's normal user/group or ACL settings (to
+ prevent the rsync module's user from being able to change them), and then
+ hide them from the user's view via \(lqexclude\(rq (see how in the discussion of
+-that option).  At that point it will be safe to enable the mapping of users
+-and groups by name using the \(lqnumeric ids\(rq daemon option (see below).
++that parameter).  At that point it will be safe to enable the mapping of users
++and groups by name using the \(lqnumeric ids\(rq daemon parameter (see below).
+ .IP 
+ Note also that you are free to setup custom user/group information in the
+ chroot area that is different from your normal system.  For example, you
+ could abbreviate the list of users and groups.
+ .IP 
+ .IP "\fBnumeric ids\fP"
+-Enabling the \(lqnumeric ids\(rq option disables the mapping
++Enabling this parameter disables the mapping
+ of users and groups by name for the current daemon module.  This prevents
+ the daemon from trying to load any user/group-related files or libraries.
+-Enabling this option makes the transfer behave as if the client had passed
++This enabling makes the transfer behave as if the client had passed
+ the \fB\-\-numeric\-ids\fP command-line option.  By default, this parameter is
+ enabled for chroot modules and disabled for non-chroot modules.
+ .IP 
+-A chroot-enabled module should not have this option enabled unless you've
++A chroot-enabled module should not have this parameter enabled unless you've
+ taken steps to ensure that the module has the necessary resources it needs
+ to translate names, and that it is not possible for a user to change those
+ resources.
+ .IP 
+ .IP "\fBmunge symlinks\fP"
+-The \(lqmunge symlinks\(rq option tells rsync to modify
++This parameter tells rsync to modify
+ all incoming symlinks in a way that makes them unusable but recoverable
+ (see below).  This should help protect your files from user trickery when
+ your daemon module is writable.  The default is disabled when \(lquse chroot\(rq
+ is on and the inside-chroot path is \(lq/\(rq, otherwise it is enabled.
+ .IP 
+-If you disable this option on a daemon that is not read-only, there
++If you disable this parameter on a daemon that is not read-only, there
+ are tricks that a user can play with uploaded symlinks to access
+ daemon-excluded items (if your module has any), and, if \(lquse chroot\(rq
+ is off, rsync can even be tricked into showing or changing data that
+ is outside the module's path (as access-permissions allow).
+ .IP 
+ The way rsync disables the use of symlinks is to prefix each one with
+ the string \(lq/rsyncd-munged/\(rq.  This prevents the links from being used
+-as long as that directory does not exist.  When this option is enabled,
++as long as that directory does not exist.  When this parameter is enabled,
+ rsync will refuse to run if that path is a directory or a symlink to
+-a directory.  When using the \(lqmunge symlinks\(rq option in a chroot area
++a directory.  When using the \(lqmunge symlinks\(rq parameter in a chroot area
+ that has an inside-chroot path of \(lq/\(rq, you should add \(lq/rsyncd-munged/\(rq
+ to the exclude setting for the module so that
+ a user can't try to create it.
+ .IP 
+ Note:  rsync makes no attempt to verify that any pre-existing symlinks in
+ the hierarchy are as safe as you want them to be.  If you setup an rsync
+ daemon on a new area or locally add symlinks, you can manually protect your
+ symlinks from being abused by prefixing \(lq/rsyncd-munged/\(rq to the start of
+ every symlink's value.  There is a perl script in the support directory
+ of the source code named \(lqmunge-symlinks\(rq that can be used to add or remove
+ this prefix from your symlinks.
+ .IP 
+-When this option is disabled on a writable module and \(lquse chroot\(rq is off
++When this parameter is disabled on a writable module and \(lquse chroot\(rq is off
+ (or the inside-chroot path is not \(lq/\(rq),
+ incoming symlinks will be modified to drop a leading slash and to remove \(lq..\(rq
+ path elements that rsync believes will allow a symlink to escape the module's
+ hierarchy.  There are tricky ways to work around this, though, so you had
+-better trust your users if you choose this combination of options.
++better trust your users if you choose this combination of parameters.
+ .IP 
+ .IP "\fBcharset\fP"
+ This specifies the name of the character set in which the
+ module's filenames are stored.  If the client uses an \fB\-\-iconv\fP option,
+ the daemon will use the value of the \(lqcharset\(rq parameter regardless of the
+ character set the client actually passed.  This allows the daemon to
+@@ -264,21 +264,21 @@
+ .IP 
+ If you wish to force users to always use \fB\-\-iconv\fP for a particular
+ module, add \(lqno-iconv\(rq to the \(lqrefuse options\(rq parameter.  Keep in mind
+ that this will restrict access to your module to very new rsync clients.
+ .IP 
+ .IP "\fBmax connections\fP"
+-The \(lqmax connections\(rq option allows you to
++This parameter allows you to
+ specify the maximum number of simultaneous connections you will allow.
+ Any clients connecting when the maximum has been reached will receive a
+ message telling them to try later.  The default is 0, which means no limit.
+ A negative value disables the module.
+-See also the \(lqlock file\(rq option.
++See also the \(lqlock file\(rq parameter.
+ .IP 
+ .IP "\fBlog file\fP"
+-When the \(lqlog file\(rq option is set to a non-empty
++When the \(lqlog file\(rq parameter is set to a non-empty
+ string, the rsync daemon will log messages to the indicated file rather
+ than using syslog. This is particularly useful on systems (such as AIX)
+ where 
+ \f(CWsyslog()\fP
+ doesn't work for chrooted programs.  The file is
+ opened before 
+@@ -290,66 +290,66 @@
+ .IP 
+ If the daemon fails to open to specified file, it will fall back to
+ using syslog and output an error about the failure.  (Note that the
+ failure to open the specified log file used to be a fatal error.)
+ .IP 
+ .IP "\fBsyslog facility\fP"
+-The \(lqsyslog facility\(rq option allows you to
++This parameter allows you to
+ specify the syslog facility name to use when logging messages from the
+ rsync daemon. You may use any standard syslog facility name which is
+ defined on your system. Common names are auth, authpriv, cron, daemon,
+ ftp, kern, lpr, mail, news, security, syslog, user, uucp, local0,
+ local1, local2, local3, local4, local5, local6 and local7. The default
+ is daemon.  This setting has no effect if the \(lqlog file\(rq setting is a
+ non-empty string (either set in the per-modules settings, or inherited
+ from the global settings).
+ .IP 
+ .IP "\fBmax verbosity\fP"
+-The \(lqmax verbosity\(rq option allows you to control
++This parameter allows you to control
+ the maximum amount of verbose information that you'll allow the daemon to
+ generate (since the information goes into the log file). The default is 1,
+ which allows the client to request one level of verbosity.
+ .IP 
+ .IP "\fBlock file\fP"
+-The \(lqlock file\(rq option specifies the file to use to
+-support the \(lqmax connections\(rq option. The rsync daemon uses record
++This parameter specifies the file to use to
++support the \(lqmax connections\(rq parameter. The rsync daemon uses record
+ locking on this file to ensure that the max connections limit is not
+ exceeded for the modules sharing the lock file.
+ The default is \f(CW/var/run/rsyncd.lock\fP.
+ .IP 
+ .IP "\fBread only\fP"
+-The \(lqread only\(rq option determines whether clients
++This parameter determines whether clients
+ will be able to upload files or not. If \(lqread only\(rq is true then any
+ attempted uploads will fail. If \(lqread only\(rq is false then uploads will
+ be possible if file permissions on the daemon side allow them. The default
+ is for all modules to be read only.
+ .IP 
+ .IP "\fBwrite only\fP"
+-The \(lqwrite only\(rq option determines whether clients
++This parameter determines whether clients
+ will be able to download files or not. If \(lqwrite only\(rq is true then any
+ attempted downloads will fail. If \(lqwrite only\(rq is false then downloads
+ will be possible if file permissions on the daemon side allow them.  The
+-default is for this option to be disabled.
++default is for this parameter to be disabled.
+ .IP 
+ .IP "\fBlist\fP"
+-The \(lqlist\(rq option determines if this module should be
++This parameter determines if this module should be
+ listed when the client asks for a listing of available modules. By
+ setting this to false you can create hidden modules. The default is
+ for modules to be listable.
+ .IP 
+ .IP "\fBuid\fP"
+-The \(lquid\(rq option specifies the user name or user ID that
++This parameter specifies the user name or user ID that
+ file transfers to and from that module should take place as when the daemon
+-was run as root. In combination with the \(lqgid\(rq option this determines what
++was run as root. In combination with the \(lqgid\(rq parameter this determines what
+ file permissions are available. The default is uid \-2, which is normally
+ the user \(lqnobody\(rq.
+ .IP 
+ .IP "\fBgid\fP"
+-The \(lqgid\(rq option specifies the group name or group ID that
++This parameter specifies the group name or group ID that
+ file transfers to and from that module should take place as when the daemon
+-was run as root. This complements the \(lquid\(rq option. The default is gid \-2,
++was run as root. This complements the \(lquid\(rq parameter. The default is gid \-2,
+ which is normally the group \(lqnobody\(rq.
+ .IP 
+ .IP "\fBfake super\fP"
+ Setting \(lqfake super = yes\(rq for a module causes the
+ daemon side to behave as if the \fB\-\-fake\-user\fP command-line option had
+ been specified.  This allows the full attributes of a file to be stored
+@@ -381,25 +381,25 @@
+ single parameter.  Note that per-directory merge-file rules do not provide as
+ much protection as global rules, but they can be used to make \fB\-\-delete\fP work
+ better during a client download operation if the per-dir merge files are
+ included in the transfer and the client requests that they be used.
+ .IP 
+ .IP "\fBexclude\fP"
+-The \(lqexclude\(rq parameter takes a space-separated list of daemon
++This parameter takes a space-separated list of daemon
+ exclude patterns.  As with the client \fB\-\-exclude\fP option, patterns can be
+ qualified with \(lq\- \(rq or \(lq+ \(rq to explicitly indicate exclude/include.  Only one
+ \(lqexclude\(rq parameter can apply to a given module.  See the \(lqfilter\(rq parameter
+ for a description of how excluded files affect the daemon.
+ .IP 
+ .IP "\fBinclude\fP"
+ Use an \(lqinclude\(rq to override the effects of the \(lqexclude\(rq
+ parameter.  Only one \(lqinclude\(rq parameter can apply to a given module.  See the
+ \(lqfilter\(rq parameter for a description of how excluded files affect the daemon.
+ .IP 
+ .IP "\fBexclude from\fP"
+-The \(lqexclude from\(rq parameter specifies the name of a file
++This parameter specifies the name of a file
+ on the daemon that contains daemon exclude patterns, one per line.  Only one
+ \(lqexclude from\(rq parameter can apply to a given module; if you have multiple
+ exclude-from files, you can specify them as a merge file in the \(lqfilter\(rq
+ parameter.  See the \(lqfilter\(rq parameter for a description of how excluded files
+ affect the daemon.
+ .IP 
+@@ -407,74 +407,74 @@
+ Analogue of \(lqexclude from\(rq for a file of daemon include
+ patterns.  Only one \(lqinclude from\(rq parameter can apply to a given module.  See
+ the \(lqfilter\(rq parameter for a description of how excluded files affect the
+ daemon.
+ .IP 
+ .IP "\fBincoming chmod\fP"
+-This option allows you to specify a set of
++This parameter allows you to specify a set of
+ comma-separated chmod strings that will affect the permissions of all
+ incoming files (files that are being received by the daemon).  These
+ changes happen after all other permission calculations, and this will
+ even override destination-default and/or existing permissions when the
+ client does not specify \fB\-\-perms\fP.
+ See the description of the \fB\-\-chmod\fP rsync option and the \fBchmod\fP(1)
+ manpage for information on the format of this string.
+ .IP 
+ .IP "\fBoutgoing chmod\fP"
+-This option allows you to specify a set of
++This parameter allows you to specify a set of
+ comma-separated chmod strings that will affect the permissions of all
+ outgoing files (files that are being sent out from the daemon).  These
+ changes happen first, making the sent permissions appear to be different
+ than those stored in the filesystem itself.  For instance, you could
+ disable group write permissions on the server while having it appear to
+ be on to the clients.
+ See the description of the \fB\-\-chmod\fP rsync option and the \fBchmod\fP(1)
+ manpage for information on the format of this string.
+ .IP 
+ .IP "\fBauth users\fP"
+-The \(lqauth users\(rq option specifies a comma and
++This parameter specifies a comma and
+ space-separated list of usernames that will be allowed to connect to
+ this module. The usernames do not need to exist on the local
+ system. The usernames may also contain shell wildcard characters. If
+ \(lqauth users\(rq is set then the client will be challenged to supply a
+ username and password to connect to the module. A challenge response
+ authentication protocol is used for this exchange. The plain text
+ usernames and passwords are stored in the file specified by the
+-\(lqsecrets file\(rq option. The default is for all users to be able to
++\(lqsecrets file\(rq parameter. The default is for all users to be able to
+ connect without a password (this is called \(lqanonymous rsync\(rq).
+ .IP 
+ See also the \(lqCONNECTING TO AN RSYNC DAEMON OVER A REMOTE SHELL
+ PROGRAM\(rq section in \fBrsync\fP(1) for information on how handle an
+ rsyncd.conf\-level username that differs from the remote-shell-level
+ username when using a remote shell to connect to an rsync daemon.
+ .IP 
+ .IP "\fBsecrets file\fP"
+-The \(lqsecrets file\(rq option specifies the name of
++This parameter specifies the name of
+ a file that contains the username:password pairs used for
+ authenticating this module. This file is only consulted if the \(lqauth
+-users\(rq option is specified. The file is line based and contains
++users\(rq parameter is specified. The file is line based and contains
+ username:password pairs separated by a single colon. Any line starting
+ with a hash (#) is considered a comment and is skipped. The passwords
+ can contain any characters but be warned that many operating systems
+ limit the length of passwords that can be typed at the client end, so
+ you may find that passwords longer than 8 characters don't work.
+ .IP 
+-There is no default for the \(lqsecrets file\(rq option, you must choose a name
++There is no default for the \(lqsecrets file\(rq parameter, you must choose a name
+ (such as \f(CW/etc/rsyncd.secrets\fP).  The file must normally not be readable
+ by \(lqother\(rq; see \(lqstrict modes\(rq.
+ .IP 
+ .IP "\fBstrict modes\fP"
+-The \(lqstrict modes\(rq option determines whether or not
++This parameter determines whether or not
+ the permissions on the secrets file will be checked.  If \(lqstrict modes\(rq is
+ true, then the secrets file must not be readable by any user ID other
+ than the one that the rsync daemon is running under.  If \(lqstrict modes\(rq is
+-false, the check is not performed.  The default is true.  This option
++false, the check is not performed.  The default is true.  This parameter
+ was added to accommodate rsync running on the Windows operating system.
+ .IP 
+ .IP "\fBhosts allow\fP"
+-The \(lqhosts allow\(rq option allows you to specify a
++This parameter allows you to specify a
+ list of patterns that are matched against a connecting clients
+ hostname and IP address. If none of the patterns match then the
+ connection is rejected.
+ .IP 
+ Each pattern can be in one of five forms:
+ .IP 
+@@ -513,62 +513,62 @@
+ \f(CW    fe80::%link1/ffff:ffff:ffff:ffff::\fP
+ .br 
+ .RE
+ 
+ .IP 
+ You can also combine \(lqhosts allow\(rq with a separate \(lqhosts deny\(rq
+-option. If both options are specified then the \(lqhosts allow\(rq option is
++parameter. If both parameters are specified then the \(lqhosts allow\(rq parameter is
+ checked first and a match results in the client being able to
+-connect. The \(lqhosts deny\(rq option is then checked and a match means
++connect. The \(lqhosts deny\(rq parameter is then checked and a match means
+ that the host is rejected. If the host does not match either the
+ \(lqhosts allow\(rq or the \(lqhosts deny\(rq patterns then it is allowed to
+ connect.
+ .IP 
+-The default is no \(lqhosts allow\(rq option, which means all hosts can connect.
++The default is no \(lqhosts allow\(rq parameter, which means all hosts can connect.
+ .IP 
+ .IP "\fBhosts deny\fP"
+-The \(lqhosts deny\(rq option allows you to specify a
++This parameter allows you to specify a
+ list of patterns that are matched against a connecting clients
+ hostname and IP address. If the pattern matches then the connection is
+-rejected. See the \(lqhosts allow\(rq option for more information.
++rejected. See the \(lqhosts allow\(rq parameter for more information.
+ .IP 
+-The default is no \(lqhosts deny\(rq option, which means all hosts can connect.
++The default is no \(lqhosts deny\(rq parameter, which means all hosts can connect.
+ .IP 
+ .IP "\fBignore errors\fP"
+-The \(lqignore errors\(rq option tells rsyncd to
++This parameter tells rsyncd to
+ ignore I/O errors on the daemon when deciding whether to run the delete
+ phase of the transfer. Normally rsync skips the \fB\-\-delete\fP step if any
+ I/O errors have occurred in order to prevent disastrous deletion due
+ to a temporary resource shortage or other I/O error. In some cases this
+-test is counter productive so you can use this option to turn off this
++test is counter productive so you can use this parameter to turn off this
+ behavior.
+ .IP 
+ .IP "\fBignore nonreadable\fP"
+ This tells the rsync daemon to completely
+ ignore files that are not readable by the user. This is useful for
+ public archives that may have some non-readable files among the
+ directories, and the sysadmin doesn't want those files to be seen at all.
+ .IP 
+ .IP "\fBtransfer logging\fP"
+-The \(lqtransfer logging\(rq option enables per-file
++This parameter enables per-file
+ logging of downloads and uploads in a format somewhat similar to that
+ used by ftp daemons.  The daemon always logs the transfer at the end, so
+ if a transfer is aborted, no mention will be made in the log file.
+ .IP 
+-If you want to customize the log lines, see the \(lqlog format\(rq option.
++If you want to customize the log lines, see the \(lqlog format\(rq parameter.
+ .IP 
+ .IP "\fBlog format\fP"
+-The \(lqlog format\(rq option allows you to specify the
++This parameter allows you to specify the
+ format used for logging file transfers when transfer logging is enabled.
+ The format is a text string containing embedded single-character escape
+ sequences prefixed with a percent (%) character.  An optional numeric
+ field width may also be specified between the percent and the escape
+ letter (e.g. \(lq\fB%\-50n %8l %07p\fP\(rq).
+ .IP 
+ The default log format is \(lq%o %h [%a] %m (%u) %f %l\(rq, and a \(lq%t [%p] \(rq
+-is always prefixed when using the \(lqlog file\(rq option.
++is always prefixed when using the \(lqlog file\(rq parameter.
+ (A perl script that will summarize this default log format is included
+ in the rsync source code distribution in the \(lqsupport\(rq subdirectory:
+ rsyncstats.)
+ .IP 
+ The single-character escapes that are understood are as follows:
+ .IP 
+@@ -619,21 +619,21 @@
+ .IP 
+ Note that some of the logged output changes when talking with older
+ rsync versions.  For instance, deleted files were only output as verbose
+ messages prior to rsync 2.6.4.
+ .IP 
+ .IP "\fBtimeout\fP"
+-The \(lqtimeout\(rq option allows you to override the
+-clients choice for I/O timeout for this module. Using this option you
++This parameter allows you to override the
++clients choice for I/O timeout for this module. Using this parameter you
+ can ensure that rsync won't wait on a dead client forever. The timeout
+ is specified in seconds. A value of zero means no timeout and is the
+ default. A good choice for anonymous rsync daemons may be 600 (giving
+ a 10 minute timeout).
+ .IP 
+ .IP "\fBrefuse options\fP"
+-The \(lqrefuse options\(rq option allows you to
++This parameter allows you to
+ specify a space-separated list of rsync command line options that will
+ be refused by your rsync daemon.
+ You may specify the full option name, its one-letter abbreviation, or a
+ wild-card string that matches multiple options.
+ For example, this would refuse \fB\-\-checksum\fP (\fB\-c\fP) and all the various
+ delete options:
+@@ -654,27 +654,27 @@
+ To prevent all compression when serving files,
+ you can use \(lqdont compress = *\(rq (see below)
+ instead of \(lqrefuse options = compress\(rq to avoid returning an error to a
+ client that requests compression.
+ .IP 
+ .IP "\fBdont compress\fP"
+-The \(lqdont compress\(rq option allows you to select
++This parameter allows you to select
+ filenames based on wildcard patterns that should not be compressed
+-when pulling files from the daemon (no analogous option exists to
++when pulling files from the daemon (no analogous parameter exists to
+ govern the pushing of files to a daemon).
+ Compression is expensive in terms of CPU usage, so it
+ is usually good to not try to compress files that won't compress well,
+ such as already compressed files.
+ .IP 
+-The \(lqdont compress\(rq option takes a space-separated list of
++The \(lqdont compress\(rq parameter takes a space-separated list of
+ case-insensitive wildcard patterns. Any source filename matching one
+ of the patterns will not be compressed during transfer.
+ .IP 
+-See the \fB\-\-skip\-compress\fP option in the \fBrsync\fP(1) manpage for the list
++See the \fB\-\-skip\-compress\fP parameter in the \fBrsync\fP(1) manpage for the list
+ of file suffixes that are not compressed by default.  Specifying a value
+-for the \(lqdont compress\(rq option changes the default when the daemon is
++for the \(lqdont compress\(rq parameter changes the default when the daemon is
+ the sender.
+ .IP 
+ .IP "\fBpre-xfer exec\fP, \fBpost-xfer exec\fP"
+ You may specify a command to be run
+ before and/or after the transfer.  If the \fBpre-xfer exec\fP command fails, the
+ transfer is aborted before it begins.
+@@ -818,13 +818,13 @@
+ Please report bugs! The rsync bug tracking system is online at
+ http://rsync.samba.org/
+ .PP 
+ .SH "VERSION"
+ 
+ .PP 
+-This man page is current for version 3.0.2 of rsync.
++This man page is current for version 3.0.3 of rsync.
+ .PP 
+ .SH "CREDITS"
+ 
+ .PP 
+ rsync is distributed under the GNU public license.  See the file
+ COPYING for details.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsyncd.conf.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsyncd.conf.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsyncd.conf.yo	2008-04-08 23:16:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsyncd.conf.yo	2008-06-30 11:15:37.000000000 +0800
+@@ -1,8 +1,8 @@
+ mailto(rsync-bugs@samba.org)
+-manpage(rsyncd.conf)(5)(8 Apr 2008)()()
++manpage(rsyncd.conf)(5)(29 Jun 2008)()()
+ manpagename(rsyncd.conf)(configuration file for rsync in daemon mode)
+ manpagesynopsis()
+ 
+ rsyncd.conf
+ 
+ manpagedescription()
+@@ -66,69 +66,69 @@
+ reread its config file.
+ 
+ Note that you should bf(not) send the rsync daemon a HUP signal to force
+ it to reread the tt(rsyncd.conf) file. The file is re-read on each client
+ connection.
+ 
+-manpagesection(GLOBAL OPTIONS)
++manpagesection(GLOBAL PARAMETERS)
+ 
+ The first parameters in the file (before a [module] header) are the
+ global parameters.
+ 
+ You may also include any module parameters in the global part of the
+ config file in which case the supplied value will override the
+ default for that parameter.
+ 
+ startdit()
+-dit(bf(motd file)) The "motd file" option allows you to specify a
++dit(bf(motd file)) This parameter allows you to specify a
+ "message of the day" to display to clients on each connect. This
+ usually contains site information and any legal notices. The default
+ is no motd file.
+ 
+-dit(bf(pid file)) The "pid file" option tells the rsync daemon to write
++dit(bf(pid file)) This parameter tells the rsync daemon to write
+ its process ID to that file.  If the file already exists, the rsync
+ daemon will abort rather than overwrite the file.
+ 
+ dit(bf(port)) You can override the default port the daemon will listen on
+ by specifying this value (defaults to 873).  This is ignored if the daemon
+ is being run by inetd, and is superseded by the bf(--port) command-line option.
+ 
+ dit(bf(address)) You can override the default IP address the daemon
+ will listen on by specifying this value.  This is ignored if the daemon is
+ being run by inetd, and is superseded by the bf(--address) command-line option.
+ 
+-dit(bf(socket options)) This option can provide endless fun for people
++dit(bf(socket options)) This parameter can provide endless fun for people
+ who like to tune their systems to the utmost degree. You can set all
+ sorts of socket options which may make transfers faster (or
+ slower!). Read the man page for the code(setsockopt()) system call for
+ details on some of the options you may be able to set. By default no
+ special socket options are set.  These settings are superseded by the
+ bf(--sockopts) command-line option.
+ 
+ enddit()
+ 
+ 
+-manpagesection(MODULE OPTIONS)
++manpagesection(MODULE PARAMETERS)
+ 
+-After the global options you should define a number of modules, each
++After the global parameters you should define a number of modules, each
+ module exports a directory tree as a symbolic name. Modules are
+ exported by specifying a module name in square brackets [module]
+-followed by the options for that module.
++followed by the parameters for that module.
+ The module name cannot contain a slash or a closing square bracket.  If the
+ name contains whitespace, each internal sequence of whitespace will be
+ changed into a single space, while leading or trailing whitespace will be
+ discarded.
+ 
+ startdit()
+ 
+-dit(bf(comment)) The "comment" option specifies a description string
++dit(bf(comment)) This parameter specifies a description string
+ that is displayed next to the module name when clients obtain a list
+ of available modules. The default is no comment.
+ 
+-dit(bf(path)) The "path" option specifies the directory in the daemon's
+-filesystem to make available in this module.  You must specify this option
++dit(bf(path)) This parameter specifies the directory in the daemon's
++filesystem to make available in this module.  You must specify this parameter
+ for each module in tt(rsyncd.conf).
+ 
+ dit(bf(use chroot)) If "use chroot" is true, the rsync daemon will chroot
+ to the "path" before starting the file transfer with the client.  This has
+ the advantage of extra protection against possible implementation security
+ holes, but it has the disadvantages of requiring super-user privileges,
+@@ -155,13 +155,13 @@
+ bf(--backup-dir), bf(--compare-dest), etc. interpret an absolute path as
+ rooted in the module's "path" dir), and (3) trim ".." path elements from
+ args if rsync believes they would escape the module hierarchy.
+ The default for "use chroot" is true, and is the safer choice (especially
+ if the module is not read-only).
+ 
+-When this option is enabled, rsync will not attempt to map users and groups
++When this parameter is enabled, rsync will not attempt to map users and groups
+ by name (by default), but instead copy IDs as though bf(--numeric-ids) had
+ been specified.  In order to enable name-mapping, rsync needs to be able to
+ use the standard library functions for looking up names and IDs (i.e.
+ code(getpwuid()), code(getgrgid()), code(getpwname()), and code(getgrnam())).
+ This means the rsync
+ process in the chroot hierarchy will need to have access to the resources
+@@ -169,66 +169,66 @@
+ /etc/group, but perhaps additional dynamic libraries as well).
+ 
+ If you copy the necessary resources into the module's chroot area, you
+ should protect them through your OS's normal user/group or ACL settings (to
+ prevent the rsync module's user from being able to change them), and then
+ hide them from the user's view via "exclude" (see how in the discussion of
+-that option).  At that point it will be safe to enable the mapping of users
+-and groups by name using the "numeric ids" daemon option (see below).
++that parameter).  At that point it will be safe to enable the mapping of users
++and groups by name using the "numeric ids" daemon parameter (see below).
+ 
+ Note also that you are free to setup custom user/group information in the
+ chroot area that is different from your normal system.  For example, you
+ could abbreviate the list of users and groups.
+ 
+-dit(bf(numeric ids)) Enabling the "numeric ids" option disables the mapping
++dit(bf(numeric ids)) Enabling this parameter disables the mapping
+ of users and groups by name for the current daemon module.  This prevents
+ the daemon from trying to load any user/group-related files or libraries.
+-Enabling this option makes the transfer behave as if the client had passed
++This enabling makes the transfer behave as if the client had passed
+ the bf(--numeric-ids) command-line option.  By default, this parameter is
+ enabled for chroot modules and disabled for non-chroot modules.
+ 
+-A chroot-enabled module should not have this option enabled unless you've
++A chroot-enabled module should not have this parameter enabled unless you've
+ taken steps to ensure that the module has the necessary resources it needs
+ to translate names, and that it is not possible for a user to change those
+ resources.
+ 
+-dit(bf(munge symlinks))  The "munge symlinks" option tells rsync to modify
++dit(bf(munge symlinks)) This parameter tells rsync to modify
+ all incoming symlinks in a way that makes them unusable but recoverable
+ (see below).  This should help protect your files from user trickery when
+ your daemon module is writable.  The default is disabled when "use chroot"
+ is on and the inside-chroot path is "/", otherwise it is enabled.
+ 
+-If you disable this option on a daemon that is not read-only, there
++If you disable this parameter on a daemon that is not read-only, there
+ are tricks that a user can play with uploaded symlinks to access
+ daemon-excluded items (if your module has any), and, if "use chroot"
+ is off, rsync can even be tricked into showing or changing data that
+ is outside the module's path (as access-permissions allow).
+ 
+ The way rsync disables the use of symlinks is to prefix each one with
+ the string "/rsyncd-munged/".  This prevents the links from being used
+-as long as that directory does not exist.  When this option is enabled,
++as long as that directory does not exist.  When this parameter is enabled,
+ rsync will refuse to run if that path is a directory or a symlink to
+-a directory.  When using the "munge symlinks" option in a chroot area
++a directory.  When using the "munge symlinks" parameter in a chroot area
+ that has an inside-chroot path of "/", you should add "/rsyncd-munged/"
+ to the exclude setting for the module so that
+ a user can't try to create it.
+ 
+ Note:  rsync makes no attempt to verify that any pre-existing symlinks in
+ the hierarchy are as safe as you want them to be.  If you setup an rsync
+ daemon on a new area or locally add symlinks, you can manually protect your
+ symlinks from being abused by prefixing "/rsyncd-munged/" to the start of
+ every symlink's value.  There is a perl script in the support directory
+ of the source code named "munge-symlinks" that can be used to add or remove
+ this prefix from your symlinks.
+ 
+-When this option is disabled on a writable module and "use chroot" is off
++When this parameter is disabled on a writable module and "use chroot" is off
+ (or the inside-chroot path is not "/"),
+ incoming symlinks will be modified to drop a leading slash and to remove ".."
+ path elements that rsync believes will allow a symlink to escape the module's
+ hierarchy.  There are tricky ways to work around this, though, so you had
+-better trust your users if you choose this combination of options.
++better trust your users if you choose this combination of parameters.
+ 
+ dit(bf(charset)) This specifies the name of the character set in which the
+ module's filenames are stored.  If the client uses an bf(--iconv) option,
+ the daemon will use the value of the "charset" parameter regardless of the
+ character set the client actually passed.  This allows the daemon to
+ support charset conversion in a chroot module without extra files in the
+@@ -237,79 +237,79 @@
+ refused, just as if "iconv" had been specified via "refuse options".
+ 
+ If you wish to force users to always use bf(--iconv) for a particular
+ module, add "no-iconv" to the "refuse options" parameter.  Keep in mind
+ that this will restrict access to your module to very new rsync clients.
+ 
+-dit(bf(max connections)) The "max connections" option allows you to
++dit(bf(max connections)) This parameter allows you to
+ specify the maximum number of simultaneous connections you will allow.
+ Any clients connecting when the maximum has been reached will receive a
+ message telling them to try later.  The default is 0, which means no limit.
+ A negative value disables the module.
+-See also the "lock file" option.
++See also the "lock file" parameter.
+ 
+-dit(bf(log file)) When the "log file" option is set to a non-empty
++dit(bf(log file)) When the "log file" parameter is set to a non-empty
+ string, the rsync daemon will log messages to the indicated file rather
+ than using syslog. This is particularly useful on systems (such as AIX)
+ where code(syslog()) doesn't work for chrooted programs.  The file is
+ opened before code(chroot()) is called, allowing it to be placed outside
+ the transfer.  If this value is set on a per-module basis instead of
+ globally, the global log will still contain any authorization failures
+ or config-file error messages.
+ 
+ If the daemon fails to open to specified file, it will fall back to
+ using syslog and output an error about the failure.  (Note that the
+ failure to open the specified log file used to be a fatal error.)
+ 
+-dit(bf(syslog facility)) The "syslog facility" option allows you to
++dit(bf(syslog facility)) This parameter allows you to
+ specify the syslog facility name to use when logging messages from the
+ rsync daemon. You may use any standard syslog facility name which is
+ defined on your system. Common names are auth, authpriv, cron, daemon,
+ ftp, kern, lpr, mail, news, security, syslog, user, uucp, local0,
+ local1, local2, local3, local4, local5, local6 and local7. The default
+ is daemon.  This setting has no effect if the "log file" setting is a
+ non-empty string (either set in the per-modules settings, or inherited
+ from the global settings).
+ 
+-dit(bf(max verbosity)) The "max verbosity" option allows you to control
++dit(bf(max verbosity)) This parameter allows you to control
+ the maximum amount of verbose information that you'll allow the daemon to
+ generate (since the information goes into the log file). The default is 1,
+ which allows the client to request one level of verbosity.
+ 
+-dit(bf(lock file)) The "lock file" option specifies the file to use to
+-support the "max connections" option. The rsync daemon uses record
++dit(bf(lock file)) This parameter specifies the file to use to
++support the "max connections" parameter. The rsync daemon uses record
+ locking on this file to ensure that the max connections limit is not
+ exceeded for the modules sharing the lock file.
+ The default is tt(/var/run/rsyncd.lock).
+ 
+-dit(bf(read only)) The "read only" option determines whether clients
++dit(bf(read only)) This parameter determines whether clients
+ will be able to upload files or not. If "read only" is true then any
+ attempted uploads will fail. If "read only" is false then uploads will
+ be possible if file permissions on the daemon side allow them. The default
+ is for all modules to be read only.
+ 
+-dit(bf(write only)) The "write only" option determines whether clients
++dit(bf(write only)) This parameter determines whether clients
+ will be able to download files or not. If "write only" is true then any
+ attempted downloads will fail. If "write only" is false then downloads
+ will be possible if file permissions on the daemon side allow them.  The
+-default is for this option to be disabled.
++default is for this parameter to be disabled.
+ 
+-dit(bf(list)) The "list" option determines if this module should be
++dit(bf(list)) This parameter determines if this module should be
+ listed when the client asks for a listing of available modules. By
+ setting this to false you can create hidden modules. The default is
+ for modules to be listable.
+ 
+-dit(bf(uid)) The "uid" option specifies the user name or user ID that
++dit(bf(uid)) This parameter specifies the user name or user ID that
+ file transfers to and from that module should take place as when the daemon
+-was run as root. In combination with the "gid" option this determines what
++was run as root. In combination with the "gid" parameter this determines what
+ file permissions are available. The default is uid -2, which is normally
+ the user "nobody".
+ 
+-dit(bf(gid)) The "gid" option specifies the group name or group ID that
++dit(bf(gid)) This parameter specifies the group name or group ID that
+ file transfers to and from that module should take place as when the daemon
+-was run as root. This complements the "uid" option. The default is gid -2,
++was run as root. This complements the "uid" parameter. The default is gid -2,
+ which is normally the group "nobody".
+ 
+ dit(bf(fake super)) Setting "fake super = yes" for a module causes the
+ daemon side to behave as if the bf(--fake-user) command-line option had
+ been specified.  This allows the full attributes of a file to be stored
+ without having to have the daemon actually running as root.
+@@ -338,91 +338,91 @@
+ apply to a given module in the config file, so put all the rules you want in a
+ single parameter.  Note that per-directory merge-file rules do not provide as
+ much protection as global rules, but they can be used to make bf(--delete) work
+ better during a client download operation if the per-dir merge files are
+ included in the transfer and the client requests that they be used.
+ 
+-dit(bf(exclude)) The "exclude" parameter takes a space-separated list of daemon
++dit(bf(exclude)) This parameter takes a space-separated list of daemon
+ exclude patterns.  As with the client bf(--exclude) option, patterns can be
+ qualified with "- " or "+ " to explicitly indicate exclude/include.  Only one
+ "exclude" parameter can apply to a given module.  See the "filter" parameter
+ for a description of how excluded files affect the daemon.
+ 
+ dit(bf(include)) Use an "include" to override the effects of the "exclude"
+ parameter.  Only one "include" parameter can apply to a given module.  See the
+ "filter" parameter for a description of how excluded files affect the daemon.
+ 
+-dit(bf(exclude from)) The "exclude from" parameter specifies the name of a file
++dit(bf(exclude from)) This parameter specifies the name of a file
+ on the daemon that contains daemon exclude patterns, one per line.  Only one
+ "exclude from" parameter can apply to a given module; if you have multiple
+ exclude-from files, you can specify them as a merge file in the "filter"
+ parameter.  See the "filter" parameter for a description of how excluded files
+ affect the daemon.
+ 
+ dit(bf(include from)) Analogue of "exclude from" for a file of daemon include
+ patterns.  Only one "include from" parameter can apply to a given module.  See
+ the "filter" parameter for a description of how excluded files affect the
+ daemon.
+ 
+-dit(bf(incoming chmod)) This option allows you to specify a set of
++dit(bf(incoming chmod)) This parameter allows you to specify a set of
+ comma-separated chmod strings that will affect the permissions of all
+ incoming files (files that are being received by the daemon).  These
+ changes happen after all other permission calculations, and this will
+ even override destination-default and/or existing permissions when the
+ client does not specify bf(--perms).
+ See the description of the bf(--chmod) rsync option and the bf(chmod)(1)
+ manpage for information on the format of this string.
+ 
+-dit(bf(outgoing chmod)) This option allows you to specify a set of
++dit(bf(outgoing chmod)) This parameter allows you to specify a set of
+ comma-separated chmod strings that will affect the permissions of all
+ outgoing files (files that are being sent out from the daemon).  These
+ changes happen first, making the sent permissions appear to be different
+ than those stored in the filesystem itself.  For instance, you could
+ disable group write permissions on the server while having it appear to
+ be on to the clients.
+ See the description of the bf(--chmod) rsync option and the bf(chmod)(1)
+ manpage for information on the format of this string.
+ 
+-dit(bf(auth users)) The "auth users" option specifies a comma and
++dit(bf(auth users)) This parameter specifies a comma and
+ space-separated list of usernames that will be allowed to connect to
+ this module. The usernames do not need to exist on the local
+ system. The usernames may also contain shell wildcard characters. If
+ "auth users" is set then the client will be challenged to supply a
+ username and password to connect to the module. A challenge response
+ authentication protocol is used for this exchange. The plain text
+ usernames and passwords are stored in the file specified by the
+-"secrets file" option. The default is for all users to be able to
++"secrets file" parameter. The default is for all users to be able to
+ connect without a password (this is called "anonymous rsync").
+ 
+ See also the "CONNECTING TO AN RSYNC DAEMON OVER A REMOTE SHELL
+ PROGRAM" section in bf(rsync)(1) for information on how handle an
+ rsyncd.conf-level username that differs from the remote-shell-level
+ username when using a remote shell to connect to an rsync daemon.
+ 
+-dit(bf(secrets file)) The "secrets file" option specifies the name of
++dit(bf(secrets file)) This parameter specifies the name of
+ a file that contains the username:password pairs used for
+ authenticating this module. This file is only consulted if the "auth
+-users" option is specified. The file is line based and contains
++users" parameter is specified. The file is line based and contains
+ username:password pairs separated by a single colon. Any line starting
+ with a hash (#) is considered a comment and is skipped. The passwords
+ can contain any characters but be warned that many operating systems
+ limit the length of passwords that can be typed at the client end, so
+ you may find that passwords longer than 8 characters don't work.
+ 
+-There is no default for the "secrets file" option, you must choose a name
++There is no default for the "secrets file" parameter, you must choose a name
+ (such as tt(/etc/rsyncd.secrets)).  The file must normally not be readable
+ by "other"; see "strict modes".
+ 
+-dit(bf(strict modes)) The "strict modes" option determines whether or not
++dit(bf(strict modes)) This parameter determines whether or not
+ the permissions on the secrets file will be checked.  If "strict modes" is
+ true, then the secrets file must not be readable by any user ID other
+ than the one that the rsync daemon is running under.  If "strict modes" is
+-false, the check is not performed.  The default is true.  This option
++false, the check is not performed.  The default is true.  This parameter
+ was added to accommodate rsync running on the Windows operating system.
+ 
+-dit(bf(hosts allow)) The "hosts allow" option allows you to specify a
++dit(bf(hosts allow)) This parameter allows you to specify a
+ list of patterns that are matched against a connecting clients
+ hostname and IP address. If none of the patterns match then the
+ connection is rejected.
+ 
+ Each pattern can be in one of five forms:
+ 
+@@ -451,57 +451,57 @@
+ tt(    fe80::1%link1)nl()
+ tt(    fe80::%link1/64)nl()
+ tt(    fe80::%link1/ffff:ffff:ffff:ffff::)nl()
+ )
+ 
+ You can also combine "hosts allow" with a separate "hosts deny"
+-option. If both options are specified then the "hosts allow" option is
++parameter. If both parameters are specified then the "hosts allow" parameter is
+ checked first and a match results in the client being able to
+-connect. The "hosts deny" option is then checked and a match means
++connect. The "hosts deny" parameter is then checked and a match means
+ that the host is rejected. If the host does not match either the
+ "hosts allow" or the "hosts deny" patterns then it is allowed to
+ connect.
+ 
+-The default is no "hosts allow" option, which means all hosts can connect.
++The default is no "hosts allow" parameter, which means all hosts can connect.
+ 
+-dit(bf(hosts deny)) The "hosts deny" option allows you to specify a
++dit(bf(hosts deny)) This parameter allows you to specify a
+ list of patterns that are matched against a connecting clients
+ hostname and IP address. If the pattern matches then the connection is
+-rejected. See the "hosts allow" option for more information.
++rejected. See the "hosts allow" parameter for more information.
+ 
+-The default is no "hosts deny" option, which means all hosts can connect.
++The default is no "hosts deny" parameter, which means all hosts can connect.
+ 
+-dit(bf(ignore errors)) The "ignore errors" option tells rsyncd to
++dit(bf(ignore errors)) This parameter tells rsyncd to
+ ignore I/O errors on the daemon when deciding whether to run the delete
+ phase of the transfer. Normally rsync skips the bf(--delete) step if any
+ I/O errors have occurred in order to prevent disastrous deletion due
+ to a temporary resource shortage or other I/O error. In some cases this
+-test is counter productive so you can use this option to turn off this
++test is counter productive so you can use this parameter to turn off this
+ behavior.
+ 
+ dit(bf(ignore nonreadable)) This tells the rsync daemon to completely
+ ignore files that are not readable by the user. This is useful for
+ public archives that may have some non-readable files among the
+ directories, and the sysadmin doesn't want those files to be seen at all.
+ 
+-dit(bf(transfer logging)) The "transfer logging" option enables per-file
++dit(bf(transfer logging)) This parameter enables per-file
+ logging of downloads and uploads in a format somewhat similar to that
+ used by ftp daemons.  The daemon always logs the transfer at the end, so
+ if a transfer is aborted, no mention will be made in the log file.
+ 
+-If you want to customize the log lines, see the "log format" option.
++If you want to customize the log lines, see the "log format" parameter.
+ 
+-dit(bf(log format)) The "log format" option allows you to specify the
++dit(bf(log format)) This parameter allows you to specify the
+ format used for logging file transfers when transfer logging is enabled.
+ The format is a text string containing embedded single-character escape
+ sequences prefixed with a percent (%) character.  An optional numeric
+ field width may also be specified between the percent and the escape
+ letter (e.g. "bf(%-50n %8l %07p)").
+ 
+ The default log format is "%o %h [%a] %m (%u) %f %l", and a "%t [%p] "
+-is always prefixed when using the "log file" option.
++is always prefixed when using the "log file" parameter.
+ (A perl script that will summarize this default log format is included
+ in the rsync source code distribution in the "support" subdirectory:
+ rsyncstats.)
+ 
+ The single-character escapes that are understood are as follows:
+ 
+@@ -531,20 +531,20 @@
+ bf(--itemize-changes) option in the rsync manpage.
+ 
+ Note that some of the logged output changes when talking with older
+ rsync versions.  For instance, deleted files were only output as verbose
+ messages prior to rsync 2.6.4.
+ 
+-dit(bf(timeout)) The "timeout" option allows you to override the
+-clients choice for I/O timeout for this module. Using this option you
++dit(bf(timeout)) This parameter allows you to override the
++clients choice for I/O timeout for this module. Using this parameter you
+ can ensure that rsync won't wait on a dead client forever. The timeout
+ is specified in seconds. A value of zero means no timeout and is the
+ default. A good choice for anonymous rsync daemons may be 600 (giving
+ a 10 minute timeout).
+ 
+-dit(bf(refuse options)) The "refuse options" option allows you to
++dit(bf(refuse options)) This parameter allows you to
+ specify a space-separated list of rsync command line options that will
+ be refused by your rsync daemon.
+ You may specify the full option name, its one-letter abbreviation, or a
+ wild-card string that matches multiple options.
+ For example, this would refuse bf(--checksum) (bf(-c)) and all the various
+ delete options:
+@@ -561,27 +561,27 @@
+ When an option is refused, the daemon prints an error message and exits.
+ To prevent all compression when serving files,
+ you can use "dont compress = *" (see below)
+ instead of "refuse options = compress" to avoid returning an error to a
+ client that requests compression.
+ 
+-dit(bf(dont compress)) The "dont compress" option allows you to select
++dit(bf(dont compress)) This parameter allows you to select
+ filenames based on wildcard patterns that should not be compressed
+-when pulling files from the daemon (no analogous option exists to
++when pulling files from the daemon (no analogous parameter exists to
+ govern the pushing of files to a daemon).
+ Compression is expensive in terms of CPU usage, so it
+ is usually good to not try to compress files that won't compress well,
+ such as already compressed files.
+ 
+-The "dont compress" option takes a space-separated list of
++The "dont compress" parameter takes a space-separated list of
+ case-insensitive wildcard patterns. Any source filename matching one
+ of the patterns will not be compressed during transfer.
+ 
+-See the bf(--skip-compress) option in the bf(rsync)(1) manpage for the list
++See the bf(--skip-compress) parameter in the bf(rsync)(1) manpage for the list
+ of file suffixes that are not compressed by default.  Specifying a value
+-for the "dont compress" option changes the default when the daemon is
++for the "dont compress" parameter changes the default when the daemon is
+ the sender.
+ 
+ dit(bf(pre-xfer exec), bf(post-xfer exec)) You may specify a command to be run
+ before and/or after the transfer.  If the bf(pre-xfer exec) command fails, the
+ transfer is aborted before it begins.
+ 
+@@ -697,13 +697,13 @@
+ 
+ Please report bugs! The rsync bug tracking system is online at
+ url(http://rsync.samba.org/)(http://rsync.samba.org/)
+ 
+ manpagesection(VERSION)
+ 
+-This man page is current for version 3.0.2 of rsync.
++This man page is current for version 3.0.3 of rsync.
+ 
+ manpagesection(CREDITS)
+ 
+ rsync is distributed under the GNU public license.  See the file
+ COPYING for details.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.h	2008-03-31 06:44:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.h	2008-06-24 00:17:55.000000000 +0800
+@@ -80,13 +80,12 @@
+ #define FLAG_SKIP_GROUP (1<<10)	/* receiver/generator */
+ #define FLAG_TIME_FAILED (1<<11)/* generator */
+ 
+ /* These flags are passed to functions but not stored. */
+ 
+ #define FLAG_DIVERT_DIRS (1<<16)/* sender */
+-#define FLAG_DOTDIR_NAME (1<<17)/* sender */
+ 
+ #define BITS_SET(val,bits) (((val) & (bits)) == (bits))
+ #define BITS_SETnUNSET(val,onbits,offbits) (((val) & ((onbits)|(offbits))) == (onbits))
+ #define BITS_EQUAL(b1,b2,mask) (((unsigned)(b1) & (unsigned)(mask)) \
+ 			     == ((unsigned)(b2) & (unsigned)(mask)))
+ 
+@@ -127,12 +126,15 @@
+ #define WRITE_SIZE (32*1024)
+ #define CHUNK_SIZE (32*1024)
+ #define MAX_MAP_SIZE (256*1024)
+ #define IO_BUFFER_SIZE (4092)
+ #define MAX_BLOCK_SIZE ((int32)1 << 17)
+ 
++/* For compatibility with older rsyncs */
++#define OLD_MAX_BLOCK_SIZE ((int32)1 << 29)
++
+ #define IOERR_GENERAL	(1<<0) /* For backward compatibility, this must == 1 */
+ #define IOERR_VANISHED	(1<<1)
+ #define IOERR_DEL_LIMIT (1<<2)
+ 
+ #define MAX_ARGS 1000
+ #define MAX_BASIS_DIRS 20
+@@ -495,16 +497,18 @@
+ #endif
+ #endif
+ 
+ #if SIZEOF_OFF_T == 8 || !SIZEOF_OFF64_T || !defined HAVE_STRUCT_STAT64
+ #define OFF_T off_t
+ #define STRUCT_STAT struct stat
++#define SIZEOF_CAPITAL_OFF_T SIZEOF_OFF_T
+ #else
+ #define OFF_T off64_t
+ #define STRUCT_STAT struct stat64
+ #define USE_STAT64_FUNCS 1
++#define SIZEOF_CAPITAL_OFF_T SIZEOF_OFF64_T
+ #endif
+ 
+ /* CAVEAT: on some systems, int64 will really be a 32-bit integer IFF
+  * that's the maximum size the file system can handle and there is no
+  * 64-bit type available.  The rsync source must therefore take steps
+  * to ensure that any code that really requires a 64-bit integer has
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.yo	2008-04-08 23:16:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/rsync.yo	2008-06-30 11:15:37.000000000 +0800
+@@ -1,8 +1,8 @@
+ mailto(rsync-bugs@samba.org)
+-manpage(rsync)(1)(8 Apr 2008)()()
++manpage(rsync)(1)(29 Jun 2008)()()
+ manpagename(rsync)(a fast, versatile, remote (and local) file-copying tool)
+ manpagesynopsis()
+ 
+ verb(Local:  rsync [OPTION...] SRC... [DEST]
+ 
+ Access via remote shell:
+@@ -694,35 +694,41 @@
+ files.  Also, a difference of file format between the sender and receiver
+ is always considered to be important enough for an update, no matter what
+ date is on the objects.  In other words, if the source has a directory
+ where the destination has a file, the transfer would occur regardless of
+ the timestamps.
+ 
+-dit(bf(--inplace)) This causes rsync not to create a new copy of the file
+-and then move it into place.  Instead rsync will overwrite the existing
+-file, meaning that the rsync algorithm can't accomplish the full amount of
+-network reduction it might be able to otherwise (since it does not yet try
+-to sort data matches).  One exception to this is if you combine the option
+-with bf(--backup), since rsync is smart enough to use the backup file as the
+-basis file for the transfer.
++dit(bf(--inplace)) This option changes how rsync transfers a file when the
++file's data needs to be updated: instead of the default method of creating
++a new copy of the file and moving it into place when it is complete, rsync
++instead writes the updated data directly to the destination file.
++
++This has several effects: (1) in-use binaries cannot be updated (either the
++OS will prevent this from happening, or binaries that attempt to swap-in
++their data will misbehave or crash), (2) the file's data will be in an
++inconsistent state during the transfer, (3) a file's data may be left in an
++inconsistent state after the transfer if the transfer is interrupted or if
++an update fails, (4) a file that does not have write permissions can not be
++updated, and (5) the efficiency of rsync's delta-transfer algorithm may be
++reduced if some data in the destination file is overwritten before it can
++be copied to a position later in the file (one exception to this is if you
++combine this option with bf(--backup), since rsync is smart enough to use
++the backup file as the basis file for the transfer).
++
++WARNING: you should not use this option to update files that are being
++accessed by others, so be careful when choosing to use this for a copy.
+ 
+ This option is useful for transfer of large files with block-based changes
+ or appended data, and also on systems that are disk bound, not network
+ bound.
+ 
+ The option implies bf(--partial) (since an interrupted transfer does not delete
+ the file), but conflicts with bf(--partial-dir) and bf(--delay-updates).
+ Prior to rsync 2.6.4 bf(--inplace) was also incompatible with bf(--compare-dest)
+ and bf(--link-dest).
+ 
+-WARNING: The file's data will be in an inconsistent state during the
+-transfer (and possibly afterward if the transfer gets interrupted), so you
+-should not use this option to update files that are in use.  Also note that
+-rsync will be unable to update a file in-place that is not writable by the
+-receiving user.
+-
+ dit(bf(--append)) This causes rsync to update a file by appending data onto
+ the end of the file, which presumes that the data that already exists on
+ the receiving side is identical with the start of the file on the sending
+ side.  If a file needs to be transferred and its size on the receiver is
+ the same or longer than the size on the sender, the file is skipped.  This
+ does not interfere with the updating of a file's non-content attributes
+@@ -983,13 +989,13 @@
+ 
+ dit(bf(-t, --times)) This tells rsync to transfer modification times along
+ with the files and update them on the remote system.  Note that if this
+ option is not used, the optimization that excludes files that have not been
+ modified cannot be effective; in other words, a missing bf(-t) or bf(-a) will
+ cause the next transfer to behave as if it used bf(-I), causing all files to be
+-updated (though the rsync algorithm will make the update fairly efficient
++updated (though rsync's delta-transfer algorithm will make the update fairly efficient
+ if the files haven't actually changed, you're much better off using bf(-t)).
+ 
+ dit(bf(-O, --omit-dir-times)) This tells rsync to omit directories when
+ it is preserving modification times (see bf(--times)).  If NFS is sharing
+ the directories on the receiving side, it is a good idea to use bf(-O).
+ This option is inferred if you use bf(--backup) without bf(--backup-dir).
+@@ -1055,13 +1061,13 @@
+ extent practical, but may differ in some areas.  Notably, a dry run does not
+ send the actual data for file transfers, so bf(--progress) has no effect,
+ the "bytes sent", "bytes received", "literal data", and "matched data"
+ statistics are too small, and the "speedup" value is equivalent to a run
+ where no file transfers are needed.
+ 
+-dit(bf(-W, --whole-file)) With this option the delta-transfer algorithm
++dit(bf(-W, --whole-file)) With this option rsync's delta-transfer algorithm
+ is not used and the whole file is sent as-is instead.  The transfer may be
+ faster if this option is used when the bandwidth between the source and
+ destination machines is higher than the bandwidth to disk (especially when the
+ "disk" is actually a networked filesystem).  This is the default when both
+ the source and destination are specified as local paths.
+ 
+@@ -1222,13 +1228,13 @@
+ dit(bf(--min-size=SIZE)) This tells rsync to avoid transferring any
+ file that is smaller than the specified SIZE, which can help in not
+ transferring small, junk files.
+ See the bf(--max-size) option for a description of SIZE.
+ 
+ dit(bf(-B, --block-size=BLOCKSIZE)) This forces the block size used in
+-the rsync algorithm to a fixed value.  It is normally selected based on
++rsync's delta-transfer algorithm to a fixed value.  It is normally selected based on
+ the size of each file being updated.  See the technical report for details.
+ 
+ dit(bf(-e, --rsh=COMMAND)) This option allows you to choose an alternative
+ remote shell program to use for communication between the local and
+ remote copies of rsync. Typically, rsync is configured to use ssh by
+ default, but you may prefer to use rsh on a local network.
+@@ -1756,20 +1762,20 @@
+ (which must also be specified for this option to have any effect).  If you
+ specify an empty string, updated files will not be mentioned in the log file.
+ For a list of the possible escape characters, see the "log format" setting
+ in the rsyncd.conf manpage.
+ 
+ dit(bf(--stats)) This tells rsync to print a verbose set of statistics
+-on the file transfer, allowing you to tell how effective the rsync
++on the file transfer, allowing you to tell how effective rsync's delta-transfer
+ algorithm is for your data.
+ 
+ The current statistics are as follows: quote(itemization(
+   it() bf(Number of files) is the count of all "files" (in the generic
+   sense), which includes directories, symlinks, etc.
+   it() bf(Number of files transferred) is the count of normal files that
+-  were updated via the rsync algorithm, which does not include created
++  were updated via rsync's delta-transfer algorithm, which does not include created
+   dirs, symlinks, etc.
+   it() bf(Total file size) is the total sum of all file sizes in the transfer.
+   This does not count any size for directories or special files, but does
+   include the size of symlinks.
+   it() bf(Total transferred file size) is the total sum of all files sizes
+   for just the transferred files.
+@@ -1824,13 +1830,13 @@
+ dir as data to speed up the resumption of the transfer and then delete it
+ after it has served its purpose.
+ 
+ Note that if bf(--whole-file) is specified (or implied), any partial-dir
+ file that is found for a file that is being updated will simply be removed
+ (since
+-rsync is sending files without using the delta transfer algorithm).
++rsync is sending files without using rsync's delta-transfer algorithm).
+ 
+ Rsync will create the em(DIR) if it is missing (just the last dir -- not
+ the whole path).  This makes it easy to use a relative path (such as
+ "bf(--partial-dir=.rsync-partial)") to have rsync create the
+ partial-directory in the destination file's directory when needed, and then
+ remove it again when the partial file is deleted.
+@@ -1942,13 +1948,13 @@
+ 
+ In this example, the receiver has reconstructed 782448 bytes or 63% of the
+ sender's file, which is being reconstructed at a rate of 110.64 kilobytes
+ per second, and the transfer will finish in 4 seconds if the current rate
+ is maintained until the end.
+ 
+-These statistics can be misleading if the delta transfer algorithm is
++These statistics can be misleading if rsync's delta-transfer algorithm is
+ in use.  For example, if the sender's file consists of the basis file
+ followed by additional data, the reported rate will probably drop
+ dramatically when the receiver gets to the literal data, and the transfer
+ will probably take much longer to finish than the receiver estimated as it
+ was finishing the matched part of the file.
+ 
+@@ -2873,13 +2879,13 @@
+ 
+ Please report bugs! See the web site at
+ url(http://rsync.samba.org/)(http://rsync.samba.org/)
+ 
+ manpagesection(VERSION)
+ 
+-This man page is current for version 3.0.2 of rsync.
++This man page is current for version 3.0.3 of rsync.
+ 
+ manpagesection(INTERNAL OPTIONS)
+ 
+ The options bf(--server) and bf(--sender) are used internally by rsync,
+ and should never be typed by a user under normal circumstances.  Some
+ awareness of these options may be needed in certain scenarios, such as
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/runtests.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/runtests.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/runtests.sh	2007-06-03 00:44:23.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/runtests.sh	2008-05-18 22:00:48.000000000 +0800
+@@ -151,18 +151,27 @@
+ fi
+ 
+ # This allows the user to specify extra rsync options -- use carefully!
+ RSYNC="$rsync_bin $*"
+ #RSYNC="valgrind $rsync_bin $*"
+ 
+-export POSIXLY_CORRECT TOOLDIR srcdir RSYNC
++TLS_ARGS=''
++if egrep '^#define HAVE_LUTIMES 1' config.h >/dev/null; then
++    TLS_ARGS="$TLS_ARGS -l"
++fi
++if egrep '#undef CHOWN_MODIFIES_SYMLINK' config.h >/dev/null; then
++    TLS_ARGS="$TLS_ARGS -L"
++fi
++
++export POSIXLY_CORRECT TOOLDIR srcdir RSYNC TLS_ARGS
+ 
+ echo "============================================================"
+ echo "$0 running in $TOOLDIR"
+ echo "    rsync_bin=$RSYNC"
+ echo "    srcdir=$srcdir"
++echo "    TLS_ARGS=$TLS_ARGS"
+ 
+ if [ -f /usr/bin/whoami ]; then
+     testuser=`/usr/bin/whoami`
+ elif [ -f /usr/ucb/whoami ]; then
+     testuser=`/usr/ucb/whoami`
+ elif [ -f /bin/whoami ]; then
+@@ -226,13 +235,16 @@
+ prep_scratch() {
+     [ -d "$scratchdir" ] && chmod -R u+rwX "$scratchdir" && rm -rf "$scratchdir"
+     mkdir "$scratchdir"
+     # Get rid of default ACLs and dir-setgid to avoid confusing some tests.
+     $setfacl_nodef "$scratchdir" || true
+     chmod g-s "$scratchdir"
+-    ln -s "$srcdir" "$scratchdir/src"
++    case "$srcdir" in
++    /*) ln -s "$srcdir" "$scratchdir/src" ;;
++    *)  ln -s "$TOOLDIR/$srcdir" "$scratchdir/src" ;;
++    esac
+     return 0
+ }
+ 
+ maybe_discard_scratch() {
+     [ x"$preserve_scratch" != xyes ] && [ -d "$scratchdir" ] && rm -rf "$scratchdir"
+     return 0
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/socket.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/socket.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/socket.c	2008-03-02 04:01:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/socket.c	2008-04-15 23:34:17.000000000 +0800
+@@ -28,12 +28,13 @@
+ #include "ifuncs.h"
+ #include <netinet/in_systm.h>
+ #include <netinet/ip.h>
+ #include <netinet/tcp.h>
+ 
+ extern char *bind_address;
++extern char *sockopts;
+ extern int default_af_hint;
+ extern int connect_timeout;
+ 
+ #ifdef HAVE_SIGACTION
+ static struct sigaction sigact;
+ #endif
+@@ -269,12 +270,13 @@
+ 		}
+ 		if (connect_timeout > 0) {
+ 			SIGACTION(SIGALRM, contimeout_handler);
+ 			alarm(connect_timeout);
+ 		}
+ 
++		set_socket_options(s, sockopts);
+ 		while (connect(s, res->ai_addr, res->ai_addrlen) < 0) {
+ 			if (connect_timeout < 0)
+ 				exit_cleanup(RERR_CONTIMEOUT);
+ 			if (errno == EINTR)
+ 				continue;
+ 			close(s);
+@@ -430,12 +432,16 @@
+ 			/* See if there's another address that will work... */
+ 			continue;
+ 		}
+ 
+ 		setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
+ 			   (char *)&one, sizeof one);
++		if (sockopts)
++			set_socket_options(s, sockopts);
++		else
++			set_socket_options(s, lp_socket_options());
+ 
+ #ifdef IPV6_V6ONLY
+ 		if (resp->ai_family == AF_INET6) {
+ 			if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
+ 				       (char *)&one, sizeof one) < 0
+ 			    && default_af_hint != AF_INET6) {
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/support: deny-rsync
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/support/lsh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/support/lsh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/support/lsh	2007-09-09 04:03:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/support/lsh	2008-04-19 10:41:57.000000000 +0800
+@@ -3,21 +3,33 @@
+ # capable of pretending to connect to "localhost".  This is useful
+ # for testing or for running a local copy where the sender and the
+ # receiver needs to use different options (e.g. --fake-super).  If
+ # we get a -l USER option, we try to use "sudo -u USER" to run the
+ # command.
+ 
++user=''
+ prefix=''
+-
+-cd # Default path is home dir, just like ssh.
++do_cd=y # Default path is user's home dir, just like ssh.
+ 
+ while : ; do
+     case "$1" in
+-    -l) shift ; prefix="sudo -u $1"; shift ;;
+-    -l*) prefix=`echo $1 | sed 's/-l/sudo -u /'`; shift ;;
++    -l) user="$2"; shift; shift ;;
++    -l*) user=`echo $1 | sed 's/^-l//'`; shift ;;
++    --no-cd) do_cd=n; shift ;;
+     -*) shift ;;
+     localhost) shift; break ;;
+-    *) exit 1 ;;
++    *) echo "lsh: unable to connect to host $1" 1>&2; exit 1 ;;
+     esac
+ done
+ 
++if [ "$user" ]; then
++    prefix="sudo -H -u $user"
++    if [ $do_cd = y ]; then
++	home=`perl -e "print((getpwnam("$user"))[7])"`
++	# Yeah, this may fail, but attempts to get sudo to cd are harder.
++	cd $home
++    fi
++elif [ $do_cd = y ]; then
++    cd
++fi
++
+ eval $prefix "${@}"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/backup.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/backup.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/backup.test	2007-09-04 04:43:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/backup.test	2008-06-18 06:59:47.000000000 +0800
+@@ -33,13 +33,13 @@
+     diff $diffopt "$fromdir/$fn" "$todir/$fn" || test_fail "copy of $fn failed"
+     diff $diffopt "$chkdir/$fn" "$todir/$fn~" || test_fail "backup of $fn to $fn~ failed"
+     mv "$todir/$fn~" "$todir/$fn"
+ done
+ 
+ echo deleted-file >"$todir/dname"
+-cp -p "$todir/dname" "$chkdir"
++cp_touch "$todir/dname" "$chkdir"
+ 
+ checkit "$RSYNC -avv --no-whole-file --delete-delay \
+     --backup --backup-dir='$bakdir' '$fromdir/' '$todir/'" "$fromdir" "$todir" \
+     | tee "$outfile"
+ 
+ for fn in deep/name1 deep/name2; do
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/chown.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/chown.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/chown.test	2007-04-29 07:47:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/chown.test	2008-05-07 01:39:19.000000000 +0800
+@@ -14,13 +14,13 @@
+ . "$suitedir/rsync.fns"
+ 
+ case $0 in
+ *fake*)
+     $RSYNC --version | grep ", xattrs" >/dev/null || test_skipped "Rsync needs xattrs for fake device tests"
+     RSYNC="$RSYNC --fake-super"
+-    TLS_ARGS=--fake-super
++    TLS_ARGS="$TLS_ARGS --fake-super"
+     case "`xattr 2>&1`" in
+     *--list:*)
+ 	chown() {
+ 	    own=$1
+ 	    shift
+ 	    xattr -s 'rsync.%stat' "100644 0,0 $own" "${@}"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/daemon.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/daemon.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/daemon.test	2008-03-04 10:33:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/daemon.test	2008-06-01 05:52:24.000000000 +0800
+@@ -16,38 +16,74 @@
+ # listing files in a module
+ # retrieving a module
+ # uploading to a module
+ # checking the log file
+ # password authentication
+ 
+-# TODO: Put the common framework in a common file, so that we can have
+-# subtests fail and keep going.
+-
+ . "$suitedir/rsync.fns"
+ 
+-SSH="$scratchdir/pretend-ssh"
+-
+-cat >"$SSH" <<'EOT'
+-while : ; do
+-    case "$1" in
+-    -*) shift ;;
+-    localhost) shift; break ;;
+-    *) exit 1 ;;
+-    esac
+-done
++chkfile="$scratchdir/rsync.chk"
++outfile="$scratchdir/rsync.out"
+ 
+-eval "${@}"
+-EOT
+-chmod +x "$SSH"
++SSH="src/support/lsh --no-cd"
++DIR_REPL='s/^\(d[^ ]*\)  *[0-9][0-9]* /\1         DIR /'
++LS_REPL='s;[0-9][0-9][0-9][0-9]/[0-9][0-9]/[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9];####/##/## ##:##:##;'
+ 
+ build_rsyncd_conf
+ 
++makepath "$fromdir/foo" "$fromdir/bar/baz"
++makepath "$todir"
++echo one >"$fromdir/foo/one"
++echo two >"$fromdir/bar/two"
++echo three >"$fromdir/bar/baz/three"
++
+ cd "$scratchdir"
+ 
+ ln -s test-rsyncd.conf rsyncd.conf
+ 
+-$RSYNC -ve $SSH --rsync-path="$RSYNC" localhost::
++confopt=''
++case `id -u` in
++0)
++    # Root needs to specify the config file, or it uses /etc/rsyncd.conf.
++    echo "Forcing --config=$conf"
++    confopt=" --config=$conf"
++    ;;
++esac
++
++$RSYNC -ve "$SSH" --rsync-path="$RSYNC$confopt" localhost::
+ 
+ RSYNC_CONNECT_PROG="$RSYNC --config=$conf --daemon"
+ export RSYNC_CONNECT_PROG
+ 
+-$RSYNC -v localhost::
++$RSYNC -v localhost:: \
++    | tee "$outfile"
++# These have a space-padded 15-char name, then a tab, then a comment.
++sed 's/NOCOMMENT//' <<EOT >"$chkfile"
++test-from      	r/o
++test-to        	r/w
++test-scratch   	NOCOMMENT
++EOT
++diff $diffopt "$chkfile" "$outfile" || test_fail "test 1 failed"
++
++$RSYNC -r localhost::test-hidden \
++    | sed "$DIR_REPL" | sed "$LS_REPL" \
++    | tee "$outfile"
++cat <<EOT >"$chkfile"
++drwxr-xr-x         DIR ####/##/## ##:##:## .
++drwxr-xr-x         DIR ####/##/## ##:##:## bar
++-rw-r--r--           4 ####/##/## ##:##:## bar/two
++drwxr-xr-x         DIR ####/##/## ##:##:## bar/baz
++-rw-r--r--           6 ####/##/## ##:##:## bar/baz/three
++drwxr-xr-x         DIR ####/##/## ##:##:## foo
++-rw-r--r--           4 ####/##/## ##:##:## foo/one
++EOT
++diff $diffopt "$chkfile" "$outfile" || test_fail "test 2 failed"
++
++$RSYNC -r localhost::test-from/f* \
++    | sed "$DIR_REPL" | sed "$LS_REPL" \
++    | tee "$outfile"
++cat <<EOT >"$chkfile"
++drwxr-xr-x         DIR ####/##/## ##:##:## foo
++-rw-r--r--           4 ####/##/## ##:##:## foo/one
++EOT
++diff $diffopt "$chkfile" "$outfile" || test_fail "test 3 failed"
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/devices.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/devices.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/devices.test	2008-03-15 22:26:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/devices.test	2008-06-18 06:59:47.000000000 +0800
+@@ -15,13 +15,13 @@
+ # Build some hardlinks
+ 
+ case $0 in
+ *fake*)
+     $RSYNC --version | grep ", xattrs" >/dev/null || test_skipped "Rsync needs xattrs for fake device tests"
+     RSYNC="$RSYNC --fake-super"
+-    TLS_ARGS=--fake-super
++    TLS_ARGS="$TLS_ARGS --fake-super"
+     case "`xattr 2>&1`" in
+     *--list:*)
+ 	mknod() {
+ 	    fn="$1"
+ 	    case "$2" in
+ 	    p) mode=10644 ;;
+@@ -73,13 +73,14 @@
+ mknod "$fromdir/char3" c 42 69  || test_skipped "Can't create char device node"
+ mknod "$fromdir/block" b 42 69 || test_skipped "Can't create block device node"
+ mknod "$fromdir/block2" b 42 73 || test_skipped "Can't create block device node"
+ mknod "$fromdir/block3" b 105 73 || test_skipped "Can't create block device node"
+ ln "$fromdir/block3" "$fromdir/block2.5" || echo "Skipping hard-linked device test..."
+ mkfifo "$fromdir/fifo" || mknod "$fromdir/fifo" p || test_skipped "Can't run mkfifo"
+-touch -r "$fromdir/block" "$fromdir/block2"
++# Work around time rounding/truncating issue by touching both files.
++touch -r "$fromdir/block" "$fromdir/block" "$fromdir/block2"
+ 
+ $RSYNC -ai "$fromdir/block" "$todir/block2" \
+     | tee "$outfile"
+ cat <<EOT >"$chkfile"
+ cD$all_plus block
+ EOT
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/exclude.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/exclude.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/exclude.test	2007-09-04 04:43:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/exclude.test	2008-06-18 06:59:47.000000000 +0800
+@@ -150,19 +150,19 @@
+     --delete-during '$fromdir/' '$todir/'" "$chkdir" "$todir"
+ 
+ # Modify the chk dir for our merge-exclude test and then tweak the dir times.
+ 
+ rm "$chkdir"/foo/file1
+ rm "$chkdir"/bar/down/to/bar/baz/*.deep
+-cp -p "$fromdir"/bar/down/to/foo/*.junk "$chkdir"/bar/down/to/foo
+-cp -p "$fromdir"/bar/down/to/foo/to "$chkdir"/bar/down/to/foo
++cp_touch "$fromdir"/bar/down/to/foo/*.junk "$chkdir"/bar/down/to/foo
++cp_touch "$fromdir"/bar/down/to/foo/to "$chkdir"/bar/down/to/foo
+ 
+ $RSYNC -av --existing -f 'show .filt*' -f 'hide,! */' --del "$fromdir/" "$todir/"
+ 
+ echo retained >"$todir"/bar/down/to/bar/baz/nodel.deep
+-cp -p "$todir"/bar/down/to/bar/baz/nodel.deep "$chkdir"/bar/down/to/bar/baz
++cp_touch "$todir"/bar/down/to/bar/baz/nodel.deep "$chkdir"/bar/down/to/bar/baz
+ 
+ $RSYNC -av --existing --filter='-! */' "$fromdir/" "$chkdir/"
+ 
+ # Now, test if rsync excludes the same files, this time with a merge-exclude
+ # file.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/fuzzy.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/fuzzy.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/fuzzy.test	2007-09-04 04:43:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/fuzzy.test	2008-06-18 06:59:47.000000000 +0800
+@@ -10,13 +10,13 @@
+ . "$suitedir/rsync.fns"
+ 
+ mkdir "$fromdir"
+ mkdir "$todir"
+ 
+ cp -p "$srcdir"/rsync.c "$fromdir"/rsync.c
+-cp -p "$fromdir"/rsync.c "$todir"/rsync2.c
++cp_touch "$fromdir"/rsync.c "$todir"/rsync2.c
+ sleep 1
+ 
+ # Let's do it!
+ checkit "$RSYNC -avvi --no-whole-file --fuzzy --delete-delay \
+     '$fromdir/' '$todir/'" "$fromdir" "$todir"
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/hardlinks.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/hardlinks.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/hardlinks.test	2008-03-29 01:40:17.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/hardlinks.test	2008-05-18 06:07:24.000000000 +0800
+@@ -8,12 +8,14 @@
+ # Test rsync handling of hardlinks.  By default, rsync does not detect
+ # hard links and they get sent as separate files.  If you specify -H,
+ # then hard links are detected and linked together on the receiver.
+ 
+ . "$suitedir/rsync.fns"
+ 
++SSH="$scratchdir/src/support/lsh"
++
+ outfile="$scratchdir/rsync.out"
+ 
+ # Build some hardlinks
+ 
+ fromdir="$scratchdir/from"
+ todir="$scratchdir/to"
+@@ -41,23 +43,23 @@
+ # the files before the directory gets created.  We also create a bunch of
+ # extra files to ensure that an incremental-recursion transfer works across
+ # distant files.
+ makepath "$fromdir/subdir/down/deep"
+ 
+ files=''
+-for x in 0 1 2 3 4 5 6 7 8 9 a b c d e f g h i j k l m n o p q r s t u v w x y z; do
+-    for y in 0 1 2 3 4 5 6 7 8 9 a b c d e f g h i j k l m n o p q r s t u v w x y z; do
++for x in a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9; do
++    for y in a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9; do
+ 	files="$files $x$y"
+     done
+ done
+ (cd "$fromdir/subdir"; touch $files)
+ 
+ ln "$name1" "$fromdir/subdir/down/deep/new-file"
+ rm "$todir/text"
+ 
+-checkit "$RSYNC -aHivv '$fromdir/' '$todir/'" "$fromdir" "$todir"
++checkit "$RSYNC -aHivve '$SSH' --rsync-path='$RSYNC' '$fromdir/' localhost:'$todir/'" "$fromdir" "$todir"
+ 
+ # Do some duplicate copies using --link-dest and --copy-dest to test that
+ # we hard-link all locally-inherited items.
+ checkit "$RSYNC -aHivv --link-dest='$todir' '$fromdir/' '$chkdir/'" "$todir" "$chkdir"
+ 
+ rm -rf "$chkdir"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/itemize.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/itemize.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/itemize.test	2008-03-11 12:39:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/itemize.test	2008-05-18 06:07:24.000000000 +0800
+@@ -25,14 +25,13 @@
+ ln -s ../bar/baz/rsync "$fromdir/foo/sym"
+ umask 022
+ ln "$fromdir/foo/config1" "$fromdir/foo/extra"
+ rm -f "$to2dir"
+ 
+ # Check if rsync is set to hard-link symlinks.
+-confile=`echo "$scratchdir" | sed 's;/testtmp/itemize$;/config.h;'`
+-if egrep '^#define CAN_HARDLINK_SYMLINK 1' "$confile" >/dev/null; then
++if egrep '^#define CAN_HARDLINK_SYMLINK 1' config.h >/dev/null; then
+     L=hL
+ else
+     L=cL
+ fi
+ 
+ # Check if rsync can preserve time on symlinks
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/merge.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/merge.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/merge.test	2008-03-05 13:46:27.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/merge.test	2008-06-18 06:59:47.000000000 +0800
+@@ -16,34 +16,34 @@
+ 
+ mkdir from1 from2 from3 deep
+ mkdir from2/sub1 from3/sub1
+ mkdir from3/sub2 from1/dir-and-not-dir
+ mkdir chk chk/sub1 chk/sub2 chk/dir-and-not-dir
+ echo "one" >from1/one
+-cp -p from1/one from2/one
+-cp -p from1/one from3/one
++cp_touch from1/one from2/one
++cp_touch from1/one from3/one
+ echo "two" >from1/two
+ echo "three" >from2/three
+ echo "four" >from3/four
+ echo "five" >from1/five
+ echo "six" >from3/six
+ echo "sub1" >from2/sub1/uno
+-cp -p from2/sub1/uno from3/sub1/uno
++cp_touch from2/sub1/uno from3/sub1/uno
+ echo "sub2" >from3/sub1/dos
+ echo "sub3" >from2/sub1/tres
+ echo "subby" >from3/sub2/subby
+ echo "extra" >from1/dir-and-not-dir/inside
+ echo "not-dir" >from3/dir-and-not-dir
+ echo "arg-test" >deep/arg-test
+ echo "shallow" >shallow
+ 
+-cp -p from1/one from1/two from2/three from3/four from1/five from3/six chk
+-cp -p deep/arg-test shallow chk
+-cp -p from1/dir-and-not-dir/inside chk/dir-and-not-dir
+-cp -p from2/sub1/uno from3/sub1/dos from2/sub1/tres chk/sub1
+-cp -p from3/sub2/subby chk/sub2
++cp_touch from1/one from1/two from2/three from3/four from1/five from3/six chk
++cp_touch deep/arg-test shallow chk
++cp_touch from1/dir-and-not-dir/inside chk/dir-and-not-dir
++cp_touch from2/sub1/uno from3/sub1/dos from2/sub1/tres chk/sub1
++cp_touch from3/sub2/subby chk/sub2
+ 
+ # Make sure that time has moved on.
+ sleep 1
+ 
+ # Get rid of any directory-time differences
+ $RSYNC -av --existing -f 'exclude,! */' from1/ from2/
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/rsync.fns /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/rsync.fns
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/rsync.fns	2008-02-28 09:57:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/rsync.fns	2008-06-18 06:59:47.000000000 +0800
+@@ -49,12 +49,35 @@
+     else
+ 	echo "$ECHO_T failed!"
+ 	return 1
+     fi
+ }
+ 
++set_cp_destdir() {
++    while test $# -gt 1; do
++	shift
++    done
++    destdir="$1"
++}
++
++# Perform a "cp -p", making sure that timestamps are really the same,
++# even if the copy rounded microsecond times on the destination file.
++cp_touch() {
++    cp -p "${@}" || test_fail "cp -p failed"
++    if test $# -gt 2 -o -d "$2"; then
++	set_cp_destdir "${@}" # sets destdir var
++	while test $# -gt 1; do
++	    destname="$destdir/`basename $1`"
++	    touch -r "$destname" "$1" "$destname"
++	    shift
++	done
++    else
++	touch -r "$2" "$1" "$2"
++    fi
++}
++
+ # Call this if you want to filter out verbose messages (-v or -vv) from
+ # the output of an rsync run (whittling the output down to just the file
+ # messages).  This isn't needed if you use -i without -v.
+ filter_outfile() {
+     sed -e '/^building file list /d' \
+ 	-e '/^sending incremental file list/d' \
+@@ -241,28 +264,34 @@
+ use chroot = no
+ munge symlinks = no
+ hosts allow = localhost 127.0.0.0/24 192.168.0.0/16 10.0.0.0/8 $hostname
+ log file = $logfile
+ log format = %i %h [%a] %m (%u) %l %f%L
+ transfer logging = yes
+-exclude = foobar.baz
++exclude = ? foobar.baz
+ max verbosity = 9
+ uid = 0
+ gid = 0
+ 
+ [test-from]
+ 	path = $fromdir
+ 	read only = yes
++	comment = r/o
+ 
+ [test-to]
+ 	path = $todir
+ 	read only = no
++	comment = r/w
+ 
+ [test-scratch]
+ 	path = $scratchdir
+ 	read only = no
++
++[test-hidden]
++	path = $fromdir
++	list = no
+ EOF
+ 
+     # Build a helper script to ignore exit code 23
+     ignore23="$scratchdir/ignore23"
+     echo "building help script $ignore23"
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/ssh-basic.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/ssh-basic.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/ssh-basic.test	2007-09-09 04:16:28.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/ssh-basic.test	2008-05-18 06:07:24.000000000 +0800
+@@ -7,34 +7,21 @@
+ # COPYING)
+ 
+ # This script tests ssh, if possible.  It's called by runtests.sh
+ 
+ . "$suitedir/rsync.fns"
+ 
+-SSH="$scratchdir/pretend-ssh"
+-
+-cat >"$SSH" <<'EOT'
+-while : ; do
+-    case "$1" in
+-    -*) shift ;;
+-    localhost) shift; break ;;
+-    *) exit 1 ;;
+-    esac
+-done
+-
+-eval "${@}"
+-EOT
+-chmod +x "$SSH"
++SSH="$scratchdir/src/support/lsh"
+ 
+ if test x"$rsync_enable_ssh_tests" = xyes; then
+     if type ssh >/dev/null ; then
+ 	SSH=ssh
+     fi
+ fi
+ 
+-if ! [ "`"$SSH" -o'BatchMode yes' localhost echo yes`" = "yes" ]; then
++if ! [ "`$SSH -o'BatchMode yes' localhost echo yes`" = "yes" ]; then
+     test_skipped "Skipping SSH tests because ssh conection to localhost not authorised"
+ fi
+ 
+ echo "Using remote shell: $SSH"
+ 
+ # Create some files for rsync to copy
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/xattrs.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/xattrs.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/testsuite/xattrs.test	2008-03-08 09:13:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/testsuite/xattrs.test	2008-06-18 06:59:47.000000000 +0800
+@@ -43,13 +43,13 @@
+ echo deep >"$fromdir/foo/file3"
+ echo normal >"$fromdir/file4"
+ echo deeper >"$fromdir/foo/bar/file5"
+ 
+ makepath "$chkdir/foo"
+ echo wow >"$chkdir/file1"
+-cp -p "$fromdir/foo/file3" "$chkdir/foo"
++cp_touch "$fromdir/foo/file3" "$chkdir/foo"
+ 
+ files='foo file0 file1 file2 foo/file3 file4 foo/bar/file5'
+ 
+ cd "$fromdir"
+ 
+ xset user.foo foo file0 2>/dev/null || test_skipped "Unable to set an xattr"
+@@ -61,12 +61,16 @@
+ xset user.nice 'this is nice' file1
+ 
+ xset user.foo foo file2
+ xset user.bar bar file2
+ xset user.long 'a long attribute for our new file that tests to ensure that this works' file2
+ 
++xset user.dir1 'need to test directory xattrs too' foo
++xset user.dir2 'another xattr' foo
++xset user.dir3 'this is one last one for the moment' foo
++
+ xset user.foo 'new foo' foo/file3 foo/bar/file5
+ xset user.bar 'new bar' foo/file3 foo/bar/file5
+ xset user.long 'this is also a long attribute that will be truncated in the initial data send' foo/file3 foo/bar/file5
+ xset $RUSR.equal 'this long attribute should remain the same and not need to be transferred' foo/file3 foo/bar/file5
+ 
+ xset user.short 'old short' "$chkdir/file1"
+@@ -88,26 +92,52 @@
+ checkit "$RSYNC -aiX --super --copy-dest=../chk . ../to" "$fromdir" "$todir"
+ 
+ cd "$todir"
+ xls $files | diff $diffopt "$scratchdir/xattrs.txt" -
+ 
+ cd "$fromdir"
++rm -rf "$todir"
++
+ xset user.nice 'this is nice, but different' file1
+ 
+ xls $files >"$scratchdir/xattrs.txt"
+ 
+-rm -rf "$todir"
+-
+ checkit "$RSYNC -aiX --fake-super --link-dest=../chk . ../to" "$chkdir" "$todir"
+ 
+ cd "$todir"
+ xls $files | diff $diffopt "$scratchdir/xattrs.txt" -
+ 
+ sed -n -e '/\.\/file1$/d' -e '/^[^ ][^ ]*  *[^ ][^ ]*  *[^ ][^ ]*  *1 /p' "$scratchdir/ls-to" >"$scratchdir/ls-diff"
+ if [ -s "$scratchdir/ls-diff" ]; then
+     echo "Missing hard links on:"
+     cat "$scratchdir/ls-diff"
+     exit 1
+ fi
+ 
++cd "$fromdir"
++rm -rf "$todir" "$chkdir"
++
++rsync -aX file1 file2
++rsync -aX file1 file2 ../chk/
++rsync -aX --del ../chk/ .
++rsync -aX file1 ../lnk/
++
++xls file1 file2 >"$scratchdir/xattrs.txt"
++
++checkit "$RSYNC -aiiX --copy-dest=../lnk . ../to" "$chkdir" "$todir"
++
++cd "$todir"
++xls file1 file2 | diff $diffopt "$scratchdir/xattrs.txt" -
++
++cd "$fromdir"
++rm "$todir/file2"
++
++echo extra >file1
++rsync -aX . ../chk/
++
++checkit "$RSYNC -aiiX . ../to" "$chkdir" "$todir"
++
++cd "$todir"
++xls file1 file2 | diff $diffopt "$scratchdir/xattrs.txt" -
++
+ # The script would have aborted on error, so getting here means we've won.
+ exit 0
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/tls.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/tls.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/tls.c	2008-03-15 13:55:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/tls.c	2008-05-07 01:39:19.000000000 +0800
+@@ -42,12 +42,14 @@
+ 
+ /* These are to make syscall.o shut up. */
+ int dry_run = 0;
+ int am_root = 0;
+ int read_only = 1;
+ int list_only = 0;
++int link_times = 0;
++int link_owner = 0;
+ int preserve_perms = 0;
+ int preserve_executability = 0;
+ 
+ #ifdef SUPPORT_XATTRS
+ 
+ #ifdef HAVE_LINUX_XATTRS
+@@ -131,18 +133,20 @@
+ 	 * worth thinking about. */
+ 	if (!S_ISREG(buf.st_mode))
+ 		buf.st_size = 0;
+ 
+ 	/* On some BSD platforms the mode bits of a symlink are
+ 	 * undefined.  Also it tends not to be possible to reset a
+-	 * symlink's mtime, so we have to ignore it too. */
++	 * symlink's mtime, so we default to ignoring it too. */
+ 	if (S_ISLNK(buf.st_mode)) {
+ 		int len;
+ 		buf.st_mode &= ~0777;
+-		buf.st_mtime = (time_t)0;
+-		buf.st_uid = buf.st_gid = 0;
++		if (!link_times)
++			buf.st_mtime = (time_t)0;
++		if (!link_owner)
++			buf.st_uid = buf.st_gid = 0;
+ 		strlcpy(linkbuf, " -> ", sizeof linkbuf);
+ 		/* const-cast required for silly UNICOS headers */
+ 		len = readlink((char *) fname, linkbuf+4, sizeof(linkbuf) - 4);
+ 		if (len == -1)
+ 			failed("readlink", fname);
+ 		else
+@@ -181,12 +185,14 @@
+ 	       (long)buf.st_uid, (long)buf.st_gid, (long)buf.st_nlink,
+ 	       datebuf, fname, linkbuf);
+ }
+ 
+ static struct poptOption long_options[] = {
+   /* longName, shortName, argInfo, argPtr, value, descrip, argDesc */
++  {"link-times",      'l', POPT_ARG_NONE,   &link_times, 0, 0, 0 },
++  {"link-owner",      'L', POPT_ARG_NONE,   &link_owner, 0, 0, 0 },
+ #ifdef SUPPORT_XATTRS
+   {"fake-super",      'f', POPT_ARG_VAL,    &am_root, -1, 0, 0 },
+ #endif
+   {"help",            'h', POPT_ARG_NONE,   0, 'h', 0, 0 },
+   {0,0,0,0,0,0,0}
+ };
+@@ -194,12 +200,14 @@
+ static void tls_usage(int ret)
+ {
+   FILE *F = ret ? stderr : stdout;
+   fprintf(F,"usage: " PROGRAM " [OPTIONS] FILE ...\n");
+   fprintf(F,"Trivial file listing program for portably checking rsync\n");
+   fprintf(F,"\nOptions:\n");
++  fprintf(F," -l, --link-times            display the time on a symlink\n");
++  fprintf(F," -L, --link-owner            display the owner+group on a symlink\n");
+ #ifdef SUPPORT_XATTRS
+   fprintf(F," -f, --fake-super            display attributes including fake-super xattrs\n");
+ #endif
+   fprintf(F," -h, --help                  show this help\n");
+   exit(ret);
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/t_stub.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/t_stub.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/t_stub.c	2008-03-25 01:14:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/t_stub.c	2008-05-18 00:35:46.000000000 +0800
+@@ -23,12 +23,13 @@
+ 
+ int modify_window = 0;
+ int module_id = -1;
+ int relative_paths = 0;
+ int human_readable = 0;
+ int module_dirlen = 0;
++int preserve_xattrs = 0;
+ mode_t orig_umask = 002;
+ char *partial_dir;
+ char *module_dir;
+ struct filter_list_struct daemon_filter_list;
+ 
+  void rprintf(UNUSED(enum logcode code), const char *format, ...)
+@@ -66,12 +67,17 @@
+ 
+  int make_bak_dir(UNUSED(const char *fullpath))
+ {
+ 	return -1;
+ }
+ 
++ int copy_xattrs(UNUSED(const char *source), UNUSED(const char *dest))
++{
++	return -1;
++}
++
+  char *lp_name(UNUSED(int mod))
+ {
+ 	return NULL;
+ }
+ 
+  BOOL lp_use_chroot(UNUSED(int mod))
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/util.c	2008-04-08 23:01:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/util.c	2008-05-18 00:35:46.000000000 +0800
+@@ -26,12 +26,13 @@
+ extern int verbose;
+ extern int dry_run;
+ extern int module_id;
+ extern int modify_window;
+ extern int relative_paths;
+ extern int human_readable;
++extern int preserve_xattrs;
+ extern char *module_dir;
+ extern unsigned int module_dirlen;
+ extern mode_t orig_umask;
+ extern char *partial_dir;
+ extern struct filter_list_struct daemon_filter_list;
+ 
+@@ -261,69 +262,94 @@
+ 
+ 	return n_chars;
+ }
+ 
+ /* Copy a file.  If ofd < 0, copy_file unlinks and opens the "dest" file.
+  * Otherwise, it just writes to and closes the provided file descriptor.
++ * In either case, if --xattrs are being preserved, the dest file will
++ * have its xattrs set from the source file.
+  *
+  * This is used in conjunction with the --temp-dir, --backup, and
+  * --copy-dest options. */
+ int copy_file(const char *source, const char *dest, int ofd,
+ 	      mode_t mode, int create_bak_dir)
+ {
+ 	int ifd;
+ 	char buf[1024 * 8];
+ 	int len;   /* Number of bytes read into `buf'. */
+ 
+ 	if ((ifd = do_open(source, O_RDONLY, 0)) < 0) {
++		int save_errno = errno;
+ 		rsyserr(FERROR_XFER, errno, "open %s", full_fname(source));
++		errno = save_errno;
+ 		return -1;
+ 	}
+ 
+ 	if (ofd < 0) {
+ 		if (robust_unlink(dest) && errno != ENOENT) {
++			int save_errno = errno;
+ 			rsyserr(FERROR_XFER, errno, "unlink %s", full_fname(dest));
++			errno = save_errno;
+ 			return -1;
+ 		}
+ 
+-		if ((ofd = do_open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode)) < 0
+-		 && (!create_bak_dir || errno != ENOENT || make_bak_dir(dest) < 0
+-		  || (ofd = do_open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode)) < 0)) {
+-			rsyserr(FERROR_XFER, errno, "open %s", full_fname(dest));
+-			close(ifd);
+-			return -1;
++		if ((ofd = do_open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode)) < 0) {
++			int save_errno = errno ? errno : EINVAL; /* 0 paranoia */
++			if (create_bak_dir && errno == ENOENT && make_bak_dir(dest) == 0) {
++				if ((ofd = do_open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode)) < 0)
++					save_errno = errno ? errno : save_errno;
++				else
++					save_errno = 0;
++			}
++			if (save_errno) {
++				rsyserr(FERROR_XFER, save_errno, "open %s", full_fname(dest));
++				close(ifd);
++				errno = save_errno;
++				return -1;
++			}
+ 		}
+ 	}
+ 
+ 	while ((len = safe_read(ifd, buf, sizeof buf)) > 0) {
+ 		if (full_write(ofd, buf, len) < 0) {
++			int save_errno = errno;
+ 			rsyserr(FERROR_XFER, errno, "write %s", full_fname(dest));
+ 			close(ifd);
+ 			close(ofd);
++			errno = save_errno;
+ 			return -1;
+ 		}
+ 	}
+ 
+ 	if (len < 0) {
++		int save_errno = errno;
+ 		rsyserr(FERROR_XFER, errno, "read %s", full_fname(source));
+ 		close(ifd);
+ 		close(ofd);
++		errno = save_errno;
+ 		return -1;
+ 	}
+ 
+ 	if (close(ifd) < 0) {
+ 		rsyserr(FWARNING, errno, "close failed on %s",
+ 			full_fname(source));
+ 	}
+ 
+ 	if (close(ofd) < 0) {
++		int save_errno = errno;
+ 		rsyserr(FERROR_XFER, errno, "close failed on %s",
+ 			full_fname(dest));
++		errno = save_errno;
+ 		return -1;
+ 	}
+ 
++#ifdef SUPPORT_XATTRS
++	if (preserve_xattrs)
++		copy_xattrs(source, dest);
++#endif
++
+ 	return 0;
+ }
+ 
+ /* MAX_RENAMES should be 10**MAX_RENAMES_DIGITS */
+ #define MAX_RENAMES_DIGITS 3
+ #define MAX_RENAMES 1000
+@@ -398,14 +424,17 @@
+ 		if (do_rename(from, to) == 0)
+ 			return 0;
+ 
+ 		switch (errno) {
+ #ifdef ETXTBSY
+ 		case ETXTBSY:
+-			if (robust_unlink(to) != 0)
++			if (robust_unlink(to) != 0) {
++				errno = ETXTBSY;
+ 				return -1;
++			}
++			errno = ETXTBSY;
+ 			break;
+ #endif
+ 		case EXDEV:
+ 			if (partialptr) {
+ 				if (!handle_partial_dir(partialptr,PDIR_CREATE))
+ 					return -1;
+@@ -579,13 +608,13 @@
+ 		fbpos += len;
+ 		glob.filt_buf[fbpos] = '\0';
+ 		use_buf = glob.filt_buf;
+ 	} else
+ 		use_buf = glob.arg_buf;
+ 
+-	if (from_glob || arg) {
++	if (from_glob || (arg && len)) {
+ 		STRUCT_STAT st;
+ 		int is_dir;
+ 
+ 		if (do_stat(glob.arg_buf, &st) != 0)
+ 			return;
+ 		is_dir = S_ISDIR(st.st_mode) != 0;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/xattrs.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/xattrs.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/xattrs.c	2008-03-08 08:41:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.3/xattrs.c	2008-06-12 21:59:51.000000000 +0800
+@@ -41,15 +41,15 @@
+ 
+ #define HAS_PREFIX(str, prfx) (*(str) == *(prfx) \
+ 			    && strncmp(str, prfx, sizeof (prfx) - 1) == 0)
+ 
+ #define XATTR_ABBREV(x) ((size_t)((x).name - (x).datum) < (x).datum_len)
+ 
+-#define XSTATE_ABBREV	0
+-#define XSTATE_DONE	1
+-#define XSTATE_TODO	2
++#define XSTATE_ABBREV	1
++#define XSTATE_DONE	2
++#define XSTATE_TODO	3
+ 
+ #define USER_PREFIX "user."
+ #define UPRE_LEN ((int)sizeof USER_PREFIX - 1)
+ #define SYSTEM_PREFIX "system."
+ #define SPRE_LEN ((int)sizeof SYSTEM_PREFIX - 1)
+ 
+@@ -175,14 +175,15 @@
+ 			fname, name);
+ 		return NULL;
+ 	}
+ 
+ 	if (!datum_len && !extra_len)
+ 		extra_len = 1; /* request non-zero amount of memory */
+-	if (datum_len + extra_len < datum_len /* checks for overflow */
+-	 || !(ptr = new_array(char, datum_len + extra_len)))
++	if (datum_len + extra_len < datum_len)
++		overflow_exit("get_xattr_data");
++	if (!(ptr = new_array(char, datum_len + extra_len)))
+ 		out_of_memory("get_xattr_data");
+ 
+ 	if (datum_len) {
+ 		size_t len = sys_lgetxattr(fname, name, ptr, datum_len);
+ 		if (len != datum_len) {
+ 			if (len == (size_t)-1) {
+@@ -284,12 +285,54 @@
+ 		free_xattr(sxp);
+ 		return -1;
+ 	}
+ 	return 0;
+ }
+ 
++int copy_xattrs(const char *source, const char *dest)
++{
++	ssize_t list_len, name_len;
++	size_t datum_len;
++	char *name, *ptr;
++#ifdef HAVE_LINUX_XATTRS
++	int user_only = am_sender ? 0 : !am_root;
++#endif
++
++	/* This puts the name list into the "namebuf" buffer. */
++	if ((list_len = get_xattr_names(source)) < 0)
++		return -1;
++
++	for (name = namebuf; list_len > 0; name += name_len) {
++		name_len = strlen(name) + 1;
++		list_len -= name_len;
++
++#ifdef HAVE_LINUX_XATTRS
++		/* We always ignore the system namespace, and non-root
++		 * ignores everything but the user namespace. */
++		if (user_only ? !HAS_PREFIX(name, USER_PREFIX)
++			      : HAS_PREFIX(name, SYSTEM_PREFIX))
++			continue;
++#endif
++
++		datum_len = 0;
++		if (!(ptr = get_xattr_data(source, name, &datum_len, 0)))
++			return -1;
++		if (sys_lsetxattr(dest, name, ptr, datum_len) < 0) {
++			int save_errno = errno ? errno : EINVAL;
++			rsyserr(FERROR_XFER, errno,
++				"rsync_xal_set: lsetxattr(\"%s\",\"%s\") failed",
++				dest, name);
++			errno = save_errno;
++			return -1;
++		}
++		free(ptr);
++	}
++
++	return 0;
++}
++
+ static int find_matching_xattr(item_list *xalp)
+ {
+ 	size_t i, j;
+ 	item_list *lst = rsync_xal_l.items;
+ 
+ 	for (i = 0; i < rsync_xal_l.count; i++) {
+@@ -457,15 +500,17 @@
+ 	if (rec_cnt)
+ 		xattrs_equal = 0;
+ 
+ 	return !xattrs_equal;
+ }
+ 
+-/* When called by the generator with a NULL fname, this tells the sender
+- * which abbreviated xattr values we need.  When called by the sender
+- * (with a non-NULL fname), we send all the extra xattr data it needs. */
++/* When called by the generator (with a NULL fname), this tells the sender
++ * all the abbreviated xattr values we need.  When called by the sender
++ * (with a non-NULL fname), we send all the extra xattr data it needs.
++ * The generator may also call with f_out < 0 to just change all the
++ * XSTATE_ABBREV states into XSTATE_DONE. */
+ void send_xattr_request(const char *fname, struct file_struct *file, int f_out)
+ {
+ 	item_list *lst = rsync_xal_l.items;
+ 	int cnt, prior_req = 0;
+ 	rsync_xa *rxa;
+ 
+@@ -478,12 +523,13 @@
+ 			/* Items left abbreviated matched the sender's checksum, so
+ 			 * the receiver will cache the local data for future use. */
+ 			if (am_generator)
+ 				rxa->datum[0] = XSTATE_DONE;
+ 			continue;
+ 		case XSTATE_TODO:
++			assert(f_out >= 0);
+ 			break;
+ 		default:
+ 			continue;
+ 		}
+ 
+ 		/* Flag that we handled this abbreviated item. */
+@@ -506,13 +552,14 @@
+ 			write_varint(f_out, len); /* length might have changed! */
+ 			write_buf(f_out, ptr, len);
+ 			free(ptr);
+ 		}
+ 	}
+ 
+-	write_byte(f_out, 0); /* end the list */
++	if (f_out >= 0)
++		write_byte(f_out, 0); /* end the list */
+ }
+ 
+ /* When called by the sender, read the request from the generator and mark
+  * any needed xattrs with a flag that lets us know they need to be sent to
+  * the receiver.  When called by the receiver, reads the sent data and
+  * stores it in place of its checksum. */
+@@ -540,27 +587,28 @@
+ 		}
+ 		if (!cnt || rxa->num != num) {
+ 			rprintf(FERROR, "[%s] could not find xattr #%d for %s\n",
+ 				who_am_i(), num, f_name(file, NULL));
+ 			exit_cleanup(RERR_STREAMIO);
+ 		}
+-		if (rxa->datum_len <= MAX_FULL_DATUM || rxa->datum[0] != XSTATE_ABBREV) {
+-			rprintf(FERROR, "[%s] internal abbrev error!\n", who_am_i());
++		if (!XATTR_ABBREV(*rxa) || rxa->datum[0] != XSTATE_ABBREV) {
++			rprintf(FERROR, "[%s] internal abbrev error on %s (%s, len=%ld)!\n",
++				who_am_i(), f_name(file, NULL), rxa->name, (long)rxa->datum_len);
+ 			exit_cleanup(RERR_STREAMIO);
+ 		}
+ 
+ 		if (am_sender) {
+ 			rxa->datum[0] = XSTATE_TODO;
+ 			continue;
+ 		}
+ 
+ 		old_datum = rxa->datum;
+ 		rxa->datum_len = read_varint(f_in);
+ 
+ 		if (rxa->name_len + rxa->datum_len < rxa->name_len)
+-			out_of_memory("recv_xattr_request"); /* overflow */
++			overflow_exit("recv_xattr_request");
+ 		rxa->datum = new_array(char, rxa->datum_len + rxa->name_len);
+ 		if (!rxa->datum)
+ 			out_of_memory("recv_xattr_request");
+ 		name = rxa->datum + rxa->datum_len;
+ 		memcpy(name, rxa->name, rxa->name_len);
+ 		rxa->name = name;
+@@ -606,16 +654,15 @@
+ 		char *ptr, *name;
+ 		rsync_xa *rxa;
+ 		size_t name_len = read_varint(f);
+ 		size_t datum_len = read_varint(f);
+ 		size_t dget_len = datum_len > MAX_FULL_DATUM ? 1 + MAX_DIGEST_LEN : datum_len;
+ 		size_t extra_len = MIGHT_NEED_RPRE ? RPRE_LEN : 0;
+-		if (dget_len + extra_len < dget_len)
+-			out_of_memory("receive_xattr"); /* overflow */
+-		if (dget_len + extra_len + name_len < dget_len)
+-			out_of_memory("receive_xattr"); /* overflow */
++		if ((dget_len + extra_len < dget_len)
++		 || (dget_len + extra_len + name_len < dget_len))
++			overflow_exit("receive_xattr");
+ 		ptr = new_array(char, dget_len + extra_len + name_len);
+ 		if (!ptr)
+ 			out_of_memory("receive_xattr");
+ 		name = ptr + dget_len + extra_len;
+ 		read_buf(f, name, name_len);
+ 		if (dget_len == datum_len)

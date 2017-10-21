@@ -1,0 +1,1 @@
+assert(f_out == iobuf.out_fd);

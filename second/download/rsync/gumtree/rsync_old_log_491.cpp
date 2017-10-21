@@ -1,0 +1,1 @@
+fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");

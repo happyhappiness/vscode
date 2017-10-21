@@ -1,0 +1,1 @@
+fprintf(FERROR,"chdir %s : %s\n",name,strerror(errno));

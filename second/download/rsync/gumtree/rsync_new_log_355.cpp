@@ -1,0 +1,1 @@
+fprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));

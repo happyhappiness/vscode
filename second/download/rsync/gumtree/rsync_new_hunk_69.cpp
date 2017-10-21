@@ -1,0 +1,7 @@
+void read_buf(int f,char *buf,int len);
+char *map_file(int fd,off_t len);
+void unmap_file(char *buf,off_t len);
+int read_write(int fd_in,int fd_out,int size);
+int piped_child(char **command,int *f_in,int *f_out);
+void out_of_memory(char *str);
+int set_modtime(char *fname,time_t modtime);

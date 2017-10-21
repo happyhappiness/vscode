@@ -1,0 +1,1 @@
+fprintf(stderr,"protocol version mismatch - is your shell clean?\n");

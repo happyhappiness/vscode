@@ -1,0 +1,1 @@
+fprintf(stderr,"skipping non-regular file %s\n",fname);

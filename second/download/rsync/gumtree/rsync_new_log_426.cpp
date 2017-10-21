@@ -1,0 +1,1 @@
+rprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);

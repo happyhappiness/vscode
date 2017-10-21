@@ -1,0 +1,1 @@
+fprintf(FERROR,"ERROR: symbolic links not supported\n");

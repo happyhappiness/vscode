@@ -1,0 +1,1 @@
+fprintf(FERROR, "inflateIncomp returned %d\n", r);

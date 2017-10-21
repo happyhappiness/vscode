@@ -1,0 +1,1 @@
+fprintf(stderr,"write_int failed : %s\n",strerror(errno));

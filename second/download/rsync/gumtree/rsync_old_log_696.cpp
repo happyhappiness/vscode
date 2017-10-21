@@ -1,0 +1,1 @@
+io_printf(fd,"@ERROR: Unknown command '%s'\n", line);

@@ -1,0 +1,1 @@
+fprintf(FINFO,"skipping non-regular file %s\n",fname);

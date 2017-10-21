@@ -1,0 +1,710 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/clientserver.c	1998-05-13 23:44:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/clientserver.c	1998-05-15 09:19:11.000000000 +0800
+@@ -159,12 +159,18 @@
+ 			io_printf(fd,"@ERROR: invalid gid\n");
+ 			return -1;
+ 		} 
+ 		gid = atoi(p);
+ 	}
+ 
++	p = lp_exclude_from(i);
++	add_exclude_file(p, 1);
++
++	p = lp_exclude(i);
++	add_exclude_line(p);
++
+ 	if (chroot(lp_path(i))) {
+ 		io_printf(fd,"@ERROR: chroot failed\n");
+ 		return -1;
+ 	}
+ 
+ 	if (chdir("/")) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/cvs.log	1998-05-14 15:24:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/cvs.log	1998-05-15 09:19:51.000000000 +0800
+@@ -3707,6 +3707,70 @@
+ 
+ Modified Files:
+ 	rsyncd.conf.5 
+ Log Message:
+ preparing for release of 2.0.0
+ 
++
++****************************************
++Date:	Friday May 15, 1998 @ 10:29
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv7681
++
++Modified Files:
++	rsync.1 rsyncd.conf.5 rsyncd.conf.yo socket.c 
++Log Message:
++
++fixed SIGCLD -> SIGCHLD
++
++fixed formatting of man page (thanks to Karsten)
++
++
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 11:02
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv28445
++
++Modified Files:
++	clientserver.c exclude.c loadparm.c proto.h rsyncd.conf.5 
++	rsyncd.conf.yo 
++Log Message:
++added "exclude" and "exclude from" options to rsyncd.conf.
++
++This is useful for mirroring a web site when you don't want users to
++mirror everything.
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 11:14
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv25732
++
++Modified Files:
++	clientserver.c 
++Log Message:
++fixed typo in rsyncd exclude handling
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 11:19
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.1
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/exclude.c	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/exclude.c	1998-05-15 09:03:10.000000000 +0800
+@@ -139,13 +139,15 @@
+   return list;
+ }
+ 
+ 
+ void add_exclude_file(char *fname,int fatal)
+ {
+-  exclude_list = make_exclude_list(fname,exclude_list,fatal);
++	if (!fname || !*fname) return;
++
++	exclude_list = make_exclude_list(fname,exclude_list,fatal);
+ }
+ 
+ 
+ void send_exclude_list(int f)
+ {
+   int i;
+@@ -169,12 +171,24 @@
+ 	  read_sbuf(f,line,l);
+ 	  add_exclude(line);
+   }
+ }
+ 
+ 
++void add_exclude_line(char *p)
++{
++	char *tok;
++	if (!p || !*p) return;
++	p = strdup(p);
++	if (!p) out_of_memory("add_exclude_line");
++	for (tok=strtok(p," "); tok; tok=strtok(NULL," "))
++		add_exclude(tok);
++	free(p);
++}
++
++
+ static char *cvs_ignore_list[] = {
+   "RCS","SCCS","CVS","CVS.adm","RCSLOG","cvslog.*",
+   "tags","TAGS",".make.state",".nse_depinfo",
+   "*~", "#*", ".#*", ",*", "*.old", "*.bak", "*.BAK", "*.orig",
+   "*.rej", ".del-*", "*.a", "*.o", "*.obj", "*.so", "*.Z", "*.elc", "*.ln",
+   "core",NULL};
+@@ -192,12 +206,8 @@
+ 
+   if ((p=getenv("HOME")) && strlen(p) < (MAXPATHLEN-12)) {
+     sprintf(fname,"%s/.cvsignore",p);
+     add_exclude_file(fname,0);
+   }
+ 
+-  if ((p=getenv("CVSIGNORE"))) {
+-    char *tok;
+-    for (tok=strtok(p," "); tok; tok=strtok(NULL," "))
+-      add_exclude(tok);
+-  }
++  add_exclude_line(getenv("CVSIGNORE"));
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/loadparm.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/loadparm.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/loadparm.c	1998-05-14 14:51:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/loadparm.c	1998-05-15 09:03:10.000000000 +0800
+@@ -120,12 +120,14 @@
+ 	char *uid;
+ 	char *gid;
+ 	char *hosts_allow;
+ 	char *hosts_deny;
+ 	char *auth_users;
+ 	char *secrets_file;
++	char *exclude;
++	char *exclude_from;
+ } service;
+ 
+ 
+ /* This is a default service used to prime a services structure */
+ static service sDefault = 
+ {
+@@ -137,12 +139,14 @@
+ 	"nobody",/* uid */
+ 	"nobody",/* gid */
+ 	NULL,    /* hosts allow */
+ 	NULL,    /* hosts deny */
+ 	NULL,    /* auth users */
+ 	NULL,    /* secrets file */
++	NULL,    /* exclude */
++	NULL,    /* exclude from */
+ };
+ 
+ 
+ 
+ /* local variables */
+ static service **ServicePtrs = NULL;
+@@ -235,12 +239,14 @@
+   {"uid",              P_STRING,  P_LOCAL,  &sDefault.uid,         NULL,   0},
+   {"gid",              P_STRING,  P_LOCAL,  &sDefault.gid,         NULL,   0},
+   {"hosts allow",      P_STRING,  P_LOCAL,  &sDefault.hosts_allow, NULL,   0},
+   {"hosts deny",       P_STRING,  P_LOCAL,  &sDefault.hosts_deny,  NULL,   0},
+   {"auth users",       P_STRING,  P_LOCAL,  &sDefault.auth_users,  NULL,   0},
+   {"secrets file",     P_STRING,  P_LOCAL,  &sDefault.secrets_file,NULL,   0},
++  {"exclude",          P_STRING,  P_LOCAL,  &sDefault.exclude,     NULL,   0},
++  {"exclude from",     P_STRING,  P_LOCAL,  &sDefault.exclude_from,NULL,   0},
+   {NULL,               P_BOOL,    P_NONE,   NULL,                  NULL,   0}
+ };
+ 
+ 
+ /***************************************************************************
+ Initialise the global parameter structure.
+@@ -297,12 +303,14 @@
+ FN_LOCAL_STRING(lp_uid, uid)
+ FN_LOCAL_STRING(lp_gid, gid)
+ FN_LOCAL_STRING(lp_hosts_allow, hosts_allow)
+ FN_LOCAL_STRING(lp_hosts_deny, hosts_deny)
+ FN_LOCAL_STRING(lp_auth_users, auth_users)
+ FN_LOCAL_STRING(lp_secrets_file, secrets_file)
++FN_LOCAL_STRING(lp_exclude, exclude)
++FN_LOCAL_STRING(lp_exclude_from, exclude_from)
+ 
+ /* local prototypes */
+ static int    strwicmp( char *psz1, char *psz2 );
+ static int    map_parameter( char *parmname);
+ static BOOL   set_boolean( BOOL *pb, char *parmvalue );
+ static int    getservicebyname(char *name, service *pserviceDest);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/proto.h	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/proto.h	1998-05-15 09:03:11.000000000 +0800
+@@ -19,12 +19,13 @@
+ void add_exclude_list(char *pattern,char ***list);
+ void add_exclude(char *pattern);
+ char **make_exclude_list(char *fname,char **list1,int fatal);
+ void add_exclude_file(char *fname,int fatal);
+ void send_exclude_list(int f);
+ void recv_exclude_list(int f);
++void add_exclude_line(char *p);
+ void add_cvs_excludes(void);
+ int link_stat(const char *Path, STRUCT_STAT *Buffer) ;
+ void send_file_entry(struct file_struct *file,int f,unsigned base_flags);
+ struct file_list *send_file_list(int f,int argc,char *argv[]);
+ struct file_list *recv_file_list(int f);
+ int file_compare(struct file_struct **f1,struct file_struct **f2);
+@@ -65,12 +66,14 @@
+ char *lp_uid(int );
+ char *lp_gid(int );
+ char *lp_hosts_allow(int );
+ char *lp_hosts_deny(int );
+ char *lp_auth_users(int );
+ char *lp_secrets_file(int );
++char *lp_exclude(int );
++char *lp_exclude_from(int );
+ BOOL lp_load(char *pszFname);
+ int lp_numservices(void);
+ int lp_number(char *name);
+ void rprintf(int fd, const char *format, ...);
+ void rflush(int fd);
+ void start_server(int f_in, int f_out, int argc, char *argv[]);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/rsync.1	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsync.1	1998-05-15 09:03:11.000000000 +0800
+@@ -483,20 +483,20 @@
+ will exit\&. The default is 0, which means no timeout\&.
+ .IP 
+ .IP "\fB--daemon\fP" 
+ This tells rsync that it is to run as a rsync
+ daemon\&. If standard input is a socket then rsync will assume that it
+ is being run via inetd, otherwise it will detach from the current
+-terminal and become a background daemon\&. The dameon will read the
++terminal and become a background daemon\&. The daemon will read the
+ config file (/etc/rsyncd\&.conf) on each connect made by a client and
+ respond to requests accordingly\&. See the rsyncd\&.conf(5) man page for more
+ details\&. 
+ .IP 
+ .IP "\fB--config FILE\fP" 
+ This specifies an alternate config file than
+-the default /etc/rsyncd\&.conf\&. This is only relevent when --daemon is
++the default /etc/rsyncd\&.conf\&. This is only relevant when --daemon is
+ specified\&. 
+ .IP 
+ .IP "\fB--port PORT\fP" 
+ This specifies an alternate TCP port number to use
+ rather than the default port 873\&. 
+ .IP 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/rsyncd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsyncd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/rsyncd.conf.5	1998-05-14 15:24:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsyncd.conf.5	1998-05-15 09:03:11.000000000 +0800
+@@ -5,13 +5,13 @@
+ .PP 
+ rsyncd\&.conf
+ .PP 
+ .SH "DESCRIPTION" 
+ .PP 
+ The rsyncd\&.conf file is the runtime configuration file for rsync when
+-run with the -daemon option\&. When run in this way rsync becomes a
++run with the --daemon option\&. When run in this way rsync becomes a
+ rsync server listening on TCP port 873\&. Connections from rsync clients
+ are accepted for either anonymous or authenticated rsync sessions\&. 
+ .PP 
+ The rsyncd\&.conf file controls authentication, access, logging and
+ available modules\&.
+ .PP 
+@@ -30,13 +30,13 @@
+ trailing whitespace in a parameter value is discarded\&. Internal whitespace
+ within a parameter value is retained verbatim\&.
+ .PP 
+ Any line beginning with a hash (#) is ignored, as are lines containing 
+ only whitespace\&.
+ .PP 
+-Any line ending in a \ee is "continued" on the next line in the
++Any line ending in a \e is "continued" on the next line in the
+ customary UNIX fashion\&.
+ .PP 
+ The values following the equals sign in parameters are all either a string
+ (no quotes needed) or a boolean, which may be given as yes/no, 0/1 or
+ true/false\&. Case is not significant in boolean values, but is preserved
+ in string values\&. 
+@@ -44,28 +44,32 @@
+ .SH "LAUNCHING THE RSYNC DAEMON" 
+ .PP 
+ The rsync daemon is launched by specifying the --daemon option to
+ rsync\&. The daemon must run with root privileges\&.
+ .PP 
+ You can launch it either via inetd or as a standalone daemon\&. If run
+-as a daemon then just run the command "rsync -daemon" from a suitable
++as a daemon then just run the command "rsync --daemon" from a suitable
+ startup script\&.
+ .PP 
+ When run via inetd you should add a line like this to /etc/services:
+ .PP 
++.RS 
+ rsync           873/tcp
++.RE 
+ .PP 
+-and a line something like this to /etc/inetd\&.conf:
++and a single line something like this to /etc/inetd\&.conf:
+ .PP 
++.RS 
+ rsync   stream  tcp     nowait  root   /usr/bin/rsync rsyncd --daemon
++.RE 
+ .PP 
+ You will then need to send inetd a HUP signal to tell it to reread its
+ config file\&.
+ .PP 
+ Note that you should not send the rsync server a HUP signal to force
+-it to reread the /etc/rsyncd\&.conf\&. The file is re-read on each client
++it to reread the \f(CW/etc/rsyncd\&.conf\fP\&. The file is re-read on each client
+ connection\&. 
+ .PP 
+ .SH "GLOBAL OPTIONS" 
+ .PP 
+ The first parameters in the file (before a [module] header) are the
+ global parameters\&. 
+@@ -88,13 +92,13 @@
+ The default is 0 which means no limit\&.
+ .IP 
+ .IP "\fBlock file\fP" 
+ The "lock file" option specifies the file to use to
+ support the "max connections" option\&. The rsync server uses record
+ locking on this file to ensure that the max connections limit is not
+-exceeded\&. The default is /var/run/rsyncd\&.lock
++exceeded\&. The default is \f(CW/var/run/rsyncd\&.lock\fP\&.
+ .IP 
+ .IP "\fBsyslog facility\fP" 
+ The "syslog facility" option allows you to
+ specify the syslog facility name to use when logging messages from the
+ rsync server\&. You may use any standard syslog facility name which is
+ defined on your system\&. Common names are auth, authpriv, cron, daemon,
+@@ -117,13 +121,13 @@
+ of available modules\&. The default is no comment\&.
+ .IP 
+ .IP "\fBpath\fP" 
+ The "path" option specifies the directory in the servers
+ filesystem to make available in this module\&. The rsync server will
+ chroot to this path before starting the file transfer with the
+-client\&. You must specify this option for each module in /etc/rsyncd\&.conf\&.
++client\&. You must specify this option for each module in \f(CW/etc/rsyncd\&.conf\fP\&.
+ .IP 
+ .IP "\fBread only\fP" 
+ The "read only" option determines whether clients
+ will be able to upload files or not\&. If "read only" is true then any
+ attempted uploads will fail\&. If "read only" is false then uploads will
+ be possible if file permissions on the server allow them\&. The default
+@@ -143,12 +147,29 @@
+ .IP 
+ .IP "\fBgid\fP" 
+ The "gid" option specifies the group name or group id that
+ file transfers to and from that module should take place as\&. This
+ complements the "uid" option\&. The default is the group "nobody"\&.
+ .IP 
++.IP "\fBexclude\fP" 
++The "exclude" option allows you to specify a space
++separated list of patterns to add to the exclude list\&. This is
++equivalent to the client specifying these patterns with the --exclude
++option\&. Note that this option is not designed with strong security in
++mind, it is quite possible that a client may find a way to bypass this
++exclude list\&. If you want to absolutely ensure that certain files
++cannot be accessed then use the uid/gid options in combination with
++file permissions\&.
++.IP 
++.IP "\fBexclude from\fP" 
++The "exclude from" option specifies a filename
++on the server that contains exclude patterns, one per line\&. This is
++equivalent to the client specifying the --exclude-from option with a
++equivalent file\&. See also the note about security for the exclude
++option above\&.
++.IP 
+ .IP "\fBauth users\fP" 
+ The "auth users" option specifies a comma
+ and space separated list of usernames that will be allowed to connect
+ to this module\&. The usernames do not need to exist on the local
+ system\&. If "auth users" is set then the client will be challenged to
+ supply a username and password to connect to the module\&. A challenge
+@@ -168,13 +189,13 @@
+ limit the length of passwords that can be typed at the client end, so
+ you may find that passwords longer than 8 characters don\'t work\&. 
+ .IP 
+ \fBYou should make sure that the secrets file is not readable by anyone
+ other than the system administrator\&.\fP There is no default for the
+ "secrets file" option, you must choose a name (such as
+-/etc/rsyncd\&.secrets)\&.
++\f(CW/etc/rsyncd\&.secrets\fP)\&.
+ .IP 
+ .IP "\fBhosts allow\fP" 
+ The "hosts allow" option allows you to specify a
+ list of patterns that are matched against a connecting clients
+ hostname and IP address\&. If none of the patterns match then the
+ connection is rejected\&.
+@@ -224,13 +245,13 @@
+ The default is no "hosts deny" option, which means all hosts can connect\&.
+ .IP 
+ .PP 
+ .SH "EXAMPLES" 
+ .PP 
+ A simple rsyncd\&.conf file that allow anonymous rsync to a ftp area at
+-/home/ftp would be:
++\f(CW/home/ftp\fP would be:
+ .PP 
+ 
+ .DS 
+  
+ 
+ [ftp]
+@@ -240,21 +261,24 @@
+ .DE 
+  
+ 
+ .PP 
+ A more sophisticated example would be:
+ .PP 
++uid = nobody 
++.br 
++gid = nobody 
++.br 
++max connections = 4 
++.br 
++syslog facility = local5 
++.br 
++.PP 
+ 
+ .DS 
+  
+-
+-uid = nobody
+-gid = nobody
+-max connections = 4
+-syslog facility = local5
+-
+ [ftp]
+         path = /var/ftp/pub
+         comment = whole ftp area (approx 6\&.1 GB)
+ 
+ [sambaftp]
+         path = /var/ftp/pub/samba
+@@ -277,22 +301,15 @@
+ .DE 
+  
+ 
+ .PP 
+ The /etc/rsyncd\&.secrets file would look something like this:
+ .PP 
+-
+-.DS 
+- 
+-
+-tridge:mypass
++tridge:mypass 
++.br 
+ susan:herpass
+-
+-.DE 
+- 
+-
+ .PP 
+ .SH "FILES" 
+ .PP 
+ /etc/rsyncd\&.conf
+ .PP 
+ .SH "SEE ALSO" 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/rsyncd.conf.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsyncd.conf.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/rsyncd.conf.yo	1998-05-14 14:57:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsyncd.conf.yo	1998-05-15 09:03:11.000000000 +0800
+@@ -5,13 +5,13 @@
+ 
+ rsyncd.conf
+ 
+ manpagedescription()
+ 
+ The rsyncd.conf file is the runtime configuration file for rsync when
+-run with the -daemon option. When run in this way rsync becomes a
++run with the --daemon option. When run in this way rsync becomes a
+ rsync server listening on TCP port 873. Connections from rsync clients
+ are accepted for either anonymous or authenticated rsync sessions. 
+ 
+ The rsyncd.conf file controls authentication, access, logging and
+ available modules.
+ 
+@@ -30,13 +30,13 @@
+ trailing whitespace in a parameter value is discarded. Internal whitespace
+ within a parameter value is retained verbatim.
+ 
+ Any line beginning with a hash (#) is ignored, as are lines containing 
+ only whitespace.
+ 
+-Any line ending in a \e is "continued" on the next line in the
++Any line ending in a \ is "continued" on the next line in the
+ customary UNIX fashion.
+ 
+ The values following the equals sign in parameters are all either a string
+ (no quotes needed) or a boolean, which may be given as yes/no, 0/1 or
+ true/false. Case is not significant in boolean values, but is preserved
+ in string values. 
+@@ -44,28 +44,28 @@
+ manpagesection(LAUNCHING THE RSYNC DAEMON)
+ 
+ The rsync daemon is launched by specifying the --daemon option to
+ rsync. The daemon must run with root privileges.
+ 
+ You can launch it either via inetd or as a standalone daemon. If run
+-as a daemon then just run the command "rsync -daemon" from a suitable
++as a daemon then just run the command "rsync --daemon" from a suitable
+ startup script.
+ 
+ When run via inetd you should add a line like this to /etc/services:
+ 
+-     rsync           873/tcp
++quote(rsync           873/tcp)
+ 
+-and a line something like this to /etc/inetd.conf:
++and a single line something like this to /etc/inetd.conf:
+     
+-    rsync   stream  tcp     nowait  root   /usr/bin/rsync rsyncd --daemon
++quote(rsync   stream  tcp     nowait  root   /usr/bin/rsync rsyncd --daemon)
+ 
+ You will then need to send inetd a HUP signal to tell it to reread its
+ config file.
+ 
+ Note that you should not send the rsync server a HUP signal to force
+-it to reread the /etc/rsyncd.conf. The file is re-read on each client
++it to reread the tt(/etc/rsyncd.conf). The file is re-read on each client
+ connection. 
+ 
+ manpagesection(GLOBAL OPTIONS)
+ 
+ The first parameters in the file (before a [module] header) are the
+ global parameters. 
+@@ -86,13 +86,13 @@
+ been reached will receive a message telling them to try later. 
+ The default is 0 which means no limit.
+ 
+ dit(bf(lock file)) The "lock file" option specifies the file to use to
+ support the "max connections" option. The rsync server uses record
+ locking on this file to ensure that the max connections limit is not
+-exceeded. The default is /var/run/rsyncd.lock
++exceeded. The default is tt(/var/run/rsyncd.lock).
+ 
+ dit(bf(syslog facility)) The "syslog facility" option allows you to
+ specify the syslog facility name to use when logging messages from the
+ rsync server. You may use any standard syslog facility name which is
+ defined on your system. Common names are auth, authpriv, cron, daemon,
+ ftp, kern, lpr, mail, news, security, syslog, user, uucp, local0,
+@@ -115,13 +115,13 @@
+ that is displayed next to the module name when clients obtain a list
+ of available modules. The default is no comment.
+ 
+ dit(bf(path)) The "path" option specifies the directory in the servers
+ filesystem to make available in this module. The rsync server will
+ chroot to this path before starting the file transfer with the
+-client. You must specify this option for each module in /etc/rsyncd.conf.
++client. You must specify this option for each module in tt(/etc/rsyncd.conf).
+ 
+ dit(bf(read only)) The "read only" option determines whether clients
+ will be able to upload files or not. If "read only" is true then any
+ attempted uploads will fail. If "read only" is false then uploads will
+ be possible if file permissions on the server allow them. The default
+ is for all modules to be read only.
+@@ -137,12 +137,27 @@
+ permissions are available. The default is the user "nobody".
+ 
+ dit(bf(gid)) The "gid" option specifies the group name or group id that
+ file transfers to and from that module should take place as. This
+ complements the "uid" option. The default is the group "nobody".
+ 
++dit(bf(exclude)) The "exclude" option allows you to specify a space
++separated list of patterns to add to the exclude list. This is
++equivalent to the client specifying these patterns with the --exclude
++option. Note that this option is not designed with strong security in
++mind, it is quite possible that a client may find a way to bypass this
++exclude list. If you want to absolutely ensure that certain files
++cannot be accessed then use the uid/gid options in combination with
++file permissions.
++
++dit(bf(exclude from)) The "exclude from" option specifies a filename
++on the server that contains exclude patterns, one per line. This is
++equivalent to the client specifying the --exclude-from option with a
++equivalent file. See also the note about security for the exclude
++option above.
++
+ dit(bf(auth users)) The "auth users" option specifies a comma
+ and space separated list of usernames that will be allowed to connect
+ to this module. The usernames do not need to exist on the local
+ system. If "auth users" is set then the client will be challenged to
+ supply a username and password to connect to the module. A challenge
+ response authentication protocol is used for this exchange. The plain
+@@ -160,13 +175,13 @@
+ limit the length of passwords that can be typed at the client end, so
+ you may find that passwords longer than 8 characters don't work. 
+ 
+ bf(You should make sure that the secrets file is not readable by anyone
+ other than the system administrator.) There is no default for the
+ "secrets file" option, you must choose a name (such as
+-/etc/rsyncd.secrets).
++tt(/etc/rsyncd.secrets)).
+ 
+ dit(bf(hosts allow)) The "hosts allow" option allows you to specify a
+ list of patterns that are matched against a connecting clients
+ hostname and IP address. If none of the patterns match then the
+ connection is rejected.
+ 
+@@ -212,30 +227,29 @@
+ 
+ enddit()
+ 
+ manpagesection(EXAMPLES)
+ 
+ A simple rsyncd.conf file that allow anonymous rsync to a ftp area at
+-/home/ftp would be:
++tt(/home/ftp) would be:
+ 
+ verb(
+ [ftp]
+ 	path = /home/ftp
+ 	comment = ftp export area
+ )
+ 
+ 
+ A more sophisticated example would be:
+ 
+-verb(
+-uid = nobody
+-gid = nobody
+-max connections = 4
+-syslog facility = local5
++uid = nobody nl()
++gid = nobody nl()
++max connections = 4 nl()
++syslog facility = local5 nl()
+ 
+-[ftp]
++verb([ftp]
+         path = /var/ftp/pub
+         comment = whole ftp area (approx 6.1 GB)
+ 
+ [sambaftp]
+         path = /var/ftp/pub/samba
+         comment = Samba ftp area (approx 300 MB)
+@@ -254,16 +268,14 @@
+         auth users = tridge, susan
+         secrets file = /etc/rsyncd.secrets
+ )
+ 
+ The /etc/rsyncd.secrets file would look something like this:
+ 
+-verb(
+-tridge:mypass
++tridge:mypass nl()
+ susan:herpass
+-)
+ 
+ manpagefiles()
+ 
+ /etc/rsyncd.conf
+ 
+ manpageseealso()
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/socket.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/socket.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/socket.c	1998-05-10 16:24:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/socket.c	1998-05-15 09:03:11.000000000 +0800
+@@ -117,13 +117,13 @@
+ 
+ 
+ void start_accept_loop(int port, int (*fn)(int ))
+ {
+ 	int s;
+ 
+-	signal(SIGCLD, SIG_IGN);
++	signal(SIGCHLD, SIG_IGN);
+ 
+ 	/* open an incoming socket */
+ 	s = open_socket_in(SOCK_STREAM, port);
+ 	if (s == -1)
+ 		exit(1);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.0/version.h	1998-05-14 15:24:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/version.h	1998-05-15 09:19:40.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.0"
++#define VERSION "2.0.1"

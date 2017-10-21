@@ -1,0 +1,835 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/checksum.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/checksum.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/checksum.c	1996-06-16 08:00:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/checksum.c	1996-06-27 13:05:19.000000000 +0800
+@@ -16,12 +16,13 @@
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
+ #include "rsync.h"
+ 
++extern int csum_length;
+ 
+ /*
+   a simple 32 bit checksum that can be upadted from either end
+   (inspired by Mark Adler's Adler-32 checksum)
+   */
+ uint32 get_checksum1(char *buf,int len)
+@@ -49,22 +50,25 @@
+     bcopy(buf+i,buf2,64);
+     MDupdate(&MD, buf2, 512);
+   }
+   bcopy(buf+i,buf2,len-i);
+   MDupdate(&MD, buf2, (len-i)*8);
+   SIVAL(sum,0,MD.buffer[0]);
++  if (csum_length <= 4) return;
+   SIVAL(sum,4,MD.buffer[1]);
++  if (csum_length <= 8) return;
+   SIVAL(sum,8,MD.buffer[2]);
++  if (csum_length <= 12) return;
+   SIVAL(sum,12,MD.buffer[3]);
+ }
+ 
+ void file_checksum(char *fname,char *sum,off_t size)
+ {
+   char *buf;
+   int fd;
+-  bzero(sum,SUM_LENGTH);
++  bzero(sum,csum_length);
+ 
+   fd = open(fname,O_RDONLY);
+   if (fd == -1) return;
+ 
+   buf = map_file(fd,size);
+   if (!buf) {
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1: compat.c
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/configure	1996-06-25 21:39:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/configure	1996-06-27 12:20:51.000000000 +0800
+@@ -1569,13 +1569,13 @@
+ #define HAVE_ST_RDEV 1
+ EOF
+ 
+ fi
+ 
+ 
+-echo -n "checking for errno in errno.h... "
++echo $ac_n "checking for errno in errno.h... $ac_c"
+ cat > conftest.$ac_ext <<EOF
+ #line 1578 "configure"
+ #include "confdefs.h"
+ #include <errno.h>
+ int main() { return 0; }
+ int t() {
+@@ -1963,13 +1963,13 @@
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+ 
+-echo -n "checking for working fnmatch... "
++echo $ac_n "checking for working fnmatch... $ac_c"
+ if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+ cat > conftest.$ac_ext <<EOF
+ #line 1975 "configure"
+ #include "confdefs.h"
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/configure.in	1996-06-25 15:21:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/configure.in	1996-06-27 12:20:51.000000000 +0800
+@@ -26,25 +26,25 @@
+ AC_TYPE_MODE_T
+ AC_TYPE_OFF_T
+ AC_TYPE_SIZE_T
+ AC_TYPE_PID_T
+ AC_STRUCT_ST_RDEV
+ 
+-echo -n "checking for errno in errno.h... "
++echo $ac_n "checking for errno in errno.h... $ac_c"
+ AC_TRY_COMPILE([#include <errno.h>],[int i = errno],
+ echo yes; AC_DEFINE(HAVE_ERRNO_DECL),
+ echo no)
+ 
+ AC_FUNC_MEMCMP
+ AC_FUNC_MMAP
+ AC_FUNC_UTIME_NULL
+ AC_CHECK_FUNCS(waitpid strtok pipe getcwd mkdir strdup strerror chown chmod mknod)
+ AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink utime utimes)
+ AC_CHECK_FUNCS(memmove getopt_long)
+ 
+-echo -n "checking for working fnmatch... "
++echo $ac_n "checking for working fnmatch... $ac_c"
+ AC_TRY_RUN([#include <fnmatch.h>
+ main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }],
+ echo yes;AC_DEFINE(HAVE_FNMATCH), 
+ echo no)
+ 
+ AC_OUTPUT(Makefile)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/flist.c	1996-06-26 21:43:42.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/flist.c	1996-06-27 13:04:23.000000000 +0800
+@@ -18,12 +18,14 @@
+ */
+ 
+ /* generate and receive file lists */
+ 
+ #include "rsync.h"
+ 
++extern int csum_length;
++
+ extern int verbose;
+ extern int am_server;
+ extern int always_checksum;
+ extern off_t total_size;
+ 
+ extern int cvs_exclude;
+@@ -68,28 +70,27 @@
+ 
+ 
+ static void send_directory(int f,struct file_list *flist,char *dir);
+ 
+ static char *flist_dir = NULL;
+ 
+-#define FILE_VALID 1
+-#define SAME_MODE (1<<1)
+-#define SAME_DEV (1<<2)
+-#define SAME_UID (1<<3)
+-#define SAME_GID (1<<4)
+-#define SAME_DIR (1<<5)
++extern void (*send_file_entry)(struct file_struct *file,int f);
++extern void (*receive_file_entry)(struct file_struct *file,
++				  unsigned char flags,int f);
++
+ 
+-static void send_file_entry(struct file_struct *file,int f)
++void send_file_entry_v11(struct file_struct *file,int f)
+ {
+   unsigned char flags;
++  static time_t last_time=0;
+   static mode_t last_mode=0;
+   static dev_t last_dev=0;
+   static uid_t last_uid=0;
+   static gid_t last_gid=0;
+-  static char lastdir[MAXPATHLEN]="";
+-  char *p=NULL;
++  static char lastname[MAXPATHLEN]="";
++  int l1,l2;
+ 
+   if (f == -1) return;
+ 
+   if (!file) {
+     write_byte(f,0);
+     return;
+@@ -98,28 +99,32 @@
+   flags = FILE_VALID;
+ 
+   if (file->mode == last_mode) flags |= SAME_MODE;
+   if (file->dev == last_dev) flags |= SAME_DEV;
+   if (file->uid == last_uid) flags |= SAME_UID;
+   if (file->gid == last_gid) flags |= SAME_GID;
+-    
+-  if (strncmp(file->name,lastdir,strlen(lastdir)) == 0) {
+-    flags |= SAME_DIR;
+-    p = file->name + strlen(lastdir);
+-  } else {
+-    p = file->name;
+-  }
++  if (file->modtime == last_time) flags |= SAME_TIME;
+ 
+-  write_byte(f,flags);
+-  if (flags & SAME_DIR)
+-    write_byte(f,strlen(p));
++  for (l1=0;lastname[l1] && file->name[l1] == lastname[l1];l1++) ;
++  l2 = strlen(file->name) - l1;
++
++  if (l1 > 0) flags |= SAME_NAME;
++  if (l2 > 255) flags |= LONG_NAME;
++    
++  write_byte(f,flags);  
++  if (flags & SAME_NAME)
++    write_byte(f,l1);
++  if (flags & LONG_NAME)
++    write_int(f,l2);
+   else
+-    write_int(f,strlen(p));
+-  write_buf(f,p,strlen(p));
+-  write_int(f,(int)file->modtime);
++    write_byte(f,l2);
++  write_buf(f,file->name+l1,l2);
++
+   write_int(f,(int)file->length);
++  if (!(flags & SAME_TIME))
++    write_int(f,(int)file->modtime);
+   if (!(flags & SAME_MODE))
+     write_int(f,(int)file->mode);
+   if (preserve_uid && !(flags & SAME_UID))
+     write_int(f,(int)file->uid);
+   if (preserve_gid && !(flags & SAME_GID))
+     write_int(f,(int)file->gid);
+@@ -131,59 +136,55 @@
+     write_int(f,strlen(file->link));
+     write_buf(f,file->link,strlen(file->link));
+   }
+ #endif
+ 
+   if (always_checksum) {
+-    write_buf(f,file->sum,SUM_LENGTH);
++    write_buf(f,file->sum,csum_length);
+   }       
+ 
+   last_mode = file->mode;
+   last_dev = file->dev;
+   last_uid = file->uid;
+   last_gid = file->gid;
+-  p = strrchr(file->name,'/');
+-  if (p) {
+-    int l = (int)(p - file->name) + 1;
+-    strncpy(lastdir,file->name,l);
+-    lastdir[l] = 0;
+-  } else {
+-    strcpy(lastdir,"");
+-  }
++  last_time = file->modtime;
++
++  strcpy(lastname,file->name);
++  lastname[255] = 0;
+ }
+ 
+ 
+ 
+-static void receive_file_entry(struct file_struct *file,
+-			       unsigned char flags,int f)
++void receive_file_entry_v11(struct file_struct *file,
++			    unsigned char flags,int f)
+ {
++  static mode_t last_time=0;
+   static mode_t last_mode=0;
+   static dev_t last_dev=0;
+   static uid_t last_uid=0;
+   static gid_t last_gid=0;
+-  static char lastdir[MAXPATHLEN]="";
+-  char *p=NULL;
+-  int l1,l2;
++  static char lastname[MAXPATHLEN]="";
++  int l1=0,l2=0;
+ 
+-  if (flags & SAME_DIR) {
++  if (flags & SAME_NAME)
+     l1 = read_byte(f);
+-    l2 = strlen(lastdir);
+-  } else {
+-    l1 = read_int(f);
+-    l2 = 0;
+-  }
++  
++  if (flags & LONG_NAME)
++    l2 = read_int(f);
++  else
++    l2 = read_byte(f);
+ 
+   file->name = (char *)malloc(l1+l2+1);
+   if (!file->name) out_of_memory("receive_file_entry");
+ 
+-  strncpy(file->name,lastdir,l2);
+-  read_buf(f,file->name+l2,l1);
++  strncpy(file->name,lastname,l1);
++  read_buf(f,file->name+l1,l2);
+   file->name[l1+l2] = 0;
+ 
+-  file->modtime = (time_t)read_int(f);
+   file->length = (off_t)read_int(f);
++  file->modtime = (flags & SAME_TIME) ? last_time : (time_t)read_int(f);
+   file->mode = (flags & SAME_MODE) ? last_mode : (mode_t)read_int(f);
+   if (preserve_uid)
+     file->uid = (flags & SAME_UID) ? last_uid : (uid_t)read_int(f);
+   if (preserve_gid)
+     file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
+   if (preserve_devices && IS_DEVICE(file->mode))
+@@ -197,29 +198,26 @@
+     read_buf(f,file->link,l);
+     file->link[l] = 0;
+   }
+ #endif
+   
+   if (always_checksum)
+-    read_buf(f,file->sum,SUM_LENGTH);
++    read_buf(f,file->sum,csum_length);
+   
+   last_mode = file->mode;
+   last_dev = file->dev;
+   last_uid = file->uid;
+   last_gid = file->gid;
+-  p = strrchr(file->name,'/');
+-  if (p) {
+-    int l = (int)(p - file->name) + 1;
+-    strncpy(lastdir,file->name,l);
+-    lastdir[l] = 0;
+-  } else {
+-    strcpy(lastdir,"");
+-  }
++  last_time = file->modtime;
++
++  strcpy(lastname,file->name);
++  lastname[255] = 0;
+ }
+ 
+ 
++
+ static struct file_struct *make_file(int recurse,char *fname)
+ {
+   static struct file_struct file;
+   struct stat st;
+   char sum[SUM_LENGTH];
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/io.c	1996-06-26 21:37:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/io.c	1996-06-27 10:23:05.000000000 +0800
+@@ -100,40 +100,45 @@
+       if (read_buffer_len > 0) {
+ 	ret = MIN(read_buffer_len,N-total);
+ 	memcpy(buffer+total,read_buffer_p,ret);
+ 	read_buffer_p += ret;
+ 	read_buffer_len -= ret;
+       } else {
+-	ret = read(fd,buffer + total,N - total);
++	if ((ret = read(fd,buffer + total,N - total)) == -1)
++	  return -1;
+       }
+ 
+       if (ret <= 0)
+ 	return total;
+       total += ret;
+     }
+   return total;
+ }
+ 
+ 
+ int read_int(int f)
+ {
++  int ret;
+   char b[4];
+-  if (readfd(f,b,4) != 4) {
++  if ((ret=readfd(f,b,4)) != 4) {
+     if (verbose > 1) 
+-      fprintf(stderr,"Error reading %d bytes : %s\n",4,strerror(errno));
++      fprintf(stderr,"Error reading %d bytes : %s\n",
++	      4,ret==-1?strerror(errno):"EOF");
+     exit(1);
+   }
+   total_read += 4;
+   return IVAL(b,0);
+ }
+ 
+ void read_buf(int f,char *buf,int len)
+ {
+-  if (readfd(f,buf,len) != len) {
++  int ret;
++  if ((ret=readfd(f,buf,len)) != len) {
+     if (verbose > 1) 
+-      fprintf(stderr,"Error reading %d bytes : %s\n",len,strerror(errno));
++      fprintf(stderr,"Error reading %d bytes : %s\n",
++	      len,ret==-1?strerror(errno):"EOF");
+     exit(1);
+   }
+   total_read += len;
+ }
+ 
+ unsigned char read_byte(int f)
+@@ -176,14 +181,14 @@
+ 
+   while (total < len) {
+     int ret = write(fd,buf+total,len-total);
+ 
+     if (ret == 0) return total;
+ 
+-    if (ret == -1 && errno != EWOULDBLOCK) 
+-      return total?total:-1;
++    if (ret == -1 && !(errno == EWOULDBLOCK || errno == EAGAIN)) 
++      return -1;
+ 
+     if (ret == -1) {
+       read_check(buffer_f_in);
+ 
+       FD_ZERO(&fds);
+       FD_SET(fd,&fds);
+@@ -199,25 +204,29 @@
+ }
+ 
+ 
+ 
+ void write_int(int f,int x)
+ {
++  int ret;
+   char b[4];
+   SIVAL(b,0,x);
+-  if (writefd(f,b,4) != 4) {
+-    fprintf(stderr,"write_int failed : %s\n",strerror(errno));
++  if ((ret=writefd(f,b,4)) != 4) {
++    fprintf(stderr,"write_int failed : %s\n",
++	    ret==-1?strerror(errno):"EOF");
+     exit(1);
+   }
+   total_written += 4;
+ }
+ 
+ void write_buf(int f,char *buf,int len)
+ {
+-  if (writefd(f,buf,len) != len) {
+-    fprintf(stderr,"write_buf failed : %s\n",strerror(errno));
++  int ret;
++  if ((ret=writefd(f,buf,len)) != len) {
++    fprintf(stderr,"write_buf failed : %s\n",
++	    ret==-1?strerror(errno):"EOF");
+     exit(1);
+   }
+   total_written += len;
+ }
+ 
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/main.c	1996-06-26 21:37:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/main.c	1996-06-27 13:09:16.000000000 +0800
+@@ -40,12 +40,14 @@
+ int cvs_exclude = 0;
+ int dry_run=0;
+ int local_server=0;
+ int ignore_times=0;
+ int delete_mode=0;
+ int one_file_system=0;
++int remote_version=0;
++int csum_length=SUM_LENGTH;
+ 
+ int am_server = 0;
+ static int sender = 0;
+ int recurse = 0;
+ 
+ static void usage(FILE *f);
+@@ -84,12 +86,13 @@
+ 
+ static void server_options(char **args,int *argc)
+ {
+   int ac = *argc;
+   static char argstr[50];
+   static char bsize[30];
++  static char slength[30];
+   int i, x;
+ 
+   args[ac++] = "--server";
+ 
+   if (!sender)
+     args[ac++] = "--sender";
+@@ -131,12 +134,17 @@
+   if (x != 1) args[ac++] = argstr;
+ 
+   if (block_size != BLOCK_SIZE) {
+     sprintf(bsize,"-B%d",block_size);
+     args[ac++] = bsize;
+   }    
++
++  if (csum_length != SUM_LENGTH) {
++    sprintf(slength,"--csum-length=%d",csum_length);
++    args[ac++] = slength;
++  }    
+   
+   if (delete_mode)
+     args[ac++] = "--delete";
+ 
+   *argc = ac;
+ }
+@@ -365,32 +373,34 @@
+   fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
+   fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
+   fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");
+   fprintf(f,"    --exclude FILE       exclude file FILE\n");
+   fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
+   fprintf(f,"    --suffix SUFFIX      override backup suffix\n");  
++  fprintf(f,"    --csum-length LENGTH set the checksum length\n");  
+   fprintf(f,"    --version            print version number\n");  
+ 
+   fprintf(f,"\n");
+   fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+   fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
+ }
+ 
+ enum {OPT_VERSION,OPT_SUFFIX,OPT_SENDER,OPT_SERVER,OPT_EXCLUDE,
+-      OPT_EXCLUDE_FROM,OPT_DELETE,OPT_RSYNC_PATH};
++      OPT_EXCLUDE_FROM,OPT_DELETE,OPT_RSYNC_PATH,OPT_CSUM_LENGTH};
+ 
+ static char *short_options = "oblpguDCtcahvrIxne:B:";
+ 
+ static struct option long_options[] = {
+   {"version",     0,     0,    OPT_VERSION},
+   {"server",      0,     0,    OPT_SERVER},
+   {"sender",      0,     0,    OPT_SENDER},
+   {"delete",      0,     0,    OPT_DELETE},
+   {"exclude",     1,     0,    OPT_EXCLUDE},
+   {"exclude-from",1,     0,    OPT_EXCLUDE_FROM},
+   {"rsync-path",  1,     0,    OPT_RSYNC_PATH},
++  {"csum-length", 1,     0,    OPT_CSUM_LENGTH},
+   {"one-file-system",0,  0,    'x'},
+   {"ignore-times",0,     0,    'I'},
+   {"help",        0,     0,    'h'},
+   {"dry-run",     0,     0,    'n'},
+   {"cvs-exclude", 0,     0,    'C'},
+   {"archive",     0,     0,    'a'},
+@@ -441,12 +451,17 @@
+ 	  break;
+ 
+ 	case OPT_RSYNC_PATH:
+ 	  rsync_path = optarg;
+ 	  break;
+ 
++	case OPT_CSUM_LENGTH:
++	  csum_length = atoi(optarg);
++	  csum_length = MIN(csum_length,SUM_LENGTH);
++	  break;
++
+ 	case 'I':
+ 	  ignore_times = 1;
+ 	  break;
+ 
+ 	case 'x':
+ 	  one_file_system=1;
+@@ -578,20 +593,22 @@
+     }
+ 
+     if (dry_run)
+       verbose = MAX(verbose,1);
+ 
+     if (am_server) {
+-      int version = read_int(STDIN_FILENO);
+-      if (version < MIN_PROTOCOL_VERSION) {
++      remote_version = read_int(STDIN_FILENO);
++      if (remote_version < MIN_PROTOCOL_VERSION) {
+ 	fprintf(stderr,"protocol version mismatch %d %d\n",
+-		version,PROTOCOL_VERSION);
++		remote_version,PROTOCOL_VERSION);
+ 	exit(1);
+       }
+       write_int(STDOUT_FILENO,PROTOCOL_VERSION);
+       write_flush(STDOUT_FILENO);
++
++      setup_protocol();
+ 	
+       if (sender) {
+ 	recv_exclude_list(STDIN_FILENO);
+ 	if (cvs_exclude)
+ 	  add_cvs_excludes();
+ 	do_server_sender(argc,argv);
+@@ -662,19 +679,21 @@
+ 
+     pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
+ 
+     write_int(f_out,PROTOCOL_VERSION);
+     write_flush(f_out);
+     {
+-      int version = read_int(f_in);
+-      if (version < MIN_PROTOCOL_VERSION) {
++      remote_version = read_int(f_in);
++      if (remote_version < MIN_PROTOCOL_VERSION) {
+ 	fprintf(stderr,"protocol version mismatch\n");
+ 	exit(1);
+       }	
+     }
+ 
++    setup_protocol();
++
+     if (verbose > 3) 
+       fprintf(stderr,"parent=%d child=%d sender=%d recurse=%d\n",
+ 	      (int)getpid(),pid,sender,recurse);
+ 
+     if (sender) {
+       if (cvs_exclude)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/Makefile.in	1996-06-26 09:05:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/Makefile.in	1996-06-27 10:49:40.000000000 +0800
+@@ -18,13 +18,13 @@
+ 
+ .SUFFIXES:
+ .SUFFIXES: .c .o
+ 
+ LIBOBJ=lib/getopt.o lib/fnmatch.o 
+ OBJS1=rsync.o exclude.o util.o md4.o main.o checksum.o match.o 
+-OBJS=$(OBJS1) flist.o io.o $(LIBOBJ)
++OBJS=$(OBJS1) flist.o io.o compat.o $(LIBOBJ)
+ 
+ .c.o:
+ 	$(CC) $(CFLAGS) -c $*.c -o $*.o
+ 
+ all: rsync
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/match.c	1996-06-27 00:02:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/match.c	1996-06-27 13:04:35.000000000 +0800
+@@ -16,12 +16,14 @@
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
+ #include "rsync.h"
+ 
++extern int csum_length;
++
+ extern int verbose;
+ extern int am_server;
+ 
+ typedef unsigned short tag;
+ 
+ #define TABLESIZE (1<<16)
+@@ -167,13 +169,13 @@
+ 	  if (!done_csum2) {
+ 	    int l = MIN(s->n,len-offset);
+ 	    map = map_ptr(buf,offset,l);
+ 	    get_checksum2(map,l,sum2);
+ 	    done_csum2 = 1;
+ 	  }
+-	  if (memcmp(sum2,s->sums[i].sum2,SUM_LENGTH) == 0) {
++	  if (memcmp(sum2,s->sums[i].sum2,csum_length) == 0) {
+ 	    matched(f,s,buf,len,offset,i);
+ 	    offset += s->sums[i].len - 1;
+ 	    k = MIN((len-offset), s->n);
+ 	    map = map_ptr(buf,offset,k);
+ 	    sum = get_checksum1(map, k);
+ 	    s1 = sum & 0xFFFF;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/proto.h	1996-06-27 00:02:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/proto.h	1996-06-27 10:53:16.000000000 +0800
+@@ -1,19 +1,26 @@
+ /* This file is automatically generated with "make proto". DO NOT EDIT */
+ 
+ uint32 get_checksum1(char *buf,int len);
+ void get_checksum2(char *buf,int len,char *sum);
+ void file_checksum(char *fname,char *sum,off_t size);
++void send_file_entry_v10(struct file_struct *file,int f);
++void receive_file_entry_v10(struct file_struct *file,
++			    unsigned char flags,int f);
++void setup_protocol(void);
+ int check_exclude(char *name,char **local_exclude_list);
+ void add_exclude_list(char *pattern,char ***list);
+ void add_exclude(char *pattern);
+ char **make_exclude_list(char *fname,char **list1,int fatal);
+ void add_exclude_file(char *fname,int fatal);
+ void send_exclude_list(int f);
+ void recv_exclude_list(int f);
+ void add_cvs_excludes(void);
++void send_file_entry_v11(struct file_struct *file,int f);
++void receive_file_entry_v11(struct file_struct *file,
++			    unsigned char flags,int f);
+ struct file_list *send_file_list(int f,int recurse,int argc,char *argv[]);
+ struct file_list *recv_file_list(int f);
+ int flist_find(struct file_list *flist,struct file_struct *f);
+ void clean_flist(struct file_list *flist);
+ int write_total(void);
+ int read_total(void);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/rsync.1	1996-06-26 09:44:23.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/rsync.1	1996-06-27 13:12:57.000000000 +0800
+@@ -1,7 +1,7 @@
+-.TH RSYNC 1 20/6/1996 rsync rsync
++.TH RSYNC 1 27/6/1996 rsync rsync
+ .SH NAME
+ rsync \- faster, flexible replacement for rcp
+ .SH SYNOPSIS
+    rsync [options] [user@]host:path path
+ 
+ OR
+@@ -276,12 +276,28 @@
+ .B --suffix SUFFIX
+ .RS 3
+ This option allows you to override the default backup suffix used with
+ the -b option. The default is a ~.
+ .RE
+ 
++.B --csum-length LENGTH
++.RS 3
++By default the primary checksum used in rsync is a very strong 16 byte
++MD4 checksum. In most cases you will find that a truncated version of
++this checksum is quite efficient, and this will decrease the size of
++the checksum data sent over the link, making things faster.
++
++You can choose the number of bytes in the truncated checksum using the
++--csum-length option. Any value less than or equal to 16 is valid.
++
++Note that if you use this option then you run the risk of ending up
++with a incorrect target file. The risk with a value of 16 is
++microscopic and can be safely ignored (the universe will probably end
++before it fails) but with smaller values the risk is higher.
++.RE
++
+ .SH BUGS
+ 
+ user ids and group ids are transferred using their numerical value
+ 
+ times are transferred as unix time_t values
+ 
+@@ -289,13 +305,13 @@
+ values
+ 
+ see also the comments on the -delete option 
+ 
+ .SH VERSION
+ 
+-This man page is current for version 1.2 of rsync
++This man page is current for version 1.4 of rsync
+ 
+ .SH CREDITS
+ 
+ rsync was written by Andrew Tridgell and Paul Mackerras. They may be
+ contacted via email at Andrew.Tridgell@anu.edu.au and
+ paulus@cs.anu.edu.au
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/rsync.c	1996-06-27 00:02:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/rsync.c	1996-06-27 13:04:49.000000000 +0800
+@@ -16,12 +16,14 @@
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
+ #include "rsync.h"
+ 
++extern int csum_length;
++
+ extern int verbose;
+ extern int am_server;
+ extern int always_checksum;
+ extern time_t starttime;
+ 
+ extern char *backup_suffix;
+@@ -64,13 +66,13 @@
+   write_int(f_out,s?s->count:0);
+   write_int(f_out,s?s->n:block_size);
+   write_int(f_out,s?s->remainder:0);
+   if (s)
+     for (i=0;i<s->count;i++) {
+       write_int(f_out,s->sums[i].sum1);
+-      write_buf(f_out,s->sums[i].sum2,SUM_LENGTH);
++      write_buf(f_out,s->sums[i].sum2,csum_length);
+     }
+   write_flush(f_out);
+ }
+ 
+ 
+ /*
+@@ -161,13 +163,13 @@
+ 
+   s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
+   if (!s->sums) out_of_memory("receive_sums");
+ 
+   for (i=0;i<s->count;i++) {
+     s->sums[i].sum1 = read_int(f);
+-    read_buf(f,s->sums[i].sum2,SUM_LENGTH);
++    read_buf(f,s->sums[i].sum2,csum_length);
+ 
+     s->sums[i].offset = offset;
+     s->sums[i].i = i;
+ 
+     if (i == s->count-1 && s->remainder != 0) {
+       s->sums[i].len = s->remainder;
+@@ -340,13 +342,13 @@
+     file_checksum(fname,sum,st.st_size);
+   }
+ 
+   if (st.st_size == flist->files[i].length &&
+       ((!ignore_times && st.st_mtime == flist->files[i].modtime) ||
+        (always_checksum && S_ISREG(st.st_mode) && 	  
+-	memcmp(sum,flist->files[i].sum,SUM_LENGTH) == 0))) {
++	memcmp(sum,flist->files[i].sum,csum_length) == 0))) {
+     set_perms(fname,&flist->files[i],&st,1);
+     return;
+   }
+ 
+   if (dry_run) {
+     write_int(f_out,i);
+@@ -447,12 +449,15 @@
+ static void delete_files(struct file_list *flist)
+ {
+   struct file_list *local_file_list;
+   char *dot=".";
+   int i;
+ 
++  if (cvs_exclude)
++    add_cvs_excludes();
++
+   if (!(local_file_list = send_file_list(-1,recurse,1,&dot)))
+     return;
+ 
+   for (i=local_file_list->count;i>=0;i--) {
+     if (!local_file_list->files[i].name) continue;
+     if (-1 == flist_find(flist,&local_file_list->files[i])) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/rsync.h	1996-06-27 00:02:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/rsync.h	1996-06-27 12:14:05.000000000 +0800
+@@ -20,14 +20,24 @@
+ #define BLOCK_SIZE 700
+ #define RSYNC_RSH_ENV "RSYNC_RSH"
+ #define RSYNC_RSH "rsh"
+ #define RSYNC_NAME "rsync"
+ #define BACKUP_SUFFIX "~"
+ 
++#define FILE_VALID 1
++#define SAME_MODE (1<<1)
++#define SAME_DEV (1<<2)
++#define SAME_UID (1<<3)
++#define SAME_GID (1<<4)
++#define SAME_DIR (1<<5)
++#define SAME_NAME SAME_DIR
++#define LONG_NAME (1<<6)
++#define SAME_TIME (1<<7)
++
+ /* update this if you make incompatible changes */
+-#define PROTOCOL_VERSION 10
++#define PROTOCOL_VERSION 11
+ #define MIN_PROTOCOL_VERSION 10
+ 
+ /* block size to write files in */
+ #define WRITE_BLOCK_SIZE (32*1024)
+ #define MAX_MAP_SIZE (4*1024*1024)
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4/version.h	1996-06-27 00:02:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.1/version.h	1996-06-27 12:05:48.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.4"
++#define VERSION "1.4.1"

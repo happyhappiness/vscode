@@ -1,0 +1,1 @@
+fprintf(stderr,"-D       : preserve devices (root only)\n");

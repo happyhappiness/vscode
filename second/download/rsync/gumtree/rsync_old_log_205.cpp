@@ -1,0 +1,1 @@
+fprintf(stderr,"%s : not a regular file\n",fname);

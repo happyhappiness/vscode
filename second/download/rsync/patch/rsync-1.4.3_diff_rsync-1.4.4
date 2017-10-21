@@ -1,0 +1,23 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.4/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/io.c	1996-06-28 22:26:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.4/io.c	1996-06-28 23:25:18.000000000 +0800
+@@ -164,12 +164,13 @@
+ #if SPARSE_FILES
+   if (last_sparse) {
+     lseek(f,-1,SEEK_CUR);
+     return (write(f,&last_byte,1) == 1 ? 0 : -1);
+   }
+ #endif  
++  last_sparse = 0;
+   return 0;
+ }
+ 
+ int write_sparse(int f,char *buf,int len)
+ {
+   int l=0;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.4/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.3/version.h	1996-06-28 22:26:47.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.4.4/version.h	1996-06-28 23:26:29.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.4.3"
++#define VERSION "1.4.4"

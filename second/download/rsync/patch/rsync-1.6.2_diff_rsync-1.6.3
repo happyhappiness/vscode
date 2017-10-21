@@ -1,0 +1,180 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/lib/zlib.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.3/lib/zlib.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/lib/zlib.c	1996-10-02 13:44:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.3/lib/zlib.c	1997-04-11 14:18:37.000000000 +0800
+@@ -3940,13 +3940,15 @@
+   /* done */
+   return Z_OK;
+ }
+ 
+ 
+ /* build fixed tables only once--keep them here */
+-local int fixed_lock = 0;
++#ifdef MULTI_THREADED
++local volatile int fixed_lock = 0;
++#endif
+ local int fixed_built = 0;
+ #define FIXEDH 530      /* number of hufts used by fixed tables */
+ local uInt fixed_left = FIXEDH;
+ local inflate_huft fixed_mem[FIXEDH];
+ local uInt fixed_bl;
+ local uInt fixed_bd;
+@@ -3981,14 +3983,16 @@
+ uIntf *bl;               /* literal desired/actual bit depth */
+ uIntf *bd;               /* distance desired/actual bit depth */
+ inflate_huft * FAR *tl;  /* literal/length tree result */
+ inflate_huft * FAR *td;  /* distance tree result */
+ {
+   /* build fixed tables if not built already--lock out other instances */
++#ifdef MULTI_THREADED
+   while (++fixed_lock > 1)
+     fixed_lock--;
++#endif
+   if (!fixed_built)
+   {
+     int k;              /* temporary variable */
+     unsigned c[288];    /* length list for huft_build */
+     z_stream z;         /* for falloc function */
+ 
+@@ -4015,13 +4019,15 @@
+     fixed_bd = 5;
+     huft_build(c, 30, 0, cpdist, cpdext, &fixed_td, &fixed_bd, &z);
+ 
+     /* done */
+     fixed_built = 1;
+   }
++#ifdef MULTI_THREADED
+   fixed_lock--;
++#endif
+   *bl = fixed_bl;
+   *bd = fixed_bd;
+   *tl = fixed_tl;
+   *td = fixed_td;
+   return Z_OK;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/lib/zlib.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.3/lib/zlib.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/lib/zlib.h	1996-10-02 13:44:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.3/lib/zlib.h	1997-04-11 14:18:39.000000000 +0800
+@@ -1,7 +1,7 @@
+-/*	$Id: zlib.h,v 1.2 1996/10/02 04:20:23 paulus Exp $	*/
++/*	$Id: zlib.h,v 1.1 1996/07/03 04:05:49 paulus Exp $	*/
+ 
+ /*
+  * This file is derived from zlib.h and zconf.h from the zlib-0.95
+  * distribution by Jean-loup Gailly and Mark Adler, with some additions
+  * by Paul Mackerras to aid in implementing Deflate compression and
+  * decompression for PPP packets.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.3/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/main.c	1996-10-01 14:35:39.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.3/main.c	1997-04-11 14:18:34.000000000 +0800
+@@ -465,13 +465,13 @@
+   {"block-size",  1,     0,    'B'},
+   {"compress",	  0,	 0,    'z'},
+   {0,0,0,0}};
+ 
+ int main(int argc,char *argv[])
+ {
+-    int pid, status, status2;
++    int pid, status = 0, status2 = 0;
+     int opt;
+     int option_index;
+     char *shell_cmd = NULL;
+     char *shell_machine = NULL;
+     char *shell_path = NULL;
+     char *shell_user = NULL;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.3/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/rsync.c	1996-10-01 13:50:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.3/rsync.c	1997-04-11 14:18:35.000000000 +0800
+@@ -532,13 +532,13 @@
+   if (cvs_exclude)
+     add_cvs_excludes();
+ 
+   if (!(local_file_list = send_file_list(-1,1,&dot)))
+     return;
+ 
+-  for (i=local_file_list->count;i>=0;i--) {
++  for (i=local_file_list->count-1;i>=0;i--) {
+     if (!local_file_list->files[i].name) continue;
+     if (-1 == flist_find(flist,&local_file_list->files[i])) {
+       delete_one(&local_file_list->files[i]);
+     }    
+   }
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/token.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.3/token.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.2/token.c	1996-10-02 13:44:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.3/token.c	1997-04-11 14:18:35.000000000 +0800
+@@ -218,12 +218,13 @@
+ /* Receive a deflated token and inflate it */
+ static int
+ recv_deflated_token(int f, char **data)
+ {
+     int n, r, flag;
+     static int init_done = 0;
++    static int saved_flag = 0;
+ 
+     for (;;) {
+ 	switch (recv_state) {
+ 	case r_init:
+ 	    if (!init_done) {
+ 		rx_strm.next_out = NULL;
+@@ -243,13 +244,17 @@
+ 	    recv_state = r_idle;
+ 	    rx_token = 0;
+ 	    break;
+ 	    
+ 	case r_idle:
+ 	case r_inflated:
+-	    flag = read_byte(f);
++	    if (saved_flag) {
++		flag = saved_flag & 0xff;
++		saved_flag = 0;
++	    } else
++		flag = read_byte(f);
+ 	    if ((flag & 0xC0) == DEFLATED_DATA) {
+ 		n = ((flag & 0x3f) << 8) + read_byte(f);
+ 		read_buf(f, cbuf, n);
+ 		rx_strm.next_in = cbuf;
+ 		rx_strm.avail_in = n;
+ 		recv_state = r_inflating;
+@@ -259,17 +264,26 @@
+ 		/* check previous inflated stuff ended correctly */
+ 		rx_strm.avail_in = 0;
+ 		rx_strm.next_out = dbuf;
+ 		rx_strm.avail_out = CHUNK_SIZE;
+ 		r = inflate(&rx_strm, Z_PACKET_FLUSH);
+ 		n = CHUNK_SIZE - rx_strm.avail_out;
+-		if (r != Z_OK || n != 0) {
++		if (r != Z_OK) {
+ 		    fprintf(FERROR, "inflate flush returned %d (%d bytes)\n",
+ 			    r, n);
+ 		    exit_cleanup(1);
+ 		}
++		if (n != 0) {
++		    /* have to return some more data and
++		       save the flag for later. */
++		    saved_flag = flag + 0x10000;
++		    if (rx_strm.avail_out != 0)
++			recv_state = r_idle;
++		    *data = dbuf;
++		    return n;
++		}
+ 		recv_state = r_idle;
+ 	    }
+ 	    if (flag == END_FLAG) {
+ 		/* that's all folks */
+ 		recv_state = r_init;
+ 		return 0;
+@@ -294,13 +308,13 @@
+ 	    r = inflate(&rx_strm, Z_NO_FLUSH);
+ 	    n = CHUNK_SIZE - rx_strm.avail_out;
+ 	    if (r != Z_OK) {
+ 		fprintf(FERROR, "inflate returned %d (%d bytes)\n", r, n);
+ 		exit_cleanup(1);
+ 	    }
+-	    if (rx_strm.avail_out != 0)
++	    if (rx_strm.avail_in == 0)
+ 		recv_state = r_inflated;
+ 	    if (n != 0) {
+ 		*data = dbuf;
+ 		return n;
+ 	    }
+ 	    break;

@@ -1,0 +1,1 @@
+fprintf(FERROR,"generate_files phase=%d\n",phase);

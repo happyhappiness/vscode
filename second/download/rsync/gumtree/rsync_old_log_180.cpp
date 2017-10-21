@@ -1,0 +1,1 @@
+fprintf(stderr,"recv_generator(%s)\n",fname);

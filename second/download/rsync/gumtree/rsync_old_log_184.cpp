@@ -1,0 +1,1 @@
+fprintf(stderr,"mknod %s : %s\n",fname,strerror(errno));

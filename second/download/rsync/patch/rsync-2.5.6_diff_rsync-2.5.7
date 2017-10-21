@@ -1,0 +1,873 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/batch.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/batch.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/batch.c	2002-12-24 15:42:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/batch.c	2003-12-04 12:23:29.000000000 +0800
+@@ -182,21 +182,20 @@
+ {
+ 	unsigned char flags;
+ 
+ 	fdb_open = 1;
+ 	fdb_close = 0;
+ 
+-	batch_flist = (struct file_list *) malloc(sizeof(batch_flist[0]));
++	batch_flist = new(struct file_list);
+ 	if (!batch_flist) {
+ 		out_of_memory("create_flist_from_batch");
+ 	}
+ 	batch_flist->count = 0;
+ 	batch_flist->malloced = 1000;
+-	batch_flist->files =
+-	    (struct file_struct **) malloc(sizeof(batch_flist->files[0]) *
+-					   batch_flist->malloced);
++	batch_flist->files = new_array(struct file_struct *,
++				       batch_flist->malloced);
+ 	if (!batch_flist->files) {
+ 		out_of_memory("create_flist_from_batch");
+ 	}
+ 
+ 	for (flags = read_batch_flags(); flags; flags = read_batch_flags()) {
+ 
+@@ -204,20 +203,16 @@
+ 
+ 		if (i >= batch_flist->malloced) {
+ 			if (batch_flist->malloced < 1000)
+ 				batch_flist->malloced += 1000;
+ 			else
+ 				batch_flist->malloced *= 2;
+-			batch_flist->files =
+-			    (struct file_struct **) realloc(batch_flist->
+-							    files,
+-							    sizeof
+-							    (batch_flist->
+-							     files[0]) *
+-							    batch_flist->
+-							    malloced);
++			batch_flist->files
++				= realloc_array(batch_flist->files,
++						struct file_struct *,
++						batch_flist->malloced);
+ 			if (!batch_flist->files)
+ 				out_of_memory("create_flist_from_batch");
+ 		}
+ 		read_batch_flist_info(&batch_flist->files[i]);
+ 		batch_flist->files[i]->flags = flags;
+ 
+@@ -279,13 +274,13 @@
+ {
+ 	int int_str_len;
+ 	char char_str_len[4];
+ 	char buff[256];
+ 	struct file_struct *file;
+ 
+-	file = (struct file_struct *) malloc(sizeof(*file));
++	file = new(struct file_struct);
+ 	if (!file)
+ 		out_of_memory("read_batch_flist_info");
+ 	memset((char *) file, 0, sizeof(*file));
+ 
+ 	*fptr = file;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/checksum.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/checksum.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/checksum.c	2002-04-08 16:29:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/checksum.c	2003-12-04 12:23:29.000000000 +0800
+@@ -55,13 +55,13 @@
+ 	static char *buf1;
+ 	static int len1;
+ 	struct mdfour m;
+ 
+ 	if (len > len1) {
+ 		if (buf1) free(buf1);
+-		buf1 = (char *)malloc(len+4);
++		buf1 = new_array(char, len+4);
+ 		len1 = len;
+ 		if (!buf1) out_of_memory("get_checksum2");
+ 	}
+ 	
+ 	mdfour_begin(&m);
+ 	
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/cleanup.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/cleanup.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/cleanup.c	2003-01-27 11:35:08.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/cleanup.c	2003-12-04 12:23:29.000000000 +0800
+@@ -23,13 +23,13 @@
+ 
+ /**
+  * Close all open sockets and files, allowing a (somewhat) graceful
+  * shutdown() of socket connections.  This eliminates the abortive
+  * TCP RST sent by a Winsock-based system when the close() occurs.
+  **/
+-void close_all()
++void close_all(void)
+ {
+ #ifdef SHUTDOWN_ALL_SOCKETS
+ 	int max_fd;
+ 	int fd;
+ 	int ret;
+ 	struct stat st;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/configure	2003-01-28 13:27:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/configure	2003-12-04 12:27:22.000000000 +0800
+@@ -1202,13 +1202,13 @@
+ 
+ 
+ ac_config_headers="$ac_config_headers config.h"
+ 
+ 
+ 
+-RSYNC_VERSION=2.5.6
++RSYNC_VERSION=2.5.7
+ 
+ { echo "$as_me:$LINENO: Configuring rsync $RSYNC_VERSION" >&5
+ echo "$as_me: Configuring rsync $RSYNC_VERSION" >&6;}
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/configure.in	2003-01-28 13:27:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/configure.in	2003-12-04 12:23:29.000000000 +0800
+@@ -2,13 +2,13 @@
+ 
+ AC_INIT()
+ AC_CONFIG_SRCDIR([byteorder.h])
+ AC_CONFIG_HEADER(config.h)
+ AC_PREREQ(2.52)
+ 
+-RSYNC_VERSION=2.5.6
++RSYNC_VERSION=2.5.7
+ AC_SUBST(RSYNC_VERSION)
+ AC_MSG_NOTICE([Configuring rsync $RSYNC_VERSION])
+ 
+ AC_DEFINE_UNQUOTED(RSYNC_VERSION, ["$RSYNC_VERSION"], [rsync release version])
+ 
+ LDFLAGS=${LDFLAGS-""}
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6: .cvsignore
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6: cvs.log
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/doc: .cvsignore
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/exclude.c	2003-01-27 04:10:23.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/exclude.c	2003-12-04 12:23:29.000000000 +0800
+@@ -33,13 +33,13 @@
+ 
+ /** Build an exclude structure given a exclude pattern */
+ static struct exclude_struct *make_exclude(const char *pattern, int include)
+ {
+ 	struct exclude_struct *ret;
+ 
+-	ret = (struct exclude_struct *)malloc(sizeof(*ret));
++	ret = new(struct exclude_struct);
+ 	if (!ret) out_of_memory("make_exclude");
+ 
+ 	memset(ret, 0, sizeof(*ret));
+ 
+ 	if (strncmp(pattern,"- ",2) == 0) {
+ 		pattern += 2;
+@@ -194,13 +194,13 @@
+ 		}
+ 		free((*list));
+ 		*list = NULL;
+ 		return;
+ 	}
+ 
+-	*list = (struct exclude_struct **)Realloc(*list,sizeof(struct exclude_struct *)*(len+2));
++	*list = realloc_array(*list, struct exclude_struct *, len+2);
+ 	
+ 	if (!*list || !((*list)[len] = make_exclude(pattern, include)))
+ 		out_of_memory("add_exclude");
+ 	
+ 	if (verbose > 2) {
+ 		rprintf(FINFO,"add_exclude(%s,%s)\n",pattern,
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/fileio.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/fileio.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/fileio.c	2002-01-26 07:07:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/fileio.c	2003-12-04 12:23:29.000000000 +0800
+@@ -99,13 +99,13 @@
+    read(). It gives sliding window access to a file. mmap() is not
+    used because of the possibility of another program (such as a
+    mailer) truncating the file thus giving us a SIGBUS */
+ struct map_struct *map_file(int fd,OFF_T len)
+ {
+ 	struct map_struct *map;
+-	map = (struct map_struct *)malloc(sizeof(*map));
++	map = new(struct map_struct);
+ 	if (!map) out_of_memory("map_file");
+ 
+ 	map->fd = fd;
+ 	map->file_size = len;
+ 	map->p = NULL;
+ 	map->p_size = 0;
+@@ -153,13 +153,13 @@
+ 	if (offset + len > window_start + window_size) {
+ 		window_size = (offset+len) - window_start;
+ 	}
+ 
+ 	/* make sure we have allocated enough memory for the window */
+ 	if (window_size > map->p_size) {
+-		map->p = (char *)Realloc(map->p, window_size);
++		map->p = realloc_array(map->p, char, window_size);
+ 		if (!map->p) out_of_memory("map_ptr");
+ 		map->p_size = window_size;
+ 	}
+ 
+ 	/* now try to avoid re-reading any bytes by reusing any bytes from the previous
+ 	   buffer. */
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/flist.c	2003-01-19 02:00:23.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/flist.c	2003-12-04 12:23:29.000000000 +0800
+@@ -115,16 +115,16 @@
+ static struct string_area *string_area_new(int size)
+ {
+ 	struct string_area *a;
+ 
+ 	if (size <= 0)
+ 		size = ARENA_SIZE;
+-	a = malloc(sizeof(*a));
++	a = new(struct string_area);
+ 	if (!a)
+ 		out_of_memory("string_area_new");
+-	a->current = a->base = malloc(size);
++	a->current = a->base = new_array(char, size);
+ 	if (!a->current)
+ 		out_of_memory("string_area_new buffer");
+ 	a->end = a->base + size;
+ 	a->next = NULL;
+ 
+ 	return a;
+@@ -302,30 +302,31 @@
+  * Make sure @p flist is big enough to hold at least @p flist->count
+  * entries.
+  **/
+ static void flist_expand(struct file_list *flist)
+ {
+ 	if (flist->count >= flist->malloced) {
+-		size_t new_bytes;
+ 		void *new_ptr;
+ 		
+ 		if (flist->malloced < 1000)
+ 			flist->malloced += 1000;
+ 		else
+ 			flist->malloced *= 2;
+ 
+-		new_bytes = sizeof(flist->files[0]) * flist->malloced;
+-		
+ 		if (flist->files)
+-			new_ptr = realloc(flist->files, new_bytes);
++			new_ptr = realloc_array(flist->files,
++						struct file_struct *,
++						flist->malloced);
+ 		else
+-			new_ptr = malloc(new_bytes);
++			new_ptr = new_array(struct file_struct *,
++					    flist->malloced);
+ 
+ 		if (verbose >= 2) {
+ 			rprintf(FINFO, "expand file_list to %.0f bytes, did%s move\n",
+-				(double) new_bytes,
++				(double)sizeof(flist->files[0])
++				* flist->malloced,
+ 				(new_ptr == flist->files) ? " not" : "");
+ 		}
+ 		
+ 		flist->files = (struct file_struct **) new_ptr;
+ 
+ 		if (!flist->files)
+@@ -477,13 +478,13 @@
+ 
+ 	if (flags & LONG_NAME)
+ 		l2 = read_int(f);
+ 	else
+ 		l2 = read_byte(f);
+ 
+-	file = (struct file_struct *) malloc(sizeof(*file));
++	file = new(struct file_struct);
+ 	if (!file)
+ 		out_of_memory("receive_file_entry");
+ 	memset((char *) file, 0, sizeof(*file));
+ 	(*fptr) = file;
+ 
+ 	if (l2 >= MAXPATHLEN - l1) {
+@@ -544,13 +545,13 @@
+ 	if (preserve_links && S_ISLNK(file->mode)) {
+ 		int l = read_int(f);
+ 		if (l < 0) {
+ 			rprintf(FERROR, "overflow: l=%d\n", l);
+ 			overflow("receive_file_entry");
+ 		}
+-		file->link = (char *) malloc(l + 1);
++		file->link = new_array(char, l + 1);
+ 		if (!file->link)
+ 			out_of_memory("receive_file_entry 2");
+ 		read_sbuf(f, file->link, l);
+ 		if (sanitize_paths) {
+ 			sanitize_path(file->link, file->dirname);
+ 		}
+@@ -565,13 +566,13 @@
+ 			file->inode = read_longint(f);
+ 		}
+ 	}
+ #endif
+ 
+ 	if (always_checksum) {
+-		file->sum = (char *) malloc(MD4_SUM_LENGTH);
++		file->sum = new_array(char, MD4_SUM_LENGTH);
+ 		if (!file->sum)
+ 			out_of_memory("md4 sum");
+ 		if (remote_version < 21) {
+ 			read_buf(f, file->sum, 2);
+ 		} else {
+ 			read_buf(f, file->sum, MD4_SUM_LENGTH);
+@@ -700,13 +701,13 @@
+ 
+       skip_excludes:
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO, "make_file(%d,%s)\n", f, fname);
+ 
+-	file = (struct file_struct *) malloc(sizeof(*file));
++	file = new(struct file_struct);
+ 	if (!file)
+ 		out_of_memory("make_file");
+ 	memset((char *) file, 0, sizeof(*file));
+ 
+ 	if ((p = strrchr(fname, '/'))) {
+ 		static char *lastdir;
+@@ -1048,21 +1049,19 @@
+ 
+ 	if (show_filelist_p())
+ 		start_filelist_progress("receiving file list");
+ 
+ 	start_read = stats.total_read;
+ 
+-	flist = (struct file_list *) malloc(sizeof(flist[0]));
++	flist = new(struct file_list);
+ 	if (!flist)
+ 		goto oom;
+ 
+ 	flist->count = 0;
+ 	flist->malloced = 1000;
+-	flist->files =
+-	    (struct file_struct **) malloc(sizeof(flist->files[0]) *
+-					   flist->malloced);
++	flist->files = new_array(struct file_struct *, flist->malloced);
+ 	if (!flist->files)
+ 		goto oom;
+ 
+ 
+ 	for (flags = read_byte(f); flags; flags = read_byte(f)) {
+ 		int i = flist->count;
+@@ -1198,13 +1197,13 @@
+  * allocate a new file list
+  */
+ struct file_list *flist_new(void)
+ {
+ 	struct file_list *flist;
+ 
+-	flist = (struct file_list *) malloc(sizeof(flist[0]));
++	flist = new(struct file_list);
+ 	if (!flist)
+ 		out_of_memory("send_file_list");
+ 
+ 	flist->count = 0;
+ 	flist->malloced = 0;
+ 	flist->files = NULL;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/hlink.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/hlink.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/hlink.c	2002-03-25 15:07:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/hlink.c	2003-12-04 12:23:29.000000000 +0800
+@@ -54,15 +54,13 @@
+ 	if (flist->count < 2)
+ 		return;
+ 
+ 	if (hlink_list)
+ 		free(hlink_list);
+ 
+-	if (!(hlink_list =
+-	      (struct file_struct *) malloc(sizeof(hlink_list[0]) *
+-					    flist->count)))
++	if (!(hlink_list = new_array(struct file_struct, flist->count)))
+ 		out_of_memory("init_hard_links");
+ 
+ 	for (i = 0; i < flist->count; i++)
+ 		memcpy(&hlink_list[i], flist->files[i],
+ 		       sizeof(hlink_list[0]));
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/io.c	2002-04-11 10:11:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/io.c	2003-12-04 12:23:29.000000000 +0800
+@@ -532,13 +532,13 @@
+ static int io_buffer_count;
+ 
+ void io_start_buffering(int fd)
+ {
+ 	if (io_buffer) return;
+ 	multiplex_out_fd = fd;
+-	io_buffer = (char *)malloc(IO_BUFFER_SIZE);
++	io_buffer = new_array(char, IO_BUFFER_SIZE);
+ 	if (!io_buffer) out_of_memory("writefd");
+ 	io_buffer_count = 0;
+ }
+ 
+ /**
+  * Write an message to a multiplexed stream. If this fails then rsync
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/loadparm.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/loadparm.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/loadparm.c	2002-08-31 07:27:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/loadparm.c	2003-12-04 12:23:29.000000000 +0800
+@@ -439,16 +439,16 @@
+       if (i >= 0)
+ 	return(i);
+     }
+ 
+   i = iNumServices;
+ 
+-  ServicePtrs = (service **)Realloc(ServicePtrs,sizeof(service *)*num_to_alloc);
++  ServicePtrs = realloc_array(ServicePtrs, service *, num_to_alloc);
+ 
+   if (ServicePtrs)
+-	  pSERVICE(iNumServices) = (service *)malloc(sizeof(service));
++	  pSERVICE(iNumServices) = new(service);
+ 
+   if (!ServicePtrs || !pSERVICE(iNumServices))
+ 	  return(-1);
+ 
+   iNumServices++;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/log.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/log.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/log.c	2002-12-24 15:42:04.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/log.c	2003-12-04 12:23:29.000000000 +0800
+@@ -87,16 +87,16 @@
+ static struct err_list *err_list_tail;
+ 
+ /* add an error message to the pending error list */
+ static void err_list_add(int code, char *buf, int len)
+ {
+ 	struct err_list *el;
+-	el = (struct err_list *)malloc(sizeof(*el));
++	el = new(struct err_list);
+ 	if (!el) exit_cleanup(RERR_MALLOC);
+ 	el->next = NULL;
+-	el->buf = malloc(len+4);
++	el->buf = new_array(char, len+4);
+ 	if (!el->buf) exit_cleanup(RERR_MALLOC);
+ 	memcpy(el->buf+4, buf, len);
+ 	SIVAL(el->buf, 0, ((code+MPLEX_BASE)<<24) | len);
+ 	el->len = len+4;
+ 	el->written = 0;
+ 	if (err_list_tail) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/match.c	2002-04-09 14:11:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/match.c	2003-12-04 12:23:29.000000000 +0800
+@@ -62,15 +62,15 @@
+ 
+ static void build_hash_table(struct sum_struct *s)
+ {
+   int i;
+ 
+   if (!tag_table)
+-    tag_table = (int *)malloc(sizeof(tag_table[0])*TABLESIZE);
++    tag_table = new_array(int, TABLESIZE);
+ 
+-  targets = (struct target *)malloc(sizeof(targets[0])*s->count);
++  targets = new_array(struct target, s->count);
+   if (!tag_table || !targets) 
+     out_of_memory("build_hash_table");
+ 
+   for (i=0;i<(int) s->count;i++) {
+     targets[i].i = i;
+     targets[i].t = gettag(s->sums[i].sum1);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/NEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/NEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/NEWS	2003-01-28 13:13:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/NEWS	2003-12-04 12:23:29.000000000 +0800
+@@ -1,6 +1,14 @@
++NEWS for rsync version 2.5.7:
++
++  SECURITY:
++
++    * Fix buffer handling bugs.  (Andrew Tridgell, Martin Pool, Paul
++      Russell, Andrea Barisani)
++
++
+ NEWS for rsync version 2.5.6, aka the dwd-between-jobs release
+ Changes since version 2.5.5:
+ 
+   ENHANCEMENTS:
+ 
+     * The --delete-after option now implies --delete.  (Wayne Davison)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/packaging/lsb/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/packaging/lsb/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/packaging/lsb/rsync.spec	2003-01-28 13:28:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/packaging/lsb/rsync.spec	2003-12-04 12:27:22.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.5.6
++Version: 2.5.7
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.5.6.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.5.7.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/packaging/redhat/5.0/rsync.spec	2003-01-28 13:28:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/packaging/redhat/5.0/rsync.spec	2003-12-04 12:27:22.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.5.6
++Version: 2.5.7
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.5.6.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.5.7.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/packaging/redhat/7.1/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/packaging/redhat/7.1/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/packaging/redhat/7.1/rsync.spec	2003-01-28 13:28:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/packaging/redhat/7.1/rsync.spec	2003-12-04 12:27:22.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.5.6
++Version: 2.5.7
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.5.6.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.5.7.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/params.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/params.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/params.c	2003-01-27 04:07:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/params.c	2003-12-04 12:23:30.000000000 +0800
+@@ -204,13 +204,13 @@
+     {
+ 
+     /* Check that the buffer is big enough for the next character. */
+     if( i > (bSize - 2) )
+       {
+       bSize += BUFR_INC;
+-      bufr   = Realloc( bufr, bSize );
++      bufr   = realloc_array( bufr, char, bSize );
+       if( NULL == bufr )
+         {
+         rprintf(FERROR, "%s Memory re-allocation failure.", func);
+         return( False );
+         }
+       }
+@@ -298,13 +298,13 @@
+   while( 0 == vstart )  /* Loop until we've found the start of the value. */
+     {
+ 
+     if( i > (bSize - 2) )       /* Ensure there's space for next char.    */
+       {
+       bSize += BUFR_INC;
+-      bufr   = Realloc( bufr, bSize );
++      bufr   = realloc_array( bufr, char, bSize );
+       if( NULL == bufr )
+         {
+         rprintf(FERROR, "%s Memory re-allocation failure.", func) ;
+         return( False );
+         }
+       }
+@@ -363,13 +363,13 @@
+   while( (EOF !=c) && (c > 0) )
+     {
+ 
+     if( i > (bSize - 2) )       /* Make sure there's enough room. */
+       {
+       bSize += BUFR_INC;
+-      bufr   = Realloc( bufr, bSize );
++      bufr   = realloc_array( bufr, char, bSize );
+       if( NULL == bufr )
+         {
+         rprintf(FERROR, "%s Memory re-allocation failure.", func) ;
+         return( False );
+         }
+       }
+@@ -527,13 +527,13 @@
+     result = Parse( InFile, sfunc, pfunc );   /* (recursive call), then just */
+                                               /* use it.                     */
+ 
+   else                                        /* If we don't have a buffer   */
+     {                                         /* allocate one, then parse,   */
+     bSize = BUFR_INC;                         /* then free.                  */
+-    bufr = (char *)malloc( bSize );
++    bufr = new_array( char, bSize );
+     if( NULL == bufr )
+       {
+       rprintf(FERROR,"%s memory allocation failure.\n", func);
+       fclose(InFile);
+       return( False );
+       }
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/popt: .cvsignore
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/proto.h	2003-01-27 11:35:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/proto.h	2003-12-04 12:23:30.000000000 +0800
+@@ -251,18 +251,19 @@
+ void kill_all(int sig);
+ int name_to_uid(char *name, uid_t *uid);
+ int name_to_gid(char *name, gid_t *gid);
+ int lock_range(int fd, int offset, int len);
+ void glob_expand(char *base1, char **argv, int *argc, int maxargs);
+ void strlower(char *s);
+-void *Realloc(void *p, int size);
+ void clean_fname(char *name);
+ void sanitize_path(char *p, char *reldir);
+ char *push_dir(char *dir, int save);
+ int pop_dir(char *dir);
+ int u_strcmp(const char *cs1, const char *cs2);
+ int unsafe_symlink(const char *dest, const char *src);
+ char *timestring(time_t t);
+ int msleep(int t);
+ int cmp_modtime(time_t file1, time_t file2);
+ int _Insure_trap_error(int a1, int a2, int a3, int a4, int a5, int a6);
++void *_new_array(unsigned int size, unsigned long num);
++void *_realloc_array(void *ptr, unsigned int size, unsigned long num);
+ int sys_gettimeofday(struct timeval *tv);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/receiver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/receiver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/receiver.c	2003-01-21 07:32:17.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/receiver.c	2003-12-04 12:23:30.000000000 +0800
+@@ -64,13 +64,14 @@
+ }
+ 
+ static void add_delete_entry(struct file_struct *file)
+ {
+ 	if (dlist_len == dlist_alloc_len) {
+ 		dlist_alloc_len += 1024;
+-		delete_list = (struct delete_list *)Realloc(delete_list, sizeof(delete_list[0])*dlist_alloc_len);
++		delete_list = realloc_array(delete_list, struct delete_list,
++					    dlist_alloc_len);
+ 		if (!delete_list) out_of_memory("add_delete_entry");
+ 	}
+ 
+ 	delete_list[dlist_len].dev = file->dev;
+ 	delete_list[dlist_len].inode = file->inode;
+ 	dlist_len++;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/rsync.c	2001-12-20 23:33:13.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/rsync.c	2003-12-04 12:23:30.000000000 +0800
+@@ -121,13 +121,13 @@
+ 	if (gid == last_in)
+ 		return last_out;
+ 	if (ngroups < -1) {
+ 		/* treat failure (-1) as if not member of any group */
+ 		ngroups = getgroups(0, 0);
+ 		if (ngroups > 0) {
+-			gidset = (GETGROUPS_T *) malloc(ngroups * sizeof(GETGROUPS_T));
++			gidset = new_array(GETGROUPS_T, ngroups);
+ 			ngroups = getgroups(ngroups, gidset);
+ 		}
+ 	}
+ 
+ 	last_in = gid;
+ 	last_out = 0;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/rsync.h	2003-01-27 04:11:16.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/rsync.h	2003-12-04 12:23:30.000000000 +0800
+@@ -576,12 +576,16 @@
+  *
+  * <http://www.opensource.apple.com/bugs/X/gcc/2512150.html> */
+ #define __attribute__(x) 
+ 
+ #endif
+ 
++/* Convenient wrappers for malloc and realloc.  Use them. */
++#define new(type) ((type *)malloc(sizeof(type)))
++#define new_array(type, num) ((type *)_new_array(sizeof(type), (num)))
++#define realloc_array(ptr, type, num) ((type *)_realloc_array((ptr), sizeof(type), (num)))
+ 
+ /* use magic gcc attributes to catch format errors */
+  void rprintf(enum logcode , const char *, ...)
+      __attribute__((format (printf, 2, 3)))
+ ;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/sender.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/sender.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/sender.c	2002-04-09 14:03:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/sender.c	2003-12-04 12:23:30.000000000 +0800
+@@ -43,13 +43,13 @@
+ static struct sum_struct *receive_sums(int f)
+ {
+ 	struct sum_struct *s;
+ 	int i;
+ 	OFF_T offset = 0;
+ 
+-	s = (struct sum_struct *)malloc(sizeof(*s));
++	s = new(struct sum_struct);
+ 	if (!s) out_of_memory("receive_sums");
+ 
+ 	s->count = read_int(f);
+ 	s->n = read_int(f);
+ 	s->remainder = read_int(f);  
+ 	s->sums = NULL;
+@@ -58,13 +58,13 @@
+ 		rprintf(FINFO,"count=%ld n=%ld rem=%ld\n",
+ 			(long) s->count, (long) s->n, (long) s->remainder);
+ 
+ 	if (s->count == 0) 
+ 		return(s);
+ 
+-	s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
++	s->sums = new_array(struct sum_buf, s->count);
+ 	if (!s->sums) out_of_memory("receive_sums");
+ 
+ 	for (i=0; i < (int) s->count;i++) {
+ 		s->sums[i].sum1 = read_int(f);
+ 		read_buf(f,s->sums[i].sum2,csum_length);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/token.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/token.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/token.c	2002-04-08 16:35:30.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/token.c	2003-12-04 12:23:30.000000000 +0800
+@@ -65,13 +65,13 @@
+ {
+ 	static int residue;
+ 	static char *buf;
+ 	int n;
+ 
+ 	if (!buf) {
+-		buf = (char *)malloc(CHUNK_SIZE);
++		buf = new_array(char, CHUNK_SIZE);
+ 		if (!buf) out_of_memory("simple_recv_token");
+ 	}
+ 
+ 	if (residue == 0) {
+ 		int i = read_int(f);
+ 		if (i <= 0) return i;
+@@ -157,13 +157,13 @@
+ 			if (deflateInit2(&tx_strm, compression_level,
+ 					 Z_DEFLATED, -15, 8,
+ 					 Z_DEFAULT_STRATEGY) != Z_OK) {
+ 				rprintf(FERROR, "compression init failed\n");
+ 				exit_cleanup(RERR_STREAMIO);
+ 			}
+-			if ((obuf = malloc(MAX_DATA_COUNT+2)) == NULL)
++			if ((obuf = new_array(char, MAX_DATA_COUNT+2)) == NULL)
+ 				out_of_memory("send_deflated_token");
+ 			init_done = 1;
+ 		} else
+ 			deflateReset(&tx_strm);
+ 		last_run_end = 0;
+ 		run_start = token;
+@@ -319,14 +319,14 @@
+ 				rx_strm.zalloc = NULL;
+ 				rx_strm.zfree = NULL;
+ 				if (inflateInit2(&rx_strm, -15) != Z_OK) {
+ 					rprintf(FERROR, "inflate init failed\n");
+ 					exit_cleanup(RERR_STREAMIO);
+ 				}
+-				if ((cbuf = malloc(MAX_DATA_COUNT)) == NULL
+-				    || (dbuf = malloc(CHUNK_SIZE)) == NULL)
++				if (!(cbuf = new_array(char, MAX_DATA_COUNT))
++				    || !(dbuf = new_array(char, CHUNK_SIZE)))
+ 					out_of_memory("recv_deflated_token");
+ 				init_done = 1;
+ 			} else {
+ 				inflateReset(&rx_strm);
+ 			}
+ 			recv_state = r_idle;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/uidlist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/uidlist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/uidlist.c	1999-03-02 05:16:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/uidlist.c	2003-12-04 12:23:30.000000000 +0800
+@@ -38,13 +38,13 @@
+ 
+ static struct idlist *uidlist;
+ static struct idlist *gidlist;
+ 
+ static struct idlist *add_list(int id, char *name)
+ {
+-	struct idlist *list = (struct idlist *)malloc(sizeof(list[0]));
++	struct idlist *list = new(struct idlist);
+ 	if (!list) out_of_memory("add_list");
+ 	list->next = NULL;
+ 	list->name = strdup(name);
+ 	if (!list->name) out_of_memory("add_list");
+ 	list->id = (int)id;
+ 	return list;
+@@ -238,13 +238,13 @@
+ 	if (preserve_uid) {
+ 		/* read the uid list */
+ 		list = uidlist;
+ 		id = read_int(f);
+ 		while (id != 0) {
+ 			int len = read_byte(f);
+-			name = (char *)malloc(len+1);
++			name = new_array(char, len+1);
+ 			if (!name) out_of_memory("recv_uid_list");
+ 			read_sbuf(f, name, len);
+ 			if (!list) {
+ 				uidlist = add_list(id, name);
+ 				list = uidlist;
+ 			} else {
+@@ -261,13 +261,13 @@
+ 	if (preserve_gid) {
+ 		/* and the gid list */
+ 		list = gidlist;
+ 		id = read_int(f);
+ 		while (id != 0) {
+ 			int len = read_byte(f);
+-			name = (char *)malloc(len+1);
++			name = new_array(char, len+1);
+ 			if (!name) out_of_memory("recv_uid_list");
+ 			read_sbuf(f, name, len);
+ 			if (!list) {
+ 				gidlist = add_list(id, name);
+ 				list = gidlist;
+ 			} else {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/util.c	2003-01-20 05:37:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.7/util.c	2003-12-04 12:23:30.000000000 +0800
+@@ -535,19 +535,12 @@
+ 		if (isupper(* (unsigned char *) s))
+ 			*s = tolower(* (unsigned char *) s);
+ 		s++;
+ 	}
+ }
+ 
+-void *Realloc(void *p, int size)
+-{
+-	if (!p) return (void *)malloc(size);
+-	return (void *)realloc(p, size);
+-}
+-
+-
+ void clean_fname(char *name)
+ {
+ 	char *p;
+ 	int l;
+ 	int modified = 1;
+ 
+@@ -938,6 +931,26 @@
+ 
+ 	free(cmd);
+ 
+ 	return ret;
+ }
+ #endif
++
++
++#define MALLOC_MAX 0x40000000
++
++void *_new_array(unsigned int size, unsigned long num)
++{
++	if (num >= MALLOC_MAX/size)
++		return NULL;
++	return malloc(size * num);
++}
++
++void *_realloc_array(void *ptr, unsigned int size, unsigned long num)
++{
++	if (num >= MALLOC_MAX/size)
++		return NULL;
++	/* No realloc should need this, but just in case... */
++	if (!ptr)
++		return malloc(size * num);
++	return realloc(ptr, size * num);
++}
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.5.6/zlib: .cvsignore

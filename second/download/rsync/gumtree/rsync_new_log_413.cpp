@@ -1,0 +1,1 @@
+fprintf(FINFO,"added %s to delete list\n", f_name(file));

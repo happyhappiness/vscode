@@ -1,0 +1,1586 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/checksum.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/checksum.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/checksum.c	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/checksum.c	1998-06-18 18:30:21.000000000 +0800
+@@ -74,13 +74,13 @@
+     len1 = len;
+     if (!buf1) out_of_memory("get_checksum2");
+   }
+ 
+   MDbegin(&MD);
+ 
+-  bcopy(buf,buf1,len);
++  memcpy(buf1,buf,len);
+   if (checksum_seed) {
+     SIVAL(buf1,len,checksum_seed);
+     len += 4;
+   }
+ 
+   for(i = 0; i + CSUM_CHUNK <= len; i += CSUM_CHUNK) {
+@@ -99,28 +99,28 @@
+   MDstruct MD;
+   struct map_struct *buf;
+   int fd;
+   OFF_T len = size;
+   char tmpchunk[CSUM_CHUNK];
+ 
+-  bzero(sum,csum_length);
++  memset(sum,0,csum_length);
+ 
+   fd = open(fname,O_RDONLY);
+   if (fd == -1) return;
+ 
+   buf = map_file(fd,size);
+ 
+   MDbegin(&MD);
+ 
+   for(i = 0; i + CSUM_CHUNK <= len; i += CSUM_CHUNK) {
+-    bcopy(map_ptr(buf,i,CSUM_CHUNK),tmpchunk,CSUM_CHUNK);
++    memcpy(tmpchunk, map_ptr(buf,i,CSUM_CHUNK), CSUM_CHUNK);
+     MDupdate(&MD, tmpchunk, CSUM_CHUNK*8);
+   }
+ 
+   if (len - i > 0) {
+-    bcopy(map_ptr(buf,i,len-i),tmpchunk,len-i);
++    memcpy(tmpchunk, map_ptr(buf,i,len-i), len-i);
+     MDupdate(&MD, tmpchunk, (len-i)*8);
+   }
+ 
+   sum_put(&MD,sum);
+ 
+   close(fd);
+@@ -152,33 +152,33 @@
+ }
+ 
+ void sum_update(char *p,int len)
+ {
+   int i;
+   if (len + sumresidue < CSUM_CHUNK) {
+-    bcopy(p,sumrbuf+sumresidue,len);
++    memcpy(sumrbuf+sumresidue, p, len);
+     sumresidue += len;
+     return;
+   }
+ 
+   if (sumresidue) {
+     i = MIN(CSUM_CHUNK-sumresidue,len);
+-    bcopy(p,sumrbuf+sumresidue,i);
++    memcpy(sumrbuf+sumresidue,p,i);
+     MDupdate(&sumMD, sumrbuf, (i+sumresidue)*8);
+     len -= i;
+     p += i;
+   }
+ 
+   for(i = 0; i + CSUM_CHUNK <= len; i += CSUM_CHUNK) {
+-    bcopy(p+i,sumrbuf,CSUM_CHUNK);
++    memcpy(sumrbuf,p+i,CSUM_CHUNK);
+     MDupdate(&sumMD, sumrbuf, CSUM_CHUNK*8);
+   }
+ 
+   if (len - i > 0) {
+     sumresidue = len-i;
+-    bcopy(p+i,sumrbuf,sumresidue);
++    memcpy(sumrbuf,p+i,sumresidue);
+   } else {
+     sumresidue = 0;    
+   }
+ }
+ 
+ void sum_end(char *sum)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/config.h.in	1998-05-27 21:54:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/config.h.in	1998-06-18 18:30:21.000000000 +0800
+@@ -58,18 +58,12 @@
+ /* The number of bytes in a long.  */
+ #undef SIZEOF_LONG
+ 
+ /* The number of bytes in a short.  */
+ #undef SIZEOF_SHORT
+ 
+-/* Define if you have the bcopy function.  */
+-#undef HAVE_BCOPY
+-
+-/* Define if you have the bzero function.  */
+-#undef HAVE_BZERO
+-
+ /* Define if you have the chmod function.  */
+ #undef HAVE_CHMOD
+ 
+ /* Define if you have the chown function.  */
+ #undef HAVE_CHOWN
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/configure	1998-05-27 21:54:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/configure	1998-06-18 18:30:21.000000000 +0800
+@@ -1883,13 +1883,13 @@
+  
+ else
+   echo "$ac_t""no" 1>&6
+ fi
+ done
+ 
+-for ac_func in fchmod fstat strchr bcopy bzero readlink link utime utimes
++for ac_func in fchmod fstat strchr readlink link utime utimes
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ echo "configure:1893: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/configure.in	1998-05-27 21:54:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/configure.in	1998-06-18 18:30:21.000000000 +0800
+@@ -37,13 +37,13 @@
+ echo yes; AC_DEFINE(HAVE_ERRNO_DECL),
+ echo no)
+ 
+ AC_FUNC_MEMCMP
+ AC_FUNC_UTIME_NULL
+ AC_CHECK_FUNCS(mmap munmap waitpid getcwd strdup strerror chown chmod mknod)
+-AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink link utime utimes)
++AC_CHECK_FUNCS(fchmod fstat strchr readlink link utime utimes)
+ AC_CHECK_FUNCS(memmove getopt_long lchown setlinebuf vsnprintf setsid glob strpbrk)
+ 
+ echo $ac_n "checking for working fnmatch... $ac_c"
+ AC_TRY_RUN([#include <fnmatch.h>
+ main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }],
+ echo yes;AC_DEFINE(HAVE_FNMATCH), 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/cvs.log	1998-06-01 21:49:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/cvs.log	1998-06-18 18:30:56.000000000 +0800
+@@ -5415,6 +5415,268 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.0.16
+ 
++
++****************************************
++Date:	Tuesday June 2, 1998 @ 22:46
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv26379
++
++Modified Files:
++	main.c proto.h 
++Log Message:
++added some fflush() calls to make sure the statistics lines are
++printed when redirecting output to a file.
++
++
++
++****************************************
++Date:	Tuesday June 2, 1998 @ 22:50
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv27914
++
++Modified Files:
++	rsync.1 rsync.yo 
++Log Message:
++added note to docs saying that --stats doesn't work unless -v is used
++
++
++
++****************************************
++Date:	Wednesday June 3, 1998 @ 12:35
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv25470
++
++Modified Files:
++	rsync.c 
++Log Message:
++if the user passes a block size on the command line then don't adapt
++the block size.
++
++
++
++****************************************
++Date:	Wednesday June 3, 1998 @ 12:47
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv27478
++
++Modified Files:
++	match.c 
++Log Message:
++the tag table should be of type int* not tag*. 
++
++This bug resulted in rsync being much less efficient that it could be
++for files with more than 64k blocks. With the adaptive block size code
++giving a maximum block size of 16k this means that files larger than
++1GB were handled very inefficiently. The transfer was still accurate,
++just slow.
++
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 19:30
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv26965
++
++Modified Files:
++	rsync.1 rsync.yo rsyncd.conf.5 rsyncd.conf.yo 
++Log Message:
++manpage updates, mostly suggested by Francois
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 19:31
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv26791
++
++Modified Files:
++	options.c 
++Log Message:
++--help changes suggested by Francois
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 19:32
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv408
++
++Modified Files:
++	util.c 
++Log Message:
++put set_nonblocking() code back in.
++
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 19:33
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv1367
++
++Modified Files:
++	io.c 
++Log Message:
++handle non-blocking file descriptors for both read and write. Add a
++workaround for buggy systems that say there is space to write when
++there isn't.
++
++
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 19:34
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv1975
++
++Modified Files:
++	main.c 
++Log Message:
++set network file descriptors non-blocking before starting main rsync
++algorithm.
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 19:36
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv160
++
++Modified Files:
++	rsync.c 
++Log Message:
++change the order of chmod and chown calls so that setuid bits don't
++get removed by chown calls.
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 19:37
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv21187
++
++Modified Files:
++	rsync.h 
++Log Message:
++move include of compat.h after other includes.
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 19:38
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv422
++
++Modified Files:
++	proto.h 
++Log Message:
++prototype updates
++
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 19:52
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv2365
++
++Modified Files:
++	checksum.c config.h.in configure configure.in flist.c hlink.c 
++	loadparm.c rsync.h socket.c 
++Log Message:
++for consistency use memcpy/memset everywhere instead of bcopy/bzero
++
++
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 19:52
++Author:	tridge
++
++Update of /data/cvs/rsync/lib
++In directory samba:/tmp/cvs-serv1396
++
++Modified Files:
++	compat.c 
++Log Message:
++for consistency use memcpy/memset everywhere instead of bcopy/bzero
++
++
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 20:03
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv2539
++
++Modified Files:
++	rsync.c 
++Log Message:
++if as non-root we failed to update the group of a file then don't
++print the file name.
++
++
++
++
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 20:30
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.17
++
++
++****************************************
++Date:	Thursday June 18, 1998 @ 20:30
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.0.17
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/flist.c	1998-06-01 21:47:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/flist.c	1998-06-18 18:30:21.000000000 +0800
+@@ -208,13 +208,13 @@
+     l2 = read_int(f);
+   else
+     l2 = read_byte(f);
+ 
+   file = (struct file_struct *)malloc(sizeof(*file));
+   if (!file) out_of_memory("receive_file_entry");
+-  bzero((char *)file,sizeof(*file));
++  memset((char *)file, 0, sizeof(*file));
+   (*fptr) = file;
+ 
+   if (l2 >= MAXPATHLEN-l1) overflow("receive_file_entry");
+ 
+   strlcpy(thisname,lastname,l1);
+   read_sbuf(f,&thisname[l1],l2);
+@@ -322,13 +322,13 @@
+ 
+ 	strlcpy(cleaned_name, fname, MAXPATHLEN-1);
+ 	cleaned_name[MAXPATHLEN-1] = 0;
+ 	clean_fname(cleaned_name);
+ 	fname = cleaned_name;
+ 
+-	bzero(sum,SUM_LENGTH);
++	memset(sum,0,SUM_LENGTH);
+ 
+ 	if (link_stat(fname,&st) != 0) {
+ 		io_error = 1;
+ 		rprintf(FERROR,"%s: %s\n",
+ 			fname,strerror(errno));
+ 		return NULL;
+@@ -349,13 +349,13 @@
+ 	
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"make_file(%s)\n",fname);
+ 	
+ 	file = (struct file_struct *)malloc(sizeof(*file));
+ 	if (!file) out_of_memory("make_file");
+-	bzero((char *)file,sizeof(*file));
++	memset((char *)file,0,sizeof(*file));
+ 
+ 	if ((p = strrchr(fname,'/'))) {
+ 		static char *lastdir;
+ 		*p = 0;
+ 		if (lastdir && strcmp(fname, lastdir)==0) {
+ 			file->dirname = lastdir;
+@@ -791,13 +791,13 @@
+ static void free_file(struct file_struct *file)
+ {
+ 	if (!file) return;
+ 	if (file->basename) free(file->basename);
+ 	if (file->link) free(file->link);
+ 	if (file->sum) free(file->sum);
+-	bzero((char *)file, sizeof(*file));
++	memset((char *)file, 0, sizeof(*file));
+ }
+ 
+ 
+ /*
+  * free up all elements in a flist
+  */
+@@ -805,15 +805,15 @@
+ {
+ 	int i;
+ 	for (i=1;i<flist->count;i++) {
+ 		free_file(flist->files[i]);
+ 		free(flist->files[i]);
+ 	}	
+-	bzero((char *)flist->files, sizeof(flist->files[0])*flist->count);
++	memset((char *)flist->files, 0, sizeof(flist->files[0])*flist->count);
+ 	free(flist->files);
+-	bzero((char *)flist, sizeof(*flist));
++	memset((char *)flist, 0, sizeof(*flist));
+ 	free(flist);
+ }
+ 
+ 
+ /*
+  * This routine ensures we don't have any duplicate names in our file list.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/hlink.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/hlink.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/hlink.c	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/hlink.c	1998-06-18 18:30:21.000000000 +0800
+@@ -53,13 +53,13 @@
+     
+ 	if (!(hlink_list = 
+ 	      (struct file_struct *)malloc(sizeof(hlink_list[0])*flist->count)))
+ 		out_of_memory("init_hard_links");
+ 
+ 	for (i = 0; i < flist->count; i++)
+-		bcopy(flist->files[i], &hlink_list[i], sizeof(hlink_list[0]));
++		memcpy(&hlink_list[i], flist->files[i], sizeof(hlink_list[0]));
+ 
+ 	qsort(hlink_list,flist->count,
+ 	      sizeof(hlink_list[0]),
+ 	      (int (*)())hlink_compare);
+ 
+ 	hlink_count=flist->count;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/io.c	1998-06-01 21:47:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/io.c	1998-06-18 18:30:21.000000000 +0800
+@@ -105,12 +105,21 @@
+ 		}
+ 
+ 		if (n == -1 && errno == EINTR) {
+ 			continue;
+ 		}
+ 
++		if (n == -1 && 
++		    (errno == EAGAIN || errno == EWOULDBLOCK)) {
++			/* this shouldn't happen, if it does then
++			   sleep for a short time to prevent us
++			   chewing too much CPU */
++			u_sleep(100);
++			continue;
++		}
++
+ 		if (n == 0) {
+ 			if (eof_error) {
+ 				rprintf(FERROR,"EOF in read_timeout\n");
+ 			}
+ 			exit_cleanup(1);
+ 		}
+@@ -344,12 +353,21 @@
+ 			int ret = write(fd,buf+total,len-total);
+ 
+ 			if (ret == -1 && errno == EINTR) {
+ 				continue;
+ 			}
+ 
++			if (ret == -1 && 
++			    (errno == EAGAIN || errno == EWOULDBLOCK)) {
++				/* this shouldn't happen, if it does then
++				   sleep for a short time to prevent us
++				   chewing too much CPU */
++				u_sleep(100);
++				continue;
++			}
++
+ 			if (ret <= 0) {
+ 				rprintf(FERROR,"erroring writing %d bytes - exiting\n", len);
+ 				exit_cleanup(1);
+ 			}
+ 
+ 			total += ret;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/lib/compat.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/lib/compat.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/lib/compat.c	1998-05-27 21:54:35.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/lib/compat.c	1998-06-18 18:30:23.000000000 +0800
+@@ -51,13 +51,13 @@
+ #endif
+ 
+ 
+ #ifndef HAVE_MEMMOVE
+ void *memmove(void *dest, const void *src, size_t n)
+ {
+-	bcopy(src, dest, n);
++	memcpy(dest, src, n);
+ 	return dest;
+ }
+ #endif
+ 
+ #ifndef HAVE_STRPBRK
+ /* Find the first ocurrence in S of any character in ACCEPT.  
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/loadparm.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/loadparm.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/loadparm.c	1998-05-29 10:29:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/loadparm.c	1998-06-18 18:30:21.000000000 +0800
+@@ -326,13 +326,13 @@
+ 
+ /***************************************************************************
+ initialise a service to the defaults
+ ***************************************************************************/
+ static void init_service(service *pservice)
+ {
+-	bzero((char *)pservice,sizeof(service));
++	memset((char *)pservice,0,sizeof(service));
+ 	copy_service(pservice,&sDefault);
+ }
+ 
+ static void string_set(char **s, char *v)
+ {
+ 	if (!v) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/main.c	1998-06-01 21:47:37.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/main.c	1998-06-18 18:30:22.000000000 +0800
+@@ -85,12 +85,15 @@
+ 	       (double)stats.total_written,
+ 	       (double)stats.total_read,
+ 	       (stats.total_written+stats.total_read)/(0.5 + (t-starttime)));
+ 	printf("total size is %.0f  speedup is %.2f\n",
+ 	       (double)stats.total_size,
+ 	       (1.0*stats.total_size)/(stats.total_written+stats.total_read));
++
++	fflush(stdout);
++	fflush(stderr);
+ }
+ 
+ 
+ static int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
+ {
+ 	char *args[100];
+@@ -244,12 +247,16 @@
+ 	
+ 	flist = send_file_list(f_out,argc,argv);
+ 	if (!flist || flist->count == 0) {
+ 		exit_cleanup(0);
+ 	}
+ 
++	set_nonblocking(f_out);
++	if (f_in != f_out)
++		set_nonblocking(f_in);
++		
+ 	send_files(flist,f_out,f_in);
+ 	report(f_out);
+ 	io_flush();
+ 	exit_cleanup(0);
+ }
+ 
+@@ -272,12 +279,14 @@
+ 	io_flush();
+ 
+ 	if ((pid=do_fork()) == 0) {
+ 		close(recv_pipe[0]);
+ 		if (f_in != f_out) close(f_out);
+ 
++		set_nonblocking(f_in);
++
+ 		recv_files(f_in,flist,local_name,recv_pipe[1]);
+ 		report(f_in);
+ 
+ 		if (verbose > 3)
+ 			rprintf(FINFO,"do_recv waiting on %d\n",pid);
+ 
+@@ -285,12 +294,15 @@
+ 		_exit(0);
+ 	}
+ 
+ 	close(recv_pipe[1]);
+ 	io_close_input(f_in);
+ 	if (f_in != f_out) close(f_in);
++
++	set_nonblocking(f_out);
++
+ 	generate_files(f_out,flist,local_name,recv_pipe[0]);
+ 
+ 	io_flush();
+ 	waitpid(pid, &status, 0);
+ 	return status;
+ }
+@@ -375,12 +387,17 @@
+ 			add_cvs_excludes();
+ 		if (delete_mode) 
+ 			send_exclude_list(f_out);
+ 		flist = send_file_list(f_out,argc,argv);
+ 		if (verbose > 3) 
+ 			rprintf(FINFO,"file list sent\n");
++
++		set_nonblocking(f_out);
++		if (f_in != f_out)
++			set_nonblocking(f_in);
++
+ 		send_files(flist,f_out,f_in);
+ 		if (pid != -1) {
+ 			if (verbose > 3)
+ 				rprintf(FINFO,"client_run waiting on %d\n",pid);
+ 			io_flush();
+ 			waitpid(pid, &status, 0);
+@@ -409,19 +426,19 @@
+ 	}
+ 	
+ 	return status | status2;
+ }
+ 
+ 
+-int start_client(int argc, char *argv[])
++static int start_client(int argc, char *argv[])
+ {
+ 	char *p;
+ 	char *shell_machine = NULL;
+ 	char *shell_path = NULL;
+ 	char *shell_user = NULL;
+-	int pid;
++	int pid, ret;
+ 	int f_in,f_out;
+ 	extern int local_server;
+ 	extern int am_sender;
+ 	extern char *shell_cmd;
+ 
+ 	p = strchr(argv[0],':');
+@@ -496,13 +513,18 @@
+ 	
+ #if HAVE_SETLINEBUF
+ 	setlinebuf(stdout);
+ 	setlinebuf(stderr);
+ #endif
+ 
+-	return client_run(f_in, f_out, pid, argc, argv);
++	ret = client_run(f_in, f_out, pid, argc, argv);
++
++	fflush(stdout);
++	fflush(stderr);
++
++	return ret;
+ }
+ 
+ 
+ RETSIGTYPE sigusr1_handler(int val) {
+ 	exit_cleanup(1);
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/match.c	1998-06-01 21:47:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/match.c	1998-06-18 18:30:22.000000000 +0800
+@@ -26,13 +26,13 @@
+ 
+ extern int remote_version;
+ 
+ typedef unsigned short tag;
+ 
+ #define TABLESIZE (1<<16)
+-#define NULL_TAG ((tag)-1)
++#define NULL_TAG (-1)
+ 
+ static int false_alarms;
+ static int tag_hits;
+ static int matches;
+ static int64 data_transfer;
+ 
+@@ -46,13 +46,13 @@
+   tag t;
+   int i;
+ };
+ 
+ static struct target *targets;
+ 
+-static tag *tag_table;
++static int *tag_table;
+ 
+ #define gettag2(s1,s2) (((s1) + (s2)) & 0xFFFF)
+ #define gettag(sum) gettag2((sum)&0xFFFF,(sum)>>16)
+ 
+ static int compare_targets(struct target *t1,struct target *t2)
+ {
+@@ -62,13 +62,13 @@
+ 
+ static void build_hash_table(struct sum_struct *s)
+ {
+   int i;
+ 
+   if (!tag_table)
+-    tag_table = (tag *)malloc(sizeof(tag)*TABLESIZE);
++    tag_table = (int *)malloc(sizeof(tag_table[0])*TABLESIZE);
+ 
+   targets = (struct target *)malloc(sizeof(targets[0])*s->count);
+   if (!tag_table || !targets) 
+     out_of_memory("build_hash_table");
+ 
+   for (i=0;i<s->count;i++) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/options.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/options.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/options.c	1998-06-01 21:47:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/options.c	1998-06-18 18:30:22.000000000 +0800
+@@ -72,58 +72,62 @@
+ 
+ 
+ void usage(int F)
+ {
+   rprintf(F,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
+ 	  VERSION);
+-  rprintf(F,"Usage:\t%s [options] src user@host:dest\n",RSYNC_NAME);
+-  rprintf(F,"OR\t%s [options] user@host:src dest\n",RSYNC_NAME);
+-  rprintf(F,"OR\t%s [options] src dest\n",RSYNC_NAME);
+-  rprintf(F,"OR\t%s [options] user@host::src dest\n",RSYNC_NAME);
+-  rprintf(F,"OR\t%s [options] src user@host::dest\n",RSYNC_NAME);
+-  rprintf(F,"\nOptions:\n");
+-  rprintf(F,"-v, --verbose            increase verbosity\n");
+-  rprintf(F,"-c, --checksum           always checksum\n");
+-  rprintf(F,"-a, --archive            archive mode\n");
+-  rprintf(F,"-r, --recursive          recurse into directories\n");
+-  rprintf(F,"-R, --relative           use relative path names\n");
+-  rprintf(F,"-b, --backup             make backups (default ~ extension)\n");
+-  rprintf(F,"-u, --update             update only (don't overwrite newer files)\n");
+-  rprintf(F,"-l, --links              preserve soft links\n");
+-  rprintf(F,"-L, --copy-links         treat soft links like regular files\n");
+-  rprintf(F,"-H, --hard-links         preserve hard links\n");
+-  rprintf(F,"-p, --perms              preserve permissions\n");
+-  rprintf(F,"-o, --owner              preserve owner (root only)\n");
+-  rprintf(F,"-g, --group              preserve group\n");
+-  rprintf(F,"-D, --devices            preserve devices (root only)\n");
+-  rprintf(F,"-t, --times              preserve times\n");  
+-  rprintf(F,"-S, --sparse             handle sparse files efficiently\n");
+-  rprintf(F,"-n, --dry-run            show what would have been transferred\n");
+-  rprintf(F,"-W, --whole-file         copy whole files, no incremental checks\n");
+-  rprintf(F,"-x, --one-file-system    don't cross filesystem boundaries\n");
+-  rprintf(F,"-B, --block-size SIZE    checksum blocking size\n");  
+-  rprintf(F,"-e, --rsh COMMAND        specify rsh replacement\n");
+-  rprintf(F,"    --rsync-path PATH    specify path to rsync on the remote machine\n");
+-  rprintf(F,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
+-  rprintf(F,"    --delete             delete files that don't exist on the sending side\n");
+-  rprintf(F,"    --force              force deletion of directories even if not empty\n");
+-  rprintf(F,"    --numeric-ids        don't map uid/gid values by user/group name\n");
+-  rprintf(F,"    --timeout TIME       set IO timeout in seconds\n");
+-  rprintf(F,"-I, --ignore-times       don't exclude files that match length and time\n");
+-  rprintf(F,"-T  --temp-dir DIR       create temporary files in directory DIR\n");
+-  rprintf(F,"-z, --compress           compress file data\n");
+-  rprintf(F,"    --exclude FILE       exclude file FILE\n");
+-  rprintf(F,"    --exclude-from FILE  exclude files listed in FILE\n");
+-  rprintf(F,"    --include FILE       don't exclude file FILE\n");
+-  rprintf(F,"    --include-from FILE  don't exclude files listed in FILE\n");
+-  rprintf(F,"    --suffix SUFFIX      override backup suffix\n");  
+-  rprintf(F,"    --version            print version number\n");  
+-  rprintf(F,"    --daemon             run as a rsync daemon\n");  
+-  rprintf(F,"    --config FILE        specify alternate rsyncd.conf file\n");  
+-  rprintf(F,"    --port PORT          specify alternate rsyncd port number\n");
+-  rprintf(F,"    --stats              give some file transfer stats\n");  
++
++  rprintf(F,"rsync is a file transfer program capable of efficient remote update\nvia a fast differencing algorithm.\n\n");
++
++  rprintf(F,"Usage: rsync [OPTION]... SRC [USER@]HOST:DEST\n");
++  rprintf(F,"  or   rsync [OPTION]... [USER@]HOST:SRC DEST\n");
++  rprintf(F,"  or   rsync [OPTION]... SRC DEST\n");
++  rprintf(F,"  or   rsync [OPTION]... [USER@]HOST::SRC DEST\n");
++  rprintf(F,"  or   rsync [OPTION]... SRC [USER@]HOST::DEST\n");
++  rprintf(F,"\nOptions\n");
++  rprintf(F," -v, --verbose               increase verbosity\n");
++  rprintf(F," -c, --checksum              always checksum\n");
++  rprintf(F," -a, --archive               archive mode\n");
++  rprintf(F," -r, --recursive             recurse into directories\n");
++  rprintf(F," -R, --relative              use relative path names\n");
++  rprintf(F," -b, --backup                make backups (default ~ extension)\n");
++  rprintf(F," -u, --update                update only (don't overwrite newer files)\n");
++  rprintf(F," -l, --links                 preserve soft links\n");
++  rprintf(F," -L, --copy-links            treat soft links like regular files\n");
++  rprintf(F," -H, --hard-links            preserve hard links\n");
++  rprintf(F," -p, --perms                 preserve permissions\n");
++  rprintf(F," -o, --owner                 preserve owner (root only)\n");
++  rprintf(F," -g, --group                 preserve group\n");
++  rprintf(F," -D, --devices               preserve devices (root only)\n");
++  rprintf(F," -t, --times                 preserve times\n");  
++  rprintf(F," -S, --sparse                handle sparse files efficiently\n");
++  rprintf(F," -n, --dry-run               show what would have been transferred\n");
++  rprintf(F," -W, --whole-file            copy whole files, no incremental checks\n");
++  rprintf(F," -x, --one-file-system       don't cross filesystem boundaries\n");
++  rprintf(F," -B, --block-size=SIZE       checksum blocking size\n");  
++  rprintf(F," -e, --rsh=COMMAND           specify rsh replacement\n");
++  rprintf(F,"     --rsync-path=PATH       specify path to rsync on the remote machine\n");
++  rprintf(F," -C, --cvs-exclude           auto ignore files in the same way CVS does\n");
++  rprintf(F,"     --delete                delete files that don't exist on the sending side\n");
++  rprintf(F,"     --force                 force deletion of directories even if not empty\n");
++  rprintf(F,"     --numeric-ids           don't map uid/gid values by user/group name\n");
++  rprintf(F,"     --timeout=TIME          set IO timeout in seconds\n");
++  rprintf(F," -I, --ignore-times          don't exclude files that match length and time\n");
++  rprintf(F," -T  --temp-dir=DIR          create temporary files in directory DIR\n");
++  rprintf(F," -z, --compress              compress file data\n");
++  rprintf(F,"     --exclude=PATTERN       exclude file FILE\n");
++  rprintf(F,"     --exclude-from=PATTERN  exclude files listed in FILE\n");
++  rprintf(F,"     --include=PATTERN       don't exclude file FILE\n");
++  rprintf(F,"     --include-from=PATTERN  don't exclude files listed in FILE\n");
++  rprintf(F,"     --suffix=SUFFIX         override backup suffix\n");  
++  rprintf(F,"     --version               print version number\n");  
++  rprintf(F,"     --daemon                run as a rsync daemon\n");  
++  rprintf(F,"     --config=FILE           specify alternate rsyncd.conf file\n");  
++  rprintf(F,"     --port=PORT             specify alternate rsyncd port number\n");
++  rprintf(F,"     --stats                 give some file transfer stats\n");  
++  rprintf(F," -h, --help                  show this help screen\n");
+ 
+   rprintf(F,"\n");
+   rprintf(F,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+   rprintf(F,"the block size defaults to %d\n",BLOCK_SIZE);  
+ 
+   rprintf(F,"\nPlease see the rsync(1) and rsyncd.conf(5) man pages for full documentation\n");
+@@ -191,14 +195,15 @@
+     while ((opt = getopt_long(argc, argv, 
+ 			      short_options, long_options, &option_index)) 
+ 	   != -1) {
+       switch (opt) 
+ 	{
+ 	case OPT_VERSION:
+-	  printf("rsync version %s  protocol version %d\n",
++	  printf("rsync version %s  protocol version %d\n\n",
+ 		 VERSION,PROTOCOL_VERSION);
++	  printf("Written by Andrew Tridgell and Paul Mackerras\n");
+ 	  exit_cleanup(0);
+ 
+ 	case OPT_SUFFIX:
+ 	  backup_suffix = optarg;
+ 	  break;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/packaging/redhat/5.0/rsync.spec	1998-06-01 21:49:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/packaging/redhat/5.0/rsync.spec	1998-06-18 18:30:46.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.0.16
++Version: 2.0.17
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.16.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.17.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/proto.h	1998-06-01 21:47:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/proto.h	1998-06-18 18:30:22.000000000 +0800
+@@ -87,13 +87,12 @@
+ int lp_number(char *name);
+ void log_open(void);
+ void rprintf(int fd, const char *format, ...);
+ void rflush(int fd);
+ void start_server(int f_in, int f_out, int argc, char *argv[]);
+ int client_run(int f_in, int f_out, int pid, int argc, char *argv[]);
+-int start_client(int argc, char *argv[]);
+ int main(int argc,char *argv[]);
+ void match_sums(int f,struct sum_struct *s,struct map_struct *buf,OFF_T len);
+ void match_report(void);
+ void usage(int F);
+ void parse_arguments(int argc, char *argv[]);
+ void server_options(char **args,int *argc);
+@@ -136,20 +135,19 @@
+ int recv_token(int f,char **data);
+ void see_token(char *data, int toklen);
+ void add_uid(uid_t uid);
+ void add_gid(gid_t gid);
+ void send_uid_list(int f);
+ void recv_uid_list(int f, struct file_list *flist);
+-int num_waiting(int fd);
++int set_nonblocking(int fd);
+ int piped_child(char **command,int *f_in,int *f_out);
+ int local_child(int argc, char **argv,int *f_in,int *f_out);
+ void out_of_memory(char *str);
+ void overflow(char *str);
+ int set_modtime(char *fname,time_t modtime);
+ int create_directory_path(char *fname);
+-int full_write(int desc, char *ptr, int len);
+ int safe_read(int desc, char *ptr, int len);
+ int copy_file(char *source, char *dest, mode_t mode);
+ void u_sleep(int usec);
+ pid_t do_fork(void);
+ void kill_all(int sig);
+ void strlcpy(char *d, char *s, int maxlen);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsync.1	1998-06-01 21:47:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.1	1998-06-18 18:30:22.000000000 +0800
+@@ -454,22 +454,27 @@
+ .IP 
+ .IP "\fB--csum-length LENGTH\fP" 
+ By default the primary checksum used in
+ rsync is a very strong 16 byte MD4 checksum\&. In most cases you will
+ find that a truncated version of this checksum is quite efficient, and
+ this will decrease the size of the checksum data sent over the link,
+-making things faster\&.
++making things faster\&. 
+ .IP 
+ You can choose the number of bytes in the truncated checksum using the
+ --csum-length option\&. Any value less than or equal to 16 is valid\&.
+ .IP 
+ Note that if you use this option then you run the risk of ending up
+ with an incorrect target file\&. The risk with a value of 16 is
+ microscopic and can be safely ignored (the universe will probably end
+ before it fails) but with smaller values the risk is higher\&.
+ .IP 
++Current versions of rsync actually use an adaptive algorithm for the
++checksum length by default, using a 16 byte file checksum to determine
++if a 2nd pass is required with a longer block checksum\&. Only use this
++option if you have read the source code and know what you are doing\&.
++.IP 
+ .IP "\fB-T, --temp-dir DIR\fP" 
+ This options instructs rsync to use DIR as a
+ scratch directory when creating a temporary copies of the files
+ transferred on the receiving side\&.  The default behavior is to create
+ the temporary files in the receiving directory\&.
+ .IP 
+@@ -494,16 +499,16 @@
+ 0 and never mapped via user/group names even if the --numeric-ids
+ option is not specified\&.
+ .IP 
+ If a user or group name does not exist on the destination system then
+ the numeric id from the source system is used instead\&.
+ .IP 
+-.IP "\fB--timeout\fP" 
+-This option allows you to set a maximum IO timeout in
+-seconds\&. If no data is transferred for the specified time then rsync
+-will exit\&. The default is 0, which means no timeout\&.
++.IP "\fB--timeout=TIMEOUT\fP" 
++This option allows you to set a maximum IO
++timeout in seconds\&. If no data is transferred for the specified time
++then rsync will exit\&. The default is 0, which means no timeout\&.
+ .IP 
+ .IP "\fB--daemon\fP" 
+ This tells rsync that it is to run as a rsync
+ daemon\&. If standard input is a socket then rsync will assume that it
+ is being run via inetd, otherwise it will detach from the current
+ terminal and become a background daemon\&. The daemon will read the
+@@ -520,13 +525,14 @@
+ This specifies an alternate TCP port number to use
+ rather than the default port 873\&. 
+ .IP 
+ .IP "\fB--stats\fP" 
+ This tells rsync to print a verbose set of statistics
+ on the file transfer, allowing you to tell how effective the rsync
+-algorithm is for your data\&.
++algorithm is for your data\&. This option only works in conjunction with
++the -v (verbose) option\&.
+ .IP 
+ .PP 
+ .SH "EXCLUDE PATTERNS" 
+ .PP 
+ The exclude and include patterns specified to rsync allow for flexible
+ selection of what files to transfer and what files to skip\&.
+@@ -570,12 +576,16 @@
+ part of an exclude option\&. The "+ " part is discarded before matching\&.
+ .IP 
+ .IP o 
+ if the pattern starts with "- " (a minus followed by a space)
+ then it is always considered a exclude pattern, even if specified as
+ part of an include option\&. The "- " part is discarded before matching\&.
++.IP 
++.IP o 
++if the pattern is a single exclamation mark ! then the current
++exclude list is reset, removing all previous exclude patterns\&.
+ .PP 
+ The +/- rules are most useful in exclude lists, allowing you to have a
+ single exclude list that contains both include and exclude options\&.
+ .PP 
+ Here are some examples:
+ .PP 
+@@ -586,12 +596,40 @@
+ .IP o 
+ --exclude "foo/" would exclude any directory called foo
+ .IP o 
+ --include "*/" --include "*\&.c" --exclude "*" would include all 
+ directories and C source files\&.
+ .PP 
++.SH "ENVIRONMENT VARIABLES" 
++.PP 
++.IP 
++.IP "\fBCVSIGNORE\fP" 
++The CVSIGNORE environment variable supplements any
++ignore patterns in \&.cvsignore files\&. See the --cvs-exclude option for
++more details\&.
++.IP 
++.IP "\fBRSYNC_RSH\fP" 
++The RSYNC_RSH environment variable allows you to
++override the default shell used as the transport for rsync\&. This can
++be used instead of the -e option\&.
++.IP 
++.IP "\fBRSYNC_PASSWORD\fP" 
++Setting RSYNC_PASSWORD to the required
++password allows you to run authenticated rsync connections to a rsync
++daemon without user intervention\&. Note that this does not supply a
++password to a shell transport such as ssh\&.
++.IP 
++.IP "\fBUSER\fP or \fBLOGNAME\fP" 
++The USER or LOGNAME environment variables
++are used to determine the default username sent to a rsync server\&.
++.IP 
++.IP "\fBHOME\fP" 
++The HOME environment variable is used to find the users
++default \&.cvsignore file\&.
++.IP 
++.PP 
+ .SH "FILES" 
+ .PP 
+ /etc/rsyncd\&.conf
+ .PP 
+ .SH "SEE ALSO" 
+ .PP 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsync.c	1998-06-01 21:47:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.c	1998-06-18 18:30:22.000000000 +0800
+@@ -264,71 +264,73 @@
+ }
+ 
+ 
+ static int set_perms(char *fname,struct file_struct *file,STRUCT_STAT *st,
+ 		     int report)
+ {
+-  int updated = 0;
+-  STRUCT_STAT st2;
+-  extern int am_daemon;
+-
+-  if (dry_run) return 0;
+-
+-  if (!st) {
+-    if (link_stat(fname,&st2) != 0) {
+-      rprintf(FERROR,"stat %s : %s\n",fname,strerror(errno));
+-      return 0;
+-    }
+-    st = &st2;
+-  }
+-
+-  if (preserve_times && !S_ISLNK(st->st_mode) &&
+-      st->st_mtime != file->modtime) {
+-    updated = 1;
+-    if (set_modtime(fname,file->modtime) != 0) {
+-      rprintf(FERROR,"failed to set times on %s : %s\n",
+-	      fname,strerror(errno));
+-      return 0;
+-    }
+-  }
++	int updated = 0;
++	STRUCT_STAT st2;
++	extern int am_daemon;
++
++	if (dry_run) return 0;
++
++	if (!st) {
++		if (link_stat(fname,&st2) != 0) {
++			rprintf(FERROR,"stat %s : %s\n",fname,strerror(errno));
++			return 0;
++		}
++		st = &st2;
++	}
++
++	if (preserve_times && !S_ISLNK(st->st_mode) &&
++	    st->st_mtime != file->modtime) {
++		updated = 1;
++		if (set_modtime(fname,file->modtime) != 0) {
++			rprintf(FERROR,"failed to set times on %s : %s\n",
++				fname,strerror(errno));
++			return 0;
++		}
++	}
++
++	if ((am_root || !am_daemon) &&
++	    ((am_root && preserve_uid && st->st_uid != file->uid) || 
++	     (preserve_gid && st->st_gid != file->gid))) {
++		if (do_lchown(fname,
++			      (am_root&&preserve_uid)?file->uid:-1,
++			      preserve_gid?file->gid:-1) != 0) {
++			if (preserve_uid && st->st_uid != file->uid)
++				updated = 1;
++			if (verbose>1 || preserve_uid) {
++				rprintf(FERROR,"chown %s : %s\n",
++					fname,strerror(errno));
++				return 0;
++			}
++		} else {
++			updated = 1;
++		}
++	}
+ 
+ #ifdef HAVE_CHMOD
+-  if (preserve_perms && !S_ISLNK(st->st_mode) &&
+-      st->st_mode != file->mode) {
+-    updated = 1;
+-    if (do_chmod(fname,file->mode) != 0) {
+-      rprintf(FERROR,"failed to set permissions on %s : %s\n",
+-	      fname,strerror(errno));
+-      return 0;
+-    }
+-  }
++	if (preserve_perms && !S_ISLNK(st->st_mode) &&
++	    st->st_mode != file->mode) {
++		updated = 1;
++		if (do_chmod(fname,file->mode) != 0) {
++			rprintf(FERROR,"failed to set permissions on %s : %s\n",
++				fname,strerror(errno));
++			return 0;
++		}
++	}
+ #endif
+-
+-  if ((am_root || !am_daemon) &&
+-      ((am_root && preserve_uid && st->st_uid != file->uid) || 
+-       (preserve_gid && st->st_gid != file->gid))) {
+-	  if (do_lchown(fname,
+-			(am_root&&preserve_uid)?file->uid:-1,
+-			preserve_gid?file->gid:-1) != 0) {
+-		  if (preserve_uid && st->st_uid != file->uid)
+-			  updated = 1;
+-		  if (verbose>1 || preserve_uid)
+-			  rprintf(FERROR,"chown %s : %s\n",
+-				  fname,strerror(errno));
+-		  return updated;
+-	  }
+-	  updated = 1;
+-  }
+     
+-  if (verbose > 1 && report) {
+-	  if (updated)
+-		  rprintf(FINFO,"%s\n",fname);
+-	  else
+-		  rprintf(FINFO,"%s is uptodate\n",fname);
+-  }
+-  return updated;
++	if (verbose > 1 && report) {
++		if (updated)
++			rprintf(FINFO,"%s\n",fname);
++		else
++			rprintf(FINFO,"%s is uptodate\n",fname);
++	}
++	return updated;
+ }
+ 
+ 
+ /* choose whether to skip a particular file */
+ static int skip_file(char *fname,
+ 		     struct file_struct *file, STRUCT_STAT *st)
+@@ -353,13 +355,17 @@
+ }
+ 
+ 
+ /* use a larger block size for really big files */
+ int adapt_block_size(struct file_struct *file, int bsize)
+ {
+-	int ret = file->length / (10000); /* rough heuristic */
++	int ret;
++
++	if (bsize != BLOCK_SIZE) return bsize;
++
++	ret = file->length / (10000); /* rough heuristic */
+ 	ret = ret & ~15; /* multiple of 16 */
+ 	if (ret < bsize) ret = bsize;
+ 	if (ret > CHUNK_SIZE/2) ret = CHUNK_SIZE/2;
+ 	return ret;
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsyncd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsyncd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsyncd.conf.5	1998-05-15 22:10:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsyncd.conf.5	1998-06-18 18:30:22.000000000 +0800
+@@ -241,13 +241,13 @@
+ that the host is rejected\&. If the host does not match either the 
+ "hosts allow" or the "hosts deny" patterns then it is allowed to
+ connect\&.
+ .IP 
+ The default is no "hosts allow" option, which means all hosts can connect\&.
+ .IP 
+-.IP "\fBhosts allow\fP" 
++.IP "\fBhosts deny\fP" 
+ The "hosts deny" option allows you to specify a
+ list of patterns that are matched against a connecting clients
+ hostname and IP address\&. If the pattern matches then the connection is
+ rejected\&. See the "hosts allow" option for more information\&.
+ .IP 
+ The default is no "hosts deny" option, which means all hosts can connect\&.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsyncd.conf.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsyncd.conf.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsyncd.conf.yo	1998-05-15 22:10:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsyncd.conf.yo	1998-06-18 18:30:22.000000000 +0800
+@@ -222,13 +222,13 @@
+ that the host is rejected. If the host does not match either the 
+ "hosts allow" or the "hosts deny" patterns then it is allowed to
+ connect.
+ 
+ The default is no "hosts allow" option, which means all hosts can connect.
+ 
+-dit(bf(hosts allow)) The "hosts deny" option allows you to specify a
++dit(bf(hosts deny)) The "hosts deny" option allows you to specify a
+ list of patterns that are matched against a connecting clients
+ hostname and IP address. If the pattern matches then the connection is
+ rejected. See the "hosts allow" option for more information.
+ 
+ The default is no "hosts deny" option, which means all hosts can connect.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsync.h	1998-06-01 21:47:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.h	1998-06-18 18:30:22.000000000 +0800
+@@ -88,16 +88,12 @@
+ #endif
+ 
+ #ifdef HAVE_STRING_H
+ #include <string.h>
+ #endif
+ 
+-#ifdef HAVE_COMPAT_H
+-#include <compat.h>
+-#endif
+-
+ #ifdef HAVE_MALLOC_H
+ #include <malloc.h>
+ #endif
+ 
+ #ifdef TIME_WITH_SYS_TIME
+ #include <sys/time.h>
+@@ -184,12 +180,32 @@
+ #include <netinet/in.h>
+ #include <arpa/inet.h>
+ #include <netdb.h>
+ #include <syslog.h>
+ #include <sys/file.h>
+ 
++#if HAVE_DIRENT_H
++# include <dirent.h>
++#else
++# define dirent direct
++# if HAVE_SYS_NDIR_H
++#  include <sys/ndir.h>
++# endif
++# if HAVE_SYS_DIR_H
++#  include <sys/dir.h>
++# endif
++# if HAVE_NDIR_H
++#  include <ndir.h>
++# endif
++#endif
++
++#ifdef HAVE_COMPAT_H
++#include <compat.h>
++#endif
++
++
+ #ifndef S_IFLNK
+ #define S_IFLNK  0120000
+ #endif
+ 
+ #ifndef S_ISLNK
+ #define S_ISLNK(mode) (((mode) & S_IFLNK) == S_IFLNK)
+@@ -335,27 +351,12 @@
+ static inline int flist_up(struct file_list *flist, int i)
+ {
+ 	while (!flist->files[i]->basename) i++;
+ 	return i;
+ }
+ 
+-#if HAVE_DIRENT_H
+-# include <dirent.h>
+-#else
+-# define dirent direct
+-# if HAVE_SYS_NDIR_H
+-#  include <sys/ndir.h>
+-# endif
+-# if HAVE_SYS_DIR_H
+-#  include <sys/dir.h>
+-# endif
+-# if HAVE_NDIR_H
+-#  include <ndir.h>
+-# endif
+-#endif
+-
+ #include "byteorder.h"
+ #include "version.h"
+ #include "proto.h"
+ #include "md4.h"
+ 
+ #if !HAVE_STRERROR
+@@ -369,20 +370,12 @@
+ #endif
+ 
+ #ifndef HAVE_ERRNO_DECL
+ extern int errno;
+ #endif
+ 
+-#ifndef HAVE_BCOPY
+-#define bcopy(src,dest,n) memcpy(dest,src,n)
+-#endif
+-
+-#ifndef HAVE_BZERO
+-#define bzero(buf,n) memset(buf,0,n)
+-#endif
+-
+ #define SUPPORT_LINKS HAVE_READLINK
+ #define SUPPORT_HARD_LINKS HAVE_LINK
+ 
+ #ifndef HAVE_LCHOWN
+ #define lchown chown
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/rsync.yo	1998-06-01 21:47:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/rsync.yo	1998-06-18 18:30:22.000000000 +0800
+@@ -385,22 +385,27 @@
+ backup suffix used with the -b option. The default is a ~.
+ 
+ dit(bf(--csum-length LENGTH)) By default the primary checksum used in
+ rsync is a very strong 16 byte MD4 checksum. In most cases you will
+ find that a truncated version of this checksum is quite efficient, and
+ this will decrease the size of the checksum data sent over the link,
+-making things faster.
++making things faster. 
+ 
+ You can choose the number of bytes in the truncated checksum using the
+ --csum-length option. Any value less than or equal to 16 is valid.
+ 
+ Note that if you use this option then you run the risk of ending up
+ with an incorrect target file. The risk with a value of 16 is
+ microscopic and can be safely ignored (the universe will probably end
+ before it fails) but with smaller values the risk is higher.
+ 
++Current versions of rsync actually use an adaptive algorithm for the
++checksum length by default, using a 16 byte file checksum to determine
++if a 2nd pass is required with a longer block checksum. Only use this
++option if you have read the source code and know what you are doing.
++
+ dit(bf(-T, --temp-dir DIR)) This options instructs rsync to use DIR as a
+ scratch directory when creating a temporary copies of the files
+ transferred on the receiving side.  The default behavior is to create
+ the temporary files in the receiving directory.
+ 
+ dit(bf(-z, --compress)) With this option, rsync compresses any data from
+@@ -422,15 +427,15 @@
+ 0 and never mapped via user/group names even if the --numeric-ids
+ option is not specified.
+ 
+ If a user or group name does not exist on the destination system then
+ the numeric id from the source system is used instead.
+ 
+-dit(bf(--timeout)) This option allows you to set a maximum IO timeout in
+-seconds. If no data is transferred for the specified time then rsync
+-will exit. The default is 0, which means no timeout.
++dit(bf(--timeout=TIMEOUT)) This option allows you to set a maximum IO
++timeout in seconds. If no data is transferred for the specified time
++then rsync will exit. The default is 0, which means no timeout.
+ 
+ dit(bf(--daemon)) This tells rsync that it is to run as a rsync
+ daemon. If standard input is a socket then rsync will assume that it
+ is being run via inetd, otherwise it will detach from the current
+ terminal and become a background daemon. The daemon will read the
+ config file (/etc/rsyncd.conf) on each connect made by a client and
+@@ -443,13 +448,14 @@
+ 
+ dit(bf(--port PORT)) This specifies an alternate TCP port number to use
+ rather than the default port 873. 
+ 
+ dit(bf(--stats)) This tells rsync to print a verbose set of statistics
+ on the file transfer, allowing you to tell how effective the rsync
+-algorithm is for your data.
++algorithm is for your data. This option only works in conjunction with
++the -v (verbose) option.
+ 
+ enddit()
+ 
+ manpagesection(EXCLUDE PATTERNS)
+ 
+ The exclude and include patterns specified to rsync allow for flexible
+@@ -489,12 +495,15 @@
+   then it is always considered a include pattern, even if specified as
+   part of an exclude option. The "+ " part is discarded before matching.
+ 
+   it() if the pattern starts with "- " (a minus followed by a space)
+   then it is always considered a exclude pattern, even if specified as
+   part of an include option. The "- " part is discarded before matching.
++
++  it() if the pattern is a single exclamation mark ! then the current
++  exclude list is reset, removing all previous exclude patterns.
+ )
+ 
+ The +/- rules are most useful in exclude lists, allowing you to have a
+ single exclude list that contains both include and exclude options.
+ 
+ Here are some examples:
+@@ -504,12 +513,37 @@
+   it() --exclude "/foo" would exclude a file in the base directory called foo
+   it() --exclude "foo/" would exclude any directory called foo
+   it() --include "*/" --include "*.c" --exclude "*" would include all 
+   directories and C source files.
+ )
+ 
++manpagesection(ENVIRONMENT VARIABLES)
++
++startdit()
++
++dit(bf(CVSIGNORE)) The CVSIGNORE environment variable supplements any
++ignore patterns in .cvsignore files. See the --cvs-exclude option for
++more details.
++
++dit(bf(RSYNC_RSH)) The RSYNC_RSH environment variable allows you to
++override the default shell used as the transport for rsync. This can
++be used instead of the -e option.
++
++dit(bf(RSYNC_PASSWORD)) Setting RSYNC_PASSWORD to the required
++password allows you to run authenticated rsync connections to a rsync
++daemon without user intervention. Note that this does not supply a
++password to a shell transport such as ssh.
++
++dit(bf(USER) or bf(LOGNAME)) The USER or LOGNAME environment variables
++are used to determine the default username sent to a rsync server.
++
++dit(bf(HOME)) The HOME environment variable is used to find the users
++default .cvsignore file.
++
++enddit()
++
+ manpagefiles()
+ 
+ /etc/rsyncd.conf
+ 
+ manpageseealso()
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/socket.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/socket.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/socket.c	1998-05-22 21:45:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/socket.c	1998-06-18 18:30:22.000000000 +0800
+@@ -78,13 +78,13 @@
+ 	/* get host info */
+ 	if ((hp = gethostbyname(host_name)) == 0) {
+ 		rprintf(FERROR,"gethostbyname: Unknown host %s\n",host_name);
+ 		return -1;
+ 	}
+   
+-	bzero((char *)&sock,sizeof(sock));
++	memset((char *)&sock,0,sizeof(sock));
+ 	memcpy((char *)&sock.sin_addr,(char *)hp->h_addr, hp->h_length);
+ 	sock.sin_port = htons(port);
+ 	sock.sin_family = hp->h_addrtype;
+ 	sock.sin_addr.s_addr = INADDR_ANY;
+ 	res = socket(hp->h_addrtype, type, 0);
+ 	if (res == -1) { 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/util.c	1998-06-01 21:47:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/util.c	1998-06-18 18:30:22.000000000 +0800
+@@ -21,21 +21,39 @@
+   Utilities used in rsync 
+ 
+   tridge, June 1996
+   */
+ #include "rsync.h"
+ 
+-int num_waiting(int fd)
++/****************************************************************************
++Set a fd into nonblocking mode. Uses POSIX O_NONBLOCK if available,
++else
++if SYSV use O_NDELAY
++if BSD use FNDELAY
++****************************************************************************/
++int set_nonblocking(int fd)
+ {
+-  int len=0;
+-  ioctl(fd,FIONREAD,&len);
+-  return(len);
++	int val;
++#ifdef O_NONBLOCK
++#define FLAG_TO_SET O_NONBLOCK
++#else
++#ifdef SYSV
++#define FLAG_TO_SET O_NDELAY
++#else /* BSD */
++#define FLAG_TO_SET FNDELAY
++#endif
++#endif
++	
++	if((val = fcntl(fd, F_GETFL, 0)) == -1)
++		return -1;
++	val |= FLAG_TO_SET;
++	return fcntl( fd, F_SETFL, val);
++#undef FLAG_TO_SET
+ }
+ 
+ 
+-
+ /* this is taken from CVS */
+ int piped_child(char **command,int *f_in,int *f_out)
+ {
+   int pid;
+   int to_child_pipe[2];
+   int from_child_pipe[2];
+@@ -203,13 +221,13 @@
+ 
+ /* Write LEN bytes at PTR to descriptor DESC, retrying if interrupted.
+    Return LEN upon success, write's (negative) error code otherwise.  
+ 
+    derived from GNU C's cccp.c.
+ */
+-int full_write(int desc, char *ptr, int len)
++static int full_write(int desc, char *ptr, int len)
+ {
+ 	int total_written;
+ 	
+ 	total_written = 0;
+ 	while (len > 0) {
+ 		int written = write (desc, ptr, len);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.16/version.h	1998-06-01 21:49:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.17/version.h	1998-06-18 18:30:45.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.16"
++#define VERSION "2.0.17"

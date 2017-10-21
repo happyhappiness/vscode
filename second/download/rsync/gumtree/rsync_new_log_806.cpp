@@ -1,0 +1,1 @@
+io_printf(f_out, "@ERROR: fork failed\n");

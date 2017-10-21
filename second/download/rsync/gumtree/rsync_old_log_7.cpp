@@ -1,0 +1,1 @@
+fprintf(stderr,"-r       : recurse into directories\n");

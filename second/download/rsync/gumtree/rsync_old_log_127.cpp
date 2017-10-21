@@ -1,0 +1,1 @@
+fprintf(stderr,"received %d names\n",flist->count);

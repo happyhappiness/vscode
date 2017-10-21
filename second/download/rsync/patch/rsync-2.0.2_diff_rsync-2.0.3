@@ -1,0 +1,154 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/cvs.log	1998-05-15 15:37:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/cvs.log	1998-05-15 15:55:14.000000000 +0800
+@@ -3847,6 +3847,33 @@
+ 
+ Modified Files:
+ 	version.h 
+ Log Message:
+ preparing for release of 2.0.2
+ 
++
++****************************************
++Date:	Friday May 15, 1998 @ 17:53
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv26395
++
++Modified Files:
++	Makefile.in proto.h rsync.1 rsync.yo 
++Log Message:
++use a separate "make man" target so people don't need yodl
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 17:55
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.3
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/Makefile.in	1998-05-14 15:07:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/Makefile.in	1998-05-15 15:54:13.000000000 +0800
+@@ -27,13 +27,15 @@
+ OBJS=$(OBJS1) $(OBJS2) $(DAEMON_OBJ) $(LIBOBJ)
+ 
+ # note that the -I. is needed to handle config.h when using VPATH
+ .c.o:
+ 	$(CC) -I. -I$(srcdir) $(CFLAGS) -c $< -o $@
+ 
+-all: rsync rsync.1 rsyncd.conf.5
++all: rsync
++
++man: rsync.1 rsyncd.conf.5
+ 
+ install: all
+ 	-mkdir -p ${INSTALL_BIN}
+ 	${INSTALLCMD} -m 755 rsync ${INSTALL_BIN}
+ 	-mkdir -p ${INSTALL_MAN}/man1
+ 	-mkdir -p ${INSTALL_MAN}/man5
+@@ -41,18 +43,16 @@
+ 	${INSTALLCMD} -m 644 $(srcdir)/rsyncd.conf.5 ${INSTALL_MAN}/man5
+ 
+ rsync: $(OBJS)
+ 	$(CC) $(CFLAGS) -o rsync $(OBJS) $(LIBS)
+ 
+ rsync.1: rsync.yo
+-	yodl2man rsync.yo
+-	mv rsync.man rsync.1
++	yodl2man -o rsync.1 rsync.yo
+ 
+ rsyncd.conf.5: rsyncd.conf.yo
+-	yodl2man rsyncd.conf.yo
+-	mv rsyncd.conf.man rsyncd.conf.5
++	yodl2man -o rsyncd.conf.5 rsyncd.conf.yo
+ 
+ proto:
+ 	cat *.c | awk -f mkproto.awk > proto.h
+ 
+ clean:
+ 	rm -f *~ $(OBJS) rsync config.cache config.log config.status
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/proto.h	1998-05-15 09:03:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/proto.h	1998-05-15 15:54:14.000000000 +0800
+@@ -11,12 +11,15 @@
+ void sum_init(void);
+ void sum_update(char *p,int len);
+ void sum_end(char *sum);
+ int start_socket_client(char *host, char *path, int argc, char *argv[]);
+ int daemon_main(void);
+ void setup_protocol(int f_out,int f_in);
++void def_initialise(void);
++void def_reset(void);
++void def_write(int f, char *buf, int nb, int flush);
+ int claim_connection(char *fname,int max_connections);
+ int check_exclude(char *name,char **local_exclude_list);
+ void add_exclude_list(char *pattern,char ***list);
+ void add_exclude(char *pattern);
+ char **make_exclude_list(char *fname,char **list1,int fatal);
+ void add_exclude_file(char *fname,int fatal);
+@@ -43,12 +46,14 @@
+ int64 read_longint(int f);
+ void read_buf(int f,char *buf,int len);
+ void read_sbuf(int f,char *buf,int len);
+ unsigned char read_byte(int f);
+ int sparse_end(int f);
+ int write_file(int f,char *buf,int len);
++void io_start_buffering(int fd);
++void io_end_buffering(int fd);
+ void write_int(int f,int32 x);
+ void write_longint(int f, int64 x);
+ void write_buf(int f,char *buf,int len);
+ void write_sbuf(int f,char *buf);
+ void write_byte(int f,unsigned char c);
+ void write_flush(int f);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsync.1	1998-05-15 13:43:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/rsync.1	1998-05-15 15:54:14.000000000 +0800
+@@ -520,13 +520,13 @@
+ .PP 
+ times are transferred as unix time_t values
+ .PP 
+ file permissions, devices etc are transferred as native numerical
+ values
+ .PP 
+-see also the comments on the -delete option
++see also the comments on the --delete option
+ .PP 
+ Please report bugs! The rsync bug tracking system is online at
+ http://samba\&.anu\&.edu\&.au/rsync/
+ .PP 
+ .SH "VERSION" 
+ This man page is current for version 2\&.0 of rsync
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsync.yo	1998-05-15 13:43:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/rsync.yo	1998-05-15 15:54:14.000000000 +0800
+@@ -447,13 +447,13 @@
+ 
+ times are transferred as unix time_t values
+ 
+ file permissions, devices etc are transferred as native numerical
+ values
+ 
+-see also the comments on the -delete option
++see also the comments on the --delete option
+ 
+ Please report bugs! The rsync bug tracking system is online at
+ url(http://samba.anu.edu.au/rsync/)(http://samba.anu.edu.au/rsync/)
+ 
+ manpagesection(VERSION)
+ This man page is current for version 2.0 of rsync
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/version.h	1998-05-15 15:36:58.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.3/version.h	1998-05-15 15:55:00.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.2"
++#define VERSION "2.0.3"

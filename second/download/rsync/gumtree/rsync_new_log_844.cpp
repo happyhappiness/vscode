@@ -1,0 +1,1 @@
+fprintf(stderr, "failed to create pid file %s: %s\n", pid_file, strerror(errno));

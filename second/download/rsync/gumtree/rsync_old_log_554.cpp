@@ -1,0 +1,1 @@
+fprintf(FINFO,"%s is a hard link\n",f_name(file));

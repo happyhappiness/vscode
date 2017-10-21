@@ -1,0 +1,1 @@
+fprintf(stderr,"-e cmd   : specify rsh replacement\n");

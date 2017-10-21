@@ -1,0 +1,401 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/cvs.log	1997-12-17 08:19:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/cvs.log	1997-12-28 19:28:29.000000000 +0800
+@@ -453,6 +453,90 @@
+ 
+ Modified Files:
+ 	version.h 
+ Log Message:
+ preparing for release of 1.6.7
+ 
++
++****************************************
++Date:	Thursday December 18, 1997 @ 11:13
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv2870
++
++Modified Files:
++	README 
++Log Message:
++added a new mirror site to the README
++
++
++
++****************************************
++Date:	Thursday December 18, 1997 @ 11:18
++Author:	tridge
++
++Update of /data/cvs/rsync/lib
++In directory samba:/tmp/cvs-serv15987
++
++Modified Files:
++	zlib.c zlib.h 
++Log Message:
++following a report of problems with Linux/alpha I've changed zlib.c to
++use uint32 instead of "long" in several places. Apparently this fixes
++things on the alpha. The strange thing is that my own tests on a
++OSF/alpha box and a 64 bit IRIX box showed no problems. I wonder what
++was actually going wrong? I'll email the zlib maintainers and let them
++know.
++
++
++
++
++
++****************************************
++Date:	Sunday December 28, 1997 @ 22:13
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv20021
++
++Modified Files:
++	flist.c hlink.c main.c rsync.1 
++Log Message:
++- fixed spelling errors in man page
++
++- fixed bug in hard link handling that could lead to spurious hard
++links. 
++
++- fixed bug in the string handling in flist.c
++
++
++
++
++****************************************
++Date:	Sunday December 28, 1997 @ 22:26
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv23890
++
++Modified Files:
++	proto.h rsync.c 
++Log Message:
++- added a debug message
++
++- rebuilt prototypes
++
++
++
++****************************************
++Date:	Sunday December 28, 1997 @ 22:28
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 1.6.8
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/flist.c	1997-12-17 08:10:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/flist.c	1997-12-28 19:28:17.000000000 +0800
+@@ -631,16 +631,15 @@
+ 	p++;
+       }
+     }
+ 
+     if (strncmp(p=name,"./",2) == 0) {      
+       modified = 1;
+-      while (*p) {
++      do {
+ 	p[0] = p[2];
+-	p++;
+-      }
++      } while (*p++);
+     }
+ 
+     l = strlen(p=name);
+     if (l > 1 && p[l-1] == '/') {
+       modified = 1;
+       p[l-1] = 0;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/hlink.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/hlink.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/hlink.c	1997-12-17 08:10:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/hlink.c	1997-12-28 19:28:17.000000000 +0800
+@@ -70,32 +70,32 @@
+ /* check if a file should be skipped because it is the same as an
+    earlier hard link */
+ int check_hard_link(struct file_struct *file)
+ {
+ #if SUPPORT_HARD_LINKS
+   int low=0,high=hlink_count-1;
+-  int mid=0,ret=0;
++  int ret=0;
+ 
+   if (!hlink_list || !S_ISREG(file->mode)) return 0;
+ 
+   while (low != high) {
+-    mid = (low+high)/2;
++    int mid = (low+high)/2;
+     ret = hlink_compare(&hlink_list[mid],file);
+     if (ret == 0) break;
+     if (ret > 0) 
+       high=mid;
+     else
+       low=mid+1;
+   }
+ 
+-  if (hlink_compare(&hlink_list[mid],file) != 0) return 0;
++  if (hlink_compare(&hlink_list[low],file) != 0) return 0;
+ 
+-  if (mid > 0 &&
+-      S_ISREG(hlink_list[mid-1].mode) &&
+-      file->dev == hlink_list[mid-1].dev &&
+-      file->inode == hlink_list[mid-1].inode)
++  if (low > 0 &&
++      S_ISREG(hlink_list[low-1].mode) &&
++      file->dev == hlink_list[low-1].dev &&
++      file->inode == hlink_list[low-1].inode)
+     return 1;
+ #endif
+ 
+   return 0;
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/lib/zlib.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/lib/zlib.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/lib/zlib.c	1997-12-16 15:18:38.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/lib/zlib.c	1997-12-28 19:28:17.000000000 +0800
+@@ -7,13 +7,13 @@
+  *
+  * Changes that have been made include:
+  * - changed functions not used outside this file to "local"
+  * - added Z_PACKET_FLUSH (see zlib.h for details)
+  * - added inflateIncomp
+  *
+- * $Id: zlib.c,v 1.7 1997/12/16 18:18:02 tridge Exp $
++ * $Id: zlib.c,v 1.8 1997/12/18 11:18:32 tridge Exp $
+  */
+ 
+ 
+ /*+++++*/
+ /* zutil.h -- internal interface and configuration of the compression library
+  * Copyright (C) 1995 Jean-loup Gailly.
+@@ -249,13 +249,13 @@
+     /* Number of bits by which ins_h must be shifted at each input
+      * step. It must be such that after MIN_MATCH steps, the oldest
+      * byte no longer takes part in the hash key, that is:
+      *   hash_shift * MIN_MATCH >= hash_bits
+      */
+ 
+-    long block_start;
++    Long block_start;
+     /* Window position at the beginning of the current output block. Gets
+      * negative when the window is moved backwards.
+      */
+ 
+     uInt match_length;           /* length of best match */
+     IPos prev_match;             /* previous match */
+@@ -1119,13 +1119,13 @@
+              */
+             zmemcpy((charf *)s->window, (charf *)s->window+wsize,
+                    (unsigned)wsize);
+             s->match_start -= wsize;
+             s->strstart    -= wsize; /* we now have strstart >= MAX_DIST */
+ 
+-            s->block_start -= (long) wsize;
++            s->block_start -= (Long) wsize;
+ 
+             /* Slide the hash table (could be avoided with 32 bit values
+                at the expense of memory usage):
+              */
+             n = s->hash_size;
+             p = &s->head[n];
+@@ -1184,13 +1184,13 @@
+  * Flush the current block, with given end-of-file flag.
+  * IN assertion: strstart is set to the end of the current match.
+  */
+ #define FLUSH_BLOCK_ONLY(s, flush) { \
+    ct_flush_block(s, (s->block_start >= 0L ? \
+            (charf *)&s->window[(unsigned)s->block_start] : \
+-           (charf *)Z_NULL), (long)s->strstart - s->block_start, (flush)); \
++           (charf *)Z_NULL), (Long)s->strstart - s->block_start, (flush)); \
+    s->block_start = s->strstart; \
+    flush_pending(s->strm); \
+    Tracev((stderr,"[FLUSH]")); \
+ }
+ 
+ /* Same but force premature exit if necessary. */
+@@ -1904,14 +1904,14 @@
+         n = s->bl_count[bits];
+         while (n != 0) {
+             m = s->heap[--h];
+             if (m > max_code) continue;
+             if (tree[m].Len != (unsigned) bits) {
+                 Trace((stderr,"code %d bits %d->%d\n", m, tree[m].Len, bits));
+-                s->opt_len += ((long)bits - (long)tree[m].Len)
+-                              *(long)tree[m].Freq;
++                s->opt_len += ((Long)bits - (Long)tree[m].Len)
++                              *(Long)tree[m].Freq;
+                 tree[m].Len = (ush)bits;
+             }
+             n--;
+         }
+     }
+ }
+@@ -4575,14 +4575,14 @@
+ /* ========================================================================= */
+ uLong adler32(adler, buf, len)
+     uLong adler;
+     Bytef *buf;
+     uInt len;
+ {
+-    unsigned long s1 = adler & 0xffff;
+-    unsigned long s2 = (adler >> 16) & 0xffff;
++    uLong s1 = adler & 0xffff;
++    uLong s2 = (adler >> 16) & 0xffff;
+     int k;
+ 
+     if (buf == Z_NULL) return 1L;
+ 
+     while (len > 0) {
+         k = len < NMAX ? len : NMAX;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/lib/zlib.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/lib/zlib.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/lib/zlib.h	1996-10-02 12:20:23.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/lib/zlib.h	1997-12-28 19:28:17.000000000 +0800
+@@ -1,7 +1,7 @@
+-/*	$Id: zlib.h,v 1.2 1996/10/02 04:20:23 paulus Exp $	*/
++/*	$Id: zlib.h,v 1.3 1997/12/18 11:18:35 tridge Exp $	*/
+ 
+ /*
+  * This file is derived from zlib.h and zconf.h from the zlib-0.95
+  * distribution by Jean-loup Gailly and Mark Adler, with some additions
+  * by Paul Mackerras to aid in implementing Deflate compression and
+  * decompression for PPP packets.
+@@ -109,13 +109,14 @@
+ #    define OF(args)  ()
+ #  endif
+ #endif
+ 
+ typedef unsigned char  Byte;  /* 8 bits */
+ typedef unsigned int   uInt;  /* 16 bits or more */
+-typedef unsigned long  uLong; /* 32 bits or more */
++typedef int32 Long; /* 32 bits or more */
++typedef uint32 uLong; /* 32 bits or more */
+ 
+ typedef Byte FAR Bytef;
+ typedef char FAR charf;
+ typedef int FAR intf;
+ typedef uInt FAR uIntf;
+ typedef uLong FAR uLongf;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/main.c	1997-12-17 08:10:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/main.c	1997-12-28 19:28:17.000000000 +0800
+@@ -163,13 +163,13 @@
+ 
+   *argc = ac;
+ }
+ 
+ 
+ 
+-int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
++static int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
+ {
+   char *args[100];
+   int i,argc=0, ret;
+   char *tok,*p,*dir=NULL;
+ 
+   if (!local_server) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/proto.h	1997-12-17 08:10:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/proto.h	1997-12-28 19:28:17.000000000 +0800
+@@ -41,13 +41,12 @@
+ int write_sparse(int f,char *buf,int len);
+ int read_write(int fd_in,int fd_out,int size);
+ void write_int(int f,int x);
+ void write_buf(int f,char *buf,int len);
+ void write_byte(int f,unsigned char c);
+ void write_flush(int f);
+-int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out);
+ void do_server_sender(int argc,char *argv[]);
+ void do_server_recv(int argc,char *argv[]);
+ int main(int argc,char *argv[]);
+ void match_sums(int f,struct sum_struct *s,struct map_struct *buf,off_t len);
+ void match_report(void);
+ void recv_generator(char *fname,struct file_list *flist,int i,int f_out);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/README	1997-12-17 08:10:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/README	1997-12-28 19:28:17.000000000 +0800
+@@ -131,6 +131,7 @@
+ The main ftp site for rsync is ftp://samba.anu.edu.au/pub/rsync
+ 
+ Mirrors are available at:
+ 
+ ftp://sunsite.auc.dk/pub/unix/rsync
+ ftp://ftp.sunet.se/pub/unix/admin/rsync
++ftp://ftp.fu-berlin.de/pub/unix/network/rsync/
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/rsync.1	1997-12-17 08:10:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/rsync.1	1997-12-28 19:28:17.000000000 +0800
+@@ -81,13 +81,13 @@
+ an improved copy command.
+ 
+ .SH EXAMPLES
+ 
+ Here are some examples of how I use rsync.
+ 
+-To backup my wifes home directory, which consists of large MS
++To backup my wife's home directory, which consists of large MS
+ word files and mail folders I use a cron job that runs 
+ 
+         rsync -Cavz . arvidsjaur:backup
+ 
+ each night over a PPP link to a duplicate directory on my machine
+ "arvidsjaur". 
+@@ -330,13 +330,13 @@
+ .RS 3
+ This option allows you to selectively exclude certain files from the
+ list of files to be transferred. This is most useful in combination
+ with a recursive transfer.
+ 
+ The option FILE can either be a file name or a shell wildcard
+-expression. If it is a directory name then rsycn will not recurse into
++expression. If it is a directory name then rsync will not recurse into
+ directories of that name. 
+ 
+ You may use as many --exclude options on the command line as you like
+ to build up the list of files to exclude.
+ 
+ If the filename is a single ! then the exclude list is reset.
+@@ -385,13 +385,13 @@
+ the checksum data sent over the link, making things faster.
+ 
+ You can choose the number of bytes in the truncated checksum using the
+ --csum-length option. Any value less than or equal to 16 is valid.
+ 
+ Note that if you use this option then you run the risk of ending up
+-with a incorrect target file. The risk with a value of 16 is
++with an incorrect target file. The risk with a value of 16 is
+ microscopic and can be safely ignored (the universe will probably end
+ before it fails) but with smaller values the risk is higher.
+ .RE
+ 
+ .B -z, --compress
+ .RS 3
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/rsync.c	1997-12-17 08:10:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/rsync.c	1997-12-28 19:28:17.000000000 +0800
+@@ -413,12 +413,13 @@
+ 
+   /* open the file */  
+   fd = open(fname,O_RDONLY);
+ 
+   if (fd == -1) {
+     fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
++    fprintf(FERROR,"skipping %s\n",fname);
+     return;
+   }
+ 
+   if (st.st_size > 0) {
+     buf = map_file(fd,st.st_size);
+   } else {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.7/version.h	1997-12-17 08:18:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.6.8/version.h	1997-12-28 19:28:19.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.6.7"
++#define VERSION "1.6.8"

@@ -1,0 +1,14 @@
+int local_child(int argc, char **argv,int *f_in,int *f_out);
+void out_of_memory(char *str);
+void overflow(char *str);
+int set_modtime(char *fname,time_t modtime);
+int create_directory_path(char *fname);
+int copy_file(char *source, char *dest, mode_t mode);
+int robust_unlink(char *fname);
+int robust_rename(char *from, char *to);
+void u_sleep(int usec);
+pid_t do_fork(void);
+void kill_all(int sig);
+int name_to_uid(char *name, uid_t *uid);
+int name_to_gid(char *name, gid_t *gid);
+int lock_range(int fd, int offset, int len);

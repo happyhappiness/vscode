@@ -1,0 +1,1 @@
+rprintf(FERROR,"filename too long\n");

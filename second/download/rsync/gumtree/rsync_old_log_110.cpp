@@ -1,0 +1,1 @@
+fprintf(stderr,"add_exclude(%s)\n",pattern);

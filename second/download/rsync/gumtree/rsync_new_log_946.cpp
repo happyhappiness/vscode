@@ -1,0 +1,1 @@
+fprintf(stderr, "%s" "Continuing without compression.\n\n", err_buf);

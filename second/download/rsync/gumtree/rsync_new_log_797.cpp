@@ -1,0 +1,1 @@
+fprintf(out, "crc_table[TBLS][256] =\n{\n  {\n");

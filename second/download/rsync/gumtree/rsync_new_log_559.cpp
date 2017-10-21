@@ -1,0 +1,1 @@
+rprintf(FERROR,"skipping %s\n",fname);

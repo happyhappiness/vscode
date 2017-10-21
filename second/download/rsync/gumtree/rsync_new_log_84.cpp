@@ -1,0 +1,1 @@
+fprintf(am_server?stderr:stdout,"created directory %s\n",name);

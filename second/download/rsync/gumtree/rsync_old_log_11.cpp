@@ -1,0 +1,1 @@
+fprintf(stderr,"-p       : preserve permissions\n");

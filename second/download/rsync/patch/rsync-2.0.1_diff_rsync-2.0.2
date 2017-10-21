@@ -1,0 +1,424 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/cvs.log	1998-05-15 09:19:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/cvs.log	1998-05-15 15:37:07.000000000 +0800
+@@ -3771,6 +3771,82 @@
+ 
+ Modified Files:
+ 	version.h 
+ Log Message:
+ preparing for release of 2.0.1
+ 
++
++****************************************
++Date:	Friday May 15, 1998 @ 15:37
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv23211
++
++Modified Files:
++	rsync.1 rsync.yo rsyncd.conf.5 rsyncd.conf.yo 
++Log Message:
++- added some notes about encryption and authentication to the man
++pages
++
++- documented the RSYNC_PASSWORD environment variable
++
++
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 15:42
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv25521
++
++Modified Files:
++	README 
++Log Message:
++updated the README a bit
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 17:11
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv1718
++
++Modified Files:
++	io.c 
++Log Message:
++fixed a select bug which caused rsync to use far more cpu time than 
++necessary on the server
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 17:34
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv5877
++
++Modified Files:
++	flist.c io.c rsync.h 
++Log Message:
++added write buffering during the file list sending. This makes things
++a bit more efficient (less system calls)
++
++
++
++****************************************
++Date:	Friday May 15, 1998 @ 17:37
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.2
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/flist.c	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/flist.c	1998-05-15 15:35:41.000000000 +0800
+@@ -570,12 +570,16 @@
+ 	flist->count=0;
+ 	flist->malloced = 1000;
+ 	flist->files = (struct file_struct **)malloc(sizeof(flist->files[0])*
+ 						     flist->malloced);
+ 	if (!flist->files) out_of_memory("send_file_list");
+ 
++	if (f != -1) {
++		io_start_buffering(f);
++	}
++
+ 	for (i=0;i<argc;i++) {
+ 		char fname2[MAXPATHLEN];
+ 		char *fname = fname2;
+ 
+ 		strlcpy(fname,argv[i],MAXPATHLEN-1);
+ 
+@@ -655,13 +659,12 @@
+ 			set_filesystem(fname);
+ 		send_file_name(f,flist,fname,recurse,FLAG_DELETE);
+ 	}
+ 
+ 	if (f != -1) {
+ 		send_file_entry(NULL,f,0);
+-		write_flush(f);
+ 	}
+ 
+ 	if (verbose && recurse && !am_server && f != -1)
+ 		rprintf(FINFO,"done\n");
+ 	
+ 	clean_flist(flist);
+@@ -674,12 +677,17 @@
+ 
+ 	/* if protocol version is >= 17 then send the io_error flag */
+ 	if (f != -1 && remote_version >= 17) {
+ 		write_int(f, io_error);
+ 	}
+ 
++	if (f != -1) {
++		io_end_buffering(f);
++		write_flush(f);
++	}
++
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"send_file_list done\n");
+ 
+ 	return flist;
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/io.c	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/io.c	1998-05-15 15:35:41.000000000 +0800
+@@ -145,13 +145,14 @@
+ 				return -1;
+ 			FD_ZERO(&fds);
+ 			FD_SET(fd, &fds);
+ 			tv.tv_sec = io_timeout;
+ 			tv.tv_usec = 0;
+ 
+-			if (select(fd+1, &fds, NULL, NULL, &tv) != 1) {
++			if (select(fd+1, &fds, NULL, NULL, 
++				   io_timeout?&tv:NULL) != 1) {
+ 				check_timeout();
+ 			}
+ 		}
+ 
+ 		if (ret <= 0)
+ 			return total;
+@@ -297,13 +298,13 @@
+ 		ret += r1;
+ 	}
+ 	return ret;
+ }
+ 
+ 
+-static int writefd(int fd,char *buf,int len)
++static int writefd_unbuffered(int fd,char *buf,int len)
+ {
+   int total = 0;
+   fd_set w_fds, r_fds;
+   int fd_count, count, got_select=0;
+   struct timeval tv;
+ 
+@@ -371,12 +372,64 @@
+   if (io_timeout)
+ 	  last_io = time(NULL);
+ 
+   return total;
+ }
+ 
++static char *io_buffer;
++static int io_buffer_count;
++
++void io_start_buffering(int fd)
++{
++	io_buffer = (char *)malloc(IO_BUFFER_SIZE);
++	if (!io_buffer) out_of_memory("writefd");
++	io_buffer_count = 0;
++}
++
++void io_end_buffering(int fd)
++{
++	if (io_buffer_count) {
++		if (writefd_unbuffered(fd, io_buffer, 
++				       io_buffer_count) != 
++		    io_buffer_count) {
++			rprintf(FERROR,"write failed\n");
++			exit_cleanup(1);
++		}
++		io_buffer_count = 0;
++	}
++	free(io_buffer);
++	io_buffer = NULL;
++}
++
++static int writefd(int fd,char *buf,int len1)
++{
++	int len = len1;
++
++	if (!io_buffer) return writefd_unbuffered(fd, buf, len);
++
++	while (len) {
++		int n = MIN(len, IO_BUFFER_SIZE-io_buffer_count);
++		if (n > 0) {
++			memcpy(io_buffer+io_buffer_count, buf, n);
++			buf += n;
++			len -= n;
++			io_buffer_count += n;
++		}
++		
++		if (io_buffer_count == IO_BUFFER_SIZE) {
++			if (writefd_unbuffered(fd, io_buffer, 
++					       io_buffer_count) != 
++			    io_buffer_count) {
++				return -1;
++			}
++			io_buffer_count = 0;
++		}
++	}
++
++	return len1;
++}
+ 
+ 
+ void write_int(int f,int32 x)
+ {
+   int ret;
+   char b[4];
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/README	1998-05-14 15:07:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/README	1998-05-15 13:43:12.000000000 +0800
+@@ -54,12 +54,15 @@
+ -T  --temp-dir DIR       create temporary files in directory DIR
+ -z, --compress           compress file data
+     --exclude FILE       exclude file FILE
+     --exclude-from FILE  exclude files listed in FILE
+     --suffix SUFFIX      override backup suffix
+     --version            print version number
++    --daemon             run as a rsync daemon
++    --config FILE        specify alternate rsyncd.conf file
++    --port PORT          specify alternate rsyncd port number
+ 
+ 
+ SETUP
+ -----
+ 
+ Rsync uses rsh or ssh for communication. It does not need to be setuid
+@@ -78,12 +81,20 @@
+ to the name of your native compiler before running configure in this
+ case. 
+ 
+ Once built put a copy of rsync in your search path on the local and
+ remote systems (or use "make install"). That's it!
+ 
++RSYNC SERVERS
++-------------
++
++rsync can also talk to "rsync servers" which can provide anonymous or
++authenticated rsync. See the rsync.conf(5) man page for details on how
++to setup a rsync server. See the rsync(1) man page for info on how to
++connect to a rsync server.
++
+ 
+ MAILING LIST
+ ------------
+ 
+ There is a mailing list for the discussion of rsync and its
+ applications. It is open to anyone to join. I will announce new
+@@ -135,13 +146,14 @@
+ paulus@cs.anu.edu.au
+ 
+ 
+ AVAILABILITY
+ ------------
+ 
+-The main ftp site for rsync is ftp://samba.anu.edu.au/pub/rsync
++The main ftp site for rsync is ftp://samba.anu.edu.au/pub/rsync 
++This is also available as rsync://samba.anu.edu.au/rsyncftp/
+ 
+ Mirrors are available at:
+ 
+ ftp://sunsite.auc.dk/pub/unix/rsync
+ ftp://ftp.sunet.se/pub/unix/admin/rsync
+ ftp://ftp.fu-berlin.de/pub/unix/network/rsync/
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsync.1	1998-05-15 09:03:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsync.1	1998-05-15 13:43:12.000000000 +0800
+@@ -150,12 +150,17 @@
+ connect
+ .IP 
+ .IP o 
+ if you specify no path name on the remote server then the
+ list of accessible paths on the server will be shown\&.
+ .PP 
++Some paths on the remote server may require authentication\&. If so then
++you will receive a password prompt when you connect\&. You can avoid the
++password prompt by setting the environment variable RSYNC_PASSWORD to
++the password you want to use\&. This may be useful when scripting rsync\&.
++.PP 
+ .SH "RUNNING AN RSYNC SERVER" 
+ .PP 
+ An rsync server is configured using a config file which by default is
+ called /etc/rsyncd\&.conf\&. Please see the rsyncd\&.conf(5) man page for more
+ information\&. 
+ .PP 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsyncd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsyncd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsyncd.conf.5	1998-05-15 09:03:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsyncd.conf.5	1998-05-15 13:43:12.000000000 +0800
+@@ -242,12 +242,29 @@
+ hostname and IP address\&. If the pattern matches then the connection is
+ rejected\&. See the "hosts allow" option for more information\&.
+ .IP 
+ The default is no "hosts deny" option, which means all hosts can connect\&.
+ .IP 
+ .PP 
++.SH "AUTHENTICATION STRENGTH" 
++.PP 
++The authentication protocol used in rsync is a 128 bit MD4 based
++challenge response system\&. Although I believe that no one has ever
++demonstrated a brute-force break of this sort of system you should
++realise that this is not a "military strength" authentication system\&.
++It should be good enough for most purposes but if you want really top
++quality security then I recommend that you run rsync over ssh\&.
++.PP 
++Also note that the rsync server protocol does not currently provide any
++encryption of the data that is transferred over the link\&. Only
++authentication is provided\&. Use ssh as the transport if you want
++encryption\&.
++.PP 
++Future versions of rsync may support SSL for better authentication and
++encryption, but that is still being investigated\&.
++.PP 
+ .SH "EXAMPLES" 
+ .PP 
+ A simple rsyncd\&.conf file that allow anonymous rsync to a ftp area at
+ \f(CW/home/ftp\fP would be:
+ .PP 
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsyncd.conf.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsyncd.conf.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsyncd.conf.yo	1998-05-15 09:03:11.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsyncd.conf.yo	1998-05-15 13:43:12.000000000 +0800
+@@ -224,12 +224,29 @@
+ rejected. See the "hosts allow" option for more information.
+ 
+ The default is no "hosts deny" option, which means all hosts can connect.
+ 
+ enddit()
+ 
++manpagesection(AUTHENTICATION STRENGTH)
++
++The authentication protocol used in rsync is a 128 bit MD4 based
++challenge response system. Although I believe that no one has ever
++demonstrated a brute-force break of this sort of system you should
++realise that this is not a "military strength" authentication system.
++It should be good enough for most purposes but if you want really top
++quality security then I recommend that you run rsync over ssh.
++
++Also note that the rsync server protocol does not currently provide any
++encryption of the data that is transferred over the link. Only
++authentication is provided. Use ssh as the transport if you want
++encryption.
++
++Future versions of rsync may support SSL for better authentication and
++encryption, but that is still being investigated.
++
+ manpagesection(EXAMPLES)
+ 
+ A simple rsyncd.conf file that allow anonymous rsync to a ftp area at
+ tt(/home/ftp) would be:
+ 
+ verb(
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsync.h	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsync.h	1998-05-15 15:35:41.000000000 +0800
+@@ -48,12 +48,13 @@
+ #define RSYNC_PORT 873
+ 
+ #define SPARSE_WRITE_SIZE (1024)
+ #define WRITE_SIZE (32*1024)
+ #define CHUNK_SIZE (32*1024)
+ #define MAX_MAP_SIZE (4*1024*1024)
++#define IO_BUFFER_SIZE (4096)
+ 
+ #define MAX_ARGS 1000
+ 
+ #define BLOCKING_TIMEOUT 10
+ 
+ #define FERROR 1
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/rsync.yo	1998-05-14 14:57:50.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/rsync.yo	1998-05-15 13:43:12.000000000 +0800
+@@ -136,12 +136,17 @@
+ 	connect
+ 
+ 	it() if you specify no path name on the remote server then the
+ 	list of accessible paths on the server will be shown.
+ )
+ 
++Some paths on the remote server may require authentication. If so then
++you will receive a password prompt when you connect. You can avoid the
++password prompt by setting the environment variable RSYNC_PASSWORD to
++the password you want to use. This may be useful when scripting rsync.
++
+ manpagesection(RUNNING AN RSYNC SERVER)
+ 
+ An rsync server is configured using a config file which by default is
+ called /etc/rsyncd.conf. Please see the rsyncd.conf(5) man page for more
+ information. 
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.1/version.h	1998-05-15 09:19:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.2/version.h	1998-05-15 15:36:58.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.1"
++#define VERSION "2.0.2"

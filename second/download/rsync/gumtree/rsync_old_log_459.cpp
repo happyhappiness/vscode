@@ -1,0 +1,1 @@
+fprintf(FINFO,"created directory %s\n",name);

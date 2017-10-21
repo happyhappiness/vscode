@@ -1,0 +1,1 @@
+)malloc(sizeof(delete_list[0])*dlist_alloc_len);

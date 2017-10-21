@@ -1,0 +1,111 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.0/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.1/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.0/cvs.log	1998-03-26 12:53:45.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.1/cvs.log	1998-03-26 14:11:25.000000000 +0800
+@@ -2130,6 +2130,49 @@
+ 
+ Modified Files:
+ 	version.h 
+ Log Message:
+ preparing for release of 1.7.0
+ 
++
++****************************************
++Date:	Thursday March 26, 1998 @ 16:48
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv24686
++
++Modified Files:
++	flist.c 
++Log Message:
++
++added some debugging code
++
++
++
++****************************************
++Date:	Thursday March 26, 1998 @ 17:09
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv11486
++
++Modified Files:
++	io.c 
++Log Message:
++
++fixed a bug I introduced in the last big commit
++
++
++
++****************************************
++Date:	Thursday March 26, 1998 @ 17:11
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 1.7.1
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.0/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.1/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.0/flist.c	1998-03-26 12:51:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.1/flist.c	1998-03-26 14:10:59.000000000 +0800
+@@ -666,12 +666,15 @@
+ 
+ 	/* if protocol version is >= 17 then send the io_error flag */
+ 	if (f != -1 && remote_version >= 17) {
+ 		write_int(f, io_error);
+ 	}
+ 
++	if (verbose > 2)
++		fprintf(FINFO,"send_file_list done\n");
++
+ 	return flist;
+ }
+ 
+ 
+ struct file_list *recv_file_list(int f)
+ {
+@@ -738,12 +741,15 @@
+ 
+   /* if protocol version is >= 17 then recv the io_error flag */
+   if (f != -1 && remote_version >= 17) {
+ 	  io_error |= read_int(f);
+   }
+ 
++  if (verbose > 2)
++    fprintf(FINFO,"recv_file_list done\n");
++
+   return flist;
+ 
+ oom:
+     out_of_memory("recv_file_list");
+     return NULL; /* not reached */
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.0/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.1/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.0/io.c	1998-03-26 12:51:10.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.1/io.c	1998-03-26 14:10:59.000000000 +0800
+@@ -131,12 +131,13 @@
+ 	while (total < N) {
+ 		if (read_buffer_len > 0 && buffer_f_in == fd) {
+ 			ret = MIN(read_buffer_len,N-total);
+ 			memcpy(buffer+total,read_buffer_p,ret);
+ 			read_buffer_p += ret;
+ 			read_buffer_len -= ret;
++			total += ret;
+ 			continue;
+ 		} 
+ 
+ 		while ((ret = read(fd,buffer + total,N-total)) == -1) {
+ 			fd_set fds;
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.0/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.1/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.0/version.h	1998-03-26 12:53:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-1.7.1/version.h	1998-03-26 14:11:16.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "1.7.0"
++#define VERSION "1.7.1"

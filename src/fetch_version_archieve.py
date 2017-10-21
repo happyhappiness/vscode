@@ -8,12 +8,10 @@ import my_constant
 @ involve download tar.gz from given url
 """
 def download_file(main_url, file_name):
-    file_name = file_name + ".tar.gz"
-    file_url = "https://www.sqlite.org/src/tarball/sqlite-" + file_name
-    # file_url = main_url + file_name
+    file_url = main_url + file_name
     file_content = urllib2.urlopen(file_url)
 
-    download_tar_file = open('second/download/sqlite/repos/' + file_name, 'wb')
+    download_tar_file = open('second/download/rsync/repos/' + file_name, 'wb')
     block_size = 8192
     while True:
         cache = file_content.read(block_size)
@@ -34,7 +32,7 @@ def analyze_html(url):
     response = urllib2.urlopen(url)
     html = response.read()
     html = html.split("\n")
-    target_href_pattern = r'version-(3\.9\..*)</span'
+    target_href_pattern = r'(?:href|HREF)="(rsync-3\..*\.tar\.gz)"'
     count = 0
     # check html content against git-2.*.tar.gz
     for line in html:
@@ -50,4 +48,4 @@ main function
 """
 if __name__ == "__main__":
 
-    analyze_html("https://www.sqlite.org/src/taglist/")
+    analyze_html("https://download.samba.org/pub/rsync/src/")

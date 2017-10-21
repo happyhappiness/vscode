@@ -1,0 +1,1 @@
+fprintf(stderr,"built hash table\n");

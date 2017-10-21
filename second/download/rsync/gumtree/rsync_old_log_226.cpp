@@ -1,0 +1,1 @@
+fprintf(stderr,"pipe: %s\n",strerror(errno));

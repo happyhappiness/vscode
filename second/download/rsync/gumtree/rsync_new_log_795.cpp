@@ -1,0 +1,1 @@
+fprintf(out, " * Generated automatically by crc32.c\n */\n\n");

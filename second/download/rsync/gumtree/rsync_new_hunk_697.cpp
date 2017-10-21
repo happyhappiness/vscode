@@ -1,0 +1,12 @@
+	char *host = client_name(f_in);
+	char *name = lp_name(i);
+	int use_chroot = lp_use_chroot(i);
+	int start_glob=0;
+	int ret;
+	char *request=NULL;
+
+	if (!allow_access(addr, host, lp_hosts_allow(i), lp_hosts_deny(i))) {
+		rprintf(FERROR,"rsync denied on module %s from %s (%s)\n",
+			name, host, addr);
+		io_printf(f_out, "@ERROR: access denied to %s from %s (%s)\n",
+			  name, host, addr);

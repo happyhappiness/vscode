@@ -1,0 +1,452 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/cvs.log	1998-05-27 21:55:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/cvs.log	1998-05-29 10:29:41.000000000 +0800
+@@ -5130,6 +5130,107 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.0.13
+ 
++
++****************************************
++Date:	Thursday May 28, 1998 @ 11:58
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv900
++
++Modified Files:
++	io.c 
++Log Message:
++cosmetic fix. don't display a EOF error when displaying just the motd
++from a rsync server
++
++
++
++****************************************
++Date:	Thursday May 28, 1998 @ 15:05
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv13352
++
++Modified Files:
++	rsync.c 
++Log Message:
++don't do recursive deletion if the recurse option is not selected.
++
++
++
++****************************************
++Date:	Thursday May 28, 1998 @ 16:29
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv22192
++
++Modified Files:
++	loadparm.c 
++Log Message:
++fix realloc call for systems that don't handle realloc(NULL, ...)
++
++
++
++
++****************************************
++Date:	Thursday May 28, 1998 @ 16:40
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv2627
++
++Modified Files:
++	exclude.c io.c loadparm.c params.c proto.h rsync.c util.c 
++Log Message:
++use Realloc instead of realloc
++
++
++
++
++
++****************************************
++Date:	Friday May 29, 1998 @ 12:28
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv5179
++
++Modified Files:
++	flist.c io.c 
++Log Message:
++fixed a bug in the flist sending code that caused the flist sending to
++get out of sync.
++
++
++
++****************************************
++Date:	Friday May 29, 1998 @ 12:29
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.14
++
++
++****************************************
++Date:	Friday May 29, 1998 @ 12:29
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.0.14
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/exclude.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/exclude.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/exclude.c	1998-05-27 21:54:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/exclude.c	1998-05-29 10:29:12.000000000 +0800
+@@ -143,17 +143,13 @@
+ 		}
+ 		free((*list));
+ 		*list = NULL;
+ 		return;
+ 	}
+ 
+-	if (!*list) {
+-		*list = (struct exclude_struct **)malloc(sizeof(struct exclude_struct *)*2);
+-	} else {
+-		*list = (struct exclude_struct **)realloc(*list,sizeof(struct exclude_struct *)*(len+2));
+-	}
++	*list = (struct exclude_struct **)Realloc(*list,sizeof(struct exclude_struct *)*(len+2));
+ 	
+ 	if (!*list || !((*list)[len] = make_exclude(pattern, include)))
+ 		out_of_memory("add_exclude");
+ 	
+ 	if (verbose > 2)
+ 		rprintf(FINFO,"add_exclude(%s)\n",pattern);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/flist.c	1998-05-27 21:54:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/flist.c	1998-05-29 10:29:12.000000000 +0800
+@@ -166,12 +166,17 @@
+   for (l1=0;lastname[l1] && (fname[l1] == lastname[l1]) && (l1 < 255);l1++) ;  
+   l2 = strlen(fname) - l1;
+ 
+   if (l1 > 0) flags |= SAME_NAME;
+   if (l2 > 255) flags |= LONG_NAME;
+ 
++  /* we must make sure we don't send a zero flags byte or the other
++     end will terminate the flist transfer */
++  if (flags == 0 && !S_ISDIR(file->mode)) flags |= FLAG_DELETE;
++  if (flags == 0) flags |= LONG_NAME;
++
+   write_byte(f,flags);  
+   if (flags & SAME_NAME)
+     write_byte(f,l1);
+   if (flags & LONG_NAME)
+     write_int(f,l2);
+   else
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/io.c	1998-05-27 21:54:32.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/io.c	1998-05-29 10:29:12.000000000 +0800
+@@ -29,16 +29,17 @@
+ 
+ static int io_multiplexing_out;
+ static int io_multiplexing_in;
+ static int multiplex_in_fd;
+ static int multiplex_out_fd;
+ static time_t last_io;
+-
++static int eof_error=1;
+ extern int verbose;
+ extern int io_timeout;
+ 
++
+ int64 write_total(void)
+ {
+ 	return total_written;
+ }
+ 
+ int64 read_total(void)
+@@ -116,13 +117,15 @@
+ 
+ 		if (n == -1 && errno == EINTR) {
+ 			continue;
+ 		}
+ 
+ 		if (n == 0) {
+-			rprintf(FERROR,"EOF in read_timeout\n");
++			if (eof_error) {
++				rprintf(FERROR,"EOF in read_timeout\n");
++			}
+ 			exit_cleanup(1);
+ 		}
+ 
+ 		rprintf(FERROR,"read error: %s\n", strerror(errno));
+ 		exit_cleanup(1);
+ 	}
+@@ -139,13 +142,13 @@
+ 
+ 		buf += n;
+ 		len -= n;
+ 	}
+ }
+ 
+-/* read from the file descriptor handing multiplexing - 
++/* read from the file descriptor handling multiplexing - 
+    return number of bytes read
+    never return <= 0 */
+ static int read_unbuffered(int fd, char *buf, int len)
+ {
+ 	static int remaining;
+ 	char ibuf[4];
+@@ -217,16 +220,13 @@
+ 		memmove(read_buffer,read_buffer_p,read_buffer_len);
+ 		read_buffer_p = read_buffer;
+ 	}
+ 
+ 	if (n > (read_buffer_size - read_buffer_len)) {
+ 		read_buffer_size += n;
+-		if (!read_buffer)
+-			read_buffer = (char *)malloc(read_buffer_size);
+-		else
+-			read_buffer = (char *)realloc(read_buffer,read_buffer_size);
++		read_buffer = (char *)Realloc(read_buffer,read_buffer_size);
+ 		if (!read_buffer) out_of_memory("read check");      
+ 		read_buffer_p = read_buffer;      
+ 	}
+ 
+ 	n = read_unbuffered(f,read_buffer+read_buffer_len,n);
+ 	read_buffer_len += n;
+@@ -479,14 +479,18 @@
+ {
+ 	write_buf(f,(char *)&c,1);
+ }
+ 
+ int read_line(int f, char *buf, int maxlen)
+ {
++	eof_error = 0;
++
+ 	while (maxlen) {
++		buf[0] = 0;
+ 		read_buf(f, buf, 1);
++		if (buf[0] == 0) return 0;
+ 		if (buf[0] == '\n') {
+ 			buf[0] = 0;
+ 			break;
+ 		}
+ 		if (buf[0] != '\r') {
+ 			buf++;
+@@ -494,12 +498,15 @@
+ 		}
+ 	}
+ 	if (maxlen == 0) {
+ 		*buf = 0;
+ 		return 0;
+ 	}
++
++	eof_error = 1;
++
+ 	return 1;
+ }
+ 
+ 
+ void io_printf(int fd, const char *format, ...)
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/loadparm.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/loadparm.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/loadparm.c	1998-05-15 22:10:48.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/loadparm.c	1998-05-29 10:29:12.000000000 +0800
+@@ -44,13 +44,12 @@
+  */
+ 
+ #include "rsync.h"
+ #define BOOL int
+ #define False 0
+ #define True 1
+-#define Realloc realloc
+ #define PTR_DIFF(p1,p2) ((ptrdiff_t)(((char *)(p1)) - (char *)(p2)))
+ #define strequal(a,b) (strcasecmp(a,b)==0)
+ #define BOOLSTR(b) ((b) ? "Yes" : "No")
+ typedef char pstring[1024];
+ #define pstrcpy(a,b) strlcpy(a,b,sizeof(pstring)-1)
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/packaging/redhat/5.0/rsync.spec	1998-05-27 21:54:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/packaging/redhat/5.0/rsync.spec	1998-05-29 10:29:32.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.0.13
++Version: 2.0.14
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.13.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.14.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/params.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/params.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/params.c	1998-05-15 18:57:36.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/params.c	1998-05-29 10:29:12.000000000 +0800
+@@ -74,13 +74,12 @@
+  */
+ 
+ #include "rsync.h"
+ #define BOOL int
+ #define False 0
+ #define True 1
+-#define Realloc realloc
+ 
+ /* -------------------------------------------------------------------------- **
+  * Constants...
+  */
+ 
+ #define BUFR_INC 1024
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/proto.h	1998-05-27 21:54:33.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/proto.h	1998-05-29 10:29:13.000000000 +0800
+@@ -57,13 +57,12 @@
+ void io_end_buffering(int fd);
+ void write_int(int f,int32 x);
+ void write_longint(int f, int64 x);
+ void write_buf(int f,char *buf,int len);
+ void write_sbuf(int f,char *buf);
+ void write_byte(int f,unsigned char c);
+-void write_flush(int f);
+ int read_line(int f, char *buf, int maxlen);
+ void io_printf(int fd, const char *format, ...);
+ void io_start_multiplex_out(int fd);
+ void io_start_multiplex_in(int fd);
+ int io_multiplex_write(int f, char *buf, int len);
+ void io_close_input(int fd);
+@@ -94,24 +93,12 @@
+ void start_server(int f_in, int f_out, int argc, char *argv[]);
+ int client_run(int f_in, int f_out, int pid, int argc, char *argv[]);
+ int start_client(int argc, char *argv[]);
+ int main(int argc,char *argv[]);
+ void match_sums(int f,struct sum_struct *s,struct map_struct *buf,OFF_T len);
+ void match_report(void);
+-void *smb_mem_malloc(size_t size,char *file,int line);
+-char *smb_mem_strdup(char *s, char *file, int line);
+-int smb_mem_free(void *ptr,char *file,int line);
+-void smb_mem_write_info(void *ptr,FILE *outfile);
+-char *smb_mem_query_file(void *ptr);
+-int smb_mem_query_line(void *ptr);
+-int smb_mem_test(void *ptr);
+-void smb_mem_write_status(FILE *outfile);
+-void smb_mem_write_verbose(FILE *outfile);
+-void smb_mem_write_errors(FILE *outfile);
+-void smb_mem_set_multiplier(int multiplier);
+-void *smb_mem_resize(void *ptr,size_t newsize);
+ void usage(int F);
+ void parse_arguments(int argc, char *argv[]);
+ void server_options(char **args,int *argc);
+ BOOL pm_process( char *FileName,
+                  BOOL (*sfunc)(char *),
+                  BOOL (*pfunc)(char *, char *) );
+@@ -157,13 +144,12 @@
+ int num_waiting(int fd);
+ int piped_child(char **command,int *f_in,int *f_out);
+ int local_child(int argc, char **argv,int *f_in,int *f_out);
+ void out_of_memory(char *str);
+ void overflow(char *str);
+ int set_modtime(char *fname,time_t modtime);
+-int set_blocking(int fd, int set);
+ int create_directory_path(char *fname);
+ int full_write(int desc, char *ptr, int len);
+ int safe_read(int desc, char *ptr, int len);
+ int copy_file(char *source, char *dest, mode_t mode);
+ void u_sleep(int usec);
+ pid_t do_fork(void);
+@@ -175,6 +161,7 @@
+ int process_exists(int pid);
+ int lock_range(int fd, int offset, int len);
+ void glob_expand(char *base1, char **argv, int *argc, int maxargs);
+ void strlower(char *s);
+ int vslprintf(char *str, int n, const char *format, va_list ap);
+ int slprintf(char *str, int n, char *format, ...);
++void *Realloc(void *p, int size);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/rsync.c	1998-05-27 21:54:33.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/rsync.c	1998-05-29 10:29:13.000000000 +0800
+@@ -71,12 +71,13 @@
+ 	DIR *d;
+ 	struct dirent *di;
+ 	char buf[MAXPATHLEN];
+ 	extern int force_delete;
+ 	STRUCT_STAT st;
+ 	int ret;
++	extern int recurse;
+ 
+ 	if (do_unlink(fname) == 0 || errno == ENOENT) return 0;
+ 
+ #if SUPPORT_LINKS
+ 	ret = do_lstat(fname, &st);
+ #else
+@@ -90,13 +91,14 @@
+ 	if (!S_ISDIR(st.st_mode)) {
+ 		rprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));
+ 		return -1;
+ 	}
+ 
+ 	if (do_rmdir(fname) == 0 || errno == ENOENT) return 0;
+-	if (!force_delete || (errno != ENOTEMPTY && errno != EEXIST)) {
++	if (!force_delete || !recurse || 
++	    (errno != ENOTEMPTY && errno != EEXIST)) {
+ 		rprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));
+ 		return -1;
+ 	}
+ 
+ 	/* now we do a recsursive delete on the directory ... */
+ 	d = opendir(fname);
+@@ -633,17 +635,13 @@
+ static int dlist_len, dlist_alloc_len;
+ 
+ static void add_delete_entry(struct file_struct *file)
+ {
+ 	if (dlist_len == dlist_alloc_len) {
+ 		dlist_alloc_len += 1024;
+-		if (!delete_list) {
+-			delete_list = (struct delete_list *)malloc(sizeof(delete_list[0])*dlist_alloc_len);
+-		} else {
+-			delete_list = (struct delete_list *)realloc(delete_list, sizeof(delete_list[0])*dlist_alloc_len);
+-		}
++		delete_list = (struct delete_list *)Realloc(delete_list, sizeof(delete_list[0])*dlist_alloc_len);
+ 		if (!delete_list) out_of_memory("add_delete_entry");
+ 	}
+ 
+ 	delete_list[dlist_len].dev = file->dev;
+ 	delete_list[dlist_len].inode = file->inode;
+ 	dlist_len++;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/util.c	1998-05-27 21:54:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/util.c	1998-05-29 10:29:13.000000000 +0800
+@@ -550,6 +550,12 @@
+ 	va_start(ap, format);
+ 	ret = vslprintf(str,n,format,ap);
+ 	va_end(ap);
+ 	return ret;
+ }
+ 
++
++void *Realloc(void *p, int size)
++{
++	if (!p) return (void *)malloc(size);
++	return (void *)realloc(p, size);
++}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.13/version.h	1998-05-27 21:54:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.14/version.h	1998-05-29 10:29:31.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.13"
++#define VERSION "2.0.14"

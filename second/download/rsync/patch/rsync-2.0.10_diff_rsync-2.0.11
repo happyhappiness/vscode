@@ -1,0 +1,2297 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/access.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/access.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/access.c	1998-05-14 12:31:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/access.c	1998-05-22 21:45:40.000000000 +0800
+@@ -31,13 +31,13 @@
+ }
+ 
+ 
+ static int match_address(char *addr, char *tok)
+ {
+ 	char *p;
+-	unsigned long a, t, mask = ~0;
++	unsigned long a, t, mask = (unsigned long)~0;
+ 
+ 	if (!addr || !*addr) return 0;
+ 
+ 	if (!isdigit(tok[0])) return 0;
+ 
+ 	p = strchr(tok,'/');
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/config.h.in	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/config.h.in	1998-05-22 22:22:55.000000000 +0800
+@@ -3,15 +3,12 @@
+ /* Define to `int' if <sys/types.h> doesn't define.  */
+ #undef gid_t
+ 
+ /* Define if your system has a working fnmatch function.  */
+ #undef HAVE_FNMATCH
+ 
+-/* Define if you have a working `mmap' system call.  */
+-#undef HAVE_MMAP
+-
+ /* Define if your struct stat has st_rdev.  */
+ #undef HAVE_ST_RDEV
+ 
+ /* Define if you have <sys/wait.h> that is POSIX.1 compatible.  */
+ #undef HAVE_SYS_WAIT_H
+ 
+@@ -85,35 +82,29 @@
+ /* Define if you have the getcwd function.  */
+ #undef HAVE_GETCWD
+ 
+ /* Define if you have the getopt_long function.  */
+ #undef HAVE_GETOPT_LONG
+ 
+-/* Define if you have the getpagesize function.  */
+-#undef HAVE_GETPAGESIZE
+-
+ /* Define if you have the glob function.  */
+ #undef HAVE_GLOB
+ 
+ /* Define if you have the lchown function.  */
+ #undef HAVE_LCHOWN
+ 
+ /* Define if you have the link function.  */
+ #undef HAVE_LINK
+ 
+ /* Define if you have the memmove function.  */
+ #undef HAVE_MEMMOVE
+ 
+-/* Define if you have the mkdir function.  */
+-#undef HAVE_MKDIR
+-
+ /* Define if you have the mknod function.  */
+ #undef HAVE_MKNOD
+ 
+-/* Define if you have the pipe function.  */
+-#undef HAVE_PIPE
++/* Define if you have the mmap function.  */
++#undef HAVE_MMAP
+ 
+ /* Define if you have the readlink function.  */
+ #undef HAVE_READLINK
+ 
+ /* Define if you have the setlinebuf function.  */
+ #undef HAVE_SETLINEBUF
+@@ -127,15 +118,12 @@
+ /* Define if you have the strdup function.  */
+ #undef HAVE_STRDUP
+ 
+ /* Define if you have the strerror function.  */
+ #undef HAVE_STRERROR
+ 
+-/* Define if you have the strtok function.  */
+-#undef HAVE_STRTOK
+-
+ /* Define if you have the utime function.  */
+ #undef HAVE_UTIME
+ 
+ /* Define if you have the utimes function.  */
+ #undef HAVE_UTIMES
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/configure	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/configure	1998-05-22 22:22:55.000000000 +0800
+@@ -1783,301 +1783,35 @@
+ 
+ fi
+ 
+ echo "$ac_t""$ac_cv_func_memcmp_clean" 1>&6
+ test $ac_cv_func_memcmp_clean = no && LIBOBJS="$LIBOBJS memcmp.o"
+ 
+-for ac_hdr in unistd.h
+-do
+-ac_safe=`echo "$ac_hdr" | sed 'y%./+-%__p_%'`
+-echo $ac_n "checking for $ac_hdr""... $ac_c" 1>&6
+-echo "configure:1794: checking for $ac_hdr" >&5
+-if eval "test \"`echo '$''{'ac_cv_header_$ac_safe'+set}'`\" = set"; then
+-  echo $ac_n "(cached) $ac_c" 1>&6
+-else
+-  cat > conftest.$ac_ext <<EOF
+-#line 1799 "configure"
+-#include "confdefs.h"
+-#include <$ac_hdr>
+-EOF
+-ac_try="$ac_cpp conftest.$ac_ext >/dev/null 2>conftest.out"
+-{ (eval echo configure:1804: \"$ac_try\") 1>&5; (eval $ac_try) 2>&5; }
+-ac_err=`grep -v '^ *+' conftest.out`
+-if test -z "$ac_err"; then
+-  rm -rf conftest*
+-  eval "ac_cv_header_$ac_safe=yes"
+-else
+-  echo "$ac_err" >&5
+-  echo "configure: failed program was:" >&5
+-  cat conftest.$ac_ext >&5
+-  rm -rf conftest*
+-  eval "ac_cv_header_$ac_safe=no"
+-fi
+-rm -f conftest*
+-fi
+-if eval "test \"`echo '$ac_cv_header_'$ac_safe`\" = yes"; then
+-  echo "$ac_t""yes" 1>&6
+-    ac_tr_hdr=HAVE_`echo $ac_hdr | sed 'y%abcdefghijklmnopqrstuvwxyz./-%ABCDEFGHIJKLMNOPQRSTUVWXYZ___%'`
+-  cat >> confdefs.h <<EOF
+-#define $ac_tr_hdr 1
+-EOF
+- 
+-else
+-  echo "$ac_t""no" 1>&6
+-fi
+-done
+-
+-for ac_func in getpagesize
+-do
+-echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:1833: checking for $ac_func" >&5
+-if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+-  echo $ac_n "(cached) $ac_c" 1>&6
+-else
+-  cat > conftest.$ac_ext <<EOF
+-#line 1838 "configure"
+-#include "confdefs.h"
+-/* System header to define __stub macros and hopefully few prototypes,
+-    which can conflict with char $ac_func(); below.  */
+-#include <assert.h>
+-/* Override any gcc2 internal prototype to avoid an error.  */
+-/* We use char because int might match the return type of a gcc2
+-    builtin and then its argument prototype would still apply.  */
+-char $ac_func();
+-
+-int main() {
+-
+-/* The GNU C library defines this for functions which it implements
+-    to always fail with ENOSYS.  Some functions are actually named
+-    something starting with __ and the normal name is an alias.  */
+-#if defined (__stub_$ac_func) || defined (__stub___$ac_func)
+-choke me
+-#else
+-$ac_func();
+-#endif
+-
+-; return 0; }
+-EOF
+-if { (eval echo configure:1861: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+-  rm -rf conftest*
+-  eval "ac_cv_func_$ac_func=yes"
+-else
+-  echo "configure: failed program was:" >&5
+-  cat conftest.$ac_ext >&5
+-  rm -rf conftest*
+-  eval "ac_cv_func_$ac_func=no"
+-fi
+-rm -f conftest*
+-fi
+-
+-if eval "test \"`echo '$ac_cv_func_'$ac_func`\" = yes"; then
+-  echo "$ac_t""yes" 1>&6
+-    ac_tr_func=HAVE_`echo $ac_func | tr 'abcdefghijklmnopqrstuvwxyz' 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'`
+-  cat >> confdefs.h <<EOF
+-#define $ac_tr_func 1
+-EOF
+- 
+-else
+-  echo "$ac_t""no" 1>&6
+-fi
+-done
+-
+-echo $ac_n "checking for working mmap""... $ac_c" 1>&6
+-echo "configure:1886: checking for working mmap" >&5
+-if eval "test \"`echo '$''{'ac_cv_func_mmap_fixed_mapped'+set}'`\" = set"; then
+-  echo $ac_n "(cached) $ac_c" 1>&6
+-else
+-  if test "$cross_compiling" = yes; then
+-  ac_cv_func_mmap_fixed_mapped=no
+-else
+-  cat > conftest.$ac_ext <<EOF
+-#line 1894 "configure"
+-#include "confdefs.h"
+-
+-/* Thanks to Mike Haertel and Jim Avera for this test.
+-   Here is a matrix of mmap possibilities:
+-	mmap private not fixed
+-	mmap private fixed at somewhere currently unmapped
+-	mmap private fixed at somewhere already mapped
+-	mmap shared not fixed
+-	mmap shared fixed at somewhere currently unmapped
+-	mmap shared fixed at somewhere already mapped
+-   For private mappings, we should verify that changes cannot be read()
+-   back from the file, nor mmap's back from the file at a different
+-   address.  (There have been systems where private was not correctly
+-   implemented like the infamous i386 svr4.0, and systems where the
+-   VM page cache was not coherent with the filesystem buffer cache
+-   like early versions of FreeBSD and possibly contemporary NetBSD.)
+-   For shared mappings, we should conversely verify that changes get
+-   propogated back to all the places they're supposed to be.
+-
+-   Grep wants private fixed already mapped.
+-   The main things grep needs to know about mmap are:
+-   * does it exist and is it safe to write into the mmap'd area
+-   * how to use it (BSD variants)  */
+-#include <sys/types.h>
+-#include <fcntl.h>
+-#include <sys/mman.h>
+-
+-/* This mess was copied from the GNU getpagesize.h.  */
+-#ifndef HAVE_GETPAGESIZE
+-# ifdef HAVE_UNISTD_H
+-#  include <unistd.h>
+-# endif
+-
+-/* Assume that all systems that can run configure have sys/param.h.  */
+-# ifndef HAVE_SYS_PARAM_H
+-#  define HAVE_SYS_PARAM_H 1
+-# endif
+-
+-# ifdef _SC_PAGESIZE
+-#  define getpagesize() sysconf(_SC_PAGESIZE)
+-# else /* no _SC_PAGESIZE */
+-#  ifdef HAVE_SYS_PARAM_H
+-#   include <sys/param.h>
+-#   ifdef EXEC_PAGESIZE
+-#    define getpagesize() EXEC_PAGESIZE
+-#   else /* no EXEC_PAGESIZE */
+-#    ifdef NBPG
+-#     define getpagesize() NBPG * CLSIZE
+-#     ifndef CLSIZE
+-#      define CLSIZE 1
+-#     endif /* no CLSIZE */
+-#    else /* no NBPG */
+-#     ifdef NBPC
+-#      define getpagesize() NBPC
+-#     else /* no NBPC */
+-#      ifdef PAGESIZE
+-#       define getpagesize() PAGESIZE
+-#      endif /* PAGESIZE */
+-#     endif /* no NBPC */
+-#    endif /* no NBPG */
+-#   endif /* no EXEC_PAGESIZE */
+-#  else /* no HAVE_SYS_PARAM_H */
+-#   define getpagesize() 8192	/* punt totally */
+-#  endif /* no HAVE_SYS_PARAM_H */
+-# endif /* no _SC_PAGESIZE */
+-
+-#endif /* no HAVE_GETPAGESIZE */
+-
+-#ifdef __cplusplus
+-extern "C" { void *malloc(unsigned); }
+-#else
+-char *malloc();
+-#endif
+-
+-int
+-main()
+-{
+-	char *data, *data2, *data3;
+-	int i, pagesize;
+-	int fd;
+-
+-	pagesize = getpagesize();
+-
+-	/*
+-	 * First, make a file with some known garbage in it.
+-	 */
+-	data = malloc(pagesize);
+-	if (!data)
+-		exit(1);
+-	for (i = 0; i < pagesize; ++i)
+-		*(data + i) = rand();
+-	umask(0);
+-	fd = creat("conftestmmap", 0600);
+-	if (fd < 0)
+-		exit(1);
+-	if (write(fd, data, pagesize) != pagesize)
+-		exit(1);
+-	close(fd);
+-
+-	/*
+-	 * Next, try to mmap the file at a fixed address which
+-	 * already has something else allocated at it.  If we can,
+-	 * also make sure that we see the same garbage.
+-	 */
+-	fd = open("conftestmmap", O_RDWR);
+-	if (fd < 0)
+-		exit(1);
+-	data2 = malloc(2 * pagesize);
+-	if (!data2)
+-		exit(1);
+-	data2 += (pagesize - ((int) data2 & (pagesize - 1))) & (pagesize - 1);
+-	if (data2 != mmap(data2, pagesize, PROT_READ | PROT_WRITE,
+-	    MAP_PRIVATE | MAP_FIXED, fd, 0L))
+-		exit(1);
+-	for (i = 0; i < pagesize; ++i)
+-		if (*(data + i) != *(data2 + i))
+-			exit(1);
+-
+-	/*
+-	 * Finally, make sure that changes to the mapped area
+-	 * do not percolate back to the file as seen by read().
+-	 * (This is a bug on some variants of i386 svr4.0.)
+-	 */
+-	for (i = 0; i < pagesize; ++i)
+-		*(data2 + i) = *(data2 + i) + 1;
+-	data3 = malloc(pagesize);
+-	if (!data3)
+-		exit(1);
+-	if (read(fd, data3, pagesize) != pagesize)
+-		exit(1);
+-	for (i = 0; i < pagesize; ++i)
+-		if (*(data + i) != *(data3 + i))
+-			exit(1);
+-	close(fd);
+-	unlink("conftestmmap");
+-	exit(0);
+-}
+-
+-EOF
+-if { (eval echo configure:2034: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
+-then
+-  ac_cv_func_mmap_fixed_mapped=yes
+-else
+-  echo "configure: failed program was:" >&5
+-  cat conftest.$ac_ext >&5
+-  rm -fr conftest*
+-  ac_cv_func_mmap_fixed_mapped=no
+-fi
+-rm -fr conftest*
+-fi
+-
+-fi
+-
+-echo "$ac_t""$ac_cv_func_mmap_fixed_mapped" 1>&6
+-if test $ac_cv_func_mmap_fixed_mapped = yes; then
+-  cat >> confdefs.h <<\EOF
+-#define HAVE_MMAP 1
+-EOF
+-
+-fi
+-
+ echo $ac_n "checking whether utime accepts a null argument""... $ac_c" 1>&6
+-echo "configure:2057: checking whether utime accepts a null argument" >&5
++echo "configure:1791: checking whether utime accepts a null argument" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_utime_null'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   rm -f conftestdata; > conftestdata
+ # Sequent interprets utime(file, 0) to mean use start of epoch.  Wrong.
+ if test "$cross_compiling" = yes; then
+   ac_cv_func_utime_null=no
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2067 "configure"
++#line 1801 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <sys/stat.h>
+ main() {
+ struct stat s, t;
+ exit(!(stat ("conftestdata", &s) == 0 && utime("conftestdata", (long *)0) == 0
+ && stat("conftestdata", &t) == 0 && t.st_mtime >= s.st_mtime
+ && t.st_mtime - s.st_mtime < 120));
+ }
+ EOF
+-if { (eval echo configure:2078: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:1812: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
+ then
+   ac_cv_func_utime_null=yes
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -fr conftest*
+@@ -2094,21 +1828,21 @@
+   cat >> confdefs.h <<\EOF
+ #define HAVE_UTIME_NULL 1
+ EOF
+ 
+ fi
+ 
+-for ac_func in waitpid strtok pipe getcwd mkdir strdup strerror chown chmod mknod
++for ac_func in mmap waitpid getcwd strdup strerror chown chmod mknod
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:2104: checking for $ac_func" >&5
++echo "configure:1838: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2109 "configure"
++#line 1843 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2125,13 +1859,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2132: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:1866: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2152,18 +1886,18 @@
+ fi
+ done
+ 
+ for ac_func in fchmod fstat strchr bcopy bzero readlink link utime utimes
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:2159: checking for $ac_func" >&5
++echo "configure:1893: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2164 "configure"
++#line 1898 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2180,13 +1914,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2187: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:1921: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2207,18 +1941,18 @@
+ fi
+ done
+ 
+ for ac_func in memmove getopt_long lchown setlinebuf vsnprintf setsid glob
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+-echo "configure:2214: checking for $ac_func" >&5
++echo "configure:1948: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2219 "configure"
++#line 1953 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char $ac_func(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2235,13 +1969,13 @@
+ #else
+ $ac_func();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2242: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:1976: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_func_$ac_func=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2265,18 +1999,18 @@
+ 
+ echo $ac_n "checking for working fnmatch... $ac_c"
+ if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2272 "configure"
++#line 2006 "configure"
+ #include "confdefs.h"
+ #include <fnmatch.h>
+ main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }
+ EOF
+-if { (eval echo configure:2277: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2011: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
+ then
+   echo yes;cat >> confdefs.h <<\EOF
+ #define HAVE_FNMATCH 1
+ EOF
+ 
+ else
+@@ -2291,18 +2025,18 @@
+ 
+ echo $ac_n "checking for long long ... $ac_c"
+ if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2298 "configure"
++#line 2032 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ main() { long long x = 1000000; x *= x; exit(((x/1000000) == 1000000)? 0: 1); }
+ EOF
+-if { (eval echo configure:2303: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2037: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
+ then
+   echo yes;cat >> confdefs.h <<\EOF
+ #define HAVE_LONGLONG 1
+ EOF
+ 
+ else
+@@ -2317,19 +2051,19 @@
+ 
+ echo $ac_n "checking for off64_t ... $ac_c"
+ if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2324 "configure"
++#line 2058 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ #include <sys/stat.h>
+ main() { struct stat64 st; off64_t s; if (sizeof(off_t) == sizeof(off64_t)) return 1; exit((lstat64("/dev/null", &st)==0)?0:1); }
+ EOF
+-if { (eval echo configure:2330: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2064: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
+ then
+   echo yes;cat >> confdefs.h <<\EOF
+ #define HAVE_OFF64_T 1
+ EOF
+ 
+ else
+@@ -2344,18 +2078,18 @@
+ 
+ echo $ac_n "checking for unsigned char ... $ac_c"
+ if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2351 "configure"
++#line 2085 "configure"
+ #include "confdefs.h"
+ #include <stdio.h>
+ main() { char c; c=250; exit((c > 0)?0:1); }
+ EOF
+-if { (eval echo configure:2356: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2090: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
+ then
+   echo yes;cat >> confdefs.h <<\EOF
+ #define HAVE_UNSIGNED_CHAR 1
+ EOF
+ 
+ else
+@@ -2370,21 +2104,21 @@
+ 
+ echo $ac_n "checking for broken readdir ... $ac_c"
+ if test "$cross_compiling" = yes; then
+     { echo "configure: error: can not run test program while cross compiling" 1>&2; exit 1; }
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2377 "configure"
++#line 2111 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <dirent.h>
+ main() { struct dirent *di; DIR *d = opendir("."); di = readdir(d);
+ if (di && di->d_name[-2] == '.' && di->d_name[-1] == 0 &&
+ di->d_name[0] == 0) return 0; return 1;} 
+ EOF
+-if { (eval echo configure:2385: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
++if { (eval echo configure:2119: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest && (./conftest; exit) 2>/dev/null
+ then
+   echo yes - you are using the broken /usr/ucb/cc;cat >> confdefs.h <<\EOF
+ #define HAVE_BROKEN_READDIR 1
+ EOF
+ 
+ else
+@@ -2396,21 +2130,21 @@
+ rm -fr conftest*
+ fi
+ 
+ 
+ echo $ac_n "checking for utimbuf ... $ac_c"
+ cat > conftest.$ac_ext <<EOF
+-#line 2403 "configure"
++#line 2137 "configure"
+ #include "confdefs.h"
+ #include <sys/types.h>
+ #include <utime.h>
+ int main() {
+ struct utimbuf tbuf;  tbuf.actime = 0; tbuf.modtime = 1; return utime("foo.c",&tbuf);
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2411: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
++if { (eval echo configure:2145: \"$ac_compile\") 1>&5; (eval $ac_compile) 2>&5; }; then
+   rm -rf conftest*
+   echo yes;cat >> confdefs.h <<\EOF
+ #define HAVE_UTIMBUF 1
+ EOF
+ 
+ else
+@@ -2425,18 +2159,18 @@
+ # If we can't find connect, try looking in -lsocket, -lnsl, and -linet.
+ # The Irix 5 libc.so has connect and gethostbyname, but Irix 5 also has
+ # libsocket.so which has a bad implementation of gethostbyname (it
+ # only looks in /etc/hosts), so we only look for -lsocket if we need
+ # it.
+ echo $ac_n "checking for connect""... $ac_c" 1>&6
+-echo "configure:2432: checking for connect" >&5
++echo "configure:2166: checking for connect" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_connect'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   cat > conftest.$ac_ext <<EOF
+-#line 2437 "configure"
++#line 2171 "configure"
+ #include "confdefs.h"
+ /* System header to define __stub macros and hopefully few prototypes,
+     which can conflict with char connect(); below.  */
+ #include <assert.h>
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+@@ -2453,13 +2187,13 @@
+ #else
+ connect();
+ #endif
+ 
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2460: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:2194: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_func_connect=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2473,32 +2207,32 @@
+   :
+ else
+   echo "$ac_t""no" 1>&6
+ case "$LIBS" in
+ *-lnsl*) ;;
+ *) echo $ac_n "checking for printf in -lnsl_s""... $ac_c" 1>&6
+-echo "configure:2480: checking for printf in -lnsl_s" >&5
++echo "configure:2214: checking for printf in -lnsl_s" >&5
+ ac_lib_var=`echo nsl_s'_'printf | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lnsl_s  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2488 "configure"
++#line 2222 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char printf();
+ 
+ int main() {
+ printf()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2499: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:2233: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2523,32 +2257,32 @@
+ fi
+  ;;
+ esac
+ case "$LIBS" in
+ *-lnsl*) ;;
+ *) echo $ac_n "checking for printf in -lnsl""... $ac_c" 1>&6
+-echo "configure:2530: checking for printf in -lnsl" >&5
++echo "configure:2264: checking for printf in -lnsl" >&5
+ ac_lib_var=`echo nsl'_'printf | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lnsl  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2538 "configure"
++#line 2272 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char printf();
+ 
+ int main() {
+ printf()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2549: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:2283: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2573,32 +2307,32 @@
+ fi
+  ;;
+ esac
+ case "$LIBS" in
+ *-lsocket*) ;;
+ *) echo $ac_n "checking for connect in -lsocket""... $ac_c" 1>&6
+-echo "configure:2580: checking for connect in -lsocket" >&5
++echo "configure:2314: checking for connect in -lsocket" >&5
+ ac_lib_var=`echo socket'_'connect | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-lsocket  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2588 "configure"
++#line 2322 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char connect();
+ 
+ int main() {
+ connect()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2599: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:2333: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2623,32 +2357,32 @@
+ fi
+  ;;
+ esac
+ case "$LIBS" in
+ *-linet*) ;;
+ *) echo $ac_n "checking for connect in -linet""... $ac_c" 1>&6
+-echo "configure:2630: checking for connect in -linet" >&5
++echo "configure:2364: checking for connect in -linet" >&5
+ ac_lib_var=`echo inet'_'connect | sed 'y%./+-%__p_%'`
+ if eval "test \"`echo '$''{'ac_cv_lib_$ac_lib_var'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+   ac_save_LIBS="$LIBS"
+ LIBS="-linet  $LIBS"
+ cat > conftest.$ac_ext <<EOF
+-#line 2638 "configure"
++#line 2372 "configure"
+ #include "confdefs.h"
+ /* Override any gcc2 internal prototype to avoid an error.  */
+ /* We use char because int might match the return type of a gcc2
+     builtin and then its argument prototype would still apply.  */
+ char connect();
+ 
+ int main() {
+ connect()
+ ; return 0; }
+ EOF
+-if { (eval echo configure:2649: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
++if { (eval echo configure:2383: \"$ac_link\") 1>&5; (eval $ac_link) 2>&5; } && test -s conftest; then
+   rm -rf conftest*
+   eval "ac_cv_lib_$ac_lib_var=yes"
+ else
+   echo "configure: failed program was:" >&5
+   cat conftest.$ac_ext >&5
+   rm -rf conftest*
+@@ -2783,13 +2517,13 @@
+   esac
+ done
+ 
+ ac_given_srcdir=$srcdir
+ ac_given_INSTALL="$INSTALL"
+ 
+-trap 'rm -fr `echo "Makefile lib/dummy config.h" | sed "s/:[^ ]*//g"` conftest*; exit 1' 1 2 15
++trap 'rm -fr `echo "Makefile lib/dummy zlib/dummy config.h" | sed "s/:[^ ]*//g"` conftest*; exit 1' 1 2 15
+ EOF
+ cat >> $CONFIG_STATUS <<EOF
+ 
+ # Protect against being on the right side of a sed subst in config.status.
+ sed 's/%@/@@/; s/@%/@@/; s/%g\$/@g/; /@g\$/s/[\\\\&%]/\\\\&/g;
+  s/@@/%@/; s/@@/@%/; s/@g\$/%g/' > conftest.subs <<\\CEOF
+@@ -2861,13 +2595,13 @@
+   ac_sed_cmds=cat
+ fi
+ EOF
+ 
+ cat >> $CONFIG_STATUS <<EOF
+ 
+-CONFIG_FILES=\${CONFIG_FILES-"Makefile lib/dummy"}
++CONFIG_FILES=\${CONFIG_FILES-"Makefile lib/dummy zlib/dummy"}
+ EOF
+ cat >> $CONFIG_STATUS <<\EOF
+ for ac_file in .. $CONFIG_FILES; do if test "x$ac_file" != x..; then
+   # Support "outfile[:infile[:infile...]]", defaulting infile="outfile.in".
+   case "$ac_file" in
+   *:*) ac_file_in=`echo "$ac_file"|sed 's%[^:]*:%%'`
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/configure.in	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/configure.in	1998-05-22 22:22:55.000000000 +0800
+@@ -35,15 +35,14 @@
+ echo $ac_n "checking for errno in errno.h... $ac_c"
+ AC_TRY_COMPILE([#include <errno.h>],[int i = errno],
+ echo yes; AC_DEFINE(HAVE_ERRNO_DECL),
+ echo no)
+ 
+ AC_FUNC_MEMCMP
+-AC_FUNC_MMAP
+ AC_FUNC_UTIME_NULL
+-AC_CHECK_FUNCS(waitpid strtok pipe getcwd mkdir strdup strerror chown chmod mknod)
++AC_CHECK_FUNCS(mmap waitpid getcwd strdup strerror chown chmod mknod)
+ AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink link utime utimes)
+ AC_CHECK_FUNCS(memmove getopt_long lchown setlinebuf vsnprintf setsid glob)
+ 
+ echo $ac_n "checking for working fnmatch... $ac_c"
+ AC_TRY_RUN([#include <fnmatch.h>
+ main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }],
+@@ -114,7 +113,7 @@
+    test "$ac_cv_lib_inet_connect" = "yes"; then
+   ac_cv_func_connect=yes
+   AC_DEFINE(HAVE_CONNECT)
+ fi])
+ 
+ 
+-AC_OUTPUT(Makefile lib/dummy)
++AC_OUTPUT(Makefile lib/dummy zlib/dummy)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/cvs.log	1998-05-18 22:30:31.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/cvs.log	1998-05-22 22:23:13.000000000 +0800
+@@ -4512,6 +4512,332 @@
+ 
+ Modified Files:
+ 	rsync.spec 
+ Log Message:
+ preparing for release of 2.0.10
+ 
++
++****************************************
++Date:	Wednesday May 20, 1998 @ 10:20
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv1483
++
++Modified Files:
++	socket.c 
++Log Message:
++added DNS spoofing test to host access control
++
++
++
++****************************************
++Date:	Thursday May 21, 1998 @ 15:32
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv1416
++
++Modified Files:
++	rsync.yo 
++Log Message:
++someone didn't realise that you need rsync at both ends!
++
++
++
++
++****************************************
++Date:	Thursday May 21, 1998 @ 15:52
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv28379
++
++Modified Files:
++	proto.h syscall.c util.c 
++Log Message:
++use mmap() for files of any size. This should be much more buffer
++cache friendly.
++
++
++
++
++
++****************************************
++Date:	Thursday May 21, 1998 @ 15:55
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv15496
++
++Modified Files:
++	rsync.h 
++Log Message:
++now that we slide the mmap window we can use a smaller MAX_MAP_SIZE
++and thus consume less virtual memory on the sending side.
++
++
++
++
++****************************************
++Date:	Thursday May 21, 1998 @ 15:57
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv1836
++
++Modified Files:
++	token.c 
++Log Message:
++formatting changes. committed separately so they don't mask the coming
++token changes.
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 11:53
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv20533
++
++Modified Files:
++	match.c proto.h token.c 
++Log Message:
++this fixes two problems:
++
++1) handle 64 bit file offsets in the token code. I wonder how large
++bit files worked up till now?
++
++2) send a null token when we have passed over a large lump of data
++without finding a token match. This reduces the number of IOs
++considerably as it removes the need for seeks/reads on the checksum
++calculation and literal send code. This is not enabled yet for the
++compressed case as the deflate token code can't handle it yet.
++
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 16:58
++Author:	paulus
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv23995
++
++Modified Files:
++	Makefile.in configure.in match.c token.c 
++Log Message:
++Update to use the new zlib-1.1.2 code.
++The compressed token code now handles the null (-2)
++token from the match logic.
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 16:59
++Author:	paulus
++
++Update of /data/cvs/rsync/zlib
++In directory samba:/tmp/cvs-serv23995/zlib
++
++Modified Files:
++	deflate.c zlib.h zutil.h 
++Log Message:
++Update to use the new zlib-1.1.2 code.
++The compressed token code now handles the null (-2)
++token from the match logic.
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 22:05
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv9169
++
++Modified Files:
++	configure configure.in 
++Log Message:
++don't need two AC_OUTPUT lines in configure.in
++
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 22:06
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv24929
++
++Modified Files:
++	match.c 
++Log Message:
++removing an unused variable
++
++
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 22:07
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv6436
++
++Modified Files:
++	rsync.c 
++Log Message:
++fix shadowed variable
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 22:08
++Author:	tridge
++
++Update of /data/cvs/rsync/zlib
++In directory samba:/tmp/cvs-serv19267
++
++Modified Files:
++	trees.c 
++Log Message:
++- fix redefinition of MAX
++- fix shadow of variable "overflow"
++
++
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 22:13
++Author:	tridge
++
++Update of /data/cvs/rsync/lib
++In directory samba:/tmp/cvs-serv10687
++
++Removed Files:
++	zlib.c zlib.h 
++Log Message:
++no longer needed
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 22:20
++Author:	tridge
++
++Update of /data/cvs/rsync/zlib
++In directory samba:/tmp/cvs-serv26013
++
++Added Files:
++	README.rsync 
++Log Message:
++added a README.rsync to explain what we have changed in zlib and to
++tell people that any bugs are our responsibility.
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 23:02
++Author:	tridge
++
++Update of /data/cvs/rsync/zlib
++In directory samba:/tmp/cvs-serv20058
++
++Modified Files:
++	infutil.h 
++Log Message:
++change WRAP to ZWRAP so it doesn't conflict with IRIX includes
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 23:27
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv3250
++
++Modified Files:
++	access.c 
++Log Message:
++add a cast to initialisation of mask
++
++
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 23:46
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.11
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 23:46
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.0.11
++
++
++****************************************
++Date:	Friday May 22, 1998 @ 23:51
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv21237
++
++Modified Files:
++	util.c 
++Log Message:
++need a ifdef around some mmap code
++
++
++
++
++
++****************************************
++Date:	Saturday May 23, 1998 @ 0:03
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv18086
++
++Modified Files:
++	config.h.in configure configure.in 
++Log Message:
++use a simpler mmap() test in autoconf as we don't need all the
++features of mmap that the standard test uses, and it reports Ultrix as
++having no working mmap() when in fact any mmap will do what we want
++for rsync.
++
++
++
++****************************************
++Date:	Saturday May 23, 1998 @ 0:22
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv10827
++
++Modified Files:
++	config.h.in configure configure.in 
++Log Message:
++need strchr check in configure.in
++
++
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/lib: zlib.c
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/lib: zlib.h
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/Makefile.in	1998-05-15 15:54:13.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/Makefile.in	1998-05-22 21:45:39.000000000 +0800
+@@ -17,17 +17,20 @@
+ SHELL=/bin/sh
+ 
+ 
+ .SUFFIXES:
+ .SUFFIXES: .c .o
+ 
+-LIBOBJ=lib/getopt.o lib/fnmatch.o lib/zlib.o lib/compat.o
++LIBOBJ=lib/getopt.o lib/fnmatch.o lib/compat.o
++ZLIBOBJ=zlib/deflate.o zlib/infblock.o zlib/infcodes.o zlib/inffast.o \
++	zlib/inflate.o zlib/inftrees.o zlib/infutil.o zlib/trees.o \
++	zlib/zutil.o zlib/adler32.o
+ OBJS1=rsync.o exclude.o util.o md4.o main.o checksum.o match.o syscall.o log.o
+ OBJS2=options.o flist.o io.o compat.o hlink.o token.o uidlist.o socket.o 
+ DAEMON_OBJ = params.o loadparm.o clientserver.o access.o connection.o authenticate.o
+-OBJS=$(OBJS1) $(OBJS2) $(DAEMON_OBJ) $(LIBOBJ)
++OBJS=$(OBJS1) $(OBJS2) $(DAEMON_OBJ) $(LIBOBJ) $(ZLIBOBJ)
+ 
+ # note that the -I. is needed to handle config.h when using VPATH
+ .c.o:
+ 	$(CC) -I. -I$(srcdir) $(CFLAGS) -c $< -o $@
+ 
+ all: rsync
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/match.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/match.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/match.c	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/match.c	1998-05-22 21:45:40.000000000 +0800
+@@ -97,13 +97,13 @@
+ 	int j;
+ 
+ 	if (verbose > 2 && i >= 0)
+ 		rprintf(FINFO,"match at %d last_match=%d j=%d len=%d n=%d\n",
+ 			(int)offset,(int)last_match,i,(int)s->sums[i].len,(int)n);
+ 
+-	send_token(f,i,buf,last_match,n,i==-1?0:s->sums[i].len);
++	send_token(f,i,buf,last_match,n,i<0?0:s->sums[i].len);
+ 	data_transfer += n;
+ 
+ 	if (n > 0)
+ 		write_flush(f);
+ 
+ 	if (i >= 0)
+@@ -209,13 +209,23 @@
+ 		if (k < (len-offset)) {
+ 			s1 += (map[k]+CHAR_OFFSET);
+ 			s2 += s1;
+ 		} else {
+ 			--k;
+ 		}
+-		
++
++		/* By matching early we avoid re-reading the
++		   data 3 times in the case where a token
++		   match comes a long way after last
++		   match. The 3 reads are caused by the
++		   running match, the checksum update and the
++		   literal send. */
++		if (offset-last_match >= CHUNK_SIZE+s->n && 
++		    (end-offset > CHUNK_SIZE)) {
++			matched(f,s,buf,offset - s->n, -2);
++		}
+ 	} while (++offset < end);
+ 	
+ 	matched(f,s,buf,len,-1);
+ 	map_ptr(buf,len-1,1);
+ }
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/packaging/redhat/5.0/rsync.spec	1998-05-18 22:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/packaging/redhat/5.0/rsync.spec	1998-05-22 22:23:06.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.0.10
++Version: 2.0.11
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.10.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.11.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/proto.h	1998-05-18 18:30:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/proto.h	1998-05-22 21:45:40.000000000 +0800
+@@ -138,14 +138,15 @@
+ int do_mkdir(char *fname, mode_t mode);
+ char *do_mktemp(char *template);
+ int do_stat(const char *fname, STRUCT_STAT *st);
+ int do_lstat(const char *fname, STRUCT_STAT *st);
+ int do_fstat(int fd, STRUCT_STAT *st);
+ OFF_T do_lseek(int fd, OFF_T offset, int whence);
++void *do_mmap(void *start, int len, int prot, int flags, int fd, OFF_T offset);
+ char *d_name(struct dirent *di);
+-void send_token(int f,int token,struct map_struct *buf,int offset,
++void send_token(int f,int token,struct map_struct *buf,OFF_T offset,
+ 		int n,int toklen);
+ int recv_token(int f,char **data);
+ void see_token(char *data, int toklen);
+ void add_uid(uid_t uid);
+ void add_gid(gid_t gid);
+ void send_uid_list(int f);
+@@ -170,10 +171,10 @@
+ void strlcpy(char *d, char *s, int maxlen);
+ void strlcat(char *d, char *s, int maxlen);
+ int name_to_uid(char *name, uid_t *uid);
+ int name_to_gid(char *name, gid_t *gid);
+ int process_exists(int pid);
+ int lock_range(int fd, int offset, int len);
+-void glob_expand(char *base, char **argv, int *argc, int maxargs);
++void glob_expand(char *base1, char **argv, int *argc, int maxargs);
+ void strlower(char *s);
+ int vslprintf(char *str, int n, const char *format, va_list ap);
+ int slprintf(char *str, int n, char *format, ...);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/rsync.c	1998-05-18 18:30:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/rsync.c	1998-05-22 21:45:40.000000000 +0800
+@@ -937,13 +937,13 @@
+   if (preserve_hard_links)
+ 	  do_hard_links(flist);
+ 
+   /* now we need to fix any directory permissions that were 
+      modified during the transfer */
+   for (i = 0; i < flist->count; i++) {
+-	  struct file_struct *file = flist->files[i];
++	  file = flist->files[i];
+ 	  if (!file->basename || !S_ISDIR(file->mode)) continue;
+ 	  recv_generator(f_name(file),flist,i,-1);
+   }
+ 
+   if (verbose > 2)
+     rprintf(FINFO,"recv_files finished\n");
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/rsync.h	1998-05-18 18:30:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/rsync.h	1998-05-22 21:45:41.000000000 +0800
+@@ -47,13 +47,13 @@
+ 
+ #define RSYNC_PORT 873
+ 
+ #define SPARSE_WRITE_SIZE (1024)
+ #define WRITE_SIZE (32*1024)
+ #define CHUNK_SIZE (32*1024)
+-#define MAX_MAP_SIZE (4*1024*1024)
++#define MAX_MAP_SIZE (1*1024*1024)
+ #define IO_BUFFER_SIZE (4096)
+ #define MAX_READ_BUFFER (1024*1024)
+ 
+ #define MAX_ARGS 1000
+ 
+ #define BLOCKING_TIMEOUT 10
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/rsync.yo	1998-05-15 15:54:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/rsync.yo	1998-05-22 21:45:41.000000000 +0800
+@@ -78,12 +78,15 @@
+ You can also specify a alternative to rsh, by either using the -e
+ command line option, or by setting the RSYNC_RSH environment variable.
+ 
+ One common substitute is to use ssh, which offers a high degree of
+ security.
+ 
++Note that rsync must be installed on both the source and destination
++machines. 
++
+ manpagesection(USAGE)
+ 
+ You use rsync in the same way you use rcp. You must specify a source
+ and a destination, one of which may be remote.
+ 
+ Perhaps the best way to explain the syntax is some examples:
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/socket.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/socket.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/socket.c	1998-05-18 18:30:44.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/socket.c	1998-05-22 21:45:41.000000000 +0800
+@@ -324,22 +324,42 @@
+ {
+ 	struct sockaddr sa;
+ 	struct sockaddr_in *sockin = (struct sockaddr_in *) (&sa);
+ 	int     length = sizeof(sa);
+ 	static char name_buf[100];
+ 	struct hostent *hp;
++	char **p;
++	char *def = "UNKNOWN";
+ 
+-	strcpy(name_buf,"UNKNOWN");
++	strcpy(name_buf,def);
+ 
+ 	if (getpeername(fd, &sa, &length)) {
+ 		exit_cleanup(1);
+ 	}
+ 
+ 	/* Look up the remote host name. */
+ 	if ((hp = gethostbyaddr((char *) &sockin->sin_addr,
+ 				sizeof(sockin->sin_addr),
+ 				AF_INET))) {
+ 		strlcpy(name_buf,(char *)hp->h_name,sizeof(name_buf) - 1);
+ 	}
+ 
++
++	/* do a forward lookup as well to prevent spoofing */
++	hp = gethostbyname(name_buf);
++	if (!hp) {
++		strcpy(name_buf,def);
++		rprintf(FERROR,"reverse name lookup failed\n");
++	} else {
++		for (p=hp->h_addr_list;*p;p++) {
++			if (memcmp(*p, &sockin->sin_addr, hp->h_length) == 0) {
++				break;
++			}
++		}
++		if (!*p) {
++			strcpy(name_buf,def);
++			rprintf(FERROR,"reverse name lookup mismatch - spoofed address?\n");
++		} 
++	}
++
+ 	return name_buf;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/syscall.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/syscall.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/syscall.c	1998-05-14 15:07:51.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/syscall.c	1998-05-22 21:45:41.000000000 +0800
+@@ -146,12 +146,23 @@
+ 	return lseek64(fd, offset, whence);
+ #else
+ 	return lseek(fd, offset, whence);
+ #endif
+ }
+ 
++#if HAVE_MMAP
++void *do_mmap(void *start, int len, int prot, int flags, int fd, OFF_T offset)
++{
++#if HAVE_OFF64_T
++	return mmap64(start, len, prot, flags, fd, offset);
++#else
++	return mmap(start, len, prot, flags, fd, offset);
++#endif
++}
++#endif
++
+ char *d_name(struct dirent *di)
+ {
+ #if HAVE_BROKEN_READDIR
+ 	return (di->d_name - 2);
+ #else
+ 	return di->d_name;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/token.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/token.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/token.c	1998-05-14 15:07:52.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/token.c	1998-05-22 21:45:41.000000000 +0800
+@@ -15,73 +15,62 @@
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, write to the Free Software
+    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */
+ 
+ #include "rsync.h"
+-#include "lib/zlib.h"
++#include "zlib/zlib.h"
+ 
+ extern int do_compression;
+ 
+ 
+ /* non-compressing recv token */
+ static int simple_recv_token(int f,char **data)
+ {
+-  static int residue;
+-  static char *buf;
+-  int n;
+-
+-  if (!buf) {
+-    buf = (char *)malloc(CHUNK_SIZE);
+-    if (!buf) out_of_memory("simple_recv_token");
+-  }
+-
+-
+-  if (residue == 0) {
+-    int i = read_int(f);
+-    if (i <= 0) return i;
+-    residue = i;
+-  }
+-
+-  *data = buf;
+-  n = MIN(CHUNK_SIZE,residue);
+-  residue -= n;
+-  read_buf(f,buf,n);
+-  return n;
+-}
++	static int residue;
++	static char *buf;
++	int n;
++
++	if (!buf) {
++		buf = (char *)malloc(CHUNK_SIZE);
++		if (!buf) out_of_memory("simple_recv_token");
++	}
+ 
++	if (residue == 0) {
++		int i = read_int(f);
++		if (i <= 0) return i;
++		residue = i;
++	}
+ 
+-/* non-compressing send token */
+-static void simple_send_token(int f,int token,
+-			      struct map_struct *buf,int offset,int n)
+-{
+-  if (n > 0) {
+-    int l = 0;
+-    while (l < n) {
+-      int n1 = MIN(CHUNK_SIZE,n-l);
+-      write_int(f,n1);
+-      write_buf(f,map_ptr(buf,offset+l,n1),n1);
+-      l += n1;
+-    }
+-  }
+-  write_int(f,-(token+1));
++	*data = buf;
++	n = MIN(CHUNK_SIZE,residue);
++	residue -= n;
++	read_buf(f,buf,n);
++	return n;
+ }
+ 
+ 
+-/* Memory allocation/freeing routines, called by zlib stuff. */
+-static void *
+-z_alloc(void *opaque, uInt items, uInt size)
++/* non-compressing send token */
++static void simple_send_token(int f,int token,
++			      struct map_struct *buf,OFF_T offset,int n)
+ {
+-    return malloc(items * size);
++	if (n > 0) {
++		int l = 0;
++		while (l < n) {
++			int n1 = MIN(CHUNK_SIZE,n-l);
++			write_int(f,n1);
++			write_buf(f,map_ptr(buf,offset+l,n1),n1);
++			l += n1;
++		}
++	}
++	/* a -2 token means to send data only and no token */
++	if (token != -2) {
++		write_int(f,-(token+1));
++	}
+ }
+ 
+-static void
+-z_free(void *opaque, void *adrs, uInt nbytes)
+-{
+-    free(adrs);
+-}
+ 
+ /* Flag bytes in compressed stream are encoded as follows: */
+ #define END_FLAG	0	/* that's all folks */
+ #define TOKEN_LONG	0x20	/* followed by 32-bit token number */
+ #define TOKENRUN_LONG	0x21	/* ditto with 16-bit run count */
+ #define DEFLATED_DATA	0x40	/* + 6-bit high len, then low len byte */
+@@ -101,108 +90,137 @@
+ /* Output buffer */
+ static char *obuf;
+ 
+ /* Send a deflated token */
+ static void
+ send_deflated_token(int f, int token,
+-		    struct map_struct *buf, int offset, int nb, int toklen)
++		    struct map_struct *buf, OFF_T offset, int nb, int toklen)
+ {
+-    int n, r;
+-    static int init_done;
++	int n, r;
++	static int init_done, flush_pending;
+ 
+-    if (last_token == -1) {
+-	/* initialization */
+-	if (!init_done) {
+-	    tx_strm.next_in = NULL;
+-	    tx_strm.zalloc = z_alloc;
+-	    tx_strm.zfree = z_free;
+-	    if (deflateInit2(&tx_strm, Z_DEFAULT_COMPRESSION, 8,
+-			     -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+-		rprintf(FERROR, "compression init failed\n");
+-		exit_cleanup(1);
+-	    }
+-	    if ((obuf = malloc(MAX_DATA_COUNT+2)) == NULL)
+-		out_of_memory("send_deflated_token");
+-	    init_done = 1;
+-	} else
+-	    deflateReset(&tx_strm);
+-	run_start = token;
+-	last_run_end = 0;
+-
+-    } else if (nb != 0 || token != last_token + 1
+-	       || token >= run_start + 65536) {
+-	/* output previous run */
+-	r = run_start - last_run_end;
+-	n = last_token - run_start;
+-	if (r >= 0 && r <= 63) {
+-	    write_byte(f, (n==0? TOKEN_REL: TOKENRUN_REL) + r);
+-	} else {
+-	    write_byte(f, (n==0? TOKEN_LONG: TOKENRUN_LONG));
+-	    write_int(f, run_start);
++	if (last_token == -1) {
++		/* initialization */
++		if (!init_done) {
++			tx_strm.next_in = NULL;
++			tx_strm.zalloc = NULL;
++			tx_strm.zfree = NULL;
++			if (deflateInit2(&tx_strm, Z_DEFAULT_COMPRESSION,
++					 Z_DEFLATED, -15, 8,
++					 Z_DEFAULT_STRATEGY) != Z_OK) {
++				rprintf(FERROR, "compression init failed\n");
++				exit_cleanup(1);
++			}
++			if ((obuf = malloc(MAX_DATA_COUNT+2)) == NULL)
++				out_of_memory("send_deflated_token");
++			init_done = 1;
++		} else
++			deflateReset(&tx_strm);
++		last_run_end = 0;
++		run_start = token;
++		flush_pending = 0;
++
++	} else if (last_token == -2) {
++		run_start = token;
++
++	} else if (nb != 0 || token != last_token + 1
++		   || token >= run_start + 65536) {
++		/* output previous run */
++		r = run_start - last_run_end;
++		n = last_token - run_start;
++		if (r >= 0 && r <= 63) {
++			write_byte(f, (n==0? TOKEN_REL: TOKENRUN_REL) + r);
++		} else {
++			write_byte(f, (n==0? TOKEN_LONG: TOKENRUN_LONG));
++			write_int(f, run_start);
++		}
++		if (n != 0) {
++			write_byte(f, n);
++			write_byte(f, n >> 8);
++		}
++		last_run_end = last_token;
++		run_start = token;
+ 	}
+-	if (n != 0) {
+-	    write_byte(f, n);
+-	    write_byte(f, n >> 8);
++
++	last_token = token;
++
++	if (nb != 0 || flush_pending) {
++		/* deflate the data starting at offset */
++		int flush = Z_NO_FLUSH;
++		tx_strm.avail_in = 0;
++		tx_strm.avail_out = 0;
++		do {
++			if (tx_strm.avail_in == 0 && nb != 0) {
++				/* give it some more input */
++				n = MIN(nb, CHUNK_SIZE);
++				tx_strm.next_in = (Bytef *)
++					map_ptr(buf, offset, n);
++				tx_strm.avail_in = n;
++				nb -= n;
++				offset += n;
++			}
++			if (tx_strm.avail_out == 0) {
++				tx_strm.next_out = (Bytef *)(obuf + 2);
++				tx_strm.avail_out = MAX_DATA_COUNT;
++				if (flush != Z_NO_FLUSH) {
++					/*
++					 * We left the last 4 bytes in the
++					 * buffer, in case they are the
++					 * last 4.  Move them to the front.
++					 */
++					memcpy(tx_strm.next_out,
++					       obuf+MAX_DATA_COUNT-2, 4);
++					tx_strm.next_out += 4;
++					tx_strm.avail_out -= 4;
++				}
++			}
++			if (nb == 0 && token != -2)
++				flush = Z_SYNC_FLUSH;
++			r = deflate(&tx_strm, flush);
++			if (r != Z_OK) {
++				rprintf(FERROR, "deflate returned %d\n", r);
++				exit_cleanup(1);
++			}
++			if (nb == 0 || tx_strm.avail_out == 0) {
++				n = MAX_DATA_COUNT - tx_strm.avail_out;
++				if (flush != Z_NO_FLUSH) {
++					/*
++					 * We have to trim off the last 4
++					 * bytes of output when flushing
++					 * (they are just 0, 0, ff, ff).
++					 */
++					n -= 4;
++				}
++				if (n > 0) {
++					obuf[0] = DEFLATED_DATA + (n >> 8);
++					obuf[1] = n;
++					write_buf(f, obuf, n+2);
++				}
++			}
++		} while (nb != 0 || tx_strm.avail_out == 0);
++		flush_pending = token == -2;
+ 	}
+-	last_run_end = last_token;
+-	run_start = token;
+-    }
+-
+-    last_token = token;
+-
+-    if (nb != 0) {
+-	/* deflate the data starting at offset */
+-	tx_strm.avail_in = 0;
+-	tx_strm.avail_out = 0;
+-	do {
+-	    if (tx_strm.avail_in == 0 && nb != 0) {
+-		/* give it some more input */
+-		n = MIN(nb, CHUNK_SIZE);
+-		tx_strm.next_in = (Bytef *)map_ptr(buf, offset, n);
+-		tx_strm.avail_in = n;
+-		nb -= n;
+-		offset += n;
+-	    }
+-	    if (tx_strm.avail_out == 0) {
+-		tx_strm.next_out = (Bytef *)(obuf + 2);
++
++	if (token == -1) {
++		/* end of file - clean up */
++		write_byte(f, END_FLAG);
++
++	} else if (token != -2) {
++		/* add the data in the current block to the compressor's
++		   history and hash table */
++		tx_strm.next_in = (Bytef *) map_ptr(buf, offset, toklen);
++		tx_strm.avail_in = toklen;
++		tx_strm.next_out = (Bytef *) obuf;
+ 		tx_strm.avail_out = MAX_DATA_COUNT;
+-	    }
+-	    r = deflate(&tx_strm, nb? Z_NO_FLUSH: Z_PACKET_FLUSH);
+-	    if (r != Z_OK) {
+-		rprintf(FERROR, "deflate returned %d\n", r);
+-		exit_cleanup(1);
+-	    }
+-	    if (nb == 0 || tx_strm.avail_out == 0) {
+-		n = MAX_DATA_COUNT - tx_strm.avail_out;
+-		if (n > 0) {
+-		    obuf[0] = DEFLATED_DATA + (n >> 8);
+-		    obuf[1] = n;
+-		    write_buf(f, obuf, n+2);
++		r = deflate(&tx_strm, Z_INSERT_ONLY);
++		if (r != Z_OK || tx_strm.avail_in != 0) {
++			rprintf(FERROR, "deflate on token returned %d (%d bytes left)\n",
++				r, tx_strm.avail_in);
++			exit_cleanup(1);
+ 		}
+-	    }
+-	} while (nb != 0 || tx_strm.avail_out == 0);
+-    }
+-
+-    if (token != -1) {
+-	/* add the data in the current block to the compressor's
+-	   history and hash table */
+-	tx_strm.next_in = (Bytef *)map_ptr(buf, offset, toklen);
+-	tx_strm.avail_in = toklen;
+-	tx_strm.next_out = NULL;
+-	tx_strm.avail_out = 2 * toklen;
+-	r = deflate(&tx_strm, Z_INSERT_ONLY);
+-	if (r != Z_OK || tx_strm.avail_in != 0) {
+-	    rprintf(FERROR, "deflate on token returned %d (%d bytes left)\n",
+-		    r, tx_strm.avail_in);
+-	    exit_cleanup(1);
+ 	}
+-
+-    } else {
+-	/* end of file - clean up */
+-	write_byte(f, END_FLAG);
+-    }
+ }
+ 
+ 
+ /* tells us what the receiver is in the middle of doing */
+ static enum { r_init, r_idle, r_running, r_inflating, r_inflated } recv_state;
+ 
+@@ -216,175 +234,216 @@
+ static int rx_run;
+ 
+ /* Receive a deflated token and inflate it */
+ static int
+ recv_deflated_token(int f, char **data)
+ {
+-    int n, r, flag;
+-    static int init_done;
+-    static int saved_flag;
+-
+-    for (;;) {
+-	switch (recv_state) {
+-	case r_init:
+-	    if (!init_done) {
+-		rx_strm.next_out = NULL;
+-		rx_strm.zalloc = z_alloc;
+-		rx_strm.zfree = z_free;
+-		if (inflateInit2(&rx_strm, -15) != Z_OK) {
+-		    rprintf(FERROR, "inflate init failed\n");
+-		    exit_cleanup(1);
+-		}
+-		if ((cbuf = malloc(MAX_DATA_COUNT)) == NULL
+-		    || (dbuf = malloc(CHUNK_SIZE)) == NULL)
+-		    out_of_memory("recv_deflated_token");
+-		init_done = 1;
+-	    } else {
+-		inflateReset(&rx_strm);
+-	    }
+-	    recv_state = r_idle;
+-	    rx_token = 0;
+-	    break;
+-	    
+-	case r_idle:
+-	case r_inflated:
+-	    if (saved_flag) {
+-		flag = saved_flag & 0xff;
+-		saved_flag = 0;
+-	    } else
+-		flag = read_byte(f);
+-	    if ((flag & 0xC0) == DEFLATED_DATA) {
+-		n = ((flag & 0x3f) << 8) + read_byte(f);
+-		read_buf(f, cbuf, n);
+-		rx_strm.next_in = (Bytef *)cbuf;
+-		rx_strm.avail_in = n;
+-		recv_state = r_inflating;
+-		break;
+-	    }
+-	    if (recv_state == r_inflated) {
+-		/* check previous inflated stuff ended correctly */
+-		rx_strm.avail_in = 0;
+-		rx_strm.next_out = (Bytef *)dbuf;
+-		rx_strm.avail_out = CHUNK_SIZE;
+-		r = inflate(&rx_strm, Z_PACKET_FLUSH);
+-		n = CHUNK_SIZE - rx_strm.avail_out;
+-		if (r != Z_OK) {
+-		    rprintf(FERROR, "inflate flush returned %d (%d bytes)\n",
+-			    r, n);
+-		    exit_cleanup(1);
+-		}
+-		if (n != 0) {
+-		    /* have to return some more data and
+-		       save the flag for later. */
+-		    saved_flag = flag + 0x10000;
+-		    if (rx_strm.avail_out != 0)
++	int n, r, flag;
++	static int init_done;
++	static int saved_flag;
++
++	for (;;) {
++		switch (recv_state) {
++		case r_init:
++			if (!init_done) {
++				rx_strm.next_out = NULL;
++				rx_strm.zalloc = NULL;
++				rx_strm.zfree = NULL;
++				if (inflateInit2(&rx_strm, -15) != Z_OK) {
++					rprintf(FERROR, "inflate init failed\n");
++					exit_cleanup(1);
++				}
++				if ((cbuf = malloc(MAX_DATA_COUNT)) == NULL
++				    || (dbuf = malloc(CHUNK_SIZE)) == NULL)
++					out_of_memory("recv_deflated_token");
++				init_done = 1;
++			} else {
++				inflateReset(&rx_strm);
++			}
+ 			recv_state = r_idle;
+-		    *data = dbuf;
+-		    return n;
++			rx_token = 0;
++			break;
++
++		case r_idle:
++		case r_inflated:
++			if (saved_flag) {
++				flag = saved_flag & 0xff;
++				saved_flag = 0;
++			} else
++				flag = read_byte(f);
++			if ((flag & 0xC0) == DEFLATED_DATA) {
++				n = ((flag & 0x3f) << 8) + read_byte(f);
++				read_buf(f, cbuf, n);
++				rx_strm.next_in = (Bytef *)cbuf;
++				rx_strm.avail_in = n;
++				recv_state = r_inflating;
++				break;
++			}
++			if (recv_state == r_inflated) {
++				/* check previous inflated stuff ended correctly */
++				rx_strm.avail_in = 0;
++				rx_strm.next_out = (Bytef *)dbuf;
++				rx_strm.avail_out = CHUNK_SIZE;
++				r = inflate(&rx_strm, Z_SYNC_FLUSH);
++				n = CHUNK_SIZE - rx_strm.avail_out;
++				/*
++				 * Z_BUF_ERROR just means no progress was
++				 * made, i.e. the decompressor didn't have
++				 * any pending output for us.
++				 */
++				if (r != Z_OK && r != Z_BUF_ERROR) {
++					rprintf(FERROR, "inflate flush returned %d (%d bytes)\n",
++						r, n);
++					exit_cleanup(1);
++				}
++				if (n != 0 && r != Z_BUF_ERROR) {
++					/* have to return some more data and
++					   save the flag for later. */
++					saved_flag = flag + 0x10000;
++					*data = dbuf;
++					return n;
++				}
++				/*
++				 * At this point the decompressor should
++				 * be expecting to see the 0, 0, ff, ff bytes.
++				 */
++				if (!inflateSyncPoint(&rx_strm)) {
++					rprintf(FERROR, "decompressor lost sync!\n");
++					exit_cleanup(1);
++				}
++				rx_strm.avail_in = 4;
++				rx_strm.next_in = (Bytef *)cbuf;
++				cbuf[0] = cbuf[1] = 0;
++				cbuf[2] = cbuf[3] = 0xff;
++				inflate(&rx_strm, Z_SYNC_FLUSH);
++				recv_state = r_idle;
++			}
++			if (flag == END_FLAG) {
++				/* that's all folks */
++				recv_state = r_init;
++				return 0;
++			}
++
++			/* here we have a token of some kind */
++			if (flag & TOKEN_REL) {
++				rx_token += flag & 0x3f;
++				flag >>= 6;
++			} else
++				rx_token = read_int(f);
++			if (flag & 1) {
++				rx_run = read_byte(f);
++				rx_run += read_byte(f) << 8;
++				recv_state = r_running;
++			}
++			return -1 - rx_token;
++
++		case r_inflating:
++			rx_strm.next_out = (Bytef *)dbuf;
++			rx_strm.avail_out = CHUNK_SIZE;
++			r = inflate(&rx_strm, Z_NO_FLUSH);
++			n = CHUNK_SIZE - rx_strm.avail_out;
++			if (r != Z_OK) {
++				rprintf(FERROR, "inflate returned %d (%d bytes)\n", r, n);
++				exit_cleanup(1);
++			}
++			if (rx_strm.avail_in == 0)
++				recv_state = r_inflated;
++			if (n != 0) {
++				*data = dbuf;
++				return n;
++			}
++			break;
++
++		case r_running:
++			++rx_token;
++			if (--rx_run == 0)
++				recv_state = r_idle;
++			return -1 - rx_token;
+ 		}
+-		recv_state = r_idle;
+-	    }
+-	    if (flag == END_FLAG) {
+-		/* that's all folks */
+-		recv_state = r_init;
+-		return 0;
+-	    }
+-
+-	    /* here we have a token of some kind */
+-	    if (flag & TOKEN_REL) {
+-		rx_token += flag & 0x3f;
+-		flag >>= 6;
+-	    } else
+-		rx_token = read_int(f);
+-	    if (flag & 1) {
+-		rx_run = read_byte(f);
+-		rx_run += read_byte(f) << 8;
+-		recv_state = r_running;
+-	    }
+-	    return -1 - rx_token;
+-
+-	case r_inflating:
+-	    rx_strm.next_out = (Bytef *)dbuf;
+-	    rx_strm.avail_out = CHUNK_SIZE;
+-	    r = inflate(&rx_strm, Z_NO_FLUSH);
+-	    n = CHUNK_SIZE - rx_strm.avail_out;
+-	    if (r != Z_OK) {
+-		rprintf(FERROR, "inflate returned %d (%d bytes)\n", r, n);
+-		exit_cleanup(1);
+-	    }
+-	    if (rx_strm.avail_in == 0)
+-		recv_state = r_inflated;
+-	    if (n != 0) {
+-		*data = dbuf;
+-		return n;
+-	    }
+-	    break;
+-
+-	case r_running:
+-	    ++rx_token;
+-	    if (--rx_run == 0)
+-		recv_state = r_idle;
+-	    return -1 - rx_token;
+ 	}
+-    }
+ }
+ 
+ /*
+  * put the data corresponding to a token that we've just returned
+  * from recv_deflated_token into the decompressor's history buffer.
+  */
+ void
+ see_deflate_token(char *buf, int len)
+ {
+-    int r;
++	int r, blklen;
++	unsigned char hdr[5];
+ 
+-    rx_strm.next_in = (Bytef *)buf;
+-    rx_strm.avail_in = len;
+-    r = inflateIncomp(&rx_strm);
+-    if (r != Z_OK) {
+-	rprintf(FERROR, "inflateIncomp returned %d\n", r);
+-	exit_cleanup(1);
+-    }
++	rx_strm.avail_in = 0;
++	blklen = 0;
++	hdr[0] = 0;
++	do {
++		if (rx_strm.avail_in == 0 && len != 0) {
++			if (blklen == 0) {
++				/* Give it a fake stored-block header. */
++				rx_strm.next_in = (Bytef *)hdr;
++				rx_strm.avail_in = 5;
++				blklen = len;
++				if (blklen > 0xffff)
++					blklen = 0xffff;
++				hdr[1] = blklen;
++				hdr[2] = blklen >> 8;
++				hdr[3] = ~hdr[1];
++				hdr[4] = ~hdr[2];
++			} else {
++				rx_strm.next_in = (Bytef *)buf;
++				rx_strm.avail_in = blklen;
++				len -= blklen;
++				blklen = 0;
++			}
++		}
++		rx_strm.next_out = (Bytef *)dbuf;
++		rx_strm.avail_out = CHUNK_SIZE;
++		r = inflate(&rx_strm, Z_SYNC_FLUSH);
++		if (r != Z_OK) {
++			rprintf(FERROR, "inflate (token) returned %d\n", r);
++			exit_cleanup(1);
++		}
++	} while (len || rx_strm.avail_out == 0);
+ }
+ 
+ /*
+  * transmit a verbatim buffer of length n followed by a token 
+  * If token == -1 then we have reached EOF 
+  * If n == 0 then don't send a buffer
+  */
+-void send_token(int f,int token,struct map_struct *buf,int offset,
++void send_token(int f,int token,struct map_struct *buf,OFF_T offset,
+ 		int n,int toklen)
+ {
+-  if (!do_compression) {
+-    simple_send_token(f,token,buf,offset,n);
+-  } else {
+-    send_deflated_token(f, token, buf, offset, n, toklen);
+-  }
++	if (!do_compression) {
++		simple_send_token(f,token,buf,offset,n);
++	} else {
++		send_deflated_token(f, token, buf, offset, n, toklen);
++	}
+ }
+ 
+ 
+ /*
+  * receive a token or buffer from the other end. If the reurn value is >0 then
+  * it is a data buffer of that length, and *data will point at the data.
+  * if the return value is -i then it represents token i-1
+  * if the return value is 0 then the end has been reached
+  */
+ int recv_token(int f,char **data)
+ {
+-  int tok;
++	int tok;
+ 
+-  if (!do_compression) {
+-    tok = simple_recv_token(f,data);
+-  } else {
+-    tok = recv_deflated_token(f, data);
+-  }
+-  return tok;
++	if (!do_compression) {
++		tok = simple_recv_token(f,data);
++	} else {
++		tok = recv_deflated_token(f, data);
++	}
++	return tok;
+ }
+ 
+ /*
+  * look at the data corresponding to a token, if necessary
+  */
+ void see_token(char *data, int toklen)
+ {
+-    if (do_compression)
+-	see_deflate_token(data, toklen);
++	if (do_compression)
++		see_deflate_token(data, toklen);
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/util.c	1998-05-18 22:30:21.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/util.c	1998-05-22 22:05:14.000000000 +0800
+@@ -31,49 +31,84 @@
+   return(len);
+ }
+ 
+ 
+ struct map_struct *map_file(int fd,OFF_T len)
+ {
+-  struct map_struct *ret;
+-  ret = (struct map_struct *)malloc(sizeof(*ret));
+-  if (!ret) out_of_memory("map_file");
+-
+-  ret->map = NULL;
+-  ret->fd = fd;
+-  ret->size = len;
+-  ret->p = NULL;
+-  ret->p_size = 0;
+-  ret->p_offset = 0;
+-  ret->p_len = 0;
++	struct map_struct *ret;
++	ret = (struct map_struct *)malloc(sizeof(*ret));
++	if (!ret) out_of_memory("map_file");
++
++	ret->map = NULL;
++	ret->fd = fd;
++	ret->size = len;
++	ret->p = NULL;
++	ret->p_size = 0;
++	ret->p_offset = 0;
++	ret->p_len = 0;
+ 
+ #ifdef HAVE_MMAP
+-  if (len < MAX_MAP_SIZE) {
+-	  ret->map = (char *)mmap(NULL,len,PROT_READ,MAP_SHARED,fd,0);
+-	  if (ret->map == (char *)-1) {
+-		  ret->map = NULL;
+-	  }
+-  }
++	len = MIN(len, MAX_MAP_SIZE);
++	ret->map = (char *)do_mmap(NULL,len,PROT_READ,MAP_SHARED,fd,0);
++	if (ret->map == (char *)-1) {
++		ret->map = NULL;
++	} else {
++		ret->p_len = len;
++	}
+ #endif
+-  return ret;
++	return ret;
+ }
+ 
+ 
+ char *map_ptr(struct map_struct *map,OFF_T offset,int len)
+ {
+ 	int nread;
+ 
+-	if (map->map)
+-		return map->map+offset;
+-
+ 	if (len == 0) 
+ 		return NULL;
+ 
+ 	if (len > (map->size-offset))
+ 		len = map->size-offset;
+ 
++#ifdef HAVE_MMAP
++	if (map->map) {
++		if (offset >= map->p_offset && 
++		    offset+len <= map->p_offset+map->p_len) {
++			return (map->map + (offset - map->p_offset));
++		}
++		if (munmap(map->map, map->p_len) != 0) {
++			rprintf(FERROR,"munmap failed : %s\n", strerror(errno));
++			exit_cleanup(1);
++		}
++
++		/* align the mmap region on a nice boundary back a bit from
++		   where it is asked for to allow for some seeking */
++		if (offset > 2*CHUNK_SIZE) {
++			map->p_offset = offset - 2*CHUNK_SIZE;
++			map->p_offset &= ~((OFF_T)(CHUNK_SIZE-1));
++		} else {
++			map->p_offset = 0;
++		}
++		
++		/* map up to MAX_MAP_SIZE */
++		map->p_len = MAX(len, MAX_MAP_SIZE);
++		map->p_len = MIN(map->p_len, map->size - map->p_offset);
++
++		map->map = (char *)do_mmap(NULL,map->p_len,PROT_READ,
++					   MAP_SHARED,map->fd,map->p_offset);
++
++		if (map->map == (char *)-1) {
++			map->map = NULL;
++			map->p_len = 0;
++			map->p_offset = 0;
++		} else {
++			return (map->map + (offset - map->p_offset));
++		}
++	}
++#endif
++
+ 	if (offset >= map->p_offset && 
+ 	    offset+len <= map->p_offset+map->p_len) {
+ 		return (map->p + (offset - map->p_offset));
+ 	}
+ 
+ 	len = MAX(len,CHUNK_SIZE);
+@@ -106,17 +141,23 @@
+ }
+ 
+ 
+ void unmap_file(struct map_struct *map)
+ {
+ #ifdef HAVE_MMAP
+-  if (map->map)
+-    munmap(map->map,map->size);
++	if (map->map) {
++		munmap(map->map,map->p_len);
++		map->map = NULL;
++	}
+ #endif
+-  if (map->p) free(map->p);
+-  free(map);
++	if (map->p) {
++		free(map->p);
++		map->p = NULL;
++	}
++	memset(map, 0, sizeof(*map));
++	free(map);
+ }
+ 
+ 
+ /* this is taken from CVS */
+ int piped_child(char **command,int *f_in,int *f_out)
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.10/version.h	1998-05-18 22:30:22.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/version.h	1998-05-22 22:23:05.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.10"
++#define VERSION "2.0.11"
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11: zlib

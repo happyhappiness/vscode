@@ -1,0 +1,1 @@
+fprintf(FERROR,"Failed to close : %s\n",strerror(errno));

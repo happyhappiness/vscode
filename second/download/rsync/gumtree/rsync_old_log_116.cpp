@@ -1,0 +1,1 @@
+fprintf(stderr,"readlink %s : %s\n",fname,strerror(errno));

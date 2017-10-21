@@ -1,0 +1,1 @@
+fprintf(stderr,"map_file failed : %s\n",strerror(errno));

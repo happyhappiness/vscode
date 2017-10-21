@@ -1,0 +1,1 @@
+fprintf(FINFO,"deleting in %s\n", name);

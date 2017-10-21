@@ -1,0 +1,595 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/flist.c	1996-06-20 14:52:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/flist.c	1996-06-20 20:42:26.000000000 +0800
+@@ -25,12 +25,13 @@
+ extern int am_server;
+ extern int always_checksum;
+ extern off_t total_size;
+ 
+ extern int cvs_exclude;
+ 
++extern int one_file_system;
+ extern int make_backups;
+ extern int preserve_links;
+ extern int preserve_perms;
+ extern int preserve_devices;
+ extern int preserve_uid;
+ extern int preserve_gid;
+@@ -46,12 +47,23 @@
+ {
+   if (check_exclude(fname,local_exclude_list)) 
+     return 0;
+   return 1;
+ }
+ 
++/* used by the one_file_system code */
++static dev_t filesystem_dev;
++
++static void set_filesystem(char *fname)
++{
++  struct stat st;
++  if (lstat(fname,&st) != 0) return;
++  filesystem_dev = st.st_dev;
++}
++
++
+ static void send_directory(int f,struct file_list *flist,char *dir);
+ 
+ static char *flist_dir = NULL;
+ 
+ static void send_file_entry(struct file_struct *file,int f)
+ {
+@@ -101,12 +113,15 @@
+ 
+   if (S_ISDIR(st.st_mode) && !recurse) {
+     fprintf(stderr,"skipping directory %s\n",fname);
+     return NULL;
+   }
+ 
++  if (one_file_system && st.st_dev != filesystem_dev)
++    return NULL;
++
+   if (!match_file_name(fname,&st))
+     return NULL;
+ 
+   if (verbose > 2)
+     fprintf(stderr,"make_file(%s)\n",fname);
+ 
+@@ -153,26 +169,27 @@
+ 			   int recurse,char *fname)
+ {
+   struct file_struct *file;
+ 
+   file = make_file(recurse,fname);
+ 
+-  if (!file) return;
++  if (!file) return;  
+   
+   if (flist->count >= flist->malloced) {
+     flist->malloced += 100;
+     flist->files = (struct file_struct *)realloc(flist->files,
+ 						 sizeof(flist->files[0])*
+ 						 flist->malloced);
+     if (!flist->files)
+       out_of_memory("send_file_name");
+   }
+ 
+-  flist->files[flist->count++] = *file;    
+-
+-  send_file_entry(file,f);
++  if (strcmp(file->name,".") && strcmp(file->name,"/")) {
++    flist->files[flist->count++] = *file;    
++    send_file_entry(file,f);
++  }
+ 
+   if (S_ISDIR(file->mode) && recurse) {
+     char **last_exclude_list = local_exclude_list;
+     send_directory(f,flist,file->name);
+     local_exclude_list = last_exclude_list;
+     return;
+@@ -278,21 +295,25 @@
+       }
+       if (chdir(dir) != 0) {
+ 	fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+ 	continue;
+       }
+       flist_dir = dir;
++      if (one_file_system)
++	set_filesystem(fname);
+       send_file_name(f,flist,recurse,fname);
+       flist_dir = NULL;
+       if (chdir(dbuf) != 0) {
+ 	fprintf(stderr,"chdir %s : %s\n",dbuf,strerror(errno));
+ 	exit(1);
+       }
+       continue;
+     }
+ 
++    if (one_file_system)
++      set_filesystem(fname);
+     send_file_name(f,flist,recurse,fname);
+   }
+ 
+   if (f != -1) {
+     write_int(f,0);
+     write_flush(f);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/main.c	1996-06-20 14:52:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/main.c	1996-06-20 20:54:25.000000000 +0800
+@@ -37,12 +37,13 @@
+ int update_only = 0;
+ int cvs_exclude = 0;
+ int dry_run=0;
+ int local_server=0;
+ int ignore_times=0;
+ int delete_mode=0;
++int one_file_system=0;
+ 
+ int am_server = 0;
+ static int sender = 0;
+ int recurse = 0;
+ 
+ static void usage(FILE *f);
+@@ -118,12 +119,14 @@
+   if (always_checksum)
+     argstr[x++] = 'c';
+   if (cvs_exclude)
+     argstr[x++] = 'C';
+   if (ignore_times)
+     argstr[x++] = 'I';
++  if (one_file_system)
++    argstr[x++] = 'x';
+   argstr[x] = 0;
+ 
+   if (x != 1) args[ac++] = argstr;
+ 
+   if (block_size != BLOCK_SIZE) {
+     sprintf(bsize,"-B%d",block_size);
+@@ -297,12 +300,15 @@
+     if (chdir(dir) != 0) {
+       fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+       exit(1);
+     }    
+   }
+ 
++  if (delete_mode)
++    recv_exclude_list(STDIN_FILENO);
++
+   flist = recv_file_list(STDIN_FILENO);
+   if (!flist || flist->count == 0) {
+     fprintf(stderr,"nothing to do\n");
+     exit(1);
+   }
+ 
+@@ -345,12 +351,13 @@
+   fprintf(f,"-p, --perms              preserve permissions\n");
+   fprintf(f,"-o, --owner              preserve owner (root only)\n");
+   fprintf(f,"-g, --group              preserve group\n");
+   fprintf(f,"-D, --devices            preserve devices (root only)\n");
+   fprintf(f,"-t, --times              preserve times\n");  
+   fprintf(f,"-n, --dry-run            show what would have been transferred\n");
++  fprintf(f,"-x, --one-file-system    don't cross filesystem boundaries\n");
+   fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");  
+   fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
+   fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");
+   fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
+   fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");
+   fprintf(f,"    --exclude FILE       exclude file FILE\n");
+@@ -363,21 +370,22 @@
+   fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);  
+ }
+ 
+ enum {OPT_VERSION,OPT_SUFFIX,OPT_SENDER,OPT_SERVER,OPT_EXCLUDE,
+       OPT_EXCLUDE_FROM,OPT_DELETE};
+ 
+-static char *short_options = "oblpguDCtcahvrIne:B:";
++static char *short_options = "oblpguDCtcahvrIxne:B:";
+ 
+ static struct option long_options[] = {
+   {"version",     0,     0,    OPT_VERSION},
+   {"server",      0,     0,    OPT_SERVER},
+   {"sender",      0,     0,    OPT_SENDER},
+   {"delete",      0,     0,    OPT_DELETE},
+   {"exclude",     1,     0,    OPT_EXCLUDE},
+   {"exclude-from",1,     0,    OPT_EXCLUDE_FROM},
++  {"one-file-system",0,  0,    'x'},
+   {"ignore-times",0,     0,    'I'},
+   {"help",        0,     0,    'h'},
+   {"dry-run",     0,     0,    'n'},
+   {"cvs-exclude", 0,     0,    'C'},
+   {"archive",     0,     0,    'a'},
+   {"checksum",    0,     0,    'c'},
+@@ -427,12 +435,16 @@
+ 	  exit(0);
+ 
+ 	case 'I':
+ 	  ignore_times = 1;
+ 	  break;
+ 
++	case 'x':
++	  one_file_system=1;
++	  break;
++
+ 	case OPT_DELETE:
+ 	  delete_mode = 1;
+ 	  break;
+ 
+ 	case OPT_EXCLUDE:
+ 	  add_exclude(optarg);
+@@ -652,12 +664,14 @@
+       fprintf(stderr,"parent=%d child=%d sender=%d recurse=%d\n",
+ 	      (int)getpid(),pid,sender,recurse);
+ 
+     if (sender) {
+       if (cvs_exclude)
+ 	add_cvs_excludes();
++      if (delete_mode) 
++	send_exclude_list(f_out);
+       flist = send_file_list(f_out,recurse,argc,argv);
+       if (verbose > 3) 
+ 	fprintf(stderr,"file list sent\n");
+       send_files(flist,f_out,f_in);
+       if (verbose > 3)
+ 	fprintf(stderr,"waiting on %d\n",pid);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/proto.h	1996-06-20 14:52:59.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/proto.h	1996-06-20 20:42:26.000000000 +0800
+@@ -32,8 +32,9 @@
+ void write_flush(int f);
+ int readfd(int fd,char *buffer,int N);
+ int read_int(int f);
+ void read_buf(int f,char *buf,int len);
+ char *map_file(int fd,off_t len);
+ void unmap_file(char *buf,off_t len);
++int read_write(int fd_in,int fd_out,int size);
+ int piped_child(char **command,int *f_in,int *f_out);
+ void out_of_memory(char *str);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/README /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/README
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/README	1996-06-18 19:40:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/README	1996-06-20 20:59:41.000000000 +0800
+@@ -1,31 +1,54 @@
+-This is a preliminary release of rsync. 
++WHAT IS RSYNC?
++--------------
+ 
+-rsync is a package that provides a very fast method for bringing
+-remote files into sync. It does this by sending just the differences
+-in the files across the link, without requiring that both sets of
+-files are present at one of the ends of the link beforehand.
++rsync is a replacement for rcp that has many more features.
+ 
++rsyns uses the "rsync algorithm" which provides a very fast method for
++bringing remote files into sync. It does this by sending just the
++differences in the files across the link, without requiring that both
++sets of files are present at one of the ends of the link beforehand.
+ At first glance this may seem impossible because the calculation of
+ diffs between two files normally requires local access to both
+ files. 
+ 
+ A technical report describing the rsync algorithm is included with
+ this package.
+ 
+-The interface to rsync is very similar to rcp, but it also includes
+-many options found in GNU tar and GNU cp, making it much more flexible
+-and powerful.
+-
+ 
+ USAGE
+ -----
+ 
+-See the man page, or just use it like rcp.
++Basically you use rsync just like rcp, but rsync has many additional options.
++
++Here is a brief description of available options:
++
++-v, --verbose            increase verbosity
++-c, --checksum           always checksum
++-a, --archive            archive mode (same as -rlptDog)
++-r, --recursive          recurse into directories
++-b, --backup             make backups (default ~ extension)
++-u, --update             update only (don't overwrite newer files)
++-l, --links              preserve soft links
++-p, --perms              preserve permissions
++-o, --owner              preserve owner (root only)
++-g, --group              preserve group
++-D, --devices            preserve devices (root only)
++-t, --times              preserve times
++-n, --dry-run            show what would have been transferred
++-x, --one-file-system    don't cross filesystem boundaries
++-B, --block-size SIZE    checksum blocking size
++-e, --rsh COMMAND        specify rsh replacement
++-C, --cvs-exclude        auto ignore files in the same way CVS does
++    --delete             delete files that don't exist on the sending side
++-I, --ignore-times       don't exclude files that match length and time
++    --exclude FILE       exclude file FILE
++    --exclude-from FILE  exclude files listed in FILE
++    --suffix SUFFIX      override backup suffix
++    --version            print version number
+ 
+-You should also try "rsync -h" for brief help on the extended options.
+ 
+ 
+ SETUP
+ -----
+ 
+ Rsync uses rsh or ssh for communication. It does not need to be setuid
+@@ -33,14 +56,16 @@
+ require a inetd entry or a daemon. You must, however, have a working
+ rsh or ssh system. Using ssh is recommended for its security and
+ compression features.
+ 
+ To install rsync, first run the "configure" script. This will create a
+ Makefile and config.h appropriate for your system. Then type
+-"make". Once built put a copy of rsync in your search path on the
+-local and remote systems (or use "make install"). That's it!
++"make". 
++
++Once built put a copy of rsync in your search path on the local and
++remote systems (or use "make install"). That's it!
+ 
+ 
+ COPYRIGHT
+ ---------
+ 
+ Rsync was written by Andrew Tridgell and Paul Mackerras, and is
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/rsync.1	1996-06-20 15:40:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/rsync.1	1996-06-20 20:54:25.000000000 +0800
+@@ -182,25 +182,24 @@
+ .B -n, --dry-run
+ .RS 3
+ This tells rsync to not do any file transfers, instead it will just
+ report the actions it would have taken.
+ .RE
+ 
++.B -x, --one-file-system
++.RS 3
++This tells rsync not to cross filesystem boundaries when
++recursing. This is useful for transferring the contents of only one
++filesystem.
++.RE
++
+ .B --delete
+ .RS 3
+ This tells rsync to delete any files on the receiving side that aren't
+ on the sending side. This option can be dangerous if used incorrectly!
+ 
+-It does not delete directories that are only present on the receiving
+-side. 
+-
+-The "cvs-exclude" option applies to files on the receiving side, so
+-they won't be deleted if they are matched. The "exclude" and
+-"exclude-from" options only apply if the receiving side is also the
+-side that launched the rsync process.
+-
+ It may be a good idea to run first using the dry run option to see
+ what files would be deleted to make sure important files aren't
+ listed.
+ 
+ NOTE: It also may delete files if the sending side can't open them or stat
+ them. This is a bug that hopefully will be fixed in a future release.
+@@ -284,13 +283,13 @@
+ values
+ 
+ see also the comments on the -delete option 
+ 
+ .SH VERSION
+ 
+-This man page is current for version 0.7 of rsync
++This man page is current for version 0.8 of rsync
+ 
+ .SH CREDITS
+ 
+ rsync was written by Andrew Tridgell and Paul Mackerras. They may be
+ contacted via email at Andrew.Tridgell@anu.edu.au and
+ paulus@cs.anu.edu.au
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/rsync.c	1996-06-20 15:40:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/rsync.c	1996-06-20 20:54:25.000000000 +0800
+@@ -392,82 +392,90 @@
+ 
+   free_sums(s);
+ }
+ 
+ 
+ 
+-static void receive_data(int f_in,char *buf,int fd)
++static void receive_data(int f_in,char *buf,int fd,char *fname)
+ {
+   int i,n,remainder,len,count;
+-  int size = 0;
+-  char *buf2=NULL;
+   off_t offset = 0;
+   off_t offset2;
+ 
+   count = read_int(f_in);
+   n = read_int(f_in);
+   remainder = read_int(f_in);
+ 
+   for (i=read_int(f_in); i != 0; i=read_int(f_in)) {
+     if (i > 0) {
+-      if (i > size) {
+-	if (buf2) free(buf2);
+-	buf2 = (char *)malloc(i);
+-	size = i;
+-	if (!buf2) out_of_memory("receive_data");
+-      }
+-
+       if (verbose > 3)
+ 	fprintf(stderr,"data recv %d at %d\n",i,(int)offset);
+ 
+-      read_buf(f_in,buf2,i);
+-      write(fd,buf2,i);
++      if (read_write(f_in,fd,i) != i) {
++	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
++	exit(1);
++      }
+       offset += i;
+     } else {
+       i = -(i+1);
+       offset2 = i*n;
+       len = n;
+       if (i == count-1 && remainder != 0)
+ 	len = remainder;
+ 
+       if (verbose > 3)
+ 	fprintf(stderr,"chunk[%d] of size %d at %d offset=%d\n",
+ 		i,len,(int)offset2,(int)offset);
+ 
+-      write(fd,buf+offset2,len);
++      if (write(fd,buf+offset2,len) != len) {
++	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
++	exit(1);
++      }
+       offset += len;
+     }
+   }
+-  if (buf2) free(buf2);
++}
++
++
++static void delete_one(struct file_struct *f)
++{
++  if (!S_ISDIR(f->mode)) {
++    if (!dry_run && unlink(f->name) != 0) {
++      fprintf(stderr,"unlink %s : %s\n",f->name,strerror(errno));
++    } else if (verbose) {
++      fprintf(stderr,"deleting %s\n",f->name);
++    }
++  } else {    
++    if (!dry_run && rmdir(f->name) != 0) {
++      if (errno != ENOTEMPTY)
++	fprintf(stderr,"rmdir %s : %s\n",f->name,strerror(errno));
++    } else if (verbose) {
++      fprintf(stderr,"deleting directory %s\n",f->name);      
++    }
++  }
+ }
+ 
+ 
+ static void delete_files(struct file_list *flist)
+ {
+   struct file_list *local_file_list;
+   char *dot=".";
+   int i;
+ 
+   if (!(local_file_list = send_file_list(-1,recurse,1,&dot)))
+     return;
+ 
+-  for (i=0;i<local_file_list->count;i++) {
++  for (i=local_file_list->count;i>=0;i--) {
+     if (!local_file_list->files[i].name) continue;
+-    if (S_ISDIR(local_file_list->files[i].mode)) continue;
+     if (-1 == flist_find(flist,&local_file_list->files[i])) {
+-      if (verbose)
+-	fprintf(stderr,"deleting %s\n",local_file_list->files[i].name);
+-      if (!dry_run) {
+-	if (unlink(local_file_list->files[i].name) != 0)
+-	  fprintf(stderr,"unlink %s : %s\n",
+-		  local_file_list->files[i].name,strerror(errno));
+-      }
++      delete_one(&local_file_list->files[i]);
+     }    
+   }
+ }
+ 
++
+ int recv_files(int f_in,struct file_list *flist,char *local_name)
+ {  
+   int fd1,fd2;
+   struct stat st;
+   char *fname;
+   char fnametmp[MAXPATHLEN];
+@@ -475,14 +483,12 @@
+   int i;
+ 
+   if (verbose > 2)
+     fprintf(stderr,"recv_files(%d) starting\n",flist->count);
+ 
+   if (recurse && delete_mode && !local_name && flist->count>0) {
+-    if (cvs_exclude)
+-      add_cvs_excludes();
+     delete_files(flist);
+   }
+ 
+   while (1) 
+     {
+       i = read_int(f_in);
+@@ -547,13 +553,13 @@
+       }
+ 
+       if (!am_server && verbose)
+ 	printf("%s\n",fname);
+ 
+       /* recv file data */
+-      receive_data(f_in,buf,fd2);
++      receive_data(f_in,buf,fd2,fname);
+ 
+       close(fd1);
+       close(fd2);
+ 
+       if (verbose > 2)
+ 	fprintf(stderr,"renaming %s to %s\n",fnametmp,fname);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/rsync.h	1996-06-20 14:53:00.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/rsync.h	1996-06-20 20:42:27.000000000 +0800
+@@ -23,12 +23,15 @@
+ #define RSYNC_NAME "rsync"
+ #define BACKUP_SUFFIX "~"
+ 
+ /* update this if you make incompatible changes */
+ #define PROTOCOL_VERSION 9
+ 
++/* block size to write files in */
++#define WRITE_BLOCK_SIZE (32*1024)
++
+ #include "config.h"
+ 
+ #include <sys/types.h>
+ #ifdef HAVE_UNISTD_H
+ #include <unistd.h>
+ #endif
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/util.c	1996-06-16 08:11:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/util.c	1996-06-20 20:42:27.000000000 +0800
+@@ -114,12 +114,34 @@
+ {
+   if (len > 0)
+     munmap(buf,len);
+ }
+ 
+ 
++int read_write(int fd_in,int fd_out,int size)
++{
++  static char *buf=NULL;
++  static int bufsize = WRITE_BLOCK_SIZE;
++  int total=0;
++  
++  if (!buf) {
++    buf = (char *)malloc(bufsize);
++    if (!buf) out_of_memory("read_write");
++  }
++
++  while (total < size) {
++    int n = MIN(size-total,bufsize);
++    read_buf(fd_in,buf,n);
++    if (write(fd_out,buf,n) != n)
++      return total;
++    total += n;
++  }
++  return total;
++}
++
++
+ /* this is taken from CVS */
+ int piped_child(char **command,int *f_in,int *f_out)
+ {
+   int pid;
+   int to_child_pipe[2];
+   int from_child_pipe[2];
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.7/version.h	1996-06-20 14:54:12.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-0.8/version.h	1996-06-20 20:42:27.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "0.7"
++#define VERSION "0.8"

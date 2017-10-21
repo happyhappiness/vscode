@@ -1,0 +1,1 @@
+fprintf(stderr,"data recv %d at %d\n",i,(int)offset);

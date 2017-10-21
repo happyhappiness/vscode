@@ -1,0 +1,1 @@
+fprintf(stderr,"write_buf failed : %s\n",strerror(errno));

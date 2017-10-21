@@ -1,0 +1,1 @@
+fprintf(F," -f, --fake-super            display attributes including fake-super xattrs\n");

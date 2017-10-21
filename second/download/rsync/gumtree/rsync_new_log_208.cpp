@@ -1,0 +1,1 @@
+fprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));

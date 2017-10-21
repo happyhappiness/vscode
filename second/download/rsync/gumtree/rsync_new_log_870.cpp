@@ -1,0 +1,1 @@
+fprintf(F,"usage: " PROGRAM " [OPTIONS] FILE ...\n");

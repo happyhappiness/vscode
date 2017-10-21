@@ -1,0 +1,498 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/clientserver.c	1998-05-18 18:30:43.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/clientserver.c	1998-05-26 22:43:42.000000000 +0800
+@@ -118,12 +118,13 @@
+ 	char *name = lp_name(i);
+ 	char *user;
+ 	int start_glob=0;
+ 	char *request=NULL;
+ 	extern int am_sender;
+ 	extern int remote_version;
++	extern int am_root;
+ 
+ 	if (!allow_access(addr, host, lp_hosts_allow(i), lp_hosts_deny(i))) {
+ 		rprintf(FERROR,"rsync denied on module %s from %s (%s)\n",
+ 			name, client_name(fd), client_addr(fd));
+ 		io_printf(fd,"@ERROR: access denied to %s from %s (%s)\n",
+ 			  name, client_name(fd), client_addr(fd));
+@@ -201,12 +202,14 @@
+ 	if (setuid(uid) || getuid() != uid) {
+ 		rprintf(FERROR,"setuid %d failed\n", uid);
+ 		io_printf(fd,"@ERROR: setuid failed\n");
+ 		return -1;
+ 	}
+ 
++	am_root = (getuid() == 0);
++
+ 	io_printf(fd,"@RSYNCD: OK\n");
+ 
+ 	argv[argc++] = "rsyncd";
+ 
+ 	while (1) {
+ 		if (!read_line(fd, line, sizeof(line)-1)) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/config.h.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/config.h.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/config.h.in	1998-05-22 22:22:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/config.h.in	1998-05-26 22:43:42.000000000 +0800
+@@ -100,12 +100,15 @@
+ /* Define if you have the mknod function.  */
+ #undef HAVE_MKNOD
+ 
+ /* Define if you have the mmap function.  */
+ #undef HAVE_MMAP
+ 
++/* Define if you have the munmap function.  */
++#undef HAVE_MUNMAP
++
+ /* Define if you have the readlink function.  */
+ #undef HAVE_READLINK
+ 
+ /* Define if you have the setlinebuf function.  */
+ #undef HAVE_SETLINEBUF
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/configure /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/configure
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/configure	1998-05-22 22:22:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/configure	1998-05-26 22:43:42.000000000 +0800
+@@ -1828,13 +1828,13 @@
+   cat >> confdefs.h <<\EOF
+ #define HAVE_UTIME_NULL 1
+ EOF
+ 
+ fi
+ 
+-for ac_func in mmap waitpid getcwd strdup strerror chown chmod mknod
++for ac_func in mmap munmap waitpid getcwd strdup strerror chown chmod mknod
+ do
+ echo $ac_n "checking for $ac_func""... $ac_c" 1>&6
+ echo "configure:1838: checking for $ac_func" >&5
+ if eval "test \"`echo '$''{'ac_cv_func_$ac_func'+set}'`\" = set"; then
+   echo $ac_n "(cached) $ac_c" 1>&6
+ else
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/configure.in	1998-05-22 22:22:55.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/configure.in	1998-05-26 22:43:42.000000000 +0800
+@@ -36,13 +36,13 @@
+ AC_TRY_COMPILE([#include <errno.h>],[int i = errno],
+ echo yes; AC_DEFINE(HAVE_ERRNO_DECL),
+ echo no)
+ 
+ AC_FUNC_MEMCMP
+ AC_FUNC_UTIME_NULL
+-AC_CHECK_FUNCS(mmap waitpid getcwd strdup strerror chown chmod mknod)
++AC_CHECK_FUNCS(mmap munmap waitpid getcwd strdup strerror chown chmod mknod)
+ AC_CHECK_FUNCS(fchmod fstat strchr bcopy bzero readlink link utime utimes)
+ AC_CHECK_FUNCS(memmove getopt_long lchown setlinebuf vsnprintf setsid glob)
+ 
+ echo $ac_n "checking for working fnmatch... $ac_c"
+ AC_TRY_RUN([#include <fnmatch.h>
+ main() { exit(fnmatch("*.o", "x.o", 0) == 0? 0: 1); }],
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/cvs.log /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/cvs.log
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/cvs.log	1998-05-22 22:23:13.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/cvs.log	1998-05-26 22:46:38.000000000 +0800
+@@ -4838,6 +4838,126 @@
+ Modified Files:
+ 	config.h.in configure configure.in 
+ Log Message:
+ need strchr check in configure.in
+ 
+ 
++
++****************************************
++Date:	Saturday May 23, 1998 @ 13:13
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv25715
++
++Modified Files:
++	flist.c 
++Log Message:
++don't treat intermediate link directories as links in the relative
++path code
++
++
++
++****************************************
++Date:	Saturday May 23, 1998 @ 15:57
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv4273
++
++Modified Files:
++	clientserver.c rsync.c 
++Log Message:
++- don't allow chown for the group of a file if running as a daemon and
++  uid!=0
++
++- reset am_root after startup as a daemon
++
++
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 0:16
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv18848
++
++Modified Files:
++	flist.c 
++Log Message:
++error formatting changes
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 0:17
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv28164
++
++Modified Files:
++	main.c 
++Log Message:
++formatting changes
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 0:19
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv22024
++
++Modified Files:
++	config.h.in configure configure.in rsync.h syscall.c util.c 
++Log Message:
++check for munmap as well as mmap. NextStep only has mmap in standard
++libs
++
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 0:39
++Author:	tridge
++
++Update of /data/cvs/rsync
++In directory samba:/tmp/cvs-serv2568
++
++Modified Files:
++	flist.c 
++Log Message:
++fixed a bug in the handling of very long filenames (longer than 255
++chars) where two neighboring filenames share more than 255 characters
++at the start of their names.
++
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 0:45
++Author:	rsync-bu
++
++Update of /data/cvs/rsync
++In directory samba:/data/people/rsync-bugs/rsync
++
++Modified Files:
++	version.h 
++Log Message:
++preparing for release of 2.0.12
++
++
++****************************************
++Date:	Wednesday May 27, 1998 @ 0:45
++Author:	rsync-bu
++
++Update of /data/cvs/rsync/packaging/redhat/5.0
++In directory samba:/data/people/rsync-bugs/rsync/packaging/redhat/5.0
++
++Modified Files:
++	rsync.spec 
++Log Message:
++preparing for release of 2.0.12
++
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/flist.c	1998-05-18 22:30:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/flist.c	1998-05-26 22:43:42.000000000 +0800
+@@ -160,13 +160,13 @@
+   if (file->mode == last_mode) flags |= SAME_MODE;
+   if (file->rdev == last_rdev) flags |= SAME_RDEV;
+   if (file->uid == last_uid) flags |= SAME_UID;
+   if (file->gid == last_gid) flags |= SAME_GID;
+   if (file->modtime == last_time) flags |= SAME_TIME;
+ 
+-  for (l1=0;lastname[l1] && fname[l1] == lastname[l1];l1++) ;
++  for (l1=0;lastname[l1] && (fname[l1] == lastname[l1]) && (l1 < 255);l1++) ;  
+   l2 = strlen(fname) - l1;
+ 
+   if (l1 > 0) flags |= SAME_NAME;
+   if (l2 > 255) flags |= LONG_NAME;
+ 
+   write_byte(f,flags);  
+@@ -510,13 +510,13 @@
+ 	int l;
+ 	char *p;
+ 
+ 	d = opendir(dir);
+ 	if (!d) {
+ 		io_error = 1;
+-		rprintf(FERROR,"%s: %s\n",
++		rprintf(FERROR,"opendir(%s): %s\n",
+ 			dir,strerror(errno));
+ 		return;
+ 	}
+ 
+ 	strlcpy(fname,dir,MAXPATHLEN-1);
+ 	l = strlen(fname);
+@@ -622,14 +622,17 @@
+ 			   thus getting their permissions right */
+ 			*p = 0;
+ 			if (strcmp(lastpath,fname)) {
+ 				strlcpy(lastpath, fname, sizeof(lastpath)-1);
+ 				*p = '/';
+ 				for (p=fname+1; (p=strchr(p,'/')); p++) {
++					int copy_links_saved = copy_links;
+ 					*p = 0;
++					copy_links = 0;
+ 					send_file_name(f, flist, fname, 0, 0);
++					copy_links = copy_links_saved;
+ 					*p = '/';
+ 				}
+ 			} else {
+ 				*p = '/';
+ 			}
+ 		}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/main.c	1998-05-18 22:30:20.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/main.c	1998-05-26 22:43:43.000000000 +0800
+@@ -145,46 +145,47 @@
+ 
+ static char *get_local_name(struct file_list *flist,char *name)
+ {
+ 	STRUCT_STAT st;
+ 	extern int orig_umask;
+ 
+-  if (do_stat(name,&st) == 0) {
+-    if (S_ISDIR(st.st_mode)) {
+-      if (chdir(name) != 0) {
+-	rprintf(FERROR,"chdir %s : %s (1)\n",name,strerror(errno));
+-	exit_cleanup(1);
+-      }
+-      return NULL;
+-    }
+-    if (flist->count > 1) {
+-      rprintf(FERROR,"ERROR: destination must be a directory when copying more than 1 file\n");
+-      exit_cleanup(1);
+-    }
+-    return name;
+-  }
+-
+-  if (flist->count == 1)
+-    return name;
+-
+-  if (!name) 
+-    return NULL;
+-
+-  if (do_mkdir(name,0777 & ~orig_umask) != 0) {
+-    rprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));
+-    exit_cleanup(1);
+-  } else {
+-    rprintf(FINFO,"created directory %s\n",name);
+-  }
+-
+-  if (chdir(name) != 0) {
+-    rprintf(FERROR,"chdir %s : %s (2)\n",name,strerror(errno));
+-    exit_cleanup(1);
+-  }
++	if (do_stat(name,&st) == 0) {
++		if (S_ISDIR(st.st_mode)) {
++			if (chdir(name) != 0) {
++				rprintf(FERROR,"chdir %s : %s (1)\n",
++					name,strerror(errno));
++				exit_cleanup(1);
++			}
++			return NULL;
++		}
++		if (flist->count > 1) {
++			rprintf(FERROR,"ERROR: destination must be a directory when copying more than 1 file\n");
++			exit_cleanup(1);
++		}
++		return name;
++	}
++
++	if (flist->count == 1)
++		return name;
++
++	if (!name) 
++		return NULL;
++
++	if (do_mkdir(name,0777 & ~orig_umask) != 0) {
++		rprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));
++		exit_cleanup(1);
++	} else {
++		rprintf(FINFO,"created directory %s\n",name);
++	}
++
++	if (chdir(name) != 0) {
++		rprintf(FERROR,"chdir %s : %s (2)\n",name,strerror(errno));
++		exit_cleanup(1);
++	}
+ 
+-  return NULL;
++	return NULL;
+ }
+ 
+ 
+ 
+ 
+ static void do_server_sender(int f_in, int f_out, int argc,char *argv[])
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/packaging/redhat/5.0/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/packaging/redhat/5.0/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/packaging/redhat/5.0/rsync.spec	1998-05-22 22:23:06.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/packaging/redhat/5.0/rsync.spec	1998-05-26 22:46:18.000000000 +0800
+@@ -1,13 +1,13 @@
+ Summary: Program for efficient remote updates of files.
+ Name: rsync
+-Version: 2.0.11
++Version: 2.0.12
+ Release: 1
+ Copyright: GPL
+ Group: Applications/Networking
+-Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.11.tar.gz
++Source:	ftp://samba.anu.edu.au/pub/rsync/rsync-2.0.12.tar.gz
+ URL: http://samba.anu.edu.au/rsync/
+ Packager: Andrew Tridgell <tridge@samba.anu.edu.au>
+ BuildRoot: /tmp/rsync
+ 
+ %description
+ rsync is a replacement for rcp that has many more features.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/rsync.c	1998-05-22 21:45:40.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.c	1998-05-26 22:43:43.000000000 +0800
+@@ -264,12 +264,13 @@
+ 
+ static int set_perms(char *fname,struct file_struct *file,STRUCT_STAT *st,
+ 		     int report)
+ {
+   int updated = 0;
+   STRUCT_STAT st2;
++  extern int am_daemon;
+ 
+   if (dry_run) return 0;
+ 
+   if (!st) {
+     if (link_stat(fname,&st2) != 0) {
+       rprintf(FERROR,"stat %s : %s\n",fname,strerror(errno));
+@@ -297,14 +298,15 @@
+ 	      fname,strerror(errno));
+       return 0;
+     }
+   }
+ #endif
+ 
+-  if ((am_root && preserve_uid && st->st_uid != file->uid) || 
+-      (preserve_gid && st->st_gid != file->gid)) {
++  if ((am_root || !am_daemon) &&
++      ((am_root && preserve_uid && st->st_uid != file->uid) || 
++       (preserve_gid && st->st_gid != file->gid))) {
+ 	  if (do_lchown(fname,
+ 			(am_root&&preserve_uid)?file->uid:-1,
+ 			preserve_gid?file->gid:-1) != 0) {
+ 		  if (preserve_uid && st->st_uid != file->uid)
+ 			  updated = 1;
+ 		  if (verbose>1 || preserve_uid)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/rsync.h	1998-05-22 21:45:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/rsync.h	1998-05-26 22:43:43.000000000 +0800
+@@ -139,14 +139,15 @@
+ #endif
+ #ifdef HAVE_GRP_H
+ #include <grp.h>
+ #endif
+ #include <errno.h>
+ 
+-#ifdef HAVE_MMAP
++#if defined(HAVE_MMAP) && defined(HAVE_MUNMAP)
+ #include <sys/mman.h>
++#define USE_MMAP 1
+ #endif
+ 
+ #ifdef HAVE_UTIME_H
+ #include <utime.h>
+ #endif
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/syscall.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/syscall.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/syscall.c	1998-05-22 21:45:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/syscall.c	1998-05-26 22:43:43.000000000 +0800
+@@ -146,13 +146,13 @@
+ 	return lseek64(fd, offset, whence);
+ #else
+ 	return lseek(fd, offset, whence);
+ #endif
+ }
+ 
+-#if HAVE_MMAP
++#ifdef USE_MMAP
+ void *do_mmap(void *start, int len, int prot, int flags, int fd, OFF_T offset)
+ {
+ #if HAVE_OFF64_T
+ 	return mmap64(start, len, prot, flags, fd, offset);
+ #else
+ 	return mmap(start, len, prot, flags, fd, offset);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/util.c	1998-05-22 22:05:14.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/util.c	1998-05-26 22:43:43.000000000 +0800
+@@ -43,13 +43,13 @@
+ 	ret->size = len;
+ 	ret->p = NULL;
+ 	ret->p_size = 0;
+ 	ret->p_offset = 0;
+ 	ret->p_len = 0;
+ 
+-#ifdef HAVE_MMAP
++#ifdef USE_MMAP
+ 	len = MIN(len, MAX_MAP_SIZE);
+ 	ret->map = (char *)do_mmap(NULL,len,PROT_READ,MAP_SHARED,fd,0);
+ 	if (ret->map == (char *)-1) {
+ 		ret->map = NULL;
+ 	} else {
+ 		ret->p_len = len;
+@@ -66,13 +66,13 @@
+ 	if (len == 0) 
+ 		return NULL;
+ 
+ 	if (len > (map->size-offset))
+ 		len = map->size-offset;
+ 
+-#ifdef HAVE_MMAP
++#ifdef USE_MMAP
+ 	if (map->map) {
+ 		if (offset >= map->p_offset && 
+ 		    offset+len <= map->p_offset+map->p_len) {
+ 			return (map->map + (offset - map->p_offset));
+ 		}
+ 		if (munmap(map->map, map->p_len) != 0) {
+@@ -140,13 +140,13 @@
+ 	return map->p; 
+ }
+ 
+ 
+ void unmap_file(struct map_struct *map)
+ {
+-#ifdef HAVE_MMAP
++#ifdef USE_MMAP
+ 	if (map->map) {
+ 		munmap(map->map,map->p_len);
+ 		map->map = NULL;
+ 	}
+ #endif
+ 	if (map->p) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/version.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/version.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.11/version.h	1998-05-22 22:23:05.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-2.0.12/version.h	1998-05-26 22:46:16.000000000 +0800
+@@ -1 +1 @@
+-#define VERSION "2.0.11"
++#define VERSION "2.0.12"

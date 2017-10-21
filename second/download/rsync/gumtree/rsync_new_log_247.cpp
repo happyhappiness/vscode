@@ -1,0 +1,1 @@
+fprintf(FERROR,"redoing %s(%d)\n",fname,i);

@@ -1,0 +1,1 @@
+fprintf(stderr,"-g       : preserve group\n");

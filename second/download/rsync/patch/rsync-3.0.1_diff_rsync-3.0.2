@@ -1,0 +1,628 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/configure.in	2008-04-04 13:37:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/configure.in	2008-04-08 23:16:05.000000000 +0800
+@@ -2,13 +2,13 @@
+ 
+ AC_INIT()
+ AC_CONFIG_SRCDIR([byteorder.h])
+ AC_CONFIG_HEADER(config.h)
+ AC_PREREQ(2.59)
+ 
+-RSYNC_VERSION=3.0.1
++RSYNC_VERSION=3.0.2
+ AC_SUBST(RSYNC_VERSION)
+ AC_MSG_NOTICE([Configuring rsync $RSYNC_VERSION])
+ 
+ AC_DEFINE_UNQUOTED(RSYNC_VERSION, ["$RSYNC_VERSION"], [rsync release version])
+ 
+ LDFLAGS=${LDFLAGS-""}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/configure.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/configure.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/configure.sh	2008-04-04 13:54:27.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/configure.sh	2008-04-08 23:17:43.000000000 +0800
+@@ -1728,13 +1728,13 @@
+ 
+ 
+ ac_config_headers="$ac_config_headers config.h"
+ 
+ 
+ 
+-RSYNC_VERSION=3.0.1
++RSYNC_VERSION=3.0.2
+ 
+ { echo "$as_me:$LINENO: Configuring rsync $RSYNC_VERSION" >&5
+ echo "$as_me: Configuring rsync $RSYNC_VERSION" >&6;}
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/NEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/NEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/NEWS	2008-04-04 13:37:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/NEWS	2008-04-08 23:16:05.000000000 +0800
+@@ -1,136 +1,18 @@
+-NEWS for rsync 3.0.1 (3 Apr 2008)
++NEWS for rsync 3.0.2 (8 Apr 2008)
+ Protocol: 30 (unchanged)
+-Changes since 3.0.0:
+-
+-  NOTABLE CHANGES IN BEHAVIOR:
+-
+-    - Added the 'c'-flag to the itemizing of non-regular files so that the
+-      itemized output doesn't get hidden if there were no attribute changes,
+-      and also so that the itemizing of a --copy-links run will distinguish
+-      between copying an identical non-regular file and the creation of a
+-      revised version with a new value (e.g. a changed symlink referent, a
+-      new device number, etc.).
++Changes since 3.0.1:
+ 
+   BUG FIXES:
+ 
+-    - Fixed a crash bug when a single-use rsync daemon (via remote shell) was
+-      run without specifying a --config=FILE option.
+-
+-    - Fixed a crash when backing up a directory that has a default ACL.
+-
+-    - Fixed a bug in the handling of xattr values that could cause rsync to
+-      not think that a file's extended attributes are up-to-date.
+-
+-    - Fixed the working of --fake-super with --link-dest and --xattrs.
+-
+-    - Fixed a hang when combining --dry-run with --remove-source-files.
+-
+-    - Fixed a bug with --iconv's handling of files that cannot be converted:
+-      a failed name can no longer cause a transfer failure.
+-
+-    - Fixed the building of the rounding.h file on systems that need custom
+-      CPPFLAGS to be used.  Also improved the error reporting if the building
+-      of rounding.h fails.
+-
+-    - Fixed the use of the --protect-args (-s) option when talking to a daemon.
+-
+-    - Fixed the --ignore-existing option's protection of files on the receiver
+-      that are non-regular files on the sender (e.g. if a symlink or a dir on
+-      the sender is trying to replace a file on the receiver).  The reverse
+-      protection (protecting a dir/symlink/device from being replaced by a
+-      file) was already working.
+-
+-    - Fixed an assert failure if --hard-links is combined with an option that
+-      can skip a file in a set of hard-linked files (i.e. --ignore-existing,
+-      --append, etc.), without skipping all the files in the set.
+-
+-    - Avoid setting the modify time on a directory that already has the right
+-      modify time set.  This avoids tweaking the dir's ctime.
+-
+-    - Improved the daemon-exclude handling to do a better job of applying the
+-      exclude rules to path entries.  It also sends the user an error just as
+-      if the files were actually missing (instead of silently ignoring the
+-      user's args), and avoids sending the user the filter-action messages
+-      for these non-user-initiated rules.
+-
+-    - Fixed some glitches with the dry-run code's missing-directory
+-      handling, including a problem when combined with --fuzzy.
+-
+-    - Fixed some glitches with the skipped-directory handling.
+-
+-    - Fixed the 'T'-flag itemizing of symlinks when --time isn't preserved.
+-
+-    - Fixed a glitch in the itemizing of permissions with the -E option.
+-
+-    - The --append option's restricting of transfers to those that add data no
+-      longer prevents the updating of non-content changes to otherwise up-to-
+-      date files (i.e. those with the same content but differing permissions,
+-      ownership, xattrs, etc.).
+-
+-    - Don't allow --fake-super to be specified with -XX (double --xattrs)
+-      because the options conflict.  If a daemon has "fake super" enabled,
+-      it automatically downgrades a -XX request to -X.
+-
+-    - Fixed a couple bugs in the parsing of daemon-config excludes that could
+-      make a floating exclude rule get treated as matching an absolute path.
+-
+-    - A daemon doesn't try to auto-refuse the "iconv" option if iconv-support
+-      wasn't compiled in to the daemon (avoiding a warning in the logs).
+-
+-    - Fixed the inclusion of per-dir merge files from implied dirs.
+-
+-    - Fixed the support/rrsync script to work with the latest options that
+-      rsync sends (including its flag-specifying use of -e to the server).
++    - Fixed a potential buffer overflow in the xattr code.
+ 
+   ENHANCEMENTS:
+ 
+-    - Added the --old-dirs (--old-d) option to make it easier for a user to
+-      ask for file-listings with older rsync versions (this is easier than
+-      having to type "-r --exclude='/*/*'" manually).
+-
+-    - When getting an error while asking an older rsync daemon for a file
+-      listing, rsync will try to notice if the error is a rejection of the
+-      --dirs (-d) option and let the user know how to work around the issue.
+-
+-    - Added a few more --no-OPTION overrides.
+-
+-    - Improved the documentation of the --append option.
+-
+-    - Improved the documentation of the filter/exclude/include daemon
+-      parameters.
+-
+-  INTERNAL:
+-
+-    - Fixed a couple minor bugs in the included popt library (ones which I
+-      sent to the official popt project for inclusion in the 1.14 release).
+-
+-    - Fixed a stat() call that should have been do_stat() so that the proper
+-      normal/64-bit stat() function gets called.  (Was in an area that should
+-      not have caused problems, though.)
+-
+-    - Changed the file-glob code to do a directory scan without using the
+-      "glob" and "glob.h".  This lets us do the globbing with less memory
+-      churn, and also avoid adding daemon-excluded items to the returned
+-      args.
++    - None.
+ 
+   DEVELOPER RELATED:
+ 
+-    - The configure script tries to get the user's compiler to not warn about
+-      unused function parameters if the build is not including one or more of
+-      the ACL/xattrs/iconv features.
+-
+-    - The configure script now has better checks for figuring out if the
+-      included popt code should be used or not.
+-
+-    - Fixed two testsuite glitches: avoid a failure if someone's "cd" command
+-      outputs the current directory when cd-ing to a relative path, and made
+-      the itemized test query how rsync was built to determine if it should
+-      expect hard-linked symlinks or not.
+-
+-    - Updated the testsuite to verify that various bug fixes remain fixed.
+-
+-    - The RPM spec file was updated to have: (1) comments for how to use the
+-      rsync-patch tar file, and (2) an /etc/xinetd.d/rsync file.
++    - The RPM spec file was improved to install more useful files.
+ 
+-    - Updated the build scripts to work with a revised FTP directory
+-      structure.
++    - A few developer-oriented scripts were moved from the support dir
++      to the packaging dir.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/OLDNEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/OLDNEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/OLDNEWS	2008-04-04 13:37:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/OLDNEWS	2008-04-08 23:16:05.000000000 +0800
+@@ -1,6 +1,144 @@
++NEWS for rsync 3.0.1 (3 Apr 2008)
++Protocol: 30 (unchanged)
++Changes since 3.0.0:
++
++  NOTABLE CHANGES IN BEHAVIOR:
++
++    - Added the 'c'-flag to the itemizing of non-regular files so that the
++      itemized output doesn't get hidden if there were no attribute changes,
++      and also so that the itemizing of a --copy-links run will distinguish
++      between copying an identical non-regular file and the creation of a
++      revised version with a new value (e.g. a changed symlink referent, a
++      new device number, etc.).
++
++  BUG FIXES:
++
++    - Fixed a crash bug when a single-use rsync daemon (via remote shell) was
++      run without specifying a --config=FILE option.
++
++    - Fixed a crash when backing up a directory that has a default ACL.
++
++    - Fixed a bug in the handling of xattr values that could cause rsync to
++      not think that a file's extended attributes are up-to-date.
++
++    - Fixed the working of --fake-super with --link-dest and --xattrs.
++
++    - Fixed a hang when combining --dry-run with --remove-source-files.
++
++    - Fixed a bug with --iconv's handling of files that cannot be converted:
++      a failed name can no longer cause a transfer failure.
++
++    - Fixed the building of the rounding.h file on systems that need custom
++      CPPFLAGS to be used.  Also improved the error reporting if the building
++      of rounding.h fails.
++
++    - Fixed the use of the --protect-args (-s) option when talking to a daemon.
++
++    - Fixed the --ignore-existing option's protection of files on the receiver
++      that are non-regular files on the sender (e.g. if a symlink or a dir on
++      the sender is trying to replace a file on the receiver).  The reverse
++      protection (protecting a dir/symlink/device from being replaced by a
++      file) was already working.
++
++    - Fixed an assert failure if --hard-links is combined with an option that
++      can skip a file in a set of hard-linked files (i.e. --ignore-existing,
++      --append, etc.), without skipping all the files in the set.
++
++    - Avoid setting the modify time on a directory that already has the right
++      modify time set.  This avoids tweaking the dir's ctime.
++
++    - Improved the daemon-exclude handling to do a better job of applying the
++      exclude rules to path entries.  It also sends the user an error just as
++      if the files were actually missing (instead of silently ignoring the
++      user's args), and avoids sending the user the filter-action messages
++      for these non-user-initiated rules.
++
++    - Fixed some glitches with the dry-run code's missing-directory
++      handling, including a problem when combined with --fuzzy.
++
++    - Fixed some glitches with the skipped-directory handling.
++
++    - Fixed the 'T'-flag itemizing of symlinks when --time isn't preserved.
++
++    - Fixed a glitch in the itemizing of permissions with the -E option.
++
++    - The --append option's restricting of transfers to those that add data no
++      longer prevents the updating of non-content changes to otherwise up-to-
++      date files (i.e. those with the same content but differing permissions,
++      ownership, xattrs, etc.).
++
++    - Don't allow --fake-super to be specified with -XX (double --xattrs)
++      because the options conflict.  If a daemon has "fake super" enabled,
++      it automatically downgrades a -XX request to -X.
++
++    - Fixed a couple bugs in the parsing of daemon-config excludes that could
++      make a floating exclude rule get treated as matching an absolute path.
++
++    - A daemon doesn't try to auto-refuse the "iconv" option if iconv-support
++      wasn't compiled in to the daemon (avoiding a warning in the logs).
++
++    - Fixed the inclusion of per-dir merge files from implied dirs.
++
++    - Fixed the support/rrsync script to work with the latest options that
++      rsync sends (including its flag-specifying use of -e to the server).
++
++  ENHANCEMENTS:
++
++    - Added the --old-dirs (--old-d) option to make it easier for a user to
++      ask for file-listings with older rsync versions (this is easier than
++      having to type "-r --exclude='/*/*'" manually).
++
++    - When getting an error while asking an older rsync daemon for a file
++      listing, rsync will try to notice if the error is a rejection of the
++      --dirs (-d) option and let the user know how to work around the issue.
++
++    - Added a few more --no-OPTION overrides.
++
++    - Improved the documentation of the --append option.
++
++    - Improved the documentation of the filter/exclude/include daemon
++      parameters.
++
++  INTERNAL:
++
++    - Fixed a couple minor bugs in the included popt library (ones which I
++      sent to the official popt project for inclusion in the 1.14 release).
++
++    - Fixed a stat() call that should have been do_stat() so that the proper
++      normal/64-bit stat() function gets called.  (Was in an area that should
++      not have caused problems, though.)
++
++    - Changed the file-glob code to do a directory scan without using the
++      "glob" and "glob.h".  This lets us do the globbing with less memory
++      churn, and also avoid adding daemon-excluded items to the returned
++      args.
++
++  DEVELOPER RELATED:
++
++    - The configure script tries to get the user's compiler to not warn about
++      unused function parameters if the build is not including one or more of
++      the ACL/xattrs/iconv features.
++
++    - The configure script now has better checks for figuring out if the
++      included popt code should be used or not.
++
++    - Fixed two testsuite glitches: avoid a failure if someone's "cd" command
++      outputs the current directory when cd-ing to a relative path, and made
++      the itemized test query how rsync was built to determine if it should
++      expect hard-linked symlinks or not.
++
++    - Updated the testsuite to verify that various bug fixes remain fixed.
++
++    - The RPM spec file was updated to have: (1) comments for how to use the
++      rsync-patch tar file, and (2) an /etc/xinetd.d/rsync file.
++
++    - Updated the build scripts to work with a revised FTP directory
++      structure.
++
++
+ NEWS for rsync 3.0.0 (1 Mar 2008)
+ Protocol: 30 (changed)
+ Changes since 2.6.9:
+ 
+   NOTABLE CHANGES IN BEHAVIOR:
+ 
+@@ -2584,12 +2722,13 @@
+     * The existing test.sh script by Phil Hands has been merged into a
+       test framework that works from both "make check" and the Samba
+       build farm.
+ 
+ Partial Protocol History
+ 	RELEASE DATE	VER.	DATE OF COMMIT*	PROTOCOL
++	08 Apr 2008	3.0.2			30
+ 	03 Apr 2008	3.0.1			30
+ 	01 Mar 2008	3.0.0	11 Nov 2006	30
+ 	06 Nov 2006	2.6.9			29
+ 	22 Apr 2006	2.6.8			29
+ 	11 Mar 2006	2.6.7			29
+ 	28 Jul 2005	2.6.6			29
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging: cull_options
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging: extern-squish
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/packaging/lsb/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging/lsb/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/packaging/lsb/rsync.spec	2008-04-04 13:37:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging/lsb/rsync.spec	2008-04-08 23:16:05.000000000 +0800
+@@ -1,15 +1,15 @@
+ Summary: A fast, versatile, remote (and local) file-copying tool
+ Name: rsync
+-Version: 3.0.1
++Version: 3.0.2
+ %define fullversion %{version}
+ Release: 1
+ %define srcdir src
+ Group: Applications/Internet
+ Source0: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-%{fullversion}.tar.gz
+-Source1: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-patches-%{fullversion}.tar.gz
++#Source1: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-patches-%{fullversion}.tar.gz
+ URL: http://rsync.samba.org/
+ 
+ Prefix: %{_prefix}
+ BuildRoot: /var/tmp/%{name}-root
+ License: GPL
+ 
+@@ -32,12 +32,15 @@
+ # If you you used "%setup -q -b1", choose the patches you wish to apply:
+ #patch -p1 <patches/acls.diff
+ #patch -p1 <patches/xattrs.diff
+ #patch -p1 <patches/remote-option.diff
+ #patch -p1 <patches/db.diff
+ 
++# Avoid extra perl dependencies for scripts going into doc dir.
++chmod -x support/*
++
+ %build
+ #./prepare-source
+ %configure
+ 
+ make
+ 
+@@ -53,19 +56,19 @@
+ 
+ %clean
+ rm -rf $RPM_BUILD_ROOT
+ 
+ %files
+ %defattr(-,root,root)
+-%doc COPYING README tech_report.tex
++%doc COPYING NEWS OLDNEWS README support/ tech_report.tex
+ %config(noreplace) /etc/xinetd.d/rsync
+ %{_prefix}/bin/rsync*
+ %{_mandir}/man1/rsync.1*
+ %{_mandir}/man5/rsyncd.conf.5*
+ 
+ %changelog
+-* Thu Apr 03 2008 Wayne Davison <wayned@samba.org>
+-Released 3.0.1.
++* Tue Apr 08 2008 Wayne Davison <wayned@samba.org>
++Released 3.0.2.
+ 
+ * Fri Mar 21 2008 Wayne Davison <wayned@samba.org>
+ Added installation of /etc/xinetd.d/rsync file and some commented-out
+ lines that demonstrate how to use the rsync-patches tar file.
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging: patch-update
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/packaging/release-rsync /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging/release-rsync
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/packaging/release-rsync	2008-04-02 03:55:27.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/packaging/release-rsync	2008-04-08 23:15:39.000000000 +0800
+@@ -229,17 +229,17 @@
+ print "<Press Enter OR 'y' to continue> ";
+ my $ans = <STDIN>;
+ 
+ system "git commit -a -m 'Preparing for release of $version'" and exit 1;
+ 
+ print "Updating files in \"patches\" dir ...\n";
+-system "support/patch-update";
++system "packaging/patch-update";
+ 
+ if ($ans =~ /^y/i) {
+     print "\nVisiting all \"patch/*\" branches ...\n";
+-    system "support/patch-update --shell";
++    system "packaging/patch-update --shell";
+ }
+ 
+ print $break, <<EOT;
+ 
+ About to:
+     - create signed tag for this release: v$version
+@@ -302,13 +302,13 @@
+ system "support/git-set-file-times --prefix=rsync-$version/";
+ system "fakeroot tar czf $srctar_file rsync-$version; rm -rf rsync-$version";
+ 
+ print "Updating files in \"rsync-$version/patches\" dir ...\n";
+ mkdir("rsync-$version", 0755);
+ mkdir("rsync-$version/patches", 0755);
+-system "support/patch-update --skip-check --gen=rsync-$version/patches";
++system "packaging/patch-update --skip-check --gen=rsync-$version/patches";
+ 
+ print "Creating $pattar_file ...\n";
+ system "fakeroot tar chzf $pattar_file rsync-$version/patches; rm -rf rsync-$version";
+ 
+ print "Updating the other files in $dest ...\n";
+ system "rsync -a README NEWS OLDNEWS TODO $dest";
+@@ -324,13 +324,13 @@
+     open(GPG, '|-', "gpg --batch --passphrase-fd=0 -ba $fn") or die $!;
+     print GPG $passphrase, "\n";
+     close GPG;
+ }
+ 
+ if (!$pre) {
+-    system "rm $dest/rsync-*{.tar.gz,.asc,-NEWS} $dest/src-preview/rsync-*diffs.gz";
++    system "rm $dest/rsync-*.gz $dest/rsync-*.asc $dest/rsync-*-NEWS $dest/src-previews/rsync-*diffs.gz*";
+ 
+     foreach my $fn ($srctar_file, "$srctar_file.asc",
+ 		    $pattar_file, "$pattar_file.asc",
+ 		    $diff_file, "$diff_file.asc", $news_file) {
+ 	(my $top_fn = $fn) =~ s#/src(-\w+)?/#/#;
+ 	link($fn, $top_fn);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/proto.h	2008-04-04 13:57:25.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/proto.h	2008-04-07 22:33:31.000000000 +0800
+@@ -360,13 +360,13 @@
+ char *human_dnum(double dnum, int decimal_digits);
+ char *timestring(time_t t);
+ int msleep(int t);
+ int cmp_time(time_t file1, time_t file2);
+ int _Insure_trap_error(int a1, int a2, int a3, int a4, int a5, int a6);
+ void *_new_array(unsigned long num, unsigned int size, int use_calloc);
+-void *_realloc_array(void *ptr, unsigned int size, unsigned long num);
++void *_realloc_array(void *ptr, unsigned int size, size_t num);
+ const char *find_filename_suffix(const char *fn, int fn_len, int *len_ptr);
+ uint32 fuzzy_distance(const char *s1, int len1, const char *s2, int len2);
+ struct bitbag *bitbag_create(int max_ndx);
+ void bitbag_set_bit(struct bitbag *bb, int ndx);
+ void bitbag_clear_bit(struct bitbag *bb, int ndx);
+ int bitbag_check_bit(struct bitbag *bb, int ndx);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/rsync.1	2008-04-04 13:57:07.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.1	2008-04-08 23:17:45.000000000 +0800
+@@ -1,7 +1,7 @@
+-.TH "rsync" "1" "3 Apr 2008" "" ""
++.TH "rsync" "1" "8 Apr 2008" "" ""
+ .SH "NAME"
+ rsync \(em a fast, versatile, remote (and local) file-copying tool
+ .SH "SYNOPSIS"
+ 
+ .PP 
+ .nf 
+@@ -3369,13 +3369,13 @@
+ Please report bugs! See the web site at
+ http://rsync.samba.org/
+ .PP 
+ .SH "VERSION"
+ 
+ .PP 
+-This man page is current for version 3.0.1 of rsync.
++This man page is current for version 3.0.2 of rsync.
+ .PP 
+ .SH "INTERNAL OPTIONS"
+ 
+ .PP 
+ The options \fB\-\-server\fP and \fB\-\-sender\fP are used internally by rsync,
+ and should never be typed by a user under normal circumstances.  Some
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/rsyncd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsyncd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/rsyncd.conf.5	2008-04-04 13:54:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsyncd.conf.5	2008-04-08 23:17:45.000000000 +0800
+@@ -1,7 +1,7 @@
+-.TH "rsyncd.conf" "5" "3 Apr 2008" "" ""
++.TH "rsyncd.conf" "5" "8 Apr 2008" "" ""
+ .SH "NAME"
+ rsyncd.conf \(em configuration file for rsync in daemon mode
+ .SH "SYNOPSIS"
+ 
+ .PP 
+ rsyncd.conf
+@@ -818,13 +818,13 @@
+ Please report bugs! The rsync bug tracking system is online at
+ http://rsync.samba.org/
+ .PP 
+ .SH "VERSION"
+ 
+ .PP 
+-This man page is current for version 3.0.1 of rsync.
++This man page is current for version 3.0.2 of rsync.
+ .PP 
+ .SH "CREDITS"
+ 
+ .PP 
+ rsync is distributed under the GNU public license.  See the file
+ COPYING for details.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/rsyncd.conf.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsyncd.conf.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/rsyncd.conf.yo	2008-04-04 13:37:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsyncd.conf.yo	2008-04-08 23:16:05.000000000 +0800
+@@ -1,8 +1,8 @@
+ mailto(rsync-bugs@samba.org)
+-manpage(rsyncd.conf)(5)(3 Apr 2008)()()
++manpage(rsyncd.conf)(5)(8 Apr 2008)()()
+ manpagename(rsyncd.conf)(configuration file for rsync in daemon mode)
+ manpagesynopsis()
+ 
+ rsyncd.conf
+ 
+ manpagedescription()
+@@ -697,13 +697,13 @@
+ 
+ Please report bugs! The rsync bug tracking system is online at
+ url(http://rsync.samba.org/)(http://rsync.samba.org/)
+ 
+ manpagesection(VERSION)
+ 
+-This man page is current for version 3.0.1 of rsync.
++This man page is current for version 3.0.2 of rsync.
+ 
+ manpagesection(CREDITS)
+ 
+ rsync is distributed under the GNU public license.  See the file
+ COPYING for details.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/rsync.yo	2008-04-04 13:37:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/rsync.yo	2008-04-08 23:16:05.000000000 +0800
+@@ -1,8 +1,8 @@
+ mailto(rsync-bugs@samba.org)
+-manpage(rsync)(1)(3 Apr 2008)()()
++manpage(rsync)(1)(8 Apr 2008)()()
+ manpagename(rsync)(a fast, versatile, remote (and local) file-copying tool)
+ manpagesynopsis()
+ 
+ verb(Local:  rsync [OPTION...] SRC... [DEST]
+ 
+ Access via remote shell:
+@@ -2873,13 +2873,13 @@
+ 
+ Please report bugs! See the web site at
+ url(http://rsync.samba.org/)(http://rsync.samba.org/)
+ 
+ manpagesection(VERSION)
+ 
+-This man page is current for version 3.0.1 of rsync.
++This man page is current for version 3.0.2 of rsync.
+ 
+ manpagesection(INTERNAL OPTIONS)
+ 
+ The options bf(--server) and bf(--sender) are used internally by rsync,
+ and should never be typed by a user under normal circumstances.  Some
+ awareness of these options may be needed in certain scenarios, such as
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/support: cull_options
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/support: extern-squish
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/support: patch-update
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.1/util.c	2008-03-31 06:44:46.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.2/util.c	2008-04-08 23:01:43.000000000 +0800
+@@ -1326,13 +1326,13 @@
+ {
+ 	if (num >= MALLOC_MAX/size)
+ 		return NULL;
+ 	return use_calloc ? calloc(num, size) : malloc(num * size);
+ }
+ 
+-void *_realloc_array(void *ptr, unsigned int size, unsigned long num)
++void *_realloc_array(void *ptr, unsigned int size, size_t num)
+ {
+ 	if (num >= MALLOC_MAX/size)
+ 		return NULL;
+ 	if (!ptr)
+ 		return malloc(size * num);
+ 	return realloc(ptr, size * num);
+@@ -1547,13 +1547,16 @@
+ 		if (incr < 0)
+ 			new_size += -incr; /* increase slowly */
+ 		else if (new_size < (size_t)incr)
+ 			new_size += incr;
+ 		else
+ 			new_size *= 2;
+-		new_ptr = realloc_array(lp->items, char, new_size * item_size);
++		if (new_size < lp->malloced)
++			overflow_exit("expand_item_list");
++		/* Using _realloc_array() lets us pass the size, not a type. */
++		new_ptr = _realloc_array(lp->items, item_size, new_size);
+ 		if (verbose >= 4) {
+ 			rprintf(FINFO, "[%s] expand %s to %.0f bytes, did%s move\n",
+ 				who_am_i(), desc, (double)new_size * item_size,
+ 				new_ptr == lp->items ? " not" : "");
+ 		}
+ 		if (!new_ptr)

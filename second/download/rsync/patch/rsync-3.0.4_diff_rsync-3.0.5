@@ -1,0 +1,2298 @@
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/batch.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/batch.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/batch.c	2008-03-02 04:01:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/batch.c	2008-11-10 10:55:14.000000000 +0800
+@@ -153,33 +153,43 @@
+ 	if (tweaked_append)
+ 		append_mode = 1;
+ 	else if (tweaked_append_verify)
+ 		append_mode = 2;
+ }
+ 
+-static void write_arg(int fd, char *arg)
++static int write_arg(int fd, char *arg)
+ {
+ 	char *x, *s;
++	int len, ret = 0;
+ 
+ 	if (*arg == '-' && (x = strchr(arg, '=')) != NULL) {
+-		write(fd, arg, x - arg + 1);
++		if (write(fd, arg, x - arg + 1) != x - arg + 1)
++			ret = -1;
+ 		arg += x - arg + 1;
+ 	}
+ 
+ 	if (strpbrk(arg, " \"'&;|[]()$#!*?^\\") != NULL) {
+-		write(fd, "'", 1);
++		if (write(fd, "'", 1) != 1)
++			ret = -1;
+ 		for (s = arg; (x = strchr(s, '\'')) != NULL; s = x + 1) {
+-			write(fd, s, x - s + 1);
+-			write(fd, "'", 1);
++			if (write(fd, s, x - s + 1) != x - s + 1
++			 || write(fd, "'", 1) != 1)
++				ret = -1;
+ 		}
+-		write(fd, s, strlen(s));
+-		write(fd, "'", 1);
+-		return;
++		len = strlen(s);
++		if (write(fd, s, len) != len
++		 || write(fd, "'", 1) != 1)
++			ret = -1;
++		return ret;
+ 	}
+ 
+-	write(fd, arg, strlen(arg));
++	len = strlen(arg);
++	if (write(fd, arg, len) != len)
++		ret = -1;
++
++	return ret;
+ }
+ 
+ static void write_filter_rules(int fd)
+ {
+ 	struct filter_struct *ent;
+ 
+@@ -202,13 +212,13 @@
+  * given the user's --write-batch args.  However, it doesn't really
+  * understand most of the options, so it uses some overly simple
+  * heuristics to munge the command line into something that will
+  * (hopefully) work. */
+ void write_batch_shell_file(int argc, char *argv[], int file_arg_cnt)
+ {
+-	int fd, i, len;
++	int fd, i, len, err = 0;
+ 	char *p, filename[MAXPATHLEN];
+ 
+ 	stringjoin(filename, sizeof filename,
+ 		   batch_name, ".sh", NULL);
+ 	fd = do_open(filename, O_WRONLY | O_CREAT | O_TRUNC,
+ 		     S_IRUSR | S_IWUSR | S_IEXEC);
+@@ -216,13 +226,14 @@
+ 		rsyserr(FERROR, errno, "Batch file %s open error",
+ 			filename);
+ 		exit_cleanup(RERR_FILESELECT);
+ 	}
+ 
+ 	/* Write argvs info to BATCH.sh file */
+-	write_arg(fd, argv[0]);
++	if (write_arg(fd, argv[0]) < 0)
++		err = 1;
+ 	if (filter_list.head) {
+ 		if (protocol_version >= 29)
+ 			write_sbuf(fd, " --filter=._-");
+ 		else
+ 			write_sbuf(fd, " --exclude-from=-");
+ 	}
+@@ -237,30 +248,36 @@
+ 			continue;
+ 		}
+ 		if (strcmp(p, "-f") == 0) {
+ 			i++;
+ 			continue;
+ 		}
+-		write(fd, " ", 1);
++		if (write(fd, " ", 1) != 1)
++			err = 1;
+ 		if (strncmp(p, "--write-batch", len = 13) == 0
+ 		 || strncmp(p, "--only-write-batch", len = 18) == 0) {
+-			write(fd, "--read-batch", 12);
++			if (write(fd, "--read-batch", 12) != 12)
++				err = 1;
+ 			if (p[len] == '=') {
+-				write(fd, "=", 1);
+-				write_arg(fd, p + len + 1);
++				if (write(fd, "=", 1) != 1
++				 || write_arg(fd, p + len + 1) < 0)
++					err = 1;
+ 			}
+-		} else
+-			write_arg(fd, p);
++		} else {
++			if (write_arg(fd, p) < 0)
++				err = 1;
++		}
+ 	}
+ 	if (!(p = check_for_hostspec(argv[argc - 1], &p, &i)))
+ 		p = argv[argc - 1];
+-	write(fd, " ${1:-", 6);
+-	write_arg(fd, p);
++	if (write(fd, " ${1:-", 6) != 6
++	 || write_arg(fd, p) < 0)
++		err = 1;
+ 	write_byte(fd, '}');
+ 	if (filter_list.head)
+ 		write_filter_rules(fd);
+-	if (write(fd, "\n", 1) != 1 || close(fd) < 0) {
++	if (write(fd, "\n", 1) != 1 || close(fd) < 0 || err) {
+ 		rsyserr(FERROR, errno, "Batch file %s write error",
+ 			filename);
+ 		exit_cleanup(RERR_FILEIO);
+ 	}
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/clientname.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/clientname.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/clientname.c	2008-03-02 04:01:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/clientname.c	2008-10-12 02:13:43.000000000 +0800
+@@ -105,12 +105,15 @@
+ 
+ 	if (am_server) {	/* daemon over --rsh mode */
+ 		char *addr = client_addr(fd);
+ 		struct addrinfo hint, *answer;
+ 		int err;
+ 
++		if (strcmp(addr, "0.0.0.0") == 0)
++			return name_buf;
++
+ 		memset(&hint, 0, sizeof hint);
+ 
+ #ifdef AI_NUMERICHOST
+ 		hint.ai_flags = AI_NUMERICHOST;
+ #endif
+ 		hint.ai_socktype = SOCK_STREAM;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/clientserver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/clientserver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/clientserver.c	2008-04-15 23:34:17.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/clientserver.c	2008-11-10 10:55:14.000000000 +0800
+@@ -72,12 +72,14 @@
+ /* module_dirlen is the length of the module_dir string when in daemon
+  * mode and module_dir is not "/"; otherwise 0.  (Note that a chroot-
+  * enabled module can have a non-"/" module_dir these days.) */
+ char *module_dir = NULL;
+ unsigned int module_dirlen = 0;
+ 
++char *full_module_path;
++
+ static int rl_nulls = 0;
+ 
+ #ifdef HAVE_SIGACTION
+ static struct sigaction sigact;
+ #endif
+ 
+@@ -392,16 +394,26 @@
+ 	}
+ 	*bp = '\0';
+ 
+ 	return bp - buf;
+ }
+ 
++static int path_failure(int f_out, const char *dir, BOOL was_chdir)
++{
++	if (was_chdir)
++		rsyserr(FLOG, errno, "chdir %s failed\n", dir);
++	else
++		rprintf(FLOG, "normalize_path(%s) failed\n", dir);
++	io_printf(f_out, "@ERROR: chdir failed\n");
++	return -1;
++}
++
+ static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
+ {
+ 	int argc;
+-	char **argv, **orig_argv, **orig_early_argv, *chroot_path = NULL;
++	char **argv, **orig_argv, **orig_early_argv, *module_chdir;
+ 	char line[BIGPATHBUFLEN];
+ 	uid_t uid = (uid_t)-2;  /* canonically "nobody" */
+ 	gid_t gid = (gid_t)-2;
+ 	char *p, *err_msg = NULL;
+ 	char *name = lp_name(i);
+ 	int use_chroot = lp_use_chroot(i);
+@@ -498,33 +510,33 @@
+ 	/* TODO: Perhaps take a list of gids, and make them into the
+ 	 * supplementary groups. */
+ 
+ 	module_dir = lp_path(i);
+ 	if (use_chroot) {
+ 		if ((p = strstr(module_dir, "/./")) != NULL) {
+-			*p = '\0';
+-			p += 2;
+-		} else if ((p = strdup("/")) == NULL) /* MEMORY LEAK */
+-			out_of_memory("rsync_module");
+-	}
+-
+-	/* We do a change_dir() that doesn't actually call chdir()
+-	 * just to make a relative path absolute. */
+-	strlcpy(line, curr_dir, sizeof line);
+-	if (!change_dir(module_dir, CD_SKIP_CHDIR))
+-		goto chdir_failed;
+-	if (strcmp(curr_dir, module_dir) != 0
+-	 && (module_dir = strdup(curr_dir)) == NULL)
+-		out_of_memory("rsync_module");
+-	change_dir(line, CD_SKIP_CHDIR); /* Restore curr_dir. */
+-
+-	if (use_chroot) {
+-		chroot_path = module_dir;
+-		module_dir = p; /* p is "/" or our inside-chroot path */
++			*p = '\0'; /* Temporary... */
++			if (!(module_chdir = normalize_path(module_dir, True, NULL)))
++				return path_failure(f_out, module_dir, False);
++			*p = '/';
++			if (!(p = normalize_path(p + 2, True, &module_dirlen)))
++				return path_failure(f_out, strstr(module_dir, "/./"), False);
++			if (!(full_module_path = normalize_path(module_dir, False, NULL)))
++				full_module_path = module_dir;
++			module_dir = p;
++		} else {
++			if (!(module_chdir = normalize_path(module_dir, False, NULL)))
++				return path_failure(f_out, module_dir, False);
++			full_module_path = module_chdir;
++			module_dir = "/";
++			module_dirlen = 1;
++		}
++	} else {
++		if (!(module_chdir = normalize_path(module_dir, False, &module_dirlen)))
++			return path_failure(f_out, module_dir, False);
++		full_module_path = module_dir = module_chdir;
+ 	}
+-	module_dirlen = clean_fname(module_dir, CFN_COLLAPSE_DOT_DOT_DIRS | CFN_DROP_TRAILING_DOT_DIR);
+ 
+ 	if (module_dirlen == 1) {
+ 		module_dirlen = 0;
+ 		set_filter_dir("/", 1);
+ 	} else
+ 		set_filter_dir(module_dir, module_dirlen);
+@@ -554,22 +566,14 @@
+ 
+ #ifdef HAVE_PUTENV
+ 	if (*lp_prexfer_exec(i) || *lp_postxfer_exec(i)) {
+ 		char *modname, *modpath, *hostaddr, *hostname, *username;
+ 		int status;
+ 
+-		if (!use_chroot)
+-			p = module_dir;
+-		else if (module_dirlen) {
+-			pathjoin(line, sizeof line, chroot_path, module_dir+1);
+-			p = line;
+-		} else
+-			p = chroot_path;
+-
+ 		if (asprintf(&modname, "RSYNC_MODULE_NAME=%s", name) < 0
+-		 || asprintf(&modpath, "RSYNC_MODULE_PATH=%s", p) < 0
++		 || asprintf(&modpath, "RSYNC_MODULE_PATH=%s", full_module_path) < 0
+ 		 || asprintf(&hostaddr, "RSYNC_HOST_ADDR=%s", addr) < 0
+ 		 || asprintf(&hostname, "RSYNC_HOST_NAME=%s", host) < 0
+ 		 || asprintf(&username, "RSYNC_USER_NAME=%s", auth_user) < 0)
+ 			out_of_memory("rsync_module");
+ 		putenv(modname);
+ 		putenv(modpath);
+@@ -597,13 +601,14 @@
+ 				if (WIFEXITED(status))
+ 					status = WEXITSTATUS(status);
+ 				else
+ 					status = -1;
+ 				if (asprintf(&p, "RSYNC_EXIT_STATUS=%d", status) > 0)
+ 					putenv(p);
+-				system(lp_postxfer_exec(i));
++				if (system(lp_postxfer_exec(i)) < 0)
++					status = -1;
+ 				_exit(status);
+ 			}
+ 		}
+ 		/* For pre-xfer exec, fork a child process to run the indicated
+ 		 * command, though it first waits for the parent process to
+ 		 * send us the user's request via a pipe. */
+@@ -663,31 +668,25 @@
+ 		 * might be better to always use chroot.
+ 		 *
+ 		 * So, perhaps if we can't chroot we should just issue
+ 		 * a warning, unless a "require chroot" flag is set,
+ 		 * in which case we fail.
+ 		 */
+-		if (chroot(chroot_path)) {
+-			rsyserr(FLOG, errno, "chroot %s failed", chroot_path);
++		if (chroot(module_chdir)) {
++			rsyserr(FLOG, errno, "chroot %s failed", module_chdir);
+ 			io_printf(f_out, "@ERROR: chroot failed\n");
+ 			return -1;
+ 		}
+-		if (!change_dir(module_dir, CD_NORMAL))
+-			goto chdir_failed;
+-		if (module_dirlen)
+-			sanitize_paths = 1;
+-	} else {
+-		if (!change_dir(module_dir, CD_NORMAL)) {
+-		  chdir_failed:
+-			rsyserr(FLOG, errno, "chdir %s failed\n", module_dir);
+-			io_printf(f_out, "@ERROR: chdir failed\n");
+-			return -1;
+-		}
+-		sanitize_paths = 1;
++		module_chdir = module_dir;
+ 	}
+ 
++	if (!change_dir(module_chdir, CD_NORMAL))
++		return path_failure(f_out, module_chdir, True);
++	if (module_dirlen || !use_chroot)
++		sanitize_paths = 1;
++
+ 	if ((munge_symlinks = lp_munge_symlinks(i)) < 0)
+ 		munge_symlinks = !use_chroot || module_dirlen;
+ 	if (munge_symlinks) {
+ 		STRUCT_STAT st;
+ 		if (do_stat(SYMLINK_PREFIX, &st) == 0 && S_ISDIR(st.st_mode)) {
+ 			rprintf(FLOG, "Symlink munging is unsupported when a %s directory exists.\n",
+@@ -969,26 +968,29 @@
+ 
+ static void create_pid_file(void)
+ {
+ 	char *pid_file = lp_pid_file();
+ 	char pidbuf[16];
+ 	pid_t pid = getpid();
+-	int fd;
++	int fd, len;
+ 
+ 	if (!pid_file || !*pid_file)
+ 		return;
+ 
+ 	cleanup_set_pid(pid);
+ 	if ((fd = do_open(pid_file, O_WRONLY|O_CREAT|O_EXCL, 0666 & ~orig_umask)) == -1) {
++	  failure:
+ 		cleanup_set_pid(0);
+ 		fprintf(stderr, "failed to create pid file %s: %s\n", pid_file, strerror(errno));
+ 		rsyserr(FLOG, errno, "failed to create pid file %s", pid_file);
+ 		exit_cleanup(RERR_FILEIO);
+ 	}
+ 	snprintf(pidbuf, sizeof pidbuf, "%ld\n", (long)pid);
+-	write(fd, pidbuf, strlen(pidbuf));
++	len = strlen(pidbuf);
++	if (write(fd, pidbuf, len) != len)
++		goto failure;
+ 	close(fd);
+ }
+ 
+ /* Become a daemon, discarding the controlling terminal. */
+ static void become_daemon(void)
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/configure.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/configure.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/configure.in	2008-09-07 00:32:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/configure.in	2008-12-29 10:02:17.000000000 +0800
+@@ -2,13 +2,13 @@
+ 
+ AC_INIT()
+ AC_CONFIG_SRCDIR([byteorder.h])
+ AC_CONFIG_HEADER(config.h)
+ AC_PREREQ(2.59)
+ 
+-RSYNC_VERSION=3.0.4
++RSYNC_VERSION=3.0.5
+ AC_SUBST(RSYNC_VERSION)
+ AC_MSG_NOTICE([Configuring rsync $RSYNC_VERSION])
+ 
+ AC_DEFINE_UNQUOTED(RSYNC_VERSION, ["$RSYNC_VERSION"], [rsync release version])
+ 
+ LDFLAGS=${LDFLAGS-""}
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/configure.sh /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/configure.sh
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/configure.sh	2008-09-07 00:33:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/configure.sh	2008-12-29 10:03:35.000000000 +0800
+@@ -1728,13 +1728,13 @@
+ 
+ 
+ ac_config_headers="$ac_config_headers config.h"
+ 
+ 
+ 
+-RSYNC_VERSION=3.0.4
++RSYNC_VERSION=3.0.5
+ 
+ { echo "$as_me:$LINENO: Configuring rsync $RSYNC_VERSION" >&5
+ echo "$as_me: Configuring rsync $RSYNC_VERSION" >&6;}
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/fileio.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/fileio.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/fileio.c	2008-03-02 04:01:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/fileio.c	2008-11-16 05:29:03.000000000 +0800
+@@ -25,13 +25,13 @@
+ #define ENODATA EAGAIN
+ #endif
+ 
+ extern int sparse_files;
+ 
+ static char last_byte;
+-static size_t sparse_seek = 0;
++static OFF_T sparse_seek = 0;
+ 
+ int sparse_end(int f)
+ {
+ 	int ret;
+ 
+ 	if (!sparse_seek)
+@@ -45,15 +45,15 @@
+ 	} while (ret < 0 && errno == EINTR);
+ 
+ 	return ret <= 0 ? -1 : 0;
+ }
+ 
+ 
+-static int write_sparse(int f, char *buf, size_t len)
++static int write_sparse(int f, char *buf, int len)
+ {
+-	size_t l1 = 0, l2 = 0;
++	int l1 = 0, l2 = 0;
+ 	int ret;
+ 
+ 	for (l1 = 0; l1 < len && buf[l1] == 0; l1++) {}
+ 	for (l2 = 0; l2 < len-l1 && buf[len-(l2+1)] == 0; l2++) {}
+ 
+ 	/* XXX Riddle me this: why does this function SLOW DOWN when I
+@@ -105,13 +105,13 @@
+ 
+ 
+ /*
+  * write_file does not allow incomplete writes.  It loops internally
+  * until len bytes are written or errno is set.
+  */
+-int write_file(int f,char *buf,size_t len)
++int write_file(int f, char *buf, int len)
+ {
+ 	int ret = 0;
+ 
+ 	while (len > 0) {
+ 		int r1;
+ 		if (sparse_files > 0) {
+@@ -122,13 +122,13 @@
+ 				wf_writeBufSize = WRITE_SIZE * 8;
+ 				wf_writeBufCnt  = 0;
+ 				wf_writeBuf = new_array(char, wf_writeBufSize);
+ 				if (!wf_writeBuf)
+ 					out_of_memory("write_file");
+ 			}
+-			r1 = MIN(len, wf_writeBufSize - wf_writeBufCnt);
++			r1 = (int)MIN((size_t)len, wf_writeBufSize - wf_writeBufCnt);
+ 			if (r1) {
+ 				memcpy(wf_writeBuf + wf_writeBufCnt, buf, r1);
+ 				wf_writeBufCnt += r1;
+ 			}
+ 			if (wf_writeBufCnt == wf_writeBufSize) {
+ 				if (flush_write_file(f) < 0)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/flist.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/flist.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/flist.c	2008-08-10 22:31:45.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/flist.c	2008-12-29 09:51:36.000000000 +0800
+@@ -1291,31 +1291,12 @@
+ 
+ 	if (am_sender)
+ 		F_PATHNAME(file) = pathname;
+ 	else if (!pool)
+ 		F_DEPTH(file) = extra_len / EXTRA_LEN;
+ 
+-	/* This code is only used by the receiver when it is building
+-	 * a list of files for a delete pass. */
+-	if (keep_dirlinks && linkname_len && flist) {
+-		STRUCT_STAT st2;
+-		int save_mode = file->mode;
+-		file->mode = S_IFDIR; /* Find a directory with our name. */
+-		if (flist_find(dir_flist, file) >= 0
+-		 && x_stat(thisname, &st2, NULL) == 0 && S_ISDIR(st2.st_mode)) {
+-			file->modtime = st2.st_mtime;
+-			file->len32 = 0;
+-			file->mode = st2.st_mode;
+-			if (uid_ndx)
+-				F_OWNER(file) = st2.st_uid;
+-			if (gid_ndx)
+-				F_GROUP(file) = st2.st_gid;
+-		} else
+-			file->mode = save_mode;
+-	}
+-
+ 	if (basename_len == 0+1) {
+ 		if (!pool)
+ 			unmake_file(file);
+ 		return NULL;
+ 	}
+ 
+@@ -1613,12 +1594,14 @@
+ 	int start = flist->used;
+ 	int filter_level = f == -2 ? SERVER_FILTERS : ALL_FILTERS;
+ 
+ 	assert(flist != NULL);
+ 
+ 	if (!(d = opendir(fbuf))) {
++		if (errno == ENOENT)
++			return;
+ 		io_error |= IOERR_GENERAL;
+ 		rsyserr(FERROR_XFER, errno, "opendir %s failed", full_fname(fbuf));
+ 		return;
+ 	}
+ 
+ 	p = fbuf + len;
+@@ -1959,15 +1942,12 @@
+ 	else if (inc_recurse && verbose && !am_server)
+ 		rprintf(FCLIENT, "sending incremental file list\n");
+ 
+ 	start_write = stats.total_written;
+ 	gettimeofday(&start_tv, NULL);
+ 
+-	if (!orig_dir)
+-		orig_dir = strdup(curr_dir);
+-
+ 	if (relative_paths && protocol_version >= 30)
+ 		implied_dirs = 1; /* We send flagged implied dirs */
+ 
+ #ifdef SUPPORT_HARD_LINKS
+ 	if (preserve_hard_links && protocol_version >= 30 && !cur_flist)
+ 		init_hard_links();
+@@ -1987,12 +1967,15 @@
+ 				full_fname(argv[0]));
+ 			exit_cleanup(RERR_FILESELECT);
+ 		}
+ 		use_ff_fd = 1;
+ 	}
+ 
++	if (!orig_dir)
++		orig_dir = strdup(curr_dir);
++
+ 	while (1) {
+ 		char fbuf[MAXPATHLEN], *fn, name_type;
+ 
+ 		if (use_ff_fd) {
+ 			if (read_line(filesfrom_fd, fbuf, sizeof fbuf, rl_flags) == 0)
+ 				break;
+@@ -2260,12 +2243,13 @@
+ 
+ struct file_list *recv_file_list(int f)
+ {
+ 	struct file_list *flist;
+ 	int dstart, flags;
+ 	int64 start_read;
++	int save_verbose = verbose;
+ 
+ 	if (!first_flist)
+ 		rprintf(FLOG, "receiving file list\n");
+ 	if (show_filelist_p())
+ 		start_filelist_progress("receiving file list");
+ 	else if (inc_recurse && verbose && !am_server && !first_flist)
+@@ -2286,12 +2270,14 @@
+ 		dstart = dir_flist->used;
+ 	} else {
+ 		dir_flist = flist;
+ 		dstart = 0;
+ 	}
+ 
++	if (am_server && verbose > 2)
++		verbose = 2;
+ 	while ((flags = read_byte(f)) != 0) {
+ 		struct file_struct *file;
+ 
+ 		flist_expand(flist, 1);
+ 
+ 		if (protocol_version >= 28 && (flags & XMIT_EXTENDED_FLAGS))
+@@ -2310,12 +2296,13 @@
+ 		if (verbose > 2) {
+ 			char *name = f_name(file, NULL);
+ 			rprintf(FINFO, "recv_file_name(%s)\n", NS(name));
+ 		}
+ 	}
+ 	file_total += flist->used;
++	verbose = save_verbose;
+ 
+ 	if (verbose > 2)
+ 		rprintf(FINFO, "received %d names\n", flist->used);
+ 
+ 	if (show_filelist_p())
+ 		finish_filelist_progress(flist);
+@@ -2456,12 +2443,34 @@
+ 		else
+ 			high = mid - 1;
+ 	}
+ 	return -1;
+ }
+ 
++/* Search for an identically-named item in the file list.  Differs from
++ * flist_find in that an item that agrees with "f" in directory-ness is
++ * preferred but one that does not is still found. */
++int flist_find_ignore_dirness(struct file_list *flist, struct file_struct *f)
++{
++	mode_t save_mode;
++	int ndx;
++
++	/* First look for an item that agrees in directory-ness. */
++	ndx = flist_find(flist, f);
++	if (ndx >= 0)
++		return ndx;
++
++	/* Temporarily flip f->mode to look for an item of opposite
++	 * directory-ness. */
++	save_mode = f->mode;
++	f->mode = S_ISDIR(f->mode) ? S_IFREG : S_IFDIR;
++	ndx = flist_find(flist, f);
++	f->mode = save_mode;
++	return ndx;
++}
++
+ /*
+  * Free up any resources a file_struct has allocated
+  * and clear the file.
+  */
+ void clear_file(struct file_struct *file)
+ {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/generator.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/generator.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/generator.c	2008-09-01 00:51:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/generator.c	2008-11-10 23:46:41.000000000 +0800
+@@ -518,13 +518,16 @@
+ 		if (fp->flags & FLAG_MOUNT_DIR && S_ISDIR(fp->mode)) {
+ 			if (verbose > 1)
+ 				rprintf(FINFO, "cannot delete mount point: %s\n",
+ 					f_name(fp, NULL));
+ 			continue;
+ 		}
+-		if (flist_find(cur_flist, fp) < 0) {
++		/* Here we want to match regardless of file type.  Replacement
++		 * of a file with one of another type is handled separately by
++		 * a delete_item call with a DEL_MAKE_ROOM flag. */
++		if (flist_find_ignore_dirness(cur_flist, fp) < 0) {
+ 			int flags = DEL_RECURSE;
+ 			if (!(fp->mode & S_IWUSR) && !am_root && (uid_t)F_OWNER(fp) == our_uid)
+ 				flags |= DEL_NO_UID_WRITE;
+ 			f_name(fp, delbuf);
+ 			if (delete_during == 2) {
+ 				if (!remember_delete(fp, delbuf, flags))
+@@ -2279,12 +2282,15 @@
+ 			if (cur_flist->next || flist_eof)
+ 				break;
+ 			wait_for_receiver();
+ 		}
+ 	} while ((cur_flist = cur_flist->next) != NULL);
+ 
++	if (read_batch && inc_recurse)
++		write_ndx(f_out, NDX_DONE);
++
+ 	if (delete_during)
+ 		delete_in_dir(NULL, NULL, &dev_zero);
+ 	phase++;
+ 	if (verbose > 2)
+ 		rprintf(FINFO, "generate_files phase=%d\n", phase);
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/hlink.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/hlink.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/hlink.c	2008-08-14 22:32:18.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/hlink.c	2008-09-27 12:10:58.000000000 +0800
+@@ -27,12 +27,13 @@
+ extern int list_only;
+ extern int am_sender;
+ extern int inc_recurse;
+ extern int do_xfers;
+ extern int link_dest;
+ extern int preserve_acls;
++extern int preserve_xattrs;
+ extern int make_backups;
+ extern int protocol_version;
+ extern int remove_source_files;
+ extern int stdout_format_has_i;
+ extern int maybe_ATTRS_REPORT;
+ extern int unsort_ndx;
+@@ -365,12 +366,15 @@
+ 		char cmpbuf[MAXPATHLEN];
+ 		stat_x alt_sx;
+ 		int j = 0;
+ #ifdef SUPPORT_ACLS
+ 		alt_sx.acc_acl = alt_sx.def_acl = NULL;
+ #endif
++#ifdef SUPPORT_XATTRS
++		alt_sx.xattr = NULL;
++#endif
+ 		do {
+ 			pathjoin(cmpbuf, MAXPATHLEN, basis_dir[j], fname);
+ 			if (link_stat(cmpbuf, &alt_sx.st, 0) < 0)
+ 				continue;
+ 			if (link_dest) {
+ 				if (prev_st.st_dev != alt_sx.st.st_dev
+@@ -393,25 +397,43 @@
+ 				break;
+ 		} while (basis_dir[++j] != NULL);
+ 		if (statret == 1) {
+ 			sxp->st = alt_sx.st;
+ #ifdef SUPPORT_ACLS
+ 			if (preserve_acls && !S_ISLNK(file->mode)) {
+-				if (!ACL_READY(*sxp))
++				free_acl(sxp);
++				if (!ACL_READY(alt_sx))
+ 					get_acl(cmpbuf, sxp);
+ 				else {
+ 					sxp->acc_acl = alt_sx.acc_acl;
+ 					sxp->def_acl = alt_sx.def_acl;
++					alt_sx.acc_acl = alt_sx.def_acl = NULL;
+ 				}
+ 			}
+ #endif
+-		}
++#ifdef SUPPORT_XATTRS
++			if (preserve_xattrs) {
++				free_xattr(sxp);
++				if (!XATTR_READY(alt_sx))
++					get_xattr(cmpbuf, sxp);
++				else {
++					sxp->xattr = alt_sx.xattr;
++					alt_sx.xattr = NULL;
++				}
++			}
++#endif
++		} else {
+ #ifdef SUPPORT_ACLS
+-		else if (preserve_acls)
+-			free_acl(&alt_sx);
++			if (preserve_acls)
++				free_acl(&alt_sx);
++#endif
++#ifdef SUPPORT_XATTRS
++			if (preserve_xattrs)
++				free_xattr(&alt_sx);
+ #endif
++		}
+ 	}
+ 
+ 	if (maybe_hard_link(file, ndx, fname, statret, sxp, prev_name, &prev_st,
+ 			    realname, itemizing, code) < 0)
+ 		return -1;
+ 
+@@ -472,12 +494,15 @@
+ 	} else
+ 		our_name = fname;
+ 
+ #ifdef SUPPORT_ACLS
+ 	prev_sx.acc_acl = prev_sx.def_acl = NULL;
+ #endif
++#ifdef SUPPORT_XATTRS
++	prev_sx.xattr = NULL;
++#endif
+ 
+ 	while ((ndx = prev_ndx) >= 0) {
+ 		int val;
+ 		flist = flist_for_ndx(ndx, "finish_hard_link");
+ 		file = flist->files[ndx - flist->ndx_start];
+ 		file->flags = (file->flags & ~FLAG_HLINK_FIRST) | FLAG_HLINK_DONE;
+@@ -488,12 +513,16 @@
+ 				      our_name, stp, fname, itemizing, code);
+ 		flist->in_progress--;
+ #ifdef SUPPORT_ACLS
+ 		if (preserve_acls)
+ 			free_acl(&prev_sx);
+ #endif
++#ifdef SUPPORT_XATTRS
++		if (preserve_xattrs)
++			free_xattr(&prev_sx);
++#endif
+ 		if (val < 0)
+ 			continue;
+ 		if (remove_source_files == 1 && do_xfers)
+ 			send_msg_int(MSG_SUCCESS, ndx);
+ 	}
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/io.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/io.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/io.c	2008-09-01 00:51:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/io.c	2008-11-10 10:02:11.000000000 +0800
+@@ -121,22 +121,13 @@
+ 
+ static void readfd(int fd, char *buffer, size_t N);
+ static void writefd(int fd, const char *buf, size_t len);
+ static void writefd_unbuffered(int fd, const char *buf, size_t len);
+ static void mplex_write(int fd, enum msgcode code, const char *buf, size_t len, int convert);
+ 
+-struct flist_ndx_item {
+-	struct flist_ndx_item *next;
+-	int ndx;
+-};
+-
+-struct flist_ndx_list {
+-	struct flist_ndx_item *head, *tail;
+-};
+-
+-static struct flist_ndx_list redo_list, hlink_list;
++static flist_ndx_list redo_list, hlink_list;
+ 
+ struct msg_list_item {
+ 	struct msg_list_item *next;
+ 	char convert;
+ 	char buf[1];
+ };
+@@ -144,45 +135,12 @@
+ struct msg_list {
+ 	struct msg_list_item *head, *tail;
+ };
+ 
+ static struct msg_list msg_queue;
+ 
+-static void flist_ndx_push(struct flist_ndx_list *lp, int ndx)
+-{
+-	struct flist_ndx_item *item;
+-
+-	if (!(item = new(struct flist_ndx_item)))
+-		out_of_memory("flist_ndx_push");
+-	item->next = NULL;
+-	item->ndx = ndx;
+-	if (lp->tail)
+-		lp->tail->next = item;
+-	else
+-		lp->head = item;
+-	lp->tail = item;
+-}
+-
+-static int flist_ndx_pop(struct flist_ndx_list *lp)
+-{
+-	struct flist_ndx_item *next;
+-	int ndx;
+-
+-	if (!lp->head)
+-		return -1;
+-
+-	ndx = lp->head->ndx;
+-	next = lp->head->next;
+-	free(lp->head);
+-	lp->head = next;
+-	if (!next)
+-		lp->tail = NULL;
+-
+-	return ndx;
+-}
+-
+ static void got_flist_entry_status(enum festatus status, const char *buf)
+ {
+ 	int ndx = IVAL(buf, 0);
+ 	struct file_list *flist = flist_for_ndx(ndx, "got_flist_entry_status");
+ 
+ 	if (remove_source_files) {
+@@ -203,12 +161,17 @@
+ 				flist_ndx_push(&hlink_list, ndx);
+ 				flist->in_progress++;
+ 			}
+ 		}
+ 		break;
+ 	case FES_REDO:
++		if (read_batch) {
++			if (inc_recurse)
++				flist->in_progress++;
++			break;
++		}
+ 		if (inc_recurse)
+ 			flist->to_redo++;
+ 		flist_ndx_push(&redo_list, ndx);
+ 		break;
+ 	case FES_NO_SEND:
+ 		break;
+@@ -481,15 +444,20 @@
+ 
+ /* This is used by the generator to limit how many file transfers can
+  * be active at once when --remove-source-files is specified.  Without
+  * this, sender-side deletions were mostly happening at the end. */
+ void increment_active_files(int ndx, int itemizing, enum logcode code)
+ {
+-	/* TODO: tune these limits? */
+-	while (active_filecnt >= (active_bytecnt >= 128*1024 ? 10 : 50)) {
++	while (1) {
++		/* TODO: tune these limits? */
++		int limit = active_bytecnt >= 128*1024 ? 10 : 50;
++		if (active_filecnt < limit)
++			break;
+ 		check_for_finished_files(itemizing, code, 0);
++		if (active_filecnt < limit)
++			break;
+ 		if (iobuf_out_cnt)
+ 			io_flush(NORMAL_FLUSH);
+ 		else
+ 			read_msg_fd();
+ 	}
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/lib/getaddrinfo.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/lib/getaddrinfo.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/lib/getaddrinfo.c	2007-11-09 04:30:17.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/lib/getaddrinfo.c	2008-10-25 23:39:41.000000000 +0800
+@@ -489,19 +489,16 @@
+ 	}
+ 
+ 	if (salen < (socklen_t)sizeof (struct sockaddr_in)) {
+ 		return EAI_FAIL;
+ 	}
+ 
+-	/* We don't support those. */
+-	if ((node && !(flags & NI_NUMERICHOST))
+-		|| (service && !(flags & NI_NUMERICSERV)))
+-		return EAI_FAIL;
+-
+ 	if (node) {
+-		return gethostnameinfo(sa, node, nodelen, flags);
++		int ret = gethostnameinfo(sa, node, nodelen, flags);
++		if (ret)
++			return ret;
+ 	}
+ 
+ 	if (service) {
+ 		return getservicenameinfo(sa, service, servicelen, flags);
+ 	}
+ 	return 0;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/lib/pool_alloc.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/lib/pool_alloc.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/lib/pool_alloc.c	2007-08-21 13:04:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/lib/pool_alloc.c	2008-11-10 10:55:14.000000000 +0800
+@@ -292,45 +292,54 @@
+ 	}
+ 
+ 	return PTR_ADD(cur->start, cur->free);
+ }
+ 
+ #define FDPRINT(label, value) \
+-	snprintf(buf, sizeof buf, label, value), \
+-	write(fd, buf, strlen(buf))
++	do { \
++		int len = snprintf(buf, sizeof buf, label, value); \
++		if (write(fd, buf, len) != len) \
++			ret = -1; \
++	} while (0)
+ 
+ #define FDEXTSTAT(ext) \
+-	snprintf(buf, sizeof buf, "  %12ld  %5ld\n", \
+-		(long) ext->free, \
+-		(long) ext->bound), \
+-	write(fd, buf, strlen(buf))
++	do { \
++		int len = snprintf(buf, sizeof buf, "  %12ld  %5ld\n", \
++				   (long)ext->free, (long)ext->bound); \
++		if (write(fd, buf, len) != len) \
++			ret = -1; \
++	} while (0)
+ 
+-void
++int
+ pool_stats(alloc_pool_t p, int fd, int summarize)
+ {
+ 	struct alloc_pool *pool = (struct alloc_pool *) p;
+ 	struct pool_extent	*cur;
+ 	char buf[BUFSIZ];
++	int ret = 0;
+ 
+ 	if (!pool)
+-		return;
++		return ret;
+ 
+ 	FDPRINT("  Extent size:       %12ld\n",	(long)	pool->size);
+ 	FDPRINT("  Alloc quantum:     %12ld\n",	(long)	pool->quantum);
+ 	FDPRINT("  Extents created:   %12ld\n",		pool->e_created);
+ 	FDPRINT("  Extents freed:     %12ld\n",		pool->e_freed);
+ 	FDPRINT("  Alloc count:       %12.0f\n", (double) pool->n_allocated);
+ 	FDPRINT("  Free Count:        %12.0f\n", (double) pool->n_freed);
+ 	FDPRINT("  Bytes allocated:   %12.0f\n", (double) pool->b_allocated);
+ 	FDPRINT("  Bytes freed:       %12.0f\n", (double) pool->b_freed);
+ 
+ 	if (summarize)
+-		return;
++		return ret;
+ 
+ 	if (!pool->extents)
+-		return;
++		return ret;
+ 
+-	write(fd, "\n", 1);
++	if (write(fd, "\n", 1) != 1)
++		ret = -1;
+ 
+ 	for (cur = pool->extents; cur; cur = cur->next)
+ 		FDEXTSTAT(cur);
++
++	return ret;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/log.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/log.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/log.c	2008-08-18 00:25:34.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/log.c	2008-09-27 12:19:51.000000000 +0800
+@@ -52,13 +52,13 @@
+ extern iconv_t ic_chck;
+ #endif
+ #ifdef ICONV_OPTION
+ extern iconv_t ic_send, ic_recv;
+ #endif
+ extern char curr_dir[];
+-extern char *module_dir;
++extern char *full_module_path;
+ extern unsigned int module_dirlen;
+ 
+ static int log_initialised;
+ static int logfile_was_closed;
+ static FILE *logfile_fp;
+ struct stats stats;
+@@ -600,13 +600,13 @@
+ 			n = lp_name(module_id);
+ 			break;
+ 		case 't':
+ 			n = timestring(time(NULL));
+ 			break;
+ 		case 'P':
+-			n = module_dir;
++			n = full_module_path;
+ 			break;
+ 		case 'u':
+ 			n = auth_user;
+ 			break;
+ 		case 'b':
+ 			if (am_sender) {
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/main.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/main.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/main.c	2008-09-01 00:51:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/main.c	2008-10-12 02:14:43.000000000 +0800
+@@ -466,13 +466,13 @@
+ #endif
+ 	} else {
+ 		pid = piped_child(args, f_in_p, f_out_p);
+ #ifdef ICONV_CONST
+ 		setup_iconv();
+ #endif
+-		if (protect_args)
++		if (protect_args && !daemon_over_rsh)
+ 			send_protected_args(*f_out_p, args);
+ 	}
+ 
+ 	return pid;
+ 
+   oom:
+@@ -1184,14 +1184,14 @@
+ 	} else {  /* read_batch */
+ 		local_server = 1;
+ 		if (check_for_hostspec(argv[argc-1], &shell_machine, &rsync_port)) {
+ 			rprintf(FERROR, "remote destination is not allowed with --read-batch\n");
+ 			exit_cleanup(RERR_SYNTAX);
+ 		}
+-		remote_argv = argv + argc - 1;
+-		remote_argc = 1;
++		remote_argv = argv += argc - 1;
++		remote_argc = argc = 1;
+ 	}
+ 
+ 	if (am_sender) {
+ 		char *dummy_host;
+ 		int dummy_port = rsync_port;
+ 		int i;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/Makefile.in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/Makefile.in
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/Makefile.in	2008-07-24 14:28:57.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/Makefile.in	2008-11-16 07:32:02.000000000 +0800
+@@ -130,21 +130,29 @@
+ 	@if test -f config.h.in; then cp -p config.h.in config.h.in.old; else touch config.h.in.old; fi
+ 	autoconf -o configure.sh
+ 	autoheader && touch config.h.in
+ 	@if diff configure.sh configure.sh.old >/dev/null 2>&1; then \
+ 	    echo "configure.sh is unchanged."; \
+ 	    rm configure.sh.old; \
++	else \
++	    echo "configure.sh has CHANGED."; \
+ 	fi
+ 	@if diff config.h.in config.h.in.old >/dev/null 2>&1; then \
+ 	    echo "config.h.in is unchanged."; \
+ 	    rm config.h.in.old; \
++	else \
++	    echo "config.h.in has CHANGED."; \
+ 	fi
+ 	@if test -f configure.sh.old -o -f config.h.in.old; then \
+-	    echo 'Configure files changed -- perhaps run:'; \
+-	    echo '  make reconfigure'; \
+-	    exit 1; \
++	    if test "$(MAKECMDGOALS)" = reconfigure; then \
++		echo 'Continuing with "make reconfigure".'; \
++	    else \
++		echo 'You may need to run:'; \
++		echo '  make reconfigure'; \
++		exit 1; \
++	    fi \
+ 	fi
+ 
+ reconfigure: configure.sh
+ 	./config.status --recheck
+ 	./config.status
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/NEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/NEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/NEWS	2008-09-07 00:32:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/NEWS	2008-12-29 10:02:17.000000000 +0800
+@@ -1,64 +1,62 @@
+-NEWS for rsync 3.0.4 (6 Sep 2008)
++NEWS for rsync 3.0.5 (28 Dec 2008)
+ Protocol: 30 (unchanged)
+-Changes since 3.0.3:
++Changes since 3.0.4:
+ 
+   BUG FIXES:
+ 
+-    - Fixed a bug in the hard-linking code where it would sometimes try to
+-      allocate 0 bytes of memory (which fails on some OSes, such as AIX).
++    - Initialize xattr data in a couple spots in the hlink code, which avoids a
++      crash when the xattr pointer's memory happens to start out non-zero.
++      Also fixed the itemizing of an alt-dest file's xattrs when hard-linking.
+ 
+-    - Fixed the hard-linking of files from a device that has a device number
+-      of 0 (which seems to be a common device number on NetBSD).
++    - Don't send a bogus "-" option to an older server if there were no short
++      options specified.
+ 
+-    - Fixed the handling of a --partial-dir that cannot be created.  This
+-      particularly impacts the --delay-updates option (since the files cannot
+-      be delayed without a partial-dir), and was potentially destructive if
+-      the --remove-source-files was also specified.
++    - Fixed skipping of unneeded updates in a batch file when incremental
++      recursion is active.  Added a test for this.  Made batch-mode handle
++      "redo" files properly (and without hanging).
+ 
+-    - Fixed a couple issues in the --fake-super handling of xattrs when the
+-      destination files have root-level attributes (e.g. selinux values) that
+-      a non-root copy can't affect.
++    - Fix the %P logfile escape when the daemon logs from inside a chroot.
+ 
+-    - Improved the keep-alive check in the generator to fire consistently in
+-      incremental-recursion mode when --timeout is enabled.
++    - Fixed the use of -s (--protect-args) when used with a remote source or
++      destination that had an empty path (e.g. "host:").  Also fixed a problem
++      when -s was used when accessing a daemon via a remote-shell.
+ 
+-    - The --iconv option now converts the content of a symlink too, instead
+-      of leaving it in the wrong character-set (requires 3.0.4 on both sides
+-      of the transfer).
++    - Fixed the use of a dot-dir path (e.g. foo/./bar) inside a --files-from
++      file when the root of the transfer isn't the current directory.
+ 
+-    - When using --iconv, if a filename fails to convert on the receiving side,
+-      this no longer makes deletions in the root-dir of the transfer fail
+-      silently (the user now gets a warning about deletions being disabled
+-      due to IO error as long as --ignore-errors was not specified).
++    - Fixed a bug with "-K --delete" removing symlinks to directories when
++      incremental recursion is active.
+ 
+-    - When using --iconv, if a server-side receiver can't convert a filename,
+-      the error message sent back to the client no longer mangles the name
+-      with the wrong charset conversion.
++    - Fixed a hard to trigger hang when using --remove-source-files.
+ 
+-    - Fixed a potential alignment issue in the IRIX ACL code when allocating
+-      the initial "struct acl" object.  Also, cast mallocs to avoid warnings.
++    - Got rid of an annoying delay when accessing a daemon via a remote-shell.
+ 
+-    - Changed some errors that were going to stdout to go to stderr.
++    - Properly ignore (superfluous) source args on a --read-batch command.
+ 
+-    - Made human_num() and human_dnum() able to output a negative number
+-      (rather than outputting a cryptic string of punctuation).
++    - Improved the manpage's description of the '*' wildcard to remove the
++      confusing "non-empty" qualifier.
+ 
+-  ENHANCEMENTS:
++    - Fixed reverse lookups in the compatibility-library version of
++      getnameinfo().
++
++    - Fixed a bug when using --sparse on a sparse file that has over 2GB of
++      consecutive sparse data.
+ 
+-    - Rsync will avoid sending an -e option to the server if an older protocol
+-      is requested (and thus the option would not be useful).  This lets the
+-      user specify the --protocol=29 option to access an overly-restrictive
+-      server that is rejecting the protocol-30 use of -e to the server.
++    - Avoid a hang when using at least 3 --verbose options on a transfer with a
++      client sender (which includes local copying).
+ 
+-    - Improved the message output for an RERR_PARTIAL exit.
++    - Fixed a problem with --delete-delay reporting an error when it was ready
++      to remove a directory that was now gone.
+ 
+-  DEVELOPER RELATED:
++    - Got rid of a bunch of "warn_unused_result" compiler warnings.
+ 
+-    - The Makefile will not halt for just a timestamp change on the Makefile
+-      or the configure files, only for actual changes in content.
++    - If an ftruncate() on a received file fails, it now causes a partial-
++      transfer warning.
+ 
+-    - Changed some commands in the testsuite's xattrs.test that called "rsync"
+-      instead of "$RSYNC".
++    - Allow a path with a leading "//" to be preserved (CYGWIN only).
++
++  ENHANCEMENTS:
+ 
+-    - Enhanced the release scripts to be able to handle a branch release and
+-      to do even more consistency checks on the files.
++    - Made the support/atomic-rsync script able to perform a fully atomic
++      update of the copied hierarchy when the destination is setup using a
++      particular symlink idiom.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/OLDNEWS /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/OLDNEWS
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/OLDNEWS	2008-09-07 00:32:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/OLDNEWS	2008-12-29 10:02:17.000000000 +0800
+@@ -1,6 +1,72 @@
++NEWS for rsync 3.0.4 (6 Sep 2008)
++Protocol: 30 (unchanged)
++Changes since 3.0.3:
++
++  BUG FIXES:
++
++    - Fixed a bug in the hard-linking code where it would sometimes try to
++      allocate 0 bytes of memory (which fails on some OSes, such as AIX).
++
++    - Fixed the hard-linking of files from a device that has a device number
++      of 0 (which seems to be a common device number on NetBSD).
++
++    - Fixed the handling of a --partial-dir that cannot be created.  This
++      particularly impacts the --delay-updates option (since the files cannot
++      be delayed without a partial-dir), and was potentially destructive if
++      the --remove-source-files was also specified.
++
++    - Fixed a couple issues in the --fake-super handling of xattrs when the
++      destination files have root-level attributes (e.g. selinux values) that
++      a non-root copy can't affect.
++
++    - Improved the keep-alive check in the generator to fire consistently in
++      incremental-recursion mode when --timeout is enabled.
++
++    - The --iconv option now converts the content of a symlink too, instead
++      of leaving it in the wrong character-set (requires 3.0.4 on both sides
++      of the transfer).
++
++    - When using --iconv, if a filename fails to convert on the receiving side,
++      this no longer makes deletions in the root-dir of the transfer fail
++      silently (the user now gets a warning about deletions being disabled
++      due to IO error as long as --ignore-errors was not specified).
++
++    - When using --iconv, if a server-side receiver can't convert a filename,
++      the error message sent back to the client no longer mangles the name
++      with the wrong charset conversion.
++
++    - Fixed a potential alignment issue in the IRIX ACL code when allocating
++      the initial "struct acl" object.  Also, cast mallocs to avoid warnings.
++
++    - Changed some errors that were going to stdout to go to stderr.
++
++    - Made human_num() and human_dnum() able to output a negative number
++      (rather than outputting a cryptic string of punctuation).
++
++  ENHANCEMENTS:
++
++    - Rsync will avoid sending an -e option to the server if an older protocol
++      is requested (and thus the option would not be useful).  This lets the
++      user specify the --protocol=29 option to access an overly-restrictive
++      server that is rejecting the protocol-30 use of -e to the server.
++
++    - Improved the message output for an RERR_PARTIAL exit.
++
++  DEVELOPER RELATED:
++
++    - The Makefile will not halt for just a timestamp change on the Makefile
++      or the configure files, only for actual changes in content.
++
++    - Changed some commands in the testsuite's xattrs.test that called "rsync"
++      instead of "$RSYNC".
++
++    - Enhanced the release scripts to be able to handle a branch release and
++      to do even more consistency checks on the files.
++
++
+ NEWS for rsync 3.0.3 (29 Jun 2008)
+ Protocol: 30 (unchanged)
+ Changes since 3.0.2:
+ 
+   BUG FIXES:
+ 
+@@ -2838,12 +2904,13 @@
+     * The existing test.sh script by Phil Hands has been merged into a
+       test framework that works from both "make check" and the Samba
+       build farm.
+ 
+ Partial Protocol History
+ 	RELEASE DATE	VER.	DATE OF COMMIT*	PROTOCOL
++	28 Dec 2008	3.0.5			30
+ 	06 Sep 2008	3.0.4			30
+ 	29 Jun 2008	3.0.3			30
+ 	08 Apr 2008	3.0.2			30
+ 	03 Apr 2008	3.0.1			30
+ 	01 Mar 2008	3.0.0	11 Nov 2006	30
+ 	06 Nov 2006	2.6.9			29
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/options.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/options.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/options.c	2008-08-02 22:04:54.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/options.c	2008-11-10 10:55:14.000000000 +0800
+@@ -225,13 +225,14 @@
+ 	char const *links = "no ";
+ 	char const *iconv = "no ";
+ 	char const *ipv6 = "no ";
+ 	STRUCT_STAT *dumstat;
+ 
+ #if SUBPROTOCOL_VERSION != 0
+-	asprintf(&subprotocol, ".PR%d", SUBPROTOCOL_VERSION);
++	if (asprintf(&subprotocol, ".PR%d", SUBPROTOCOL_VERSION) < 0)
++		out_of_memory("print_rsync_version");
+ #endif
+ #ifdef HAVE_SOCKETPAIR
+ 	got_socketpair = "";
+ #endif
+ #ifdef HAVE_FTRUNCATE
+ 	have_inplace = "";
+@@ -1837,13 +1838,14 @@
+ 		rprintf(FERROR, "argstr overflow in server_options().\n");
+ 		exit_cleanup(RERR_MALLOC);
+ 	}
+ 
+ 	argstr[x] = '\0';
+ 
+-	args[ac++] = argstr;
++	if (x > 1)
++		args[ac++] = argstr;
+ 
+ #ifdef ICONV_OPTION
+ 	if (iconv_opt) {
+ 		char *set = strchr(iconv_opt, ',');
+ 		if (set)
+ 			set++;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/packaging/lsb/rsync.spec /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/packaging/lsb/rsync.spec
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/packaging/lsb/rsync.spec	2008-09-07 00:32:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/packaging/lsb/rsync.spec	2008-12-29 10:02:17.000000000 +0800
+@@ -1,9 +1,9 @@
+ Summary: A fast, versatile, remote (and local) file-copying tool
+ Name: rsync
+-Version: 3.0.4
++Version: 3.0.5
+ %define fullversion %{version}
+ Release: 1
+ %define srcdir src
+ Group: Applications/Internet
+ Source0: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-%{fullversion}.tar.gz
+ #Source1: http://rsync.samba.org/ftp/rsync/%{srcdir}/rsync-patches-%{fullversion}.tar.gz
+@@ -63,12 +63,12 @@
+ %config(noreplace) /etc/xinetd.d/rsync
+ %{_prefix}/bin/rsync*
+ %{_mandir}/man1/rsync.1*
+ %{_mandir}/man5/rsyncd.conf.5*
+ 
+ %changelog
+-* Sat Sep 06 2008 Wayne Davison <wayned@samba.org>
+-Released 3.0.4.
++* Sun Dec 28 2008 Wayne Davison <wayned@samba.org>
++Released 3.0.5.
+ 
+ * Fri Mar 21 2008 Wayne Davison <wayned@samba.org>
+ Added installation of /etc/xinetd.d/rsync file and some commented-out
+ lines that demonstrate how to use the rsync-patches tar file.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/proto.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/proto.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/proto.h	2008-09-07 00:33:01.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/proto.h	2008-12-29 10:03:36.000000000 +0800
+@@ -71,13 +71,13 @@
+ char *get_rule_prefix(int match_flags, const char *pat, int for_xfer,
+ 		      unsigned int *plen_ptr);
+ void send_filter_list(int f_out);
+ void recv_filter_list(int f_in);
+ int sparse_end(int f);
+ int flush_write_file(int f);
+-int write_file(int f,char *buf,size_t len);
++int write_file(int f, char *buf, int len);
+ struct map_struct *map_file(int fd, OFF_T len, int32 read_size,
+ 			    int32 blk_size);
+ char *map_ptr(struct map_struct *map, OFF_T offset, int32 len);
+ int unmap_file(struct map_struct *map);
+ void init_flist(void);
+ void show_flist_stats(void);
+@@ -88,12 +88,13 @@
+ void unmake_file(struct file_struct *file);
+ void send_extra_file_list(int f, int at_least);
+ struct file_list *send_file_list(int f, int argc, char *argv[]);
+ struct file_list *recv_file_list(int f);
+ void recv_additional_file_list(int f);
+ int flist_find(struct file_list *flist, struct file_struct *f);
++int flist_find_ignore_dirness(struct file_list *flist, struct file_struct *f);
+ void clear_file(struct file_struct *file);
+ struct file_list *flist_new(int flags, char *msg);
+ void flist_free(struct file_list *flist);
+ int f_name_cmp(const struct file_struct *f1, const struct file_struct *f2);
+ int f_name_has_prefix(const struct file_struct *f1, const struct file_struct *f2);
+ char *f_name_buf(void);
+@@ -349,12 +350,13 @@
+ size_t stringjoin(char *dest, size_t destsize, ...);
+ int count_dir_elements(const char *p);
+ unsigned int clean_fname(char *name, int flags);
+ char *sanitize_path(char *dest, const char *p, const char *rootdir, int depth,
+ 		    int flags);
+ int change_dir(const char *dir, int set_path_only);
++char *normalize_path(char *path, BOOL force_newbuf, unsigned int *len_ptr);
+ char *full_fname(const char *fn);
+ char *partial_dir_fname(const char *fname);
+ int handle_partial_dir(const char *fname, int create);
+ int unsafe_symlink(const char *dest, const char *src);
+ char *human_num(int64 num);
+ char *human_dnum(double dnum, int decimal_digits);
+@@ -368,12 +370,14 @@
+ uint32 fuzzy_distance(const char *s1, int len1, const char *s2, int len2);
+ struct bitbag *bitbag_create(int max_ndx);
+ void bitbag_set_bit(struct bitbag *bb, int ndx);
+ void bitbag_clear_bit(struct bitbag *bb, int ndx);
+ int bitbag_check_bit(struct bitbag *bb, int ndx);
+ int bitbag_next_bit(struct bitbag *bb, int after);
++void flist_ndx_push(flist_ndx_list *lp, int ndx);
++int flist_ndx_pop(flist_ndx_list *lp);
+ void *expand_item_list(item_list *lp, size_t item_size,
+ 		       const char *desc, int incr);
+ void free_xattr(stat_x *sxp);
+ int get_xattr(const char *fname, stat_x *sxp);
+ int copy_xattrs(const char *source, const char *dest);
+ int send_xattr(stat_x *sxp, int f);
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/receiver.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/receiver.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/receiver.c	2008-08-02 09:00:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/receiver.c	2008-11-16 06:49:28.000000000 +0800
+@@ -56,12 +56,13 @@
+ extern char *basis_dir[];
+ extern struct file_list *cur_flist, *first_flist, *dir_flist;
+ extern struct filter_list_struct daemon_filter_list;
+ 
+ static struct bitbag *delayed_bits = NULL;
+ static int phase = 0, redoing = 0;
++static flist_ndx_list batch_redo_list;
+ /* We're either updating the basis file or an identical copy: */
+ static int updating_basis_or_equiv;
+ 
+ /*
+  * get_tmpname() - create a tmp filename for a given filename
+  *
+@@ -281,14 +282,17 @@
+ 	}
+ 
+ 	if (flush_write_file(fd) < 0)
+ 		goto report_write_error;
+ 
+ #ifdef HAVE_FTRUNCATE
+-	if (inplace && fd != -1)
+-		ftruncate(fd, offset);
++	if (inplace && fd != -1
++	 && ftruncate(fd, offset) < 0) {
++		rsyserr(FERROR_XFER, errno, "ftruncate failed on %s",
++			full_fname(fname));
++	}
+ #endif
+ 
+ 	if (do_progress)
+ 		end_progress(total_size);
+ 
+ 	if (fd != -1 && offset > 0 && sparse_end(fd) != 0) {
+@@ -345,40 +349,74 @@
+ 				handle_partial_dir(partialptr, PDIR_DELETE);
+ 			}
+ 		}
+ 	}
+ }
+ 
+-static int get_next_gen_ndx(int fd, int next_gen_ndx, int desired_ndx)
++static void no_batched_update(int ndx, BOOL is_redo)
+ {
+-	while (next_gen_ndx < desired_ndx) {
+-		if (next_gen_ndx >= 0) {
+-			struct file_struct *file = cur_flist->files[next_gen_ndx];
+-			rprintf(FERROR_XFER,
+-				"(No batched update for%s \"%s\")\n",
+-				file->flags & FLAG_FILE_SENT ? " resend of" : "",
+-				f_name(file, NULL));
+-		}
+-		next_gen_ndx = read_int(fd);
+-		if (next_gen_ndx == -1) {
+-			if (inc_recurse)
+-				next_gen_ndx = first_flist->prev->used + first_flist->prev->ndx_start;
+-			else
+-				next_gen_ndx = cur_flist->used;
++	struct file_list *flist = flist_for_ndx(ndx, "no_batched_update");
++	struct file_struct *file = flist->files[ndx - flist->ndx_start];
++
++	rprintf(FERROR_XFER, "(No batched update for%s \"%s\")\n",
++		is_redo ? " resend of" : "", f_name(file, NULL));
++
++	if (inc_recurse)
++		send_msg_int(MSG_NO_SEND, ndx);
++}
++
++static int we_want_redo(int desired_ndx)
++{
++	static int redo_ndx = -1;
++
++	while (redo_ndx < desired_ndx) {
++		if (redo_ndx >= 0)
++			no_batched_update(redo_ndx, True);
++		if ((redo_ndx = flist_ndx_pop(&batch_redo_list)) < 0)
++			return 0;
++	}
++
++	if (redo_ndx == desired_ndx) {
++		redo_ndx = -1;
++		return 1;
++	}
++
++	return 0;
++}
++
++static int gen_wants_ndx(int desired_ndx)
++{
++	static int next_ndx = -1;
++	static BOOL got_eof = 0;
++
++	if (got_eof)
++		return 0;
++
++	while (next_ndx < desired_ndx) {
++		if (next_ndx >= 0)
++			no_batched_update(next_ndx, False);
++		if ((next_ndx = read_int(batch_gen_fd)) < 0) {
++			got_eof = True;
++			return 0;
+ 		}
+ 	}
+-	return next_gen_ndx;
++
++	if (next_ndx == desired_ndx) {
++		next_ndx = -1;
++		return 1;
++	}
++
++	return 0;
+ }
+ 
+ /**
+  * main routine for receiver process.
+  *
+  * Receiver process runs on the same host as the generator process. */
+ int recv_files(int f_in, char *local_name)
+ {
+-	int next_gen_ndx = -1;
+ 	int fd1,fd2;
+ 	STRUCT_STAT st;
+ 	int iflags, xlen;
+ 	char *fname, fbuf[MAXPATHLEN];
+ 	char xname[MAXPATHLEN];
+ 	char fnametmp[MAXPATHLEN];
+@@ -407,23 +445,19 @@
+ 
+ 		/* This call also sets cur_flist. */
+ 		ndx = read_ndx_and_attrs(f_in, &iflags, &fnamecmp_type,
+ 					 xname, &xlen);
+ 		if (ndx == NDX_DONE) {
+ 			if (inc_recurse && first_flist) {
++				if (read_batch)
++					gen_wants_ndx(first_flist->used + first_flist->ndx_start);
+ 				flist_free(first_flist);
+ 				if (first_flist)
+ 					continue;
+-			}
+-			if (read_batch && cur_flist) {
+-				int high = inc_recurse
+-				    ? first_flist->prev->used + first_flist->prev->ndx_start
+-				    : cur_flist->used;
+-				get_next_gen_ndx(batch_gen_fd, next_gen_ndx, high);
+-				next_gen_ndx = -1;
+-			}
++			} else if (read_batch && first_flist)
++				gen_wants_ndx(first_flist->used);
+ 			if (++phase > max_phase)
+ 				break;
+ 			if (verbose > 2)
+ 				rprintf(FINFO, "recv_files phase=%d\n", phase);
+ 			if (phase == 2 && delay_updates)
+ 				handle_delayed_updates(local_name);
+@@ -506,23 +540,21 @@
+ 			if (!am_server)
+ 				discard_receive_data(f_in, F_LENGTH(file));
+ 			continue;
+ 		}
+ 
+ 		if (read_batch) {
+-			next_gen_ndx = get_next_gen_ndx(batch_gen_fd, next_gen_ndx, ndx);
+-			if (ndx < next_gen_ndx) {
++			if (!(redoing ? we_want_redo(ndx) : gen_wants_ndx(ndx))) {
+ 				rprintf(FINFO,
+-					"(Skipping batched update for \"%s\")\n",
++					"(Skipping batched update for%s \"%s\")\n",
++					redoing ? " resend of" : "",
+ 					fname);
+ 				discard_receive_data(f_in, F_LENGTH(file));
+-				if (inc_recurse)
+-					send_msg_int(MSG_NO_SEND, ndx);
++				file->flags |= FLAG_FILE_SENT;
+ 				continue;
+ 			}
+-			next_gen_ndx = -1;
+ 		}
+ 
+ 		partialptr = partial_dir ? partial_dir_fname(fname) : fname;
+ 
+ 		if (protocol_version >= 29) {
+ 			switch (fnamecmp_type) {
+@@ -716,12 +748,15 @@
+ 				partialptr = NULL;
+ 		} else
+ 			do_unlink(fnametmp);
+ 
+ 		cleanup_disable();
+ 
++		if (read_batch)
++			file->flags |= FLAG_FILE_SENT;
++
+ 		switch (recv_ok) {
+ 		case 2:
+ 			break;
+ 		case 1:
+ 			if (remove_source_files || inc_recurse
+ 			 || (preserve_hard_links && F_IS_HLINKED(file)))
+@@ -748,12 +783,14 @@
+ 				rprintf(msgtype,
+ 					"%s: %s failed verification -- update %s%s.\n",
+ 					errstr, local_name ? f_name(file, NULL) : fname,
+ 					keptstr, redostr);
+ 			}
+ 			if (!redoing) {
++				if (read_batch)
++					flist_ndx_push(&batch_redo_list, ndx);
+ 				send_msg_int(MSG_REDO, ndx);
+ 				file->flags |= FLAG_FILE_SENT;
+ 			} else if (inc_recurse)
+ 				send_msg_int(MSG_NO_SEND, ndx);
+ 			break;
+ 		    }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.1 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsync.1
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.1	2008-09-07 00:33:02.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsync.1	2008-12-29 10:03:37.000000000 +0800
+@@ -1,7 +1,7 @@
+-.TH "rsync" "1" "6 Sep 2008" "" ""
++.TH "rsync" "1" "28 Dec 2008" "" ""
+ .SH "NAME"
+ rsync \(em a fast, versatile, remote (and local) file-copying tool
+ .SH "SYNOPSIS"
+ 
+ .PP 
+ .nf 
+@@ -79,12 +79,16 @@
+ As a special case, if a single source arg is specified without a
+ destination, the files are listed in an output format similar to \(lqls \-l\(rq.
+ .PP 
+ As expected, if neither the source or destination path specify a remote
+ host, the copy occurs locally (see also the \fB\-\-list\-only\fP option).
+ .PP 
++Rsync refers to the local side as the \(lqclient\(rq and the remote side as the
++\(lqserver\(rq.  Don't confuse \(lqserver\(rq with an rsync daemon \(em a daemon is always a
++server, but a server can be either a daemon or a remote-shell spawned process.
++.PP 
+ .SH "SETUP"
+ 
+ .PP 
+ See the file README for installation instructions.
+ .PP 
+ Once installed, you can use rsync to any machine that you can access via
+@@ -774,13 +778,13 @@
+ \fB\-\-backup\-dir\fP and \fB\-\-suffix\fP options.
+ .IP 
+ Note that if you don't specify \fB\-\-backup\-dir\fP, (1) the
+ \fB\-\-omit\-dir\-times\fP option will be implied, and (2) if \fB\-\-delete\fP is
+ also in effect (without \fB\-\-delete\-excluded\fP), rsync will add a \(lqprotect\(rq
+ filter-rule for the backup suffix to the end of all your existing excludes
+-(e.g. \fB\-f "Pp *~"\fP).  This will prevent previously backed-up files from being
++(e.g. \fB\-f "P *~"\fP).  This will prevent previously backed-up files from being
+ deleted.  Note that if you are supplying your own filter rules, you may
+ need to manually insert your own exclude/protect rule somewhere higher up
+ in the list so that it has a high enough priority to be effective (e.g., if
+ your rules specify a trailing inclusion/exclusion of \(oq*\(cq, the auto-added
+ rule would never be reached).
+ .IP 
+@@ -2618,13 +2622,13 @@
+ directory, not a regular file, symlink, or device.
+ .IP o 
+ rsync chooses between doing a simple string match and wildcard
+ matching by checking if the pattern contains one of these three wildcard
+ characters: \(oq*\(cq, \(oq?\(cq, and \(oq[\(cq .
+ .IP o 
+-a \(oq*\(cq matches any non-empty path component (it stops at slashes).
++a \(oq*\(cq matches any path component, but it stops at slashes.
+ .IP o 
+ use '**' to match anything, including slashes.
+ .IP o 
+ a \(oq?\(cq matches any character except a slash (/).
+ .IP o 
+ a \(oq[\(cq introduces a character class, such as [a\-z] or [[:alpha:]].
+@@ -3387,13 +3391,13 @@
+ Please report bugs! See the web site at
+ http://rsync.samba.org/
+ .PP 
+ .SH "VERSION"
+ 
+ .PP 
+-This man page is current for version 3.0.4 of rsync.
++This man page is current for version 3.0.5 of rsync.
+ .PP 
+ .SH "INTERNAL OPTIONS"
+ 
+ .PP 
+ The options \fB\-\-server\fP and \fB\-\-sender\fP are used internally by rsync,
+ and should never be typed by a user under normal circumstances.  Some
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsync.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.c	2008-09-01 00:51:29.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsync.c	2008-10-12 01:16:47.000000000 +0800
+@@ -218,22 +218,25 @@
+ 
+ 	for (i = 0; args[i]; i++) {} /* find first NULL */
+ 	args[i] = "rsync"; /* set a new arg0 */
+ 	if (verbose > 1)
+ 		print_child_argv("protected args:", args + i + 1);
+ 	do {
++		if (!args[i][0])
++			write_buf(fd, ".", 2);
+ #ifdef ICONV_OPTION
+-		if (convert) {
++		else if (convert) {
+ 			INIT_XBUF_STRLEN(inbuf, args[i]);
+ 			iconvbufs(ic_send, &inbuf, &outbuf,
+ 				  ICB_EXPAND_OUT | ICB_INCLUDE_BAD | ICB_INCLUDE_INCOMPLETE);
+ 			outbuf.buf[outbuf.len] = '\0';
+ 			write_buf(fd, outbuf.buf, outbuf.len + 1);
+ 			outbuf.len = 0;
+-		} else
++		}
+ #endif
++		else
+ 			write_buf(fd, args[i], strlen(args[i]) + 1);
+ 	} while (args[++i]);
+ 	write_byte(fd, 0);
+ 
+ #ifdef ICONV_OPTION
+ 	if (convert)
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsyncd.conf.5 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsyncd.conf.5
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsyncd.conf.5	2008-09-07 00:33:03.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsyncd.conf.5	2008-12-29 10:03:37.000000000 +0800
+@@ -1,7 +1,7 @@
+-.TH "rsyncd.conf" "5" "6 Sep 2008" "" ""
++.TH "rsyncd.conf" "5" "28 Dec 2008" "" ""
+ .SH "NAME"
+ rsyncd.conf \(em configuration file for rsync in daemon mode
+ .SH "SYNOPSIS"
+ 
+ .PP 
+ rsyncd.conf
+@@ -819,13 +819,13 @@
+ Please report bugs! The rsync bug tracking system is online at
+ http://rsync.samba.org/
+ .PP 
+ .SH "VERSION"
+ 
+ .PP 
+-This man page is current for version 3.0.4 of rsync.
++This man page is current for version 3.0.5 of rsync.
+ .PP 
+ .SH "CREDITS"
+ 
+ .PP 
+ rsync is distributed under the GNU public license.  See the file
+ COPYING for details.
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsyncd.conf.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsyncd.conf.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsyncd.conf.yo	2008-09-07 00:32:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsyncd.conf.yo	2008-12-29 10:02:17.000000000 +0800
+@@ -1,8 +1,8 @@
+ mailto(rsync-bugs@samba.org)
+-manpage(rsyncd.conf)(5)(6 Sep 2008)()()
++manpage(rsyncd.conf)(5)(28 Dec 2008)()()
+ manpagename(rsyncd.conf)(configuration file for rsync in daemon mode)
+ manpagesynopsis()
+ 
+ rsyncd.conf
+ 
+ manpagedescription()
+@@ -697,13 +697,13 @@
+ 
+ Please report bugs! The rsync bug tracking system is online at
+ url(http://rsync.samba.org/)(http://rsync.samba.org/)
+ 
+ manpagesection(VERSION)
+ 
+-This man page is current for version 3.0.4 of rsync.
++This man page is current for version 3.0.5 of rsync.
+ 
+ manpagesection(CREDITS)
+ 
+ rsync is distributed under the GNU public license.  See the file
+ COPYING for details.
+ 
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.h /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsync.h
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.h	2008-08-03 01:25:17.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsync.h	2008-09-27 12:21:52.000000000 +0800
+@@ -829,12 +829,21 @@
+ 	int num_files;
+ 	int num_transferred_files;
+ };
+ 
+ struct chmod_mode_struct;
+ 
++struct flist_ndx_item {
++	struct flist_ndx_item *next;
++	int ndx;
++};
++
++typedef struct {
++	struct flist_ndx_item *head, *tail;
++} flist_ndx_list;
++
+ #define EMPTY_ITEM_LIST {NULL, 0, 0}
+ 
+ typedef struct {
+ 	void *items;
+ 	size_t count;
+ 	size_t malloced;
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.yo /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsync.yo
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/rsync.yo	2008-09-07 00:32:26.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/rsync.yo	2008-12-29 10:02:17.000000000 +0800
+@@ -1,8 +1,8 @@
+ mailto(rsync-bugs@samba.org)
+-manpage(rsync)(1)(6 Sep 2008)()()
++manpage(rsync)(1)(28 Dec 2008)()()
+ manpagename(rsync)(a fast, versatile, remote (and local) file-copying tool)
+ manpagesynopsis()
+ 
+ verb(Local:  rsync [OPTION...] SRC... [DEST]
+ 
+ Access via remote shell:
+@@ -67,12 +67,16 @@
+ As a special case, if a single source arg is specified without a
+ destination, the files are listed in an output format similar to "ls -l".
+ 
+ As expected, if neither the source or destination path specify a remote
+ host, the copy occurs locally (see also the bf(--list-only) option).
+ 
++Rsync refers to the local side as the "client" and the remote side as the
++"server".  Don't confuse "server" with an rsync daemon -- a daemon is always a
++server, but a server can be either a daemon or a remote-shell spawned process.
++
+ manpagesection(SETUP)
+ 
+ See the file README for installation instructions.
+ 
+ Once installed, you can use rsync to any machine that you can access via
+ a remote shell (as well as some that you can access using the rsync
+@@ -664,13 +668,13 @@
+ bf(--backup-dir) and bf(--suffix) options.
+ 
+ Note that if you don't specify bf(--backup-dir), (1) the
+ bf(--omit-dir-times) option will be implied, and (2) if bf(--delete) is
+ also in effect (without bf(--delete-excluded)), rsync will add a "protect"
+ filter-rule for the backup suffix to the end of all your existing excludes
+-(e.g. bf(-f "Pp *~")).  This will prevent previously backed-up files from being
++(e.g. bf(-f "P *~")).  This will prevent previously backed-up files from being
+ deleted.  Note that if you are supplying your own filter rules, you may
+ need to manually insert your own exclude/protect rule somewhere higher up
+ in the list so that it has a high enough priority to be effective (e.g., if
+ your rules specify a trailing inclusion/exclusion of '*', the auto-added
+ rule would never be reached).
+ 
+@@ -2273,13 +2277,13 @@
+   of the transfer.
+   it() if the pattern ends with a / then it will only match a
+   directory, not a regular file, symlink, or device.
+   it() rsync chooses between doing a simple string match and wildcard
+   matching by checking if the pattern contains one of these three wildcard
+   characters: '*', '?', and '[' .
+-  it() a '*' matches any non-empty path component (it stops at slashes).
++  it() a '*' matches any path component, but it stops at slashes.
+   it() use '**' to match anything, including slashes.
+   it() a '?' matches any character except a slash (/).
+   it() a '[' introduces a character class, such as [a-z] or [[:alpha:]].
+   it() in a wildcard pattern, a backslash can be used to escape a wildcard
+   character, but it is matched literally when no wildcards are present.
+   it() if the pattern contains a / (not counting a trailing /) or a "**",
+@@ -2891,13 +2895,13 @@
+ 
+ Please report bugs! See the web site at
+ url(http://rsync.samba.org/)(http://rsync.samba.org/)
+ 
+ manpagesection(VERSION)
+ 
+-This man page is current for version 3.0.4 of rsync.
++This man page is current for version 3.0.5 of rsync.
+ 
+ manpagesection(INTERNAL OPTIONS)
+ 
+ The options bf(--server) and bf(--sender) are used internally by rsync,
+ and should never be typed by a user under normal circumstances.  Some
+ awareness of these options may be needed in certain scenarios, such as
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/socket.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/socket.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/socket.c	2008-04-15 23:34:17.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/socket.c	2008-11-10 10:55:14.000000000 +0800
+@@ -820,25 +820,35 @@
+  * @return a socket which is attached to a subprocess running
+  * "prog". stdin and stdout are attached. stderr is left attached to
+  * the original stderr
+  **/
+ int sock_exec(const char *prog)
+ {
++	pid_t pid;
+ 	int fd[2];
+ 
+ 	if (socketpair_tcp(fd) != 0) {
+ 		rsyserr(FERROR, errno, "socketpair_tcp failed");
+ 		return -1;
+ 	}
+ 	if (verbose >= 2)
+ 		rprintf(FINFO, "Running socket program: \"%s\"\n", prog);
+-	if (fork() == 0) {
++
++	pid = fork();
++	if (pid < 0) {
++		rsyserr(FERROR, errno, "fork");
++		exit_cleanup(RERR_IPC);
++	}
++
++	if (pid == 0) {
+ 		close(fd[0]);
+-		close(0);
+-		close(1);
+-		dup(fd[1]);
+-		dup(fd[1]);
++		if (dup2(fd[1], STDIN_FILENO) < 0
++		 || dup2(fd[1], STDOUT_FILENO) < 0) {
++			fprintf(stderr, "Failed to run \"%s\"\n", prog);
++			exit(1);
++		}
+ 		exit(system(prog));
+ 	}
++
+ 	close(fd[1]);
+ 	return fd[0];
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/support/atomic-rsync /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/support/atomic-rsync
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/support/atomic-rsync	2005-05-27 02:00:09.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/support/atomic-rsync	2008-10-12 00:29:23.000000000 +0800
+@@ -3,41 +3,55 @@
+ # This script lets you update a hierarchy of files in an atomic way by
+ # first creating a new hierarchy using rsync's --link-dest option, and
+ # then swapping the hierarchy into place.  **See the usage message for
+ # more details and some important caveats!**
+ 
+ use strict;
++use warnings;
+ use Cwd 'abs_path';
+ 
+ my $RSYNC_PROG = '/usr/bin/rsync';
+ my $RM_PROG = '/bin/rm';
+ 
+ my $dest_dir = $ARGV[-1];
+-usage(1) if $dest_dir eq '' || $dest_dir =~ /^--/;
++&usage if !defined $dest_dir || $dest_dir =~ /(^-|^$)/ || grep(/^--help/, @ARGV);
++$dest_dir =~ s{(?<=.)/+$} {};
+ 
+ if (!-d $dest_dir) {
+-    print STDERR "$dest_dir is not a directory.\n\n";
+-    usage(1);
++    die "$dest_dir is not a directory.\nUse --help for help.\n";
+ }
+ 
+-if (@_ = grep(/^--(link|compare)-dest/, @ARGV)) {
++if (@_ = grep(/^--[a-z]+-dest\b/, @ARGV)) {
+     $_ = join(' or ', @_);
+-    print STDERR "You may not use $_ as an rsync option.\n\n";
+-    usage(1);
++    die "You cannot use the $_ option with atomic-rsync.\nUse --help for help.\n";
+ }
+ 
++my $symlink_content = readlink $dest_dir; # undef when a real dir
++
++my $dest_arg = $dest_dir;
++# This gives us the real destination dir, with all symlinks dereferenced.
+ $dest_dir = abs_path($dest_dir);
+ if ($dest_dir eq '/') {
+-    print STDERR 'You must not use "/" as the destination directory.', "\n\n";
+-    usage(1);
++    die qq|You must not use "/" as the destination directory.\nUse --help for help.\n|;
++}
++
++my($old_dir, $new_dir);
++if (defined $symlink_content && $dest_dir =~ /-([12])$/) {
++    my $num = 3 - $1;
++    $old_dir = undef;
++    ($new_dir = $dest_dir) =~ s/-[12]$/-$num/;
++    $symlink_content =~ s/-[12]$/-$num/;
++} else {
++    $old_dir = "$dest_dir~old~";
++    $new_dir = "$dest_dir~new~";
+ }
+ 
+-my $old_dir = "$dest_dir~old~";
+-my $new_dir = $ARGV[-1] = "$dest_dir~new~";
++$ARGV[-1] = "$new_dir/";
+ 
+-system($RM_PROG, '-rf', $old_dir) if -d $old_dir;
++system($RM_PROG, '-rf', $old_dir) if defined $old_dir && -d $old_dir;
++system($RM_PROG, '-rf', $new_dir) if -d $new_dir;
+ 
+ if (system($RSYNC_PROG, "--link-dest=$dest_dir", @ARGV)) {
+     if ($? == -1) {
+ 	print "failed to execute $RSYNC_PROG: $!\n";
+     } elsif ($? & 127) {
+ 	printf "child died with signal %d, %s coredump\n",
+@@ -45,46 +59,64 @@
+     } else {
+ 	printf "child exited with value %d\n", $? >> 8;
+     }
+     exit $?;
+ }
+ 
+-rename($dest_dir, $old_dir) or die "Unable to rename $new_dir to $old_dir: $!";
++if (!defined $old_dir) {
++    atomic_symlink($symlink_content, $dest_arg);
++    exit;
++}
++
++rename($dest_dir, $old_dir) or die "Unable to rename $dest_dir to $old_dir: $!";
+ rename($new_dir, $dest_dir) or die "Unable to rename $new_dir to $dest_dir: $!";
+ 
+ exit;
+ 
++sub atomic_symlink
++{
++    my($target, $link) = @_;
++    my $newlink = "$link~new~";
++
++    unlink($newlink); # Just in case
++    symlink($target, $newlink) or die "Unable to symlink $newlink -> $target: $!\n";
++    rename($newlink, $link) or die "Unable to rename $newlink to $link: $!\n";
++}
++
+ 
+ sub usage
+ {
+-    my($ret) = @_;
+-    my $fh = $ret ? *STDERR : *STDOUT;
+-    print $fh <<EOT;
++    die <<EOT;
+ Usage: atomic-rsync [RSYNC-OPTIONS] HOST:/SOURCE/DIR/ /DEST/DIR/
+        atomic-rsync [RSYNC-OPTIONS] HOST::MOD/DIR/ /DEST/DIR/
+ 
+ This script lets you update a hierarchy of files in an atomic way by first
+ creating a new hierarchy (using hard-links to leverage the existing files),
+ and then swapping the new hierarchy into place.  You must be pulling files
+ to a local directory, and that directory must already exist.  For example:
+ 
++    mkdir /local/files-1
++    ln -s files-1 /local/files
+     atomic-rsync -av host:/remote/files/ /local/files/
+ 
+-This would make the transfer to the directory /local/files~new~ and then
+-swap out /local/files at the end of the transfer by renaming it to
+-/local/files~old~ and putting the new directory into its place.  The
+-/local/files~old~ directory will be preserved until the next update, at
+-which point it will be deleted.
++If /local/files is a symlink to a directory that ends in -1 or -2, the
++copy will go to the alternate suffix and the symlink will be changed to
++point to the new dir.  This is a fully atomic update.  If the destination
++is not a symlink (or not a symlink to a *-1 or a *-2 directory), this
++will instead create a directory with "~new~" suffixed, move the current
++directory to a name with "~old~" suffixed, and then move the ~new~
++directory to the original destination name (this double rename is not
++fully atomic, but is rapid).  In both cases, the prior destintaion
++directory will be preserved until the next update, at which point it
++will be deleted.
+ 
+-Do NOT specify this command:
++In all likelihood, you do NOT want to specify this command:
+ 
+     atomic-rsync -av host:/remote/files /local/
+ 
+ ... UNLESS you want the entire /local dir to be swapped out!
+ 
+ See the "rsync" command for its list of options.  You may not use the
+---link-dest or --compare-dest options (since this script uses --link-dest
+-to make the transfer efficient).  Also, the destination directory cannot
+-be "/".
++--link-dest, --compare-dest, or --copy-dest options (since this script
++uses --link-dest to make the transfer efficient).
+ EOT
+-    exit $ret;
+ }
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/testsuite/batch-mode.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/testsuite/batch-mode.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/testsuite/batch-mode.test	2008-02-10 13:30:49.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/testsuite/batch-mode.test	2008-09-27 12:32:43.000000000 +0800
+@@ -38,12 +38,14 @@
+ rm -rf "$todir"
+ runtest "--read-batch from daemon" 'checkit "$RSYNC -av --read-batch=BATCH \"$todir\"" "$chkdir" "$todir"'
+ 
+ rm -rf "$todir"
+ runtest "BATCH.sh use of --read-batch" 'checkit "./BATCH.sh" "$chkdir" "$todir"'
+ 
++runtest "do-nothing re-run of batch" 'checkit "./BATCH.sh" "$chkdir" "$todir"'
++
+ rm -rf "$todir"
+ mkdir "$todir" || test_fail "failed to restore empty destination directory"
+ runtest "daemon recv --write-batch" 'checkit "\"$ignore23\" $RSYNC -av --write-batch=BATCH \"$fromdir/\" rsync://localhost/test-to" "$chkdir" "$todir"'
+ 
+ # The script would have aborted on error, so getting here means we pass.
+ exit 0
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/testsuite/daemon.test /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/testsuite/daemon.test
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/testsuite/daemon.test	2008-06-01 05:52:24.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/testsuite/daemon.test	2008-10-14 22:27:56.000000000 +0800
+@@ -22,12 +22,13 @@
+ . "$suitedir/rsync.fns"
+ 
+ chkfile="$scratchdir/rsync.chk"
+ outfile="$scratchdir/rsync.out"
+ 
+ SSH="src/support/lsh --no-cd"
++FILE_REPL='s/^\([^d][^ ]*\) *\(..........[0-9]\) /\1 \2 /'
+ DIR_REPL='s/^\(d[^ ]*\)  *[0-9][0-9]* /\1         DIR /'
+ LS_REPL='s;[0-9][0-9][0-9][0-9]/[0-9][0-9]/[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9];####/##/## ##:##:##;'
+ 
+ build_rsyncd_conf
+ 
+ makepath "$fromdir/foo" "$fromdir/bar/baz"
+@@ -62,13 +63,13 @@
+ test-to        	r/w
+ test-scratch   	NOCOMMENT
+ EOT
+ diff $diffopt "$chkfile" "$outfile" || test_fail "test 1 failed"
+ 
+ $RSYNC -r localhost::test-hidden \
+-    | sed "$DIR_REPL" | sed "$LS_REPL" \
++    | sed "$FILE_REPL" | sed "$DIR_REPL" | sed "$LS_REPL" \
+     | tee "$outfile"
+ cat <<EOT >"$chkfile"
+ drwxr-xr-x         DIR ####/##/## ##:##:## .
+ drwxr-xr-x         DIR ####/##/## ##:##:## bar
+ -rw-r--r--           4 ####/##/## ##:##:## bar/two
+ drwxr-xr-x         DIR ####/##/## ##:##:## bar/baz
+@@ -76,13 +77,13 @@
+ drwxr-xr-x         DIR ####/##/## ##:##:## foo
+ -rw-r--r--           4 ####/##/## ##:##:## foo/one
+ EOT
+ diff $diffopt "$chkfile" "$outfile" || test_fail "test 2 failed"
+ 
+ $RSYNC -r localhost::test-from/f* \
+-    | sed "$DIR_REPL" | sed "$LS_REPL" \
++    | sed "$FILE_REPL" | sed "$DIR_REPL" | sed "$LS_REPL" \
+     | tee "$outfile"
+ cat <<EOT >"$chkfile"
+ drwxr-xr-x         DIR ####/##/## ##:##:## foo
+ -rw-r--r--           4 ####/##/## ##:##:## foo/one
+ EOT
+ diff $diffopt "$chkfile" "$outfile" || test_fail "test 3 failed"
+Only in /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/testsuite: files-from.test
+diff -BEr -U 6 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/util.c /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/util.c
+--- /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.4/util.c	2008-09-02 04:25:41.000000000 +0800
++++ /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/repos/rsync-3.0.5/util.c	2008-11-16 06:17:49.000000000 +0800
+@@ -803,13 +803,14 @@
+ 			cnt++;
+ 		}
+ 	}
+ 	return cnt;
+ }
+ 
+-/* Turns multiple adjacent slashes into a single slash, drops all leading or
++/* Turns multiple adjacent slashes into a single slash (possible exception:
++ * the preserving of two leading slashes at the start), drops all leading or
+  * interior "." elements unless CFN_KEEP_DOT_DIRS is flagged.  Will also drop
+  * a trailing '.' after a '/' if CFN_DROP_TRAILING_DOT_DIR is flagged, removes
+  * a trailing slash (perhaps after removing the aforementioned dot) unless
+  * CFN_KEEP_TRAILING_SLASH is flagged, and will also collapse ".." elements
+  * (except at the start) if CFN_COLLAPSE_DOT_DOT_DIRS is flagged.  If the
+  * resulting name would be empty, returns ".". */
+@@ -818,15 +819,22 @@
+ 	char *limit = name - 1, *t = name, *f = name;
+ 	int anchored;
+ 
+ 	if (!name)
+ 		return 0;
+ 
+-	if ((anchored = *f == '/') != 0)
++	if ((anchored = *f == '/') != 0) {
+ 		*t++ = *f++;
+-	else if (flags & CFN_KEEP_DOT_DIRS && *f == '.' && f[1] == '/') {
++#ifdef __CYGWIN__
++		/* If there are exactly 2 slashes at the start, preserve
++		 * them.  Would break daemon excludes unless the paths are
++		 * really treated differently, so used this sparingly. */
++		if (*f == '/' && f[1] != '/')
++			*t++ = *f++;
++#endif
++	} else if (flags & CFN_KEEP_DOT_DIRS && *f == '.' && f[1] == '/') {
+ 		*t++ = *f++;
+ 		*t++ = *f++;
+ 	}
+ 	while (*f) {
+ 		/* discard extra slashes */
+ 		if (*f == '/') {
+@@ -976,13 +984,16 @@
+ {
+ 	static int initialised;
+ 	unsigned int len;
+ 
+ 	if (!initialised) {
+ 		initialised = 1;
+-		getcwd(curr_dir, sizeof curr_dir - 1);
++		if (getcwd(curr_dir, sizeof curr_dir - 1) == NULL) {
++			rsyserr(FERROR, errno, "getcwd()");
++			exit_cleanup(RERR_FILESELECT);
++		}
+ 		curr_dir_len = strlen(curr_dir);
+ 	}
+ 
+ 	if (!dir)	/* this call was probably just to initialize */
+ 		return 0;
+ 
+@@ -1022,12 +1033,40 @@
+ 	if (verbose >= 5 && !set_path_only)
+ 		rprintf(FINFO, "[%s] change_dir(%s)\n", who_am_i(), curr_dir);
+ 
+ 	return 1;
+ }
+ 
++/* This will make a relative path absolute and clean it up via clean_fname().
++ * Returns the string, which might be newly allocated, or NULL on error. */
++char *normalize_path(char *path, BOOL force_newbuf, unsigned int *len_ptr)
++{
++	unsigned int len;
++
++	if (*path != '/') { /* Make path absolute. */
++		int len = strlen(path);
++		if (curr_dir_len + 1 + len >= sizeof curr_dir)
++			return NULL;
++		curr_dir[curr_dir_len] = '/';
++		memcpy(curr_dir + curr_dir_len + 1, path, len + 1);
++		if (!(path = strdup(curr_dir)))
++			out_of_memory("normalize_path");
++		curr_dir[curr_dir_len] = '\0';
++	} else if (force_newbuf) {
++		if (!(path = strdup(path)))
++			out_of_memory("normalize_path");
++	}
++
++	len = clean_fname(path, CFN_COLLAPSE_DOT_DOT_DIRS | CFN_DROP_TRAILING_DOT_DIR);
++
++	if (len_ptr)
++		*len_ptr = len;
++
++	return path;
++}
++
+ /**
+  * Return a quoted string with the full pathname of the indicated filename.
+  * The string " (in MODNAME)" may also be appended.  The returned pointer
+  * remains valid until the next time full_fname() is called.
+  **/
+ char *full_fname(const char *fn)
+@@ -1590,12 +1629,45 @@
+ 		}
+ 	}
+ 
+ 	return -1;
+ }
+ 
++void flist_ndx_push(flist_ndx_list *lp, int ndx)
++{
++	struct flist_ndx_item *item;
++
++	if (!(item = new(struct flist_ndx_item)))
++		out_of_memory("flist_ndx_push");
++	item->next = NULL;
++	item->ndx = ndx;
++	if (lp->tail)
++		lp->tail->next = item;
++	else
++		lp->head = item;
++	lp->tail = item;
++}
++
++int flist_ndx_pop(flist_ndx_list *lp)
++{
++	struct flist_ndx_item *next;
++	int ndx;
++
++	if (!lp->head)
++		return -1;
++
++	ndx = lp->head->ndx;
++	next = lp->head->next;
++	free(lp->head);
++	lp->head = next;
++	if (!next)
++		lp->tail = NULL;
++
++	return ndx;
++}
++
+ void *expand_item_list(item_list *lp, size_t item_size,
+ 		       const char *desc, int incr)
+ {
+ 	/* First time through, 0 <= 0, so list is expanded. */
+ 	if (lp->malloced <= lp->count) {
+ 		void *new_ptr;

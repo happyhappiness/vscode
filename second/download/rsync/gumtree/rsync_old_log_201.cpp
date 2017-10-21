@@ -1,0 +1,1 @@
+fprintf(stderr,"deleting directory %s\n",f->name);
