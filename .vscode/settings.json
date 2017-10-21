@@ -54,7 +54,8 @@
     "*.in": "cpp",
     "iterator": "cpp",
     "memory": "cpp",
-    "utility": "cpp"
+    "utility": "cpp",
+    "sstream": "cpp"
 },
 "git.ignoreLimitWarning": true
 }

@@ -119,6 +119,14 @@ class Gumtree:
         return Gumtree.gumtree.isDDGModified()
 
     """
+    @ param none(set old file and new file before)
+    @ return
+    @ involve get edtion type of log
+    """
+    def get_log_edited_type(self):
+        return list(Gumtree.gumtree.getLogEditType())
+
+    """
     @ param filename
     @ return
     @ involve set file
@@ -275,9 +283,11 @@ if __name__ == "__main__":
     old_file = 'second/gumtree/c/old.cpp'
     new_file = 'second/gumtree/c/new.cpp'
     gumtree = Gumtree()
+    gumtree.set_old_new_file(old_file, new_file)
+    print gumtree.get_log_edited_type()
     # gumtree.set_old_loc(7)
     # gumtree.get_new_log()
-    gumtree.get_word_edit_from_log('archive_string_sprintf(a_estr, errstr, path);', 'archive_string_sprintf(a_estr, "%s%s", errstr, path);')
+    # gumtree.get_word_edit_from_log('archive_string_sprintf(a_estr, errstr, path);', 'archive_string_sprintf(a_estr, "%s%s", errstr, path);')
 
 
 
