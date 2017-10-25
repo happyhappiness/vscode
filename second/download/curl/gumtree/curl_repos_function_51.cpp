@@ -1,0 +1,274 @@
+static int dprintf_Pass1(char *format, va_stack_t *vto, char **endpos, va_list arglist)
+{
+  char *fmt = format;
+  int param_num = 0;
+  int this_param;
+  int width;
+  int precision;
+  int flags;
+  int max_param=0;
+  int i;
+
+  while (*fmt) {
+    if (*fmt++ == '%') {
+      if (*fmt == '%') {
+	fmt++;
+	continue; /* while */
+      }
+
+      flags = FLAGS_NEW;
+
+      /* Handle the positional case (N$) */
+
+      param_num++;
+      
+      this_param = dprintf_DollarString(fmt, &fmt);
+      if (0 == this_param)
+	/* we got no positional, get the next counter */
+	this_param = param_num;
+
+      if (this_param > max_param)
+	max_param = this_param;
+
+      /*
+       * The parameter with number 'i' should be used. Next, we need
+       * to get SIZE and TYPE of the parameter. Add the information
+       * to our array.
+       */
+
+      width = 0;
+      precision = 0;
+
+      /* Handle the flags */
+
+      while (dprintf_IsQualifierNoDollar(*fmt)) {
+	switch (*fmt++) {
+	case ' ':
+	  flags |= FLAGS_SPACE;
+	  break;
+	case '+':
+	  flags |= FLAGS_SHOWSIGN;
+	  break;
+	case '-':
+	  flags |= FLAGS_LEFT;
+	  flags &= ~FLAGS_PAD_NIL;
+	  break;
+	case '#':
+	  flags |= FLAGS_ALT;
+	  break;
+	case '.':
+	  flags |= FLAGS_PREC;
+	  if ('*' == *fmt) {
+	    /* The precision is picked from a specified parameter */
+
+	    flags |= FLAGS_PRECPARAM;
+	    fmt++;
+	    param_num++;
+
+	    i = dprintf_DollarString(fmt, &fmt);
+	    if (i)
+	      precision = i;
+	    else
+	      precision = param_num;
+
+	    if (precision > max_param)
+	      max_param = precision;
+       	  }
+	  else {
+	    flags |= FLAGS_PREC;
+	    precision = strtol(fmt, &fmt, 10);
+	  }
+	  break;
+	case 'h':
+	  flags |= FLAGS_SHORT;
+	  break;
+	case 'l':
+	  if (flags & FLAGS_LONG)
+	    flags |= FLAGS_LONGLONG;
+	  else
+	    flags |= FLAGS_LONG;
+	  break;
+	case 'L':
+	  flags |= FLAGS_LONGDOUBLE;
+	  break;
+	case 'q':
+	  flags |= FLAGS_LONGLONG;
+	  break;
+	case 'Z':
+	  if (sizeof(size_t) > sizeof(unsigned long int))
+	    flags |= FLAGS_LONGLONG;
+	  if (sizeof(size_t) > sizeof(unsigned int))
+	    flags |= FLAGS_LONG;
+	  break;
+	case '0':
+	  if (!(flags & FLAGS_LEFT))
+	    flags |= FLAGS_PAD_NIL;
+	  /* FALLTHROUGH */
+	case '1': case '2': case '3': case '4':
+	case '5': case '6': case '7': case '8': case '9':
+	  flags |= FLAGS_WIDTH;
+	  width = strtol(--fmt, &fmt, 10);
+	  break;
+	case '*':  /* Special case */
+	  flags |= FLAGS_WIDTHPARAM;
+	  param_num++;
+	  
+	  i = dprintf_DollarString(fmt, &fmt);
+	  if(i)
+	    width = i;
+	  else
+	    width = param_num;
+	  if(width > max_param)
+	    max_param=width;
+	  break;
+	default:
+	  break;
+	}
+      } /* switch */
+
+      /* Handle the specifier */
+
+      i = this_param - 1;
+
+      switch (*fmt) {
+      case 'S':
+	flags |= FLAGS_ALT;
+	/* FALLTHROUGH */
+      case 's':
+	vto[i].type = FORMAT_STRING;
+	break;
+      case 'n':
+	vto[i].type = FORMAT_INTPTR;
+	break;
+      case 'p':
+	vto[i].type = FORMAT_PTR;
+	break;
+      case 'd': case 'i':
+	vto[i].type = FORMAT_INT;
+	break;
+      case 'u':
+	vto[i].type = FORMAT_INT;
+	flags |= FLAGS_UNSIGNED;
+	break;
+      case 'o':
+	vto[i].type = FORMAT_INT;
+	flags |= FLAGS_OCTAL;
+	break;
+      case 'x':
+	vto[i].type = FORMAT_INT;
+	flags |= FLAGS_HEX;
+	break;
+      case 'X':
+	vto[i].type = FORMAT_INT;
+	flags |= FLAGS_HEX|FLAGS_UPPER;
+	break;
+      case 'c':
+	vto[i].type = FORMAT_INT;
+	flags |= FLAGS_CHAR;
+	break;	
+      case 'f':
+	vto[i].type = FORMAT_DOUBLE;
+	break;
+      case 'e': case 'E':
+	vto[i].type = FORMAT_DOUBLE;
+	flags |= FLAGS_FLOATE| (('E' == *fmt)?FLAGS_UPPER:0);
+	break;
+      case 'g': case 'G':
+	vto[i].type = FORMAT_DOUBLE;
+	flags |= FLAGS_FLOATG| (('G' == *fmt)?FLAGS_UPPER:0);
+	break;	
+      default:
+	vto[i].type = FORMAT_UNKNOWN;
+	break;
+      } /* switch */
+
+      vto[i].flags = flags;
+      vto[i].width = width;
+      vto[i].precision = precision;
+      
+      if (flags & FLAGS_WIDTHPARAM) {
+	/* we have the width specified from a parameter, so we make that
+	   parameter's info setup properly */
+	vto[i].width = width - 1;
+	i = width - 1;
+	vto[i].type = FORMAT_WIDTH;
+	vto[i].flags = FLAGS_NEW;
+	vto[i].precision = vto[i].width = 0; /* can't use width or precision
+						of width! */	
+      }
+      if (flags & FLAGS_PRECPARAM) {
+	/* we have the precision specified from a parameter, so we make that
+	   parameter's info setup properly */
+	vto[i].precision = precision - 1;
+	i = precision - 1;
+	vto[i].type = FORMAT_WIDTH;
+	vto[i].flags = FLAGS_NEW;
+	vto[i].precision = vto[i].width = 0; /* can't use width or precision
+						of width! */
+      }
+      *endpos++ = fmt + 1; /* end of this sequence */
+    }
+  }
+
+#ifdef DPRINTF_DEBUG2
+  dprintf_Pass1Report(vto, max_param);
+#endif
+
+  /* Read the arg list parameters into our data list */
+  for (i=0; i<max_param; i++) {
+    if ((i + 1 < max_param) && (vto[i + 1].type == FORMAT_WIDTH))
+      {
+	/* Width/precision arguments must be read before the main argument
+	 * they are attached to
+	 */
+	vto[i + 1].data.num = va_arg(arglist, int);
+      }
+
+    switch (vto[i].type)
+      {
+      case FORMAT_STRING:
+	vto[i].data.str = va_arg(arglist, char *);
+	break;
+	
+      case FORMAT_INTPTR:
+      case FORMAT_UNKNOWN:
+      case FORMAT_PTR:
+	vto[i].data.ptr = va_arg(arglist, void *);
+	break;
+	
+      case FORMAT_INT:
+#if SIZEOF_LONG_LONG
+	if(vto[i].flags & FLAGS_LONGLONG)
+	  vto[i].data.lnum = va_arg(arglist, long long);
+	else
+#endif
+	  if(vto[i].flags & FLAGS_LONG)
+	    vto[i].data.num = va_arg(arglist, long);
+	else
+	  vto[i].data.num = va_arg(arglist, int);
+	break;
+	
+      case FORMAT_DOUBLE:
+#if SIZEOF_LONG_DOUBLE
+	if(vto[i].flags & FLAGS_LONG)
+	  vto[i].data.ldnum = va_arg(arglist, long double);
+	else
+#endif
+	  vto[i].data.dnum = va_arg(arglist, double);
+	break;
+	
+      case FORMAT_WIDTH:
+	/* Argument has been read. Silently convert it into an integer
+	 * for later use
+	 */
+	vto[i].type = FORMAT_INT;
+	break;
+	
+      default:
+	break;
+      }
+  }
+
+  return max_param;
+
+}
