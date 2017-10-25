@@ -8,12 +8,13 @@ class Gumtree:
     gumtree = None
 
     def __init__(self, class_name='gumtree.GumTreeApi'):
-        # class path
-        jvm_arg = "-Djava.class.path=" + my_constant.JAVA_CLASS_PATH
-        startJVM(getDefaultJVMPath(), '-d64', jvm_arg)
-        # initial class and object
-        GumtreeApi = JClass(class_name)
-        Gumtree.gumtree = GumtreeApi()
+        if Gumtree.gumtree is None:
+            # class path
+            jvm_arg = "-Djava.class.path=" + my_constant.JAVA_CLASS_PATH
+            startJVM(getDefaultJVMPath(), '-d64', jvm_arg)
+            # initial class and object
+            GumtreeApi = JClass(class_name)
+            Gumtree.gumtree = GumtreeApi()
 
     """
     @ param old and new file
@@ -267,13 +268,13 @@ class Gumtree:
         edit_feature.append(new_feature - old_feature)
         return edit_words, edit_feature
 
-    """
-    @ param 
-    @ return
-    @ involve close jvm
-    """
-    def close(self):
-        shutdownJVM()
+"""
+@ param 
+@ return
+@ involve close jvm
+"""
+def close_jvm():
+    shutdownJVM()
 
 
 """

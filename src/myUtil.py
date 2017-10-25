@@ -1,7 +1,7 @@
 #-*-coding: utf-8 -*-
 import csv
 import commands
-import os
+import re
 from itertools import islice
 import numpy as np
 from scipy.spatial.distance import pdist
@@ -246,6 +246,22 @@ def get_tuple_from_list(tuple_list):
     for tuple_element in tuple_list:
         tuple_tuple += tuple(tuple_element)
     return tuple_tuple
+
+"""
+@ param file name
+@ return flag
+@ involve filter out file which is not cpp like and which is test like
+"""
+def filter_file(file_name):
+
+    # cpp like(ignore case)
+    is_cpp = re.search(my_constant.CPP_FILE_FORMAT, file_name, re.I)
+    # test like
+    is_test_cpp = re.search(r'test', file_name, re.I)
+    if is_cpp and not is_test_cpp:
+        return True
+    else:
+        return False
 
 """
 @ param list of a and b to compute

@@ -200,10 +200,7 @@ class SrcmlApi:
                 init_node = candi_node.getnext()
                 if init_node is not None and self._remove_prefix(init_node) == 'init':
                     # mark is pointer or not
-                    type_node = candi_node.getprevious()
-                    # deal with nested ref type
-                    while len(type_node) <= 0:
-                        type_node = type_node.getparent().getprevious()[0]
+                    type_node = self._get_real_type_node(candi_node.getprevious())
                     is_ptr = self._is_pointer(type_node)
                     func_nodes = init_node.iterdescendants(tag='{'+self.namespace_map['default']+'}call')
                     if func_nodes is not None:
@@ -215,10 +212,7 @@ class SrcmlApi:
                 decl_node = candi_node.getparent()
                 if decl_node is not None and self._remove_prefix(decl_node) == 'decl':
                     # mark is pointer or not
-                    type_node = candi_node.getprevious()
-                    # deal with nested ref type
-                    while len(type_node) <= 0:
-                        type_node = type_node.getparent().getprevious()[0]
+                    type_node = self._get_real_type_node(candi_node.getprevious())
                     is_ptr = self._is_pointer(type_node)
                     depended_nodes[candi_line] = [decl_node[0], my_constant.VAR_TYPE]
                     continue
@@ -279,6 +273,23 @@ class SrcmlApi:
 
     """
     @ param node(type)
+    @ return real type node
+    @ involve deal with type reference previous node
+    """
+    def _get_real_type_node(self, node):
+         while node is not None and self._remove_prefix(node) == 'type':
+            if len(node) > 0:
+                return node
+            else:
+                decl_node = node.getparent()
+                # traverse previous declare node
+                prev_node = decl_node.getprevious()
+                while self._remove_prefix(prev_node) != 'decl':
+                    prev_node = prev_node.getprevious()
+                return prev_node[0]
+
+    """
+    @ param node(type)
     @ return true if is
     @ involve judge whether type has a modifier and that modifier is *
     """
@@ -306,7 +317,6 @@ class SrcmlApi:
         if node.text:
             content += " " + self._get_location(node)+ "@"\
                          + self._remove_prefix(node) + "@" + node.text
-
         # add text of children
         for child in node:
             content += self._get_text(child)
@@ -319,7 +329,6 @@ class SrcmlApi:
     @ involve remove prefix
     """
     def _remove_prefix(self, node):
-        # prefix = node.prefix
         # if prefix is None:
         #     prefix = 'default'
         # return node.tag.replace(self.namespace_map[prefix], '')

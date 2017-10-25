@@ -642,6 +642,12 @@ public class GumTreeApi {
 			treeContext = this.oldTreeContext;
 			filename = this.oldFile;
 			currAction = actionIter.next();
+			// just deal with leaf node
+			currNode = currAction.getNode();
+			if(!currNode.isLeaf())
+			{
+				continue;
+			}
 			// action type -> prefix
 			switch(currAction.getName())
 			{
@@ -663,7 +669,6 @@ public class GumTreeApi {
 				break;
 			}
 			// node type -> postfix
-			currNode = currAction.getNode();
 			// constant -> content
 			if(this.isConstant(currNode, treeContext, filename))
 			{
