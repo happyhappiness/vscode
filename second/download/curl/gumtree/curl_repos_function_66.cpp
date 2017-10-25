@@ -1,4 +1,6 @@
-int mvfprintf(FILE *whereto, const char *format, va_list ap_save)
+size_t
+write_response(void *ptr, size_t size, size_t nmemb, void *data)
 {
-  return dprintf_formatf(whereto, fputc, format, ap_save);
+  FILE *writehere = (FILE *)data;
+  return fwrite(ptr, size, nmemb, writehere);
 }

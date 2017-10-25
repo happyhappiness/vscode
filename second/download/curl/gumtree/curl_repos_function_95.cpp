@@ -1,33 +1,36 @@
-int GetLine(int sockfd, char *buf, struct UrlData *data)
+int test(char *URL)
 {
-  int nread;
-  int read_rc=1;
-  char *ptr;
-  ptr=buf;
+  CURL *curl;
+  CURLcode res=CURLE_OK;
 
-  /* get us a full line, terminated with a newline */
-  for(nread=0;
-      (nread<BUFSIZE) && read_rc;
-      nread++, ptr++) {
-#ifdef USE_SSLEAY
-    if (data->use_ssl) {
-      read_rc = SSL_read(data->ssl, ptr, 1);
-    }
-    else {
-#endif
-      read_rc = sread(sockfd, ptr, 1);
-#ifdef USE_SSLEAY
-    }
-#endif /* USE_SSLEAY */
-    if (*ptr == '\n')
-      break;
-  }
-  *ptr=0; /* zero terminate */
+  curl = curl_easy_init();
+  if(curl) {
+    /* First set the URL that is about to receive our POST. */
+    curl_easy_setopt(curl, CURLOPT_URL, URL);
 
-  if(data->bits.verbose) {
-    fputs("< ", data->err);
-    fwrite(buf, 1, nread, data->err);
-    fputs("\n", data->err);
+    /* Now specify we want to POST data */
+    curl_easy_setopt(curl, CURLOPT_POST, TRUE);
+
+    /* Set the expected POST size */
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, 1);
+
+    /* we want to use our own read function */
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+
+    /* pointer to pass to our read function */
+    curl_easy_setopt(curl, CURLOPT_INFILE, NULL);
+
+    /* get verbose debug output please */
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+
+    /* include headers in the output */
+    curl_easy_setopt(curl, CURLOPT_HEADER, TRUE);
+
+    /* Perform the request, res will get the return code */
+    res = curl_easy_perform(curl);
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
   }
-  return nread;
+  return (int)res;
 }

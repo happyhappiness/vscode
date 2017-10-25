@@ -1,14 +1,14 @@
-CURLcode curl_close(CURL *curl)
+int test(char *URL)
 {
-  struct UrlData *data=(struct UrlData *)curl;
-  
-  void *protocol = data->proto.generic;
+  CURLcode res;
+  CURL *curl = curl_easy_init();
+  curl_easy_setopt(curl, CURLOPT_PROXY, arg2);
+  curl_easy_setopt(curl, CURLOPT_URL, URL);
+  curl_easy_setopt(curl, CURLOPT_PORT, 19999);
+  curl_easy_setopt(curl, CURLOPT_USERPWD, "xxx:yyy");
+  curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE);
 
-  /* total session cleanup (frees 'data' as well!)*/
-  urlfree(data, TRUE);
-
-  if(protocol)
-    free(protocol);
-
-  return CURLE_OK;
+  res = curl_easy_perform(curl);
+  curl_easy_cleanup(curl);
+  return (int)res;
 }

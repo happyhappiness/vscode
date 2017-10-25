@@ -1,42 +1,21 @@
-int FormReader(char *buffer,
-	       size_t size,
-	       size_t nitems,
-	       FILE *mydata)
+int test(char *URL)
 {
-  struct Form *form;
-  int wantedsize;
-  int gotsize;
+  CURL *curl;
+  CURLcode res=CURLE_OK;
 
-  form=(struct Form *)mydata;
+  curl = curl_easy_init();
+  if(curl) {
+    /* First set the URL that is about to receive our POST. */
+    curl_easy_setopt(curl, CURLOPT_URL, URL);
+    curl_easy_setopt(curl, CURLOPT_HTTPPOST, NULL);
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1); /* show verbose for debug */
+    curl_easy_setopt(curl, CURLOPT_HEADER, 1); /* include header */
 
-  wantedsize = size * nitems;
+    /* Now, we should be making a zero byte POST request */
+    res = curl_easy_perform(curl);
 
-  if(!form->data)
-    return -1; /* nothing, error, empty */
-
-  do {
-  
-    if( (form->data->length - form->sent ) > wantedsize ) {
-
-      memcpy(buffer, form->data->line + form->sent, wantedsize);
-
-      form->sent += wantedsize;
-
-      return wantedsize;
-    }
-
-    memcpy(buffer,
-           form->data->line + form->sent,
-           gotsize = (form->data->length - form->sent) );
-
-    form->sent = 0;
-
-    form->data = form->data->next; /* advance */
-
-  } while(!gotsize && form->data);
-  /* If we got an empty line and we have more data, we proceed to the next
-     line immediately to avoid returning zero before we've reached the end.
-     This is the bug reported November 22 1999 on curl 6.3. (Daniel) */
-
-  return gotsize;
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+  }
+  return (int)res;
 }

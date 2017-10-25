@@ -1,10 +1,7 @@
-static void GetStr(char **string,
-		   char *value)
+static void locking_function(int mode, int n, const char * file, int line)
 {
-  if(*string)
-    free(*string);
-  if(value && *value)
-    *string = strdup(value);
+  if (mode & CRYPTO_LOCK)
+    MUTEX_LOCK(mutex_buf[n]);
   else
-    *string = NULL;
+    MUTEX_UNLOCK(mutex_buf[n]);
 }

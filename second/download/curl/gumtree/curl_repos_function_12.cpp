@@ -1,30 +1,70 @@
-static CURLcode win32_init(void)
+int main(int argc, char **argv)
 {
-  WORD wVersionRequested;  
-  WSADATA wsaData; 
-  int err; 
-  wVersionRequested = MAKEWORD(1, 1); 
-    
-  err = WSAStartup(wVersionRequested, &wsaData); 
-    
-  if (err != 0) 
-    /* Tell the user that we couldn't find a useable */ 
-    /* winsock.dll.     */ 
-    return CURLE_FAILED_INIT; 
-    
-  /* Confirm that the Windows Sockets DLL supports 1.1.*/ 
-  /* Note that if the DLL supports versions greater */ 
-  /* than 1.1 in addition to 1.1, it will still return */ 
-  /* 1.1 in wVersion since that is the version we */ 
-  /* requested. */ 
-    
-  if ( LOBYTE( wsaData.wVersion ) != 1 || 
-       HIBYTE( wsaData.wVersion ) != 1 ) { 
-    /* Tell the user that we couldn't find a useable */ 
+  CURL *http_handle;
+  CURL *http_handle2;
+  CURLM *multi_handle;
 
-    /* winsock.dll. */ 
-    WSACleanup(); 
-    return CURLE_FAILED_INIT; 
+  int still_running; /* keep number of running handles */
+
+  http_handle = curl_easy_init();
+  http_handle2 = curl_easy_init();
+
+  /* set options */
+  curl_easy_setopt(http_handle, CURLOPT_URL, "http://www.haxx.se/");
+
+  /* set options */
+  curl_easy_setopt(http_handle2, CURLOPT_URL, "http://localhost/");
+
+  /* init a multi stack */
+  multi_handle = curl_multi_init();
+
+  /* add the individual transfers */
+  curl_multi_add_handle(multi_handle, http_handle);
+  curl_multi_add_handle(multi_handle, http_handle2);
+
+  /* we start some action by calling perform right away */
+  while(CURLM_CALL_MULTI_PERFORM ==
+        curl_multi_perform(multi_handle, &still_running));
+
+  while(still_running) {
+    struct timeval timeout;
+    int rc; /* select() return code */
+
+    fd_set fdread;
+    fd_set fdwrite;
+    fd_set fdexcep;
+    int maxfd;
+
+    FD_ZERO(&fdread);
+    FD_ZERO(&fdwrite);
+    FD_ZERO(&fdexcep);
+
+    /* set a suitable timeout to play around with */
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+
+    /* get file descriptors from the transfers */
+    curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+    rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
+
+    switch(rc) {
+    case -1:
+      /* select error */
+      break;
+    case 0:
+    default:
+      /* timeout or readable/writable sockets */
+      while(CURLM_CALL_MULTI_PERFORM ==
+            curl_multi_perform(multi_handle, &still_running));
+      break;
+    }
   }
-  return CURLE_OK;
+
+  curl_multi_cleanup(multi_handle);
+
+  curl_easy_cleanup(http_handle);
+  curl_easy_cleanup(http_handle2);
+
+  return 0;
 }

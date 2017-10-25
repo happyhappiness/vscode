@@ -1,13 +1,55 @@
-int mvsnprintf(char *buffer, size_t maxlength, const char *format, va_list ap_save)
+static bool init(CURL *&conn, char *url)
 {
-  int retcode;
-  struct nsprintf info;
+  CURLcode code;
 
-  info.buffer = buffer;
-  info.length = 0;
-  info.max = maxlength;
+  conn = curl_easy_init();
 
-  retcode = dprintf_formatf(&info, addbyter, format, ap_save);
-  info.buffer[0] = 0; /* we terminate this with a zero byte */
-  return retcode;
+  if (conn == NULL)
+  {
+    fprintf(stderr, "Failed to create CURL connection\n");
+
+    exit(EXIT_FAILURE);
+  }
+
+  code = curl_easy_setopt(conn, CURLOPT_ERRORBUFFER, errorBuffer);
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to set error buffer [%d]\n", code);
+
+    return false;
+  }
+
+  code = curl_easy_setopt(conn, CURLOPT_URL, url);
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to set URL [%s]\n", errorBuffer);
+
+    return false;
+  }
+
+  code = curl_easy_setopt(conn, CURLOPT_FOLLOWLOCATION, 1);
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to set redirect option [%s]\n", errorBuffer);
+
+    return false;
+  }
+
+  code = curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, writer);
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to set writer [%s]\n", errorBuffer);
+
+    return false;
+  }
+
+  code = curl_easy_setopt(conn, CURLOPT_WRITEDATA, &buffer);
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to set write data [%s]\n", errorBuffer);
+
+    return false;
+  }
+
+  return true;
 }

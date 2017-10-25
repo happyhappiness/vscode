@@ -1,84 +1,79 @@
-CURLcode file(struct connectdata *conn)
+char *glob_match_url(char *filename, URLGlob *glob)
 {
-  /* This implementation ignores the host name in conformance with 
-     RFC 1738. Only local files (reachable via the standard file system)
-     are supported. This means that files on remotely mounted directories
-     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
-  */
-  CURLcode res = CURLE_OK;
-  char *path = conn->path;
-  struct stat statbuf;
-  size_t expected_size=-1;
-  size_t nread;
-  struct UrlData *data = conn->data;
-  char *buf = data->buffer;
-  int bytecount = 0;
-  struct timeval start = tvnow();
-  struct timeval now = start;
-  int fd;
-  char *actual_path = curl_unescape(path, 0);
+  char *target;
+  size_t allocsize;
+  size_t stringlen=0;
+  char numbuf[18];
+  char *appendthis = NULL;
+  size_t appendlen = 0;
 
-#if defined(WIN32) || defined(__EMX__)
-  int i;
+  /* We cannot use the glob_buffer for storage here since the filename may
+   * be longer than the URL we use. We allocate a good start size, then
+   * we need to realloc in case of need.
+   */
+  allocsize=strlen(filename);
+  target = malloc(allocsize);
+  if(NULL == target)
+    return NULL; /* major failure */
 
-  /* change path separators from '/' to '\\' for Windows and OS/2 */
-  for (i=0; actual_path[i] != '\0'; ++i)
-    if (actual_path[i] == '/')
-      actual_path[i] = '\\';
+  while (*filename) {
+    if (*filename == '#' && isdigit((int)filename[1])) {
+      unsigned long i;
+      char *ptr = filename;
+      unsigned long num = strtoul(&filename[1], &filename, 10);
+      i = num-1;
 
-  fd = open(actual_path, O_RDONLY | O_BINARY);	/* no CR/LF translation! */
-#else
-  fd = open(actual_path, O_RDONLY);
-#endif
-  free(actual_path);
-
-  if(fd == -1) {
-    failf(data, "Couldn't open file %s", path);
-    return CURLE_FILE_COULDNT_READ_FILE;
-  }
-  if( -1 != fstat(fd, &statbuf)) {
-    /* we could stat it, then read out the size */
-    expected_size = statbuf.st_size;
-  }
-
-  /* The following is a shortcut implementation of file reading
-     this is both more efficient than the former call to download() and
-     it avoids problems with select() and recv() on file descriptors
-     in Winsock */
-#if 0
-  ProgressInit (data, expected_size);
-#endif
-  if(expected_size != -1)
-    pgrsSetDownloadSize(data, expected_size);
-
-  while (res == CURLE_OK) {
-    nread = read(fd, buf, BUFSIZE-1);
-
-    if (0 <= nread)
-      buf[nread] = 0;
-
-    if (nread <= 0)
-      break;
-    bytecount += nread;
-    /* NOTE: The following call to fwrite does CR/LF translation on
-       Windows systems if the target is stdout. Use -O or -o parameters
-       to prevent CR/LF translation (this then goes to a binary mode
-       file descriptor). */
-    if(nread != data->fwrite (buf, 1, nread, data->out)) {
-      failf (data, "Failed writing output");
-      return CURLE_WRITE_ERROR;
+      if (num && (i <= glob->size / 2)) {
+        URLPattern pat = glob->pattern[i];
+        switch (pat.type) {
+        case UPTSet:
+          appendthis = pat.content.Set.elements[pat.content.Set.ptr_s];
+          appendlen = strlen(pat.content.Set.elements[pat.content.Set.ptr_s]);
+          break;
+        case UPTCharRange:
+          numbuf[0]=pat.content.CharRange.ptr_c;
+          numbuf[1]=0;
+          appendthis=numbuf;
+          appendlen=1;
+          break;
+        case UPTNumRange:
+          sprintf(numbuf, "%0*d",
+                  pat.content.NumRange.padlength,
+                  pat.content.NumRange.ptr_n);
+          appendthis = numbuf;
+          appendlen = strlen(numbuf);
+          break;
+        default:
+          printf("internal error: invalid pattern type (%d)\n",
+                 (int)pat.type);
+          free(target);
+          return NULL;
+        }
+      }
+      else {
+        /* #[num] out of range, use the #[num] in the output */
+        filename = ptr;
+        appendthis=filename++;
+        appendlen=1;
+      }
     }
-    now = tvnow();
-    if(pgrsUpdate(data))
-      res = CURLE_ABORTED_BY_CALLBACK;
+    else {
+      appendthis=filename++;
+      appendlen=1;
+    }
+    if(appendlen + stringlen >= allocsize) {
+      char *newstr;
+      allocsize = (appendlen + stringlen)*2;
+      newstr=realloc(target, allocsize);
+      if(NULL ==newstr) {
+        free(target);
+        return NULL;
+      }
+      target=newstr;
+    }
+    memcpy(&target[stringlen], appendthis, appendlen);
+    stringlen += appendlen;
   }
-  now = tvnow();
-  if(pgrsUpdate(data))
-    res = CURLE_ABORTED_BY_CALLBACK;
-
-  close(fd);
-
-  free(actual_path);
-
-  return res;
+  target[stringlen]= '\0';
+  return target;
 }

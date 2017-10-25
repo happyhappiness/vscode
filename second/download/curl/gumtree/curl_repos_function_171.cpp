@@ -1,4 +1,11 @@
-CURLcode curl_easy_perform(CURL *curl)
+static ParameterError add2list(struct curl_slist **list,
+                               char *ptr)
 {
-  return curl_transfer(curl);
+  struct curl_slist *newlist = curl_slist_append(*list, ptr);
+  if(newlist)
+    *list = newlist;
+  else
+    return PARAM_NO_MEM;
+
+  return PARAM_OK;
 }

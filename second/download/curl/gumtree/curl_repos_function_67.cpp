@@ -1,36 +1,31 @@
-int main()
+int main(int argc, char **argv)
 {
-  char buffer[129];
-  char *ptr;
-#ifdef SIZEOF_LONG_LONG
-  long long hullo;
-  dprintf("%3$12s %1$s %2$qd %4$d\n", "daniel", hullo, "stenberg", 65);
-#endif
-
-  mprintf("%3d %5d\n", 10, 1998);
+  CURL *curl;
+  CURLcode res;
+  FILE *ftpfile;
+  FILE *respfile;
   
-  ptr=maprintf("test this then baby %s%s%s%s%s%s %d %d %d loser baby get a hit in yer face now!", "", "pretty long string pretty long string pretty long string pretty long string pretty long string", "/", "/", "/", "pretty long string", 1998, 1999, 2001);
+  /* local file name to store the file as */
+  ftpfile = fopen("ftp-list", "wb"); /* b is binary, needed on win32 */
 
-  puts(ptr);
+  /* local file name to store the FTP server's response lines in */
+  respfile = fopen("ftp-responses", "wb"); /* b is binary, needed on win32 */
 
-  memset(ptr, 55, strlen(ptr)+1);
+  curl = curl_easy_init();
+  if(curl) {
+    /* Get a file listing from sunet */
+    curl_easy_setopt(curl, CURLOPT_URL, "ftp://ftp.sunet.se/");
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, ftpfile);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, write_response);
+    curl_easy_setopt(curl, CURLOPT_WRITEHEADER, respfile);
+    res = curl_easy_perform(curl);
 
-  free(ptr);
-
-#if 1
-  mprintf(buffer, "%s %s %d", "daniel", "stenberg", 19988);
-  puts(buffer);
-
-  mfprintf(stderr, "%s %#08x\n", "dummy", 65);
-
-  printf("%s %#08x\n", "dummy", 65);
-  {
-    double tryout = 3.14156592;
-    mprintf(buffer, "%.2g %G %f %e %E", tryout, tryout, tryout, tryout, tryout);
-    puts(buffer);
-    printf("%.2g %G %f %e %E\n", tryout, tryout, tryout, tryout, tryout);
+    /* always cleanup */
+    curl_easy_cleanup(curl);
   }
-#endif
+
+  fclose(ftpfile); /* close the local file */
+  fclose(respfile); /* close the response file */
 
   return 0;
 }

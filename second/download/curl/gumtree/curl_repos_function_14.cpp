@@ -1,4 +1,11 @@
-CURLcode main_init(void)
+int my_fwrite(void *buffer, size_t size, size_t nmemb, void *stream)
 {
-  return win32_init();
+  struct FtpFile *out=(struct FtpFile *)stream;
+  if(out && !out->stream) {
+    /* open file for writing */
+    out->stream=fopen(out->filename, "wb");
+    if(!out->stream)
+      return -1; /* failure, can't open file to write */
+  }
+  return fwrite(buffer, size, nmemb, out->stream);
 }

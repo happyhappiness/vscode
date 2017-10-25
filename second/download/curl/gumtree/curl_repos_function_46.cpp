@@ -1,7 +1,25 @@
-void pgrsSetUploadSize(struct UrlData *data, double size)
+static int
+use_buffer(URL_FILE *file,int want)
 {
-  if(size > 0) {
-    data->progress.size_ul = size;
-    data->progress.flags |= PGRS_UL_SIZE_KNOWN;
-  }
+    /* sort out buffer */
+    if((file->buffer_pos - want) <=0)
+    {
+        /* ditch buffer - write will recreate */
+        if(file->buffer)
+            free(file->buffer);
+
+        file->buffer=NULL;
+        file->buffer_pos=0;
+        file->buffer_len=0;
+    }
+    else
+    {
+        /* move rest down make it available for later */
+        memmove(file->buffer,
+                &file->buffer[want],
+                (file->buffer_pos - want));
+
+        file->buffer_pos -= want;
+    }
+    return 0;
 }

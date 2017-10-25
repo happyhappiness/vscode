@@ -1,19 +1,12 @@
-static int passwd_callback(char *buf, int num, int verify
-#if OPENSSL_VERSION_NUMBER >= 0x00904100L
-                           /* This was introduced in 0.9.4, we can set this
-                              using SSL_CTX_set_default_passwd_cb_userdata()
-                              */
-                           , void *userdata
-#endif
-                           )
+int my_progress_func(GtkWidget *Bar,
+                     double t, /* dltotal */
+                     double d, /* dlnow */
+                     double ultotal,
+                     double ulnow)
 {
-  if(verify)
-    fprintf(stderr, "%s\n", buf);
-  else {
-    if(num > strlen(global_passwd)) {
-      strcpy(buf, global_passwd);
-      return strlen(buf);
-    }
-  }  
+/*  printf("%d / %d (%g %%)\n", d, t, d*100.0/t);*/
+  gdk_threads_enter();
+  gtk_progress_set_value(GTK_PROGRESS(Bar), d*100.0/t);
+  gdk_threads_leave();
   return 0;
 }

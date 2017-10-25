@@ -1,45 +1,59 @@
-struct CookieInfo *cookie_init(char *file)
+static GlobCode glob_word(URLGlob *glob, char *pattern,
+                          size_t pos, int *amount)
 {
-  char line[MAX_COOKIE_LINE];
-  struct CookieInfo *c;
-  FILE *fp;
-  bool fromfile=TRUE;
-  
-  c = (struct CookieInfo *)malloc(sizeof(struct CookieInfo));
-  if(!c)
-    return NULL; /* failed to get memory */
-  memset(c, 0, sizeof(struct CookieInfo));
-  c->filename = strdup(file?file:"none"); /* copy the name just in case */
+  /* processes a literal string component of a URL
+     special characters '{' and '[' branch to set/range processing functions
+   */
+  char* buf = glob->glob_buffer;
+  size_t litindex;
+  GlobCode res = GLOB_OK;
 
-  if(strequal(file, "-")) {
-    fp = stdin;
-    fromfile=FALSE;
-  }
-  else
-    fp = file?fopen(file, "r"):NULL;
+  *amount = 1; /* default is one single string */
 
-  if(fp) {
-    while(fgets(line, MAX_COOKIE_LINE, fp)) {
-      if(strnequal("Set-Cookie:", line, 11)) {
-        /* This is a cookie line, get it! */
-        char *lineptr=&line[11];
-        while(*lineptr && isspace((int)*lineptr))
-          lineptr++;
+  while (*pattern != '\0' && *pattern != '{' && *pattern != '[') {
+    if (*pattern == '}' || *pattern == ']')
+      return GLOB_ERROR;
 
-        cookie_add(c, TRUE, lineptr);
-      }
-      else {
-        /* This might be a netscape cookie-file line, get it! */
-        char *lineptr=line;
-        while(*lineptr && isspace((int)*lineptr))
-          lineptr++;
+    /* only allow \ to escape known "special letters" */
+    if (*pattern == '\\' &&
+        (*(pattern+1) == '{' || *(pattern+1) == '[' ||
+         *(pattern+1) == '}' || *(pattern+1) == ']') ) {
 
-        cookie_add(c, FALSE, lineptr);
-      }
+      /* escape character, skip '\' */
+      ++pattern;
+      ++pos;
+      if (*pattern == '\0')             /* but no escaping of '\0'! */
+        return GLOB_ERROR;
     }
-    if(fromfile)
-      fclose(fp);
+    *buf++ = *pattern++;                /* copy character to literal */
+    ++pos;
+  }
+  *buf = '\0';
+  litindex = glob->size / 2;
+  /* literals 0,1,2,... correspond to size=0,2,4,... */
+  glob->literal[litindex] = strdup(glob->glob_buffer);
+  if(!glob->literal[litindex])
+    return GLOB_ERROR;
+  ++glob->size;
+
+  switch (*pattern) {
+  case '\0':
+    break;                      /* singular URL processed  */
+
+  case '{':
+    /* process set pattern */
+    res = glob_set(glob, ++pattern, ++pos, amount);
+    break;
+
+  case '[':
+    /* process range pattern */
+    res= glob_range(glob, ++pattern, ++pos, amount);
+    break;
   }
 
-  return c;
+  if(GLOB_OK != res)
+    /* free that strdup'ed string again */
+    free(glob->literal[litindex]);
+
+  return res; /* something got wrong */
 }

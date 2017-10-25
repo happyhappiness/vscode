@@ -1,5 +1,10 @@
-static void suboption(struct UrlData *data)
+static void list_engines (const struct curl_slist *engines)
 {
-   printsub(data, '<', (unsigned char *)subbuffer, SB_LEN()+2);
-   return;
+  puts ("Build-time engines:");
+  if (!engines) {
+    puts ("  <none>");
+    return;
+  }
+  for ( ; engines; engines = engines->next)
+    printf ("  %s\n", engines->data);
 }

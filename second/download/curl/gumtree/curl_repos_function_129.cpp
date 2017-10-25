@@ -1,13 +1,5 @@
-static void
-__yy_memcpy (to, from, count)
-     char *to;
-     char *from;
-     unsigned int count;
+static void sigpipe_handler(int sig)
 {
-  register char *f = from;
-  register char *t = to;
-  register int i = count;
-
-  while (i-- > 0)
-    *t++ = *f++;
+  (void)sig; /* prevent warning */
+  sigpipe = 1;
 }

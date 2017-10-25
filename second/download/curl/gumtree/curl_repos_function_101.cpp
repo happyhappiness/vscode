@@ -1,27 +1,22 @@
-CURLcode curl_done(CURLconnect *c_connect)
+void unlock(CURL *handle, curl_lock_data data, void *useptr )
 {
-  struct connectdata *conn = c_connect;
-  struct UrlData *data;
-  CURLcode result;
-
-  if(!conn || (conn->handle!= STRUCT_CONNECT)) {
-    return CURLE_BAD_FUNCTION_ARGUMENT;
+  const char *what;
+  struct userdata *user = (struct userdata *)useptr;
+  (void)handle;
+  switch ( data ) {
+    case CURL_LOCK_DATA_SHARE:
+      what = "share";  
+      break;
+    case CURL_LOCK_DATA_DNS:
+      what = "dns";  
+      break;
+    case CURL_LOCK_DATA_COOKIE:
+      what = "cookie";  
+      break;
+    default:
+      fprintf(stderr, "unlock: no such data: %d\n", (int)data);
+      return;
   }
-  if(conn->state != CONN_DO) {
-    /* This can only be called after a curl_do() */
-    return CURLE_BAD_CALLING_ORDER;
-  }
-  data = conn->data;
-
-  /* this calls the protocol-specific function pointer previously set */
-  if(conn->curl_done)
-    result = conn->curl_done(conn);
-  else
-    result = CURLE_OK;
-
-  pgrsDone(data); /* done with the operation */
-
-  conn->state = CONN_DONE;
-
-  return result;
+  printf("unlock: %-6s <%s>: %d\n", what, user->text, user->counter);
+  user->counter++;
 }

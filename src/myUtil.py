@@ -264,6 +264,27 @@ def filter_file(file_name):
         return False
 
 """
+@ param version
+@ return a.b.c -> a*10000 + b*100 + c
+@ involve sort dir by version
+"""
+def get_version_number(version):
+    # at most 4 pair
+    pattern = r'.*-(\d*)\.(\d*)\.*(\d*)\.*(\d*)'
+    info = re.match(pattern, version)
+    version_number = 0
+    # 100 sub version
+    version_number_basis = [1000000,10000, 100, 1]
+    if info:
+        info = info.groups()
+        for i in range(len(info)):
+            if info[i] != '':
+                version_number += int(info[i]) * version_number_basis[i]
+    else:
+        print 'error processing version dir %s' %version
+    return version_number
+
+"""
 @ param list of a and b to compute
 @ return lenth of common substring / min length
 @ involve compute the longgest common string (continuous) of two list

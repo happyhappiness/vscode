@@ -1,35 +1,38 @@
-void progressbarinit(struct ProgressData *bar)
+static
+int my_trace(CURL *handle, curl_infotype type,
+             unsigned char *data, size_t size,
+             void *userp)
 {
-#ifdef __EMX__
-  /* 20000318 mgs */
-  int scr_size [2];
-#endif
-  char *colp;
+  struct data *config = (struct data *)userp;
+  const char *text;
+  (void)handle; /* prevent compiler warning */
 
-  memset(bar, 0, sizeof(struct ProgressData));
+  switch (type) {
+  case CURLINFO_TEXT:
+    fprintf(stderr, "== Info: %s", data);
+  default: /* in case a new one is introduced to shock us */
+    return 0;
 
-/* TODO: get terminal width through ansi escapes or something similar.
-         try to update width when xterm is resized... - 19990617 larsa */
-#ifndef __EMX__
-  /* 20000318 mgs
-   * OS/2 users most likely won't have this env var set, and besides that
-   * we're using our own way to determine screen width */
-  colp = curl_getenv("COLUMNS");
-  if (colp != NULL) {
-    bar->width = atoi(colp);
-    free(colp);
+  case CURLINFO_HEADER_OUT:
+    text = "=> Send header";
+    break;
+  case CURLINFO_DATA_OUT:
+    text = "=> Send data";
+    break;
+  case CURLINFO_HEADER_IN:
+    text = "<= Recv header";
+    break;
+  case CURLINFO_DATA_IN:
+    text = "<= Recv data";
+    break;
+  case CURLINFO_SSL_DATA_IN:
+    text = "<= Recv SSL data";
+    break;
+  case CURLINFO_SSL_DATA_OUT:
+    text = "<= Send SSL data";
+    break;
   }
-  else
-    bar->width = 79;
-#else
-  /* 20000318 mgs
-   * We use this emx library call to get the screen width, and subtract
-   * one from what we got in order to avoid a problem with the cursor
-   * advancing to the next line if we print a string that is as long as
-   * the screen is wide. */
- 
-  _scrsize(scr_size);
-  bar->width = scr_size[0] - 1;
-#endif
 
+  dump(text, stderr, data, size, config->trace_ascii);
+  return 0;
 }

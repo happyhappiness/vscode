@@ -1,6 +1,4 @@
-static int
-yyerror (s)
-     char *s ATTRIBUTE_UNUSED;
+static void win32_cleanup(void)
 {
-  return 0;
+  WSACleanup();
 }

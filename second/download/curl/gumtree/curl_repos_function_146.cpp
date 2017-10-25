@@ -1,25 +1,37 @@
-static void DynaOpen(void)
+static
+char *GetEnv(const char *variable, char do_expand)
 {
-#if defined(HAVE_DLOPEN) || defined(HAVE_LIBDL)
-  if (libldap == NULL) {
-    /*
-     * libldap.so should be able to resolve its dependency on
-     * liblber.so automatically, but since it does not we will
-     * handle it here by opening liblber.so as global.
-     */
-    dlopen("liblber.so",
-#ifdef RTLD_LAZY_GLOBAL /* It turns out some systems use this: */
-           RTLD_LAZY_GLOBAL
-#else
-#ifdef RTLD_GLOBAL
-           RTLD_LAZY | RTLD_GLOBAL
-#else
-           /* and some systems don't have the RTLD_GLOBAL symbol */
-           RTLD_LAZY
-#endif
-#endif
-           );
-    libldap = dlopen("libldap.so", RTLD_LAZY);
+  char *env = NULL;
+#ifdef WIN32
+  char  buf1[1024], buf2[1024];
+  DWORD rc;
+
+  /* Don't use getenv(); it doesn't find variable added after program was
+   * started. Don't accept truncated results (i.e. rc >= sizeof(buf1)).  */
+
+  rc = GetEnvironmentVariable(variable, buf1, sizeof(buf1));
+  if (rc > 0 && rc < sizeof(buf1)) {
+    env = buf1;
+    variable = buf1;
   }
+  if (do_expand && strchr(variable,'%')) {
+    /* buf2 == variable if not expanded */
+    rc = ExpandEnvironmentStrings (variable, buf2, sizeof(buf2));
+    if (rc > 0 && rc < sizeof(buf2) &&
+        !strchr(buf2,'%'))    /* no vars still unexpanded */
+      env = buf2;
+  }
+#else
+  (void)do_expand;
+#ifdef  VMS
+  env = getenv(variable);
+  if (env && strcmp("HOME",variable) == 0) {
+        env = decc$translate_vms(env);
+  }
+#else
+  /* no length control */
+  env = getenv(variable);
 #endif
+#endif
+  return (env && env[0])?strdup(env):NULL;
 }

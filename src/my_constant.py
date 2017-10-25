@@ -124,13 +124,15 @@ ANALYZE_REPOS_LOG_VARIABLE = ANALYZE_REPOS_LOG_TITLE.index('variable')
 analyze repos call title and index
 """
 # 'block', 'block_file', 'block_feature'
-ANALYZE_REPOS_FUNCTION_TITLE =['file', 'function','calls']
+ANALYZE_REPOS_FUNCTION_TITLE =['file', 'function','calls', 'types']
 ANALYZE_REPOS_FUNCTION_CALLS = ANALYZE_REPOS_FUNCTION_TITLE.index('calls')
+ANALYZE_REPOS_FUNCTION_TYPES = ANALYZE_REPOS_FUNCTION_TITLE.index('types')
+
 
 """
 analyze clone title
 """
-ANALYZE_CLONE_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['class_index', 'class_size']#ANALYZE_REPOS_BASIC_BLOCK_TITLE
+ANALYZE_CLONE_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['class_index', 'class_size']
 
 """
 flag type && log type
@@ -146,7 +148,8 @@ LOG_LOG_FEATURE_MODIFY = 7
 log edit type info
 """
 LOD_EDIT_TYPES = ["addLog", "removeLog", "updateLog", "addVariable", "removeVariable",\
-                  "updateVariable", "moveVariable", "addContent", "removeContent", "updateContent", "moveContent"]
+          "updateVariable", "moveVariable", "addContent", "removeContent",\
+          "updateContent", "moveContent"]
 
 """
 data dependence type

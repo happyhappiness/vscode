@@ -1,50 +1,19 @@
-void rec_do(struct UrlData *data, int option)
+static struct getout *new_getout(struct Configurable *config)
 {
-   switch(us[option])
-   {
-   case NO:
-      if(us_preferred[option] == YES)
-      {
-	 us[option] = YES;
-	 send_negotiation(data, WILL, option);
-      }
-      else
-      {
-	 send_negotiation(data, WONT, option);
-      }
-      break;
-	 
-   case YES:
-      /* Already enabled */
-      break;
-	 
-   case WANTNO:
-      switch(usq[option])
-      {
-      case EMPTY:
-	 /* Error: DONT answered by WILL */
-	 us[option] = NO;
-	 break;
-      case OPPOSITE:
-	 /* Error: DONT answered by WILL */
-	 us[option] = YES;
-	 usq[option] = EMPTY;
-	 break;
-      }
-      break;
-	 
-   case WANTYES:
-      switch(usq[option])
-      {
-      case EMPTY:
-	 us[option] = YES;
-	 break;
-      case OPPOSITE:
-	 us[option] = WANTNO;
-	 himq[option] = EMPTY;
-	 send_negotiation(data, WONT, option);
-	 break;
-      }
-      break;
-   }
+  struct getout *node =malloc(sizeof(struct getout));
+  struct getout *last= config->url_last;
+  if(node) {
+    /* clear the struct */
+    memset(node, 0, sizeof(struct getout));
+
+    /* append this new node last in the list */
+    if(last)
+      last->next = node;
+    else
+      config->url_list = node; /* first node */
+
+    /* move the last pointer */
+    config->url_last = node;
+  }
+  return node;
 }

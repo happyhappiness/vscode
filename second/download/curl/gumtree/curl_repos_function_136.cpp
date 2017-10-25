@@ -1,57 +1,34 @@
-static int
-yylex ()
+void hugehelp(void)
 {
-  register unsigned char c;
-  register char *p;
-  char buff[20];
-  int Count;
-  int sign;
+  unsigned char buf[0x10000];
+  int status,headerlen;
+  z_stream z;
 
-  for (;;)
-    {
-      while (ISSPACE ((unsigned char) *yyInput))
-	yyInput++;
+  /* Make sure no gzip options are set */
+  if (hugehelpgz[3] & 0xfe)
+    return;
 
-      if (ISDIGIT (c = *yyInput) || c == '-' || c == '+')
-	{
-	  if (c == '-' || c == '+')
-	    {
-	      sign = c == '-' ? -1 : 1;
-	      if (!ISDIGIT (*++yyInput))
-		/* skip the '-' sign */
-		continue;
-	    }
-	  else
-	    sign = 0;
-	  for (yylval.Number = 0; ISDIGIT (c = *yyInput++);)
-	    yylval.Number = 10 * yylval.Number + c - '0';
-	  yyInput--;
-	  if (sign < 0)
-	    yylval.Number = -yylval.Number;
-	  return sign ? tSNUMBER : tUNUMBER;
-	}
-      if (ISALPHA (c))
-	{
-	  for (p = buff; (c = *yyInput++, ISALPHA (c)) || c == '.';)
-	    if (p < &buff[sizeof buff - 1])
-	      *p++ = c;
-	  *p = '\0';
-	  yyInput--;
-	  return LookupWord (buff);
-	}
-      if (c != '(')
-	return *yyInput++;
-      Count = 0;
-      do
-	{
-	  c = *yyInput++;
-	  if (c == '\0')
-	    return c;
-	  if (c == '(')
-	    Count++;
-	  else if (c == ')')
-	    Count--;
-	}
-      while (Count > 0);
+  headerlen = 10;
+  z.avail_in = sizeof(hugehelpgz) - headerlen;
+  z.next_in = (unsigned char *)hugehelpgz + headerlen;
+  z.zalloc = (alloc_func)Z_NULL;
+  z.zfree = (free_func)Z_NULL;
+  z.opaque = 0;
+
+  if (inflateInit2(&z, -MAX_WBITS) != Z_OK)
+    return;
+
+  while(1) {
+    z.avail_out = (int)sizeof(buf);
+    z.next_out = buf;
+    status = inflate(&z, Z_SYNC_FLUSH);
+    if (status == Z_OK || status == Z_STREAM_END) {
+      fwrite(buf, sizeof(buf) - z.avail_out, 1, stdout);
+      if (status == Z_STREAM_END)
+         break;
     }
+     else
+      break;    /* Error */
+  }
+  inflateEnd(&z);
 }

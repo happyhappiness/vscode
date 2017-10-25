@@ -1,11 +1,11 @@
-static int AddFormDataf(struct FormData **formp,
-			 char *fmt, ...)
+int test(char *URL)
 {
-  char s[4096];
-  va_list ap;
-  va_start(ap, fmt);
-  vsprintf(s, fmt, ap);
-  va_end(ap);
-
-  return AddFormData(formp, s, 0);
+  CURLcode res;
+  CURL *curl = curl_easy_init();
+  curl_easy_setopt(curl, CURLOPT_URL, URL);
+  curl_easy_setopt(curl, CURLOPT_FILETIME, 1);
+  curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+  res = curl_easy_perform(curl);
+  curl_easy_cleanup(curl);
+  return (int)res;
 }

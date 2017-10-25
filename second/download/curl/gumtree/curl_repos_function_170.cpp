@@ -1,35 +1,38 @@
-CURLcode curl_easy_setopt(CURL *curl, CURLoption tag, ...)
+static void checkpasswd(const char *kind, /* for what purpose */
+                        char **userpwd) /* pointer to allocated string */
 {
-  va_list arg;
-  func_T param_func = (func_T)0;
-  long param_long = 0;
-  void *param_obj = NULL;
-  struct UrlData *data = curl;
+  char *ptr;
+  if(!*userpwd)
+    return;
 
-  va_start(arg, tag);
+  ptr = strchr(*userpwd, ':');
+  if(!ptr) {
+    /* no password present, prompt for one */
+    char passwd[256]="";
+    char prompt[256];
+    size_t passwdlen;
+    size_t userlen = strlen(*userpwd);
+    char *passptr;
 
-  /* PORTING NOTE:
-     Object pointers can't necessarily be casted to function pointers and
-     therefore we need to know what type it is and read the correct type
-     at once. This should also correct problems with different sizes of
-     the types.
-  */
+    /* build a nice-looking prompt */
+    curlx_msnprintf(prompt, sizeof(prompt),
+                   "Enter %s password for user '%s':",
+                   kind, *userpwd);
 
-  if(tag < CURLOPTTYPE_OBJECTPOINT) {
-    /* This is a LONG type */
-    param_long = va_arg(arg, long);
-    curl_setopt(data, tag, param_long);
+    /* get password */
+    getpass_r(prompt, passwd, sizeof(passwd));
+    passwdlen = strlen(passwd);
+
+    /* extend the allocated memory area to fit the password too */
+    passptr = realloc(*userpwd,
+                      passwdlen + 1 + /* an extra for the colon */
+                      userlen + 1);   /* an extra for the zero */
+
+    if(passptr) {
+      /* append the password separated with a colon */
+      passptr[userlen]=':';
+      memcpy(&passptr[userlen+1], passwd, passwdlen+1);
+      *userpwd = passptr;
+    }
   }
-  else if(tag < CURLOPTTYPE_FUNCTIONPOINT) {
-    /* This is a object pointer type */
-    param_obj = va_arg(arg, void *);
-    curl_setopt(data, tag, param_obj);
-  }
-  else {
-    param_func = va_arg(arg, func_T );
-    curl_setopt(data, tag, param_func);
-  }
-
-  va_end(arg);
-  return CURLE_OK;
 }

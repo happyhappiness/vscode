@@ -160,9 +160,12 @@ class SrcmlApi:
                 # log
                 log = self._get_text(call_node)
                 # check
-                self.log = call_node
+                self.log_node = call_node
                 self.set_control_dependence()
                 check = self.get_control_info()
+                # ignore log without control statement
+                if check == []:
+                    continue
                 # variable
                 variable = self._get_info_for_node(call_node)
                 self.logs.append([loc, log, check, variable])
