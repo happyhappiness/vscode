@@ -102,7 +102,7 @@ def analyze_repos(repos_name=None, is_first=True):
             function_writer.writerow(function_record)
         log_record_cnt += len(log_record_list)
         function_record_cnt += len(function_record_list)
-        print 'now analyzing file %d/%d, have found log record %d, call record %d' \
+        print 'now analyzing file %d/%d, have found log record %d, function record %d' \
                             %(file_cnt, total_file, log_record_cnt, function_record_cnt)
 
     # close file
