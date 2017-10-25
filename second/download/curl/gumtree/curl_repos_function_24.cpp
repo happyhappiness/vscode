@@ -1,51 +1,47 @@
-int myprogress (void *clientp,
-                size_t dltotal,
-                size_t dlnow,
-                size_t ultotal,
-                size_t ulnow)
+static
+void dump(const char *text,
+          FILE *stream, unsigned char *ptr, size_t size,
+          char nohex)
 {
-  /* The original progress-bar source code was written for curl by Lars Aas,
-     and this new edition inherites some of his concepts. */
-  
-  char line[256];
-  char outline[256];
-  char format[40];
-  float frac;
-  float percent;
-  int barwidth;
-  int num;
-  int i;
-  int prevblock;
-  int thisblock;
+  size_t i;
+  size_t c;
 
-  struct ProgressData *bar = (struct ProgressData *)clientp;
-  size_t total = dltotal + ultotal;
+  unsigned int width=0x10;
 
-  bar->point = dlnow + ulnow; /* we've come this far */
+  if(nohex)
+    /* without the hex output, we can fit more on screen */
+    width = 0x40;
 
-  if(0 == total) {
-    int prevblock = bar->prev / 1024;
-    int thisblock = bar->point / 1024;
-    while ( thisblock > prevblock ) {
-      fprintf( stderr, "#" );
-      prevblock++;
+  fprintf(stream, "%s, %zd bytes (0x%zx)\n", text, size, size);
+
+  for(i=0; i<size; i+= width) {
+
+    fprintf(stream, "%04zx: ", i);
+
+    if(!nohex) {
+      /* hex not disabled, show it */
+      for(c = 0; c < width; c++)
+        if(i+c < size)
+          fprintf(stream, "%02x ", ptr[i+c]);
+        else
+          fputs("   ", stream);
     }
-  }
-  else {
-    frac = (float) bar->point / (float) total;
-    percent = frac * 100.0f;
-    barwidth = bar->width - 7;
-    num = (int) (((float)barwidth) * frac);
-    i = 0;
-    for ( i = 0; i < num; i++ ) {
-      line[i] = '#';
-    }
-    line[i] = '\0';
-    sprintf( format, "%%-%ds %%5.1f%%%%", barwidth );
-    sprintf( outline, format, line, percent );
-    fprintf( stderr, "\r%s", outline );
-  }
-  bar->prev = bar->point;
 
-  return 0;
+    for(c = 0; (c < width) && (i+c < size); c++) {
+      /* check for 0D0A; if found, skip past and start a new line of output */
+      if (nohex && (i+c+1 < size) && ptr[i+c]==0x0D && ptr[i+c+1]==0x0A) {
+        i+=(c+2-width);
+        break;
+      }
+      fprintf(stream, "%c",
+              (ptr[i+c]>=0x20) && (ptr[i+c]<0x80)?ptr[i+c]:'.');
+      /* check again for 0D0A, to avoid an extra \n if it's at width */
+      if (nohex && (i+c+2 < size) && ptr[i+c+1]==0x0D && ptr[i+c+2]==0x0A) {
+        i+=(c+3-width);
+        break;
+      }
+    }
+    fputc('\n', stream); /* newline */
+  }
+  fflush(stream);
 }

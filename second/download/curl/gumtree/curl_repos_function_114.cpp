@@ -1,4 +1,12 @@
-CURLcode dict_done(struct connectdata *conn)
+int test(char *URL)
 {
-  return CURLE_OK;
+  int i;
+
+  (void)URL; /* not used */
+
+  for(i=0; dates[i]; i++) {
+    printf("%d: %s => %ld\n", i, dates[i], (long)curl_getdate(dates[i], NULL));
+  }
+
+  return 0;
 }

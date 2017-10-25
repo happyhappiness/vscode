@@ -1,36 +1,18 @@
-char *if2ip(char *interface, char *buf, int buf_size)
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
 {
-  int dummy;
-  char *ip=NULL;
-  
-  if(!interface)
-    return NULL;
+  struct WriteThis *pooh = (struct WriteThis *)userp;
+  const char *data;
 
-  dummy = socket(AF_INET, SOCK_STREAM, 0);
-  if (SYS_ERROR == dummy) {
-    return NULL;
-  }
-  else {
-    struct ifreq req;
-    memset(&req, 0, sizeof(req));
-    strcpy(req.ifr_name, interface);
-    req.ifr_addr.sa_family = AF_INET;
-    if (SYS_ERROR == ioctl(dummy, SIOCGIFADDR, &req, sizeof(req))) {
-      return NULL;
-    }
-    else {
-      struct in_addr in;
+  if(size*nmemb < 1)
+    return 0;
 
-      struct sockaddr_in *s = (struct sockaddr_in *)&req.ifr_dstaddr;
-      memcpy(&in, &(s->sin_addr.s_addr), sizeof(in));
-#if defined(HAVE_INET_NTOA_R)
-      ip = inet_ntoa_r(in,buf,buf_size);
-#else
-      ip = strncpy(buf,inet_ntoa(in),buf_size);
-      ip[buf_size - 1] = 0;
-#endif
-    }
-    close(dummy);
+  data = post[pooh->counter];
+
+  if(data) {
+    size_t len = strlen(data);
+    memcpy(ptr, data, len);
+    pooh->counter++; /* advance pointer */
+    return len;
   }
-  return ip;
+  return 0;                         /* no more data left to deliver */
 }

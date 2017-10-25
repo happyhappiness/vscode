@@ -1,20 +1,9 @@
-int
-gettimeofday (struct timeval *tp, void *nothing)
+void *myrealloc(void *ptr, size_t size)
 {
- SYSTEMTIME st;
- time_t tt;
- struct tm tmtm;
- /* mktime converts local to UTC */
- GetLocalTime (&st);
- tmtm.tm_sec = st.wSecond;
- tmtm.tm_min = st.wMinute;
- tmtm.tm_hour = st.wHour;
- tmtm.tm_mday = st.wDay;
- tmtm.tm_mon = st.wMonth - 1;
- tmtm.tm_year = st.wYear - 1900;
- tmtm.tm_isdst = -1;
- tt = mktime (&tmtm);
- tp->tv_sec = tt;
- tp->tv_usec = st.wMilliseconds * 1000;
- return 1;
+  /* There might be a realloc() out there that doesn't like reallocing
+     NULL pointers, so we take care of it here */
+  if(ptr)
+    return realloc(ptr, size);
+  else
+    return malloc(size);
 }

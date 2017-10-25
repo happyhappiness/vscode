@@ -1,42 +1,28 @@
-void rec_wont(struct UrlData *data, int option)
+static char *file2memory(FILE *file, long *size)
 {
-   switch(him[option])
-   {
-   case NO:
-      /* Already disabled */
-      break;
-	 
-   case YES:
-      him[option] = NO;
-      send_negotiation(data, DONT, option);
-      break;
-	 
-   case WANTNO:
-      switch(himq[option])
-      {
-      case EMPTY:
-	 him[option] = NO;
-	 break;
-	 
-      case OPPOSITE:
-	 him[option] = WANTYES;
-	 himq[option] = EMPTY;
-	 send_negotiation(data, DO, option);
-	 break;
+  char buffer[1024];
+  char *string=NULL;
+  char *newstring=NULL;
+  size_t len=0;
+  long stringlen=0;
+
+  if(file) {
+    while((len = fread(buffer, 1, sizeof(buffer), file))) {
+      if(string) {
+        newstring = realloc(string, len+stringlen);
+        if(newstring)
+          string = newstring;
+        else
+          break; /* no more strings attached! :-) */
       }
-      break;
-	 
-   case WANTYES:
-      switch(himq[option])
-      {
-      case EMPTY:
-	 him[option] = NO;
-	 break;
-      case OPPOSITE:
-	 him[option] = NO;
-	 himq[option] = EMPTY;
-	 break;
-      }
-      break;
-   }
+      else
+        string = malloc(len);
+      memcpy(&string[stringlen], buffer, len);
+      stringlen+=len;
+    }
+    *size = stringlen;
+    return string;
+  }
+  else
+    return NULL; /* no string */
 }

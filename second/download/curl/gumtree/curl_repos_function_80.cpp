@@ -1,23 +1,37 @@
-int FormInit(struct Form *form, struct FormData *formdata )
+int main(int argc, char **argv)
 {
-  if(!formdata)
-    return 1; /* error */
+  char *URL;
 
-#if 0  
-  struct FormData *lastnode=formdata;
-
-  /* find the last node in the list */
-  while(lastnode->next) {
-    lastnode = lastnode->next;
+#ifdef CURLDEBUG
+  /* this sends all memory debug messages to a logfile named memdump */
+  char *env = curl_getenv("CURL_MEMDEBUG");
+  if(env) {
+    /* use the value as file name */
+    char *s = strdup(env);
+    curl_free(env);
+    curl_memdebug(s);
+    free(s);
+    /* this weird strdup() and stuff here is to make the curl_free() get
+       called before the memdebug() as otherwise the memdebug tracing will
+       with tracing a free() without an alloc! */
   }
-
-  /* Now, make sure that we'll send a nice terminating sequence at the end
-   * of the post. We *DONT* add this string to the size of the data since this
-   * is actually AFTER the data. */
-  AddFormDataf(&lastnode, "\r\n\r\n");
+  /* this enables the fail-on-alloc-number-N functionality */
+  env = curl_getenv("CURL_MEMLIMIT");
+  if(env) {
+    curl_memlimit(atoi(env));
+    curl_free(env);
+  }
 #endif
-  form->data = formdata;
-  form->sent = 0;
+  if(argc< 2 ) {
+    fprintf(stderr, "Pass URL as argument please\n");
+    return 1;
+  }
+  if(argc>2)
+    arg2=argv[2];
 
-  return 0;
+  URL = argv[1]; /* provide this to the rest */
+
+  fprintf(stderr, "URL: %s\n", URL);
+
+  return test(URL);
 }

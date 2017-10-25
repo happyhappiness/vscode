@@ -1,13 +1,68 @@
-int glob_url(URLGlob** glob, char* url, int *urlnum)
+int main(int argc, char **argv)
 {
-  if (strlen(url)>URL_MAX_LENGTH) {
-    printf("Illegally sized URL\n");
-    return CURLE_URL_MALFORMAT;
-  }
+  CURL *curl;
+  CURLcode res;
+  int hd ;
+  struct stat file_info;
 
-  glob_expand = (URLGlob*)malloc(sizeof(URLGlob));
-  glob_expand->size = 0;
-  *urlnum = glob_word(url, 1);
-  *glob = glob_expand;
-  return CURLE_OK;
+  char *file;
+  char *url;
+
+  if(argc < 3)
+    return 1;
+
+  file= argv[1];
+  url = argv[2];
+
+  /* get the file size of the local file */
+  hd = open(file, O_RDONLY) ;
+  fstat(hd, &file_info);
+
+  /* In windows, this will init the winsock stuff */
+  curl_global_init(CURL_GLOBAL_ALL);
+
+  /* get a curl handle */
+  curl = curl_easy_init();
+  if(curl) {
+    /* we want to use our own read function */
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+
+    /* which file to upload */
+    curl_easy_setopt(curl, CURLOPT_READDATA, hd);
+
+    /* set the ioctl function */
+    curl_easy_setopt(curl, CURLOPT_IOCTLFUNCTION, my_ioctl);
+
+    /* pass the file descriptor to the ioctl callback as well */
+    curl_easy_setopt(curl, CURLOPT_IOCTLDATA, hd);
+
+    /* enable "uploading" (which means PUT when doing HTTP) */
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, TRUE) ;
+
+    /* specify target URL, and note that this URL should also include a file
+       name, not only a directory (as you can do with GTP uploads) */
+    curl_easy_setopt(curl,CURLOPT_URL, url);
+
+    /* and give the size of the upload, this supports large file sizes
+       on systems that have general support for it */
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, file_info.st_size);
+
+    /* tell libcurl we can use "any" auth, which lets the lib pick one, but it
+       also costs one extra round-trip and possibly sending of all the PUT
+       data twice!!! */
+    curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+
+    /* set user name and password for the authentication */
+    curl_easy_setopt(curl, CURLOPT_USERPWD, "user:password");
+
+    /* Now run off and do what you've been told! */
+    res = curl_easy_perform(curl);
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+  }
+  close(hd); /* close the local file */
+
+  curl_global_cleanup();
+  return 0;
 }

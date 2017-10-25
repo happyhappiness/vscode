@@ -1,53 +1,49 @@
-CURLcode curl_open(CURL **curl, char *url)
+int test(char *URL)
 {
-  /* We don't yet support specifying the URL at this point */
-  struct UrlData *data;
+  CURL* curls;
+  CURLM* multi;
+  int still_running;
+  int i;
+  CURLMsg *msg;
 
-  /* Very simple start-up: alloc the struct, init it with zeroes and return */
-  data = (struct UrlData *)malloc(sizeof(struct UrlData));
-  if(data) {
-    memset(data, 0, sizeof(struct UrlData));
-    data->handle = STRUCT_OPEN;
-    data->interf = CURLI_NORMAL; /* normal interface by default */
+  multi = curl_multi_init();
 
-    /* We do some initial setup here, all those fields that can't be just 0 */
+  curls=curl_easy_init();
+  curl_easy_setopt(curls, CURLOPT_URL, URL);
+  curl_multi_add_handle(multi, curls);
 
-    data-> headerbuff=(char*)malloc(HEADERSIZE);
-    if(!data->headerbuff) {
-      free(data); /* free the memory again */
-      return CURLE_OUT_OF_MEMORY;
+  while ( CURLM_CALL_MULTI_PERFORM == curl_multi_perform(multi, &still_running) );
+  while(still_running) {
+    struct timeval timeout;
+    int rc;
+    fd_set fdread;
+    fd_set fdwrite;
+    fd_set fdexcep;
+    int maxfd;
+    FD_ZERO(&fdread);
+    FD_ZERO(&fdwrite);
+    FD_ZERO(&fdexcep);
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+    curl_multi_fdset(multi, &fdread, &fdwrite, &fdexcep, &maxfd);
+    rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
+    switch(rc) {
+      case -1:
+        break;
+      case 0:
+      default:
+        while (CURLM_CALL_MULTI_PERFORM == curl_multi_perform(multi, &still_running));
+        break;
     }
-
-    data-> headersize=HEADERSIZE;
-
-#if 0
-    /* Let's set some default values: */
-    curl_setopt(data, CURLOPT_FILE, stdout); /* default output to stdout */
-    curl_setopt(data, CURLOPT_INFILE, stdin);  /* default input from stdin */
-    curl_setopt(data, CURLOPT_STDERR, stderr);  /* default stderr to stderr! */
-#endif
-
-    data->out = stdout; /* default output to stdout */
-    data->in  = stdin;  /* default input from stdin */
-    data->err  = stderr;  /* default stderr to stderr */
-
-    data->firstsocket = -1; /* no file descriptor */
-    data->secondarysocket = -1; /* no file descriptor */
-
-    /* use fwrite as default function to store output */
-    data->fwrite = (size_t (*)(char *, size_t, size_t, FILE *))fwrite;
-
-    /* use fread as default function to read input */
-    data->fread = (size_t (*)(char *, size_t, size_t, FILE *))fread;
-
-    data->infilesize = -1; /* we don't know any size */
-
-    data->current_speed = -1; /* init to negative == impossible */
-
-    *curl = data;
-    return CURLE_OK;
   }
+  msg = curl_multi_info_read(multi, &still_running);
+  if(msg)
+    /* this should now contain a result code from the easy handle,
+       get it */
+    i = msg->data.result;
 
-  /* this is a very serious error */
-  return CURLE_OUT_OF_MEMORY;
+  curl_multi_cleanup(multi);
+  curl_easy_cleanup(curls);
+
+  return i; /* return the final return code */
 }

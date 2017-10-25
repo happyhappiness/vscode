@@ -10,6 +10,7 @@ import sys
 import re
 import os
 import json
+import commands
 from itertools import islice
 from gumtree_api import Gumtree
 from srcml_api import SrcmlApi
@@ -33,7 +34,6 @@ def analyze_file(file_name, function_cnt, srcml):
     functions = srcml.get_functions(function_cnt)
     # traverse function to get calls and filter log info
     for function in functions:
-        """TODO input: function, output:calls and log locs"""
         srcml.set_function_file(function)
         logs, calls, types = srcml.get_logs_calls_types()
         # log info
@@ -70,9 +70,12 @@ def fetch_repos_file(repos_name):
 @ return nothing 
 @ involve fetch file from given repos and build two sort of repos(log and call)
 """
-def analyze_repos(repos_name):
+def analyze_repos(repos_name=None, is_first=True):
+    if repos_name is None and is_first:
+        versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
+        versions = versions.split('\n')
+        repos_name = min(versions,key=myUtil.get_version_number)
     srcml = SrcmlApi()
-    gumtree = Gumtree()
     # fetch file name
     file_names = fetch_repos_file(repos_name)
 
@@ -111,7 +114,7 @@ main function
 """
 if __name__ == "__main__":
 #    analyze_repos_joern(True)
-    analyze_repos("curl-7.1.1")
-    gumtree_api.close_jvm()
+    analyze_repos("curl-7.14.0")
+    # analyze_repos()
 
     

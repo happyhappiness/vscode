@@ -205,34 +205,13 @@ def create_version_diff():
     # get all versions
     versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
     versions = versions.split('\n')
-    versions.sort(key=get_version_number)
+    versions.sort(key=myUtil.get_version_number)
     size = len(versions)
     for i in range(size - 1):
         print 'now creating patch for %s and %s' %(versions[i], versions[i + 1])
         patch = commands.getoutput('diff -BEr -U 6 ' + my_constant.REPOS_DIR + versions[i] + ' '\
                                 + my_constant.REPOS_DIR + versions[i + 1] + ' > ' \
                                 + my_constant.PATCH_DIR + versions[i] + '_diff_' + versions[i + 1])
-
-"""
-@ param version
-@ return a.b.c -> a*10000 + b*100 + c
-@ involve sort dir by version
-"""
-def get_version_number(version):
-    pattern = r'.*-(\d*)\.(\d*)\.*(\d*)'
-    info = re.match(pattern, version)
-    version_number = 0
-    # 100 sub version
-    version_number_basis = [10000, 100, 1]
-    if info:
-        info = info.groups()
-        for i in range(len(info)):
-            if info[i] != '':
-                version_number += int(info[i]) * version_number_basis[i]
-    else:
-        print 'error processing version dir %s' %version
-    return version_number
-
 
 """
 main function

@@ -1,39 +1,48 @@
-char *curl_version(void)
+int test(char *URL)
 {
-  static char version[200];
-  char *ptr;
-#if defined(USE_SSLEAY)
-  static char sub[2];
-#endif
-  strcpy(version, LIBCURL_NAME " " LIBCURL_VERSION );
-  ptr=strchr(version, '\0');
+  CURL *curl;
+  CURLcode res=CURLE_OK;
+  struct curl_slist *slist = NULL;
 
-#ifdef USE_SSLEAY
+  struct WriteThis pooh;
+  pooh.counter = 0;
 
-#if (SSLEAY_VERSION_NUMBER >= 0x900000)
-  sprintf(ptr, " (SSL %lx.%lx.%lx)",
-          (SSLEAY_VERSION_NUMBER>>28)&0xff,
-          (SSLEAY_VERSION_NUMBER>>20)&0xff,
-          (SSLEAY_VERSION_NUMBER>>12)&0xf);
-#else
-  if(SSLEAY_VERSION_NUMBER&0x0f) {
-    sub[0]=(SSLEAY_VERSION_NUMBER&0x0f) + 'a' -1;
+  slist = curl_slist_append(slist, "Transfer-Encoding: chunked");
+
+  curl = curl_easy_init();
+  if(curl) {
+    /* First set the URL that is about to receive our POST. */
+    curl_easy_setopt(curl, CURLOPT_URL, URL);
+
+    /* Now specify we want to POST data */
+    curl_easy_setopt(curl, CURLOPT_POST, TRUE);
+
+    /* we want to use our own read function */
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+
+    /* pointer to pass to our read function */
+    curl_easy_setopt(curl, CURLOPT_INFILE, &pooh);
+
+    /* get verbose debug output please */
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+
+    /* include headers in the output */
+    curl_easy_setopt(curl, CURLOPT_HEADER, TRUE);
+
+    /* enforce chunked transfer by setting the header */
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
+
+    /* Perform the request, res will get the return code */
+    res = curl_easy_perform(curl);
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+
   }
-  else
-    sub[0]=0;
 
-  sprintf(ptr, " (SSL %x.%x.%x%s)",
-          (SSLEAY_VERSION_NUMBER>>12)&0xff,
-          (SSLEAY_VERSION_NUMBER>>8)&0xf,
-          (SSLEAY_VERSION_NUMBER>>4)&0xf, sub);
+  if(slist)
+    /* clean up the headers list */
+    curl_slist_free_all(slist);
 
-#endif
-  ptr=strchr(ptr, '\0');
-#endif
-
-#ifdef USE_ZLIB
-  sprintf(ptr, " (zlib %s)", zlibVersion());
-#endif
-
-  return version;
+  return res;
 }

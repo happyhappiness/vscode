@@ -1,24 +1,23 @@
-int main(int argc, char **argv)
+int main(void)
 {
-    CURL *curl_handle;
-    char headerfilename[FILENAME_MAX] = "head.out";
-    FILE *headerfile;
-    int rc=0;
-    curl_handle = curl_easy_init();
-    curl_easy_setopt(curl_handle,   CURLOPT_URL        
-,"http://curl.haxx.se");
-    curl_easy_setopt(curl_handle,   CURLOPT_NOPROGRESS  ,1);
-    curl_easy_setopt(curl_handle,   CURLOPT_MUTE        ,1);
-    curl_easy_setopt(curl_handle,   CURLOPT_WRITEFUNCTION,&write_data);
-    headerfile = fopen(headerfilename,"w");
-    if (headerfile == NULL) {
-        curl_easy_cleanup(curl_handle);
-        return -1;
-    }
-    curl_easy_setopt(curl_handle,   CURLOPT_WRITEHEADER ,headerfile);
-    curl_easy_perform(curl_handle);
-    printf("The head is <%s>\n",headerfilename);
-    fclose(headerfile);
-    curl_easy_cleanup(curl_handle);
-    return 0;
+  CURL *curl;
+  CURLcode res;
+
+  char *postthis="moo mooo moo moo";
+
+  curl = curl_easy_init();
+  if(curl) {
+    curl_easy_setopt(curl, CURLOPT_URL, "http://posthere.com");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postthis);
+
+    /* if we don't provide POSTFIELDSIZE, libcurl will strlen() by
+       itself */
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(postthis));
+
+    res = curl_easy_perform(curl);
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+  }
+  return 0;
 }

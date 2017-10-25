@@ -1,7 +1,5 @@
-static int WriteProc(void *param, char *text, int len)
+char **__crt0_glob_function (char *arg)
 {
-  struct UrlData *data = (struct UrlData *)param;
-
-  data->fwrite(text, 1, strlen(text), data->out);
-  return 0;
+  (void)arg;
+  return (char**)0;
 }

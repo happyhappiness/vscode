@@ -1,8 +1,7 @@
-void pgrsDone(struct UrlData *data)
+uint write_cb(char *in, uint size, uint nmemb, TidyBuffer *out)
 {
-  if(!(data->progress.flags & PGRS_HIDE)) {
-    data->progress.lastshow=0;
-    pgrsUpdate(data); /* the final (forced) update */
-    fprintf(stderr, "\n");
-  }
+  uint r;
+  r = size * nmemb;
+  tidyBufAppend( out, in, r );
+  return(r);
 }

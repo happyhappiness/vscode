@@ -1,7 +1,8 @@
-static int storebuffer(int output, FILE *data)
+static void Characters(void *voidContext,
+                       const xmlChar *chars,
+                       int length)
 {
-  char **buffer = (char **)data;
-  **buffer = (char)output;
-  (*buffer)++;
-  return output; /* act like fputc() ! */
+  Context *context = (Context *)voidContext;
+
+  handleCharacters(context, chars, length);
 }

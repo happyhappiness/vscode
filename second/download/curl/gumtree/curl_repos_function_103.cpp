@@ -1,92 +1,28 @@
-int ParseNetrc(char *host,
-	       char *login,
-	       char *password)
+void *fire(void *ptr)
 {
-  FILE *file;
-  char netrcbuffer[256];
-  int retcode=1;
-  
-  char *home = GetEnv("HOME"); /* portable environment reader */
-  int state=NOTHING;
+  CURLcode code;
+  struct curl_slist *headers;
+  struct Tdata *tdata = (struct Tdata*)ptr;
+  CURL *curl = curl_easy_init();
+  int i=0;
 
-  char state_login=0;
-  char state_password=0;
+  headers = sethost(NULL);
+  curl_easy_setopt(curl, CURLOPT_VERBOSE,    1);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, (void*)headers);
+  curl_easy_setopt(curl, CURLOPT_URL,        (void*)tdata->url);
+  printf( "CURLOPT_SHARE\n" );
+  curl_easy_setopt(curl, CURLOPT_SHARE, (void*)tdata->share);
 
-#define NETRC DOT_CHAR "netrc"
-
-  if(!home)
-    return -1;
-
-  if(strlen(home)>(sizeof(netrcbuffer)-strlen(NETRC))) {
-    free(home);
-    return -1;
+  printf( "PERFORM\n" );
+  code = curl_easy_perform(curl);
+  if( code != CURLE_OK ) {
+    fprintf(stderr, "perform url '%s' repeat %d failed, curlcode %d\n",
+            tdata->url, i, (int)code);
   }
 
-  sprintf(netrcbuffer, "%s%s%s", home, DIR_CHAR, NETRC);
+  printf( "CLEANUP\n" );
+  curl_easy_cleanup(curl);
+  curl_slist_free_all(headers);
 
-  file = fopen(netrcbuffer, "r");
-  if(file) {
-    char *tok;
-    while(fgets(netrcbuffer, sizeof(netrcbuffer), file)) {
-      tok=strtok(netrcbuffer, " \t\n");
-      while(tok) {
-	switch(state) {
-	case NOTHING:
-	  if(strequal("machine", tok)) {
-	    /* the next tok is the machine name, this is in itself the
-	       delimiter that starts the stuff entered for this machine,
-	       after this we need to search for 'login' and
-	       'password'. */
-	    state=HOSTFOUND;
-	  }
-	  break;
-	case HOSTFOUND:
-	  if(strequal(host, tok)) {
-	    /* and yes, this is our host! */
-	    state=HOSTVALID;
-#ifdef _NETRC_DEBUG
-	    printf("HOST: %s\n", tok);
-#endif
-	    retcode=0; /* we did find our host */
-	  }
-	  else
-	    /* not our host */
-	    state=NOTHING;
-	  break;
-	case HOSTVALID:
-	  /* we are now parsing sub-keywords concerning "our" host */
-	  if(state_login) {
-	    strncpy(login, tok, LOGINSIZE-1);
-#ifdef _NETRC_DEBUG
-	    printf("LOGIN: %s\n", login);
-#endif
-	    state_login=0;
-	  }
-	  else if(state_password) {
-	    strncpy(password, tok, PASSWORDSIZE-1);
-#if _NETRC_DEBUG
-	    printf("PASSWORD: %s\n", password);
-#endif
-	    state_password=0;
-	  }
-	  else if(strequal("login", tok))
-	    state_login=1;
-	  else if(strequal("password", tok))
-	    state_password=1;
-	  else if(strequal("machine", tok)) {
-	    /* ok, there's machine here go => */
-	    state = HOSTFOUND;
-	  }
-	  break;
-	} /* switch (state) */
-	tok = strtok(NULL, " \t\n");
-      } /* while (tok) */
-    } /* while fgets() */
-
-    fclose(file);
-  }
-
-  free(home);
-
-  return retcode;
+  return NULL;
 }

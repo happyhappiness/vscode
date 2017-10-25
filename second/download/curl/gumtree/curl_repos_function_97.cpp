@@ -1,25 +1,28 @@
-CURLcode curl_write(CURLconnect *c_conn, char *buf, size_t amount,
-                   size_t *n)
+int test(char *URL)
 {
-  struct connectdata *conn = (struct connectdata *)c_conn;
-  struct UrlData *data;
-  size_t bytes_written;
+  CURLcode res;
+  CURL *curl;
 
-  if(!n || !conn || (conn->handle != STRUCT_CONNECT))
-    return CURLE_FAILED_INIT;
-  data = conn->data;
-
-#ifdef USE_SSLEAY
-  if (data->use_ssl) {
-    bytes_written = SSL_write(data->ssl, buf, amount);
+  if(!strcmp(URL, "check")) {
+    /* used by the test script to ask if we can run this test or not */
+    if(rlimit()) {
+      printf("rlimit problems\n");
+      return 1;
+    }
+    return 0; /* sure, run this! */
   }
-  else {
-#endif
-    bytes_written = swrite(conn->writesockfd, buf, amount);
-#ifdef USE_SSLEAY
-  }
-#endif /* USE_SSLEAY */
 
-  *n = bytes_written;
-  return CURLE_OK;
+  if(rlimit())
+    /* failure */
+    return 100;
+
+  curl = curl_easy_init();
+  curl_easy_setopt(curl, CURLOPT_URL, URL);
+  curl_easy_setopt(curl, CURLOPT_HEADER, TRUE);
+  res = curl_easy_perform(curl);
+  curl_easy_cleanup(curl);
+
+  /* we never close the file descriptors */
+
+  return (int)res;
 }

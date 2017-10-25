@@ -1,10 +1,12 @@
-static void
-__yy_memcpy (char *to, char *from, unsigned int count)
+static void win32_perror(const char *msg)
 {
-  register char *t = to;
-  register char *f = from;
-  register int i = count;
+  char buf[256];
+  DWORD err = WSAGetLastError();
 
-  while (i-- > 0)
-    *t++ = *f++;
+  if (!FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err,
+                     LANG_NEUTRAL, buf, sizeof(buf), NULL))
+     snprintf(buf, sizeof(buf), "Unknown error %lu (%#lx)", err, err);
+  if (msg)
+     fprintf(stderr, "%s: ", msg);
+  fprintf(stderr, "%s\n", buf);
 }

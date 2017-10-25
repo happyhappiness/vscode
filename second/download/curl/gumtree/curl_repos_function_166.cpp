@@ -1,27 +1,24 @@
-void telwrite(struct UrlData *data,
-	      unsigned char *buffer,	/* Data to write */
-	      int count)		/* Number of bytes to write */
+static const char *param2text(int res)
 {
-   unsigned char outbuf[2];
-   int out_count = 0;
-   int bytes_written;
-
-   while(count--)
-   {
-      outbuf[0] = *buffer++;
-      out_count = 1;
-      if(outbuf[0] == IAC)
-	 outbuf[out_count++] = IAC;
-      
-#ifndef USE_SSLEAY
-      bytes_written = swrite(data->firstsocket, outbuf, out_count);
-#else
-      if (data->use_ssl) {
-        bytes_written = SSL_write(data->ssl, (char *)outbuf, out_count);
-      }
-      else {
-        bytes_written = swrite(data->firstsocket, outbuf, out_count);
-      }
-#endif /* USE_SSLEAY */
-   }
+  ParameterError error = (ParameterError)res;
+  switch(error) {
+  case PARAM_GOT_EXTRA_PARAMETER:
+    return "had unsupported trailing garbage";
+  case PARAM_OPTION_UNKNOWN:
+    return "is unknown";
+  case PARAM_OPTION_AMBIGUOUS:
+    return "is ambiguous";
+  case PARAM_REQUIRES_PARAMETER:
+    return "requires parameter";
+  case PARAM_BAD_USE:
+    return "is badly used here";
+  case PARAM_BAD_NUMERIC:
+    return "expected a proper numerical parameter";
+  case PARAM_LIBCURL_DOESNT_SUPPORT:
+    return "the installed libcurl version doesn't support this";
+  case PARAM_NO_MEM:
+    return "out of memory";
+  default:
+    return "unknown error";
+  }
 }

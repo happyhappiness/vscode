@@ -1,27 +1,13 @@
-main(int argc, char **argv) {
-	
-	CURL *ch;
-	char *errstr;
-	int err;
+size_t read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
+{
+  size_t retcode;
 
-	if ( ! ( ch = curl_easy_init() ) ) {
-		fprintf(stderr,"%s: Fucked up init\n", argv[0]);
-	}
+  /* in real-world cases, this would probably get this data differently
+     as this fread() stuff is exactly what the library already would do
+     by default internally */
+  retcode = fread(ptr, size, nmemb, stream);
 
-	if (
-	curl_easy_setopt(ch,
-		CURLOPT_POST,1,
-		CURLOPT_VERBOSE,1,
-		CURLOPT_POSTFIELDS,"hello=fuckeroo",
-		CURLOPT_URL,"http://www.async.com.br/~kiko/test.php?get=ok",
-		CURLOPT_ERRORBUFFER,errstr
-	) ) {
-		fprintf(stderr,"%s: Fucked up setopt\n", argv[0]);
-	};
-	
-	if ( ( err=curl_easy_perform(ch) ) ) {
-		fprintf(stderr,"%s: Fucked up perform: %d\n", argv[0], err );
-		fprintf(stderr,"%s: reason given was: %s\n", argv[0],errstr );
-	};
+  fprintf(stderr, "*** We read %d bytes from file\n", retcode);
 
+  return retcode;
 }

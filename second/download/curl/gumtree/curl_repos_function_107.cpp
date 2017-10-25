@@ -1,24 +1,12 @@
-int sendf(int fd, struct UrlData *data, char *fmt, ...)
+int test(char *URL)
 {
-  size_t bytes_written;
-  char *s;
-  va_list ap;
-  va_start(ap, fmt);
-  s = mvaprintf(fmt, ap);
-  va_end(ap);
-  if(!s)
-    return 0; /* failure */
-  if(data->bits.verbose)
-    fprintf(data->err, "> %s", s);
-#ifndef USE_SSLEAY
-   bytes_written = swrite(fd, s, strlen(s));
-#else
-  if (data->use_ssl) {
-    bytes_written = SSL_write(data->ssl, s, strlen(s));
-  } else {
-    bytes_written = swrite(fd, s, strlen(s));
-  }
-#endif /* USE_SSLEAY */
-  free(s); /* free the output string */
-  return(bytes_written);
+  CURLcode res;
+  CURL *curl = curl_easy_init();
+  curl_easy_setopt(curl, CURLOPT_URL, URL);
+  curl_easy_setopt(curl, CURLOPT_FILETIME, 1);
+  curl_easy_setopt(curl, CURLOPT_NOBODY, 1);
+  curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+  res = curl_easy_perform(curl);
+  curl_easy_cleanup(curl);
+  return (int)res;
 }

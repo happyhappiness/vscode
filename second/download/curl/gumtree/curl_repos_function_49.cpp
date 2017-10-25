@@ -1,12 +1,22 @@
-static BOOL dprintf_IsQualifierNoDollar(char c)
+int
+url_feof(URL_FILE *file)
 {
-  switch (c) {
-  case '-': case '+': case ' ': case '#': case '.':
-  case '0': case '1': case '2': case '3': case '4':
-  case '5': case '6': case '7': case '8': case '9':
-  case 'h': case 'l': case 'L': case 'Z': case 'q':
-    return TRUE;
-  default:
-    return FALSE;
-  }
+    int ret=0;
+
+    switch(file->type)
+    {
+    case CFTYPE_FILE:
+        ret=feof(file->handle.file);
+        break;
+
+    case CFTYPE_CURL:
+        if((file->buffer_pos == 0) && (!file->still_running))
+            ret = 1;
+        break;
+    default: /* unknown or supported type - oh dear */
+        ret=-1;
+        errno=EBADF;
+        break;
+    }
+    return ret;
 }

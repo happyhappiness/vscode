@@ -1,16 +1,28 @@
-CURL *curl_easy_init(void)
+static int str2offset(curl_off_t *val, char *str)
 {
-  CURLcode res;
-  struct UrlData *data;
+#if SIZEOF_CURL_OFF_T > 4
+  /* Ugly, but without going through a bunch of rigmarole, we don't have the
+   * definitions for LLONG_{MIN,MAX} or LONG_LONG_{MIN,MAX}.
+   */
+#ifndef LLONG_MAX
+#ifdef _MSC_VER
+#define LLONG_MAX (curl_off_t)0x7FFFFFFFFFFFFFFFi64
+#define LLONG_MIN (curl_off_t)0x8000000000000000i64
+#else
+#define LLONG_MAX (curl_off_t)0x7FFFFFFFFFFFFFFFLL
+#define LLONG_MIN (curl_off_t)0x8000000000000000LL
+#endif
+#endif
 
-  if(curl_init())
-    return NULL;
+  /* this is a duplicate of the function that is also used in libcurl */
+  *val = curlx_strtoofft(str, NULL, 0);
 
-  /* We use curl_open() with undefined URL so far */
-  res = curl_open((CURL **)&data, NULL);
-  if(res != CURLE_OK)
-    return NULL;
-
-  data->interf = CURLI_EASY; /* mark it as an easy one */
-  return data;
+  if ((*val == LLONG_MAX || *val == LLONG_MIN) && errno == ERANGE)
+    return 1;
+#else
+  *val = strtol(str, NULL, 0);
+  if ((*val == LONG_MIN || *val == LONG_MAX) && errno == ERANGE)
+    return 1;
+#endif
+  return 0;
 }

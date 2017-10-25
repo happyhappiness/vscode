@@ -1,21 +1,55 @@
-char *max5data(double bytes, char *max5)
+int main(int argc, char **argv)
 {
-#define ONE_KILOBYTE 1024
-#define ONE_MEGABYTE (1024*1024)
+  CURL *curl_handle;
+  char *headerfilename = "head.out";
+  FILE *headerfile;
+  char *bodyfilename = "body.out";
+  FILE *bodyfile;
 
-  if(bytes < 100000) {
-    sprintf(max5, "%5d", (int)bytes);
-    return max5;
+  curl_global_init(CURL_GLOBAL_ALL);
+
+  /* init the curl session */
+  curl_handle = curl_easy_init();
+
+  /* set URL to get */
+  curl_easy_setopt(curl_handle, CURLOPT_URL, "http://curl.haxx.se");
+
+  /* no progress meter please */
+  curl_easy_setopt(curl_handle, CURLOPT_NOPROGRESS, 1);
+
+  /* shut up completely */
+  curl_easy_setopt(curl_handle, CURLOPT_MUTE, 1);
+
+  /* send all data to this function  */
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, write_data);
+
+  /* open the files */
+  headerfile = fopen(headerfilename,"w");
+  if (headerfile == NULL) {
+    curl_easy_cleanup(curl_handle);
+    return -1;
   }
-  if(bytes < (9999*ONE_KILOBYTE)) {
-    sprintf(max5, "%4dk", (int)bytes/ONE_KILOBYTE);
-    return max5;
+  bodyfile = fopen(bodyfilename,"w");
+  if (bodyfile == NULL) {
+    curl_easy_cleanup(curl_handle);
+    return -1;
   }
-  if(bytes < (100*ONE_MEGABYTE)) {
-    /* 'XX.XM' is good as long as we're less than 100 megs */
-    sprintf(max5, "%2.1fM", bytes/ONE_MEGABYTE);
-    return max5;
-  }
-  sprintf(max5, "%4dM", (int)bytes/ONE_MEGABYTE);
-  return max5;
+
+  /* we want the headers to this file handle */
+  curl_easy_setopt(curl_handle,   CURLOPT_WRITEHEADER ,headerfile);
+
+  /*
+   * Notice here that if you want the actual data sent anywhere else but
+   * stdout, you should consider using the CURLOPT_WRITEDATA option.  */
+
+  /* get it! */
+  curl_easy_perform(curl_handle);
+
+  /* close the header file */
+  fclose(headerfile);
+
+  /* cleanup curl stuff */
+  curl_easy_cleanup(curl_handle);
+
+  return 0;
 }

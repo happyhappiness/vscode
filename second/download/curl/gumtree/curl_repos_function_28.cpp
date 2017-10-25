@@ -1,32 +1,32 @@
-static char *my_get_token(const char *line)
+static
+int my_trace(CURL *handle, curl_infotype type,
+             unsigned char *data, size_t size,
+             void *userp)
 {
-  static const char *save = NULL;
-  const char *first = NULL;
-  const char *last = NULL;
-  char *retval = NULL;
-  size_t size;
+  const char *text;
 
-  if (NULL == line)
-    line = save;
-  if (NULL == line)
-    return NULL;
+  (void)handle; /* prevent compiler warning */
 
-  while (('\0' != *line) && (isspace(*line)))
-    line++;
-  first = line;
-  while (('\0' != *line) && (!isspace(*line)))
-    line++;
-  save = line;
-  while ('\0' != *line)
-    line++;
-  last = line;
+  switch (type) {
+  case CURLINFO_TEXT:
+    fprintf(stderr, "== Info: %s", data);
+  default: /* in case a new one is introduced to shock us */
+    return 0;
 
-  size = last - first;
-  if (0 == size)
-    return NULL;
-  if (NULL == (retval = malloc(size + 1)))
-    return NULL;
-  memcpy(retval, first, size);
-  retval[size] = '\0';
-  return retval;
+  case CURLINFO_HEADER_OUT:
+    text = "=> Send header";
+    break;
+  case CURLINFO_DATA_OUT:
+    text = "=> Send data";
+    break;
+  case CURLINFO_HEADER_IN:
+    text = "<= Recv header";
+    break;
+  case CURLINFO_DATA_IN:
+    text = "<= Recv data";
+    break;
+  }
+
+  dump(text, stderr, data, size, TRUE);
+  return 0;
 }

@@ -1,13 +1,10 @@
-static void negotiate(struct UrlData *data)
+static int SetHTTPrequest(HttpReq req, HttpReq *store)
 {
-   int i;
-   
-   for(i = 0;i < NTELOPTS;i++)
-   {
-      if(us_preferred[i] == YES)
-	 set_local_option(data, i, YES);
-      
-      if(him_preferred[i] == YES)
-	 set_remote_option(data, i, YES);
-   }
+  if((*store == HTTPREQ_UNSPEC) ||
+     (*store == req)) {
+    *store = req;
+    return 0;
+  }
+  fprintf(stderr, "You can only select one HTTP request!\n");
+  return 1;
 }

@@ -1,66 +1,66 @@
-CURLcode http_connect(struct connectdata *conn)
+static int ssl_app_verify_callback(X509_STORE_CTX *ctx, void *arg)
 {
-  struct UrlData *data;
+  sslctxparm * p = (sslctxparm *) arg;
+  int ok, err;
 
-  data=conn->data;
+  fprintf(stderr,"ssl_app_verify_callback sslctxparm=%p ctx=%p\n",
+          (void *)p, (void*)ctx);
 
-  /* If we are not using a proxy and we want a secure connection,
-   * perform SSL initialization & connection now.
-   * If using a proxy with https, then we must tell the proxy to CONNECT
-   * us to the host we want to talk to.  Only after the connect
-   * has occured, can we start talking SSL
-   */
-   if (conn->protocol & PROT_HTTPS) {
-     if (data->bits.httpproxy) {
+#if OPENSSL_VERSION_NUMBER<0x00907000L
+/* not necessary in openssl 0.9.7 or later */
 
-        /* OK, now send the connect statment */
-        sendf(data->firstsocket, data,
-              "CONNECT %s:%d HTTP/1.0\015\012"
-              "%s"
-	      "%s"
-              "\r\n",
-              data->hostname, data->remote_port,
-              (data->bits.proxy_user_passwd)?data->ptr_proxyuserpwd:"",
-	      (data->useragent?data->ptr_uagent:"")
-              );
+  fprintf(stderr,"This version %s of openssl does not support a parm (%p)"
+          ", getting a global static %p \n",
+          OPENSSL_VERSION_TEXT, (void *)p, (void *)globalparm);
 
-        /* wait for the proxy to send us a HTTP/1.0 200 OK header */
-	/* Daniel rewrote this part Nov 5 1998 to make it more obvious */
-	{
-	  int httperror=0;
-	  int subversion=0;
-	  while(GetLine(data->firstsocket, data->buffer, data)) {
-	    if('\r' == data->buffer[0])
-	      break; /* end of headers */
-	    if(2 == sscanf(data->buffer, "HTTP/1.%d %d",
-			   &subversion,
-			   &httperror)) {
-	      ;
-	    }
-	  }
-	  if(200 != httperror) {
-	    if(407 == httperror)
-	      /* Added Nov 6 1998 */
-	      failf(data, "Proxy requires authorization!");
-	    else 
-	      failf(data, "Received error code %d from proxy", httperror);
-	    return CURLE_READ_ERROR;
-	  }
-	}
-        infof (data, "Proxy has replied to CONNECT request\n");
-     }
+  p = globalparm;
+#endif
 
-      /* now, perform the SSL initialization for this socket */
-     if(UrgSSLConnect (data)) {
-       return CURLE_SSL_CONNECT_ERROR;
-     }
+/* The following error should not occur. We test this to avoid segfault. */
+  if (!p || !ctx) {
+    fprintf(stderr,"Internal error in ssl_app_verify_callback "
+            "sslctxparm=%p ctx=%p\n",(void *)p,(void*)ctx);
+    return 0;
   }
 
-   if(data->bits.user_passwd && !data->bits.this_is_a_follow) {
-     /* Authorization: is requested, this is not a followed location, get the
-        original host name */
-     data->auth_host = strdup(data->hostname);
-   }
+  ok= X509_verify_cert(ctx);
+  err=X509_STORE_CTX_get_error(ctx);
 
-   return CURLE_OK;
+/* The following seems to be a problem in 0.9.7/8 openssl versions */
+
+#if 1
+  if (err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT ||
+      err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY) {
+    fprintf(stderr,"X509_verify_cert: repairing self signed\n") ;
+    X509_STORE_CTX_set_error(ctx,X509_V_OK);
+    ok = 1;
+  }
+#endif
+
+  if (ok && ctx->cert) {
+    unsigned char * accessinfoURL ;
+
+    accessinfoURL = my_get_ext(ctx->cert,p->accesstype ,NID_info_access);
+    if (accessinfoURL) {
+
+      if (strcmp((char *)p->accessinfoURL, (char *)accessinfoURL)) {
+        fprintf(stderr, "Setting URL <%s>, was <%s>\n",
+                (char *)accessinfoURL, (char *)p->accessinfoURL);
+        OPENSSL_free(p->accessinfoURL);
+        p->accessinfoURL = accessinfoURL;
+
+        /* We need to be able to deal with a custom port number, but the
+           URL in the cert uses a static one. We thus need to create a new
+           URL that uses the currently requested port number which may not
+           be the one this URL uses! */
+        sprintf(newurl, "https://127.0.0.1:%d/509", portnum);
+        fprintf(stderr, "But *really* Setting URL <%s>\n", newurl);
+
+        curl_easy_setopt(p->curl, CURLOPT_URL, newurl);
+      }
+      else
+        OPENSSL_free(accessinfoURL);
+    }
+  }
+  return(ok);
 }

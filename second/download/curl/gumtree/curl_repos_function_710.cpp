@@ -1,0 +1,1 @@
+static CURLcode win32_init(void) { return CURLE_OK; }

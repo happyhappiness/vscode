@@ -1,738 +1,174 @@
-static
-CURLcode _ftp(struct connectdata *conn)
+int main(int argc, char *argv[])
 {
-  /* this is FTP and no proxy */
-  size_t nread;
-  CURLcode result;
-  struct UrlData *data=conn->data;
-  char *buf = data->buffer; /* this is our buffer */
-  /* for the ftp PORT mode */
-  int portsock=-1;
-  struct sockaddr_in serv_addr;
-  char hostent_buf[8192];
-#if defined (HAVE_INET_NTOA_R)
-  char ntoa_buf[64];
-#endif
+  struct sockaddr_in me;
+#ifdef ENABLE_IPV6
+  struct sockaddr_in6 me6;
+#endif /* ENABLE_IPV6 */
+  int sock, msgsock, flag;
+  unsigned short port = DEFAULT_PORT;
+  FILE *pidfile;
+  char *pidname= (char *)".http.pid";
+  struct httprequest req;
+  int rc;
+  int arg=1;
 
-  struct curl_slist *qitem; /* QUOTE item */
-  /* the ftp struct is already inited in ftp_connect() */
-  struct FTP *ftp = data->proto.ftp;
-
-  long *bytecountp = ftp->bytecountp;
-
-  /* Send any QUOTE strings? */
-  if(data->quote) {
-    qitem = data->quote;
-    /* Send all QUOTE strings in same order as on command-line */
-    while (qitem) {
-      /* Send string */
-      if (qitem->data) {
-        sendf(data->firstsocket, data, "%s\r\n", qitem->data);
-
-        nread = GetLastResponse(data->firstsocket, buf, conn);
-        if(nread < 0)
-          return CURLE_OPERATION_TIMEOUTED;
-
-        if (buf[0] != '2') {
-          failf(data, "QUOT string not accepted: %s",
-                qitem->data);
-          return CURLE_FTP_QUOTE_ERROR;
-        }
-      }
-      qitem = qitem->next;
-    }
-  }
-
-  /* If we have selected NOBODY, it means that we only want file information.
-     Which in FTP can't be much more than the file size! */
-  if(data->bits.no_body) {
-    /* The SIZE command is _not_ RFC 959 specified, and therefor many servers
-       may not support it! It is however the only way we have to get a file's
-       size! */
-    int filesize;
-    sendf(data->firstsocket, data, "SIZE %s\r\n", ftp->file);
-
-    nread = GetLastResponse(data->firstsocket, buf, conn);
-    if(nread < 0)
-      return CURLE_OPERATION_TIMEOUTED;
-
-    if(strncmp(buf, "213", 3)) {
-      failf(data, "Couldn't get file size: %s", buf+4);
-      return CURLE_FTP_COULDNT_GET_SIZE;
-    }
-    /* get the size from the ascii string: */
-    filesize = atoi(buf+4);
-
-    sprintf(buf, "Content-Length: %d\n", filesize);
-
-    if(strlen(buf) != data->fwrite(buf, 1, strlen(buf), data->out)) {
-      failf (data, "Failed writing output");
-      return CURLE_WRITE_ERROR;
-    }
-    if(data->writeheader) {
-      /* the header is requested to be written to this file */
-      if(strlen(buf) != data->fwrite (buf, 1, strlen(buf),
-                                      data->writeheader)) {
-        failf (data, "Failed writing output");
-        return CURLE_WRITE_ERROR;
-      }
-    }
-    return CURLE_OK;
-  }
-
-  /* We have chosen to use the PORT command */
-  if(data->bits.ftp_use_port) {
-    struct sockaddr_in sa;
-    struct hostent *h=NULL;
-    size_t size;
-    unsigned short porttouse;
-    char myhost[256] = "";
-
-    if(data->ftpport) {
-      if(if2ip(data->ftpport, myhost, sizeof(myhost))) {
-        h = GetHost(data, myhost, hostent_buf, sizeof(hostent_buf));
-      }
-      else {
-        if(strlen(data->ftpport)>1)
-          h = GetHost(data, data->ftpport, hostent_buf, sizeof(hostent_buf));
-        if(h)
-          strcpy(myhost,data->ftpport);
-      }
-    }
-    if(! *myhost) {
-      h=GetHost(data, getmyhost(myhost,sizeof(myhost)), hostent_buf, sizeof(hostent_buf));
-    }
-    infof(data, "We connect from %s\n", myhost);
-
-    if ( h ) {
-      if( (portsock = socket(AF_INET, SOCK_STREAM, 0)) >= 0 ) {
-        memset((char *)&sa, 0, sizeof(sa));
-        memcpy((char *)&sa.sin_addr,
-               h->h_addr,
-               h->h_length);
-        sa.sin_family = AF_INET;
-        sa.sin_addr.s_addr = INADDR_ANY;
-        sa.sin_port = 0;
-        size = sizeof(sa);
-
-        if(bind(portsock, (struct sockaddr *)&sa, size) >= 0) {
-          /* we succeeded to bind */
-          struct sockaddr_in add;
-          size = sizeof(add);
-
-          if(getsockname(portsock, (struct sockaddr *) &add,
-                         (int *)&size)<0) {
-            failf(data, "getsockname() failed");
-            return CURLE_FTP_PORT_FAILED;
-          }
-          porttouse = ntohs(add.sin_port);
-
-          if ( listen(portsock, 1) < 0 ) {
-            failf(data, "listen(2) failed on socket");
-            return CURLE_FTP_PORT_FAILED;
-          }
-        }
-        else {
-          failf(data, "bind(2) failed on socket");
-          return CURLE_FTP_PORT_FAILED;
-        }
-      }
-      else {
-        failf(data, "socket(2) failed (%s)");
-        return CURLE_FTP_PORT_FAILED;
-      }
-    }
-    else {
-      failf(data, "could't find my own IP address (%s)", myhost);
-      return CURLE_FTP_PORT_FAILED;
-    }
-    {
-      struct in_addr in;
-      unsigned short ip[5];
-      (void) memcpy(&in.s_addr, *h->h_addr_list, sizeof (in.s_addr));
-#if defined (HAVE_INET_NTOA_R)
-      sscanf( inet_ntoa_r(in, ntoa_buf, sizeof(ntoa_buf)), "%hu.%hu.%hu.%hu",
-              &ip[0], &ip[1], &ip[2], &ip[3]);
+  while(argc>arg) {
+    if(!strcmp("--version", argv[arg])) {
+      printf("sws IPv4%s\n",
+#ifdef ENABLE_IPV6
+             "/IPv6"
 #else
-      sscanf( inet_ntoa(in), "%hu.%hu.%hu.%hu",
-              &ip[0], &ip[1], &ip[2], &ip[3]);
+             ""
 #endif
-      sendf(data->firstsocket, data, "PORT %d,%d,%d,%d,%d,%d\r\n",
-            ip[0], ip[1], ip[2], ip[3],
-            porttouse >> 8,
-            porttouse & 255);
+             );
+      return 0;
     }
-
-    nread = GetLastResponse(data->firstsocket, buf, conn);
-    if(nread < 0)
-      return CURLE_OPERATION_TIMEOUTED;
-
-    if(strncmp(buf, "200", 3)) {
-      failf(data, "Server does not grok PORT, try without it!");
-      return CURLE_FTP_PORT_FAILED;
-    }     
-  }
-  else { /* we use the PASV command */
-
-    sendf(data->firstsocket, data, "PASV\r\n");
-
-    nread = GetLastResponse(data->firstsocket, buf, conn);
-    if(nread < 0)
-      return CURLE_OPERATION_TIMEOUTED;
-
-    if(strncmp(buf, "227", 3)) {
-      failf(data, "Odd return code after PASV");
-      return CURLE_FTP_WEIRD_PASV_REPLY;
+    else if(!strcmp("--pidfile", argv[arg])) {
+      arg++;
+      if(argc>arg)
+        pidname = argv[arg++];
     }
-    else {
-      int ip[4];
-      int port[2];
-      unsigned short newport;
-      char newhost[32];
-      struct hostent *he;
-      char *str=buf,*ip_addr;
-
-      /*
-       * New 227-parser June 3rd 1999.
-       * It now scans for a sequence of six comma-separated numbers and
-       * will take them as IP+port indicators.
-       *
-       * Found reply-strings include:
-       * "227 Entering Passive Mode (127,0,0,1,4,51)"
-       * "227 Data transfer will passively listen to 127,0,0,1,4,51"
-       * "227 Entering passive mode. 127,0,0,1,4,51"
-       */
-      
-      while(*str) {
-	 if (6 == sscanf(str, "%d,%d,%d,%d,%d,%d",
-			 &ip[0], &ip[1], &ip[2], &ip[3],
-			 &port[0], &port[1]))
-	    break;
-	 str++;
-      }
-      if(!*str) {
-	 failf(data, "Couldn't interpret this 227-reply: %s", buf);
-	 return CURLE_FTP_WEIRD_227_FORMAT;
-      }
-      sprintf(newhost, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-      he = GetHost(data, newhost, hostent_buf, sizeof(hostent_buf));
-      if(!he) {
-        failf(data, "Can't resolve new host %s", newhost);
-        return CURLE_FTP_CANT_GET_HOST;
-      }
-
-	
-      newport = (port[0]<<8) + port[1];
-      data->secondarysocket = socket(AF_INET, SOCK_STREAM, 0);
-
-      memset((char *) &serv_addr, '\0', sizeof(serv_addr));
-      memcpy((char *)&(serv_addr.sin_addr), he->h_addr, he->h_length);
-      serv_addr.sin_family = he->h_addrtype;
-      serv_addr.sin_port = htons(newport);
-
-      if(data->bits.verbose) {
-        struct in_addr in;
-        struct hostent * answer;
-
-#if defined(HAVE_INET_ADDR)
-        unsigned long address;
-# if defined(HAVE_GETHOSTBYADDR_R)
-        int h_errnop;
-# endif
-
-        address = inet_addr(newhost);
-# ifdef HAVE_GETHOSTBYADDR_R
-
-#  ifdef HAVE_GETHOSTBYADDR_R_5
-        /* AIX, Digital Unix style:
-           extern int gethostbyaddr_r(char *addr, size_t len, int type,
-           struct hostent *htent, struct hostent_data *ht_data); */
-
-        /* Fred Noz helped me try this out, now it at least compiles! */
-
-        if(gethostbyaddr_r((char *) &address,
-                           sizeof(address), AF_INET,
-                           (struct hostent *)hostent_buf,
-                           hostent_buf + sizeof(*answer)))
-           answer=NULL;
-                           
-#  endif
-#  ifdef HAVE_GETHOSTBYADDR_R_7
-        /* Solaris and IRIX */
-        answer = gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
-                                 (struct hostent *)hostent_buf,
-                                 hostent_buf + sizeof(*answer),
-                                 sizeof(hostent_buf) - sizeof(*answer),
-                                 &h_errnop);
-#  endif
-#  ifdef HAVE_GETHOSTBYADDR_R_8
-        /* Linux style */
-        if(gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
-                           (struct hostent *)hostent_buf,
-                           hostent_buf + sizeof(*answer),
-                           sizeof(hostent_buf) - sizeof(*answer),
-                           &answer,
-                           &h_errnop))
-           answer=NULL; /* error */
-#  endif
-        
-# else
-        answer = gethostbyaddr((char *) &address, sizeof(address), AF_INET);
-# endif
-#else
-        answer = NULL;
+    else if(!strcmp("--ipv6", argv[arg])) {
+#ifdef ENABLE_IPV6
+      use_ipv6=TRUE;
 #endif
-        (void) memcpy(&in.s_addr, *he->h_addr_list, sizeof (in.s_addr));
-        infof(data, "Connecting to %s (%s) port %u\n",
-              answer?answer->h_name:newhost,
-#if defined(HAVE_INET_NTOA_R)
-              ip_addr = inet_ntoa_r(in, ntoa_buf, sizeof(ntoa_buf)),
-#else
-              ip_addr = inet_ntoa(in),
-#endif
-              newport);
-      }
-	
-      if (connect(data->secondarysocket, (struct sockaddr *) &serv_addr,
-                  sizeof(serv_addr)) < 0) {
-        switch(errno) {
-#ifdef ECONNREFUSED
-          /* this should be made nicer */
-        case ECONNREFUSED:
-          failf(data, "Connection refused by ftp server");
-          break;
-#endif
-#ifdef EINTR
-        case EINTR:
-          failf(data, "Connection timeouted to ftp server");
-          break;
-#endif
-        default:
-          failf(data, "Can't connect to ftp server");
-          break;
-        }
-        return CURLE_FTP_CANT_RECONNECT;
-      }
+      arg++;
     }
+    else if(argc>arg) {
 
-  }
-  /* we have the (new) data connection ready */
-  infof(data, "Connected!\n");
+      if(atoi(argv[arg]))
+        port = (unsigned short)atoi(argv[arg++]);
 
-  /* change directory first */
-
-  if(ftp->dir && ftp->dir[0]) {
-    sendf(data->firstsocket, data, "CWD %s\r\n", ftp->dir);
-    nread = GetLastResponse(data->firstsocket, buf, conn);
-    if(nread < 0)
-      return CURLE_OPERATION_TIMEOUTED;
-
-    if(strncmp(buf, "250", 3)) {
-      failf(data, "Couldn't change to directory %s", ftp->dir);
-      return CURLE_FTP_ACCESS_DENIED;
+      if(argc>arg)
+        path = argv[arg++];
     }
   }
 
-  if(data->bits.upload) {
-
-    /* Set type to binary (unless specified ASCII) */
-    sendf(data->firstsocket, data, "TYPE %s\r\n",
-          (data->bits.ftp_ascii)?"A":"I");
-
-    nread = GetLastResponse(data->firstsocket, buf, conn);
-    if(nread < 0)
-      return CURLE_OPERATION_TIMEOUTED;
-
-    if(strncmp(buf, "200", 3)) {
-      failf(data, "Couldn't set %s mode",
-            (data->bits.ftp_ascii)?"ASCII":"binary");
-      return (data->bits.ftp_ascii)? CURLE_FTP_COULDNT_SET_ASCII:
-        CURLE_FTP_COULDNT_SET_BINARY;
-    }
-
-    if(data->resume_from) {
-      /* we're about to continue the uploading of a file */
-      /* 1. get already existing file's size. We use the SIZE
-         command for this which may not exist in the server!
-         The SIZE command is not in RFC959. */
-
-      /* 2. This used to set REST. But since we can do append, we
-         don't another ftp command. We just skip the source file
-         offset and then we APPEND the rest on the file instead */
-
-      /* 3. pass file-size number of bytes in the source file */
-      /* 4. lower the infilesize counter */
-      /* => transfer as usual */
-
-      if(data->resume_from < 0 ) {
-        /* we could've got a specified offset from the command line,
-           but now we know we didn't */
-
-        sendf(data->firstsocket, data, "SIZE %s\r\n", ftp->file);
-
-        nread = GetLastResponse(data->firstsocket, buf, conn);
-        if(nread < 0)
-          return CURLE_OPERATION_TIMEOUTED;
-
-        if(strncmp(buf, "213", 3)) {
-          failf(data, "Couldn't get file size: %s", buf+4);
-          return CURLE_FTP_COULDNT_GET_SIZE;
-        }
-
-        /* get the size from the ascii string: */
-        data->resume_from = atoi(buf+4);
-      }
-
-      if(data->resume_from) {
-        /* do we still game? */
-        int passed=0;
-#if 0
-        /* Set resume file transfer offset */
-        infof(data, "Instructs server to resume from offset %d\n",
-              data->resume_from);
-
-        sendf(data->firstsocket, data, "REST %d\r\n", data->resume_from);
-
-        nread = GetLastResponse(data->firstsocket, buf, conn);
-        if(nread < 0)
-          return CURLE_OPERATION_TIMEOUTED;
-
-        if(strncmp(buf, "350", 3)) {
-          failf(data, "Couldn't use REST: %s", buf+4);
-          return CURLE_FTP_COULDNT_USE_REST;
-        }
+#if defined(WIN32) && !defined(__GNUC__) || defined(__MINGW32__)
+  win32_init();
+  atexit(win32_cleanup);
 #else
-        /* enable append instead */
-        data->bits.ftp_append = 1;
+
+#ifdef SIGPIPE
+#ifdef HAVE_SIGNAL
+  signal(SIGPIPE, sigpipe_handler);
 #endif
-        /* Now, let's read off the proper amount of bytes from the
-           input. If we knew it was a proper file we could've just
-           fseek()ed but we only have a stream here */
-        do {
-          int readthisamountnow = (data->resume_from - passed);
-          int actuallyread;
-
-          if(readthisamountnow > BUFSIZE)
-            readthisamountnow = BUFSIZE;
-
-          actuallyread =
-            data->fread(data->buffer, 1, readthisamountnow, data->in);
-
-          passed += actuallyread;
-          if(actuallyread != readthisamountnow) {
-            failf(data, "Could only read %d bytes from the input\n",
-                  passed);
-            return CURLE_FTP_COULDNT_USE_REST;
-          }
-        }
-        while(passed != data->resume_from);
-
-        /* now, decrease the size of the read */
-        if(data->infilesize>0) {
-          data->infilesize -= data->resume_from;
-
-          if(data->infilesize <= 0) {
-            infof(data, "File already completely uploaded\n");
-            return CURLE_OK;
-          }
-        }
-        /* we've passed, proceed as normal */
-      }
-    }
-
-    /* Send everything on data->in to the socket */
-    if(data->bits.ftp_append)
-      /* we append onto the file instead of rewriting it */
-      sendf(data->firstsocket, data, "APPE %s\r\n", ftp->file);
-    else
-      sendf(data->firstsocket, data, "STOR %s\r\n", ftp->file);
-
-    nread = GetLastResponse(data->firstsocket, buf, conn);
-    if(nread < 0)
-      return CURLE_OPERATION_TIMEOUTED;
-
-    if(atoi(buf)>=400) {
-      failf(data, "Failed FTP upload:%s", buf+3);
-      /* oops, we never close the sockets! */
-      return CURLE_FTP_COULDNT_STOR_FILE;
-    }
-
-    if(data->bits.ftp_use_port) {
-      result = AllowServerConnect(data, portsock);
-      if( result )
-        return result;
-    }
-
-    *bytecountp=0;
-
-    /* When we know we're uploading a specified file, we can get the file
-       size prior to the actual upload. */
-
-    pgrsSetUploadSize(data, data->infilesize);
-#if 0
-    ProgressInit(data, data->infilesize);
+#ifdef HAVE_SIGINTERRUPT
+  siginterrupt(SIGPIPE, 1);
 #endif
-    result = Transfer(conn, -1, -1, FALSE, NULL, /* no download */
-                      data->secondarysocket, bytecountp);
-    if(result)
-      return result;
-      
+#endif
+#endif
+
+#ifdef ENABLE_IPV6
+  if(!use_ipv6)
+#endif
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+#ifdef ENABLE_IPV6
+  else
+    sock = socket(AF_INET6, SOCK_STREAM, 0);
+#endif
+
+  if (sock < 0) {
+    perror("opening stream socket");
+    logmsg("Error opening socket");
+    exit(1);
+  }
+
+  flag = 1;
+  if (setsockopt
+      (sock, SOL_SOCKET, SO_REUSEADDR, (const void *) &flag,
+       sizeof(int)) < 0) {
+    perror("setsockopt(SO_REUSEADDR)");
+  }
+
+#ifdef ENABLE_IPV6
+  if(!use_ipv6) {
+#endif
+    me.sin_family = AF_INET;
+    me.sin_addr.s_addr = INADDR_ANY;
+    me.sin_port = htons(port);
+    rc = bind(sock, (struct sockaddr *) &me, sizeof(me));
+#ifdef ENABLE_IPV6
   }
   else {
-    /* Retrieve file or directory */
-    bool dirlist=FALSE;
-    long downloadsize=-1;
-
-    if(data->bits.set_range && data->range) {
-      long from, to;
-      int totalsize=-1;
-      char *ptr;
-      char *ptr2;
-
-      from=strtol(data->range, &ptr, 0);
-      while(ptr && *ptr && (isspace((int)*ptr) || (*ptr=='-')))
-        ptr++;
-      to=strtol(ptr, &ptr2, 0);
-      if(ptr == ptr2) {
-        /* we didn't get any digit */
-        to=-1;
-      }
-      if((-1 == to) && (from>=0)) {
-        /* X - */
-        data->resume_from = from;
-        infof(data, "FTP RANGE %d to end of file\n", from);
-      }
-      else if(from < 0) {
-        /* -Y */
-        totalsize = -from;
-        data->maxdownload = -from;
-        data->resume_from = from;
-        infof(data, "FTP RANGE the last %d bytes\n", totalsize);
-      }
-      else {
-        /* X-Y */
-        totalsize = to-from;
-        data->maxdownload = totalsize+1; /* include the last mentioned byte */
-        data->resume_from = from;
-        infof(data, "FTP RANGE from %d getting %d bytes\n", from, data->maxdownload);
-      }
-      infof(data, "range-download from %d to %d, totally %d bytes\n",
-            from, to, totalsize);
-    }
-#if 0
-    if(!ppath[0])
-      /* make sure this becomes a valid name */
-      ppath="./";
-#endif
-    if((data->bits.ftp_list_only) || !ftp->file) {
-      /* The specified path ends with a slash, and therefore we think this
-         is a directory that is requested, use LIST. But before that we
-         need to set ASCII transfer mode. */
-      dirlist = TRUE;
-
-      /* Set type to ASCII */
-      sendf(data->firstsocket, data, "TYPE A\r\n");
-	
-      nread = GetLastResponse(data->firstsocket, buf, conn);
-      if(nread < 0)
-        return CURLE_OPERATION_TIMEOUTED;
-	
-      if(strncmp(buf, "200", 3)) {
-        failf(data, "Couldn't set ascii mode");
-        return CURLE_FTP_COULDNT_SET_ASCII;
-      }
-
-      /* if this output is to be machine-parsed, the NLST command will be
-         better used since the LIST command output is not specified or
-         standard in any way */
-
-      sendf(data->firstsocket, data, "%s\r\n",
-            data->customrequest?data->customrequest:
-            (data->bits.ftp_list_only?"NLST":"LIST"));
-    }
-    else {
-      /* Set type to binary (unless specified ASCII) */
-      sendf(data->firstsocket, data, "TYPE %s\r\n",
-            (data->bits.ftp_list_only)?"A":"I");
-
-      nread = GetLastResponse(data->firstsocket, buf, conn);
-      if(nread < 0)
-        return CURLE_OPERATION_TIMEOUTED;
-
-      if(strncmp(buf, "200", 3)) {
-        failf(data, "Couldn't set %s mode",
-              (data->bits.ftp_ascii)?"ASCII":"binary");
-        return (data->bits.ftp_ascii)? CURLE_FTP_COULDNT_SET_ASCII:
-          CURLE_FTP_COULDNT_SET_BINARY;
-      }
-
-      if(data->resume_from) {
-
-        /* Daniel: (August 4, 1999)
-         *
-         * We start with trying to use the SIZE command to figure out the size
-         * of the file we're gonna get. If we can get the size, this is by far
-         * the best way to know if we're trying to resume beyond the EOF.  */
-
-        sendf(data->firstsocket, data, "SIZE %s\r\n", ftp->file);
-
-        nread = GetLastResponse(data->firstsocket, buf, conn);
-        if(nread < 0)
-          return CURLE_OPERATION_TIMEOUTED;
-
-        if(strncmp(buf, "213", 3)) {
-          infof(data, "server doesn't support SIZE: %s", buf+4);
-          /* We couldn't get the size and therefore we can't know if there
-             really is a part of the file left to get, although the server
-             will just close the connection when we start the connection so it
-             won't cause us any harm, just not make us exit as nicely. */
-        }
-        else {
-          int foundsize=atoi(buf+4);
-          /* We got a file size report, so we check that there actually is a
-             part of the file left to get, or else we go home.  */
-          if(data->resume_from< 0) {
-            /* We're supposed to download the last abs(from) bytes */
-            if(foundsize < -data->resume_from) {
-              failf(data, "Offset (%d) was beyond file size (%d)",
-                    data->resume_from, foundsize);
-              return CURLE_FTP_BAD_DOWNLOAD_RESUME;
-            }
-            /* convert to size to download */
-            downloadsize = -data->resume_from;
-            /* download from where? */
-            data->resume_from = foundsize - downloadsize;
-          }
-          else {
-            if(foundsize <= data->resume_from) {
-              failf(data, "Offset (%d) was beyond file size (%d)",
-                    data->resume_from, foundsize);
-              return CURLE_FTP_BAD_DOWNLOAD_RESUME;
-            }
-            /* Now store the number of bytes we are expected to download */
-            downloadsize = foundsize-data->resume_from;
-          }
-        }
-
-        /* Set resume file transfer offset */
-        infof(data, "Instructs server to resume from offset %d\n",
-              data->resume_from);
-
-        sendf(data->firstsocket, data, "REST %d\r\n", data->resume_from);
-
-        nread = GetLastResponse(data->firstsocket, buf, conn);
-        if(nread < 0)
-          return CURLE_OPERATION_TIMEOUTED;
-
-        if(strncmp(buf, "350", 3)) {
-          failf(data, "Couldn't use REST: %s", buf+4);
-          return CURLE_FTP_COULDNT_USE_REST;
-        }
-      }
-
-      sendf(data->firstsocket, data, "RETR %s\r\n", ftp->file);
-    }
-
-    nread = GetLastResponse(data->firstsocket, buf, conn);
-    if(nread < 0)
-      return CURLE_OPERATION_TIMEOUTED;
-
-    if(!strncmp(buf, "150", 3) || !strncmp(buf, "125", 3)) {
-
-      /*
-        A;
-        150 Opening BINARY mode data connection for /etc/passwd (2241
-        bytes).  (ok, the file is being transfered)
-	
-        B:
-        150 Opening ASCII mode data connection for /bin/ls 
-
-        C:
-        150 ASCII data connection for /bin/ls (137.167.104.91,37445) (0 bytes).
-
-        D:
-        150 Opening ASCII mode data connection for /linux/fisk/kpanelrc (0.0.0.0,0) (545 bytes).
-          
-        E:
-        125 Data connection already open; Transfer starting. */
-
-      int size=-1; /* default unknown size */
-
-      if(!dirlist &&
-         !data->bits.ftp_ascii &&
-         (-1 == downloadsize)) {
-        /*
-         * It seems directory listings either don't show the size or very
-         * often uses size 0 anyway. ASCII transfers may very well turn out
-         * that the transfered amount of data is not the same as this line
-         * tells, why using this number in those cases only confuses us.
-         *
-         * Example D above makes this parsing a little tricky */
-        char *bytes;
-        bytes=strstr(buf, " bytes");
-        if(bytes--) {
-          int index=bytes-buf;
-          /* this is a hint there is size information in there! ;-) */
-          while(--index) {
-            /* scan for the parenthesis and break there */
-            if('(' == *bytes)
-              break;
-            /* if only skip digits, or else we're in deep trouble */
-            if(!isdigit((int)*bytes)) {
-              bytes=NULL;
-              break;
-            }
-            /* one more estep backwards */
-            bytes--;
-          }
-          /* only if we have nothing but digits: */
-          if(bytes++) {
-            /* get the number! */
-            size = atoi(bytes);
-          }
-            
-        }
-#if 0
-        if(2 != sscanf(buf, "%*[^(](%d bytes%c", &size, &paren))
-          size=-1;
-#endif
-      }
-      else if(downloadsize > -1)
-        size = downloadsize;
-
-#if 0
-      if((size > -1) && (data->resume_from>0)) {
-        size -= data->resume_from;
-        if(size <= 0) {
-          failf(data, "Offset (%d) was beyond file size (%d)",
-                data->resume_from, data->resume_from+size);
-          return CURLE_PARTIAL_FILE;
-        }
-      }
-#endif
-
-      if(data->bits.ftp_use_port) {
-        result = AllowServerConnect(data, portsock);
-        if( result )
-          return result;
-      }
-
-      infof(data, "Getting file with size: %d\n", size);
-
-      /* FTP download: */
-      result=Transfer(conn, data->secondarysocket, size, FALSE,
-                      bytecountp,
-                      -1, NULL); /* no upload here */
-      if(result)
-        return result;
-    }
-    else {
-      failf(data, "%s", buf+4);
-      return CURLE_FTP_COULDNT_RETR_FILE;
-    }
-	
+    memset(&me6, 0, sizeof(struct sockaddr_in6));
+    me6.sin6_family = AF_INET6;
+    me6.sin6_addr = in6addr_any;
+    me6.sin6_port = htons(port);
+    rc = bind(sock, (struct sockaddr *) &me6, sizeof(me6));
   }
-  /* end of transfer */
+#endif /* ENABLE_IPV6 */
+  if(rc < 0) {
+    perror("binding stream socket");
+    logmsg("Error binding socket");
+    exit(1);
+  }
 
-  return CURLE_OK;
+  pidfile = fopen(pidname, "w");
+  if(pidfile) {
+    fprintf(pidfile, "%d\n", (int)getpid());
+    fclose(pidfile);
+  }
+  else
+    fprintf(stderr, "Couldn't write pid file\n");
+
+  logmsg("Running IPv%d version on port %d",
+#ifdef ENABLE_IPV6
+         (use_ipv6?6:4)
+#else
+         4
+#endif
+	 , port );
+
+  /* start accepting connections */
+  listen(sock, 5);
+
+  while (1) {
+    msgsock = accept(sock, NULL, NULL);
+
+    if (msgsock == -1)
+      continue;
+
+    logmsg("====> Client connect");
+
+    do {
+      if(get_request(msgsock, &req))
+        /* non-zero means error, break out of loop */
+        break;
+
+      if(prevbounce) {
+        /* bounce treatment requested */
+        if((req.testno == prevtestno) &&
+           (req.partno == prevpartno)) {
+          req.partno++;
+          logmsg("BOUNCE part number to %ld", req.partno);
+        }
+      }
+
+      send_doc(msgsock, &req);
+
+      if((req.testno < 0) && (req.testno != DOCNUMBER_CONNECT)) {
+        logmsg("special request received, no persistancy");
+        break;
+      }
+      if(!req.open) {
+        logmsg("instructed to close connection after server-reply");
+        break;
+      }
+
+      if(req.open)
+        logmsg("=> persistant connection request ended, awaits new request");
+      /* if we got a CONNECT, loop and get another request as well! */
+    } while(req.open || (req.testno == DOCNUMBER_CONNECT));
+
+    logmsg("====> Client disconnect");
+    sclose(msgsock);
+
+    if (req.testno == DOCNUMBER_QUIT)
+      break;
+  }
+
+  sclose(sock);
+
+  return 0;
 }

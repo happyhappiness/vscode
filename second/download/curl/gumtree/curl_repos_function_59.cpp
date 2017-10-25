@@ -1,18 +1,7 @@
-char *mvaprintf(const char *format, va_list ap_save)
+static void handleCharacters(Context *context,
+                             const xmlChar *chars,
+                             int length)
 {
-  int retcode;
-  struct asprintf info;
-
-  info.buffer = NULL;
-  info.len = 0;
-  info.alloc = 0;
-
-  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
-  info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-  if(info.len) {
-    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-    return info.buffer;
-  }
-  else
-    return NULL;
+  if (context->addTitle)
+    context->title.append((char *)chars, length);
 }

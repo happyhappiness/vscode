@@ -1,0 +1,1 @@
+void curl_memdebug(void) {}
