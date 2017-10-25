@@ -15,9 +15,9 @@
 # REPOS = 'git'
 # REPOS = 'mutt'
 # REPOS = 'rtorrent'
-# REPOS = 'curl'
+REPOS = 'curl'
 # REPOS = 'sqlite'
-REPOS = 'rsync'
+# REPOS = 'rsync'
 
 """
 stroed file name prefix
@@ -58,7 +58,10 @@ CLUSTER_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_fe
 CLUSTER_EDITION_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition.csv'
 CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition_and_feature.csv'
 STATISTICS_OLD_NEW_TEMP_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_statistics_temp.csv'
+# repos
 CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_cluster.csv'
+ANALYZE_REPOS_CALL_FILE_NAME = 'data/fetch/' + REPOS + '_repos_call.csv'
+ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log.csv'
 ANALYZE_REPOS_CLASS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_class.csv'
 REPOS_SIMILARITY_FILE_NAME = 'data/fetch/' + REPOS + '_repos_similarity.csv'
 NODE_DICT_FILE_NAME = 'data/fetch/' + REPOS + '_node_dict.csv'
@@ -106,30 +109,22 @@ CLUSTER_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
 ANALYZE_CLUSTER = CLUSTER_OLD_NEW_TITLE.index('cluster')
 
 """
-analyze repos / cluster repos title and index
+analyze repos log title and index
 """
 #'block', 'block_file', 'block_feature',
-ANALYZE_REPOS_LOG_TITLE = ['file', 'loc',\
-                             'log', 'log_file', 'ddg_feature', 'condition_info', \
-                             'normalized_condition', 'cdg_z3_feature', 'class_index']
-ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_LOG_TITLE.index('log_file')
-ANALYZE_REPOS_CONDITION_INFO = ANALYZE_REPOS_LOG_TITLE.index('condition_info')
+ANALYZE_REPOS_LOG_TITLE = ['file', 'function', \
+                             'loc','log', 'check', 'variable']
+ANALYZE_REPOS_LOG_FUNCTION = ANALYZE_REPOS_LOG_TITLE.index('function')
+ANALYZE_REPOS_LOG_LOC = ANALYZE_REPOS_LOG_TITLE.index('loc')
+ANALYZE_REPOS_LOG_CHECK = ANALYZE_REPOS_LOG_TITLE.index('check')
+ANALYZE_REPOS_LOG_VARIABLE = ANALYZE_REPOS_LOG_TITLE.index('variable')
 
 """
-analyze repos / cluster repos title and index
+analyze repos call title and index
 """
 # 'block', 'block_file', 'block_feature'
-ANALYZE_REPOS_BASIC_BLOCK_TITLE = ['file', 'loc',\
-                'condition_info', 'normalized_condition']
-ANALYZE_REPOS_BASIC_BLOCK_FILE = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('file')
-ANALYZE_REPOS_BASIC_BLOCK_LOC = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('loc')
-ANALYZE_REPOS_BASIC_BLOCK_CONDITION_IFNO = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('condition_info')
-ANALYZE_REPOS_BASIC_BLOCK_NORMALIZED_CONDITION = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('normalized_condition')
-CLUSTER_REPOS_TITLE = ANALYZE_REPOS_BASIC_BLOCK_TITLE + ['cdg_z3_feature', 'class_index']
-ANALYZE_REPOS_CLASS_TITLE = ANALYZE_REPOS_BASIC_BLOCK_TITLE + ['cdg_z3_feature', 'class_index', 'class_size']
-ANALYZE_REPOS_CLASS_INDEX = ANALYZE_REPOS_CLASS_TITLE.index('class_index')
-ANALYZE_REPOS_CLASS_SIZE = ANALYZE_REPOS_CLASS_TITLE.index('class_size')
-
+ANALYZE_REPOS_CALL_TITLE =['file', 'function','calls']
+ANALYZE_REPOS_CALL_CALLS = ANALYZE_REPOS_CALL_TITLE.index('calls')
 
 """
 analyze clone title
@@ -145,6 +140,12 @@ LOG_OTHER_LOG_MODIFY = 2
 LOG_NO_MODIFY = 0
 LOG_LOG_MODIFY = 3
 LOG_LOG_FEATURE_MODIFY = 7
+
+"""
+log edit type info
+"""
+LOD_EDIT_TYPES = ["addLog", "removeLog", "updateLog", "addVariable", "removeVariable",\
+                  "updateVariable", "moveVariable", "addContent", "removeContent", "updateContent", "moveContent"]
 
 """
 data dependence type

@@ -13,6 +13,7 @@ import base64
 import json
 from itertools import islice
 from gumtree_api import Gumtree
+import gumtree_api
 import my_constant
 import myUtil
 
@@ -108,11 +109,10 @@ def fetch_hunk():
     # close file
     hunk_file.close()
     log_file.close()
-    gumtree.close()
 
 """
 main function
 """
 if __name__ == "__main__":
     fetch_hunk()
-    
+    gumtree_api.close_jvm()

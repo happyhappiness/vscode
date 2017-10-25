@@ -107,22 +107,6 @@ def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writ
     return total_hunk
 
 """
-@ param file name
-@ return flag
-@ involve filter out file which is not cpp like and which is test like
-"""
-def filter_file(file_name):
-
-    # cpp like(ignore case)
-    is_cpp = re.search(my_constant.CPP_FILE_FORMAT, file_name, re.I)
-    # test like
-    is_test_cpp = re.search(r'test', file_name, re.I)
-    if is_cpp and not is_test_cpp:
-        return True
-    else:
-        return False
-
-"""
 @ param  version diff file, log function, hunk counter and file writer
 @ return bool has log and updated hunk counter
 @ involve recognize and deal with version diff file
@@ -145,14 +129,14 @@ def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
             if is_old:
                 temp_old_file = is_old.group(1)
                 # do not deal with this file diff
-                if filter_file(temp_old_file):
+                if myUtil.filter_file(temp_old_file):
                     # get new file name
                     i += 1
                     is_new = re.match(r'^\+\+\+ (\S*)\s*.*', version_diff[i])
                     if is_new:
                         temp_new_file = is_new.group(1)
                         # do not deal with this file diff
-                        if filter_file(temp_new_file):
+                        if myUtil.filter_file(temp_new_file):
                             if is_diff_file:
                                     # deal with previous diff file
                                 total_hunk = deal_file_diff([version_diff_file, old_file, new_file], \
