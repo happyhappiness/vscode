@@ -5,32 +5,67 @@ import myUtil
 
 class SrcmlApi:
     
-    def __init__(self, source_file=None):
-        if source_file is not None:
-            self.set_file(source_file)
+    def __init__(self, source_file=None, is_function=True):
+        if source_file is not None and is_function:
+            self.set_function_file(source_file)
+        elif source_file is not None:
+            self.set_source_file(source_file)
         self.log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
         self.log_functions.append('_')
+    """
+    @ param source file
+    @ return nothing
+    @ involve create xml file for source file and build namespace info
+    """
+    def set_source_file(self, source_file):
+        # intiate xml info
+        xml_file = 'temp.xml'
+        commands.getoutput('srcml --position ' + source_file + ' -o ' + xml_file)
+        self._parse_xml(xml_file)
+        # initiate functions
+        self.functions = []
 
     """
-    @ param log location(int from 0; better not be -1)
-    @ return flag about whether find log or not
-    @ involve find call in given loc and set log node
+    @ param index(count of functions)
+    @ return nothing
+    @ involve get all functions in source file
     """
-    def set_file(self, source_file):
+    def get_functions(self, index):
+        # get all sub functions
+        function_nodes = self.root.iterdescendants(tag=self.function_tag)
+        if function_nodes is not None:
+            for function_node in function_nodes:
+                # store xml function
+                function = etree.tostring(function_node)
+                function_file_name = my_constant.SAVE_REPOS_FUNCTION + str(index) + '.cpp'
+                function_xml_name = function_file_name + '.xml'
+                myUtil.save_file(function, function_xml_name)
+                # store source function
+                commands.getoutput('srcml -S ' + function_xml_name + ' -o ' + function_file_name)
+                self.functions.append(function_file_name)
+                index += 1
+        return self.functions
+
+    """
+    @ param function file
+    @ return nothing
+    @ involve create xml file from function file and build info about namespace
+    """
+    def set_function_file(self, function_file):
         # intiate xml info
-        xml_file = source_file + '.xml'
-        commands.getoutput('srcml --position ' + source_file + ' -o ' + xml_file)
-        self.tree = etree.parse(xml_file)
-        self.root = self.tree.getroot()
-        self.namespace_map = self.root.nsmap
-        self.namespace_map['default'] = self.namespace_map[None]
-        self.namespace_map.pop(None)
-        self.name_tag = "{" + self.namespace_map['default'] + "}name"
+        xml_file = function_file + '.xml'
+        commands.getoutput('srcml --position ' + function_file + ' -o ' + xml_file)
+        self._parse_xml(xml_file)
         # initiate log and control info
         self.log_node = None
         self.log = []
         self.control_node = None
         self.control = []
+        # initiate logs and calls/types info
+        self.logs = []
+        self.calls = set()
+        self.types = set()
+
     """
     @ param log location(int from 0; better not be -1)
     @ return flag about whether find log or not
@@ -107,6 +142,59 @@ class SrcmlApi:
                 return True
 
         return False
+    
+    """
+    @ param nothing
+    @ return all logs, calls and types in function
+    @ involve get all log info[loc, log, check, variable], call info[call name], type info[type name]
+    """
+    def get_logs_calls_types(self):
+        # get all call node
+        call_nodes = self.tree.findall('//default:call', namespaces=self.namespace_map)
+        for call_node in call_nodes:
+            # filter by call function name -> call info
+            name = self._get_text_for_nested_name(call_node[0])
+            if name in self.log_functions:
+                # loc
+                loc = self._get_location_for_nested_node(call_node[0])
+                # log
+                log = self._get_text(call_node)
+                # check
+                self.log = call_node
+                self.set_control_dependence()
+                check = self.get_control_info()
+                # variable
+                variable = self._get_info_for_node(call_node)
+                self.logs.append([loc, log, check, variable])
+            # call info
+            self.calls.add(name)
+        # get all type node(type --... --name)
+        type_nodes = self.tree.findall('//default:type', namespaces=self.namespace_map)
+        for type_node in type_nodes:
+            sub_nodes = type_node.getchildren()
+            for sub_node in sub_nodes:
+                if self._remove_prefix(sub_node) == 'name':
+                    name_node = sub_node
+                    break
+            name = self._get_text_for_nested_name(name_node)
+            self.types.add(name)
+
+        return self.logs, list(self.calls), list(self.types)
+
+    """
+    @ param xml file
+    @ return nothing
+    @ involve build namespace info
+    """
+    def _parse_xml(self, xml_file):
+        self.tree = etree.parse(xml_file)
+        self.root = self.tree.getroot()
+        self.namespace_map = self.root.nsmap
+        self.namespace_map['default'] = self.namespace_map[None]
+        self.namespace_map.pop(None)
+        self.name_tag = "{" + self.namespace_map['default'] + "}name"
+        self.call_tag = "{" + self.namespace_map['default'] + "}call"
+        self.function_tag = "{" + self.namespace_map['default'] + "}function"
 
     """
     @ param node()
@@ -235,13 +323,12 @@ class SrcmlApi:
     """
     def _get_pure_name_nodes(self, node):
         name_nodes = []
-        call_tag = "{" + self.namespace_map['default'] + "}call"
         name_descendants = node.iterdescendants(tag=self.name_tag)
         # validate each name descendant
         for name_node in name_descendants:
             is_valid = True
             # filter by descendant of call descendants
-            for call_node in node.iterdescendants(tag=call_tag):
+            for call_node in node.iterdescendants(tag=self.call_tag):
                 if self._is_ancestor(call_node, name_node):
                     is_valid = False
                     break
@@ -251,7 +338,7 @@ class SrcmlApi:
 
         # add call info for call descendants
         call_info = []
-        for call_node in node.iterdescendants(tag=call_tag):
+        for call_node in node.iterdescendants(tag=self.call_tag):
             # call --name --argument list ----argument
             info = self._get_text_for_nested_name(call_node[0])
             if info not in self.log_functions:
@@ -315,8 +402,11 @@ class SrcmlApi:
             return content
         # if has text, add to content
         if node.text:
-            content += " " + self._get_location(node)+ "@"\
-                         + self._remove_prefix(node) + "@" + node.text
+            # content += " " + self._get_location(node)+ "@"\
+            #              + self._remove_prefix(node) + "@" + node.text
+            content += node.text
+        else:
+            content += " "
         # add text of children
         for child in node:
             content += self._get_text(child)
@@ -383,8 +473,9 @@ class SrcmlApi:
         
 if __name__ == "__main__":
     # input function cpp file
-    srcml_api = SrcmlApi('second/download/git/gumtree/git_function_1916.cpp')
-    if srcml_api.set_log_loc(31):
-        if srcml_api.set_control_dependence():
-            print srcml_api.get_control_info()
-            print srcml_api.get_log_info()
+    srcml_api = SrcmlApi('second/download/curl/repos/curl-7.1.1/src/hugehelp.c', is_function=False)
+    srcml_api.get_functions(0)
+    # if srcml_api.set_log_loc(31):
+    #     if srcml_api.set_control_dependence():
+    #         print srcml_api.get_control_info()
+    #         print srcml_api.get_log_info()

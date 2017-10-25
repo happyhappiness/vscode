@@ -143,7 +143,7 @@ def analyze_old_new(is_rebuild = False):
         function = record[my_constant.ANALYZE_FUNCTION]
         function_loc = record[my_constant.ANALYZE_FUNCTION_LOC]
         srcml = SrcmlApi()
-        srcml.set_file(function)
+        srcml.set_function_file(function)
         check = []
         variable = []
         if srcml.set_log_loc(int(function_loc)):

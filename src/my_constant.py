@@ -40,6 +40,7 @@ SAVE_OLD_LOG = GUMTREE_DIR + REPOS + '_old_log_'
 SAVE_NEW_LOG = GUMTREE_DIR + REPOS + '_new_log_'
 # function
 SAVE_FUNCTION = GUMTREE_DIR + REPOS + '_function_'
+SAVE_REPOS_FUNCTION = GUMTREE_DIR + REPOS + '_repos_function_'
 
 """
 file name
@@ -60,7 +61,7 @@ CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_ne
 STATISTICS_OLD_NEW_TEMP_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_statistics_temp.csv'
 # repos
 CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_cluster.csv'
-ANALYZE_REPOS_CALL_FILE_NAME = 'data/fetch/' + REPOS + '_repos_call.csv'
+ANALYZE_REPOS_FUNCTION_FILE_NAME = 'data/fetch/' + REPOS + '_repos_call.csv'
 ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log.csv'
 ANALYZE_REPOS_CLASS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_class.csv'
 REPOS_SIMILARITY_FILE_NAME = 'data/fetch/' + REPOS + '_repos_similarity.csv'
@@ -123,8 +124,8 @@ ANALYZE_REPOS_LOG_VARIABLE = ANALYZE_REPOS_LOG_TITLE.index('variable')
 analyze repos call title and index
 """
 # 'block', 'block_file', 'block_feature'
-ANALYZE_REPOS_CALL_TITLE =['file', 'function','calls']
-ANALYZE_REPOS_CALL_CALLS = ANALYZE_REPOS_CALL_TITLE.index('calls')
+ANALYZE_REPOS_FUNCTION_TITLE =['file', 'function','calls']
+ANALYZE_REPOS_FUNCTION_CALLS = ANALYZE_REPOS_FUNCTION_TITLE.index('calls')
 
 """
 analyze clone title

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.1.1/include/curl/easy.h" pos:tabs="8"><cpp:ifndef pos:line="1" pos:column="1">#<cpp:directive pos:line="1" pos:column="2">ifndef<pos:position pos:line="1" pos:column="8"/></cpp:directive> <name pos:line="1" pos:column="9">__CURL_EASY_H<pos:position pos:line="1" pos:column="22"/></name></cpp:ifndef>
+<cpp:define pos:line="2" pos:column="1">#<cpp:directive pos:line="2" pos:column="2">define<pos:position pos:line="2" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="2" pos:column="9">__CURL_EASY_H<pos:position pos:line="2" pos:column="22"/></name></cpp:macro></cpp:define>
+<comment type="block" pos:line="3" pos:column="1">/*****************************************************************************
+ *                                  _   _ ____  _     
+ *  Project                     ___| | | |  _ \| |    
+ *                             / __| | | | |_) | |    
+ *                            | (__| |_| |  _ &lt;| |___ 
+ *                             \___|\___/|_| \_\_____|
+ *
+ *  The contents of this file are subject to the Mozilla Public License
+ *  Version 1.0 (the "License"); you may not use this file except in
+ *  compliance with the License. You may obtain a copy of the License at
+ *  http://www.mozilla.org/MPL/
+ *
+ *  Software distributed under the License is distributed on an "AS IS"
+ *  basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+ *  License for the specific language governing rights and limitations
+ *  under the License.
+ *
+ *  The Original Code is Curl.
+ *
+ *  The Initial Developer of the Original Code is Daniel Stenberg.
+ *
+ *  Portions created by the Initial Developer are Copyright (C) 1998.
+ *  All Rights Reserved.
+ *
+ * ------------------------------------------------------------
+ * Main author:
+ * - Daniel Stenberg &lt;Daniel.Stenberg@haxx.nu&gt;
+ *
+ * 	http://curl.haxx.nu
+ *
+ * $Source: /cvsroot/curl/include/curl/easy.h,v $
+ * $Revision: 1.1 $
+ * $Date: 2000/05/22 14:12:12 $
+ * $Author: bagder $
+ * $State: Exp $
+ * $Locker:  $
+ *
+ * ------------------------------------------------------------
+ ****************************************************************************/</comment>
+<function_decl><type><name pos:line="42" pos:column="1">CURL<pos:position pos:line="42" pos:column="5"/></name> <modifier pos:line="42" pos:column="6">*<pos:position pos:line="42" pos:column="7"/></modifier></type><name pos:line="42" pos:column="7">curl_easy_init<pos:position pos:line="42" pos:column="21"/></name><parameter_list pos:line="42" pos:column="21">(<parameter><decl><type><name pos:line="42" pos:column="22">void<pos:position pos:line="42" pos:column="26"/></name></type></decl></parameter>)<pos:position pos:line="42" pos:column="27"/></parameter_list>;<pos:position pos:line="42" pos:column="28"/></function_decl>
+<function_decl><type><name pos:line="43" pos:column="1">CURLcode<pos:position pos:line="43" pos:column="9"/></name></type> <name pos:line="43" pos:column="10">curl_easy_setopt<pos:position pos:line="43" pos:column="26"/></name><parameter_list pos:line="43" pos:column="26">(<parameter><decl><type><name pos:line="43" pos:column="27">CURL<pos:position pos:line="43" pos:column="31"/></name> <modifier pos:line="43" pos:column="32">*<pos:position pos:line="43" pos:column="33"/></modifier></type><name pos:line="43" pos:column="33">curl<pos:position pos:line="43" pos:column="37"/></name></decl></parameter>, <parameter><decl><type><name pos:line="43" pos:column="39">CURLoption<pos:position pos:line="43" pos:column="49"/></name></type> <name pos:line="43" pos:column="50">option<pos:position pos:line="43" pos:column="56"/></name></decl></parameter>, <parameter><decl><type><modifier pos:line="43" pos:column="58">...<pos:position pos:line="43" pos:column="61"/></modifier></type></decl></parameter>)<pos:position pos:line="43" pos:column="62"/></parameter_list>;<pos:position pos:line="43" pos:column="63"/></function_decl>
+<function_decl><type><name pos:line="44" pos:column="1">CURLcode<pos:position pos:line="44" pos:column="9"/></name></type> <name pos:line="44" pos:column="10">curl_easy_perform<pos:position pos:line="44" pos:column="27"/></name><parameter_list pos:line="44" pos:column="27">(<parameter><decl><type><name pos:line="44" pos:column="28">CURL<pos:position pos:line="44" pos:column="32"/></name> <modifier pos:line="44" pos:column="33">*<pos:position pos:line="44" pos:column="34"/></modifier></type><name pos:line="44" pos:column="34">curl<pos:position pos:line="44" pos:column="38"/></name></decl></parameter>)<pos:position pos:line="44" pos:column="39"/></parameter_list>;<pos:position pos:line="44" pos:column="40"/></function_decl>
+<function_decl><type><name pos:line="45" pos:column="1">void<pos:position pos:line="45" pos:column="5"/></name></type> <name pos:line="45" pos:column="6">curl_easy_cleanup<pos:position pos:line="45" pos:column="23"/></name><parameter_list pos:line="45" pos:column="23">(<parameter><decl><type><name pos:line="45" pos:column="24">CURL<pos:position pos:line="45" pos:column="28"/></name> <modifier pos:line="45" pos:column="29">*<pos:position pos:line="45" pos:column="30"/></modifier></type><name pos:line="45" pos:column="30">curl<pos:position pos:line="45" pos:column="34"/></name></decl></parameter>)<pos:position pos:line="45" pos:column="35"/></parameter_list>;<pos:position pos:line="45" pos:column="36"/></function_decl>
+<cpp:endif pos:line="46" pos:column="1">#<cpp:directive pos:line="46" pos:column="2">endif<pos:position pos:line="46" pos:column="7"/></cpp:directive></cpp:endif>
+</unit>

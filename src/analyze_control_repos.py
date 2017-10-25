@@ -21,27 +21,27 @@ reload(sys);
 sys.setdefaultencoding('utf8')
 
 """
-@ param file name and srcml
+@ param file name and function counter and srcml
 @ return log record list and call record list
 @ involve traverse each function in file to build two sort of repos
 """
-def analyze_file(file_name, srcml):
+def analyze_file(file_name, function_cnt, srcml):
     log_record_list = [] #[file, function, loc, log, check, variable]
-    call_record_list = [] #[file, function, calls]
-    calls = []
+    function_record_list = [] #[file, function, calls]
     # handle file to get and store all functions
-    """TODO input: file, output:functions"""
-    functions = []
+    srcml.set_source_file(file_name)
+    functions = srcml.get_functions(function_cnt)
     # traverse function to get calls and filter log info
     for function in functions:
         """TODO input: function, output:calls and log locs"""
-        calls = []
-        log_locs = []
-        # build log record for each log location
-        for log_loc in log_locs:
-            log_record = []
-            log_record_list.append(log_record)
-    return log_record_list, call_record_list
+        srcml.set_function_file(function)
+        logs, calls, types = srcml.get_logs_calls_types()
+        # log info
+        for log in logs:
+            log_record_list.append([file_name, function] + log)
+        # function info
+        function_record_list.append([file_name, function, json.dumps(calls), json.dumps(types)])
+    return log_record_list, function_record_list
 
 """
 @ param
@@ -80,30 +80,31 @@ def analyze_repos(repos_name):
     log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME, 'wb')
     log_writer = csv.writer(log_file)
     log_writer.writerow(my_constant.ANALYZE_REPOS_LOG_TITLE)
-    call_file = file(my_constant.ANALYZE_REPOS_CALL_FILE_NAME, 'wb')
-    call_writer = csv.writer(call_file)
-    call_writer.writerow(my_constant.ANALYZE_REPOS_CALL_TITLE)
+    function_file = file(my_constant.ANALYZE_REPOS_FUNCTION_FILE_NAME, 'wb')
+    function_writer = csv.writer(function_file)
+    function_writer.writerow(my_constant.ANALYZE_REPOS_FUNCTION_TITLE)
 
     # analyze file in unit of function
     total_file = len(file_names)
     file_cnt = 0
     log_record_cnt = 0
-    call_record_cnt = 0
+    function_record_cnt = 0
     for file_name in file_names:
         file_cnt += 1
-        log_record_list, call_record_list = analyze_file(file_name, srcml)
+        # analyze functions in file to retieve log records and function records
+        log_record_list, function_record_list = analyze_file(file_name, function_record_cnt, srcml)
         for log_record in log_record_list:
             log_writer.writerow(log_record)
-        for call_record in call_record_list:
-            call_writer.writerow(call_record)
+        for function_record in function_record_list:
+            function_writer.writerow(function_record)
         log_record_cnt += len(log_record_list)
-        call_record_cnt += len(call_record_list)
+        function_record_cnt += len(function_record_list)
         print 'now analyzing file %d/%d, have found log record %d, call record %d' \
-                            %(file_cnt, total_file, log_record_cnt, call_record_cnt)
+                            %(file_cnt, total_file, log_record_cnt, function_record_cnt)
 
     # close file
     log_file.close()
-    call_file.close()
+    function_file.close()
 
 """
 main function
