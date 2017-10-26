@@ -3,12 +3,12 @@ import csv
 import json
 import my_constant
 
-"""
-@ param csv file name
-@ return statistic info(no.cluster, no.>1cluster, no.repeted log) 
-@ involve get statistical info about cluster
-"""
 def statistical_cluster(csv_file_name):
+    """
+    @ param csv file name
+    @ return statistical info about log records(number of instance, edit type frequence) 
+    @ involve get statistical info about cluster as well as all records
+    """
     reading_file = file(csv_file_name)
     records = csv.reader(reading_file)
     # define and initialize edit type dictary type -> number of instances
@@ -72,13 +72,13 @@ def statistical_cluster(csv_file_name):
 
     return number_log, edit_type_for_log_dict
 
-"""
-@ param none(my_constant.repos name)
-@ return statistic info(edition type info and no.cluster, no.>1cluster, no.repeted log) 
-@ involve get statistical info about cluster
-"""
 def perform_statistic():
-
+    """
+    @ param nothing
+    @ return nothing
+    @ involve get statistical info about cluster and log,
+            edit type info and cluster info (no.cluster, no.>1cluster, no.repeted log) 
+    """
     # statistics about edition cluster
     print "----------------------edition cluster info-------------------"
     edition_file_name = my_constant.CLUSTER_EDITION_OLD_NEW_FILE_NAME
@@ -94,5 +94,8 @@ def perform_statistic():
         print "%s: %d" %(edit_type, edit_type_for_log_dict[edit_type]),
     print ''
 
+"""
+main function
+"""
 if __name__ == "__main__":
     perform_statistic()

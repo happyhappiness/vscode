@@ -8,14 +8,14 @@ from scipy.spatial.distance import pdist
 import similarity_func
 import my_constant
 
-"""
-@ param  var to deal with\n
-@ return list of analyzed node info\n
-@ involve remove namespace bafore ::,
-          and remove caller before ->, .
-          and remove parameter after (\n
-"""
 def remove_name_space_and_caller(name):
+    """
+    @ param variable name\n
+    @ return new variable name\n
+    @ involve remove namespace bafore ::,
+            and remove caller before ->, .
+            and remove parameter after (\n
+    """
     # remove namespace before ::
     startpos = name.find("::")
     while not startpos == -1:
@@ -43,26 +43,24 @@ def remove_name_space_and_caller(name):
 
     return name
 
-
-"""
-@ param  element and in_list\n
-@ return in_list\n
-@ involve remove given element in in_list\n
-"""
 def remove_given_element(element, in_list):
+    """
+    @ param element and list\n
+    @ return new list\n
+    @ involve remove given element in in_list\n
+    """
     # remove element in in_list
     while element in in_list:
         in_list.remove(element)
 
     return in_list
 
-
-"""
-@ param  list\n
-@ return dictionary\n
-@ involve transform list into dict\n
-"""
 def dict_from_list(in_list):
+    """
+    @ param list\n
+    @ return dictionary\n
+    @ involve transform list into dict(key:list value, value:)\n
+    """
     len_list = len(in_list)
     out_dict = {}
     for i in range(len_list):
@@ -70,16 +68,15 @@ def dict_from_list(in_list):
 
     return out_dict
 
-"""
-@ param  isFromRead\n
-@ return function_similarity_dic\n
-@ involve call similarity_func.getFunctionSimilarity to get similarity_dic between functions\n
-"""
 def getFunctionSimilarityDic(isFromRead):
-
+    """
+    @ param flag about whether read from file\n
+    @ return similarity dictionary between functions\n
+    @ involve call similarity_func.getFunctionSimilarity or read from file\n
+    """
     func_similarity_dic = {}
     if isFromRead:
-        # initialize func_similarity_dict
+        # initialize func_similarity_dict from file
         analyze_func = file(my_constant.FUNC_SIMILAIRTY_FILE_NAME, 'rb')
         func_records = csv.reader(analyze_func)
         for func_record in islice(func_records, 1, None):
@@ -89,32 +86,12 @@ def getFunctionSimilarityDic(isFromRead):
         func_similarity_dic = similarity_func.getFunctionSimilarity()
     return func_similarity_dic
 
-# """
-# @ param  similarity_dic, filename\n
-# @ caller self, cluster_context_with_function\n
-# @ involve dump similarity_dic\n
-# """
-# def dumpSimilarityDic(similarity_dic):
-
-#     similarity_control = file(my_constant.REPOS_SIMILARITY_FILE_NAME, 'wb')
-#     similarity_control_writer = csv.writer(similarity_control)
-#     similarity_control_writer.writerow(["left", "right", "similarity"])
-#     # dump similarity
-#     for pair, similarity in similarity_dic.items():
-#         if pair[0] >= 0 and pair[1] >= 0:
-#             similarity_control_writer.writerow([pair[0], pair[1], similarity])
-
-#     # close files
-#     similarity_control.close()
-
-
-"""
-@ param  dict, key_index\n
-@ return dict\n
-@ involve remove key contains key_a or key_b specified key_index\n
-"""
-def removeDicElement(dictionary, key_index):
-
+def remove_dict_element(dictionary, key_index):
+    """
+    @ param dictionary(key is two dimension) and key index\n
+    @ return new dictionary\n
+    @ involve remove element contains key_a or key_b specified key_index\n
+    """
     key_list = dictionary.keys()
     key_a = key_list[key_index][0]
     key_b = key_list[key_index][1]
@@ -125,25 +102,25 @@ def removeDicElement(dictionary, key_index):
 
     return dictionary
 
-"""
-@ param ...\n
-@ return delta_set\n
-@ involve calculate (A U B) - (A J B)[occurrence diff]\n
-"""
 def get_delta_of_two_set(set_a, set_b):
+    """
+    @ param difference of two set\n
+    @ return delta_set\n
+    @ involve calculate (A U B) - (A J B)[occurrence diff]\n
+    """
     union_set = set_a.union(set_b)
     join_set = set_a.intersection(set_b)
     delta_set = union_set.difference(join_set)
     return delta_set
 
-"""
-@ param ...\n
-@ return log_functions\n
-@ involve retrieve log function name from given file\n
-"""
-def retrieveLogFunction(fileName):
+def retrieve_log_function(file_name):
+    """
+    @ param file name\n
+    @ return log function list\n
+    @ involve retrieve log function name from logging statement csv\n
+    """
     log_functions = []
-    log_statement = open(fileName, 'rb')
+    log_statement = open(file_name, 'rb')
     lines = log_statement.readlines()
 
     for line in lines:
@@ -154,12 +131,12 @@ def retrieveLogFunction(fileName):
     log_statement.close()
     return log_functions
 
-"""
-@ param log functions\n
-@ return regrex_string e.g. '[assert|log|debug|print|write|error]('\n
-@ involve concate log functions into regrex string\n
-"""
-def functionToRegrexStr(log_functions):
+def function_to_regrex_str(log_functions):
+    """
+    @ param log functions\n
+    @ return regrex_string e.g. '[assert|log|debug|print|write|error]('\n
+    @ involve concate log functions into regrex string\n
+    """
     regrex_string = r'\W('
     for log_function in log_functions:
         regrex_string += log_function + r'|'
@@ -168,46 +145,36 @@ def functionToRegrexStr(log_functions):
 
     return regrex_string
 
-"""
-@ param vactors to compare\n
-@ return similarity\n
-@ involve compute cos similarity of two vectors\n
-"""
 def compute_similarity(in_vector1, in_vector2, method='braycurtis'):
-    # multi = np.sum(np.multiply(in_vector1, in_vector2))
-    # base = (np.linalg.norm(in_vector1) * np.linalg.norm(in_vector1))
-    # if base > 0:
-    #     similairy = float(multi) / base
-    # else:
-    #     return np.sum(in_vector1 + in_vector2) == 0
-    # return similairy
+    """
+    @ param two number vectors(same dimension)\n
+    @ return similarity\n
+    @ involve compute braycurtis similarity of two vectors\n
+    """
     if in_vector1 == [] or in_vector2 == []:
         return 1.0
-    # print in_vector1
-    # print in_vector2
     X = np.vstack([in_vector1, in_vector2])
     # standard distance
     distance = pdist(X, metric=method)
     similairty = 1 - distance
     return similairty
 
-"""
-@ param filename and file content\n
-@ return\n
-@ involve save file content into given file\n
-"""
 def save_file(content, file_name):
+    """
+    @ param file content and filename\n
+    @ return nothing\n
+    @ involve save file content into given file\n
+    """
     write_file = open(file_name, 'wb')
     write_file.write(content)
     write_file.close()
 
-
-"""
-@ param old file name and new file name\n
-@ return\n
-@ involve copy file from old file to new file\n
-"""
 def copy_file(old_file_name, new_file_name):
+    """
+    @ param old file name and new file name\n
+    @ return nothing\n
+    @ involve copy file from old file to new file\n
+    """
     read_file = open(old_file_name, 'rb')
     content = read_file.read()
     write_file = open(new_file_name, 'wb')
@@ -215,35 +182,34 @@ def copy_file(old_file_name, new_file_name):
     read_file.close()
     write_file.close()
 
-"""
-@ param joernIndex parent dir\n
-@ return\n
-@ involve rm old joernIndex file, and build new one. restart neo4j server\n
-"""
 def rebuild_joern_index(index_dir, code_dir):
+    """
+    @ param joernIndex parent dir(absolut), code dir to analyze\n
+    @ return nothing\n
+    @ involve rm old joernIndex file, and build new one. restart neo4j server\n
+    """
     output = commands.getoutput('rm -r ' + index_dir)
     output = commands.getoutput('java -Xmx4g -Xms4g -jar $JOERN/bin/joern.jar ' + code_dir + ' -outdir ' + index_dir)
     output = commands.getoutput('neo4j restart')
     print output
 
-"""
-@ param list of tuple\n
-@ return tuple\n
-@ involve switch list of tuple to tuple\n
-"""
 def get_tuple_from_list(tuple_list):
+    """
+    @ param list of tuple\n
+    @ return tuple\n
+    @ involve merge list of tuple to tuple\n
+    """
     tuple_tuple = ()
     for tuple_element in tuple_list:
         tuple_tuple += tuple(tuple_element)
     return tuple_tuple
 
-"""
-@ param file name\n
-@ return flag\n
-@ involve filter out file which is not cpp like and which is test like\n
-"""
 def filter_file(file_name):
-
+    """
+    @ param file name\n
+    @ return true if ok\n
+    @ involve choose the one cpp like and not test like\n
+    """
     # cpp like(ignore case)
     is_cpp = re.search(my_constant.CPP_FILE_FORMAT, file_name, re.I)
     # test like
@@ -253,12 +219,12 @@ def filter_file(file_name):
     else:
         return False
 
-"""
-@ param version\n
-@ return a.b.c -> a*10000 + b*100 + c\n
-@ involve sort dir by version\n
-"""
 def get_version_number(version):
+    """
+    @ param file name\n
+    @ return a.b.c.d -> a*1000000 + b*10000 + c*100 + d\n
+    @ involve split version sub number and compute version value\n
+    """
     # at most 4 pair
     pattern = r'.*-(\d*)\.(\d*)\.*(\d*)\.*(\d*)'
     info = re.match(pattern, version)
@@ -274,13 +240,12 @@ def get_version_number(version):
         print 'error processing version dir %s' %version
     return version_number
 
-"""
-@ param list of a and b to compute\n
-@ return lenth of common substring / min length\n
-@ involve compute the longgest common string (continuous) of two list\n
-"""
 def longest_common_sub(list_a, list_b):
-
+    """
+    @ param list of a and b\n
+    @ return lenth of common substring\n
+    @ involve compute the longgest common string (continuous) of two list\n
+    """
     # if just one element, then compare that
     len_a = len(list_a)
     len_b = len(list_b)
