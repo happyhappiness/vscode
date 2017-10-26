@@ -4,103 +4,93 @@ import json
 from itertools import islice
 import myUtil
 import my_constant
-from gumtree_api import Gumtree
-from z3_api import Z3_api
+import cluster_api
 
-"""
-@ param old log and new log, old block feature and repos block feature and gumtree\n
-@ return  bool about whether has matched\n
-@ involve decide whether match or not, <- block feature enjoy high similarity and match log\nv
-"""
-def is_match(old_new_info, repos_info, gumtree, z3_api):
-    # old_new_block_feature = old_new_info[0]
-    old_new_cdg_z3_feature = old_new_info[0]
-    old_log_file = old_new_info[1]
-    new_log_file = old_new_info[2]
-    # repos_block_feature = repos_info[0]
-    repos_cdg_z3_feature = repos_info[0]
-    repos_log_file = repos_info[1]
-    # if myUtil.compute_similarity(old_new_block_feature, repos_block_feature) > 0.999:
-    if old_new_cdg_z3_feature is None:
-        return False
-    if z3_api.judge_equality_for_statments(old_new_cdg_z3_feature, repos_cdg_z3_feature):
-        return True
-        # return gumtree.is_match_with_edit(old_log_file, new_log_file, repos_log_file)
-        # return gumtree.is_match(old_log_file, repos_log_file)
-    else:
-        return False
+def is_match_for_insert_rule(rule_feature, function_feature):
+    """
+    @ param rule feature(check, variable) and function feature(calls, types)\n
+    @ return true if match\n
+    @ involve validate that any element in rule feature must exist in function\n
+    """
+    check = rule_feature[0]
+    variable = rule_feature[1]
+    calls = function_feature[0]
+    types = function_feature[1]
+    # validate whether any one in check or variable is in calls and types
+    rule_infos = check + variable
+    function_info = calls + types
+    for info in rule_infos:
+        if not info in function_info:
+            return False
+    return True
 
-"""
-@ param\n
-@ return ...\n
-@ involve get clone of context in repos for each log updates\n
-"""
+def is_match_for_modify_rule(rule_feature, repos_log_feature):
+    """
+    @ param rule feature(check, variable) and repos log feature(check, variable)\n
+    @ return true if match\n
+    @ involve validate that check and variable info must be exactly same\n
+    """
+    return rule_feature == repos_log_feature
+
 def seek_clone():
-    z3_api = Z3_api()
+    """
+    @ param nothing \n
+    @ return nothing \n
+    @ involve match rule class with repos log class and function\n
+    """
+    # initiate csv reader file(rule class, repos log class, function class)
+    rule_file = file(my_constant.CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME, 'rb')
+    rule_records = csv.reader(rule_file)
+    repos_log_class_file = file(my_constant.CLASS_REPOS_LOG_FILE_NAME, 'rb')
+    repos_log_records = csv.reader(repos_log_class_file)
+    repos_function_file = file(my_constant.ANALYZE_REPOS_FUNCTION_FILE_NAME, 'rb')
+    repos_function_records = csv.reader(repos_function_file)
+    # initiate csv writer file(repos log clone and function clone)
+    repos_log_clone_file = file(my_constant.ANALYZE_CLONE_LOG_FILE_NAME, 'wb')
+    repos_log_clone_writer = csv.writer(repos_log_clone_file)
+    repos_log_clone_writer.writerow(my_constant.ANALYZE_CLONE_LOG_TITLE)
+    repos_function_clone_file = file(my_constant.ANALYZE_CLONE_FUNCTION_FILE_NAME, 'wb')
+    repos_function_clone_writer = csv.writer(repos_function_clone_file)
+    repos_function_clone_writer.writerow(my_constant.ANALYZE_CLONE_FUNCTION_TITLE)
+    rule_counter = 0
+    rule_size = len(rule_records)
+    # search clone instance for each rule
+    for rule_record in islice(rule_records, 1, None):
+        rule_counter += 1
+        print 'now processing rule %d/%d, ' %(rule_counter, rule_size) ,
+        old_loc = json.loads(rule_record.index(my_constant.CLASS_OLD_NEW_OLD_LOC))
+        check = json.loads(rule_record.index(my_constant.CLASS_OLD_NEW_CHECK))
+        variable = rule_record.index(my_constant.CLASS_OLD_NEW_VARIABLE)
+        rule_feature = [check, variable]
+        clone_counter = 0
+        # insert rule -> function records
+        if old_loc == '-1':
+            for repos_function_record in repos_function_records:
+                calls = json.loads(repos_function_record.index(my_constant.ANALYZE_REPOS_FUNCTION_CALLS))
+                types = json.loads(repos_function_record.index(my_constant.ANALYZE_REPOS_FUNCTION_TYPES))
+                if is_match_for_insert_rule(rule_feature, [types, calls]):
+                    clone_counter += 1
+                    repos_function_clone_writer.writerow(rule_record + repos_function_record)
+        # modification -> log records
+        else:
+            for repos_log_record in repos_log_records:
+                log_check = json.loads(repos_log_record.index(my_constant.CLASS_REPOS_LOG_CHECK))
+                log_variable = json.loads(repos_log_record.index(my_constant.CLASS_REPOS_LOG_VARIABLE))
+                if is_match_for_modify_rule(rule_feature, [log_check, log_variable]):
+                    # get real log records from class index
+                    analyze_log_records = cluster_api.generate_records_for_class(my_constant.ANALYZE_REPOS_LOG_CLUSTER, repos_log_record[0])
+                    for analyze_log_record in analyze_log_records:
+                        clone_counter += 1
+                        repos_log_clone_writer.writerow(rule_record + analyze_log_record)
+                    
+        print 'find clone instances %d' %(clone_counter)
 
-    # initialize log_patch from given patch analysis result
-    old_new_infos = []
-    old_new_record_info = []
-    old_new_file = file(my_constant.ANALYZE_OLD_NEW_JOERN_FILE_NAME, 'rb')
-    old_new_records = csv.reader(old_new_file)
-    for old_new_record in islice(old_new_records, 1, None):
-        # old_new_block_feature = json.loads(old_new_record[my_constant.ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE])
-        old_new_cdg_feature = json.loads(old_new_record[my_constant.ANALYZE_OLD_NEW_OLD_CDG_FEATURE])
-        old_new_cdg_z3_feature = z3_api.get_infix_for_postfix(old_new_cdg_feature)
-        old_new_old_log_file = old_new_record[my_constant.ANALYZE_OLD_NEW_OLD_LOG_FILE]
-        old_new_new_log_file = old_new_record[my_constant.ANALYZE_OLD_NEW_NEW_LOG_FILE]
-        old_new_infos.append([old_new_cdg_z3_feature, old_new_old_log_file, old_new_new_log_file])
-        old_new_record_info.append(old_new_record)
-    # initialize log_repos from given repos analysis result
-    repos_infos = []
-    repos_record_info = []
-    repos_file = file(my_constant.ANALYZE_REPOS_CLASS_FILE_NAME, 'rb')
-    repos_records = csv.reader(repos_file)
-    for repos_record in islice(repos_records, 1, None):
-        # repos_block_feature = json.loads(repos_record[my_constant.ANALYZE_REPOS_BLOCK_FEATURE])
-        repos_cdg_feature = json.loads(repos_record[my_constant.ANALYZE_REPOS_CDG_FEATURE])
-        repos_cdg_z3_feature = z3_api.get_infix_for_postfix(repos_cdg_feature)
-        repos_log_file = repos_record[my_constant.ANALYZE_REPOS_LOG_FILE]
-        repos_infos.append([repos_cdg_z3_feature, repos_log_file])
-        repos_record_info.append([repos_record[my_constant.ANALYZE_REPOS_CLASS_INDEX], repos_record[my_constant.ANALYZE_REPOS_CLASS_SIZE]])
-    # close files
-    old_new_file.close()
-    repos_file.close()
-
-    # seek clones in repos of context for each log update in patch
-
-    # write back into file
-    clone_file = file(my_constant.ANALYZE_CLONE_FILE_NAME, 'wb')
-    clone_writer = csv.writer(clone_file)
-    clone_writer.writerow(my_constant.ANALYZE_CLONE_TITLE)
-    clone_num_file = file(my_constant.STATISTICS_CLONE_NUM_FILE_NAME, 'wb')
-    clone_num_writer = csv.writer(clone_num_file)
-    clone_num_writer.writerow(['count'])
-
-    gumtree = Gumtree()
-    index_old_new = 0
-    for old_new_info in old_new_infos:
-        index_repos = 0
-        clone_count = 0
-        # traverse repos to find similar contexts
-        for repos_info in repos_infos:
-            # print "now analyze the no.%d old new log; %d repos log"\
-            #      %(index_old_new, index_repos)
-            if is_match(old_new_info, repos_info, gumtree, z3_api):
-                clone_writer.writerow(old_new_record_info[index_old_new] + repos_record_info[index_repos])
-                clone_count += int(repos_record_info[index_repos][1])
-                # clone_count += 1
-                break
-            index_repos += 1
-        print "now analyze the no.%d patch; the clone count is %d"\
-                 %(index_old_new, clone_count)
-        clone_num_writer.writerow([clone_count])
-        index_old_new += 1
-
-    clone_file.close()
-    clone_num_file.close()
-    gumtree.close()
-
+    # close file
+    rule_file.close()
+    repos_log_class_file.close()
+    repos_function_file.close()
+    repos_function_clone_file.close()
+    repos_log_clone_file.close()
 
 """
 main function

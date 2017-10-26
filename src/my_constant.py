@@ -53,12 +53,13 @@ ANALYZE_OLD_NEW_GUMTREE_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_gumtree_an
 ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log_analyze.csv'
 ANALYZE_REPOS_BASIC_BLOCK_FILE_NAME = 'data/fetch/' + REPOS + '_repos_basic_block_analyze.csv'
 ANALYZE_OLD_NEW_LLVM_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_llvm_analyze.csv'
-ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + REPOS + '_seek_clone.csv'
-STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + REPOS + '_clone_statistics.csv'
 CLUSTER_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_feature.csv'
 CLUSTER_EDITION_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition.csv'
 CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition_and_feature.csv'
 CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_class_edition_and_feature.csv'
+# clone
+ANALYZE_CLONE_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log_seek_clone.csv'
+ANALYZE_CLONE_FUNCTION_FILE_NAME = 'data/fetch/' + REPOS + '_repos_function_seek_clone.csv'
 
 # repos
 CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_cluster.csv'
@@ -109,7 +110,8 @@ ANALYZE_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('variable')
 # cluster and class
 CLUSTER_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
 ANALYZE_CLUSTER = CLUSTER_OLD_NEW_TITLE.index('cluster')
-CLASS_OLD_NEW_TITLE = ['class', 'check', 'variable', 'edit']
+CLASS_OLD_NEW_TITLE = ['class', 'old_loc', 'check', 'variable', 'edit']
+CLASS_OLD_NEW_OLD_LOC = CLASS_OLD_NEW_TITLE.index('old_loc')
 CLASS_OLD_NEW_CHECK = CLASS_OLD_NEW_TITLE.index('check')
 CLASS_OLD_NEW_VARIABLE = CLASS_OLD_NEW_TITLE.index('variable')
 CLASS_OLD_NEW_EDIT = CLASS_OLD_NEW_TITLE.index('edit')
@@ -135,14 +137,15 @@ ANALYZE_REPOS_FUNCTION_TYPES = ANALYZE_REPOS_FUNCTION_TITLE.index('types')
 CLUSTER_REPOS_LOG_TITLE = ANALYZE_REPOS_LOG_TITLE + ['cluster']
 ANALYZE_REPOS_LOG_CLUSTER = CLUSTER_REPOS_LOG_TITLE.index('cluster')
 CLASS_REPOS_LOG_TITLE = ['class', 'check', 'variable']
-CLASS_REPOS_LOG_CHECK = CLASS_OLD_NEW_TITLE.index('check')
-CLASS_REPOS_LOG_VARIABLE = CLASS_OLD_NEW_TITLE.index('variable')
+CLASS_REPOS_LOG_CHECK = CLASS_REPOS_LOG_TITLE.index('check')
+CLASS_REPOS_LOG_VARIABLE = CLASS_REPOS_LOG_TITLE.index('variable')
 
 
 """
 analyze clone title
 """
-ANALYZE_CLONE_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['class_index', 'class_size']
+ANALYZE_CLONE_LOG_TITLE = CLASS_OLD_NEW_TITLE + ANALYZE_REPOS_LOG_TITLE
+ANALYZE_CLONE_FUNCTION_TITLE = CLASS_OLD_NEW_TITLE + ANALYZE_REPOS_FUNCTION_TITLE
 
 """
 flag type && log type
