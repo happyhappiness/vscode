@@ -8,9 +8,9 @@ from gumtree_api import Gumtree
 from z3_api import Z3_api
 
 """
-@ param old log and new log, old block feature and repos block feature and gumtree
-@ return  bool about whether has matched
-@ involve decide whether match or not, <- block feature enjoy high similarity and match log
+@ param old log and new log, old block feature and repos block feature and gumtree\n
+@ return  bool about whether has matched\n
+@ involve decide whether match or not, <- block feature enjoy high similarity and match log\nv
 """
 def is_match(old_new_info, repos_info, gumtree, z3_api):
     # old_new_block_feature = old_new_info[0]
@@ -31,9 +31,9 @@ def is_match(old_new_info, repos_info, gumtree, z3_api):
         return False
 
 """
-@ param
-@ return ...
-@ involve get clone of context in repos for each log updates
+@ param\n
+@ return ...\n
+@ involve get clone of context in repos for each log updates\n
 """
 def seek_clone():
     z3_api = Z3_api()

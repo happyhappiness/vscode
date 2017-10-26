@@ -21,9 +21,9 @@ reload(sys)
 sys.setdefaultencoding('utf-8')
 
 """
-@ param hunk record, log writer, gumtree object and log counter
-@ return total_log
-@ involve deal with each hunk and retieve log info
+@ param hunk record, log writer, gumtree object and log counter\n
+@ return total_log\n
+@ involve deal with each hunk and retieve log info\n
 """
 def deal_hunk( hunk_record, writer, gumtree, total_log):
     old_log_loc = json.loads(hunk_record[my_constant.FETCH_HUNK_OLD_LOG_LOC])
@@ -83,9 +83,9 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
     return total_log
 
 """
-@ param
-@ return nothing 
-@ involve fetch and analyze each hunk
+@ param\n
+@ return nothing \n
+@ involve fetch and analyze each hunk\n
 """
 def fetch_hunk():
 

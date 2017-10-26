@@ -24,9 +24,9 @@ reload(sys)
 sys.setdefaultencoding('utf-8')
 
 """
-@ param log record, log function, old new writer, gumtree object and log counter
-@ return total_log
-@ involve deal with each old new log and save log info
+@ param log record, log function, old new writer, gumtree object and log counter\n
+@ return total_log\n
+@ involve deal with each old new log and save log info\n
 """
 def deal_log( log_record, gumtree, writer, total_log):
 
@@ -90,9 +90,9 @@ def deal_log( log_record, gumtree, writer, total_log):
 
     return total_log
 """
-@ param
-@ return nothing 
-@ involve fetch and analyze each hunk
+@ param\n
+@ return nothing \n
+@ involve fetch and analyze each hunk\n
 """
 def fetch_old_new_gumtree(gumtree):
 
@@ -116,9 +116,9 @@ def fetch_old_new_gumtree(gumtree):
     old_new_gumtree_file.close()
 
 """
-@ param
-@ return nothing 
-@ involve fetch and analyze each log[ddg and cdg]
+@ param\n
+@ return nothing \n
+@ involve fetch and analyze each log[ddg and cdg]\n
 """
 def analyze_old_new(is_rebuild = False):
     #analyze gumtree to get edition info

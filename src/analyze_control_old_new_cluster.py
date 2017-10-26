@@ -14,12 +14,12 @@ import my_constant
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
-"""
-@ param
-@ return nothing
-@ involve cluster by cdg and ddg feature
-"""
 def cluster_feature(z3_api):
+    """
+    @ param nothing\n
+    @ return nothing\n
+    @ involve cluster by feature(check and variable)\n
+    """
     # initialize read file
     read_file = file(my_constant.ANALYZE_OLD_NEW_LLVM_FILE_NAME, 'rb')
     records = csv.reader(read_file)
@@ -57,12 +57,12 @@ def cluster_feature(z3_api):
     write_file.close()
     read_file.close()
 
-"""
-@ param
-@ return nothing
-@ involve cluster by modification
-"""
 def cluster_edition():
+    """
+    @ param nothing\n
+    @ return nothing\n
+    @ involve cluster by edition\n
+    """
     # initialize read file
     read_file = file(my_constant.ANALYZE_OLD_NEW_LLVM_FILE_NAME, 'rb')
     records = csv.reader(read_file)
@@ -97,12 +97,12 @@ def cluster_edition():
     write_file.close()
     read_file.close()
 
-"""
-@ param
-@ return nothing
-@ involve cluster by modification and feature
-"""
 def cluster_edition_and_feature(z3_api=None):
+    """
+    @ param z3 api\n
+    @ return nothing\n
+    @ involve cluster by edition and feature\n
+    """
     # initialize read file
     read_file = file(my_constant.ANALYZE_OLD_NEW_LLVM_FILE_NAME, 'rb')
     records = csv.reader(read_file)
@@ -145,19 +145,30 @@ def cluster_edition_and_feature(z3_api=None):
     write_file.close()
     read_file.close()
 
-"""
-@ param  user and repos
-@ return nothing
-@ involve cluster by feature and edition
-"""
 def cluster(z3_api=None):
+    """
+    @ param z3 api\n
+    @ return nothing\n
+    @ involve cluster by feature and edition/ edition/ feature\n
+    """
     cluster_edition_and_feature(z3_api)
     cluster_edition()
     cluster_feature(z3_api)
+
+def generate_class(): 
+    """
+    @ param nothing\n
+    @ return nothing\n
+    @ involve generate class for edition and feature cluster\n
+    """
+    feature_indexes = [my_constant.ANALYZE_CHECK, my_constant.ANALYZE_VARIABLE, my_constant.ANALYZE_EDIT_WORD]
+    cluster_api.generate_class_from_cluster(my_constant.CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME,\
+        my_constant.CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME, my_constant.CLASS_OLD_NEW_TITLE, feature_indexes)
 
 """
 main function
 """
 if __name__ == "__main__":
 
-    cluster(None)
+    # cluster(None)
+    generate_class()

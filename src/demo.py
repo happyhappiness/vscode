@@ -6,9 +6,9 @@ import statistics
 import gumtree_api
 
 """
-@ param repos
-@ return nothing 
-@ involve reset my_constant(repos)
+@ param repos\n
+@ return nothing \n
+@ involve reset my_constant(repos)\n
 """
 def reset_repos(repository):
     my_constant.REPOS = repository
@@ -58,9 +58,9 @@ def reset_repos(repository):
     my_constant.NODE_DICT_FILE_NAME = 'data/fetch/' + my_constant.REPOS + '_node_dict.csv'
 
 """
-@ param repos list, all the reposes you want to deal with
-@ return nothing 
-@ involve do old file analysis and cluster analysis result for each repos
+@ param repos list, all the reposes you want to deal with\n
+@ return nothing \n
+@ involve do old file analysis and cluster analysis result for each repos\n
 """
 def analyze_and_cluster(repos_list):
     for repos in repos_list:
@@ -73,9 +73,9 @@ def analyze_and_cluster(repos_list):
     gumtree_api.close_jvm()
 
 """
-@ param repos list, all the reposes you want to deal with
-@ return nothing 
-@ involve do statistics(edit info, cluster info, type info) for each repos
+@ param repos list, all the reposes you want to deal with\n
+@ return nothing \n
+@ involve do statistics(edit info, cluster info, type info) for each repos\n
 """
 def do_statistics(repos_list):
     for repos in repos_list:

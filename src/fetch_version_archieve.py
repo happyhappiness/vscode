@@ -3,9 +3,9 @@ import re
 import my_constant
 
 """
-@ param main url and file name
-@ return
-@ involve download tar.gz from given url
+@ param main url and file name\n
+@ return\n
+@ involve download tar.gz from given url\n
 """
 def download_file(main_url, file_name):
     file_url = main_url + file_name
@@ -23,9 +23,9 @@ def download_file(main_url, file_name):
     return True
 
 """
-@ param url
-@ return
-@ involve deal with each href and download tar.gz
+@ param url\n
+@ return\n
+@ involve deal with each href and download tar.gz\n
 """
 def analyze_html(url):
     # fetch html
