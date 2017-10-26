@@ -2,23 +2,98 @@
 """
 @ involve : constant definition
 """
-# USER = 'Kitware'
-# REPOS = 'CMake'
-# USER = 'bftpd'
-# REPOS = 'bftpd'
-# USER = 'dmlc'
-# REPOS = 'xgboost'
-# USER = 'antirez'
-# REPOS = 'redis'
+def reset_repos(new_repos):
+    """
+    @ param new repository\n
+    @ return nothing \n
+    @ involve reset my_constant repos variable and related variable\n
+    """
+    global REPOS
+    REPOS = new_repos
+    """
+    stroed file name prefix
+    """
+    # parent
+    global BASE_DIR
+    BASE_DIR = '/usr/info/code/cpp/LogMonitor/LogMonitor'
+    global CURR_REPOS_DIR
+    CURR_REPOS_DIR = BASE_DIR + '/second/download/' + REPOS + '/'
+    # patch dir
+    global PATCH_DIR
+    PATCH_DIR = CURR_REPOS_DIR + 'patch/'
+    # repos
+    global REPOS_DIR
+    REPOS_DIR = CURR_REPOS_DIR + 'repos/'
+    # gumtree dir(hunk, block, function)
+    global GUMTREE_DIR
+    GUMTREE_DIR = CURR_REPOS_DIR + 'gumtree/'
+    # hunk
+    global DOWNLOAD_PATCH_HUNK
+    DOWNLOAD_PATCH_HUNK = GUMTREE_DIR + REPOS + '_patch_hunk_'
+    global DOWNLOAD_OLD_HUNK
+    DOWNLOAD_OLD_HUNK = GUMTREE_DIR + REPOS + '_old_hunk_'
+    global DOWNLOAD_NEW_HUNK
+    DOWNLOAD_NEW_HUNK = GUMTREE_DIR + REPOS + '_new_hunk_'
+    # log
+    global SAVE_OLD_LOG
+    SAVE_OLD_LOG = GUMTREE_DIR + REPOS + '_old_log_'
+    global SAVE_NEW_LOG
+    SAVE_NEW_LOG = GUMTREE_DIR + REPOS + '_new_log_'
+    # function
+    global SAVE_FUNCTION
+    SAVE_FUNCTION = GUMTREE_DIR + REPOS + '_function_'
+    global SAVE_REPOS_FUNCTION
+    SAVE_REPOS_FUNCTION = GUMTREE_DIR + REPOS + '_repos_function_'
 
-# REPOS = 'httpd'
-# REPOS = 'git'
-# REPOS = 'mutt'
-# REPOS = 'rtorrent'
-REPOS = 'curl'
-# REPOS = 'sqlite'
-# REPOS = 'rsync'
+    """
+    file name
+    """
+    global LOG_CALL_FILE_NAME
+    LOG_CALL_FILE_NAME = 'data/fetch/' + REPOS + '_logging_statement.csv'
+    global FUNC_SIMILAIRTY_FILE_NAME
+    FUNC_SIMILAIRTY_FILE_NAME = 'data/fetch/' + REPOS + '_func_similarity.csv'
+    global FETCH_HUNK_FILE_NAME
+    FETCH_HUNK_FILE_NAME = 'data/fetch/' + REPOS + '_hunk_fetch.csv'
+    global FETCH_LOG_FILE_NAME
+    FETCH_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_log_fetch.csv'
+    global ANALYZE_OLD_NEW_GUMTREE_FILE_NAME
+    ANALYZE_OLD_NEW_GUMTREE_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_gumtree_analyze.csv'
+    global ANALYZE_REPOS_LOG_FILE_NAME
+    ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log_analyze.csv'
+    global ANALYZE_REPOS_BASIC_BLOCK_FILE_NAME
+    ANALYZE_REPOS_BASIC_BLOCK_FILE_NAME = 'data/fetch/' + REPOS + '_repos_basic_block_analyze.csv'
+    global ANALYZE_OLD_NEW_LLVM_FILE_NAME
+    ANALYZE_OLD_NEW_LLVM_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_llvm_analyze.csv'
+    global CLUSTER_FEATURE_OLD_NEW_FILE_NAME
+    CLUSTER_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_feature.csv'
+    global CLUSTER_EDITION_OLD_NEW_FILE_NAME
+    CLUSTER_EDITION_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition.csv'
+    global CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME
+    CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition_and_feature.csv'
+    global CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME
+    CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_class_edition_and_feature.csv'
+    # clone
+    global ANALYZE_CLONE_LOG_FILE_NAME
+    ANALYZE_CLONE_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log_seek_clone.csv'
+    global ANALYZE_CLONE_FUNCTION_FILE_NAME
+    ANALYZE_CLONE_FUNCTION_FILE_NAME = 'data/fetch/' + REPOS + '_repos_function_seek_clone.csv'
 
+    # repos
+    global CLUSTER_REPOS_FILE_NAME
+    CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_cluster.csv'
+    global ANALYZE_REPOS_FUNCTION_FILE_NAME
+    ANALYZE_REPOS_FUNCTION_FILE_NAME = 'data/fetch/' + REPOS + '_repos_call.csv'
+    global ANALYZE_REPOS_LOG_FILE_NAME
+    ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log.csv'
+    global CLUSTER_REPOS_LOG_FILE_NAME
+    CLUSTER_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_cluster_log.csv'
+    global CLASS_REPOS_LOG_FILE_NAME
+    CLASS_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_class_log.csv'
+
+"""
+repository
+"""
+REPOS = 'rsync'
 """
 stroed file name prefix
 """

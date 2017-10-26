@@ -15,7 +15,6 @@ import json
 from itertools import islice
 from srcml_api import SrcmlApi
 from gumtree_api import Gumtree
-from llvm_api import LLVM
 import gumtree_api
 import my_constant
 import my_util
