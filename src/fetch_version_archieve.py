@@ -2,12 +2,12 @@ import urllib2
 import re
 import my_constant
 
-"""
-@ param main url and file name\n
-@ return\n
-@ involve download tar.gz from given url\n
-"""
 def download_file(main_url, file_name):
+    """
+    @ param main url and file name\n
+    @ return true if success\n
+    @ involve download tar.gz from given url\n
+    """
     file_url = main_url + file_name
     file_content = urllib2.urlopen(file_url)
 
@@ -22,12 +22,12 @@ def download_file(main_url, file_name):
 
     return True
 
-"""
-@ param url\n
-@ return\n
-@ involve deal with each href and download tar.gz\n
-"""
 def analyze_html(url):
+    """
+    @ param url\n
+    @ return nothing\n
+    @ involve fetch html of given url and deal with each href to download tar.gz\n
+    """
     # fetch html
     response = urllib2.urlopen(url)
     html = response.read()
@@ -47,5 +47,4 @@ def analyze_html(url):
 main function
 """
 if __name__ == "__main__":
-
     analyze_html("https://download.samba.org/pub/rsync/src/")

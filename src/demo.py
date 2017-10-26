@@ -5,12 +5,12 @@ import analyze_control_old_new_cluster
 import statistics
 import gumtree_api
 
-"""
-@ param repos\n
-@ return nothing \n
-@ involve reset my_constant(repos)\n
-"""
 def reset_repos(repository):
+    """
+    @ param new repository\n
+    @ return nothing \n
+    @ involve reset my_constant repos variable and related variables\n
+    """
     my_constant.REPOS = repository
 
     """
@@ -57,12 +57,12 @@ def reset_repos(repository):
     my_constant.REPOS_SIMILARITY_FILE_NAME = 'data/fetch/' + my_constant.REPOS + '_repos_similarity.csv'
     my_constant.NODE_DICT_FILE_NAME = 'data/fetch/' + my_constant.REPOS + '_node_dict.csv'
 
-"""
-@ param repos list, all the reposes you want to deal with\n
-@ return nothing \n
-@ involve do old file analysis and cluster analysis result for each repos\n
-"""
 def analyze_and_cluster(repos_list):
+    """
+    @ param repos list, all the reposes you want to deal with\n
+    @ return nothing \n
+    @ involve call analyze old new and cluster for each repos\n
+    """
     for repos in repos_list:
         print 'now analyzing repos %s' %repos
         # update repos value of my constant
@@ -72,21 +72,23 @@ def analyze_and_cluster(repos_list):
     # close jvm
     gumtree_api.close_jvm()
 
-"""
-@ param repos list, all the reposes you want to deal with\n
-@ return nothing \n
-@ involve do statistics(edit info, cluster info, type info) for each repos\n
-"""
 def do_statistics(repos_list):
+    """
+    @ param repos list, all the reposes you want to deal with\n
+    @ return nothing \n
+    @ involve do statistics(type info, cluster info, cluster type info) for each repos\n
+    """
     for repos in repos_list:
         print '\n****************now analyzing repos %s***************' %repos
         # update repos value of my constant
         reset_repos(repos)
         statistics.perform_statistic()
-    # close jvm
-    gumtree_api.close_jvm()
 
-if __name__  == "__main__":
+"""
+main function
+"""
+if __name__ == "__main__":
     reposes = ['httpd', 'git', 'mutt', 'rtorrent', 'curl', 'sqlite', 'rsync']
     do_statistics(reposes)
+
 

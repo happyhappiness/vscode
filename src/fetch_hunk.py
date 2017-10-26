@@ -12,9 +12,9 @@ import myUtil
 
 def store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk):
     """
-    @ param old and new hunk, hunk counter\n
-    @ return hunk counter, old and new hunk\n
-    @ involve store hunk file\n
+    @ param old and new hunk, patch hunk, hunk counter\n
+    @ return hunk counter, old and new and patch hunk name\n
+    @ involve store hunk file, including old, new and intial patch hunk\n
     """
     total_hunk += 1
     print 'now processing hunk: %d' %(total_hunk)
@@ -32,13 +32,14 @@ def store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk):
 
     return total_hunk, old_hunk_name, new_hunk_name, patch_hunk_name
 
-"""
-@ param patch info, patch, log function, hunk counter and file writer\n
-@ return hunk counter\n
-@ involve recognize and save hunk info(has log)\n
-"""
-def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writer):
-
+def deal_file_diff( file_diff_info, file_diff, log_function, total_hunk, writer):
+    """
+    @ param file diff info[version, old and new file],
+            patch, log function, hunk counter and file writer\n
+    @ return new hunk counter\n
+    @ involve recognize and deal with each hunk in file diff
+              and save hunk info(has log)\n
+    """
     # old and new hunk content
     old_hunk = new_hunk = patch_hunk = ''
     # old and new file location of hunk top
@@ -58,7 +59,7 @@ def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writ
             # if has log modification
             if len(old_log_loc) != 0 or len(new_log_loc) != 0:
                 total_hunk, old_hunk_name, new_hunk_name, patch_hunk_name = store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk)
-                writer.writerow(version_diff_info + [patch_hunk_name, old_hunk_name, new_hunk_name, \
+                writer.writerow(file_diff_info + [patch_hunk_name, old_hunk_name, new_hunk_name, \
                     old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
             # initialize hunk info
             old_hunk = new_hunk = patch_hunk = ''
@@ -93,18 +94,18 @@ def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writ
     # deal with last hunk, if has log update
     if len(old_log_loc) != 0 or len(new_log_loc) != 0:
         total_hunk, old_hunk_name, new_hunk_name, patch_hunk_name = store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk)
-        writer.writerow(version_diff_info + [patch_hunk_name, old_hunk_name, new_hunk_name, \
+        writer.writerow(file_diff_info + [patch_hunk_name, old_hunk_name, new_hunk_name, \
             old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
 
     return total_hunk
 
-"""
-@ param  version diff file, log function, hunk counter and file writer\n
-@ return bool has log and updated hunk counter\n
-@ involve recognize and deal with version diff file\n
-"""
 def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
-
+    """
+    @ param version diff file, log function, hunk counter and file writer\n
+    @ return new hunk counter\n
+    @ involve recognize and deal with each patch diff file from version diff file\n
+    """
+    # open version diff file
     full_version_diff_file = open(my_constant.PATCH_DIR + version_diff_file, 'rb')
     version_diff = full_version_diff_file.readlines()
 
@@ -120,62 +121,60 @@ def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
             is_old = re.match(r'^--- (\S*)\s*.*', version_diff[i])
             if is_old:
                 temp_old_file = is_old.group(1)
-                # do not deal with this file diff
+                # filter file by name (cpp like and not test like)
                 if myUtil.filter_file(temp_old_file):
                     # get new file name
                     i += 1
                     is_new = re.match(r'^\+\+\+ (\S*)\s*.*', version_diff[i])
                     if is_new:
                         temp_new_file = is_new.group(1)
-                        # do not deal with this file diff
+                        # filter file by name (cpp like and not test like)
                         if myUtil.filter_file(temp_new_file):
+                            # deal with previous diff file
                             if is_diff_file:
-                                    # deal with previous diff file
                                 total_hunk = deal_file_diff([version_diff_file, old_file, new_file], \
                                                     file_diff, log_function, total_hunk, writer)
                                 file_diff = []
+                            # mark this file need to be dealed
                             is_diff_file = True
                             old_file = temp_old_file
                             new_file = temp_new_file
-                            continue
+                            continue            
+            # mark end of previous diff file and deal with previous diff file
             if is_diff_file:
-                # mark end of previous diff file
                 is_diff_file = False
-                # deal with previous diff file
                 total_hunk = deal_file_diff([version_diff_file, old_file, new_file], \
                                     file_diff, log_function, total_hunk, writer)
                 file_diff = []
-        # record diff file
+        # record diff file content
         if is_diff_file:
             file_diff.append(version_diff[i])
 
     # deal with last file diff
     if is_diff_file:
-        # deal with previous diff file
         total_hunk = deal_file_diff([version_diff_file, old_file, new_file], \
                                 file_diff, log_function, total_hunk, writer)
-
+    # close file
     full_version_diff_file.close()
     return total_hunk
 
-"""
-@ param flag, true if want recreate patch db\n
-@ return\n
-@ involve read patch from repos patch dir and deal with each patch file\n
-"""
 def fetch_version_diff(is_recreate=False):
+    """
+    @ param flag about whether recreate version diff\n
+    @ return nothing\n
+    @ involve read patch file from patch dir and deal with each version patch file\n
+    """
+    # call create version diff if is_recreate flag is set
     if is_recreate:
         create_version_diff()
-    # filter out the one with log statement changes
+    # choose the one with log statement changes
     log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
     log_function = myUtil.functionToRegrexStr(log_functions)
-    # print re.search(log_function, '\t   ap_log_error()')
-
-    # initiate csvfile
+    # initiate csv file
     hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')
     hunk_writer = csv.writer(hunk_file)
     hunk_writer.writerow(my_constant.FETCH_HUNK_TITLE)
-
+    # fetch patch file from patch dir and deal with each diff file
     version_diff_files = commands.getoutput('ls ' + my_constant.PATCH_DIR)
     version_diff_files = version_diff_files.split('\n')
     total_hunk = 0
@@ -186,12 +185,13 @@ def fetch_version_diff(is_recreate=False):
     hunk_file.close()
 
 
-"""
-@ param\n
-@ return\n
-@ involve create version diff\n
-"""
+
 def create_version_diff():
+    """
+    @ param nothing\n
+    @ return nothing\n
+    @ involve create dir diff file(store in patch dir) for dirs in repos dir\n
+    """
     # clear old patch file
     clear = commands.getoutput('rm ' + my_constant.PATCH_DIR + '*')
     # get all versions
