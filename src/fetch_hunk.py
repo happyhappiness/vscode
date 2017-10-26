@@ -168,8 +168,8 @@ def fetch_version_diff(is_recreate=False):
     if is_recreate:
         create_version_diff()
     # choose the one with log statement changes
-    log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
-    log_function = myUtil.functionToRegrexStr(log_functions)
+    log_functions = myUtil.retrieve_log_function(my_constant.LOG_CALL_FILE_NAME)
+    log_function = myUtil.function_to_regrex_str(log_functions)
     # initiate csv file
     hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')
     hunk_writer = csv.writer(hunk_file)
