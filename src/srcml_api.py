@@ -1,7 +1,7 @@
 from lxml import etree
 import commands
 import my_constant
-import myUtil
+import my_util
 
 class SrcmlApi:
   
@@ -15,7 +15,7 @@ class SrcmlApi:
             self.set_function_file(source_file)
         elif source_file is not None:
             self.set_source_file(source_file)
-        self.log_functions = myUtil.retrieve_log_function(my_constant.LOG_CALL_FILE_NAME)
+        self.log_functions = my_util.retrieve_log_function(my_constant.LOG_CALL_FILE_NAME)
         self.log_functions.append('_')
 
     def set_source_file(self, source_file):
@@ -45,7 +45,7 @@ class SrcmlApi:
                 function = etree.tostring(function_node)
                 function_file_name = my_constant.SAVE_REPOS_FUNCTION + str(index) + '.cpp'
                 function_xml_name = function_file_name + '.xml'
-                myUtil.save_file(function, function_xml_name)
+                my_util.save_file(function, function_xml_name)
                 # store source function
                 commands.getoutput('srcml -S ' + function_xml_name + ' -o ' + function_file_name)
                 self.functions.append(function_file_name)

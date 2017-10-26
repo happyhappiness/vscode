@@ -8,7 +8,7 @@ from itertools import islice
 from gumtree_api import Gumtree
 from z3_api import Z3_api
 import cluster_api
-import myUtil
+import my_util
 import my_constant
 
 reload(sys)
@@ -52,7 +52,7 @@ def cluster_feature(z3_api):
         write_file_writer.writerow(record)
         index += 1
 
-    # myUtil.dumpSimilarityDic(similarity_dict)
+    # my_util.dumpSimilarityDic(similarity_dict)
     # close files
     write_file.close()
     read_file.close()
@@ -92,7 +92,7 @@ def cluster_edition():
         write_file_writer.writerow(record)
         index += 1
 
-    # myUtil.dumpSimilarityDic(similarity_dict)
+    # my_util.dumpSimilarityDic(similarity_dict)
     # close files
     write_file.close()
     read_file.close()
@@ -140,7 +140,7 @@ def cluster_edition_and_feature(z3_api=None):
         write_file_writer.writerow(record)
         index += 1
 
-    # myUtil.dumpSimilarityDic(similarity_dict)
+    # my_util.dumpSimilarityDic(similarity_dict)
     # close files
     write_file.close()
     read_file.close()

@@ -1,7 +1,7 @@
 #-*-coding: utf-8 -*-
 from jpype import *
 import my_constant
-import myUtil
+import my_util
 import re
 
 class Gumtree:  
@@ -247,8 +247,8 @@ class Gumtree:
         """
         # split to get list of words
         log_spliter = r'[^\w%&/\[\]\*\\]'
-        old_log = myUtil.remove_given_element('', re.split(log_spliter, old_log))
-        new_log = myUtil.remove_given_element('', re.split(log_spliter, new_log))
+        old_log = my_util.remove_given_element('', re.split(log_spliter, old_log))
+        new_log = my_util.remove_given_element('', re.split(log_spliter, new_log))
         # get edition(match and compute delta)
         edit_words = []
         edit_feature = []

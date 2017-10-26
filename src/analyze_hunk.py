@@ -12,7 +12,7 @@ from itertools import islice
 from gumtree_api import Gumtree
 import gumtree_api
 import my_constant
-import myUtil
+import my_util
 
 reload(sys)
 sys.setdefaultencoding('utf-8')

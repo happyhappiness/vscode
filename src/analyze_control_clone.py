@@ -2,7 +2,7 @@
 import csv
 import json
 from itertools import islice
-import myUtil
+import my_util
 import my_constant
 import cluster_api
 

@@ -4,7 +4,7 @@ import sys
 import re
 import commands
 import json
-import myUtil
+import my_util
 import my_constant
 from itertools import islice
 from itertools import islice
@@ -170,7 +170,7 @@ def getFunctionSimilarity():
     functions = []
     for function in functions_temp:
         # remove namespace before::
-        function = myUtil.removeNamespace(function)
+        function = my_util.removeNamespace(function)
         if function == '':
             continue
         if not function.startswith("operator ") and [function] not in functions:

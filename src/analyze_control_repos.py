@@ -17,7 +17,7 @@ from srcml_api import SrcmlApi
 import cluster_api
 import gumtree_api
 import my_constant
-import myUtil
+import my_util
 
 reload(sys);
 sys.setdefaultencoding('utf8')
@@ -62,7 +62,7 @@ def fetch_repos_file(repos_name):
     for item in os.walk(directory):
         for filename in item[2]:
             # filter by cpp like and not test like
-            if myUtil.filter_file(filename):
+            if my_util.filter_file(filename):
                 # concate and store file
                 filename = os.path.join(item[0], filename)
                 filenames.append(filename)
@@ -77,7 +77,7 @@ def analyze_repos(repos_name=None, is_first=True):
     if repos_name is None and is_first:
         versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
         versions = versions.split('\n')
-        repos_name = min(versions,key=myUtil.get_version_number)
+        repos_name = min(versions,key=my_util.get_version_number)
     srcml = SrcmlApi()
     # fetch file name
     file_names = fetch_repos_file(repos_name)
