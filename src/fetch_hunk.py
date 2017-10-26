@@ -1,10 +1,4 @@
 #-*-coding: utf-8 -*-
-"""
-input: USER, REPOS
-BY: commit -> patch
-output: hunk records
-hunk info [commit info, patch info, ...]
-"""
 import csv
 import sys
 import re
@@ -16,14 +10,12 @@ from itertools import islice
 import my_constant
 import myUtil
 
-
-"""
-@ param old and new hunk, hunk counter
-@ return hunk counter, old and new hunk
-@ involve store hunk file
-"""
 def store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk):
-    
+    """
+    @ param old and new hunk, hunk counter\n
+    @ return hunk counter, old and new hunk\n
+    @ involve store hunk file\n
+    """
     total_hunk += 1
     print 'now processing hunk: %d' %(total_hunk)
     # store old hunk file
@@ -41,9 +33,9 @@ def store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk):
     return total_hunk, old_hunk_name, new_hunk_name, patch_hunk_name
 
 """
-@ param patch info, patch, log function, hunk counter and file writer
-@ return hunk counter
-@ involve recognize and save hunk info(has log)
+@ param patch info, patch, log function, hunk counter and file writer\n
+@ return hunk counter\n
+@ involve recognize and save hunk info(has log)\n
 """
 def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writer):
 
@@ -107,9 +99,9 @@ def deal_file_diff( version_diff_info, file_diff, log_function, total_hunk, writ
     return total_hunk
 
 """
-@ param  version diff file, log function, hunk counter and file writer
-@ return bool has log and updated hunk counter
-@ involve recognize and deal with version diff file
+@ param  version diff file, log function, hunk counter and file writer\n
+@ return bool has log and updated hunk counter\n
+@ involve recognize and deal with version diff file\n
 """
 def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
 
@@ -167,9 +159,9 @@ def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
     return total_hunk
 
 """
-@ param flag, true if want recreate patch db
-@ return
-@ involve read patch from repos patch dir and deal with each patch file
+@ param flag, true if want recreate patch db\n
+@ return\n
+@ involve read patch from repos patch dir and deal with each patch file\n
 """
 def fetch_version_diff(is_recreate=False):
     if is_recreate:
@@ -195,9 +187,9 @@ def fetch_version_diff(is_recreate=False):
 
 
 """
-@ param
-@ return
-@ involve create version diff
+@ param\n
+@ return\n
+@ involve create version diff\n
 """
 def create_version_diff():
     # clear old patch file

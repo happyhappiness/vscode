@@ -17,33 +17,33 @@ class Gumtree:
             Gumtree.gumtree = GumtreeApi()
 
     """
-    @ param old and new file
-    @ return
-    @ involve set old and new file
+    @ param old and new file\n
+    @ return\n
+    @ involve set old and new file\n
     """
     def set_old_new_file(self, old_file, new_file):
         Gumtree.gumtree.setOldAndNewFile(old_file, new_file)
 
     """
-    @ param line
-    @ return flag about whether find old log
-    @ involve set line for gumtree object
+    @ param line\n
+    @ return flag about whether find old log\n
+    @ involve set line for gumtree object\n
     """
     def set_old_loc(self, line):
         return Gumtree.gumtree.setOldLoc(line)
 
     """
-    @ param 
-    @ return line
-    @ involve get mapping line of old log
+    @ param \n
+    @ return line\n
+    @ involve get mapping line of old log\n
     """
     def get_new_loc(self):
         return Gumtree.gumtree.getNewLoc()
 
     """
-    @ param 
-    @ return new log
-    @ involve get mapping log of old log
+    @ param \n
+    @ return new log\n
+    @ involve get mapping log of old log\n
     """
     def get_new_log(self):
         new_log = Gumtree.gumtree.getNewLog()
@@ -52,67 +52,67 @@ class Gumtree:
         else:
             return new_log
     """
-    @ param 
-    @ return old log
-    @ involve get old log
+    @ param \n
+    @ return old log\n
+    @ involve get old log\n
     """
     def get_old_log(self):
         return Gumtree.gumtree.getOldLog() + ';'
       
     """
-    @ param 
-    @ return
-    @ involve judge if log in old location has been edited
+    @ param \n
+    @ return\n
+    @ involve judge if log in old location has been edited\n
     """
     def is_old_log_edited(self):
         return Gumtree.gumtree.isOldLogEdited()
 
     """
-    @ param line
-    @ return flag about whether find new log
-    @ involve set line for inserted node
+    @ param line\n
+    @ return flag about whether find new log\n
+    @ involve set line for inserted node\n
     """
     def set_new_loc(self, line):
         return Gumtree.gumtree.setNewLoc(line)
 
     """
-    @ param 
-    @ return line
-    @ involve get old loc for the inserted node
+    @ param \n
+    @ return line\n
+    @ involve get old loc for the inserted node\n
     """
     def get_old_loc(self):
         return Gumtree.gumtree.getOldLoc()
 
     """
-    @ param old log locations
-    @ return
-    @ involve add log node into log nodes
+    @ param old log locations\n
+    @ return\n
+    @ involve add log node into log nodes\n
     """
     def add_old_log_nodes(self, lines):
         for line in lines:
             Gumtree.gumtree.addOldLogNode(line)
 
     """
-    @ param new log locations
-    @ return
-    @ involve add log node into log nodes
+    @ param new log locations\n
+    @ return\n
+    @ involve add log node into log nodes\n
     """
     def add_new_log_nodes(self, lines):
         for line in lines:
             Gumtree.gumtree.addNewLogNode(line)
 
     """
-    @ param 
-    @ return
-    @ involve get action type for hunk
+    @ param \n
+    @ return\n
+    @ involve get action type for hunk\n
     """
     def get_hunk_edited_type(self):
         return Gumtree.gumtree.getActionType()
 
     """
-    @ param ddg locations(index from 0)
-    @ return
-    @ involve get action type for function
+    @ param ddg locations(index from 0)\n
+    @ return\n
+    @ involve get action type for function\n
     """
     def get_function_edited_type(self, ddg_locs):
         for ddg_loc in ddg_locs:
@@ -120,65 +120,65 @@ class Gumtree:
         return Gumtree.gumtree.isDDGModified()
 
     """
-    @ param none(set old file and new file before)
-    @ return
-    @ involve get edtion type of log
+    @ param none(set old file and new file before)\n
+    @ return\n
+    @ involve get edtion type of log\n
     """
     def get_log_edited_type(self):
         return list(Gumtree.gumtree.getLogEditType())
 
     """
-    @ param filename
-    @ return
-    @ involve set file
+    @ param filename\n
+    @ return\n
+    @ involve set file\n
     """
     def set_file(self, filename):
         Gumtree.gumtree.setFile(filename)
 
     """
-    @ param line(int)
-    @ return flag about whether success
-    @ involve set loccation of log
+    @ param line(int)\n
+    @ return flag about whether success\n
+    @ involve set loccation of log\n
     """
     def set_loc(self, line):
         return Gumtree.gumtree.setLoc(line)
 
     """
-    @ param
-    @ return
-    @ involve get log statement
+    @ param\n
+    @ return\n
+    @ involve get log statement\n
     """
     def get_log(self):
         return Gumtree.gumtree.getLog() + ';'
 
     """
-    @ param
-    @ return
-    @ involve get block which contains log
+    @ param\n
+    @ return\n
+    @ involve get block which contains log\n
     """
     def get_block(self):
         return Gumtree.gumtree.getBlock()
 
     """
-    @ param
-    @ return
-    @ involve get block which contains log
+    @ param\n
+    @ return\n
+    @ involve get block which contains log\n
     """
     def get_function(self):
         return Gumtree.gumtree.getFunction()
 
     """
-    @ param
-    @ return
-    @ involve get block which contains log
+    @ param\n
+    @ return\n
+    @ involve get block which contains log\n
     """
     def get_function_loc(self):
         return Gumtree.gumtree.getFunctionLoc()
 
     """
-    @ param
-    @ return
-    @ involve get feature vector for block[type vs frequence]
+    @ param\n
+    @ return\n
+    @ involve get feature vector for block[type vs frequence]\n
     """
     def get_block_feature(self):
         vector_str = Gumtree.gumtree.getBlockFeature()
@@ -187,25 +187,25 @@ class Gumtree:
         return vector
 
     """
-    @ param
-    @ return
-    @ involve get type vector of block
+    @ param\n
+    @ return\n
+    @ involve get type vector of block\n
     """
     def get_block_type(self):
         return Gumtree.gumtree.getBlockType()
     """
-    @ param old and new log file
-    @ return flag about match or not
-    @ involve just update action
+    @ param old and new log file\n
+    @ return flag about match or not\n
+    @ involve just update action\n
     """
     def is_match(self, old_log_file, new_log_file):
         Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
         return Gumtree.gumtree.isMatch()
 
     """
-    @ param old and new log file, and repos log file
-    @ return flag about match or not
-    @ involve no action allowed in edited node
+    @ param old and new log file, and repos log file\n
+    @ return flag about match or not\n
+    @ involve no action allowed in edited node\n
     """
     def is_match_with_edit(self, old_log_file, new_log_file, repos_log_file):
         Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
@@ -213,9 +213,9 @@ class Gumtree:
         return Gumtree.gumtree.isMatchWithEdit(repos_log_file)
 
     """
-    @ param old and new log file
-    @ return list of edited word pair
-    @ involve ast node edition -> word edition(literal split with space)
+    @ param old and new log file\n
+    @ return list of edited word pair\n
+    @ involve ast node edition -> word edition(literal split with space)\n
     """
     def get_word_edit(self, old_log_file, new_log_file):
         Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
@@ -231,9 +231,9 @@ class Gumtree:
         return edit_words, edit_feature
 
     """
-    @ param old and new log
-    @ return list of edited word pair
-    @ involve ast node edition -> word edition(literal split with space)
+    @ param old and new log\n
+    @ return list of edited word pair\n
+    @ involve ast node edition -> word edition(literal split with space)\n
     """
     def get_word_edit_from_log(self, old_log, new_log):
 
@@ -269,9 +269,9 @@ class Gumtree:
         return edit_words, edit_feature
 
 """
-@ param 
-@ return
-@ involve close jvm
+@ param \n
+@ return\n
+@ involve close jvm\n
 """
 def close_jvm():
     shutdownJVM()

@@ -4,20 +4,26 @@ import my_constant
 import myUtil
 
 class SrcmlApi:
-    
+  
     def __init__(self, source_file=None, is_function=True):
+        """
+        @ param source file, flag about is function file or not\n
+        @ return nothing\n
+        @ involve create xml file for source file and build namespace info\n
+        """
         if source_file is not None and is_function:
             self.set_function_file(source_file)
         elif source_file is not None:
             self.set_source_file(source_file)
         self.log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
         self.log_functions.append('_')
-    """
-    @ param source file
-    @ return nothing
-    @ involve create xml file for source file and build namespace info
-    """
+
     def set_source_file(self, source_file):
+        """
+        @ param source file\n
+        @ return nothing\n
+        @ involve create xml file(temp.xml) for source file and build namespace info\n
+        """
         # intiate xml info
         xml_file = 'temp.xml'
         commands.getoutput('srcml --position ' + source_file + ' -o ' + xml_file)
@@ -25,12 +31,12 @@ class SrcmlApi:
         # initiate functions
         self.functions = []
 
-    """
-    @ param index(count of functions)
-    @ return nothing
-    @ involve get all functions in source file
-    """
     def get_functions(self, index):
+        """
+        @ param index(counter of functions)\n
+        @ return functions info[function file name]\n
+        @ involve get all functions in source file, store both file and xml file\n
+        """
         # get all sub functions
         function_nodes = self.root.iterdescendants(tag=self.function_tag)
         if function_nodes is not None:
@@ -46,12 +52,12 @@ class SrcmlApi:
                 index += 1
         return self.functions
 
-    """
-    @ param function file
-    @ return nothing
-    @ involve create xml file from function file and build info about namespace
-    """
     def set_function_file(self, function_file):
+        """
+        @ param function file\n
+        @ return nothing\n
+        @ involve create xml(append xml) file from function file and build info about namespace\n
+        """
         # intiate xml info
         xml_file = function_file + '.xml'
         commands.getoutput('srcml --position ' + function_file + ' -o ' + xml_file)
@@ -66,12 +72,12 @@ class SrcmlApi:
         self.calls = set()
         self.types = set()
 
-    """
-    @ param log location(int from 0; better not be -1)
-    @ return flag about whether find log or not
-    @ involve find call in given loc and set log node
-    """
     def set_log_loc(self, log_location):
+        """
+        @ param log location(int from 0; better not be -1)\n
+        @ return flag about whether find log or not\n
+        @ involve find call in given loc and set log node and log info\n
+        """
         log_location = log_location + 1 # from 1
         # iterates all call
         call_nodes = self.tree.findall('//default:call', namespaces=self.namespace_map)
@@ -87,28 +93,28 @@ class SrcmlApi:
                 return True
         return False
 
-    """
-    @ param [call after: self.set_log_loc()]
-    @ return self.log
-    @ involve get log info for log
-    """
     def get_log_info(self):
+        """
+        @ param [call after: self.set_log_loc()]\n
+        @ return self.log\n
+        @ involve get log info for log\n
+        """
         return self.log
 
-    """
-    @ param [call after: self.set_control_dependence()]
-    @ return self.control
-    @ involve get control info for log
-    """
     def get_control_info(self):
+        """
+        @ param [call after: self.set_control_dependence()]\n
+        @ return self.control\n
+        @ involve get control info for log, getter\n
+        """
         return self.control
 
-    """
-    @ param [call after: self.set_log_loc()]
-    @ return true if find control dependence
-    @ involve get control node for node(if/switch)
-    """
     def set_control_dependence(self):
+        """
+        @ param self.log node not none\n
+        @ return true if find control dependence\n
+        @ involve get control node for log node(if/switch)\n
+        """
         if self.log_node is None:
             return False
         # iterator parent to find if/switch
@@ -143,12 +149,12 @@ class SrcmlApi:
 
         return False
     
-    """
-    @ param nothing
-    @ return all logs, calls and types in function
-    @ involve get all log info[loc, log, check, variable], call info[call name], type info[type name]
-    """
     def get_logs_calls_types(self):
+        """
+        @ param nothing\n
+        @ return all logs, calls and types in function\n
+        @ involve get all log info[loc, log, check, variable], call info[call name], type info[type name]\n
+        """
         # get all call node
         call_nodes = self.tree.findall('//default:call', namespaces=self.namespace_map)
         for call_node in call_nodes:
@@ -184,12 +190,12 @@ class SrcmlApi:
 
         return self.logs, list(self.calls), list(self.types)
 
-    """
-    @ param xml file
-    @ return nothing
-    @ involve build namespace info
-    """
     def _parse_xml(self, xml_file):
+        """
+        @ param xml file\n
+        @ return nothing\n
+        @ involve parse given xml file build namespace, tag info\n
+        """
         self.tree = etree.parse(xml_file)
         self.root = self.tree.getroot()
         self.namespace_map = self.root.nsmap
@@ -199,12 +205,13 @@ class SrcmlApi:
         self.call_tag = "{" + self.namespace_map['default'] + "}call"
         self.function_tag = "{" + self.namespace_map['default'] + "}function"
 
-    """
-    @ param node()
-    @ return depended info for given node(function name or variable type)
-    @ involve get and analyz dependent info for given node
-    """
+
     def _get_info_for_node(self, node):
+        """
+        @ param node(not none)\n
+        @ return depended info for given node(function name or variable type)\n
+        @ involve get and analyze dependent info for given node(call info + name dependence)\n
+        """
         # filter out the one with log statement changes
         name_nodes, node_info = self._get_pure_name_nodes(node)
         for name_node in name_nodes:
@@ -252,12 +259,12 @@ class SrcmlApi:
 
         return node_info
 
-    """
-    @ param node(must be name)
-    @ return data depended node {line, [node, depended_type]}
-    @ involve get data depended nodes for given node(call, decl)
-    """
     def _get_depended_nodes(self, node):
+        """
+        @ param node(name, not none, has text)\n
+        @ return data depended node {line, [node, depended_type]}\n
+        @ involve get data depended nodes for given node(call, decl)\n
+        """
         depended_nodes = {}
         node_line = self._get_location(node)
         # find all name node
@@ -318,13 +325,12 @@ class SrcmlApi:
 
         return depended_nodes
 
-
-    """
-    @ param node
-    @ return pure name node (no median call)
-    @ involve get name nodes without expanding call
-    """
     def _get_pure_name_nodes(self, node):
+        """
+        @ param node(not none)\n
+        @ return pure name node (no median call, has text), call info\n
+        @ involve get name nodes without expanding call, call info add\n
+        """
         name_nodes = []
         name_descendants = node.iterdescendants(tag=self.name_tag)
         # validate each name descendant
@@ -347,12 +353,13 @@ class SrcmlApi:
             if info not in self.log_functions:
                 call_info.append(info + my_constant.FlAG_FUNC_RETURN)
         return name_nodes, call_info
-    """
-    @ param ancestor and node
-    @ return true if is
-    @ involve judge whether ancestor relation true
-    """
+
     def _is_ancestor(self, ancestor, node):
+        """
+        @ param ancestor node(not none) and node\n
+        @ return true if is\n
+        @ involve judge whether ancestor relation true(without check)\n
+        """
         # get descendants by tag
         descendant_iter = ancestor.iterdescendants(tag=node.tag)
         for descendant in descendant_iter:
@@ -361,13 +368,14 @@ class SrcmlApi:
                 return True
         return False
 
-    """
-    @ param node(type)
-    @ return real type node
-    @ involve deal with type reference previous node
-    """
+
     def _get_real_type_node(self, node):
-         while node is not None and self._remove_prefix(node) == 'type':
+        """
+        @ param node(type)(provided check)\n
+        @ return real type node\n
+        @ involve deal with type reference previous node\n
+        """
+        while node is not None and self._remove_prefix(node) == 'type':
             if len(node) > 0:
                 return node
             else:
@@ -378,12 +386,12 @@ class SrcmlApi:
                     prev_node = prev_node.getprevious()
                 return prev_node[0]
 
-    """
-    @ param node(type)
-    @ return true if is
-    @ involve judge whether type has a modifier and that modifier is *
-    """
     def _is_pointer(self, node):
+        """
+        @ param node(type)(provided check)\n
+        @ return true if is\n
+        @ involve judge whether type has a modifier and that modifier is *\n
+        """
         if node is not None and self._remove_prefix(node) == 'type':
             # type must has at least two children
             children_nodes = node.getchildren()
@@ -394,12 +402,12 @@ class SrcmlApi:
         return False
 
 
-    """
-    @ param node and history text
-    @ return
-    @ involve text for this node(children whose test is not none)
-    """
     def _get_text(self, node=None):
+        """
+        @ param node(provided check)\n
+        @ return content of this node concate content of sub-nodes\n
+        @ involve get text for this node(children whose text is not none)\n
+        """
         content = ""
         if node is None or node.prefix == 'pos':
             return content
@@ -416,32 +424,32 @@ class SrcmlApi:
 
         return content
 
-    """
-    @ param node
-    @ return tag without prefix
-    @ involve remove prefix
-    """
     def _remove_prefix(self, node):
+        """
+        @ param node(not none)\n
+        @ return tag without prefix\n
+        @ involve remove prefix for tag without check\n
+        """
         # if prefix is None:
         #     prefix = 'default'
         # return node.tag.replace(self.namespace_map[prefix], '')
         return node.tag[node.tag.find('}') + 1:]
 
-    """
-    @ param node(text can not be None)
-    @ return text without blank
-    @ involve remove blank
-    """
     def _remove_blank(self, node):
+        """
+        @ param node(not none)\n
+        @ return text without blank\n
+        @ involve remove blank directly without check\n
+        """
         return node.text.replace(' ', '')
 
 
-    """
-    @ param node(name)
-    @ return nested text without blank
-    @ involve deal with nested text which name is formed of two or more names
-    """
     def _get_text_for_nested_name(self, node):
+        """
+        @ param node(name)\n
+        @ return nested text without blank\n
+        @ involve deal with nested text which name is formed of two or more names\n
+        """
         if node.text is not None:
             return self._remove_blank(node)
         else:
@@ -452,12 +460,12 @@ class SrcmlApi:
                     text = text + ' ' + self._remove_blank(name_node)
             return text
 
-    """
-    @ param node
-    @ return loacation
-    @ involve get location if possible
-    """
     def _get_location_for_nested_node(self, node):
+        """
+        @ param node(not none)\n
+        @ return loacation(int)\n
+        @ involve get location from nested node\n
+        """
         if node.text is not None:
             return self._get_location(node)
         # nested node for location info
@@ -466,12 +474,12 @@ class SrcmlApi:
             if sub_node.text is not None:
                 return self._get_location(sub_node)
 
-    """
-    @ param node(text can not be none)
-    @ return loacation
-    @ involve get location if possible
-    """
     def _get_location(self, node):
+        """
+        @ param node(text can not be none)\n
+        @ return loacation(int)\n
+        @ involve get location directly without check\n
+        """
         return int(node.attrib.values()[0])
         
 if __name__ == "__main__":

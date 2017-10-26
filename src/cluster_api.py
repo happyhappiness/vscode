@@ -10,13 +10,14 @@ import analyze_control_clone
 import myUtil
 import my_constant
 
-"""
-@param vec, left, right, similarity, id
-@return new cluster
-@involve cluster class with children and similarity between children
-"""
+
 class mycluster:
     def __init__(self, vec=None, children=None, similarity=0.0, id=None):
+        """
+        @param vec, children, similarity, id\n
+        @return new cluster\n
+        @involve cluster class with children and similarity between children\n
+        """
         # for drawing picture of clusters
         self.children = children
         # feature vector
@@ -25,14 +26,30 @@ class mycluster:
         self.id = id
         self.similarity = similarity
 
+def compute_equality(vec_a, vec_b, z3_api):
+    """
+    @ param vector a and b for comparing, z3 api\n
+    @ return true if equal\n
+    @ involve compute equality between vectors, use z3 or just ==\n
+    """
+    if z3_api:
+        check_a = vec_a[0]
+        var_a = vec_a[1]
+        check_b = vec_b[0]
+        var_b = vec_b[1]
+        var_a.sort()
+        var_b.sort()
+        return z3_api.judge_equality_for_statments(check_a, check_b) \
+                    and var_a == var_b
+    else:
+        return vec_a == vec_b
 
-"""
-@ param cluster a and b for comparing, similarity_dic, last similarity(1)
-@ return similarity value
-@ involve compute similarity between clusters (the least similar cond_list pairs)
-"""
-def compute_similarity_for_cluster(cluster_a, cluster_b, similarity_dic, similarity = 1):
-
+def compute_similarity_for_cluster(cluster_a, cluster_b, similarity_dic, similarity=1):
+    """
+    @ param cluster a and b for comparing, similarity_dic, current min similarity(1)\n
+    @ return similarity value\n
+    @ involve compute similarity between clusters (the least similar pairs)\n
+    """
     #  if has record in dictory, then use dictory
     if similarity_dic.get((cluster_a.id, cluster_b.id)) is not None:
         return min(similarity_dic.get((cluster_a.id, cluster_b.id)), similarity)
@@ -56,13 +73,12 @@ def compute_similarity_for_cluster(cluster_a, cluster_b, similarity_dic, similar
             similarity = min(compute_similarity_for_cluster(cluster_a, child, similarity_dic, similarity), similarity)
         return similarity
 
-"""
-@param: cdg_lists(entiry vectors), cluster_similarity = 0.90
-@return cluster index for each entity
-@involve: cluster entities based on similarity threshold(do not accept)
-"""
-def cluster_record_with_similarity(feature_lists, cluster_similarity = 0.95):
-   
+def cluster_record_with_similarity(feature_lists, cluster_similarity=0.95):
+    """
+    @param: feature lists(entiry vectors), miniest similarity to cluster(0.95)\n
+    @return cluster index for each entity(same order as feature list)\n
+    @involve: cluster entities based on similarity threshold\n
+    """
     # initialize the custers to consist of each entity
     myclusters = [mycluster(children=[], vec=feature_lists[i], id=i) for i in range(len(feature_lists))]
     flag = None
@@ -131,31 +147,12 @@ def cluster_record_with_similarity(feature_lists, cluster_similarity = 0.95):
         index += 1
     return cluster_lists
 
-"""
-@ param vector a and b for comparing
-@ return true or false
-@ involve compute equality between vectors (the least similar cond_list pairs)
-"""
-def compute_equality(vec_a, vec_b, z3_api):
-    if z3_api:
-        check_a = vec_a[0]
-        var_a = vec_a[1]
-        check_b = vec_b[0]
-        var_b = vec_b[1]
-        var_a.sort()
-        var_b.sort()
-        return z3_api.judge_equality_for_statments(check_a, check_b) \
-                    and var_a == var_b
-    else:
-        return vec_a == vec_b
-
-"""
-@ param cluster a and b for comparing, similarity_dic
-@ return true or false
-@ involve compute equality between clusters (the least similar cond_list pairs)
-"""
 def compute_equality_for_cluster(cluster_a, cluster_b, similarity_dic, z3_api):
-
+    """
+    @ param cluster a and b for comparing, similarity_dic, z3 api\n
+    @ return true if equal\n
+    @ involve compute equality between clusters (equality of any sub entity)\n
+    """
     #  if has record in dictory, then use dictory
     if similarity_dic.get((cluster_a.id, cluster_b.id)) is not None:
         return similarity_dic.get((cluster_a.id, cluster_b.id))
@@ -175,13 +172,12 @@ def compute_equality_for_cluster(cluster_a, cluster_b, similarity_dic, z3_api):
         # first child
         return compute_equality_for_cluster(cluster_a, cluster_b.children[0], similarity_dic, z3_api)
 
-"""
-@param: cdg_lists(entiry vectors)
-@return cluster index for each entity
-@involve: cluster entities based on equality(true/false)
-"""
 def cluster_record_with_equality(feature_lists, z3_api=None):
-
+    """
+    @param: feature lists\n
+    @return cluster index for each entity\n
+    @involve: cluster entities based on equality(true/false)\n
+    """
     # initialize the custers to consist of each entity
     myclusters = [mycluster(children=[], vec=feature_lists[i], id=i) for i in range(len(feature_lists))]
     flag = None
@@ -256,6 +252,62 @@ def cluster_record_with_equality(feature_lists, z3_api=None):
         index += 1
     return cluster_lists
 
+
+def generate_class_from_cluster(cluster_file_name, class_file_name, title, feature_index_list):
+    """
+    @param: cluster file name and class file name, class title, feature indexes to retrieve from cluster file\n
+    @return nothing\n
+    @involve: generate class(repos)/rule(patch) from cluster, keep one records for repeted cluster\n
+    """
+    # initiate csv file
+    cluster_file = file(cluster_file_name, 'rb')
+    records = csv.reader(cluster_file)
+    class_file = file(class_file_name,'wb')
+    writer = csv.writer(class_file)
+    writer.writerow(title)
+    # traverse records to build class
+    cluster_size = {}
+    for record in records:
+        # last column is cluster index
+        cluster_index = record[-1]
+        # first find repeted cluster
+        if cluster_size.has_key(cluster_index):
+            if cluster_size[cluster_index] == 1:
+                # retrieve feature from feature index list
+                feature_records = []
+                for feature_index in feature_index_list:
+                    feature_records.append(record[feature_index])
+                # build and store class record
+                class_record = [cluster_index] + feature_records
+                writer.writerow(class_record)
+                cluster_size[cluster_index] += 1
+            else:
+                cluster_size[cluster_index] += 1
+        # count new cluster
+        else:
+            cluster_size[cluster_index] = 1
+
+    # close file
+    cluster_file.close()
+    class_file.close()
+
+def generate_records_for_class(cluster_file_name, class_index):
+    """
+    @param: cluster file name and class index\n
+    @return records\n
+    @involve: generate records for given class index(query cluster file)\n
+    """
+    records = []
+    # initiate csv file
+    cluster_file = file(cluster_file_name, 'rb')
+    records = csv.reader(cluster_file)
+    for record in records:
+        cluster_index = record[-1]
+        if cluster_index == class_index:
+            records.append(record)
+
+    cluster_file.close()
+    return records
 
 """
 main function

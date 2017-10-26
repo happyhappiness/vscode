@@ -9,11 +9,11 @@ import similarity_func
 import my_constant
 
 """
-@ param  var to deal with
-@ return list of analyzed node info
+@ param  var to deal with\n
+@ return list of analyzed node info\n
 @ involve remove namespace bafore ::,
           and remove caller before ->, .
-          and remove parameter after (
+          and remove parameter after (\n
 """
 def remove_name_space_and_caller(name):
     # remove namespace before ::
@@ -45,9 +45,9 @@ def remove_name_space_and_caller(name):
 
 
 """
-@ param  element and in_list
-@ return in_list
-@ involve remove given element in in_list
+@ param  element and in_list\n
+@ return in_list\n
+@ involve remove given element in in_list\n
 """
 def remove_given_element(element, in_list):
     # remove element in in_list
@@ -58,11 +58,9 @@ def remove_given_element(element, in_list):
 
 
 """
-@ param  list
-@ return dictionary
-@ callee ...
-@ caller block
-@ involve transform list into dict
+@ param  list\n
+@ return dictionary\n
+@ involve transform list into dict\n
 """
 def dict_from_list(in_list):
     len_list = len(in_list)
@@ -73,9 +71,9 @@ def dict_from_list(in_list):
     return out_dict
 
 """
-@ param  isFromRead
-@ return function_similarity_dic
-@ involve call similarity_func.getFunctionSimilarity to get similarity_dic between functions
+@ param  isFromRead\n
+@ return function_similarity_dic\n
+@ involve call similarity_func.getFunctionSimilarity to get similarity_dic between functions\n
 """
 def getFunctionSimilarityDic(isFromRead):
 
@@ -91,33 +89,29 @@ def getFunctionSimilarityDic(isFromRead):
         func_similarity_dic = similarity_func.getFunctionSimilarity()
     return func_similarity_dic
 
-"""
-@ param  similarity_dic, filename
-@ return ...
-@ callee ...
-@ caller self, cluster_context_with_function
-@ involve dump similarity_dic
-"""
-def dumpSimilarityDic(similarity_dic):
+# """
+# @ param  similarity_dic, filename\n
+# @ caller self, cluster_context_with_function\n
+# @ involve dump similarity_dic\n
+# """
+# def dumpSimilarityDic(similarity_dic):
 
-    similarity_control = file(my_constant.REPOS_SIMILARITY_FILE_NAME, 'wb')
-    similarity_control_writer = csv.writer(similarity_control)
-    similarity_control_writer.writerow(["left", "right", "similarity"])
-    # dump similarity
-    for pair, similarity in similarity_dic.items():
-        if pair[0] >= 0 and pair[1] >= 0:
-            similarity_control_writer.writerow([pair[0], pair[1], similarity])
+#     similarity_control = file(my_constant.REPOS_SIMILARITY_FILE_NAME, 'wb')
+#     similarity_control_writer = csv.writer(similarity_control)
+#     similarity_control_writer.writerow(["left", "right", "similarity"])
+#     # dump similarity
+#     for pair, similarity in similarity_dic.items():
+#         if pair[0] >= 0 and pair[1] >= 0:
+#             similarity_control_writer.writerow([pair[0], pair[1], similarity])
 
-    # close files
-    similarity_control.close()
+#     # close files
+#     similarity_control.close()
 
 
 """
-@ param  dict, key_index
-@ return dict
-@ callee ...
-@ caller cluster_control.computeSim
-@ involve remove key contains key_a or key_b specified key_index
+@ param  dict, key_index\n
+@ return dict\n
+@ involve remove key contains key_a or key_b specified key_index\n
 """
 def removeDicElement(dictionary, key_index):
 
@@ -132,11 +126,9 @@ def removeDicElement(dictionary, key_index):
     return dictionary
 
 """
-@ param ...
-@ return delta_set
-@ caller fetch
-@ callee ...
-@ involve calculate (A U B) - (A J B)[occurrence diff]
+@ param ...\n
+@ return delta_set\n
+@ involve calculate (A U B) - (A J B)[occurrence diff]\n
 """
 def get_delta_of_two_set(set_a, set_b):
     union_set = set_a.union(set_b)
@@ -145,11 +137,9 @@ def get_delta_of_two_set(set_a, set_b):
     return delta_set
 
 """
-@ param ...
-@ return log_functions
-@ caller cluster_context_with_function
-@ callee ...
-@ involve retrieve log function name from given file
+@ param ...\n
+@ return log_functions\n
+@ involve retrieve log function name from given file\n
 """
 def retrieveLogFunction(fileName):
     log_functions = []
@@ -165,9 +155,9 @@ def retrieveLogFunction(fileName):
     return log_functions
 
 """
-@ param log functions
-@ return regrex_string e.g. '[assert|log|debug|print|write|error]('
-@ involve concate log functions into regrex string
+@ param log functions\n
+@ return regrex_string e.g. '[assert|log|debug|print|write|error]('\n
+@ involve concate log functions into regrex string\n
 """
 def functionToRegrexStr(log_functions):
     regrex_string = r'\W('
@@ -179,9 +169,9 @@ def functionToRegrexStr(log_functions):
     return regrex_string
 
 """
-@ param vactors to compare
-@ return similarity
-@ involve compute cos similarity of two vectors
+@ param vactors to compare\n
+@ return similarity\n
+@ involve compute cos similarity of two vectors\n
 """
 def compute_similarity(in_vector1, in_vector2, method='braycurtis'):
     # multi = np.sum(np.multiply(in_vector1, in_vector2))
@@ -202,9 +192,9 @@ def compute_similarity(in_vector1, in_vector2, method='braycurtis'):
     return similairty
 
 """
-@ param filename and file content
-@ return
-@ involve save file content into given file
+@ param filename and file content\n
+@ return\n
+@ involve save file content into given file\n
 """
 def save_file(content, file_name):
     write_file = open(file_name, 'wb')
@@ -213,9 +203,9 @@ def save_file(content, file_name):
 
 
 """
-@ param old file name and new file name
-@ return
-@ involve copy file from old file to new file
+@ param old file name and new file name\n
+@ return\n
+@ involve copy file from old file to new file\n
 """
 def copy_file(old_file_name, new_file_name):
     read_file = open(old_file_name, 'rb')
@@ -226,9 +216,9 @@ def copy_file(old_file_name, new_file_name):
     write_file.close()
 
 """
-@ param joernIndex parent dir
-@ return
-@ involve rm old joernIndex file, and build new one. restart neo4j server
+@ param joernIndex parent dir\n
+@ return\n
+@ involve rm old joernIndex file, and build new one. restart neo4j server\n
 """
 def rebuild_joern_index(index_dir, code_dir):
     output = commands.getoutput('rm -r ' + index_dir)
@@ -237,9 +227,9 @@ def rebuild_joern_index(index_dir, code_dir):
     print output
 
 """
-@ param list of tuple
-@ return tuple
-@ involve switch list of tuple to tuple
+@ param list of tuple\n
+@ return tuple\n
+@ involve switch list of tuple to tuple\n
 """
 def get_tuple_from_list(tuple_list):
     tuple_tuple = ()
@@ -248,9 +238,9 @@ def get_tuple_from_list(tuple_list):
     return tuple_tuple
 
 """
-@ param file name
-@ return flag
-@ involve filter out file which is not cpp like and which is test like
+@ param file name\n
+@ return flag\n
+@ involve filter out file which is not cpp like and which is test like\n
 """
 def filter_file(file_name):
 
@@ -264,9 +254,9 @@ def filter_file(file_name):
         return False
 
 """
-@ param version
-@ return a.b.c -> a*10000 + b*100 + c
-@ involve sort dir by version
+@ param version\n
+@ return a.b.c -> a*10000 + b*100 + c\n
+@ involve sort dir by version\n
 """
 def get_version_number(version):
     # at most 4 pair
@@ -285,9 +275,9 @@ def get_version_number(version):
     return version_number
 
 """
-@ param list of a and b to compute
-@ return lenth of common substring / min length
-@ involve compute the longgest common string (continuous) of two list
+@ param list of a and b to compute\n
+@ return lenth of common substring / min length\n
+@ involve compute the longgest common string (continuous) of two list\n
 """
 def longest_common_sub(list_a, list_b):
 
@@ -345,9 +335,3 @@ def longest_common_sub(list_a, list_b):
                 len_common += memory[curr_a][curr_b]
 
     return  len_common
-
-
-
-# list_a = [[["chroot", "char [ MAX_STRING_LENGTH + 1 ]"]], [["!", "strcasecmp", "config_getoption", "\"DO_CHROOT\"", "\"yes\""]], [["!", "char *", "0"]], [["int"]], [["!", "char *", "0"]], [["!", "int"]]]
-# list_b = [[["chroot", "char *"]], [["!", "strcasecmp", "config_getoption", "\"DO_CHROOT\"", "\"yes\""]], [["!", "char *", "0"]], [["int"]], [["!", "char *", "0"]], [["!", "int"]]]
-# cluster_control.computeSim(list_a, list_b, {})

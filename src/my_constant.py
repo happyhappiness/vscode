@@ -58,14 +58,14 @@ STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + REPOS + '_clone_statistics.csv'
 CLUSTER_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_feature.csv'
 CLUSTER_EDITION_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition.csv'
 CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_cluster_edition_and_feature.csv'
-STATISTICS_OLD_NEW_TEMP_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_statistics_temp.csv'
+CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME = 'data/fetch/' + REPOS + '_old_new_class_edition_and_feature.csv'
+
 # repos
 CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_cluster.csv'
 ANALYZE_REPOS_FUNCTION_FILE_NAME = 'data/fetch/' + REPOS + '_repos_call.csv'
 ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_log.csv'
-ANALYZE_REPOS_CLASS_FILE_NAME = 'data/fetch/' + REPOS + '_repos_class.csv'
-REPOS_SIMILARITY_FILE_NAME = 'data/fetch/' + REPOS + '_repos_similarity.csv'
-NODE_DICT_FILE_NAME = 'data/fetch/' + REPOS + '_node_dict.csv'
+CLUSTER_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_cluster_log.csv'
+CLASS_REPOS_LOG_FILE_NAME = 'data/fetch/' + REPOS + '_repos_class_log.csv'
 
 """
 fetch hunk file title and index
@@ -106,8 +106,13 @@ ANALYZE_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('function_loc')
 ANALYZE_OLD_NEW_LLVM_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['check', 'variable', 'ddg_codes', 'ddg_locs']
 ANALYZE_CHECK = ANALYZE_OLD_NEW_LLVM_TITLE.index('check')
 ANALYZE_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('variable')
+# cluster and class
 CLUSTER_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
 ANALYZE_CLUSTER = CLUSTER_OLD_NEW_TITLE.index('cluster')
+CLASS_OLD_NEW_TITLE = ['class', 'check', 'variable', 'edit']
+CLASS_OLD_NEW_CHECK = CLASS_OLD_NEW_TITLE.index('check')
+CLASS_OLD_NEW_VARIABLE = CLASS_OLD_NEW_TITLE.index('variable')
+CLASS_OLD_NEW_EDIT = CLASS_OLD_NEW_TITLE.index('edit')
 
 """
 analyze repos log title and index
@@ -121,12 +126,17 @@ ANALYZE_REPOS_LOG_CHECK = ANALYZE_REPOS_LOG_TITLE.index('check')
 ANALYZE_REPOS_LOG_VARIABLE = ANALYZE_REPOS_LOG_TITLE.index('variable')
 
 """
-analyze repos call title and index
+analyze repos function title and index
 """
-# 'block', 'block_file', 'block_feature'
 ANALYZE_REPOS_FUNCTION_TITLE =['file', 'function','calls', 'types']
 ANALYZE_REPOS_FUNCTION_CALLS = ANALYZE_REPOS_FUNCTION_TITLE.index('calls')
 ANALYZE_REPOS_FUNCTION_TYPES = ANALYZE_REPOS_FUNCTION_TITLE.index('types')
+# cluster and class
+CLUSTER_REPOS_LOG_TITLE = ANALYZE_REPOS_LOG_TITLE + ['cluster']
+ANALYZE_REPOS_LOG_CLUSTER = CLUSTER_REPOS_LOG_TITLE.index('cluster')
+CLASS_REPOS_LOG_TITLE = ['class', 'check', 'variable']
+CLASS_REPOS_LOG_CHECK = CLASS_OLD_NEW_TITLE.index('check')
+CLASS_REPOS_LOG_VARIABLE = CLASS_OLD_NEW_TITLE.index('variable')
 
 
 """

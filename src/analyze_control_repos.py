@@ -14,6 +14,7 @@ import commands
 from itertools import islice
 from gumtree_api import Gumtree
 from srcml_api import SrcmlApi
+import cluster_api
 import gumtree_api
 import my_constant
 import myUtil
@@ -21,12 +22,13 @@ import myUtil
 reload(sys);
 sys.setdefaultencoding('utf8')
 
-"""
-@ param file name and function counter and srcml
-@ return log record list and call record list
-@ involve traverse each function in file to build two sort of repos
-"""
+
 def analyze_file(file_name, function_cnt, srcml):
+    """
+    @ param file name and function counter and srcml \n
+    @ return log record list and function record list \n
+    @ involve traverse each function in file to build two sort of records\n
+    """
     log_record_list = [] #[file, function, loc, log, check, variable]
     function_record_list = [] #[file, function, calls]
     # handle file to get and store all functions
@@ -43,12 +45,13 @@ def analyze_file(file_name, function_cnt, srcml):
         function_record_list.append([file_name, function, json.dumps(calls), json.dumps(types)])
     return log_record_list, function_record_list
 
-"""
-@ param
-@ return 
-@ involve traverse repos name and collect all cpp file
-"""
+
 def fetch_repos_file(repos_name):
+    """
+    @ param repos name\n
+    @ return nothing\n
+    @ involve traverse repos name and collect all cpp file\n
+    """
     filenames = []
     # read file from repos dir + repos name if repos name is not None
     if repos_name is not None:
@@ -65,12 +68,12 @@ def fetch_repos_file(repos_name):
                 filenames.append(filename)
     return filenames
 
-"""
-@ param repos name to analyze and flag about analyze first or last repos
-@ return nothing 
-@ involve fetch file from given repos and build two sort of repos(log and call)
-"""
 def analyze_repos(repos_name=None, is_first=True):
+    """
+    @ param repos name to analyze and flag about analyze first or last repos\n
+    @ return nothing \n
+    @ involve fetch file from given repos and build two sort of records(log and call)\n
+    """
     if repos_name is None and is_first:
         versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
         versions = versions.split('\n')
@@ -108,6 +111,42 @@ def analyze_repos(repos_name=None, is_first=True):
     # close file
     log_file.close()
     function_file.close()
+
+
+def cluster_repos_log():
+    """
+    @ param nothing\n
+    @ return nothing \n
+    @ involve call cluster api to cluster repos log records and build class file for it\n
+    """
+    # intiate csv file
+    analyze_repos_log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME, 'rb')
+    records = csv.reader(analyze_repos_log_file)
+    # build feature lists
+    feature_lists = []
+    for record in records:
+        check = json.loads(record[my_constant.ANALYZE_REPOS_LOG_CHECK])
+        variable = json.loads(record[my_constant.ANALYZE_REPOS_LOG_VARIABLE])
+        feature_lists.append([check, variable])
+    analyze_repos_log_file.close()
+    # do cluster
+    cluster_list = cluster_api.cluster_record_with_equality(feature_lists)
+    # initiate cluster file
+    analyze_repos_log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME, 'rb')
+    records = csv.reader(analyze_repos_log_file)
+    cluster_repos_log_file = file(my_constant.CLUSTER_REPOS_LOG_FILE_NAME, 'wb')
+    writer = csv.writer(cluster_repos_log_file)
+    writer.writerow(my_constant.CLUSTER_REPOS_LOG_TITLE)
+    # store record + cluster
+    index = 0
+    for record in records:
+        writer.writerow(record + cluster_list[index])
+        index += 1
+
+    # build class from cluster
+    feature_indexes = [my_constant.ANALYZE_REPOS_LOG_CHECK, my_constant.ANALYZE_REPOS_LOG_VARIABLE]
+    cluster_api.generate_class_from_cluster(my_constant.CLUSTER_REPOS_LOG_FILE_NAME,\
+        my_constant.CLASS_REPOS_LOG_FILE_NAME, my_constant.CLASS_REPOS_LOG_TITLE, feature_indexes)
 
 """
 main function
