@@ -8,7 +8,7 @@ from itertools import islice
 from z3_api import Z3_api
 import analyze_control_clone
 import block
-import myUtil
+import my_util
 import my_constant
 
 """
@@ -19,7 +19,7 @@ import my_constant
 @ involve compute similarity between cond_lists, unordered common element
 """
 def computeSimForContext(context_list_a, context_list_b):
-    return myUtil.compute_similarity(context_list_a, context_list_b)
+    return my_util.compute_similarity(context_list_a, context_list_b)
 """
 @param vec, left, right, similarity, id
 @return new cluster
@@ -183,7 +183,7 @@ def cluster():
         cluster_control_writer.writerow(record)
         index += 1
 
-    # myUtil.dumpSimilarityDic(similarity_dict)
+    # my_util.dumpSimilarityDic(similarity_dict)
     # close files
     cluster_control.close()
     analyze_control.close()

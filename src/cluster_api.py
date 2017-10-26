@@ -7,7 +7,7 @@ import json
 from itertools import islice
 from z3_api import Z3_api
 import analyze_control_clone
-import myUtil
+import my_util
 import my_constant
 
 
@@ -56,7 +56,7 @@ def compute_similarity_for_cluster(cluster_a, cluster_b, similarity_dic, similar
 
     # compare cdg_list of entity
     if cluster_a.id >= 0 and cluster_b.id >= 0:
-        similarity = min(myUtil.compute_similarity(cluster_a.vec, cluster_b.vec), similarity)
+        similarity = min(my_util.compute_similarity(cluster_a.vec, cluster_b.vec), similarity)
         return similarity
 
     # first cluster (children)

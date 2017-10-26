@@ -18,7 +18,7 @@ from gumtree_api import Gumtree
 from llvm_api import LLVM
 import gumtree_api
 import my_constant
-import myUtil
+import my_util
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -45,7 +45,7 @@ def deal_log( log_record, gumtree, writer, total_log):
     # parse old log if is not insert
     if old_loc != '-1':
         # use srcml parser(.cpp temp file)
-        myUtil.copy_file(old_file, temp_file)
+        my_util.copy_file(old_file, temp_file)
         gumtree.set_file(temp_file)
         if gumtree.set_loc(int(old_loc)):
             old_log = gumtree.get_log()
@@ -53,7 +53,7 @@ def deal_log( log_record, gumtree, writer, total_log):
             function_loc = gumtree.get_function_loc()
     # parse new log if is not delete
     if new_loc != '-1':
-        myUtil.copy_file(new_file, temp_file)
+        my_util.copy_file(new_file, temp_file)
         gumtree.set_file(temp_file)
         if gumtree.set_loc(int(new_loc)):
             new_log = gumtree.get_log()
@@ -63,11 +63,11 @@ def deal_log( log_record, gumtree, writer, total_log):
                 function_loc = gumtree.get_function_loc()
     # write old and new log file as well as function file
     function_file_name = my_constant.SAVE_FUNCTION + str(total_log) + '.cpp'
-    myUtil.save_file(function, function_file_name)
+    my_util.save_file(function, function_file_name)
     old_log_file_name = my_constant.SAVE_OLD_LOG + str(total_log) + '.cpp'
-    myUtil.save_file(old_log, old_log_file_name)
+    my_util.save_file(old_log, old_log_file_name)
     new_log_file_name = my_constant.SAVE_NEW_LOG + str(total_log) + '.cpp'
-    myUtil.save_file(new_log, new_log_file_name)
+    my_util.save_file(new_log, new_log_file_name)
     # get edit word and feature
     edit_words, edit_feature = gumtree.get_word_edit_from_log(old_log, new_log)
     # get edit type

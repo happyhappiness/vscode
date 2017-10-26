@@ -8,7 +8,7 @@ import json
 from pygithub3 import Github
 from itertools import islice
 import my_constant
-import myUtil
+import my_util
 
 def store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk):
     """
@@ -20,15 +20,15 @@ def store_hunk(old_hunk, new_hunk, patch_hunk, total_hunk):
     print 'now processing hunk: %d' %(total_hunk)
     # store old hunk file
     old_hunk_name = my_constant.DOWNLOAD_OLD_HUNK + str(total_hunk) + '.cpp'
-    myUtil.save_file(old_hunk, old_hunk_name)
+    my_util.save_file(old_hunk, old_hunk_name)
 
     # store new hunk file
     new_hunk_name = my_constant.DOWNLOAD_NEW_HUNK + str(total_hunk) + '.cpp'
-    myUtil.save_file(new_hunk, new_hunk_name)
+    my_util.save_file(new_hunk, new_hunk_name)
 
     # store patch hunk file
     patch_hunk_name = my_constant.DOWNLOAD_PATCH_HUNK + str(total_hunk) + '.cpp'
-    myUtil.save_file(patch_hunk, patch_hunk_name)
+    my_util.save_file(patch_hunk, patch_hunk_name)
 
     return total_hunk, old_hunk_name, new_hunk_name, patch_hunk_name
 
@@ -122,14 +122,14 @@ def deal_version_diff( version_diff_file, log_function, total_hunk, writer):
             if is_old:
                 temp_old_file = is_old.group(1)
                 # filter file by name (cpp like and not test like)
-                if myUtil.filter_file(temp_old_file):
+                if my_util.filter_file(temp_old_file):
                     # get new file name
                     i += 1
                     is_new = re.match(r'^\+\+\+ (\S*)\s*.*', version_diff[i])
                     if is_new:
                         temp_new_file = is_new.group(1)
                         # filter file by name (cpp like and not test like)
-                        if myUtil.filter_file(temp_new_file):
+                        if my_util.filter_file(temp_new_file):
                             # deal with previous diff file
                             if is_diff_file:
                                 total_hunk = deal_file_diff([version_diff_file, old_file, new_file], \
@@ -168,8 +168,8 @@ def fetch_version_diff(is_recreate=False):
     if is_recreate:
         create_version_diff()
     # choose the one with log statement changes
-    log_functions = myUtil.retrieve_log_function(my_constant.LOG_CALL_FILE_NAME)
-    log_function = myUtil.function_to_regrex_str(log_functions)
+    log_functions = my_util.retrieve_log_function(my_constant.LOG_CALL_FILE_NAME)
+    log_function = my_util.function_to_regrex_str(log_functions)
     # initiate csv file
     hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')
     hunk_writer = csv.writer(hunk_file)
@@ -197,7 +197,7 @@ def create_version_diff():
     # get all versions
     versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
     versions = versions.split('\n')
-    versions.sort(key=myUtil.get_version_number)
+    versions.sort(key=my_util.get_version_number)
     size = len(versions)
     for i in range(size - 1):
         print 'now creating patch for %s and %s' %(versions[i], versions[i + 1])

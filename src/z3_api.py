@@ -1,7 +1,7 @@
 import re
 from z3 import *
 import my_constant
-import myUtil
+import my_util
 
 class Z3_api:
 
@@ -122,9 +122,9 @@ class Z3_api:
     def __normalize_operands(self, op, op_left, op_right):
         # normalization
         if isinstance(op_left, unicode) or isinstance(op_left, str):
-             op_left = myUtil.remove_name_space_and_caller(op_left)
+             op_left = my_util.remove_name_space_and_caller(op_left)
         if isinstance(op_right, unicode) or isinstance(op_right, str):
-             op_right = myUtil.remove_name_space_and_caller(op_right)
+             op_right = my_util.remove_name_space_and_caller(op_right)
         postfix_dict = {}
         postfix_dict['=='] = '_e_'
         postfix_dict['>'] = '_g_'
@@ -151,7 +151,7 @@ class Z3_api:
     def __normalize_operand(self, operand):
         # p to p == null
         if isinstance(operand, unicode) or isinstance(operand, str):
-            operand = myUtil.remove_name_space_and_caller(operand)
+            operand = my_util.remove_name_space_and_caller(operand)
             normalized_operand = Not(self.__get_infix_for_binary_operator('==', operand, my_constant.JOERN_NULL))
         else:
             normalized_operand = operand
