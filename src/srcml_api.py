@@ -15,7 +15,7 @@ class SrcmlApi:
             self.set_function_file(source_file)
         elif source_file is not None:
             self.set_source_file(source_file)
-        self.log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
+        self.log_functions = myUtil.retrieve_log_function(my_constant.LOG_CALL_FILE_NAME)
         self.log_functions.append('_')
 
     def set_source_file(self, source_file):
@@ -27,7 +27,7 @@ class SrcmlApi:
         # intiate xml info
         xml_file = 'temp.xml'
         commands.getoutput('srcml --position ' + source_file + ' -o ' + xml_file)
-        self._parse_xml(xml_file)
+        self.parse_xml(xml_file)
         # initiate functions
         self.functions = []
 
@@ -61,7 +61,7 @@ class SrcmlApi:
         # intiate xml info
         xml_file = function_file + '.xml'
         commands.getoutput('srcml --position ' + function_file + ' -o ' + xml_file)
-        self._parse_xml(xml_file)
+        self.parse_xml(xml_file)
         # initiate log and control info
         self.log_node = None
         self.log = []
@@ -190,7 +190,7 @@ class SrcmlApi:
 
         return self.logs, list(self.calls), list(self.types)
 
-    def _parse_xml(self, xml_file):
+    def parse_xml(self, xml_file):
         """
         @ param xml file\n
         @ return nothing\n
@@ -276,11 +276,12 @@ class SrcmlApi:
             candi_line = self._get_location(candi_node)
             # find use as return or reference argument for functions
             if candi_line < node_line:
-                # filter by name = call
+                # filter by name = (***) call
                 operator_node = candi_node.getnext()
                 if operator_node is not None and self._remove_blank(operator_node) == '=':
-                    func_node = operator_node.getnext()
-                    if func_node is not None and self._remove_prefix(func_node) == 'call':
+                    expr_node = operator_node.getparent()
+                    func_node = self._get_sub_call_node(expr_node)
+                    if func_node is not None:
                         depended_nodes[candi_line] = [func_node, my_constant.VAR_FUNC_RETURN]
                         continue
                 # filter by call ----argument ------expr --------& --------name
@@ -300,11 +301,9 @@ class SrcmlApi:
                     # mark is pointer or not
                     type_node = self._get_real_type_node(candi_node.getprevious())
                     is_ptr = self._is_pointer(type_node)
-                    func_nodes = init_node.iterdescendants(tag='{'+self.namespace_map['default']+'}call')
-                    if func_nodes is not None:
-                        for func_node in func_nodes:
-                            depended_nodes[candi_line] = [func_node, my_constant.VAR_FUNC_RETURN]
-                            break
+                    func_node = self._get_sub_call_node(init_node)
+                    if func_node is not None:
+                        depended_nodes[candi_line] = [func_node, my_constant.VAR_FUNC_RETURN]
                         continue
                 # filter by decl --type ----name ----modifier --name
                 decl_node = candi_node.getparent()
@@ -385,7 +384,18 @@ class SrcmlApi:
                 while self._remove_prefix(prev_node) != 'decl':
                     prev_node = prev_node.getprevious()
                 return prev_node[0]
-
+   
+    def _get_sub_call_node(self, node):
+        """
+        @ param node(not none)(without check)\n
+        @ return call node of sub expression\n
+        @ involve find sub call node for parent node if possible\n
+        """
+        func_nodes = node.iterdescendants(tag='{'+self.namespace_map['default']+'}call')
+        if func_nodes is not None:
+            for func_node in func_nodes:
+                return func_node
+        return None
     def _is_pointer(self, node):
         """
         @ param node(type)(provided check)\n
@@ -484,9 +494,10 @@ class SrcmlApi:
         
 if __name__ == "__main__":
     # input function cpp file
-    srcml_api = SrcmlApi('second/download/curl/repos/curl-7.1.1/src/hugehelp.c', is_function=False)
-    srcml_api.get_functions(0)
-    # if srcml_api.set_log_loc(31):
-    #     if srcml_api.set_control_dependence():
-    #         print srcml_api.get_control_info()
-    #         print srcml_api.get_log_info()
+    # srcml_api = SrcmlApi('second/download/curl/repos/curl-7.1.1/src/hugehelp.c', is_function=False)
+    # srcml_api.get_functions(0)
+    srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_function_5052.cpp')
+    if srcml_api.set_log_loc(58):
+        if srcml_api.set_control_dependence():
+            print srcml_api.get_control_info()
+            print srcml_api.get_log_info()
