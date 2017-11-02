@@ -1,14 +1,39 @@
-static void cleanarg(char *str)
+size_t url_fread(void *ptr, size_t size, size_t nmemb, URL_FILE *file)
 {
-#ifdef HAVE_WRITABLE_ARGV
-  /* now that GetStr has copied the contents of nextarg, wipe the next
-   * argument out so that the username:password isn't displayed in the
-   * system process list */
-  if (str) {
-    size_t len = strlen(str);
-    memset(str, ' ', len);
+  size_t want;
+
+  switch(file->type) {
+  case CFTYPE_FILE:
+    want=fread(ptr,size,nmemb,file->handle.file);
+    break;
+
+  case CFTYPE_CURL:
+    want = nmemb * size;
+
+    fill_buffer(file,want);
+
+    /* check if theres data in the buffer - if not fill_buffer()
+     * either errored or EOF */
+    if(!file->buffer_pos)
+      return 0;
+
+    /* ensure only available data is considered */
+    if(file->buffer_pos < want)
+      want = file->buffer_pos;
+
+    /* xfer data to caller */
+    memcpy(ptr, file->buffer, want);
+
+    use_buffer(file,want);
+
+    want = want / size;     /* number of items */
+    break;
+
+  default: /* unknown or supported type - oh dear */
+    want=0;
+    errno=EBADF;
+    break;
+
   }
-#else
-  (void)str;
-#endif
+  return want;
 }

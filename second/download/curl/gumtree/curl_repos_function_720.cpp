@@ -1,9 +1,26 @@
-void curl_easy_cleanup(CURL *curl)
+digest_context *Curl_digest_init(const digest_params *dparams)
 {
-  struct SessionHandle *data = (struct SessionHandle *)curl;
+  digest_context *ctxt;
 
-  if(!data)
-    return;
+  /* Create digest context */
+  ctxt = malloc(sizeof *ctxt);
 
-  Curl_close(data);
+  if(!ctxt)
+    return ctxt;
+
+  ctxt->digest_hashctx = malloc(dparams->digest_ctxtsize);
+
+  if(!ctxt->digest_hashctx) {
+    free(ctxt);
+    return NULL;
+  }
+
+  ctxt->digest_hash = dparams;
+
+  if(dparams->digest_init(ctxt->digest_hashctx) != 1) {
+    free(ctxt);
+    return NULL;
+  }
+
+  return ctxt;
 }

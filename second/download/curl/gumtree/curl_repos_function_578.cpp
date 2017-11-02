@@ -1,9 +1,13 @@
-static enum protection_level
-name_to_level(const char *name)
+static CURLcode unit_setup(void)
 {
-  int i;
-  for(i = 0; i < (int)sizeof(level_names)/(int)sizeof(level_names[0]); i++)
-    if(curl_strnequal(level_names[i].name, name, strlen(name)))
-      return level_names[i].level;
-  return (enum protection_level)-1;
+  llist = Curl_llist_alloc(test_curl_llist_dtor);
+  if(!llist)
+    return CURLE_OUT_OF_MEMORY;
+  llist_destination = Curl_llist_alloc(test_curl_llist_dtor);
+  if(!llist_destination) {
+      Curl_llist_destroy(llist, NULL);
+      return CURLE_OUT_OF_MEMORY;
+  }
+
+  return CURLE_OK;
 }

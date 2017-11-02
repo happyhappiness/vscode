@@ -1,13 +1,16 @@
-static CURLcode ftp_quit(struct connectdata *conn)
+static CURLcode create_node(void)
 {
-  CURLcode result = CURLE_OK;
+  data_key = aprintf("%s:%d", "dummy", 0);
+  if (!data_key)
+    return CURLE_OUT_OF_MEMORY;
 
-  if(conn->proto.ftp->ctl_valid) {
-    NBFTPSENDF(conn, "QUIT", NULL);
-    state(conn, FTP_QUIT);
+  data_node = calloc(1, sizeof(struct Curl_dns_entry));
+  if (!data_node)
+    return CURLE_OUT_OF_MEMORY;
 
-    result = ftp_easy_statemach(conn);
-  }
+  data_node->addr = fake_ai();
+  if (!data_node->addr)
+    return CURLE_OUT_OF_MEMORY;
 
-  return result;
+  return CURLE_OK;
 }

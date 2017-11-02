@@ -1,56 +1,60 @@
-void curl_easy_reset(CURL *curl)
+static int check_hash(const char *filename,
+                      const metalink_digest_def *digest_def,
+                      const unsigned char *digest, FILE *error)
 {
-  struct SessionHandle *data = (struct SessionHandle *)curl;
+  unsigned char *result;
+  digest_context *dctx;
+  int check_ok, flags, fd;
 
-  /* zero out UserDefined data: */
-  memset(&data->set, 0, sizeof(struct UserDefined));
-
-  /* zero out Progress data: */
-  memset(&data->progress, 0, sizeof(struct Progress));
-
-  /* The remainder of these calls have been taken from Curl_open() */
-
-  data->set.out = stdout; /* default output to stdout */
-  data->set.in  = stdin;  /* default input from stdin */
-  data->set.err  = stderr;  /* default stderr to stderr */
-
-  /* use fwrite as default function to store output */
-  data->set.fwrite = (curl_write_callback)fwrite;
-
-  /* use fread as default function to read input */
-  data->set.fread = (curl_read_callback)fread;
-
-  data->set.infilesize = -1; /* we don't know any size */
-  data->set.postfieldsize = -1;
-
-  data->state.current_speed = -1; /* init to negative == impossible */
-
-  data->set.httpreq = HTTPREQ_GET; /* Default HTTP request */
-  data->set.ftp_use_epsv = TRUE;   /* FTP defaults to EPSV operations */
-  data->set.ftp_use_eprt = TRUE;   /* FTP defaults to EPRT operations */
-
-  data->set.dns_cache_timeout = 60; /* Timeout every 60 seconds by default */
-
-  /* make libcurl quiet by default: */
-  data->set.hide_progress = TRUE;  /* CURLOPT_NOPROGRESS changes these */
-  data->progress.flags |= PGRS_HIDE;
-
-  /* Set the default size of the SSL session ID cache */
-  data->set.ssl.numsessions = 5;
-
-  data->set.proxyport = 1080;
-  data->set.proxytype = CURLPROXY_HTTP; /* defaults to HTTP proxy */
-  data->set.httpauth = CURLAUTH_BASIC;  /* defaults to basic */
-  data->set.proxyauth = CURLAUTH_BASIC; /* defaults to basic */
-
-  /*
-   * libcurl 7.10 introduced SSL verification *by default*! This needs to be
-   * switched off unless wanted.
-   */
-  data->set.ssl.verifypeer = TRUE;
-  data->set.ssl.verifyhost = 2;
-#ifdef CURL_CA_BUNDLE
-  /* This is our prefered CA cert bundle since install time */
-  data->set.ssl.CAfile = (char *)CURL_CA_BUNDLE;
+  flags = O_RDONLY;
+#ifdef O_BINARY
+  /* O_BINARY is required in order to avoid binary EOF in text mode */
+  flags |= O_BINARY;
 #endif
+
+  fd = open(filename, flags);
+  if(fd == -1) {
+    fprintf(error, "Metalink: validating (%s) [%s] FAILED (%s)\n", filename,
+            digest_def->hash_name, strerror(errno));
+    return -1;
+  }
+
+  dctx = Curl_digest_init(digest_def->dparams);
+  if(!dctx) {
+    fprintf(error, "Metalink: validating (%s) [%s] FAILED (%s)\n", filename,
+            digest_def->hash_name, "failed to initialize hash algorithm");
+    close(fd);
+    return -2;
+  }
+
+  result = malloc(digest_def->dparams->digest_resultlen);
+  while(1) {
+    unsigned char buf[4096];
+    ssize_t len = read(fd, buf, sizeof(buf));
+    if(len == 0) {
+      break;
+    }
+    else if(len == -1) {
+      fprintf(error, "Metalink: validating (%s) [%s] FAILED (%s)\n", filename,
+              digest_def->hash_name, strerror(errno));
+      Curl_digest_final(dctx, result);
+      close(fd);
+      return -1;
+    }
+    Curl_digest_update(dctx, buf, (unsigned int)len);
+  }
+  Curl_digest_final(dctx, result);
+  check_ok = memcmp(result, digest,
+                    digest_def->dparams->digest_resultlen) == 0;
+  /* sha*sum style verdict output */
+  if(check_ok)
+    fprintf(error, "Metalink: validating (%s) [%s] OK\n", filename,
+            digest_def->hash_name);
+  else
+    fprintf(error, "Metalink: validating (%s) [%s] FAILED (digest mismatch)\n",
+            filename, digest_def->hash_name);
+
+  free(result);
+  close(fd);
+  return check_ok;
 }

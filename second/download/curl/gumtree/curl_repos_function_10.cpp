@@ -1,63 +1,53 @@
-int main(int argc, char **argv)
+int main(void)
 {
   CURL *curl;
-  CURLcode res;
-  FILE * hd_src ;
-  int hd ;
-  struct stat file_info;
+  CURLcode res = CURLE_OK;
 
-  char *file;
-  char *url;
-
-  if(argc < 3)
-    return 1;
-
-  file= argv[1];
-  url = argv[2];
-
-  /* get the file size of the local file */
-  hd = open(file, O_RDONLY) ;
-  fstat(hd, &file_info);
-  close(hd) ;
-
-  /* get a FILE * of the same file, could also be made with
-     fdopen() from the previous descriptor, but hey this is just
-     an example! */
-  hd_src = fopen(file, "rb");
-
-  /* In windows, this will init the winsock stuff */
-  curl_global_init(CURL_GLOBAL_ALL);
-
-  /* get a curl handle */
   curl = curl_easy_init();
   if(curl) {
-    /* we want to use our own read function */
-    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+    /* Set username and password */
+    curl_easy_setopt(curl, CURLOPT_USERNAME, "user");
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, "secret");
 
-    /* enable uploading */
-    curl_easy_setopt(curl, CURLOPT_UPLOAD, TRUE) ;
+    /* This will fetch message 1 from the user's inbox */
+    curl_easy_setopt(curl, CURLOPT_URL, "imap://imap.example.com/INBOX/;UID=1");
 
-    /* HTTP PUT please */
-    curl_easy_setopt(curl, CURLOPT_PUT, TRUE);
+    /* In this example, we'll start with a plain text connection, and upgrade
+     * to Transport Layer Security (TLS) using the STARTTLS command. Be careful
+     * of using CURLUSESSL_TRY here, because if TLS upgrade fails, the transfer
+     * will continue anyway - see the security discussion in the libcurl
+     * tutorial for more details. */
+    curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_ALL);
 
-    /* specify target URL, and note that this URL should include a file
-       name, not only a directory */
-    curl_easy_setopt(curl,CURLOPT_URL, url);
+    /* If your server doesn't have a valid certificate, then you can disable
+     * part of the Transport Layer Security protection by setting the
+     * CURLOPT_SSL_VERIFYPEER and CURLOPT_SSL_VERIFYHOST options to 0 (false).
+     *   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+     *   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+     * That is, in general, a bad idea. It is still better than sending your
+     * authentication details in plain text though.
+     * Instead, you should get the issuer certificate (or the host certificate
+     * if the certificate is self-signed) and add it to the set of certificates
+     * that are known to libcurl using CURLOPT_CAINFO and/or CURLOPT_CAPATH. See
+     * docs/SSLCERTS for more information. */
+    curl_easy_setopt(curl, CURLOPT_CAINFO, "/path/to/certificate.pem");
 
-    /* now specify which file to upload */
-    curl_easy_setopt(curl, CURLOPT_READDATA, hd_src);
+    /* Since the traffic will be encrypted, it is very useful to turn on debug
+     * information within libcurl to see what is happening during the
+     * transfer */
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
-    /* and give the size of the upload */
-    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, file_info.st_size);
-
-    /* Now run off and do what you've been told! */
+    /* Perform the fetch */
     res = curl_easy_perform(curl);
 
-    /* always cleanup */
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+    /* Always cleanup */
     curl_easy_cleanup(curl);
   }
-  fclose(hd_src); /* close the local file */
 
-  curl_global_cleanup();
-  return 0;
+  return (int)res;
 }

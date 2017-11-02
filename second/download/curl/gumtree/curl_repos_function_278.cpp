@@ -1,25 +1,29 @@
-static int hostmatch(const char *hostname, const char *pattern)
+static char *
+buffer_threaded(localkey_t key, long size)
+
 {
-  while (1) {
-    int c = *pattern++;
+  buffer_t * bufs;
 
-    if (c == '\0')
-      return (*hostname ? HOST_NOMATCH : HOST_MATCH);
+  /* Get the buffer for the given local key in the current thread, and
+     make sure it is at least `size'-byte long. Set `size' to < 0 to get
+     its address only. */
 
-    if (c == '*') {
-      c = *pattern;
-      if (c == '\0')      /* "*\0" matches anything remaining */
-        return HOST_MATCH;
+  bufs = (buffer_t *) pthread_getspecific(thdkey);
 
-      while (*hostname) {
-        /* The only recursive function in libcurl! */
-        if (hostmatch(hostname++,pattern) == HOST_MATCH)
-          return HOST_MATCH;
+  if(!bufs) {
+    if(size < 0)
+      return (char *) NULL;             /* No buffer yet. */
+
+    /* Allocate buffer descriptors for the current thread. */
+
+    if(!(bufs = calloc((size_t) LK_LAST, sizeof *bufs)))
+      return (char *) NULL;
+
+    if(pthread_setspecific(thdkey, (void *) bufs)) {
+      free(bufs);
+      return (char *) NULL;
       }
-      return HOST_NOMATCH;
     }
 
-    if (toupper(c) != toupper(*hostname++))
-      return HOST_NOMATCH;
-  }
+  return get_buffer(bufs + key, size);
 }

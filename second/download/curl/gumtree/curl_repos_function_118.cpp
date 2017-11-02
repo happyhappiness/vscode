@@ -1,6 +1,4 @@
-static char *test2file(long testno)
+size_t my_write_func(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
-  static char filename[256];
-  sprintf(filename, TEST_DATA_PATH, path, testno);
-  return filename;
+  return fwrite(ptr, size, nmemb, stream);
 }

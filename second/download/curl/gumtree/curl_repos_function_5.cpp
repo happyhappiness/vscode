@@ -1,11 +1,20 @@
-void *pull_one_url(void *url)
+static curlioerr my_ioctl(CURL *handle, curliocmd cmd, void *userp)
 {
-  CURL *curl;
+  intptr_t fd = (intptr_t)userp;
 
-  curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_URL, url);
-  curl_easy_perform(curl); /* ignores error */
-  curl_easy_cleanup(curl);
+  (void)handle; /* not used in here */
 
-  return NULL;
+  switch(cmd) {
+  case CURLIOCMD_RESTARTREAD:
+    /* mr libcurl kindly asks as to rewind the read data stream to start */
+    if(-1 == lseek(fd, 0, SEEK_SET))
+      /* couldn't rewind */
+      return CURLIOE_FAILRESTART;
+
+    break;
+
+  default: /* ignore unknown commands */
+    return CURLIOE_UNKNOWNCMD;
+  }
+  return CURLIOE_OK; /* success! */
 }

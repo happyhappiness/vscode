@@ -1,23 +1,11 @@
-int main(void)
+static void *pull_one_url(void *url)
 {
   CURL *curl;
-  CURLcode res;
-
-  char *postthis="moo mooo moo moo";
 
   curl = curl_easy_init();
-  if(curl) {
-    curl_easy_setopt(curl, CURLOPT_URL, "http://posthere.com");
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postthis);
+  curl_easy_setopt(curl, CURLOPT_URL, url);
+  curl_easy_perform(curl); /* ignores error */
+  curl_easy_cleanup(curl);
 
-    /* if we don't provide POSTFIELDSIZE, libcurl will strlen() by
-       itself */
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(postthis));
-
-    res = curl_easy_perform(curl);
-
-    /* always cleanup */
-    curl_easy_cleanup(curl);
-  }
-  return 0;
+  return NULL;
 }

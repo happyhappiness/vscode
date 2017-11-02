@@ -1,11 +1,7 @@
-void Curl_freeaddrinfo(Curl_addrinfo *ai)
+static void store_errmsg(const char *msg, int err)
 {
-  Curl_addrinfo *next;
-
-  /* walk over the list and free all entries */
-  while(ai) {
-    next = ai->ai_next;
-    free(ai);
-    ai = next;
-  }
+  if (!err)
+    sprintf(msgbuff, "%s", msg);
+  else
+    sprintf(msgbuff, "%s, errno %d, %s", msg, err, strerror(err));
 }

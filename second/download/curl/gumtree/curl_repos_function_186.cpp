@@ -1,16 +1,8 @@
-static void checkfds(void)
+static void addsock(curl_socket_t s, CURL *easy, int action, GlobalInfo *g)
 {
-#ifdef HAVE_PIPE
-  int fd[2] = { STDIN_FILENO, STDIN_FILENO };
-  while( fd[0] == STDIN_FILENO ||
-         fd[0] == STDOUT_FILENO ||
-         fd[0] == STDERR_FILENO ||
-         fd[1] == STDIN_FILENO ||
-         fd[1] == STDOUT_FILENO ||
-         fd[1] == STDERR_FILENO )
-    pipe(fd);
+  SockInfo *fdp = calloc(sizeof(SockInfo), 1);
 
-  close(fd[0]);
-  close(fd[1]);
-#endif
+  fdp->global = g;
+  setsock(fdp, s, easy, action, g);
+  curl_multi_assign(g->multi, s, fdp);
 }

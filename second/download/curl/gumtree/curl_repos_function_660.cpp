@@ -1,37 +1,36 @@
-static CURLcode
-check_wsock2 ( struct SessionHandle *data )
+static void lograw(unsigned char *buffer, ssize_t len)
 {
-  int err;
-  WORD wVersionRequested;
-  WSADATA wsaData;
+  char data[120];
+  ssize_t i;
+  unsigned char *ptr = buffer;
+  char *optr = data;
+  ssize_t width=0;
 
-  curlassert(data);
+  for(i=0; i<len; i++) {
+    switch(ptr[i]) {
+    case '\n':
+      sprintf(optr, "\\n");
+      width += 2;
+      optr += 2;
+      break;
+    case '\r':
+      sprintf(optr, "\\r");
+      width += 2;
+      optr += 2;
+      break;
+    default:
+      sprintf(optr, "%c", (ISGRAPH(ptr[i]) || ptr[i]==0x20) ?ptr[i]:'.');
+      width++;
+      optr++;
+      break;
+    }
 
-  /* telnet requires at least WinSock 2.0 so ask for it. */
-  wVersionRequested = MAKEWORD(2, 0);
-
-  err = WSAStartup(wVersionRequested, &wsaData);
-
-  /* We must've called this once already, so this call */
-  /* should always succeed.  But, just in case... */
-  if (err != 0) {
-    failf(data,"WSAStartup failed (%d)",err);
-    return CURLE_FAILED_INIT;
+    if(width>60) {
+      logmsg("'%s'", data);
+      width = 0;
+      optr = data;
+    }
   }
-
-  /* We have to have a WSACleanup call for every successful */
-  /* WSAStartup call. */
-  WSACleanup();
-
-  /* Check that our version is supported */
-  if (LOBYTE(wsaData.wVersion) != LOBYTE(wVersionRequested) ||
-      HIBYTE(wsaData.wVersion) != HIBYTE(wVersionRequested)) {
-      /* Our version isn't supported */
-      failf(data,"insufficient winsock version to support "
-            "telnet");
-      return CURLE_FAILED_INIT;
-  }
-
-  /* Our version is supported */
-  return CURLE_OK;
+  if(width)
+    logmsg("'%s'", data);
 }

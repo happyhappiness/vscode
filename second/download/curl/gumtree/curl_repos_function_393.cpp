@@ -1,62 +1,111 @@
-CURLcode Curl_http_auth_act(struct connectdata *conn)
+int test(char *URL)
 {
-  struct SessionHandle *data = conn->data;
-  bool pickhost = FALSE;
-  bool pickproxy = FALSE;
-  CURLcode code = CURLE_OK;
+  int res;
+  CURL *curl;
+  char *stream_uri = NULL;
+  int request=1;
+  FILE *protofile = NULL;
 
-  if(100 == conn->keep.httpcode)
-    /* this is a transient response code, ignore */
-    return CURLE_OK;
-
-  if(data->state.authproblem)
-    return data->set.http_fail_on_error?CURLE_HTTP_RETURNED_ERROR:CURLE_OK;
-
-  if(conn->bits.user_passwd &&
-     ((conn->keep.httpcode == 401) ||
-      (conn->bits.authneg && conn->keep.httpcode < 300))) {
-    pickhost = pickoneauth(&data->state.authhost);
-    if(!pickhost)
-      data->state.authproblem = TRUE;
-  }
-  if(conn->bits.proxy_user_passwd &&
-     ((conn->keep.httpcode == 407) ||
-      (conn->bits.authneg && conn->keep.httpcode < 300))) {
-    pickproxy = pickoneauth(&data->state.authproxy);
-    if(!pickproxy)
-      data->state.authproblem = TRUE;
+  protofile = fopen(libtest_arg2, "wb");
+  if(protofile == NULL) {
+    fprintf(stderr, "Couldn't open the protocol dump file\n");
+    return TEST_ERR_MAJOR_BAD;
   }
 
-  if(pickhost || pickproxy) {
-    conn->newurl = strdup(data->change.url); /* clone URL */
-
-    if((data->set.httpreq != HTTPREQ_GET) &&
-       (data->set.httpreq != HTTPREQ_HEAD) &&
-       !conn->bits.rewindaftersend) {
-      code = perhapsrewind(conn);
-      if(code)
-        return code;
-    }
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    fclose(protofile);
+    return TEST_ERR_MAJOR_BAD;
   }
 
-  else if((conn->keep.httpcode < 300) &&
-          (!data->state.authhost.done) &&
-          conn->bits.authneg) {
-    /* no (known) authentication available,
-       authentication is not "done" yet and
-       no authentication seems to be required and
-       we didn't try HEAD or GET */
-    if((data->set.httpreq != HTTPREQ_GET) &&
-       (data->set.httpreq != HTTPREQ_HEAD)) {
-      conn->newurl = strdup(data->change.url); /* clone URL */
-      data->state.authhost.done = TRUE;
-    }
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    fclose(protofile);
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
   }
-  if (Curl_http_should_fail(conn)) {
-    failf (data, "The requested URL returned error: %d",
-           conn->keep.httpcode);
-    code = CURLE_HTTP_RETURNED_ERROR;
+  test_setopt(curl, CURLOPT_URL, URL);
+
+  if((stream_uri = suburl(URL, request++)) == NULL) {
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
+  test_setopt(curl, CURLOPT_RTSP_STREAM_URI, stream_uri);
+  free(stream_uri);
+  stream_uri = NULL;
+
+  test_setopt(curl, CURLOPT_INTERLEAVEFUNCTION, rtp_write);
+  test_setopt(curl, CURLOPT_TIMEOUT, 3L);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+  test_setopt(curl, CURLOPT_WRITEDATA, protofile);
+
+  test_setopt(curl, CURLOPT_RTSP_TRANSPORT, "RTP/AVP/TCP;interleaved=0-1");
+  test_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_SETUP);
+
+  res = curl_easy_perform(curl);
+  if(res)
+    goto test_cleanup;
+
+  /* This PLAY starts the interleave */
+  if((stream_uri = suburl(URL, request++)) == NULL) {
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
+  test_setopt(curl, CURLOPT_RTSP_STREAM_URI, stream_uri);
+  free(stream_uri);
+  stream_uri = NULL;
+  test_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_PLAY);
+
+  res = curl_easy_perform(curl);
+  if(res)
+    goto test_cleanup;
+
+  /* The DESCRIBE request will try to consume data after the Content */
+  if((stream_uri = suburl(URL, request++)) == NULL) {
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
+  test_setopt(curl, CURLOPT_RTSP_STREAM_URI, stream_uri);
+  free(stream_uri);
+  stream_uri = NULL;
+  test_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_DESCRIBE);
+
+  res = curl_easy_perform(curl);
+  if(res)
+    goto test_cleanup;
+
+  if((stream_uri = suburl(URL, request++)) == NULL) {
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
+  test_setopt(curl, CURLOPT_RTSP_STREAM_URI, stream_uri);
+  free(stream_uri);
+  stream_uri = NULL;
+  test_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_PLAY);
+
+  res = curl_easy_perform(curl);
+  if(res)
+    goto test_cleanup;
+
+  fprintf(stderr, "PLAY COMPLETE\n");
+
+  /* Use Receive to get the rest of the data */
+  while(!res && rtp_packet_count < 13) {
+    fprintf(stderr, "LOOPY LOOP!\n");
+    test_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_RECEIVE);
+    res = curl_easy_perform(curl);
   }
 
-  return code;
+test_cleanup:
+
+  if(stream_uri)
+    free(stream_uri);
+
+  if(protofile)
+    fclose(protofile);
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return res;
 }

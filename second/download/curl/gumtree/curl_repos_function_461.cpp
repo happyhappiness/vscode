@@ -1,17 +1,6 @@
-CURLSHcode
-Curl_share_lock(struct SessionHandle *data, curl_lock_data type,
-                curl_lock_access accesstype)
+static int tst_closesocket(void *clientp, curl_socket_t sock)
 {
-  struct Curl_share *share = data->share;
-
-  if (share == NULL)
-    return CURLSHE_INVALID;
-
-  if(share->specifier & (1<<type)) {
-    if(share->lockfunc) /* only call this if set! */
-      share->lockfunc(data, type, accesstype, share->clientdata);
-  }
-  /* else if we don't share this, pretend successful lock */
-
-  return CURLSHE_OK;
+  (void)clientp;
+  printf("[CLOSE] counter: %d\n", counter--);
+  return sclose(sock);
 }

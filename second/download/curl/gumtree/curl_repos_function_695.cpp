@@ -1,5 +1,4 @@
-int Curl_gtls_cleanup(void)
+static int SHA1_Init(SHA_CTX *pctx)
 {
-  gnutls_global_deinit();
-  return 1;
+  return nss_hash_init(pctx, SEC_OID_SHA1);
 }

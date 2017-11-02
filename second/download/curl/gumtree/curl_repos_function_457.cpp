@@ -1,31 +1,22 @@
-CURLMsg *curl_multi_info_read(CURLM *multi_handle, int *msgs_in_queue)
+int test(char *URL)
 {
-  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
+  int res = 0;
+  CURLM *m = NULL;
 
-  *msgs_in_queue = 0; /* default to none */
+  (void)URL;
 
-  if(GOOD_MULTI_HANDLE(multi)) {
-    struct Curl_one_easy *easy;
+  global_init(CURL_GLOBAL_ALL);
 
-    if(!multi->num_msgs)
-      return NULL; /* no messages left to return */
+  multi_init(m);
 
-    easy=multi->easy.next;
-    while(easy) {
-      if(easy->msg_num) {
-        easy->msg_num--;
-        break;
-      }
-      easy = easy->next;
-    }
-    if(!easy)
-      return NULL; /* this means internal count confusion really */
+test_cleanup:
 
-    multi->num_msgs--;
-    *msgs_in_queue = multi->num_msgs;
+  /* proper cleanup sequence - type PB */
 
-    return &easy->msg->extmsg;
-  }
-  else
-    return NULL;
+  curl_multi_cleanup(m);
+  curl_global_cleanup();
+
+  printf("We are done\n");
+
+  return res;
 }

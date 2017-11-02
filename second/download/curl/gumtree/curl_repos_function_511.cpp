@@ -1,35 +1,33 @@
-int main(int argc, char **argv, char **envp)
+static void *fire(void *ptr)
 {
-  char *base64;
-  int base64Len;
-  unsigned char *data;
-  int dataLen;
-  int i, j;
+  CURLcode code;
+  struct curl_slist *headers;
+  struct Tdata *tdata = (struct Tdata*)ptr;
+  CURL *curl;
+  int i=0;
 
-  base64 = (char *)suck(&base64Len);
-  data = (unsigned char *)malloc(base64Len * 3/4 + 8);
-  dataLen = Curl_base64_decode(base64, data);
-
-  fprintf(stderr, "%d\n", dataLen);
-
-  for(i=0; i < dataLen; i+=0x10) {
-    printf("0x%02x: ", i);
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%02x ", data[i+j]);
-      else
-        printf("   ");
-
-    printf(" | ");
-
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%c", isgraph(data[i+j])?data[i+j]:'.');
-      else
-        break;
-    puts("");
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    return NULL;
   }
 
-  free(base64); free(data);
-  return 0;
+  headers = sethost(NULL);
+  curl_easy_setopt(curl, CURLOPT_VERBOSE,    1L);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt(curl, CURLOPT_URL,        tdata->url);
+  printf( "CURLOPT_SHARE\n" );
+  curl_easy_setopt(curl, CURLOPT_SHARE, tdata->share);
+
+  printf( "PERFORM\n" );
+  code = curl_easy_perform(curl);
+  if( code != CURLE_OK ) {
+    fprintf(stderr, "perform url '%s' repeat %d failed, curlcode %d\n",
+            tdata->url, i, (int)code);
+  }
+
+  printf( "CLEANUP\n" );
+  curl_easy_cleanup(curl);
+  curl_slist_free_all(headers);
+
+  return NULL;
 }

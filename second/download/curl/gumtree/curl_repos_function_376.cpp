@@ -1,15 +1,11 @@
-char *Curl_formpostheader(void *formp, size_t *len)
+static void updateFdSet(struct Sockets* sockets, fd_set* fdset,
+                        curl_socket_t *maxFd)
 {
-  char *header;
-  struct Form *form=(struct Form *)formp;
-
-  if(!form->data)
-    return 0; /* nothing, ERROR! */
-
-  header = form->data->line;
-  *len = form->data->length;
-
-  form->data = form->data->next; /* advance */
-
-  return header;
+  int i;
+  for (i = 0; i < sockets->count; ++i) {
+    FD_SET(sockets->sockets[i], fdset);
+    if (*maxFd < sockets->sockets[i] + 1) {
+      *maxFd = sockets->sockets[i] + 1;
+    }
+  }
 }

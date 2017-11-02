@@ -1,38 +1,94 @@
-static void checkpasswd(const char *kind, /* for what purpose */
-                        char **userpwd) /* pointer to allocated string */
+int main(int argc, char *argv[])
 {
-  char *ptr;
-  if(!*userpwd)
-    return;
+  URL_FILE *handle;
+  FILE *outf;
 
-  ptr = strchr(*userpwd, ':');
-  if(!ptr) {
-    /* no password present, prompt for one */
-    char passwd[256]="";
-    char prompt[256];
-    size_t passwdlen;
-    size_t userlen = strlen(*userpwd);
-    char *passptr;
+  int nread;
+  char buffer[256];
+  const char *url;
 
-    /* build a nice-looking prompt */
-    curlx_msnprintf(prompt, sizeof(prompt),
-                   "Enter %s password for user '%s':",
-                   kind, *userpwd);
+  if(argc < 2)
+    url="http://192.168.7.3/testfile";/* default to testurl */
+  else
+    url=argv[1];/* use passed url */
 
-    /* get password */
-    getpass_r(prompt, passwd, sizeof(passwd));
-    passwdlen = strlen(passwd);
-
-    /* extend the allocated memory area to fit the password too */
-    passptr = realloc(*userpwd,
-                      passwdlen + 1 + /* an extra for the colon */
-                      userlen + 1);   /* an extra for the zero */
-
-    if(passptr) {
-      /* append the password separated with a colon */
-      passptr[userlen]=':';
-      memcpy(&passptr[userlen+1], passwd, passwdlen+1);
-      *userpwd = passptr;
-    }
+  /* copy from url line by line with fgets */
+  outf=fopen("fgets.test","w+");
+  if(!outf) {
+    perror("couldn't open fgets output file\n");
+    return 1;
   }
+
+  handle = url_fopen(url, "r");
+  if(!handle) {
+    printf("couldn't url_fopen() %s\n", url);
+    fclose(outf);
+    return 2;
+  }
+
+  while(!url_feof(handle)) {
+    url_fgets(buffer,sizeof(buffer),handle);
+    fwrite(buffer,1,strlen(buffer),outf);
+  }
+
+  url_fclose(handle);
+
+  fclose(outf);
+
+
+  /* Copy from url with fread */
+  outf=fopen("fread.test","w+");
+  if(!outf) {
+    perror("couldn't open fread output file\n");
+    return 1;
+  }
+
+  handle = url_fopen("testfile", "r");
+  if(!handle) {
+    printf("couldn't url_fopen() testfile\n");
+    fclose(outf);
+    return 2;
+  }
+
+  do {
+    nread = url_fread(buffer, 1,sizeof(buffer), handle);
+    fwrite(buffer,1,nread,outf);
+  } while(nread);
+
+  url_fclose(handle);
+
+  fclose(outf);
+
+
+  /* Test rewind */
+  outf=fopen("rewind.test","w+");
+  if(!outf) {
+    perror("couldn't open fread output file\n");
+    return 1;
+  }
+
+  handle = url_fopen("testfile", "r");
+  if(!handle) {
+    printf("couldn't url_fopen() testfile\n");
+    fclose(outf);
+    return 2;
+  }
+
+  nread = url_fread(buffer, 1,sizeof(buffer), handle);
+  fwrite(buffer,1,nread,outf);
+  url_rewind(handle);
+
+  buffer[0]='\n';
+  fwrite(buffer,1,1,outf);
+
+  nread = url_fread(buffer, 1,sizeof(buffer), handle);
+  fwrite(buffer,1,nread,outf);
+
+
+  url_fclose(handle);
+
+  fclose(outf);
+
+
+  return 0;/* all done */
 }

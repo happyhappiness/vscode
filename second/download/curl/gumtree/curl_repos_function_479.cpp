@@ -1,26 +1,18 @@
-size_t Curl_strlcat(char *dst, const char *src, size_t siz)
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
 {
-  char *d = dst;
-  const char *s = src;
-  size_t n = siz;
-  size_t dlen;
+  struct WriteThis *pooh = (struct WriteThis *)userp;
+  const char *data;
 
-  /* Find the end of dst and adjust bytes left but don't go past end */
-  while (n-- != 0 && *d != '\0')
-    d++;
-  dlen = d - dst;
-  n = siz - dlen;
+  if(size*nmemb < 1)
+    return 0;
 
-  if (n == 0)
-    return(dlen + strlen(s));
-  while (*s != '\0') {
-    if (n != 1) {
-      *d++ = *s;
-      n--;
-    }
-    s++;
+  data = post[pooh->counter];
+
+  if(data) {
+    size_t len = strlen(data);
+    memcpy(ptr, data, len);
+    pooh->counter++; /* advance pointer */
+    return len;
   }
-  *d = '\0';
-
-  return(dlen + (s - src));     /* count does not include NUL */
+  return 0;                         /* no more data left to deliver */
 }

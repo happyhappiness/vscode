@@ -1,23 +1,37 @@
-static int
-mk_auth(struct krb4_data *d, KTEXT adat,
-        const char *service, char *host, int checksum)
+static int synchnet(curl_socket_t f /* socket to flush */)
 {
-  int ret;
-  CREDENTIALS cred;
-  char sname[SNAME_SZ], inst[INST_SZ], realm[REALM_SZ];
 
-  strlcpy(sname, service, sizeof(sname));
-  strlcpy(inst, krb_get_phost(host), sizeof(inst));
-  strlcpy(realm, krb_realmofhost(host), sizeof(realm));
-  ret = krb_mk_req(adat, sname, inst, realm, checksum);
-  if(ret)
-    return ret;
-  strlcpy(sname, service, sizeof(sname));
-  strlcpy(inst, krb_get_phost(host), sizeof(inst));
-  strlcpy(realm, krb_realmofhost(host), sizeof(realm));
-  ret = krb_get_cred(sname, inst, realm, &cred);
-  memmove(&d->key, &cred.session, sizeof(des_cblock));
-  des_key_sched(&d->key, d->schedule);
-  memset(&cred, 0, sizeof(cred));
-  return ret;
+#if defined(HAVE_IOCTLSOCKET)
+  unsigned long i;
+#else
+  int i;
+#endif
+  int j = 0;
+  char rbuf[PKTSIZE];
+  srvr_sockaddr_union_t fromaddr;
+  curl_socklen_t fromaddrlen;
+
+  for (;;) {
+#if defined(HAVE_IOCTLSOCKET)
+    (void) ioctlsocket(f, FIONREAD, &i);
+#else
+    (void) ioctl(f, FIONREAD, &i);
+#endif
+    if (i) {
+      j++;
+#ifdef ENABLE_IPV6
+      if(!use_ipv6)
+#endif
+        fromaddrlen = sizeof(fromaddr.sa4);
+#ifdef ENABLE_IPV6
+      else
+        fromaddrlen = sizeof(fromaddr.sa6);
+#endif
+      (void) recvfrom(f, rbuf, sizeof(rbuf), 0,
+                      &fromaddr.sa, &fromaddrlen);
+    }
+    else
+      break;
+  }
+  return j;
 }

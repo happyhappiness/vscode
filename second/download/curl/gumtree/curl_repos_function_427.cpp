@@ -1,10 +1,8 @@
-static bool is_ASCII_name (const char *hostname)
+void *custom_realloc(void *ptr, size_t size)
 {
-  const unsigned char *ch = (const unsigned char*)hostname;
-
-  while (*ch) {
-    if (*ch++ & 0x80)
-      return FALSE;
+  if(!seen_realloc && seen_malloc) {
+    printf("seen custom_realloc()\n");
+    seen_realloc = 1;
   }
-  return TRUE;
+  return (realloc)(ptr, size);
 }

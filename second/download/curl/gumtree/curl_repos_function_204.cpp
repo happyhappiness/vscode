@@ -1,18 +1,27 @@
-CURLcode Curl_store_ip_addr(struct connectdata *conn)
+static int xferinfo(void *p,
+                    curl_off_t dltotal, curl_off_t dlnow,
+                    curl_off_t ultotal, curl_off_t ulnow)
 {
-  char addrbuf[256];
-  Curl_printable_address(conn->ip_addr, addrbuf, sizeof(addrbuf));
+  struct myprogress *myp = (struct myprogress *)p;
+  CURL *curl = myp->curl;
+  double curtime = 0;
 
-  /* save the string */
-  Curl_safefree(conn->ip_addr_str);
-  conn->ip_addr_str = strdup(addrbuf);
-  if(!conn->ip_addr_str)
-    return CURLE_OUT_OF_MEMORY; /* FAIL */
+  curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &curtime);
 
-#ifdef PF_INET6
-  if(conn->ip_addr->ai_family == PF_INET6)
-    conn->bits.ipv6 = TRUE;
-#endif
+  /* under certain circumstances it may be desirable for certain functionality
+     to only run every N seconds, in order to do this the transaction time can
+     be used */
+  if((curtime - myp->lastruntime) >= MINIMAL_PROGRESS_FUNCTIONALITY_INTERVAL) {
+    myp->lastruntime = curtime;
+    fprintf(stderr, "TOTAL TIME: %f \r\n", curtime);
+  }
 
-  return CURLE_OK;
+  fprintf(stderr, "UP: %" CURL_FORMAT_CURL_OFF_T " of %" CURL_FORMAT_CURL_OFF_T
+          "  DOWN: %" CURL_FORMAT_CURL_OFF_T " of %" CURL_FORMAT_CURL_OFF_T
+          "\r\n",
+          ulnow, ultotal, dlnow, dltotal);
+
+  if(dlnow > STOP_DOWNLOAD_AFTER_THIS_MANY_BYTES)
+    return 1;
+  return 0;
 }

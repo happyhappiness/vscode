@@ -1,15 +1,13 @@
-int Curl_ossl_init(void)
+size_t getcontentlengthfunc(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-#ifdef HAVE_ENGINE_LOAD_BUILTIN_ENGINES
-  ENGINE_load_builtin_engines();
-#endif
+  int r;
+  long len = 0;
 
-  /* Lets get nice error messages */
-  SSL_load_error_strings();
+  /* _snscanf() is Win32 specific */
+  r = _snscanf(ptr, size * nmemb, "Content-Length: %ld\n", &len);
 
-  /* Setup all the global SSL stuff */
-  if (!SSLeay_add_ssl_algorithms())
-    return 0;
+  if (r) /* Microsoft: we don't read the specs */
+    *((long *) stream) = len;
 
-  return 1;
+  return size * nmemb;
 }

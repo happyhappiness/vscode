@@ -1,9 +1,22 @@
-static void FreeMultiInfo (struct multi_files *multi_start)
+static int use_buffer(URL_FILE *file,int want)
 {
-  struct multi_files *multi;
-  while (multi_start) {
-    multi = multi_start;
-    multi_start = multi_start->next;
-    free (multi);
+  /* sort out buffer */
+  if((file->buffer_pos - want) <=0) {
+    /* ditch buffer - write will recreate */
+    if(file->buffer)
+      free(file->buffer);
+
+    file->buffer=NULL;
+    file->buffer_pos=0;
+    file->buffer_len=0;
   }
+  else {
+    /* move rest down make it available for later */
+    memmove(file->buffer,
+            &file->buffer[want],
+            (file->buffer_pos - want));
+
+    file->buffer_pos -= want;
+  }
+  return 0;
 }

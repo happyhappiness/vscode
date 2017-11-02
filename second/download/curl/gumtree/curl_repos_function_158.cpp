@@ -1,31 +1,46 @@
-static char *file2string(FILE *file)
+static gboolean fifo_cb (GIOChannel *ch, GIOCondition condition, gpointer data)
 {
-  char buffer[256];
-  char *ptr;
-  char *string=NULL;
-  size_t len=0;
-  size_t stringlen;
+  #define BUF_SIZE 1024
+  gsize len, tp;
+  gchar *buf, *tmp, *all=NULL;
+  GIOStatus rv;
 
-  if(file) {
-    while(fgets(buffer, sizeof(buffer), file)) {
-      ptr= strchr(buffer, '\r');
-      if(ptr)
-        *ptr=0;
-      ptr= strchr(buffer, '\n');
-      if(ptr)
-        *ptr=0;
-      stringlen=strlen(buffer);
-      if(string)
-        string = realloc(string, len+stringlen+1);
-      else
-        string = malloc(stringlen+1);
-
-      strcpy(string+len, buffer);
-
-      len+=stringlen;
+  do {
+    GError *err=NULL;
+    rv = g_io_channel_read_line (ch,&buf,&len,&tp,&err);
+    if ( buf ) {
+      if (tp) { buf[tp]='\0'; }
+      new_conn(buf,(GlobalInfo*)data);
+      g_free(buf);
+    } else {
+      buf = g_malloc(BUF_SIZE+1);
+      while (TRUE) {
+        buf[BUF_SIZE]='\0';
+        g_io_channel_read_chars(ch,buf,BUF_SIZE,&len,&err);
+        if (len) {
+          buf[len]='\0';
+          if (all) {
+            tmp=all;
+            all=g_strdup_printf("%s%s", tmp, buf);
+            g_free(tmp);
+          } else {
+            all = g_strdup(buf);
+          }
+        } else {
+           break;
+        }
+      }
+      if (all) {
+        new_conn(all,(GlobalInfo*)data);
+        g_free(all);
+      }
+      g_free(buf);
     }
-    return string;
-  }
-  else
-    return NULL; /* no string */
+    if ( err ) {
+      g_error("fifo_cb: %s", err->message);
+      g_free(err);
+      break;
+    }
+  } while ( (len) && (rv == G_IO_STATUS_NORMAL) );
+  return TRUE;
 }

@@ -1,31 +1,18 @@
-void Curl_ossl_close(struct connectdata *conn)
+static void
+thdbufdestroy(void * private)
+
 {
-  int i;
-  /*
-    ERR_remove_state() frees the error queue associated with
-    thread pid.  If pid == 0, the current thread will have its
-    error queue removed.
+  if(private) {
+    buffer_t * p = (buffer_t *) private;
+    localkey_t i;
 
-    Since error queue data structures are allocated
-    automatically for new threads, they must be freed when
-    threads are terminated in oder to avoid memory leaks.
-  */
-  ERR_remove_state(0);
+    for(i = (localkey_t) 0; i < LK_LAST; i++) {
+      if(p->buf)
+        free(p->buf);
 
-  for(i=0; i<2; i++) {
-    struct ssl_connect_data *connssl = &conn->ssl[i];
+      p++;
+      }
 
-    if(connssl->handle) {
-      (void)SSL_shutdown(connssl->handle);
-      SSL_set_connect_state(connssl->handle);
-
-      SSL_free (connssl->handle);
-      connssl->handle = NULL;
+    free(private);
     }
-    if(connssl->ctx) {
-      SSL_CTX_free (connssl->ctx);
-      connssl->ctx = NULL;
-    }
-    connssl->use = FALSE; /* get back to ordinary socket usage */
-  }
 }

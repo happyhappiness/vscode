@@ -1,81 +1,53 @@
-int test(char *URL)
+int main(void)
 {
-  CURL *c;
-  int ret=0;
-  CURLM *m;
-  fd_set rd, wr, exc;
-  CURLMcode res;
-  int running;
-  int max_fd;
-  int rc;
-  int loop=10;
+  CURL *curl_handle;
+  CURLcode res;
+  XML_Parser parser;
+  struct ParserStruct state;
 
-  curl_global_init(CURL_GLOBAL_ALL);
-  c = curl_easy_init();
+  /* Initialize the state structure for parsing. */
+  memset(&state, 0, sizeof(struct ParserStruct));
+  state.ok = 1;
 
-  /* the point here being that there must not run anything on the given
-     proxy port */
-  curl_easy_setopt(c, CURLOPT_PROXY, arg2);
-  curl_easy_setopt(c, CURLOPT_URL, URL);
-  curl_easy_setopt(c, CURLOPT_VERBOSE, 1);
+  /* Initialize a namespace-aware parser. */
+  parser = XML_ParserCreateNS(NULL, '\0');
+  XML_SetUserData(parser, &state);
+  XML_SetElementHandler(parser, startElement, endElement);
+  XML_SetCharacterDataHandler(parser, characterDataHandler);
 
-  m = curl_multi_init();
+  /* Initalize a libcurl handle. */
+  curl_global_init(CURL_GLOBAL_ALL ^ CURL_GLOBAL_SSL);
+  curl_handle = curl_easy_init();
+  curl_easy_setopt(curl_handle, CURLOPT_URL, "http://www.w3schools.com/xml/simple.xml");
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, parseStreamCallback);
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)parser);
 
-  res = curl_multi_add_handle(m, c);
-  if(res && (res != CURLM_CALL_MULTI_PERFORM))
-    ; /* major failure */
-  else {
-    do {
-      struct timeval interval;
+  printf("Depth   Characters   Closing Tag\n");
 
-      interval.tv_sec = 1;
-      interval.tv_usec = 0;
-
-      fprintf(stderr, "curl_multi_perform()\n");
-
-      do {
-        res = curl_multi_perform(m, &running);
-      } while (res == CURLM_CALL_MULTI_PERFORM);
-      if(!running) {
-        /* This is where this code is expected to reach */
-        int numleft;
-        CURLMsg *msg = curl_multi_info_read(m, &numleft);
-        fprintf(stderr, "Expected: not running\n");
-        if(msg && !numleft)
-          ret = 100; /* this is where we should be */
-        else
-          ret = 99; /* not correct */
-        break;
-      }
-      fprintf(stderr, "running == %d, res == %d\n", running, res);
-
-      if (res != CURLM_OK) {
-        ret = 2;
-        break;
-      }
-
-      FD_ZERO(&rd);
-      FD_ZERO(&wr);
-      FD_ZERO(&exc);
-      max_fd = 0;
-
-      fprintf(stderr, "curl_multi_fdset()\n");
-      if (curl_multi_fdset(m, &rd, &wr, &exc, &max_fd) != CURLM_OK) {
-        fprintf(stderr, "unexpected failured of fdset.\n");
-        ret = 3;
-        break;
-      }
-      rc = select(max_fd+1, &rd, &wr, &exc, &interval);
-      fprintf(stderr, "select returned %d\n", rc);
-
-      /* we only allow a certain number of loops to avoid hanging here
-         forever */
-    } while(--loop>0);
+  /* Perform the request and any follow-up parsing. */
+  res = curl_easy_perform(curl_handle);
+  if(res != CURLE_OK) {
+    fprintf(stderr, "curl_easy_perform() failed: %s\n",
+            curl_easy_strerror(res));
+  }
+  else if (state.ok) {
+    /* Expat requires one final call to finalize parsing. */
+    if (XML_Parse(parser, NULL, 0, 1) == 0) {
+      int error_code = XML_GetErrorCode(parser);
+      fprintf(stderr, "Finalizing parsing failed with error code %d (%s).\n",
+              error_code, XML_ErrorString(error_code));
+    }
+    else {
+      printf("                     --------------\n");
+      printf("                     %lu tags total\n", state.tags);
+    }
   }
 
-  curl_multi_remove_handle(m, c);
-  curl_easy_cleanup(c);
-  curl_multi_cleanup(m);
+  /* Clean up. */
+  free(state.characters.memory);
+  XML_ParserFree(parser);
+  curl_easy_cleanup(curl_handle);
+  curl_global_cleanup();
 
-  return ret;
+  return 0;
 }

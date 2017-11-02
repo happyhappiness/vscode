@@ -1,8 +1,10 @@
-bool Curl_ipvalid(struct SessionHandle *data)
+static void close_file_descriptors(void)
 {
-  if(data->set.ip_version == CURL_IPRESOLVE_V6)
-    /* an ipv6 address was requested and we can't get/use one */
-    return FALSE;
-
-  return TRUE; /* OK, proceed */
+  for (num_open.rlim_cur = 0;
+       num_open.rlim_cur < num_open.rlim_max;
+       num_open.rlim_cur++)
+    if (fd[num_open.rlim_cur] > 0)
+      close(fd[num_open.rlim_cur]);
+  free(fd);
+  fd = NULL;
 }

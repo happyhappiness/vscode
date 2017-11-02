@@ -1,24 +1,10 @@
-void
-Curl_hash_clean_with_criterium(struct curl_hash *h, void *user,
-                               int (*comp)(void *, void *))
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-  struct curl_llist_element *le;
-  struct curl_llist_element *lnext;
-  struct curl_llist *list;
-  int i;
-
-  for (i = 0; i < h->slots; ++i) {
-    list = h->table[i];
-    le = list->head; /* get first list entry */
-    while(le) {
-      struct curl_hash_element *he = le->ptr;
-      lnext = le->next;
-      /* ask the callback function if we shall remove this entry or not */
-      if (comp(user, he->ptr)) {
-        Curl_llist_remove(list, le, (void *) h);
-        --h->size; /* one less entry in the hash now */
-      }
-      le = lnext;
-    }
-  }
+  size_t  amount = nmemb * size; /* Total bytes curl wants */
+  size_t  available = sizeof(databuf) - current_offset; /* What we have to give */
+  size_t  given = amount < available ? amount : available; /* What is given */
+  (void)stream;
+  memcpy(ptr, databuf + current_offset, given);
+  current_offset += given;
+  return given;
 }

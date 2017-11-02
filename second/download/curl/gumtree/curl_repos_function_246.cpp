@@ -1,23 +1,10 @@
-static int strlen_url(char *url)
+static struct timeval tvnow(void)
 {
-  char *ptr;
-  int newlen=0;
-  bool left=TRUE; /* left side of the ? */
+  struct timeval now;
 
-  for(ptr=url; *ptr; ptr++) {
-    switch(*ptr) {
-    case '?':
-      left=FALSE;
-    default:
-      newlen++;
-      break;
-    case ' ':
-      if(left)
-        newlen+=3;
-      else
-        newlen++;
-      break;
-    }
-  }
-  return newlen;
+  /* time() returns the value of time in seconds since the epoch */
+  now.tv_sec = (long)time(NULL);
+  now.tv_usec = 0;
+
+  return now;
 }

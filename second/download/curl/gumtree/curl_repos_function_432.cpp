@@ -1,35 +1,36 @@
-CURLcode Curl_connect(struct SessionHandle *data,
-                      struct connectdata **in_connect,
-                      bool *asyncp,
-                      bool *protocol_done)
+static int parse_url_file(const char *filename)
 {
-  CURLcode code;
-  struct Curl_dns_entry *dns;
+  FILE *f;
+  int filetime;
+  char buf[200];
 
-  *asyncp = FALSE; /* assume synchronous resolves by default */
+  num_handles = 0;
+  blacklist_num_sites = 0;
+  blacklist_num_servers = 0;
 
-  /* call the stuff that needs to be called */
-  code = CreateConnection(data, in_connect, &dns, asyncp);
+  f = fopen(filename, "rb");
+  if(!f)
+    return 0;
 
-  if(CURLE_OK == code) {
-    /* no error */
-    if(dns || !*asyncp)
-      /* If an address is available it means that we already have the name
-         resolved, OR it isn't async.
-         If so => continue connecting from here */
-      code = SetupConnection(*in_connect, dns, protocol_done);
-    /* else
-         response will be received and treated async wise */
-  }
-
-  if(CURLE_OK != code) {
-    /* We're not allowed to return failure with memory left allocated
-       in the connectdata struct, free those here */
-    if(*in_connect) {
-      Curl_disconnect(*in_connect); /* close the connection */
-      *in_connect = NULL;           /* return a NULL */
+  while(!feof(f)) {
+    if(fscanf(f, "%d %s\n", &filetime, buf)) {
+      urltime[num_handles] = filetime;
+      urlstring[num_handles] = strdup(buf);
+      num_handles++;
+      continue;
     }
-  }
 
-  return code;
+    if(fscanf(f, "blacklist_site %s\n", buf)) {
+      site_blacklist[blacklist_num_sites] = strdup(buf);
+      blacklist_num_sites++;
+      continue;
+    }
+
+    break;
+  }
+  fclose(f);
+
+  site_blacklist[blacklist_num_sites] = NULL;
+  server_blacklist[blacklist_num_servers] = NULL;
+  return num_handles;
 }

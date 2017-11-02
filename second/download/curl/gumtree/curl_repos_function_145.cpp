@@ -1,79 +1,48 @@
-char *glob_match_url(char *filename, URLGlob *glob)
+int main(int argc, char *argv[])
 {
-  char *target;
-  size_t allocsize;
-  size_t stringlen=0;
-  char numbuf[18];
-  char *appendthis = NULL;
-  size_t appendlen = 0;
+  CURL *conn = NULL;
+  CURLcode code;
+  std::string title;
 
-  /* We cannot use the glob_buffer for storage here since the filename may
-   * be longer than the URL we use. We allocate a good start size, then
-   * we need to realloc in case of need.
-   */
-  allocsize=strlen(filename);
-  target = malloc(allocsize);
-  if(NULL == target)
-    return NULL; /* major failure */
+  // Ensure one argument is given
 
-  while (*filename) {
-    if (*filename == '#' && isdigit((int)filename[1])) {
-      unsigned long i;
-      char *ptr = filename;
-      unsigned long num = strtoul(&filename[1], &filename, 10);
-      i = num-1;
+  if (argc != 2)
+  {
+    fprintf(stderr, "Usage: %s <url>\n", argv[0]);
 
-      if (num && (i <= glob->size / 2)) {
-        URLPattern pat = glob->pattern[i];
-        switch (pat.type) {
-        case UPTSet:
-          appendthis = pat.content.Set.elements[pat.content.Set.ptr_s];
-          appendlen = strlen(pat.content.Set.elements[pat.content.Set.ptr_s]);
-          break;
-        case UPTCharRange:
-          numbuf[0]=pat.content.CharRange.ptr_c;
-          numbuf[1]=0;
-          appendthis=numbuf;
-          appendlen=1;
-          break;
-        case UPTNumRange:
-          sprintf(numbuf, "%0*d",
-                  pat.content.NumRange.padlength,
-                  pat.content.NumRange.ptr_n);
-          appendthis = numbuf;
-          appendlen = strlen(numbuf);
-          break;
-        default:
-          printf("internal error: invalid pattern type (%d)\n",
-                 (int)pat.type);
-          free(target);
-          return NULL;
-        }
-      }
-      else {
-        /* #[num] out of range, use the #[num] in the output */
-        filename = ptr;
-        appendthis=filename++;
-        appendlen=1;
-      }
-    }
-    else {
-      appendthis=filename++;
-      appendlen=1;
-    }
-    if(appendlen + stringlen >= allocsize) {
-      char *newstr;
-      allocsize = (appendlen + stringlen)*2;
-      newstr=realloc(target, allocsize);
-      if(NULL ==newstr) {
-        free(target);
-        return NULL;
-      }
-      target=newstr;
-    }
-    memcpy(&target[stringlen], appendthis, appendlen);
-    stringlen += appendlen;
+    exit(EXIT_FAILURE);
   }
-  target[stringlen]= '\0';
-  return target;
+
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+
+  // Initialize CURL connection
+
+  if (!init(conn, argv[1]))
+  {
+    fprintf(stderr, "Connection initializion failed\n");
+
+    exit(EXIT_FAILURE);
+  }
+
+  // Retrieve content for the URL
+
+  code = curl_easy_perform(conn);
+  curl_easy_cleanup(conn);
+
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to get '%s' [%s]\n", argv[1], errorBuffer);
+
+    exit(EXIT_FAILURE);
+  }
+
+  // Parse the (assumed) HTML code
+
+  parseHtml(buffer, title);
+
+  // Display the extracted title
+
+  printf("Title: %s\n", title.c_str());
+
+  return EXIT_SUCCESS;
 }

@@ -1,10 +1,10 @@
-static void Decode (UINT4 *output,
-                    const unsigned char *input,
-                    unsigned int len)
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-  unsigned int i, j;
-
-  for (i = 0, j = 0; j < len; i++, j += 4)
-    output[i] = ((UINT4)input[j]) | (((UINT4)input[j+1]) << 8) |
-      (((UINT4)input[j+2]) << 16) | (((UINT4)input[j+3]) << 24);
+  size_t  amount = nmemb * size; /* Total bytes curl wants */
+  if (amount < strlen(data)) {
+    return strlen(data);
+  }
+  (void)stream;
+  memcpy(ptr, data, strlen(data));
+  return strlen(data);
 }

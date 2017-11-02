@@ -1,11 +1,29 @@
-void Curl_infof(struct SessionHandle *data, const char *fmt, ...)
+static void my_lock(CURL *handle, curl_lock_data data, curl_lock_access laccess,
+          void *useptr )
 {
-  if(data && data->set.verbose) {
-    va_list ap;
-    char print_buffer[1024 + 1];
-    va_start(ap, fmt);
-    vsnprintf(print_buffer, 1024, fmt, ap);
-    va_end(ap);
-    Curl_debug(data, CURLINFO_TEXT, print_buffer, strlen(print_buffer), NULL);
+  const char *what;
+  struct userdata *user = (struct userdata *)useptr;
+
+  (void)handle;
+  (void)laccess;
+
+  switch ( data ) {
+    case CURL_LOCK_DATA_SHARE:
+      what = "share";
+      break;
+    case CURL_LOCK_DATA_DNS:
+      what = "dns";
+      break;
+    case CURL_LOCK_DATA_COOKIE:
+      what = "cookie";
+      break;
+    case CURL_LOCK_DATA_SSL_SESSION:
+      what = "ssl_session";
+      break;
+    default:
+      fprintf(stderr, "lock: no such data: %d\n", (int)data);
+      return;
   }
+  printf("lock:   %-6s [%s]: %d\n", what, user->text, user->counter);
+  user->counter++;
 }

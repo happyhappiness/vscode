@@ -1,52 +1,29 @@
-static int get_request(int sock, struct httprequest *req)
+void *my_thread(void *ptr)
 {
-  int fail= FALSE;
-  char *reqbuf = req->reqbuf;
+  CURL *curl;
+  CURLcode res;
+  FILE *outfile;
+  gchar *url = ptr;
 
-  /*** Init the httpreqest structure properly for the upcoming request ***/
-  memset(req, 0, sizeof(struct httprequest));
+  curl = curl_easy_init();
+  if(curl)
+  {
+    outfile = fopen("test.curl", "w");
 
-  /* here's what should not be 0 from the start */
-  req->testno = DOCNUMBER_NOTHING; /* safe default */
-  req->open = TRUE; /* connection should remain open and wait for more
-                       commands */
+    curl_easy_setopt(curl, CURLOPT_URL, url);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, outfile);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_write_func);
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, my_read_func);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, my_progress_func);
+    curl_easy_setopt(curl, CURLOPT_PROGRESSDATA, Bar);
 
-  /*** end of httprequest init ***/
+    res = curl_easy_perform(curl);
 
-  while (req->offset < REQBUFSIZ) {
-    int got = sread(sock, reqbuf + req->offset, REQBUFSIZ - req->offset);
-    if (got <= 0) {
-      if (got < 0) {
-        perror("recv");
-        logmsg("recv() returned error");
-        return DOCNUMBER_INTERNAL;
-      }
-      logmsg("Connection closed by client");
-      reqbuf[req->offset]=0;
-
-      /* dump the request receivied so far to the external file */
-      storerequest(reqbuf);
-      return DOCNUMBER_INTERNAL;
-    }
-    req->offset += got;
-
-    reqbuf[req->offset] = 0;
-
-    if(ProcessRequest(req))
-      break;
+    fclose(outfile);
+    /* always cleanup */
+    curl_easy_cleanup(curl);
   }
 
-  if (req->offset >= REQBUFSIZ) {
-    logmsg("Request buffer overflow, closing connection");
-    reqbuf[REQBUFSIZ-1]=0;
-    fail = TRUE;
-    /* dump the request to an external file anyway */
-  }
-  else
-    reqbuf[req->offset]=0;
-
-  /* dump the request to an external file */
-  storerequest(reqbuf);
-
-  return fail; /* success */
+  return NULL;
 }

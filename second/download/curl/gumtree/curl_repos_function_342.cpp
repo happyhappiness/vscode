@@ -1,7 +1,16 @@
-int curl_mvsprintf(char *buffer, const char *format, va_list ap_save)
+void
+curl_certinfo_free_all(struct curl_certinfo *info)
+
 {
-  int retcode;
-  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
-  *buffer=0; /* we terminate this with a zero byte */
-  return retcode;
+  /* Free all memory used by certificate info. */
+  if(info) {
+    if(info->certinfo) {
+      int i;
+
+      for(i = 0; i < info->num_of_certs; i++)
+        curl_slist_free_all(info->certinfo[i]);
+      free((char *) info->certinfo);
+    }
+    free((char *) info);
+  }
 }

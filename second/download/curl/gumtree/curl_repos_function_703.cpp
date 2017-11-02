@@ -1,4 +1,4 @@
-void Curl_gtls_session_free(void *ptr)
+static void MD5_Final(unsigned char digest[16], MD5_CTX *ctx)
 {
-  free(ptr);
+  md5_finish(ctx, digest);
 }

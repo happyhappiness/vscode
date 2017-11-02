@@ -1,71 +1,112 @@
-CURLcode Curl_close(struct SessionHandle *data)
+int test(char *URL)
 {
-  if(data->multi) {
-    /* this handle is still part of a multi handle, take care of this first */
-    Curl_multi_rmeasy(data->multi, data);
-  }
-  /* Loop through all open connections and kill them one by one */
-  while(-1 != ConnectionKillOne(data))
-    ; /* empty loop */
+  CURL *easy = NULL;
+  CURLM *multi = NULL;
+  int res = 0;
+  int running;
+  int msgs_left;
+  CURLMsg *msg;
+  FILE *upload = NULL;
+  int error;
 
-  if ( ! (data->share && data->share->hostcache) ) {
-    if ( !Curl_global_host_cache_use(data)) {
-      Curl_hash_destroy(data->hostcache);
+  start_test_timing();
+
+  upload = fopen(libtest_arg3, "rb");
+  if(!upload) {
+    error = ERRNO;
+    fprintf(stderr, "fopen() failed with error: %d (%s)\n",
+            error, strerror(error));
+    fprintf(stderr, "Error opening file: (%s)\n", libtest_arg3);
+    return TEST_ERR_FOPEN;
+  }
+
+  res_global_init(CURL_GLOBAL_ALL);
+  if(res) {
+    fclose(upload);
+    return res;
+  }
+
+  easy_init(easy);
+
+  /* go verbose */
+  easy_setopt(easy, CURLOPT_VERBOSE, 1L);
+
+  /* specify target */
+  easy_setopt(easy, CURLOPT_URL, URL);
+
+  /* enable uploading */
+  easy_setopt(easy, CURLOPT_UPLOAD, 1L);
+
+  /* data pointer for the file read function */
+  easy_setopt(easy, CURLOPT_READDATA, upload);
+
+  /* use active mode FTP */
+  easy_setopt(easy, CURLOPT_FTPPORT, "-");
+
+  /* server connection timeout */
+  easy_setopt(easy, CURLOPT_ACCEPTTIMEOUT_MS,
+              strtol(libtest_arg2, NULL, 10)*1000);
+
+  multi_init(multi);
+
+  multi_add_handle(multi, easy);
+
+  for(;;) {
+    struct timeval interval;
+    fd_set fdread;
+    fd_set fdwrite;
+    fd_set fdexcep;
+    long timeout = -99;
+    int maxfd = -99;
+
+    multi_perform(multi, &running);
+
+    abort_on_test_timeout();
+
+    if(!running)
+      break; /* done */
+
+    FD_ZERO(&fdread);
+    FD_ZERO(&fdwrite);
+    FD_ZERO(&fdexcep);
+
+    multi_fdset(multi, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+    /* At this point, maxfd is guaranteed to be greater or equal than -1. */
+
+    multi_timeout(multi, &timeout);
+
+    /* At this point, timeout is guaranteed to be greater or equal than -1. */
+
+    if(timeout != -1L) {
+      int itimeout = (timeout > (long)INT_MAX) ? INT_MAX : (int)timeout;
+      interval.tv_sec = itimeout/1000;
+      interval.tv_usec = (itimeout%1000)*1000;
     }
+    else {
+      interval.tv_sec = 0;
+      interval.tv_usec = 100000L; /* 100 ms */
+    }
+
+    select_test(maxfd+1, &fdread, &fdwrite, &fdexcep, &interval);
+
+    abort_on_test_timeout();
   }
 
-  /* Close down all open SSL info and sessions */
-  Curl_ssl_close_all(data);
-  Curl_safefree(data->state.first_host);
-  Curl_safefree(data->state.scratch);
+  msg = curl_multi_info_read(multi, &msgs_left);
+  if(msg)
+    res = msg->data.result;
 
-  if(data->change.proxy_alloc)
-    free(data->change.proxy);
+test_cleanup:
 
-  if(data->change.referer_alloc)
-    free(data->change.referer);
+  /* undocumented cleanup sequence - type UA */
 
-  if(data->change.url_alloc)
-    free(data->change.url);
+  curl_multi_cleanup(multi);
+  curl_easy_cleanup(easy);
+  curl_global_cleanup();
 
-  Curl_safefree(data->state.headerbuff);
+  /* close the local file */
+  fclose(upload);
 
-#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_COOKIES)
-  if(data->change.cookielist) /* clean up list if any */
-    curl_slist_free_all(data->change.cookielist);
-
-  Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
-  if(data->set.cookiejar) {
-    /* we have a "destination" for all the cookies to get dumped to */
-    if(Curl_cookie_output(data->cookies, data->set.cookiejar))
-      infof(data, "WARNING: failed to save cookies in %s\n",
-            data->set.cookiejar);
-  }
-
-  if( !data->share || (data->cookies != data->share->cookies) ) {
-    Curl_cookie_cleanup(data->cookies);
-  }
-  Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
-#endif
-
-#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_CRYPTO_AUTH)
-  Curl_digest_cleanup(data);
-#endif
-
-  /* free the connection cache */
-  free(data->state.connects);
-
-  Curl_safefree(data->info.contenttype);
-
-#ifdef USE_ARES
-  /* this destroys the channel and we cannot use it anymore after this */
-  ares_destroy(data->state.areschannel);
-#endif
-
-  /* No longer a dirty share, if it exists */
-  if (data->share)
-    data->share->dirty--;
-
-  free(data);
-  return CURLE_OK;
+  return res;
 }

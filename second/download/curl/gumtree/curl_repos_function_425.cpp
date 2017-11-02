@@ -1,13 +1,8 @@
-CURLcode Curl_protocol_doing(struct connectdata *conn, bool *done)
+void *custom_malloc(size_t size)
 {
-  CURLcode result=CURLE_OK;
-
-  if(conn && conn->curl_doing) {
-    *done = FALSE;
-    result = conn->curl_doing(conn, done);
+  if(!seen_malloc && seen_calloc) {
+    printf("seen custom_malloc()\n");
+    seen_malloc = 1;
   }
-  else
-    *done = TRUE;
-
-  return result;
+  return (malloc)(size);
 }

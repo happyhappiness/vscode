@@ -1,12 +1,11 @@
-static bool SocketIsDead(curl_socket_t sock)
+char *hexdump(unsigned char *buffer, size_t len)
 {
-  int sval;
-  bool ret_val = TRUE;
-
-  sval = Curl_select(sock, CURL_SOCKET_BAD, 0);
-  if(sval == 0)
-    /* timeout */
-    ret_val = FALSE;
-
-  return ret_val;
+  static char dump[200*3+1];
+  char *p = dump;
+  size_t i;
+  if(len > 200)
+    return NULL;
+  for(i=0; i<len; i++, p += 3)
+    snprintf(p, 4, "%02x ", buffer[i]);
+  return dump;
 }

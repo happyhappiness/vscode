@@ -1,50 +1,104 @@
-static int rlimit(void)
+int main(void)
 {
-  int i;
-  struct rlimit rl;
+  CURL *http_handle;
+  CURLM *multi_handle;
 
-  fprintf(stderr, "NUM_OPEN: %d\n", NUM_OPEN);
-  fprintf(stderr, "NUM_NEEDED: %d\n", NUM_NEEDED);
+  int still_running; /* keep number of running handles */
 
-  /* get open file limits */
-  if (getrlimit(RLIMIT_NOFILE, &rl) == -1) {
-    fprintf(stderr, "warning: getrlimit: failed to get RLIMIT_NOFILE\n");
-    return -1;
-  }
+  http_handle = curl_easy_init();
 
-  /* check that hard limit is high enough */
-  if (rl.rlim_max < NUM_NEEDED) {
-    fprintf(stderr, "warning: RLIMIT_NOFILE hard limit %d < %d\n",
-            (int)rl.rlim_max, NUM_NEEDED);
-    return -2;
-  }
+  /* set the options (I left out a few, you'll get the point anyway) */
+  curl_easy_setopt(http_handle, CURLOPT_URL, "http://www.example.com/");
 
-  /* increase soft limit if needed */
-  if (rl.rlim_cur < NUM_NEEDED) {
-    rl.rlim_cur = NUM_NEEDED;
-    if (setrlimit(RLIMIT_NOFILE, &rl) == -1) {
-      fprintf(stderr, "warning: setrlimit: failed to set RLIMIT_NOFILE\n");
-      return -3;
+  curl_easy_setopt(http_handle, CURLOPT_DEBUGFUNCTION, my_trace);
+  curl_easy_setopt(http_handle, CURLOPT_VERBOSE, 1L);
+
+  /* init a multi stack */
+  multi_handle = curl_multi_init();
+
+  /* add the individual transfers */
+  curl_multi_add_handle(multi_handle, http_handle);
+
+  /* we start some action by calling perform right away */
+  curl_multi_perform(multi_handle, &still_running);
+
+  do {
+    struct timeval timeout;
+    int rc; /* select() return code */
+    CURLMcode mc; /* curl_multi_fdset() return code */
+
+    fd_set fdread;
+    fd_set fdwrite;
+    fd_set fdexcep;
+    int maxfd = -1;
+
+    long curl_timeo = -1;
+
+    FD_ZERO(&fdread);
+    FD_ZERO(&fdwrite);
+    FD_ZERO(&fdexcep);
+
+    /* set a suitable timeout to play around with */
+    timeout.tv_sec = 1;
+    timeout.tv_usec = 0;
+
+    curl_multi_timeout(multi_handle, &curl_timeo);
+    if(curl_timeo >= 0) {
+      timeout.tv_sec = curl_timeo / 1000;
+      if(timeout.tv_sec > 1)
+        timeout.tv_sec = 1;
+      else
+        timeout.tv_usec = (curl_timeo % 1000) * 1000;
     }
-  }
 
-  /* open a dummy descriptor */
-  fd[0] = open(DEV_NULL, O_RDONLY);
-  if (fd[0] == -1) {
-    fprintf(stderr, "open: failed to open %s\n", DEV_NULL);
-    return -4;
-  }
+    /* get file descriptors from the transfers */
+    mc = curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
 
-  /* create a bunch of file descriptors */
-  for (i = 1; i < NUM_OPEN; i++) {
-    fd[i] = dup(fd[0]);
-    if (fd[i] == -1) {
-      fprintf(stderr, "dup: attempt #%i failed\n", i);
-      for (i--; i >= 0; i--)
-        close(fd[i]);
-      return -5;
+    if(mc != CURLM_OK)
+    {
+      fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mc);
+      break;
     }
-  }
+
+    /* On success the value of maxfd is guaranteed to be >= -1. We call
+       select(maxfd + 1, ...); specially in case of (maxfd == -1) there are
+       no fds ready yet so we call select(0, ...) --or Sleep() on Windows--
+       to sleep 100ms, which is the minimum suggested value in the
+       curl_multi_fdset() doc. */
+
+    if(maxfd == -1) {
+#ifdef _WIN32
+      Sleep(100);
+      rc = 0;
+#else
+      /* Portable sleep for platforms other than Windows. */
+      struct timeval wait = { 0, 100 * 1000 }; /* 100ms */
+      rc = select(0, NULL, NULL, NULL, &wait);
+#endif
+    }
+    else {
+      /* Note that on some platforms 'timeout' may be modified by select().
+         If you need access to the original value save a copy beforehand. */
+      rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
+    }
+
+    switch(rc) {
+    case -1:
+      /* select error */
+      still_running = 0;
+      printf("select() returns error, this is badness\n");
+      break;
+    case 0:
+    default:
+      /* timeout or readable/writable sockets */
+      curl_multi_perform(multi_handle, &still_running);
+      break;
+    }
+  } while(still_running);
+
+  curl_multi_cleanup(multi_handle);
+
+  curl_easy_cleanup(http_handle);
 
   return 0;
 }

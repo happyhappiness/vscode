@@ -1,33 +1,84 @@
-void *
-Curl_hash_add(struct curl_hash *h, char *key, size_t key_len, void *p)
+static int loop(int num, CURLM *cm, const char* url, const char* userpwd,
+                struct curl_slist *headers)
 {
-  struct curl_hash_element  *he;
-  struct curl_llist_element *le;
-  struct curl_llist *l = FETCH_LIST(h, key, key_len);
+  CURLMsg *msg;
+  long L;
+  int Q, U = -1;
+  fd_set R, W, E;
+  struct timeval T;
+  int res = 0;
 
-  for (le = l->head; le; le = le->next) {
-    he = (struct curl_hash_element *) le->ptr;
-    if (hash_key_compare(he->key, he->key_len, key, key_len)) {
-      h->dtor(p);     /* remove the NEW entry */
-      return he->ptr; /* return the EXISTING entry */
+  res = init(num, cm, url, userpwd, headers);
+  if(res)
+    return res;
+
+  while (U) {
+
+    int M = -99;
+
+    res_multi_perform(cm, &U);
+    if(res)
+      return res;
+
+    res_test_timedout();
+    if(res)
+      return res;
+
+    if (U) {
+      FD_ZERO(&R);
+      FD_ZERO(&W);
+      FD_ZERO(&E);
+
+      res_multi_fdset(cm, &R, &W, &E, &M);
+      if(res)
+        return res;
+
+      /* At this point, M is guaranteed to be greater or equal than -1. */
+
+      res_multi_timeout(cm, &L);
+      if(res)
+        return res;
+
+      /* At this point, L is guaranteed to be greater or equal than -1. */
+
+      if(L != -1) {
+        int itimeout = (L > (long)INT_MAX) ? INT_MAX : (int)L;
+        T.tv_sec = itimeout/1000;
+        T.tv_usec = (itimeout%1000)*1000;
+      }
+      else {
+        T.tv_sec = 5;
+        T.tv_usec = 0;
+      }
+
+      res_select_test(M+1, &R, &W, &E, &T);
+      if(res)
+        return res;
     }
+
+    while((msg = curl_multi_info_read(cm, &Q)) != NULL) {
+      if(msg->msg == CURLMSG_DONE) {
+        int i;
+        CURL *e = msg->easy_handle;
+        fprintf(stderr, "R: %d - %s\n", (int)msg->data.result,
+                curl_easy_strerror(msg->data.result));
+        curl_multi_remove_handle(cm, e);
+        curl_easy_cleanup(e);
+        for(i=0; i < NUM_HANDLES; i++) {
+          if(eh[i] == e) {
+            eh[i] = NULL;
+            break;
+          }
+        }
+      }
+      else
+        fprintf(stderr, "E: CURLMsg (%d)\n", (int)msg->msg);
+    }
+
+    res_test_timedout();
+    if(res)
+      return res;
   }
 
-  he = mk_hash_element(key, key_len, p);
-  if (he) {
-    if(Curl_llist_insert_next(l, l->tail, he)) {
-      ++h->size;
-      return p; /* return the new entry */
-    }
-    /*
-     * Couldn't insert it, destroy the 'he' element and the key again. We
-     * don't call hash_element_dtor() since that would also call the
-     * "destructor" for the actual data 'p'. When we fail, we shall not touch
-     * that data.
-     */
-    free(he->key);
-    free(he);
-  }
-
-  return NULL; /* failure */
+  return 0; /* success */
 }

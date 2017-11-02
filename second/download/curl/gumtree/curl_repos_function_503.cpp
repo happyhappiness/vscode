@@ -1,7 +1,48 @@
-char *Curl_if2ip(const char *interf, char *buf, int buf_size)
+int test(char *URL)
 {
-    (void) interf;
-    (void) buf;
-    (void) buf_size;
-    return NULL;
+  CURLcode code;
+  CURL *curl;
+  CURL *curl2;
+  int rc = 99;
+
+  code = curl_global_init(CURL_GLOBAL_ALL);
+  if(code == CURLE_OK) {
+
+    curl = curl_easy_init();
+    if(curl) {
+
+      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+      curl_easy_setopt(curl, CURLOPT_HEADER, 1L);
+
+      curl2 = curl_easy_duphandle(curl);
+      if(curl2) {
+
+        code = curl_easy_setopt(curl2, CURLOPT_URL, URL);
+        if(code == CURLE_OK) {
+
+          code = curl_easy_perform(curl2);
+          if(code == CURLE_OK)
+            rc = 0;
+          else
+            rc = 1;
+        }
+        else
+          rc = 2;
+
+        curl_easy_cleanup(curl2);
+      }
+      else
+        rc = 3;
+
+      curl_easy_cleanup(curl);
+    }
+    else
+      rc = 4;
+
+    curl_global_cleanup();
+  }
+  else
+    rc = 5;
+
+  return rc;
 }

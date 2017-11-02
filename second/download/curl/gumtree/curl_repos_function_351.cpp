@@ -1,4 +1,8 @@
-long Curl_tvlong(struct timeval t1)
+char *
+curl_form_long_value(long value)
+
 {
-  return t1.tv_sec;
+  /* ILE/RPG cannot cast an integer to a pointer. This procedure does it. */
+
+  return (char *) value;
 }

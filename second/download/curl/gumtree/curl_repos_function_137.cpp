@@ -1,12 +1,10 @@
-static void internalSetEnv(const char * name, char * value)
+static int writer(char *data, size_t size, size_t nmemb,
+                  std::string *writerData)
 {
-  /* Add your OS-specific code here. */
-#ifdef __riscos__
-  _kernel_setenv(name, value);
-#elif defined (CURLDEBUG)
-  extern FILE *curl_debuglogfile;
-  if (curl_debuglogfile)
-     fprintf (curl_debuglogfile, "ENV %s = %s\n", name, value);
-#endif
-  return;
+  if (writerData == NULL)
+    return 0;
+
+  writerData->append(data, size*nmemb);
+
+  return size * nmemb;
 }

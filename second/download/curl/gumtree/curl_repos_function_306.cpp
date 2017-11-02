@@ -1,37 +1,24 @@
-void Curl_pgrsTime(struct SessionHandle *data, timerid timer)
-{
-  switch(timer) {
-  default:
-  case TIMER_NONE:
-    /* mistake filter */
-    break;
-  case TIMER_STARTSINGLE:
-    /* This is set at the start of a single fetch */
-    data->progress.t_startsingle = Curl_tvnow();
-    break;
+OM_uint32
+Curl_gss_display_status_a(OM_uint32 * minor_status, OM_uint32 status_value,
+                   int status_type, gss_OID mech_type,
+                   gss_msg_ctx_t * message_context, gss_buffer_t status_string)
 
-  case TIMER_NAMELOOKUP:
-    data->progress.t_nslookup =
-      Curl_tvdiff_secs(Curl_tvnow(), data->progress.t_startsingle);
-    break;
-  case TIMER_CONNECT:
-    data->progress.t_connect =
-      Curl_tvdiff_secs(Curl_tvnow(), data->progress.t_startsingle);
-    break;
-  case TIMER_PRETRANSFER:
-    data->progress.t_pretransfer =
-      Curl_tvdiff_secs(Curl_tvnow(), data->progress.t_startsingle);
-    break;
-  case TIMER_STARTTRANSFER:
-    data->progress.t_starttransfer =
-      Curl_tvdiff_secs(Curl_tvnow(), data->progress.t_startsingle);
-    break;
-  case TIMER_POSTRANSFER:
-    /* this is the normal end-of-transfer thing */
-    break;
-  case TIMER_REDIRECT:
-    data->progress.t_redirect =
-      Curl_tvdiff_secs(Curl_tvnow(), data->progress.start);
-    break;
-  }
+{
+  int rc;
+
+  rc = gss_display_status(minor_status, status_value, status_type,
+                              mech_type, message_context, status_string);
+
+  if(rc != GSS_S_COMPLETE || !status_string ||
+     !status_string->length || !status_string->value)
+    return rc;
+
+  /* No way to allocate a buffer here, because it will be released by
+     gss_release_buffer(). The solution is to overwrite the EBCDIC buffer
+     with ASCII to return it. */
+
+  if(Curl_gss_convert_in_place(minor_status, status_string))
+    return GSS_S_FAILURE;
+
+  return rc;
 }

@@ -1,28 +1,28 @@
-static int str2offset(curl_off_t *val, char *str)
+void url_rewind(URL_FILE *file)
 {
-#if SIZEOF_CURL_OFF_T > 4
-  /* Ugly, but without going through a bunch of rigmarole, we don't have the
-   * definitions for LLONG_{MIN,MAX} or LONG_LONG_{MIN,MAX}.
-   */
-#ifndef LLONG_MAX
-#ifdef _MSC_VER
-#define LLONG_MAX (curl_off_t)0x7FFFFFFFFFFFFFFFi64
-#define LLONG_MIN (curl_off_t)0x8000000000000000i64
-#else
-#define LLONG_MAX (curl_off_t)0x7FFFFFFFFFFFFFFFLL
-#define LLONG_MIN (curl_off_t)0x8000000000000000LL
-#endif
-#endif
+  switch(file->type) {
+  case CFTYPE_FILE:
+    rewind(file->handle.file); /* passthrough */
+    break;
 
-  /* this is a duplicate of the function that is also used in libcurl */
-  *val = curlx_strtoofft(str, NULL, 0);
+  case CFTYPE_CURL:
+    /* halt transaction */
+    curl_multi_remove_handle(multi_handle, file->handle.curl);
 
-  if ((*val == LLONG_MAX || *val == LLONG_MIN) && errno == ERANGE)
-    return 1;
-#else
-  *val = strtol(str, NULL, 0);
-  if ((*val == LONG_MIN || *val == LONG_MAX) && errno == ERANGE)
-    return 1;
-#endif
-  return 0;
+    /* restart */
+    curl_multi_add_handle(multi_handle, file->handle.curl);
+
+    /* ditch buffer - write will recreate - resets stream pos*/
+    if(file->buffer)
+      free(file->buffer);
+
+    file->buffer=NULL;
+    file->buffer_pos=0;
+    file->buffer_len=0;
+
+    break;
+
+  default: /* unknown or supported type - oh dear */
+    break;
+  }
 }

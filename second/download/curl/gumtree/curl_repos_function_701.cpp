@@ -1,7 +1,5 @@
-void Curl_gtls_close(struct connectdata *conn)
+static int MD5_Init(MD5_CTX *ctx)
 {
-  if(conn->ssl[0].use)
-    close_one(conn, 0);
-  if(conn->ssl[1].use)
-    close_one(conn, 1);
+  md5_starts(ctx);
+  return 1;
 }

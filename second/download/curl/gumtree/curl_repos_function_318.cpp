@@ -1,22 +1,14 @@
-char *curl_dostrdup(const char *str, int line, const char *source)
+int
+Curl_os400_connect(int sd, struct sockaddr * destaddr, int addrlen)
+
 {
-  char *mem;
-  size_t len;
+  int i;
+  struct sockaddr_storage laddr;
 
-  curlassert(str != NULL);
+  i = convert_sockaddr(&laddr, destaddr, addrlen);
 
-  if(countcheck("strdup", line, source))
-    return NULL;
+  if(i < 0)
+    return -1;
 
-  len=strlen(str)+1;
-
-  mem=curl_domalloc(len, 0, NULL); /* NULL prevents logging */
-  if (mem)
-  memcpy(mem, str, len);
-
-  if(logfile)
-    fprintf(logfile, "MEM %s:%d strdup(%p) (%zd) = %p\n",
-            source, line, str, len, mem);
-
-  return mem;
+  return connect(sd, (struct sockaddr *) &laddr, i);
 }

@@ -1,41 +1,16 @@
-int test(char *URL)
+static size_t parseStreamCallback(void *contents, size_t length, size_t nmemb, void *userp)
 {
-  CURL *curl;
-  CURLcode res=CURLE_OK;
+  XML_Parser parser = (XML_Parser) userp;
+  size_t real_size = length * nmemb;
+  struct ParserStruct *state = (struct ParserStruct *) XML_GetUserData(parser);
 
-  curl = curl_easy_init();
-  if(curl) {
-    /* First set the URL that is about to receive our POST. */
-    curl_easy_setopt(curl, CURLOPT_URL, URL);
-
-    /* Based on a bug report by Niels van Tongeren on June 29, 2004:
-
-    A weird situation occurs when request 1 is a POST request and the request
-    2 is a HEAD request. For the POST request we set the CURLOPT_POSTFIELDS,
-    CURLOPT_POSTFIELDSIZE and CURLOPT_POST options. For the HEAD request we
-    set the CURLOPT_NOBODY option to '1'.
-
-    */
-
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "moo");
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, 3);
-    curl_easy_setopt(curl, CURLOPT_POST, 1);
-
-    /* this is where transfer 1 would take place, but skip that and change
-       options right away instead */
-
-    curl_easy_setopt(curl, CURLOPT_NOBODY, 1);
-
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1); /* show verbose for debug */
-    curl_easy_setopt(curl, CURLOPT_HEADER, 1); /* include header */
-
-    /* Now, we should be making a fine HEAD request */
-
-    /* Perform the request 2, res will get the return code */
-    res = curl_easy_perform(curl);
-
-    /* always cleanup */
-    curl_easy_cleanup(curl);
+  /* Only parse if we're not already in a failure state. */
+  if (state->ok && XML_Parse(parser, contents, real_size, 0) == 0) {
+    int error_code = XML_GetErrorCode(parser);
+    fprintf(stderr, "Parsing response buffer of length %lu failed with error code %d (%s).\n",
+            real_size, error_code, XML_ErrorString(error_code));
+    state->ok = 0;
   }
-  return (int)res;
+
+  return real_size;
 }

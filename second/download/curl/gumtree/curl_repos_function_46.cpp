@@ -1,25 +1,21 @@
-static int
-use_buffer(URL_FILE *file,int want)
+static void rtsp_describe(CURL *curl, const char *uri,
+                          const char *sdp_filename)
 {
-    /* sort out buffer */
-    if((file->buffer_pos - want) <=0)
-    {
-        /* ditch buffer - write will recreate */
-        if(file->buffer)
-            free(file->buffer);
-
-        file->buffer=NULL;
-        file->buffer_pos=0;
-        file->buffer_len=0;
-    }
-    else
-    {
-        /* move rest down make it available for later */
-        memmove(file->buffer,
-                &file->buffer[want],
-                (file->buffer_pos - want));
-
-        file->buffer_pos -= want;
-    }
-    return 0;
+  CURLcode res = CURLE_OK;
+  FILE *sdp_fp = fopen(sdp_filename, "wt");
+  printf("\nRTSP: DESCRIBE %s\n", uri);
+  if (sdp_fp == NULL) {
+    fprintf(stderr, "Could not open '%s' for writing\n", sdp_filename);
+    sdp_fp = stdout;
+  }
+  else {
+    printf("Writing SDP to '%s'\n", sdp_filename);
+  }
+  my_curl_easy_setopt(curl, CURLOPT_WRITEDATA, sdp_fp);
+  my_curl_easy_setopt(curl, CURLOPT_RTSP_REQUEST, (long)CURL_RTSPREQ_DESCRIBE);
+  my_curl_easy_perform(curl);
+  my_curl_easy_setopt(curl, CURLOPT_WRITEDATA, stdout);
+  if (sdp_fp != stdout) {
+    fclose(sdp_fp);
+  }
 }

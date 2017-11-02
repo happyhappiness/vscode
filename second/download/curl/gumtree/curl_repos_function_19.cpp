@@ -1,7 +1,4 @@
-static void locking_function(int mode, int n, const char * file, int line)
+void destroy_curl_context(curl_context_t *context)
 {
-  if (mode & CRYPTO_LOCK)
-    MUTEX_LOCK(mutex_buf[n]);
-  else
-    MUTEX_UNLOCK(mutex_buf[n]);
+  uv_close((uv_handle_t *) &context->poll_handle, curl_close_cb);
 }

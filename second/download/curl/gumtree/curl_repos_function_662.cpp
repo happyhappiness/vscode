@@ -1,14 +1,24 @@
-static void negotiate(struct connectdata *conn)
+static HANDLE select_ws_wait(HANDLE handle, HANDLE event)
 {
-  int i;
-  struct TELNET *tn = (struct TELNET *)conn->proto.telnet;
+  struct select_ws_wait_data *data;
+  HANDLE thread = NULL;
 
-  for(i = 0;i < CURL_NTELOPTS;i++)
-  {
-    if(tn->us_preferred[i] == CURL_YES)
-      set_local_option(conn, i, CURL_YES);
+  /* allocate internal waiting data structure */
+  data = malloc(sizeof(struct select_ws_wait_data));
+  if(data) {
+    data->handle = handle;
+    data->event = event;
 
-    if(tn->him_preferred[i] == CURL_YES)
-      set_remote_option(conn, i, CURL_YES);
+    /* launch waiting thread */
+    thread = CreateThread(NULL, 0,
+                          &select_ws_wait_thread,
+                          data, 0, NULL);
+
+    /* free data if thread failed to launch */
+    if(!thread) {
+      free(data);
+    }
   }
+
+  return thread;
 }

@@ -1,39 +1,30 @@
-static
-CURLcode ftp_regular_transfer(struct connectdata *conn,
-                              bool *dophase_done)
+static void splayprint(struct Curl_tree * t, int d, char output)
 {
-  CURLcode result=CURLE_OK;
-  bool connected=0;
-  struct SessionHandle *data = conn->data;
-  struct FTP *ftp;
+  struct Curl_tree *node;
+  int i;
+  int count;
+  if(t == NULL)
+    return;
 
-  /* the ftp struct is already inited in ftp_connect() */
-  ftp = conn->proto.ftp;
-  conn->size = -1; /* make sure this is unknown at this point */
+  splayprint(t->larger, d+1, output);
+  for(i=0; i<d; i++)
+    if(output)
+      printf("  ");
 
-  Curl_pgrsSetUploadCounter(data, 0);
-  Curl_pgrsSetDownloadCounter(data, 0);
-  Curl_pgrsSetUploadSize(data, 0);
-  Curl_pgrsSetDownloadSize(data, 0);
-
-  ftp->ctl_valid = TRUE; /* starts good */
-
-  result = ftp_perform(conn,
-                       &connected, /* have we connected after PASV/PORT */
-                       dophase_done); /* all commands in the DO-phase done? */
-
-  if(CURLE_OK == result) {
-
-    if(!*dophase_done)
-      /* the DO phase has not completed yet */
-      return CURLE_OK;
-
-    result = ftp_dophase_done(conn, connected);
-    if(result)
-      return result;
+  if(output) {
+    printf("%ld.%ld[%d]", (long)t->key.tv_sec,
+           (long)t->key.tv_usec, i);
   }
-  else
-    freedirs(ftp);
 
-  return result;
+  for(count=0, node = t->same; node; node = node->same, count++)
+    ;
+
+  if(output) {
+    if(count)
+      printf(" [%d more]\n", count);
+    else
+      printf("\n");
+  }
+
+  splayprint(t->smaller, d+1, output);
 }

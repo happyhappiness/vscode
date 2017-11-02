@@ -1,32 +1,14 @@
-int
-Curl_llist_insert_next(struct curl_llist *list, struct curl_llist_element *e,
-                       const void *p)
+static int closesocket(void *clientp, curl_socket_t item)
 {
-  struct curl_llist_element *ne =
-    (struct curl_llist_element *) malloc(sizeof(struct curl_llist_element));
-  if(!ne)
-    return 0;
+  fprintf(MSG_OUT, "\nclosesocket : %d", item);
 
-  ne->ptr = (void *) p;
-  if (list->size == 0) {
-    list->head = ne;
-    list->head->prev = NULL;
-    list->head->next = NULL;
-    list->tail = ne;
-  }
-  else {
-    ne->next = e->next;
-    ne->prev = e;
-    if (e->next) {
-      e->next->prev = ne;
-    }
-    else {
-      list->tail = ne;
-    }
-    e->next = ne;
+  std::map<curl_socket_t, boost::asio::ip::tcp::socket *>::iterator it = socket_map.find(item);
+
+  if(it != socket_map.end())
+  {
+    delete it->second;
+    socket_map.erase(it);
   }
 
-  ++list->size;
-
-  return 1;
+  return 0;
 }

@@ -1,18 +1,53 @@
-static CURLcode ftp_state_post_listtype(struct connectdata *conn)
+int test(char *URL)
 {
-  CURLcode result = CURLE_OK;
-  struct SessionHandle *data = conn->data;
+  CURL *curl = NULL;
+  CURLcode res = CURLE_FAILED_INIT;
+  /* http header list*/
+  struct curl_slist *hhl = NULL, *tmp = NULL;
 
-  /* If this output is to be machine-parsed, the NLST command might be better
-     to use, since the LIST command output is not specified or standard in any
-     way. It has turned out that the NLST list output is not the same on all
-     servers either... */
+  if(curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
+  }
 
-  NBFTPSENDF(conn, "%s",
-             data->set.customrequest?data->set.customrequest:
-             (data->set.ftp_list_only?"NLST":"LIST"));
+  if((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
 
-  state(conn, FTP_LIST);
+  hhl = curl_slist_append(hhl, "User-Agent: Http Agent");
+  if (!hhl) {
+    goto test_cleanup;
+  }
+  tmp = curl_slist_append(hhl, "Expect: 100-continue");
+  if (!tmp) {
+    goto test_cleanup;
+  }
+  hhl = tmp;
 
-  return result;
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_PROXY, libtest_arg2);
+  test_setopt(curl, CURLOPT_HTTPHEADER, hhl);
+  test_setopt(curl, CURLOPT_POST, 0L);
+  test_setopt(curl, CURLOPT_UPLOAD, 1L);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+  test_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+  test_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
+  test_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+  test_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
+  test_setopt(curl, CURLOPT_INFILESIZE, strlen(data));
+
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  curl_easy_cleanup(curl);
+
+  curl_slist_free_all(hhl);
+
+  curl_global_cleanup();
+
+  return (int)res;
 }

@@ -1,64 +1,76 @@
-CURLcode Curl_ftp_connect(struct connectdata *conn,
-                          bool *done) /* see description above */
+int test(char *URL)
 {
-  struct FTP *ftp;
-  CURLcode result;
+  CURL *handle = NULL;
+  CURLM *mhandle = NULL;
+  int res = 0;
+  int still_running = 0;
 
-  *done = FALSE; /* default to not done yet */
+  start_test_timing();
 
-  ftp = (struct FTP *)calloc(sizeof(struct FTP), 1);
-  if(!ftp)
-    return CURLE_OUT_OF_MEMORY;
+  global_init(CURL_GLOBAL_ALL);
 
-  conn->proto.ftp = ftp;
+  easy_init(handle);
 
-  /* We always support persistant connections on ftp */
-  conn->bits.close = FALSE;
+  easy_setopt(handle, CURLOPT_URL, URL);
+  easy_setopt(handle, CURLOPT_VERBOSE, 1L);
 
-  /* get some initial data into the ftp struct */
-  ftp->bytecountp = &conn->bytecount;
+  multi_init(mhandle);
 
-  /* no need to duplicate them, this connectdata struct won't change */
-  ftp->user = conn->user;
-  ftp->passwd = conn->passwd;
-  if (isBadFtpString(ftp->user) || isBadFtpString(ftp->passwd))
-    return CURLE_URL_MALFORMAT;
+  multi_add_handle(mhandle, handle);
 
-  ftp->response_time = 3600; /* set default response time-out */
+  multi_perform(mhandle, &still_running);
 
-#ifndef CURL_DISABLE_HTTP
-  if (conn->bits.tunnel_proxy) {
-    /* BLOCKING */
-    /* We want "seamless" FTP operations through HTTP proxy tunnel */
-    result = Curl_ConnectHTTPProxyTunnel(conn, FIRSTSOCKET,
-                                         conn->host.name, conn->remote_port);
-    if(CURLE_OK != result)
-      return result;
+  abort_on_test_timeout();
+
+  while(still_running) {
+    struct timeval timeout;
+    fd_set fdread;
+    fd_set fdwrite;
+    fd_set fdexcep;
+    int maxfd = -99;
+    struct timeval before;
+    struct timeval after;
+    int e;
+
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 100000L; /* 100 ms */
+
+    FD_ZERO(&fdread);
+    FD_ZERO(&fdwrite);
+    FD_ZERO(&fdexcep);
+
+    multi_fdset(mhandle, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+    /* At this point, maxfd is guaranteed to be greater or equal than -1. */
+
+    select_test(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
+
+    abort_on_test_timeout();
+
+    fprintf(stderr, "ping\n");
+    before = tutil_tvnow();
+
+    multi_perform(mhandle, &still_running);
+
+    abort_on_test_timeout();
+
+    after = tutil_tvnow();
+    e = elapsed(&before, &after);
+    fprintf(stderr, "pong = %d\n", e);
+
+    if(e > MAX_BLOCKED_TIME_US) {
+      res = 100;
+      break;
+    }
   }
-#endif   /* CURL_DISABLE_HTTP */
 
-  if(conn->protocol & PROT_FTPS) {
-    /* BLOCKING */
-    /* FTPS is simply ftp with SSL for the control channel */
-    /* now, perform the SSL initialization for this socket */
-    result = Curl_ssl_connect(conn, FIRSTSOCKET);
-    if(result)
-      return result;
-  }
+test_cleanup:
 
-  /* When we connect, we start in the state where we await the 220
-     response */
-  ftp_respinit(conn); /* init the response reader stuff */
-  state(conn, FTP_WAIT220);
-  ftp->response = Curl_tvnow(); /* start response time-out now! */
+  /* undocumented cleanup sequence - type UA */
 
-  if(conn->data->state.used_interface == Curl_if_multi)
-    result = Curl_ftp_multi_statemach(conn, done);
-  else {
-    result = ftp_easy_statemach(conn);
-    if(!result)
-      *done = TRUE;
-  }
+  curl_multi_cleanup(mhandle);
+  curl_easy_cleanup(handle);
+  curl_global_cleanup();
 
-  return result;
+  return res;
 }

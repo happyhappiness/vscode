@@ -1,31 +1,12 @@
-CURLcode Curl_ossl_set_engine(struct SessionHandle *data, const char *engine)
+size_t readfunc(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-#if defined(USE_SSLEAY) && defined(HAVE_OPENSSL_ENGINE_H)
-  ENGINE *e = ENGINE_by_id(engine);
+  FILE *f = stream;
+  size_t n;
 
-  if (!e) {
-    failf(data, "SSL Engine '%s' not found", engine);
-    return (CURLE_SSL_ENGINE_NOTFOUND);
-  }
+  if (ferror(f))
+    return CURL_READFUNC_ABORT;
 
-  if (data->state.engine) {
-    ENGINE_finish(data->state.engine);
-    ENGINE_free(data->state.engine);
-  }
-  data->state.engine = NULL;
-  if (!ENGINE_init(e)) {
-    char buf[256];
+  n = fread(ptr, size, nmemb, f) * size;
 
-    ENGINE_free(e);
-    failf(data, "Failed to initialise SSL Engine '%s':\n%s",
-          engine, SSL_strerror(ERR_get_error(), buf, sizeof(buf)));
-    return (CURLE_SSL_ENGINE_INITFAILED);
-  }
-  data->state.engine = e;
-  return (CURLE_OK);
-#else
-  (void)engine;
-  failf(data, "SSL Engine not supported");
-  return (CURLE_SSL_ENGINE_NOTFOUND);
-#endif
+  return n;
 }

@@ -1,16 +1,16 @@
-size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
+static void setsock(SockInfo*f, curl_socket_t s, CURL*e, int act, GlobalInfo*g)
 {
-  struct WriteThis *pooh = (struct WriteThis *)userp;
+  printf("%s  \n", __PRETTY_FUNCTION__);
 
-  if(size*nmemb < 1)
-    return 0;
+  int kind = (act&CURL_POLL_IN?EV_READ:0)|(act&CURL_POLL_OUT?EV_WRITE:0);
 
-  if(pooh->sizeleft) {
-    *(char *)ptr = pooh->readptr[0]; /* copy one single byte */
-    pooh->readptr++;                 /* advance pointer */
-    pooh->sizeleft--;                /* less data left */
-    return 1;                        /* we return 1 byte at a time! */
-  }
-
-  return -1;                         /* no more data left to deliver */
+  f->sockfd = s;
+  f->action = act;
+  f->easy = e;
+  if ( f->evset )
+    ev_io_stop(g->loop, &f->ev);
+  ev_io_init(&f->ev, event_cb, f->sockfd, kind);
+  f->ev.data = g;
+  f->evset=1;
+  ev_io_start(g->loop, &f->ev);
 }

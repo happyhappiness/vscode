@@ -1,35 +1,24 @@
-char *homedir(void)
+static void check_multi_info(GlobalInfo *g)
 {
-  char *home;
+  char *eff_url;
+  CURLMsg *msg;
+  int msgs_left;
+  ConnInfo *conn;
+  CURL *easy;
+  CURLcode res;
 
-  home = GetEnv("CURL_HOME", FALSE);
-  if(home)
-    return home;
-
-  home = GetEnv("HOME", FALSE);
-  if(home)
-    return home;
-
-#if defined(HAVE_GETPWUID) && defined(HAVE_GETEUID)
- {
-   struct passwd *pw = getpwuid(geteuid());
-
-   if (pw) {
-#ifdef VMS
-     home = decc$translate_vms(pw->pw_dir);
-#else
-     home = pw->pw_dir;
-#endif
-     if (home && home[0])
-       home = strdup(home);
-   }
- }
-#endif /* PWD-stuff */
-#ifdef WIN32
-  home = GetEnv("APPDATA", TRUE);
-  if(!home)
-    home = GetEnv("%USERPROFILE%\\Application Data", TRUE); /* Normally only
-                                                               on Win-2K/XP */
-#endif /* WIN32 */
-  return home;
+  MSG_OUT("REMAINING: %d\n", g->still_running);
+  while ((msg = curl_multi_info_read(g->multi, &msgs_left))) {
+    if (msg->msg == CURLMSG_DONE) {
+      easy = msg->easy_handle;
+      res = msg->data.result;
+      curl_easy_getinfo(easy, CURLINFO_PRIVATE, &conn);
+      curl_easy_getinfo(easy, CURLINFO_EFFECTIVE_URL, &eff_url);
+      MSG_OUT("DONE: %s => (%d) %s\n", eff_url, res, conn->error);
+      curl_multi_remove_handle(g->multi, easy);
+      free(conn->url);
+      curl_easy_cleanup(easy);
+      free(conn);
+    }
+  }
 }

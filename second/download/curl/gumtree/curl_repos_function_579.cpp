@@ -1,12 +1,5 @@
-int
-Curl_sec_getc(struct connectdata *conn, FILE *F)
+static void unit_stop(void)
 {
-  if(conn->sec_complete && conn->data_prot) {
-    char c;
-    if(Curl_sec_read(conn, fileno(F), &c, 1) <= 0)
-      return EOF;
-    return c;
-  }
-  else
-    return getc(F);
+  Curl_llist_destroy(llist, NULL);
+  Curl_llist_destroy(llist_destination, NULL);
 }

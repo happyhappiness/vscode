@@ -1,13 +1,16 @@
-static CURLcode
-process_zlib_error(struct SessionHandle *data,
- z_stream *z)
-{
-  if (z->msg)
-    failf (data, "Error while processing content unencoding: %s",
-           z->msg);
-  else
-    failf (data, "Error while processing content unencoding: "
-           "Unknown failure within decompression software.");
+int
+Curl_gsk_attribute_get_cert_info(gsk_handle my_gsk_handle,
+                                 GSK_CERT_ID certID,
+                                 const gsk_cert_data_elem * * certDataElem,
+                                 int * certDataElementCount)
 
-  return CURLE_BAD_CONTENT_ENCODING;
+{
+  struct Curl_gsk_descriptor * p;
+
+  if(!my_gsk_handle)
+    return GSK_INVALID_HANDLE;
+  p = (struct Curl_gsk_descriptor *) my_gsk_handle;
+  /* No need to convert code: text results are already in ASCII. */
+  return gsk_attribute_get_cert_info(p->h, certID,
+                                     certDataElem, certDataElementCount);
 }

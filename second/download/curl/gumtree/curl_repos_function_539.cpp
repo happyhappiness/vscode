@@ -1,22 +1,73 @@
-static CURLcode ftp_state_type_resp(struct connectdata *conn,
-                                    int ftpcode,
-                                    ftpstate instate)
+int test(char *URL)
 {
-  CURLcode result = CURLE_OK;
-  struct SessionHandle *data=conn->data;
+  CURL *curl;
+  CURLcode res=CURLE_OK;
+  struct curl_slist *slist = NULL;
+  struct WriteThis pooh;
+  pooh.counter = 0;
 
-  if(ftpcode != 200) {
-    failf(data, "Couldn't set desired mode");
-    return CURLE_FTP_COULDNT_SET_BINARY; /* FIX */
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
-  if(instate == FTP_TYPE)
-    result = ftp_state_post_type(conn);
-  else if(instate == FTP_LIST_TYPE)
-    result = ftp_state_post_listtype(conn);
-  else if(instate == FTP_RETR_TYPE)
-    result = ftp_state_post_retrtype(conn);
-  else if(instate == FTP_STOR_TYPE)
-    result = ftp_state_post_stortype(conn);
 
-  return result;
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  slist = curl_slist_append(slist, "Transfer-Encoding: chunked");
+  if (slist == NULL) {
+    fprintf(stderr, "curl_slist_append() failed\n");
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  /* First set the URL that is about to receive our POST. */
+  test_setopt(curl, CURLOPT_URL, URL);
+
+  /* Now specify we want to POST data */
+  test_setopt(curl, CURLOPT_POST, 1L);
+
+#ifdef CURL_DOES_CONVERSIONS
+  /* Convert the POST data to ASCII */
+  test_setopt(curl, CURLOPT_TRANSFERTEXT, 1L);
+#endif
+
+  /* we want to use our own read function */
+  test_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+
+  /* pointer to pass to our read function */
+  test_setopt(curl, CURLOPT_READDATA, &pooh);
+
+  /* get verbose debug output please */
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+  /* include headers in the output */
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+
+  /* enforce chunked transfer by setting the header */
+  test_setopt(curl, CURLOPT_HTTPHEADER, slist);
+
+#ifdef LIB565
+  test_setopt(curl, CURLOPT_HTTPAUTH, (long)CURLAUTH_DIGEST);
+  test_setopt(curl, CURLOPT_USERPWD, "foo:bar");
+#endif
+
+  /* Perform the request, res will get the return code */
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  /* clean up the headers list */
+  if(slist)
+    curl_slist_free_all(slist);
+
+  /* always cleanup */
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return res;
 }

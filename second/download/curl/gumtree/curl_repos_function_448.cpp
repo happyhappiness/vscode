@@ -1,9 +1,7 @@
-void
-Curl_hash_destroy(struct curl_hash *h)
+static size_t write_callback(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-  if (!h)
-    return;
-
-  Curl_hash_clean(h);
-  free(h);
+  int amount = curlx_uztosi(size * nmemb);
+  printf("%.*s", amount, (char *)ptr);
+  (void)stream;
+  return size * nmemb;
 }

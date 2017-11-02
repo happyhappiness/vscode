@@ -1,5 +1,5 @@
-void handle_error(const char *file, int lineno, const char *msg){
-     fprintf(stderr, ** %s:%i %s\n, file, lineno, msg);
-     ERR_print_errors_fp(stderr);
-     /* exit(-1); */
- }
+void curl_close_cb(uv_handle_t *handle)
+{
+  curl_context_t *context = (curl_context_t *) handle->data;
+  free(context);
+}

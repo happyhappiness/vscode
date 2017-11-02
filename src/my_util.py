@@ -219,6 +219,15 @@ def filter_file(file_name):
     else:
         return False
 
+def get_csv_record_len(records):
+    """
+    @ param csv records\n
+    @ return length of records and list object\n
+    @ involve switch iterator into list and call len()\n
+    """
+    records = list(records)
+    return len(records), records
+
 def get_version_number(version):
     """
     @ param file name\n

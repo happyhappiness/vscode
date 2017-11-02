@@ -1,8 +1,11 @@
-static int data_pending(struct connectdata *conn)
+static void lock_callback(int mode, int type, char *file, int line)
 {
-  if(conn->ssl[FIRSTSOCKET].handle)
-    /* SSL is in use */
-    return SSL_pending(conn->ssl[FIRSTSOCKET].handle);
-
-  return 0; /* nothing */
+  (void)file;
+  (void)line;
+  if (mode & CRYPTO_LOCK) {
+    pthread_mutex_lock(&(lockarray[type]));
+  }
+  else {
+    pthread_mutex_unlock(&(lockarray[type]));
+  }
 }

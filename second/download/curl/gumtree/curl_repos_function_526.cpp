@@ -1,23 +1,64 @@
-static CURLcode ftp_state_post_rest(struct connectdata *conn)
+int test(char *URL)
 {
-  CURLcode result = CURLE_OK;
-  struct FTP *ftp = conn->proto.ftp;
-  struct SessionHandle *data = conn->data;
+  CURL *c = NULL;
+  CURLM *m = NULL;
+  int res = 0;
+  int running;
 
-  if(ftp->no_transfer || conn->bits.no_body) {
-    /* then we're done with a "head"-like request, goto STOP */
-    state(conn, FTP_STOP);
+  start_test_timing();
 
-    /* doesn't transfer any data */
-    ftp->no_transfer = TRUE;
+  global_init(CURL_GLOBAL_ALL);
+
+  easy_init(c);
+
+  easy_setopt(c, CURLOPT_PROXY, libtest_arg2); /* set in first.c */
+  easy_setopt(c, CURLOPT_URL, URL);
+  easy_setopt(c, CURLOPT_USERPWD, "test:ing");
+  easy_setopt(c, CURLOPT_PROXYUSERPWD, "test:ing");
+  easy_setopt(c, CURLOPT_HTTPPROXYTUNNEL, 1L);
+  easy_setopt(c, CURLOPT_HEADER, 1L);
+  easy_setopt(c, CURLOPT_VERBOSE, 1L);
+
+  multi_init(m);
+
+  multi_add_handle(m, c);
+
+  for(;;) {
+    struct timeval interval;
+    fd_set rd, wr, exc;
+    int maxfd = -99;
+
+    interval.tv_sec = 1;
+    interval.tv_usec = 0;
+
+    multi_perform(m, &running);
+
+    abort_on_test_timeout();
+
+    if(!running)
+      break; /* done */
+
+    FD_ZERO(&rd);
+    FD_ZERO(&wr);
+    FD_ZERO(&exc);
+
+    multi_fdset(m, &rd, &wr, &exc, &maxfd);
+
+    /* At this point, maxfd is guaranteed to be greater or equal than -1. */
+
+    select_test(maxfd+1, &rd, &wr, &exc, &interval);
+
+    abort_on_test_timeout();
   }
-  else if(data->set.ftp_use_port) {
-    /* We have chosen to use the PORT (or similar) command */
-    result = ftp_state_use_port(conn, EPRT);
-  }
-  else {
-    /* We have chosen (this is default) to use the PASV (or similar) command */
-    result = ftp_state_use_pasv(conn);
-  }
-  return result;
+
+test_cleanup:
+
+  /* proper cleanup sequence - type PA */
+
+  curl_multi_remove_handle(m, c);
+  curl_multi_cleanup(m);
+  curl_easy_cleanup(c);
+  curl_global_cleanup();
+
+  return res;
 }

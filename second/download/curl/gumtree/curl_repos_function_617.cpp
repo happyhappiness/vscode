@@ -1,25 +1,10 @@
-CURLcode Curl_initinfo(struct SessionHandle *data)
+static struct tftphdr *rw_init(int x)
 {
-  struct Progress *pro = &data->progress;
-  struct PureInfo *info =&data->info;
-
-  pro->t_nslookup = 0;
-  pro->t_connect = 0;
-  pro->t_pretransfer = 0;
-  pro->t_starttransfer = 0;
-  pro->timespent = 0;
-  pro->t_redirect = 0;
-
-  info->httpcode = 0;
-  info->httpversion=0;
-  info->filetime=-1; /* -1 is an illegal time and thus means unknown */
-
-  if (info->contenttype)
-    free(info->contenttype);
-  info->contenttype = NULL;
-
-  info->header_size = 0;
-  info->request_size = 0;
-  info->numconnects = 0;
-  return CURLE_OK;
+  newline = 0;                    /* init crlf flag */
+  prevchar = -1;
+  bfs[0].counter =  BF_ALLOC;     /* pass out the first buffer */
+  current = 0;
+  bfs[1].counter = BF_FREE;
+  nextone = x;                    /* ahead or behind? */
+  return &bfs[0].buf.hdr;
 }

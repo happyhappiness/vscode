@@ -1,16 +1,25 @@
-static void _ldap_trace (const char *fmt, ...)
+static void nak(int error)
 {
-  static int do_trace = -1;
-  va_list args;
+  struct tftphdr *tp;
+  int length;
+  struct errmsg *pe;
 
-  if (do_trace == -1) {
-    const char *env = getenv("CURL_TRACE");
-    do_trace = (env && atoi(env) > 0);
+  tp = &buf.hdr;
+  tp->th_opcode = htons((unsigned short)opcode_ERROR);
+  tp->th_code = htons((unsigned short)error);
+  for (pe = errmsgs; pe->e_code >= 0; pe++)
+    if (pe->e_code == error)
+      break;
+  if (pe->e_code < 0) {
+    pe->e_msg = strerror(error - 100);
+    tp->th_code = EUNDEF;   /* set 'undef' errorcode */
   }
-  if (!do_trace)
-    return;
+  length = (int)strlen(pe->e_msg);
 
-  va_start (args, fmt);
-  vfprintf (stderr, fmt, args);
-  va_end (args);
+  /* we use memcpy() instead of strcpy() in order to avoid buffer overflow
+   * report from glibc with FORTIFY_SOURCE */
+  memcpy(tp->th_msg, pe->e_msg, length + 1);
+  length += 5;
+  if (swrite(peer, &buf.storage[0], length) != length)
+    logmsg("nak: fail\n");
 }

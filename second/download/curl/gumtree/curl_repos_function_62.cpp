@@ -1,16 +1,11 @@
-static void parseHtml(const std::string &html,
-                      std::string &title)
+static void timer_cb(EV_P_ struct ev_timer *w, int revents)
 {
-  htmlParserCtxtPtr ctxt;
-  Context context;
+  DPRINT("%s  w %p revents %i\n", __PRETTY_FUNCTION__, w, revents);
 
-  ctxt = htmlCreatePushParserCtxt(&saxHandler, &context, "", 0, "",
-                                  XML_CHAR_ENCODING_NONE);
+  GlobalInfo *g = (GlobalInfo *)w->data;
+  CURLMcode rc;
 
-  htmlParseChunk(ctxt, html.c_str(), html.size(), 0);
-  htmlParseChunk(ctxt, "", 0, 1);
-
-  htmlFreeParserCtxt(ctxt);
-
-  title = context.title;
+  rc = curl_multi_socket_action(g->multi, CURL_SOCKET_TIMEOUT, 0, &g->still_running);
+  mcode_or_die("timer_cb: curl_multi_socket_action", rc);
+  check_multi_info(g);
 }

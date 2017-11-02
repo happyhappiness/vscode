@@ -1,4 +1,4 @@
-void Curl_freeaddrinfo(Curl_addrinfo *p)
+static void SHA1_Final(unsigned char digest[20], SHA_CTX *ctx)
 {
-  freeaddrinfo(p);
+  sha1_digest(ctx, 20, digest);
 }

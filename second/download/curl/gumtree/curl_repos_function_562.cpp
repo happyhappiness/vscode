@@ -1,39 +1,26 @@
-CURLcode Curl_ftpsendf(struct connectdata *conn,
-                       const char *fmt, ...)
+static Curl_addrinfo *fake_ai(void)
 {
-  ssize_t bytes_written;
-  char s[256];
-  size_t write_len;
-  char *sptr=s;
-  CURLcode res = CURLE_OK;
+  static Curl_addrinfo *ai;
+  int ss_size;
 
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(s, 250, fmt, ap);
-  va_end(ap);
+  ss_size = sizeof (struct sockaddr_in);
 
-  strcat(s, "\r\n"); /* append a trailing CRLF */
+  if((ai = calloc(1, sizeof(Curl_addrinfo))) == NULL)
+    return NULL;
 
-  bytes_written=0;
-  write_len = strlen(s);
-
-  while(1) {
-    res = Curl_write(conn, conn->sock[FIRSTSOCKET], sptr, write_len,
-                     &bytes_written);
-
-    if(CURLE_OK != res)
-      break;
-
-    if(conn->data->set.verbose)
-      Curl_debug(conn->data, CURLINFO_HEADER_OUT, sptr, bytes_written, conn);
-
-    if(bytes_written != (ssize_t)write_len) {
-      write_len -= bytes_written;
-      sptr += bytes_written;
-    }
-    else
-      break;
+  if((ai->ai_canonname = strdup("dummy")) == NULL) {
+    free(ai);
+    return NULL;
   }
 
-  return res;
+  if((ai->ai_addr = calloc(1, ss_size)) == NULL) {
+    free(ai->ai_canonname);
+    free(ai);
+    return NULL;
+  }
+
+  ai->ai_family = AF_INET;
+  ai->ai_addrlen = ss_size;
+
+  return ai;
 }

@@ -1,33 +1,46 @@
-static bool unescape_elements (LDAPURLDesc *ludp)
+void logmsg(const char *msg, ...)
 {
-  int i;
+  va_list ap;
+  char buffer[2048 + 1];
+  FILE *logfp;
+  int error;
+  struct timeval tv;
+  time_t sec;
+  struct tm *now;
+  char timebuf[20];
+  static time_t epoch_offset;
+  static int    known_offset;
 
-  if (ludp->lud_filter) {
-    ludp->lud_filter = curl_unescape(ludp->lud_filter, 0);
-    if (!ludp->lud_filter)
-       return (FALSE);
+  if (!serverlogfile) {
+    fprintf(stderr, "Error: serverlogfile not set\n");
+    return;
   }
 
-  for (i = 0; ludp->lud_attrs && ludp->lud_attrs[i]; i++) {
-    ludp->lud_attrs[i] = curl_unescape(ludp->lud_attrs[i], 0);
-    if (!ludp->lud_attrs[i])
-       return (FALSE);
+  tv = curlx_tvnow();
+  if(!known_offset) {
+    epoch_offset = time(NULL) - tv.tv_sec;
+    known_offset = 1;
   }
+  sec = epoch_offset + tv.tv_sec;
+  now = localtime(&sec); /* not thread safe but we don't care */
 
-  for (i = 0; ludp->lud_exts && ludp->lud_exts[i]; i++) {
-    ludp->lud_exts[i] = curl_unescape(ludp->lud_exts[i], 0);
-    if (!ludp->lud_exts[i])
-       return (FALSE);
+  snprintf(timebuf, sizeof(timebuf), "%02d:%02d:%02d.%06ld",
+    (int)now->tm_hour, (int)now->tm_min, (int)now->tm_sec, (long)tv.tv_usec);
+
+  va_start(ap, msg);
+  vsnprintf(buffer, sizeof(buffer), msg, ap);
+  va_end(ap);
+
+  logfp = fopen(serverlogfile, "ab");
+  if(logfp) {
+    fprintf(logfp, "%s %s\n", timebuf, buffer);
+    fclose(logfp);
   }
-
-  if (ludp->lud_dn) {
-    char *dn = ludp->lud_dn;
-    char *new_dn = curl_unescape(dn, 0);
-
-    free(dn);
-    ludp->lud_dn = new_dn;
-    if (!new_dn)
-       return (FALSE);
+  else {
+    error = errno;
+    fprintf(stderr, "fopen() failed with error: %d %s\n",
+            error, strerror(error));
+    fprintf(stderr, "Error opening file: %s\n", serverlogfile);
+    fprintf(stderr, "Msg not logged: %s %s\n", timebuf, buffer);
   }
-  return (TRUE);
 }

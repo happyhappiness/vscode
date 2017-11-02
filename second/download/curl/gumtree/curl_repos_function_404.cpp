@@ -1,43 +1,48 @@
-CURLcode Curl_http_connect(struct connectdata *conn, bool *done)
+static
+long chunk_bgn(const struct curl_fileinfo *finfo, void *ptr, int remains)
 {
-  struct SessionHandle *data;
-  CURLcode result;
+  chunk_data_t *ch_d = ptr;
+  ch_d->remains = remains;
 
-  data=conn->data;
-
-  /* If we are not using a proxy and we want a secure connection, perform SSL
-   * initialization & connection now.  If using a proxy with https, then we
-   * must tell the proxy to CONNECT to the host we want to talk to.  Only
-   * after the connect has occured, can we start talking SSL
-   */
-
-  if(conn->bits.tunnel_proxy) {
-
-    /* either SSL over proxy, or explicitly asked for */
-    result = Curl_ConnectHTTPProxyTunnel(conn, FIRSTSOCKET,
-                                         conn->host.name,
-                                         conn->remote_port);
-    if(CURLE_OK != result)
-      return result;
+  printf("=============================================================\n");
+  printf("Remains:      %d\n", remains);
+  printf("Filename:     %s\n", finfo->filename);
+  if(finfo->strings.perm) {
+    printf("Permissions:  %s", finfo->strings.perm);
+    if(finfo->flags & CURLFINFOFLAG_KNOWN_PERM)
+      printf(" (parsed => %o)", finfo->perm);
+    printf("\n");
   }
-
-  if(conn->protocol & PROT_HTTPS) {
-    /* perform SSL initialization for this socket */
-    result = Curl_ssl_connect(conn, FIRSTSOCKET);
-    if(result)
-      return result;
+  printf("Size:         %ldB\n", (long)finfo->size);
+  if(finfo->strings.user)
+    printf("User:         %s\n", finfo->strings.user);
+  if(finfo->strings.group)
+    printf("Group:        %s\n", finfo->strings.group);
+  if(finfo->strings.time)
+    printf("Time:         %s\n", finfo->strings.time);
+  printf("Filetype:     ");
+  switch(finfo->filetype) {
+  case CURLFILETYPE_FILE:
+    printf("regular file\n");
+    break;
+  case CURLFILETYPE_DIRECTORY:
+    printf("directory\n");
+    break;
+  case CURLFILETYPE_SYMLINK:
+    printf("symlink\n");
+    printf("Target:       %s\n", finfo->strings.target);
+    break;
+  default:
+    printf("other type\n");
+    break;
   }
-
-  if(!data->state.this_is_a_follow) {
-    /* this is not a followed location, get the original host name */
-    if (data->state.first_host)
-      /* Free to avoid leaking memory on multiple requests*/
-      free(data->state.first_host);
-
-    data->state.first_host = strdup(conn->host.name);
+  if(finfo->filetype == CURLFILETYPE_FILE) {
+    ch_d->print_content = 1;
+    printf("Content:\n-------------------------------------------------------------\n");
   }
-
-  *done = TRUE;
-
-  return CURLE_OK;
+  if(strcmp(finfo->filename, "someothertext.txt") == 0) {
+    printf("# THIS CONTENT WAS SKIPPED IN CHUNK_BGN CALLBACK #\n");
+    return CURL_CHUNK_BGN_FUNC_SKIP;
+  }
+  return CURL_CHUNK_BGN_FUNC_OK;
 }

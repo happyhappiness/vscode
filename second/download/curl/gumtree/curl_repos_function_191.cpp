@@ -1,22 +1,18 @@
-char *
-rename_if_dos_device_name (char *file_name)
+static void fifo_cb(int fd, short event, void *arg)
 {
-  /* We could have a file whose name is a device on MS-DOS.  Trying to
-   * retrieve such a file would fail at best and wedge us at worst.  We need
-   * to rename such files. */
-  char *base;
-  struct stat st_buf;
-  char fname[PATH_MAX];
+  char s[1024];
+  long int rv=0;
+  int n=0;
+  GlobalInfo *g = (GlobalInfo *)arg;
+  (void)fd; /* unused */
+  (void)event; /* unused */
 
-  strcpy (fname, file_name);
-  base = basename (fname);
-  if (((stat(base, &st_buf)) == 0) && (S_ISCHR(st_buf.st_mode))) {
-    size_t blen = strlen (base);
-
-    /* Prepend a '_'.  */
-    memmove (base + 1, base, blen + 1);
-    base[0] = '_';
-    strcpy (file_name, fname);
-  }
-  return file_name;
+  do {
+    s[0]='\0';
+    rv=fscanf(g->input, "%1023s%n", s, &n);
+    s[n]='\0';
+    if ( n && s[0] ) {
+      new_conn(s,arg);  /* if we read a URL, go get it! */
+    } else break;
+  } while ( rv != EOF);
 }

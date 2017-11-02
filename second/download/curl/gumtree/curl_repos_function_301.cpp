@@ -1,26 +1,12 @@
-CURLcode
-Curl_unencode_deflate_write(struct SessionHandle *data,
-                            struct Curl_transfer_keeper *k,
-                            ssize_t nread)
+int
+Curl_gsk_secure_soc_write(gsk_handle my_session_handle, char * writeBuffer,
+                          int writeBufSize, int * amtWritten)
+
 {
-  z_stream *z = &k->z;          /* zlib state structure */
+  struct Curl_gsk_descriptor * p;
 
-  /* Initialize zlib? */
-  if (k->zlib_init == ZLIB_UNINIT) {
-    z->zalloc = (alloc_func)Z_NULL;
-    z->zfree = (free_func)Z_NULL;
-    z->opaque = 0;
-    z->next_in = NULL;
-    z->avail_in = 0;
-    if (inflateInit(z) != Z_OK)
-      return process_zlib_error(data, z);
-    k->zlib_init = ZLIB_INIT;
-  }
-
-  /* Set the compressed input when this function is called */
-  z->next_in = (Bytef *)k->str;
-  z->avail_in = (uInt)nread;
-
-  /* Now uncompress the data */
-  return inflate_stream(data, k);
+  if(!my_session_handle)
+    return GSK_INVALID_HANDLE;
+  p = (struct Curl_gsk_descriptor *) my_session_handle;
+  return gsk_secure_soc_write(p->h, writeBuffer, writeBufSize, amtWritten);
 }

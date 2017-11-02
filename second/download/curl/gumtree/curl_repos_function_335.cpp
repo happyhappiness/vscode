@@ -1,33 +1,21 @@
-static int alloc_addbyter(int output, FILE *data)
+struct curl_slist *
+curl_slist_append_ccsid(struct curl_slist * list,
+                        const char * data, unsigned int ccsid)
+
 {
-  struct asprintf *infop=(struct asprintf *)data;
-  unsigned char outc = (unsigned char)output;
+  char * s;
 
-  if(!infop->buffer) {
-    infop->buffer=(char *)malloc(32);
-    if(!infop->buffer) {
-      infop->fail = TRUE;
-      return -1; /* fail */
-    }
-    infop->alloc = 32;
-    infop->len =0;
-  }
-  else if(infop->len+1 >= infop->alloc) {
-    char *newptr;
+  s = (char *) NULL;
 
-    newptr = (char *)realloc(infop->buffer, infop->alloc*2);
+  if(!data)
+    return curl_slist_append(list, data);
 
-    if(!newptr) {
-      infop->fail = TRUE;
-      return -1;
-    }
-    infop->buffer = newptr;
-    infop->alloc *= 2;
-  }
+  s = dynconvert(ASCII_CCSID, data, -1, ccsid);
 
-  infop->buffer[ infop->len ] = outc;
+  if(!s)
+    return (struct curl_slist *) NULL;
 
-  infop->len++;
-
-  return outc; /* fputc() returns like this on success */
+  list = curl_slist_append(list, s);
+  free(s);
+  return list;
 }

@@ -53,32 +53,35 @@ def seek_clone():
     repos_function_clone_writer = csv.writer(repos_function_clone_file)
     repos_function_clone_writer.writerow(my_constant.ANALYZE_CLONE_FUNCTION_TITLE)
     rule_counter = 0
-    rule_size = len(rule_records)
+    # get length and transfer iterator to list
+    rule_size, rule_records = my_util.get_csv_record_len(rule_records)
+    repos_function_record = list(repos_function_records)
+    repos_log_records = list(repos_log_records)
     # search clone instance for each rule
     for rule_record in islice(rule_records, 1, None):
         rule_counter += 1
-        print 'now processing rule %d/%d, ' %(rule_counter, rule_size) ,
-        old_loc = json.loads(rule_record.index(my_constant.CLASS_OLD_NEW_OLD_LOC))
-        check = json.loads(rule_record.index(my_constant.CLASS_OLD_NEW_CHECK))
-        variable = rule_record.index(my_constant.CLASS_OLD_NEW_VARIABLE)
+        print 'now processing rule %d/%d, ' %(rule_counter, rule_size),
+        old_loc = rule_record[my_constant.CLASS_OLD_NEW_OLD_LOC]
+        check = json.loads(rule_record[my_constant.CLASS_OLD_NEW_CHECK])
+        variable = json.loads(rule_record[my_constant.CLASS_OLD_NEW_VARIABLE])
         rule_feature = [check, variable]
         clone_counter = 0
         # insert rule -> function records
         if old_loc == '-1':
-            for repos_function_record in repos_function_records:
-                calls = json.loads(repos_function_record.index(my_constant.ANALYZE_REPOS_FUNCTION_CALLS))
-                types = json.loads(repos_function_record.index(my_constant.ANALYZE_REPOS_FUNCTION_TYPES))
+            for repos_function_record in islice(repos_function_records, 1, None):
+                calls = json.loads(repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_CALLS])
+                types = json.loads(repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_TYPES])
                 if is_match_for_insert_rule(rule_feature, [types, calls]):
                     clone_counter += 1
                     repos_function_clone_writer.writerow(rule_record + repos_function_record)
-        # modification -> log records
+        # modification rule -> log records
         else:
-            for repos_log_record in repos_log_records:
-                log_check = json.loads(repos_log_record.index(my_constant.CLASS_REPOS_LOG_CHECK))
-                log_variable = json.loads(repos_log_record.index(my_constant.CLASS_REPOS_LOG_VARIABLE))
+            for repos_log_record in islice(repos_log_records, 1, None):
+                log_check = json.loads(repos_log_record[my_constant.CLASS_REPOS_LOG_CHECK])
+                log_variable = json.loads(repos_log_record[my_constant.CLASS_REPOS_LOG_VARIABLE])
                 if is_match_for_modify_rule(rule_feature, [log_check, log_variable]):
                     # get real log records from class index
-                    analyze_log_records = cluster_api.generate_records_for_class(my_constant.ANALYZE_REPOS_LOG_CLUSTER, repos_log_record[0])
+                    analyze_log_records = cluster_api.generate_records_for_class(my_constant.CLUSTER_REPOS_LOG_FILE_NAME, repos_log_record[0])
                     for analyze_log_record in analyze_log_records:
                         clone_counter += 1
                         repos_log_clone_writer.writerow(rule_record + analyze_log_record)

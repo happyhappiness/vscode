@@ -1,26 +1,20 @@
-static void go_sleep(long ms)
+int SyncTime_CURL_Fetch(CURL *curl, char *URL_Str, char *OutFileName,
+                        int HttpGetBody)
 {
-#ifdef HAVE_POLL_FINE
-  /* portable subsecond "sleep" */
-  poll((void *)0, 0, (int)ms);
-#else
-  /* systems without poll() need other solutions */
+  FILE *outfile;
+  CURLcode res;
 
-#ifdef WIN32
-  /* Windows offers a millisecond sleep */
-  Sleep(ms);
-#elif defined(__MSDOS__)
-  delay(ms);
-#else
-  /* Other systems must use select() for this */
-  struct timeval timeout;
+  outfile = NULL;
+  if (HttpGetBody == HTTP_COMMAND_HEAD)
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+  else {
+    outfile = fopen(OutFileName, "wb");
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, outfile);
+  }
 
-  timeout.tv_sec = ms/1000;
-  ms = ms%1000;
-  timeout.tv_usec = ms * 1000;
-
-  select(0, NULL,  NULL, NULL, &timeout);
-#endif
-
-#endif
+  curl_easy_setopt(curl, CURLOPT_URL, URL_Str);
+  res = curl_easy_perform(curl);
+  if (outfile != NULL)
+    fclose(outfile);
+  return res;  /* (CURLE_OK) */
 }

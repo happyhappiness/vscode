@@ -1,16 +1,18 @@
-bool
-Curl_ssl_config_matches(struct ssl_config_data* data,
-                        struct ssl_config_data* needle)
+void clear_advisor_read_lock(const char *filename)
 {
-  if((data->version == needle->version) &&
-     (data->verifypeer == needle->verifypeer) &&
-     (data->verifyhost == needle->verifyhost) &&
-     safe_strequal(data->CApath, needle->CApath) &&
-     safe_strequal(data->CAfile, needle->CAfile) &&
-     safe_strequal(data->random_file, needle->random_file) &&
-     safe_strequal(data->egdsocket, needle->egdsocket) &&
-     safe_strequal(data->cipher_list, needle->cipher_list))
-    return TRUE;
+  int error = 0;
+  int res;
 
-  return FALSE;
+  /*
+  ** Log all removal failures. Even those due to file not existing.
+  ** This allows to detect if unexpectedly the file has already been
+  ** removed by a process different than the one that should do this.
+  */
+
+  do {
+    res = unlink(filename);
+  } while(res && ((error = errno) == EINTR));
+  if(res)
+    logmsg("Error removing lock file %s error: %d %s",
+           filename, error, strerror(error));
 }

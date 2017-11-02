@@ -1,68 +1,24 @@
-int main(int argc, char **argv)
+int main(void)
 {
-  CURL *http_handle;
-  CURLM *multi_handle;
+  curl_global_init(CURL_GLOBAL_DEFAULT);
 
-  int still_running; /* keep number of running handles */
+  curl = curl_easy_init();
+  if(curl) {
+    curl_easy_setopt(curl, CURLOPT_URL, "https://www.example.com/");
 
-  http_handle = curl_easy_init();
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wrfu);
 
-  /* set the options (I left out a few, you'll get the point anyway) */
-  curl_easy_setopt(http_handle, CURLOPT_URL, "http://www.haxx.se/");
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
-  curl_easy_setopt(http_handle, CURLOPT_DEBUGFUNCTION, my_trace);
-  curl_easy_setopt(http_handle, CURLOPT_VERBOSE, TRUE);
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
 
-  /* init a multi stack */
-  multi_handle = curl_multi_init();
+    (void) curl_easy_perform(curl);
 
-  /* add the individual transfers */
-  curl_multi_add_handle(multi_handle, http_handle);
-
-  /* we start some action by calling perform right away */
-  while(CURLM_CALL_MULTI_PERFORM ==
-        curl_multi_perform(multi_handle, &still_running));
-
-  while(still_running) {
-    struct timeval timeout;
-    int rc; /* select() return code */
-
-    fd_set fdread;
-    fd_set fdwrite;
-    fd_set fdexcep;
-    int maxfd;
-
-    FD_ZERO(&fdread);
-    FD_ZERO(&fdwrite);
-    FD_ZERO(&fdexcep);
-
-    /* set a suitable timeout to play around with */
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
-
-    /* get file descriptors from the transfers */
-    curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
-
-    rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
-
-    switch(rc) {
-    case -1:
-      /* select error */
-      still_running = 0;
-      printf("select() returns error, this is badness\n");
-      break;
-    case 0:
-    default:
-      /* timeout or readable/writable sockets */
-      while(CURLM_CALL_MULTI_PERFORM ==
-            curl_multi_perform(multi_handle, &still_running));
-      break;
-    }
+    curl_easy_cleanup(curl);
   }
 
-  curl_multi_cleanup(multi_handle);
-
-  curl_easy_cleanup(http_handle);
+  curl_global_cleanup();
 
   return 0;
 }

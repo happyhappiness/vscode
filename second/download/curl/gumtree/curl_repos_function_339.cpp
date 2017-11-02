@@ -1,10 +1,23 @@
-int curl_msprintf(char *buffer, const char *format, ...)
+const char *
+curl_easy_strerror_ccsid(CURLcode error, unsigned int ccsid)
+
 {
-  va_list ap_save; /* argument pointer */
-  int retcode;
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
-  va_end(ap_save);
-  *buffer=0; /* we terminate this with a zero byte */
-  return retcode;
+  int i;
+  const char * s;
+  char * buf;
+
+  s = curl_easy_strerror(error);
+
+  if(!s)
+    return s;
+
+  i = MAX_CONV_EXPANSION * (strlen(s) + 1);
+
+  if(!(buf = Curl_thread_buffer(LK_EASY_STRERROR, i)))
+    return (const char *) NULL;
+
+  if(convert(buf, i, ccsid, s, -1, ASCII_CCSID) < 0)
+    return (const char *) NULL;
+
+  return (const char *) buf;
 }

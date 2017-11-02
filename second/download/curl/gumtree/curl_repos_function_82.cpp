@@ -1,11 +1,5 @@
-int test(char *URL)
-{
-  CURLcode res;
-  CURL *curl = curl_easy_init();
-
-  (void)URL; /* we don't use this */
-  curl_easy_setopt(curl, CURLOPT_HEADER, TRUE);
-  res = curl_easy_perform(curl);
-  curl_easy_cleanup(curl);
-  return res;
-}
+void handle_error(const char *file, int lineno, const char *msg){
+     fprintf(stderr, "** %s:%d %s\n", file, lineno, msg);
+     ERR_print_errors_fp(stderr);
+     /* exit(-1); */
+ }

@@ -1,42 +1,46 @@
-static const char * ContentTypeForFilename (const char *filename,
-                                            const char *prevtype)
+int test(char *URL)
 {
-  const char *contenttype = NULL;
-  unsigned int i;
-  /*
-   * No type was specified, we scan through a few well-known
-   * extensions and pick the first we match!
-   */
-  struct ContentType {
-    const char *extension;
-    const char *type;
-  };
-  static const struct ContentType ctts[]={
-    {".gif",  "image/gif"},
-    {".jpg",  "image/jpeg"},
-    {".jpeg", "image/jpeg"},
-    {".txt",  "text/plain"},
-    {".html", "text/html"}
-  };
+  CURL *curl = NULL;
+  CURLcode res = CURLE_FAILED_INIT;
+  /* http header list*/
+  struct curl_slist *hhl = NULL;
+  struct curl_slist *phl = NULL;
 
-  if(prevtype)
-    /* default to the previously set/used! */
-    contenttype = prevtype;
-  else
-    /* It seems RFC1867 defines no Content-Type to default to
-       text/plain so we don't actually need to set this: */
-    contenttype = HTTPPOST_CONTENTTYPE_DEFAULT;
-
-  for(i=0; i<sizeof(ctts)/sizeof(ctts[0]); i++) {
-    if(strlen(filename) >= strlen(ctts[i].extension)) {
-      if(strequal(filename +
-                  strlen(filename) - strlen(ctts[i].extension),
-                  ctts[i].extension)) {
-        contenttype = ctts[i].type;
-        break;
-      }
-    }
+  if(curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
-  /* we have a contenttype by now */
-  return contenttype;
+
+  if((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  hhl = curl_slist_append(hhl, "User-Agent: Http Agent");
+  phl = curl_slist_append(phl, "Proxy-User-Agent: Http Agent2");
+
+  if (!hhl) {
+    goto test_cleanup;
+  }
+
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_PROXY, libtest_arg2);
+  test_setopt(curl, CURLOPT_HTTPHEADER, hhl);
+  test_setopt(curl, CURLOPT_PROXYHEADER, phl);
+  test_setopt(curl, CURLOPT_HEADEROPT, CURLHEADER_SEPARATE);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+  test_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  curl_easy_cleanup(curl);
+  curl_slist_free_all(hhl);
+  curl_slist_free_all(phl);
+  curl_global_cleanup();
+
+  return (int)res;
 }

@@ -1,47 +1,35 @@
-static int
-sec_prot_internal(struct connectdata *conn, int level)
+static int readline(char **buffer, size_t *bufsize, FILE *stream)
 {
-  char *p;
-  unsigned int s = 1048576;
-  ssize_t nread;
+  size_t offset = 0;
+  size_t length;
+  char *newptr;
 
-  if(!conn->sec_complete){
-    infof(conn->data, "No security data exchange has taken place.\n");
-    return -1;
+  if(!*buffer) {
+    *buffer = malloc(128);
+    if(!*buffer)
+      return GPE_OUT_OF_MEMORY;
+    *bufsize = 128;
   }
 
-  if(level){
-    int code;
-    if(Curl_ftpsendf(conn, "PBSZ %u", s))
-      return -1;
+  for(;;) {
+    int bytestoread = curlx_uztosi(*bufsize - offset);
 
-    if(Curl_GetFTPResponse(&nread, conn, &code))
-      return -1;
+    if(!fgets(*buffer + offset, bytestoread, stream))
+      return (offset != 0) ? GPE_OK : GPE_END_OF_FILE ;
 
-    if(code/100 != '2'){
-      failf(conn->data, "Failed to set protection buffer size.");
-      return -1;
-    }
-    conn->buffer_size = s;
+    length = offset + strlen(*buffer + offset);
+    if(*(*buffer + length - 1) == '\n')
+      break;
+    offset = length;
+    if(length < *bufsize - 1)
+      continue;
 
-    p = strstr(conn->data->state.buffer, "PBSZ=");
-    if(p)
-      sscanf(p, "PBSZ=%u", &s);
-    if(s < conn->buffer_size)
-      conn->buffer_size = s;
+    newptr = realloc(*buffer, *bufsize * 2);
+    if(!newptr)
+      return GPE_OUT_OF_MEMORY;
+    *buffer = newptr;
+    *bufsize *= 2;
   }
 
-  if(Curl_ftpsendf(conn, "PROT %c", level["CSEP"]))
-    return -1;
-
-  if(Curl_GetFTPResponse(&nread, conn, NULL))
-    return -1;
-
-  if(conn->data->state.buffer[0] != '2'){
-    failf(conn->data, "Failed to set protection level.");
-    return -1;
-  }
-
-  conn->data_prot = (enum protection_level)level;
-  return 0;
+  return GPE_OK;
 }

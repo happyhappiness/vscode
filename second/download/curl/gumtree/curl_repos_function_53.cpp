@@ -1,104 +1,31 @@
-int
-main(int argc, char *argv[])
+int main(void)
 {
-    URL_FILE *handle;
-    FILE *outf;
+  CURL *curl;
+  CURLcode res = CURLE_OK;
 
-    int nread;
-    char buffer[256];
-    char *url;
+  curl = curl_easy_init();
+  if(curl) {
+    /* Set username and password */
+    curl_easy_setopt(curl, CURLOPT_USERNAME, "user");
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, "secret");
 
-    if(argc < 2)
-    {
-        url="http://192.168.7.3/testfile";/* default to testurl */
-    }
-    else
-    {
-        url=argv[1];/* use passed url */
-    }
+    /* This is just the server URL */
+    curl_easy_setopt(curl, CURLOPT_URL, "imap://imap.example.com");
 
-    /* copy from url line by line with fgets */
-    outf=fopen("fgets.test","w+");
-    if(!outf)
-    {
-        perror("couldnt open fgets output file\n");
-        return 1;
-    }
+    /* Set the EXAMINE command specifing the mailbox folder */
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "EXAMINE OUTBOX");
 
-    handle = url_fopen(url, "r");
-    if(!handle)
-    {
-        printf("couldn't url_fopen()\n");
-        fclose(outf);
-        return 2;
-    }
+    /* Perform the custom request */
+    res = curl_easy_perform(curl);
 
-    while(!url_feof(handle))
-    {
-        url_fgets(buffer,sizeof(buffer),handle);
-        fwrite(buffer,1,strlen(buffer),outf);
-    }
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
 
-    url_fclose(handle);
+    /* Always cleanup */
+    curl_easy_cleanup(curl);
+  }
 
-    fclose(outf);
-
-
-    /* Copy from url with fread */
-    outf=fopen("fread.test","w+");
-    if(!outf)
-    {
-        perror("couldnt open fread output file\n");
-        return 1;
-    }
-
-    handle = url_fopen("testfile", "r");
-    if(!handle) {
-        printf("couldn't url_fopen()\n");
-        fclose(outf);
-        return 2;
-    }
-
-    do {
-        nread = url_fread(buffer, 1,sizeof(buffer), handle);
-        fwrite(buffer,1,nread,outf);
-    } while(nread);
-
-    url_fclose(handle);
-
-    fclose(outf);
-
-
-    /* Test rewind */
-    outf=fopen("rewind.test","w+");
-    if(!outf)
-    {
-        perror("couldnt open fread output file\n");
-        return 1;
-    }
-
-    handle = url_fopen("testfile", "r");
-    if(!handle) {
-        printf("couldn't url_fopen()\n");
-        fclose(outf);
-        return 2;
-    }
-
-        nread = url_fread(buffer, 1,sizeof(buffer), handle);
-        fwrite(buffer,1,nread,outf);
-        url_rewind(handle);
-
-        buffer[0]='\n';
-        fwrite(buffer,1,1,outf);
-
-        nread = url_fread(buffer, 1,sizeof(buffer), handle);
-        fwrite(buffer,1,nread,outf);
-
-
-    url_fclose(handle);
-
-    fclose(outf);
-
-
-    return 0;/* all done */
+  return (int)res;
 }

@@ -1,27 +1,19 @@
-int main(int argc, char **argv)
+static size_t
+WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
-  CURL *curl;
-  CURLcode res;
+  size_t realsize = size * nmemb;
+  struct MemoryStruct *mem = (struct MemoryStruct *)userp;
 
-  curl_global_init(CURL_GLOBAL_ALL);
-
-  curl = curl_easy_init();
-  if(curl) {
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-    curl_easy_setopt(curl, CURLOPT_HEADER, 1);
-
-    /* get the first document */
-    curl_easy_setopt(curl, CURLOPT_URL, "http://curl.haxx.se/");
-    res = curl_easy_perform(curl);
-
-    /* get another document from the same server using the same
-       connection */
-    curl_easy_setopt(curl, CURLOPT_URL, "http://curl.haxx.se/docs/");
-    res = curl_easy_perform(curl);
-
-    /* always cleanup */
-    curl_easy_cleanup(curl);
+  mem->memory = realloc(mem->memory, mem->size + realsize + 1);
+  if(mem->memory == NULL) {
+    /* out of memory! */
+    printf("not enough memory (realloc returned NULL)\n");
+    return 0;
   }
 
-  return 0;
+  memcpy(&(mem->memory[mem->size]), contents, realsize);
+  mem->size += realsize;
+  mem->memory[mem->size] = 0;
+
+  return realsize;
 }

@@ -1,35 +1,27 @@
-CURLcode Curl_client_write(struct SessionHandle *data,
-                           int type,
-                           char *ptr,
-                           size_t len)
+int test(char *URL)
 {
-  size_t wrote;
+  unsigned char a[] = {0x2f, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
+                       0x91, 0xa2, 0xb3, 0xc4, 0xd5, 0xe6, 0xf7};
+  CURLcode res = CURLE_OK;
+  char *ptr = NULL;
+  int asize;
 
-  if(0 == len)
-    len = strlen(ptr);
+  (void)URL; /* we don't use this */
 
-  if(type & CLIENTWRITE_BODY) {
-    wrote = data->set.fwrite(ptr, 1, len, data->set.out);
-    if(wrote != len) {
-      failf (data, "Failed writing body");
-      return CURLE_WRITE_ERROR;
-    }
-  }
-  if((type & CLIENTWRITE_HEADER) &&
-     (data->set.fwrite_header || data->set.writeheader) ) {
-    /*
-     * Write headers to the same callback or to the especially setup
-     * header callback function (added after version 7.7.1).
-     */
-    curl_write_callback writeit=
-      data->set.fwrite_header?data->set.fwrite_header:data->set.fwrite;
-
-    wrote = writeit(ptr, 1, len, data->set.writeheader);
-    if(wrote != len) {
-      failf (data, "Failed writing header");
-      return CURLE_WRITE_ERROR;
-    }
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
 
-  return CURLE_OK;
+  ptr = malloc(558);
+  Curl_safefree(ptr);
+
+  asize = (int)sizeof(a);
+  ptr = curl_easy_escape(NULL, (char *)a, asize);
+  if(ptr)
+    curl_free(ptr);
+
+  curl_global_cleanup();
+
+  return (int)res;
 }

@@ -1,105 +1,168 @@
-int Curl_resolv(struct connectdata *conn,
-                char *hostname,
-                int port,
-                struct Curl_dns_entry **entry)
+static int test_signed_short_formatting(void)
 {
-  char *entry_id = NULL;
-  struct Curl_dns_entry *dns = NULL;
-  size_t entry_len;
-  int wait;
-  struct SessionHandle *data = conn->data;
-  CURLcode result;
-  int rc;
-  *entry = NULL;
+  int i, j;
+  int num_sshort_tests;
+  int failed = 0;
 
-#ifdef HAVE_SIGSETJMP
-  /* this allows us to time-out from the name resolver, as the timeout
-     will generate a signal and we will siglongjmp() from that here */
-  if(!data->set.no_signal && sigsetjmp(curl_jmpenv, 1)) {
-    /* this is coming from a siglongjmp() */
-    failf(data, "name lookup timed out");
-    return CURLRESOLV_ERROR;
-  }
+#if (SIZEOF_SHORT == 1)
+
+  i=1; ss_test[i].num = 0x7F; ss_test[i].expected = "127";
+
+  i++; ss_test[i].num = 0x70; ss_test[i].expected = "112";
+  i++; ss_test[i].num = 0x07; ss_test[i].expected = "7";
+
+  i++; ss_test[i].num = 0x50; ss_test[i].expected = "80";
+  i++; ss_test[i].num = 0x05; ss_test[i].expected = "5";
+
+  i++; ss_test[i].num = 0x01; ss_test[i].expected = "1";
+  i++; ss_test[i].num = 0x00; ss_test[i].expected = "0";
+
+  i++; ss_test[i].num = -0x7F -1; ss_test[i].expected = "-128";
+
+  i++; ss_test[i].num = -0x70 -1; ss_test[i].expected = "-113";
+  i++; ss_test[i].num = -0x07 -1; ss_test[i].expected = "-8";
+
+  i++; ss_test[i].num = -0x50 -1; ss_test[i].expected = "-81";
+  i++; ss_test[i].num = -0x05 -1; ss_test[i].expected = "-6";
+
+  i++; ss_test[i].num =  0x00 -1; ss_test[i].expected = "-1";
+
+  num_sshort_tests = i;
+
+#elif (SIZEOF_SHORT == 2)
+
+  i=1; ss_test[i].num = 0x7FFF; ss_test[i].expected = "32767";
+  i++; ss_test[i].num = 0x7FFE; ss_test[i].expected = "32766";
+  i++; ss_test[i].num = 0x7FFD; ss_test[i].expected = "32765";
+  i++; ss_test[i].num = 0x7F00; ss_test[i].expected = "32512";
+  i++; ss_test[i].num = 0x07F0; ss_test[i].expected = "2032";
+  i++; ss_test[i].num = 0x007F; ss_test[i].expected = "127";
+
+  i++; ss_test[i].num = 0x7000; ss_test[i].expected = "28672";
+  i++; ss_test[i].num = 0x0700; ss_test[i].expected = "1792";
+  i++; ss_test[i].num = 0x0070; ss_test[i].expected = "112";
+  i++; ss_test[i].num = 0x0007; ss_test[i].expected = "7";
+
+  i++; ss_test[i].num = 0x5000; ss_test[i].expected = "20480";
+  i++; ss_test[i].num = 0x0500; ss_test[i].expected = "1280";
+  i++; ss_test[i].num = 0x0050; ss_test[i].expected = "80";
+  i++; ss_test[i].num = 0x0005; ss_test[i].expected = "5";
+
+  i++; ss_test[i].num = 0x0001; ss_test[i].expected = "1";
+  i++; ss_test[i].num = 0x0000; ss_test[i].expected = "0";
+
+  i++; ss_test[i].num = -0x7FFF -1; ss_test[i].expected = "-32768";
+  i++; ss_test[i].num = -0x7FFE -1; ss_test[i].expected = "-32767";
+  i++; ss_test[i].num = -0x7FFD -1; ss_test[i].expected = "-32766";
+  i++; ss_test[i].num = -0x7F00 -1; ss_test[i].expected = "-32513";
+  i++; ss_test[i].num = -0x07F0 -1; ss_test[i].expected = "-2033";
+  i++; ss_test[i].num = -0x007F -1; ss_test[i].expected = "-128";
+
+  i++; ss_test[i].num = -0x7000 -1; ss_test[i].expected = "-28673";
+  i++; ss_test[i].num = -0x0700 -1; ss_test[i].expected = "-1793";
+  i++; ss_test[i].num = -0x0070 -1; ss_test[i].expected = "-113";
+  i++; ss_test[i].num = -0x0007 -1; ss_test[i].expected = "-8";
+
+  i++; ss_test[i].num = -0x5000 -1; ss_test[i].expected = "-20481";
+  i++; ss_test[i].num = -0x0500 -1; ss_test[i].expected = "-1281";
+  i++; ss_test[i].num = -0x0050 -1; ss_test[i].expected = "-81";
+  i++; ss_test[i].num = -0x0005 -1; ss_test[i].expected = "-6";
+
+  i++; ss_test[i].num =  0x0000 -1; ss_test[i].expected = "-1";
+
+  num_sshort_tests = i;
+
+#elif (SIZEOF_SHORT == 4)
+
+  i=1; ss_test[i].num = 0x7FFFFFFF; ss_test[i].expected = "2147483647";
+  i++; ss_test[i].num = 0x7FFFFFFE; ss_test[i].expected = "2147483646";
+  i++; ss_test[i].num = 0x7FFFFFFD; ss_test[i].expected = "2147483645";
+  i++; ss_test[i].num = 0x7FFF0000; ss_test[i].expected = "2147418112";
+  i++; ss_test[i].num = 0x00007FFF; ss_test[i].expected = "32767";
+
+  i++; ss_test[i].num = 0x7F000000; ss_test[i].expected = "2130706432";
+  i++; ss_test[i].num = 0x007F0000; ss_test[i].expected = "8323072";
+  i++; ss_test[i].num = 0x00007F00; ss_test[i].expected = "32512";
+  i++; ss_test[i].num = 0x0000007F; ss_test[i].expected = "127";
+
+  i++; ss_test[i].num = 0x70000000; ss_test[i].expected = "1879048192";
+  i++; ss_test[i].num = 0x07000000; ss_test[i].expected = "117440512";
+  i++; ss_test[i].num = 0x00700000; ss_test[i].expected = "7340032";
+  i++; ss_test[i].num = 0x00070000; ss_test[i].expected = "458752";
+  i++; ss_test[i].num = 0x00007000; ss_test[i].expected = "28672";
+  i++; ss_test[i].num = 0x00000700; ss_test[i].expected = "1792";
+  i++; ss_test[i].num = 0x00000070; ss_test[i].expected = "112";
+  i++; ss_test[i].num = 0x00000007; ss_test[i].expected = "7";
+
+  i++; ss_test[i].num = 0x50000000; ss_test[i].expected = "1342177280";
+  i++; ss_test[i].num = 0x05000000; ss_test[i].expected = "83886080";
+  i++; ss_test[i].num = 0x00500000; ss_test[i].expected = "5242880";
+  i++; ss_test[i].num = 0x00050000; ss_test[i].expected = "327680";
+  i++; ss_test[i].num = 0x00005000; ss_test[i].expected = "20480";
+  i++; ss_test[i].num = 0x00000500; ss_test[i].expected = "1280";
+  i++; ss_test[i].num = 0x00000050; ss_test[i].expected = "80";
+  i++; ss_test[i].num = 0x00000005; ss_test[i].expected = "5";
+
+  i++; ss_test[i].num = 0x00000001; ss_test[i].expected = "1";
+  i++; ss_test[i].num = 0x00000000; ss_test[i].expected = "0";
+
+  i++; ss_test[i].num = -0x7FFFFFFF -1; ss_test[i].expected = "-2147483648";
+  i++; ss_test[i].num = -0x7FFFFFFE -1; ss_test[i].expected = "-2147483647";
+  i++; ss_test[i].num = -0x7FFFFFFD -1; ss_test[i].expected = "-2147483646";
+  i++; ss_test[i].num = -0x7FFF0000 -1; ss_test[i].expected = "-2147418113";
+  i++; ss_test[i].num = -0x00007FFF -1; ss_test[i].expected = "-32768";
+
+  i++; ss_test[i].num = -0x7F000000 -1; ss_test[i].expected = "-2130706433";
+  i++; ss_test[i].num = -0x007F0000 -1; ss_test[i].expected = "-8323073";
+  i++; ss_test[i].num = -0x00007F00 -1; ss_test[i].expected = "-32513";
+  i++; ss_test[i].num = -0x0000007F -1; ss_test[i].expected = "-128";
+
+  i++; ss_test[i].num = -0x70000000 -1; ss_test[i].expected = "-1879048193";
+  i++; ss_test[i].num = -0x07000000 -1; ss_test[i].expected = "-117440513";
+  i++; ss_test[i].num = -0x00700000 -1; ss_test[i].expected = "-7340033";
+  i++; ss_test[i].num = -0x00070000 -1; ss_test[i].expected = "-458753";
+  i++; ss_test[i].num = -0x00007000 -1; ss_test[i].expected = "-28673";
+  i++; ss_test[i].num = -0x00000700 -1; ss_test[i].expected = "-1793";
+  i++; ss_test[i].num = -0x00000070 -1; ss_test[i].expected = "-113";
+  i++; ss_test[i].num = -0x00000007 -1; ss_test[i].expected = "-8";
+
+  i++; ss_test[i].num = -0x50000000 -1; ss_test[i].expected = "-1342177281";
+  i++; ss_test[i].num = -0x05000000 -1; ss_test[i].expected = "-83886081";
+  i++; ss_test[i].num = -0x00500000 -1; ss_test[i].expected = "-5242881";
+  i++; ss_test[i].num = -0x00050000 -1; ss_test[i].expected = "-327681";
+  i++; ss_test[i].num = -0x00005000 -1; ss_test[i].expected = "-20481";
+  i++; ss_test[i].num = -0x00000500 -1; ss_test[i].expected = "-1281";
+  i++; ss_test[i].num = -0x00000050 -1; ss_test[i].expected = "-81";
+  i++; ss_test[i].num = -0x00000005 -1; ss_test[i].expected = "-6";
+
+  i++; ss_test[i].num =  0x00000000 -1; ss_test[i].expected = "-1";
+
+  num_sshort_tests = i;
+
 #endif
 
-  /* Create an entry id, based upon the hostname and port */
-  entry_id = create_hostcache_id(hostname, port);
-  /* If we can't create the entry id, fail */
-  if (!entry_id)
-    return CURLRESOLV_ERROR;
+  for(i=1; i<=num_sshort_tests; i++) {
 
-  entry_len = strlen(entry_id);
+    for(j=0; j<BUFSZ; j++)
+      ss_test[i].result[j] = 'X';
+    ss_test[i].result[BUFSZ-1] = '\0';
 
-  if(data->share)
-    Curl_share_lock(data, CURL_LOCK_DATA_DNS, CURL_LOCK_ACCESS_SINGLE);
+    (void)curl_msprintf(ss_test[i].result, "%hd", ss_test[i].num);
 
-  /* See if its already in our dns cache */
-  dns = Curl_hash_pick(data->hostcache, entry_id, entry_len+1);
-
-  if(data->share)
-    Curl_share_unlock(data, CURL_LOCK_DATA_DNS);
-
-  /* free the allocated entry_id again */
-  free(entry_id);
-
-  rc = CURLRESOLV_ERROR; /* default to failure */
-
-  if (!dns) {
-    /* The entry was not in the cache. Resolve it to IP address */
-
-    Curl_addrinfo *addr;
-
-    /* Check what IP specifics the app has requested and if we can provide it.
-     * If not, bail out. */
-    if(!Curl_ipvalid(data))
-      return CURLRESOLV_ERROR;
-
-    /* If Curl_getaddrinfo() returns NULL, 'wait' might be set to a non-zero
-       value indicating that we need to wait for the response to the resolve
-       call */
-    addr = Curl_getaddrinfo(conn, hostname, port, &wait);
-
-    if (!addr) {
-      if(wait) {
-        /* the response to our resolve call will come asynchronously at
-           a later time, good or bad */
-        /* First, check that we haven't received the info by now */
-        result = Curl_is_resolved(conn, &dns);
-        if(result) /* error detected */
-          return CURLRESOLV_ERROR;
-        if(dns)
-          rc = CURLRESOLV_RESOLVED; /* pointer provided */
-        else
-          rc = CURLRESOLV_PENDING; /* no info yet */
-      }
+    if(memcmp(ss_test[i].result,
+              ss_test[i].expected,
+              strlen(ss_test[i].expected))) {
+      printf("signed short test #%.2d: Failed (Expected: %s Got: %s)\n",
+             i, ss_test[i].expected, ss_test[i].result);
+      failed++;
     }
-    else {
-      if(data->share)
-        Curl_share_lock(data, CURL_LOCK_DATA_DNS, CURL_LOCK_ACCESS_SINGLE);
 
-      /* we got a response, store it in the cache */
-      dns = Curl_cache_addr(data, addr, hostname, port);
-
-      if(data->share)
-        Curl_share_unlock(data, CURL_LOCK_DATA_DNS);
-
-      if(!dns)
-        /* returned failure, bail out nicely */
-        Curl_freeaddrinfo(addr);
-      else
-        rc = CURLRESOLV_RESOLVED;
-    }
-  }
-  else {
-    if(data->share)
-      Curl_share_lock(data, CURL_LOCK_DATA_DNS, CURL_LOCK_ACCESS_SINGLE);
-    dns->inuse++; /* we use it! */
-    if(data->share)
-      Curl_share_unlock(data, CURL_LOCK_DATA_DNS);
-    rc = CURLRESOLV_RESOLVED;
   }
 
-  *entry = dns;
+  if(!failed)
+    printf("All curl_mprintf() signed short tests OK!\n");
+  else
+    printf("Some curl_mprintf() signed short tests Failed!\n");
 
-  return rc;
+  return failed;
 }

@@ -1,27 +1,84 @@
-char *Curl_FormBoundary(void)
+int test(char *URL)
 {
-  char *retstring;
-  static int randomizer;   /* this is just so that two boundaries within
-                              the same form won't be identical */
-  size_t i;
+  CURL *curl;
+  CURLcode res = CURLE_OK;
+  FILE *hd_src ;
+  int hd;
+  struct_stat file_info;
+  int error;
 
-  static const char table16[]="abcdef0123456789";
+  if (!libtest_arg2) {
+    fprintf(stderr, "Usage: <url> <file-to-upload>\n");
+    return TEST_ERR_USAGE;
+  }
 
-  retstring = (char *)malloc(BOUNDARY_LENGTH+1);
+  hd_src = fopen(libtest_arg2, "rb");
+  if(NULL == hd_src) {
+    error = ERRNO;
+    fprintf(stderr, "fopen() failed with error: %d %s\n",
+            error, strerror(error));
+    fprintf(stderr, "Error opening file: %s\n", libtest_arg2);
+    return -2; /* if this happens things are major weird */
+  }
 
-  if(!retstring)
-    return NULL; /* failed */
+  /* get the file size of the local file */
+  hd = fstat(fileno(hd_src), &file_info);
+  if(hd == -1) {
+    /* can't open file, bail out */
+    error = ERRNO;
+    fprintf(stderr, "fstat() failed with error: %d %s\n",
+            error, strerror(error));
+    fprintf(stderr, "ERROR: cannot open file %s\n", libtest_arg2);
+    fclose(hd_src);
+    return TEST_ERR_MAJOR_BAD;
+  }
 
-  srand((unsigned int)time(NULL)+randomizer++); /* seed */
+  if(! file_info.st_size) {
+    fprintf(stderr, "ERROR: file %s has zero size!\n", libtest_arg2);
+    fclose(hd_src);
+    return TEST_ERR_MAJOR_BAD;
+  }
 
-  strcpy(retstring, "----------------------------");
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    fclose(hd_src);
+    return TEST_ERR_MAJOR_BAD;
+  }
 
-  for(i=strlen(retstring); i<BOUNDARY_LENGTH; i++)
-    retstring[i] = table16[rand()%16];
+  /* get a curl handle */
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    fclose(hd_src);
+    return TEST_ERR_MAJOR_BAD;
+  }
 
-  /* 28 dashes and 12 hexadecimal digits makes 12^16 (184884258895036416)
-     combinations */
-  retstring[BOUNDARY_LENGTH]=0; /* zero terminate */
+  /* enable uploading */
+  test_setopt(curl, CURLOPT_UPLOAD, 1L);
 
-  return retstring;
+  /* enable verbose */
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+  /* specify target */
+  test_setopt(curl,CURLOPT_URL, URL);
+
+  /* now specify which file to upload */
+  test_setopt(curl, CURLOPT_READDATA, hd_src);
+
+  /* Now run off and do what you've been told! */
+  res = curl_easy_perform(curl);
+
+  /* and now upload the exact same again, but without rewinding so it already
+     is at end of file */
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  /* close the local file */
+  fclose(hd_src);
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return res;
 }

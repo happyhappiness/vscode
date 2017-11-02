@@ -1,19 +1,31 @@
-static int passwd_callback(char *buf, int num, int verify
-#if HAVE_USERDATA_IN_PWD_CALLBACK
-                           /* This was introduced in 0.9.4, we can set this
-                              using SSL_CTX_set_default_passwd_cb_userdata()
-                              */
-                           , void *global_passwd
-#endif
-                           )
+static int ssl_app_verify_callback(X509_STORE_CTX *ctx, void *arg)
 {
-  if(verify)
-    fprintf(stderr, "%s\n", buf);
-  else {
-    if(num > (int)strlen((char *)global_passwd)) {
-      strcpy(buf, global_passwd);
-      return (int)strlen(buf);
+  sslctxparm * p = (sslctxparm *) arg;
+  int ok;
+
+  if (p->verbose > 2)
+    BIO_printf(p->errorbio,"entering ssl_app_verify_callback\n");
+
+  if ((ok= X509_verify_cert(ctx)) && ctx->cert) {
+    unsigned char * accessinfo ;
+    if (p->verbose > 1)
+      X509_print_ex(p->errorbio,ctx->cert,0,0);
+
+    if (accessinfo = my_get_ext(ctx->cert,p->accesstype ,NID_sinfo_access)) {
+      if (p->verbose)
+        BIO_printf(p->errorbio,"Setting URL from SIA to: %s\n", accessinfo);
+
+      curl_easy_setopt(p->curl, CURLOPT_URL,accessinfo);
+    }
+    else if (accessinfo = my_get_ext(ctx->cert,p->accesstype,
+                                     NID_info_access)) {
+      if (p->verbose)
+        BIO_printf(p->errorbio,"Setting URL from AIA to: %s\n", accessinfo);
+
+      curl_easy_setopt(p->curl, CURLOPT_URL,accessinfo);
     }
   }
-  return 0;
+  if (p->verbose > 2)
+    BIO_printf(p->errorbio,"leaving ssl_app_verify_callback with %d\n", ok);
+  return(ok);
 }

@@ -1,4 +1,8 @@
-int  _NonAppCheckUnload( void )
+static metalink_resource *new_metalink_resource(const char *url)
 {
-    return 0;
+  metalink_resource *res;
+  res = malloc(sizeof(metalink_resource));
+  res->next = NULL;
+  res->url = strdup(url);
+  return res;
 }

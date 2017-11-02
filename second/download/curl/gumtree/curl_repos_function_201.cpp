@@ -1,29 +1,39 @@
-static
-int waitconnect(curl_socket_t sockfd, /* socket */
-                long timeout_msec)
+void *create_thread(void *progress_bar)
 {
-  int rc;
-#ifdef mpeix
-  /* Call this function once now, and ignore the results. We do this to
-     "clear" the error state on the socket so that we can later read it
-     reliably. This is reported necessary on the MPE/iX operating system. */
-  verifyconnect(sockfd, NULL);
-#endif
+  pthread_t tid[NUMT];
+  int i;
+  int error;
 
-  /* now select() until we get connect or timeout */
-  rc = Curl_select(CURL_SOCKET_BAD, sockfd, (int)timeout_msec);
-  if(-1 == rc)
-    /* error, no connect here, try next */
-    return WAITCONN_SELECT_ERROR;
+  /* Make sure I don't create more threads than urls. */
+  for(i=0; i < NUMT && i < num_urls ; i++) {
+    error = pthread_create(&tid[i],
+                           NULL, /* default attributes please */
+                           pull_one_url,
+                           NULL);
+    if(0 != error)
+      fprintf(stderr, "Couldn't run thread number %d, errno %d\n", i, error);
+    else
+      fprintf(stderr, "Thread %d, gets %s\n", i, urls[i]);
+  }
 
-  else if(0 == rc)
-    /* timeout, no connect today */
-    return WAITCONN_TIMEOUT;
+  /* Wait for all threads to terminate. */
+  for(i=0; i < NUMT && i < num_urls; i++) {
+    error = pthread_join(tid[i], NULL);
+    fprintf(stderr, "Thread %d terminated\n", i);
+  }
 
-  if(rc & CSELECT_ERR)
-    /* error condition caught */
-    return WAITCONN_FDSET_ERROR;
+  /* This stops the pulsing if you have it turned on in the progress bar
+     section */
+  g_source_remove(GPOINTER_TO_INT(g_object_get_data(G_OBJECT(progress_bar),
+                                                    "pulse_id")));
 
-  /* we have a connect! */
-  return WAITCONN_CONNECTED;
+  /* This destroys the progress bar */
+  gtk_widget_destroy(progress_bar);
+
+  /* [Un]Comment this out to kill the program rather than pushing close. */
+  /* gtk_main_quit(); */
+
+
+  return NULL;
+
 }

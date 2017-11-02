@@ -1,33 +1,50 @@
-static void MD5_Update (struct md5_ctx *context,    /* context */
-                        const unsigned char *input, /* input block */
-                        unsigned int inputLen)      /* length of input block */
+int test(char *URL)
 {
-  unsigned int i, bufindex, partLen;
+  long unmet;
+  CURL* curl = NULL;
+  int res = 0;
 
-  /* Compute number of bytes mod 64 */
-  bufindex = (unsigned int)((context->count[0] >> 3) & 0x3F);
+  global_init(CURL_GLOBAL_ALL);
 
-  /* Update number of bits */
-  if ((context->count[0] += ((UINT4)inputLen << 3))
-      < ((UINT4)inputLen << 3))
-    context->count[1]++;
-  context->count[1] += ((UINT4)inputLen >> 29);
-  
-  partLen = 64 - bufindex;
+  easy_init(curl);
 
-  /* Transform as many times as possible. */
-  if (inputLen >= partLen) {
-    memcpy((void *)&context->buffer[bufindex], (void *)input, partLen);
-    MD5Transform(context->state, context->buffer);
-    
-    for (i = partLen; i + 63 < inputLen; i += 64)
-      MD5Transform(context->state, &input[i]);
-    
-    bufindex = 0;
+  easy_setopt(curl, CURLOPT_URL, URL);
+  easy_setopt(curl, CURLOPT_HEADER, 1L);
+  easy_setopt(curl, CURLOPT_TIMECONDITION, (long)CURL_TIMECOND_IFMODSINCE);
+
+  /* TIMEVALUE in the future */
+  easy_setopt(curl, CURLOPT_TIMEVALUE, 1566210680L);
+
+  res = curl_easy_perform(curl);
+  if(res)
+    goto test_cleanup;
+
+  curl_easy_getinfo(curl, CURLINFO_CONDITION_UNMET, &unmet);
+  if(unmet != 1L) {
+    res = TEST_ERR_FAILURE; /* not correct */
+    goto test_cleanup;
   }
-  else
-    i = 0;
 
-  /* Buffer remaining input */
-  memcpy((void *)&context->buffer[bufindex], (void *)&input[i], inputLen-i);
+  /* TIMEVALUE in the past */
+  easy_setopt(curl, CURLOPT_TIMEVALUE, 1L);
+
+  res = curl_easy_perform(curl);
+  if(res)
+    goto test_cleanup;
+
+  curl_easy_getinfo(curl, CURLINFO_CONDITION_UNMET, &unmet);
+  if(unmet != 0L) {
+    res = TEST_ERR_FAILURE; /* not correct */
+    goto test_cleanup;
+  }
+
+  res = TEST_ERR_SUCCESS; /* this is where we should be */
+
+test_cleanup:
+
+  /* always cleanup */
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return res;
 }

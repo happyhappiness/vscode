@@ -1,22 +1,19 @@
-static int showit(struct SessionHandle *data, curl_infotype type,
-                  char *ptr, size_t size)
+static size_t myreadfunc(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-  static const char * const s_infotype[CURLINFO_END] = {
-    "* ", "< ", "> ", "{ ", "} ", "{ ", "} " };
+  static size_t total=POSTLEN;
+  static char buf[1024];
+  (void)stream;
 
-  if(data->set.fdebug)
-    return (*data->set.fdebug)(data, type, ptr, size,
-                               data->set.debugdata);
+  memset(buf, 'A', sizeof(buf));
 
-  switch(type) {
-  case CURLINFO_TEXT:
-  case CURLINFO_HEADER_OUT:
-  case CURLINFO_HEADER_IN:
-    fwrite(s_infotype[type], 2, 1, data->set.err);
-    fwrite(ptr, size, 1, data->set.err);
-    break;
-  default: /* nada */
-    break;
-  }
-  return 0;
+  size *= nmemb;
+  if (size > total)
+    size = total;
+
+  if(size > sizeof(buf))
+    size = sizeof(buf);
+
+  memcpy(ptr, buf, size);
+  total -= size;
+  return size;
 }

@@ -1,12 +1,28 @@
-char *Curl_strcasestr(const char *haystack, const char *needle)
+static int progress_callback(void *clientp, double dltotal, double dlnow,
+                             double ultotal, double ulnow)
 {
-  size_t nlen = strlen(needle);
-  size_t hlen = strlen(haystack);
+  FILE *moo;
+  static int prev_ultotal = -1;
+  static int prev_ulnow = -1;
+  (void)clientp; /* UNUSED */
+  (void)dltotal; /* UNUSED */
+  (void)dlnow; /* UNUSED */
 
-  while(hlen-- >= nlen) {
-    if(curl_strnequal(haystack, needle, nlen))
-      return (char *)haystack;
-    haystack++;
+  /* to avoid depending on timing, which will cause this progress function to
+     get called a different number of times depending on circumstances, we
+     only log these lines if the numbers are different from the previous
+     invoke */
+  if((prev_ultotal != (int)ultotal) ||
+     (prev_ulnow != (int)ulnow)) {
+
+    moo = fopen(libtest_arg2, "ab");
+    if(moo) {
+      fprintf(moo, "Progress callback called with UL %d out of %d\n",
+              (int)ulnow, (int)ultotal);
+      fclose(moo);
+    }
+    prev_ulnow = (int) ulnow;
+    prev_ultotal = (int) ultotal;
   }
-  return NULL;
+  return 0;
 }

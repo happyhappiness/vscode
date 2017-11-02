@@ -1,16 +1,42 @@
-void Curl_cleanup_negotiate(struct SessionHandle *data)
+int main(void)
 {
-  OM_uint32 minor_status;
-  struct negotiatedata *neg_ctx = &data->state.negotiate;
+  CURL *curl;
+  CURLcode res;
 
-  if (neg_ctx->context != GSS_C_NO_CONTEXT)
-    gss_delete_sec_context(&minor_status, &neg_ctx->context, GSS_C_NO_BUFFER);
+  curl = curl_easy_init();
+  if(curl) {
+    struct curl_slist *chunk = NULL;
 
-  if (neg_ctx->output_token.length != 0)
-    gss_release_buffer(&minor_status, &neg_ctx->output_token);
+    /* Remove a header curl would otherwise add by itself */
+    chunk = curl_slist_append(chunk, "Accept:");
 
-  if (neg_ctx->server_name != GSS_C_NO_NAME)
-    gss_release_name(&minor_status, &neg_ctx->server_name);
+    /* Add a custom header */
+    chunk = curl_slist_append(chunk, "Another: yes");
 
-  memset(neg_ctx, 0, sizeof(*neg_ctx));
+    /* Modify a header curl otherwise adds differently */
+    chunk = curl_slist_append(chunk, "Host: example.com");
+
+    /* Add a header with "blank" contents to the right of the colon. Note that
+       we're then using a semicolon in the string we pass to curl! */
+    chunk = curl_slist_append(chunk, "X-silly-header;");
+
+    /* set our custom set of headers */
+    res = curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+
+    curl_easy_setopt(curl, CURLOPT_URL, "localhost");
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+    res = curl_easy_perform(curl);
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+
+    /* free the custom headers */
+    curl_slist_free_all(chunk);
+  }
+  return 0;
 }

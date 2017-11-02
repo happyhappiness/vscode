@@ -1,4 +1,18 @@
-int curl_mvfprintf(FILE *whereto, const char *format, va_list ap_save)
+static int
+Curl_is_formadd_string(CURLformoption option)
+
 {
-  return dprintf_formatf(whereto, fputc, format, ap_save);
+  switch (option) {
+
+  case CURLFORM_FILENAME:
+  case CURLFORM_CONTENTTYPE:
+  case CURLFORM_BUFFER:
+  case CURLFORM_FILE:
+  case CURLFORM_FILECONTENT:
+  case CURLFORM_COPYCONTENTS:
+  case CURLFORM_COPYNAME:
+    return 1;
+  }
+
+  return 0;
 }

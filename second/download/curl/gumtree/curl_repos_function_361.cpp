@@ -1,29 +1,41 @@
-static FormInfo * AddFormInfo(char *value,
-                              char *contenttype,
-                              FormInfo *parent_form_info)
+int test(char *URL)
 {
-  FormInfo *form_info;
-  form_info = (FormInfo *)malloc(sizeof(FormInfo));
-  if(form_info) {
-    memset(form_info, 0, sizeof(FormInfo));
-    if (value)
-      form_info->value = value;
-    if (contenttype)
-      form_info->contenttype = contenttype;
-    form_info->flags = HTTPPOST_FILENAME;
+  CURLcode res;
+  CURL *curl;
+
+  double content_length = 3;
+
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
-  else
-    return NULL;
 
-  if (parent_form_info) {
-    /* now, point our 'more' to the original 'more' */
-    form_info->more = parent_form_info->more;
-
-    /* then move the original 'more' to point to ourselves */
-    parent_form_info->more = form_info;
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
   }
-  else
-    return NULL;
 
-  return form_info;
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+
+  res = curl_easy_perform(curl);
+
+  if(!res) {
+    FILE *moo;
+    res = curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD,
+                            &content_length);
+    moo = fopen(libtest_arg2, "wb");
+    if(moo) {
+      fprintf(moo, "CL: %.0f\n", content_length);
+      fclose(moo);
+    }
+  }
+
+test_cleanup:
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return (int)res;
 }

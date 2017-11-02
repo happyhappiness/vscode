@@ -1,27 +1,30 @@
-static bool countcheck(const char *func, int line, const char *source)
+char *
+Curl_ldap_first_attribute_a(void * ld,
+                            LDAPMessage * entry, BerElement * * berptr)
+
 {
-  /* if source is NULL, then the call is made internally and this check
-     should not be made */
-  if(memlimit && source) {
-    if(!memsize) {
-      if(logfile && source)
-        fprintf(logfile, "LIMIT %s:%d %s reached memlimit\n",
-                source, line, func);
-      if(source)
-        fprintf(stderr, "LIMIT %s:%d %s reached memlimit\n",
-                source, line, func);
-      errno = ENOMEM;
-      return TRUE; /* RETURN ERROR! */
-    }
-    else
-      memsize--; /* countdown */
+  int i;
+  char * cp;
+  char * cp2;
 
-    /* log the countdown */
-    if(logfile && source)
-      fprintf(logfile, "LIMIT %s:%d %ld ALLOCS left\n",
-              source, line, memsize);
+  cp = ldap_first_attribute(ld, entry, berptr);
 
-  }
+  if(!cp)
+    return cp;
 
-  return FALSE; /* allow this */
+  i = strlen(cp);
+
+  if(!(cp2 = malloc(i + 1)))
+    return cp2;
+
+  QadrtConvertE2A(cp2, cp, i, i);
+  cp2[i] = '\0';
+
+  /* No way to allocate a buffer here, because it will be released by
+     ldap_memfree() and ldap_memalloc() does not exist. The solution is to
+     overwrite the EBCDIC buffer with ASCII to return it. */
+
+  strcpy(cp, cp2);
+  free(cp2);
+  return cp;
 }

@@ -1,23 +1,34 @@
-static void MD5_Final(unsigned char digest[16], /* message digest */
-                      struct md5_ctx *context) /* context */
+int test(char *URL)
 {
-  unsigned char bits[8];
-  unsigned int count, padLen;
+  CURLcode res;
+  CURL *curl;
 
-  /* Save number of bits */
-  Encode (bits, context->count, 8);
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
+  }
 
-  /* Pad out to 56 mod 64. */
-  count = (unsigned int)((context->count[0] >> 3) & 0x3f);
-  padLen = (count < 56) ? (56 - count) : (120 - count);
-  MD5_Update (context, PADDING, padLen);
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
 
-  /* Append length (before padding) */
-  MD5_Update (context, bits, 8);
+  test_setopt(curl, CURLOPT_PROXY, libtest_arg2);
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_PROXY_TRANSFER_MODE, 1L);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+  if(libtest_arg3) {
+    /* enable ascii/text mode */
+    test_setopt(curl, CURLOPT_TRANSFERTEXT, 1L);
+  }
 
-  /* Store state in digest */
-  Encode (digest, context->state, 16);
+  res = curl_easy_perform(curl);
 
-  /* Zeroize sensitive information. */
-  memset ((void *)context, 0, sizeof (*context));
+test_cleanup:
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return (int)res;
 }

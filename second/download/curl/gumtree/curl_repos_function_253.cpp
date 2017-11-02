@@ -1,39 +1,49 @@
-CURLcode Curl_second_connect(struct connectdata *conn)
+int main(void)
 {
-  CURLcode status = CURLE_OK;
-  struct SessionHandle *data = conn->data;
-  struct connectdata *sec_conn = NULL;   /* secondary connection */
-  bool backup_reuse_fresh = data->set.reuse_fresh;
-  char *backup_userpwd = data->set.userpwd;
+  CURL *curl;
+  CURLcode res;
+  struct FtpFile ftpfile={
+    "yourfile.bin", /* name to store the file as if succesful */
+    NULL
+  };
 
-  if(data->change.url_alloc)
-    free(data->change.url);
+  curl_global_init(CURL_GLOBAL_DEFAULT);
 
-  data->change.url_alloc = FALSE;
-  data->change.url = data->set.source_url;
+  curl = curl_easy_init();
+  if(curl) {
+    /*
+     * You better replace the URL with one that works! Note that we use an
+     * FTP:// URL with standard explicit FTPS. You can also do FTPS:// URLs if
+     * you want to do the rarer kind of transfers: implicit.
+     */
+    curl_easy_setopt(curl, CURLOPT_URL,
+                     "ftp://user@server/home/user/file.txt");
+    /* Define our callback to get called when there's data to be written */
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_fwrite);
+    /* Set a pointer to our struct to pass to the callback */
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ftpfile);
 
-  /* We must never actually alter 'data->set' properties, so we restore the
-     backed up values afterwards! */
+    /* We activate SSL and we require it for both control and data */
+    curl_easy_setopt(curl, CURLOPT_USE_SSL, CURLUSESSL_ALL);
 
-#if 0
-  /* if both remote hosts are the same host - create new connection */
-  if (strequal(conn->host.dispname, data->set.source_host))
-#endif
-    data->set.reuse_fresh = TRUE;
+    /* Switch on full protocol/debug output */
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
-  data->set.userpwd = data->set.source_userpwd;
+    res = curl_easy_perform(curl);
 
-  /* secondary connection */
-  status = Curl_connect_host(data, &sec_conn);
-  if(CURLE_OK == status) {
-    sec_conn->sec_conn = NULL;  /* important if re-using existing connection
-                                   to prevent loop */
-    sec_conn->data = data;
-    conn->sec_conn = sec_conn;
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+
+    if(CURLE_OK != res) {
+      /* we failed */
+      fprintf(stderr, "curl told us %d\n", res);
+    }
   }
 
-  data->set.reuse_fresh = backup_reuse_fresh;
-  data->set.userpwd = backup_userpwd;
+  if(ftpfile.stream)
+    fclose(ftpfile.stream); /* close the local file */
 
-  return status;
+  curl_global_cleanup();
+
+  return 0;
 }

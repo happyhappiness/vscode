@@ -1,35 +1,25 @@
-char *curl_version(void)
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
 {
-  static char version[200];
-  char *ptr=version;
-  size_t len;
-  size_t left = sizeof(version);
-  strcpy(ptr, LIBCURL_NAME "/" LIBCURL_VERSION );
-  ptr=strchr(ptr, '\0');
-  left -= strlen(ptr);
+#ifdef LIB587
+  (void)ptr;
+  (void)size;
+  (void)nmemb;
+  (void)userp;
+  return CURL_READFUNC_ABORT;
+#else
 
-  len = Curl_ssl_version(ptr, left);
-  left -= len;
-  ptr += len;
+  struct WriteThis *pooh = (struct WriteThis *)userp;
 
-#ifdef HAVE_LIBZ
-  len = snprintf(ptr, left, " zlib/%s", zlibVersion());
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_ARES
-  /* this function is only present in c-ares, not in the original ares */
-  len = snprintf(ptr, left, " c-ares/%s", ares_version(NULL));
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_LIBIDN
-  if(stringprep_check_version(LIBIDN_REQUIRED_VERSION)) {
-    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
-    left -= len;
-    ptr += len;
+  if(size*nmemb < 1)
+    return 0;
+
+  if(pooh->sizeleft) {
+    *(char *)ptr = pooh->readptr[0]; /* copy one single byte */
+    pooh->readptr++;                 /* advance pointer */
+    pooh->sizeleft--;                /* less data left */
+    return 1;                        /* we return 1 byte at a time! */
   }
-#endif
 
-  return version;
+  return 0;                         /* no more data left to deliver */
+#endif
 }

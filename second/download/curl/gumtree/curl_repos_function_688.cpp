@@ -1,5 +1,6 @@
-void Curl_digest_cleanup(struct SessionHandle *data)
+static void SHA256_Update(SHA256_CTX *ctx,
+                          const unsigned char *input,
+                          unsigned int inputLen)
 {
-  Curl_digest_cleanup_one(&data->state.digest);
-  Curl_digest_cleanup_one(&data->state.proxydigest);
+  gcry_md_write(*ctx, input, inputLen);
 }

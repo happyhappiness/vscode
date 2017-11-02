@@ -1,7 +1,8 @@
-int Curl_num_addresses(const Curl_addrinfo *addr)
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
 {
-  int i;
-  for (i = 0; addr; addr = addr->ai_next, i++)
-    ;  /* empty loop */
-  return i;
+  (void)ptr;
+  (void)size;
+  (void)nmemb;
+  (void)userp;
+  return CURL_READFUNC_ABORT;
 }

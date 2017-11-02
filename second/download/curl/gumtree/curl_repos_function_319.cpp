@@ -1,25 +1,14 @@
-void *curl_dorealloc(void *ptr, size_t wantedsize,
-                     int line, const char *source)
+int
+Curl_os400_bind(int sd, struct sockaddr * localaddr, int addrlen)
+
 {
-  struct memdebug *mem=NULL;
+  int i;
+  struct sockaddr_storage laddr;
 
-  size_t size = sizeof(struct memdebug)+wantedsize;
+  i = convert_sockaddr(&laddr, localaddr, addrlen);
 
-  if(countcheck("realloc", line, source))
-    return NULL;
+  if(i < 0)
+    return -1;
 
-  if(ptr)
-    mem = (struct memdebug *)((char *)ptr - offsetof(struct memdebug, mem));
-
-  mem=(struct memdebug *)(Curl_crealloc)(mem, size);
-  if(logfile)
-    fprintf(logfile, "MEM %s:%d realloc(0x%x, %zd) = %p\n",
-            source, line, ptr, wantedsize, mem?mem->mem:NULL);
-
-  if(mem) {
-    mem->size = wantedsize;
-    return mem->mem;
-  }
-
-  return NULL;
+  return bind(sd, (struct sockaddr *) &laddr, i);
 }

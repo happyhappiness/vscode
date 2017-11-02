@@ -1,10 +1,7 @@
-static unsigned char *i2s_ASN1_IA5STRING( ASN1_IA5STRING *ia5)
+static void locking_function(int mode, int n, const char * file, int line)
 {
-  unsigned char *tmp;
-  if(!ia5 || !ia5->length)
-    return NULL;
-  tmp = OPENSSL_malloc(ia5->length + 1);
-  memcpy(tmp, ia5->data, ia5->length);
-  tmp[ia5->length] = 0;
-  return tmp;
+  if (mode & CRYPTO_LOCK)
+    MUTEX_LOCK(mutex_buf[n]);
+  else
+    MUTEX_UNLOCK(mutex_buf[n]);
 }

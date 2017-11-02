@@ -1,39 +1,55 @@
-void ourWriteEnv(CURL *curl)
+static bool init(CURL *&conn, char *url)
 {
-  unsigned int i;
-  char *string, numtext[10];
-  long longinfo;
-  double doubleinfo;
-  
-  for (i=0; variables[i].name; i++) {
-    switch (variables[i].type) {
-    case writeenv_STRING:
-      if (curl_easy_getinfo(curl, variables[i].id, &string) == CURLE_OK)
-        internalSetEnv(variables[i].name, string);
-      else
-        internalSetEnv(variables[i].name, NULL);
-      break;
+  CURLcode code;
 
-    case writeenv_LONG:
-      if (curl_easy_getinfo(curl, variables[i].id, &longinfo) == CURLE_OK) {
-        sprintf(numtext, "%5ld", longinfo);
-        internalSetEnv(variables[i].name, numtext);
-      }
-      else
-        internalSetEnv(variables[i].name, NULL);
-      break;
-    case writeenv_DOUBLE:
-      if (curl_easy_getinfo(curl, variables[i].id, &doubleinfo) == CURLE_OK) {
-        sprintf(numtext, "%6.2f", doubleinfo);
-        internalSetEnv(variables[i].name, numtext);
-      }
-      else
-        internalSetEnv(variables[i].name, NULL);
-      break;
-    default:
-      break;
-    }
+  conn = curl_easy_init();
+
+  if (conn == NULL)
+  {
+    fprintf(stderr, "Failed to create CURL connection\n");
+
+    exit(EXIT_FAILURE);
   }
 
-  return;
+  code = curl_easy_setopt(conn, CURLOPT_ERRORBUFFER, errorBuffer);
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to set error buffer [%d]\n", code);
+
+    return false;
+  }
+
+  code = curl_easy_setopt(conn, CURLOPT_URL, url);
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to set URL [%s]\n", errorBuffer);
+
+    return false;
+  }
+
+  code = curl_easy_setopt(conn, CURLOPT_FOLLOWLOCATION, 1L);
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to set redirect option [%s]\n", errorBuffer);
+
+    return false;
+  }
+
+  code = curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, writer);
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to set writer [%s]\n", errorBuffer);
+
+    return false;
+  }
+
+  code = curl_easy_setopt(conn, CURLOPT_WRITEDATA, &buffer);
+  if (code != CURLE_OK)
+  {
+    fprintf(stderr, "Failed to set write data [%s]\n", errorBuffer);
+
+    return false;
+  }
+
+  return true;
 }

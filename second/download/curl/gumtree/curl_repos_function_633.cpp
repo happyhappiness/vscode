@@ -1,17 +1,22 @@
-static char **split_str (char *str)
+char *data_to_hex(char *data, size_t len)
 {
-  char **res, *lasts, *s;
-  int  i;
+  static char buf[256*3];
+  size_t i;
+  char *optr = buf;
+  char *iptr = data;
 
-  for (i = 2, s = strchr(str,','); s; i++)
-     s = strchr(++s,',');
+  if(len > 255)
+    len = 255;
 
-  res = calloc(i, sizeof(char*));
-  if (!res)
-    return NULL;
+  for(i=0; i < len; i++) {
+    if((data[i] >= 0x20) && (data[i] < 0x7f))
+      *optr++ = *iptr++;
+    else {
+      sprintf(optr, "%%%02x", *iptr++);
+      optr+=3;
+    }
+  }
+  *optr=0; /* in case no sprintf() was used */
 
-  for (i = 0, s = strtok_r(str, ",", &lasts); s;
-       s = strtok_r(NULL, ",", &lasts), i++)
-    res[i] = s;
-  return res;
+  return buf;
 }

@@ -1,159 +1,67 @@
-static CURLcode
-Curl_http_output_auth(struct connectdata *conn,
-                      char *request,
-                      char *path,
-                      bool proxytunnel) /* TRUE if this is the request setting
-                                           up the proxy tunnel */
+int test(char *URL)
 {
-  CURLcode result = CURLE_OK;
-  struct SessionHandle *data = conn->data;
-  char *auth=NULL;
-  struct auth *authhost;
-  struct auth *authproxy;
+   CURLcode res;
+   CURL *curl;
+   char *newURL = NULL;
+   struct curl_slist *slist = NULL;
 
-  curlassert(data);
+   if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+     fprintf(stderr, "curl_global_init() failed\n");
+     return TEST_ERR_MAJOR_BAD;
+   }
 
-  authhost = &data->state.authhost;
-  authproxy = &data->state.authproxy;
+   if ((curl = curl_easy_init()) == NULL) {
+     fprintf(stderr, "curl_easy_init() failed\n");
+     curl_global_cleanup();
+     return TEST_ERR_MAJOR_BAD;
+   }
 
-  if((conn->bits.httpproxy && conn->bits.proxy_user_passwd) ||
-     conn->bits.user_passwd)
-    /* continue please */ ;
-  else {
-    authhost->done = TRUE;
-    authproxy->done = TRUE;
-    return CURLE_OK; /* no authentication with no user or password */
-  }
+   /*
+    * Begin with cURL set to use a single CWD to the URL's directory.
+    */
+   test_setopt(curl, CURLOPT_URL, URL);
+   test_setopt(curl, CURLOPT_VERBOSE, 1L);
+   test_setopt(curl, CURLOPT_FTP_FILEMETHOD, (long) CURLFTPMETHOD_SINGLECWD);
 
-  if(authhost->want && !authhost->picked)
-    /* The app has selected one or more methods, but none has been picked
-       so far by a server round-trip. Then we set the picked one to the
-       want one, and if this is one single bit it'll be used instantly. */
-    authhost->picked = authhost->want;
+   res = curl_easy_perform(curl);
 
-  if(authproxy->want && !authproxy->picked)
-    /* The app has selected one or more methods, but none has been picked so
-       far by a proxy round-trip. Then we set the picked one to the want one,
-       and if this is one single bit it'll be used instantly. */
-    authproxy->picked = authproxy->want;
+   /*
+    * Change the FTP_FILEMETHOD option to use full paths rather than a CWD
+    * command.  Alter the URL's path a bit, appending a "./".  Use an innocuous
+    * QUOTE command, after which cURL will CWD to ftp_conn->entrypath and then
+    * (on the next call to ftp_statemach_act) find a non-zero ftpconn->dirdepth
+    * even though no directories are stored in the ftpconn->dirs array (after a
+    * call to freedirs).
+    */
+   newURL = malloc(strlen(URL) + 3);
+   if (newURL == NULL) {
+     curl_easy_cleanup(curl);
+     curl_global_cleanup();
+     return TEST_ERR_MAJOR_BAD;
+   }
+   newURL = strcat(strcpy(newURL, URL), "./");
 
-  /* Send proxy authentication header if needed */
-  if (conn->bits.httpproxy &&
-      (conn->bits.tunnel_proxy == proxytunnel)) {
-#ifdef USE_NTLM
-    if(authproxy->picked == CURLAUTH_NTLM) {
-      auth=(char *)"NTLM";
-      result = Curl_output_ntlm(conn, TRUE);
-      if(result)
-        return result;
-    }
-    else
-#endif
-      if(authproxy->picked == CURLAUTH_BASIC) {
-        /* Basic */
-        if(conn->bits.proxy_user_passwd &&
-           !checkheaders(data, "Proxy-authorization:")) {
-          auth=(char *)"Basic";
-          result = Curl_output_basic(conn, TRUE);
-          if(result)
-            return result;
-        }
-        /* NOTE: Curl_output_basic() should set 'done' TRUE, as the other auth
-           functions work that way */
-        authproxy->done = TRUE;
-      }
-#ifndef CURL_DISABLE_CRYPTO_AUTH
-      else if(authproxy->picked == CURLAUTH_DIGEST) {
-        auth=(char *)"Digest";
-        result = Curl_output_digest(conn,
-                                    TRUE, /* proxy */
-                                    (unsigned char *)request,
-                                    (unsigned char *)path);
-        if(result)
-          return result;
-      }
-#endif
-      if(auth) {
-        infof(data, "Proxy auth using %s with user '%s'\n",
-              auth, conn->proxyuser?conn->proxyuser:"");
-        authproxy->multi = !authproxy->done;
-      }
-      else
-        authproxy->multi = FALSE;
-    }
-  else
-    /* we have no proxy so let's pretend we're done authenticating
-       with it */
-    authproxy->done = TRUE;
+   slist = curl_slist_append (NULL, "SYST");
+   if (slist == NULL) {
+     free(newURL);
+     curl_easy_cleanup(curl);
+     curl_global_cleanup();
+     return TEST_ERR_MAJOR_BAD;
+   }
 
-  /* To prevent the user+password to get sent to other than the original
-     host due to a location-follow, we do some weirdo checks here */
-  if(!data->state.this_is_a_follow ||
-     conn->bits.netrc ||
-     !data->state.first_host ||
-     curl_strequal(data->state.first_host, conn->host.name) ||
-     data->set.http_disable_hostname_check_before_authentication) {
+   test_setopt(curl, CURLOPT_URL, newURL);
+   test_setopt(curl, CURLOPT_FTP_FILEMETHOD, (long) CURLFTPMETHOD_NOCWD);
+   test_setopt(curl, CURLOPT_QUOTE, slist);
 
-    /* Send web authentication header if needed */
-    {
-      auth = NULL;
-#ifdef HAVE_GSSAPI
-      if((authhost->picked == CURLAUTH_GSSNEGOTIATE) &&
-         data->state.negotiate.context &&
-         !GSS_ERROR(data->state.negotiate.status)) {
-        auth=(char *)"GSS-Negotiate";
-        result = Curl_output_negotiate(conn);
-        if (result)
-          return result;
-        authhost->done = TRUE;
-      }
-      else
-#endif
-#ifdef USE_NTLM
-      if(authhost->picked == CURLAUTH_NTLM) {
-        auth=(char *)"NTLM";
-        result = Curl_output_ntlm(conn, FALSE);
-        if(result)
-          return result;
-      }
-      else
-#endif
-      {
-#ifndef CURL_DISABLE_CRYPTO_AUTH
-        if(authhost->picked == CURLAUTH_DIGEST) {
-          auth=(char *)"Digest";
-          result = Curl_output_digest(conn,
-                                      FALSE, /* not a proxy */
-                                      (unsigned char *)request,
-                                      (unsigned char *)path);
-          if(result)
-            return result;
-        } else
-#endif
-        if(authhost->picked == CURLAUTH_BASIC) {
-          if(conn->bits.user_passwd &&
-             !checkheaders(data, "Authorization:")) {
-            auth=(char *)"Basic";
-            result = Curl_output_basic(conn, FALSE);
-            if(result)
-              return result;
-          }
-          /* basic is always ready */
-          authhost->done = TRUE;
-        }
-      }
-      if(auth) {
-        infof(data, "Server auth using %s with user '%s'\n",
-              auth, conn->user);
+   res = curl_easy_perform(curl);
 
-        authhost->multi = !authhost->done;
-      }
-      else
-        authhost->multi = FALSE;
-    }
-  }
-  else
-    authhost->done = TRUE;
+test_cleanup:
 
-  return result;
+   curl_slist_free_all(slist);
+   if(newURL)
+     free(newURL);
+   curl_easy_cleanup(curl);
+   curl_global_cleanup();
+
+   return (int)res;
 }

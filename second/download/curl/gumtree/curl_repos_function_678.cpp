@@ -1,5 +1,5 @@
-Curl_addrinfo *Curl_addrinfo_copy(void *source, int port)
+static int SHA256_Init(SHA256_CTX *ctx)
 {
-  (void) port;
-  return source;
+  sha256_init(ctx);
+  return 1;
 }

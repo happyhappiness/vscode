@@ -1,7 +1,6 @@
-CURLcode Curl_wait_for_resolv(struct connectdata *conn,
-                              struct Curl_dns_entry **entry)
+char *test2file(long testno)
 {
-  (void)conn;
-  *entry=NULL;
-  return CURLE_COULDNT_RESOLVE_HOST;
+  static char filename[256];
+  snprintf(filename, sizeof(filename), TEST_DATA_PATH, path, testno);
+  return filename;
 }

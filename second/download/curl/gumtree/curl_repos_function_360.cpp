@@ -1,47 +1,137 @@
-static struct curl_httppost *
-AddHttpPost(char * name, size_t namelength,
-            char * value, size_t contentslength,
-            char * buffer, size_t bufferlength,
-            char *contenttype,
-            long flags,
-            struct curl_slist* contentHeader,
-            char *showfilename,
-            struct curl_httppost *parent_post,
-            struct curl_httppost **httppost,
-            struct curl_httppost **last_post)
+int test(char *URL)
 {
-  struct curl_httppost *post;
-  post = (struct curl_httppost *)calloc(sizeof(struct curl_httppost), 1);
-  if(post) {
-    post->name = name;
-    post->namelength = (long)(name?(namelength?namelength:strlen(name)):0);
-    post->contents = value;
-    post->contentslength = (long)contentslength;
-    post->buffer = buffer;
-    post->bufferlength = (long)bufferlength;
-    post->contenttype = contenttype;
-    post->contentheader = contentHeader;
-    post->showfilename = showfilename;
-    post->flags = flags;
-  }
-  else
-    return NULL;
+  int res;
+  CURL *curl;
+  int params;
+  FILE *paramsf = NULL;
+  struct_stat file_info;
+  char *stream_uri = NULL;
+  int request=1;
+  struct curl_slist *custom_headers=NULL;
 
-  if (parent_post) {
-    /* now, point our 'more' to the original 'more' */
-    post->more = parent_post->more;
-
-    /* then move the original 'more' to point to ourselves */
-    parent_post->more = post;
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
-  else {
-    /* make the previous point to this */
-    if(*last_post)
-      (*last_post)->next = post;
-    else
-      (*httppost) = post;
 
-    (*last_post) = post;
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
   }
-  return post;
+
+
+  test_setopt(curl, CURLOPT_HEADERDATA, stdout);
+  test_setopt(curl, CURLOPT_WRITEDATA, stdout);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+  test_setopt(curl, CURLOPT_URL, URL);
+
+  /* SETUP */
+  if((stream_uri = suburl(URL, request++)) == NULL) {
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
+  test_setopt(curl, CURLOPT_RTSP_STREAM_URI, stream_uri);
+  free(stream_uri);
+  stream_uri = NULL;
+
+  test_setopt(curl, CURLOPT_RTSP_TRANSPORT, "Planes/Trains/Automobiles");
+  test_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_SETUP);
+  res = curl_easy_perform(curl);
+  if(res)
+    goto test_cleanup;
+
+  if((stream_uri = suburl(URL, request++)) == NULL) {
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
+  test_setopt(curl, CURLOPT_RTSP_STREAM_URI, stream_uri);
+  free(stream_uri);
+  stream_uri = NULL;
+
+  /* PUT style GET_PARAMETERS */
+  params = open("log/file572.txt", O_RDONLY);
+  fstat(params, &file_info);
+  close(params);
+
+  paramsf = fopen("log/file572.txt", "rb");
+  if(paramsf == NULL) {
+    fprintf(stderr, "can't open log/file572.txt\n");
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
+  test_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_GET_PARAMETER);
+
+  test_setopt(curl, CURLOPT_READDATA, paramsf);
+  test_setopt(curl, CURLOPT_UPLOAD, 1L);
+  test_setopt(curl, CURLOPT_INFILESIZE_LARGE, (curl_off_t) file_info.st_size);
+
+  res = curl_easy_perform(curl);
+  if(res)
+    goto test_cleanup;
+
+  test_setopt(curl, CURLOPT_UPLOAD, 0L);
+  fclose(paramsf);
+  paramsf = NULL;
+
+  /* Heartbeat GET_PARAMETERS */
+  if((stream_uri = suburl(URL, request++)) == NULL) {
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
+  test_setopt(curl, CURLOPT_RTSP_STREAM_URI, stream_uri);
+  free(stream_uri);
+  stream_uri = NULL;
+
+  res = curl_easy_perform(curl);
+  if(res)
+    goto test_cleanup;
+
+  /* POST GET_PARAMETERS */
+
+  if((stream_uri = suburl(URL, request++)) == NULL) {
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
+  test_setopt(curl, CURLOPT_RTSP_STREAM_URI, stream_uri);
+  free(stream_uri);
+  stream_uri = NULL;
+
+  test_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_GET_PARAMETER);
+  test_setopt(curl, CURLOPT_POSTFIELDS, "packets_received\njitter\n");
+
+  res = curl_easy_perform(curl);
+  if(res)
+    goto test_cleanup;
+
+  test_setopt(curl, CURLOPT_POSTFIELDS, NULL);
+
+  /* Make sure we can do a normal request now */
+  if((stream_uri = suburl(URL, request++)) == NULL) {
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
+  test_setopt(curl, CURLOPT_RTSP_STREAM_URI, stream_uri);
+  free(stream_uri);
+  stream_uri = NULL;
+
+  test_setopt(curl, CURLOPT_RTSP_REQUEST, CURL_RTSPREQ_OPTIONS);
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  if(paramsf)
+    fclose(paramsf);
+
+  if(stream_uri)
+    free(stream_uri);
+
+  if(custom_headers)
+    curl_slist_free_all(custom_headers);
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return res;
 }

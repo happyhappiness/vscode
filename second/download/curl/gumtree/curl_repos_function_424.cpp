@@ -1,13 +1,8 @@
-CURLcode Curl_protocol_connecting(struct connectdata *conn, bool *done)
+void *custom_calloc(size_t nmemb, size_t size)
 {
-  CURLcode result=CURLE_OK;
-
-  if(conn && conn->curl_connecting) {
-    *done = FALSE;
-    result = conn->curl_connecting(conn, done);
+  if(!seen_calloc) {
+    printf("seen custom_calloc()\n");
+    seen_calloc = 1;
   }
-  else
-    *done = TRUE;
-
-  return result;
+  return (calloc)(nmemb, size);
 }

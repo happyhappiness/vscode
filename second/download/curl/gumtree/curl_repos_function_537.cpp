@@ -1,36 +1,36 @@
-static CURLcode ftp_state_port_resp(struct connectdata *conn,
-                                    int ftpcode)
+int test(char *URL)
 {
-  struct FTP *ftp = conn->proto.ftp;
-  struct SessionHandle *data = conn->data;
-  ftpport fcmd = (ftpport)ftp->count1;
-  CURLcode result = CURLE_OK;
+  CURLcode res;
+  CURL *curl;
 
-  if(ftpcode != 200) {
-    /* the command failed */
-
-    if (EPRT == fcmd) {
-      infof(data, "disabling EPRT usage\n");
-      conn->bits.ftp_use_eprt = FALSE;
-    }
-    else if (LPRT == fcmd) {
-      infof(data, "disabling LPRT usage\n");
-      conn->bits.ftp_use_lprt = FALSE;
-    }
-    fcmd++;
-
-    if(fcmd == DONE) {
-      failf(data, "Failed to do PORT");
-      result = CURLE_FTP_PORT_FAILED;
-    }
-    else
-      /* try next */
-      result = ftp_state_use_port(conn, fcmd);
-  }
-  else {
-    infof(data, "Connect data stream actively\n");
-    state(conn, FTP_STOP); /* end of DO phase */
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
 
-  return result;
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_USERPWD, "monster:underbed");
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+  /* get first page */
+  res = curl_easy_perform(curl);
+
+  test_setopt(curl, CURLOPT_USERPWD, "anothermonster:inwardrobe");
+
+  /* get second page */
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return (int)res;
 }

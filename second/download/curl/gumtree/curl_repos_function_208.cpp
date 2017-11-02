@@ -1,10 +1,43 @@
-static void nosigpipe(struct connectdata *conn,
-                      curl_socket_t sockfd)
+static void mcode_or_die(const char *where, CURLMcode code)
 {
-  struct SessionHandle *data= conn->data;
-  int onoff = 1;
-  if(setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, (void *)&onoff,
-                sizeof(onoff)) < 0)
-    infof(data, "Could not set SO_NOSIGPIPE: %s\n",
-          Curl_strerror(conn, Curl_ourerrno()));
+  if(CURLM_OK != code)
+  {
+    const char *s;
+    switch(code)
+    {
+    case CURLM_CALL_MULTI_PERFORM:
+      s = "CURLM_CALL_MULTI_PERFORM";
+      break;
+    case CURLM_BAD_HANDLE:
+      s = "CURLM_BAD_HANDLE";
+      break;
+    case CURLM_BAD_EASY_HANDLE:
+      s = "CURLM_BAD_EASY_HANDLE";
+      break;
+    case CURLM_OUT_OF_MEMORY:
+      s = "CURLM_OUT_OF_MEMORY";
+      break;
+    case CURLM_INTERNAL_ERROR:
+      s = "CURLM_INTERNAL_ERROR";
+      break;
+    case CURLM_UNKNOWN_OPTION:
+      s = "CURLM_UNKNOWN_OPTION";
+      break;
+    case CURLM_LAST:
+      s = "CURLM_LAST";
+      break;
+    default:
+      s = "CURLM_unknown";
+      break;
+    case CURLM_BAD_SOCKET:
+      s = "CURLM_BAD_SOCKET";
+      fprintf(MSG_OUT, "\nERROR: %s returns %s", where, s);
+      /* ignore this error */
+      return;
+    }
+
+    fprintf(MSG_OUT, "\nERROR: %s returns %s", where, s);
+
+    exit(code);
+  }
 }

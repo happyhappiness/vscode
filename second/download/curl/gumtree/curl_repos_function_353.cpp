@@ -1,35 +1,36 @@
-const char *
-curl_multi_strerror(CURLMcode error)
+static int sys_trnlnm
+   (const char * logname,
+    char * value,
+    int value_len)
 {
-#ifndef CURL_DISABLE_VERBOSE_STRINGS
-  switch (error) {
-  case CURLM_CALL_MULTI_PERFORM:
-    return "please call curl_multi_perform() soon";
+    const $DESCRIPTOR(table_dsc, "LNM$FILE_DEV");
+    const unsigned long attr = LNM$M_CASE_BLIND;
+    struct dsc$descriptor_s name_dsc;
+    int status;
+    unsigned short result;
+    struct itmlst_3 itlst[2];
 
-  case CURLM_OK:
-    return "no error";
+    itlst[0].buflen = value_len;
+    itlst[0].itmcode = LNM$_STRING;
+    itlst[0].bufadr = value;
+    itlst[0].retlen = &result;
 
-  case CURLM_BAD_HANDLE:
-    return "invalid multi handle";
+    itlst[1].buflen = 0;
+    itlst[1].itmcode = 0;
 
-  case CURLM_BAD_EASY_HANDLE:
-    return "invalid easy handle";
+    name_dsc.dsc$w_length = strlen(logname);
+    name_dsc.dsc$a_pointer = (char *)logname;
+    name_dsc.dsc$b_dtype = DSC$K_DTYPE_T;
+    name_dsc.dsc$b_class = DSC$K_CLASS_S;
 
-  case CURLM_OUT_OF_MEMORY:
-    return "out of memory";
+    status = SYS$TRNLNM(&attr, &table_dsc, &name_dsc, 0, itlst);
 
-  case CURLM_INTERNAL_ERROR:
-    return "internal error";
+    if ($VMS_STATUS_SUCCESS(status)) {
 
-  case CURLM_LAST:
-    break;
-  }
+         /* Null terminate and return the string */
+        /*--------------------------------------*/
+        value[result] = '\0';
+    }
 
-  return "unknown error";
-#else
-  if (error == CURLM_OK)
-    return "no error";
-  else
-    return "error";
-#endif
+    return status;
 }

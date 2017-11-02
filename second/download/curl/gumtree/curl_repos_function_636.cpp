@@ -1,18 +1,24 @@
-static int _ldap_url_parse (const struct connectdata *conn,
-                            LDAPURLDesc **ludpp)
+void win32_init(void)
 {
-  LDAPURLDesc *ludp = calloc(sizeof(*ludp), 1);
-  int rc;
+  WORD wVersionRequested;
+  WSADATA wsaData;
+  int err;
+  wVersionRequested = MAKEWORD(USE_WINSOCK, USE_WINSOCK);
 
-  *ludpp = NULL;
-  if (!ludp)
-     return LDAP_NO_MEMORY;
+  err = WSAStartup(wVersionRequested, &wsaData);
 
-  rc = _ldap_url_parse2 (conn, ludp);
-  if (rc != LDAP_SUCCESS) {
-    _ldap_free_urldesc(ludp);
-    ludp = NULL;
+  if (err != 0) {
+    perror("Winsock init failed");
+    logmsg("Error initialising winsock -- aborting");
+    exit(1);
   }
-  *ludpp = ludp;
-  return (rc);
+
+  if ( LOBYTE( wsaData.wVersion ) != USE_WINSOCK ||
+       HIBYTE( wsaData.wVersion ) != USE_WINSOCK ) {
+
+    WSACleanup();
+    perror("Winsock init failed");
+    logmsg("No suitable winsock.dll found -- aborting");
+    exit(1);
+  }
 }

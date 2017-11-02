@@ -1,18 +1,13 @@
-static void calc_resp(unsigned char *keys,
-                      unsigned char *plaintext,
-                      unsigned char *results)
+int
+Curl_gsk_attribute_set_callback(gsk_handle my_gsk_handle,
+                                GSK_CALLBACK_ID callBackID,
+                                void * callBackAreaPtr)
+
 {
-  DES_key_schedule ks;
+  struct Curl_gsk_descriptor * p;
 
-  setup_des_key(keys, DESKEY(ks));
-  DES_ecb_encrypt((DES_cblock*) plaintext, (DES_cblock*) results,
-                  DESKEY(ks), DES_ENCRYPT);
-
-  setup_des_key(keys+7, DESKEY(ks));
-  DES_ecb_encrypt((DES_cblock*) plaintext, (DES_cblock*) (results+8),
-                  DESKEY(ks), DES_ENCRYPT);
-
-  setup_des_key(keys+14, DESKEY(ks));
-  DES_ecb_encrypt((DES_cblock*) plaintext, (DES_cblock*) (results+16),
-                  DESKEY(ks), DES_ENCRYPT);
+  if(!my_gsk_handle)
+    return GSK_INVALID_HANDLE;
+  p = (struct Curl_gsk_descriptor *) my_gsk_handle;
+  return gsk_attribute_set_callback(p->h, callBackID, callBackAreaPtr);
 }

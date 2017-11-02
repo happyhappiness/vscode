@@ -1,60 +1,82 @@
-static struct multi_files *
-AddMultiFiles (const char *file_name,
-               const char *type_name,
-               const char *show_filename,
-               struct multi_files **multi_start,
-               struct multi_files **multi_current)
+static int fill_buffer(URL_FILE *file, size_t want)
 {
-  struct multi_files *multi;
-  struct multi_files *multi_type = NULL;
-  struct multi_files *multi_name = NULL;
-  multi = (struct multi_files *)malloc(sizeof(struct multi_files));
-  if (multi) {
-    memset(multi, 0, sizeof(struct multi_files));
-    multi->form.option = CURLFORM_FILE;
-    multi->form.value = file_name;
-  }
-  else
-    return NULL;
+  fd_set fdread;
+  fd_set fdwrite;
+  fd_set fdexcep;
+  struct timeval timeout;
+  int rc;
+  CURLMcode mc; /* curl_multi_fdset() return code */
 
-  if (!*multi_start)
-    *multi_start = multi;
+  /* only attempt to fill buffer if transactions still running and buffer
+   * doesnt exceed required size already
+   */
+  if((!file->still_running) || (file->buffer_pos > want))
+    return 0;
 
-  if (type_name) {
-    multi_type = (struct multi_files *)malloc(sizeof(struct multi_files));
-    if (multi_type) {
-      memset(multi_type, 0, sizeof(struct multi_files));
-      multi_type->form.option = CURLFORM_CONTENTTYPE;
-      multi_type->form.value = type_name;
-      multi->next = multi_type;
+  /* attempt to fill buffer */
+  do {
+    int maxfd = -1;
+    long curl_timeo = -1;
 
-      multi = multi_type;
+    FD_ZERO(&fdread);
+    FD_ZERO(&fdwrite);
+    FD_ZERO(&fdexcep);
+
+    /* set a suitable timeout to fail on */
+    timeout.tv_sec = 60; /* 1 minute */
+    timeout.tv_usec = 0;
+
+    curl_multi_timeout(multi_handle, &curl_timeo);
+    if(curl_timeo >= 0) {
+      timeout.tv_sec = curl_timeo / 1000;
+      if(timeout.tv_sec > 1)
+        timeout.tv_sec = 1;
+      else
+        timeout.tv_usec = (curl_timeo % 1000) * 1000;
+    }
+
+    /* get file descriptors from the transfers */
+    mc = curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+    if(mc != CURLM_OK)
+    {
+      fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mc);
+      break;
+    }
+
+    /* On success the value of maxfd is guaranteed to be >= -1. We call
+       select(maxfd + 1, ...); specially in case of (maxfd == -1) there are
+       no fds ready yet so we call select(0, ...) --or Sleep() on Windows--
+       to sleep 100ms, which is the minimum suggested value in the
+       curl_multi_fdset() doc. */
+
+    if(maxfd == -1) {
+#ifdef _WIN32
+      Sleep(100);
+      rc = 0;
+#else
+      /* Portable sleep for platforms other than Windows. */
+      struct timeval wait = { 0, 100 * 1000 }; /* 100ms */
+      rc = select(0, NULL, NULL, NULL, &wait);
+#endif
     }
     else {
-      free (multi);
-      return NULL;
+      /* Note that on some platforms 'timeout' may be modified by select().
+         If you need access to the original value save a copy beforehand. */
+      rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
     }
-  }
-  if (show_filename) {
-    multi_name = (struct multi_files *)malloc(sizeof(struct multi_files));
-    if (multi_name) {
-      memset(multi_name, 0, sizeof(struct multi_files));
-      multi_name->form.option = CURLFORM_FILENAME;
-      multi_name->form.value = show_filename;
-      multi->next = multi_name;
 
-      multi = multi_name;
+    switch(rc) {
+    case -1:
+      /* select error */
+      break;
+
+    case 0:
+    default:
+      /* timeout or readable/writable sockets */
+      curl_multi_perform(multi_handle, &file->still_running);
+      break;
     }
-    else {
-      free (multi);
-      return NULL;
-    }
-  }
-
-  if (*multi_current)
-    (*multi_current)->next = multi;
-
-  *multi_current = multi;
-
-  return *multi_current;
+  } while(file->still_running && (file->buffer_pos < want));
+  return 1;
 }

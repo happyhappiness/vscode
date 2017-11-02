@@ -1,49 +1,31 @@
-int test(char *URL)
+int main(void)
 {
-  CURL* curls;
-  CURLM* multi;
-  int still_running;
-  int i;
-  CURLMsg *msg;
+  CURL *curl;
+  CURLcode res;
+  struct data config;
 
-  multi = curl_multi_init();
+  config.trace_ascii = 1; /* enable ascii tracing */
 
-  curls=curl_easy_init();
-  curl_easy_setopt(curls, CURLOPT_URL, URL);
-  curl_multi_add_handle(multi, curls);
+  curl = curl_easy_init();
+  if(curl) {
+    curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, my_trace);
+    curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &config);
 
-  while ( CURLM_CALL_MULTI_PERFORM == curl_multi_perform(multi, &still_running) );
-  while(still_running) {
-    struct timeval timeout;
-    int rc;
-    fd_set fdread;
-    fd_set fdwrite;
-    fd_set fdexcep;
-    int maxfd;
-    FD_ZERO(&fdread);
-    FD_ZERO(&fdwrite);
-    FD_ZERO(&fdexcep);
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
-    curl_multi_fdset(multi, &fdread, &fdwrite, &fdexcep, &maxfd);
-    rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
-    switch(rc) {
-      case -1:
-        break;
-      case 0:
-      default:
-        while (CURLM_CALL_MULTI_PERFORM == curl_multi_perform(multi, &still_running));
-        break;
-    }
+    /* the DEBUGFUNCTION has no effect until we enable VERBOSE */
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+    /* example.com is redirected, so we tell libcurl to follow redirection */
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+
+    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com/");
+    res = curl_easy_perform(curl);
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
   }
-  msg = curl_multi_info_read(multi, &still_running);
-  if(msg)
-    /* this should now contain a result code from the easy handle,
-       get it */
-    i = msg->data.result;
-
-  curl_multi_cleanup(multi);
-  curl_easy_cleanup(curls);
-
-  return i; /* return the final return code */
+  return 0;
 }

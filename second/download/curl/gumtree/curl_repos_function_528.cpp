@@ -1,18 +1,10 @@
-static CURLcode ftp_state_post_type(struct connectdata *conn)
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
 {
-  CURLcode result = CURLE_OK;
-  struct FTP *ftp = conn->proto.ftp;
-
-  if(ftp->no_transfer) {
-    /* if a "head"-like request is being made */
-
-    /* we know ftp->file is a valid pointer to a file name */
-    NBFTPSENDF(conn, "SIZE %s", ftp->file);
-
-    state(conn, FTP_SIZE);
+  size_t  amount = nmemb * size; /* Total bytes curl wants */
+  if (amount < strlen(data)) {
+    return strlen(data);
   }
-  else
-    result = ftp_state_post_size(conn);
-
-  return result;
+  (void)stream;
+  memcpy(ptr, data, strlen(data));
+  return strlen(data);
 }
