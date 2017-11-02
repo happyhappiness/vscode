@@ -1,47 +1,28 @@
-static
-void dump(const char *text,
-          FILE *stream, unsigned char *ptr, size_t size,
-          bool nohex)
+int main(void)
 {
-  size_t i;
-  size_t c;
+  CURL *curl;
+  CURLcode res;
 
-  unsigned int width=0x10;
+  static const char *postthis="moo mooo moo moo";
 
-  if(nohex)
-    /* without the hex output, we can fit more on screen */
-    width = 0x40;
+  curl = curl_easy_init();
+  if(curl) {
+    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postthis);
 
-  fprintf(stream, "%s, %zd bytes (0x%zx)\n", text, size, size);
+    /* if we don't provide POSTFIELDSIZE, libcurl will strlen() by
+       itself */
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(postthis));
 
-  for(i=0; i<size; i+= width) {
+    /* Perform the request, res will get the return code */
+    res = curl_easy_perform(curl);
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
 
-    fprintf(stream, "%04zx: ", i);
-
-    if(!nohex) {
-      /* hex not disabled, show it */
-      for(c = 0; c < width; c++)
-        if(i+c < size)
-          fprintf(stream, "%02x ", ptr[i+c]);
-        else
-          fputs("   ", stream);
-    }
-
-    for(c = 0; (c < width) && (i+c < size); c++) {
-      /* check for 0D0A; if found, skip past and start a new line of output */
-      if (nohex && (i+c+1 < size) && ptr[i+c]==0x0D && ptr[i+c+1]==0x0A) {
-        i+=(c+2-width);
-        break;
-      }
-      fprintf(stream, "%c",
-              (ptr[i+c]>=0x20) && (ptr[i+c]<0x80)?ptr[i+c]:'.');
-      /* check again for 0D0A, to avoid an extra \n if it's at width */
-      if (nohex && (i+c+2 < size) && ptr[i+c+1]==0x0D && ptr[i+c+2]==0x0A) {
-        i+=(c+3-width);
-        break;
-      }
-    }
-    fputc('\n', stream); /* newline */
+    /* always cleanup */
+    curl_easy_cleanup(curl);
   }
-  fflush(stream);
+  return 0;
 }

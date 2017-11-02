@@ -1,22 +1,7 @@
-int
-url_feof(URL_FILE *file)
+static void rtsp_teardown(CURL *curl, const char *uri)
 {
-    int ret=0;
-
-    switch(file->type)
-    {
-    case CFTYPE_FILE:
-        ret=feof(file->handle.file);
-        break;
-
-    case CFTYPE_CURL:
-        if((file->buffer_pos == 0) && (!file->still_running))
-            ret = 1;
-        break;
-    default: /* unknown or supported type - oh dear */
-        ret=-1;
-        errno=EBADF;
-        break;
-    }
-    return ret;
+  CURLcode res = CURLE_OK;
+  printf("\nRTSP: TEARDOWN %s\n", uri);
+  my_curl_easy_setopt(curl, CURLOPT_RTSP_REQUEST, (long)CURL_RTSPREQ_TEARDOWN);
+  my_curl_easy_perform(curl);
 }

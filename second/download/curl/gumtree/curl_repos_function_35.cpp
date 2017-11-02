@@ -1,29 +1,24 @@
-void *my_thread(void *ptr)
+int main(void)
 {
   CURL *curl;
   CURLcode res;
-  FILE *outfile;
-  gchar *url = ptr;
 
   curl = curl_easy_init();
-  if(curl)
-  {
-    outfile = fopen("test.curl", "w");
+  if(curl) {
+    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
 
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, outfile);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_write_func);
-    curl_easy_setopt(curl, CURLOPT_READFUNCTION, my_read_func);
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, FALSE);
-    curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, my_progress_func);
-    curl_easy_setopt(curl, CURLOPT_PROGRESSDATA, Bar);
+    /* use platform-specific functions for codeset conversions */
+    curl_easy_setopt(curl, CURLOPT_CONV_FROM_NETWORK_FUNCTION,
+                     my_conv_from_ascii_to_ebcdic);
+    curl_easy_setopt(curl, CURLOPT_CONV_TO_NETWORK_FUNCTION,
+                     my_conv_from_ebcdic_to_ascii);
+    curl_easy_setopt(curl, CURLOPT_CONV_FROM_UTF8_FUNCTION,
+                     my_conv_from_utf8_to_ebcdic);
 
     res = curl_easy_perform(curl);
 
-    fclose(outfile);
     /* always cleanup */
     curl_easy_cleanup(curl);
   }
-
-  return NULL;
+  return 0;
 }

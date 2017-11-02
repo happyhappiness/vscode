@@ -1,21 +1,28 @@
-int curl_mvsnprintf(char *buffer, size_t maxlength, const char *format,
-                    va_list ap_save)
+char *
+curl_easy_escape_ccsid(CURL * handle, const char * string, int length,
+                       unsigned int sccsid, unsigned int dccsid)
+
 {
-  int retcode;
-  struct nsprintf info;
+  char * s;
+  char * d;
 
-  info.buffer = buffer;
-  info.length = 0;
-  info.max = maxlength;
+  if(!string) {
+    errno = EINVAL;
+    return (char *) NULL;
+    }
 
-  retcode = dprintf_formatf(&info, addbyter, format, ap_save);
-  if(info.max) {
-    /* we terminate this with a zero byte */
-    if(info.max == info.length)
-      /* we're at maximum, scrap the last letter */
-      info.buffer[-1] = 0;
-    else
-      info.buffer[0] = 0;
-  }
-  return retcode;
+  s = dynconvert(ASCII_CCSID, string, length? length: -1, sccsid);
+
+  if(!s)
+    return (char *) NULL;
+
+  d = curl_easy_escape(handle, s, 0);
+  free(s);
+
+  if(!d)
+    return (char *) NULL;
+
+  s = dynconvert(dccsid, d, -1, ASCII_CCSID);
+  free(d);
+  return s;
 }

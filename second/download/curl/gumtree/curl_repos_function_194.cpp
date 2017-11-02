@@ -1,44 +1,31 @@
-static bool ttyecho(bool enable, int fd)
+int main(int argc, char **argv)
 {
-#ifdef struct_term
-  static struct_term withecho;
-  static struct_term noecho;
-#endif
-  if(!enable) {
-  /* dissable echo by extracting the current 'withecho' mode and remove the
-     ECHO bit and set back the struct */
-#ifdef HAVE_TERMIOS_H
-    tcgetattr(fd, &withecho);
-    noecho = withecho;
-    noecho.c_lflag &= ~ECHO;
-    tcsetattr(fd, TCSANOW, &noecho);
-#else /* HAVE_TERMIOS_H */
-#ifdef HAVE_TERMIO_H
-    ioctl(fd, TCGETA, &withecho);
-    noecho = withecho;
-    noecho.c_lflag &= ~ECHO;
-    ioctl(fd, TCSETA, &noecho);
-#else /* HAVE_TERMIO_H */
-/* neither HAVE_TERMIO_H nor HAVE_TERMIOS_H, we can't disable echo! */
-    (void)fd; /* prevent compiler warning on unused variable */
-    return FALSE; /* not disabled */
-#endif
-#endif
-    return TRUE; /* disabled */
-  }
-  else {
-    /* re-enable echo, assumes we disabled it before (and set the structs we
-       now use to reset the terminal status) */
-#ifdef HAVE_TERMIOS_H
-    tcsetattr(fd, TCSAFLUSH, &withecho);
-#else /* HAVE_TERMIOS_H */
-#ifdef HAVE_TERMIO_H
-    ioctl(fd, TCSETA, &withecho);
-#else
-/* neither HAVE_TERMIO_H nor HAVE_TERMIOS_H */
-    return FALSE; /* not enabled */
-#endif
-#endif
-    return TRUE; /* enabled */
-  }
+  GlobalInfo g;
+  (void)argc;
+  (void)argv;
+
+  memset(&g, 0, sizeof(GlobalInfo));
+  g.evbase = event_base_new();
+  init_fifo(&g);
+  g.multi = curl_multi_init();
+  g.timer_event = evtimer_new(g.evbase, timer_cb, &g);
+
+  /* setup the generic multi interface options we want */
+  curl_multi_setopt(g.multi, CURLMOPT_SOCKETFUNCTION, sock_cb);
+  curl_multi_setopt(g.multi, CURLMOPT_SOCKETDATA, &g);
+  curl_multi_setopt(g.multi, CURLMOPT_TIMERFUNCTION, multi_timer_cb);
+  curl_multi_setopt(g.multi, CURLMOPT_TIMERDATA, &g);
+
+  /* we don't call any curl_multi_socket*() function yet as we have no handles
+     added! */
+
+  event_base_dispatch(g.evbase);
+
+  /* this, of course, won't get called since only way to stop this program is
+     via ctrl-C, but it is here to show how cleanup /would/ be done. */
+  clean_fifo(&g);
+  event_free(g.timer_event);
+  event_base_free(g.evbase);
+  curl_multi_cleanup(g.multi);
+  return 0;
 }

@@ -1,37 +1,57 @@
-int Curl_debug(struct SessionHandle *data, curl_infotype type,
-               char *ptr, size_t size,
-               struct connectdata *conn)
+int test(char *URL)
 {
-  int rc;
-  if(data->set.printhost && conn && conn->host.dispname) {
-    char buffer[160];
-    const char *t=NULL;
-    const char *w="Data";
-    switch (type) {
-    case CURLINFO_HEADER_IN:
-      w = "Header";
-    case CURLINFO_DATA_IN:
-      t = "from";
-      break;
-    case CURLINFO_HEADER_OUT:
-      w = "Header";
-    case CURLINFO_DATA_OUT:
-      t = "to";
-      break;
-    default:
-      break;
-    }
+  CURL *curl;
+  CURLcode res = CURLE_FAILED_INIT;
+  int i;
+  struct curl_slist *headerlist=NULL, *hl;
 
-    if(t) {
-      snprintf(buffer, sizeof(buffer), "[%s %s %s%s]", w, t,
-               conn->xfertype==NORMAL?"":
-               (conn->xfertype==SOURCE3RD?"source ":"target "),
-               conn->host.dispname);
-      rc = showit(data, CURLINFO_TEXT, buffer, strlen(buffer));
-      if(rc)
-        return rc;
-    }
+  if(curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
-  rc = showit(data, type, ptr, size);
-  return rc;
+
+  if((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  for (i = 0; i < NUM_HEADERS; i++) {
+    int len = sprintf(buf, "Header%d: ", i);
+    memset(&buf[len], 'A', SIZE_HEADERS);
+    buf[len + SIZE_HEADERS]=0; /* zero terminate */
+    hl = curl_slist_append(headerlist,  buf);
+    if (!hl)
+      goto test_cleanup;
+    headerlist = hl;
+  }
+
+  hl = curl_slist_append(headerlist, "Expect: ");
+  if (!hl)
+    goto test_cleanup;
+  headerlist = hl;
+
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_HTTPHEADER, headerlist);
+  test_setopt(curl, CURLOPT_POST, 1L);
+#ifdef CURL_DOES_CONVERSIONS
+  /* Convert the POST data to ASCII */
+  test_setopt(curl, CURLOPT_TRANSFERTEXT, 1L);
+#endif
+  test_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)POSTLEN);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+  test_setopt(curl, CURLOPT_READFUNCTION, myreadfunc);
+
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  curl_easy_cleanup(curl);
+
+  curl_slist_free_all(headerlist);
+
+  curl_global_cleanup();
+
+  return (int)res;
 }

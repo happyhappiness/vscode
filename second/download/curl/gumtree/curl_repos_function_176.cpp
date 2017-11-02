@@ -1,20 +1,10 @@
-static curlioerr my_ioctl(CURL *handle, curliocmd cmd, void *userp)
+int conf_init(conf_t *conf)
 {
-  struct InStruct *in=(struct InStruct *)userp;
-  (void)handle; /* not used in here */
+  int i;
 
-  switch(cmd) {
-  case CURLIOCMD_RESTARTREAD:
-    /* mr libcurl kindly asks as to rewind the read data stream to start */
-    if(-1 == fseek(in->stream, 0, SEEK_SET))
-      /* couldn't rewind, the reason is in errno but errno is just not
-         portable enough and we don't actually care that much why we failed. */
-      return CURLIOE_FAILRESTART;
-
-    break;
-
-  default: /* ignore unknown commands */
-    return CURLIOE_UNKNOWNCMD;
-  }
-  return CURLIOE_OK;
+  *conf->http_proxy       = 0;
+  for (i=0; i<MAX_STRING1; i++)
+    conf->proxy_user[i]     = 0;    /* Clean up password from memory */
+  *conf->timeserver       = 0;
+  return 1;
 }

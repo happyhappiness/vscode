@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_1704.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">bool<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">ftp_pl_gettime<pos:position pos:line="1" pos:column="27"/></name><parameter_list pos:line="1" pos:column="27">(<parameter><decl><type><name><name pos:line="1" pos:column="28">struct<pos:position pos:line="1" pos:column="34"/></name> <name pos:line="1" pos:column="35">ftp_parselist_data<pos:position pos:line="1" pos:column="53"/></name></name> <modifier pos:line="1" pos:column="54">*<pos:position pos:line="1" pos:column="55"/></modifier></type><name pos:line="1" pos:column="55">parser<pos:position pos:line="1" pos:column="61"/></name></decl></parameter>, <parameter><decl><type><name pos:line="1" pos:column="63">char<pos:position pos:line="1" pos:column="67"/></name> <modifier pos:line="1" pos:column="68">*<pos:position pos:line="1" pos:column="69"/></modifier></type><name pos:line="1" pos:column="69">string<pos:position pos:line="1" pos:column="75"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="76"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+  <expr_stmt><expr><operator pos:line="3" pos:column="3">(<pos:position pos:line="3" pos:column="4"/></operator><name pos:line="3" pos:column="4">void<pos:position pos:line="3" pos:column="8"/></name><operator pos:line="3" pos:column="8">)<pos:position pos:line="3" pos:column="9"/></operator><name pos:line="3" pos:column="9">parser<pos:position pos:line="3" pos:column="15"/></name></expr>;<pos:position pos:line="3" pos:column="16"/></expr_stmt>
+  <expr_stmt><expr><operator pos:line="4" pos:column="3">(<pos:position pos:line="4" pos:column="4"/></operator><name pos:line="4" pos:column="4">void<pos:position pos:line="4" pos:column="8"/></name><operator pos:line="4" pos:column="8">)<pos:position pos:line="4" pos:column="9"/></operator><name pos:line="4" pos:column="9">string<pos:position pos:line="4" pos:column="15"/></name></expr>;<pos:position pos:line="4" pos:column="16"/></expr_stmt>
+  <comment type="block" pos:line="5" pos:column="3">/* TODO
+   * There could be possible parse timestamp from server. Leaving unimplemented
+   * for now.
+   * If you want implement this, please add CURLFINFOFLAG_KNOWN_TIME flag to
+   * parser-&gt;file_data-&gt;flags
+   *
+   * Ftp servers are giving usually these formats:
+   *  Apr 11  1998 (unknown time.. set it to 00:00:00?)
+   *  Apr 11 12:21 (unknown year -&gt; set it to NOW() time?)
+   *  08-05-09  02:49PM  (ms-dos format)
+   *  20100421092538 -&gt; for MLST/MLSD response
+   */</comment>
+
+  <return pos:line="18" pos:column="3">return <expr><name pos:line="18" pos:column="10">FALSE<pos:position pos:line="18" pos:column="15"/></name></expr>;<pos:position pos:line="18" pos:column="16"/></return>
+}<pos:position pos:line="19" pos:column="2"/></block></function></unit>

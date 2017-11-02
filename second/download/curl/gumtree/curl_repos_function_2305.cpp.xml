@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_2305.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">bool<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">is_nss_error<pos:position pos:line="1" pos:column="25"/></name><parameter_list pos:line="1" pos:column="25">(<parameter><decl><type><name pos:line="1" pos:column="26">CURLcode<pos:position pos:line="1" pos:column="34"/></name></type> <name pos:line="1" pos:column="35">err<pos:position pos:line="1" pos:column="38"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="39"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+  <switch pos:line="3" pos:column="3">switch<condition pos:line="3" pos:column="9">(<expr><name pos:line="3" pos:column="10">err<pos:position pos:line="3" pos:column="13"/></name></expr>)<pos:position pos:line="3" pos:column="14"/></condition> <block pos:line="3" pos:column="15">{
+  <case pos:line="4" pos:column="3">case <expr><name pos:line="4" pos:column="8">CURLE_PEER_FAILED_VERIFICATION<pos:position pos:line="4" pos:column="38"/></name></expr>:<pos:position pos:line="4" pos:column="39"/></case>
+  <case pos:line="5" pos:column="3">case <expr><name pos:line="5" pos:column="8">CURLE_SSL_CACERT<pos:position pos:line="5" pos:column="24"/></name></expr>:<pos:position pos:line="5" pos:column="25"/></case>
+  <case pos:line="6" pos:column="3">case <expr><name pos:line="6" pos:column="8">CURLE_SSL_CERTPROBLEM<pos:position pos:line="6" pos:column="29"/></name></expr>:<pos:position pos:line="6" pos:column="30"/></case>
+  <case pos:line="7" pos:column="3">case <expr><name pos:line="7" pos:column="8">CURLE_SSL_CONNECT_ERROR<pos:position pos:line="7" pos:column="31"/></name></expr>:<pos:position pos:line="7" pos:column="32"/></case>
+  <case pos:line="8" pos:column="3">case <expr><name pos:line="8" pos:column="8">CURLE_SSL_ISSUER_ERROR<pos:position pos:line="8" pos:column="30"/></name></expr>:<pos:position pos:line="8" pos:column="31"/></case>
+    <return pos:line="9" pos:column="5">return <expr><literal type="boolean" pos:line="9" pos:column="12">true<pos:position pos:line="9" pos:column="16"/></literal></expr>;<pos:position pos:line="9" pos:column="17"/></return>
+
+  <default pos:line="11" pos:column="3">default:<pos:position pos:line="11" pos:column="11"/></default>
+    <return pos:line="12" pos:column="5">return <expr><literal type="boolean" pos:line="12" pos:column="12">false<pos:position pos:line="12" pos:column="17"/></literal></expr>;<pos:position pos:line="12" pos:column="18"/></return>
+  }<pos:position pos:line="13" pos:column="4"/></block></switch>
+}<pos:position pos:line="14" pos:column="2"/></block></function></unit>

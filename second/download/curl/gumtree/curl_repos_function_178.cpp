@@ -1,57 +1,140 @@
-static int myprogress (void *clientp,
-                       double dltotal,
-                       double dlnow,
-                       double ultotal,
-                       double ulnow)
+int main(void)
 {
-  /* The original progress-bar source code was written for curl by Lars Aas,
-     and this new edition inherits some of his concepts. */
+  CURL *curl;
 
-  char line[256];
-  char outline[256];
-  char format[40];
-  double frac;
-  double percent;
-  int barwidth;
-  int num;
-  int i;
+  CURLM *multi_handle;
+  int still_running;
 
-  struct ProgressData *bar = (struct ProgressData *)clientp;
-  curl_off_t total = (curl_off_t)dltotal + (curl_off_t)ultotal +
-    bar->initial_size; /* expected transfer size */
-  curl_off_t point = (curl_off_t)dlnow + (curl_off_t)ulnow +
-    bar->initial_size; /* we've come this far */
+  struct curl_httppost *formpost=NULL;
+  struct curl_httppost *lastptr=NULL;
+  struct curl_slist *headerlist=NULL;
+  static const char buf[] = "Expect:";
 
-  if(point > total)
-    /* we have got more than the expected total! */
-    total = point;
+  /* Fill in the file upload field. This makes libcurl load data from
+     the given file name when curl_easy_perform() is called. */
+  curl_formadd(&formpost,
+               &lastptr,
+               CURLFORM_COPYNAME, "sendfile",
+               CURLFORM_FILE, "postit2.c",
+               CURLFORM_END);
 
-  bar->calls++; /* simply count invokes */
+  /* Fill in the filename field */
+  curl_formadd(&formpost,
+               &lastptr,
+               CURLFORM_COPYNAME, "filename",
+               CURLFORM_COPYCONTENTS, "postit2.c",
+               CURLFORM_END);
 
-  if(total < 1) {
-    curl_off_t prevblock = bar->prev / 1024;
-    curl_off_t thisblock = point / 1024;
-    while ( thisblock > prevblock ) {
-      fprintf( bar->out, "#" );
-      prevblock++;
-    }
+  /* Fill in the submit field too, even if this is rarely needed */
+  curl_formadd(&formpost,
+               &lastptr,
+               CURLFORM_COPYNAME, "submit",
+               CURLFORM_COPYCONTENTS, "send",
+               CURLFORM_END);
+
+  curl = curl_easy_init();
+  multi_handle = curl_multi_init();
+
+  /* initalize custom header list (stating that Expect: 100-continue is not
+     wanted */
+  headerlist = curl_slist_append(headerlist, buf);
+  if(curl && multi_handle) {
+
+    /* what URL that receives this POST */
+    curl_easy_setopt(curl, CURLOPT_URL, "http://www.example.com/upload.cgi");
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headerlist);
+    curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost);
+
+    curl_multi_add_handle(multi_handle, curl);
+
+    curl_multi_perform(multi_handle, &still_running);
+
+    do {
+      struct timeval timeout;
+      int rc; /* select() return code */
+      CURLMcode mc; /* curl_multi_fdset() return code */
+
+      fd_set fdread;
+      fd_set fdwrite;
+      fd_set fdexcep;
+      int maxfd = -1;
+
+      long curl_timeo = -1;
+
+      FD_ZERO(&fdread);
+      FD_ZERO(&fdwrite);
+      FD_ZERO(&fdexcep);
+
+      /* set a suitable timeout to play around with */
+      timeout.tv_sec = 1;
+      timeout.tv_usec = 0;
+
+      curl_multi_timeout(multi_handle, &curl_timeo);
+      if(curl_timeo >= 0) {
+        timeout.tv_sec = curl_timeo / 1000;
+        if(timeout.tv_sec > 1)
+          timeout.tv_sec = 1;
+        else
+          timeout.tv_usec = (curl_timeo % 1000) * 1000;
+      }
+
+      /* get file descriptors from the transfers */
+      mc = curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+      if(mc != CURLM_OK)
+      {
+        fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mc);
+        break;
+      }
+
+      /* On success the value of maxfd is guaranteed to be >= -1. We call
+         select(maxfd + 1, ...); specially in case of (maxfd == -1) there are
+         no fds ready yet so we call select(0, ...) --or Sleep() on Windows--
+         to sleep 100ms, which is the minimum suggested value in the
+         curl_multi_fdset() doc. */
+
+      if(maxfd == -1) {
+#ifdef _WIN32
+        Sleep(100);
+        rc = 0;
+#else
+        /* Portable sleep for platforms other than Windows. */
+        struct timeval wait = { 0, 100 * 1000 }; /* 100ms */
+        rc = select(0, NULL, NULL, NULL, &wait);
+#endif
+      }
+      else {
+        /* Note that on some platforms 'timeout' may be modified by select().
+           If you need access to the original value save a copy beforehand. */
+        rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
+      }
+
+      switch(rc) {
+      case -1:
+        /* select error */
+        break;
+      case 0:
+      default:
+        /* timeout or readable/writable sockets */
+        printf("perform!\n");
+        curl_multi_perform(multi_handle, &still_running);
+        printf("running: %d!\n", still_running);
+        break;
+      }
+    } while(still_running);
+
+    curl_multi_cleanup(multi_handle);
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+
+    /* then cleanup the formpost chain */
+    curl_formfree(formpost);
+
+    /* free slist */
+    curl_slist_free_all (headerlist);
   }
-  else {
-    frac = (double)point / (double)total;
-    percent = frac * 100.0f;
-    barwidth = bar->width - 7;
-    num = (int) (((double)barwidth) * frac);
-    i = 0;
-    for ( i = 0; i < num; i++ ) {
-      line[i] = '#';
-    }
-    line[i] = '\0';
-    snprintf( format, sizeof(format), "%%-%ds %%5.1f%%%%", barwidth );
-    snprintf( outline, sizeof(outline), format, line, percent );
-    fprintf( bar->out, "\r%s", outline );
-  }
-  fflush(bar->out);
-  bar->prev = point;
-
   return 0;
 }

@@ -1,31 +1,46 @@
-static CURLcode ftp_state_size_resp(struct connectdata *conn,
-                                    int ftpcode,
-                                    ftpstate instate)
+int test(char *URL)
 {
-  CURLcode result = CURLE_OK;
-  struct SessionHandle *data=conn->data;
-  curl_off_t filesize;
-  char *buf = data->state.buffer;
+  CURLcode res;
+  CURL *curl;
 
-  /* get the size from the ascii string: */
-  filesize = (ftpcode == 213)?curlx_strtoofft(buf+4, NULL, 0):-1;
-
-  if(instate == FTP_SIZE) {
-    if(-1 != filesize) {
-      snprintf(buf, sizeof(data->state.buffer),
-               "Content-Length: %" FORMAT_OFF_T "\r\n", filesize);
-      result = Curl_client_write(data, CLIENTWRITE_BOTH, buf, 0);
-      if(result)
-        return result;
-    }
-    result = ftp_state_post_size(conn);
-  }
-  else if(instate == FTP_RETR_SIZE)
-    result = ftp_state_post_retr_size(conn, filesize);
-  else if(instate == FTP_STOR_SIZE) {
-    conn->resume_from = filesize;
-    result = ftp_state_ul_setup(conn, TRUE);
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
 
-  return result;
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+  test_setopt(curl, CURLOPT_REFERER, "http://example.com/the-moo");
+  test_setopt(curl, CURLOPT_USERAGENT, "the-moo agent next generation");
+  test_setopt(curl, CURLOPT_COOKIE, "name=moo");
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+  res = curl_easy_perform(curl);
+  if(res) {
+    fprintf(stderr, "retrieve 1 failed\n");
+    goto test_cleanup;
+  }
+
+  curl_easy_reset(curl);
+
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+  res = curl_easy_perform(curl);
+  if(res)
+    fprintf(stderr, "retrieve 2 failed\n");
+
+test_cleanup:
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return (int)res;
 }

@@ -1,182 +1,83 @@
-static CURLcode ftp_state_pasv_resp(struct connectdata *conn,
-                                    int ftpcode)
+int test(char *URL)
 {
-  struct FTP *ftp = conn->proto.ftp;
-  CURLcode result;
-  struct SessionHandle *data=conn->data;
-  Curl_addrinfo *conninfo;
-  struct Curl_dns_entry *addr=NULL;
-  int rc;
-  unsigned short connectport; /* the local port connect() should use! */
-  unsigned short newport=0; /* remote port */
-  bool connected;
+  int res = 0;
+  CURL *curl = NULL;
+  int counter=0;
+  CURLM *m = NULL;
+  int running=1;
 
-  /* newhost must be able to hold a full IP-style address in ASCII, which
-     in the IPv6 case means 5*8-1 = 39 letters */
-#define NEWHOST_BUFSIZE 48
-  char newhost[NEWHOST_BUFSIZE];
-  char *str=&data->state.buffer[4];  /* start on the first letter */
+  start_test_timing();
 
-  if((ftp->count1 == 0) &&
-     (ftpcode == 229)) {
-    /* positive EPSV response */
-    char *ptr = strchr(str, '(');
-    if(ptr) {
-      unsigned int num;
-      char separator[4];
-      ptr++;
-      if(5  == sscanf(ptr, "%c%c%c%u%c",
-                      &separator[0],
-                      &separator[1],
-                      &separator[2],
-                      &num,
-                      &separator[3])) {
-        const char sep1 = separator[0];
-        int i;
+  global_init(CURL_GLOBAL_ALL);
 
-        /* The four separators should be identical, or else this is an oddly
-           formatted reply and we bail out immediately. */
-        for(i=1; i<4; i++) {
-          if(separator[i] != sep1) {
-            ptr=NULL; /* set to NULL to signal error */
-            break;
-          }
-        }
-        if(ptr) {
-          newport = num;
+  easy_init(curl);
 
-          /* use the same IP we are already connected to */
-          snprintf(newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
-        }
-      }
-      else
-        ptr=NULL;
-    }
-    if(!ptr) {
-      failf(data, "Weirdly formatted EPSV reply");
-      return CURLE_FTP_WEIRD_PASV_REPLY;
-    }
-  }
-  else if((ftp->count1 == 1) &&
-          (ftpcode == 227)) {
-    /* positive PASV response */
-    int ip[4];
-    int port[2];
+  easy_setopt(curl, CURLOPT_URL, URL);
+  easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+  easy_setopt(curl, CURLOPT_HEADER, 1L);
 
-    /*
-     * Scan for a sequence of six comma-separated numbers and use them as
-     * IP+port indicators.
-     *
-     * Found reply-strings include:
-     * "227 Entering Passive Mode (127,0,0,1,4,51)"
-     * "227 Data transfer will passively listen to 127,0,0,1,4,51"
-     * "227 Entering passive mode. 127,0,0,1,4,51"
-     */
-    while(*str) {
-      if (6 == sscanf(str, "%d,%d,%d,%d,%d,%d",
-                      &ip[0], &ip[1], &ip[2], &ip[3],
-                      &port[0], &port[1]))
-        break;
-      str++;
-    }
+  /* read the POST data from a callback */
+  easy_setopt(curl, CURLOPT_IOCTLFUNCTION, ioctlcallback);
+  easy_setopt(curl, CURLOPT_IOCTLDATA, &counter);
+  easy_setopt(curl, CURLOPT_READFUNCTION, readcallback);
+  easy_setopt(curl, CURLOPT_READDATA, &counter);
+  /* We CANNOT do the POST fine without setting the size (or choose chunked)! */
+  easy_setopt(curl, CURLOPT_POSTFIELDSIZE, strlen(UPLOADTHIS));
 
-    if(!*str) {
-      failf(data, "Couldn't interpret the 227-response");
-      return CURLE_FTP_WEIRD_227_FORMAT;
-    }
+  easy_setopt(curl, CURLOPT_POST, 1L);
+#ifdef CURL_DOES_CONVERSIONS
+  /* Convert the POST data to ASCII. */
+  easy_setopt(curl, CURLOPT_TRANSFERTEXT, 1L);
+#endif
+  easy_setopt(curl, CURLOPT_PROXY, libtest_arg2);
+  easy_setopt(curl, CURLOPT_PROXYUSERPWD, libtest_arg3);
+  easy_setopt(curl, CURLOPT_PROXYAUTH,
+                   (long) (CURLAUTH_NTLM | CURLAUTH_DIGEST | CURLAUTH_BASIC) );
 
-    snprintf(newhost, sizeof(newhost),
-             "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    newport = (port[0]<<8) + port[1];
-  }
-  else if(ftp->count1 == 0) {
-    /* EPSV failed, move on to PASV */
+  multi_init(m);
 
-    /* disable it for next transfer */
-    conn->bits.ftp_use_epsv = FALSE;
-    infof(data, "disabling EPSV usage\n");
+  multi_add_handle(m, curl);
 
-    NBFTPSENDF(conn, "PASV", NULL);
-    ftp->count1++;
-    /* remain in the FTP_PASV state */
-    return result;
-  }
-  else {
-    failf(data, "Bad PASV/EPSV response: %03d", ftpcode);
-    return CURLE_FTP_WEIRD_PASV_REPLY;
+  while (running) {
+    struct timeval timeout;
+    fd_set fdread, fdwrite, fdexcep;
+    int maxfd = -99;
+
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 100000L; /* 100 ms */
+
+    multi_perform(m, &running);
+
+    abort_on_test_timeout();
+
+#ifdef TPF
+    sleep(1); /* avoid ctl-10 dump */
+#endif
+
+    if(!running)
+      break; /* done */
+
+    FD_ZERO(&fdread);
+    FD_ZERO(&fdwrite);
+    FD_ZERO(&fdexcep);
+
+    multi_fdset(m, &fdread, &fdwrite, &fdexcep, &maxfd);
+
+    /* At this point, maxfd is guaranteed to be greater or equal than -1. */
+
+    select_test(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
+
+    abort_on_test_timeout();
   }
 
-  /* we got OK from server */
+test_cleanup:
 
-  if(data->change.proxy && *data->change.proxy) {
-    /*
-     * This is a tunnel through a http proxy and we need to connect to the
-     * proxy again here.
-     *
-     * We don't want to rely on a former host lookup that might've expired
-     * now, instead we remake the lookup here and now!
-     */
-    rc = Curl_resolv(conn, conn->proxy.name, (int)conn->port, &addr);
-    if(rc == CURLRESOLV_PENDING)
-      /* BLOCKING */
-      rc = Curl_wait_for_resolv(conn, &addr);
+  /* proper cleanup sequence - type PA */
 
-    connectport =
-      (unsigned short)conn->port; /* we connect to the proxy's port */
+  curl_multi_remove_handle(m, curl);
+  curl_multi_cleanup(m);
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
 
-  }
-  else {
-    /* normal, direct, ftp connection */
-    rc = Curl_resolv(conn, newhost, newport, &addr);
-    if(rc == CURLRESOLV_PENDING)
-      /* BLOCKING */
-      rc = Curl_wait_for_resolv(conn, &addr);
-
-    if(!addr) {
-      failf(data, "Can't resolve new host %s:%d", newhost, newport);
-      return CURLE_FTP_CANT_GET_HOST;
-    }
-    connectport = newport; /* we connect to the remote port */
-  }
-
-  result = Curl_connecthost(conn,
-                            addr,
-                            &conn->sock[SECONDARYSOCKET],
-                            &conninfo,
-                            &connected);
-
-  Curl_resolv_unlock(data, addr); /* we're done using this address */
-
-  if(result)
-    return result;
-
-  conn->bits.tcpconnect = connected; /* simply TRUE or FALSE */
-
-  /*
-   * When this is used from the multi interface, this might've returned with
-   * the 'connected' set to FALSE and thus we are now awaiting a non-blocking
-   * connect to connect and we should not be "hanging" here waiting.
-   */
-
-  if(data->set.verbose)
-    /* this just dumps information about this second connection */
-    ftp_pasv_verbose(conn, conninfo, newhost, connectport);
-
-#ifndef CURL_DISABLE_HTTP
-  if(conn->bits.tunnel_proxy) {
-    /* FIX: this MUST wait for a proper connect first if 'connected' is
-     * FALSE */
-
-    /* BLOCKING */
-    /* We want "seamless" FTP operations through HTTP proxy tunnel */
-    result = Curl_ConnectHTTPProxyTunnel(conn, SECONDARYSOCKET,
-                                         newhost, newport);
-    if(CURLE_OK != result)
-      return result;
-  }
-#endif   /* CURL_DISABLE_HTTP */
-
-  state(conn, FTP_STOP); /* this phase is completed */
-
-  return result;
+  return res;
 }

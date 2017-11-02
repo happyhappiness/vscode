@@ -1,25 +1,10 @@
-void Curl_ssl_close_all(struct SessionHandle *data)
+static RETSIGTYPE exit_signal_handler(int signum)
 {
-#ifdef USE_SSL
-  int i;
-  /* kill the session ID cache */
-  if(data->state.session) {
-    for(i=0; i< data->set.ssl.numsessions; i++)
-      /* the single-killer function handles empty table slots */
-      kill_session(&data->state.session[i]);
-
-    /* free the cache data */
-    free(data->state.session);
-    data->state.session = NULL;
+  int old_errno = errno;
+  if(got_exit_signal == 0) {
+    got_exit_signal = 1;
+    exit_signal = signum;
   }
-#ifdef USE_SSLEAY
-  Curl_ossl_close_all(data);
-#else
-#ifdef USE_GNUTLS
-  Curl_gtls_close_all(data);
-#endif /* USE_GNUTLS */
-#endif /* USE_SSLEAY */
-#else /* USE_SSL */
-  (void)data;
-#endif /* USE_SSL */
+  (void)signal(signum, exit_signal_handler);
+  errno = old_errno;
 }

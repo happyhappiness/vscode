@@ -1,13 +1,4 @@
-static void
-hash_element_dtor(void *user, void *element)
+static char *suburl(const char *base, int i)
 {
-  struct curl_hash *h = (struct curl_hash *) user;
-  struct curl_hash_element *e = (struct curl_hash_element *) element;
-
-  if (e->key)
-    free(e->key);
-
-  h->dtor(e->ptr);
-
-  free(e);
+  return curl_maprintf("%s%.4d", base, i);
 }

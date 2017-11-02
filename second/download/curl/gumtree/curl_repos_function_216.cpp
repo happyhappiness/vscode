@@ -1,14 +1,15 @@
-char *Curl_inet_ntop(int af, const void *src, char *buf, size_t size)
+static size_t write_cb(void *ptr, size_t size, size_t nmemb, void *data)
 {
-  switch (af) {
-  case AF_INET:
-    return inet_ntop4((const u_char*)src, buf, size);
-#ifdef ENABLE_IPV6
-  case AF_INET6:
-    return inet_ntop6((const u_char*)src, buf, size);
-#endif
-  default:
-    SET_ERRNO(EAFNOSUPPORT);
-    return NULL;
-  }
+
+  size_t written = size * nmemb;
+  char* pBuffer = (char *) malloc(written + 1);
+
+  strncpy(pBuffer, (const char *)ptr, written);
+  pBuffer[written] = '\0';
+
+  fprintf(MSG_OUT, "%s", pBuffer);
+
+  free(pBuffer);
+
+  return written;
 }

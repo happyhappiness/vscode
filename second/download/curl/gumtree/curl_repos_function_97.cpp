@@ -1,28 +1,25 @@
-int test(char *URL)
+static void
+print_cookies(CURL *curl)
 {
   CURLcode res;
-  CURL *curl;
+  struct curl_slist *cookies;
+  struct curl_slist *nc;
+  int i;
 
-  if(!strcmp(URL, "check")) {
-    /* used by the test script to ask if we can run this test or not */
-    if(rlimit()) {
-      printf("rlimit problems\n");
-      return 1;
-    }
-    return 0; /* sure, run this! */
+  printf("Cookies, curl knows:\n");
+  res = curl_easy_getinfo(curl, CURLINFO_COOKIELIST, &cookies);
+  if (res != CURLE_OK) {
+    fprintf(stderr, "Curl curl_easy_getinfo failed: %s\n", curl_easy_strerror(res));
+    exit(1);
   }
-
-  if(rlimit())
-    /* failure */
-    return 100;
-
-  curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_URL, URL);
-  curl_easy_setopt(curl, CURLOPT_HEADER, TRUE);
-  res = curl_easy_perform(curl);
-  curl_easy_cleanup(curl);
-
-  /* we never close the file descriptors */
-
-  return (int)res;
+  nc = cookies, i = 1;
+  while (nc) {
+    printf("[%d]: %s\n", i, nc->data);
+    nc = nc->next;
+    i++;
+  }
+  if (i == 1) {
+    printf("(none)\n");
+  }
+  curl_slist_free_all(cookies);
 }

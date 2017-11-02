@@ -1,9 +1,33 @@
-int curl_msnprintf(char *buffer, size_t maxlength, const char *format, ...)
+char *
+curl_easy_unescape_ccsid(CURL * handle, const char * string, int length,
+                         int * outlength,
+                         unsigned int sccsid, unsigned int dccsid)
+
 {
-  int retcode;
-  va_list ap_save; /* argument pointer */
-  va_start(ap_save, format);
-  retcode = curl_mvsnprintf(buffer, maxlength, format, ap_save);
-  va_end(ap_save);
-  return retcode;
+  char * s;
+  char * d;
+
+  if(!string) {
+    errno = EINVAL;
+    return (char *) NULL;
+    }
+
+  s = dynconvert(ASCII_CCSID, string, length? length: -1, sccsid);
+
+  if(!s)
+    return (char *) NULL;
+
+  d = curl_easy_unescape(handle, s, 0, outlength);
+  free(s);
+
+  if(!d)
+    return (char *) NULL;
+
+  s = dynconvert(dccsid, d, -1, ASCII_CCSID);
+  free(d);
+
+  if(s && outlength)
+    *outlength = strlen(s);
+
+  return s;
 }

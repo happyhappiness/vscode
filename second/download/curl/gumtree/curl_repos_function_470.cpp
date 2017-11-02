@@ -1,44 +1,30 @@
-CURLcode Curl_sendf(curl_socket_t sockfd, struct connectdata *conn,
-                    const char *fmt, ...)
+static void *fire(void *ptr)
 {
-  struct SessionHandle *data = conn->data;
-  ssize_t bytes_written;
-  size_t write_len;
-  CURLcode res;
-  char *s;
-  char *sptr;
-  va_list ap;
-  va_start(ap, fmt);
-  s = vaprintf(fmt, ap); /* returns an allocated string */
-  va_end(ap);
-  if(!s)
-    return CURLE_OUT_OF_MEMORY; /* failure */
+  CURLcode code;
+  struct Tdata *tdata = (struct Tdata*)ptr;
+  CURL *curl;
+  int i=0;
 
-  bytes_written=0;
-  write_len = strlen(s);
-  sptr = s;
-
-  while (1) {
-    /* Write the buffer to the socket */
-    res = Curl_write(conn, sockfd, sptr, write_len, &bytes_written);
-
-    if(CURLE_OK != res)
-      break;
-
-    if(data->set.verbose)
-      Curl_debug(data, CURLINFO_DATA_OUT, sptr, bytes_written, conn);
-
-    if((size_t)bytes_written != write_len) {
-      /* if not all was written at once, we must advance the pointer, decrease
-         the size left and try again! */
-      write_len -= bytes_written;
-      sptr += bytes_written;
-    }
-    else
-      break;
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    return NULL;
   }
 
-  free(s); /* free the output string */
+  curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+  curl_easy_setopt(curl, CURLOPT_VERBOSE,    1L);
+  curl_easy_setopt(curl, CURLOPT_URL,        tdata->url);
+  printf( "CURLOPT_SHARE\n" );
+  curl_easy_setopt(curl, CURLOPT_SHARE, tdata->share);
 
-  return res;
+  printf( "PERFORM\n" );
+  code = curl_easy_perform(curl);
+  if( code != CURLE_OK ) {
+    fprintf(stderr, "perform url '%s' repeat %d failed, curlcode %d\n",
+            tdata->url, i, (int)code);
+  }
+
+  printf( "CLEANUP\n" );
+  curl_easy_cleanup(curl);
+
+  return NULL;
 }

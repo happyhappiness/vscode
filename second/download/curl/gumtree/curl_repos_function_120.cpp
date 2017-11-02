@@ -1,17 +1,12 @@
-void storerequest(char *reqbuf)
+int my_progress_func(GtkWidget *bar,
+                     double t, /* dltotal */
+                     double d, /* dlnow */
+                     double ultotal,
+                     double ulnow)
 {
-  FILE *dump;
-
-  dump = fopen(REQUEST_DUMP, "ab"); /* b is for windows-preparing */
-  if(dump) {
-    size_t len = strlen(reqbuf);
-    fwrite(reqbuf, 1, len, dump);
-
-    fclose(dump);
-    logmsg("Wrote request (%d bytes) input to " REQUEST_DUMP,
-           (int)len);
-  }
-  else {
-    logmsg("Failed to write request input to " REQUEST_DUMP);
-  }
+/*  printf("%d / %d (%g %%)\n", d, t, d*100.0/t);*/
+  gdk_threads_enter();
+  gtk_progress_set_value(GTK_PROGRESS(bar), d*100.0/t);
+  gdk_threads_leave();
+  return 0;
 }

@@ -1,5 +1,12 @@
-long curlx_tvdiff(struct timeval newer, struct timeval older)
+int
+curl_formget_ccsid(struct curl_httppost * form, void * arg,
+                   curl_formget_callback append, unsigned int ccsid)
+
 {
-  return (newer.tv_sec-older.tv_sec)*1000+
-    (newer.tv_usec-older.tv_usec)/1000;
+  cfcdata lcfc;
+
+  lcfc.append = append;
+  lcfc.arg = arg;
+  lcfc.ccsid = ccsid;
+  return curl_formget(form, (void *) &lcfc, Curl_formget_callback_ccsid);
 }

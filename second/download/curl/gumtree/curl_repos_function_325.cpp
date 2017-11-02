@@ -1,12 +1,14 @@
-int curl_fclose(FILE *file, int line, const char *source)
+int
+Curl_os400_inflate(z_streamp strm, int flush)
+
 {
-  int res;
+  z_const char * msgb4 = strm->msg;
+  int ret;
 
-  curlassert(file != NULL);
+  ret = inflate(strm, flush);
 
-  res=(fclose)(file);
-  if(logfile)
-    fprintf(logfile, "FILE %s:%d fclose(%p)\n",
-            source, line, file);
-  return res;
+  if(strm->msg != msgb4)
+    strm->msg = set_thread_string(LK_ZLIB_MSG, strm->msg);
+
+  return ret;
 }

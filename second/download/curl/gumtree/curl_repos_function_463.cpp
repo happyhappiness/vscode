@@ -1,153 +1,82 @@
-int Curl_parsenetrc(char *host,
-                    char *login,
-                    char *password,
-                    char *netrcfile)
+int test(char *URL)
 {
-  FILE *file;
-  int retcode=1;
-  int specific_login = (login[0] != 0);
-  char *home = NULL;
-  bool home_alloc = FALSE;
-  bool netrc_alloc = FALSE;
-  int state=NOTHING;
+  CURLcode res;
+  CURL *curl;
+  char *ipstr=NULL;
 
-  char state_login=0;      /* Found a login keyword */
-  char state_password=0;   /* Found a password keyword */
-  int state_our_login=FALSE;  /* With specific_login, found *our* login name */
-
-#define NETRC DOT_CHAR "netrc"
-
-#ifdef CURLDEBUG
-  {
-    /* This is a hack to allow testing.
-     * If compiled with --enable-debug and CURL_DEBUG_NETRC is defined,
-     * then it's the path to a substitute .netrc for testing purposes *only* */
-
-    char *override = curl_getenv("CURL_DEBUG_NETRC");
-
-    if (override) {
-      fprintf(stderr, "NETRC: overridden " NETRC " file: %s\n", override);
-      netrcfile = override;
-      netrc_alloc = TRUE;
-    }
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
-#endif /* CURLDEBUG */
-  if(!netrcfile) {
-    home = curl_getenv("HOME"); /* portable environment reader */
-    if(home) {
-      home_alloc = TRUE;
-#if defined(HAVE_GETPWUID) && defined(HAVE_GETEUID)
-    }
-    else {
-      struct passwd *pw;
-      pw= getpwuid(geteuid());
-      if (pw) {
-#ifdef  VMS
-        home = decc$translate_vms(pw->pw_dir);
-#else
-        home = pw->pw_dir;
-#endif
+
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+
+  libtest_debug_config.nohex = 1;
+  libtest_debug_config.tracetime = 1;
+  test_setopt(curl, CURLOPT_DEBUGDATA, &libtest_debug_config);
+  test_setopt(curl, CURLOPT_DEBUGFUNCTION, libtest_debug_cb);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+  if(libtest_arg3 && !strcmp(libtest_arg3, "activeftp"))
+    test_setopt(curl, CURLOPT_FTPPORT, "-");
+
+  setupcallbacks(curl);
+
+  res = curl_easy_perform(curl);
+
+  if(!res) {
+    res = curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &ipstr);
+    if (libtest_arg2) {
+      FILE *moo = fopen(libtest_arg2, "wb");
+      if(moo) {
+	double time_namelookup;
+	double time_connect;
+	double time_pretransfer;
+	double time_starttransfer;
+	double time_total;
+	fprintf(moo, "IP: %s\n", ipstr);
+	curl_easy_getinfo(curl, CURLINFO_NAMELOOKUP_TIME, &time_namelookup);
+	curl_easy_getinfo(curl, CURLINFO_CONNECT_TIME, &time_connect);
+	curl_easy_getinfo(curl, CURLINFO_PRETRANSFER_TIME, &time_pretransfer);
+	curl_easy_getinfo(curl, CURLINFO_STARTTRANSFER_TIME,
+			  &time_starttransfer);
+	curl_easy_getinfo(curl, CURLINFO_TOTAL_TIME, &time_total);
+
+	/* since the timing will always vary we only compare relative differences
+	   between these 5 times */
+	if(time_namelookup > time_connect) {
+	  fprintf(moo, "namelookup vs connect: %f %f\n",
+		  time_namelookup, time_connect);
+	}
+	if(time_connect > time_pretransfer) {
+	  fprintf(moo, "connect vs pretransfer: %f %f\n",
+		  time_connect, time_pretransfer);
+	}
+	if(time_pretransfer > time_starttransfer) {
+	  fprintf(moo, "pretransfer vs starttransfer: %f %f\n",
+		  time_pretransfer, time_starttransfer);
+	}
+	if(time_starttransfer > time_total) {
+	  fprintf(moo, "starttransfer vs total: %f %f\n",
+		  time_starttransfer, time_total);
+	}
+
+	fclose(moo);
       }
-#endif
     }
-
-    if(!home)
-      return -1;
-
-    netrcfile = curl_maprintf("%s%s%s", home, DIR_CHAR, NETRC);
-    if(!netrcfile) {
-      if(home_alloc)
-        free(home);
-      return -1;
-    }
-    netrc_alloc = TRUE;
   }
 
-  file = fopen(netrcfile, "r");
-  if(file) {
-    char *tok;
-    char *tok_buf;
-    bool done=FALSE;
-    char netrcbuffer[256];
+test_cleanup:
 
-    while(!done && fgets(netrcbuffer, sizeof(netrcbuffer), file)) {
-      tok=strtok_r(netrcbuffer, " \t\n", &tok_buf);
-      while(!done && tok) {
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
 
-        if (login[0] && password[0]) {
-          done=TRUE;
-          break;
-        }
-
-        switch(state) {
-        case NOTHING:
-          if(strequal("machine", tok)) {
-            /* the next tok is the machine name, this is in itself the
-               delimiter that starts the stuff entered for this machine,
-               after this we need to search for 'login' and
-               'password'. */
-            state=HOSTFOUND;
-          }
-          break;
-        case HOSTFOUND:
-          if(strequal(host, tok)) {
-            /* and yes, this is our host! */
-            state=HOSTVALID;
-#ifdef _NETRC_DEBUG
-            fprintf(stderr, "HOST: %s\n", tok);
-#endif
-            retcode=0; /* we did find our host */
-          }
-          else
-            /* not our host */
-            state=NOTHING;
-          break;
-        case HOSTVALID:
-          /* we are now parsing sub-keywords concerning "our" host */
-          if(state_login) {
-            if (specific_login) {
-              state_our_login = strequal(login, tok);
-            }
-            else {
-              strncpy(login, tok, LOGINSIZE-1);
-#ifdef _NETRC_DEBUG
-              fprintf(stderr, "LOGIN: %s\n", login);
-#endif
-            }
-            state_login=0;
-          }
-          else if(state_password) {
-            if (state_our_login || !specific_login) {
-              strncpy(password, tok, PASSWORDSIZE-1);
-#ifdef _NETRC_DEBUG
-              fprintf(stderr, "PASSWORD: %s\n", password);
-#endif
-            }
-            state_password=0;
-          }
-          else if(strequal("login", tok))
-            state_login=1;
-          else if(strequal("password", tok))
-            state_password=1;
-          else if(strequal("machine", tok)) {
-            /* ok, there's machine here go => */
-            state = HOSTFOUND;
-            state_our_login = FALSE;
-          }
-          break;
-        } /* switch (state) */
-
-        tok = strtok_r(NULL, " \t\n", &tok_buf);
-      } /* while (tok) */
-    } /* while fgets() */
-
-    fclose(file);
-  }
-
-  if(home_alloc)
-    free(home);
-  if(netrc_alloc)
-    free(netrcfile);
-
-  return retcode;
+  return (int)res;
 }

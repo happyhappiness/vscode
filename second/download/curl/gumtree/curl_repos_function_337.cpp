@@ -1,24 +1,23 @@
-char *curl_mvaprintf(const char *format, va_list ap_save)
+static int
+convert_version_info_string(const char * * stringp,
+                            char * * bufp, int * left, unsigned int ccsid)
+
 {
-  int retcode;
-  struct asprintf info;
+  /* Helper for curl_version_info_ccsid(): convert a string if defined.
+     Result is stored in the `*left'-byte buffer at `*bufp'.
+     `*bufp' and `*left' are updated accordingly.
+     Return 0 if ok, else -1. */
 
-  info.buffer = NULL;
-  info.len = 0;
-  info.alloc = 0;
-  info.fail = FALSE;
+  if(*stringp) {
+    int l = convert(*bufp, *left, ccsid, *stringp, -1, ASCII_CCSID);
 
-  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
-  if((-1 == retcode) || info.fail) {
-    if(info.alloc)
-      free(info.buffer);
-    return NULL;
-  }
+    if(l <= 0)
+      return -1;
 
-  if(info.alloc) {
-    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-    return info.buffer;
-  }
-  else
-    return strdup("");
+    *stringp = *bufp;
+    *bufp += l;
+    *left -= l;
+    }
+
+  return 0;
 }

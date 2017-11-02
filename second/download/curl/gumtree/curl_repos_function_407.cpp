@@ -1,36 +1,34 @@
-static CURLcode add_custom_headers(struct connectdata *conn,
-                                   send_buffer *req_buffer)
+int test(char *URL)
 {
-  CURLcode result = CURLE_OK;
-  char *ptr;
-  struct curl_slist *headers=conn->data->set.headers;
+  CURL *curl;
+  CURLcode res=CURLE_OK;
 
-  while(headers) {
-    ptr = strchr(headers->data, ':');
-    if(ptr) {
-      /* we require a colon for this to be a true header */
-
-      ptr++; /* pass the colon */
-      while(*ptr && isspace((int)*ptr))
-        ptr++;
-
-      if(*ptr) {
-        /* only send this if the contents was non-blank */
-
-        if(conn->allocptr.host &&
-           /* a Host: header was sent already, don't pass on any custom Host:
-              header as that will produce *two* in the same request! */
-           curl_strnequal("Host:", headers->data, 5))
-          ;
-        else {
-
-          result = add_bufferf(req_buffer, "%s\r\n", headers->data);
-          if(result)
-            return result;
-        }
-      }
-    }
-    headers = headers->next;
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
-  return result;
+
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  /* First set the URL that is about to receive our POST. */
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_POSTFIELDS, NULL);
+  test_setopt(curl, CURLOPT_POSTFIELDSIZE, 0L);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L); /* show verbose for debug */
+  test_setopt(curl, CURLOPT_HEADER, 1L); /* include header */
+
+  /* Now, we should be making a zero byte POST request */
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  /* always cleanup */
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return (int)res;
 }

@@ -1,24 +1,27 @@
-int main(void)
+int main(int argc, char **argv)
 {
-  CURL *curl;
-  CURLcode res;
-  struct data config;
+  loop = uv_default_loop();
 
-  config.trace_ascii = 1; /* enable ascii tracing */
+  if(argc <= 1)
+    return 0;
 
-  curl = curl_easy_init();
-  if(curl) {
-    curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, my_trace);
-    curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &config);
-
-    /* the DEBUGFUNCTION has no effect until we enable VERBOSE */
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-
-    curl_easy_setopt(curl, CURLOPT_URL, "curl.haxx.se");
-    res = curl_easy_perform(curl);
-
-    /* always cleanup */
-    curl_easy_cleanup(curl);
+  if(curl_global_init(CURL_GLOBAL_ALL)) {
+    fprintf(stderr, "Could not init cURL\n");
+    return 1;
   }
+
+  uv_timer_init(loop, &timeout);
+
+  curl_handle = curl_multi_init();
+  curl_multi_setopt(curl_handle, CURLMOPT_SOCKETFUNCTION, handle_socket);
+  curl_multi_setopt(curl_handle, CURLMOPT_TIMERFUNCTION, start_timeout);
+
+  while(argc-- > 1) {
+    add_download(argv[argc], argc);
+  }
+
+  uv_run(loop, UV_RUN_DEFAULT);
+  curl_multi_cleanup(curl_handle);
+
   return 0;
 }

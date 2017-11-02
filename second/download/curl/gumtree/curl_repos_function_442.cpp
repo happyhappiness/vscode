@@ -1,21 +1,50 @@
-static struct curl_hash_element *
-mk_hash_element(char *key, size_t key_len, const void *p)
+static int init(int num, CURLM *cm, const char* url, const char* userpwd,
+                struct curl_slist *headers)
 {
-  struct curl_hash_element *he =
-    (struct curl_hash_element *) malloc(sizeof(struct curl_hash_element));
+  int res = 0;
 
-  if(he) {
-    char *dup = strdup(key);
-    if(dup) {
-      he->key = dup;
-      he->key_len = key_len;
-      he->ptr = (void *) p;
-    }
-    else {
-      /* failed to duplicate the key, free memory and fail */
-      free(he);
-      he = NULL;
-    }
-  }
-  return he;
+  res_easy_init(eh[num]);
+  if(res)
+    goto init_failed;
+
+  res_easy_setopt(eh[num], CURLOPT_URL, url);
+  if(res)
+    goto init_failed;
+
+  res_easy_setopt(eh[num], CURLOPT_PROXY, PROXY);
+  if(res)
+    goto init_failed;
+
+  res_easy_setopt(eh[num], CURLOPT_PROXYUSERPWD, userpwd);
+  if(res)
+    goto init_failed;
+
+  res_easy_setopt(eh[num], CURLOPT_PROXYAUTH, (long)CURLAUTH_ANY);
+  if(res)
+    goto init_failed;
+
+  res_easy_setopt(eh[num], CURLOPT_VERBOSE, 1L);
+  if(res)
+    goto init_failed;
+
+  res_easy_setopt(eh[num], CURLOPT_HEADER, 1L);
+  if(res)
+    goto init_failed;
+
+  res_easy_setopt(eh[num], CURLOPT_HTTPHEADER, headers); /* custom Host: */
+  if(res)
+    goto init_failed;
+
+  res_multi_add_handle(cm, eh[num]);
+  if(res)
+    goto init_failed;
+
+  return 0; /* success */
+
+init_failed:
+
+  curl_easy_cleanup(eh[num]);
+  eh[num] = NULL;
+
+  return res; /* failure */
 }

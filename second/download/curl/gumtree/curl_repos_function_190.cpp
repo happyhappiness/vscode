@@ -1,86 +1,33 @@
-char *
-msdosify (char *file_name)
+static void new_conn(char *url, GlobalInfo *g )
 {
-  static char dos_name[PATH_MAX];
-  static const char illegal_chars_dos[] = ".+, ;=[]|<>\\\":?*";
-  static const char *illegal_chars_w95 = &illegal_chars_dos[8];
-  int idx, dot_idx;
-  char *s = file_name, *d = dos_name;
-  const char *illegal_aliens = illegal_chars_dos;
-  size_t len = sizeof (illegal_chars_dos) - 1;
-  int lfn = 0;
+  ConnInfo *conn;
+  CURLMcode rc;
 
-  /* Support for Windows 9X VFAT systems, when available.  */
-  if (_use_lfn (file_name))
-    lfn = 1;
-  if (lfn) {
-    illegal_aliens = illegal_chars_w95;
-    len -= (illegal_chars_w95 - illegal_chars_dos);
+  conn = calloc(1, sizeof(ConnInfo));
+  memset(conn, 0, sizeof(ConnInfo));
+  conn->error[0]='\0';
+
+  conn->easy = curl_easy_init();
+  if (!conn->easy) {
+    fprintf(MSG_OUT, "curl_easy_init() failed, exiting!\n");
+    exit(2);
   }
+  conn->global = g;
+  conn->url = strdup(url);
+  curl_easy_setopt(conn->easy, CURLOPT_URL, conn->url);
+  curl_easy_setopt(conn->easy, CURLOPT_WRITEFUNCTION, write_cb);
+  curl_easy_setopt(conn->easy, CURLOPT_WRITEDATA, &conn);
+  curl_easy_setopt(conn->easy, CURLOPT_VERBOSE, 1L);
+  curl_easy_setopt(conn->easy, CURLOPT_ERRORBUFFER, conn->error);
+  curl_easy_setopt(conn->easy, CURLOPT_PRIVATE, conn);
+  curl_easy_setopt(conn->easy, CURLOPT_NOPROGRESS, 0L);
+  curl_easy_setopt(conn->easy, CURLOPT_PROGRESSFUNCTION, prog_cb);
+  curl_easy_setopt(conn->easy, CURLOPT_PROGRESSDATA, conn);
+  fprintf(MSG_OUT,
+          "Adding easy %p to multi %p (%s)\n", conn->easy, g->multi, url);
+  rc = curl_multi_add_handle(g->multi, conn->easy);
+  mcode_or_die("new_conn: curl_multi_add_handle", rc);
 
-  /* Get past the drive letter, if any. */
-  if (s[0] >= 'A' && s[0] <= 'z' && s[1] == ':') {
-    *d++ = *s++;
-    *d++ = *s++;
-  }
-
-  for (idx = 0, dot_idx = -1; *s; s++, d++) {
-    if (memchr (illegal_aliens, *s, len)) {
-      /* Dots are special: DOS doesn't allow them as the leading character,
-         and a file name cannot have more than a single dot.  We leave the
-         first non-leading dot alone, unless it comes too close to the
-         beginning of the name: we want sh.lex.c to become sh_lex.c, not
-         sh.lex-c.  */
-      if (*s == '.') {
-        if (idx == 0 && (s[1] == '/' || (s[1] == '.' && s[2] == '/'))) {
-          /* Copy "./" and "../" verbatim.  */
-          *d++ = *s++;
-          if (*s == '.')
-            *d++ = *s++;
-          *d = *s;
-        }
-        else if (idx == 0)
-          *d = '_';
-        else if (dot_idx >= 0) {
-          if (dot_idx < 5) { /* 5 is a heuristic ad-hoc'ery */
-            d[dot_idx - idx] = '_'; /* replace previous dot */
-            *d = '.';
-          }
-          else
-            *d = '-';
-        }
-        else
-          *d = '.';
-
-        if (*s == '.')
-          dot_idx = idx;
-      }
-      else if (*s == '+' && s[1] == '+') {
-        if (idx - 2 == dot_idx) { /* .c++, .h++ etc. */
-          *d++ = 'x';
-          *d   = 'x';
-        }
-        else {
-          /* libg++ etc.  */
-          memcpy (d, "plus", 4);
-          d += 3;
-        }
-        s++;
-        idx++;
-      }
-      else
-        *d = '_';
-    }
-    else
-      *d = *s;
-    if (*s == '/') {
-      idx = 0;
-      dot_idx = -1;
-    }
-    else
-      idx++;
-  }
-
-  *d = '\0';
-  return dos_name;
+  /* note that the add_handle() will set a time-out to trigger very soon so
+     that the necessary socket_action() call will be called by this app */
 }

@@ -1,28 +1,49 @@
-static
-CURLcode add_buffer(send_buffer *in, const void *inptr, size_t size)
+int test(char *URL)
 {
-  char *new_rb;
-  size_t new_size;
+  long headerSize;
+  CURLcode code;
+  CURL *curl = NULL;
+  int res = 0;
 
-  if(!in->buffer ||
-     ((in->size_used + size) > (in->size_max - 1))) {
-    new_size = (in->size_used+size)*2;
-    if(in->buffer)
-      /* we have a buffer, enlarge the existing one */
-      new_rb = (char *)realloc(in->buffer, new_size);
-    else
-      /* create a new buffer */
-      new_rb = (char *)malloc(new_size);
+  global_init(CURL_GLOBAL_ALL);
 
-    if(!new_rb)
-      return CURLE_OUT_OF_MEMORY;
+  easy_init(curl);
 
-    in->buffer = new_rb;
-    in->size_max = new_size;
+  easy_setopt(curl, CURLOPT_PROXY, libtest_arg2); /* set in first.c */
+
+  easy_setopt(curl, CURLOPT_WRITEFUNCTION, *WriteOutput);
+  easy_setopt(curl, CURLOPT_HEADERFUNCTION, *WriteHeader);
+
+  easy_setopt(curl, CURLOPT_HEADER, 1L);
+  easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+  easy_setopt(curl, CURLOPT_URL, URL);
+  easy_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
+
+  code = curl_easy_perform(curl);
+  if(CURLE_OK != code) {
+    fprintf(stderr, "%s:%d curl_easy_perform() failed, "
+            "with code %d (%s)\n",
+            __FILE__, __LINE__, (int)code, curl_easy_strerror(code));
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
   }
-  memcpy(&in->buffer[in->size_used], inptr, size);
 
-  in->size_used += size;
+  code = curl_easy_getinfo(curl, CURLINFO_HEADER_SIZE, &headerSize);
+  if(CURLE_OK != code) {
+    fprintf(stderr, "%s:%d curl_easy_getinfo() failed, "
+            "with code %d (%s)\n",
+            __FILE__, __LINE__, (int)code, curl_easy_strerror(code));
+    res = TEST_ERR_MAJOR_BAD;
+    goto test_cleanup;
+  }
 
-  return CURLE_OK;
+  printf("header length is ........: %lu\n", headerSize);
+  printf("header length should be..: %lu\n", realHeaderSize);
+
+test_cleanup:
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return res;
 }

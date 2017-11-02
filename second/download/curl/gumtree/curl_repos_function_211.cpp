@@ -1,46 +1,13 @@
-char *curl_escape(const char *string, int inlength)
+static void timer_cb(const boost::system::error_code & error, GlobalInfo *g)
 {
-  size_t alloc = (inlength?(size_t)inlength:strlen(string))+1;
-  char *ns;
-  char *testing_ptr = NULL;
-  unsigned char in;
-  size_t newlen = alloc;
-  int strindex=0;
-  size_t length;
+  if(!error)
+  {
+    fprintf(MSG_OUT, "\ntimer_cb: ");
 
-  ns = malloc(alloc);
-  if(!ns)
-    return NULL;
+    CURLMcode rc;
+    rc = curl_multi_socket_action(g->multi, CURL_SOCKET_TIMEOUT, 0, &g->still_running);
 
-  length = alloc-1;
-  while(length--) {
-    in = *string;
-    if(!(in >= 'a' && in <= 'z') &&
-       !(in >= 'A' && in <= 'Z') &&
-       !(in >= '0' && in <= '9')) {
-      /* encode it */
-      newlen += 2; /* the size grows with two, since this'll become a %XX */
-      if(newlen > alloc) {
-        alloc *= 2;
-        testing_ptr = realloc(ns, alloc);
-        if(!testing_ptr) {
-          free( ns );
-          return NULL;
-        }
-        else {
-          ns = testing_ptr;
-        }
-      }
-      snprintf(&ns[strindex], 4, "%%%02X", in);
-
-      strindex+=3;
-    }
-    else {
-      /* just copy this */
-      ns[strindex++]=in;
-    }
-    string++;
+    mcode_or_die("timer_cb: curl_multi_socket_action", rc);
+    check_multi_info(g);
   }
-  ns[strindex]=0; /* terminate it */
-  return ns;
 }

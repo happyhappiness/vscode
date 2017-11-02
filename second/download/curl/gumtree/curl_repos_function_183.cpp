@@ -1,18 +1,12 @@
-static void FindWin32CACert(struct Configurable *config,
-                            const char *bundle_file)
+static void timer_cb(int fd, short kind, void *userp)
 {
-  /* only check for cert file if "we" support SSL */
-  if(curlinfo->features & CURL_VERSION_SSL) {
-    DWORD buflen;
-    char *ptr = NULL;
-    char *retval = (char *) malloc(sizeof (TCHAR) * (MAX_PATH + 1));
-    if (!retval)
-      return;
-    retval[0] = '\0';
-    buflen = SearchPathA(NULL, bundle_file, NULL, MAX_PATH+2, retval, &ptr);
-    if (buflen > 0) {
-      GetStr(&config->cacert, retval);
-    }
-    free(retval);
-  }
+  GlobalInfo *g = (GlobalInfo *)userp;
+  CURLMcode rc;
+  (void)fd;
+  (void)kind;
+
+  rc = curl_multi_socket_action(g->multi,
+                                  CURL_SOCKET_TIMEOUT, 0, &g->still_running);
+  mcode_or_die("timer_cb: curl_multi_socket_action", rc);
+  check_multi_info(g);
 }

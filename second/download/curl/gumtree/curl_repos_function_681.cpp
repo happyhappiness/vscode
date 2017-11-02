@@ -1,8 +1,5 @@
-void curl_dofreeaddrinfo(struct addrinfo *freethis,
-                         int line, const char *source)
+static int MD5_Init(MD5_CTX *ctx)
 {
-  (freeaddrinfo)(freethis);
-  if(logfile)
-    fprintf(logfile, "ADDR %s:%d freeaddrinfo(%p)\n",
-            source, line, (void *)freethis);
+  gcry_md_open(ctx, GCRY_MD_MD5, 0);
+  return 1;
 }

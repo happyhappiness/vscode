@@ -1,12 +1,16 @@
-CURLcode Curl_resolv_fdset(struct connectdata *conn,
-                           fd_set *read_fd_set,
-                           fd_set *write_fd_set,
-                           int *max_fdp)
+int write_pidfile(const char *filename)
 {
-  (void)conn;
-  (void)read_fd_set;
-  (void)write_fd_set;
-  (void)max_fdp;
+  FILE *pidfile;
+  long pid;
 
-  return CURLE_OK;
+  pid = (long)getpid();
+  pidfile = fopen(filename, "wb");
+  if(!pidfile) {
+    logmsg("Couldn't write pid file: %s %s", filename, strerror(errno));
+    return 0; /* fail */
+  }
+  fprintf(pidfile, "%ld\n", pid);
+  fclose(pidfile);
+  logmsg("Wrote pid %ld to %s", pid, filename);
+  return 1; /* success */
 }

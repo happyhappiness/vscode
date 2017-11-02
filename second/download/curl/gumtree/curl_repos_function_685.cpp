@@ -1,7 +1,6 @@
-static void md5_to_ascii(unsigned char *source, /* 16 bytes */
-                         unsigned char *dest) /* 33 bytes */
+static void SHA1_Update(SHA_CTX *ctx,
+                        const unsigned char *input,
+                        unsigned int inputLen)
 {
-  int i;
-  for(i=0; i<16; i++)
-    snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+  gcry_md_write(*ctx, input, inputLen);
 }

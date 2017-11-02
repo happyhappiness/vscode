@@ -1,87 +1,43 @@
-static bool
-ConnectionExists(struct SessionHandle *data,
-                 struct connectdata *needle,
-                 struct connectdata **usethis)
+int main(int argc, char **argv)
 {
-  long i;
-  struct connectdata *check;
+  char *URL;
 
-  for(i=0; i< data->state.numconnects; i++) {
-    bool match = FALSE;
-    /*
-     * Note that if we use a HTTP proxy, we check connections to that
-     * proxy and not to the actual remote server.
-     */
-    check = data->state.connects[i];
-    if(!check)
-      /* NULL pointer means not filled-in entry */
-      continue;
+#ifdef O_BINARY
+#  ifdef __HIGHC__
+  _setmode(stdout, O_BINARY);
+#  else
+  setmode(fileno(stdout), O_BINARY);
+#  endif
+#endif
 
-    if((needle->protocol&PROT_SSL) != (check->protocol&PROT_SSL))
-      /* don't do mixed SSL and non-SSL connections */
-      continue;
+  memory_tracking_init();
 
-    if(!needle->bits.httpproxy || needle->protocol&PROT_SSL) {
-      /* The requested connection does not use a HTTP proxy or it
-         uses SSL. */
+  /*
+   * Setup proper locale from environment. This is needed to enable locale-
+   * specific behaviour by the C library in order to test for undesired side
+   * effects that could cause in libcurl.
+   */
+#ifdef HAVE_SETLOCALE
+  setlocale(LC_ALL, "");
+#endif
 
-      if(!(needle->protocol&PROT_SSL) && check->bits.httpproxy)
-        /* we don't do SSL but the cached connection has a proxy,
-           then don't match this */
-        continue;
-
-      if(strequal(needle->protostr, check->protostr) &&
-         strequal(needle->host.name, check->host.name) &&
-         (needle->remote_port == check->remote_port) ) {
-        if(needle->protocol & PROT_SSL) {
-          /* This is SSL, verify that we're using the same
-             ssl options as well */
-          if(!Curl_ssl_config_matches(&needle->ssl_config,
-                                      &check->ssl_config)) {
-            continue;
-          }
-        }
-        if((needle->protocol & PROT_FTP) ||
-           ((needle->protocol & PROT_HTTP) &&
-            (needle->data->state.authhost.want==CURLAUTH_NTLM))) {
-          /* This is FTP or HTTP+NTLM, verify that we're using the same name
-             and password as well */
-          if(!strequal(needle->user, check->user) ||
-             !strequal(needle->passwd, check->passwd)) {
-            /* one of them was different */
-            continue;
-          }
-        }
-        match = TRUE;
-      }
-    }
-    else { /* The requested needle connection is using a proxy,
-              is the checked one using the same? */
-      if(check->bits.httpproxy &&
-         strequal(needle->proxy.name, check->proxy.name) &&
-         needle->port == check->port) {
-        /* This is the same proxy connection, use it! */
-        match = TRUE;
-      }
-    }
-
-    if(match) {
-      bool dead = SocketIsDead(check->sock[FIRSTSOCKET]);
-      if(dead) {
-        /*
-         */
-        infof(data, "Connection %d seems to be dead!\n", i);
-        Curl_disconnect(check); /* disconnect resources */
-        data->state.connects[i]=NULL; /* nothing here */
-
-        /* There's no need to continue searching, because we only store
-           one connection for each unique set of identifiers */
-        return FALSE;
-      }
-
-      *usethis = check;
-      return TRUE; /* yes, we found one to use! */
-    }
+  if(argc< 2 ) {
+    fprintf(stderr, "Pass URL as argument please\n");
+    return 1;
   }
-  return FALSE; /* no matching connecting exists */
+
+  test_argc = argc;
+  test_argv = argv;
+
+  if(argc>2)
+    libtest_arg2=argv[2];
+
+  if(argc>3)
+    libtest_arg3=argv[3];
+
+  URL = argv[1]; /* provide this to the rest */
+
+  fprintf(stderr, "URL: %s\n", URL);
+
+  return test(URL);
 }

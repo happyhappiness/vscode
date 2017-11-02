@@ -1,17 +1,15 @@
-void curl_dofree(void *ptr, int line, const char *source)
+int
+Curl_os400_sendto(int sd, char * buffer, int buflen, int flags,
+                                struct sockaddr * dstaddr, int addrlen)
+
 {
-  struct memdebug *mem;
+  int i;
+  struct sockaddr_storage laddr;
 
-  curlassert(ptr != NULL);
+  i = convert_sockaddr(&laddr, dstaddr, addrlen);
 
-  mem = (struct memdebug *)((char *)ptr - offsetof(struct memdebug, mem));
+  if(i < 0)
+    return -1;
 
-  /* destroy  */
-  memset(mem->mem, 0x13, mem->size);
-
-  /* free for real */
-  (Curl_cfree)(mem);
-
-  if(logfile)
-    fprintf(logfile, "MEM %s:%d free(%p)\n", source, line, ptr);
+  return sendto(sd, buffer, buflen, flags, (struct sockaddr *) &laddr, i);
 }

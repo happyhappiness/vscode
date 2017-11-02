@@ -1,43 +1,78 @@
-CURLcode Curl_readrewind(struct connectdata *conn)
+int main(void)
 {
-  struct SessionHandle *data = conn->data;
+  CURL *curl;
+  CURLcode res;
+  /* Minimalistic http request */
+  const char *request = "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n";
+  curl_socket_t sockfd; /* socket */
+  long sockextr;
+  size_t iolen;
+  curl_off_t nread;
 
-  conn->bits.rewindaftersend = FALSE; /* we rewind now */
+  curl = curl_easy_init();
+  if(curl) {
+    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com");
+    /* Do not do the transfer - only connect to host */
+    curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 1L);
+    res = curl_easy_perform(curl);
 
-  /* We have sent away data. If not using CURLOPT_POSTFIELDS or
-     CURLOPT_HTTPPOST, call app to rewind
-  */
-  if(data->set.postfields ||
-     (data->set.httpreq == HTTPREQ_POST_FORM))
-    ; /* do nothing */
-  else {
-    if(data->set.ioctl) {
-      curlioerr err;
-
-      err = data->set.ioctl(data, CURLIOCMD_RESTARTREAD,
-                            data->set.ioctl_client);
-      infof(data, "the ioctl callback returned %d\n", (int)err);
-
-      if(err) {
-        /* FIXME: convert to a human readable error message */
-        failf(data, "ioctl callback returned error %d\n", (int)err);
-        return CURLE_SEND_FAIL_REWIND;
-      }
+    if(CURLE_OK != res)
+    {
+      printf("Error: %s\n", strerror(res));
+      return 1;
     }
-    else {
-      /* If no CURLOPT_READFUNCTION is used, we know that we operate on a
-         given FILE * stream and we can actually attempt to rewind that
-         ourself with fseek() */
-      if(data->set.fread == (curl_read_callback)fread) {
-        if(-1 != fseek(data->set.in, 0, SEEK_SET))
-          /* successful rewind */
-          return CURLE_OK;
-      }
 
-      /* no callback set or failure aboe, makes us fail at once */
-      failf(data, "necessary data rewind wasn't possible\n");
-      return CURLE_SEND_FAIL_REWIND;
+    /* Extract the socket from the curl handle - we'll need it for waiting.
+     * Note that this API takes a pointer to a 'long' while we use
+     * curl_socket_t for sockets otherwise.
+     */
+    res = curl_easy_getinfo(curl, CURLINFO_LASTSOCKET, &sockextr);
+
+    if(CURLE_OK != res)
+    {
+      printf("Error: %s\n", curl_easy_strerror(res));
+      return 1;
     }
+
+    sockfd = sockextr;
+
+    /* wait for the socket to become ready for sending */
+    if(!wait_on_socket(sockfd, 0, 60000L))
+    {
+      printf("Error: timeout.\n");
+      return 1;
+    }
+
+    puts("Sending request.");
+    /* Send the request. Real applications should check the iolen
+     * to see if all the request has been sent */
+    res = curl_easy_send(curl, request, strlen(request), &iolen);
+
+    if(CURLE_OK != res)
+    {
+      printf("Error: %s\n", curl_easy_strerror(res));
+      return 1;
+    }
+    puts("Reading response.");
+
+    /* read the response */
+    for(;;)
+    {
+      char buf[1024];
+
+      wait_on_socket(sockfd, 1, 60000L);
+      res = curl_easy_recv(curl, buf, 1024, &iolen);
+
+      if(CURLE_OK != res)
+        break;
+
+      nread = (curl_off_t)iolen;
+
+      printf("Received %" CURL_FORMAT_CURL_OFF_T " bytes.\n", nread);
+    }
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
   }
-  return CURLE_OK;
+  return 0;
 }

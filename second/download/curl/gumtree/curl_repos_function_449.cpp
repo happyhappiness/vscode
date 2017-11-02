@@ -1,26 +1,12 @@
-static void multistate(struct Curl_one_easy *easy, CURLMstate state)
+static curlioerr ioctl_callback(CURL * handle, int cmd, void *clientp)
 {
-#ifdef CURLDEBUG
-  const char *statename[]={
-    "INIT",
-    "CONNECT",
-    "WAITRESOLVE",
-    "WAITCONNECT",
-    "PROTOCONNECT",
-    "DO",
-    "DOING",
-    "DO_MORE",
-    "PERFORM",
-    "DONE",
-    "COMPLETED",
-  };
-  CURLMstate oldstate = easy->state;
-#endif
-  easy->state = state;
-
-#ifdef CURLDEBUG
-  infof(easy->easy_handle,
-        "STATE: %s => %s handle %p: \n",
-        statename[oldstate], statename[easy->state], (char *)easy);
-#endif
+  (void)clientp;
+  if (cmd == CURLIOCMD_RESTARTREAD ) {
+    printf("APPLICATION: recieved a CURLIOCMD_RESTARTREAD request\n");
+    printf("APPLICATION: ** REWINDING! **\n");
+    current_offset = 0;
+    return CURLIOE_OK;
+  }
+  (void)handle;
+  return CURLIOE_UNKNOWNCMD;
 }

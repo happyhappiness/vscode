@@ -1,34 +1,25 @@
-CURLcode Curl_is_resolved(struct connectdata *conn,
-                          struct Curl_dns_entry **dns)
+static int nss_hash_init(void **pctx, SECOidTag hash_alg)
 {
-  fd_set read_fds, write_fds;
-  struct timeval tv={0,0};
-  struct SessionHandle *data = conn->data;
-  int nfds;
+  PK11Context *ctx;
 
-  FD_ZERO(&read_fds);
-  FD_ZERO(&write_fds);
-
-  nfds = ares_fds(data->state.areschannel, &read_fds, &write_fds);
-
-  (void)select(nfds, &read_fds, &write_fds, NULL,
-               (struct timeval *)&tv);
-
-  /* Call ares_process() unconditonally here, even if we simply timed out
-     above, as otherwise the ares name resolve won't timeout! */
-  ares_process(data->state.areschannel, &read_fds, &write_fds);
-
-  *dns = NULL;
-
-  if(conn->async.done) {
-    /* we're done, kill the ares handle */
-    if(!conn->async.dns) {
-      failf(data, "Could not resolve host: %s (%s)", conn->host.dispname,
-            ares_strerror(conn->async.status));
-      return CURLE_COULDNT_RESOLVE_HOST;
-    }
-    *dns = conn->async.dns;
+  /* we have to initialize NSS if not initialized alraedy */
+  if(!NSS_IsInitialized() && !nss_context) {
+    static NSSInitParameters params;
+    params.length = sizeof params;
+    nss_context = NSS_InitContext("", "", "", "", &params, NSS_INIT_READONLY
+        | NSS_INIT_NOCERTDB   | NSS_INIT_NOMODDB       | NSS_INIT_FORCEOPEN
+        | NSS_INIT_NOROOTINIT | NSS_INIT_OPTIMIZESPACE | NSS_INIT_PK11RELOAD);
   }
 
-  return CURLE_OK;
+  ctx = PK11_CreateDigestContext(hash_alg);
+  if(!ctx)
+    return /* failure */ 0;
+
+  if(PK11_DigestBegin(ctx) != SECSuccess) {
+    PK11_DestroyContext(ctx, PR_TRUE);
+    return /* failure */ 0;
+  }
+
+  *pctx = ctx;
+  return /* success */ 1;
 }

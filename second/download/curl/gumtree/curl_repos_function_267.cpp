@@ -1,10 +1,5 @@
-static
-int cert_verify_callback(int ok, X509_STORE_CTX *ctx)
+static long tvdiff(struct timeval newer, struct timeval older)
 {
-  X509 *err_cert;
-  char buf[256];
-
-  err_cert=X509_STORE_CTX_get_current_cert(ctx);
-  X509_NAME_oneline(X509_get_subject_name(err_cert), buf, sizeof(buf));
-  return ok;
+  return (newer.tv_sec - older.tv_sec) * 1000 +
+    (newer.tv_usec - older.tv_usec) / 1000;
 }

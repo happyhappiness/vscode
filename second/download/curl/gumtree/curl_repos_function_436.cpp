@@ -1,9 +1,9 @@
-CURLcode Curl_do_more(struct connectdata *conn)
+static void remove_handles(void)
 {
-  CURLcode result=CURLE_OK;
+  int i;
 
-  if(conn->curl_do_more)
-    result = conn->curl_do_more(conn);
-
-  return result;
+  for(i = 0;i < num_handles;i++) {
+    if(handles[i])
+      curl_easy_cleanup(handles[i]);
+  }
 }

@@ -1,23 +1,10 @@
-void Curl_single_fdset(struct connectdata *conn,
-                       fd_set *read_fd_set,
-                       fd_set *write_fd_set,
-                       fd_set *exc_fd_set,
-                       int *max_fd)
+static void kill_locks(void)
 {
-  *max_fd = -1; /* init */
-  if(conn->keep.keepon & KEEP_READ) {
-    FD_SET(conn->sockfd, read_fd_set);
-    *max_fd = (int)conn->sockfd;
-  }
-  if(conn->keep.keepon & KEEP_WRITE) {
-    FD_SET(conn->writesockfd, write_fd_set);
+  int i;
 
-    /* since sockets are curl_socket_t nowadays, we typecast it to int here
-       to compare it nicely */
-    if((int)conn->writesockfd > *max_fd)
-      *max_fd = (int)conn->writesockfd;
-  }
-  /* we don't use exceptions, only touch that one to prevent compiler
-     warnings! */
-  *exc_fd_set = *exc_fd_set;
+  CRYPTO_set_locking_callback(NULL);
+  for (i=0; i<CRYPTO_num_locks(); i++)
+    pthread_mutex_destroy(&(lockarray[i]));
+
+  OPENSSL_free(lockarray);
 }

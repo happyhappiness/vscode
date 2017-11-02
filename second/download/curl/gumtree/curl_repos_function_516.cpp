@@ -1,6 +1,8 @@
-static void ftp_respinit(struct connectdata *conn)
+static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
 {
-  struct FTP *ftp = conn->proto.ftp;
-  ftp->nread_resp = 0;
-  ftp->linestart_resp = conn->data->state.buffer;
+  (void)ptr;
+  (void)size;
+  (void)nmemb;
+  (void)userp;
+  return CURL_READFUNC_ABORT;
 }

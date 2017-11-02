@@ -1,4 +1,6 @@
-char *curl_getenv(const char *v)
+static void test_curl_llist_dtor(void *key, void *value)
 {
-  return GetEnv(v);
+  /* used by the llist API, does nothing here */
+  (void)key;
+  (void)value;
 }

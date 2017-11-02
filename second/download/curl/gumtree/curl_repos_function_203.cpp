@@ -1,57 +1,52 @@
-static bool verifyconnect(curl_socket_t sockfd, int *error)
+int main(int argc, char **argv)
 {
-  bool rc = TRUE;
-#ifdef SO_ERROR
-  int err = 0;
-  socklen_t errSize = sizeof(err);
+  GtkWidget *top_window, *outside_frame, *inside_frame, *progress_bar;
 
-#ifdef WIN32
-  /*
-   * In October 2003 we effectively nullified this function on Windows due to
-   * problems with it using all CPU in multi-threaded cases.
-   *
-   * In May 2004, we bring it back to offer more info back on connect failures.
-   * Gisle Vanem could reproduce the former problems with this function, but
-   * could avoid them by adding this SleepEx() call below:
-   *
-   *    "I don't have Rational Quantify, but the hint from his post was
-   *    ntdll::NtRemoveIoCompletion(). So I'd assume the SleepEx (or maybe
-   *    just Sleep(0) would be enough?) would release whatever
-   *    mutex/critical-section the ntdll call is waiting on.
-   *
-   *    Someone got to verify this on Win-NT 4.0, 2000."
-   */
+  /* Must initialize libcurl before any threads are started */
+  curl_global_init(CURL_GLOBAL_ALL);
 
-#ifdef _WIN32_WCE
-  Sleep(0);
-#else
-  SleepEx(0, FALSE);
-#endif
+  /* Init thread */
+  g_thread_init(NULL);
+  gdk_threads_init ();
+  gdk_threads_enter ();
 
-#endif
+  gtk_init(&argc, &argv);
 
-  if( -1 == getsockopt(sockfd, SOL_SOCKET, SO_ERROR,
-                       (void *)&err, &errSize))
-    err = Curl_ourerrno();
+  /* Base window */
+  top_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
-#ifdef _WIN32_WCE
-  /* Always returns this error, bug in CE? */
-  if(WSAENOPROTOOPT==err)
-    err=0;
-#endif
+  /* Frame */
+  outside_frame = gtk_frame_new(NULL);
+  gtk_frame_set_shadow_type(GTK_FRAME(outside_frame), GTK_SHADOW_OUT);
+  gtk_container_add(GTK_CONTAINER(top_window), outside_frame);
 
-  if ((0 == err) || (EISCONN == err))
-    /* we are connected, awesome! */
-    rc = TRUE;
-  else
-    /* This wasn't a successful connect */
-    rc = FALSE;
-  if (error)
-    *error = err;
-#else
-  (void)sockfd;
-  if (error)
-    *error = Curl_ourerrno();
-#endif
-  return rc;
+  /* Frame */
+  inside_frame = gtk_frame_new(NULL);
+  gtk_frame_set_shadow_type(GTK_FRAME(inside_frame), GTK_SHADOW_IN);
+  gtk_container_set_border_width(GTK_CONTAINER(inside_frame), 5);
+  gtk_container_add(GTK_CONTAINER(outside_frame), inside_frame);
+
+  /* Progress bar */
+  progress_bar = gtk_progress_bar_new();
+  gtk_progress_bar_pulse (GTK_PROGRESS_BAR (progress_bar));
+  /* Make uniform pulsing */
+  gint pulse_ref = g_timeout_add (300, pulse_bar, progress_bar);
+  g_object_set_data(G_OBJECT(progress_bar), "pulse_id",
+                    GINT_TO_POINTER(pulse_ref));
+  gtk_container_add(GTK_CONTAINER(inside_frame), progress_bar);
+
+  gtk_widget_show_all(top_window);
+  printf("gtk_widget_show_all\n");
+
+  g_signal_connect(G_OBJECT (top_window), "delete-event",
+                   G_CALLBACK(cb_delete), NULL);
+
+  if (!g_thread_create(&create_thread, progress_bar, FALSE, NULL) != 0)
+    g_warning("can't create the thread");
+
+  gtk_main();
+  gdk_threads_leave();
+  printf("gdk_threads_leave\n");
+
+  return 0;
 }

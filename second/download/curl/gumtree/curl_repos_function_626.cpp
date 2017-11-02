@@ -1,101 +1,88 @@
-CURLcode Curl_krb_kauth(struct connectdata *conn)
+static int do_tftp(struct testcase *test, struct tftphdr *tp, ssize_t size)
 {
-  des_cblock key;
-  des_key_schedule schedule;
-  KTEXT_ST tkt, tktcopy;
-  char *name;
-  char *p;
-  char passwd[100];
-  size_t tmp;
-  ssize_t nread;
-  int save;
-  CURLcode result;
-  unsigned char *ptr;
+  char *cp;
+  int first = 1, ecode;
+  struct formats *pf;
+  char *filename, *mode = NULL;
+  int error;
+  FILE *server;
+#ifdef USE_WINSOCK
+  DWORD recvtimeout, recvtimeoutbak;
+#endif
 
-  save = Curl_set_command_prot(conn, prot_private);
-
-  result = Curl_ftpsendf(conn, "SITE KAUTH %s", conn->user);
-
-  if(result)
-    return result;
-
-  result = Curl_GetFTPResponse(&nread, conn, NULL);
-  if(result)
-    return result;
-
-  if(conn->data->state.buffer[0] != '3'){
-    Curl_set_command_prot(conn, save);
-    return CURLE_FTP_WEIRD_SERVER_REPLY;
+  /* Open request dump file. */
+  server = fopen(REQUEST_DUMP, "ab");
+  if(!server) {
+    error = errno;
+    logmsg("fopen() failed with error: %d %s", error, strerror(error));
+    logmsg("Error opening file: %s", REQUEST_DUMP);
+    return -1;
   }
 
-  p = strstr(conn->data->state.buffer, "T=");
-  if(!p) {
-    Curl_failf(conn->data, "Bad reply from server");
-    Curl_set_command_prot(conn, save);
-    return CURLE_FTP_WEIRD_SERVER_REPLY;
+  /* store input protocol */
+  fprintf(server, "opcode: %x\n", tp->th_opcode);
+
+  cp = (char *)&tp->th_stuff;
+  filename = cp;
+again:
+  while (cp < &buf.storage[size]) {
+    if (*cp == '\0')
+      break;
+    cp++;
+  }
+  if (*cp) {
+    nak(EBADOP);
+    fclose(server);
+    return 3;
+  }
+  if (first) {
+    mode = ++cp;
+    first = 0;
+    goto again;
+  }
+  /* store input protocol */
+  fprintf(server, "filename: %s\n", filename);
+
+  for (cp = mode; cp && *cp; cp++)
+    if(ISUPPER(*cp))
+      *cp = (char)tolower((int)*cp);
+
+  /* store input protocol */
+  fprintf(server, "mode: %s\n", mode);
+  fclose(server);
+
+  for (pf = formata; pf->f_mode; pf++)
+    if (strcmp(pf->f_mode, mode) == 0)
+      break;
+  if (!pf->f_mode) {
+    nak(EBADOP);
+    return 2;
+  }
+  ecode = validate_access(test, filename, tp->th_opcode);
+  if (ecode) {
+    nak(ecode);
+    return 1;
   }
 
-  p += 2;
-  tmp = Curl_base64_decode(p, &ptr);
-  if(tmp >= sizeof(tkt.dat)) {
-    free(ptr);
-    tmp=0;
-  }
-  if(!tmp || !ptr) {
-    Curl_failf(conn->data, "Failed to decode base64 in reply.\n");
-    Curl_set_command_prot(conn, save);
-    return CURLE_FTP_WEIRD_SERVER_REPLY;
-  }
-  memcpy((char *)tkt.dat, ptr, tmp);
-  free(ptr);
-  tkt.length = tmp;
-  tktcopy.length = tkt.length;
+#ifdef USE_WINSOCK
+  recvtimeout = sizeof(recvtimeoutbak);
+  getsockopt(peer, SOL_SOCKET, SO_RCVTIMEO,
+             (char*)&recvtimeoutbak, (int*)&recvtimeout);
+  recvtimeout = TIMEOUT*1000;
+  setsockopt(peer, SOL_SOCKET, SO_RCVTIMEO,
+             (const char*)&recvtimeout, sizeof(recvtimeout));
+#endif
 
-  p = strstr(conn->data->state.buffer, "P=");
-  if(!p) {
-    Curl_failf(conn->data, "Bad reply from server");
-    Curl_set_command_prot(conn, save);
-    return CURLE_FTP_WEIRD_SERVER_REPLY;
-  }
-  name = p + 2;
-  for(; *p && *p != ' ' && *p != '\r' && *p != '\n'; p++);
-  *p = 0;
+  if (tp->th_opcode == opcode_WRQ)
+    recvtftp(test, pf);
+  else
+    sendtftp(test, pf);
 
-  des_string_to_key (conn->passwd, &key);
-  des_key_sched(&key, schedule);
+#ifdef USE_WINSOCK
+  recvtimeout = recvtimeoutbak;
+  setsockopt(peer, SOL_SOCKET, SO_RCVTIMEO,
+             (const char*)&recvtimeout, sizeof(recvtimeout));
+#endif
 
-  des_pcbc_encrypt((void *)tkt.dat, (void *)tktcopy.dat,
-                   tkt.length,
-                   schedule, &key, DES_DECRYPT);
-  if (strcmp ((char*)tktcopy.dat + 8,
-              KRB_TICKET_GRANTING_TICKET) != 0) {
-    afs_string_to_key(passwd,
-                      krb_realmofhost(conn->host.name),
-                      &key);
-    des_key_sched(&key, schedule);
-    des_pcbc_encrypt((void *)tkt.dat, (void *)tktcopy.dat,
-                     tkt.length,
-                     schedule, &key, DES_DECRYPT);
-  }
-  memset(key, 0, sizeof(key));
-  memset(schedule, 0, sizeof(schedule));
-  memset(passwd, 0, sizeof(passwd));
-  if(Curl_base64_encode((char *)tktcopy.dat, tktcopy.length, &p) < 1) {
-    failf(conn->data, "Out of memory base64-encoding.");
-    Curl_set_command_prot(conn, save);
-    return CURLE_OUT_OF_MEMORY;
-  }
-  memset (tktcopy.dat, 0, tktcopy.length);
-
-  result = Curl_ftpsendf(conn, "SITE KAUTH %s %s", name, p);
-  free(p);
-  if(result)
-    return result;
-
-  result = Curl_GetFTPResponse(&nread, conn, NULL);
-  if(result)
-    return result;
-  Curl_set_command_prot(conn, save);
-
-  return CURLE_OK;
+  return 0;
 }

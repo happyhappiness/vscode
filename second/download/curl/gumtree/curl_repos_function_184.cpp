@@ -1,10 +1,8 @@
-static bool
-output_expected(char* url, char* uploadfile)
+static void remsock(SockInfo *f)
 {
-  if(!uploadfile)
-    return TRUE;  /* download */
-  if(checkprefix("http://", url) || checkprefix("https://", url))
-    return TRUE;   /* HTTP(S) upload */
-
-  return FALSE; /* non-HTTP upload, probably no output should be expected */
+  if (f) {
+    if (f->evset)
+      event_free(f->ev);
+    free(f);
+  }
 }

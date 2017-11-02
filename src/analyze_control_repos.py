@@ -124,7 +124,7 @@ def cluster_repos_log():
     records = csv.reader(analyze_repos_log_file)
     # build feature lists
     feature_lists = []
-    for record in records:
+    for record in islice(records, 1, None):
         check = json.loads(record[my_constant.ANALYZE_REPOS_LOG_CHECK])
         variable = json.loads(record[my_constant.ANALYZE_REPOS_LOG_VARIABLE])
         feature_lists.append([check, variable])
@@ -139,8 +139,8 @@ def cluster_repos_log():
     writer.writerow(my_constant.CLUSTER_REPOS_LOG_TITLE)
     # store record + cluster
     index = 0
-    for record in records:
-        writer.writerow(record + cluster_list[index])
+    for record in islice(records, 1, None):
+        writer.writerow(record + [cluster_list[index]])
         index += 1
 
     # build class from cluster
@@ -153,7 +153,8 @@ main function
 """
 if __name__ == "__main__":
 #    analyze_repos_joern(True)
-    analyze_repos("curl-7.14.0")
+    analyze_repos("curl-7.41.0")
+    cluster_repos_log()
     # analyze_repos()
 
     

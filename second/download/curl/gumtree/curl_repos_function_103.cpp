@@ -1,28 +1,10 @@
-void *fire(void *ptr)
+static struct timeval tvnow(void)
 {
-  CURLcode code;
-  struct curl_slist *headers;
-  struct Tdata *tdata = (struct Tdata*)ptr;
-  CURL *curl = curl_easy_init();
-  int i=0;
+  struct timeval now;
 
-  headers = sethost(NULL);
-  curl_easy_setopt(curl, CURLOPT_VERBOSE,    1);
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, (void*)headers);
-  curl_easy_setopt(curl, CURLOPT_URL,        (void*)tdata->url);
-  printf( "CURLOPT_SHARE\n" );
-  curl_easy_setopt(curl, CURLOPT_SHARE, (void*)tdata->share);
+  /* time() returns the value of time in seconds since the epoch */
+  now.tv_sec = (long)time(NULL);
+  now.tv_usec = 0;
 
-  printf( "PERFORM\n" );
-  code = curl_easy_perform(curl);
-  if( code != CURLE_OK ) {
-    fprintf(stderr, "perform url '%s' repeat %d failed, curlcode %d\n",
-            tdata->url, i, (int)code);
-  }
-
-  printf( "CLEANUP\n" );
-  curl_easy_cleanup(curl);
-  curl_slist_free_all(headers);
-
-  return NULL;
+  return now;
 }

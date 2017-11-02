@@ -1,24 +1,21 @@
-static const char *param2text(int res)
+int url_feof(URL_FILE *file)
 {
-  ParameterError error = (ParameterError)res;
-  switch(error) {
-  case PARAM_GOT_EXTRA_PARAMETER:
-    return "had unsupported trailing garbage";
-  case PARAM_OPTION_UNKNOWN:
-    return "is unknown";
-  case PARAM_OPTION_AMBIGUOUS:
-    return "is ambiguous";
-  case PARAM_REQUIRES_PARAMETER:
-    return "requires parameter";
-  case PARAM_BAD_USE:
-    return "is badly used here";
-  case PARAM_BAD_NUMERIC:
-    return "expected a proper numerical parameter";
-  case PARAM_LIBCURL_DOESNT_SUPPORT:
-    return "the installed libcurl version doesn't support this";
-  case PARAM_NO_MEM:
-    return "out of memory";
-  default:
-    return "unknown error";
+  int ret=0;
+
+  switch(file->type) {
+  case CFTYPE_FILE:
+    ret=feof(file->handle.file);
+    break;
+
+  case CFTYPE_CURL:
+    if((file->buffer_pos == 0) && (!file->still_running))
+      ret = 1;
+    break;
+
+  default: /* unknown or supported type - oh dear */
+    ret=-1;
+    errno=EBADF;
+    break;
   }
+  return ret;
 }

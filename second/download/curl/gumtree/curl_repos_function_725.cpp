@@ -1,64 +1,15 @@
-int _NonAppStart( void        *NLMHandle,
-                  void        *errorScreen,
-                  const char  *cmdLine,
-                  const char  *loadDirPath,
-                  size_t      uninitializedDataLength,
-                  void        *NLMFileHandle,
-                  int         (*readRoutineP)( int conn,
-                                               void *fileHandle, size_t offset,
-                                               size_t nbytes,
-                                               size_t *bytesRead,
-                                               void *buffer ),
-                  size_t      customDataOffset,
-                  size_t      customDataSize,
-                  int         messageCount,
-                  const char  **messages )
+int metalink_check_hash(struct GlobalConfig *config,
+                        metalinkfile *mlfile,
+                        const char *filename)
 {
-  NX_LOCK_INFO_ALLOC(liblock, "Per-Application Data Lock", 0);
-  
-#ifndef __GNUC__
-#pragma unused(cmdLine)
-#pragma unused(loadDirPath)
-#pragma unused(uninitializedDataLength)
-#pragma unused(NLMFileHandle)
-#pragma unused(readRoutineP)
-#pragma unused(customDataOffset)
-#pragma unused(customDataSize)
-#pragma unused(messageCount)
-#pragma unused(messages)
-#endif
-
-/*
-** Here we process our command line, post errors (to the error screen),
-** perform initializations and anything else we need to do before being able
-** to accept calls into us. If we succeed, we return non-zero and the NetWare
-** Loader will leave us up, otherwise we fail to load and get dumped.
-*/
-  gAllocTag = AllocateResourceTag(NLMHandle,
-                                  "<library-name> memory allocations",
-                                  AllocSignature);
-
-  if (!gAllocTag) {
-    OutputToScreen(errorScreen, "Unable to allocate resource tag for "
-                   "library memory allocations.\n");
-    return -1;
+  int rv;
+  fprintf(config->errors, "Metalink: validating (%s)...\n", filename);
+  if(mlfile->checksum == NULL) {
+    fprintf(config->errors,
+            "Metalink: validating (%s) FAILED (digest missing)\n", filename);
+    return -2;
   }
-
-  gLibId = register_library(DisposeLibraryData);
-
-  if (gLibId < -1) {
-    OutputToScreen(errorScreen, "Unable to register library with kernel.\n");
-    return -1;
-  }
-
-  gLibHandle = NLMHandle;
-
-  gLibLock = NXMutexAlloc(0, 0, &liblock);
-  
-  if (!gLibLock) {
-    OutputToScreen(errorScreen, "Unable to allocate library data lock.\n");
-    return -1;
-  }
-
-  return 0;
+  rv = check_hash(filename, mlfile->checksum->digest_def,
+                  mlfile->checksum->digest, config->errors);
+  return rv;
 }

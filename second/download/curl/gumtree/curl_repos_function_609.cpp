@@ -1,64 +1,69 @@
-struct Cookie *Curl_cookie_getlist(struct CookieInfo *c,
-                                   char *host, char *path, bool secure)
+static int service_connection(curl_socket_t msgsock, struct httprequest *req,
+                              curl_socket_t listensock,
+                              const char *connecthost)
 {
-   struct Cookie *newco;
-   struct Cookie *co;
-   time_t now = time(NULL);
-   struct Cookie *mainco=NULL;
+  if(got_exit_signal)
+    return -1;
 
-   if(!c || !c->cookies)
-      return NULL; /* no cookie struct or no cookies in the struct */
+  while(!req->done_processing) {
+    int rc = get_request(msgsock, req);
+    if (rc <= 0) {
+      /* Nothing further to read now (possibly because the socket was closed */
+      return rc;
+    }
+  }
 
-   co = c->cookies;
+  if(prevbounce) {
+    /* bounce treatment requested */
+    if((req->testno == prevtestno) &&
+       (req->partno == prevpartno)) {
+      req->partno++;
+      logmsg("BOUNCE part number to %ld", req->partno);
+    }
+    else {
+      prevbounce = FALSE;
+      prevtestno = -1;
+      prevpartno = -1;
+    }
+  }
 
-   while(co) {
-     /* only process this cookie if it is not expired or had no expire
-        date AND that if the cookie requires we're secure we must only
-        continue if we are! */
-     if( (co->expires<=0 || (co->expires> now)) &&
-         (co->secure?secure:TRUE) ) {
+  send_doc(msgsock, req);
+  if(got_exit_signal)
+    return -1;
 
-       /* now check if the domain is correct */
-       if(!co->domain ||
-          (co->tailmatch && tailmatch(co->domain, host)) ||
-          (!co->tailmatch && strequal(host, co->domain)) ) {
-         /* the right part of the host matches the domain stuff in the
-            cookie data */
+  if(req->testno < 0) {
+    logmsg("special request received, no persistency");
+    return -1;
+  }
+  if(!req->open) {
+    logmsg("instructed to close connection after server-reply");
+    return -1;
+  }
 
-         /* now check the left part of the path with the cookies path
-            requirement */
-         if(!co->path ||
-            checkprefix(co->path, path) ) {
+  if(req->connect_request) {
+    /* a CONNECT request, setup and talk the tunnel */
+    if(!is_proxy) {
+      logmsg("received CONNECT but isn't running as proxy!");
+      return 1;
+    }
+    else {
+      http_connect(&msgsock, listensock, connecthost, req->connect_port);
+      return -1;
+    }
+  }
 
-           /* and now, we know this is a match and we should create an
-              entry for the return-linked-list */
+  if(req->upgrade_request) {
+    /* an upgrade request, switch to http2 here */
+    http2(req);
+    return -1;
+  }
 
-           newco = (struct Cookie *)malloc(sizeof(struct Cookie));
-           if(newco) {
-             /* first, copy the whole source cookie: */
-             memcpy(newco, co, sizeof(struct Cookie));
+  /* if we got a CONNECT, loop and get another request as well! */
 
-             /* then modify our next */
-             newco->next = mainco;
+  if(req->open) {
+    logmsg("=> persistant connection request ended, awaits new request\n");
+    return 1;
+  }
 
-             /* point the main to us */
-             mainco = newco;
-           }
-           else {
-              /* failure, clear up the allocated chain and return NULL */
-             while(mainco) {
-               co = mainco->next;
-               free(mainco);
-               mainco = co;
-             }
-
-             return NULL;
-           }
-         }
-       }
-     }
-     co = co->next;
-   }
-
-   return mainco; /* return the new list */
+  return -1;
 }

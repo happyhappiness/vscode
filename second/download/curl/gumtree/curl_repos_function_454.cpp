@@ -1,367 +1,416 @@
-CURLMcode curl_multi_perform(CURLM *multi_handle, int *running_handles)
+static int rlimit(int keep_open)
 {
-  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
-  struct Curl_one_easy *easy;
-  bool done;
-  CURLMcode result=CURLM_OK;
-  struct Curl_message *msg = NULL;
-  bool connected;
-  bool async;
-  bool protocol_connect;
-  bool dophase_done;
+  int *tmpfd;
+  int nitems, i;
+  int *memchunk = NULL;
+  char *fmt;
+  struct rlimit rl;
+  char strbuff[256];
+  char strbuff1[81];
+  char fmt_u[] = "%u";
+  char fmt_lu[] = "%lu";
+#ifdef HAVE_LONGLONG
+  char fmt_llu[] = "%llu";
 
-  *running_handles = 0; /* bump this once for every living handle */
+  if (sizeof(rl.rlim_max) > sizeof(long))
+    fmt = fmt_llu;
+  else
+#endif
+    fmt = (sizeof(rl.rlim_max) < sizeof(long))?fmt_u:fmt_lu;
 
-  if(!GOOD_MULTI_HANDLE(multi))
-    return CURLM_BAD_HANDLE;
+  /* get initial open file limits */
 
-  easy=multi->easy.next;
-  while(easy) {
-    do {
-      if (CURLM_STATE_WAITCONNECT <= easy->state &&
-          easy->state <= CURLM_STATE_DO &&
-          easy->easy_handle->change.url_changed) {
-        char *gotourl;
-        Curl_posttransfer(easy->easy_handle);
-
-        easy->result = Curl_done(&easy->easy_conn, CURLE_OK);
-        if(CURLE_OK == easy->result) {
-          gotourl = strdup(easy->easy_handle->change.url);
-          if(gotourl) {
-            easy->easy_handle->change.url_changed = FALSE;
-            easy->result = Curl_follow(easy->easy_handle, gotourl, FALSE);
-            if(CURLE_OK == easy->result)
-              multistate(easy, CURLM_STATE_CONNECT);
-            else
-              free(gotourl);
-          }
-          else {
-            easy->result = CURLE_OUT_OF_MEMORY;
-            multistate(easy, CURLM_STATE_COMPLETED);
-            break;
-          }
-        }
-      }
-
-      easy->easy_handle->change.url_changed = FALSE;
-
-      switch(easy->state) {
-      case CURLM_STATE_INIT:
-        /* init this transfer. */
-        easy->result=Curl_pretransfer(easy->easy_handle);
-
-        if(CURLE_OK == easy->result) {
-          /* after init, go CONNECT */
-          multistate(easy, CURLM_STATE_CONNECT);
-          result = CURLM_CALL_MULTI_PERFORM;
-
-          easy->easy_handle->state.used_interface = Curl_if_multi;
-        }
-        break;
-
-      case CURLM_STATE_CONNECT:
-        /* Connect. We get a connection identifier filled in. */
-        Curl_pgrsTime(easy->easy_handle, TIMER_STARTSINGLE);
-        easy->result = Curl_connect(easy->easy_handle, &easy->easy_conn,
-                                    &async, &protocol_connect);
-
-        if(CURLE_OK == easy->result) {
-          if(async)
-            /* We're now waiting for an asynchronous name lookup */
-            multistate(easy, CURLM_STATE_WAITRESOLVE);
-          else {
-            /* after the connect has been sent off, go WAITCONNECT unless the
-               protocol connect is already done and we can go directly to
-               DO! */
-            result = CURLM_CALL_MULTI_PERFORM;
-
-            if(protocol_connect)
-              multistate(easy, CURLM_STATE_DO);
-            else
-              multistate(easy, CURLM_STATE_WAITCONNECT);
-          }
-        }
-        break;
-
-      case CURLM_STATE_WAITRESOLVE:
-        /* awaiting an asynch name resolve to complete */
-      {
-        struct Curl_dns_entry *dns = NULL;
-
-        /* check if we have the name resolved by now */
-        easy->result = Curl_is_resolved(easy->easy_conn, &dns);
-
-        if(dns) {
-          /* Perform the next step in the connection phase, and then move on
-             to the WAITCONNECT state */
-          easy->result = Curl_async_resolved(easy->easy_conn,
-                                             &protocol_connect);
-
-          if(CURLE_OK != easy->result)
-            /* if Curl_async_resolved() returns failure, the connection struct
-               is already freed and gone */
-            easy->easy_conn = NULL;           /* no more connection */
-          else {
-            /* FIX: what if protocol_connect is TRUE here?! */
-            multistate(easy, CURLM_STATE_WAITCONNECT);
-          }
-        }
-
-        if(CURLE_OK != easy->result) {
-          /* failure detected */
-          Curl_disconnect(easy->easy_conn); /* disconnect properly */
-          easy->easy_conn = NULL;           /* no more connection */
-          break;
-        }
-      }
-      break;
-
-      case CURLM_STATE_WAITCONNECT:
-        /* awaiting a completion of an asynch connect */
-        easy->result = Curl_is_connected(easy->easy_conn, FIRSTSOCKET,
-                                         &connected);
-        if(connected)
-          easy->result = Curl_protocol_connect(easy->easy_conn,
-                                               &protocol_connect);
-
-        if(CURLE_OK != easy->result) {
-          /* failure detected */
-          Curl_disconnect(easy->easy_conn); /* close the connection */
-          easy->easy_conn = NULL;           /* no more connection */
-          break;
-        }
-
-        if(connected) {
-          if(!protocol_connect) {
-            /* We have a TCP connection, but 'protocol_connect' may be false
-               and then we continue to 'STATE_PROTOCONNECT'. If protocol
-               connect is TRUE, we move on to STATE_DO. */
-            multistate(easy, CURLM_STATE_PROTOCONNECT);
-          }
-          else {
-            /* after the connect has completed, go DO */
-            multistate(easy, CURLM_STATE_DO);
-            result = CURLM_CALL_MULTI_PERFORM;
-          }
-        }
-        break;
-
-      case CURLM_STATE_PROTOCONNECT:
-        /* protocol-specific connect phase */
-        easy->result = Curl_protocol_connecting(easy->easy_conn,
-                                                &protocol_connect);
-        if(protocol_connect) {
-          /* after the connect has completed, go DO */
-          multistate(easy, CURLM_STATE_DO);
-          result = CURLM_CALL_MULTI_PERFORM;
-        }
-        else if(easy->result) {
-          /* failure detected */
-          Curl_posttransfer(easy->easy_handle);
-          Curl_done(&easy->easy_conn, easy->result);
-          Curl_disconnect(easy->easy_conn); /* close the connection */
-          easy->easy_conn = NULL;           /* no more connection */
-        }
-        break;
-
-      case CURLM_STATE_DO:
-        /* Perform the protocol's DO action */
-        easy->result = Curl_do(&easy->easy_conn, &dophase_done);
-
-        if(CURLE_OK == easy->result) {
-
-          if(!dophase_done) {
-            /* DO was not completed in one function call, we must continue
-               DOING... */
-            multistate(easy, CURLM_STATE_DOING);
-            result = CURLM_OK;
-          }
-
-          /* after DO, go PERFORM... or DO_MORE */
-          else if(easy->easy_conn->bits.do_more) {
-            /* we're supposed to do more, but we need to sit down, relax
-               and wait a little while first */
-            multistate(easy, CURLM_STATE_DO_MORE);
-            result = CURLM_OK;
-          }
-          else {
-            /* we're done with the DO, now PERFORM */
-            easy->result = Curl_readwrite_init(easy->easy_conn);
-            if(CURLE_OK == easy->result) {
-              multistate(easy, CURLM_STATE_PERFORM);
-              result = CURLM_CALL_MULTI_PERFORM;
-            }
-          }
-        }
-        else {
-          /* failure detected */
-          Curl_posttransfer(easy->easy_handle);
-          Curl_done(&easy->easy_conn, easy->result);
-          Curl_disconnect(easy->easy_conn); /* close the connection */
-          easy->easy_conn = NULL;           /* no more connection */
-        }
-        break;
-
-      case CURLM_STATE_DOING:
-        /* we continue DOING until the DO phase is complete */
-        easy->result = Curl_protocol_doing(easy->easy_conn, &dophase_done);
-        if(CURLE_OK == easy->result) {
-          if(dophase_done) {
-            /* after DO, go PERFORM... or DO_MORE */
-            if(easy->easy_conn->bits.do_more) {
-              /* we're supposed to do more, but we need to sit down, relax
-                 and wait a little while first */
-              multistate(easy, CURLM_STATE_DO_MORE);
-              result = CURLM_OK;
-            }
-            else {
-              /* we're done with the DO, now PERFORM */
-              easy->result = Curl_readwrite_init(easy->easy_conn);
-              if(CURLE_OK == easy->result) {
-                multistate(easy, CURLM_STATE_PERFORM);
-                result = CURLM_CALL_MULTI_PERFORM;
-              }
-            }
-          } /* dophase_done */
-        }
-        else {
-          /* failure detected */
-          Curl_posttransfer(easy->easy_handle);
-          Curl_done(&easy->easy_conn, easy->result);
-          Curl_disconnect(easy->easy_conn); /* close the connection */
-          easy->easy_conn = NULL;           /* no more connection */
-        }
-        break;
-
-      case CURLM_STATE_DO_MORE:
-        /* Ready to do more? */
-        easy->result = Curl_is_connected(easy->easy_conn, SECONDARYSOCKET,
-                                         &connected);
-        if(connected) {
-          /*
-           * When we are connected, DO MORE and then go PERFORM
-           */
-          easy->result = Curl_do_more(easy->easy_conn);
-
-          if(CURLE_OK == easy->result)
-            easy->result = Curl_readwrite_init(easy->easy_conn);
-
-          if(CURLE_OK == easy->result) {
-            multistate(easy, CURLM_STATE_PERFORM);
-            result = CURLM_CALL_MULTI_PERFORM;
-          }
-        }
-        break;
-
-      case CURLM_STATE_PERFORM:
-        /* read/write data if it is ready to do so */
-        easy->result = Curl_readwrite(easy->easy_conn, &done);
-
-        if(easy->result)  {
-          /* The transfer phase returned error, we mark the connection to get
-           * closed to prevent being re-used. This is becasue we can't
-           * possibly know if the connection is in a good shape or not now. */
-          easy->easy_conn->bits.close = TRUE;
-
-          if(CURL_SOCKET_BAD != easy->easy_conn->sock[SECONDARYSOCKET]) {
-            /* if we failed anywhere, we must clean up the secondary socket if
-               it was used */
-            sclose(easy->easy_conn->sock[SECONDARYSOCKET]);
-            easy->easy_conn->sock[SECONDARYSOCKET]=-1;
-          }
-          Curl_posttransfer(easy->easy_handle);
-          Curl_done(&easy->easy_conn, easy->result);
-        }
-
-        else if(TRUE == done) {
-          char *newurl;
-          bool retry = Curl_retry_request(easy->easy_conn, &newurl);
-
-          /* call this even if the readwrite function returned error */
-          Curl_posttransfer(easy->easy_handle);
-
-          /* When we follow redirects, must to go back to the CONNECT state */
-          if(easy->easy_conn->newurl || retry) {
-            if(!retry) {
-              /* if the URL is a follow-location and not just a retried request
-                 then figure out the URL here */
-              newurl = easy->easy_conn->newurl;
-              easy->easy_conn->newurl = NULL;
-            }
-            easy->result = Curl_done(&easy->easy_conn, CURLE_OK);
-            if(easy->result == CURLE_OK)
-              easy->result = Curl_follow(easy->easy_handle, newurl, retry);
-            if(CURLE_OK == easy->result) {
-              multistate(easy, CURLM_STATE_CONNECT);
-              result = CURLM_CALL_MULTI_PERFORM;
-            }
-            else
-              /* Since we "took it", we are in charge of freeing this on
-                 failure */
-              free(newurl);
-          }
-          else {
-            /* after the transfer is done, go DONE */
-            multistate(easy, CURLM_STATE_DONE);
-            result = CURLM_CALL_MULTI_PERFORM;
-          }
-        }
-        break;
-      case CURLM_STATE_DONE:
-        /* post-transfer command */
-        easy->result = Curl_done(&easy->easy_conn, CURLE_OK);
-
-        /* after we have DONE what we're supposed to do, go COMPLETED, and
-           it doesn't matter what the Curl_done() returned! */
-        multistate(easy, CURLM_STATE_COMPLETED);
-        break;
-
-      case CURLM_STATE_COMPLETED:
-        /* this is a completed transfer, it is likely to still be connected */
-
-        /* This node should be delinked from the list now and we should post
-           an information message that we are complete. */
-        break;
-      default:
-        return CURLM_INTERNAL_ERROR;
-      }
-
-      if(CURLM_STATE_COMPLETED != easy->state) {
-        if(CURLE_OK != easy->result) {
-          /*
-           * If an error was returned, and we aren't in completed state now,
-           * then we go to completed and consider this transfer aborted.  */
-          multistate(easy, CURLM_STATE_COMPLETED);
-        }
-        else
-          /* this one still lives! */
-          (*running_handles)++;
-      }
-
-    } while (easy->easy_handle->change.url_changed);
-
-    if ((CURLM_STATE_COMPLETED == easy->state) && !easy->msg) {
-      /* clear out the usage of the shared DNS cache */
-      easy->easy_handle->hostcache = NULL;
-
-      /* now add a node to the Curl_message linked list with this info */
-      msg = (struct Curl_message *)malloc(sizeof(struct Curl_message));
-
-      if(!msg)
-        return CURLM_OUT_OF_MEMORY;
-
-      msg->extmsg.msg = CURLMSG_DONE;
-      msg->extmsg.easy_handle = easy->easy_handle;
-      msg->extmsg.data.result = easy->result;
-      msg->next=NULL;
-
-      easy->msg = msg;
-      easy->msg_num = 1; /* there is one unread message here */
-
-      multi->num_msgs++; /* increase message counter */
-    }
-    easy = easy->next; /* operate on next handle */
+  if (getrlimit(RLIMIT_NOFILE, &rl) != 0) {
+    store_errmsg("getrlimit() failed", ERRNO);
+    fprintf(stderr, "%s\n", msgbuff);
+    return -1;
   }
 
-  return result;
+  /* show initial open file limits */
+
+#ifdef RLIM_INFINITY
+  if (rl.rlim_cur == RLIM_INFINITY)
+    strcpy(strbuff, "INFINITY");
+  else
+#endif
+    sprintf(strbuff, fmt, rl.rlim_cur);
+  fprintf(stderr, "initial soft limit: %s\n", strbuff);
+
+#ifdef RLIM_INFINITY
+  if (rl.rlim_max == RLIM_INFINITY)
+    strcpy(strbuff, "INFINITY");
+  else
+#endif
+    sprintf(strbuff, fmt, rl.rlim_max);
+  fprintf(stderr, "initial hard limit: %s\n", strbuff);
+
+  /*
+   * if soft limit and hard limit are different we ask the
+   * system to raise soft limit all the way up to the hard
+   * limit. Due to some other system limit the soft limit
+   * might not be raised up to the hard limit. So from this
+   * point the resulting soft limit is our limit. Trying to
+   * open more than soft limit file descriptors will fail.
+   */
+
+  if (rl.rlim_cur != rl.rlim_max) {
+
+#ifdef OPEN_MAX
+    if ((rl.rlim_cur > 0) &&
+        (rl.rlim_cur < OPEN_MAX)) {
+      fprintf(stderr, "raising soft limit up to OPEN_MAX\n");
+      rl.rlim_cur = OPEN_MAX;
+      if (setrlimit(RLIMIT_NOFILE, &rl) != 0) {
+        /* on failure don't abort just issue a warning */
+        store_errmsg("setrlimit() failed", ERRNO);
+        fprintf(stderr, "%s\n", msgbuff);
+        msgbuff[0] = '\0';
+      }
+    }
+#endif
+
+    fprintf(stderr, "raising soft limit up to hard limit\n");
+    rl.rlim_cur = rl.rlim_max;
+    if (setrlimit(RLIMIT_NOFILE, &rl) != 0) {
+      /* on failure don't abort just issue a warning */
+      store_errmsg("setrlimit() failed", ERRNO);
+      fprintf(stderr, "%s\n", msgbuff);
+      msgbuff[0] = '\0';
+    }
+
+    /* get current open file limits */
+
+    if (getrlimit(RLIMIT_NOFILE, &rl) != 0) {
+      store_errmsg("getrlimit() failed", ERRNO);
+      fprintf(stderr, "%s\n", msgbuff);
+      return -3;
+    }
+
+    /* show current open file limits */
+
+#ifdef RLIM_INFINITY
+    if (rl.rlim_cur == RLIM_INFINITY)
+      strcpy(strbuff, "INFINITY");
+    else
+#endif
+      sprintf(strbuff, fmt, rl.rlim_cur);
+    fprintf(stderr, "current soft limit: %s\n", strbuff);
+
+#ifdef RLIM_INFINITY
+    if (rl.rlim_max == RLIM_INFINITY)
+      strcpy(strbuff, "INFINITY");
+    else
+#endif
+      sprintf(strbuff, fmt, rl.rlim_max);
+    fprintf(stderr, "current hard limit: %s\n", strbuff);
+
+  } /* (rl.rlim_cur != rl.rlim_max) */
+
+  /*
+   * test 537 is all about testing libcurl functionality
+   * when the system has nearly exhausted the number of
+   * available file descriptors. Test 537 will try to run
+   * with a very small number of file descriptors available.
+   * This implies that any file descriptor which is open
+   * when the test runs will have a number in the high range
+   * of whatever the system supports.
+   */
+
+  /*
+   * reserve a chunk of memory before opening file descriptors to
+   * avoid a low memory condition once the file descriptors are
+   * open. System conditions that could make the test fail should
+   * be addressed in the precheck phase. This chunk of memory shall
+   * be always free()ed before exiting the rlimit() function so
+   * that it becomes available to the test.
+   */
+
+  for (nitems = i = 1; nitems <= i; i *= 2)
+    nitems = i;
+  if (nitems > 0x7fff)
+    nitems = 0x40000;
+  do {
+    num_open.rlim_max = sizeof(*memchunk) * (size_t)nitems;
+    sprintf(strbuff, fmt, num_open.rlim_max);
+    fprintf(stderr, "allocating memchunk %s byte array\n", strbuff);
+    memchunk = malloc(sizeof(*memchunk) * (size_t)nitems);
+    if (!memchunk) {
+      fprintf(stderr, "memchunk, malloc() failed\n");
+      nitems /= 2;
+    }
+  } while (nitems && !memchunk);
+  if (!memchunk) {
+    store_errmsg("memchunk, malloc() failed", ERRNO);
+    fprintf(stderr, "%s\n", msgbuff);
+    return -4;
+  }
+
+  /* initialize it to fight lazy allocation */
+
+  fprintf(stderr, "initializing memchunk array\n");
+
+  for (i = 0; i < nitems; i++)
+    memchunk[i] = -1;
+
+  /* set the number of file descriptors we will try to open */
+
+#ifdef RLIM_INFINITY
+  if ((rl.rlim_cur > 0) && (rl.rlim_cur != RLIM_INFINITY)) {
+#else
+  if (rl.rlim_cur > 0) {
+#endif
+    /* soft limit minus SAFETY_MARGIN */
+    num_open.rlim_max = rl.rlim_cur - SAFETY_MARGIN;
+  }
+  else {
+    /* a huge number of file descriptors */
+    for (nitems = i = 1; nitems <= i; i *= 2)
+      nitems = i;
+    if (nitems > 0x7fff)
+      nitems = 0x40000;
+    num_open.rlim_max = nitems;
+  }
+
+  /* verify that we won't overflow size_t in malloc() */
+
+  if ((size_t)(num_open.rlim_max) > ((size_t)-1) / sizeof(*fd)) {
+    sprintf(strbuff1, fmt, num_open.rlim_max);
+    sprintf(strbuff, "unable to allocate an array for %s "
+            "file descriptors, would overflow size_t", strbuff1);
+    store_errmsg(strbuff, 0);
+    fprintf(stderr, "%s\n", msgbuff);
+    free(memchunk);
+    return -5;
+  }
+
+  /* allocate array for file descriptors */
+
+  do {
+    sprintf(strbuff, fmt, num_open.rlim_max);
+    fprintf(stderr, "allocating array for %s file descriptors\n", strbuff);
+    fd = malloc(sizeof(*fd) * (size_t)(num_open.rlim_max));
+    if (!fd) {
+      fprintf(stderr, "fd, malloc() failed\n");
+      num_open.rlim_max /= 2;
+    }
+  } while (num_open.rlim_max && !fd);
+  if (!fd) {
+    store_errmsg("fd, malloc() failed", ERRNO);
+    fprintf(stderr, "%s\n", msgbuff);
+    free(memchunk);
+    return -6;
+  }
+
+  /* initialize it to fight lazy allocation */
+
+  fprintf(stderr, "initializing fd array\n");
+
+  for (num_open.rlim_cur = 0;
+       num_open.rlim_cur < num_open.rlim_max;
+       num_open.rlim_cur++)
+    fd[num_open.rlim_cur] = -1;
+
+  sprintf(strbuff, fmt, num_open.rlim_max);
+  fprintf(stderr, "trying to open %s file descriptors\n", strbuff);
+
+  /* open a dummy descriptor */
+
+  fd[0] = open(DEV_NULL, O_RDONLY);
+  if (fd[0] < 0) {
+    sprintf(strbuff, "opening of %s failed", DEV_NULL);
+    store_errmsg(strbuff, ERRNO);
+    fprintf(stderr, "%s\n", msgbuff);
+    free(fd);
+    fd = NULL;
+    free(memchunk);
+    return -7;
+  }
+
+  /* create a bunch of file descriptors */
+
+  for (num_open.rlim_cur = 1;
+       num_open.rlim_cur < num_open.rlim_max;
+       num_open.rlim_cur++) {
+
+    fd[num_open.rlim_cur] = dup(fd[0]);
+
+    if (fd[num_open.rlim_cur] < 0) {
+
+      fd[num_open.rlim_cur] = -1;
+
+      sprintf(strbuff1, fmt, num_open.rlim_cur);
+      sprintf(strbuff, "dup() attempt %s failed", strbuff1);
+      fprintf(stderr, "%s\n", strbuff);
+
+      sprintf(strbuff1, fmt, num_open.rlim_cur);
+      sprintf(strbuff, "fds system limit seems close to %s", strbuff1);
+      fprintf(stderr, "%s\n", strbuff);
+
+      num_open.rlim_max = num_open.rlim_cur - SAFETY_MARGIN;
+
+      num_open.rlim_cur -= num_open.rlim_max;
+      sprintf(strbuff1, fmt, num_open.rlim_cur);
+      sprintf(strbuff, "closing %s file descriptors", strbuff1);
+      fprintf(stderr, "%s\n", strbuff);
+
+      for (num_open.rlim_cur = num_open.rlim_max;
+           fd[num_open.rlim_cur] >= 0;
+           num_open.rlim_cur++) {
+        close(fd[num_open.rlim_cur]);
+        fd[num_open.rlim_cur] = -1;
+      }
+
+      sprintf(strbuff, fmt, num_open.rlim_max);
+      fprintf(stderr, "shrinking array for %s file descriptors\n", strbuff);
+
+      /* we don't care if we can't shrink it */
+
+      tmpfd = realloc(fd, sizeof(*fd) * (size_t)(num_open.rlim_max));
+      if (tmpfd) {
+        fd = tmpfd;
+        tmpfd = NULL;
+      }
+
+      break;
+
+    }
+
+  }
+
+  sprintf(strbuff, fmt, num_open.rlim_max);
+  fprintf(stderr, "%s file descriptors open\n", strbuff);
+
+#if !defined(HAVE_POLL_FINE)    && \
+    !defined(USE_WINSOCK)       && \
+    !defined(TPF)
+
+  /*
+   * when using select() instead of poll() we cannot test
+   * libcurl functionality with a socket number equal or
+   * greater than FD_SETSIZE. In any case, macro VERIFY_SOCK
+   * in lib/select.c enforces this check and protects libcurl
+   * from a possible crash. The effect of this protection
+   * is that test 537 will always fail, since the actual
+   * call to select() never takes place. We skip test 537
+   * with an indication that select limit would be exceeded.
+   */
+
+  num_open.rlim_cur = FD_SETSIZE - SAFETY_MARGIN;
+  if (num_open.rlim_max > num_open.rlim_cur) {
+    sprintf(strbuff, "select limit is FD_SETSIZE %d", FD_SETSIZE);
+    store_errmsg(strbuff, 0);
+    fprintf(stderr, "%s\n", msgbuff);
+    close_file_descriptors();
+    free(memchunk);
+    return -8;
+  }
+
+  num_open.rlim_cur = FD_SETSIZE - SAFETY_MARGIN;
+  for (rl.rlim_cur = 0;
+       rl.rlim_cur < num_open.rlim_max;
+       rl.rlim_cur++) {
+    if ((fd[rl.rlim_cur] > 0) &&
+       ((unsigned int)fd[rl.rlim_cur] > num_open.rlim_cur)) {
+      sprintf(strbuff, "select limit is FD_SETSIZE %d", FD_SETSIZE);
+      store_errmsg(strbuff, 0);
+      fprintf(stderr, "%s\n", msgbuff);
+      close_file_descriptors();
+      free(memchunk);
+      return -9;
+    }
+  }
+
+#endif /* using a FD_SETSIZE bound select() */
+
+  /*
+   * Old or 'backwards compatible' implementations of stdio do not allow
+   * handling of streams with an underlying file descriptor number greater
+   * than 255, even when allowing high numbered file descriptors for sockets.
+   * At this point we have a big number of file descriptors which have been
+   * opened using dup(), so lets test the stdio implementation and discover
+   * if it is capable of fopen()ing some additional files.
+   */
+
+  if (!fopen_works()) {
+    sprintf(strbuff1, fmt, num_open.rlim_max);
+    sprintf(strbuff, "stdio fopen() fails with %s fds open()",
+            strbuff1);
+    fprintf(stderr, "%s\n", msgbuff);
+    sprintf(strbuff, "stdio fopen() fails with lots of fds open()");
+    store_errmsg(strbuff, 0);
+    close_file_descriptors();
+    free(memchunk);
+    return -10;
+  }
+
+  /* free the chunk of memory we were reserving so that it
+     becomes becomes available to the test */
+
+  free(memchunk);
+
+  /* close file descriptors unless instructed to keep them */
+
+  if (!keep_open) {
+    close_file_descriptors();
+  }
+
+  return 0;
+}
+
+int test(char *URL)
+{
+  CURLcode res;
+  CURL *curl;
+
+  if(!strcmp(URL, "check")) {
+    /* used by the test script to ask if we can run this test or not */
+    if(rlimit(FALSE)) {
+      fprintf(stdout, "rlimit problem: %s\n", msgbuff);
+      return 1;
+    }
+    return 0; /* sure, run this! */
+  }
+
+  if (rlimit(TRUE)) {
+    /* failure */
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  /* run the test with the bunch of open file descriptors
+     and close them all once the test is over */
+
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    close_file_descriptors();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    close_file_descriptors();
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  close_file_descriptors();
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return (int)res;
+}
+
+#else /* defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT) */
+
+int test(char *URL)
+{
+  (void)URL;
+  printf("system lacks necessary system function(s)");
+  return 1; /* skip test */
 }

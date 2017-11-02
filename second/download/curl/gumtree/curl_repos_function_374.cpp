@@ -1,20 +1,23 @@
-static size_t readfromfile(struct Form *form, char *buffer, size_t size)
+static int checkForCompletion(CURLM* curl, int* success)
 {
-  size_t nread;
-  if(!form->fp) {
-    /* this file hasn't yet been opened */
-    form->fp = fopen(form->data->line, "rb"); /* b is for binary */
-    if(!form->fp)
-      return -1; /* failure */
+  int numMessages;
+  CURLMsg* message;
+  int result = 0;
+  *success = 0;
+  while ((message = curl_multi_info_read(curl, &numMessages)) != NULL) {
+    if (message->msg == CURLMSG_DONE) {
+      result = 1;
+      if (message->data.result == CURLE_OK)
+        *success = 1;
+      else
+        *success = 0;
+    }
+    else {
+      fprintf(stderr, "Got an unexpected message from curl: %i\n",
+              (int)message->msg);
+      result = 1;
+      *success = 0;
+    }
   }
-  nread = fread(buffer, 1, size, form->fp);
-
-  if(nread != size) {
-    /* this is the last chunk form the file, move on */
-    fclose(form->fp);
-    form->fp = NULL;
-    form->data = form->data->next;
-  }
-
-  return nread;
+  return result;
 }

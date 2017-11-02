@@ -1,99 +1,40 @@
-int test(char *URL)
+int main(void)
 {
-  CURLM* multi;
-  sslctxparm p;
+  CURL *curl;
+  CURLcode res;
+  struct curl_slist *recipients = NULL;
 
-  int i = 0;
-  CURLMsg *msg;
+  curl = curl_easy_init();
+  if(curl) {
+    /* This is the URL for your mailserver */
+    curl_easy_setopt(curl, CURLOPT_URL, "smtp://mail.example.com");
 
-  if(arg2) {
-    portnum = atoi(arg2);
+    /* Note that the CURLOPT_MAIL_RCPT takes a list, not a char array  */
+    recipients = curl_slist_append(recipients, "Friends");
+    curl_easy_setopt(curl, CURLOPT_MAIL_RCPT, recipients);
+
+    /* Set the EXPN command */
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "EXPN");
+
+    /* Perform the custom request */
+    res = curl_easy_perform(curl);
+
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+    /* Free the list of recipients */
+    curl_slist_free_all(recipients);
+
+    /* Curl won't send the QUIT command until you call cleanup, so you should
+     * be able to re-use this connection for additional requests. It may not be
+     * a good idea to keep the connection open for a very long time though
+     * (more than a few minutes may result in the server timing out the
+     * connection) and you do want to clean up in the end.
+     */
+    curl_easy_cleanup(curl);
   }
 
-  curl_global_init(CURL_GLOBAL_ALL);
-
-  p.curl = curl_easy_init();
-
-  p.accessinfoURL = (unsigned char *) strdup(URL);
-  p.accesstype = OBJ_obj2nid(OBJ_txt2obj("AD_DVCS",0)) ;
-
-  curl_easy_setopt(p.curl, CURLOPT_URL, p.accessinfoURL);
-
-  curl_easy_setopt(p.curl, CURLOPT_SSL_CTX_FUNCTION, sslctxfun)  ;
-  curl_easy_setopt(p.curl, CURLOPT_SSL_CTX_DATA, &p);
-
-  curl_easy_setopt(p.curl, CURLOPT_SSL_VERIFYPEER, FALSE);
-  curl_easy_setopt(p.curl, CURLOPT_SSL_VERIFYHOST, 1);
-
-  fprintf(stderr, "Going to perform %s\n", (char *)p.accessinfoURL);
-
-  {
-    CURLMcode res;
-    int running;
-    char done=FALSE;
-
-    multi = curl_multi_init();
-
-    res = curl_multi_add_handle(multi, p.curl);
-
-    while(!done) {
-      fd_set rd, wr, exc;
-      int max_fd;
-      struct timeval interval;
-
-      interval.tv_sec = 1;
-      interval.tv_usec = 0;
-
-      while (res == CURLM_CALL_MULTI_PERFORM) {
-        res = curl_multi_perform(multi, &running);
-        fprintf(stderr, "running=%d res=%d\n",running,res);
-        if (running <= 0) {
-          done = TRUE;
-          break;
-        }
-      }
-      if(done)
-        break;
-
-      if (res != CURLM_OK) {
-        fprintf(stderr, "not okay???\n");
-        i = 80;
-        break;
-      }
-
-      FD_ZERO(&rd);
-      FD_ZERO(&wr);
-      FD_ZERO(&exc);
-      max_fd = 0;
-
-      if (curl_multi_fdset(multi, &rd, &wr, &exc, &max_fd) != CURLM_OK) {
-        fprintf(stderr, "unexpected failured of fdset.\n");
-        i = 89;
-        break;
-      }
-
-      if (select(max_fd+1, &rd, &wr, &exc, &interval) == -1) {
-        fprintf(stderr, "bad select??\n");
-        i =95;
-        break;
-      }
-
-      res = CURLM_CALL_MULTI_PERFORM;
-    }
-    msg = curl_multi_info_read(multi, &running);
-    /* this should now contain a result code from the easy handle, get it */
-    if(msg)
-      i = msg->data.result;
-  }
-
-  fprintf(stderr, "all done\n");
-
-  curl_multi_remove_handle(multi, p.curl);
-  curl_easy_cleanup(p.curl);
-  curl_multi_cleanup(multi);
-
-  curl_global_cleanup();
-  free(p.accessinfoURL);
-
-  return i;
+  return 0;
 }

@@ -297,17 +297,17 @@ def generate_records_for_class(cluster_file_name, class_index):
     @return records\n
     @involve: generate records for given class index(query cluster file)\n
     """
-    records = []
+    results = []
     # initiate csv file
     cluster_file = file(cluster_file_name, 'rb')
     records = csv.reader(cluster_file)
-    for record in records:
+    for record in islice(records, 1, None):
         cluster_index = record[-1]
         if cluster_index == class_index:
-            records.append(record)
+            results.append(record)
 
     cluster_file.close()
-    return records
+    return results
 
 """
 main function

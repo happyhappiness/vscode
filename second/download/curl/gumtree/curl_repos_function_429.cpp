@@ -1,31 +1,43 @@
-static void fix_hostname(struct connectdata *conn, struct hostname *host)
+int test(char *URL)
 {
-  /* set the name we use to display the host name */
-  host->dispname = host->name;
+  unsigned char a[] = {0x2f, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
+                       0x91, 0xa2, 0xb3, 0xc4, 0xd5, 0xe6, 0xf7};
+  CURLcode res;
+  CURL *curl;
+  int asize;
+  char *str = NULL;
 
-#ifdef USE_LIBIDN
-  /*************************************************************
-   * Check name for non-ASCII and convert hostname to ACE form.
-   *************************************************************/
-  if (!is_ASCII_name(host->name) &&
-      stringprep_check_version(LIBIDN_REQUIRED_VERSION)) {
-    char *ace_hostname = NULL;
-    struct SessionHandle *data = conn->data;
-    int rc = idna_to_ascii_lz(host->name, &ace_hostname, 0);
-    infof (data, "Input domain encoded as `%s'\n",
-           stringprep_locale_charset ());
-    if (rc != IDNA_SUCCESS)
-      infof(data, "Failed to convert %s to ACE; %s\n",
-            host->name, Curl_idn_strerror(conn,rc));
-    else {
-      tld_check_name(data, ace_hostname);
+  (void)URL;
 
-      host->encalloc = ace_hostname;
-      /* change the name pointer to point to the encoded hostname */
-      host->name = host->encalloc;
-    }
+  res = curl_global_init_mem(CURL_GLOBAL_ALL,
+                             custom_malloc,
+                             custom_free,
+                             custom_realloc,
+                             custom_strdup,
+                             custom_calloc);
+  if (res != CURLE_OK) {
+    fprintf(stderr, "curl_global_init_mem() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
-#else
-  (void)conn; /* never used */
-#endif
+
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
+
+  test_setopt(curl, CURLOPT_USERAGENT, "test509"); /* uses strdup() */
+
+  asize = (int)sizeof(a);
+  str = curl_easy_escape(curl, (char *)a, asize); /* uses realloc() */
+
+test_cleanup:
+
+  if(str)
+    curl_free(str);
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return (int)res;
 }

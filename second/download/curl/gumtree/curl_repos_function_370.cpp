@@ -1,20 +1,16 @@
-static char *basename(char *path)
+static void removeFd(struct Sockets* sockets, curl_socket_t fd, int mention)
 {
-  /* Ignore all the details above for now and make a quick and simple
-     implementaion here */
-  char *s1;
-  char *s2;
+  int i;
 
-  s1=strrchr(path, '/');
-  s2=strrchr(path, '\\');
+  if(mention)
+    fprintf(stderr, "Remove socket fd %d\n", (int) fd);
 
-  if(s1 && s2) {
-    path = (s1 > s2? s1 : s2)+1;
+  for (i = 0; i < sockets->count; ++i) {
+    if (sockets->sockets[i] == fd) {
+      if (i < sockets->count - 1)
+        memmove(&sockets->sockets[i], &sockets->sockets[i + 1],
+              sizeof(curl_socket_t) * (sockets->count - (i + 1)));
+      --sockets->count;
+    }
   }
-  else if(s1)
-    path = s1 + 1;
-  else if(s2)
-    path = s2 + 1;
-
-  return path;
 }

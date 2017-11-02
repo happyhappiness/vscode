@@ -1,12 +1,13 @@
-int my_progress_func(GtkWidget *Bar,
-                     double t, /* dltotal */
-                     double d, /* dlnow */
-                     double ultotal,
-                     double ulnow)
+CURLcode my_conv_from_utf8_to_ebcdic(char *buffer, size_t length)
 {
-/*  printf("%d / %d (%g %%)\n", d, t, d*100.0/t);*/
-  gdk_threads_enter();
-  gtk_progress_set_value(GTK_PROGRESS(Bar), d*100.0/t);
-  gdk_threads_leave();
-  return 0;
+    char *tempptrin, *tempptrout;
+    size_t bytes = length;
+    int rc;
+    tempptrin = tempptrout = buffer;
+    rc = platform_u2e(&tempptrin, &bytes, &tempptrout, &bytes);
+    if (rc == PLATFORM_CONV_OK) {
+      return(CURLE_OK);
+    } else {
+      return(CURLE_CONV_FAILED);
+    }
 }

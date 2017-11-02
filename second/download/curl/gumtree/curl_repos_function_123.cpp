@@ -1,24 +1,31 @@
-static void win32_init(void)
+int main(void)
 {
-  WORD wVersionRequested;
-  WSADATA wsaData;
-  int err;
-  wVersionRequested = MAKEWORD(2, 0);
+  CURL *curl;
+  CURLcode res = CURLE_OK;
 
-  err = WSAStartup(wVersionRequested, &wsaData);
+  curl = curl_easy_init();
+  if(curl) {
+    /* Set username and password */
+    curl_easy_setopt(curl, CURLOPT_USERNAME, "user");
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, "secret");
 
-  if (err != 0) {
-    perror("Winsock init failed");
-    logmsg("Error initialising winsock -- aborting\n");
-    exit(1);
+    /* This is just the server URL */
+    curl_easy_setopt(curl, CURLOPT_URL, "imap://imap.example.com");
+
+    /* Set the CREATE command specifing the new folder name */
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "CREATE FOLDER");
+
+    /* Perform the custom request */
+    res = curl_easy_perform(curl);
+
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+    /* Always cleanup */
+    curl_easy_cleanup(curl);
   }
 
-  if ( LOBYTE( wsaData.wVersion ) != 2 ||
-       HIBYTE( wsaData.wVersion ) != 0 ) {
-
-    WSACleanup();
-    perror("Winsock init failed");
-    logmsg("No suitable winsock.dll found -- aborting\n");
-    exit(1);
-  }
+  return (int)res;
 }

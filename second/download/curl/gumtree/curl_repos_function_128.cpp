@@ -1,23 +1,30 @@
-static void lograw(unsigned char *buffer, int len)
+void dumpNode(TidyDoc doc, TidyNode tnod, int indent )
 {
-  char data[120];
-  int i;
-  unsigned char *ptr = buffer;
-  char *optr = data;
-  int width=0;
-
-  for(i=0; i<len; i++) {
-    sprintf(optr, "%c",
-            (isgraph(ptr[i]) || ptr[i]==0x20) ?ptr[i]:'.');
-    optr += 1;
-    width += 1;
-
-    if(width>60) {
-      logmsg("RAW: '%s'", data);
-      width = 0;
-      optr = data;
+  TidyNode child;
+  for ( child = tidyGetChild(tnod); child; child = tidyGetNext(child) )
+  {
+    ctmbstr name = tidyNodeGetName( child );
+    if ( name )
+    {
+      /* if it has a name, then it's an HTML tag ... */
+      TidyAttr attr;
+      printf( "%*.*s%s ", indent, indent, "<", name);
+      /* walk the attribute list */
+      for ( attr=tidyAttrFirst(child); attr; attr=tidyAttrNext(attr) ) {
+        printf(tidyAttrName(attr));
+        tidyAttrValue(attr)?printf("=\"%s\" ",
+                                   tidyAttrValue(attr)):printf(" ");
+      }
+      printf( ">\n");
     }
+    else {
+      /* if it doesn't have a name, then it's probably text, cdata, etc... */
+      TidyBuffer buf;
+      tidyBufInit(&buf);
+      tidyNodeGetText(doc, child, &buf);
+      printf("%*.*s\n", indent, indent, buf.bp?(char *)buf.bp:"");
+      tidyBufFree(&buf);
+    }
+    dumpNode( doc, child, indent + 4 ); /* recursive */
   }
-  if(width)
-    logmsg("RAW: '%s'", data);
 }

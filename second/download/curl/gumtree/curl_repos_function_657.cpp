@@ -1,35 +1,38 @@
-int Curl_ssl_recv(struct connectdata *conn, /* connection data */
-                  int sockindex,            /* socketindex */
-                  char *mem,                /* store read data here */
-                  size_t len)               /* max amount to read */
+static ssize_t fullwrite(int filedes, const void *buffer, size_t nbytes)
 {
-#ifdef USE_SSL
-  ssize_t nread;
-  bool block = FALSE;
+  int error;
+  ssize_t wc;
+  ssize_t nwrite = 0;
 
-#ifdef USE_SSLEAY
-  nread = Curl_ossl_recv(conn, sockindex, mem, len, &block);
-#else
-#ifdef USE_GNUTLS
-  nread = Curl_gtls_recv(conn, sockindex, mem, len, &block);
-#endif /* USE_GNUTLS */
-#endif /* USE_SSLEAY */
-  if(nread == -1) {
-    infof(conn->data, "Curl_xxx_rcvs returned -1, block = %s\n",
-          block?"TRUE":"FALSE");
-    if(!block)
-      return 0; /* this is a true error, not EWOULDBLOCK */
-    else
+  do {
+    wc = write(filedes, (unsigned char *)buffer + nwrite, nbytes - nwrite);
+
+    if(got_exit_signal) {
+      logmsg("signalled to die");
       return -1;
-  }
+    }
 
-  return (int)nread;
+    if(wc < 0) {
+      error = errno;
+      if((error == EINTR) || (error == EAGAIN))
+        continue;
+      logmsg("writing to file descriptor: %d,", filedes);
+      logmsg("unrecoverable write() failure: (%d) %s",
+             error, strerror(error));
+      return -1;
+    }
 
-#else /* USE_SSL */
-  (void)conn;
-  (void)sockindex;
-  (void)mem;
-  (void)len;
-  return 0;
-#endif /* USE_SSL */
+    if(wc == 0) {
+      logmsg("put 0 writing to stdout");
+      return 0;
+    }
+
+    nwrite += wc;
+
+  } while((size_t)nwrite < nbytes);
+
+  if(verbose)
+    logmsg("wrote %zd bytes", nwrite);
+
+  return nwrite;
 }

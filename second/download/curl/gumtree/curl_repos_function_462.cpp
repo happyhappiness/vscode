@@ -1,15 +1,6 @@
-CURLSHcode
-Curl_share_unlock(struct SessionHandle *data, curl_lock_data type)
+static void setupcallbacks(CURL *curl)
 {
-  struct Curl_share *share = data->share;
-
-  if (share == NULL)
-    return CURLSHE_INVALID;
-
-  if(share->specifier & (1<<type)) {
-    if(share->unlockfunc) /* only call this if set! */
-      share->unlockfunc (data, type, share->clientdata);
-  }
-
-  return CURLSHE_OK;
+  curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, tst_opensocket);
+  curl_easy_setopt(curl, CURLOPT_CLOSESOCKETFUNCTION, tst_closesocket);
+  counter = 0;
 }

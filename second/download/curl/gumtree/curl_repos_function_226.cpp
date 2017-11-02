@@ -1,57 +1,37 @@
-static unsigned __stdcall gethostbyname_thread (void *arg)
+int main(void)
 {
-  struct connectdata *conn = (struct connectdata*) arg;
-  struct thread_data *td = (struct thread_data*) conn->async.os_specific;
-  struct hostent *he;
-  int    rc = 0;
+  CURL *curl;
+  CURLcode res;
+  FILE *ftpfile;
+  FILE *respfile;
 
-  /* Duplicate the passed mutex handle.
-   * This allows us to use it even after the container gets destroyed
-   * due to a resolver timeout.
-   */
-  HANDLE mutex_waiting = NULL;
-  HANDLE curr_proc = GetCurrentProcess();
+  /* local file name to store the file as */
+  ftpfile = fopen("ftp-list", "wb"); /* b is binary, needed on win32 */
 
-  if (!DuplicateHandle(curr_proc, td->mutex_waiting,
-                       curr_proc, &mutex_waiting, 0, FALSE,
-                       DUPLICATE_SAME_ACCESS)) {
-    /* failed to duplicate the mutex, no point in continuing */
-    return -1;
+  /* local file name to store the FTP server's response lines in */
+  respfile = fopen("ftp-responses", "wb"); /* b is binary, needed on win32 */
+
+  curl = curl_easy_init();
+  if(curl) {
+    /* Get a file listing from sunet */
+    curl_easy_setopt(curl, CURLOPT_URL, "ftp://ftp.example.com/");
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, ftpfile);
+    /* If you intend to use this on windows with a libcurl DLL, you must use
+       CURLOPT_WRITEFUNCTION as well */
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, write_response);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, respfile);
+    res = curl_easy_perform(curl);
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
   }
 
-  /* Sharing the same _iob[] element with our parent thread should
-   * hopefully make printouts synchronised. I'm not sure it works
-   * with a static runtime lib (MSVC's libc.lib).
-   */
-#ifndef _WIN32_WCE
-  *stderr = *td->stderr_file;
-#endif
+  fclose(ftpfile); /* close the local file */
+  fclose(respfile); /* close the response file */
 
-  WSASetLastError (conn->async.status = NO_DATA); /* pending status */
-  he = gethostbyname (conn->async.hostname);
-
-  /* is the thread initiator still waiting for us ? */
-  if (WaitForSingleObject(mutex_waiting, 0) == WAIT_TIMEOUT) {
-    /* yes, it is */
-
-    /* Mark that we have obtained the information, and that we are
-     * calling back with it.
-     */
-    SetEvent(td->event_resolved);
-
-    if (he) {
-      rc = Curl_addrinfo4_callback(conn, CURL_ASYNC_SUCCESS, he);
-    }
-    else {
-      rc = Curl_addrinfo4_callback(conn, (int)WSAGetLastError(), NULL);
-    }
-    TRACE(("Winsock-error %d, addr %s\n", conn->async.status,
-           he ? inet_ntoa(*(struct in_addr*)he->h_addr) : "unknown"));
-  }
-
-  /* clean up */
-  CloseHandle(mutex_waiting);
-
-  return (rc);
-  /* An implicit _endthreadex() here */
+  return 0;
 }

@@ -1,17 +1,34 @@
-CURLcode Curl_posttransfer(struct SessionHandle *data)
+int main(int argc, char **argv)
 {
-#if defined(HAVE_SIGNAL) && defined(SIGPIPE) && !defined(HAVE_MSG_NOSIGNAL)
-  /* restore the signal handler for SIGPIPE before we get back */
-  if(!data->set.no_signal)
-    signal(SIGPIPE, data->state.prev_signal);
-#else
-  (void)data; /* unused parameter */
-#endif
+  pthread_t tid[NUMT];
+  int i;
+  int error;
+  (void)argc; /* we don't use any arguments in this example */
+  (void)argv;
 
-  if(!(data->progress.flags & PGRS_HIDE) &&
-     !data->progress.callback)
-    /* only output if we don't use a progress callback and we're not hidden */
-    fprintf(data->set.err, "\n");
+  /* Must initialize libcurl before any threads are started */
+  curl_global_init(CURL_GLOBAL_ALL);
 
-  return CURLE_OK;
+  init_locks();
+
+  for(i=0; i< NUMT; i++) {
+    error = pthread_create(&tid[i],
+                           NULL, /* default attributes please */
+                           pull_one_url,
+                           (void *)urls[i]);
+    if(0 != error)
+      fprintf(stderr, "Couldn't run thread number %d, errno %d\n", i, error);
+    else
+      fprintf(stderr, "Thread %d, gets %s\n", i, urls[i]);
+  }
+
+  /* now wait for all threads to terminate */
+  for(i=0; i< NUMT; i++) {
+    error = pthread_join(tid[i], NULL);
+    fprintf(stderr, "Thread %d terminated\n", i);
+  }
+
+  kill_locks();
+
+  return 0;
 }

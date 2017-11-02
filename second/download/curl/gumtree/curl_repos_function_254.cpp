@@ -1,35 +1,34 @@
-static int
-get_gss_name(struct connectdata *conn, gss_name_t *server)
+int main(void)
 {
-  struct negotiatedata *neg_ctx = &conn->data->state.negotiate;
-  OM_uint32 major_status, minor_status;
-  gss_buffer_desc token = GSS_C_EMPTY_BUFFER;
-  char name[2048];
-  const char* service;
+  CURL *curl;
+  CURLcode res = CURLE_OK;
 
-  /* GSSAPI implementation by Globus (known as GSI) requires the name to be
-     of form "<service>/<fqdn>" instead of <service>@<fqdn> (ie. slash instead
-     of at-sign). Also GSI servers are often identified as 'host' not 'khttp'.
-     Change following lines if you want to use GSI */
+  curl = curl_easy_init();
+  if(curl) {
+    /* Set username and password */
+    curl_easy_setopt(curl, CURLOPT_USERNAME, "user");
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, "secret");
 
-  /* IIS uses the <service>@<fqdn> form but uses 'http' as the service name */
+    /* You can specify the message either in the URL or DELE command */
+    curl_easy_setopt(curl, CURLOPT_URL, "pop3://pop.example.com/1");
 
-  if (neg_ctx->gss)
-    service = "KHTTP";
-  else
-    service = "HTTP";
+    /* Set the DELE command */
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELE");
 
-  token.length = strlen(service) + 1 + strlen(conn->host.name) + 1;
-  if (token.length + 1 > sizeof(name))
-    return EMSGSIZE;
+    /* Do not perform a transfer as DELE returns no data */
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
 
-  snprintf(name, sizeof(name), "%s@%s", service, conn->host.name);
+    /* Perform the custom request */
+    res = curl_easy_perform(curl);
 
-  token.value = (void *) name;
-  major_status = gss_import_name(&minor_status,
-                                 &token,
-                                 GSS_C_NT_HOSTBASED_SERVICE,
-                                 server);
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
 
-  return GSS_ERROR(major_status) ? -1 : 0;
+    /* Always cleanup */
+    curl_easy_cleanup(curl);
+  }
+
+  return (int)res;
 }

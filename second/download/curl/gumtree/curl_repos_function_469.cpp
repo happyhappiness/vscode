@@ -1,23 +1,25 @@
-void Curl_failf(struct SessionHandle *data, const char *fmt, ...)
+static void my_unlock(CURL *handle, curl_lock_data data, void *useptr )
 {
-  va_list ap;
-  size_t len;
-  va_start(ap, fmt);
-
-  vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);
-
-  if(data->set.errorbuffer && !data->state.errorbuf) {
-    snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
-    data->state.errorbuf = TRUE; /* wrote error string */
+  const char *what;
+  struct userdata *user = (struct userdata *)useptr;
+  (void)handle;
+  switch ( data ) {
+    case CURL_LOCK_DATA_SHARE:
+      what = "share";
+      break;
+    case CURL_LOCK_DATA_DNS:
+      what = "dns";
+      break;
+    case CURL_LOCK_DATA_COOKIE:
+      what = "cookie";
+      break;
+    case CURL_LOCK_DATA_SSL_SESSION:
+      what = "ssl_session";
+      break;
+    default:
+      fprintf(stderr, "unlock: no such data: %d\n", (int)data);
+      return;
   }
-  if(data->set.verbose) {
-    len = strlen(data->state.buffer);
-    if(len < BUFSIZE - 1) {
-      data->state.buffer[len] = '\n';
-      data->state.buffer[++len] = '\0';
-    }
-    Curl_debug(data, CURLINFO_TEXT, data->state.buffer, len, NULL);
-  }
-
-  va_end(ap);
+  printf("unlock: %-6s [%s]: %d\n", what, user->text, user->counter);
+  user->counter++;
 }

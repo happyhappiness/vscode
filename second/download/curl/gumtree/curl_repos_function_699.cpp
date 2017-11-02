@@ -1,5 +1,6 @@
-void Curl_gtls_close_all(struct SessionHandle *data)
+static void SHA256_Update(SHA256_CTX *pctx,
+                          const unsigned char *input,
+                          unsigned int input_len)
 {
-  /* FIX: make the OpenSSL code more generic and use parts of it here */
-  (void)data;
+  PK11_DigestOp(*pctx, input, input_len);
 }

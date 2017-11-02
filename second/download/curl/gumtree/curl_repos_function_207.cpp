@@ -1,17 +1,22 @@
-static void tcpnodelay(struct connectdata *conn,
-                       curl_socket_t sockfd)
+static int multi_timer_cb(CURLM *multi, long timeout_ms, GlobalInfo *g)
 {
-#ifdef TCP_NODELAY
-  struct SessionHandle *data= conn->data;
-  socklen_t onoff = (socklen_t) data->set.tcp_nodelay;
-  if(setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&onoff,
-                sizeof(onoff)) < 0)
-    infof(data, "Could not set TCP_NODELAY: %s\n",
-          Curl_strerror(conn, Curl_ourerrno()));
+  fprintf(MSG_OUT, "\nmulti_timer_cb: timeout_ms %ld", timeout_ms);
+
+  /* cancel running timer */
+  timer.cancel();
+
+  if(timeout_ms > 0)
+  {
+    /* update timer */
+    timer.expires_from_now(boost::posix_time::millisec(timeout_ms));
+    timer.async_wait(boost::bind(&timer_cb, _1, g));
+  }
   else
-    infof(data,"TCP_NODELAY set\n");
-#else
-  (void)conn;
-  (void)sockfd;
-#endif
+  {
+    /* call timeout function immediately */
+    boost::system::error_code error; /*success*/
+    timer_cb(error, g);
+  }
+
+  return 0;
 }

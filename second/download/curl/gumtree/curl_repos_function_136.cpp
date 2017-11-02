@@ -1,34 +1,29 @@
-void hugehelp(void)
+int main(void)
 {
-  unsigned char buf[0x10000];
-  int status,headerlen;
-  z_stream z;
+  CURL *curl;
+  CURLcode res;
 
-  /* Make sure no gzip options are set */
-  if (hugehelpgz[3] & 0xfe)
-    return;
+  /* http://curl.haxx.se/libcurl/c/curl_easy_init.html */
+  curl = curl_easy_init();
+  if(curl) {
+    /* http://curl.haxx.se/libcurl/c/curl_easy_setopt.html#CURLOPTURL */
+    curl_easy_setopt(curl, CURLOPT_URL, "http://www.example.com/");
+    /* http://curl.haxx.se/libcurl/c/curl_easy_perform.html */
+    res = curl_easy_perform(curl);
 
-  headerlen = 10;
-  z.avail_in = sizeof(hugehelpgz) - headerlen;
-  z.next_in = (unsigned char *)hugehelpgz + headerlen;
-  z.zalloc = (alloc_func)Z_NULL;
-  z.zfree = (free_func)Z_NULL;
-  z.opaque = 0;
+    if(CURLE_OK == res) {
+      char *ct;
+      /* ask for the content-type */
+      /* http://curl.haxx.se/libcurl/c/curl_easy_getinfo.html */
+      res = curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &ct);
 
-  if (inflateInit2(&z, -MAX_WBITS) != Z_OK)
-    return;
-
-  while(1) {
-    z.avail_out = (int)sizeof(buf);
-    z.next_out = buf;
-    status = inflate(&z, Z_SYNC_FLUSH);
-    if (status == Z_OK || status == Z_STREAM_END) {
-      fwrite(buf, sizeof(buf) - z.avail_out, 1, stdout);
-      if (status == Z_STREAM_END)
-         break;
+      if((CURLE_OK == res) && ct)
+        printf("We received Content-Type: %s\n", ct);
     }
-     else
-      break;    /* Error */
+
+    /* always cleanup */
+    /* http://curl.haxx.se/libcurl/c/curl_easy_cleanup.html */
+    curl_easy_cleanup(curl);
   }
-  inflateEnd(&z);
+  return 0;
 }

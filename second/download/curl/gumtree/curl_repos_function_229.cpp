@@ -1,77 +1,31 @@
-static bool init_resolve_thread (struct connectdata *conn,
-                                 const char *hostname, int port,
-                                 const Curl_addrinfo *hints)
+int main(void)
 {
-  struct thread_data *td = calloc(sizeof(*td), 1);
+  CURL *curl;
+  CURLcode res = CURLE_OK;
 
-  if (!td) {
-    SetLastError(ENOMEM);
-    return FALSE;
+  curl = curl_easy_init();
+  if(curl) {
+    /* Set username and password */
+    curl_easy_setopt(curl, CURLOPT_USERNAME, "user");
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, "secret");
+
+    /* This is just the server URL */
+    curl_easy_setopt(curl, CURLOPT_URL, "imap://imap.example.com");
+
+    /* Set the NOOP command */
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "NOOP");
+
+    /* Perform the custom request */
+    res = curl_easy_perform(curl);
+
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+    /* Always cleanup */
+    curl_easy_cleanup(curl);
   }
 
-  Curl_safefree(conn->async.hostname);
-  conn->async.hostname = strdup(hostname);
-  if (!conn->async.hostname) {
-    free(td);
-    SetLastError(ENOMEM);
-    return FALSE;
-  }
-
-  conn->async.port = port;
-  conn->async.done = FALSE;
-  conn->async.status = 0;
-  conn->async.dns = NULL;
-  conn->async.os_specific = (void*) td;
-  td->dummy_sock = CURL_SOCKET_BAD;
-
-  /* Create the mutex used to inform the resolver thread that we're
-   * still waiting, and take initial ownership.
-   */
-  td->mutex_waiting = CreateMutex(NULL, TRUE, NULL);
-  if (td->mutex_waiting == NULL) {
-    Curl_destroy_thread_data(&conn->async);
-    SetLastError(EAGAIN);
-    return FALSE;
-  }
-
-  /* Create the event that the thread uses to inform us that it's
-   * done resolving. Do not signal it.
-   */
-  td->event_resolved = CreateEvent(NULL, TRUE, FALSE, NULL);
-  if (td->event_resolved == NULL) {
-    Curl_destroy_thread_data(&conn->async);
-    SetLastError(EAGAIN);
-    return FALSE;
-  }
-
-  td->stderr_file = stderr;
-
-#ifdef _WIN32_WCE
-  td->thread_hnd = (HANDLE) CreateThread(NULL, 0,
-                                         (LPTHREAD_START_ROUTINE) THREAD_FUNC,
-                                         conn, 0, &td->thread_id);
-#else
-  td->thread_hnd = (HANDLE) _beginthreadex(NULL, 0, THREAD_FUNC,
-                                           conn, 0, &td->thread_id);
-#endif
-
-#ifdef CURLRES_IPV6
-  curlassert(hints);
-  td->hints = *hints;
-#else
-  (void) hints;
-#endif
-
-  if (!td->thread_hnd) {
-     SetLastError(errno);
-     TRACE(("_beginthreadex() failed; %s\n", Curl_strerror(conn,errno)));
-     Curl_destroy_thread_data(&conn->async);
-     return FALSE;
-  }
-  /* This socket is only to keep Curl_resolv_fdset() and select() happy;
-   * should never become signalled for read/write since it's unbound but
-   * Windows needs atleast 1 socket in select().
-   */
-  td->dummy_sock = socket(AF_INET, SOCK_DGRAM, 0);
-  return TRUE;
+  return (int)res;
 }

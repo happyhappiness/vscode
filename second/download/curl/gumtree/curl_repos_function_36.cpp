@@ -1,31 +1,35 @@
-int main(int argc, char **argv)
+int main(void)
 {
-  GtkWidget *Window, *Frame, *Frame2;
-  GtkAdjustment *adj;
+  CURL *curl;
+  CURLcode res = CURLE_OK;
 
-  /* Init thread */
-  g_thread_init(NULL);
+  curl = curl_easy_init();
+  if(curl) {
+    /* Set username and password */
+    curl_easy_setopt(curl, CURLOPT_USERNAME, "user");
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, "secret");
 
-  gtk_init(&argc, &argv);
-  Window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-  Frame = gtk_frame_new(NULL);
-  gtk_frame_set_shadow_type(GTK_FRAME(Frame), GTK_SHADOW_OUT);
-  gtk_container_add(GTK_CONTAINER(Window), Frame);
-  Frame2 = gtk_frame_new(NULL);
-  gtk_frame_set_shadow_type(GTK_FRAME(Frame2), GTK_SHADOW_IN);
-  gtk_container_add(GTK_CONTAINER(Frame), Frame2);
-  gtk_container_set_border_width(GTK_CONTAINER(Frame2), 5);
-  adj = (GtkAdjustment*)gtk_adjustment_new(0, 0, 100, 0, 0, 0);
-  Bar = gtk_progress_bar_new_with_adjustment(adj);
-  gtk_container_add(GTK_CONTAINER(Frame2), Bar);
-  gtk_widget_show_all(Window);
+    /* This is mailbox folder to select */
+    curl_easy_setopt(curl, CURLOPT_URL, "imap://imap.example.com/INBOX");
 
-  if (!g_thread_create(&my_thread, argv[1], FALSE, NULL) != 0)
-    g_warning("can't create the thread");
+    /* Set the SEARCH command specifing what we want to search for. Note that
+     * this can contain a message sequence set and a number of search criteria
+     * keywords including flags such as ANSWERED, DELETED, DRAFT, FLAGGED, NEW,
+     * RECENT and SEEN. For more information about the search criteria please
+     * see RFC-3501 section 6.4.4.   */
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "SEARCH NEW");
 
+    /* Perform the custom request */
+    res = curl_easy_perform(curl);
 
-  gdk_threads_enter();
-  gtk_main();
-  gdk_threads_leave();
-  return 0;
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+    /* Always cleanup */
+    curl_easy_cleanup(curl);
+  }
+
+  return (int)res;
 }

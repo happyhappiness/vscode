@@ -1,33 +1,51 @@
-CURLcode Curl_ftp_multi_statemach(struct connectdata *conn,
-                                  bool *done)
+int test(char *URL)
 {
-  curl_socket_t sock = conn->sock[FIRSTSOCKET];
-  int rc;
-  struct SessionHandle *data=conn->data;
-  struct FTP *ftp = conn->proto.ftp;
-  CURLcode result = CURLE_OK;
-  long timeout_ms = ftp_state_timeout(conn);
+  CURL *curl = NULL;
+  CURLcode res = CURLE_FAILED_INIT;
+  /* http and proxy header list*/
+  struct curl_slist *hhl = NULL;
 
-  *done = FALSE; /* default to not done yet */
-
-  if(timeout_ms <= 0) {
-    failf(data, "FTP response timeout");
-    return CURLE_OPERATION_TIMEDOUT;
+  if(curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
 
-  rc = Curl_select(ftp->sendleft?CURL_SOCKET_BAD:sock, /* reading */
-                   ftp->sendleft?sock:CURL_SOCKET_BAD, /* writing */
-                   0);
-
-  if(rc == -1) {
-    failf(data, "select error");
-    return CURLE_OUT_OF_MEMORY;
+  if((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
   }
-  else if(rc != 0) {
-    result = ftp_statemach_act(conn);
-    *done = (ftp->state == FTP_STOP);
-  }
-  /* if rc == 0, then select() timed out */
 
-  return result;
+  hhl = curl_slist_append(hhl, "User-Agent: Http Agent");
+
+  if (!hhl) {
+    goto test_cleanup;
+  }
+
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_PROXY, libtest_arg2);
+  test_setopt(curl, CURLOPT_HTTPHEADER, hhl);
+  test_setopt(curl, CURLOPT_PROXYHEADER, hhl);
+  test_setopt(curl, CURLOPT_HEADEROPT, CURLHEADER_UNIFIED);
+  test_setopt(curl, CURLOPT_POST, 0L);
+  test_setopt(curl, CURLOPT_UPLOAD, 1L);
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+  test_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+  test_setopt(curl, CURLOPT_HEADER, 1L);
+  test_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
+  test_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+  test_setopt(curl, CURLOPT_HTTPPROXYTUNNEL, 1L);
+  test_setopt(curl, CURLOPT_INFILESIZE, strlen(data));
+
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  curl_easy_cleanup(curl);
+
+  curl_slist_free_all(hhl);
+
+  curl_global_cleanup();
+
+  return (int)res;
 }

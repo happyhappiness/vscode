@@ -1,46 +1,46 @@
-int test(char *URL)
+int main(void)
 {
-  CURLcode code;
   CURL *curl;
-  CURL *curl2;
-  int rc = 99;
+  CURLcode res = CURLE_OK;
 
-  code = curl_global_init(CURL_GLOBAL_ALL);
-  if(code == CURLE_OK) {
+  curl = curl_easy_init();
+  if(curl) {
+    /* Set username and password */
+    curl_easy_setopt(curl, CURLOPT_USERNAME, "user");
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, "secret");
 
-    curl = curl_easy_init();
-    if(curl) {
+    /* This is the mailbox folder to select */
+    curl_easy_setopt(curl, CURLOPT_URL, "imap://imap.example.com/INBOX");
 
-      curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-      curl_easy_setopt(curl, CURLOPT_HEADER, 1);
+    /* Set the STORE command with the Deleted flag for message 1. Note that
+     * you can use the STORE command to set other flags such as Seen, Answered,
+     * Flagged, Draft and Recent. */
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "STORE 1 +Flags \\Deleted");
 
-      curl2 = curl_easy_duphandle(curl);
-      if(curl2) {
+    /* Perform the custom request */
+    res = curl_easy_perform(curl);
 
-        code = curl_easy_setopt(curl2, CURLOPT_URL, URL);
-        if(code == CURLE_OK) {
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+    else {
+      /* Set the EXPUNGE command, although you can use the CLOSE command if you
+       * don't want to know the result of the STORE */
+      curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "EXPUNGE");
 
-          code = curl_easy_perform(curl2);
-          if(code == CURLE_OK)
-            rc = 0;
-          else
-            rc = 1;
-        }
-        else
-          rc = 2;
+      /* Perform the second custom request */
+      res = curl_easy_perform(curl);
 
-        curl_easy_cleanup(curl2);
-      }
-      else
-        rc = 3;
-
-      curl_easy_cleanup(curl);
+      /* Check for errors */
+      if(res != CURLE_OK)
+        fprintf(stderr, "curl_easy_perform() failed: %s\n",
+                curl_easy_strerror(res));
     }
-    else
-      rc = 4;
-  }
-  else
-    rc = 5;
 
-  return rc;
+    /* Always cleanup */
+    curl_easy_cleanup(curl);
+  }
+
+  return (int)res;
 }

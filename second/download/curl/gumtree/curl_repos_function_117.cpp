@@ -1,12 +1,32 @@
-static void win32_perror (const char *msg)
+int main(void)
 {
-  char buf[256];
-  DWORD err = WSAGetLastError();
+  CURL *curl;
+  CURLcode res = CURLE_OK;
 
-  if (!FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, err,
-                     LANG_NEUTRAL, buf, sizeof(buf), NULL))
-     snprintf(buf, sizeof(buf), "Unknown error %lu (%#lx)", err, err);
-  if (msg)
-     fprintf(stderr, "%s: ", msg);
-  fprintf(stderr, "%s\n", buf);
+  curl = curl_easy_init();
+  if(curl) {
+    /* Set username and password */
+    curl_easy_setopt(curl, CURLOPT_USERNAME, "user");
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, "secret");
+
+    /* This is just the server URL */
+    curl_easy_setopt(curl, CURLOPT_URL, "imap://imap.example.com");
+
+    /* Set the LSUB command. Note the syntax is very similar to that of a LIST
+       command. */
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "LSUB \"\" *");
+
+    /* Perform the custom request */
+    res = curl_easy_perform(curl);
+
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+    /* Always cleanup */
+    curl_easy_cleanup(curl);
+  }
+
+  return (int)res;
 }

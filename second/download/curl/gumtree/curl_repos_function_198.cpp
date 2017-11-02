@@ -1,9 +1,5 @@
-void GUSISetupConfig()
+size_t write_file(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
-	GUSIConfiguration * config =
-		GUSIConfiguration::CreateInstance(GUSIConfiguration::kNoResource);
-
-	config->ConfigureDefaultTypeCreator('TEXT', 'CWIE');
-	config->ConfigureSuffices(
-		sizeof(sSuffices)/sizeof(GUSIConfiguration::FileSuffix)-1, sSuffices);
+  /* printf("write_file\n"); */
+  return fwrite(ptr, size, nmemb, stream);
 }

@@ -1,10 +1,12 @@
-void
-Curl_ntlm_cleanup(struct connectdata *conn)
+int
+Curl_gsk_attribute_get_numeric_value(gsk_handle my_gsk_handle,
+                                     GSK_NUM_ID numID, int * numValue)
+
 {
-#ifdef USE_WINDOWS_SSPI
-  ntlm_sspi_cleanup(&conn->ntlm);
-  ntlm_sspi_cleanup(&conn->proxyntlm);
-#else
-  (void)conn;
-#endif
+  struct Curl_gsk_descriptor * p;
+
+  if(!my_gsk_handle)
+    return GSK_INVALID_HANDLE;
+  p = (struct Curl_gsk_descriptor *) my_gsk_handle;
+  return gsk_attribute_get_numeric_value(p->h, numID, numValue);
 }

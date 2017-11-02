@@ -1,4 +1,5 @@
-size_t Curl_gtls_version(char *buffer, size_t size)
+static int SHA1_Init(SHA_CTX *ctx)
 {
-  return snprintf(buffer, size, " GnuTLS/%s", gnutls_check_version(NULL));
+  sha1_starts(ctx);
+  return 1;
 }

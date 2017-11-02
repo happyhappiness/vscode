@@ -1,12 +1,5 @@
-CURLcode Curl_resolv_fdset(struct connectdata *conn,
-                           fd_set *read_fd_set,
-                           fd_set *write_fd_set,
-                           int *max_fdp)
-
+static void SHA256_Final(unsigned char digest[32], SHA256_CTX *ctx)
 {
-  int max = ares_fds(conn->data->state.areschannel,
-                     read_fd_set, write_fd_set);
-  *max_fdp = max;
-
-  return CURLE_OK;
+  memcpy(digest, gcry_md_read(*ctx, 0), 32);
+  gcry_md_close(*ctx);
 }

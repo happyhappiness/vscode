@@ -1,14 +1,23 @@
-int thread_cleanup(void)
+void curl_perform(uv_poll_t *req, int status, int events)
 {
-  int i;
+  int running_handles;
+  int flags = 0;
+  curl_context_t *context;
+  char *done_url;
+  CURLMsg *message;
+  int pending;
 
-  if (!mutex_buf)
-    return 0;
-  CRYPTO_set_id_callback(NULL);
-  CRYPTO_set_locking_callback(NULL);
-  for (i = 0;  i < CRYPTO_num_locks(  );  i++)
-    MUTEX_CLEANUP(mutex_buf[i]);
-  free(mutex_buf);
-  mutex_buf = NULL;
-  return 1;
+  uv_timer_stop(&timeout);
+
+  if(events & UV_READABLE)
+    flags |= CURL_CSELECT_IN;
+  if(events & UV_WRITABLE)
+    flags |= CURL_CSELECT_OUT;
+
+  context = (curl_context_t *) req;
+
+  curl_multi_socket_action(curl_handle, context->sockfd, flags,
+                           &running_handles);
+
+  check_multi_info();
 }

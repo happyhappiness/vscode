@@ -1,98 +1,66 @@
 int main(int argc, char **argv)
 {
-  CURL *handles[HANDLECOUNT];
-  CURLM *multi_handle;
+  CURL *curl;
+  CURLcode res;
+  FILE * hd_src ;
+  struct stat file_info;
 
-  int still_running; /* keep number of running handles */
-  int i;
+  char *file;
+  char *url;
 
-  CURLMsg *msg; /* for picking up messages with the transfer status */
-  int msgs_left; /* how many messages are left */
+  if(argc < 3)
+    return 1;
 
-  /* Allocate one CURL handle per transfer */
-  for (i=0; i<HANDLECOUNT; i++)
-      handles[i] = curl_easy_init();
+  file= argv[1];
+  url = argv[2];
 
-  /* set the options (I left out a few, you'll get the point anyway) */
-  curl_easy_setopt(handles[HTTP_HANDLE], CURLOPT_URL, "http://website.com");
+  /* get the file size of the local file */
+  stat(file, &file_info);
 
-  curl_easy_setopt(handles[FTP_HANDLE], CURLOPT_URL, "ftp://ftpsite.com");
-  curl_easy_setopt(handles[FTP_HANDLE], CURLOPT_UPLOAD, TRUE);
+  /* get a FILE * of the same file, could also be made with
+     fdopen() from the previous descriptor, but hey this is just
+     an example! */
+  hd_src = fopen(file, "rb");
 
-  /* init a multi stack */
-  multi_handle = curl_multi_init();
+  /* In windows, this will init the winsock stuff */
+  curl_global_init(CURL_GLOBAL_ALL);
 
-  /* add the individual transfers */
-  for (i=0; i<HANDLECOUNT; i++)
-      curl_multi_add_handle(multi_handle, handles[i]);
+  /* get a curl handle */
+  curl = curl_easy_init();
+  if(curl) {
+    /* we want to use our own read function */
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
 
-  /* we start some action by calling perform right away */
-  while(CURLM_CALL_MULTI_PERFORM ==
-        curl_multi_perform(multi_handle, &still_running));
+    /* enable uploading */
+    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
 
-  while(still_running) {
-    struct timeval timeout;
-    int rc; /* select() return code */
+    /* HTTP PUT please */
+    curl_easy_setopt(curl, CURLOPT_PUT, 1L);
 
-    fd_set fdread;
-    fd_set fdwrite;
-    fd_set fdexcep;
-    int maxfd;
+    /* specify target URL, and note that this URL should include a file
+       name, not only a directory */
+    curl_easy_setopt(curl, CURLOPT_URL, url);
 
-    FD_ZERO(&fdread);
-    FD_ZERO(&fdwrite);
-    FD_ZERO(&fdexcep);
+    /* now specify which file to upload */
+    curl_easy_setopt(curl, CURLOPT_READDATA, hd_src);
 
-    /* set a suitable timeout to play around with */
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
+    /* provide the size of the upload, we specicially typecast the value
+       to curl_off_t since we must be sure to use the correct data size */
+    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
+                     (curl_off_t)file_info.st_size);
 
-    /* get file descriptors from the transfers */
-    curl_multi_fdset(multi_handle, &fdread, &fdwrite, &fdexcep, &maxfd);
+    /* Now run off and do what you've been told! */
+    res = curl_easy_perform(curl);
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
 
-    rc = select(maxfd+1, &fdread, &fdwrite, &fdexcep, &timeout);
-
-    switch(rc) {
-    case -1:
-      /* select error */
-      break;
-    case 0:
-      /* timeout, do something else */
-      break;
-    default:
-      /* one or more of curl's file descriptors say there's data to read
-         or write */
-      while(CURLM_CALL_MULTI_PERFORM ==
-            curl_multi_perform(multi_handle, &still_running));
-      break;
-    }
+    /* always cleanup */
+    curl_easy_cleanup(curl);
   }
+  fclose(hd_src); /* close the local file */
 
-  /* See how the transfers went */
-  while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
-    if (msg->msg == CURLMSG_DONE) {
-
-       int idx, found = 0;
-
-       /* Find out which handle this message is about */
-       for (idx=0; (!found && (idx<HANDLECOUNT)); idx++) found = (msg->easy_handle == handles[idx]);
-
-       switch (idx) {
-         case HTTP_HANDLE:
-           printf("HTTP transfer completed with status %d\n", msg->data.result);
-           break;
-         case FTP_HANDLE:
-           printf("FTP transfer completed with status %d\n", msg->data.result);
-           break;
-       }
-    }
-  }
-
-  curl_multi_cleanup(multi_handle);
-
-  /* Free the CURL handles */
-  for (i=0; i<HANDLECOUNT; i++)
-      curl_easy_cleanup(handles[i]);
-
+  curl_global_cleanup();
   return 0;
 }

@@ -1,38 +1,34 @@
-static
-int my_trace(CURL *handle, curl_infotype type,
-             unsigned char *data, size_t size,
-             void *userp)
+int handle_socket(CURL *easy, curl_socket_t s, int action, void *userp,
+                  void *socketp)
 {
-  struct data *config = (struct data *)userp;
-  const char *text;
-  (void)handle; /* prevent compiler warning */
-
-  switch (type) {
-  case CURLINFO_TEXT:
-    fprintf(stderr, "== Info: %s", data);
-  default: /* in case a new one is introduced to shock us */
-    return 0;
-
-  case CURLINFO_HEADER_OUT:
-    text = "=> Send header";
-    break;
-  case CURLINFO_DATA_OUT:
-    text = "=> Send data";
-    break;
-  case CURLINFO_HEADER_IN:
-    text = "<= Recv header";
-    break;
-  case CURLINFO_DATA_IN:
-    text = "<= Recv data";
-    break;
-  case CURLINFO_SSL_DATA_IN:
-    text = "<= Recv SSL data";
-    break;
-  case CURLINFO_SSL_DATA_OUT:
-    text = "<= Send SSL data";
-    break;
+  curl_context_t *curl_context;
+  if(action == CURL_POLL_IN || action == CURL_POLL_OUT) {
+    if(socketp) {
+      curl_context = (curl_context_t *) socketp;
+    }
+    else {
+      curl_context = create_curl_context(s);
+    }
+    curl_multi_assign(curl_handle, s, (void *) curl_context);
   }
 
-  dump(text, stderr, data, size, config->trace_ascii);
+  switch(action) {
+  case CURL_POLL_IN:
+    uv_poll_start(&curl_context->poll_handle, UV_READABLE, curl_perform);
+    break;
+  case CURL_POLL_OUT:
+    uv_poll_start(&curl_context->poll_handle, UV_WRITABLE, curl_perform);
+    break;
+  case CURL_POLL_REMOVE:
+    if(socketp) {
+      uv_poll_stop(&((curl_context_t*)socketp)->poll_handle);
+      destroy_curl_context((curl_context_t*) socketp);
+      curl_multi_assign(curl_handle, s, NULL);
+    }
+    break;
+  default:
+    abort();
+  }
+
   return 0;
 }

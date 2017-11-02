@@ -1,36 +1,33 @@
-int test(char *URL)
+static
+int my_trace(CURL *handle, curl_infotype type,
+             unsigned char *data, size_t size,
+             void *userp)
 {
-  CURL *curl;
-  CURLcode res=CURLE_OK;
+  const char *text;
 
-  curl = curl_easy_init();
-  if(curl) {
-    /* First set the URL that is about to receive our POST. */
-    curl_easy_setopt(curl, CURLOPT_URL, URL);
+  (void)userp;
+  (void)handle; /* prevent compiler warning */
 
-    /* Now specify we want to POST data */
-    curl_easy_setopt(curl, CURLOPT_POST, TRUE);
+  switch (type) {
+  case CURLINFO_TEXT:
+    fprintf(stderr, "== Info: %s", data);
+  default: /* in case a new one is introduced to shock us */
+    return 0;
 
-    /* Set the expected POST size */
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, 1);
-
-    /* we want to use our own read function */
-    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
-
-    /* pointer to pass to our read function */
-    curl_easy_setopt(curl, CURLOPT_INFILE, NULL);
-
-    /* get verbose debug output please */
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-
-    /* include headers in the output */
-    curl_easy_setopt(curl, CURLOPT_HEADER, TRUE);
-
-    /* Perform the request, res will get the return code */
-    res = curl_easy_perform(curl);
-
-    /* always cleanup */
-    curl_easy_cleanup(curl);
+  case CURLINFO_HEADER_OUT:
+    text = "=> Send header";
+    break;
+  case CURLINFO_DATA_OUT:
+    text = "=> Send data";
+    break;
+  case CURLINFO_HEADER_IN:
+    text = "<= Recv header";
+    break;
+  case CURLINFO_DATA_IN:
+    text = "<= Recv data";
+    break;
   }
-  return (int)res;
+
+  dump(text, stderr, data, size, TRUE);
+  return 0;
 }

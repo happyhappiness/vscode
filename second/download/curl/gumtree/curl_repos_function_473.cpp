@@ -1,41 +1,36 @@
-int Curl_read(struct connectdata *conn, /* connection data */
-              curl_socket_t sockfd,     /* read from this socket */
-              char *buf,                /* store read data here */
-              size_t buffersize,        /* max amount to read */
-              ssize_t *n)               /* amount bytes read */
+int test(char *URL)
 {
-  ssize_t nread;
+  CURL *curl;
+  CURLcode res = CURLE_OK;
 
-  /* Set 'num' to 0 or 1, depending on which socket that has been sent here.
-     If it is the second socket, we set num to 1. Otherwise to 0. This lets
-     us use the correct ssl handle. */
-  int num = (sockfd == conn->sock[SECONDARYSOCKET]);
-
-  *n=0; /* reset amount to zero */
-
-  if(conn->ssl[num].use) {
-    nread = Curl_ssl_recv(conn, num, buf, buffersize);
-
-    if(nread == -1)
-      return -1; /* -1 from Curl_ssl_recv() means EWOULDBLOCK */
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
-  else {
-    *n=0; /* reset amount to zero */
-    if(conn->sec_complete)
-      nread = Curl_sec_read(conn, sockfd, buf, buffersize);
-    else
-      nread = sread(sockfd, buf, buffersize);
 
-    if(-1 == nread) {
-      int err = Curl_ourerrno();
-#ifdef WIN32
-      if(WSAEWOULDBLOCK == err)
-#else
-      if((EWOULDBLOCK == err) || (EAGAIN == err) || (EINTR == err))
-#endif
-        return -1;
-    }
+  /* get a curl handle */
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
   }
-  *n = nread;
-  return CURLE_OK;
+
+  /* enable verbose */
+  test_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+  /* set port number */
+  test_setopt(curl, CURLOPT_PORT, strtol(libtest_arg2, NULL, 10));
+
+  /* specify target */
+  test_setopt(curl,CURLOPT_URL, URL);
+
+  /* Now run off and do what you've been told! */
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return res;
 }

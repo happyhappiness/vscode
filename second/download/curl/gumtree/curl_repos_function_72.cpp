@@ -1,19 +1,28 @@
-static unsigned char *my_get_ext(X509 * cert, const int type, int extensiontype) {
+int main(int argc, char **argv)
+{
+  GlobalInfo g;
+  CURLMcode rc;
+  (void)argc;
+  (void)argv;
 
-  int i;
-  STACK_OF(ACCESS_DESCRIPTION) * accessinfo ;
-  accessinfo =  X509_get_ext_d2i(cert, extensiontype, NULL, NULL) ;
+  memset(&g, 0, sizeof(GlobalInfo));
+  g.loop = ev_default_loop(0);
 
-  if (!sk_ACCESS_DESCRIPTION_num(accessinfo))
-    return NULL;
-  for (i = 0; i < sk_ACCESS_DESCRIPTION_num(accessinfo); i++) {
-    ACCESS_DESCRIPTION * ad = sk_ACCESS_DESCRIPTION_value(accessinfo, i);
-    if (OBJ_obj2nid(ad->method) == type) {
-      if (ad->location->type == GEN_URI) {
-        return i2s_ASN1_IA5STRING(ad->location->d.ia5);
-      }
-      return NULL;
-    }
-  }
-  return NULL;
+  init_fifo(&g);
+  g.multi = curl_multi_init();
+
+  ev_timer_init(&g.timer_event, timer_cb, 0., 0.);
+  g.timer_event.data = &g;
+  g.fifo_event.data = &g;
+  curl_multi_setopt(g.multi, CURLMOPT_SOCKETFUNCTION, sock_cb);
+  curl_multi_setopt(g.multi, CURLMOPT_SOCKETDATA, &g);
+  curl_multi_setopt(g.multi, CURLMOPT_TIMERFUNCTION, multi_timer_cb);
+  curl_multi_setopt(g.multi, CURLMOPT_TIMERDATA, &g);
+
+  /* we don't call any curl_multi_socket*() function yet as we have no handles
+     added! */
+
+  ev_loop(g.loop, 0);
+  curl_multi_cleanup(g.multi);
+  return 0;
 }

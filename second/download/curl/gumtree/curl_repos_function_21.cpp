@@ -1,13 +1,29 @@
-int thread_setup(void)
+static void check_multi_info(void)
 {
-  int i;
+  int running_handles;
+  char *done_url;
+  CURLMsg *message;
+  int pending;
+  FILE *file;
 
-  mutex_buf = (MUTEX_TYPE *)malloc(CRYPTO_num_locks(  ) * sizeof(MUTEX_TYPE));
-  if (!mutex_buf)
-    return 0;
-  for (i = 0;  i < CRYPTO_num_locks(  );  i++)
-    MUTEX_SETUP(mutex_buf[i]);
-  CRYPTO_set_id_callback(id_function);
-  CRYPTO_set_locking_callback(locking_function);
-  return 1;
+  while((message = curl_multi_info_read(curl_handle, &pending))) {
+    switch(message->msg) {
+    case CURLMSG_DONE:
+      curl_easy_getinfo(message->easy_handle, CURLINFO_EFFECTIVE_URL,
+                        &done_url);
+      curl_easy_getinfo(message->easy_handle, CURLINFO_PRIVATE, &file);
+      printf("%s DONE\n", done_url);
+
+      curl_multi_remove_handle(curl_handle, message->easy_handle);
+      curl_easy_cleanup(message->easy_handle);
+      if(file) {
+        fclose(file);
+      }
+      break;
+
+    default:
+      fprintf(stderr, "CURLMSG default\n");
+      break;
+    }
+  }
 }

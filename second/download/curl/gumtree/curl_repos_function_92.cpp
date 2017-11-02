@@ -1,14 +1,38 @@
-int test(char *URL)
+static
+int my_trace(CURL *handle, curl_infotype type,
+             char *data, size_t size,
+             void *userp)
 {
-  CURLcode res;
-  CURL *curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_PROXY, arg2);
-  curl_easy_setopt(curl, CURLOPT_URL, URL);
-  curl_easy_setopt(curl, CURLOPT_PORT, 19999);
-  curl_easy_setopt(curl, CURLOPT_USERPWD, "xxx:yyy");
-  curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE);
+  struct data *config = (struct data *)userp;
+  const char *text;
+  (void)handle; /* prevent compiler warning */
 
-  res = curl_easy_perform(curl);
-  curl_easy_cleanup(curl);
-  return (int)res;
+  switch (type) {
+  case CURLINFO_TEXT:
+    fprintf(stderr, "== Info: %s", data);
+  default: /* in case a new one is introduced to shock us */
+    return 0;
+
+  case CURLINFO_HEADER_OUT:
+    text = "=> Send header";
+    break;
+  case CURLINFO_DATA_OUT:
+    text = "=> Send data";
+    break;
+  case CURLINFO_SSL_DATA_OUT:
+    text = "=> Send SSL data";
+    break;
+  case CURLINFO_HEADER_IN:
+    text = "<= Recv header";
+    break;
+  case CURLINFO_DATA_IN:
+    text = "<= Recv data";
+    break;
+  case CURLINFO_SSL_DATA_IN:
+    text = "<= Recv SSL data";
+    break;
+  }
+
+  dump(text, stderr, (unsigned char *)data, size, config->trace_ascii);
+  return 0;
 }

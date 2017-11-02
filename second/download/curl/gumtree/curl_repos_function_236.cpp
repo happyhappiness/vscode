@@ -1,49 +1,58 @@
-CURLcode Curl_fillreadbuffer(struct connectdata *conn, int bytes, int *nreadp)
+int main(void)
 {
-  struct SessionHandle *data = conn->data;
-  size_t buffersize = (size_t)bytes;
-  int nread;
+  CURL *curl_handle;
+  CURLcode res;
 
-  if(conn->bits.upload_chunky) {
-    /* if chunked Transfer-Encoding */
-    buffersize -= (8 + 2 + 2);   /* 32bit hex + CRLF + CRLF */
-    conn->upload_fromhere += 10; /* 32bit hex + CRLF */
+  struct MemoryStruct chunk;
+
+  chunk.memory = malloc(1);  /* will be grown as needed by the realloc above */
+  chunk.size = 0;    /* no data at this point */
+
+  curl_global_init(CURL_GLOBAL_ALL);
+
+  /* init the curl session */
+  curl_handle = curl_easy_init();
+
+  /* specify URL to get */
+  curl_easy_setopt(curl_handle, CURLOPT_URL, "http://www.example.com/");
+
+  /* send all data to this function  */
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+
+  /* we pass our 'chunk' struct to the callback function */
+  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
+
+  /* some servers don't like requests that are made without a user-agent
+     field, so we provide one */
+  curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+
+  /* get it! */
+  res = curl_easy_perform(curl_handle);
+
+  /* check for errors */
+  if(res != CURLE_OK) {
+    fprintf(stderr, "curl_easy_perform() failed: %s\n",
+            curl_easy_strerror(res));
+  }
+  else {
+    /*
+     * Now, our chunk.memory points to a memory block that is chunk.size
+     * bytes big and contains the remote file.
+     *
+     * Do something nice with it!
+     */
+
+    printf("%lu bytes retrieved\n", (long)chunk.size);
   }
 
-  /* this function returns a size_t, so we typecast to int to prevent warnings
-     with picky compilers */
-  nread = (int)conn->fread(conn->upload_fromhere, 1,
-                           buffersize, conn->fread_in);
+  /* cleanup curl stuff */
+  curl_easy_cleanup(curl_handle);
 
-  if(nread == CURL_READFUNC_ABORT) {
-    failf(data, "operation aborted by callback\n");
-    return CURLE_ABORTED_BY_CALLBACK;
-  }
+  if(chunk.memory)
+    free(chunk.memory);
 
-  if(!conn->bits.forbidchunk && conn->bits.upload_chunky) {
-    /* if chunked Transfer-Encoding */
-    char hexbuffer[11];
-    int hexlen = snprintf(hexbuffer, sizeof(hexbuffer),
-                          "%x\r\n", nread);
-    /* move buffer pointer */
-    conn->upload_fromhere -= hexlen;
-    nread += hexlen;
+  /* we're done with libcurl, so clean it up */
+  curl_global_cleanup();
 
-    /* copy the prefix to the buffer */
-    memcpy(conn->upload_fromhere, hexbuffer, hexlen);
-
-    /* always append CRLF to the data */
-    memcpy(conn->upload_fromhere + nread, "\r\n", 2);
-
-    if((nread - hexlen) == 0) {
-      /* mark this as done once this chunk is transfered */
-      conn->keep.upload_done = TRUE;
-    }
-
-    nread+=2; /* for the added CRLF */
-  }
-
-  *nreadp = nread;
-
-  return CURLE_OK;
+  return 0;
 }

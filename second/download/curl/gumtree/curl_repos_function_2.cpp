@@ -1,20 +1,60 @@
-static curlioerr my_ioctl(CURL *handle, curliocmd cmd, void *userp)
+int main(void)
 {
-  int fd = (int)userp;
+  CURL *curl;
+  CURLcode res;
+  struct MemoryStruct chunk;
+  static const char *postthis="Field=1&Field=2&Field=3";
 
-  (void)handle; /* not used in here */
+  chunk.memory = malloc(1);  /* will be grown as needed by realloc above */
+  chunk.size = 0;    /* no data at this point */
 
-  switch(cmd) {
-  case CURLIOCMD_RESTARTREAD:
-    /* mr libcurl kindly asks as to rewind the read data stream to start */
-    if(-1 == lseek(fd, 0, SEEK_SET))
-      /* couldn't rewind */
-      return CURLIOE_FAILRESTART;
+  curl_global_init(CURL_GLOBAL_ALL);
+  curl = curl_easy_init();
+  if(curl) {
 
-    break;
+    curl_easy_setopt(curl, CURLOPT_URL, "http://www.example.org/");
 
-  default: /* ignore unknown commands */
-    return CURLIOE_UNKNOWNCMD;
+    /* send all data to this function  */
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+
+    /* we pass our 'chunk' struct to the callback function */
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+
+    /* some servers don't like requests that are made without a user-agent
+       field, so we provide one */
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0");
+
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postthis);
+
+    /* if we don't provide POSTFIELDSIZE, libcurl will strlen() by
+       itself */
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)strlen(postthis));
+
+    /* Perform the request, res will get the return code */
+    res = curl_easy_perform(curl);
+    /* Check for errors */
+    if(res != CURLE_OK) {
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+    }
+    else {
+      /*
+       * Now, our chunk.memory points to a memory block that is chunk.size
+       * bytes big and contains the remote file.
+       *
+       * Do something nice with it!
+       */
+      printf("%s\n",chunk.memory);
+    }
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
+
+    if(chunk.memory)
+      free(chunk.memory);
+
+    /* we're done with libcurl, so clean it up */
+    curl_global_cleanup();
   }
-  return CURLIOE_OK; /* success! */
+  return 0;
 }

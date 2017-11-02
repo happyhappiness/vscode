@@ -1,0 +1,11 @@
+class,check,variable
+67,"[""size_t"", ""size_t"", ""size_t""]","[""fprintf_arg_ret""]"
+58,"[""curl_easy_init_ret""]",[]
+68,"[""strcmp_ret""]",[]
+59,"[""parseconfig_arg"", null, ""parseconfig_arg"", null, null]","[""new_getout_arg""]"
+60,"[""char""]","[""delegation_arg_ret""]"
+61,"[""fwrite_arg"", ""fwrite_arg"", null, null]","["" struct OperationConfig""]"
+62,"[""fopen_ret""]","[""strerror_ret"", "" struct OperationConfig"", "" struct OutStruct"", null]"
+63,"[null, null]",[]
+64,"[""curl_formadd_ret""]","["" struct OperationConfig""]"
+65,"[""curl_easy_getinfo_ret"", null, ""curl_easy_getinfo_arg_ret""]","[""curl_easy_getinfo_arg_ret"", ""fprintf_arg_ret""]"

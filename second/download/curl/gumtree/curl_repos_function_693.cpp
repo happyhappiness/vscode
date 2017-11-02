@@ -1,4 +1,6 @@
-static void tls_log_func(int level, const char *str)
+static void MD5_Update(MD5_CTX *pctx,
+                       const unsigned char *input,
+                       unsigned int input_len)
 {
-    fprintf(stderr, "|<%d>| %s", level, str);
+  PK11_DigestOp(*pctx, input, input_len);
 }

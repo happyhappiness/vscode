@@ -93,7 +93,7 @@ def reset_repos(new_repos):
 """
 repository
 """
-REPOS = 'rsync'
+REPOS = 'curl'
 """
 stroed file name prefix
 """

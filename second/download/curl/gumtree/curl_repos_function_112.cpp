@@ -1,18 +1,31 @@
-static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *userp)
+int main(void)
 {
-  struct WriteThis *pooh = (struct WriteThis *)userp;
-  const char *data;
+  CURL *curl;
+  CURLcode res = CURLE_OK;
 
-  if(size*nmemb < 1)
-    return 0;
+  curl = curl_easy_init();
+  if(curl) {
+    /* Set username and password */
+    curl_easy_setopt(curl, CURLOPT_USERNAME, "user");
+    curl_easy_setopt(curl, CURLOPT_PASSWORD, "secret");
 
-  data = post[pooh->counter];
+    /* This is just the server URL */
+    curl_easy_setopt(curl, CURLOPT_URL, "pop3://pop.example.com");
 
-  if(data) {
-    size_t len = strlen(data);
-    memcpy(ptr, data, len);
-    pooh->counter++; /* advance pointer */
-    return len;
+    /* Set the UIDL command */
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "UIDL");
+
+    /* Perform the custom request */
+    res = curl_easy_perform(curl);
+
+    /* Check for errors */
+    if(res != CURLE_OK)
+      fprintf(stderr, "curl_easy_perform() failed: %s\n",
+              curl_easy_strerror(res));
+
+    /* Always cleanup */
+    curl_easy_cleanup(curl);
   }
-  return 0;                         /* no more data left to deliver */
+
+  return (int)res;
 }

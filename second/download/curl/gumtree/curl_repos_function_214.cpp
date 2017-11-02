@@ -1,22 +1,8 @@
-static char *inet_ntop4 (const u_char *src, char *dst, size_t size)
+static void addsock(curl_socket_t s, CURL *easy, int action, GlobalInfo *g)
 {
-#if defined(HAVE_INET_NTOA_R_2_ARGS)
-  const char *ptr;
-  curlassert(size >= 16);
-  ptr = inet_ntoa_r(*(struct in_addr*)src, dst);
-  return (char *)memmove(dst, ptr, strlen(ptr)+1);
+  /* fdp is used to store current action */
+  int *fdp = (int *) calloc(sizeof(int), 1);
 
-#elif defined(HAVE_INET_NTOA_R)
-  return inet_ntoa_r(*(struct in_addr*)src, dst, size);
-
-#else
-  const char *addr = inet_ntoa(*(struct in_addr*)src);
-
-  if (strlen(addr) >= size)
-  {
-    SET_ERRNO(ENOSPC);
-    return (NULL);
-  }
-  return strcpy(dst, addr);
-#endif
+  setsock(fdp, s, easy, action, g);
+  curl_multi_assign(g->multi, s, fdp);
 }

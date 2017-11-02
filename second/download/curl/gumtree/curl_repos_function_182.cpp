@@ -1,57 +1,20 @@
-static void free_config_fields(struct Configurable *config)
+static void event_cb(int fd, short kind, void *userp)
 {
-  if(config->random_file)
-    free(config->random_file);
-  if(config->egd_file)
-    free(config->egd_file);
-  if(config->trace_dump)
-    free(config->trace_dump);
-  if(config->cipher_list)
-    free(config->cipher_list);
-  if(config->userpwd)
-    free(config->userpwd);
-  if(config->postfields)
-    free(config->postfields);
-  if(config->proxy)
-    free(config->proxy);
-  if(config->proxyuserpwd)
-    free(config->proxyuserpwd);
-  if(config->cookie)
-    free(config->cookie);
-  if(config->cookiefile)
-    free(config->cookiefile);
-  if(config->krb4level)
-    free(config->krb4level);
-  if(config->headerfile)
-    free(config->headerfile);
-  if(config->ftpport)
-    free(config->ftpport);
-  if(config->range)
-    free(config->range);
-  if(config->customrequest)
-    free(config->customrequest);
-  if(config->writeout)
-    free(config->writeout);
-  if(config->httppost)
-    curl_formfree(config->httppost);
-  if(config->cacert)
-    free(config->cacert);
-  if(config->capath)
-    free(config->capath);
-  if(config->cookiejar)
-    free(config->cookiejar);
-  if(config->tp_url)
-    free(config->tp_url);
-  if(config->tp_user)
-    free(config->tp_user);
-  if(config->ftp_account)
-    free(config->ftp_account);
+  GlobalInfo *g = (GlobalInfo*) userp;
+  CURLMcode rc;
 
-  curl_slist_free_all(config->quote); /* checks for config->quote == NULL */
-  curl_slist_free_all(config->prequote);
-  curl_slist_free_all(config->postquote);
-  curl_slist_free_all(config->tp_quote);
-  curl_slist_free_all(config->tp_prequote);
-  curl_slist_free_all(config->tp_postquote);
-  curl_slist_free_all(config->headers);
+  int action =
+    (kind & EV_READ ? CURL_CSELECT_IN : 0) |
+    (kind & EV_WRITE ? CURL_CSELECT_OUT : 0);
+
+  rc = curl_multi_socket_action(g->multi, fd, action, &g->still_running);
+  mcode_or_die("event_cb: curl_multi_socket_action", rc);
+
+  check_multi_info(g);
+  if ( g->still_running <= 0 ) {
+    fprintf(MSG_OUT, "last transfer done, kill timeout\n");
+    if (evtimer_pending(g->timer_event, NULL)) {
+      evtimer_del(g->timer_event);
+    }
+  }
 }

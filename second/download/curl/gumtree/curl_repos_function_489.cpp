@@ -1,50 +1,105 @@
-struct Curl_dns_entry *
-Curl_cache_addr(struct SessionHandle *data,
-                Curl_addrinfo *addr,
-                char *hostname,
-                int port)
+static int test_unsigned_short_formatting(void)
 {
-  char *entry_id;
-  size_t entry_len;
-  struct Curl_dns_entry *dns;
-  struct Curl_dns_entry *dns2;
-  time_t now;
+  int i, j;
+  int num_ushort_tests;
+  int failed = 0;
 
-  /* Create an entry id, based upon the hostname and port */
-  entry_id = create_hostcache_id(hostname, port);
-  /* If we can't create the entry id, fail */
-  if (!entry_id)
-    return NULL;
-  entry_len = strlen(entry_id);
+#if (SIZEOF_SHORT == 1)
 
-  /* Create a new cache entry */
-  dns = (struct Curl_dns_entry *) malloc(sizeof(struct Curl_dns_entry));
-  if (!dns) {
-    free(entry_id);
-    return NULL;
+  i=1; us_test[i].num = 0xFFU; us_test[i].expected = "256";
+  i++; us_test[i].num = 0xF0U; us_test[i].expected = "240";
+  i++; us_test[i].num = 0x0FU; us_test[i].expected = "15";
+
+  i++; us_test[i].num = 0xE0U; us_test[i].expected = "224";
+  i++; us_test[i].num = 0x0EU; us_test[i].expected = "14";
+
+  i++; us_test[i].num = 0xC0U; us_test[i].expected = "192";
+  i++; us_test[i].num = 0x0CU; us_test[i].expected = "12";
+
+  i++; us_test[i].num = 0x01U; us_test[i].expected = "1";
+  i++; us_test[i].num = 0x00U; us_test[i].expected = "0";
+
+  num_ushort_tests = i;
+
+#elif (SIZEOF_SHORT == 2)
+
+  i=1; us_test[i].num = 0xFFFFU; us_test[i].expected = "65535";
+  i++; us_test[i].num = 0xFF00U; us_test[i].expected = "65280";
+  i++; us_test[i].num = 0x00FFU; us_test[i].expected = "255";
+
+  i++; us_test[i].num = 0xF000U; us_test[i].expected = "61440";
+  i++; us_test[i].num = 0x0F00U; us_test[i].expected = "3840";
+  i++; us_test[i].num = 0x00F0U; us_test[i].expected = "240";
+  i++; us_test[i].num = 0x000FU; us_test[i].expected = "15";
+
+  i++; us_test[i].num = 0xC000U; us_test[i].expected = "49152";
+  i++; us_test[i].num = 0x0C00U; us_test[i].expected = "3072";
+  i++; us_test[i].num = 0x00C0U; us_test[i].expected = "192";
+  i++; us_test[i].num = 0x000CU; us_test[i].expected = "12";
+
+  i++; us_test[i].num = 0x0001U; us_test[i].expected = "1";
+  i++; us_test[i].num = 0x0000U; us_test[i].expected = "0";
+
+  num_ushort_tests = i;
+
+#elif (SIZEOF_SHORT == 4)
+
+  i=1; us_test[i].num = 0xFFFFFFFFU; us_test[i].expected = "4294967295";
+  i++; us_test[i].num = 0xFFFF0000U; us_test[i].expected = "4294901760";
+  i++; us_test[i].num = 0x0000FFFFU; us_test[i].expected = "65535";
+
+  i++; us_test[i].num = 0xFF000000U; us_test[i].expected = "4278190080";
+  i++; us_test[i].num = 0x00FF0000U; us_test[i].expected = "16711680";
+  i++; us_test[i].num = 0x0000FF00U; us_test[i].expected = "65280";
+  i++; us_test[i].num = 0x000000FFU; us_test[i].expected = "255";
+
+  i++; us_test[i].num = 0xF0000000U; us_test[i].expected = "4026531840";
+  i++; us_test[i].num = 0x0F000000U; us_test[i].expected = "251658240";
+  i++; us_test[i].num = 0x00F00000U; us_test[i].expected = "15728640";
+  i++; us_test[i].num = 0x000F0000U; us_test[i].expected = "983040";
+  i++; us_test[i].num = 0x0000F000U; us_test[i].expected = "61440";
+  i++; us_test[i].num = 0x00000F00U; us_test[i].expected = "3840";
+  i++; us_test[i].num = 0x000000F0U; us_test[i].expected = "240";
+  i++; us_test[i].num = 0x0000000FU; us_test[i].expected = "15";
+
+  i++; us_test[i].num = 0xC0000000U; us_test[i].expected = "3221225472";
+  i++; us_test[i].num = 0x0C000000U; us_test[i].expected = "201326592";
+  i++; us_test[i].num = 0x00C00000U; us_test[i].expected = "12582912";
+  i++; us_test[i].num = 0x000C0000U; us_test[i].expected = "786432";
+  i++; us_test[i].num = 0x0000C000U; us_test[i].expected = "49152";
+  i++; us_test[i].num = 0x00000C00U; us_test[i].expected = "3072";
+  i++; us_test[i].num = 0x000000C0U; us_test[i].expected = "192";
+  i++; us_test[i].num = 0x0000000CU; us_test[i].expected = "12";
+
+  i++; us_test[i].num = 0x00000001U; us_test[i].expected = "1";
+  i++; us_test[i].num = 0x00000000U; us_test[i].expected = "0";
+
+  num_ushort_tests = i;
+
+#endif
+
+  for(i=1; i<=num_ushort_tests; i++) {
+
+    for(j=0; j<BUFSZ; j++)
+      us_test[i].result[j] = 'X';
+    us_test[i].result[BUFSZ-1] = '\0';
+
+    (void)curl_msprintf(us_test[i].result, "%hu", us_test[i].num);
+
+    if(memcmp(us_test[i].result,
+               us_test[i].expected,
+               strlen(us_test[i].expected))) {
+      printf("unsigned short test #%.2d: Failed (Expected: %s Got: %s)\n",
+             i, us_test[i].expected, us_test[i].result);
+      failed++;
+    }
+
   }
 
-  dns->inuse = 0;   /* init to not used */
-  dns->addr = addr; /* this is the address(es) */
+  if(!failed)
+    printf("All curl_mprintf() unsigned short tests OK!\n");
+  else
+    printf("Some curl_mprintf() unsigned short tests Failed!\n");
 
-  /* Store the resolved data in our DNS cache. This function may return a
-     pointer to an existing struct already present in the hash, and it may
-     return the same argument we pass in. Make no assumptions. */
-  dns2 = Curl_hash_add(data->hostcache, entry_id, entry_len+1, (void *)dns);
-  if(!dns2) {
-    /* Major badness, run away. */
-    free(dns);
-    free(entry_id);
-    return NULL;
-  }
-  time(&now);
-  dns = dns2;
-
-  dns->timestamp = now; /* used now */
-  dns->inuse++;         /* mark entry as in-use */
-
-  /* free the allocated entry_id again */
-  free(entry_id);
-
-  return dns;
+  return failed;
 }

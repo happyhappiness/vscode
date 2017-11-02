@@ -1,69 +1,71 @@
-Curl_addrinfo *Curl_getaddrinfo(struct connectdata *conn,
-                                char *hostname,
-                                int port,
-                                int *waitp)
+int main(void)
 {
-  struct addrinfo hints, *res;
-  int error;
-  char sbuf[NI_MAXSERV];
-  curl_socket_t s;
-  int pf;
-  struct SessionHandle *data = conn->data;
+  CURL *curl;
+  CURLcode res;
+  struct sockaddr_in servaddr;  /*  socket address structure  */
+  curl_socket_t sockfd;
 
-  *waitp = FALSE; /* default to synch response */
+#ifdef WIN32
+  WSADATA wsaData;
+  int initwsa;
 
-  /* see if we have an IPv6 stack */
-  s = socket(PF_INET6, SOCK_DGRAM, 0);
-  if (s == CURL_SOCKET_BAD) {
-    /* Some non-IPv6 stacks have been found to make very slow name resolves
-     * when PF_UNSPEC is used, so thus we switch to a mere PF_INET lookup if
-     * the stack seems to be a non-ipv6 one. */
-
-    pf = PF_INET;
+  if((initwsa = WSAStartup(MAKEWORD(2,0), &wsaData)) != 0) {
+    printf("WSAStartup failed: %d\n", initwsa);
+    return 1;
   }
-  else {
-    /* This seems to be an IPv6-capable stack, use PF_UNSPEC for the widest
-     * possible checks. And close the socket again.
-     */
-    sclose(s);
+#endif
 
+  curl = curl_easy_init();
+  if(curl) {
     /*
-     * Check if a more limited name resolve has been requested.
+     * Note that libcurl will internally think that you connect to the host
+     * and port that you specify in the URL option.
      */
-    switch(data->set.ip_version) {
-    case CURL_IPRESOLVE_V4:
-      pf = PF_INET;
-      break;
-    case CURL_IPRESOLVE_V6:
-      pf = PF_INET6;
-      break;
-    default:
-      pf = PF_UNSPEC;
-      break;
+    curl_easy_setopt(curl, CURLOPT_URL, "http://99.99.99.99:9999");
+
+    /* Create the socket "manually" */
+    if( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) == CURL_SOCKET_BAD ) {
+      printf("Error creating listening socket.\n");
+      return 3;
+    }
+
+    memset(&servaddr, 0, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port   = htons(PORTNUM);
+
+    if (INADDR_NONE == (servaddr.sin_addr.s_addr = inet_addr(IPADDR)))
+      return 2;
+
+    if(connect(sockfd,(struct sockaddr *) &servaddr, sizeof(servaddr)) ==
+       -1) {
+      close(sockfd);
+      printf("client error: connect: %s\n", strerror(errno));
+      return 1;
+    }
+
+    /* no progress meter please */
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+
+    /* send all data to this function  */
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+
+    /* call this function to get a socket */
+    curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, opensocket);
+    curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, &sockfd);
+
+    /* call this function to set options for the socket */
+    curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
+
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
+
+    res = curl_easy_perform(curl);
+
+    curl_easy_cleanup(curl);
+
+    if(res) {
+      printf("libcurl error: %d\n", res);
+      return 4;
     }
   }
-
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = pf;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_CANONNAME;
-  itoa(port, sbuf, 10);
-
-  /* fire up a new resolver thread! */
-  if (init_resolve_thread(conn, hostname, port, &hints)) {
-    *waitp = TRUE;  /* please wait for the response */
-    return NULL;
-  }
-
-  /* fall-back to blocking version */
-  infof(data, "init_resolve_thread() failed for %s; %s\n",
-        hostname, Curl_strerror(conn,GetLastError()));
-
-  error = getaddrinfo(hostname, sbuf, &hints, &res);
-  if (error) {
-    infof(data, "getaddrinfo() failed for %s:%d; %s\n",
-          hostname, port, Curl_strerror(conn,WSAGetLastError()));
-    return NULL;
-  }
-  return res;
+  return 0;
 }

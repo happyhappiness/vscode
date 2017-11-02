@@ -1,52 +1,15 @@
-char *
-url_fgets(char *ptr, int size, URL_FILE *file)
+static void get_media_control_attribute(const char *sdp_filename,
+                                        char *control)
 {
-    int want = size - 1;/* always need to leave room for zero termination */
-    int loop;
-
-    switch(file->type)
-    {
-    case CFTYPE_FILE:
-        ptr = fgets(ptr,size,file->handle.file);
-        break;
-
-    case CFTYPE_CURL:
-        fill_buffer(file,want,1);
-
-        /* check if theres data in the buffer - if not fill either errored or
-         * EOF */
-        if(!file->buffer_pos)
-            return NULL;
-
-        /* ensure only available data is considered */
-        if(file->buffer_pos < want)
-            want = file->buffer_pos;
-
-        /*buffer contains data */
-        /* look for newline or eof */
-        for(loop=0;loop < want;loop++)
-        {
-            if(file->buffer[loop] == '\n')
-            {
-                want=loop+1;/* include newline */
-                break;
-            }
-        }
-
-        /* xfer data to caller */
-        memcpy(ptr, file->buffer, want);
-        ptr[want]=0;/* allways null terminate */
-
-        use_buffer(file,want);
-
-        /*printf("(fgets) return %d bytes %d left\n", want,file->buffer_pos);*/
-        break;
-
-    default: /* unknown or supported type - oh dear */
-        ptr=NULL;
-        errno=EBADF;
-        break;
+  int max_len = 256;
+  char *s = malloc(max_len);
+  FILE *sdp_fp = fopen(sdp_filename, "rt");
+  control[0] = '\0';
+  if (sdp_fp != NULL) {
+    while (fgets(s, max_len - 2, sdp_fp) != NULL) {
+      sscanf(s, " a = control: %s", control);
     }
-
-    return ptr;/*success */
+    fclose(sdp_fp);
+  }
+  free(s);
 }

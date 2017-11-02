@@ -1,17 +1,26 @@
-static CURLcode expect100(struct SessionHandle *data,
-                          send_buffer *req_buffer)
+int test(char *URL)
 {
-  CURLcode result = CURLE_OK;
-  if((data->set.httpversion != CURL_HTTP_VERSION_1_0) &&
-     !checkheaders(data, "Expect:")) {
-    /* if not doing HTTP 1.0 or disabled explicitly, we add a Expect:
-       100-continue to the headers which actually speeds up post
-       operations (as there is one packet coming back from the web
-       server) */
-    result = add_bufferf(req_buffer,
-                         "Expect: 100-continue\r\n");
-    if(result == CURLE_OK)
-      data->set.expect100header = TRUE;
+  CURL *handle = NULL;
+  CURLcode res = CURLE_OK;
+  chunk_data_t chunk_data = {0,0};
+  curl_global_init(CURL_GLOBAL_ALL);
+  handle = curl_easy_init();
+  if(!handle) {
+    res = CURLE_OUT_OF_MEMORY;
+    goto test_cleanup;
   }
-  return result;
+
+  test_setopt(handle, CURLOPT_URL, URL);
+  test_setopt(handle, CURLOPT_WILDCARDMATCH, 1L);
+  test_setopt(handle, CURLOPT_CHUNK_BGN_FUNCTION, chunk_bgn);
+  test_setopt(handle, CURLOPT_CHUNK_END_FUNCTION, chunk_end);
+  test_setopt(handle, CURLOPT_CHUNK_DATA, &chunk_data);
+
+  res = curl_easy_perform(handle);
+
+test_cleanup:
+  if(handle)
+    curl_easy_cleanup(handle);
+  curl_global_cleanup();
+  return res;
 }

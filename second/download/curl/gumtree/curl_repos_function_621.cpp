@@ -1,24 +1,56 @@
-static int
-krb4_decode(void *app_data, void *buf, int len, int level,
-            struct connectdata *conn)
+static void read_ahead(struct testcase *test,
+                       int convert /* if true, convert to ascii */)
 {
-  MSG_DAT m;
-  int e;
-  struct krb4_data *d = app_data;
+  int i;
+  char *p;
+  int c;
+  struct bf *b;
+  struct tftphdr *dp;
 
-  if(level == prot_safe)
-    e = krb_rd_safe(buf, len, &d->key,
-                    (struct sockaddr_in *)REMOTE_ADDR,
-                    (struct sockaddr_in *)LOCAL_ADDR, &m);
-  else
-    e = krb_rd_priv(buf, len, d->schedule, &d->key,
-                    (struct sockaddr_in *)REMOTE_ADDR,
-                    (struct sockaddr_in *)LOCAL_ADDR, &m);
-  if(e) {
-    struct SessionHandle *data = conn->data;
-    infof(data, "krb4_decode: %s\n", krb_get_err_text(e));
-    return -1;
+  b = &bfs[nextone];              /* look at "next" buffer */
+  if (b->counter != BF_FREE)      /* nop if not free */
+    return;
+  nextone = !nextone;             /* "incr" next buffer ptr */
+
+  dp = &b->buf.hdr;
+
+  if (convert == 0) {
+    /* The former file reading code did this:
+       b->counter = read(fileno(file), dp->th_data, SEGSIZE); */
+    size_t copy_n = MIN(SEGSIZE, test->rcount);
+    memcpy(dp->th_data, test->rptr, copy_n);
+
+    /* decrease amount, advance pointer */
+    test->rcount -= copy_n;
+    test->rptr += copy_n;
+    b->counter = (int)copy_n;
+    return;
   }
-  memmove(buf, m.app_data, m.app_length);
-  return m.app_length;
+
+  p = dp->th_data;
+  for (i = 0 ; i < SEGSIZE; i++) {
+    if (newline) {
+      if (prevchar == '\n')
+        c = '\n';       /* lf to cr,lf */
+      else
+        c = '\0';       /* cr to cr,nul */
+      newline = 0;
+    }
+    else {
+      if(test->rcount) {
+        c=test->rptr[0];
+        test->rptr++;
+        test->rcount--;
+      }
+      else
+        break;
+      if (c == '\n' || c == '\r') {
+        prevchar = c;
+        c = '\r';
+        newline = 1;
+      }
+    }
+    *p++ = (char)c;
+  }
+  b->counter = (int)(p - dp->th_data);
 }

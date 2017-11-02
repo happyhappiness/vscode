@@ -1,12 +1,12 @@
-static CURLcode AddFormDataf(struct FormData **formp,
-                             curl_off_t *size,
-                             const char *fmt, ...)
+static long parse_auth_name(const char *arg)
 {
-  char s[4096];
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(s, sizeof(s), fmt, ap);
-  va_end(ap);
-
-  return AddFormData(formp, FORM_DATA, s, 0, size);
+  if (!arg)
+    return CURLAUTH_NONE;
+  if (strequal(arg, "basic"))
+    return CURLAUTH_BASIC;
+  if (strequal(arg, "digest"))
+    return CURLAUTH_DIGEST;
+  if (strequal(arg, "ntlm"))
+    return CURLAUTH_NTLM;
+  return CURLAUTH_NONE;
 }

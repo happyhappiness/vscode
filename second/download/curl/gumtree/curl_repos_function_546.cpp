@@ -1,40 +1,52 @@
-static CURLcode ftp_state_user_resp(struct connectdata *conn,
-                                    int ftpcode,
-                                    ftpstate instate)
+int test(char *URL)
 {
-  CURLcode result = CURLE_OK;
-  struct SessionHandle *data = conn->data;
-  struct FTP *ftp = conn->proto.ftp;
-  (void)instate; /* no use for this yet */
+  CURL *curl;
+  CURLcode res=CURLE_OK;
 
-  if((ftpcode == 331) && (ftp->state == FTP_USER)) {
-    /* 331 Password required for ...
-       (the server requires to send the user's password too) */
-    NBFTPSENDF(conn, "PASS %s", ftp->passwd?ftp->passwd:"");
-    state(conn, FTP_PASS);
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
   }
-  else if(ftpcode/100 == 2) {
-    /* 230 User ... logged in.
-       (the user logged in with or without password) */
-    result = ftp_state_loggedin(conn);
-  }
-  else if(ftpcode == 332) {
-    if(data->set.ftp_account) {
-      NBFTPSENDF(conn, "ACCT %s", data->set.ftp_account);
-      state(conn, FTP_ACCT);
-    }
-    else {
-      failf(data, "ACCT requested but none available");
-      result = CURLE_LOGIN_DENIED;
-    }
-  }
-  else {
-    /* All other response codes, like:
 
-    530 User ... access denied
-    (the server denies to log the specified user) */
-    failf(data, "Access denied: %03d", ftpcode);
-    result = CURLE_LOGIN_DENIED;
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
   }
-  return result;
+
+  /* First set the URL that is about to receive our POST. */
+  test_setopt(curl, CURLOPT_URL, URL);
+
+#ifdef LIB545
+  test_setopt(curl, CURLOPT_POSTFIELDSIZE, (long) sizeof teststring);
+#endif
+
+  test_setopt(curl, CURLOPT_COPYPOSTFIELDS, teststring);
+
+  test_setopt(curl, CURLOPT_VERBOSE, 1L); /* show verbose for debug */
+  test_setopt(curl, CURLOPT_HEADER, 1L); /* include header */
+
+  /* Update the original data to detect non-copy. */
+  strcpy(teststring, "FAIL");
+
+#ifdef LIB545
+  {
+    CURL *handle2;
+    handle2 = curl_easy_duphandle(curl);
+    curl_easy_cleanup(curl);
+
+    curl = handle2;
+  }
+#endif
+
+  /* Now, this is a POST request with binary 0 embedded in POST data. */
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  /* always cleanup */
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return (int)res;
 }

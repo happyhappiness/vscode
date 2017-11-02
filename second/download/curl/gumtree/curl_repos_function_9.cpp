@@ -1,13 +1,28 @@
-size_t read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
+int main(int argc, char **argv)
 {
-  size_t retcode;
+  pthread_t tid[NUMT];
+  int i;
+  int error;
 
-  /* in real-world cases, this would probably get this data differently
-     as this fread() stuff is exactly what the library already would do
-     by default internally */
-  retcode = fread(ptr, size, nmemb, stream);
+  /* Must initialize libcurl before any threads are started */
+  curl_global_init(CURL_GLOBAL_ALL);
 
-  fprintf(stderr, "*** We read %d bytes from file\n", retcode);
+  for(i=0; i< NUMT; i++) {
+    error = pthread_create(&tid[i],
+                           NULL, /* default attributes please */
+                           pull_one_url,
+                           (void *)urls[i]);
+    if(0 != error)
+      fprintf(stderr, "Couldn't run thread number %d, errno %d\n", i, error);
+    else
+      fprintf(stderr, "Thread %d, gets %s\n", i, urls[i]);
+  }
 
-  return retcode;
+  /* now wait for all threads to terminate */
+  for(i=0; i< NUMT; i++) {
+    error = pthread_join(tid[i], NULL);
+    fprintf(stderr, "Thread %d terminated\n", i);
+  }
+
+  return 0;
 }

@@ -1,44 +1,49 @@
-static
-void rec_dont(struct connectdata *conn, int option)
+struct multi_files *AddMultiFiles(const char *file_name,
+                                  const char *type_name,
+                                  const char *show_filename,
+                                  struct multi_files **multi_first,
+                                  struct multi_files **multi_last)
 {
-  struct TELNET *tn = (struct TELNET *)conn->proto.telnet;
-  switch(tn->us[option])
-  {
-    case CURL_NO:
-      /* Already disabled */
-      break;
+  struct multi_files *multi;
+  struct multi_files *multi_type;
+  struct multi_files *multi_name;
 
-    case CURL_YES:
-      tn->us[option] = CURL_NO;
-      send_negotiation(conn, CURL_WONT, option);
-      break;
-
-    case CURL_WANTNO:
-      switch(tn->usq[option])
-      {
-        case CURL_EMPTY:
-          tn->us[option] = CURL_NO;
-          break;
-
-        case CURL_OPPOSITE:
-          tn->us[option] = CURL_WANTYES;
-          tn->usq[option] = CURL_EMPTY;
-          send_negotiation(conn, CURL_WILL, option);
-          break;
-      }
-      break;
-
-    case CURL_WANTYES:
-      switch(tn->usq[option])
-      {
-        case CURL_EMPTY:
-          tn->us[option] = CURL_NO;
-          break;
-        case CURL_OPPOSITE:
-          tn->us[option] = CURL_NO;
-          tn->usq[option] = CURL_EMPTY;
-          break;
-      }
-      break;
+  multi = calloc(1, sizeof(struct multi_files));
+  if(multi) {
+    multi->form.option = CURLFORM_FILE;
+    multi->form.value = file_name;
+    AppendNode(multi_first, multi_last, multi);
   }
+  else {
+    FreeMultiInfo(multi_first, multi_last);
+    return NULL;
+  }
+
+  if(type_name) {
+    multi_type = calloc(1, sizeof(struct multi_files));
+    if(multi_type) {
+      multi_type->form.option = CURLFORM_CONTENTTYPE;
+      multi_type->form.value = type_name;
+      AppendNode(multi_first, multi_last, multi_type);
+    }
+    else {
+      FreeMultiInfo(multi_first, multi_last);
+      return NULL;
+    }
+  }
+
+  if(show_filename) {
+    multi_name = calloc(1, sizeof(struct multi_files));
+    if(multi_name) {
+      multi_name->form.option = CURLFORM_FILENAME;
+      multi_name->form.value = show_filename;
+      AppendNode(multi_first, multi_last, multi_name);
+    }
+    else {
+      FreeMultiInfo(multi_first, multi_last);
+      return NULL;
+    }
+  }
+
+  return *multi_last;
 }

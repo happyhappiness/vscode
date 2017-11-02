@@ -1,19 +1,32 @@
-static struct getout *new_getout(struct Configurable *config)
+static size_t write_callback(char *buffer,
+                             size_t size,
+                             size_t nitems,
+                             void *userp)
 {
-  struct getout *node =malloc(sizeof(struct getout));
-  struct getout *last= config->url_last;
-  if(node) {
-    /* clear the struct */
-    memset(node, 0, sizeof(struct getout));
+  char *newbuff;
+  size_t rembuff;
 
-    /* append this new node last in the list */
-    if(last)
-      last->next = node;
-    else
-      config->url_list = node; /* first node */
+  URL_FILE *url = (URL_FILE *)userp;
+  size *= nitems;
 
-    /* move the last pointer */
-    config->url_last = node;
+  rembuff=url->buffer_len - url->buffer_pos; /* remaining space in buffer */
+
+  if(size > rembuff) {
+    /* not enough space in buffer */
+    newbuff=realloc(url->buffer,url->buffer_len + (size - rembuff));
+    if(newbuff==NULL) {
+      fprintf(stderr,"callback buffer grow failed\n");
+      size=rembuff;
+    }
+    else {
+      /* realloc suceeded increase buffer size*/
+      url->buffer_len+=size - rembuff;
+      url->buffer=newbuff;
+    }
   }
-  return node;
+
+  memcpy(&url->buffer[url->buffer_pos], buffer, size);
+  url->buffer_pos += size;
+
+  return size;
 }

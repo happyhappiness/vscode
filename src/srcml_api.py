@@ -2,6 +2,7 @@ from lxml import etree
 import commands
 import my_constant
 import my_util
+import json
 
 class SrcmlApi:
   
@@ -134,10 +135,10 @@ class SrcmlApi:
                         tag = self._remove_prefix(child)
                         # filter by sibling descendants
                         if tag == 'case' and \
-                    self._is_ancestor(child.getnext(), self.log_node):
+                    self._is_case_for_node(child, self.log_node):
                             self.control_node.append(child)
                             # print self.get_text(child)
-                            break
+                            # break
                 # get info(function, decl) for control dependence
                 self.control = []
                 for temp_node in self.control_node:
@@ -172,9 +173,9 @@ class SrcmlApi:
                 # ignore log without control statement
                 if check == []:
                     continue
-                # variable
-                variable = self._get_info_for_node(call_node)
-                self.logs.append([loc, log, check, variable])
+                # variable (argumentlist)
+                variable = self._get_info_for_node(call_node[1])
+                self.logs.append([loc, log, json.dumps(check), json.dumps(variable)])
             # call info
             self.calls.add(name)
         # get all type node(type --... --name)
@@ -271,11 +272,12 @@ class SrcmlApi:
         candi_nodes = self.tree.findall("//default:name", namespaces=self.namespace_map)
         is_ptr = False # mark for pointer argument
         for candi_node in candi_nodes:
-            if candi_node == node or candi_node.text != node.text or candi_node.text is None:
+            # if candi_node == node or candi_node.text != node.text or candi_node.text is None:
+            if candi_node.text != node.text or candi_node.text is None:
                 continue
             candi_line = self._get_location(candi_node)
             # find use as return or reference argument for functions
-            if candi_line < node_line:
+            if candi_line <= node_line:
                 # filter by name = (***) call
                 operator_node = candi_node.getnext()
                 if operator_node is not None and self._remove_blank(operator_node) == '=':
@@ -353,6 +355,20 @@ class SrcmlApi:
                 call_info.append(info + my_constant.FlAG_FUNC_RETURN)
         return name_nodes, call_info
 
+    def _is_case_for_node(self, case_node, node):
+        """
+        @ param case node (not none) and node\n
+        @ return true if is\n
+        @ involve judge whether node is under case(no break between case node and node)\n
+        """
+        next_node = case_node.getnext()
+        while next_node is not None and self._remove_prefix(next_node) != "break":
+            # node is subnode of node controled by case
+            if self._is_ancestor(next_node, node):
+                return True
+            next_node = next_node.getnext()
+        return False
+
     def _is_ancestor(self, ancestor, node):
         """
         @ param ancestor node(not none) and node\n
@@ -384,7 +400,7 @@ class SrcmlApi:
                 while self._remove_prefix(prev_node) != 'decl':
                     prev_node = prev_node.getprevious()
                 return prev_node[0]
-   
+
     def _get_sub_call_node(self, node):
         """
         @ param node(not none)(without check)\n
@@ -396,6 +412,7 @@ class SrcmlApi:
             for func_node in func_nodes:
                 return func_node
         return None
+
     def _is_pointer(self, node):
         """
         @ param node(type)(provided check)\n
@@ -496,8 +513,8 @@ if __name__ == "__main__":
     # input function cpp file
     # srcml_api = SrcmlApi('second/download/curl/repos/curl-7.1.1/src/hugehelp.c', is_function=False)
     # srcml_api.get_functions(0)
-    srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_function_5052.cpp')
-    if srcml_api.set_log_loc(58):
+    srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_function_1119.cpp')
+    if srcml_api.set_log_loc(788):
         if srcml_api.set_control_dependence():
             print srcml_api.get_control_info()
             print srcml_api.get_log_info()

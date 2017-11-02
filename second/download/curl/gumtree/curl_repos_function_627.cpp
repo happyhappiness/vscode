@@ -1,34 +1,64 @@
-static int DynaOpen(const char **mod_name)
+static int parse_servercmd(struct testcase *req)
 {
-#if defined(HAVE_DLOPEN) || defined(HAVE_LIBDL)
-  if (libldap == NULL) {
-    /*
-     * libldap.so can normally resolve its dependency on liblber.so
-     * automatically, but in broken installation it does not so
-     * handle it here by opening liblber.so as global.
-     */
-#ifdef DL_LBER_FILE
-    *mod_name = DL_LBER_FILE;
-    liblber = dlopen(*mod_name, DLOPEN_MODE);
-    if (!liblber)
-      return 0;
-#endif
+  FILE *stream;
+  char *filename;
+  int error;
 
-    /* Assume loading libldap.so will fail if loading of liblber.so failed
-     */
-    *mod_name = DL_LDAP_FILE;
-    libldap = dlopen(*mod_name, RTLD_LAZY);
+  filename = test2file(req->testno);
+
+  stream=fopen(filename, "rb");
+  if(!stream) {
+    error = errno;
+    logmsg("fopen() failed with error: %d %s", error, strerror(error));
+    logmsg("  [1] Error opening file: %s", filename);
+    logmsg("  Couldn't open test file %ld", req->testno);
+    return 1; /* done */
   }
-  return (libldap != NULL);
+  else {
+    char *orgcmd = NULL;
+    char *cmd = NULL;
+    size_t cmdsize = 0;
+    int num=0;
 
-#elif defined(WIN32)
-  *mod_name = DL_LDAP_FILE;
-  if (!libldap)
-    libldap = (void*)LoadLibrary(*mod_name);
-  return (libldap != NULL);
+    /* get the custom server control "commands" */
+    error = getpart(&orgcmd, &cmdsize, "reply", "servercmd", stream);
+    fclose(stream);
+    if(error) {
+      logmsg("getpart() failed with error: %d", error);
+      return 1; /* done */
+    }
 
-#else
-  (void) mod_name;
-  return (0);
-#endif
+    cmd = orgcmd;
+    while(cmd && cmdsize) {
+      char *check;
+      if(1 == sscanf(cmd, "writedelay: %d", &num)) {
+        logmsg("instructed to delay %d secs between packets", num);
+        req->writedelay = num;
+      }
+      else {
+        logmsg("Unknown <servercmd> instruction found: %s", cmd);
+      }
+      /* try to deal with CRLF or just LF */
+      check = strchr(cmd, '\r');
+      if(!check)
+        check = strchr(cmd, '\n');
+
+      if(check) {
+        /* get to the letter following the newline */
+        while((*check == '\r') || (*check == '\n'))
+          check++;
+
+        if(!*check)
+          /* if we reached a zero, get out */
+          break;
+        cmd = check;
+      }
+      else
+        break;
+    }
+    if(orgcmd)
+      free(orgcmd);
+  }
+
+  return 0; /* OK! */
 }

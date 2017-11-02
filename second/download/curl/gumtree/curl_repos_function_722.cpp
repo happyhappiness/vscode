@@ -1,11 +1,9 @@
-CURLcode curl_easy_getinfo(CURL *curl, CURLINFO info, ...)
+int Curl_digest_final(digest_context *context, unsigned char *result)
 {
-  va_list arg;
-  void *paramp;
-  struct SessionHandle *data = (struct SessionHandle *)curl;
+  (*context->digest_hash->digest_final)(result, context->digest_hashctx);
 
-  va_start(arg, info);
-  paramp = va_arg(arg, void *);
+  free(context->digest_hashctx);
+  free(context);
 
-  return Curl_getinfo(data, info, paramp);
+  return 0;
 }

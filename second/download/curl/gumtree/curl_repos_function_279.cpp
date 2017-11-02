@@ -1,14 +1,28 @@
-static int
-cert_hostcheck(const char *match_pattern, const char *hostname)
+static char *
+buffer_undef(localkey_t key, long size)
+
 {
-  if (!match_pattern || !*match_pattern ||
-      !hostname || !*hostname) /* sanity check */
-    return 0;
+  /* Define the buffer system, get the buffer for the given local key in
+     the current thread, and make sure it is at least `size'-byte long.
+     Set `size' to < 0 to get its address only. */
 
-  if(curl_strequal(hostname,match_pattern)) /* trivial case */
-    return 1;
+  pthread_mutex_lock(&mutex);
 
-  if (hostmatch(hostname,match_pattern) == HOST_MATCH)
-    return 1;
-  return 0;
+  /* Determine if we can use pthread-specific data. */
+
+  if(Curl_thread_buffer == buffer_undef) {      /* If unchanged during lock. */
+    if(!pthread_key_create(&thdkey, thdbufdestroy))
+      Curl_thread_buffer = buffer_threaded;
+    else if(!(locbufs = calloc((size_t) LK_LAST, sizeof *locbufs))) {
+      pthread_mutex_unlock(&mutex);
+      return (char *) NULL;
+      }
+    else
+        Curl_thread_buffer = buffer_unthreaded;
+
+    atexit(terminate);
+    }
+
+  pthread_mutex_unlock(&mutex);
+  return Curl_thread_buffer(key, size);
 }

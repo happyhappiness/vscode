@@ -1,12 +1,17 @@
-int test(char *URL)
+static void characterDataHandler(void *userData, const XML_Char *s, int len)
 {
-  CURLcode res;
-  CURL *curl = curl_easy_init();
-  curl_easy_setopt(curl, CURLOPT_URL, URL);
-  curl_easy_setopt(curl, CURLOPT_FILETIME, 1);
-  curl_easy_setopt(curl, CURLOPT_NOBODY, 1);
-  curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
-  res = curl_easy_perform(curl);
-  curl_easy_cleanup(curl);
-  return (int)res;
+  struct ParserStruct *state = (struct ParserStruct *) userData;
+  struct MemoryStruct *mem = &state->characters;
+
+  mem->memory = realloc(mem->memory, mem->size + len + 1);
+  if(mem->memory == NULL) {
+    /* Out of memory. */
+    fprintf(stderr, "Not enough memory (realloc returned NULL).\n");
+    state->ok = 0;
+    return;
+  }
+
+  memcpy(&(mem->memory[mem->size]), s, len);
+  mem->size += len;
+  mem->memory[mem->size] = 0;
 }

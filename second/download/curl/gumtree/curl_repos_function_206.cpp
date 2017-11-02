@@ -1,87 +1,45 @@
-CURLcode Curl_is_connected(struct connectdata *conn,
-                           int sockindex,
-                           bool *connected)
+int main(void)
 {
-  int rc;
-  struct SessionHandle *data = conn->data;
-  CURLcode code = CURLE_OK;
-  curl_socket_t sockfd = conn->sock[sockindex];
-  long allow = DEFAULT_CONNECT_TIMEOUT;
-  long has_passed;
+  CURL *curl;
+  CURLcode res = CURLE_OK;
+  struct myprogress prog;
 
-  curlassert(sockindex >= FIRSTSOCKET && sockindex <= SECONDARYSOCKET);
+  curl = curl_easy_init();
+  if(curl) {
+    prog.lastruntime = 0;
+    prog.curl = curl;
 
-  *connected = FALSE; /* a very negative world view is best */
+    curl_easy_setopt(curl, CURLOPT_URL, "http://example.com/");
 
-  /* Evaluate in milliseconds how much time that has passed */
-  has_passed = Curl_tvdiff(Curl_tvnow(), data->progress.t_startsingle);
+    curl_easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, older_progress);
+    /* pass the struct pointer into the progress function */
+    curl_easy_setopt(curl, CURLOPT_PROGRESSDATA, &prog);
 
-  /* subtract the most strict timeout of the ones */
-  if(data->set.timeout && data->set.connecttimeout) {
-    if (data->set.timeout < data->set.connecttimeout)
-      allow = data->set.timeout*1000;
-    else
-      allow = data->set.connecttimeout*1000;
+#if LIBCURL_VERSION_NUM >= 0x072000
+    /* xferinfo was introduced in 7.32.0, no earlier libcurl versions will
+       compile as they won't have the symbols around.
+
+       If built with a newer libcurl, but running with an older libcurl:
+       curl_easy_setopt() will fail in run-time trying to set the new
+       callback, making the older callback get used.
+
+       New libcurls will prefer the new callback and instead use that one even
+       if both callbacks are set. */
+
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, xferinfo);
+    /* pass the struct pointer into the xferinfo function, note that this is
+       an alias to CURLOPT_PROGRESSDATA */
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &prog);
+#endif
+
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    res = curl_easy_perform(curl);
+
+    if(res != CURLE_OK)
+      fprintf(stderr, "%s\n", curl_easy_strerror(res));
+
+    /* always cleanup */
+    curl_easy_cleanup(curl);
   }
-  else if(data->set.timeout) {
-    allow = data->set.timeout*1000;
-  }
-  else if(data->set.connecttimeout) {
-    allow = data->set.connecttimeout*1000;
-  }
-
-  if(has_passed > allow ) {
-    /* time-out, bail out, go home */
-    failf(data, "Connection time-out after %ld ms", has_passed);
-    return CURLE_OPERATION_TIMEOUTED;
-  }
-  if(conn->bits.tcpconnect) {
-    /* we are connected already! */
-    *connected = TRUE;
-    return CURLE_OK;
-  }
-
-  /* check for connect without timeout as we want to return immediately */
-  rc = waitconnect(sockfd, 0);
-
-  if(WAITCONN_CONNECTED == rc) {
-    int error;
-    if (verifyconnect(sockfd, &error)) {
-      /* we are connected, awesome! */
-      *connected = TRUE;
-      return CURLE_OK;
-    }
-    /* nope, not connected for real */
-    data->state.os_errno = error;
-    infof(data, "Connection failed\n");
-    if(trynextip(conn, sockindex, connected)) {
-      code = CURLE_COULDNT_CONNECT;
-    }
-  }
-  else if(WAITCONN_TIMEOUT != rc) {
-    int error = 0;
-
-    /* nope, not connected  */
-    if (WAITCONN_FDSET_ERROR == rc) {
-      verifyconnect(sockfd, &error);
-      data->state.os_errno = error;
-      infof(data, "%s\n",Curl_strerror(conn,error));
-    }
-    else
-      infof(data, "Connection failed\n");
-
-    if(trynextip(conn, sockindex, connected)) {
-      error = Curl_ourerrno();
-      data->state.os_errno = error;
-      failf(data, "Failed connect to %s:%d; %s",
-            conn->host.name, conn->port, Curl_strerror(conn,error));
-      code = CURLE_COULDNT_CONNECT;
-    }
-  }
-  /*
-   * If the connection failed here, we should attempt to connect to the "next
-   * address" for the given host.
-   */
-
-  return code;
+  return (int)res;
 }

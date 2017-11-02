@@ -1,7 +1,6 @@
-void curl_memdebug(const char *logname)
+char *
+Curl_ldap_err2string_a(int error)
+
 {
-  if(logname)
-    logfile = fopen(logname, "w");
-  else
-    logfile = stderr;
+  return set_thread_string(LK_LDAP_ERROR, ldap_err2string(error));
 }

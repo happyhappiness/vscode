@@ -1,10 +1,4 @@
-int Curl_gtls_send(struct connectdata *conn,
-                   int sockindex,
-                   void *mem,
-                   size_t len)
+static int SHA256_Init(SHA256_CTX *pctx)
 {
-  int rc;
-  rc = gnutls_record_send(conn->ssl[sockindex].session, mem, len);
-
-  return rc;
+  return nss_hash_init(pctx, SEC_OID_SHA256);
 }

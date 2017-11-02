@@ -1,16 +1,13 @@
-static int checkmonth(char *check)
+static bool socket_domain_is_ip(void)
 {
-  int i;
-  const char * const *what;
-  bool found= FALSE;
-
-  what = &Curl_month[0];
-  for(i=0; i<12; i++) {
-    if(curl_strequal(check, what[0])) {
-      found=TRUE;
-      break;
-    }
-    what++;
+  switch(socket_domain) {
+  case AF_INET:
+#ifdef ENABLE_IPV6
+  case AF_INET6:
+#endif
+    return true;
+  default:
+  /* case AF_UNIX: */
+    return false;
   }
-  return found?i:-1; /* return the offset or -1, no real offset is -1 */
 }

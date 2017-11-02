@@ -1,46 +1,21 @@
-int main(void)
+static size_t payload_source(void *ptr, size_t size, size_t nmemb, void *userp)
 {
-  CURL *curl;
-  CURLcode res;
-  struct FtpFile ftpfile={
-    "curl.tar.gz", /* name to store the file as if succesful */
-    NULL
-  };
+  struct upload_status *upload_ctx = (struct upload_status *)userp;
+  const char *data;
 
-  curl_global_init(CURL_GLOBAL_DEFAULT);
-
-  curl = curl_easy_init();
-  if(curl) {
-    /*
-     * Get curl 7.9.2 from sunet.se's FTP site. curl 7.9.2 is most likely not
-     * present there by the time you read this, so you'd better replace the
-     * URL with one that works!
-     */
-    curl_easy_setopt(curl, CURLOPT_URL,
-                     "ftp://ftp.sunet.se/pub/www/utilities/curl/curl-7.9.2.tar.gz");
-    /* Define our callback to get called when there's data to be written */
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, my_fwrite);
-    /* Set a pointer to our struct to pass to the callback */
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ftpfile);
-
-    /* Switch on full protocol/debug output */
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, TRUE);
-
-    res = curl_easy_perform(curl);
-
-    /* always cleanup */
-    curl_easy_cleanup(curl);
-
-    if(CURLE_OK != res) {
-      /* we failed */
-      fprintf(stderr, "curl told us %d\n", res);
-    }
+  if((size == 0) || (nmemb == 0) || ((size*nmemb) < 1)) {
+    return 0;
   }
 
-  if(ftpfile.stream)
-    fclose(ftpfile.stream); /* close the local file */
+  data = payload_text[upload_ctx->lines_read];
 
-  curl_global_cleanup();
+  if(data) {
+    size_t len = strlen(data);
+    memcpy(ptr, data, len);
+    upload_ctx->lines_read++;
+
+    return len;
+  }
 
   return 0;
 }

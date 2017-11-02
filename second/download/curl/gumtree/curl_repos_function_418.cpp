@@ -1,25 +1,27 @@
-static long
-ConnectionStore(struct SessionHandle *data,
-                struct connectdata *conn)
+int test(char *URL)
 {
-  long i;
-  for(i=0; i< data->state.numconnects; i++) {
-    if(!data->state.connects[i])
-      break;
-  }
-  if(i == data->state.numconnects) {
-    /* there was no room available, kill one */
-    i = ConnectionKillOne(data);
-    infof(data, "Connection (#%d) was killed to make room\n", i);
-  }
+  CURL *curl;
+  int res=0;
 
-  if(-1 != i) {
-    /* only do this if a true index was returned, if -1 was returned there
-       is no room in the cache for an unknown reason and we cannot store
-       this there. */
-    data->state.connects[i] = conn; /* fill in this */
-    conn->connectindex = i; /* make the child know where the pointer to this
-                               particular data is stored */
-  }
-  return i;
+  global_init(CURL_GLOBAL_ALL);
+
+  easy_init(curl);
+
+  easy_setopt(curl, CURLOPT_URL, URL);
+  easy_setopt(curl, CURLOPT_TIMEOUT, (long)7);
+  easy_setopt(curl, CURLOPT_NOSIGNAL, (long)1);
+  easy_setopt(curl, CURLOPT_PROGRESSFUNCTION, progressKiller);
+  easy_setopt(curl, CURLOPT_PROGRESSDATA, NULL);
+  easy_setopt(curl, CURLOPT_NOPROGRESS, (long)0);
+
+  res = curl_easy_perform(curl);
+
+test_cleanup:
+
+  /* undocumented cleanup sequence - type UA */
+
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+
+  return res;
 }

@@ -1,9 +1,10 @@
-void *myrealloc(void *ptr, size_t size)
+static int prog_cb (void *p, double dltotal, double dlnow, double ult,
+                    double uln)
 {
-  /* There might be a realloc() out there that doesn't like reallocing
-     NULL pointers, so we take care of it here */
-  if(ptr)
-    return realloc(ptr, size);
-  else
-    return malloc(size);
+  ConnInfo *conn = (ConnInfo *)p;
+  (void)ult;
+  (void)uln;
+
+  fprintf(MSG_OUT, "Progress: %s (%g/%g)\n", conn->url, dlnow, dltotal);
+  return 0;
 }

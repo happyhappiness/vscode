@@ -1,18 +1,27 @@
-static int checkday(char *check, size_t len)
+static void restore_signal_handlers(void)
 {
-  int i;
-  const char * const *what;
-  bool found= FALSE;
-  if(len > 3)
-    what = &weekday[0];
-  else
-    what = &Curl_wkday[0];
-  for(i=0; i<7; i++) {
-    if(curl_strequal(check, what[0])) {
-      found=TRUE;
-      break;
-    }
-    what++;
-  }
-  return found?i:-1;
+#ifdef SIGHUP
+  if(SIG_ERR != old_sighup_handler)
+    (void)signal(SIGHUP, old_sighup_handler);
+#endif
+#ifdef SIGPIPE
+  if(SIG_ERR != old_sigpipe_handler)
+    (void)signal(SIGPIPE, old_sigpipe_handler);
+#endif
+#ifdef SIGALRM
+  if(SIG_ERR != old_sigalrm_handler)
+    (void)signal(SIGALRM, old_sigalrm_handler);
+#endif
+#ifdef SIGINT
+  if(SIG_ERR != old_sigint_handler)
+    (void)signal(SIGINT, old_sigint_handler);
+#endif
+#ifdef SIGTERM
+  if(SIG_ERR != old_sigterm_handler)
+    (void)signal(SIGTERM, old_sigterm_handler);
+#endif
+#if defined(SIGBREAK) && defined(WIN32)
+  if(SIG_ERR != old_sigbreak_handler)
+    (void)signal(SIGBREAK, old_sigbreak_handler);
+#endif
 }

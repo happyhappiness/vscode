@@ -1,22 +1,54 @@
-void unlock(CURL *handle, curl_lock_data data, void *useptr )
+int main(void)
 {
-  const char *what;
-  struct userdata *user = (struct userdata *)useptr;
-  (void)handle;
-  switch ( data ) {
-    case CURL_LOCK_DATA_SHARE:
-      what = "share";  
-      break;
-    case CURL_LOCK_DATA_DNS:
-      what = "dns";  
-      break;
-    case CURL_LOCK_DATA_COOKIE:
-      what = "cookie";  
-      break;
-    default:
-      fprintf(stderr, "unlock: no such data: %d\n", (int)data);
-      return;
+  CURL *curl;
+  CURLcode res;
+
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+
+  curl = curl_easy_init();
+  if(curl) {
+    curl_easy_setopt(curl, CURLOPT_URL, "https://www.example.com/");
+
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, wrfu);
+
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L);
+    curl_easy_setopt(curl, CURLOPT_CERTINFO, 1L);
+
+    res = curl_easy_perform(curl);
+
+    if(!res) {
+      union {
+        struct curl_slist    *to_info;
+        struct curl_certinfo *to_certinfo;
+      } ptr;
+
+      ptr.to_info = NULL;
+
+      res = curl_easy_getinfo(curl, CURLINFO_CERTINFO, &ptr.to_info);
+
+      if(!res && ptr.to_info) {
+        int i;
+
+        printf("%d certs!\n", ptr.to_certinfo->num_of_certs);
+
+        for(i = 0; i < ptr.to_certinfo->num_of_certs; i++) {
+          struct curl_slist *slist;
+
+          for(slist = ptr.to_certinfo->certinfo[i]; slist; slist = slist->next)
+            printf("%s\n", slist->data);
+
+        }
+      }
+
+    }
+
+    curl_easy_cleanup(curl);
   }
-  printf("unlock: %-6s <%s>: %d\n", what, user->text, user->counter);
-  user->counter++;
+
+  curl_global_cleanup();
+
+  return 0;
 }

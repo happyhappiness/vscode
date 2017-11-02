@@ -1,40 +1,36 @@
-static CURLcode ftp_state_use_pasv(struct connectdata *conn)
+int test(char *URL)
 {
-  struct FTP *ftp = conn->proto.ftp;
-  CURLcode result = CURLE_OK;
-  /*
-    Here's the excecutive summary on what to do:
+  int res;
+  CURL *curl;
 
-    PASV is RFC959, expect:
-    227 Entering Passive Mode (a1,a2,a3,a4,p1,p2)
+  if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
+    fprintf(stderr, "curl_global_init() failed\n");
+    return TEST_ERR_MAJOR_BAD;
+  }
 
-    LPSV is RFC1639, expect:
-    228 Entering Long Passive Mode (4,4,a1,a2,a3,a4,2,p1,p2)
+  if ((curl = curl_easy_init()) == NULL) {
+    fprintf(stderr, "curl_easy_init() failed\n");
+    curl_global_cleanup();
+    return TEST_ERR_MAJOR_BAD;
+  }
 
-    EPSV is RFC2428, expect:
-    229 Entering Extended Passive Mode (|||port|)
+  test_setopt(curl, CURLOPT_URL, URL);
+  test_setopt(curl, CURLOPT_WILDCARDMATCH, 1L);
+  test_setopt(curl, CURLOPT_FNMATCH_FUNCTION, new_fnmatch);
 
-  */
+  res = curl_easy_perform(curl);
+  if(res) {
+    fprintf(stderr, "curl_easy_perform() failed %d\n", res);
+    goto test_cleanup;
+  }
+  res = curl_easy_perform(curl);
+  if(res) {
+    fprintf(stderr, "curl_easy_perform() failed %d\n", res);
+    goto test_cleanup;
+  }
 
-  const char *mode[] = { "EPSV", "PASV", NULL };
-  int modeoff;
-
-#ifdef PF_INET6
-  if(!conn->bits.ftp_use_epsv && conn->bits.ipv6)
-    /* EPSV is disabled but we are connected to a IPv6 host, so we ignore the
-       request and enable EPSV again! */
-    conn->bits.ftp_use_epsv = TRUE;
-#endif
-
-  modeoff = conn->bits.ftp_use_epsv?0:1;
-
-  result = Curl_nbftpsendf(conn, "%s", mode[modeoff]);
-  if(result)
-    return result;
-
-  ftp->count1 = modeoff;
-  state(conn, FTP_PASV);
-  infof(conn->data, "Connect data stream passively\n");
-
-  return result;
+test_cleanup:
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+  return res;
 }

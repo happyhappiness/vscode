@@ -1,14 +1,24 @@
-static int addbyter(int output, FILE *data)
-{
-  struct nsprintf *infop=(struct nsprintf *)data;
-  unsigned char outc = (unsigned char)output;
+char *
+curl_version_ccsid(unsigned int ccsid)
 
-  if(infop->length < infop->max) {
-    /* only do this if we haven't reached max length yet */
-    infop->buffer[0] = outc; /* store */
-    infop->buffer++; /* increase pointer */
-    infop->length++; /* we are now one byte larger */
-    return outc;     /* fputc() returns like this on success */
-  }
-  return -1;
+{
+  int i;
+  char * aversion;
+  char * eversion;
+
+  aversion = curl_version();
+
+  if(!aversion)
+    return aversion;
+
+  i = strlen(aversion) + 1;
+  i *= MAX_CONV_EXPANSION;
+
+  if(!(eversion = Curl_thread_buffer(LK_CURL_VERSION, i)))
+    return (char *) NULL;
+
+  if(convert(eversion, i, ccsid, aversion, -1, ASCII_CCSID) < 0)
+    return (char *) NULL;
+
+  return eversion;
 }

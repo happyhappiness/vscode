@@ -1,17 +1,39 @@
-void Curl_free_ssl_config(struct ssl_config_data* sslc)
+static void install_signal_handlers(void)
 {
-  if(sslc->CAfile)
-    free(sslc->CAfile);
-
-  if(sslc->CApath)
-    free(sslc->CApath);
-
-  if(sslc->cipher_list)
-    free(sslc->cipher_list);
-
-  if(sslc->egdsocket)
-    free(sslc->egdsocket);
-
-  if(sslc->random_file)
-    free(sslc->random_file);
+#ifdef SIGHUP
+  /* ignore SIGHUP signal */
+  if((old_sighup_handler = signal(SIGHUP, SIG_IGN)) == SIG_ERR)
+    logmsg("cannot install SIGHUP handler: %s", strerror(errno));
+#endif
+#ifdef SIGPIPE
+  /* ignore SIGPIPE signal */
+  if((old_sigpipe_handler = signal(SIGPIPE, SIG_IGN)) == SIG_ERR)
+    logmsg("cannot install SIGPIPE handler: %s", strerror(errno));
+#endif
+#ifdef SIGALRM
+  /* ignore SIGALRM signal */
+  if((old_sigalrm_handler = signal(SIGALRM, SIG_IGN)) == SIG_ERR)
+    logmsg("cannot install SIGALRM handler: %s", strerror(errno));
+#endif
+#ifdef SIGINT
+  /* handle SIGINT signal with our exit_signal_handler */
+  if((old_sigint_handler = signal(SIGINT, exit_signal_handler)) == SIG_ERR)
+    logmsg("cannot install SIGINT handler: %s", strerror(errno));
+  else
+    siginterrupt(SIGINT, 1);
+#endif
+#ifdef SIGTERM
+  /* handle SIGTERM signal with our exit_signal_handler */
+  if((old_sigterm_handler = signal(SIGTERM, exit_signal_handler)) == SIG_ERR)
+    logmsg("cannot install SIGTERM handler: %s", strerror(errno));
+  else
+    siginterrupt(SIGTERM, 1);
+#endif
+#if defined(SIGBREAK) && defined(WIN32)
+  /* handle SIGBREAK signal with our exit_signal_handler */
+  if((old_sigbreak_handler = signal(SIGBREAK, exit_signal_handler)) == SIG_ERR)
+    logmsg("cannot install SIGBREAK handler: %s", strerror(errno));
+  else
+    siginterrupt(SIGBREAK, 1);
+#endif
 }

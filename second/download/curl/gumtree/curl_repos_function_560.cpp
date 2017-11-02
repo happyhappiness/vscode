@@ -1,20 +1,14 @@
-CURLcode Curl_ftp(struct connectdata *conn, bool *done)
+static CURLcode unit_setup( void )
 {
-  CURLcode retcode = CURLE_OK;
+  data = curl_easy_init();
+  if (!data)
+    return CURLE_OUT_OF_MEMORY;
 
-  *done = FALSE; /* default to false */
-
-  retcode = ftp_parse_url_path(conn);
-  if (retcode)
-    return retcode;
-
-  if (conn->sec_conn) {
-    /* 3rd party transfer */
-    *done = TRUE; /* BLOCKING */
-    retcode = ftp_3rdparty(conn);
+  hp = Curl_mk_dnscache();
+  if(!hp) {
+    curl_easy_cleanup(data);
+    curl_global_cleanup();
+    return CURLE_OUT_OF_MEMORY;
   }
-  else
-    retcode = ftp_regular_transfer(conn, done);
-
-  return retcode;
+  return CURLE_OK;
 }

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_1055.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">CURLcode<pos:position pos:line="1" pos:column="16"/></name></type> <name pos:line="1" pos:column="17">libssh2_session_error_to_CURLE<pos:position pos:line="1" pos:column="47"/></name><parameter_list pos:line="1" pos:column="47">(<parameter><decl><type><name pos:line="1" pos:column="48">int<pos:position pos:line="1" pos:column="51"/></name></type> <name pos:line="1" pos:column="52">err<pos:position pos:line="1" pos:column="55"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="56"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+  <switch pos:line="3" pos:column="3">switch <condition pos:line="3" pos:column="10">(<expr><name pos:line="3" pos:column="11">err<pos:position pos:line="3" pos:column="14"/></name></expr>)<pos:position pos:line="3" pos:column="15"/></condition> <block pos:line="3" pos:column="16">{
+    <comment type="block" pos:line="4" pos:column="5">/* Ordered by order of appearance in libssh2.h */</comment>
+    <case pos:line="5" pos:column="5">case <expr><name pos:line="5" pos:column="10">LIBSSH2_ERROR_NONE<pos:position pos:line="5" pos:column="28"/></name></expr>:<pos:position pos:line="5" pos:column="29"/></case>
+      <return pos:line="6" pos:column="7">return <expr><name pos:line="6" pos:column="14">CURLE_OK<pos:position pos:line="6" pos:column="22"/></name></expr>;<pos:position pos:line="6" pos:column="23"/></return>
+
+    <case pos:line="8" pos:column="5">case <expr><name pos:line="8" pos:column="10">LIBSSH2_ERROR_SOCKET_NONE<pos:position pos:line="8" pos:column="35"/></name></expr>:<pos:position pos:line="8" pos:column="36"/></case>
+      <return pos:line="9" pos:column="7">return <expr><name pos:line="9" pos:column="14">CURLE_COULDNT_CONNECT<pos:position pos:line="9" pos:column="35"/></name></expr>;<pos:position pos:line="9" pos:column="36"/></return>
+
+    <case pos:line="11" pos:column="5">case <expr><name pos:line="11" pos:column="10">LIBSSH2_ERROR_ALLOC<pos:position pos:line="11" pos:column="29"/></name></expr>:<pos:position pos:line="11" pos:column="30"/></case>
+      <return pos:line="12" pos:column="7">return <expr><name pos:line="12" pos:column="14">CURLE_OUT_OF_MEMORY<pos:position pos:line="12" pos:column="33"/></name></expr>;<pos:position pos:line="12" pos:column="34"/></return>
+
+    <case pos:line="14" pos:column="5">case <expr><name pos:line="14" pos:column="10">LIBSSH2_ERROR_SOCKET_SEND<pos:position pos:line="14" pos:column="35"/></name></expr>:<pos:position pos:line="14" pos:column="36"/></case>
+      <return pos:line="15" pos:column="7">return <expr><name pos:line="15" pos:column="14">CURLE_SEND_ERROR<pos:position pos:line="15" pos:column="30"/></name></expr>;<pos:position pos:line="15" pos:column="31"/></return>
+
+    <case pos:line="17" pos:column="5">case <expr><name pos:line="17" pos:column="10">LIBSSH2_ERROR_HOSTKEY_INIT<pos:position pos:line="17" pos:column="36"/></name></expr>:<pos:position pos:line="17" pos:column="37"/></case>
+    <case pos:line="18" pos:column="5">case <expr><name pos:line="18" pos:column="10">LIBSSH2_ERROR_HOSTKEY_SIGN<pos:position pos:line="18" pos:column="36"/></name></expr>:<pos:position pos:line="18" pos:column="37"/></case>
+    <case pos:line="19" pos:column="5">case <expr><name pos:line="19" pos:column="10">LIBSSH2_ERROR_PUBLICKEY_UNRECOGNIZED<pos:position pos:line="19" pos:column="46"/></name></expr>:<pos:position pos:line="19" pos:column="47"/></case>
+    <case pos:line="20" pos:column="5">case <expr><name pos:line="20" pos:column="10">LIBSSH2_ERROR_PUBLICKEY_UNVERIFIED<pos:position pos:line="20" pos:column="44"/></name></expr>:<pos:position pos:line="20" pos:column="45"/></case>
+      <return pos:line="21" pos:column="7">return <expr><name pos:line="21" pos:column="14">CURLE_PEER_FAILED_VERIFICATION<pos:position pos:line="21" pos:column="44"/></name></expr>;<pos:position pos:line="21" pos:column="45"/></return>
+
+    <case pos:line="23" pos:column="5">case <expr><name pos:line="23" pos:column="10">LIBSSH2_ERROR_PASSWORD_EXPIRED<pos:position pos:line="23" pos:column="40"/></name></expr>:<pos:position pos:line="23" pos:column="41"/></case>
+      <return pos:line="24" pos:column="7">return <expr><name pos:line="24" pos:column="14">CURLE_LOGIN_DENIED<pos:position pos:line="24" pos:column="32"/></name></expr>;<pos:position pos:line="24" pos:column="33"/></return>
+
+    <case pos:line="26" pos:column="5">case <expr><name pos:line="26" pos:column="10">LIBSSH2_ERROR_SOCKET_TIMEOUT<pos:position pos:line="26" pos:column="38"/></name></expr>:<pos:position pos:line="26" pos:column="39"/></case>
+    <case pos:line="27" pos:column="5">case <expr><name pos:line="27" pos:column="10">LIBSSH2_ERROR_TIMEOUT<pos:position pos:line="27" pos:column="31"/></name></expr>:<pos:position pos:line="27" pos:column="32"/></case>
+      <return pos:line="28" pos:column="7">return <expr><name pos:line="28" pos:column="14">CURLE_OPERATION_TIMEDOUT<pos:position pos:line="28" pos:column="38"/></name></expr>;<pos:position pos:line="28" pos:column="39"/></return>
+
+    <case pos:line="30" pos:column="5">case <expr><name pos:line="30" pos:column="10">LIBSSH2_ERROR_EAGAIN<pos:position pos:line="30" pos:column="30"/></name></expr>:<pos:position pos:line="30" pos:column="31"/></case>
+      <return pos:line="31" pos:column="7">return <expr><name pos:line="31" pos:column="14">CURLE_AGAIN<pos:position pos:line="31" pos:column="25"/></name></expr>;<pos:position pos:line="31" pos:column="26"/></return>
+  }<pos:position pos:line="32" pos:column="4"/></block></switch>
+
+  <comment type="block" pos:line="34" pos:column="3">/* TODO: map some more of the libssh2 errors to the more appropriate CURLcode
+     error code, and possibly add a few new SSH-related one. We must however
+     not return or even depend on libssh2 errors in the public libcurl API */</comment>
+
+  <return pos:line="38" pos:column="3">return <expr><name pos:line="38" pos:column="10">CURLE_SSH<pos:position pos:line="38" pos:column="19"/></name></expr>;<pos:position pos:line="38" pos:column="20"/></return>
+}<pos:position pos:line="39" pos:column="2"/></block></function></unit>

@@ -1,11 +1,20 @@
-int test(char *URL)
+static size_t payload_source(void *ptr, size_t size, size_t nmemb, void *userp)
 {
-  int i;
+  struct upload_status *upload_ctx = (struct upload_status *)userp;
+  const char *data;
 
-  (void)URL; /* not used */
+  if((size == 0) || (nmemb == 0) || ((size*nmemb) < 1)) {
+    return 0;
+  }
 
-  for(i=0; dates[i]; i++) {
-    printf("%d: %s => %ld\n", i, dates[i], (long)curl_getdate(dates[i], NULL));
+  data = payload_text[upload_ctx->lines_read];
+
+  if(data) {
+    size_t len = strlen(data);
+    memcpy(ptr, data, len);
+    upload_ctx->lines_read++;
+
+    return len;
   }
 
   return 0;
