@@ -1,1 +1,1 @@
-(fputs (KENDRA_SEP, msg->fp);
+state_attach_puts (_("[-- End of PGP output --]\n\n"), s);

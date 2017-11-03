@@ -1,1 +1,1 @@
-state_attach_puts (_("[-- Warning: Can't find any signatures. --]\n\n"), s);
+fprintf (f, "Content-Disposition: %s", DISPOSITION (a->disposition));

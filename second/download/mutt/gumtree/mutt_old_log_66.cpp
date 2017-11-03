@@ -1,1 +1,1 @@
-fputs (PgpPass, pgpin);
+(mutt_yesorno (buff, 0);

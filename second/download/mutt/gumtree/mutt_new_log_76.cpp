@@ -1,1 +1,1 @@
-(mutt_yesorno (buff, M_NO);
+(fputc ('\t', fp);

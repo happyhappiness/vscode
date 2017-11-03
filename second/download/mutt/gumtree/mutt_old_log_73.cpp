@@ -1,1 +1,0 @@
-state_attach_puts (_("[-- End of signed data --]\n"), s);

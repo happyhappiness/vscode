@@ -1,1 +1,1 @@
-state_attach_puts (p, s);
+fprintf(stderr, "Command line usage: %s [flags] -- prefix [recipients]\n", argv[0]);

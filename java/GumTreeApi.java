@@ -149,17 +149,22 @@ public class GumTreeApi {
 		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/old.cpp";
 		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/new.cpp";
 		g.setOldAndNewFile(oldFile, newFile);
-		g.setOldLoc(0);
+		g.addOldLogNode(2);
+//		g.addNewLogNode(2);
+		g.setOldLoc(2);
 		System.out.println(g.getOldLog());
 		System.out.println(g.getNewLog());	
-		Set<String> edits = g.getLogEditType();
-		// show result
-		g.printSpliter();
-		Iterator<String> editIter = edits.iterator();
-		while(editIter.hasNext())
-		{
-			System.out.println(editIter.next());
-		}
+		System.out.println(g.getActionType());
+		System.out.println(g.isOldLogEdited());
+		System.out.println(g.isLogCheckDeleted());
+//		Set<String> edits = g.getLogEditType();
+//		// show result
+//		g.printSpliter();
+//		Iterator<String> editIter = edits.iterator();
+//		while(editIter.hasNext())
+//		{
+//			System.out.println(editIter.next());
+//		}
 	}
 
 	public boolean setOldLoc(int oldLoc) {
@@ -267,6 +272,19 @@ public class GumTreeApi {
 		ITree ddgNode = this.getDDGNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
 		if (ddgNode != null)
 			this.ddgNodes.add(ddgNode);
+	}
+	
+	// decide whether check of old log is modified
+	public boolean isLogCheckDeleted()
+	{
+		// get check of old log
+		ITree controlNode = this.getControl();
+		// tell whether check is deleted
+		if(controlNode != null && this.isNodeDelete(controlNode))
+		{
+			return true;
+		}
+		return false;
 	}
 	
 	public int isOldLogEdited()
@@ -426,24 +444,21 @@ public class GumTreeApi {
 		return "";
 	}
 	
-	protected String getControl(){
+	// get check of old log node
+	protected ITree getControl(){
 		// first parent that contains block type
-		ITree parentNode = this.logNode.getParent();
-		ITree conditionNode = null;
+		ITree parentNode = this.oldLogNode.getParent();
+		ITree controlNode = null;
 		while(parentNode != null)
 		{
-			conditionNode = this.isControl(parentNode, this.treeContext, this.filename);
-			if(conditionNode == null)
+			if(this.isControl(parentNode, this.oldTreeContext))
 			{
-				parentNode = parentNode.getParent();
+				controlNode = parentNode;
+				break;
 			}
-			else
-			{
-				return getValue(conditionNode, this.filename);
-			}
+			parentNode = parentNode.getParent();
 		}
-		
-		return "";
+		return controlNode;
 	}
 	
 	public String getFunction(){
@@ -806,6 +821,20 @@ public class GumTreeApi {
 		return true;
 	}
 	
+	private boolean isNodeDelete(ITree node)
+	{
+		Iterator<Action> actionIter = actions.iterator();
+		while(actionIter.hasNext())
+		{
+			Action action = actionIter.next();
+			// delete of given node
+			if(action.getName().equals("DEL") && action.getNode().equals(node))
+				return true;
+		}
+		
+		return false;
+	}
+	
 	private boolean isAcceptableAction(Action action)
 	{
 		if(!isActionOfComment(action))
@@ -1071,30 +1100,10 @@ public class GumTreeApi {
 		return isBlockFlag;
 	}
 	
-	private ITree isControl(ITree node, TreeContext treeContext, String filename)
-	{
-		String condition = "condition";
-		ITree conditionNode = node;
-		ITree currNode;
-//		String control = "control";
-		
-		boolean isControl = getType(conditionNode, treeContext).equals(condition); //|| getType(node, treeContext).equals(condition);
-		if(!isControl)
-		{
-			Iterator<ITree> children = node.breadthFirst().iterator();
-			while(children.hasNext())
-			{
-				currNode = children.next();
-				if(getType(currNode, treeContext).equals(condition))
-				{
-					isControl = true;
-					conditionNode = currNode;
-					break;
-				}
-			}
-		}
-		
-		return isControl ? conditionNode : null;
+	private boolean isControl(ITree node, TreeContext treeContext)
+	{		
+		String type = getType(node, treeContext);
+		return type.equals("if") || type.equals("switch") ;
 	}
 	
 	private boolean isFunction(ITree node, TreeContext treeContext, String filename)

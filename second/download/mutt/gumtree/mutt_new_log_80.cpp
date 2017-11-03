@@ -1,1 +1,1 @@
-printf ("::");
+fputs (pfx, fp);

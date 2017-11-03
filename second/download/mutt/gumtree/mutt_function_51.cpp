@@ -8,13 +8,17 @@ int main (int argc, char **argv)
   HEADER *msg = NULL;
   LIST *attach = NULL;
   LIST *commands = NULL;
+  LIST *queries = NULL;
+  LIST *alias_queries = NULL;
   int sendflags = 0;
   int flags = 0;
   int version = 0;
   int i;
   int explicit_folder = 0;
+  int dump_variables = 0;
   extern char *optarg;
   extern int optind;
+  int double_dash = argc, nargc = 1;
 
   /* sanity check against stupid administrators */
   
@@ -41,10 +45,36 @@ int main (int argc, char **argv)
 
   memset (Options, 0, sizeof (Options));
   memset (QuadOptions, 0, sizeof (QuadOptions));
-  
-  while ((i = getopt (argc, argv, "a:b:F:f:c:d:e:H:s:i:hm:npRvxyzZ")) != EOF)
-    switch (i)
+
+  for (optind = 1; optind < double_dash; )
+  {
+    /* We're getopt'ing POSIXLY, so we'll be here every time getopt()
+     * encounters a non-option.  That could be a file to attach 
+     * (all non-options between -a and --) or it could be an address
+     * (which gets collapsed to the front of argv).
+     */
+    for (; optind < argc; optind++)
     {
+      if (argv[optind][0] == '-' && argv[optind][1] != '\0')
+      {
+        if (argv[optind][1] == '-' && argv[optind][2] == '\0')
+          double_dash = optind; /* quit outer loop after getopt */
+        break;                  /* drop through to getopt */
+      }
+
+      /* non-option, either an attachment or address */
+      if (attach)
+        attach = mutt_add_list (attach, argv[optind]);
+      else
+        argv[nargc++] = argv[optind];
+    }
+
+    if ((i = getopt (argc, argv, "+A:a:b:F:f:c:Dd:e:H:s:i:hm:npQ:RvxyzZ")) != EOF)
+      switch (i)
+      {
+      case 'A':
+        alias_queries = mutt_add_list (alias_queries, optarg);
+        break;
       case 'a':
 	attach = mutt_add_list (attach, optarg);
 	break;
@@ -70,9 +100,17 @@ int main (int argc, char **argv)
 	  msg->env->cc = rfc822_parse_adrlist (msg->env->cc, optarg);
 	break;
 
+      case 'D':
+	dump_variables = 1;
+	break;
+
       case 'd':
 #ifdef DEBUG
-	debuglevel = atoi (optarg);
+	if (mutt_atoi (optarg, &debuglevel) < 0 || debuglevel <= 0)
+	{
+	  fprintf (stderr, _("Error: value '%s' is invalid for -d.\n"), optarg);
+	  return 1;
+	}
 	printf (_("Debugging at level %d.\n"), debuglevel);
 #else
 	printf _("DEBUG was not defined during compilation.  Ignored.\n");
@@ -104,6 +142,10 @@ int main (int argc, char **argv)
 	sendflags |= SENDPOSTPONED;
 	break;
 
+      case 'Q':
+        queries = mutt_add_list (queries, optarg);
+        break;
+      
       case 'R':
 	flags |= M_RO; /* read-only mode */
 	break;
@@ -134,7 +176,14 @@ int main (int argc, char **argv)
 
       default:
 	mutt_usage ();
-    }
+      }
+  }
+
+  /* collapse remaining argv */
+  while (optind < argc)
+    argv[nargc++] = argv[optind++];
+  optind = 1;
+  argc = nargc;
 
   switch (version)
   {
@@ -146,12 +195,14 @@ int main (int argc, char **argv)
     default:
       puts (mutt_make_version ());
       puts (_(Copyright));
+      puts (_(Licence));
+      puts (_(Obtaining));
       puts (_(ReachingUs));
       exit (0);
   }
 
   /* Check for a batch send. */
-  if (!isatty (0))
+  if (!isatty (0) || queries || alias_queries || dump_variables)
   {
     set_option (OPTNOCURSES);
     sendflags = SENDBATCH;
@@ -166,8 +217,43 @@ int main (int argc, char **argv)
   mutt_init (flags & M_NOSYSRC, commands);
   mutt_free_list (&commands);
 
+  /* Initialize crypto backends.  */
+  crypt_init ();
+
   if (newMagic)
     mx_set_magic (newMagic);
+
+  if (queries)
+  {
+    for (; optind < argc; optind++)
+      queries = mutt_add_list (queries, argv[optind]);
+    return mutt_query_variables (queries);
+  }
+  if (dump_variables)
+    return mutt_dump_variables();
+
+  if (alias_queries)
+  {
+    int rv = 0;
+    ADDRESS *a;
+    for (; optind < argc; optind++)
+      alias_queries = mutt_add_list (alias_queries, argv[optind]);
+    for (; alias_queries; alias_queries = alias_queries->next)
+    {
+      if ((a = mutt_lookup_alias (alias_queries->data)))
+      {	
+	/* output in machine-readable form */
+	mutt_addrlist_to_idna (a, NULL);
+	mutt_write_address_list (a, stdout, 0, 0);
+      }
+      else
+      {
+	rv = 1;
+	printf ("%s\n", alias_queries->data);
+      }
+    }
+    return rv;
+  }
 
   if (!option (OPTNOCURSES))
   {
@@ -193,7 +279,7 @@ int main (int argc, char **argv)
     if (stat (fpath, &sb) == -1 && errno == ENOENT)
     {
       snprintf (msg, sizeof (msg), _("%s does not exist. Create it?"), Maildir);
-      if (mutt_yesorno (msg, 1) == 1)
+      if (mutt_yesorno (msg, M_YES) == M_YES)
       {
 	if (mkdir (fpath, 0700) == -1 && errno != EEXIST)
 	  mutt_error ( _("Can't create %s: %s."), Maildir, strerror (errno));
@@ -215,6 +301,7 @@ int main (int argc, char **argv)
     char buf[LONG_STRING];
     char *tempfile = NULL, *infile = NULL;
     char *bodytext = NULL;
+    int rv = 0;
     
     if (!option (OPTNOCURSES))
       mutt_flushinp ();
@@ -232,7 +319,15 @@ int main (int argc, char **argv)
       for (i = optind; i < argc; i++)
       {
 	if (url_check_scheme (argv[i]) == U_MAILTO)
-	  url_parse_mailto (msg->env, &bodytext, argv[i]);
+	{
+	  if (url_parse_mailto (msg->env, &bodytext, argv[i]) < 0)
+	  {
+	    if (!option (OPTNOCURSES))
+	      mutt_endwin (NULL);
+	    fputs (_("Failed to parse mailto: link\n"), stderr);
+	    exit (1);
+	  }
+	}
 	else
 	  msg->env->to = rfc822_parse_adrlist (msg->env->to, argv[i]);
       }
@@ -276,7 +371,7 @@ int main (int argc, char **argv)
       else
 	fin = NULL;
 
-      mutt_mktemp (buf);
+      mutt_mktemp (buf, sizeof (buf));
       tempfile = safe_strdup (buf);
 
       if (draftFile)
@@ -293,7 +388,7 @@ int main (int argc, char **argv)
 	  if (!option (OPTNOCURSES))
 	    mutt_endwin (NULL);
 	  perror (tempfile);
-	  fclose (fin);
+	  safe_fclose (&fin);
 	  FREE (&tempfile);
 	  exit (1);
 	}
@@ -301,13 +396,13 @@ int main (int argc, char **argv)
 	  mutt_copy_stream (fin, fout);
 	else if (bodytext)
 	  fputs (bodytext, fout);
-	fclose (fout);
+	safe_fclose (&fout);
 	if (fin && fin != stdin)
-	  fclose (fin);
+	  safe_fclose (&fin);
       }
     }
 
-    safe_free ((void **) &bodytext);
+    FREE (&bodytext);
     
     if (attach)
     {
@@ -336,10 +431,13 @@ int main (int argc, char **argv)
       mutt_free_list (&attach);
     }
 
-    ci_send_message (sendflags, msg, tempfile, NULL, NULL);
+    rv = ci_send_message (sendflags, msg, tempfile, NULL, NULL);
 
     if (!option (OPTNOCURSES))
       mutt_endwin (NULL);
+
+    if (rv)
+      exit(1);
   }
   else
   {
@@ -372,23 +470,20 @@ int main (int argc, char **argv)
       strfcpy (folder, NONULL(Spoolfile), sizeof (folder));
     mutt_expand_path (folder, sizeof (folder));
 
+    mutt_str_replace (&CurrentFolder, folder);
     mutt_str_replace (&LastFolder, folder);
 
     if (flags & M_IGNORE)
     {
-      struct stat st;
-
       /* check to see if there are any messages in the folder */
-      if (stat (folder, &st) != 0)
+      switch (mx_check_empty (folder))
       {
-	mutt_endwin (strerror (errno));
-	exit (1);
-      }
-
-      if (st.st_size == 0)
-      {
-	mutt_endwin _("Mailbox is empty.");
-	exit (1);
+	case -1:
+	  mutt_endwin (strerror (errno));
+	  exit (1);
+	case 1:
+	  mutt_endwin _("Mailbox is empty.");
+	  exit (1);
       }
     }
 
@@ -399,8 +494,15 @@ int main (int argc, char **argv)
     {
       mutt_index_menu ();
       if (Context)
-	safe_free ((void **)&Context);
+	FREE (&Context);
     }
+#ifdef USE_IMAP
+    imap_logout_all ();
+#endif
+#ifdef USE_SASL
+    mutt_sasl_done ();
+#endif
+    mutt_free_opts ();
     mutt_endwin (Errorbuf);
   }
 

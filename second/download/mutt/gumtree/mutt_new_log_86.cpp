@@ -1,1 +1,1 @@
-(fputc ('\t', fp);
+fputs ("MIME-Version: 1.0\n", fp);

@@ -1,1 +1,1 @@
-snprintf (bn, sizeof (bn), "%s (%s)", banner, pager_progress_str);
+fprintf(stderr, "Command line usage: %s [flags] -- prefix [recipients]\n", progname);

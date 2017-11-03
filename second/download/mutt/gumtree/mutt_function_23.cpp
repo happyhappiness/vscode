@@ -1,4 +1,4 @@
-void mutt_body_handler (BODY *b, STATE *s)
+int mutt_body_handler (BODY *b, STATE *s)
 {
   int decode = 0;
   int plaintext = 0;
@@ -7,23 +7,16 @@ void mutt_body_handler (BODY *b, STATE *s)
   handler_t handler = NULL;
   long tmpoffset = 0;
   size_t tmplength = 0;
-  char type[STRING];
+  int rc = 0;
 
   int oflags = s->flags;
   
   /* first determine which handler to use to process this part */
 
-  snprintf (type, sizeof (type), "%s/%s", TYPE (b), b->subtype);
-  if (mutt_is_autoview (b, type))
+  if (mutt_is_autoview (b))
   {
-    rfc1524_entry *entry = rfc1524_new_entry ();
-
-    if (rfc1524_mailcap_lookup (b, type, entry, M_AUTOVIEW))
-    {
-      handler   = autoview_handler;
-      s->flags &= ~M_CHARCONV;
-    }
-    rfc1524_free_entry (&entry);
+    handler = autoview_handler;
+    s->flags &= ~M_CHARCONV;
   }
   else if (b->type == TYPETEXT)
   {
@@ -32,14 +25,16 @@ void mutt_body_handler (BODY *b, STATE *s)
       /* avoid copying this part twice since removing the transfer-encoding is
        * the only operation needed.
        */
-      if (ascii_strcasecmp ("flowed", mutt_get_parameter ("format", b->parameter)) == 0)
-	handler = text_plain_flowed_handler;
+      if ((WithCrypto & APPLICATION_PGP) && mutt_is_application_pgp (b))
+	handler = crypt_pgp_application_pgp_handler;
+      else if (option(OPTREFLOWTEXT) && ascii_strcasecmp ("flowed", mutt_get_parameter ("format", b->parameter)) == 0)
+	handler = rfc3676_handler;
       else
-	plaintext = 1;
+	handler = text_plain_handler;
     }
     else if (ascii_strcasecmp ("enriched", b->subtype) == 0)
       handler = text_enriched_handler;
-    else if (ascii_strcasecmp ("rfc822-headers", b->subtype) == 0)
+    else /* text body type without a handler */
       plaintext = 1;
   }
   else if (b->type == TYPEMESSAGE)
@@ -53,71 +48,67 @@ void mutt_body_handler (BODY *b, STATE *s)
   }
   else if (b->type == TYPEMULTIPART)
   {
-
-
-
-#ifdef HAVE_PGP
     char *p;
-#endif /* HAVE_PGP */
-
-
 
     if (ascii_strcasecmp ("alternative", b->subtype) == 0)
       handler = alternative_handler;
-
-
-
-#ifdef HAVE_PGP
-    else if (ascii_strcasecmp ("signed", b->subtype) == 0)
+    else if (WithCrypto && ascii_strcasecmp ("signed", b->subtype) == 0)
     {
       p = mutt_get_parameter ("protocol", b->parameter);
 
       if (!p)
         mutt_error _("Error: multipart/signed has no protocol.");
-      else if (ascii_strcasecmp ("application/pgp-signature", p) == 0 ||
-	       ascii_strcasecmp ("multipart/mixed", p) == 0)
-      {
-	if (s->flags & M_VERIFY)
-	  handler = pgp_signed_handler;
-      }
+      else if (s->flags & M_VERIFY)
+	handler = mutt_signed_handler;
     }
-    else if (ascii_strcasecmp ("encrypted", b->subtype) == 0)
+    else if ((WithCrypto & APPLICATION_PGP)
+             && ascii_strcasecmp ("encrypted", b->subtype) == 0)
     {
       p = mutt_get_parameter ("protocol", b->parameter);
 
       if (!p)
         mutt_error _("Error: multipart/encrypted has no protocol parameter!");
       else if (ascii_strcasecmp ("application/pgp-encrypted", p) == 0)
-        handler = pgp_encrypted_handler;
+        handler = crypt_pgp_encrypted_handler;
     }
-#endif /* HAVE_PGP */
-
-
 
     if (!handler)
       handler = multipart_handler;
+    
+    if (b->encoding != ENC7BIT && b->encoding != ENC8BIT
+        && b->encoding != ENCBINARY)
+    {
+      dprint (1, (debugfile, "Bad encoding type %d for multipart entity, "
+                  "assuming 7 bit\n", b->encoding));
+      b->encoding = ENC7BIT;
+    }
+  }
+  else if (WithCrypto && b->type == TYPEAPPLICATION)
+  {
+    if (option (OPTDONTHANDLEPGPKEYS)
+        && !ascii_strcasecmp("pgp-keys", b->subtype))
+    {
+      /* pass raw part through for key extraction */
+      plaintext = 1;
+    }
+    else if ((WithCrypto & APPLICATION_PGP) && mutt_is_application_pgp (b))
+      handler = crypt_pgp_application_pgp_handler;
+    else if ((WithCrypto & APPLICATION_SMIME) && mutt_is_application_smime(b))
+      handler = crypt_smime_application_smime_handler;
   }
 
-
-
-#ifdef HAVE_PGP
-  else if (b->type == TYPEAPPLICATION)
+  /* only respect disposition == attachment if we're not
+     displaying from the attachment menu (i.e. pager) */
+  if ((!option (OPTHONORDISP) || (b->disposition != DISPATTACH ||
+				  option(OPTVIEWATTACH))) &&
+       (plaintext || handler))
   {
-    if (mutt_is_application_pgp(b))
-      handler = pgp_application_pgp_handler;
-  }
-#endif /* HAVE_PGP */
-
-
-
-  if (plaintext || handler)
-  {
-    fseek (s->fpin, b->offset, 0);
+    fseeko (s->fpin, b->offset, 0);
 
     /* see if we need to decode this part before processing it */
     if (b->encoding == ENCBASE64 || b->encoding == ENCQUOTEDPRINTABLE ||
 	b->encoding == ENCUUENCODED || plaintext || 
-	mutt_is_text_type (b->type, b->subtype))	/* text subtypes may
+	mutt_is_text_part (b))				/* text subtypes may
 							 * require character
 							 * set conversion even
 							 * with 8bit encoding.
@@ -130,10 +121,11 @@ void mutt_body_handler (BODY *b, STATE *s)
       {
 	/* decode to a tempfile, saving the original destination */
 	fp = s->fpout;
-	mutt_mktemp (tempfile);
+	mutt_mktemp (tempfile, sizeof (tempfile));
 	if ((s->fpout = safe_fopen (tempfile, "w")) == NULL)
 	{
 	  mutt_error _("Unable to open temporary file!");
+	  dprint (1, (debugfile, "Can't open %s.\n", tempfile));
 	  goto bail;
 	}
 	/* decoding the attachment changes the size and offset, so save a copy
@@ -157,9 +149,9 @@ void mutt_body_handler (BODY *b, STATE *s)
 
       if (decode)
       {
-	b->length = ftell (s->fpout);
+	b->length = ftello (s->fpout);
 	b->offset = 0;
-	fclose (s->fpout);
+	safe_fclose (&s->fpout);
 
 	/* restore final destination and substitute the tempfile for input */
 	s->fpout = fp;
@@ -177,34 +169,56 @@ void mutt_body_handler (BODY *b, STATE *s)
     /* process the (decoded) body part */
     if (handler)
     {
-      handler (b, s);
+      rc = handler (b, s);
 
+      if (rc)
+      {
+	dprint (1, (debugfile, "Failed on attachment of type %s/%s.\n", TYPE(b), NONULL (b->subtype)));
+      }
+      
       if (decode)
       {
 	b->length = tmplength;
 	b->offset = tmpoffset;
 
 	/* restore the original source stream */
-	fclose (s->fpin);
+	safe_fclose (&s->fpin);
 	s->fpin = fp;
       }
     }
+    s->flags |= M_FIRSTDONE;
   }
-  else if (s->flags & M_DISPLAY)
+  /* print hint to use attachment menu for disposition == attachment
+     if we're not already being called from there */
+  else if ((s->flags & M_DISPLAY) || (b->disposition == DISPATTACH &&
+				      !option (OPTVIEWATTACH) &&
+				      option (OPTHONORDISP) &&
+				      (plaintext || handler)))
   {
     state_mark_attach (s);
-    state_printf (s, _("[-- %s/%s is unsupported "), TYPE (b), b->subtype);
+    if (option (OPTHONORDISP) && b->disposition == DISPATTACH)
+      fputs (_("[-- This is an attachment "), s->fpout);
+    else
+      state_printf (s, _("[-- %s/%s is unsupported "), TYPE (b), b->subtype);
     if (!option (OPTVIEWATTACH))
     {
-      if (km_expand_key (type, sizeof(type),
+      char keystroke[SHORT_STRING];
+
+      if (km_expand_key (keystroke, sizeof(keystroke),
 			km_find_func (MENU_PAGER, OP_VIEW_ATTACHMENTS)))
-	fprintf (s->fpout, _("(use '%s' to view this part)"), type);
+	fprintf (s->fpout, _("(use '%s' to view this part)"), keystroke);
       else
 	fputs (_("(need 'view-attachments' bound to key!)"), s->fpout);
     }
     fputs (" --]\n", s->fpout);
   }
-  
+
   bail:
-  s->flags = oflags;
+  s->flags = oflags | (s->flags & M_FIRSTDONE);
+  if (rc)
+  {
+    dprint (1, (debugfile, "Bailing on attachment of type %s/%s.\n", TYPE(b), NONULL (b->subtype)));
+  }
+
+  return rc;
 }

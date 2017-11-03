@@ -1,1 +1,1 @@
-(mutt_yesorno (tmp, 1);
+fprintf (msg->fp, "From %s %s", p ? p->mailbox : NONULL(Username), ctime (&t));

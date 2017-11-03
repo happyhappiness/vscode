@@ -1,1 +1,1 @@
-fprintf(stderr, "Command line usage: %s [flags] -- prefix [recipients]\n", progname);
+fputs ("MIME-Version: 1.0\n", fpout);

@@ -1,1 +1,1 @@
-fputs ("MIME-Version: 1.0\n", fpout);
+(fprintf (fp, "%s%s: %s\n", NONULL(pfx), tag, v);

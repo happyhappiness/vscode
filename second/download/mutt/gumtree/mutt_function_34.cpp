@@ -1,36 +1,22 @@
-int mutt_dump_variables (void)
+static void start_debug (void)
 {
+  time_t t;
   int i;
-  
-  char command[STRING];
-  
-  BUFFER err, token;
+  char buf[_POSIX_PATH_MAX];
+  char buf2[_POSIX_PATH_MAX];
 
-  mutt_buffer_init (&err);
-  mutt_buffer_init (&token);
-
-  err.dsize = STRING;
-  err.data = safe_malloc (err.dsize);
-  
-  for (i = 0; MuttVars[i].option; i++)
+  /* rotate the old debug logs */
+  for (i=3; i>=0; i--)
   {
-    if (MuttVars[i].type == DT_SYN)
-      continue;
-
-    snprintf (command, sizeof (command), "set ?%s\n", MuttVars[i].option);
-    if (mutt_parse_rc_line (command, &token, &err) == -1)
-    {
-      fprintf (stderr, "%s\n", err.data);
-      FREE (&token.data);
-      FREE (&err.data);
-
-      return 1;
-    }
-    printf("%s\n", err.data);
+    snprintf (buf, sizeof(buf), "%s/.muttdebug%d", NONULL(Homedir), i);
+    snprintf (buf2, sizeof(buf2), "%s/.muttdebug%d", NONULL(Homedir), i+1);
+    rename (buf, buf2);
   }
-  
-  FREE (&token.data);
-  FREE (&err.data);
-
-  return 0;
+  if ((debugfile = safe_fopen(buf, "w")) != NULL)
+  {
+    t = time (0);
+    setbuf (debugfile, NULL); /* don't buffer the debugging output! */
+    fprintf (debugfile, "Mutt %s started at %s.\nDebugging at level %d.\n\n",
+	     MUTT_VERSION, asctime (localtime (&t)), debuglevel);
+  }
 }

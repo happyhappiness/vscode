@@ -1,1 +1,1 @@
-mutt_write_one_header (fp, "Subject", env->subject, NULL, 0, 0);
+fprintf (fp, "Sender: %s\n", buffer);
