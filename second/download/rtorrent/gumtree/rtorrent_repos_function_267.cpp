@@ -1,0 +1,1 @@
+slot_find_file&     get_slot_find_file()                                        { return m_slotFindFile; }

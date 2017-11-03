@@ -1,0 +1,1 @@
+iterator            begin_filtered()                        { return begin() + m_size; }

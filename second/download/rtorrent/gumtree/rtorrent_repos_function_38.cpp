@@ -1,0 +1,1 @@
+static void         free_address_info(address_info* ai) { ::freeaddrinfo(ai->c_addrinfo()); }

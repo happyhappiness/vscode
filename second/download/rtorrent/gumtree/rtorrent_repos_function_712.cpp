@@ -1,0 +1,1 @@
+virtual extent_type max_length()                  { return 12; }

@@ -1,0 +1,1 @@
+void                receive_normal_shutdown()     { m_shutdownReceived = true; }

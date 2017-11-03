@@ -1,0 +1,1 @@
+slot_map&           slot_map_finished()                               { return m_slotMaps[SLOTS_FINISHED]; }

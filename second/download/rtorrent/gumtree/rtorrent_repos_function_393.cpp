@@ -1,0 +1,1 @@
+void                set_object(void* object) { m_window->set_object(object); m_window->mark_dirty(); }

@@ -1,0 +1,1 @@
+void                set_bottom(bool state)               { if (state) m_flags |= flag_bottom; else m_flags &= ~flag_bottom; }

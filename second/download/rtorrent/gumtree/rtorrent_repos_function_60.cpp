@@ -1,0 +1,1 @@
+base_type*          release()            { return m_base.release(); }

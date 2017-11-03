@@ -1,0 +1,1 @@
+void XmlRpc::set_dialect(__UNUSED int dialect) {}

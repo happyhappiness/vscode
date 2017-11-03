@@ -1,0 +1,1 @@
+void apply_encoding_list(const std::string& arg) { torrent::encoding_list()->push_back(arg); }

@@ -1,0 +1,1 @@
+void                set_start(bool v)     { m_start = v; }

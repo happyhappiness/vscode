@@ -1,0 +1,1 @@
+slot_map&           slot_map_close()                                  { return m_slotMaps[SLOTS_CLOSE]; }

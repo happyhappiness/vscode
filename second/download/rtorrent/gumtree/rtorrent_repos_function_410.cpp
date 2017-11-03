@@ -1,0 +1,1 @@
+CurlStack*          get_http_stack()             { return &m_httpStack; }

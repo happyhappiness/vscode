@@ -1,0 +1,1 @@
+void                erase()                                                 { werase(m_window); }

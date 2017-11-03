@@ -1,0 +1,1 @@
+void                set_log_fd(int fd) { m_logFd = fd; }

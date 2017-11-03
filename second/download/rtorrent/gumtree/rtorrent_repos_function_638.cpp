@@ -1,0 +1,1 @@
+static void         do_update()                                             { doupdate(); }

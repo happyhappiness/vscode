@@ -1,0 +1,1 @@
+void                set_pos(size_type pos)     { m_pos = pos; }

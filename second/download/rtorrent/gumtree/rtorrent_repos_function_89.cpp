@@ -1,0 +1,1 @@
+void apply_hash_read_ahead(int arg)              { torrent::set_hash_read_ahead(arg << 20); }

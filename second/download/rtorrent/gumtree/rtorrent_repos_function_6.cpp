@@ -1,0 +1,1 @@
+static timer        max()                              { return std::numeric_limits<int64_t>::max(); }

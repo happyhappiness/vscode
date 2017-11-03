@@ -1,0 +1,1 @@
+void                clear()                                 { m_fd = -1; }

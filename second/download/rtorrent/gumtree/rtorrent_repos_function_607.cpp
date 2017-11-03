@@ -1,0 +1,1 @@
+void             set_range(iterator first, iterator last) { m_first = m_drawEnd = first; m_last = last; }

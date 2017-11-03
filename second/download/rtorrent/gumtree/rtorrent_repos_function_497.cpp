@@ -1,0 +1,1 @@
+slot_map&           slot_map_insert()                                 { return m_slotMaps[SLOTS_INSERT]; }

@@ -1,0 +1,1 @@
+inline void            parse_command_multiple(const char* first)                                      { parse_command_d_multiple(NULL, first); }

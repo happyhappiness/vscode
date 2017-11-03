@@ -1,0 +1,1 @@
+blocksize_type             blocksize()                          { return FS_STAT_BLOCK_SIZE; }

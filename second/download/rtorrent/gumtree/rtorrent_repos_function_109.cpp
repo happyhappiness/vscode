@@ -1,0 +1,1 @@
+bool                is_shutdown_received()        { return m_shutdownReceived; }

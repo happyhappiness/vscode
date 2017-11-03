@@ -1,0 +1,1 @@
+void                set_address_any()                       { set_port(0); set_address_h(INADDR_ANY); }

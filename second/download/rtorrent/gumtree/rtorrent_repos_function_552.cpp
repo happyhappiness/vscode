@@ -1,0 +1,1 @@
+download_type*       download()                              { return &m_download; }

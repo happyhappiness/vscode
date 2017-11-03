@@ -1,0 +1,1 @@
+void                inc_tick()                    { m_tick++; }

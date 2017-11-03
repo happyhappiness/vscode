@@ -1,0 +1,1 @@
+void XmlRpc::initialize() { throw torrent::resource_error("XMLRPC not supported."); }

@@ -1,0 +1,1 @@
+DownloadStore*      download_store()                    { return m_downloadStore; }

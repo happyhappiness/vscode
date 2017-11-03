@@ -1,0 +1,1 @@
+Signal&   signal_update() { return m_signalUpdate; }

@@ -1,0 +1,1 @@
+SignalHttp& signal_insert()             { return m_signalInsert; }

@@ -1,0 +1,1 @@
+void                call()                                  { m_slot(); }

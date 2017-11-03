@@ -1,0 +1,1 @@
+static int          get_screen_height()                                     { int x, y; getmaxyx(stdscr, y, x); return y; }

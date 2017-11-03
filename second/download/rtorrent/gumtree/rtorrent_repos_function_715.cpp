@@ -1,0 +1,1 @@
+void                set_focused(bool state)              { if (state) m_flags |= flag_focused; else m_flags &= ~flag_focused; }

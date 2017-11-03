@@ -1,0 +1,1 @@
+unsigned int        get_x()                                                 { int x, y; getyx(m_window, y, x); return x; }

@@ -1,0 +1,1 @@
+void                set_family(int f)             { m_addrinfo.ai_family = f; }

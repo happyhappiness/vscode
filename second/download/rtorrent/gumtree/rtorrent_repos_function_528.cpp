@@ -1,0 +1,1 @@
+Log&                get_log_important()                 { return m_logImportant; }

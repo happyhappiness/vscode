@@ -1,0 +1,1 @@
+void                activate_display_focus(Display d) { activate_display(d, true); }

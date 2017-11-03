@@ -1,0 +1,1 @@
+socket_address*     address()                     { return reinterpret_cast<socket_address*>(m_addrinfo.ai_addr); }

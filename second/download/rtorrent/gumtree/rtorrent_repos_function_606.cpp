@@ -1,0 +1,1 @@
+iterator         get_draw_end()                           { return m_drawEnd; }

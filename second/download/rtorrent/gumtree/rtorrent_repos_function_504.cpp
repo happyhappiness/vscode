@@ -1,0 +1,1 @@
+slot_map&           slot_map_hash_removed()                           { return m_slotMaps[SLOTS_HASH_REMOVED]; }

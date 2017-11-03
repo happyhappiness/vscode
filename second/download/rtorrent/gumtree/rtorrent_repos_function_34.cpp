@@ -1,0 +1,1 @@
+void                set_protocol(int p)           { m_addrinfo.ai_protocol = p; }

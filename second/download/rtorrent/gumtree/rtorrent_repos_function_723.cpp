@@ -1,0 +1,1 @@
+static void         slot_adjust(Slot s)                  { m_slotAdjust = s; }

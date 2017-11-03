@@ -1,0 +1,1 @@
+inline int64_t         call_command_value(const char* key)  { return commands.call_command(key, torrent::Object()).as_value(); }

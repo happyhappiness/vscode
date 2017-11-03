@@ -1,0 +1,1 @@
+bool                       update(int fd)                       { return FS_STAT_FD; }

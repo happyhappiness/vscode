@@ -1,0 +1,1 @@
+PollManager*        get_poll_manager()                  { return m_pollManager; }

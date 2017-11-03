@@ -1,0 +1,1 @@
+iterator            end_visible()                           { return begin() + m_size; }

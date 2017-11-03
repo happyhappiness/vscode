@@ -1,0 +1,1 @@
+Frame*              root_frame() { return &m_rootFrame; }

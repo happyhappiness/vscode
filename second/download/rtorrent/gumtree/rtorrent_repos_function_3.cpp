@@ -1,0 +1,1 @@
+bool                update_link(const char* filename)        { return lstat(filename, &m_stat) == 0; }

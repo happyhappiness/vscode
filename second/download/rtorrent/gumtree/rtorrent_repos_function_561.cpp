@@ -1,0 +1,1 @@
+void                set_sort_new(const sort_list& s)        { m_sortNew = s; }

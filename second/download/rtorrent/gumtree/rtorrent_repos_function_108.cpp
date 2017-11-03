@@ -1,0 +1,1 @@
+bool                is_shutdown_completed()       { return m_shutdownQuick && torrent::is_inactive(); }

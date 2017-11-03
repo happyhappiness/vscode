@@ -1,0 +1,1 @@
+void                set_print_log(bool v) { m_printLog = v; }

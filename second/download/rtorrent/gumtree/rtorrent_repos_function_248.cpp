@@ -1,0 +1,1 @@
+void XmlRpc::insert_command(__UNUSED const char* name, __UNUSED const char* parm, __UNUSED const char* doc, __UNUSED int call) {}

@@ -1,0 +1,1 @@
+void                set_attributes(int attr)      { m_attributes = attr; }

@@ -1,0 +1,1 @@
+const mapped_type   call_command(key_type key, const mapped_type& arg, target_type target = target_type((int)target_generic, NULL)

@@ -1,0 +1,1 @@
+void                ignore(int key)     { (*this)[key] = Slot(); }

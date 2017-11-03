@@ -1,0 +1,1 @@
+chtype              get_background()                                        { return getbkgd(m_window); }

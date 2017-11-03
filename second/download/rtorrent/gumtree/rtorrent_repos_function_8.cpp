@@ -1,0 +1,1 @@
+static void         clear_global()               { errno = 0; }

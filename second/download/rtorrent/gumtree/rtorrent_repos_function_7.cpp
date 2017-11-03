@@ -1,0 +1,1 @@
+static error_number current()                    { return errno; }

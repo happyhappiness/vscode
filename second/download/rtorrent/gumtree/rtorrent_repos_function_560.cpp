@@ -1,0 +1,1 @@
+void                set_focus(iterator itr)                 { m_focus = position(itr); m_signalChanged.emit(); }

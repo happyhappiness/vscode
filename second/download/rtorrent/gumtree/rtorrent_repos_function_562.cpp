@@ -1,0 +1,1 @@
+void                set_sort_current(const sort_list& s)    { m_sortCurrent = s; }

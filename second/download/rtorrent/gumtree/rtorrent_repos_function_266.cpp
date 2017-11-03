@@ -1,0 +1,1 @@
+slot_find_download& get_slot_find_download()                                    { return m_slotFindDownload; }

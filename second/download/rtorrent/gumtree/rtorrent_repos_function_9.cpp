@@ -1,0 +1,1 @@
+static void         set_global(error_number err) { errno = err.m_errno; }

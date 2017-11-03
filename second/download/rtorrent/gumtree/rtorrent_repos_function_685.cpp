@@ -1,0 +1,1 @@
+void                set_colors(int col)           { m_colors = col; }

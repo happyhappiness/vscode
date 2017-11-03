@@ -1,0 +1,1 @@
+void                set_session(bool v)   { m_session = v; }
