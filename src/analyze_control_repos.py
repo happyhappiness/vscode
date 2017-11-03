@@ -155,9 +155,10 @@ def cluster_repos_log():
 main function
 """
 if __name__ == "__main__":
-#    analyze_repos_joern(True)
-    analyze_repos("curl-7.41.0")
+    # curl
+    # analyze_repos("curl-7.41.0")
+    # rtorrent
+    # analyze_repos("curl-7.41.0")    
     cluster_repos_log()
-    # analyze_repos()
 
     

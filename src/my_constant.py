@@ -6,7 +6,7 @@
 """
 repository
 """
-REPOS = 'curl'
+REPOS = 'rtorrent'
 """
 stroed file name prefix
 """
