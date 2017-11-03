@@ -142,18 +142,21 @@ def cluster_repos_log():
     for record in islice(records, 1, None):
         writer.writerow(record + [cluster_list[index]])
         index += 1
+    # close file
+    analyze_repos_log_file.close()
+    cluster_repos_log_file.close()
 
-    # build class from cluster
+    # build class from cluster(min frequence is 1)
     feature_indexes = [my_constant.ANALYZE_REPOS_LOG_CHECK, my_constant.ANALYZE_REPOS_LOG_VARIABLE]
     cluster_api.generate_class_from_cluster(my_constant.CLUSTER_REPOS_LOG_FILE_NAME,\
-        my_constant.CLASS_REPOS_LOG_FILE_NAME, my_constant.CLASS_REPOS_LOG_TITLE, feature_indexes)
+        my_constant.CLASS_REPOS_LOG_FILE_NAME, my_constant.CLASS_REPOS_LOG_TITLE, feature_indexes, 1)
 
 """
 main function
 """
 if __name__ == "__main__":
 #    analyze_repos_joern(True)
-    analyze_repos("curl-7.41.0")
+    # analyze_repos("curl-7.41.0")
     cluster_repos_log()
     # analyze_repos()
 
