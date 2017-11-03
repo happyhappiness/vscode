@@ -1,0 +1,1 @@
+iterator            focus()                                 { return begin() + m_focus; }

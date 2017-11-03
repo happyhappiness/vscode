@@ -1,0 +1,1 @@
+WStatusbar*         window_statusbar()                      { return m_windowStatusbar; }

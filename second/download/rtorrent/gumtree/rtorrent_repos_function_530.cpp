@@ -1,0 +1,1 @@
+void                set_max_active(size_type v) { m_maxActive = v; }

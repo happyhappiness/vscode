@@ -1,0 +1,1 @@
+void                set_interval(uint32_t i) { m_interval = i; }

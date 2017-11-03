@@ -1,0 +1,1 @@
+slot_find_tracker&  get_slot_find_tracker()                                     { return m_slotFindTracker; }

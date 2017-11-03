@@ -1,0 +1,1 @@
+reverse_iterator    rend()                        { return m_base->rend(); }

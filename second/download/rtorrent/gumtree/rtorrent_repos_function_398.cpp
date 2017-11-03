@@ -1,0 +1,1 @@
+void                set_collapsed(bool s) { m_collapsed = s; }

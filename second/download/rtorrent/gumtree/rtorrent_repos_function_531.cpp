@@ -1,0 +1,1 @@
+void                set_cycle(size_type v)      { m_cycle = v; }

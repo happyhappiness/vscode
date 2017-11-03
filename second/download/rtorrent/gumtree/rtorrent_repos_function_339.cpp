@@ -1,0 +1,1 @@
+void                slot_exit(const slot_type& s) { m_slotExit = s; }

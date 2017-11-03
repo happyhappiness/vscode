@@ -1,0 +1,1 @@
+void                refresh()                            { m_canvas->refresh(); }

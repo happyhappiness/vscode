@@ -1,0 +1,1 @@
+void                erase(Type first, Type last)  { erase(std::make_pair(first, last)); }

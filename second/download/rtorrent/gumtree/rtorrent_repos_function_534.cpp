@@ -1,0 +1,1 @@
+void      disable()          { m_enabled = false; }

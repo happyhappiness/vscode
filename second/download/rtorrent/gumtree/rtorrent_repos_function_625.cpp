@@ -1,0 +1,1 @@
+unsigned int        width()                                                 { int x, y; getmaxyx(m_window, y, x); return x; }

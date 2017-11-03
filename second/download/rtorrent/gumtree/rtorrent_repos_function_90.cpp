@@ -1,0 +1,1 @@
+void apply_hash_interval(int arg)                { torrent::set_hash_interval(arg * 1000); }

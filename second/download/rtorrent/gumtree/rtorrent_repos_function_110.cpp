@@ -1,0 +1,1 @@
+bool                is_shutdown_started()         { return m_shutdownQuick; }

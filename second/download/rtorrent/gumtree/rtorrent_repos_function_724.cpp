@@ -1,0 +1,1 @@
+void                slot_pressed(SlotInt s) { m_slotPressed = s; }

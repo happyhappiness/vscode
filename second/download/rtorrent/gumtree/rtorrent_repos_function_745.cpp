@@ -1,0 +1,1 @@
+SignalShowRange&    signal_show_range()         { return m_signalShowRange; }

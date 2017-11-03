@@ -1,0 +1,1 @@
+bool                       update(const char* fn)               { return FS_STAT_FN; }

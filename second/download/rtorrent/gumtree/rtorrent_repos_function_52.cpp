@@ -1,0 +1,1 @@
+void                set_address(in_addr a)                  { m_sockaddr.sin_addr = a; }

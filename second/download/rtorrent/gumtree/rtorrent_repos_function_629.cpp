@@ -1,0 +1,1 @@
+void                set_background(chtype c)                                { return wbkgdset(m_window, c); }

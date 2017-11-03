@@ -1,0 +1,1 @@
+void                receive_quick_shutdown()      { m_shutdownReceived = true; m_shutdownQuick = true; }

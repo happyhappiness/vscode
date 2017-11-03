@@ -1,0 +1,1 @@
+void                set_socket_type(int t)        { m_addrinfo.ai_socktype = t; }

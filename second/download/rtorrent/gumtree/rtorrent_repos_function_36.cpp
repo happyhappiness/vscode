@@ -1,0 +1,1 @@
+addrinfo*           c_addrinfo()                  { return &m_addrinfo; }

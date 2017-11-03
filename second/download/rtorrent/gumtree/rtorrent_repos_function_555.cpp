@@ -1,0 +1,1 @@
+iterator            begin_visible()                         { return begin(); }

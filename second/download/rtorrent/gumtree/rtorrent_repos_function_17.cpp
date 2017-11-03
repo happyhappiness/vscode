@@ -1,0 +1,1 @@
+void                set_time(const timer& t)               { m_time = t; }

@@ -1,0 +1,1 @@
+void                activate_display_menu(Display d)  { activate_display(d, false); }

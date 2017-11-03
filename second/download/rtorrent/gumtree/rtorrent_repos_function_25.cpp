@@ -1,0 +1,1 @@
+int64_t                    bytes_avail()                        { return (int64_t) blocksize() * m_stat.f_bavail; }

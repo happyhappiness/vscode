@@ -1,0 +1,1 @@
+void                slot_finished(Slot s) { m_slotFinished = s; }

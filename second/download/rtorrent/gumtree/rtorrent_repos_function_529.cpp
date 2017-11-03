@@ -1,0 +1,1 @@
+Log&                get_log_complete()                  { return m_logComplete; }

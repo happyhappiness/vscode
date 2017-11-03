@@ -1,0 +1,1 @@
+void                insert(Type first, Type last) { insert(std::make_pair(first, last)); }

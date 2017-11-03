@@ -1,0 +1,1 @@
+WTitle*             window_title()                          { return m_windowTitle; }

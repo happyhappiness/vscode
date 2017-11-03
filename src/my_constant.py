@@ -6,7 +6,7 @@
 """
 repository
 """
-REPOS = 'rtorrent'
+REPOS = 'mutt'
 """
 stroed file name prefix
 """

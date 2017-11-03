@@ -1,0 +1,1 @@
+void                set_position(const char* pos) { m_position = pos; }

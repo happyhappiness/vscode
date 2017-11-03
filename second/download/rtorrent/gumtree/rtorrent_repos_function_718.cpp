@@ -1,0 +1,1 @@
+bool                is_dirty()                           { return m_taskUpdate.is_queued(); }

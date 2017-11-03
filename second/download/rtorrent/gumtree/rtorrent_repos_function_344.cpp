@@ -1,0 +1,1 @@
+void                set_up_throttle_i64(int64_t throttle)   { set_up_throttle(throttle >> 10); }

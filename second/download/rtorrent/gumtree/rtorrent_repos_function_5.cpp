@@ -1,0 +1,1 @@
+static timer        from_milliseconds(uint32_t seconds) { return rak::timer((uint64_t)seconds * 1000); }

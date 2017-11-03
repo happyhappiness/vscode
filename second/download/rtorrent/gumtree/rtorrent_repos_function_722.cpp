@@ -1,0 +1,1 @@
+static void         slot_unschedule(SlotWindow s)        { m_slotUnschedule = s; }

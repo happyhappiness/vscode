@@ -1,0 +1,1 @@
+blockcount_type            blocks_avail()                       { return m_stat.f_bavail; }

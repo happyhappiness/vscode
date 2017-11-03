@@ -1,0 +1,1 @@
+static void         slot_schedule(SlotTimer s)           { m_slotSchedule = s; }

@@ -1,0 +1,1 @@
+object_type*       object() { return m_object; }

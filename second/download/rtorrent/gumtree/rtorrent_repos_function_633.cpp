@@ -1,0 +1,1 @@
+void                print_char(const chtype ch)                                 { waddch(m_window, ch); }

@@ -1,0 +1,1 @@
+sockaddr_in6*       c_sockaddr_inet6()                      { return &m_sockaddrInet6; }

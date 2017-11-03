@@ -1,0 +1,1 @@
+void                set_filter(const filter_list& s)        { m_filter = s; }

@@ -1,0 +1,1 @@
+void                set_entry_trigger(size_type idx) { set_entry(idx, true); }

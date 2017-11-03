@@ -1,0 +1,1 @@
+void        slot_factory(SlotFactory s) { m_slotFactory = s; }

@@ -1,0 +1,1 @@
+void                set_left(bool state)                 { if (state) m_flags |= flag_left; else m_flags &= ~flag_left; }

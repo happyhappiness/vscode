@@ -1,0 +1,1 @@
+void                clear()                                 { std::memset(this, 0, sizeof(socket_address_inet)); set_family(); }

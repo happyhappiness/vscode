@@ -1,0 +1,1 @@
+void                set_column_width(extent_type* width) { m_columnWidth = width; }

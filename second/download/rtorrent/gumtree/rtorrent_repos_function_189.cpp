@@ -1,0 +1,1 @@
+inline bool parse_is_seperator(const char c) { return c == ','; }

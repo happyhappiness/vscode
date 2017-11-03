@@ -1,0 +1,1 @@
+static int          get_screen_width()                                      { int x, y; getmaxyx(stdscr, y, x); return x; }

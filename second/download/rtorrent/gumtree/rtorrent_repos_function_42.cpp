@@ -1,0 +1,1 @@
+socket_address_inet*        sa_inet()                       { return reinterpret_cast<socket_address_inet*>(this); }

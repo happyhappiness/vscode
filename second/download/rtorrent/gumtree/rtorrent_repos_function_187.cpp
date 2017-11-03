@@ -1,0 +1,1 @@
+inline bool parse_is_quote(const char c)     { return c == '"'; }

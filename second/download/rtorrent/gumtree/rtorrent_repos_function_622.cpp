@@ -1,0 +1,1 @@
+static void         resize_term(int x, int y)                               { resizeterm(y, x); }

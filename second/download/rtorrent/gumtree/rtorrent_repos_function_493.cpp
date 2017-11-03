@@ -1,0 +1,1 @@
+SignalHttp& signal_erase()              { return m_signalErase; }

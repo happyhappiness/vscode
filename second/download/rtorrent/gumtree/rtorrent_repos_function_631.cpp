@@ -1,0 +1,1 @@
+static void         erase_std()                                             { werase(stdscr); }

@@ -1,0 +1,1 @@
+static const char*  strerror(int err)                   { return gai_strerror(err); }

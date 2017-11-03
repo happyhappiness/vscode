@@ -1,0 +1,1 @@
+void                set_max_active(unsigned int a)         { m_maxActive = a; }

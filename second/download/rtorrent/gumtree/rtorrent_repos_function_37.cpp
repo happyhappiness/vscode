@@ -1,0 +1,1 @@
+address_info*       next()                        { return reinterpret_cast<address_info*>(m_addrinfo.ai_next); }

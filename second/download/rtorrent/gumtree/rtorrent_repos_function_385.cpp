@@ -1,0 +1,1 @@
+void                slot_open_uri(SlotOpenUri s) { m_slotOpenUri = s; }

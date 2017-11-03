@@ -1,0 +1,1 @@
+void                set_hash_failed(bool v)                  { m_hashFailed = v; }

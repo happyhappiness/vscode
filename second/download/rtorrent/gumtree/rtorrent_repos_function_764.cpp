@@ -1,0 +1,1 @@
+iterator            begin()                       { return m_base->begin(); }

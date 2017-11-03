@@ -1,0 +1,1 @@
+void                set(base_type* base) { m_base = std::auto_ptr<base_type>(base); }

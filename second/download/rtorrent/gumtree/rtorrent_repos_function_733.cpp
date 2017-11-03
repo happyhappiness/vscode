@@ -1,0 +1,1 @@
+void                slot_dirty(SlotDirty s)    { m_slotDirty = s; }

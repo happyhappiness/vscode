@@ -1,0 +1,1 @@
+void                set_object(void* object) { m_object = object; }

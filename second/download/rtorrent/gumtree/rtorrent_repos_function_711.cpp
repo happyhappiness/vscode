@@ -1,0 +1,1 @@
+virtual int64_t     value(void* object) { return m_slot(); }

@@ -1,0 +1,1 @@
+void                set_flags(int f)              { m_addrinfo.ai_flags = f; }

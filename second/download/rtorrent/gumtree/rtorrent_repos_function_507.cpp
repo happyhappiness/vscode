@@ -1,0 +1,1 @@
+bool                is_enabled()                            { return m_lockfile.is_locked(); }

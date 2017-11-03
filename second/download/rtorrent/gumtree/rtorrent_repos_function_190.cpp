@@ -1,0 +1,1 @@
+inline bool parse_is_space(const char c)     { return c == ' ' || c == '\t'; }

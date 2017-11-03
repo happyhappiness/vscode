@@ -1,0 +1,1 @@
+int                 dialect() { return m_dialect; }

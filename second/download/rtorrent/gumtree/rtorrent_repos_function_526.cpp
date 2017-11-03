@@ -1,0 +1,1 @@
+View*               hashing_view()                      { return m_hashingView; }

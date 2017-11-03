@@ -1,0 +1,1 @@
+const char* result_buffer(const char** result) { return *result; }

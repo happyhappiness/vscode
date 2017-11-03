@@ -1,0 +1,1 @@
+void                set_column(unsigned int column)     { m_column = column; }

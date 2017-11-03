@@ -1,0 +1,1 @@
+void                clear()                    { m_pos = 0; m_alt = false; Base::clear(); }

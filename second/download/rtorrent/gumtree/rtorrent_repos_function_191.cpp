@@ -1,0 +1,1 @@
+inline bool parse_is_delim_default(const char c) { return parse_is_seperator(c) || std::isspace(c); }

@@ -1,0 +1,1 @@
+unsigned int        height()                                                { int x, y; getmaxyx(m_window, y, x); return y; }

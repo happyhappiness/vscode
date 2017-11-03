@@ -1,0 +1,1 @@
+void XmlRpc::cleanup() {}

@@ -1,0 +1,1 @@
+void                mark_dirty()             { m_window->mark_dirty(); }

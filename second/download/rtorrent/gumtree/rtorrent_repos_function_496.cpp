@@ -1,0 +1,1 @@
+slot_map*           slot_map_end()                                    { return m_slotMaps + SLOTS_MAX_SIZE; }

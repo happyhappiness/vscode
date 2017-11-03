@@ -1,0 +1,1 @@
+void                move(unsigned int x, unsigned int y)                    { wmove(m_window, y, x); }
