@@ -65,14 +65,15 @@ def seek_clone():
         check = json.loads(rule_record[my_constant.CLASS_OLD_NEW_CHECK])
         variable = json.loads(rule_record[my_constant.CLASS_OLD_NEW_VARIABLE])
         rule_feature = [check, variable]
-        clone_counter = 0
+        clone_counter_function = 0
+        clone_counter_log = 0
         # insert rule -> function records
         if old_loc == '-1':
             for repos_function_record in islice(repos_function_records, 1, None):
                 calls = json.loads(repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_CALLS])
                 types = json.loads(repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_TYPES])
                 if is_match_for_insert_rule(rule_feature, [types, calls]):
-                    clone_counter += 1
+                    clone_counter_function += 1
                     repos_function_clone_writer.writerow(rule_record + repos_function_record)
         # modification rule -> log records
         else:
@@ -83,10 +84,10 @@ def seek_clone():
                     # get real log records from class index
                     analyze_log_records = cluster_api.generate_records_for_class(my_constant.CLUSTER_REPOS_LOG_FILE_NAME, repos_log_record[0])
                     for analyze_log_record in analyze_log_records:
-                        clone_counter += 1
+                        clone_counter_log += 1
                         repos_log_clone_writer.writerow(rule_record + analyze_log_record)
-                    
-        print 'find clone instances %d' %(clone_counter)
+
+        print 'find clone instances, function: %d, log: %d' %(clone_counter_function, clone_counter_log)
 
     # close file
     rule_file.close()

@@ -74,7 +74,6 @@ def cluster_edition():
         # old cdg feature
         edit_feature = json.loads(record[my_constant.ANALYZE_EDIT_FEATURE])
         feature_lists.append(edit_feature)
-        # print 'now analyzing index: %d' %(index)
         # index += 1
     read_file.close()
 
@@ -126,7 +125,6 @@ def cluster_edition_and_feature(z3_api=None):
 
     # cluster log statement based on cdg_list and ddg_list
     cluster_lists = cluster_api.cluster_record_with_equality(feature_lists, z3_api)
-    # print len(cluster_lists)
     # record cluster index of each log statement
     read_file = file(my_constant.ANALYZE_OLD_NEW_LLVM_FILE_NAME, 'rb')
     write_file = file(my_constant.CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME, 'wb')
@@ -135,7 +133,6 @@ def cluster_edition_and_feature(z3_api=None):
     records = csv.reader(read_file)
     index = 0
     for record in islice(records, 1, None):
-        # print index
         record = record + [cluster_lists[index]]
         write_file_writer.writerow(record)
         index += 1
@@ -161,7 +158,7 @@ def generate_class():
     @ return nothing\n
     @ involve generate class for edition and feature cluster\n
     """
-    feature_indexes = [my_constant.FETCH_LOG_OLD_LOC, my_constant.ANALYZE_CHECK, my_constant.ANALYZE_VARIABLE, my_constant.ANALYZE_EDIT_WORD]
+    feature_indexes = [my_constant.FETCH_LOG_OLD_LOC, my_constant.FETCH_LOG_OLD_LOG, my_constant.FETCH_LOG_NEW_LOG, my_constant.ANALYZE_CHECK, my_constant.ANALYZE_VARIABLE, my_constant.ANALYZE_EDIT_WORD]
     cluster_api.generate_class_from_cluster(my_constant.CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME,\
         my_constant.CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME, my_constant.CLASS_OLD_NEW_TITLE, feature_indexes)
 

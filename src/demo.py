@@ -15,7 +15,7 @@ def analyze_and_cluster(repos_list):
         print 'now analyzing repos %s' %repos
         # update repos value of my constant
         my_constant.reset_repos(repos)
-        analyze_control_old_new.analyze_old_new(True)
+        analyze_control_old_new.analyze_old_new(False)
         analyze_control_old_new_cluster.cluster()
     # close jvm
     gumtree_api.close_jvm()

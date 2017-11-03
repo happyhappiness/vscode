@@ -1,12 +1,8 @@
 #-*-coding: utf-8 -*-
 import csv
-import sys
 import re
 import commands
-import base64
 import json
-from pygithub3 import Github
-from itertools import islice
 import my_constant
 import my_util
 

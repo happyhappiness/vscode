@@ -253,12 +253,14 @@ def cluster_record_with_equality(feature_lists, z3_api=None):
     return cluster_lists
 
 
-def generate_class_from_cluster(cluster_file_name, class_file_name, title, feature_index_list):
+def generate_class_from_cluster(cluster_file_name, class_file_name, title, feature_index_list, min_frequence=2):
     """
-    @param: cluster file name and class file name, class title, feature indexes to retrieve from cluster file\n
+    @param: cluster file name and class file name, class title, feature indexes to retrieve from cluster file, min occurrence time\n
     @return nothing\n
     @involve: generate class(repos)/rule(patch) from cluster, keep one records for repeted cluster\n
     """
+    # decrease min frequence, since tell before record
+    min_frequence -= 1
     # initiate csv file
     cluster_file = file(cluster_file_name, 'rb')
     records = csv.reader(cluster_file)
@@ -267,25 +269,26 @@ def generate_class_from_cluster(cluster_file_name, class_file_name, title, featu
     writer.writerow(title)
     # traverse records to build class
     cluster_size = {}
-    for record in records:
+    for record in islice(records, 1, None):
         # last column is cluster index
         cluster_index = record[-1]
-        # first find repeted cluster
-        if cluster_size.has_key(cluster_index):
-            if cluster_size[cluster_index] == 1:
-                # retrieve feature from feature index list
-                feature_records = []
-                for feature_index in feature_index_list:
-                    feature_records.append(record[feature_index])
-                # build and store class record
-                class_record = [cluster_index] + feature_records
-                writer.writerow(class_record)
-                cluster_size[cluster_index] += 1
-            else:
-                cluster_size[cluster_index] += 1
-        # count new cluster
+        # initialize cluster frequence item
+        if not cluster_size.has_key(cluster_index):
+            cluster_size[cluster_index] = 0
+        # tell whether this occurence satisfies min frequence
+        if cluster_size[cluster_index] == min_frequence:
+            # retrieve feature from feature index list
+            feature_records = []
+            for feature_index in feature_index_list:
+                feature_records.append(record[feature_index])
+            # build and store class record
+            class_record = [cluster_index] + feature_records
+            writer.writerow(class_record)
+            # record this occurence
+            cluster_size[cluster_index] += 1
+        # record this occurence
         else:
-            cluster_size[cluster_index] = 1
+            cluster_size[cluster_index] += 1
 
     # close file
     cluster_file.close()

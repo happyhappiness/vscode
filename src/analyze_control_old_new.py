@@ -99,11 +99,12 @@ def fetch_old_new_gumtree(gumtree):
     # call deal log to deal with each record
     total_log = 0
     total_record = 0
+    log_size, log_records =  my_util.get_csv_record_len(log_records)
     for log_record in islice(log_records, 1, None):
         total_record += 1
         total_log = deal_log(log_record, gumtree, old_new_gumtree_writer, total_log)
         if total_record % 10 == 0:
-            print 'have dealed with %d record, have dealed with %d log' %(total_record, total_log)
+            print 'have dealed with %d/%d record, have dealed with %d log' %(total_record, log_size, total_log)
 
     # close file
     log_file.close()
@@ -128,9 +129,10 @@ def analyze_old_new(is_rebuild = False):
 
     total_record = 0
     total_log = 0
+    old_new_gumtree_size, old_new_gumtree_records = my_util.get_csv_record_len(old_new_gumtree_records)
     for record in islice(old_new_gumtree_records, 1, None):
         if total_record % 10 == 0:
-            print 'have dealed with %d record; %d log' %(total_record, total_log)
+            print 'have dealed with %d/%d record; %d log' %(total_record, old_new_gumtree_size, total_log)
         total_record += 1
         # call srcml to get check and variable info
         function = record[my_constant.ANALYZE_FUNCTION]

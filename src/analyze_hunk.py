@@ -97,12 +97,13 @@ def fetch_hunk():
     total_log = 0
     total_hunk = 0
     gumtree = Gumtree()
+    hunk_size, hunk_records = my_util.get_csv_record_len(hunk_records)
     # call deal hunk to anlyze each hunk file
     for hunk_record in islice(hunk_records, 1, None):
         total_hunk += 1
         total_log = deal_hunk(hunk_record, log_writer, gumtree, total_log)
         if total_hunk % 10 == 0:
-            print 'have dealed with %d hunk, have dealed with %d log' %(total_hunk, total_log)
+            print 'have dealed with %d/%d hunk, have dealed with %d log' %(total_hunk, hunk_size, total_log)
 
     # close file
     hunk_file.close()
