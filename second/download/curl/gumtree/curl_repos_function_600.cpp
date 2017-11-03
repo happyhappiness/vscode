@@ -273,4 +273,112 @@ static int ProcessRequest(struct httprequest *req)
     else if(curlx_strnequal("Transfer-Encoding: chunked", line,
                             strlen("Transfer-Encoding: chunked"))) {
       /* chunked data coming in */
-      chunked = TR
+      chunked = TRUE;
+    }
+
+    if(chunked) {
+      if(strstr(req->reqbuf, "\r\n0\r\n\r\n"))
+        /* end of chunks reached */
+        return 1; /* done */
+      else
+        return 0; /* not done */
+    }
+
+    line = strchr(line, '\n');
+    if(line)
+      line++;
+
+  } while(line);
+
+  if(!req->auth && strstr(req->reqbuf, "Authorization:")) {
+    req->auth = TRUE; /* Authorization: header present! */
+    if(req->auth_req)
+      logmsg("Authorization header found, as required");
+  }
+
+  if(!req->digest && strstr(req->reqbuf, "Authorization: Digest")) {
+    /* If the client is passing this Digest-header, we set the part number
+       to 1000. Not only to spice up the complexity of this, but to make
+       Digest stuff to work in the test suite. */
+    req->partno += 1000;
+    req->digest = TRUE; /* header found */
+    logmsg("Received Digest request, sending back data %ld", req->partno);
+  }
+  else if(!req->ntlm &&
+          strstr(req->reqbuf, "Authorization: NTLM TlRMTVNTUAAD")) {
+    /* If the client is passing this type-3 NTLM header */
+    req->partno += 1002;
+    req->ntlm = TRUE; /* NTLM found */
+    logmsg("Received NTLM type-3, sending back data %ld", req->partno);
+    if(req->cl) {
+      logmsg("  Expecting %zu POSTed bytes", req->cl);
+    }
+  }
+  else if(!req->ntlm &&
+          strstr(req->reqbuf, "Authorization: NTLM TlRMTVNTUAAB")) {
+    /* If the client is passing this type-1 NTLM header */
+    req->partno += 1001;
+    req->ntlm = TRUE; /* NTLM found */
+    logmsg("Received NTLM type-1, sending back data %ld", req->partno);
+  }
+  else if((req->partno >= 1000) &&
+          strstr(req->reqbuf, "Authorization: Basic")) {
+    /* If the client is passing this Basic-header and the part number is
+       already >=1000, we add 1 to the part number.  This allows simple Basic
+       authentication negotiation to work in the test suite. */
+    req->partno += 1;
+    logmsg("Received Basic request, sending back data %ld", req->partno);
+  }
+  if(strstr(req->reqbuf, "Connection: close"))
+    req->open = FALSE; /* close connection after this request */
+
+  if(!req->pipe &&
+     req->open &&
+     req->prot_version >= 11 &&
+     end &&
+     req->reqbuf + req->offset > end + strlen(end_of_headers) &&
+     !req->cl &&
+     (!strncmp(req->reqbuf, "GET", strlen("GET")) ||
+      !strncmp(req->reqbuf, "HEAD", strlen("HEAD")))) {
+    /* If we have a persistent connection, HTTP version >= 1.1
+       and GET/HEAD request, enable pipelining. */
+    req->checkindex = (end - req->reqbuf) + strlen(end_of_headers);
+    req->pipelining = TRUE;
+  }
+
+  while(req->pipe) {
+    if(got_exit_signal)
+      return 1; /* done */
+    /* scan for more header ends within this chunk */
+    line = &req->reqbuf[req->checkindex];
+    end = strstr(line, end_of_headers);
+    if(!end)
+      break;
+    req->checkindex += (end - line) + strlen(end_of_headers);
+    req->pipe--;
+  }
+
+  /* If authentication is required and no auth was provided, end now. This
+     makes the server NOT wait for PUT/POST data and you can then make the
+     test case send a rejection before any such data has been sent. Test case
+     154 uses this.*/
+  if(req->auth_req && !req->auth) {
+    logmsg("Return early due to auth requested by none provided");
+    return 1; /* done */
+  }
+
+  if(req->upgrade && strstr(req->reqbuf, "Upgrade:")) {
+    /* we allow upgrade and there was one! */
+    logmsg("Found Upgrade: in request and allows it");
+    req->upgrade_request = TRUE;
+  }
+
+  if(req->cl > 0) {
+    if(req->cl <= req->offset - (end - req->reqbuf) - strlen(end_of_headers))
+      return 1; /* done */
+    else
+      return 0; /* not complete yet */
+  }
+
+  return 1; /* done */
+}
