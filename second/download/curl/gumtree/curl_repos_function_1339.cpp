@@ -112,7 +112,4 @@ static struct connectdata *allocate_conn(struct SessionHandle *data)
   conn->recv_pipe = NULL;
 
   Curl_safefree(conn->master_buffer);
-  Curl_safefree(conn->localdev);
-  Curl_safefree(conn);
-  return NULL;
-}
+  Curl_safefr
