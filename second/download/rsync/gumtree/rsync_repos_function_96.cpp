@@ -1,0 +1,1 @@
+void getopt_dummy(void) {}

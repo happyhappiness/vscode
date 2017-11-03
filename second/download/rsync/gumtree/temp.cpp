@@ -19,6 +19,8 @@
 
 #include "rsync.h"
 
+extern int csum_length;
+
 extern int verbose;
 extern int am_server;
 extern int always_checksum;
@@ -36,6 +38,10 @@ extern int preserve_uid;
 extern int preserve_gid;
 extern int preserve_times;
 extern int dry_run;
+extern int ignore_times;
+extern int recurse;
+extern int delete_mode;
+extern int cvs_exclude;
 
 /*
   free a sums struct
@@ -63,7 +69,7 @@ static void send_sums(struct sum_struct *s,int f_out)
   if (s)
     for (i=0;i<s->count;i++) {
       write_int(f_out,s->sums[i].sum1);
-      write_buf(f_out,s->sums[i].sum2,SUM_LENGTH);
+      write_buf(f_out,s->sums[i].sum2,csum_length);
     }
   write_flush(f_out);
 }
@@ -107,9 +113,10 @@ static struct sum_struct *generate_sums(char *buf,off_t len,int n)
   
   for (i=0;i<count;i++) {
     int n1 = MIN(len,n);
+    char *map = map_ptr(buf,offset,n1);
 
-    s->sums[i].sum1 = get_checksum1(buf,n1);
-    get_checksum2(buf,n1,s->sums[i].sum2);
+    s->sums[i].sum1 = get_checksum1(map,n1);
+    get_checksum2(map,n1,s->sums[i].sum2);
 
     s->sums[i].offset = offset;
     s->sums[i].len = n1;
@@ -120,7 +127,6 @@ static struct sum_struct *generate_sums(char *buf,off_t len,int n)
 	      i,(int)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
 
     len -= n1;
-    buf += n1;
     offset += n1;
   }
 
@@ -160,7 +166,7 @@ static struct sum_struct *receive_sums(int f)
 
   for (i=0;i<s->count;i++) {
     s->sums[i].sum1 = read_int(f);
-    read_buf(f,s->sums[i].sum2,SUM_LENGTH);
+    read_buf(f,s->sums[i].sum2,csum_length);
 
     s->sums[i].offset = offset;
     s->sums[i].i = i;
@@ -183,38 +189,62 @@ static struct sum_struct *receive_sums(int f)
 }
 
 
-static void set_perms(char *fname,struct file_struct *file)
+static void set_perms(char *fname,struct file_struct *file,struct stat *st,
+		      int report)
 {
+  int updated = 0;
+  struct stat st2;
+
   if (dry_run) return;
 
-#ifdef HAVE_UTIME
-  if (preserve_times) {
-    struct utimbuf tbuf;  
-    tbuf.actime = time(NULL);
-    tbuf.modtime = file->modtime;
-    if (utime(fname,&tbuf) != 0)
+  if (!st) {
+    if (stat(fname,&st2) != 0) {
+      fprintf(stderr,"stat %s : %s\n",fname,strerror(errno));
+      return;
+    }
+    st = &st2;
+  }
+
+  if (preserve_times && !S_ISLNK(st->st_mode) &&
+      st->st_mtime != file->modtime) {
+    updated = 1;
+    if (set_modtime(fname,file->modtime) != 0) {
       fprintf(stderr,"failed to set times on %s : %s\n",
 	      fname,strerror(errno));
+      return;
+    }
   }
-#endif
 
 #ifdef HAVE_CHMOD
-  if (preserve_perms) {
-    if (chmod(fname,file->mode) != 0)
+  if (preserve_perms && !S_ISLNK(st->st_mode) &&
+      st->st_mode != file->mode) {
+    updated = 1;
+    if (chmod(fname,file->mode) != 0) {
       fprintf(stderr,"failed to set permissions on %s : %s\n",
 	      fname,strerror(errno));
-  }
-#endif
-
-#ifdef HAVE_CHOWN
-  if (preserve_uid || preserve_gid) {
-    if (chown(fname,
-	      preserve_uid?file->uid:-1,
-	      preserve_gid?file->gid:-1) != 0) {
-      fprintf(stderr,"chown %s : %s\n",fname,strerror(errno));
+      return;
     }
   }
 #endif
+
+  if ((preserve_uid && st->st_uid != file->uid) || 
+      (preserve_gid && st->st_gid != file->gid)) {
+    updated = 1;
+    if (chown(fname,
+	      preserve_uid?file->uid:-1,
+	      preserve_gid?file->gid:-1) != 0) {
+      if (verbose>1 || preserve_uid)
+	fprintf(stderr,"chown %s : %s\n",fname,strerror(errno));
+      return;
+    }
+  }
+    
+  if (verbose > 1 && report) {
+    if (updated)
+      fprintf(am_server?stderr:stdout,"%s\n",fname);
+    else
+      fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);
+  }
 }
 
 
@@ -230,7 +260,7 @@ void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
   if (verbose > 2)
     fprintf(stderr,"recv_generator(%s)\n",fname);
 
-  statret = stat(fname,&st);
+  statret = lstat(fname,&st);
 
 #if SUPPORT_LINKS
   if (preserve_links && S_ISLNK(flist->files[i].mode)) {
@@ -240,8 +270,10 @@ void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
       l = readlink(fname,lnk,MAXPATHLEN-1);
       if (l > 0) {
 	lnk[l] = 0;
-	if (strcmp(lnk,flist->files[i].link) == 0)
+	if (strcmp(lnk,flist->files[i].link) == 0) {
+	  set_perms(fname,&flist->files[i],&st,1);
 	  return;
+	}
       }
     }
     if (!dry_run) unlink(fname);
@@ -249,16 +281,17 @@ void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
       fprintf(stderr,"link %s -> %s : %s\n",
 	      fname,flist->files[i].link,strerror(errno));
     } else {
+      set_perms(fname,&flist->files[i],NULL,0);
       if (verbose) 
-	fprintf(am_server?stderr:stdout,"%s -> %s\n",fname,flist->files[i].link);
+	fprintf(am_server?stderr:stdout,"%s -> %s\n",
+		fname,flist->files[i].link);
     }
     return;
   }
 #endif
 
 #ifdef HAVE_MKNOD
-  if (preserve_devices && 
-      (S_ISCHR(flist->files[i].mode) || S_ISBLK(flist->files[i].mode))) {
+  if (preserve_devices && IS_DEVICE(flist->files[i].mode)) {
     if (statret != 0 || 
 	st.st_mode != flist->files[i].mode ||
 	st.st_rdev != flist->files[i].dev) {	
@@ -266,13 +299,16 @@ void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
       if (verbose > 2)
 	fprintf(stderr,"mknod(%s,0%o,0x%x)\n",
 		fname,(int)flist->files[i].mode,(int)flist->files[i].dev);
-      if (!dry_run && mknod(fname,flist->files[i].mode,flist->files[i].dev) != 0) {
+      if (!dry_run && 
+	  mknod(fname,flist->files[i].mode,flist->files[i].dev) != 0) {
 	fprintf(stderr,"mknod %s : %s\n",fname,strerror(errno));
       } else {
+	set_perms(fname,&flist->files[i],NULL,0);
 	if (verbose)
 	  fprintf(am_server?stderr:stdout,"%s\n",fname);
-	set_perms(fname,&flist->files[i]);
       }
+    } else {
+      set_perms(fname,&flist->files[i],&st,1);
     }
     return;
   }
@@ -309,12 +345,11 @@ void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
     file_checksum(fname,sum,st.st_size);
   }
 
-  if ((st.st_size == flist->files[i].length &&
-       ((!preserve_perms || st.st_mtime == flist->files[i].modtime) ||
-	(S_ISREG(st.st_mode) && 
-	 always_checksum && memcmp(sum,flist->files[i].sum,SUM_LENGTH) == 0)))) {
-    if (verbose > 1)
-      fprintf(stderr,"%s is uptodate\n",fname);
+  if (st.st_size == flist->files[i].length &&
+      ((!ignore_times && st.st_mtime == flist->files[i].modtime) ||
+       (always_checksum && S_ISREG(st.st_mode) && 	  
+	memcmp(sum,flist->files[i].sum,csum_length) == 0))) {
+    set_perms(fname,&flist->files[i],&st,1);
     return;
   }
 
@@ -333,11 +368,6 @@ void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
 
   if (st.st_size > 0) {
     buf = map_file(fd,st.st_size);
-    if (!buf) {
-      fprintf(stderr,"mmap : %s\n",strerror(errno));
-      close(fd);
-      return;
-    }
   } else {
     buf = NULL;
   }
@@ -345,7 +375,7 @@ void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
   if (verbose > 3)
     fprintf(stderr,"mapped %s of size %d\n",fname,(int)st.st_size);
 
-  s = generate_sums(buf,st.st_size,BLOCK_SIZE);
+  s = generate_sums(buf,st.st_size,block_size);
 
   write_int(f_out,i);
   send_sums(s,f_out);
@@ -359,11 +389,9 @@ void recv_generator(char *fname,struct file_list *flist,int i,int f_out)
 
 
 
-static void receive_data(int f_in,char *buf,int fd)
+static void receive_data(int f_in,char *buf,int fd,char *fname)
 {
   int i,n,remainder,len,count;
-  int size = 0;
-  char *buf2=NULL;
   off_t offset = 0;
   off_t offset2;
 
@@ -373,18 +401,13 @@ static void receive_data(int f_in,char *buf,int fd)
 
   for (i=read_int(f_in); i != 0; i=read_int(f_in)) {
     if (i > 0) {
-      if (i > size) {
-	if (buf2) free(buf2);
-	buf2 = (char *)malloc(i);
-	size = i;
-	if (!buf2) out_of_memory("receive_data");
-      }
-
       if (verbose > 3)
 	fprintf(stderr,"data recv %d at %d\n",i,(int)offset);
 
-      read_buf(f_in,buf2,i);
-      write(fd,buf2,i);
+      if (read_write(f_in,fd,i) != i) {
+	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
       offset += i;
     } else {
       i = -(i+1);
@@ -397,13 +420,73 @@ static void receive_data(int f_in,char *buf,int fd)
 	fprintf(stderr,"chunk[%d] of size %d at %d offset=%d\n",
 		i,len,(int)offset2,(int)offset);
 
-      write(fd,buf+offset2,len);
+      if (write_sparse(fd,map_ptr(buf,offset2,len),len) != len) {
+	fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
       offset += len;
     }
   }
-  if (buf2) free(buf2);
+
+  if (offset > 0 && sparse_end(fd) != 0) {
+    fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));
+    exit_cleanup(1);
+  }
 }
 
+
+static void delete_one(struct file_struct *f)
+{
+  if (!S_ISDIR(f->mode)) {
+    if (!dry_run && unlink(f->name) != 0) {
+      fprintf(stderr,"unlink %s : %s\n",f->name,strerror(errno));
+    } else if (verbose) {
+      fprintf(stderr,"deleting %s\n",f->name);
+    }
+  } else {    
+    if (!dry_run && rmdir(f->name) != 0) {
+      if (errno != ENOTEMPTY)
+	fprintf(stderr,"rmdir %s : %s\n",f->name,strerror(errno));
+    } else if (verbose) {
+      fprintf(stderr,"deleting directory %s\n",f->name);      
+    }
+  }
+}
+
+
+static void delete_files(struct file_list *flist)
+{
+  struct file_list *local_file_list;
+  char *dot=".";
+  int i;
+
+  if (cvs_exclude)
+    add_cvs_excludes();
+
+  if (!(local_file_list = send_file_list(-1,recurse,1,&dot)))
+    return;
+
+  for (i=local_file_list->count;i>=0;i--) {
+    if (!local_file_list->files[i].name) continue;
+    if (-1 == flist_find(flist,&local_file_list->files[i])) {
+      delete_one(&local_file_list->files[i]);
+    }    
+  }
+}
+
+static char *cleanup_fname = NULL;
+
+void exit_cleanup(int code)
+{
+  if (cleanup_fname)
+    unlink(cleanup_fname);
+  exit(code);
+}
+
+void sig_int(void)
+{
+  exit_cleanup(1);
+}
 
 
 int recv_files(int f_in,struct file_list *flist,char *local_name)
@@ -415,8 +498,13 @@ int recv_files(int f_in,struct file_list *flist,char *local_name)
   char *buf;
   int i;
 
-  if (verbose > 2)
+  if (verbose > 2) {
     fprintf(stderr,"recv_files(%d) starting\n",flist->count);
+  }
+
+  if (recurse && delete_mode && !local_name && flist->count>0) {
+    delete_files(flist);
+  }
 
   while (1) 
     {
@@ -438,27 +526,22 @@ int recv_files(int f_in,struct file_list *flist,char *local_name)
 	fprintf(stderr,"recv_files(%s)\n",fname);
 
       /* open the file */  
-      if ((fd1 = open(fname,O_RDONLY)) == -1 &&
-	  (fd1 = open(fname,O_RDONLY|O_CREAT,flist->files[i].mode)) == -1) {
-	fprintf(stderr,"recv_files failed to open %s\n",fname);
-	return -1;
-      }
+      fd1 = open(fname,O_RDONLY);
 
-      if (fstat(fd1,&st) != 0) {
+      if (fd1 != -1 && fstat(fd1,&st) != 0) {
 	fprintf(stderr,"fstat %s : %s\n",fname,strerror(errno));
 	close(fd1);
 	return -1;
       }
 
-      if (!S_ISREG(st.st_mode)) {
+      if (fd1 != -1 && !S_ISREG(st.st_mode)) {
 	fprintf(stderr,"%s : not a regular file\n",fname);
 	close(fd1);
 	return -1;
       }
 
-      if (st.st_size > 0) {
+      if (fd1 != -1 && st.st_size > 0) {
 	buf = map_file(fd1,st.st_size);
-	if (!buf) return -1;
       } else {
 	buf = NULL;
       }
@@ -468,18 +551,28 @@ int recv_files(int f_in,struct file_list *flist,char *local_name)
 
       /* open tmp file */
       sprintf(fnametmp,"%s.XXXXXX",fname);
-      if (NULL == mktemp(fnametmp)) 
+      if (NULL == mktemp(fnametmp)) {
+	fprintf(stderr,"mktemp %s failed\n",fnametmp);
 	return -1;
-      fd2 = open(fnametmp,O_WRONLY|O_CREAT,st.st_mode);
-      if (fd2 == -1) return -1;
+      }
+      fd2 = open(fnametmp,O_WRONLY|O_CREAT,flist->files[i].mode);
+      if (fd2 == -1) {
+	fprintf(stderr,"open %s : %s\n",fnametmp,strerror(errno));
+	return -1;
+      }
+      
+      cleanup_fname = fnametmp;
 
       if (!am_server && verbose)
 	printf("%s\n",fname);
 
       /* recv file data */
-      receive_data(f_in,buf,fd2);
+      receive_data(f_in,buf,fd2,fname);
 
-      close(fd1);
+      if (fd1 != -1) {
+	unmap_file(buf,st.st_size);
+	close(fd1);
+      }
       close(fd2);
 
       if (verbose > 2)
@@ -488,20 +581,21 @@ int recv_files(int f_in,struct file_list *flist,char *local_name)
       if (make_backups) {
 	char fnamebak[MAXPATHLEN];
 	sprintf(fnamebak,"%s%s",fname,backup_suffix);
-	if (rename(fname,fnamebak) != 0) {
+	if (rename(fname,fnamebak) != 0 && errno != ENOENT) {
 	  fprintf(stderr,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
-	  exit(1);
+	  exit_cleanup(1);
 	}
       }
 
       /* move tmp file over real file */
       if (rename(fnametmp,fname) != 0) {
-	fprintf(stderr,"rename %s -> %s : %s\n",fnametmp,fname,strerror(errno));
+	fprintf(stderr,"rename %s -> %s : %s\n",
+		fnametmp,fname,strerror(errno));
       }
 
-      unmap_file(buf,st.st_size);
+      cleanup_fname = NULL;
 
-      set_perms(fname,&flist->files[i]);
+      set_perms(fname,&flist->files[i],NULL,0);
     }
 
   if (verbose > 2)
@@ -525,6 +619,8 @@ off_t send_files(struct file_list *flist,int f_out,int f_in)
   if (verbose > 2)
     fprintf(stderr,"send_files starting\n");
 
+  setup_nonblocking(f_in,f_out);
+
   while (1) 
     {
       i = read_int(f_in);
@@ -547,24 +643,27 @@ off_t send_files(struct file_list *flist,int f_out,int f_in)
 	continue;
       }
 
+      s = receive_sums(f_in);
+      if (!s) {
+	fprintf(stderr,"receive_sums failed\n");
+	return -1;
+      }
+
       fd = open(fname,O_RDONLY);
       if (fd == -1) {
 	fprintf(stderr,"send_files failed to open %s: %s\n",
 		fname,strerror(errno));
-	return -1;
+	continue;
       }
   
-      s = receive_sums(f_in);
-      if (!s) 
-	return -1;
-
       /* map the local file */
-      if (fstat(fd,&st) != 0) 
+      if (fstat(fd,&st) != 0) {
+	fprintf(stderr,"fstat failed : %s\n",strerror(errno));
 	return -1;
+      }
       
       if (st.st_size > 0) {
 	buf = map_file(fd,st.st_size);
-	if (!buf) return -1;
       } else {
 	buf = NULL;
       }
@@ -599,6 +698,8 @@ off_t send_files(struct file_list *flist,int f_out,int f_in)
       total += st.st_size;
     }
 
+  match_report();
+
   write_int(f_out,-1);
   write_flush(f_out);
 
@@ -616,6 +717,7 @@ void generate_files(int f,struct file_list *flist,char *local_name)
 	    (int)getpid(),flist->count);
 
   for (i = 0; i < flist->count; i++) {
+    if (!flist->files[i].name) continue;
     if (S_ISDIR(flist->files[i].mode)) {
       if (dry_run) continue;
       if (mkdir(flist->files[i].name,flist->files[i].mode) != 0 &&
@@ -630,6 +732,6 @@ void generate_files(int f,struct file_list *flist,char *local_name)
   }
   write_int(f,-1);
   write_flush(f);
-  if (verbose > 1)
+  if (verbose > 2)
     fprintf(stderr,"generator wrote %d\n",write_total());
 }

@@ -46,7 +46,7 @@ main function
 """
 if __name__ == "__main__":
     reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync']
-    repos_names = ['curl-7.41.0']
+    repos_names = [ 'mutt-1.7.2','curl-7.41.0']
     do_statistics(reposes)
 
 

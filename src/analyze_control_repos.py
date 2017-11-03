@@ -157,8 +157,9 @@ main function
 if __name__ == "__main__":
     # curl
     # analyze_repos("curl-7.41.0")
-    # # rtorrent
-    # analyze_repos("rtorrent-0.7.7")
+    # mutt
+    # analyze_repos("mutt-1.7.2")
+    # rsync
+    analyze_repos("rsync-1.4.4")
+    cluster_repos_log()
     # cluster_repos_log()
-    analyze_file('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rtorrent/repos/rtorrent-0.7.7/src/display/text_element_lambda.h', 0, SrcmlApi())
-    

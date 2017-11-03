@@ -275,7 +275,10 @@ class SrcmlApi:
             # if candi_node == node or candi_node.text != node.text or candi_node.text is None:
             if candi_node.text != node.text or candi_node.text is None:
                 continue
+            # accept one definition in one line malloc(sizeof(s))
             candi_line = self._get_location(candi_node)
+            if depended_nodes.has_key(candi_line):
+                continue
             # find use as return or reference argument for functions
             if candi_line <= node_line:
                 # filter by name = (***) call
@@ -510,10 +513,10 @@ class SrcmlApi:
         
 if __name__ == "__main__":
     # input function cpp file
-    srcml_api = SrcmlApi('second/download/curl/gumtree/curl_repos_function_790.cpp', is_function=True)
-    print srcml_api.get_logs_calls_types()
-    # srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_function_1119.cpp')
-    # if srcml_api.set_log_loc(788):
-    #     if srcml_api.set_control_dependence():
-    #         print srcml_api.get_control_info()
-    #         print srcml_api.get_log_info()
+    # srcml_api = SrcmlApi('second/download/rsync/gumtree/curl_repos_function_698.cpp', is_function=True)
+    # print srcml_api.get_logs_calls_types()
+    srcml_api = SrcmlApi('second/download/rsync/gumtree/rsync_function_698.cpp')
+    if srcml_api.set_log_loc(12):
+        if srcml_api.set_control_dependence():
+            print srcml_api.get_control_info()
+            print srcml_api.get_log_info()

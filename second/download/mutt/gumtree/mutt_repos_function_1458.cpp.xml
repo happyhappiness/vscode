@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/gumtree/mutt_repos_function_1458.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">crypt_mod_pgp_void_passphrase<pos:position pos:line="1" pos:column="42"/></name> <parameter_list pos:line="1" pos:column="43">(<parameter><decl><type><name pos:line="1" pos:column="44">void<pos:position pos:line="1" pos:column="48"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="49"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+  <comment type="block" pos:line="3" pos:column="3">/* Handled by gpg-agent.  */</comment>
+}<pos:position pos:line="4" pos:column="2"/></block></function></unit>
