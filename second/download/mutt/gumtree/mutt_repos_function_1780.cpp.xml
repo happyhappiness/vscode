@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/gumtree/mutt_repos_function_1780.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">mutt_usage<pos:position pos:line="1" pos:column="23"/></name> <parameter_list pos:line="1" pos:column="24">(<parameter><decl><type><name pos:line="1" pos:column="25">void<pos:position pos:line="1" pos:column="29"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="30"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+  <expr_stmt><expr><call><name pos:line="3" pos:column="3">puts<pos:position pos:line="3" pos:column="7"/></name> <argument_list pos:line="3" pos:column="8">(<argument><expr><call><name pos:line="3" pos:column="9">mutt_make_version<pos:position pos:line="3" pos:column="26"/></name> <argument_list pos:line="3" pos:column="27">()<pos:position pos:line="3" pos:column="29"/></argument_list></call></expr></argument>)<pos:position pos:line="3" pos:column="30"/></argument_list></call></expr>;<pos:position pos:line="3" pos:column="31"/></expr_stmt>
+
+  <decl_stmt><decl><type><name pos:line="5" pos:column="3">puts<pos:position pos:line="5" pos:column="7"/></name></type> <name pos:line="5" pos:column="8">_<pos:position pos:line="5" pos:column="9"/></name><argument_list pos:line="5" pos:column="9">(
+<argument><expr><literal type="string" pos:line="6" pos:column="1">"usage: mutt [&lt;options&gt;] [-z] [-f &lt;file&gt; | -yZ]\n\
+       mutt [&lt;options&gt;] [-Ex] [-Hi &lt;file&gt;] [-s &lt;subj&gt;] [-bc &lt;addr&gt;] [-a &lt;file&gt; [...] --] &lt;addr&gt; [...]\n\
+       mutt [&lt;options&gt;] [-x] [-s &lt;subj&gt;] [-bc &lt;addr&gt;] [-a &lt;file&gt; [...] --] &lt;addr&gt; [...] &lt; message\n\
+       mutt [&lt;options&gt;] -p\n\
+       mutt [&lt;options&gt;] -A &lt;alias&gt; [...]\n\
+       mutt [&lt;options&gt;] -Q &lt;query&gt; [...]\n\
+       mutt [&lt;options&gt;] -D\n\
+       mutt -v[v]\n"<pos:position pos:line="6" pos:column="543"/></literal></expr></argument>)<pos:position pos:line="13" pos:column="22"/></argument_list></decl>;<pos:position pos:line="13" pos:column="23"/></decl_stmt>
+
+  <decl_stmt><decl><type><name pos:line="15" pos:column="3">puts<pos:position pos:line="15" pos:column="7"/></name></type> <name pos:line="15" pos:column="8">_<pos:position pos:line="15" pos:column="9"/></name><argument_list pos:line="15" pos:column="9">(<argument><expr><literal type="string" pos:line="15" pos:column="10">"\
+options:\n\
+  -A &lt;alias&gt;\texpand the given alias\n\
+  -a &lt;file&gt; [...] --\tattach file(s) to the message\n\
+\t\tthe list of files must be terminated with the \"--\" sequence\n\
+  -b &lt;address&gt;\tspecify a blind carbon-copy (BCC) address\n\
+  -c &lt;address&gt;\tspecify a carbon-copy (CC) address\n\
+  -D\t\tprint the value of all variables to stdout"<pos:position pos:line="15" pos:column="379"/></literal></expr></argument>)<pos:position pos:line="22" pos:column="53"/></argument_list></decl>;<pos:position pos:line="22" pos:column="54"/></decl_stmt>
+<cpp:if pos:line="23" pos:column="1">#<cpp:directive pos:line="23" pos:column="2">if<pos:position pos:line="23" pos:column="4"/></cpp:directive> <expr><name pos:line="23" pos:column="5">DEBUG<pos:position pos:line="23" pos:column="10"/></name></expr></cpp:if>
+  <decl_stmt><decl><type><name pos:line="24" pos:column="3">puts<pos:position pos:line="24" pos:column="7"/></name></type> <name pos:line="24" pos:column="8">_<pos:position pos:line="24" pos:column="9"/></name><argument_list pos:line="24" pos:column="9">(<argument><expr><literal type="string" pos:line="24" pos:column="10">"  -d &lt;level&gt;\tlog debugging output to ~/.muttdebug0"<pos:position pos:line="24" pos:column="69"/></literal></expr></argument>)<pos:position pos:line="24" pos:column="64"/></argument_list></decl>;<pos:position pos:line="24" pos:column="65"/></decl_stmt>
+<cpp:endif pos:line="25" pos:column="1">#<cpp:directive pos:line="25" pos:column="2">endif<pos:position pos:line="25" pos:column="7"/></cpp:directive></cpp:endif>
+  <decl_stmt><decl><type><name pos:line="26" pos:column="3">puts<pos:position pos:line="26" pos:column="7"/></name></type> <name pos:line="26" pos:column="8">_<pos:position pos:line="26" pos:column="9"/></name><argument_list pos:line="26" pos:column="9">(
+<argument><expr><literal type="string" pos:line="27" pos:column="1">"  -E\t\tedit the draft (-H) or include (-i) file\n\
+  -e &lt;command&gt;\tspecify a command to be executed after initialization\n\
+  -f &lt;file&gt;\tspecify which mailbox to read\n\
+  -F &lt;file&gt;\tspecify an alternate muttrc file\n\
+  -H &lt;file&gt;\tspecify a draft file to read header and body from\n\
+  -i &lt;file&gt;\tspecify a file which Mutt should include in the body\n\
+  -m &lt;type&gt;\tspecify a default mailbox type\n\
+  -n\t\tcauses Mutt not to read the system Muttrc\n\
+  -p\t\trecall a postponed message"<pos:position pos:line="27" pos:column="528"/></literal></expr></argument>)<pos:position pos:line="35" pos:column="37"/></argument_list></decl>;<pos:position pos:line="35" pos:column="38"/></decl_stmt>
+  
+  <decl_stmt><decl><type><name pos:line="37" pos:column="3">puts<pos:position pos:line="37" pos:column="7"/></name></type> <name pos:line="37" pos:column="8">_<pos:position pos:line="37" pos:column="9"/></name><argument_list pos:line="37" pos:column="9">(<argument><expr><literal type="string" pos:line="37" pos:column="10">"\
+  -Q &lt;variable&gt;\tquery a configuration variable\n\
+  -R\t\topen mailbox in read-only mode\n\
+  -s &lt;subj&gt;\tspecify a subject (must be in quotes if it has spaces)\n\
+  -v\t\tshow version and compile-time definitions\n\
+  -x\t\tsimulate the mailx send mode\n\
+  -y\t\tselect a mailbox specified in your `mailboxes' list\n\
+  -z\t\texit immediately if there are no messages in the mailbox\n\
+  -Z\t\topen the first folder with new message, exit immediately if none\n\
+  -h\t\tthis help message"<pos:position pos:line="37" pos:column="515"/></literal></expr></argument>)<pos:position pos:line="46" pos:column="28"/></argument_list></decl>;<pos:position pos:line="46" pos:column="29"/></decl_stmt>
+
+  <expr_stmt><expr><call><name pos:line="48" pos:column="3">exit<pos:position pos:line="48" pos:column="7"/></name> <argument_list pos:line="48" pos:column="8">(<argument><expr><literal type="number" pos:line="48" pos:column="9">0<pos:position pos:line="48" pos:column="10"/></literal></expr></argument>)<pos:position pos:line="48" pos:column="11"/></argument_list></call></expr>;<pos:position pos:line="48" pos:column="12"/></expr_stmt>
+}<pos:position pos:line="49" pos:column="2"/></block></function></unit>

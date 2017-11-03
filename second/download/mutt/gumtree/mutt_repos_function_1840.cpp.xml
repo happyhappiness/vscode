@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/gumtree/mutt_repos_function_1840.cpp" pos:tabs="8"><decl_stmt><decl><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type>
+<name pos:line="2" pos:column="1">yyerror<pos:position pos:line="2" pos:column="8"/></name> <argument_list pos:line="2" pos:column="9">(<argument><expr><name pos:line="2" pos:column="10">str<pos:position pos:line="2" pos:column="13"/></name></expr></argument>)<pos:position pos:line="2" pos:column="14"/></argument_list>
+     const <name pos:line="3" pos:column="12">char<pos:position pos:line="3" pos:column="16"/></name> <modifier pos:line="3" pos:column="17">*<pos:position pos:line="3" pos:column="18"/></modifier><name pos:line="3" pos:column="18">str<pos:position pos:line="3" pos:column="21"/></name></decl>;<pos:position pos:line="3" pos:column="22"/></decl_stmt>
+<block pos:line="4" pos:column="1">{
+  <comment type="block" pos:line="5" pos:column="3">/* Do nothing.  We don't print error messages here.  */</comment>
+}<pos:position pos:line="6" pos:column="2"/></block></unit>
