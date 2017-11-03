@@ -440,14 +440,13 @@ class SrcmlApi:
             return content
         # if has text, add to content
         if node.text:
-            # content += " " + self._get_location(node)+ "@"\
-            #              + self._remove_prefix(node) + "@" + node.text
             content += node.text
-        else:
-            content += " "
         # add text of children
         for child in node:
             content += self._get_text(child)
+        # if has tail, add tail at last
+        if node.tail:
+            content += node.tail
 
         return content
 
@@ -511,10 +510,10 @@ class SrcmlApi:
         
 if __name__ == "__main__":
     # input function cpp file
-    # srcml_api = SrcmlApi('second/download/curl/repos/curl-7.1.1/src/hugehelp.c', is_function=False)
-    # srcml_api.get_functions(0)
-    srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_function_1119.cpp')
-    if srcml_api.set_log_loc(788):
-        if srcml_api.set_control_dependence():
-            print srcml_api.get_control_info()
-            print srcml_api.get_log_info()
+    srcml_api = SrcmlApi('second/download/curl/gumtree/curl_repos_function_790.cpp', is_function=True)
+    print srcml_api.get_logs_calls_types()
+    # srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_function_1119.cpp')
+    # if srcml_api.set_log_loc(788):
+    #     if srcml_api.set_control_dependence():
+    #         print srcml_api.get_control_info()
+    #         print srcml_api.get_log_info()
