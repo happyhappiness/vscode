@@ -46,7 +46,7 @@ class,check,variable
 37,[null],"[null, ""open_arg_ret"", null, ""set_perms_arg_ret"", null]"
 38,[null],"[null, ""read_int_ret"", null, ""off_t""]"
 39,"[""read_write_ret"", ""read_int_ret""]","[""strerror_ret"", null, ""char""]"
-40,[null],"[null, ""read_int_ret"", ""map_ptr_arg"", null, ""map_ptr_arg"", null, ""off_t""]"
+40,[null],"[null, ""read_int_ret"", ""write_sparse_arg"", null, ""map_ptr_arg"", null, ""off_t""]"
 41,"[""write_sparse_ret"", ""map_ptr_ret"", """"]","[""strerror_ret"", null, ""char""]"
 42,"[""sparse_end_ret"", ""off_t""]","[""strerror_ret"", null, ""char""]"
 43,"[""unlink_ret"", null]","[""strerror_ret"", null, "" struct file_struct"", null]"
