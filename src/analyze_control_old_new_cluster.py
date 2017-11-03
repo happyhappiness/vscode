@@ -168,5 +168,5 @@ main function
 """
 if __name__ == "__main__":
 
-    # cluster(None)
+    cluster(None)
     generate_class()
