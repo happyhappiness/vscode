@@ -699,4 +699,151 @@ static CURLMcode multi_runsingle(struct Curl_multi *multi,
               disconnect_conn = TRUE;
           }
 
-          multistate(data, CURLM_ST
+          multistate(data, CURLM_STATE_DONE);
+          rc = CURLM_CALL_MULTI_PERFORM;
+        }
+      }
+
+      if(newurl)
+        free(newurl);
+      break;
+    }
+
+    case CURLM_STATE_DONE:
+      /* this state is highly transient, so run another loop after this */
+      rc = CURLM_CALL_MULTI_PERFORM;
+
+      if(data->easy_conn) {
+        CURLcode res;
+
+        /* Remove ourselves from the receive pipeline, if we are there. */
+        Curl_removeHandleFromPipeline(data, data->easy_conn->recv_pipe);
+        /* Check if we can move pending requests to send pipe */
+        Curl_multi_process_pending_handles(multi);
+
+        /* post-transfer command */
+        res = Curl_done(&data->easy_conn, result, FALSE);
+
+        /* allow a previously set error code take precedence */
+        if(!result)
+          result = res;
+
+        /*
+         * If there are other handles on the pipeline, Curl_done won't set
+         * easy_conn to NULL.  In such a case, curl_multi_remove_handle() can
+         * access free'd data, if the connection is free'd and the handle
+         * removed before we perform the processing in CURLM_STATE_COMPLETED
+         */
+        if(data->easy_conn)
+          data->easy_conn = NULL;
+      }
+
+      if(data->set.wildcardmatch) {
+        if(data->wildcard.state != CURLWC_DONE) {
+          /* if a wildcard is set and we are not ending -> lets start again
+             with CURLM_STATE_INIT */
+          multistate(data, CURLM_STATE_INIT);
+          break;
+        }
+      }
+
+      /* after we have DONE what we're supposed to do, go COMPLETED, and
+         it doesn't matter what the Curl_done() returned! */
+      multistate(data, CURLM_STATE_COMPLETED);
+      break;
+
+    case CURLM_STATE_COMPLETED:
+      /* this is a completed transfer, it is likely to still be connected */
+
+      /* This node should be delinked from the list now and we should post
+         an information message that we are complete. */
+
+      /* Important: reset the conn pointer so that we don't point to memory
+         that could be freed anytime */
+      data->easy_conn = NULL;
+
+      Curl_expire(data, 0); /* stop all timers */
+      break;
+
+    case CURLM_STATE_MSGSENT:
+      data->result = result;
+      return CURLM_OK; /* do nothing */
+
+    default:
+      return CURLM_INTERNAL_ERROR;
+    }
+    statemachine_end:
+
+    if(data->mstate < CURLM_STATE_COMPLETED) {
+      if(result) {
+        /*
+         * If an error was returned, and we aren't in completed state now,
+         * then we go to completed and consider this transfer aborted.
+         */
+
+        /* NOTE: no attempt to disconnect connections must be made
+           in the case blocks above - cleanup happens only here */
+
+        data->state.pipe_broke = FALSE;
+
+        if(data->easy_conn) {
+          /* if this has a connection, unsubscribe from the pipelines */
+          data->easy_conn->writechannel_inuse = FALSE;
+          data->easy_conn->readchannel_inuse = FALSE;
+          Curl_removeHandleFromPipeline(data, data->easy_conn->send_pipe);
+          Curl_removeHandleFromPipeline(data, data->easy_conn->recv_pipe);
+          /* Check if we can move pending requests to send pipe */
+          Curl_multi_process_pending_handles(multi);
+
+          if(disconnect_conn) {
+            /* Don't attempt to send data over a connection that timed out */
+            bool dead_connection = result == CURLE_OPERATION_TIMEDOUT;
+            /* disconnect properly */
+            Curl_disconnect(data->easy_conn, dead_connection);
+
+            /* This is where we make sure that the easy_conn pointer is reset.
+               We don't have to do this in every case block above where a
+               failure is detected */
+            data->easy_conn = NULL;
+          }
+        }
+        else if(data->mstate == CURLM_STATE_CONNECT) {
+          /* Curl_connect() failed */
+          (void)Curl_posttransfer(data);
+        }
+
+        multistate(data, CURLM_STATE_COMPLETED);
+      }
+      /* if there's still a connection to use, call the progress function */
+      else if(data->easy_conn && Curl_pgrsUpdate(data->easy_conn)) {
+        /* aborted due to progress callback return code must close the
+           connection */
+        result = CURLE_ABORTED_BY_CALLBACK;
+        connclose(data->easy_conn, "Aborted by callback");
+
+        /* if not yet in DONE state, go there, otherwise COMPLETED */
+        multistate(data, (data->mstate < CURLM_STATE_DONE)?
+                   CURLM_STATE_DONE: CURLM_STATE_COMPLETED);
+        rc = CURLM_CALL_MULTI_PERFORM;
+      }
+    }
+
+    if(CURLM_STATE_COMPLETED == data->mstate) {
+      /* now fill in the Curl_message with this info */
+      msg = &data->msg;
+
+      msg->extmsg.msg = CURLMSG_DONE;
+      msg->extmsg.easy_handle = data;
+      msg->extmsg.data.result = result;
+
+      rc = multi_addmsg(multi, msg);
+
+      multistate(data, CURLM_STATE_MSGSENT);
+    }
+  } while(rc == CURLM_CALL_MULTI_PERFORM);
+
+  data->result = result;
+
+
+  return rc;
+}

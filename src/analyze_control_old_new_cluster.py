@@ -158,7 +158,8 @@ def generate_class():
     @ return nothing\n
     @ involve generate class for edition and feature cluster\n
     """
-    feature_indexes = [my_constant.FETCH_LOG_OLD_LOC, my_constant.FETCH_LOG_OLD_LOG, my_constant.FETCH_LOG_NEW_LOG, my_constant.ANALYZE_CHECK, my_constant.ANALYZE_VARIABLE, my_constant.ANALYZE_EDIT_WORD]
+    feature_indexes = [my_constant.FETCH_LOG_OLD_LOC, my_constant.FETCH_LOG_OLD_LOG, my_constant.FETCH_LOG_NEW_LOG, \
+            my_constant.ANALYZE_FUNCTION, my_constant.ANALYZE_FUNCTION_LOC, my_constant.ANALYZE_CHECK, my_constant.ANALYZE_VARIABLE, my_constant.ANALYZE_EDIT_WORD]
     cluster_api.generate_class_from_cluster(my_constant.CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME,\
         my_constant.CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME, my_constant.CLASS_OLD_NEW_TITLE, feature_indexes)
 

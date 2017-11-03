@@ -96,7 +96,7 @@ ANALYZE_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('variable')
 # cluster and class
 CLUSTER_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
 ANALYZE_CLUSTER = CLUSTER_OLD_NEW_TITLE.index('cluster')
-CLASS_OLD_NEW_TITLE = ['class', 'old_loc', 'old_log', 'new_log', 'check', 'variable', 'edit']
+CLASS_OLD_NEW_TITLE = ['class', 'old_loc', 'old_log', 'new_log', 'function', 'function_loc', 'check', 'variable', 'edit']
 CLASS_OLD_NEW_OLD_LOC = CLASS_OLD_NEW_TITLE.index('old_loc')
 CLASS_OLD_NEW_CHECK = CLASS_OLD_NEW_TITLE.index('check')
 CLASS_OLD_NEW_VARIABLE = CLASS_OLD_NEW_TITLE.index('variable')
