@@ -1,1 +1,1 @@
-fputs (_("[-- This is an attachment "), s->fpout);
+fprintf (tmp, "%s\n", linebuf);

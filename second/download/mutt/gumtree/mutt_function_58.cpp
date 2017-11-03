@@ -1,60 +1,73 @@
-int mutt_save_confirm (const char *s, struct stat *st)
+MESSAGE *mx_open_new_message (CONTEXT *dest, HEADER *hdr, int flags)
 {
-  char tmp[_POSIX_PATH_MAX];
-  int ret = 1;
-  int magic = 0;
+  MESSAGE *msg;
+  int (*func) (MESSAGE *, CONTEXT *, HEADER *);
+  ADDRESS *p = NULL;
+  time_t t;
 
-  magic = mx_get_magic (s);
-
-#ifdef USE_POP
-  if (magic == M_POP)
+  switch (dest->magic)
   {
-    mutt_error _("Can't save message to POP mailbox.");
-    return 0;
-  }
+    case M_MMDF:
+    case M_MBOX:
+      func = mbox_open_new_message;
+      break;
+    case M_MAILDIR:
+      func = maildir_open_new_message;
+      break;
+    case M_MH:
+      func = mh_open_new_message;
+      break;
+#ifdef USE_IMAP
+    case M_IMAP:
+      func = imap_open_new_message;
+      break;
 #endif
+    default:
+      dprint (1, (debugfile, "mx_open_new_message(): function unimplemented for mailbox type %d.\n",
+		  dest->magic));
+      return (NULL);
+  }
 
-  if (stat (s, st) != -1)
+  msg = safe_calloc (1, sizeof (MESSAGE));
+  msg->magic = dest->magic;
+  msg->write = 1;
+
+  if (hdr)
   {
-    if (magic == -1)
-    {
-      mutt_error (_("%s is not a mailbox!"), s);
-      return 0;
-    }
+    msg->flags.flagged = hdr->flagged;
+    msg->flags.replied = hdr->replied;
+    msg->flags.read    = hdr->read;
+  }
+  
+  if (func (msg, dest, hdr) == 0)
+  {
+    if (dest->magic == M_MMDF)
+      fputs (MMDF_SEP, msg->fp);
 
-    if (option (OPTCONFIRMAPPEND))
+    if ((msg->magic == M_MBOX || msg->magic ==  M_MMDF) &&
+	flags & M_ADD_FROM)
     {
-      snprintf (tmp, sizeof (tmp), _("Append messages to %s?"), s);
-      if (mutt_yesorno (tmp, 1) < 1)
-	ret = 0;
+      if (hdr)
+      {
+	if (hdr->env->return_path)
+	  p = hdr->env->return_path;
+	else if (hdr->env->sender)
+	  p = hdr->env->sender;
+	else
+	  p = hdr->env->from;
+
+	if (!hdr->received)
+	  hdr->received = time (NULL);
+	t = hdr->received;
+      }
+      else
+	t = time (NULL);
+
+      fprintf (msg->fp, "From %s %s", p ? p->mailbox : NONULL(Username), ctime (&t));
     }
   }
   else
-  {
-#ifdef USE_IMAP
-    if (magic != M_IMAP)
-#endif /* execute the block unconditionally if we don't use imap */
-    {
-      st->st_mtime = 0;
-      st->st_atime = 0;
+    safe_free ((void **) &msg);
 
-      if (errno == ENOENT)
-      {
-	if (option (OPTCONFIRMCREATE))
-	{
-	  snprintf (tmp, sizeof (tmp), _("Create %s?"), s);
-	  if (mutt_yesorno (tmp, 1) < 1)
-	    ret = 0;
-	}
-      }
-      else
-      {
-	mutt_perror (s);
-	return 0;
-      }
-    }
-  }
-
-  CLEARLINE (LINES-1);
-  return (ret);
+  return msg;
 }

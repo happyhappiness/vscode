@@ -1,1 +1,1 @@
-fprintf (f, "%d:", (int) hclass);
+fputs ("|\n", f);

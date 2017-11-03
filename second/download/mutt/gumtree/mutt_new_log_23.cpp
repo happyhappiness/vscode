@@ -1,1 +1,1 @@
-fprintf (s->fpout, _("(use '%s' to view this part)"), keystroke);
+fputs (_("[-- This is an attachment "), s->fpout);

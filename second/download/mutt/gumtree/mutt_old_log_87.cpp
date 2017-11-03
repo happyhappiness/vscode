@@ -1,1 +1,0 @@
-fprintf (fp, "User-Agent: Mutt/%s\n", MUTT_VERSION);

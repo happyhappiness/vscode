@@ -1,1 +1,0 @@
-fprintf (f, "Content-Disposition: %s", DISPOSITION (a->disposition));

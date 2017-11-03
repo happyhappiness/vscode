@@ -1,70 +1,40 @@
-static void shrink_histfile (void)
+static void save_history (history_class_t hclass, const char *s)
 {
-  char tmpfname[_POSIX_PATH_MAX];
-  FILE *f, *tmp = NULL;
-  int n[HC_LAST] = { 0 };
-  int line, hclass;
-  char *linebuf = NULL;
-  size_t buflen;
+  static int n = 0;
+  FILE *f;
+  char *tmp, *p;
 
-  if ((f = fopen (HistFile, "r")) == NULL)
+  if (!s || !*s)  /* This shouldn't happen, but it's safer. */
     return;
 
-  line = 0;
-  while ((linebuf = mutt_read_line (linebuf, &buflen, f, &line, 0)) != NULL)
+  if ((f = fopen (HistFile, "a")) == NULL)
   {
-    if (sscanf (linebuf, "%d", &hclass) < 1 || hclass < 0)
-    {
-      mutt_error (_("Bad history file format (line %d)"), line);
-      goto cleanup;
-    }
-    /* silently ignore too high class (probably newer mutt) */
-    if (hclass >= HC_LAST)
-      continue;
-    n[hclass]++;
+    mutt_perror ("fopen");
+    return;
   }
 
-  for(hclass = HC_FIRST; hclass < HC_LAST; hclass++)
-    if (n[hclass] > SaveHist)
-    {
-      mutt_mktemp (tmpfname, sizeof (tmpfname));
-      if ((tmp = safe_fopen (tmpfname, "w+")) == NULL)
-        mutt_perror (tmpfname);
-      break;
-    }
+  tmp = safe_strdup (s);
+  mutt_convert_string (&tmp, Charset, "utf-8", 0);
 
-  if (tmp != NULL)
+  /* Format of a history item (1 line): "<histclass>:<string>|".
+     We add a '|' in order to avoid lines ending with '\'. */
+  fprintf (f, "%d:", (int) hclass);
+  for (p = tmp; *p; p++)
   {
-    rewind (f);
-    line = 0;
-    while ((linebuf = mutt_read_line (linebuf, &buflen, f, &line, 0)) != NULL)
-    {
-      if (sscanf (linebuf, "%d", &hclass) < 1 || hclass < 0)
-      {
-        mutt_error (_("Bad history file format (line %d)"), line);
-        goto cleanup;
-      }
-      /* silently ignore too high class (probably newer mutt) */
-      if (hclass >= HC_LAST)
-	continue;
-      if (n[hclass]-- <= SaveHist)
-        fprintf (tmp, "%s\n", linebuf);
-    }
+    /* Don't copy \n as a history item must fit on one line. The string
+       shouldn't contain such a character anyway, but as this can happen
+       in practice, we must deal with that. */
+    if (*p != '\n')
+      putc ((unsigned char) *p, f);
   }
+  fputs ("|\n", f);
 
-cleanup:
   safe_fclose (&f);
-  FREE (&linebuf);
-  if (tmp != NULL)
+  FREE (&tmp);
+
+  if (--n < 0)
   {
-    if (fflush (tmp) == 0 &&
-        (f = fopen (HistFile, "w")) != NULL) /* __FOPEN_CHECKED__ */
-    {
-      rewind (tmp);
-      mutt_copy_stream (tmp, f);
-      safe_fclose (&f);
-    }
-    safe_fclose (&tmp);
-    unlink (tmpfname);
+    n = SaveHist;
+    shrink_histfile();
   }
 }

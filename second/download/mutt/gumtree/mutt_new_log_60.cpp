@@ -1,1 +1,1 @@
-mutt_yesorno(msg, M_YES);
+snprintf (bn, sizeof (bn), "%s (%s)", banner, pager_progress_str);

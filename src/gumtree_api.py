@@ -75,6 +75,14 @@ class Gumtree:
         """
         return Gumtree.gumtree.isOldLogEdited()
 
+    def is_log_check_deleted(self):
+        """
+        @ param nothing\n
+        @ return true if check modified\n
+        @ involve tell if check of log in old hunk has modified\n
+        """
+        return Gumtree.gumtree.isLogCheckDeleted()
+
     def set_new_loc(self, line):
         """
         @ param line(int)\n

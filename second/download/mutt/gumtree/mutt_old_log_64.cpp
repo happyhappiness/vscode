@@ -1,1 +1,0 @@
-printw ("%d%%)", (int) (100 * last_offset / sb.st_size));

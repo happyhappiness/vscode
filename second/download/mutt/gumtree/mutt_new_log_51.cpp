@@ -1,1 +1,1 @@
-(mutt_yesorno (msg, M_YES);
+fputs (_("Failed to parse mailto: link\n"), stderr);

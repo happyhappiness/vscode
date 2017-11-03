@@ -1,4 +1,5 @@
 import my_constant
+import analyze_hunk
 import analyze_control_old_new
 import analyze_control_old_new_cluster
 import analyze_control_repos
@@ -6,7 +7,7 @@ import analyze_control_clone
 import statistics
 import gumtree_api
 
-def analyze_and_cluster_old_new(repos_list, repos_name_list):
+def analyze_and_cluster(repos_list, repos_name_list):
     """
     @ param repos list, all the reposes you want to deal with\n
     @ return nothing \n
@@ -18,7 +19,8 @@ def analyze_and_cluster_old_new(repos_list, repos_name_list):
         # update repos value of my constant
         my_constant.reset_repos(repos)
         # analyze and cluster old and new
-        analyze_control_old_new.analyze_old_new(False)
+        analyze_hunk.fetch_hunk()
+        analyze_control_old_new.analyze_old_new(True)
         analyze_control_old_new_cluster.cluster()
         analyze_control_old_new_cluster.generate_class()
         # analyze and cluster repos
@@ -45,8 +47,10 @@ def do_statistics(repos_list):
 main function
 """
 if __name__ == "__main__":
-    reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync']
-    repos_names = [ 'mutt-1.7.2','curl-7.41.0']
-    do_statistics(reposes)
+    # 'httpd', 'git',
+    reposes = ['mutt', 'curl', 'rsync']
+    repos_names = ['mutt-1.7.2', 'curl-7.41.0', 'rsync-1.4.4']
+    analyze_and_cluster(reposes, repos_names)
+    # do_statistics(reposes)
 
 

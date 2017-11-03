@@ -1,1 +1,1 @@
-printf ("fpr:::::::::");
+fprintf (fp, "User-Agent: Mutt/%s (%s)\n", MUTT_VERSION, ReleaseDate);

@@ -18,10 +18,34 @@ static void show_version (void)
   printf (" (%s)", uts.machine);
 
 #ifdef NCURSES_VERSION
-  printf (" [using ncurses %s]", NCURSES_VERSION);
+  printf ("\nncurses: %s (compiled with %s)", curses_version(), NCURSES_VERSION);
 #elif defined(USE_SLANG_CURSES)
-  printf (" [using slang %d]", SLANG_VERSION);
+  printf ("\nslang: %d", SLANG_VERSION);
 #endif
+
+#ifdef _LIBICONV_VERSION
+  printf ("\nlibiconv: %d.%d", _LIBICONV_VERSION >> 8,
+	  _LIBICONV_VERSION & 0xff);
+#endif
+
+#ifdef HAVE_LIBIDN
+  printf ("\nlibidn: %s (compiled with %s)", stringprep_check_version (NULL), 
+	  STRINGPREP_VERSION);
+#endif
+
+#ifdef USE_HCACHE
+  printf ("\nhcache backend: %s", mutt_hcache_backend ());
+#endif
+
+  puts ("\n\nCompiler:");
+  rstrip_in_place((char *)cc_version);
+  puts (cc_version);
+
+  rstrip_in_place((char *)configure_options);
+  printf ("\nConfigure options: %s\n", configure_options);
+
+  rstrip_in_place((char *)cc_cflags);
+  printf ("\nCompilation CFLAGS: %s\n", cc_cflags);
 
   puts (_("\nCompile options:"));
 
@@ -65,8 +89,6 @@ static void show_version (void)
 	"-DL_STANDALONE  "
 #endif
 
-	"\n"
-	
 #ifdef USE_FCNTL
 	"+USE_FCNTL  "
 #else
@@ -74,11 +96,11 @@ static void show_version (void)
 #endif
 
 #ifdef USE_FLOCK
-	"+USE_FLOCK"
+	"+USE_FLOCK   "
 #else
-	"-USE_FLOCK"
+	"-USE_FLOCK   "
 #endif
-	);
+    );
   puts (
 #ifdef USE_POP
 	"+USE_POP  "
@@ -92,17 +114,23 @@ static void show_version (void)
         "-USE_IMAP  "
 #endif
 
-#ifdef USE_GSS
-	"+USE_GSS  "
+#ifdef USE_SMTP
+	"+USE_SMTP  "
 #else
-	"-USE_GSS  "
+	"-USE_SMTP  "
+#endif
+	"\n"
+	
+#ifdef USE_SSL_OPENSSL
+	"+USE_SSL_OPENSSL  "
+#else
+	"-USE_SSL_OPENSSL  "
 #endif
 
-	
-#ifdef USE_SSL
-	"+USE_SSL  "
+#ifdef USE_SSL_GNUTLS
+	"+USE_SSL_GNUTLS  "
 #else
-	"-USE_SSL  "
+	"-USE_SSL_GNUTLS  "
 #endif
 
 #ifdef USE_SASL
@@ -110,8 +138,20 @@ static void show_version (void)
 #else
 	"-USE_SASL  "
 #endif
-	"\n"
-	
+#ifdef USE_GSS
+	"+USE_GSS  "
+#else
+	"-USE_GSS  "
+#endif
+
+#if HAVE_GETADDRINFO
+	"+HAVE_GETADDRINFO  "
+#else
+	"-HAVE_GETADDRINFO  "
+#endif
+        );
+  	
+  puts (
 #ifdef HAVE_REGCOMP
 	"+HAVE_REGCOMP  "
 #else
@@ -169,24 +209,27 @@ static void show_version (void)
 #else
 	"-HAVE_RESIZETERM  "
 #endif
-	
-	
-	);
-  
+        );	
   
   puts (
-	
-#ifdef HAVE_PGP
-	"+HAVE_PGP  "
+#ifdef CRYPT_BACKEND_CLASSIC_PGP
+        "+CRYPT_BACKEND_CLASSIC_PGP  "
 #else
-	"-HAVE_PGP  "
+        "-CRYPT_BACKEND_CLASSIC_PGP  "
 #endif
-
-#ifdef BUFFY_SIZE
-	"+BUFFY_SIZE "
+#ifdef CRYPT_BACKEND_CLASSIC_SMIME
+        "+CRYPT_BACKEND_CLASSIC_SMIME  "
 #else
-	"-BUFFY_SIZE "
+        "-CRYPT_BACKEND_CLASSIC_SMIME  "
 #endif
+#ifdef CRYPT_BACKEND_GPGME
+        "+CRYPT_BACKEND_GPGME  "
+#else
+        "-CRYPT_BACKEND_GPGME  "
+#endif
+        );
+  
+  puts (
 #ifdef EXACT_ADDRESS
 	"+EXACT_ADDRESS  "
 #else
@@ -246,16 +289,22 @@ static void show_version (void)
 	"-ICONV_NONTRANS  "
 #endif
 
+#if HAVE_LIBIDN
+	"+HAVE_LIBIDN  "
+#else
+	"-HAVE_LIBIDN  "
+#endif
+	
 #if HAVE_GETSID
 	"+HAVE_GETSID  "
 #else
 	"-HAVE_GETSID  "
 #endif
 
-#if HAVE_GETADDRINFO
-	"+HAVE_GETADDRINFO  "
+#if USE_HCACHE
+	"+USE_HCACHE  "
 #else
-	"-HAVE_GETADDRINFO  "
+	"-USE_HCACHE  "
 #endif
 
 	);

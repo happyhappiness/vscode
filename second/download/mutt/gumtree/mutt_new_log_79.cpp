@@ -1,1 +1,1 @@
-printf (":\n");
+(fputs ("\n ", fp);

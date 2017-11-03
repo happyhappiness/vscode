@@ -1,1 +1,0 @@
-fputs ("Mime-Version: 1.0\n", fpout);

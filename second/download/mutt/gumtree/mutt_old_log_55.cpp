@@ -1,1 +1,1 @@
-fprintf (stderr, "dotlock [Mutt %s (%s)]\n", VERSION, ReleaseDate);
+(mutt_yesorno (tmp, 1);

@@ -1,1 +1,1 @@
-mutt_yesorno (_("File is a directory, save under it?"), M_YES);
+(fputs (mb, s->fpout);

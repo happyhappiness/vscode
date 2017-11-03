@@ -58,6 +58,9 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
             new_hunk_log_loc = new_loc + 1 - new_hunk_loc
             # action type = hunk action type + log edit flag
             curr_action_type = action_type + gumtree.is_old_log_edited()
+            # check whether deleted log comes with deleted check
+            if new_loc == -1 and gumtree.is_log_check_deleted():
+                curr_action_type = my_constant.LOG_DELETE_CHECK
             writer.writerow(hunk_info + [old_hunk_log_loc, new_hunk_log_loc, old_loc, new_loc, old_log, new_log, curr_action_type])
             total_log += 1
 

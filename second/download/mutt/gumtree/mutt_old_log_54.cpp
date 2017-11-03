@@ -1,1 +1,1 @@
-(fputs(KENDRA_SEP, fp);
+(mutt_yesorno (tmp, 1);

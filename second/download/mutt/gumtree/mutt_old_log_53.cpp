@@ -1,1 +1,1 @@
-(fputs (KENDRA_SEP, fp);
+(mutt_yesorno (_("File is a directory, save under it?"), 1);
