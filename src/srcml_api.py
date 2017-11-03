@@ -275,10 +275,7 @@ class SrcmlApi:
             # if candi_node == node or candi_node.text != node.text or candi_node.text is None:
             if candi_node.text != node.text or candi_node.text is None:
                 continue
-            # accept one definition in one line malloc(sizeof(s))
             candi_line = self._get_location(candi_node)
-            if depended_nodes.has_key(candi_line):
-                continue
             # find use as return or reference argument for functions
             if candi_line <= node_line:
                 # filter by name = (***) call
@@ -287,7 +284,7 @@ class SrcmlApi:
                     expr_node = operator_node.getparent()
                     func_node = self._get_sub_call_node(expr_node)
                     if func_node is not None:
-                        depended_nodes[candi_line] = [func_node, my_constant.VAR_FUNC_RETURN]
+                        self._update_dict(depended_nodes, candi_line, my_constant.VAR_FUNC_RETURN, func_node)
                         continue
                 # filter by call ----argument ------expr --------& --------name
                 argument_node = candi_node.getparent().getparent()
@@ -295,10 +292,10 @@ class SrcmlApi:
                     func_node = argument_node.getparent().getparent()
                     modifier_node = candi_node.getprevious()
                     if modifier_node is not None and self._remove_blank(modifier_node) == '&':
-                        depended_nodes[candi_line] = [func_node, my_constant.VAR_FUNC_ARG_RETURN]
+                        self._update_dict(depended_nodes, candi_line, my_constant.VAR_FUNC_ARG_RETURN, func_node)
                     # filter by call ----argument --------name(ptr)
                     elif is_ptr:
-                        depended_nodes[candi_line] = [func_node, my_constant.VAR_FUNC_ARG_RETURN]
+                        self._update_dict(depended_nodes, candi_line, my_constant.VAR_FUNC_ARG_RETURN, func_node)
                     continue
                 # filter by decl --type --name --init ----expr --call
                 init_node = candi_node.getnext()
@@ -308,7 +305,7 @@ class SrcmlApi:
                     is_ptr = self._is_pointer(type_node)
                     func_node = self._get_sub_call_node(init_node)
                     if func_node is not None:
-                        depended_nodes[candi_line] = [func_node, my_constant.VAR_FUNC_RETURN]
+                        self._update_dict(depended_nodes, candi_line, my_constant.VAR_FUNC_RETURN, func_node)
                         continue
                 # filter by decl --type ----name ----modifier --name
                 decl_node = candi_node.getparent()
@@ -316,7 +313,7 @@ class SrcmlApi:
                     # mark is pointer or not
                     type_node = self._get_real_type_node(candi_node.getprevious())
                     is_ptr = self._is_pointer(type_node)
-                    depended_nodes[candi_line] = [decl_node[0], my_constant.VAR_TYPE]
+                    self._update_dict(depended_nodes, candi_line, my_constant.VAR_TYPE, decl_node[0])
                     continue
             # find use as argument for functions
             else:
@@ -324,7 +321,7 @@ class SrcmlApi:
                 argument_node = candi_node.getparent().getparent()
                 if argument_node is not None and self._remove_prefix(argument_node) == 'argument':
                     func_node = argument_node.getparent().getparent()
-                    depended_nodes[candi_line] = [func_node, my_constant.VAR_FUNC_ARG]
+                    self._update_dict(depended_nodes, candi_line, my_constant.VAR_FUNC_ARG, func_node)
                     continue
 
         return depended_nodes
@@ -511,6 +508,22 @@ class SrcmlApi:
         """
         return int(node.attrib.values()[0])
         
+    def _update_dict(self, dictionary, key, rank, value):
+        """
+        @ param dictionary, key, rank and value\n
+        @ return updated dictionary\n
+        @ involve check whether has key, if has, replace with new value if has rank lower\n
+        """
+        if dictionary.has_key(key):
+            old_rank = dictionary[key][1]
+            # rank is lower
+            if rank > old_rank:
+                return dictionary
+        # ranker is higher or no key
+        dictionary[key] = [value, rank]
+                
+        return dictionary
+
 if __name__ == "__main__":
     # input function cpp file
     # srcml_api = SrcmlApi('second/download/rsync/gumtree/curl_repos_function_698.cpp', is_function=True)
