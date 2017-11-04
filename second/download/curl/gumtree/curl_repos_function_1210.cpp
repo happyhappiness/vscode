@@ -385,4 +385,77 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
                                      form->namelength:
                                      strlen(form->name)+1);
           }
-          if
+          if(!form->name) {
+            return_value = CURL_FORMADD_MEMORY;
+            break;
+          }
+          form->name_alloc = TRUE;
+        }
+        if(!(form->flags & (HTTPPOST_FILENAME | HTTPPOST_READFILE |
+                            HTTPPOST_PTRCONTENTS | HTTPPOST_PTRBUFFER |
+                            HTTPPOST_CALLBACK)) && form->value) {
+          /* copy value (without strdup; possibly contains null characters) */
+          form->value = Curl_memdup(form->value, form->contentslength?
+                                    form->contentslength:
+                                    strlen(form->value)+1);
+          if(!form->value) {
+            return_value = CURL_FORMADD_MEMORY;
+            break;
+          }
+          form->value_alloc = TRUE;
+        }
+        post = AddHttpPost(form->name, form->namelength,
+                           form->value, form->contentslength,
+                           form->buffer, form->bufferlength,
+                           form->contenttype, form->flags,
+                           form->contentheader, form->showfilename,
+                           form->userp,
+                           post, httppost,
+                           last_post);
+
+        if(!post) {
+          return_value = CURL_FORMADD_MEMORY;
+          break;
+        }
+
+        if(form->contenttype)
+          prevtype = form->contenttype;
+      }
+    }
+    if(CURL_FORMADD_OK != return_value) {
+      /* On error, free allocated fields for nodes of the FormInfo linked
+         list which are not already owned by the httppost linked list
+         without deallocating nodes. List nodes are deallocated later on */
+      FormInfo *ptr;
+      for(ptr = form; ptr != NULL; ptr = ptr->more) {
+        if(ptr->name_alloc) {
+          Curl_safefree(ptr->name);
+          ptr->name_alloc = FALSE;
+        }
+        if(ptr->value_alloc) {
+          Curl_safefree(ptr->value);
+          ptr->value_alloc = FALSE;
+        }
+        if(ptr->contenttype_alloc) {
+          Curl_safefree(ptr->contenttype);
+          ptr->contenttype_alloc = FALSE;
+        }
+        if(ptr->showfilename_alloc) {
+          Curl_safefree(ptr->showfilename);
+          ptr->showfilename_alloc = FALSE;
+        }
+      }
+    }
+  }
+
+  /* Always deallocate FormInfo linked list nodes without touching node
+     fields given that these have either been deallocated or are owned
+     now by the httppost linked list */
+  while(first_form) {
+    FormInfo *ptr = first_form->more;
+    Curl_safefree(first_form);
+    first_form = ptr;
+  }
+
+  return return_value;
+}

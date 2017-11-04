@@ -164,4 +164,17 @@ static int rfc2047_encode (ICONV_CONST char *d, size_t dlen, int col,
   /* Add last encoded word and us-ascii suffix to buffer. */
   buflen = bufpos + wlen + (u + ulen - t1);
   safe_realloc (&buf, buflen + 1);
-  r = encode_bl
+  r = encode_block (buf + bufpos, t, t1 - t, icode, tocode, encoder);
+  assert (r == wlen);
+  bufpos += wlen;
+  memcpy (buf + bufpos, t1, u + ulen - t1);
+
+  FREE (&tocode1);
+  FREE (&u);
+
+  buf[buflen] = '\0';
+  
+  *e = buf;
+  *elen = buflen + 1;
+  return ret;
+}

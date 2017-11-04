@@ -202,4 +202,6 @@ void mix_make_chain (LIST **chainp, int *redraw)
   }
   
   mix_free_type2_list (&type2_list);
-  FREE (&coords
+  FREE (&coords);
+  FREE (&chain);
+}

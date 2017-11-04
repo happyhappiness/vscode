@@ -363,4 +363,13 @@ gtls_connect_step3(struct connectdata *conn,
       /* store this session id */
       result = Curl_ssl_addsessionid(conn, connect_sessionid, connect_idsize);
       if(result) {
-        free(
+        free(connect_sessionid);
+        result = CURLE_OUT_OF_MEMORY;
+      }
+    }
+    else
+      result = CURLE_OUT_OF_MEMORY;
+  }
+
+  return result;
+}
