@@ -4,31 +4,29 @@ class,check,variable
 2,"[""mutt_copy_message_arg_ret"", null, null]","[""mutt_strcmp_arg"", ""ftello_arg_ret""]"
 3,"[""mutt_copy_message_arg_ret"", null]","[""ftello_arg_ret""]"
 4,"[""safe_realloc_arg_ret"", ""mutt_menuLoop_arg_ret"", null, null]","[null, null]"
-29,"[""option_ret""]","[null, null]"
+27,"[""option_ret""]","[null, null]"
 5,"[""mutt_check_alias_name_ret""]",[null]
 6,"[""mutt_check_alias_name_ret""]","[null, null]"
 7,"[""mutt_check_alias_name_ret""]","[""fputc_arg_ret"", ""sizeof_arg""]"
 8,"[""option_ret"", ""crypt_id_is_valid_ret"", ""crypt_id_is_strong_ret""]",[null]
 9,"[""ATTACHPTR"", ""snprintf_arg"", ""mutt_update_encoding_arg"", null, ""stat_arg_ret"", null]","[null, null]"
-10,"[""mutt_write_fcc_arg_ret"", null, null, null]",[null]
-11,"[""mutt_message_hook_arg_ret"", null, null, null]",[null]
-12,"[""init_menu_arg_ret"", null, ""init_menu_arg_ret"", null, null]","[null, null]"
-13,"[""mutt_write_one_header_arg"", null, null, null, null, null, null]","[""strchr_arg"", ""mutt_write_one_header_arg""]"
-14,"[""mutt_write_one_header_arg"", null, null]","[""safe_calloc_ret"", ""int"", ""mutt_write_one_header_arg_ret""]"
-15,"[""int"", null, ""size_t""]","[""fputc_arg_ret""]"
-16,"[""fputc_arg_ret""]","[""char"", ""fputc_arg_ret""]"
-17,"[""int"", ""mutt_strncmp_ret"", ""mutt_strlen_ret"", ""mutt_strlen_ret"", ""my_width_ret"", ""int""]","[""NONULL_ret"", ""fputc_arg""]"
-18,"[""NONULL_arg_ret"", ""NONULL_arg_ret""]","[""NONULL_arg_ret"", ""print_val_arg""]"
-19,"[""mutt_strwidth_ret"", ""mutt_strwidth_ret"", ""fold_one_header_arg"", null, ""mutt_strwidth_ret"", ""fold_one_header_arg""]","[""NONULL_ret"", ""fold_one_header_arg"", ""dprint_arg_ret"", ""unfold_header_ret""]"
-20,"[""int""]","[null, null]"
-21,"[""mutt_str_replace_arg""]",[null]
-22,"[""option_ret""]","[""sizeof_arg"", null]"
-32,"[""safe_symlink_ret""]",[null]
-23,"[""option_ret"", ""pgp_id_is_valid_ret"", ""pgp_id_is_strong_ret""]","[null, null]"
-24,"[""stat_ret"", ""strerror_arg"", null]","[""sizeof_arg_ret"", null]"
-30,"[""stat_ret"", ""strerror_arg"", null]",[null]
-25,"[""stat_ret"", ""strerror_arg"", null]","[""url_parse_mailto_arg_ret"", ""mutt_copy_stream_arg_ret""]"
-26,"[""stat_ret"", ""strerror_arg"", null]","[null, ""LIST"", null]"
-27,"[""stat_ret"", ""strerror_arg"", null]","[""mutt_write_rfc822_header_arg_ret""]"
-31,"[""imap_exec_ret""]",[null]
-28,"[""imap_check_mailbox_arg_ret"", null]",[]
+10,"[""init_menu_arg_ret"", null, ""init_menu_arg_ret"", null, null]","[null, null]"
+11,"[""mutt_write_one_header_arg"", null, null, null, null, null, null]","[""strchr_arg"", ""mutt_write_one_header_arg""]"
+12,"[""mutt_write_one_header_arg"", null, null]","[""safe_calloc_ret"", ""int"", ""mutt_write_one_header_arg_ret""]"
+13,"[""int"", null, ""size_t""]","[""fputc_arg_ret""]"
+14,"[""fputc_arg_ret""]","[""char"", ""fputc_arg_ret""]"
+15,"[""int"", ""mutt_strncmp_ret"", ""mutt_strlen_ret"", ""mutt_strlen_ret"", ""my_width_ret"", ""int""]","[""NONULL_ret"", ""fputc_arg""]"
+16,"[""NONULL_arg_ret"", ""NONULL_arg_ret""]","[""NONULL_arg_ret"", ""print_val_arg""]"
+17,"[""mutt_strwidth_ret"", ""mutt_strwidth_ret"", ""fold_one_header_arg"", null, ""mutt_strwidth_ret"", ""fold_one_header_arg""]","[""NONULL_ret"", ""fold_one_header_arg"", ""dprint_arg_ret"", ""unfold_header_ret""]"
+18,"[""int""]","[null, null]"
+19,"[""mutt_str_replace_arg""]",[null]
+20,"[""option_ret""]","[""sizeof_arg"", null]"
+30,"[""safe_symlink_ret""]",[null]
+21,"[""option_ret"", ""pgp_id_is_valid_ret"", ""pgp_id_is_strong_ret""]","[null, null]"
+22,"[""stat_ret"", ""strerror_arg"", null]","[""sizeof_arg_ret"", null]"
+28,"[""stat_ret"", ""strerror_arg"", null]",[null]
+23,"[""stat_ret"", ""strerror_arg"", null]","[""url_parse_mailto_arg_ret"", ""mutt_copy_stream_arg_ret""]"
+24,"[""stat_ret"", ""strerror_arg"", null]","[null, ""LIST"", null]"
+25,"[""stat_ret"", ""strerror_arg"", null]","[""mutt_write_rfc822_header_arg_ret""]"
+29,"[""imap_exec_ret""]",[null]
+26,"[""imap_check_mailbox_arg_ret"", null]",[]

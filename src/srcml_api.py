@@ -120,17 +120,20 @@ class SrcmlApi:
             return False
         # iterator parent to find if/switch
         self.control_node = []
+        skip_next = False
         parent_iter = self.log_node.iterancestors()
         for parent in parent_iter:
             tag = self._remove_prefix(parent)
             # skip current if
             if tag == 'condition':
-                parent_iter = parent.getparent().iterancestors()
-                break
-        for parent in parent_iter:
-            tag = self._remove_prefix(parent)
+                skip_next = True
+                continue
             # filter by tag[if or switch]
             if tag == 'if' or tag == 'switch':
+                # skip first if for log in condition
+                if skip_next:
+                    skip_next = False
+                    continue
                 # filter by if/switch --confition
                 self.control_node.append(parent[0])
                 # print self.get_text(parent[0])
@@ -149,9 +152,6 @@ class SrcmlApi:
                 self.control = []
                 for temp_node in self.control_node:
                     self.control += self._get_info_for_node(temp_node)
-                # self.control.sort()
-                # print self.control
-                # single layer control analysis
                 return True
 
         return False
@@ -527,7 +527,7 @@ class SrcmlApi:
                 return dictionary
         # ranker is higher or no key
         dictionary[key] = [value, rank]
-                
+   
         return dictionary
 
 if __name__ == "__main__":
