@@ -1,1 +1,1 @@
-fprintf(FINFO,"done hash search\n");
+fprintf(FINFO,"renaming %s to %s\n",fnametmp,fname);

@@ -1,1 +1,1 @@
-rprintf(FINFO,"calling match_sums %s\n",fname);
+out_of_memory("unsafe_symlink");

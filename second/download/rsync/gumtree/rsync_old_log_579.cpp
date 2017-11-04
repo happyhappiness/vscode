@@ -1,1 +1,1 @@
-fprintf(FERROR,"%s : not a regular file (recv_files)\n",fname);
+fprintf(FERROR,"fork: %s\n",strerror(errno));

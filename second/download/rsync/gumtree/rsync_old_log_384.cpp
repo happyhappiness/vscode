@@ -1,1 +1,2 @@
-fprintf(FERROR,"recv mapped %s of size %d\n",fname,(int)st.st_size);
+fprintf(FERROR,"%s: %s\n",
+			fname,strerror(errno));

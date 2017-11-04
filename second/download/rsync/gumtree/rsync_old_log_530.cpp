@@ -1,1 +1,1 @@
-fprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));
+fprintf(FINFO,"got file_sum\n");

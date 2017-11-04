@@ -1,1 +1,1 @@
-fprintf(f,"-t, --times              preserve times\n");
+fprintf(FINFO,"done hash search\n");

@@ -1,2 +1,1 @@
-state_puts (_("Can't verify due to a missing "
-                         "key or certificate\n"), s);
+state_puts (buf, state);

@@ -1,1 +1,1 @@
-fprintf(FERROR,"bad option -%c\n",opt);
+fprintf(FERROR,"recv_file_list starting\n");

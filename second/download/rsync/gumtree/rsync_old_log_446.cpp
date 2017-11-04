@@ -1,1 +1,1 @@
-fprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");
+fprintf(f,"-p, --perms              preserve permissions\n");

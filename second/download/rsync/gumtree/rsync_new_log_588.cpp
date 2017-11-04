@@ -1,2 +1,1 @@
-rprintf(FERROR,"rename %s -> %s : %s\n",
-			      fnametmp,fname,strerror(errno));
+rprintf(FERROR,"ERROR: buffer overflow in %s\n",str);

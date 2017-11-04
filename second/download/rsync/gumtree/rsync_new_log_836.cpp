@@ -1,1 +1,1 @@
-out_of_memory("rsync_module");
+io_printf(f_out, "@ERROR: invalid gid setting.\n");

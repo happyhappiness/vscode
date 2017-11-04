@@ -1,1 +1,1 @@
-fprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));
+fprintf(FINFO,"send_files(%d,%s)\n",i,fname);

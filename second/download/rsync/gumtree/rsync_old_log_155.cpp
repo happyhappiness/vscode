@@ -1,2 +1,2 @@
-fprintf(stderr,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,sender,recurse);
+fprintf(am_server?stderr:stdout,"%s -> %s\n",
+		fname,flist->files[i].link);

@@ -1,1 +1,1 @@
-fprintf(FINFO,"recv_file_list done\n");
+rprintf(FINFO,"received %d names\n",flist->count);

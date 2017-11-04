@@ -1,1 +1,1 @@
-fprintf(FERROR,"sending sums for %d\n",i);
+fprintf(FERROR,"chdir %s : %s (2)\n",name,strerror(errno));

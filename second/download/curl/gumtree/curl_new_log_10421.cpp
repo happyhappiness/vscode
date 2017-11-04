@@ -1,1 +1,2 @@
-warnf(config->global, "Data size exceeds single call write limit!\n");
+warnf(config->global,
+                    "Illegally formatted content-type field!\n");

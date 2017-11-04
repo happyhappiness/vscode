@@ -1,1 +1,2 @@
-mutt_yesorno (_("File is a directory, save under it?"), M_YES);
+state_attach_puts (_("Warning: At least one certification key "
+                             "has expired\n"), s);

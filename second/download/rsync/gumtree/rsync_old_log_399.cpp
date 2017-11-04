@@ -1,1 +1,1 @@
-fprintf(FERROR,"generator wrote %d\n",write_total());
+fprintf(FINFO,"receiving file list ... ");

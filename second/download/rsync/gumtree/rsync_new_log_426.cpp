@@ -1,1 +1,1 @@
-rprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);
+rprintf(FERROR,"chdir %s: %s (3)\n",dir,strerror(errno));

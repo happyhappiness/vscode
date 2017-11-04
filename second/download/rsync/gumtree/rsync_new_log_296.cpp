@@ -1,1 +1,1 @@
-fprintf(FINFO,"deleting in %s\n", name);
+fprintf(FINFO,"%s ",args[i]);

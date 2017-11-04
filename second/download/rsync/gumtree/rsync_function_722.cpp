@@ -1,40 +1,58 @@
-static int singleOptionUsage(FILE * fp, int cursor, 
-		const struct poptOption * opt,
-		/*@null@*/ const char *translation_domain)
-	/*@globals fileSystem @*/
-	/*@modifies *fp, fileSystem @*/
+char *auth_server(int f_in, int f_out, int module, char *addr, char *leader)
 {
-    int len = 3;
-    char shortStr[2] = { '\0', '\0' };
-    const char * item = shortStr;
-    const char * argDescrip = getArgDescrip(opt, translation_domain);
+	char *users = lp_auth_users(module);
+	char challenge[16];
+	char b64_challenge[30];
+	char line[MAXPATHLEN];
+	static char user[100];
+	char secret[100];
+	char pass[30];
+	char pass2[30];
+	char *tok;
 
-    if (opt->shortName!= '\0' ) {
-	if (!(opt->argInfo & POPT_ARG_MASK)) 
-	    return cursor;	/* we did these already */
-	len++;
-	shortStr[0] = opt->shortName;
-	shortStr[1] = '\0';
-    } else if (opt->longName) {
-	len += 1 + strlen(opt->longName);
-	item = opt->longName;
-    }
+	/* if no auth list then allow anyone in! */
+	if (!users || !*users)
+		return "";
 
-    if (len == 3) return cursor;
+	gen_challenge(addr, challenge);
 
-    if (argDescrip) 
-	len += strlen(argDescrip) + 1;
+	base64_encode(challenge, 16, b64_challenge);
 
-    if ((cursor + len) > 79) {
-	fprintf(fp, "\n       ");
-	cursor = 7;
-    } 
+	io_printf(f_out, "%s%s\n", leader, b64_challenge);
 
-    fprintf(fp, " [-%s%s%s%s]",
-	((opt->shortName || (opt->argInfo & POPT_ARGFLAG_ONEDASH)) ? "" : "-"),
-	item,
-	(argDescrip ? (opt->shortName != '\0' ? " " : "=") : ""),
-	(argDescrip ? argDescrip : ""));
+	if (!read_line(f_in, line, sizeof line - 1))
+		return NULL;
 
-    return cursor + len + 1;
+	memset(user, 0, sizeof user);
+	memset(pass, 0, sizeof pass);
+
+	if (sscanf(line,"%99s %29s", user, pass) != 2)
+		return NULL;
+
+	users = strdup(users);
+	if (!users)
+		return NULL;
+
+	for (tok=strtok(users," ,\t"); tok; tok = strtok(NULL," ,\t")) {
+		if (wildmatch(tok, user))
+			break;
+	}
+	free(users);
+
+	if (!tok)
+		return NULL;
+
+	memset(secret, 0, sizeof secret);
+	if (!get_secret(module, user, secret, sizeof secret - 1)) {
+		memset(secret, 0, sizeof secret);
+		return NULL;
+	}
+
+	generate_hash(secret, b64_challenge, pass2);
+	memset(secret, 0, sizeof secret);
+
+	if (strcmp(pass, pass2) == 0)
+		return user;
+
+	return NULL;
 }

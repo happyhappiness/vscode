@@ -1,1 +1,1 @@
-fprintf(stderr,"make_file(%s)\n",fname);
+fprintf(am_server?stderr:stdout,"created directory %s\n",name);

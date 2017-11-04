@@ -1,58 +1,77 @@
-void generate_files(int f,struct file_list *flist,char *local_name,int f_recv)
+struct file_list *recv_file_list(int f)
 {
-  int i;
-  int phase=0;
+  struct file_list *flist;
+  unsigned char flags;
 
-  if (verbose > 2)
-    fprintf(FERROR,"generator starting pid=%d count=%d\n",
-	    (int)getpid(),flist->count);
-
-  for (i = 0; i < flist->count; i++) {
-    struct file_struct *file = &flist->files[i];
-    mode_t saved_mode = file->mode;
-    if (!file->name) continue;
-
-    /* we need to ensure that any directories we create have writeable
-       permissions initially so that we can create the files within
-       them. This is then fixed after the files are transferred */
-    if (!am_root && S_ISDIR(file->mode)) {
-      file->mode |= S_IWUSR; /* user write */
-    }
-
-    recv_generator(local_name?local_name:file->name,
-		   flist,i,f);
-
-    file->mode = saved_mode;
+  if (verbose && recurse && !am_server) {
+    fprintf(FINFO,"receiving file list ... ");
+    fflush(FINFO);
   }
 
-  phase++;
-  csum_length = SUM_LENGTH;
-  ignore_times=1;
+  flist = (struct file_list *)malloc(sizeof(flist[0]));
+  if (!flist)
+    goto oom;
 
-  if (verbose > 2)
-    fprintf(FERROR,"generate_files phase=%d\n",phase);
+  flist->count=0;
+  flist->malloced=1000;
+  flist->files = (struct file_struct **)malloc(sizeof(flist->files[0])*
+					       flist->malloced);
+  if (!flist->files)
+    goto oom;
 
-  write_int(f,-1);
-  write_flush(f);
 
-  if (remote_version >= 13) {
-    /* in newer versions of the protocol the files can cycle through
-       the system more than once to catch initial checksum errors */
-    for (i=read_int(f_recv); i != -1; i=read_int(f_recv)) {
-      struct file_struct *file = &flist->files[i];
-      recv_generator(local_name?local_name:file->name,
-		     flist,i,f);    
+  for (flags=read_byte(f); flags; flags=read_byte(f)) {
+    int i = flist->count;
+
+    if (i >= flist->malloced) {
+	  if (flist->malloced < 1000)
+		  flist->malloced += 1000;
+	  else
+		  flist->malloced *= 2;
+	  flist->files =(struct file_struct **)realloc(flist->files,
+						       sizeof(flist->files[0])*
+						       flist->malloced);
+	  if (!flist->files)
+		  goto oom;
     }
 
-    phase++;
+    receive_file_entry(&flist->files[i],flags,f);
+
+    if (S_ISREG(flist->files[i]->mode))
+      total_size += flist->files[i]->length;
+
+    flist->count++;
+
     if (verbose > 2)
-      fprintf(FERROR,"generate_files phase=%d\n",phase);
-
-    write_int(f,-1);
-    write_flush(f);
+      fprintf(FINFO,"recv_file_name(%s)\n",f_name(flist->files[i]));
   }
 
 
   if (verbose > 2)
-    fprintf(FERROR,"generator wrote %d\n",write_total());
+    fprintf(FINFO,"received %d names\n",flist->count);
+
+  clean_flist(flist);
+
+  if (verbose && recurse && !am_server) {
+    fprintf(FINFO,"done\n");
+  }
+
+  /* now recv the uid/gid list. This was introduced in protocol version 15 */
+  if (f != -1 && remote_version >= 15) {
+	  recv_uid_list(f, flist);
+  }
+
+  /* if protocol version is >= 17 then recv the io_error flag */
+  if (f != -1 && remote_version >= 17) {
+	  io_error |= read_int(f);
+  }
+
+  if (verbose > 2)
+    fprintf(FINFO,"recv_file_list done\n");
+
+  return flist;
+
+oom:
+    out_of_memory("recv_file_list");
+    return NULL; /* not reached */
 }

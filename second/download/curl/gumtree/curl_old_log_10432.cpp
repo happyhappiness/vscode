@@ -1,1 +1,1 @@
-warnf(config, "curl_formadd failed!\n");
+warnf(config, "Failed to open %s!\n", nextarg);

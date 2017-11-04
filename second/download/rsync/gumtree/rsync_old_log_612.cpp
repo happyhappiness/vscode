@@ -1,1 +1,0 @@
-fprintf(FERROR, "inflate returned %d (%d bytes)\n", r, n);

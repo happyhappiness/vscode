@@ -1,1 +1,1 @@
-out_of_memory("make_exclude");
+out_of_memory("fix_basis_dirs");

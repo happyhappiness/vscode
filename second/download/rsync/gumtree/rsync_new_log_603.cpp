@@ -1,2 +1,1 @@
-rprintf(FINFO,"generator starting pid=%d count=%d\n",
-	    (int)getpid(),flist->count);
+fprintf(stderr,"failed to load config file %s\n", config_file);

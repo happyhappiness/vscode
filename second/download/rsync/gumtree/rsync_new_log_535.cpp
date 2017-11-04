@@ -1,2 +1,1 @@
-rprintf(FINFO,"count=%d rem=%d n=%d flength=%d\n",
-	    s->count,s->remainder,s->n,(int)s->flength);
+rprintf(FINFO,"added %s to delete list\n", f_name(file));

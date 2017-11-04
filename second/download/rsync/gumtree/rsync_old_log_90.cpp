@@ -1,1 +1,1 @@
-fprintf(stderr,"Error reading %d bytes : %s\n",len,strerror(errno));
+fprintf(stderr,"skipping directory %s\n",fname);

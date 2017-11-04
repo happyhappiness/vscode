@@ -1,2 +1,2 @@
-fprintf(FINFO, "false_alarms=%d tag_hits=%d matches=%d\n",
-			false_alarms, tag_hits, matches);
+fprintf(FERROR,"ERROR: file corruption in %s. File changed during transfer?\n",
+			      fname);

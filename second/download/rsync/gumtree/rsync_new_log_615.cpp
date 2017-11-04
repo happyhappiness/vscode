@@ -1,1 +1,1 @@
-rprintf(FERROR,"pipe: %s\n",strerror(errno));
+slprintf(pidbuf, sizeof(pidbuf), "%d\n", pid);

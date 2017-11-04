@@ -1,1 +1,1 @@
-fprintf(stderr,"waiting on %d\n",pid);
+fprintf(stderr,"mknod %s : %s\n",fname,strerror(errno));

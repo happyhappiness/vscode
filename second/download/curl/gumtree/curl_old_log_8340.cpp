@@ -1,11 +1,11 @@
 fputs(
-"              will have the effect that it will output the data in chunks, not\n"
-"              necessarily  exactly  when  the data arrives.  Using this option\n"
-"              will disable that buffering.\n"
+"              path (absolute or relative) to the netrc file that  Curl  should\n"
+"              use.   You  can  only  specify one netrc file per invocation. If\n"
+"              several --netrc-file options are provided,  only  the  last  one\n"
+"              will be used.  (Added in 7.21.5)\n"
 "\n"
-"              Note that this is the negated option name  documented.  You  can\n"
-"              thus use --buffer to enforce the buffering.\n"
+"              This  option  overrides  any use of --netrc as they are mutually\n"
+"              exclusive.  It will also abide by --netrc-optional if specified.\n"
 "\n"
-"       --netrc-file\n"
-"              This  option  is similar to --netrc, except that you provide the\n"
+"       --netrc-optional\n"
 , stdout);

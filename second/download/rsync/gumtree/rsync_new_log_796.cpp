@@ -1,1 +1,1 @@
-fprintf(out, "local const unsigned long FAR ");
+out_of_memory("add_nocompress_suffixes");

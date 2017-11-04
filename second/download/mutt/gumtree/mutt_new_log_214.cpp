@@ -1,1 +1,1 @@
-state_puts (errbuf, s);
+fprintf (fp, "%*s", KeyInfoPadding[KIP_NAME], _(KeyInfoPrompts[KIP_NAME]));

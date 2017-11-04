@@ -1,1 +1,2 @@
-fprintf(FERROR,"ERROR: file corruption in %s\n",fname);
+fprintf(FERROR,"unlink %s: %s\n",
+			dest,strerror(errno));

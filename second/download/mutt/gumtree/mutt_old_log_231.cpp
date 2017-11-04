@@ -1,1 +1,1 @@
-fprintf (fp, _("Valid From : %s\n"), shortbuf);
+printf ("\nConfigure options: %s\n", configure_options);

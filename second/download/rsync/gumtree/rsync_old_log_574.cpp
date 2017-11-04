@@ -1,1 +1,2 @@
-fprintf(FINFO,"deleting in %s\n", name);
+fprintf(FERROR, "inflate flush returned %d (%d bytes)\n",
+			    r, n);

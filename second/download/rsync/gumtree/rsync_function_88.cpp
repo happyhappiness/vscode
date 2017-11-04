@@ -1,31 +1,9 @@
-void read_check(int f)
+static int match_file_name(char *fname,struct stat *st)
 {
-  int n;
-
-  if (read_buffer_len == 0) {
-    read_buffer_p = read_buffer;
+  if (check_exclude(fname,local_exclude_list)) {
+    if (verbose > 2)
+      fprintf(stderr,"excluding file %s\n",fname);
+    return 0;
   }
-
-  if ((n=num_waiting(f)) <= 0)
-    return;
-
-  if (read_buffer_p != read_buffer) {
-    memmove(read_buffer,read_buffer_p,read_buffer_len);
-    read_buffer_p = read_buffer;
-  }
-
-  if (n > (read_buffer_size - read_buffer_len)) {
-    read_buffer_size += n;
-    if (!read_buffer)
-      read_buffer = (char *)malloc(read_buffer_size);
-    else
-      read_buffer = (char *)realloc(read_buffer,read_buffer_size);
-    if (!read_buffer) out_of_memory("read check");      
-    read_buffer_p = read_buffer;      
-  }
-
-  n = read(f,read_buffer+read_buffer_len,n);
-  if (n > 0) {
-    read_buffer_len += n;
-  }
+  return 1;
 }

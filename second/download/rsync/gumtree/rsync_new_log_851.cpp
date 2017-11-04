@@ -1,1 +1,1 @@
-out_of_memory("send_file_list");
+out_of_memory("copy_section");

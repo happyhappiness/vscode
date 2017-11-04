@@ -1,1 +1,1 @@
-fprintf(FERROR,"cannot cvs-exclude in long-named directory %s\n",fname);
+fprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");

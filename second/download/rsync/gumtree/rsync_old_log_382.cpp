@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_files phase=%d\n",phase);
+fprintf(FERROR,"%s : %s\n",fname,strerror(errno));

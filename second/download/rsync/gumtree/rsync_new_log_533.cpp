@@ -1,1 +1,1 @@
-rprintf(FINFO,"deleting %s\n", buf);
+rprintf(FERROR,"rmdir %s : %s\n",f_name(f),strerror(errno));

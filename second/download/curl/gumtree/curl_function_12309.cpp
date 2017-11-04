@@ -1163,61 +1163,49 @@ void hugehelp(void)
 "              server-specified   Content-Disposition   filename   instead   of\n"
 "              extracting a filename from the URL.\n"
 "\n"
-"              If  the  server  specifies a file name and a file with that name\n"
+"              There's  no  attempt to decode %-sequences (yet) in the provided\n"
 , stdout);
  fputs(
-"              already exists in the current working directory it will  not  be\n"
-"              overwritten and an error will occur. If the server doesn't spec-\n"
-"              ify a file name then this option has no effect.\n"
-"\n"
-"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
 "              file name, so this option may provide you with rather unexpected\n"
 "              file names.\n"
-"\n"
-"              WARNING: Exercise judicious use of this  option,  especially  on\n"
-, stdout);
- fputs(
-"              Windows.  A  rogue  server  could  send you the name of a DLL or\n"
-"              other file that could possibly be loaded automatically  by  Win-\n"
-"              dows or some third party software.\n"
 "\n"
 "       -k, --insecure\n"
 "              (SSL)  This  option explicitly allows curl to perform \"insecure\"\n"
 "              SSL connections and transfers. All SSL connections are attempted\n"
 "              to  be  made secure by using the CA certificate bundle installed\n"
-, stdout);
- fputs(
 "              by default. This makes  all  connections  considered  \"insecure\"\n"
 "              fail unless -k, --insecure is used.\n"
 "\n"
+, stdout);
+ fputs(
 "              See     this    online    resource    for    further    details:\n"
-"              https://curl.haxx.se/docs/sslcerts.html\n"
+"              http://curl.haxx.se/docs/sslcerts.html\n"
 "\n"
 "       -K, --config <config file>\n"
 "              Specify which config file to read curl arguments from. The  con-\n"
 "              fig  file  is a text file in which command line arguments can be\n"
-, stdout);
- fputs(
 "              written which then will be used as if they were written  on  the\n"
 "              actual command line.\n"
 "\n"
+, stdout);
+ fputs(
 "              Options  and their parameters must be specified on the same con-\n"
 "              fig file line, separated by whitespace,  colon,  or  the  equals\n"
 "              sign.  Long  option  names can optionally be given in the config\n"
 "              file without the initial double dashes and if so, the  colon  or\n"
-, stdout);
- fputs(
 "              equals  characters  can  be used as separators. If the option is\n"
 "              specified with one or two dashes,  there  can  be  no  colon  or\n"
+, stdout);
+ fputs(
 "              equals character between the option and its parameter.\n"
 "\n"
 "              If the parameter is to contain whitespace, the parameter must be\n"
 "              enclosed within quotes.  Within  double  quotes,  the  following\n"
 "              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
-, stdout);
- fputs(
 "              backslash preceding any other letter is ignored.  If  the  first\n"
 "              column of a config line is a '#' character, the rest of the line\n"
+, stdout);
+ fputs(
 "              will be treated as a comment. Only write one option per physical\n"
 "              line in the config file.\n"
 "\n"
@@ -1225,31 +1213,31 @@ void hugehelp(void)
 "              the file from stdin.\n"
 "\n"
 "              Note that to be able to specify a URL in the  config  file,  you\n"
-, stdout);
- fputs(
 "              need  to  specify  it  using the --url option, and not by simply\n"
 "              writing the URL on its own line. So, it could  look  similar  to\n"
 "              this:\n"
 "\n"
-"              url = \"https://curl.haxx.se/docs/\"\n"
+, stdout);
+ fputs(
+"              url = \"http://curl.haxx.se/docs/\"\n"
 "\n"
 "              When curl is invoked, it always (unless -q is used) checks for a\n"
 "              default config file and uses it if  found.  The  default  config\n"
 "              file is checked for in the following places in this order:\n"
 "\n"
-, stdout);
- fputs(
 "              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
 "              CURL_HOME and then the HOME environment variables. Failing that,\n"
+, stdout);
+ fputs(
 "              it  uses getpwuid() on Unix-like systems (which returns the home\n"
 "              dir given the current user in your system). On Windows, it  then\n"
 "              checks for the APPDATA variable, or as a last resort the '%USER-\n"
 "              PROFILE%\\Application Data'.\n"
 "\n"
-, stdout);
- fputs(
 "              2) On windows, if there is no _curlrc file in the home  dir,  it\n"
 "              checks for one in the same dir the curl executable is placed. On\n"
+, stdout);
+ fputs(
 "              Unix-like systems, it will simply try to load .curlrc  from  the\n"
 "              determined home dir.\n"
 "\n"
@@ -1259,12 +1247,12 @@ void hugehelp(void)
 "              output = \"curlhere.html\"\n"
 "              user-agent = \"superagent/1.0\"\n"
 "\n"
-, stdout);
- fputs(
 "              # and fetch another URL too\n"
 "              url = \"curl.haxx.se/docs/manpage.html\"\n"
 "              -O\n"
 "              referer = \"http://nowhereatall.com/\"\n"
+, stdout);
+ fputs(
 "              # --- End of example file ---\n"
 "\n"
 "              This  option  can be used multiple times to load multiple config\n"
@@ -1272,45 +1260,45 @@ void hugehelp(void)
 "\n"
 "       --keepalive-time <seconds>\n"
 "              This option sets the time a  connection  needs  to  remain  idle\n"
-, stdout);
- fputs(
 "              before  sending keepalive probes and the time between individual\n"
 "              keepalive probes. It is currently effective on operating systems\n"
 "              offering  the  TCP_KEEPIDLE  and  TCP_KEEPINTVL  socket  options\n"
+, stdout);
+ fputs(
 "              (meaning Linux, recent AIX, HP-UX and more). This option has  no\n"
 "              effect if --no-keepalive is used. (Added in 7.18.0)\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
-, stdout);
- fputs(
 "              If unspecified, the option defaults to 60 seconds.\n"
 "\n"
 "       --key <key>\n"
 "              (SSL/SSH) Private key file name. Allows you to provide your pri-\n"
 "              vate  key in this separate file. For SSH, if not specified, curl\n"
+, stdout);
+ fputs(
 "              tries  the  following  candidates  in  order:   '~/.ssh/id_rsa',\n"
 "              '~/.ssh/id_dsa', './id_rsa', './id_dsa'.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       --key-type <type>\n"
-, stdout);
- fputs(
 "              (SSL)  Private key file type. Specify which type your --key pro-\n"
 "              vided private key is. DER, PEM, and ENG are  supported.  If  not\n"
 "              specified, PEM is assumed.\n"
 "\n"
+, stdout);
+ fputs(
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       --krb <level>\n"
 "              (FTP)  Enable Kerberos authentication and use. The level must be\n"
 "              entered and should be one of 'clear', 'safe', 'confidential', or\n"
-, stdout);
- fputs(
 "              'private'.  Should  you  use  a  level that is not one of these,\n"
 "              'private' will instead be used.\n"
 "\n"
 "              This option requires a library  built  with  kerberos4  support.\n"
+, stdout);
+ fputs(
 "              This  is  not very common. Use -V, --version to see if your curl\n"
 "              supports it.\n"
 "\n"
@@ -1318,57 +1306,57 @@ void hugehelp(void)
 "\n"
 "       -l, --list-only\n"
 "              (FTP) When listing an FTP directory, this switch forces a  name-\n"
-, stdout);
- fputs(
 "              only  view.  This  is  especially  useful  if  the user wants to\n"
 "              machine-parse the contents of an FTP directory since the  normal\n"
+, stdout);
+ fputs(
 "              directory  view doesn't use a standard look or format. When used\n"
 "              like this, the option causes a NLST command to be  sent  to  the\n"
 "              server instead of LIST.\n"
 "\n"
 "              Note:  Some  FTP  servers  list  only files in their response to\n"
-, stdout);
- fputs(
 "              NLST; they do not include sub-directories and symbolic links.\n"
 "\n"
 "              (POP3) When retrieving a specific email from POP3,  this  switch\n"
+, stdout);
+ fputs(
 "              forces  a  LIST command to be performed instead of RETR. This is\n"
 "              particularly useful if the user wants to see if a specific  mes-\n"
 "              sage id exists on the server and what size it is.\n"
 "\n"
 "              Note:  When  combined  with -X, --request <command>, this option\n"
-, stdout);
- fputs(
 "              can be used to send an UIDL command instead, so the user may use\n"
 "              the  email's  unique  identifier  rather than it's message id to\n"
+, stdout);
+ fputs(
 "              make the request. (Added in 7.21.5)\n"
 "\n"
 "       -L, --location\n"
 "              (HTTP/HTTPS) If the server reports that the requested  page  has\n"
 "              moved to a different location (indicated with a Location: header\n"
 "              and a 3XX response code), this option will make  curl  redo  the\n"
-, stdout);
- fputs(
 "              request on the new place. If used together with -i, --include or\n"
 "              -I, --head, headers from all requested pages will be shown. When\n"
+, stdout);
+ fputs(
 "              authentication  is  used, curl only sends its credentials to the\n"
 "              initial host. If a redirect takes curl to a different  host,  it\n"
 "              won't  be  able to intercept the user+password. See also --loca-\n"
 "              tion-trusted on how to change this. You can limit the amount  of\n"
-, stdout);
- fputs(
 "              redirects to follow by using the --max-redirs option.\n"
 "\n"
 "              When  curl follows a redirect and the request is not a plain GET\n"
+, stdout);
+ fputs(
 "              (for example POST or PUT), it will do the following request with\n"
 "              a GET if the HTTP response was 301, 302, or 303. If the response\n"
 "              code was any other 3xx code, curl  will  re-send  the  following\n"
 "              request using the same unmodified method.\n"
 "\n"
-, stdout);
- fputs(
 "              You  can  tell  curl to not change the non-GET request method to\n"
 "              GET after a 30x response by  using  the  dedicated  options  for\n"
+, stdout);
+ fputs(
 "              that: --post301, --post302 and -post303.\n"
 "\n"
 "       --libcurl <file>\n"
@@ -1376,30 +1364,30 @@ void hugehelp(void)
 "              will get a libcurl-using C source code written to the file  that\n"
 "              does the equivalent of what your command-line operation does!\n"
 "\n"
-, stdout);
- fputs(
 "              If  this  option is used several times, the last given file name\n"
 "              will be used. (Added in 7.16.1)\n"
 "\n"
 "       --limit-rate <speed>\n"
+, stdout);
+ fputs(
 "              Specify the maximum transfer rate you want curl  to  use  -  for\n"
 "              both downloads and uploads. This feature is useful if you have a\n"
 "              limited pipe and you'd like your transfer not to use your entire\n"
 "              bandwidth. To make it slower than it otherwise would be.\n"
 "\n"
-, stdout);
- fputs(
 "              The  given speed is measured in bytes/second, unless a suffix is\n"
 "              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
+, stdout);
+ fputs(
 "              bytes,  'm'  or M' makes it megabytes, while 'g' or 'G' makes it\n"
 "              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
 "              The given rate is the average speed counted  during  the  entire\n"
 "              transfer. It means that curl might use higher transfer speeds in\n"
-, stdout);
- fputs(
 "              short bursts, but over time it uses no more than the given rate.\n"
 "              If you also use the -Y, --speed-limit option, that  option  will\n"
+, stdout);
+ fputs(
 "              take precedence and might cripple the rate-limiting slightly, to\n"
 "              help keeping the speed-limit logic working.\n"
 "\n"
@@ -1407,51 +1395,51 @@ void hugehelp(void)
 "\n"
 "       --local-port <num>[-num]\n"
 "              Set a preferred number or range of local port numbers to use for\n"
-, stdout);
- fputs(
 "              the  connection(s).   Note  that  port  numbers  by nature are a\n"
 "              scarce resource that will be busy at times so setting this range\n"
+, stdout);
+ fputs(
 "              to something too narrow might cause unnecessary connection setup\n"
 "              failures. (Added in 7.15.2)\n"
 "\n"
 "       --location-trusted\n"
 "              (HTTP/HTTPS) Like -L, --location, but  will  allow  sending  the\n"
 "              name + password to all hosts that the site may redirect to. This\n"
-, stdout);
- fputs(
 "              may or may not introduce a security breach if the site redirects\n"
 "              you  to  a  site  to  which you'll send your authentication info\n"
+, stdout);
+ fputs(
 "              (which is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
 "       -m, --max-time <seconds>\n"
 "              Maximum time in seconds that you allow the  whole  operation  to\n"
 "              take.   This is useful for preventing your batch jobs from hang-\n"
-, stdout);
- fputs(
 "              ing for hours due to slow networks or links going  down.   Since\n"
 "              7.32.0, this option accepts decimal values, but the actual time-\n"
+, stdout);
+ fputs(
 "              out will decrease in accuracy as the specified timeout increases\n"
 "              in decimal precision.  See also the --connect-timeout option.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       --login-options <options>\n"
-, stdout);
- fputs(
 "              Specify the login options to use during server authentication.\n"
 "\n"
 "              You  can  use  the  login  options  to specify protocol specific\n"
+, stdout);
+ fputs(
 "              options that may be used during authentication. At present  only\n"
 "              IMAP,  POP3 and SMTP support login options. For more information\n"
 "              about the login options please see RFC 2384, RFC 5092  and  IETF\n"
 "              draft draft-earhart-url-smtp-00.txt (Added in 7.34.0).\n"
 "\n"
-, stdout);
- fputs(
 "              If this option is used several times, the last one will be used.\n"
 "\n"
 "       --mail-auth <address>\n"
 "              (SMTP)  Specify  a  single address. This will be used to specify\n"
+, stdout);
+ fputs(
 "              the authentication address (identity)  of  a  submitted  message\n"
 "              that is being relayed to another server.\n"
 "\n"
@@ -1461,43 +1449,43 @@ void hugehelp(void)
 "              (SMTP)  Specify  a single address that the given mail should get\n"
 "              sent from.\n"
 "\n"
-, stdout);
- fputs(
 "              (Added in 7.20.0)\n"
 "\n"
 "       --max-filesize <bytes>\n"
 "              Specify the maximum size (in bytes) of a file  to  download.  If\n"
+, stdout);
+ fputs(
 "              the  file requested is larger than this value, the transfer will\n"
 "              not start and curl will return with exit code 63.\n"
 "\n"
 "              NOTE: The file size is not always known prior to  download,  and\n"
 "              for such files this option has no effect even if the file trans-\n"
-, stdout);
- fputs(
 "              fer ends up being larger than this given  limit.  This  concerns\n"
 "              both FTP and HTTP transfers.\n"
 "\n"
 "       --mail-rcpt <address>\n"
+, stdout);
+ fputs(
 "              (SMTP) Specify a single address, user name or mailing list name.\n"
 "              When  performing a mail transfer, the recipient should specify a\n"
 "              valid email address to send the mail to. (Added in 7.20.0)\n"
 "\n"
 "              When performing an  address  verification  (VRFY  command),  the\n"
-, stdout);
- fputs(
 "              recipient  should be specified as the user name or user name and\n"
 "              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
 "\n"
+, stdout);
+ fputs(
 "              When performing a mailing list expand (EXPN command), the recip-\n"
 "              ient  should  be  specified using the mailing list name, such as\n"
 "              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
 "\n"
 "       --max-redirs <num>\n"
 "              Set maximum number of  redirection-followings  allowed.  If  -L,\n"
-, stdout);
- fputs(
 "              --location is used, this option can be used to prevent curl from\n"
 "              following redirections \"in absurdum\". By default, the  limit  is\n"
+, stdout);
+ fputs(
 "              set  to 50 redirections. Set this option to -1 to make it limit-\n"
 "              less.\n"
 "\n"
@@ -1505,21 +1493,21 @@ void hugehelp(void)
 "\n"
 "       --metalink\n"
 "              This option can tell curl to parse and process a  given  URI  as\n"
-, stdout);
- fputs(
 "              Metalink  file  (both  version 3 and 4 (RFC 5854) are supported)\n"
 "              and make use of the mirrors listed within for failover if  there\n"
+, stdout);
+ fputs(
 "              are  errors (such as the file or server not being available). It\n"
 "              will also verify the hash of the file after  the  download  com-\n"
 "              pletes.  The Metalink file itself is downloaded and processed in\n"
 "              memory and not stored in the local file system.\n"
 "\n"
-, stdout);
- fputs(
 "              Example to use a remote Metalink file:\n"
 "\n"
 "              curl --metalink http://www.example.com/example.metalink\n"
 "\n"
+, stdout);
+ fputs(
 "              To use a Metalink file in the local file system, use FILE proto-\n"
 "              col (file://):\n"
 "\n"
@@ -1527,10 +1515,10 @@ void hugehelp(void)
 "\n"
 "              Please  note  that if FILE protocol is disabled, there is no way\n"
 "              to use a local Metalink file at the time of this  writing.  Also\n"
-, stdout);
- fputs(
 "              note  that  if  --metalink  and  --include  are  used  together,\n"
 "              --include will be ignored. This is because including headers  in\n"
+, stdout);
+ fputs(
 "              the  response  will break Metalink parser and if the headers are\n"
 "              included in the file described in Metalink file, hash check will\n"
 "              fail.\n"
@@ -1538,53 +1526,53 @@ void hugehelp(void)
 "              (Added in 7.27.0, if built against the libmetalink library.)\n"
 "\n"
 "       -n, --netrc\n"
-, stdout);
- fputs(
 "              Makes  curl  scan  the  .netrc  (_netrc  on Windows) file in the\n"
 "              user's home directory for login name and password. This is typi-\n"
+, stdout);
+ fputs(
 "              cally  used for FTP on Unix. If used with HTTP, curl will enable\n"
 "              user authentication. See netrc(5) ftp(1) for details on the file\n"
 "              format.  Curl  will  not  complain if that file doesn't have the\n"
 "              right permissions (it should not be either world- or group-read-\n"
-, stdout);
- fputs(
 "              able).  The environment variable \"HOME\" is used to find the home\n"
 "              directory.\n"
 "\n"
 "              A quick and very simple example of how  to  setup  a  .netrc  to\n"
+, stdout);
+ fputs(
 "              allow  curl to FTP to the machine host.domain.com with user name\n"
 "              'myself' and password 'secret' should look similar to:\n"
 "\n"
 "              machine host.domain.com login myself password secret\n"
 "\n"
 "       -N, --no-buffer\n"
-, stdout);
- fputs(
 "              Disables the buffering of the output stream. In normal work sit-\n"
 "              uations,  curl  will  use a standard buffered output stream that\n"
 "              will have the effect that it will output the data in chunks, not\n"
+, stdout);
+ fputs(
 "              necessarily  exactly  when  the data arrives.  Using this option\n"
 "              will disable that buffering.\n"
 "\n"
 "              Note that this is the negated option name  documented.  You  can\n"
 "              thus use --buffer to enforce the buffering.\n"
 "\n"
-, stdout);
- fputs(
 "       --netrc-file\n"
 "              This  option  is similar to --netrc, except that you provide the\n"
 "              path (absolute or relative) to the netrc file that  Curl  should\n"
+, stdout);
+ fputs(
 "              use.   You  can  only  specify one netrc file per invocation. If\n"
 "              several --netrc-file options are provided,  only  the  last  one\n"
 "              will be used.  (Added in 7.21.5)\n"
 "\n"
 "              This  option  overrides  any use of --netrc as they are mutually\n"
-, stdout);
- fputs(
 "              exclusive.  It will also abide by --netrc-optional if specified.\n"
 "\n"
 "       --netrc-optional\n"
 "              Very similar to --netrc, but this option makes the .netrc  usage\n"
+, stdout);
+ fputs(
 "              optional and not mandatory as the --netrc option does.\n"
 "\n"
 "       --negotiate\n"
@@ -1593,24 +1581,24 @@ void hugehelp(void)
 "              If  you  want to enable Negotiate (SPNEGO) for proxy authentica-\n"
 "              tion, then use --proxy-negotiate.\n"
 "\n"
-, stdout);
- fputs(
 "              This option requires a library built with GSS-API or  SSPI  sup-\n"
 "              port.  Use  -V,  --version  to  see  if  your curl supports GSS-\n"
 "              API/SSPI and SPNEGO.\n"
 "\n"
+, stdout);
+ fputs(
 "              When using this option, you must also provide a fake -u,  --user\n"
 "              option  to  activate the authentication code properly. Sending a\n"
 "              '-u :' is enough as the user  name  and  password  from  the  -u\n"
 "              option aren't actually used.\n"
 "\n"
-, stdout);
- fputs(
 "              If  this  option  is  used  several times, only the first one is\n"
 "              used.\n"
 "\n"
 "       --no-keepalive\n"
 "              Disables the use of keepalive messages on the TCP connection, as\n"
+, stdout);
+ fputs(
 "              by default curl enables them.\n"
 "\n"
 "              Note  that  this  is the negated option name documented. You can\n"
@@ -1618,10 +1606,10 @@ void hugehelp(void)
 "\n"
 "       --no-sessionid\n"
 "              (SSL) Disable curl's use of SSL session-ID caching.  By  default\n"
-, stdout);
- fputs(
 "              all  transfers are done using the cache. Note that while nothing\n"
 "              should ever get hurt by attempting  to  reuse  SSL  session-IDs,\n"
+, stdout);
+ fputs(
 "              there seem to be broken SSL implementations in the wild that may\n"
 "              require you to disable this in order for you to succeed.  (Added\n"
 "              in 7.16.0)\n"
@@ -1629,27 +1617,27 @@ void hugehelp(void)
 "              Note  that  this  is the negated option name documented. You can\n"
 "              thus use --sessionid to enforce session-ID caching.\n"
 "\n"
-, stdout);
- fputs(
 "       --noproxy <no-proxy-list>\n"
 "              Comma-separated list of hosts which do not use a proxy,  if  one\n"
+, stdout);
+ fputs(
 "              is  specified.  The only wildcard is a single * character, which\n"
 "              matches all hosts, and effectively disables the proxy. Each name\n"
 "              in  this  list  is matched as either a domain which contains the\n"
 "              hostname, or the hostname itself. For example,  local.com  would\n"
-, stdout);
- fputs(
 "              match   local.com,  local.com:80,  and  www.local.com,  but  not\n"
 "              www.notlocal.com.  (Added in 7.19.4).\n"
 "\n"
+, stdout);
+ fputs(
 "       --ntlm (HTTP) Enables  NTLM  authentication.  The  NTLM  authentication\n"
 "              method was designed by Microsoft and is used by IIS web servers.\n"
 "              It is a proprietary protocol, reverse-engineered by clever  peo-\n"
 "              ple and implemented in curl based on their efforts. This kind of\n"
-, stdout);
- fputs(
 "              behavior should not be endorsed, you should  encourage  everyone\n"
 "              who  uses  NTLM to switch to a public and documented authentica-\n"
+, stdout);
+ fputs(
 "              tion method instead, such as Digest.\n"
 "\n"
 "              If you want to enable NTLM for your proxy  authentication,  then\n"
@@ -1658,25 +1646,25 @@ void hugehelp(void)
 "              This  option  requires a library built with SSL support. Use -V,\n"
 "              --version to see if your curl supports NTLM.\n"
 "\n"
-, stdout);
- fputs(
 "              If this option is used several times,  only  the  first  one  is\n"
 "              used.\n"
 "\n"
 "       -o, --output <file>\n"
+, stdout);
+ fputs(
 "              Write output to <file> instead of stdout. If you are using {} or\n"
 "              [] to fetch multiple documents, you can use '#'  followed  by  a\n"
 "              number  in  the <file> specifier. That variable will be replaced\n"
 "              with the current string for the URL being fetched. Like in:\n"
 "\n"
-, stdout);
- fputs(
 "                curl http://{one,two}.site.com -o \"file_#1.txt\"\n"
 "\n"
 "              or use several variables like:\n"
 "\n"
 "                curl http://{site,host}.host[1-5].com -o \"#1_#2\"\n"
 "\n"
+, stdout);
+ fputs(
 "              You may use this option as many times as the number of URLs  you\n"
 "              have.\n"
 "\n"
@@ -1684,26 +1672,20 @@ void hugehelp(void)
 "              ries dynamically. Specifying the output as '-' (a  single  dash)\n"
 "              will force the output to be done to stdout.\n"
 "\n"
-, stdout);
- fputs(
 "       -O, --remote-name\n"
 "              Write  output to a local file named like the remote file we get.\n"
 "              (Only the file part of the remote file is used, the path is  cut\n"
-"              off.)\n"
-"\n"
-"              The  file will be saved in the current working directory. If you\n"
-"              want the file saved in a  different  directory,  make  sure  you\n"
-"              change  the  current working directory before invoking curl with\n"
-"              this option.\n"
-"\n"
 , stdout);
  fputs(
-"              The remote file name to use for saving  is  extracted  from  the\n"
-"              given  URL,  nothing  else,  and if it already exists it will be\n"
-"              overwritten. If you want the server to be  able  to  choose  the\n"
-"              file name refer to -J, --remote-header-name which can be used in\n"
-"              addition to this option. If the server chooses a file  name  and\n"
-"              that name already exists it will not be overwritten.\n"
+"              off.)\n"
+"\n"
+"              The  remote  file  name  to use for saving is extracted from the\n"
+"              given URL, nothing else.\n"
+"\n"
+"              Consequentially, the file will be saved in the  current  working\n"
+"              directory.  If you want the file saved in a different directory,\n"
+"              make sure you change current working directory before you invoke\n"
+"              curl with the -O, --remote-name flag!\n"
 "\n"
 , stdout);
  fputs(
@@ -3259,7 +3241,7 @@ void hugehelp(void)
 "       is found in the separate THANKS file.\n"
 "\n"
 "WWW\n"
-"       https://curl.haxx.se\n"
+"       http://curl.haxx.se\n"
 "\n"
 "FTP\n"
 "       ftp://ftp.sunet.se/pub/www/utilities/curl/\n"
@@ -3272,7 +3254,7 @@ void hugehelp(void)
 "  You always find news about what's going on as well as the latest versions\n"
 "  from the curl web pages, located at:\n"
 "\n"
-"        https://curl.haxx.se\n"
+"        http://curl.haxx.se\n"
 "\n"
 "SIMPLE USAGE\n"
 "\n"
@@ -3280,9 +3262,9 @@ void hugehelp(void)
 "\n"
 "        curl http://www.netscape.com/\n"
 "\n"
+"  Get the README file the user's home directory at funet's ftp-server:\n"
 , stdout);
  fputs(
-"  Get the README file the user's home directory at funet's ftp-server:\n"
 "\n"
 "        curl ftp://ftp.funet.fi/README\n"
 "\n"
@@ -3302,12 +3284,12 @@ void hugehelp(void)
 "\n"
 "        curl ftp://cool.haxx.se/ http://www.weirdserver.com:8000/\n"
 "\n"
-, stdout);
- fputs(
 "  Get a file off an FTPS server:\n"
 "\n"
 "        curl ftps://files.are.secure.com/secrets.txt\n"
 "\n"
+, stdout);
+ fputs(
 "  or use the more appropriate FTPS way to get the same file:\n"
 "\n"
 "        curl --ftp-ssl ftp://files.are.secure.com/secrets.txt\n"
@@ -3320,11 +3302,11 @@ void hugehelp(void)
 "  (not password-protected) to authenticate:\n"
 "\n"
 "        curl -u username: --key ~/.ssh/id_rsa \\\n"
-, stdout);
- fputs(
 "             scp://example.com/~/file.txt\n"
 "\n"
 "  Get a file from an SSH server using SCP using a private key\n"
+, stdout);
+ fputs(
 "  (password-protected) to authenticate:\n"
 "\n"
 "        curl -u username: --key ~/.ssh/id_rsa --pass private_key_password \\\n"
@@ -3340,10 +3322,10 @@ void hugehelp(void)
 "\n"
 "DOWNLOAD TO A FILE\n"
 "\n"
-, stdout);
- fputs(
 "  Get a web page and store in a local file with a specific name:\n"
 "\n"
+, stdout);
+ fputs(
 "        curl -o thatpage.html http://www.netscape.com/\n"
 "\n"
 "  Get a web page and store in a local file, make the local file get the name\n"
@@ -3360,10 +3342,10 @@ void hugehelp(void)
 "\n"
 " FTP\n"
 "\n"
-, stdout);
- fputs(
 "   To ftp files using name+passwd, include them in the URL like:\n"
 "\n"
+, stdout);
+ fputs(
 "        curl ftp://name:passwd@machine.domain:port/full/path/to/file\n"
 "\n"
 "   or specify them with the -u flag like\n"
@@ -3376,11 +3358,11 @@ void hugehelp(void)
 "   SSL-specific options for certificates etc.\n"
 "\n"
 "   Note that using FTPS:// as prefix is the \"implicit\" way as described in the\n"
-, stdout);
- fputs(
 "   standards while the recommended \"explicit\" way is done by using FTP:// and\n"
 "   the --ftp-ssl option.\n"
 "\n"
+, stdout);
+ fputs(
 " SFTP / SCP\n"
 "\n"
 "   This is similar to FTP, but you can use the --key option to specify a\n"
@@ -3388,9 +3370,9 @@ void hugehelp(void)
 "   itself be protected by a password that is unrelated to the login password\n"
 "   of the remote system; this password is specified using the --pass option.\n"
 "   Typically, curl will automatically extract the public key from the private\n"
+"   key file, but in cases where curl does not have the proper library support,\n"
 , stdout);
  fputs(
-"   key file, but in cases where curl does not have the proper library support,\n"
 "   a matching public key file must be specified using the --pubkey option.\n"
 "\n"
 " HTTP\n"
@@ -3404,9 +3386,9 @@ void hugehelp(void)
 "\n"
 "        curl -u name:passwd http://machine.domain/full/path/to/file\n"
 "\n"
+"   HTTP offers many different methods of authentication and curl supports\n"
 , stdout);
  fputs(
-"   HTTP offers many different methods of authentication and curl supports\n"
 "   several: Basic, Digest, NTLM and Negotiate (SPNEGO). Without telling which\n"
 "   method to use, curl defaults to Basic. You can also ask curl to pick the\n"
 "   most secure ones out of the ones that the server accepts for the given URL,\n"
@@ -3414,9 +3396,9 @@ void hugehelp(void)
 "\n"
 "   NOTE! According to the URL specification, HTTP URLs can not contain a user\n"
 "   and password, so that style will not work when using curl via a proxy, even\n"
+"   though curl allows it at other times. When using a proxy, you _must_ use\n"
 , stdout);
  fputs(
-"   though curl allows it at other times. When using a proxy, you _must_ use\n"
 "   the -u style for user and password.\n"
 "\n"
 " HTTPS\n"
@@ -3428,11 +3410,11 @@ void hugehelp(void)
 " curl supports both HTTP and SOCKS proxy servers, with optional authentication.\n"
 " It does not have special support for FTP proxy servers since there are no\n"
 " standards for those, but it can still be made to work with many of them. You\n"
-, stdout);
- fputs(
 " can also use both HTTP and SOCKS proxies to transfer files to and from FTP\n"
 " servers.\n"
 "\n"
+, stdout);
+ fputs(
 " Get an ftp file using an HTTP proxy named my-proxy that uses port 888:\n"
 "\n"
 "        curl -x my-proxy:888 ftp://ftp.leachsite.com/README\n"
@@ -3444,10 +3426,10 @@ void hugehelp(void)
 "\n"
 " Some proxies require special authentication. Specify by using -U as above:\n"
 "\n"
-, stdout);
- fputs(
 "        curl -U user:passwd -x my-proxy:888 http://www.get.this/\n"
 "\n"
+, stdout);
+ fputs(
 " A comma-separated list of hosts and domains which do not use the proxy can\n"
 " be specified as:\n"
 "\n"
@@ -3458,11 +3440,11 @@ void hugehelp(void)
 "\n"
 " curl also supports SOCKS4 and SOCKS5 proxies with --socks4 and --socks5.\n"
 "\n"
-, stdout);
- fputs(
 " See also the environment variables Curl supports that offer further proxy\n"
 " control.\n"
 "\n"
+, stdout);
+ fputs(
 " Most FTP proxy servers are set up to appear as a normal FTP server from the\n"
 " client's perspective, with special commands to select the remote FTP server.\n"
 " curl supports the -u, -Q and --ftp-account options that can be used to\n"
@@ -3470,9 +3452,9 @@ void hugehelp(void)
 " uploaded to a remote FTP server using a Blue Coat FTP proxy with the\n"
 " options:\n"
 "\n"
+"   curl -u \"Remote-FTP-Username@remote.ftp.server Proxy-Username:Remote-Pass\" \\\n"
 , stdout);
  fputs(
-"   curl -u \"Remote-FTP-Username@remote.ftp.server Proxy-Username:Remote-Pass\" \\\n"
 "    --ftp-account Proxy-Password --upload-file local-file \\\n"
 "    ftp://my-ftp.proxy.server:21/remote/upload/path/\n"
 "\n"
@@ -3483,12 +3465,12 @@ void hugehelp(void)
 "\n"
 "  HTTP 1.1 introduced byte-ranges. Using this, a client can request\n"
 "  to get only one or more subparts of a specified document. Curl supports\n"
-, stdout);
- fputs(
 "  this with the -r flag.\n"
 "\n"
 "  Get the first 100 bytes of a document:\n"
 "\n"
+, stdout);
+ fputs(
 "        curl -r 0-99 http://www.get.this/\n"
 "\n"
 "  Get the last 500 bytes of a document:\n"
@@ -3508,10 +3490,10 @@ void hugehelp(void)
 "\n"
 "  Upload all data on stdin to a specified server:\n"
 "\n"
-, stdout);
- fputs(
 "        curl -T - ftp://ftp.upload.com/myfile\n"
 "\n"
+, stdout);
+ fputs(
 "  Upload data from a specified file, login with user and password:\n"
 "\n"
 "        curl -T uploadfile -u user:passwd ftp://ftp.upload.com/myfile\n"
@@ -3525,9 +3507,9 @@ void hugehelp(void)
 "\n"
 "        curl -T localfile -a ftp://ftp.upload.com/remotefile\n"
 "\n"
+"  Curl also supports ftp upload through a proxy, but only if the proxy is\n"
 , stdout);
  fputs(
-"  Curl also supports ftp upload through a proxy, but only if the proxy is\n"
 "  configured to allow that kind of tunneling. If it does, you can run curl in\n"
 "  a fashion similar to:\n"
 "\n"
@@ -3544,11 +3526,11 @@ void hugehelp(void)
 "\n"
 "        curl -T - http://www.upload.com/myfile\n"
 "\n"
-, stdout);
- fputs(
 "  Note that the HTTP server must have been configured to accept PUT before\n"
 "  this can be done successfully.\n"
 "\n"
+, stdout);
+ fputs(
 "  For other ways to do HTTP data upload, see the POST section below.\n"
 "\n"
 "VERBOSE / DEBUG\n"
@@ -3557,12 +3539,12 @@ void hugehelp(void)
 "  if you can't understand the responses: use the -v flag to get verbose\n"
 "  fetching. Curl will output lots of info and what it sends and receives in\n"
 "  order to let the user see all client-server interaction (but it won't show\n"
-, stdout);
- fputs(
 "  you the actual data).\n"
 "\n"
 "        curl -v ftp://ftp.upload.com/\n"
 "\n"
+, stdout);
+ fputs(
 "  To get even more details and information on what curl does, try using the\n"
 "  --trace or --trace-ascii options with a given file name to log to, like\n"
 "  this:\n"
@@ -3574,9 +3556,9 @@ void hugehelp(void)
 "\n"
 "  Different protocols provide different ways of getting detailed information\n"
 "  about specific files/documents. To get curl to show detailed information\n"
+"  about a single file, you should use -I/--head option. It displays all\n"
 , stdout);
  fputs(
-"  about a single file, you should use -I/--head option. It displays all\n"
 "  available info on a single file for HTTP and FTP. The HTTP information is a\n"
 "  lot more extensive.\n"
 "\n"
@@ -3585,10 +3567,10 @@ void hugehelp(void)
 "  -D/--dump-header option when getting files from both FTP and HTTP, and it\n"
 "  will then store the headers in the specified file.\n"
 "\n"
-, stdout);
- fputs(
 "  Store the HTTP headers in a separate file (headers.txt in the example):\n"
 "\n"
+, stdout);
+ fputs(
 "        curl --dump-header headers.txt curl.haxx.se\n"
 "\n"
 "  Note that headers stored in a separate file can be very useful at a later\n"
@@ -3602,9 +3584,9 @@ void hugehelp(void)
 "\n"
 "  Post a simple \"name\" and \"phone\" guestbook.\n"
 "\n"
+"        curl -d \"name=Rafael%20Sagula&phone=3320780\" \\\n"
 , stdout);
  fputs(
-"        curl -d \"name=Rafael%20Sagula&phone=3320780\" \\\n"
 "                http://www.where.com/guest.cgi\n"
 "\n"
 "  How to post a form with curl, lesson #1:\n"
@@ -3617,9 +3599,9 @@ void hugehelp(void)
 "\n"
 "        <variable1>=<data1>&<variable2>=<data2>&...\n"
 "\n"
+"  The 'variable' names are the names set with \"name=\" in the <input> tags, and\n"
 , stdout);
  fputs(
-"  The 'variable' names are the names set with \"name=\" in the <input> tags, and\n"
 "  the data is the contents you want to fill in for the inputs. The data *must*\n"
 "  be properly URL encoded. That means you replace space with + and that you\n"
 "  replace weird letters with %XX where XX is the hexadecimal representation of\n"
@@ -3631,9 +3613,9 @@ void hugehelp(void)
 "\n"
 "        <form action=\"post.cgi\" method=\"post\">\n"
 "        <input name=user size=10>\n"
+"        <input name=pass type=password size=10>\n"
 , stdout);
  fputs(
-"        <input name=pass type=password size=10>\n"
 "        <input name=id type=hidden value=\"blablabla\">\n"
 "        <input name=ding value=\"submit\">\n"
 "        </form>\n"
@@ -4225,7 +4207,7 @@ void hugehelp(void)
  fputs(
 "  http://developer.netscape.com/docs/manuals/dirsdk/csdk30/url.htm\n"
 "\n"
-"  RFC 2255, \"The LDAP URL Format\" https://curl.haxx.se/rfc/rfc2255.txt\n"
+"  RFC 2255, \"The LDAP URL Format\" http://curl.haxx.se/rfc/rfc2255.txt\n"
 "\n"
 "  To show you an example, this is how I can get all people from my local LDAP\n"
 "  server that has a certain sub-domain in their email address:\n"
@@ -4444,7 +4426,7 @@ void hugehelp(void)
  fputs(
 "  For your convenience, we have several open mailing lists to discuss curl,\n"
 "  its development and things relevant to this. Get all info at\n"
-"  https://curl.haxx.se/mail/. Some of the lists available are:\n"
+"  http://curl.haxx.se/mail/. Some of the lists available are:\n"
 "\n"
 "  curl-users\n"
 "\n"

@@ -1,1 +1,1 @@
-out_of_memory("set_delayed_bit");
+out_of_memory("rsync_module");

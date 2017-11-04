@@ -1,11 +1,11 @@
 fputs(
-"              backslash preceding any other letter is ignored.  If  the  first\n"
-"              column of a config line is a '#' character, the rest of the line\n"
-"              will be treated as a comment. Only write one option per physical\n"
-"              line in the config file.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Specify  the  filename  to -K, --config as '-' to make curl read\n"
-"              the file from stdin.\n"
+"              See also -r, --range.\n"
 "\n"
-"              Note that to be able to specify a URL in the  config  file,  you\n"
+"       -c, --cookie-jar <filename>\n"
+"              (HTTP) Specify to which file you want curl to write all  cookies\n"
+"              after  a  completed  operation. Curl writes all cookies from its\n"
+"              in-memory cookie storage to the given file at the end of  opera-\n"
+"              tions.  If  no  cookies  are known, no data will be written. The\n"
 , stdout);

@@ -1,2 +1,1 @@
-warnf(global, "Refusing to overwrite %s: %s\n", outs->filename,
-            strerror(EEXIST));
+warnf(config->global, "Invalid output struct data for write callback\n");

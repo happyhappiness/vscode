@@ -1,96 +1,124 @@
-static void hash_search(int f,struct sum_struct *s,
-			struct map_struct *buf,off_t len)
-{
-	off_t offset;
-	int j,k;
-	int end;
-	char sum2[SUM_LENGTH];
-	uint32 s1, s2, sum; 
-	signed char *map;
+off_t send_files(struct file_list *flist,int f_out,int f_in)
+{ 
+  int fd;
+  struct sum_struct *s;
+  struct map_struct *buf;
+  struct stat st;
+  char fname[MAXPATHLEN];  
+  off_t total=0;
+  int i;
+  struct file_struct *file;
+  int phase = 0;
 
-	if (verbose > 2)
-		fprintf(FINFO,"hash search b=%d len=%d\n",s->n,(int)len);
+  if (verbose > 2)
+    fprintf(FERROR,"send_files starting\n");
 
-	k = MIN(len, s->n);
-	
-	map = (signed char *)map_ptr(buf,0,k);
-	
-	sum = get_checksum1((char *)map, k);
-	s1 = sum & 0xFFFF;
-	s2 = sum >> 16;
-	if (verbose > 3)
-		fprintf(FINFO, "sum=%.8x k=%d\n", sum, k);
-	
-	offset = 0;
-	
-	end = len + 1 - s->sums[s->count-1].len;
-	
-	if (verbose > 3)
-		fprintf(FINFO,"hash search s->n=%d len=%d count=%d\n",
-			s->n,(int)len,s->count);
-	
-	do {
-		tag t = gettag2(s1,s2);
-		int done_csum2 = 0;
-			
-		j = tag_table[t];
-		if (verbose > 4)
-			fprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);
-		
-		if (j == NULL_TAG) {
-			goto null_tag;
-		}
+  setup_nonblocking(f_in,f_out);
 
-		sum = (s1 & 0xffff) | (s2 << 16);
-		tag_hits++;
-		for (; j<s->count && targets[j].t == t; j++) {
-			int i = targets[j].i;
-			
-			if (sum != s->sums[i].sum1) continue;
-			
-			if (verbose > 3)
-				fprintf(FINFO,"potential match at %d target=%d %d sum=%08x\n",
-					(int)offset,j,i,sum);
-			
-			if (!done_csum2) {
-				int l = MIN(s->n,len-offset);
-				map = (signed char *)map_ptr(buf,offset,l);
-				get_checksum2((char *)map,l,sum2);
-				done_csum2 = 1;
-			}
-			
-			if (memcmp(sum2,s->sums[i].sum2,csum_length) != 0) {
-				false_alarms++;
-				continue;
-			}
-			
-			matched(f,s,buf,offset,i);
-			offset += s->sums[i].len - 1;
-			k = MIN((len-offset), s->n);
-			map = (signed char *)map_ptr(buf,offset,k);
-			sum = get_checksum1((char *)map, k);
-			s1 = sum & 0xFFFF;
-			s2 = sum >> 16;
-			matches++;
-			break;
-		}
-		
-	null_tag:
-		/* Trim off the first byte from the checksum */
-		map = (signed char *)map_ptr(buf,offset,k+1);
-		s1 -= map[0] + CHAR_OFFSET;
-		s2 -= k * (map[0]+CHAR_OFFSET);
-		
-		/* Add on the next byte (if there is one) to the checksum */
-		if (k < (len-offset)) {
-			s1 += (map[k]+CHAR_OFFSET);
-			s2 += s1;
-		} else {
-			--k;
-		}
-		
-	} while (++offset < end);
-	
-	matched(f,s,buf,len,-1);
-	map_ptr(buf,len-1,1);
+  while (1) 
+    {
+      i = read_int(f_in);
+      if (i == -1) {
+	if (phase==0 && remote_version >= 13) {
+	  phase++;
+	  csum_length = SUM_LENGTH;
+	  write_int(f_out,-1);
+	  write_flush(f_out);
+	  if (verbose > 2)
+	    fprintf(FERROR,"send_files phase=%d\n",phase);
+	  continue;
+	}
+	break;
+      }
+
+      file = &flist->files[i];
+
+      fname[0] = 0;
+      if (file->dir) {
+	strncpy(fname,file->dir,MAXPATHLEN-1);
+	fname[MAXPATHLEN-1] = 0;
+      if (strlen(fname) == MAXPATHLEN-1) {
+        fprintf(FERROR, "send_files failed on long-named directory %s\n",
+                fname);
+        return -1;
+      }
+	strcat(fname,"/");
+      }
+      strncat(fname,file->name,MAXPATHLEN-strlen(fname));
+
+      if (verbose > 2) 
+	fprintf(FERROR,"send_files(%d,%s)\n",i,fname);
+
+      if (dry_run) {	
+	if (!am_server && verbose)
+	  printf("%s\n",fname);
+	write_int(f_out,i);
+	continue;
+      }
+
+      s = receive_sums(f_in);
+      if (!s) {
+	fprintf(FERROR,"receive_sums failed\n");
+	return -1;
+      }
+
+      fd = open(fname,O_RDONLY);
+      if (fd == -1) {
+	fprintf(FERROR,"send_files failed to open %s: %s\n",
+		fname,strerror(errno));
+	continue;
+      }
+  
+      /* map the local file */
+      if (fstat(fd,&st) != 0) {
+	fprintf(FERROR,"fstat failed : %s\n",strerror(errno));
+	close(fd);
+	return -1;
+      }
+      
+      if (st.st_size > 0) {
+	buf = map_file(fd,st.st_size);
+      } else {
+	buf = NULL;
+      }
+
+      if (verbose > 2)
+	fprintf(FERROR,"send_files mapped %s of size %d\n",
+		fname,(int)st.st_size);
+
+      write_int(f_out,i);
+
+      write_int(f_out,s->count);
+      write_int(f_out,s->n);
+      write_int(f_out,s->remainder);
+
+      if (verbose > 2)
+	fprintf(FERROR,"calling match_sums %s\n",fname);
+
+      if (!am_server && verbose)
+	printf("%s\n",fname);
+      
+      match_sums(f_out,s,buf,st.st_size);
+      write_flush(f_out);
+      
+      if (buf) unmap_file(buf);
+      close(fd);
+
+      free_sums(s);
+
+      if (verbose > 2)
+	fprintf(FERROR,"sender finished %s\n",fname);
+
+      total += st.st_size;
+    }
+
+  if (verbose > 2)
+    fprintf(FERROR,"send files finished\n");
+
+  match_report();
+
+  write_int(f_out,-1);
+  write_flush(f_out);
+
+  return total;
 }

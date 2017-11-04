@@ -1,1 +1,1 @@
-state_attach_puts (buf, s);
+printw (TITLE_FMT "%s", _("sign as: "), SmimeDefaultKey ? SmimeDefaultKey : _("<default>"));

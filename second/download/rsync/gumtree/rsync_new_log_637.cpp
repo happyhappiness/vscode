@@ -1,1 +1,1 @@
-out_of_memory("add_delete_entry");
+io_printf(f_out, "@ERROR: max connections (%d) reached - try again later\n", lp_max_connections(i));

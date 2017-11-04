@@ -1,1 +1,1 @@
-fprintf(FINFO,"file list sent\n");
+fprintf(FINFO,"got file_sum\n");

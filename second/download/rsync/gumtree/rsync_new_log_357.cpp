@@ -1,2 +1,1 @@
-fprintf(FERROR,"opendir(%s): %s\n",
-			fname,strerror(errno));
+fprintf(FINFO,"calling match_sums %s\n",fname);

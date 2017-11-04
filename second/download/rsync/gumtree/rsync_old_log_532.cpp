@@ -1,2 +1,1 @@
-fprintf(FERROR,"opendir(%s): %s\n",
-			fname,strerror(errno));
+fprintf(FINFO,"deleting %s\n",f_name(f));

@@ -1,2 +1,1 @@
-fprintf(FERROR,"copy %s -> %s : %s\n",
-				      fnametmp,fname,strerror(errno));
+fprintf(FINFO,"server_sender starting pid=%d\n",(int)getpid());

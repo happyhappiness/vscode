@@ -1,0 +1,1 @@
+fprintf(FINFO,"waiting on %d\n",pid);

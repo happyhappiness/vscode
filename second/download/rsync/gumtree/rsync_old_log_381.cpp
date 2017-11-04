@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_files(%d) starting\n",flist->count);
+fprintf(FINFO,"add_exclude(%s)\n",pattern);

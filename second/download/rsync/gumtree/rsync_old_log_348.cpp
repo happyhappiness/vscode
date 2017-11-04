@@ -1,1 +1,1 @@
-fprintf(FERROR,"built hash table\n");
+fprintf(FERROR,"recv mapped %s of size %d\n",fname,(int)st.st_size);

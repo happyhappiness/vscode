@@ -1,1 +1,0 @@
-fputs(prefix, config->errors);

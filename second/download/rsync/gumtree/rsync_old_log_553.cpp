@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s\n",fname);
+fprintf(FINFO,"redoing %s(%d)\n",fname,i);

@@ -1,1 +1,1 @@
-fprintf(am_server?stderr:stdout,"building file list ... ");
+fprintf(stderr,"chdir %s: %s\n",dir,strerror(errno));

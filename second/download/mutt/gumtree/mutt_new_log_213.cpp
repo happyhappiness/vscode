@@ -1,1 +1,0 @@
-state_puts (_("*** End Notation ***\n"), s);

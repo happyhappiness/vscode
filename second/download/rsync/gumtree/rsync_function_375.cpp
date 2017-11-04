@@ -1,68 +1,50 @@
-static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname)
+static int delete_already_done(struct file_list *flist,int j)
 {
-  int i,n,remainder,len,count;
-  off_t offset = 0;
-  off_t offset2;
-  char *data;
-  static char file_sum1[MD4_SUM_LENGTH];
-  static char file_sum2[MD4_SUM_LENGTH];
-  char *map=NULL;
+	int low=0,high=j-1;
+	char *name;
+	char *p;
 
-  count = read_int(f_in);
-  n = read_int(f_in);
-  remainder = read_int(f_in);
+	if (j == 0) return 0;
 
-  sum_init();
+	name = strdup(f_name(flist->files[j]));
 
-  for (i=recv_token(f_in,&data); i != 0; i=recv_token(f_in,&data)) {
-    if (i > 0) {
-      if (verbose > 3)
-	fprintf(FERROR,"data recv %d at %d\n",i,(int)offset);
+	if (!name) {
+		fprintf(FERROR,"out of memory in delete_already_done");
+		exit_cleanup(1);
+	}
 
-      sum_update(data,i);
+	name[strlen(name)-2] = 0;
 
-      if (fd != -1 && write_sparse(fd,data,i) != i) {
-	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
-	exit_cleanup(1);
-      }
-      offset += i;
-    } else {
-      i = -(i+1);
-      offset2 = i*n;
-      len = n;
-      if (i == count-1 && remainder != 0)
-	len = remainder;
+	p = strrchr(name,'/');
+	if (!p) {
+		free(name);
+		return 0;
+	}
+	*p = 0;
 
-      if (verbose > 3)
-	fprintf(FERROR,"chunk[%d] of size %d at %d offset=%d\n",
-		i,len,(int)offset2,(int)offset);
+	strcat(name,"/.");
 
-      map = map_ptr(buf,offset2,len);
+	while (low != high) {
+		int mid = (low+high)/2;
+		int ret = strcmp(f_name(flist->files[flist_up(flist, mid)]),name);
+		if (ret == 0) {
+			free(name);
+			return 1;
+		}
+		if (ret > 0) {
+			high=mid;
+		} else {
+			low=mid+1;
+		}
+	}
 
-      see_token(map, len);
-      sum_update(map,len);
+	low = flist_up(flist, low);
 
-      if (fd != -1 && write_sparse(fd,map,len) != len) {
-	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
-	exit_cleanup(1);
-      }
-      offset += len;
-    }
-  }
+	if (strcmp(f_name(flist->files[low]),name) == 0) {
+		free(name);
+		return 1;
+	}
 
-  if (fd != -1 && offset > 0 && sparse_end(fd) != 0) {
-    fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
-    exit_cleanup(1);
-  }
-
-  sum_end(file_sum1);
-
-  if (remote_version >= 14) {
-    read_buf(f_in,file_sum2,MD4_SUM_LENGTH);
-    if (verbose > 2)
-      fprintf(FERROR,"got file_sum\n");
-    if (fd != -1 && memcmp(file_sum1,file_sum2,MD4_SUM_LENGTH) != 0)
-      return 0;
-  }
-  return 1;
+	free(name);
+	return 0;
 }

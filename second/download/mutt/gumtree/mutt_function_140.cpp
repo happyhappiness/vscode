@@ -1,31 +1,18 @@
-static void redraw_mix_line (LIST *chain)
+void mutt_what_key (void)
 {
-  int c;
-  char *t;
+  int ch;
 
-  /* L10N: "Mix" refers to the MixMaster chain for anonymous email */
-  mutt_window_mvprintw (MuttIndexWindow, HDR_MIX, 0, TITLE_FMT, _("Mix: "));
-
-  if (!chain)
-  {
-    addstr ("<no chain defined>");
-    mutt_window_clrtoeol (MuttIndexWindow);
-    return;
+  mutt_window_mvprintw (MuttMessageWindow, 0, 0, _("Enter keys (^G to abort): "));
+  do {
+    ch = getch();
+    if (ch != ERR && ch != ctrl ('G'))
+    {
+      mutt_message(_("Char = %s, Octal = %o, Decimal = %d"),
+	       km_keyname(ch), ch, ch);
+    }
   }
-  
-  for (c = 12; chain; chain = chain->next)
-  {
-    t = chain->data;
-    if (t && t[0] == '0' && t[1] == '\0')
-      t = "<random>";
-    
-    if (c + mutt_strlen (t) + 2 >= MuttIndexWindow->cols)
-      break;
+  while (ch != ERR && ch != ctrl ('G'));
 
-    addstr (NONULL(t));
-    if (chain->next)
-      addstr (", ");
-
-    c += mutt_strlen (t) + 2;
-  }
+  mutt_flushinp();
+  mutt_clear_error();
 }

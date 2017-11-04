@@ -1,1 +1,1 @@
-fprintf(stderr,"%s : %s\n",fname,strerror(errno));
+fprintf(stderr,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());

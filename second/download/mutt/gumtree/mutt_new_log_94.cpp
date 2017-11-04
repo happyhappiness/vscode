@@ -1,1 +1,1 @@
-(fprintf (fp, "%s%s: %s\n", NONULL(pfx), tag, v);
+state_attach_puts (sig->fpr, s);

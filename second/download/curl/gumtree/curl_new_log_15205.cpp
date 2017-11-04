@@ -1,9 +1,10 @@
 fputs(
-"              is  supposedly the data previously received from the server in a\n"
-"              \"Set-Cookie:\"  line.   The  data  should  be   in   the   format\n"
-"              \"NAME1=VALUE1; NAME2=VALUE2\".\n"
+"              To be CGI-compliant, the <data> part should begin  with  a  name\n"
+"              followed  by a separator and a content specification. The <data>\n"
+"              part can be passed to curl using one of the following syntaxes:\n"
 "\n"
-"              If  no '=' symbol is used in the argument, it is instead treated\n"
-"              as a filename to read previously stored cookie from. This option\n"
-"              also  activates  the  cookie  engine which will make curl record\n"
+"              content\n"
+"                     This will make curl URL-encode the content and pass  that\n"
+"                     on.  Just  be careful so that the content doesn't contain\n"
+"                     any = or @ symbols, as that will  then  make  the  syntax\n"
 , stdout);

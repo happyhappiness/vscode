@@ -1,1 +1,1 @@
-fprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);
+fprintf(FINFO,"done hash search\n");

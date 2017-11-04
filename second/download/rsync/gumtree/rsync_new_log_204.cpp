@@ -1,1 +1,1 @@
-fprintf(FERROR,"fstat %s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"out of memory in %s\n",str);

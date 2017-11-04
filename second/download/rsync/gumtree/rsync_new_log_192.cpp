@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s is a hard link\n",file->name);
+fprintf(FERROR,"calling match_sums %s\n",fname);

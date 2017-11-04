@@ -1,27 +1,29 @@
-int sock_exec(const char *prog)
+char *full_fname(const char *fn)
 {
-	int fd[2];
-	
-	if (socketpair_tcp(fd) != 0) {
-		rprintf (FERROR, RSYNC_NAME
-			 ": socketpair_tcp failed (%s)\n",
-			 strerror(errno));
-		return -1;
+	static char *result = NULL;
+	char *m1, *m2, *m3;
+	char *p1, *p2;
+
+	if (result)
+		free(result);
+
+	if (*fn == '/')
+		p1 = p2 = "";
+	else {
+		p1 = curr_dir + module_dirlen;
+		for (p2 = p1; *p2 == '/'; p2++) {}
+		if (*p2)
+			p2 = "/";
 	}
-	if (fork() == 0) {
-		close(fd[0]);
-		close(0);
-		close(1);
-		dup(fd[1]);
-		dup(fd[1]);
-		if (verbose > 3) {
-			/* Can't use rprintf because we've forked. */
-			fprintf (stderr,
-				 RSYNC_NAME ": execute socket program \"%s\"\n",
-				 prog);
-		}
-		exit (system (prog));
-	}
-	close (fd[1]);
-	return fd[0];
+	if (module_id >= 0) {
+		m1 = " (in ";
+		m2 = lp_name(module_id);
+		m3 = ")";
+	} else
+		m1 = m2 = m3 = "";
+
+	if (asprintf(&result, "\"%s%s%s\"%s%s%s", p1, p2, fn, m1, m2, m3) <= 0)
+		out_of_memory("full_fname");
+
+	return result;
 }

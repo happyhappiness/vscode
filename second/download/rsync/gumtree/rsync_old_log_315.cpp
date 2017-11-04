@@ -1,1 +1,1 @@
-fprintf(FERROR,"skipping directory %s\n",fname);
+fprintf(FERROR,"sending file_sum\n");

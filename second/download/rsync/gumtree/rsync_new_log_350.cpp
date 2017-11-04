@@ -1,1 +1,1 @@
-fprintf(FINFO,"sending file_sum\n");
+fprintf(FINFO,"redoing %s(%d)\n",fname,i);

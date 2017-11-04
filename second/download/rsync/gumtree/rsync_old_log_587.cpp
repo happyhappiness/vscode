@@ -1,2 +1,1 @@
-fprintf(FERROR,"copy %s -> %s : %s\n",
-				      fnametmp,fname,strerror(errno));
+fprintf(FERROR,"ERROR: out of memory in %s\n",str);

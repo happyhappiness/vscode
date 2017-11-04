@@ -1,11 +1,8 @@
 fputs(
-"              (Added in 7.20.0)\n"
-"\n"
-"       --max-filesize <bytes>\n"
-"              Specify  the  maximum  size (in bytes) of a file to download. If\n"
-"              the file requested is larger than this value, the transfer  will\n"
-"              not start and curl will return with exit code 63.\n"
-"\n"
-"              NOTE:  The  file size is not always known prior to download, and\n"
-"              for such files this option has no effect even if the file trans-\n"
+"              Makes curl scan the .netrc  (_netrc  on  Windows)  file  in  the\n"
+"              user's home directory for login name and password. This is typi-\n"
+"              cally used for FTP on Unix. If used with HTTP, curl will  enable\n"
+"              user authentication. See netrc(5) ftp(1) for details on the file\n"
+"              format. Curl will not complain if that  file  doesn't  have  the\n"
+"              right permissions (it should not be either world- or group-read-\n"
 , stdout);

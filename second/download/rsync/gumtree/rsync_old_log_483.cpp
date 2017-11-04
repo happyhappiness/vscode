@@ -1,1 +1,1 @@
-fprintf(f,"-o, --owner              preserve owner (root only)\n");
+fprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);

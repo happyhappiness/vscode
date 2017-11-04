@@ -1,1 +1,1 @@
-fprintf(FERROR,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
+fprintf(FERROR,"Failed to close : %s\n",strerror(errno));

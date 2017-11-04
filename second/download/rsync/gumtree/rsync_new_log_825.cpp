@@ -1,2 +1,1 @@
-fprintf(logfile_fp, "%s [%d] %s",
-			timestring(time(NULL)), (int)getpid(), buf);
+io_printf(f_out, "@ERROR: no path setting.\n");

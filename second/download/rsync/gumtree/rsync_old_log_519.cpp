@@ -1,2 +1,1 @@
-fprintf(FINFO,"hash search s->n=%d len=%d count=%d\n",
-			s->n,(int)len,s->count);
+fprintf(FERROR,"recv_generator failed to open %s\n",fname);

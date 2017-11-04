@@ -1,1 +1,1 @@
-fprintf(f,"the block size defaults to %d\n",BLOCK_SIZE);
+fprintf(FINFO,"recv_generator(%s,%d)\n",fname,i);

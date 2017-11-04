@@ -1,1 +1,0 @@
-fprintf(FERROR,"ERROR: %s is a directory\n",fname);

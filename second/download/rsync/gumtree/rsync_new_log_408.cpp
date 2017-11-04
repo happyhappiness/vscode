@@ -1,1 +1,2 @@
-fprintf(FERROR,"ERROR: buffer overflow in %s\n",str);
+rprintf(FERROR,"read timeout after %d second - exiting\n", 
+			(int)(t-last_io));

@@ -1,1 +1,2 @@
-rprintf(FERROR,"filename too long\n");
+rprintf(FERROR,"Failed to exec %s : %s\n",
+	      command[0],strerror(errno));

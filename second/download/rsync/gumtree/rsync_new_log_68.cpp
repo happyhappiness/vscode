@@ -1,1 +1,1 @@
-fprintf(stderr,"receive_sums failed\n");
+fprintf(stderr,"deleting directory %s\n",f->name);

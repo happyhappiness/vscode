@@ -1,1 +1,1 @@
-fprintf(am_server?stderr:stdout,"created directory %s\n",name);
+fprintf(FERROR,"protocol version mismatch - is your shell clean?\n");

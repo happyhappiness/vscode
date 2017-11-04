@@ -1,1 +1,3 @@
-fprintf(FERROR,"ERROR: hard links not supported on this platform\n");
+fprintf(FINFO,"link %s => %s : %s\n",
+				f_name(&hlink_list[i]),
+				f_name(&hlink_list[i-1]),strerror(errno));

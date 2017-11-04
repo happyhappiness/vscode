@@ -1,1 +1,2 @@
-out_of_memory("get_checksum2");
+fprintf(FERROR,"Error reading %d bytes : %s\n",
+	      len,ret==-1?strerror(errno):"EOF");

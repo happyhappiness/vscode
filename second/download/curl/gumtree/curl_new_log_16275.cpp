@@ -1,9 +1,10 @@
 fputs(
-"              cookies  will  be written to the file. To store cookies, use the\n"
-"              -c, --cookie-jar option.\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"              Exercise caution if you  are  using  this  option  and  multiple\n"
-"              transfers may occur.  If you use the NAME1=VALUE1; format, or in\n"
-"              a file use the Set-Cookie format and  don't  specify  a  domain,\n"
-"              then the cookie is sent for any domain (even after redirects are\n"
+"              --data-raw is almost the same but does not have a special inter-\n"
+"              pretation  of  the  @ character. To post data purely binary, you\n"
+"              should instead use the --data-binary option.  To URL-encode  the\n"
+"              value of a form field you may use --data-urlencode.\n"
+"\n"
 , stdout);

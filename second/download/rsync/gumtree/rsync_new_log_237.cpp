@@ -1,1 +1,1 @@
-fprintf(FERROR,"sending file_sum\n");
+fprintf(FINFO,"done\n");

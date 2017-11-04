@@ -1,1 +1,1 @@
-fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+fprintf(stderr,"receiver read %d\n",read_total());

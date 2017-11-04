@@ -1,2 +1,2 @@
-fprintf (stderr,
-                 "WARNING: expected prefix of MUTT_ for type DT_MAGIC instead of %s\n", s);
+mutt_window_mvprintw (MuttIndexWindow, MIX_VOFFSET - 1, 0,
+                        "-- Remailer chain [Length: %d]", chain ? chain->cl : 0);

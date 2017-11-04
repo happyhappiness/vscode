@@ -1,11 +1,10 @@
 fputs(
-"              Typical  browsers  always  discard  session cookies when they're\n"
-"              closed down.\n"
+"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
+"              bytes, 'm' or M' makes it megabytes, while 'g' or 'G'  makes  it\n"
+"              gigabytes. Examples: 200K, 3m and 1G.\n"
 "\n"
-"              See also -b, --cookie and -c, --cookie-jar.\n"
+"              If  you  also use the -Y, --speed-limit option, that option will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
-"       --keepalive-time <seconds>\n"
-"              This option sets the time a  connection  needs  to  remain  idle\n"
-"              before  sending keepalive probes and the time between individual\n"
-"              keepalive probes. It is currently effective on operating systems\n"
 , stdout);

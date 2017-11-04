@@ -1,1 +1,1 @@
-printw (TITLE_FMT "%s", _("sign as: "), SmimeDefaultKey ? SmimeDefaultKey : _("<default>"));
+fprintf (fp, _("Key Usage .: "));

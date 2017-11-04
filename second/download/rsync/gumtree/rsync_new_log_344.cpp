@@ -1,1 +1,1 @@
-fprintf(FINFO, "sum=%.8x k=%d\n", sum, k);
+fprintf(FINFO,"IO error encountered - skipping file deletion\n");

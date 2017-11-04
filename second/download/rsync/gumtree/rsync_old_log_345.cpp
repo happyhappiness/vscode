@@ -1,2 +1,1 @@
-fprintf(FERROR,"hash search s->n=%d len=%d count=%d\n",
-	    s->n,(int)len,s->count);
+fprintf(FERROR,"recv_files(%d) starting\n",flist->count);

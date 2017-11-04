@@ -1,1 +1,1 @@
-state_puts (_("Error: copy data failed\n"), s);
+fprintf (fp, "%*s", KeyInfoPadding[KIP_AKA], _(KeyInfoPrompts[KIP_AKA]));

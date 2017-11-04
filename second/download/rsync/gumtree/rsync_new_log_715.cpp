@@ -1,1 +1,1 @@
-fprintf(fp, "\n       ");
+out_of_memory("add_rule");

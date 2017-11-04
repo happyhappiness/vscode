@@ -1,2 +1,1 @@
-rprintf(FERROR,"\nError: MDupdate called with illegal count value %d."
-              ,count);
+rprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));

@@ -1,1 +1,1 @@
-fprintf(FINFO,"calling match_sums %s\n",fname);
+rprintf(FINFO,"skipping directory %s\n",fname);

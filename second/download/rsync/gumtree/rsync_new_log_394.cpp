@@ -1,1 +1,1 @@
-fprintf(FINFO,"sender finished %s\n",fname);
+rprintf(FERROR,"getwd : %s\n",strerror(errno));

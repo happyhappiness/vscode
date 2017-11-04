@@ -1,1 +1,1 @@
-fprintf(FERROR,"readlink %s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"chdir %s : %s\n",name,strerror(errno));

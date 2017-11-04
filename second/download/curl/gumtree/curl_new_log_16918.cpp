@@ -1,0 +1,16 @@
+puts(
+"  empty one, you prevent that header from being sent. To prevent the Host:\n"
+"  header from being used:\n"
+"\n"
+"        curl -H \"Host:\" www.server.com\n"
+"\n"
+"FTP and PATH NAMES\n"
+"\n"
+"  Do note that when getting files with the ftp:// URL, the given path is\n"
+"  relative the directory you enter. To get the file 'README' from your home\n"
+"  directory at your ftp site, do:\n"
+"\n"
+"        curl ftp://user:passwd@my.site.com/README\n"
+"\n"
+"  But if you want the README file from the root directory of that very same\n"
+);

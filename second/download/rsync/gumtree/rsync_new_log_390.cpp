@@ -1,1 +1,1 @@
-fprintf(FINFO,"send_files phase=%d\n",phase);
+rprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);

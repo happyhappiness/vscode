@@ -1,11 +1,11 @@
 fputs(
-"              Tells  curl to limit what protocols it may use on redirect. Pro-\n"
-"              tocols denied by --proto are not overridden by this option.  See\n"
-"              --proto for how protocols are represented.\n"
+"       -U, --proxy-user <user:password>\n"
+"              Specify the user name and password to use for proxy  authentica-\n"
+"              tion.\n"
 "\n"
-"              Example, allow only HTTP and HTTPS on redirect:\n"
+"              If  you  use  a  Windows  SSPI-enabled curl binary and do either\n"
+"              Negotiate or NTLM authentication  then  you  can  tell  curl  to\n"
+"              select the user name and password from your environment by spec-\n"
+"              ifying a single colon with this option: \"-U :\".\n"
 "\n"
-"               curl --proto-redir -all,http,https http://example.com\n"
-"\n"
-"              By default curl will allow all protocols on redirect except sev-\n"
 , stdout);

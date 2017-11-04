@@ -1,1 +1,1 @@
-fprintf(fp,"  %-*s   ", maxLeftCol, left);
+out_of_memory("glob_expand_one");

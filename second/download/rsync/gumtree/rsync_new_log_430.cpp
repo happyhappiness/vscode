@@ -1,1 +1,2 @@
-rprintf(FERROR,"getwd : %s\n",strerror(errno));
+rprintf(FERROR,"chdir %s : %s (4)\n",
+				dir,strerror(errno));

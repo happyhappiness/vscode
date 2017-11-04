@@ -1,10 +1,9 @@
 fputs(
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the  command  HEAD which this uses to get nothing but the header\n"
-"              of a document. When used on an FTP or FILE file,  curl  displays\n"
-"              the file size and last modification time only.\n"
+"              written which then will be used as if they were written  on  the\n"
+"              actual command line.\n"
 "\n"
-"       --interface <name>\n"
-"              Perform  an operation using a specified interface. You can enter\n"
-"              interface name, IP address or host name. An example  could  look\n"
+"              Options  and their parameters must be specified on the same con-\n"
+"              fig file line, separated by whitespace,  colon,  or  the  equals\n"
+"              sign.  Long  option  names can optionally be given in the config\n"
+"              file without the initial double dashes and if so, the  colon  or\n"
 , stdout);

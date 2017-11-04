@@ -1,1 +1,1 @@
-fprintf(FERROR,"chdir %s: %s (3)\n",dir,strerror(errno));
+fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");

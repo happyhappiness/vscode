@@ -1,1 +1,1 @@
-out_of_memory("write_file");
+out_of_memory("rsync_module");

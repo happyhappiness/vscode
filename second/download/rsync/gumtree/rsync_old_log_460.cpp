@@ -1,1 +1,1 @@
-fprintf(FERROR,"chdir %s : %s (2)\n",name,strerror(errno));
+fprintf(f,"    --force              force deletion of directories even if not empty\n");

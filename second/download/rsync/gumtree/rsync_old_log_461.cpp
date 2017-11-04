@@ -1,1 +1,1 @@
-fprintf(FINFO,"server_sender starting pid=%d\n",(int)getpid());
+fprintf(f,"    --numeric-ids        don't map uid/gid values by user/group name\n");

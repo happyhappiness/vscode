@@ -1,1 +1,0 @@
-out_of_memory("msg_list_add");

@@ -1,1 +1,1 @@
-fprintf(FINFO,"redoing %s(%d)\n",fname,i);
+rprintf(FINFO,"make_file(%s)\n",fname);

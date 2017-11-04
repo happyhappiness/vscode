@@ -1,1 +1,1 @@
-rprintf(FINFO,"sending file_sum\n");
+rprintf(FINFO,"sending sums for %d\n",i);

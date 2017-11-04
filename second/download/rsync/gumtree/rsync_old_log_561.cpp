@@ -1,1 +1,1 @@
-fprintf(FINFO,"sending sums for %d\n",i);
+fprintf(FERROR,"fstat failed : %s\n",strerror(errno));

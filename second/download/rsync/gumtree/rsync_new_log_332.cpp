@@ -1,1 +1,1 @@
-fprintf(FINFO,"server_sender starting pid=%d\n",(int)getpid());
+fprintf(FINFO,"skipping non-regular file %s\n",fname);

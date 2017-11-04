@@ -1,1 +1,1 @@
-mutt_window_mvprintw (MuttIndexWindow, HDR_SUBJECT, 0, TITLE_FMT, Prompts[HDR_SUBJECT]);
+fprintf (fp, _("Valid To ..: %s\n"), shortbuf);

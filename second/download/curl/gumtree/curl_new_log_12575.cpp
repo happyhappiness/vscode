@@ -1,0 +1,15 @@
+fputs(
+"  It's easy to post data using curl. This is done using the -d <data>\n"
+"  option.  The post data must be urlencoded.\n"
+"\n"
+"  Post a simple \"name\" and \"phone\" guestbook.\n"
+"\n"
+"        curl -d \"name=Rafael%20Sagula&phone=3320780\" \\\n"
+"                http://www.where.com/guest.cgi\n"
+"\n"
+"  How to post a form with curl, lesson #1:\n"
+"\n"
+"  Dig out all the <input> tags in the form that you want to fill in. (There's\n"
+"  a perl program called formfind.pl on the curl site that helps with this).\n"
+"\n"
+, stdout);

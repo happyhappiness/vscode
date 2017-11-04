@@ -1,2 +1,2 @@
-fprintf(FINFO,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,am_sender,recurse);
+fprintf(FERROR,"link %s -> %s : %s\n",
+	      fname,file->link,strerror(errno));

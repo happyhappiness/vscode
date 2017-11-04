@@ -1,1 +1,1 @@
-fprintf(stderr, "failed to fork: %s\n", strerror(errno));
+assert(f_out == iobuf.out_fd);

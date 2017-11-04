@@ -1,1 +1,1 @@
-fprintf(f,"    --numeric-ids        don't map uid/gid values by user/group name\n");
+fprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));

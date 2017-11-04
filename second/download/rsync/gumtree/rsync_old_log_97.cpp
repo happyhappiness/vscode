@@ -1,1 +1,1 @@
-fprintf(stderr,"map_file failed\n");
+fprintf(stderr,"getwd : %s\n",strerror(errno));

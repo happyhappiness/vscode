@@ -1,11 +1,11 @@
 fputs(
-"              This option overrides previous uses of -v, --verbose or --trace.\n"
-"              If this option is used several times, the last one will be used.\n"
+"              use  for  server  authentication.  Overrides  -n,  --netrc   and\n"
+"              --netrc-optional.\n"
 "\n"
-"       --trace-time\n"
-"              Prepends a time stamp to each trace or verbose  line  that  curl\n"
-"              displays.  (Added in 7.14.0)\n"
+"              If  you  simply specify the user name, with or without the login\n"
+"              options, curl will prompt for a password.\n"
 "\n"
-"       -u, --user <user:password;options>\n"
-"              Specify  the  user  name, password and optional login options to\n"
+"              If you use an SSPI-enabled curl binary and perform NTLM  authen-\n"
+"              tication,  you  can force curl to select the user name and pass-\n"
+"              word from your environment by simply specifying a  single  colon\n"
 , stdout);

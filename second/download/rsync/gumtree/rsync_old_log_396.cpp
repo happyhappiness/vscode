@@ -1,2 +1,2 @@
-fprintf(FERROR,"generator starting pid=%d count=%d\n",
-	    (int)getpid(),flist->count);
+fprintf(FERROR,"chdir %s : %s\n",
+					dbuf,strerror(errno));

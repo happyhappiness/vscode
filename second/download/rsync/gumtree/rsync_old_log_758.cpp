@@ -1,1 +1,1 @@
-out_of_memory("add_list");
+io_printf(f_out, "%s\n", path);

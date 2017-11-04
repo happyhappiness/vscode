@@ -1,1 +1,2 @@
-fprintf(stderr, "\033]1;%s\007", str);
+fputs (_("Error: certification chain too long - stopping here\n"),
+                 fp);

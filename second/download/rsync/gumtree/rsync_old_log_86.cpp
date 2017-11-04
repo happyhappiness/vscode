@@ -1,1 +1,1 @@
-fprintf(stderr,"write_int failed : %s\n",strerror(errno));
+fprintf(stderr,"add_exclude(%s)\n",pattern);

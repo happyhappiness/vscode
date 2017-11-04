@@ -1,1 +1,1 @@
-fprintf(FINFO,"data recv %d at %d\n",i,(int)offset);
+hard_link_one(i);

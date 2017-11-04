@@ -1,1 +1,0 @@
-fprintf (fp, _("Key Type ..: %s, %lu bit %s\n"), s2, aval, s);

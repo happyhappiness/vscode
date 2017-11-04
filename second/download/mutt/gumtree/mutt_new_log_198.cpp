@@ -1,1 +1,1 @@
-state_puts (_("KeyID "), s);
+state_puts (_("*** End Notation ***\n"), s);

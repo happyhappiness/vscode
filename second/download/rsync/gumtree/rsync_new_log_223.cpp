@@ -1,2 +1,1 @@
-fprintf(FERROR,"mkdir %s : %s\n",
-		file->name,strerror(errno));
+out_of_memory("map_file");

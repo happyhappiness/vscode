@@ -1,1 +1,1 @@
-fprintf(FINFO,"send_files starting\n");
+rprintf(FERROR,"skipping long-named directory %s\n",fname);

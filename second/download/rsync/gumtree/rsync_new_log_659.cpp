@@ -1,1 +1,1 @@
-slprintf(pidbuf, sizeof(pidbuf), "%d\n", pid);
+fprintf(fp, "%s\n", help);

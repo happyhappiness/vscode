@@ -1,1 +1,2 @@
-fprintf(f,"-B, --block-size SIZE    checksum blocking size\n");
+fprintf(FERROR,"\nError: MDupdate called with illegal count value %d."
+              ,count);

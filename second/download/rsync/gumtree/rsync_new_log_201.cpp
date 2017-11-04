@@ -1,1 +1,1 @@
-fprintf(FERROR,"deleting directory %s\n",f->name);
+fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));

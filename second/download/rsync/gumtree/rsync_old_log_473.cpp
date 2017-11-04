@@ -1,1 +1,1 @@
-fprintf(f,"-c, --checksum           always checksum\n");
+fprintf(FERROR,"ERROR: symbolic links not supported\n");

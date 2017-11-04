@@ -1,1 +1,1 @@
-out_of_memory("bitbag_set_bit");
+fprintf(stderr, "Failed to run \"%s\"\n", prog);

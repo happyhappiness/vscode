@@ -1,11 +1,11 @@
 fputs(
-"              fer  ends  up  being larger than this given limit. This concerns\n"
-"              both FTP and HTTP transfers.\n"
+"              recipient should be specified as the user name or user name  and\n"
+"              domain (as per Section 3.5 of RFC5321). (Added in 7.34.0)\n"
 "\n"
-"       --mail-rcpt <address>\n"
-"              (SMTP) Specify a single address, user name or mailing list name.\n"
-"              When performing a mail transfer, the recipient should specify  a\n"
-"              valid email address to send the mail to. (Added in 7.20.0)\n"
+"              When performing a mailing list expand (EXPN command), the recip-\n"
+"              ient should be specified using the mailing list  name,  such  as\n"
+"              \"Friends\" or \"London-Office\".  (Added in 7.34.0)\n"
 "\n"
-"              When  performing  an  address  verification  (VRFY command), the\n"
+"       --max-redirs <num>\n"
+"              Set  maximum  number  of  redirection-followings allowed. If -L,\n"
 , stdout);

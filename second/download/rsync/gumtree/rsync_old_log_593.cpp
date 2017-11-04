@@ -1,1 +1,2 @@
-fprintf(FINFO,"send_files phase=%d\n",phase);
+fprintf(FERROR,"read %s: %s\n",
+			source,strerror(errno));

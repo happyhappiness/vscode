@@ -1,12 +1,11 @@
 fputs(
-"              such a case curl first connects to the SOCKS proxy and then con-\n"
-"              nects (through SOCKS) to the HTTP or HTTPS proxy.\n"
+"              connects  etc.  If this is a concern for you, try the --connect-\n"
+"              timeout option.\n"
 "\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Added in 7.18.0.\n"
-"\n"
-"       --socks5-basic\n"
-"              Tells curl to use username/password authentication when connect-\n"
-"              ing to a SOCKS5 proxy.  The username/password authentication  is\n"
+"       --ssl-allow-beast\n"
+"              This option tells curl to not work around a security flaw in the\n"
+"              SSL3  and TLS1.0 protocols known as BEAST.  If this option isn't\n"
+"              used, the SSL layer may use workarounds known to cause  interop-\n"
 , stdout);

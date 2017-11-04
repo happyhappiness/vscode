@@ -1,11 +1,11 @@
 fputs(
-"              requests - even after redirects are  followed,  like  when  told\n"
-"              with  -L,  --location. This can lead to the header being sent to\n"
-"              other hosts than the original host, so sensitive headers  should\n"
-"              be used with caution combined with following redirects.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              This  option  can  be  used multiple times to add/replace/remove\n"
-"              multiple headers.\n"
+"       --krb <level>\n"
+"              (FTP) Enable Kerberos authentication and use. The level must  be\n"
+"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
+"              'private'. Should you use a level that  is  not  one  of  these,\n"
+"              'private' will instead be used.\n"
 "\n"
-"       -h, --help\n"
+"              If this option is used several times, the last one will be used.\n"
 , stdout);

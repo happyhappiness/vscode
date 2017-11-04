@@ -1,1 +1,0 @@
-fprintf(stderr,"chdir %s : %s\n",argv[0],strerror(errno));

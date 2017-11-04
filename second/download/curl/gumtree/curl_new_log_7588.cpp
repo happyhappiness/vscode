@@ -1,10 +1,11 @@
 fputs(
-"                             option.  It's most useful in combination with the\n"
-"                             --remote-header-name option. (Added in 7.25.1)\n"
+"              http_connect   The  numerical  code  that  was found in the last\n"
+"                             response  (from  a  proxy)  to  a  curl   CONNECT\n"
+"                             request. (Added in 7.12.4)\n"
 "\n"
-"              http_code      The numerical response code that was found in the\n"
-"                             last  retrieved  HTTP(S)  or  FTP(s) transfer. In\n"
-"                             7.18.2 the alias response_code was added to  show\n"
-"                             the same info.\n"
+"              time_total     The  total time, in seconds, that the full opera-\n"
+"                             tion lasted. The time will be displayed with mil-\n"
+"                             lisecond resolution.\n"
 "\n"
+"              time_namelookup\n"
 , stdout);

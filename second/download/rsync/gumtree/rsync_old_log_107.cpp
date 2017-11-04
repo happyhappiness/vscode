@@ -1,1 +1,2 @@
-out_of_memory("checksum_init");
+fprintf(stderr,"write_int failed : %s\n",
+	    ret==-1?strerror(errno):"EOF");

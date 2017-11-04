@@ -1,2 +1,1 @@
-fprintf(FERROR,"write_int failed : %s\n",
-	    ret==-1?strerror(errno):"EOF");
+fprintf(f,"-t, --times              preserve times\n");

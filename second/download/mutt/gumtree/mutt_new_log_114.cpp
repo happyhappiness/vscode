@@ -1,0 +1,1 @@
+fprintf (fout, "X-Mutt-Resume-Draft: 1\n");

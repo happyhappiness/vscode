@@ -1,1 +1,1 @@
-fprintf(FERROR,"\n");
+fprintf(FINFO,"%s is a hard link\n",file->name);

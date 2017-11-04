@@ -1,0 +1,16 @@
+fputs(
+"              This  option  has no point when you're using a shell with decent\n"
+"              redirecting capabilities.\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       -t, --telnet-option <OPT=val>\n"
+"              Pass options to the telnet protocol. Supported options are:\n"
+"\n"
+"              TTYPE=<term> Sets the terminal type.\n"
+"\n"
+"              XDISPLOC=<X display> Sets the X display location.\n"
+"\n"
+"              NEW_ENV=<var,val> Sets an environment variable.\n"
+"\n"
+, stdout);

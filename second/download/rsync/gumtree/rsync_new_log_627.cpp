@@ -1,2 +1,1 @@
-rprintf(FERROR,"unlink %s: %s\n",
-			dest,strerror(errno));
+out_of_memory("flist_expand");

@@ -1,11 +1,9 @@
 fputs(
-"  formatted certificates to PEM formatted ones. This kind of converter is\n"
-"  included in recent versions of OpenSSL, and for older versions Dr Stephen\n"
-"  N. Henson has written a patch for SSLeay that adds this functionality. You\n"
-"  can get his patch (that requires an SSLeay installation) from his site at:\n"
-"  http://www.drh-consultancy.demon.co.uk/\n"
+"              default config file is checked for in the  following  places  in\n"
+"              this order:\n"
 "\n"
-"  Example on how to automatically retrieve a document using a certificate with\n"
-"  a personal password:\n"
-"\n"
+"              1)  curl  tries  to find the \"home dir\": It first checks for the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
+"              it  uses getpwuid() on Unix-like systems (which returns the home\n"
+"              dir given the current user in your system). On Windows, it  then\n"
 , stdout);

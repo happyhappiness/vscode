@@ -1,1 +1,1 @@
-fprintf(FINFO,"received %d names\n",flist->count);
+fprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));

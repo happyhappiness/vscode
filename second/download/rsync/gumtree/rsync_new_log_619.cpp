@@ -1,1 +1,1 @@
-rprintf(FERROR,"Failed to close : %s\n",strerror(errno));
+out_of_memory("string_area_new buffer");

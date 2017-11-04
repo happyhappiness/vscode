@@ -1,45 +1,64 @@
-int unsafe_symlink(char *dest, char *src)
+char *auth_server(int f_in, int f_out, int module, char *host, char *addr,
+		  char *leader)
 {
-	char *tok;
-	int depth = 0;
+	char *users = lp_auth_users(module);
+	char challenge[MD4_SUM_LENGTH*2];
+	char line[MAXPATHLEN];
+	char secret[512];
+	char pass2[MD4_SUM_LENGTH*2];
+	char *tok, *pass;
 
-	/* all absolute and null symlinks are unsafe */
-	if (!dest || !(*dest) || (*dest == '/')) return 1;
+	/* if no auth list then allow anyone in! */
+	if (!users || !*users)
+		return "";
 
-	src = strdup(src);
-	if (!src) out_of_memory("unsafe_symlink");
+	gen_challenge(addr, challenge);
 
-	/* find out what our safety margin is */
-	for (tok=strtok(src,"/"); tok; tok=strtok(NULL,"/")) {
-		if (strcmp(tok,"..") == 0) {
-			depth=0;
-		} else if (strcmp(tok,".") == 0) {
-			/* nothing */
-		} else {
-			depth++;
-		}
+	io_printf(f_out, "%s%s\n", leader, challenge);
+
+	if (!read_line(f_in, line, sizeof line - 1)
+	 || (pass = strchr(line, ' ')) == NULL) {
+		rprintf(FLOG, "auth failed on module %s from %s (%s): "
+			"invalid challenge response\n",
+			lp_name(module), host, addr);
+		return NULL;
 	}
-	free(src);
+	*pass++ = '\0';
 
-	/* drop by one to account for the filename portion */
-	depth--;
+	if (!(users = strdup(users)))
+		out_of_memory("auth_server");
 
-	dest = strdup(dest);
-	if (!dest) out_of_memory("unsafe_symlink");
+	for (tok = strtok(users, " ,\t"); tok; tok = strtok(NULL, " ,\t")) {
+		if (wildmatch(tok, line))
+			break;
+	}
+	free(users);
 
-	for (tok=strtok(dest,"/"); tok; tok=strtok(NULL,"/")) {
-		if (strcmp(tok,"..") == 0) {
-			depth--;
-		} else if (strcmp(tok,".") == 0) {
-			/* nothing */
-		} else {
-			depth++;
-		}
-		/* if at any point we go outside the current directory then
-		   stop - it is unsafe */
-		if (depth < 0) break;
+	if (!tok) {
+		rprintf(FLOG, "auth failed on module %s from %s (%s): "
+			"unauthorized user\n",
+			lp_name(module), host, addr);
+		return NULL;
 	}
 
-	free(dest);
-	return (depth < 0);
+	memset(secret, 0, sizeof secret);
+	if (!get_secret(module, line, secret, sizeof secret - 1)) {
+		memset(secret, 0, sizeof secret);
+		rprintf(FLOG, "auth failed on module %s from %s (%s): "
+			"missing secret for user \"%s\"\n",
+			lp_name(module), host, addr, line);
+		return NULL;
+	}
+
+	generate_hash(secret, challenge, pass2);
+	memset(secret, 0, sizeof secret);
+
+	if (strcmp(pass, pass2) != 0) {
+		rprintf(FLOG, "auth failed on module %s from %s (%s): "
+			"password mismatch\n",
+			lp_name(module), host, addr);
+		return NULL;
+	}
+
+	return strdup(line);
 }

@@ -1,1 +1,1 @@
-fprintf(stderr,"skipping non-regular file %s\n",fname);
+fprintf(stderr,"send_files starting\n");

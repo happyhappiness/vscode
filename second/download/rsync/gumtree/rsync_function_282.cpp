@@ -1,168 +1,91 @@
-int recv_files(int f_in,struct file_list *flist,char *local_name,int f_gen)
-{  
-  int fd1,fd2;
-  struct stat st;
-  char *fname;
-  char fnametmp[MAXPATHLEN];
-  struct map_struct *buf;
-  int i;
+void receive_file_entry(struct file_struct **fptr,
+			unsigned char flags,int f)
+{
+  static time_t last_time;
+  static mode_t last_mode;
+  static dev_t last_rdev;
+  static uid_t last_uid;
+  static gid_t last_gid;
+  static char lastname[MAXPATHLEN];
+  char thisname[MAXPATHLEN];
+  int l1=0,l2=0;
+  char *p;
   struct file_struct *file;
-  int phase=0;
-  int recv_ok;
 
-  if (verbose > 2) {
-    fprintf(FERROR,"recv_files(%d) starting\n",flist->count);
-  }
-
-  if (recurse && delete_mode && !local_name && flist->count>0) {
-    delete_files(flist);
-  }
-
-  while (1) 
-    {      
-      i = read_int(f_in);
-      if (i == -1) {
-	if (phase==0 && remote_version >= 13) {
-	  phase++;
-	  csum_length = SUM_LENGTH;
-	  if (verbose > 2)
-	    fprintf(FERROR,"recv_files phase=%d\n",phase);
-	  write_int(f_gen,-1);
-	  write_flush(f_gen);
-	  continue;
-	}
-	break;
-      }
-
-      file = &flist->files[i];
-      fname = file->name;
-
-      if (local_name)
-	fname = local_name;
-
-      if (dry_run) {
-	if (!am_server && verbose)
-	  printf("%s\n",fname);
-	continue;
-      }
-
-      if (verbose > 2)
-	fprintf(FERROR,"recv_files(%s)\n",fname);
-
-      /* open the file */  
-      fd1 = open(fname,O_RDONLY);
-
-      if (fd1 != -1 && fstat(fd1,&st) != 0) {
-	fprintf(FERROR,"fstat %s : %s\n",fname,strerror(errno));
-	receive_data(f_in,NULL,-1,NULL);
-	close(fd1);
-	continue;
-      }
-
-      if (fd1 != -1 && !S_ISREG(st.st_mode)) {
-	fprintf(FERROR,"%s : not a regular file (recv_files)\n",fname);
-	receive_data(f_in,NULL,-1,NULL);
-	close(fd1);
-	continue;
-      }
-
-      if (fd1 != -1 && st.st_size > 0) {
-	buf = map_file(fd1,st.st_size);
-	if (verbose > 2)
-	  fprintf(FERROR,"recv mapped %s of size %d\n",fname,(int)st.st_size);
-      } else {
-	buf = NULL;
-      }
-
-      /* open tmp file */
-      if (strlen(fname) > (MAXPATHLEN-8)) {
-	fprintf(FERROR,"filename too long\n");
-	continue;
-      }
-      sprintf(fnametmp,"%s.XXXXXX",fname);
-      if (NULL == mktemp(fnametmp)) {
-	fprintf(FERROR,"mktemp %s failed\n",fnametmp);
-	receive_data(f_in,buf,-1,NULL);
-	if (buf) unmap_file(buf);
-	close(fd1);
-	continue;
-      }
-      fd2 = open(fnametmp,O_WRONLY|O_CREAT,file->mode);
-      if (relative_paths && errno == ENOENT && 
-	  create_directory_path(fnametmp) == 0) {
-	      fd2 = open(fnametmp,O_WRONLY|O_CREAT,file->mode);
-      }
-      if (fd2 == -1) {
-	fprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));
-	receive_data(f_in,buf,-1,NULL);
-	if (buf) unmap_file(buf);
-	close(fd1);
-	continue;
-      }
-      
-      cleanup_fname = fnametmp;
-
-      if (!am_server && verbose)
-	printf("%s\n",fname);
-
-      /* recv file data */
-      recv_ok = receive_data(f_in,buf,fd2,fname);
-
-      if (fd1 != -1) {
-	if (buf) unmap_file(buf);
-	close(fd1);
-      }
-      close(fd2);
-
-      if (verbose > 2)
-	fprintf(FERROR,"renaming %s to %s\n",fnametmp,fname);
-
-      if (make_backups) {
-	char fnamebak[MAXPATHLEN];
-	if (strlen(fname) + strlen(backup_suffix) > (MAXPATHLEN-1)) {
-		fprintf(FERROR,"backup filename too long\n");
-		continue;
-	}
-	sprintf(fnamebak,"%s%s",fname,backup_suffix);
-	if (rename(fname,fnamebak) != 0 && errno != ENOENT) {
-	  fprintf(FERROR,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));
-	  continue;
-	}
-      }
-
-      /* move tmp file over real file */
-      if (rename(fnametmp,fname) != 0) {
-	fprintf(FERROR,"rename %s -> %s : %s\n",
-		fnametmp,fname,strerror(errno));
-	unlink(fnametmp);
-      }
-
-      cleanup_fname = NULL;
-
-      set_perms(fname,file,NULL,0);
-
-      if (!recv_ok) {
-	if (verbose > 1)
-	  fprintf(FERROR,"redoing %s(%d)\n",fname,i);
-        if (csum_length == SUM_LENGTH)
-	  fprintf(FERROR,"ERROR: file corruption in %s\n",fname);
-	write_int(f_gen,i);
-      }
-    }
-
-  if (preserve_hard_links)
-	  do_hard_links(flist);
-
-  /* now we need to fix any directory permissions that were 
-     modified during the transfer */
-  for (i = 0; i < flist->count; i++) {
-	  struct file_struct *file = &flist->files[i];
-	  if (!file->name || !S_ISDIR(file->mode)) continue;
-	  recv_generator(file->name,flist,i,-1);
-  }
-
-  if (verbose > 2)
-    fprintf(FERROR,"recv_files finished\n");
+  if (flags & SAME_NAME)
+    l1 = read_byte(f);
   
-  return 0;
+  if (flags & LONG_NAME)
+    l2 = read_int(f);
+  else
+    l2 = read_byte(f);
+
+  file = (struct file_struct *)malloc(sizeof(*file));
+  if (!file) out_of_memory("receive_file_entry");
+  bzero((char *)file,sizeof(*file));
+  (*fptr) = file;
+
+  strncpy(thisname,lastname,l1);
+  read_buf(f,&thisname[l1],l2);
+  thisname[l1+l2] = 0;
+
+  strncpy(lastname,thisname,MAXPATHLEN-1);
+  lastname[MAXPATHLEN-1] = 0;
+
+  clean_fname(thisname);
+
+  if ((p = strrchr(thisname,'/'))) {
+	  static char *lastdir;
+	  *p = 0;
+	  if (lastdir && strcmp(thisname, lastdir)==0) {
+		  file->dirname = lastdir;
+	  } else {
+		  file->dirname = strdup(thisname);
+		  lastdir = file->dirname;
+	  }
+	  file->basename = strdup(p+1);
+  } else {
+	  file->dirname = NULL;
+	  file->basename = strdup(thisname);
+  }
+
+  if (!file->basename) out_of_memory("receive_file_entry 1");
+
+
+  file->length = read_longint(f);
+  file->modtime = (flags & SAME_TIME) ? last_time : (time_t)read_int(f);
+  file->mode = (flags & SAME_MODE) ? last_mode : (mode_t)read_int(f);
+  if (preserve_uid)
+    file->uid = (flags & SAME_UID) ? last_uid : (uid_t)read_int(f);
+  if (preserve_gid)
+    file->gid = (flags & SAME_GID) ? last_gid : (gid_t)read_int(f);
+  if (preserve_devices && IS_DEVICE(file->mode))
+    file->rdev = (flags & SAME_RDEV) ? last_rdev : (dev_t)read_int(f);
+
+  if (preserve_links && S_ISLNK(file->mode)) {
+    int l = read_int(f);
+    file->link = (char *)malloc(l+1);
+    if (!file->link) out_of_memory("receive_file_entry 2");
+    read_buf(f,file->link,l);
+    file->link[l] = 0;
+  }
+
+#if SUPPORT_HARD_LINKS
+  if (preserve_hard_links && S_ISREG(file->mode)) {
+    file->dev = read_int(f);
+    file->inode = read_int(f);
+  }
+#endif
+  
+  if (always_checksum) {
+	  file->sum = (char *)malloc(MD4_SUM_LENGTH);
+	  if (!file->sum) out_of_memory("md4 sum");
+	  read_buf(f,file->sum,csum_length);
+  }
+  
+  last_mode = file->mode;
+  last_rdev = file->rdev;
+  last_uid = file->uid;
+  last_gid = file->gid;
+  last_time = file->modtime;
 }

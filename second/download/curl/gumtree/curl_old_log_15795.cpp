@@ -1,9 +1,10 @@
 fputs(
-"              cookies  will  be written to the file. To store cookies, use the\n"
-"              -c, --cookie-jar option.\n"
+"                     This will  make  curl  load  data  from  the  given  file\n"
+"                     (including  any  newlines), URL-encode that data and pass\n"
+"                     it on in the POST.\n"
 "\n"
-"              Exercise caution if you  are  using  this  option  and  multiple\n"
-"              transfers may occur.  If you use the NAME1=VALUE1; format, or in\n"
-"              a file use the Set-Cookie format and  don't  specify  a  domain,\n"
-"              then the cookie is sent for any domain (even after redirects are\n"
+"              name@filename\n"
+"                     This will  make  curl  load  data  from  the  given  file\n"
+"                     (including  any  newlines), URL-encode that data and pass\n"
+"                     it on in the POST. The  name  part  gets  an  equal  sign\n"
 , stdout);

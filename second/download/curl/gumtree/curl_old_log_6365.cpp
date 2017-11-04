@@ -1,10 +1,11 @@
 fputs(
-"              transfer not to use your entire bandwidth.\n"
+"              transfer. It means that curl might use higher transfer speeds in\n"
+"              short bursts, but over time it uses no more than the given rate.\n"
+"              If you also use the -Y/--speed-limit option,  that  option  will\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
-"              The  given speed is measured in bytes/second, unless a suffix is\n"
-"              appended.  Appending 'k' or 'K' will count the number  as  kilo-\n"
-"              bytes,  'm'  or M' makes it megabytes, while 'g' or 'G' makes it\n"
-"              gigabytes. Examples: 200K, 3m and 1G.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              The given rate is the average speed counted  during  the  entire\n"
+"       -l/--list-only\n"
 , stdout);

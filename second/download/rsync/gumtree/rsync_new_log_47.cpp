@@ -1,2 +1,1 @@
-fprintf(stderr,"generator starting pid=%d count=%d\n",
-	    (int)getpid(),flist->count);
+set_perms(fname,&flist->files[i],&st,1);

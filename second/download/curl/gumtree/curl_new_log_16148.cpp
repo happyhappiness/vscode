@@ -1,2 +1,1 @@
-warnf(config->global,
-          "Field file name not allowed here: %s\n", filename);
+warnf(config->global, "curl_mime_subparts failed!\n");

@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s/\n",fname);
+fprintf(FERROR,"backup filename too long\n");

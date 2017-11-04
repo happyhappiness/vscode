@@ -1,1 +1,2 @@
-rprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+rprintf(FINFO,"generator starting pid=%d count=%d\n",
+	    (int)getpid(),flist->count);

@@ -1,1 +1,1 @@
-rprintf(FINFO,"building file list ... ");
+rprintf(FERROR,"pipe failed in do_recv\n");

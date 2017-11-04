@@ -1,1 +1,2 @@
-fprintf(FINFO,"redoing %s(%d)\n",fname,i);
+fprintf(FERROR,"unlink %s: %s\n",
+			dest,strerror(errno));

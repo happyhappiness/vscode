@@ -1,1 +1,1 @@
-out_of_memory("receive_file_entry");
+fprintf(FERROR,"recv_file_name(%s)\n",flist->files[i].name);

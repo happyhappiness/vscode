@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);
+fprintf(FERROR,"chdir %s : %s (1)\n",name,strerror(errno));

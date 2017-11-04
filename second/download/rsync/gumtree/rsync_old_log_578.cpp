@@ -1,1 +1,1 @@
-fprintf(FERROR,"fstat %s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"pipe: %s\n",strerror(errno));

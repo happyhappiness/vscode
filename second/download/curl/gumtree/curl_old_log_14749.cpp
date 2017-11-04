@@ -1,11 +1,10 @@
 fputs(
-"              POST and PUT requests are rather invoked by using dedicated com-\n"
-"              mand line options.\n"
+"              second  and  then for all forthcoming retries it will double the\n"
+"              waiting time until it reaches 10 minutes which then will be  the\n"
+"              delay  between  the rest of the retries.  By using --retry-delay\n"
+"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
+"              --retry-max-time to limit the total time allowed for retries.\n"
 "\n"
-"              This  option  only  changes  the  actual  word  used in the HTTP\n"
-"              request, it does not alter the way curl behaves. So for  example\n"
-"              if  you  want  to make a proper HEAD request, using -X HEAD will\n"
-"              not suffice. You need to use the -I, --head option.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              The method string you set with -X, --request will  be  used  for\n"
 , stdout);

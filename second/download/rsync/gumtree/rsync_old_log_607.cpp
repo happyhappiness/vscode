@@ -1,1 +1,0 @@
-fprintf(FERROR, "compression init failed\n");

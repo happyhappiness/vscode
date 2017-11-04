@@ -1,1 +1,1 @@
-fprintf(stderr,"bad option -%c\n",opt);
+fprintf(am_server?stderr:stdout,"%s\n",fname);

@@ -1,1 +1,2 @@
-out_of_memory("receive_file_entry");
+fprintf(FERROR,"%s: %s\n",
+	    dir,strerror(errno));

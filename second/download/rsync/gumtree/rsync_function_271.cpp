@@ -1,39 +1,49 @@
-static char *get_local_name(struct file_list *flist,char *name)
+int copy_file(char *source, char *dest, mode_t mode)
 {
-  struct stat st;
+	int ifd;
+	int ofd;
+	char buf[1024 * 8];
+	int len;   /* Number of bytes read into `buf'. */
 
-  if (stat(name,&st) == 0) {
-    if (S_ISDIR(st.st_mode)) {
-      if (chdir(name) != 0) {
-	fprintf(FERROR,"chdir %s : %s\n",name,strerror(errno));
-	exit_cleanup(1);
-      }
-      return NULL;
-    }
-    if (flist->count > 1) {
-      fprintf(FERROR,"ERROR: destination must be a directory when copying more than 1 file\n");
-      exit_cleanup(1);
-    }
-    return name;
-  }
+	ifd = open(source, O_RDONLY);
+	if (ifd == -1) {
+		fprintf(FERROR,"open %s: %s\n",
+			source,strerror(errno));
+		return -1;
+	}
 
-  if (flist->count == 1)
-    return name;
+	if (unlink(dest) && errno != ENOENT) {
+		fprintf(FERROR,"unlink %s: %s\n",
+			dest,strerror(errno));
+		return -1;
+	}
 
-  if (!name) 
-    return NULL;
+	ofd = open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode);
+	if (ofd < 0) {
+		fprintf(FERROR,"open %s: %s\n",
+			dest,strerror(errno));
+		close(ifd);
+		return -1;
+	}
 
-  if (mkdir(name,0777 & ~orig_umask) != 0) {
-    fprintf(FERROR,"mkdir %s : %s\n",name,strerror(errno));
-    exit_cleanup(1);
-  } else {
-    fprintf(FINFO,"created directory %s\n",name);
-  }
+	while ((len = safe_read(ifd, buf, sizeof(buf))) > 0) {
+		if (full_write(ofd, buf, len) < 0) {
+			fprintf(FERROR,"write %s: %s\n",
+				dest,strerror(errno));
+			close(ifd);
+			close(ofd);
+			return -1;
+		}
+	}
 
-  if (chdir(name) != 0) {
-    fprintf(FERROR,"chdir %s : %s\n",name,strerror(errno));
-    exit_cleanup(1);
-  }
+	close(ifd);
+	close(ofd);
 
-  return NULL;
+	if (len < 0) {
+		fprintf(FERROR,"read %s: %s\n",
+			source,strerror(errno));
+		return -1;
+	}
+
+	return 0;
 }

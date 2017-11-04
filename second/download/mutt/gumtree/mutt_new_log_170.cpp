@@ -1,2 +1,1 @@
-state_puts (_("Warning: The key used to create the "
-                               "signature expired at: "), s);
+state_puts (sig->pka_address, s);

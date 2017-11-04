@@ -1,1 +1,1 @@
-fprintf(FERROR,"mktemp %s failed\n",fnametmp);
+fprintf(FERROR,"Failed to close : %s\n",strerror(errno));

@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: setgid failed\n");
+out_of_memory("add_list");

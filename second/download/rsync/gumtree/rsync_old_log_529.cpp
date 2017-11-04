@@ -1,1 +1,1 @@
-fprintf(FERROR,"stat(%s) : %s\n", fname, strerror(errno));
+fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));

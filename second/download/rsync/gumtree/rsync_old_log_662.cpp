@@ -1,1 +1,1 @@
-out_of_memory("read check");
+fprintf(f, " %s", fn);

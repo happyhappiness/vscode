@@ -1,2 +1,0 @@
-warnf(config->global,
-                    "Illegally formatted content-type field!\n");

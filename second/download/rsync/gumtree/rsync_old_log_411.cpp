@@ -1,1 +1,2 @@
-fprintf(FERROR,"out of memory in delete_already_done");
+fprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
+					getpid(),8,ret==-1?strerror(errno):"EOF");

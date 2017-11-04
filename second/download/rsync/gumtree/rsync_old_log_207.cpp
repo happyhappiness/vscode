@@ -1,1 +1,0 @@
-fprintf(stderr,"mktemp %s failed\n",fnametmp);

@@ -1,1 +1,1 @@
-out_of_memory("server_options");
+out_of_memory("fix_basis_dirs");

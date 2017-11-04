@@ -1,12 +1,10 @@
 fputs(
-"              instead of the standard, more informational, meter.\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"              This  progress  bar draws a single line of '#' characters across\n"
-"              the screen and shows a percentage if the transfer size is known.\n"
-"              For  transfers  without a known size, it will instead output one\n"
-"              '#' character for every 1024 bytes transferred.\n"
+"              Headers specified with this  option  will  not  be  included  in\n"
+"              requests that curl knows will not be sent to a proxy.\n"
 "\n"
-"       --proto-default <protocol>\n"
-"              Tells curl to use protocol for any URL missing a scheme name.\n"
-"\n"
+"              Starting  in  7.55.0, this option can take an argument in @file-\n"
 , stdout);

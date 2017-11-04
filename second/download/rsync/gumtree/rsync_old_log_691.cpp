@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: setuid failed\n");
+out_of_memory("add_list");

@@ -1,1 +1,0 @@
-printf("Sending request.\n");

@@ -1,1 +1,1 @@
-state_puts (txt, s);
+state_puts ("\n", s);

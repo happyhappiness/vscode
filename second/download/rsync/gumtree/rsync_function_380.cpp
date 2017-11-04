@@ -1,35 +1,30 @@
-static void delete_files(struct file_list *flist)
+void add_exclude_list(char *pattern,char ***list)
 {
-  struct file_list *local_file_list;
-  int i, j;
+  int len=0;
+  if (list && *list)
+    for (; (*list)[len]; len++) ;
 
-  if (cvs_exclude)
-    add_cvs_excludes();
-
-  if (io_error) {
-	  fprintf(FINFO,"IO error encountered - skipping file deletion\n");
-	  return;
+  if (strcmp(pattern,"!") == 0) {
+    if (verbose > 2)
+      fprintf(FINFO,"clearing exclude list\n");
+    while ((len)--) 
+      free((*list)[len]);
+    free((*list));
+    *list = NULL;
+    return;
   }
 
-  for (j=0;j<flist->count;j++) {
-	  char *name = f_name(flist->files[j]);
-
-	  if (!S_ISDIR(flist->files[j]->mode)) continue;
-
-	  if (delete_already_done(flist, j)) continue;
-
-	  if (!(local_file_list = send_file_list(-1,1,&name)))
-		  continue;
-
-	  if (verbose > 1)
-		  fprintf(FINFO,"deleting in %s\n", name);
-
-	  for (i=local_file_list->count-1;i>=0;i--) {
-		  if (!local_file_list->files[i]->basename) continue;
-		  if (-1 == flist_find(flist,local_file_list->files[i])) {
-			  delete_one(local_file_list->files[i]);
-		  }    
-	  }
-	  flist_free(local_file_list);
+  if (!*list) {
+    *list = (char **)malloc(sizeof(char *)*2);
+  } else {
+    *list = (char **)realloc(*list,sizeof(char *)*(len+2));
   }
+
+  if (!*list || !((*list)[len] = strdup(pattern)))
+    out_of_memory("add_exclude");
+
+  if (verbose > 2)
+    fprintf(FINFO,"add_exclude(%s)\n",pattern);
+  
+  (*list)[len+1] = NULL;
 }

@@ -1,1 +1,1 @@
-fprintf(FERROR,"mapped %s of size %d\n",fname,(int)st.st_size);
+fprintf(FERROR,"chdir %s : %s\n",dir,strerror(errno));

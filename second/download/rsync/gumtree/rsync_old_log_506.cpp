@@ -1,1 +1,1 @@
-fprintf(f,"\n");
+fprintf(FINFO,"%s\n",fname);

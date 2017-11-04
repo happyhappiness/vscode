@@ -1,58 +1,72 @@
-static void redraw_crypt_lines (HEADER *msg)
+int mutt_change_flag (HEADER *h, int bf)
 {
-  mvaddstr (HDR_CRYPT, 0, "Security: ");
+  int i, flag;
+  event_t event;
 
-  if ((WithCrypto & (APPLICATION_PGP | APPLICATION_SMIME)) == 0)
+  mutt_window_mvprintw (MuttMessageWindow, 0, 0,
+                        "%s? (D/N/O/r/*/!): ", bf ? _("Set flag") : _("Clear flag"));
+  mutt_window_clrtoeol (MuttMessageWindow);
+
+  event = mutt_getch();
+  i = event.ch;
+  if (i < 0)
   {
-    addstr(_("Not supported"));
-    return;
+    mutt_window_clearline (MuttMessageWindow, 0);
+    return (-1);
   }
 
-  if ((msg->security & (ENCRYPT | SIGN)) == (ENCRYPT | SIGN))
-    addstr (_("Sign, Encrypt"));
-  else if (msg->security & ENCRYPT)
-    addstr (_("Encrypt"));
-  else if (msg->security & SIGN)
-    addstr (_("Sign"));
-  else
-    addstr (_("None"));
+  mutt_window_clearline (MuttMessageWindow, 0);
 
-  if ((msg->security & (ENCRYPT | SIGN)))
+  switch (i)
   {
-    if ((WithCrypto & APPLICATION_PGP) && (msg->security & APPLICATION_PGP))
-    {
-      if ((msg->security & INLINE))
-        addstr (_(" (inline PGP)"));
+    case 'd':
+    case 'D':
+      if (!bf)
+      {
+        if (h)
+          mutt_set_flag (Context, h, MUTT_PURGE, bf);
+        else
+          mutt_tag_set_flag (MUTT_PURGE, bf);
+      }
+      flag = MUTT_DELETE;
+      break;
+
+    case 'N':
+    case 'n':
+      flag = MUTT_NEW;
+      break;
+
+    case 'o':
+    case 'O':
+      if (h)
+	mutt_set_flag (Context, h, MUTT_READ, !bf);
       else
-        addstr (_(" (PGP/MIME)"));
-    }
-    else if ((WithCrypto & APPLICATION_SMIME) &&
-             (msg->security & APPLICATION_SMIME))
-      addstr (_(" (S/MIME)"));
+	mutt_tag_set_flag (MUTT_READ, !bf);
+      flag = MUTT_OLD;
+      break;
+
+    case 'r':
+    case 'R':
+      flag = MUTT_REPLIED;
+      break;
+
+    case '*':
+      flag = MUTT_TAG;
+      break;
+
+    case '!':
+      flag = MUTT_FLAG;
+      break;
+
+    default:
+      BEEP ();
+      return (-1);
   }
 
-  if (option (OPTCRYPTOPPORTUNISTICENCRYPT) && (msg->security & OPPENCRYPT))
-      addstr (_(" (OppEnc mode)"));
+  if (h)
+    mutt_set_flag (Context, h, flag, bf);
+  else
+    mutt_tag_set_flag (flag, bf);
 
-  clrtoeol ();
-  move (HDR_CRYPTINFO, 0);
-  clrtoeol ();
-
-  if ((WithCrypto & APPLICATION_PGP)
-      && (msg->security & APPLICATION_PGP) && (msg->security & SIGN))
-    printw ("%s%s", _(" sign as: "), PgpSignAs ? PgpSignAs : _("<default>"));
-
-  if ((WithCrypto & APPLICATION_SMIME)
-      && (msg->security & APPLICATION_SMIME) && (msg->security & SIGN)) {
-      printw ("%s%s", _(" sign as: "), SmimeDefaultKey ? SmimeDefaultKey : _("<default>"));
-  }
-
-  if ((WithCrypto & APPLICATION_SMIME)
-      && (msg->security & APPLICATION_SMIME)
-      && (msg->security & ENCRYPT)
-      && SmimeCryptAlg
-      && *SmimeCryptAlg) {
-      mvprintw (HDR_CRYPTINFO, 40, "%s%s", _("Encrypt with: "),
-		NONULL(SmimeCryptAlg));
-  }
+  return 0;
 }

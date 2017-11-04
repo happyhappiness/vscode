@@ -1,1 +1,1 @@
-fprintf(FERROR,"got file_sum\n");
+fprintf(FERROR,"chdir %s: %s (3)\n",dir,strerror(errno));

@@ -1,11 +1,11 @@
 fputs(
-"              mand line options.\n"
+"              This  option  overrides any previous use of -x, --proxy, as they\n"
+"              are mutually exclusive.\n"
 "\n"
-"              This option only changes  the  actual  word  used  in  the  HTTP\n"
-"              request,  it does not alter the way curl behaves. So for example\n"
-"              if you want to make a proper HEAD request, using  -X  HEAD  will\n"
-"              not suffice. You need to use the -I, --head option.\n"
+"              Since 7.21.7, this option is superfluous since you can specify a\n"
+"              socks4a  proxy with -x, --proxy using a socks4a:// protocol pre-\n"
+"              fix.\n"
 "\n"
-"              The  method  string  you set with -X, --request will be used for\n"
-"              all requests, which if you for example use  -L,  --location  may\n"
+"              Since 7.52.0, --preproxy can be used to specify a SOCKS proxy at\n"
+"              the  same  time -x, --proxy is used with an HTTP/HTTPS proxy. In\n"
 , stdout);

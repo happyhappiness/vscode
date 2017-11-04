@@ -1,2 +1,1 @@
-rprintf(FERROR,"chown %s : %s\n",
-				  fname,strerror(errno));
+rprintf(FERROR,"%s : not a regular file (recv_files)\n",fname);

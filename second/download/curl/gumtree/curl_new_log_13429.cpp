@@ -1,11 +1,11 @@
 fputs(
-"              Set maximum number of  redirection-followings  allowed.  If  -L,\n"
-"              --location is used, this option can be used to prevent curl from\n"
-"              following redirections \"in absurdum\". By default, the  limit  is\n"
-"              set  to 50 redirections. Set this option to -1 to make it limit-\n"
-"              less.\n"
+"              Disables the buffering of the output stream. In normal work sit-\n"
+"              uations,  curl  will  use a standard buffered output stream that\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily  exactly  when  the data arrives.  Using this option\n"
+"              will disable that buffering.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --buffer to enforce the buffering.\n"
 "\n"
-"       --metalink\n"
 , stdout);

@@ -1,1 +1,1 @@
-fprintf(f,"-u, --update             update only (don't overwrite newer files)\n");
+fprintf(FINFO,"nothing to do\n");

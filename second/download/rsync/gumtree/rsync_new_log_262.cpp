@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s/\n",fname);
+fprintf(f,"    --numeric-ids        don't map uid/gid values by user/group name\n");

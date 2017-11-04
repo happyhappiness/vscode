@@ -1,1 +1,1 @@
-fprintf(FINFO,"built hash table\n");
+fprintf(FERROR,"skipping %s\n",fname);

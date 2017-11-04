@@ -1,1 +1,3 @@
-out_of_memory("read_args");
+fprintf(out, "%s0x%08lxUL%s", n % 5 ? "" : "    ",
+                (unsigned long)(table[n]),
+                n == 255 ? "\n" : (n % 5 == 4 ? ",\n" : ", "));

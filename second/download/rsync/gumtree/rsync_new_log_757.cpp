@@ -1,1 +1,1 @@
-out_of_memory("add_to_list");
+io_printf(f_out, "@RSYNCD: %d.%d\n", protocol_version, our_sub);

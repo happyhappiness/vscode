@@ -1,10 +1,12 @@
 fputs(
-"                             --remote-header-name option. (Added in 7.25.1)\n"
+"                             the same info.\n"
 "\n"
-"              ftp_entry_path The initial path curl ended up in when logging on\n"
-"                             to the remote FTP server. (Added in 7.15.4)\n"
+"              http_connect   The numerical code that was  found  in  the  last\n"
+"                             response   (from  a  proxy)  to  a  curl  CONNECT\n"
+"                             request. (Added in 7.12.4)\n"
 "\n"
-"              http_code      The numerical response code that was found in the\n"
-"                             last retrieved HTTP(S)  or  FTP(s)  transfer.  In\n"
-"                             7.18.2  the alias response_code was added to show\n"
+"              num_connects   Number of new connects made in the recent  trans-\n"
+"                             fer. (Added in 7.12.3)\n"
+"\n"
+"              num_redirects  Number  of  redirects  that  were followed in the\n"
 , stdout);

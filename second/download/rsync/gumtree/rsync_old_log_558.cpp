@@ -1,1 +1,1 @@
-fprintf(FERROR,"failed to open %s : %s\n",fname,strerror(errno));
+fprintf(FINFO,"send_files(%d,%s)\n",i,fname);

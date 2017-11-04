@@ -1,4 +1,3 @@
-warnf(config->global, "Transient problem: %s "
-                    "Will retry in %ld seconds. "
-                    "%ld retries left.\n",
-                    m[retry], retry_sleep/1000L, retry_numretries);
+warnf(operation->global, "%s:%d: warning: '%s' uses unquoted "
+                  "white space in the line that may cause side-effects!\n",
+                  filename, lineno, option);

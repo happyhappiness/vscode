@@ -1,1 +1,1 @@
-fprintf(stderr, " '%s'", *avp);
+out_of_memory("open_socket_in");

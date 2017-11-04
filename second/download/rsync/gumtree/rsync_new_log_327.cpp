@@ -1,2 +1,2 @@
-fprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
-					getpid(),8,ret==-1?strerror(errno):"EOF");
+fprintf(FINFO,"count=%d n=%d rem=%d\n",
+	    s->count,s->n,s->remainder);

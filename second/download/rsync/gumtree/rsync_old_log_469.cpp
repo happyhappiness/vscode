@@ -1,1 +1,1 @@
-fprintf(f,"Usage:\t%s [options] src user@host:dest\nOR",RSYNC_NAME);
+fprintf(f,"    --version            print version number\n");

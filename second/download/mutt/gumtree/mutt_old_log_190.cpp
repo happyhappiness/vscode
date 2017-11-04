@@ -1,1 +1,1 @@
-state_attach_puts (buf, state);
+state_attach_puts (_("               expires: "), s);

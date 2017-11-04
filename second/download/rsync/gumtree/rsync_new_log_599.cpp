@@ -1,2 +1,2 @@
-rprintf(FINFO,"send_files mapped %s of size %d\n",
-			  fname,(int)st.st_size);
+io_printf(fd,"@ERROR: failed to open lock file %s : %s\n",
+				  lp_lock_file(), strerror(errno));

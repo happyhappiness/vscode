@@ -1,30 +1,30 @@
-static int do_recv(int f_in,int f_out,struct file_list *flist,char *local_name)
+void add_exclude_list(char *pattern,char ***list)
 {
-  int pid;
-  int status=0;
-  int recv_pipe[2];
+  int len=0;
+  if (list && *list)
+    for (; (*list)[len]; len++) ;
 
-  if (preserve_hard_links)
-    init_hard_links(flist);
-
-  if (pipe(recv_pipe) < 0) {
-    fprintf(FERROR,"pipe failed in do_recv\n");
-    exit(1);
-  }
-  
-
-  if ((pid=fork()) == 0) {
-    recv_files(f_in,flist,local_name,recv_pipe[1]);
-    if (preserve_hard_links)
-      do_hard_links(flist);
+  if (strcmp(pattern,"!") == 0) {
     if (verbose > 2)
-      fprintf(FERROR,"receiver read %d\n",read_total());
-    exit_cleanup(0);
+      fprintf(FERROR,"clearing exclude list\n");
+    while ((len)--) 
+      free((*list)[len]);
+    free((*list));
+    *list = NULL;
+    return;
   }
 
-  generate_files(f_out,flist,local_name,recv_pipe[0]);
+  if (!*list) {
+    *list = (char **)malloc(sizeof(char *)*2);
+  } else {
+    *list = (char **)realloc(*list,sizeof(char *)*(len+2));
+  }
 
-  waitpid(pid, &status, 0);
+  if (!*list || !((*list)[len] = strdup(pattern)))
+    out_of_memory("add_exclude");
 
-  return status;
+  if (verbose > 2)
+    fprintf(FERROR,"add_exclude(%s)\n",pattern);
+  
+  (*list)[len+1] = NULL;
 }

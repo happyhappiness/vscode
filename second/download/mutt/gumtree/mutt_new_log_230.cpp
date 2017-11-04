@@ -1,1 +1,1 @@
-fprintf (fp, "%*s", KeyInfoPadding[KIP_AKA], _(KeyInfoPrompts[KIP_AKA]));
+puts ((char *)cc_version);

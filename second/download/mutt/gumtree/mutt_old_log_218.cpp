@@ -1,1 +1,1 @@
-printw (TITLE_FMT "%s", _("sign as: "), PgpSignAs ? PgpSignAs : _("<default>"));
+fprintf (fp, _("Key Type ..: %s, %lu bit %s\n"), s2, aval, s);

@@ -1,2 +1,1 @@
-rprintf(FERROR,"read %s: %s\n",
-			source,strerror(errno));
+io_printf(f_out, "%s%s\n", leader, b64_challenge);

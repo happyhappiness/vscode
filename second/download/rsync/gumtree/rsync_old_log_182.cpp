@@ -1,2 +1,1 @@
-fprintf(am_server?stderr:stdout,"%s -> %s\n",
-		fname,flist->files[i].link);
+fprintf(stderr,"renaming %s to %s\n",fnametmp,fname);

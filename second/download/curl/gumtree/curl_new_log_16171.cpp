@@ -1,1 +1,0 @@
-warnf(config->global, "setting file %s failed!\n", data);

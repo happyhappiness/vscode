@@ -1,1 +1,1 @@
-fprintf(FERROR,"send_files phase=%d\n",phase);
+fprintf(FINFO,"%s/\n",fname);

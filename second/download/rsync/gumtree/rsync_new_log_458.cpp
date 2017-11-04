@@ -1,1 +1,0 @@
-rprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));

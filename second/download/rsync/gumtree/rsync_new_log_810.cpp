@@ -1,1 +1,1 @@
-out_of_memory("make_file");
+fprintf(F," -l, --link-times            display the time on a symlink\n");

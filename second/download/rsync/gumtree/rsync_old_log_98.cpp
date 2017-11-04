@@ -1,1 +1,1 @@
-fprintf(stderr,"map_file failed : %s\n",strerror(errno));
+fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));

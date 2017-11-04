@@ -1,1 +1,1 @@
-fprintf(FERROR,"waiting on %d\n",pid);
+fprintf(FERROR,"unlink %s : %s\n",f->name,strerror(errno));

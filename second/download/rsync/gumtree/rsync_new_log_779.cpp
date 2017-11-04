@@ -1,1 +1,1 @@
-out_of_memory("sanitize_path");
+out_of_memory("read_args");

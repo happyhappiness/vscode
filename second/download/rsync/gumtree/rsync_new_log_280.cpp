@@ -1,1 +1,1 @@
-fprintf(FINFO,"deleting in %s\n", last_name);
+fprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);

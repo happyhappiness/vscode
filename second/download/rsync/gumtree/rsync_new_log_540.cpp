@@ -1,2 +1,1 @@
-rprintf(FERROR,"failed to set times on %s : %s\n",
-	      fname,strerror(errno));
+rprintf(FINFO,"recv_files(%s)\n",fname);

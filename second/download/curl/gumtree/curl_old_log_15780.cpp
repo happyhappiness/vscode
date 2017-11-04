@@ -1,11 +1,11 @@
 fputs(
-"              beros  V5, Negotiate, NTLM or Digest authentication then you can\n"
-"              tell curl to select the user name and password from  your  envi-\n"
-"              ronment by specifying a single colon with this option: \"-u :\".\n"
+"              The  given  offset  is  the  exact  number of bytes that will be\n"
+"              skipped, counting from the beginning of the source  file  before\n"
+"              it is transferred to the destination.  If used with uploads, the\n"
+"              FTP server command SIZE will not be used by curl.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
+"              Use \"-C -\" to tell curl to automatically find out  where/how  to\n"
+"              resume  the  transfer. It then uses the given output/input files\n"
+"              to figure that out.\n"
 "\n"
-"       -v, --verbose\n"
-"              Makes  curl  verbose  during the operation. Useful for debugging\n"
-"              and seeing what's going on \"under the  hood\".  A  line  starting\n"
 , stdout);

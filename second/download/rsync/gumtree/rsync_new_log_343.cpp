@@ -1,1 +1,1 @@
-fprintf(FINFO,"hash search b=%d len=%d\n",s->n,(int)len);
+fprintf(FINFO,"deleting directory %s\n",f_name(f));

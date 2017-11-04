@@ -1,1 +1,1 @@
-fputs ("MIME-Version: 1.0\n", fp);
+state_attach_puts (_("Error getting key information for KeyID "), s);

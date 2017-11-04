@@ -1,1 +1,1 @@
-fprintf(FERROR,"nothing to do\n");
+fprintf(FERROR,"deleting %s\n",f->name);

@@ -1,1 +1,1 @@
-fputs(line, keylog_file_fp);
+warnf(config->global, "curl_mime_addpart failed!\n");

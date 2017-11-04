@@ -1,1 +1,1 @@
-warnf(config->global, "no multipart to terminate!\n");
+warnf(config->global, "curl_mime_headers failed!\n");

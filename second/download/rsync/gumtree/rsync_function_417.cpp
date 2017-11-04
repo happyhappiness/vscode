@@ -1,30 +1,67 @@
-void add_exclude_list(char *pattern,char ***list)
+static int do_cmd(char *cmd,char *machine,char *user,char *path,int *f_in,int *f_out)
 {
-  int len=0;
-  if (list && *list)
-    for (; (*list)[len]; len++) ;
+	char *args[100];
+	int i,argc=0, ret;
+	char *tok,*dir=NULL;
 
-  if (strcmp(pattern,"!") == 0) {
-    if (verbose > 2)
-      fprintf(FINFO,"clearing exclude list\n");
-    while ((len)--) 
-      free((*list)[len]);
-    free((*list));
-    *list = NULL;
-    return;
-  }
+	if (!local_server) {
+		if (!cmd)
+			cmd = getenv(RSYNC_RSH_ENV);
+		if (!cmd)
+			cmd = RSYNC_RSH;
+		cmd = strdup(cmd);
+		if (!cmd) 
+			goto oom;
 
-  if (!*list) {
-    *list = (char **)malloc(sizeof(char *)*2);
-  } else {
-    *list = (char **)realloc(*list,sizeof(char *)*(len+2));
-  }
+		for (tok=strtok(cmd," ");tok;tok=strtok(NULL," ")) {
+			args[argc++] = tok;
+		}
 
-  if (!*list || !((*list)[len] = strdup(pattern)))
-    out_of_memory("add_exclude");
+#if HAVE_REMSH
+		/* remsh (on HPUX) takes the arguments the other way around */
+		args[argc++] = machine;
+		if (user) {
+			args[argc++] = "-l";
+			args[argc++] = user;
+		}
+#else
+		if (user) {
+			args[argc++] = "-l";
+			args[argc++] = user;
+		}
+		args[argc++] = machine;
+#endif
 
-  if (verbose > 2)
-    fprintf(FINFO,"add_exclude(%s)\n",pattern);
-  
-  (*list)[len+1] = NULL;
+		args[argc++] = rsync_path;
+
+		server_options(args,&argc);
+	}
+
+	args[argc++] = ".";
+
+	if (path && *path) 
+		args[argc++] = path;
+
+	args[argc] = NULL;
+
+	if (verbose > 3) {
+		fprintf(FINFO,"cmd=");
+		for (i=0;i<argc;i++)
+			fprintf(FINFO,"%s ",args[i]);
+		fprintf(FINFO,"\n");
+	}
+
+	if (local_server) {
+		ret = local_child(argc, args, f_in, f_out);
+	} else {
+		ret = piped_child(args,f_in,f_out);
+	}
+
+	if (dir) free(dir);
+
+	return ret;
+
+oom:
+	out_of_memory("do_cmd");
+	return 0; /* not reached */
 }

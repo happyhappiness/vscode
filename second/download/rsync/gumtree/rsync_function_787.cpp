@@ -1,55 +1,46 @@
-void *push_local_filters(const char *dir, unsigned int dirlen)
+static int stat_xattr(const char *fname, STRUCT_STAT *fst)
 {
-	struct filter_list_struct *ap, *push;
-	int i;
+	int mode, rdev_major, rdev_minor, uid, gid, len;
+	char buf[256];
 
-	set_filter_dir(dir, dirlen);
+	if (am_root >= 0 || IS_DEVICE(fst->st_mode) || IS_SPECIAL(fst->st_mode))
+		return -1;
 
-	if (!mergelist_cnt)
-		return NULL;
+	len = sys_lgetxattr(fname, XSTAT_ATTR, buf, sizeof buf - 1);
+	if (len >= (int)sizeof buf) {
+		len = -1;
+		errno = ERANGE;
+	}
+	if (len < 0) {
+		if (errno == ENOTSUP || errno == ENOATTR)
+			return -1;
+		if (errno == EPERM && S_ISLNK(fst->st_mode)) {
+			fst->st_uid = 0;
+			fst->st_gid = 0;
+			return 0;
+		}
+		fprintf(stderr, "failed to read xattr %s for %s: %s\n",
+			XSTAT_ATTR, fname, strerror(errno));
+		return -1;
+	}
+	buf[len] = '\0';
 
-	push = new_array(struct filter_list_struct, mergelist_cnt);
-	if (!push)
-		out_of_memory("push_local_filters");
-
-	for (i = 0, ap = push; i < mergelist_cnt; i++) {
-		memcpy(ap++, mergelist_parents[i]->u.mergelist,
-		       sizeof (struct filter_list_struct));
+	if (sscanf(buf, "%o %d,%d %d:%d",
+		   &mode, &rdev_major, &rdev_minor, &uid, &gid) != 5) {
+		fprintf(stderr, "Corrupt %s xattr attached to %s: \"%s\"\n",
+			XSTAT_ATTR, fname, buf);
+		exit(1);
 	}
 
-	/* Note: parse_filter_file() might increase mergelist_cnt, so keep
-	 * this loop separate from the above loop. */
-	for (i = 0; i < mergelist_cnt; i++) {
-		struct filter_struct *ex = mergelist_parents[i];
-		struct filter_list_struct *lp = ex->u.mergelist;
+#if _S_IFLNK != 0120000
+	if ((mode & (_S_IFMT)) == 0120000)
+		mode = (mode & ~(_S_IFMT)) | _S_IFLNK;
+#endif
+	fst->st_mode = mode;
 
-		if (verbose > 2) {
-			rprintf(FINFO, "[%s] pushing filter list%s\n",
-				who_am_i(), lp->debug_type);
-		}
+	fst->st_rdev = MAKEDEV(rdev_major, rdev_minor);
+	fst->st_uid = uid;
+	fst->st_gid = gid;
 
-		lp->tail = NULL; /* Switch any local rules to inherited. */
-		if (ex->match_flags & MATCHFLG_NO_INHERIT)
-			lp->head = NULL;
-
-		if (ex->match_flags & MATCHFLG_FINISH_SETUP) {
-			ex->match_flags &= ~MATCHFLG_FINISH_SETUP;
-			if (setup_merge_file(ex, lp))
-				set_filter_dir(dir, dirlen);
-		}
-
-		if (strlcpy(dirbuf + dirbuf_len, ex->pattern,
-		    MAXPATHLEN - dirbuf_len) < MAXPATHLEN - dirbuf_len) {
-			parse_filter_file(lp, dirbuf, ex->match_flags,
-					  XFLG_ANCHORED2ABS);
-		} else {
-			io_error |= IOERR_GENERAL;
-			rprintf(FINFO,
-			    "cannot add local filter rules in long-named directory: %s\n",
-			    full_fname(dirbuf));
-		}
-		dirbuf[dirbuf_len] = '\0';
-	}
-
-	return (void*)push;
+	return 0;
 }

@@ -1,2 +1,1 @@
-fprintf(FERROR,"open %s: %s\n",
-			dest,strerror(errno));
+out_of_memory("send_file_name");

@@ -1,10 +1,9 @@
 fputs(
-"                             steps include name lookup,  connect,  pretransfer\n"
-"                             and  transfer  before  the  final transaction was\n"
-"                             started. time_redirect shows the complete  execu-\n"
-"                             tion  time  for  multiple redirections. (Added in\n"
-"                             7.12.3)\n"
+"              This option overrides existing environment  variables  that  set\n"
+"              the  proxy  to use. If there's an environment variable setting a\n"
+"              proxy, you can set proxy to \"\" to override it.\n"
 "\n"
-"              time_starttransfer\n"
-"                             The time, in seconds,  it  took  from  the  start\n"
+"              All operations that are performed over an HTTP proxy will trans-\n"
+"              parently  be  converted  to HTTP. It means that certain protocol\n"
+"              specific operations might not be available. This is not the case\n"
 , stdout);

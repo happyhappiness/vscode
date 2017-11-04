@@ -1,1 +1,1 @@
-fprintf(FERROR,"select error: %s\n", strerror(errno));
+fprintf(f,"-D, --devices            preserve devices (root only)\n");

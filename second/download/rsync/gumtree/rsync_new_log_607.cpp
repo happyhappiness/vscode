@@ -1,1 +1,1 @@
-rprintf(FERROR, "compression init failed\n");
+fprintf(logfile,"%s  %s", timestring(), buf);

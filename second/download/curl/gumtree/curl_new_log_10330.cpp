@@ -1,9 +1,11 @@
 fputs(
-"              (for example POST or PUT), it will do the following request with\n"
-"              a GET if the HTTP response was 301, 302, or 303. If the response\n"
-"              code  was  any  other  3xx code, curl will re-send the following\n"
-"              request using the same unmodified method.\n"
+"              take precedence and might cripple the rate-limiting slightly, to\n"
+"              help keeping the speed-limit logic working.\n"
 "\n"
-"              You can tell curl to not change the non-GET  request  method  to\n"
-"              GET  after  a  30x  response  by using the dedicated options for\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
+"              scarce resource that will be busy at times so setting this range\n"
 , stdout);

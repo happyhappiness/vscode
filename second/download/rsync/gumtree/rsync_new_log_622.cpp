@@ -1,1 +1,1 @@
-rprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+io_printf(fd,"@ERROR: invalid uid %s\n", p);

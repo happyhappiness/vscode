@@ -1,0 +1,16 @@
+fputs(
+"               curl --interface eth0:1 https://www.example.com/\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"              See also --dns-interface.\n"
+"\n"
+"       -4, --ipv4\n"
+"              This  option tells curl to resolve names to IPv4 addresses only,\n"
+"              and not for example try IPv6.\n"
+"\n"
+"              See also  --http1.1  and  --http2.  This  option  overrides  -6,\n"
+"              --ipv6.\n"
+"\n"
+"       -6, --ipv6\n"
+, stdout);

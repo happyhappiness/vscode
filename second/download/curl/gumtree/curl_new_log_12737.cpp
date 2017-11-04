@@ -1,10 +1,11 @@
 fputs(
-"              If  this  option  is  used  several times, only the first one is\n"
-"              used.\n"
+"              Tell curl to bind to <ip-address> when making IPv6 DNS requests,\n"
+"              so that the DNS requests originate from this address. The  argu-\n"
+"              ment should be a single IPv6 address.\n"
 "\n"
-"       --disable-eprt\n"
-"              (FTP) Tell curl to disable the use of the EPRT and LPRT commands\n"
-"              when doing active FTP transfers. Curl will normally always first\n"
-"              attempt to use EPRT, then LPRT before using PORT, but with  this\n"
-"              option,  it  will  use PORT right away. EPRT and LPRT are exten-\n"
+"              This  option  requires  that  libcurl  was built with a resolver\n"
+"              backend that supports this operation. The c-ares backend is  the\n"
+"              only such one.  (Added in 7.33.0)\n"
+"\n"
+"       --dns-servers <ip-address,ip-address>\n"
 , stdout);

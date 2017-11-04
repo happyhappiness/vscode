@@ -1,1 +1,1 @@
-fprintf(FINFO,"nothing to do\n");
+fprintf(FINFO,"deleting %s\n",f_name(f));

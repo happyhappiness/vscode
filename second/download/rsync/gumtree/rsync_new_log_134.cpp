@@ -1,1 +1,1 @@
-fprintf(FERROR,"%s ",args[i]);
+fprintf(FERROR,"hash search b=%d len=%d\n",s->n,(int)len);

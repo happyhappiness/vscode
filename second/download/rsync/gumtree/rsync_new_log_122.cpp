@@ -1,1 +1,1 @@
-fprintf(FERROR,"chdir %s : %s\n",dir,strerror(errno));
+fprintf(FERROR,"receiver read %d\n",read_total());

@@ -1,10 +1,11 @@
 fputs(
-"       -N, --no-buffer\n"
-"              Disables the buffering of the output stream. In normal work sit-\n"
-"              uations, curl will use a standard buffered  output  stream  that\n"
-"              will have the effect that it will output the data in chunks, not\n"
-"              necessarily exactly when the data arrives.   Using  this  option\n"
-"              will disable that buffering.\n"
+"              This option requires a library built with GSSAPI  support.  This\n"
+"              is  not  very  common.  Use -V, --version to see if your version\n"
+"              supports GSS-Negotiate.\n"
 "\n"
-"              Note  that  this  is the negated option name documented. You can\n"
+"              When using this option, you must also provide a fake -u,  --user\n"
+"              option  to  activate the authentication code properly. Sending a\n"
+"              '-u :' is enough as the user  name  and  password  from  the  -u\n"
+"              option aren't actually used.\n"
+"\n"
 , stdout);

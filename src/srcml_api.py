@@ -17,7 +17,7 @@ class SrcmlApi:
         elif source_file is not None:
             self.set_source_file(source_file)
         self.log_functions = my_util.retrieve_log_function(my_constant.LOG_CALL_FILE_NAME)
-        self.log_functions.append('_')
+        self.log_functions_extend = ['_']
 
     def set_source_file(self, source_file):
         """
@@ -235,7 +235,7 @@ class SrcmlApi:
                         depended_node = depended_sub_node
                         break
                 info = self._get_text_for_nested_name(depended_node)
-                if info in self.log_functions:
+                if info in self.log_functions or info in self.log_functions_extend:
                     continue
                 # level 1
                 if depended_type == my_constant.VAR_FUNC_RETURN:
@@ -351,7 +351,7 @@ class SrcmlApi:
         for call_node in node.iterdescendants(tag=self.call_tag):
             # call --name --argument list ----argument
             info = self._get_text_for_nested_name(call_node[0])
-            if info not in self.log_functions:
+            if info not in self.log_functions and info not in self.log_functions_extend:
                 call_info.append(info + my_constant.FlAG_FUNC_RETURN)
         return name_nodes, call_info
 

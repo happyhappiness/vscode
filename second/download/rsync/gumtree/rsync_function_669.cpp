@@ -1,19 +1,15 @@
-struct file_list *flist_new()
-{
-	struct file_list *flist;
+void poptPrintUsage(poptContext con, FILE * f, /*@unused@*/ int flags) {
+    int cursor;
 
-	flist = (struct file_list *)malloc(sizeof(flist[0]));
-	if (!flist) out_of_memory("send_file_list");
+    cursor = showHelpIntro(con, f);
+    cursor += showShortOptions(con->options, f, NULL);
+    singleTableUsage(f, cursor, con->options, NULL);
 
-	flist->count=0;
-	flist->malloced = 1000;
-	flist->files = (struct file_struct **)malloc(sizeof(flist->files[0])*
-						     flist->malloced);
-	if (!flist->files) out_of_memory("send_file_list");
-#if ARENA_SIZE > 0
-	flist->string_area = string_area_new(0);
-#else
-	flist->string_area = 0;
-#endif
-	return flist;
+    if (con->otherHelp) {
+	cursor += strlen(con->otherHelp) + 1;
+	if (cursor > 79) fprintf(f, "\n       ");
+	fprintf(f, " %s", con->otherHelp);
+    }
+
+    fprintf(f, "\n");
 }

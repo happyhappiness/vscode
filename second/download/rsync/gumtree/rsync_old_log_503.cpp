@@ -1,1 +1,2 @@
-fprintf(f,"    --exclude-from FILE  exclude files listed in FILE\n");
+fprintf(FERROR,"failed to set times on %s : %s\n",
+	      fname,strerror(errno));

@@ -1,1 +1,1 @@
-fprintf(f,"    --csum-length LENGTH set the checksum length\n");
+fprintf(f,"-W, --whole-file         copy whole files, no incremental checks\n");

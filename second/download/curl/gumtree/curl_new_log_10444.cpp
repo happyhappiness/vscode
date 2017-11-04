@@ -1,3 +1,2 @@
 warnf(global,
-                    "Couldn't read data from file \"%s\", this makes "
-                    "an empty POST.\n", nextarg);
+                "-v, --verbose overrides an earlier trace/verbose option\n");

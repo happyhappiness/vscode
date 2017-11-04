@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_files(%s)\n",fname);
+fprintf(FINFO,"excluding file %s\n",fname);

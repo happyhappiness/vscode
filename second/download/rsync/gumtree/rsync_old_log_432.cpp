@@ -1,2 +1,2 @@
-fprintf(FERROR,"chdir %s : %s\n",
-					dbuf,strerror(errno));
+fprintf(f,"rsync version %s Copyright Andrew Tridgell and Paul Mackerras\n\n",
+	  VERSION);

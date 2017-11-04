@@ -1,1 +1,2 @@
-out_of_memory("add_delete_entry");
+rprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
+	      getpid(),len,ret==-1?strerror(errno):"EOF");

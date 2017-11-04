@@ -1,1 +1,1 @@
-fprintf(FERROR,"make_file(%s)\n",fname);
+fprintf(FERROR,"built hash table\n");

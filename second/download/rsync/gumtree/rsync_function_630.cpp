@@ -1,49 +1,58 @@
-int copy_file(char *source, char *dest, mode_t mode)
+char *auth_server(int fd, int module, char *addr, char *leader)
 {
-	int ifd;
-	int ofd;
-	char buf[1024 * 8];
-	int len;   /* Number of bytes read into `buf'. */
+	char *users = lp_auth_users(module);
+	char challenge[16];
+	char b64_challenge[30];
+	char line[MAXPATHLEN];
+	static char user[100];
+	char secret[100];
+	char pass[30];
+	char pass2[30];
+	char *tok;
 
-	ifd = open(source, O_RDONLY);
-	if (ifd == -1) {
-		fprintf(FERROR,"open %s: %s\n",
-			source,strerror(errno));
-		return -1;
+	/* if no auth list then allow anyone in! */
+	if (!users || !*users) return "";
+
+	gen_challenge(addr, challenge);
+	
+	base64_encode(challenge, 16, b64_challenge);
+
+	io_printf(fd,"%s%s\n", leader, b64_challenge);
+
+	if (!read_line(fd, line, sizeof(line)-1)) {
+		return NULL;
 	}
 
-	if (do_unlink(dest) && errno != ENOENT) {
-		fprintf(FERROR,"unlink %s: %s\n",
-			dest,strerror(errno));
-		return -1;
+	memset(user, 0, sizeof(user));
+	memset(pass, 0, sizeof(pass));
+
+	if (sscanf(line,"%99s %29s", user, pass) != 2) {
+		return NULL;
+	}
+	
+	users = strdup(users);
+	if (!users) return NULL;
+
+	for (tok=strtok(users," ,\t"); tok; tok = strtok(NULL," ,\t")) {
+		if (fnmatch(tok, user, 0) == 0) break;
+	}
+	free(users);
+
+	if (!tok) {
+		return NULL;
+	}
+	
+	memset(secret, 0, sizeof(secret));
+	if (!get_secret(module, user, secret, sizeof(secret)-1)) {
+		memset(secret, 0, sizeof(secret));
+		return NULL;
 	}
 
-	ofd = do_open(dest, O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, mode);
-	if (ofd < 0) {
-		fprintf(FERROR,"open %s: %s\n",
-			dest,strerror(errno));
-		close(ifd);
-		return -1;
-	}
+	generate_hash(secret, b64_challenge, pass2);
+	memset(secret, 0, sizeof(secret));
+	
+	if (strcmp(pass, pass2) == 0)
+		return user;
 
-	while ((len = safe_read(ifd, buf, sizeof(buf))) > 0) {
-		if (full_write(ofd, buf, len) < 0) {
-			fprintf(FERROR,"write %s: %s\n",
-				dest,strerror(errno));
-			close(ifd);
-			close(ofd);
-			return -1;
-		}
-	}
-
-	close(ifd);
-	close(ofd);
-
-	if (len < 0) {
-		fprintf(FERROR,"read %s: %s\n",
-			source,strerror(errno));
-		return -1;
-	}
-
-	return 0;
+	return NULL;
 }

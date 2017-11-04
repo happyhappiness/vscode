@@ -1,1 +1,1 @@
-fprintf(FERROR,"pipe failed in do_recv\n");
+fprintf(f,"-I, --ignore-times       don't exclude files that match length and time\n");

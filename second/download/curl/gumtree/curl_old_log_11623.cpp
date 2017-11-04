@@ -1,0 +1,15 @@
+fputs(
+"       87     unable to parse FTP file list\n"
+"\n"
+"       88     FTP chunk callback reported error\n"
+"\n"
+"       89     No connection available, the session will be queued\n"
+"\n"
+"       90     SSL public key does not matched pinned public key\n"
+"\n"
+"       XX     More error codes will appear here in future releases. The exist-\n"
+"              ing ones are meant to never change.\n"
+"\n"
+"AUTHORS / CONTRIBUTORS\n"
+"       Daniel  Stenberg is the main author, but the whole list of contributors\n"
+, stdout);

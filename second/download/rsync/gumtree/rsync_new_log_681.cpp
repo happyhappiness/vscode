@@ -1,1 +1,1 @@
-io_printf(f_out, "%s\n", path);
+out_of_memory("receive_file_entry");

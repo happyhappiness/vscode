@@ -1,1 +1,1 @@
-out_of_memory("make_exclude");
+io_printf(f_out, "\n");

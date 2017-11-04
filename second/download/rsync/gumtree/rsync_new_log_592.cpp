@@ -1,1 +1,2 @@
-rprintf(FINFO,"send_files starting\n");
+rprintf(FERROR,"write %s: %s\n",
+				dest,strerror(errno));

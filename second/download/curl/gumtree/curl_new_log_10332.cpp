@@ -1,9 +1,9 @@
 fputs(
-"              Specify  the  maximum  transfer  rate you want curl to use - for\n"
-"              both downloads and uploads. This feature is useful if you have a\n"
-"              limited pipe and you'd like your transfer not to use your entire\n"
-"              bandwidth. To make it slower than it otherwise would be.\n"
+"              (which is plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"              The given speed is measured in bytes/second, unless a suffix  is\n"
-"              appended.   Appending  'k' or 'K' will count the number as kilo-\n"
+"       -m, --max-time <seconds>\n"
+"              Maximum  time  in  seconds that you allow the whole operation to\n"
+"              take.  This is useful for preventing your batch jobs from  hang-\n"
+"              ing  for  hours due to slow networks or links going down.  Since\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
 , stdout);

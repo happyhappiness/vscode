@@ -1,1 +1,1 @@
-rprintf(FERROR,"receive_sums failed\n");
+out_of_memory("make_exclude");

@@ -1,1 +1,1 @@
-fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);
+fprintf(stderr,"receive_sums failed\n");

@@ -1,1 +1,0 @@
-rprintf(FERROR,"ERROR: destination must be a directory when copying more than 1 file\n");

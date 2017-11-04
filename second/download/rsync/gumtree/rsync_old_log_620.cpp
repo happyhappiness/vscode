@@ -1,1 +1,0 @@
-fprintf(FERROR,"pipe: %s\n",strerror(errno));

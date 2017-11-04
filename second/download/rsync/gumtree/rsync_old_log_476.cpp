@@ -1,1 +1,1 @@
-fprintf(f,"-R, --relative           use relative path names\n");
+fprintf(FINFO,"file list sent\n");

@@ -1,1 +1,1 @@
-fprintf(FERROR,"got file_sum\n");
+fprintf(FERROR,"out of memory in delete_already_done");

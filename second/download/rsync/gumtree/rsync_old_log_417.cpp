@@ -1,1 +1,1 @@
-fprintf(FINFO,"add_exclude(%s)\n",pattern);
+fprintf(FINFO,"cmd=");

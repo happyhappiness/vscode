@@ -1,1 +1,1 @@
-fprintf(FINFO,"deleting %s\n",f_name(f));
+fprintf(FINFO,"generator wrote %ld\n",(long)write_total());

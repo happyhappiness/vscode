@@ -1,11 +1,10 @@
 fputs(
-"        curl -d \"user=foobar&pass=12345&id=blablabla&ding=submit\"  (continues)\n"
-"          http://www.formpost.com/getthis/post.cgi\n"
+"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
+"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
+"  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
+"  path the \"cookie\" should be used for (by specifying \"path=value\"), when the\n"
+"  cookie should expire (\"expire=DATE\"), for what domain to use it\n"
+"  (\"domain=NAME\") and if it should be used on secure connections only\n"
+"  (\"secure\").\n"
 "\n"
-"\n"
-"  While -d uses the application/x-www-form-urlencoded mime-type, generally\n"
-"  understood by CGI's and similar, curl also supports the more capable\n"
-"  multipart/form-data type. This latter type supports things like file upload.\n"
-"\n"
-"  -F accepts parameters like -F \"name=contents\". If you want the contents to\n"
 , stdout);

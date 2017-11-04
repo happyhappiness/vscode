@@ -1,30 +1,67 @@
-void glob_expand(char *base, char **argv, int *argc, int maxargs)
+static int start_daemon(int fd)
 {
-	char *s = argv[*argc];
-	char *p, *q;
+	char line[200];
+	char *motd;
+	int i = -1;
+	extern char *config_file;
+	extern int remote_version;
 
-	if (!s || !*s) return;
-
-	if (strncmp(s, base, strlen(base)) == 0) {
-		s += strlen(base);
+	if (!lp_load(config_file, 0)) {
+		exit_cleanup(RERR_SYNTAX);
 	}
 
-	s = strdup(s);
-	if (!s) out_of_memory("glob_expand");
+	set_socket_options(fd,"SO_KEEPALIVE");
+	set_socket_options(fd,lp_socket_options());
+	set_nonblocking(fd);
 
-	q = s;
-	while ((p = strstr(q,base)) && ((*argc) < maxargs)) {
-		if (p != q && *(p-1) == ' ' && p[strlen(base)] == '/') {
-			/* split it at this point */
-			*(p-1) = 0;
-			glob_expand_one(q, argv, argc, maxargs);
-			q = p+strlen(base)+1;
-		} else {
-			q++;
+	io_printf(fd,"@RSYNCD: %d\n", PROTOCOL_VERSION);
+
+	motd = lp_motd_file();
+	if (motd && *motd) {
+		FILE *f = fopen(motd,"r");
+		while (f && !feof(f)) {
+			int len = fread(line, 1, sizeof(line)-1, f);
+			if (len > 0) {
+				line[len] = 0;
+				io_printf(fd,"%s", line);
+			}
+		}
+		if (f) fclose(f);
+		io_printf(fd,"\n");
+	}
+
+	if (!read_line(fd, line, sizeof(line)-1)) {
+		return -1;
+	}
+
+	if (sscanf(line,"@RSYNCD: %d", &remote_version) != 1) {
+		io_printf(fd,"@ERROR: protocol startup error\n");
+		return -1;
+	}	
+
+	while (i == -1) {
+		line[0] = 0;
+		if (!read_line(fd, line, sizeof(line)-1)) {
+			return -1;
+		}
+
+		if (!*line || strcmp(line,"#list")==0) {
+			send_listing(fd);
+			return -1;
+		} 
+
+		if (*line == '#') {
+			/* it's some sort of command that I don't understand */
+			io_printf(fd,"@ERROR: Unknown command '%s'\n", line);
+			return -1;
+		}
+
+		i = lp_number(line);
+		if (i == -1) {
+			io_printf(fd,"@ERROR: Unknown module '%s'\n", line);
+			return -1;
 		}
 	}
 
-	if (*q && (*argc < maxargs)) glob_expand_one(q, argv, argc, maxargs);
-
-	free(s);
+	return rsync_module(fd, i);
 }

@@ -1,1 +1,1 @@
-fprintf(FERROR,"unlink %s : %s\n",f->name,strerror(errno));
+fprintf(FERROR,"EOF in map_ptr!\n");

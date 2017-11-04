@@ -1,1 +1,1 @@
-rprintf(FINFO,"recv_files phase=%d\n",phase);
+rprintf(FERROR, "inflateIncomp returned %d\n", r);

@@ -1,1 +1,1 @@
-fprintf(f,"    --rsync-path PATH    specify path to rsync on the remote machine\n");
+fprintf(FERROR,"unlink(%s) : %s\n", fname, strerror(errno));

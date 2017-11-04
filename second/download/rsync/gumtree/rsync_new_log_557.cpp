@@ -1,1 +1,2 @@
-rprintf(FINFO,"%s is newer\n",fname);
+rprintf(FERROR, "send_files failed on long-named directory %s\n",
+				  fname);

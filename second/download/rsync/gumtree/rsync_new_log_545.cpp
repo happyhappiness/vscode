@@ -1,1 +1,1 @@
-rprintf(FINFO,"recv_generator(%s,%d)\n",fname,i);
+rprintf(FERROR,"mktemp %s failed\n",fnametmp);

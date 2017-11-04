@@ -1,1 +1,1 @@
-rprintf(FERROR,"fork: %s\n",strerror(errno));
+out_of_memory("send_file_list");

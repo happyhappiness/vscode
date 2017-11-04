@@ -1,83 +1,76 @@
-static int execCommand(poptContext con)
-    /*@*/
+static int *open_socket_in(int type, int port, const char *bind_address,
+			   int af_hint)
 {
-    poptItem item = con->doExec;
-    const char ** argv;
-    int argc = 0;
-    int rc;
+	int one = 1;
+	int s, *socks, maxs, i;
+	struct addrinfo hints, *all_ai, *resp;
+	char portbuf[10];
+	int error;
 
-    if (item == NULL) /*XXX can't happen*/
-	return POPT_ERROR_NOARG;
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = af_hint;
+	hints.ai_socktype = type;
+	hints.ai_flags = AI_PASSIVE;
+	snprintf(portbuf, sizeof portbuf, "%d", port);
+	error = getaddrinfo(bind_address, portbuf, &hints, &all_ai);
+	if (error) {
+		rprintf(FERROR, RSYNC_NAME ": getaddrinfo: bind address %s: %s\n",
+			bind_address, gai_strerror(error));
+		return NULL;
+	}
 
-    if (item->argv == NULL || item->argc < 1 ||
-	(!con->execAbsolute && strchr(item->argv[0], '/')))
-	    return POPT_ERROR_NOARG;
+	/* Count max number of sockets we might open. */
+	for (maxs = 0, resp = all_ai; resp; resp = resp->ai_next, maxs++) {}
 
-    argv = malloc(sizeof(*argv) *
-			(6 + item->argc + con->numLeftovers + con->finalArgvCount));
-    if (argv == NULL) return POPT_ERROR_MALLOC;	/* XXX can't happen */
+	if (!(socks = new_array(int, maxs + 1)))
+		out_of_memory("open_socket_in");
 
-    if (!strchr(item->argv[0], '/') && con->execPath) {
-	char *s = alloca(strlen(con->execPath) + strlen(item->argv[0]) + sizeof("/"));
-	sprintf(s, "%s/%s", con->execPath, item->argv[0]);
-	argv[argc] = s;
-    } else {
-	argv[argc] = findProgramPath(item->argv[0]);
-    }
-    if (argv[argc++] == NULL) return POPT_ERROR_NOARG;
+	/* We may not be able to create the socket, if for example the
+	 * machine knows about IPv6 in the C library, but not in the
+	 * kernel. */
+	for (resp = all_ai, i = 0; resp; resp = resp->ai_next) {
+		s = socket(resp->ai_family, resp->ai_socktype,
+			   resp->ai_protocol);
 
-    if (item->argc > 1) {
-	memcpy(argv + argc, item->argv + 1, sizeof(*argv) * (item->argc - 1));
-	argc += (item->argc - 1);
-    }
+		if (s == -1) {
+			/* See if there's another address that will work... */
+			continue;
+		}
 
-    if (con->finalArgv != NULL && con->finalArgvCount > 0) {
-	memcpy(argv + argc, con->finalArgv,
-		sizeof(*argv) * con->finalArgvCount);
-	argc += con->finalArgvCount;
-    }
+		setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
+			   (char *)&one, sizeof one);
 
-    if (con->leftovers != NULL && con->numLeftovers > 0) {
-#if 0
-	argv[argc++] = "--";
-#endif
-	memcpy(argv + argc, con->leftovers, sizeof(*argv) * con->numLeftovers);
-	argc += con->numLeftovers;
-    }
-
-    argv[argc] = NULL;
-
-#ifdef __hpux
-    rc = setresuid(getuid(), getuid(),-1);
-    if (rc) return POPT_ERROR_ERRNO;
-#else
-/*
- * XXX " ... on BSD systems setuid() should be preferred over setreuid()"
- * XXX 	sez' Timur Bakeyev <mc@bat.ru>
- * XXX	from Norbert Warmuth <nwarmuth@privat.circular.de>
- */
-#if defined(HAVE_SETUID)
-    rc = setuid(getuid());
-    if (rc) return POPT_ERROR_ERRNO;
-#elif defined (HAVE_SETREUID)
-    rc = setreuid(getuid(), getuid()); /*hlauer: not portable to hpux9.01 */
-    if (rc) return POPT_ERROR_ERRNO;
-#else
-    ; /* Can't drop privileges */
-#endif
+#ifdef IPV6_V6ONLY
+		if (resp->ai_family == AF_INET6) {
+			if (setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY,
+				       (char *)&one, sizeof one) < 0
+			    && default_af_hint != AF_INET6) {
+				close(s);
+				continue;
+			}
+		}
 #endif
 
-    if (argv[0] == NULL)
-	return POPT_ERROR_NOARG;
-#ifdef MYDEBUG
-    {	const char ** avp;
-	fprintf(stderr, "==> execvp(%s) argv[%d]:", argv[0], argc);
-	for (avp = argv; *avp; avp++)
-	    fprintf(stderr, " '%s'", *avp);
-	fprintf(stderr, "\n");
-    }
-#endif
+		/* Now we've got a socket - we need to bind it. */
+		if (bind(s, resp->ai_addr, resp->ai_addrlen) < 0) {
+			/* Nope, try another */
+			close(s);
+			continue;
+		}
 
-    rc = execvp(argv[0], (char *const *)argv);
-    return POPT_ERROR_ERRNO;
+		socks[i++] = s;
+	}
+	socks[i] = -1;
+
+	if (all_ai)
+		freeaddrinfo(all_ai);
+
+	if (!i) {
+		rprintf(FERROR,
+			"unable to bind any inbound sockets on port %d\n",
+			port);
+		free(socks);
+		return NULL;
+	}
+	return socks;
 }

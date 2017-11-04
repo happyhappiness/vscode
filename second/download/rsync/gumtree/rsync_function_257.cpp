@@ -1,6 +1,6 @@
 int main(int argc,char *argv[])
 {
-    int pid, status, pid2, status2;
+    int pid, status = 0, status2 = 0;
     int opt;
     int option_index;
     char *shell_cmd = NULL;
@@ -12,7 +12,19 @@ int main(int argc,char *argv[])
     struct file_list *flist;
     char *local_name = NULL;
 
+#ifdef SETPGRP_VOID
+    setpgrp();
+#else
+    setpgrp(0,0);
+#endif
+    signal(SIGUSR1, sigusr1_handler);
+
     starttime = time(NULL);
+    am_root = (getuid() == 0);
+
+    /* we set a 0 umask so that correct file permissions can be
+       carried across */
+    orig_umask = umask(0);
 
     while ((opt = getopt_long(argc, argv, 
 			      short_options, long_options, &option_index)) 
@@ -22,7 +34,7 @@ int main(int argc,char *argv[])
 	case OPT_VERSION:
 	  printf("rsync version %s  protocol version %d\n",
 		 VERSION,PROTOCOL_VERSION);
-	  exit(0);
+	  exit_cleanup(0);
 
 	case OPT_SUFFIX:
 	  backup_suffix = optarg;
@@ -53,8 +65,8 @@ int main(int argc,char *argv[])
 	  break;
 
 	case 'h':
-	  usage(stdout);
-	  exit(0);
+	  usage(FINFO);
+	  exit_cleanup(0);
 
 	case 'b':
 	  make_backups=1;
@@ -62,6 +74,10 @@ int main(int argc,char *argv[])
 
 	case 'n':
 	  dry_run=1;
+	  break;
+
+	case 'S':
+	  sparse_files=1;
 	  break;
 
 	case 'C':
@@ -72,23 +88,33 @@ int main(int argc,char *argv[])
 	  update_only=1;
 	  break;
 
-#if SUPPORT_LINKS
 	case 'l':
 	  preserve_links=1;
 	  break;
+
+	case 'L':
+	  copy_links=1;
+	  break;
+
+	case 'W':
+	  whole_file=1;
+	  break;
+
+	case 'H':
+#if SUPPORT_HARD_LINKS
+	  preserve_hard_links=1;
+#else 
+	  fprintf(FERROR,"ERROR: hard links not supported on this platform\n");
+	  exit_cleanup(1);
 #endif
+	  break;
 
 	case 'p':
 	  preserve_perms=1;
 	  break;
 
 	case 'o':
-	  if (getuid() == 0) {
-	    preserve_uid=1;
-	  } else {
-	    fprintf(stderr,"-o only allowed for root\n");
-	    exit(1);
-	  }
+	  preserve_uid=1;
 	  break;
 
 	case 'g':
@@ -96,12 +122,7 @@ int main(int argc,char *argv[])
 	  break;
 
 	case 'D':
-	  if (getuid() == 0) {
-	    preserve_devices=1;
-	  } else {
-	    fprintf(stderr,"-D only allowed for root\n");
-	    exit(1);
-	  }
+	  preserve_devices=1;
 	  break;
 
 	case 't':
@@ -124,10 +145,10 @@ int main(int argc,char *argv[])
 	  preserve_perms=1;
 	  preserve_times=1;
 	  preserve_gid=1;
-	  if (getuid() == 0) {
+	  if (am_root) {
 	    preserve_devices=1;
 	    preserve_uid=1;
-	  }	    
+	  }
 	  break;
 
 	case OPT_SERVER:
@@ -136,14 +157,18 @@ int main(int argc,char *argv[])
 
 	case OPT_SENDER:
 	  if (!am_server) {
-	    usage(stderr);
-	    exit(1);
+	    usage(FERROR);
+	    exit_cleanup(1);
 	  }
 	  sender = 1;
 	  break;
 
 	case 'r':
 	  recurse = 1;
+	  break;
+
+	case 'R':
+	  relative_paths = 1;
 	  break;
 
 	case 'e':
@@ -154,9 +179,13 @@ int main(int argc,char *argv[])
 	  block_size = atoi(optarg);
 	  break;
 
+        case 'z':
+	  do_compression = 1;
+	  break;
+
 	default:
-	  fprintf(stderr,"bad option -%c\n",opt);
-	  exit(1);
+	  /* fprintf(FERROR,"bad option -%c\n",opt); */
+	  exit_cleanup(1);
 	}
     }
 
@@ -165,18 +194,23 @@ int main(int argc,char *argv[])
       argv++;
     }
 
+    signal(SIGCHLD,SIG_IGN);
+    signal(SIGINT,SIGNAL_CAST sig_int);
+    signal(SIGPIPE,SIGNAL_CAST sig_int);
+    signal(SIGHUP,SIGNAL_CAST sig_int);
+
     if (dry_run)
       verbose = MAX(verbose,1);
 
+#ifndef SUPPORT_LINKS
+    if (!am_server && preserve_links) {
+	    fprintf(FERROR,"ERROR: symbolic links not supported\n");
+	    exit_cleanup(1);
+    }
+#endif
+
     if (am_server) {
-      int version = read_int(STDIN_FILENO);
-      if (version < MIN_PROTOCOL_VERSION) {
-	fprintf(stderr,"protocol version mismatch %d %d\n",
-		version,PROTOCOL_VERSION);
-	exit(1);
-      }
-      write_int(STDOUT_FILENO,PROTOCOL_VERSION);
-      write_flush(STDOUT_FILENO);
+      setup_protocol(STDOUT_FILENO,STDIN_FILENO);
 	
       if (sender) {
 	recv_exclude_list(STDIN_FILENO);
@@ -186,12 +220,12 @@ int main(int argc,char *argv[])
       } else {
 	do_server_recv(argc,argv);
       }
-      exit(0);
+      exit_cleanup(0);
     }
 
     if (argc < 2) {
-      usage(stderr);
-      exit(1);
+      usage(FERROR);
+      exit_cleanup(1);
     }
 
     p = strchr(argv[0],':');
@@ -232,36 +266,29 @@ int main(int argc,char *argv[])
     }
 
     if (verbose > 3) {
-      fprintf(stderr,"cmd=%s machine=%s user=%s path=%s\n",
+      fprintf(FERROR,"cmd=%s machine=%s user=%s path=%s\n",
 	      shell_cmd?shell_cmd:"",
 	      shell_machine?shell_machine:"",
 	      shell_user?shell_user:"",
 	      shell_path?shell_path:"");
     }
     
-    signal(SIGCHLD,SIG_IGN);
-    signal(SIGINT,SIGNAL_CAST sig_int);
-    signal(SIGPIPE,SIGNAL_CAST sig_int);
-
     if (!sender && argc != 1) {
-      usage(stderr);
-      exit(1);
+      usage(FERROR);
+      exit_cleanup(1);
     }
 
     pid = do_cmd(shell_cmd,shell_machine,shell_user,shell_path,&f_in,&f_out);
 
-    write_int(f_out,PROTOCOL_VERSION);
-    write_flush(f_out);
-    {
-      int version = read_int(f_in);
-      if (version < MIN_PROTOCOL_VERSION) {
-	fprintf(stderr,"protocol version mismatch\n");
-	exit(1);
-      }	
-    }
+    setup_protocol(f_out,f_in);
+
+#if HAVE_SETLINEBUF
+    setlinebuf(FINFO);
+    setlinebuf(FERROR);
+#endif
 
     if (verbose > 3) 
-      fprintf(stderr,"parent=%d child=%d sender=%d recurse=%d\n",
+      fprintf(FERROR,"parent=%d child=%d sender=%d recurse=%d\n",
 	      (int)getpid(),pid,sender,recurse);
 
     if (sender) {
@@ -269,37 +296,28 @@ int main(int argc,char *argv[])
 	add_cvs_excludes();
       if (delete_mode) 
 	send_exclude_list(f_out);
-      flist = send_file_list(f_out,recurse,argc,argv);
+      flist = send_file_list(f_out,argc,argv);
       if (verbose > 3) 
-	fprintf(stderr,"file list sent\n");
+	fprintf(FERROR,"file list sent\n");
       send_files(flist,f_out,f_in);
       if (verbose > 3)
-	fprintf(stderr,"waiting on %d\n",pid);
+	fprintf(FERROR,"waiting on %d\n",pid);
       waitpid(pid, &status, 0);
       report(-1);
-      exit(status);
+      exit_cleanup(status);
     }
 
     send_exclude_list(f_out);
 
     flist = recv_file_list(f_in);
     if (!flist || flist->count == 0) {
-      fprintf(stderr,"nothing to do\n");
-      exit(0);
+      fprintf(FERROR,"nothing to do\n");
+      exit_cleanup(0);
     }
 
     local_name = get_local_name(flist,argv[0]);
 
-    if ((pid2=fork()) == 0) {
-      recv_files(f_in,flist,local_name);
-      if (verbose > 1)
-	fprintf(stderr,"receiver read %d\n",read_total());
-      exit(0);
-    }
-
-    generate_files(f_out,flist,local_name);
-
-    waitpid(pid2, &status2, 0);
+    status2 = do_recv(f_in,f_out,flist,local_name);
 
     report(f_in);
 

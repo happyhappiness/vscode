@@ -1,1 +1,1 @@
-state_attach_puts (_("Warning: The signature expired at: "), s);
+state_attach_puts (sig->pka_address, s);

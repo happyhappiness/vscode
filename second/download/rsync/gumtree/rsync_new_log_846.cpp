@@ -1,1 +1,1 @@
-fprintf(stderr, "Failed to parse config file: %s\n", config_file);
+alloc_xbuf(&iobuf.in, ROUND_UP_1024(IO_BUFFER_SIZE));

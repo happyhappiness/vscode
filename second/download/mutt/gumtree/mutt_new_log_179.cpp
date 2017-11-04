@@ -1,1 +1,1 @@
-state_puts (_("A system error occurred"), s );
+state_puts(" ", s);

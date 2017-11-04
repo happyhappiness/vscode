@@ -1,1 +1,1 @@
-fprintf(stderr,"write_buf failed : %s\n",strerror(errno));
+fprintf(stderr,"%s : %s\n",fname,strerror(errno));

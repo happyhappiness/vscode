@@ -1,12 +1,9 @@
 fputs(
-"              as  random  data. The data may be used to seed the random engine\n"
-"              for SSL connections.  See also the --egd-file option.\n"
+"              The file will be saved in the current working directory. If  you\n"
+"              want  the  file  saved  in  a different directory, make sure you\n"
+"              change the current working directory before invoking  curl  with\n"
+"              this option.\n"
 "\n"
-"       -r, --range <range>\n"
-"              (HTTP FTP SFTP FILE) Retrieve a byte range (i.e a partial  docu-\n"
-"              ment)  from  a  HTTP/1.1,  FTP  or  SFTP server or a local FILE.\n"
-"              Ranges can be specified in a number of ways.\n"
-"\n"
-"              0-499     specifies the first 500 bytes\n"
-"\n"
+"              The  remote  file  name  to use for saving is extracted from the\n"
+"              given URL, nothing else, and if it already  exists  it  will  be\n"
 , stdout);

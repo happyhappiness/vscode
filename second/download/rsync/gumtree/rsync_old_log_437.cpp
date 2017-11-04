@@ -1,1 +1,1 @@
-fprintf(FINFO,"received %d names\n",flist->count);
+fprintf(f,"-c, --checksum           always checksum\n");

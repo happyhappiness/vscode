@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_file_name(%s)\n",flist->files[i].name);
+fprintf(FERROR,"-D only allowed for root\n");

@@ -1,1 +1,1 @@
-rprintf(FERROR,"rmdir %s : %s\n",f_name(f),strerror(errno));
+rprintf(FERROR, "compression init failed\n");

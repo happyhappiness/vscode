@@ -1,1 +1,0 @@
-rprintf(FERROR,"chdir %s: %s (3)\n",dir,strerror(errno));

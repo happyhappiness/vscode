@@ -1,1 +1,1 @@
-printf ("%02X", p->fingerprint[i]);
+(mutt_yesorno (_("Warning: This alias name may not work.  Fix it?"), M_YES);

@@ -1,0 +1,1 @@
+rprintf(FERROR,"rmdir(%s) : %s\n", fname, strerror(errno));

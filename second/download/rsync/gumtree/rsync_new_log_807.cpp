@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: pre-xfer exec preparation failed\n");
+S_ISDIR(st.st_mode);

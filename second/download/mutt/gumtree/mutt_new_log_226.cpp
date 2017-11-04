@@ -1,2 +1,2 @@
-mutt_window_mvprintw (MuttIndexWindow, HDR_SUBJECT, 0,
-                        "%*s", HeaderPadding[HDR_SUBJECT], _(Prompts[HDR_SUBJECT]));
+fprintf (fp, "%*s%s\n", KeyInfoPadding[KIP_VALID_TO],
+                       _(KeyInfoPrompts[KIP_VALID_TO]), shortbuf);

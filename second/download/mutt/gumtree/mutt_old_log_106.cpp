@@ -1,1 +1,3 @@
-state_attach_puts (_("Error getting key information: "), s);
+state_printf (s, _("[-- Error: "
+                       "Unknown multipart/signed protocol %s! --]\n\n"),
+                  protocol);

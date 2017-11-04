@@ -1,48 +1,68 @@
-void match_sums(int f,struct sum_struct *s,struct map_struct *buf,off_t len)
+static int receive_data(int f_in,struct map_struct *buf,int fd,char *fname)
 {
-	char file_sum[MD4_SUM_LENGTH];
+  int i,n,remainder,len,count;
+  off_t offset = 0;
+  off_t offset2;
+  char *data;
+  static char file_sum1[MD4_SUM_LENGTH];
+  static char file_sum2[MD4_SUM_LENGTH];
+  char *map=NULL;
 
-	last_match = 0;
-	false_alarms = 0;
-	tag_hits = 0;
-	matches=0;
-	data_transfer=0;
+  count = read_int(f_in);
+  n = read_int(f_in);
+  remainder = read_int(f_in);
 
-	sum_init();
+  sum_init();
 
-	if (len > 0 && s->count>0) {
-		build_hash_table(s);
-		
-		if (verbose > 2) 
-			fprintf(FINFO,"built hash table\n");
-		
-		hash_search(f,s,buf,len);
-		
-		if (verbose > 2) 
-			fprintf(FINFO,"done hash search\n");
-	} else {
-		matched(f,s,buf,len,-1);
-	}
+  for (i=recv_token(f_in,&data); i != 0; i=recv_token(f_in,&data)) {
+    if (i > 0) {
+      if (verbose > 3)
+	fprintf(FINFO,"data recv %d at %d\n",i,(int)offset);
 
-	sum_end(file_sum);
+      sum_update(data,i);
 
-	if (remote_version >= 14) {
-		if (verbose > 2)
-			fprintf(FINFO,"sending file_sum\n");
-		write_buf(f,file_sum,MD4_SUM_LENGTH);
-	}
+      if (fd != -1 && write_file(fd,data,i) != i) {
+	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
+      offset += i;
+    } else {
+      i = -(i+1);
+      offset2 = i*n;
+      len = n;
+      if (i == count-1 && remainder != 0)
+	len = remainder;
 
-	if (targets) {
-		free(targets);
-		targets=NULL;
-	}
-	
-	if (verbose > 2)
-		fprintf(FINFO, "false_alarms=%d tag_hits=%d matches=%d\n",
-			false_alarms, tag_hits, matches);
-	
-	total_tag_hits += tag_hits;
-	total_false_alarms += false_alarms;
-	total_matches += matches;
-	total_data_transfer += data_transfer;
+      if (verbose > 3)
+	fprintf(FINFO,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);
+
+      map = map_ptr(buf,offset2,len);
+
+      see_token(map, len);
+      sum_update(map,len);
+
+      if (fd != -1 && write_file(fd,map,len) != len) {
+	fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+	exit_cleanup(1);
+      }
+      offset += len;
+    }
+  }
+
+  if (fd != -1 && offset > 0 && sparse_end(fd) != 0) {
+    fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+    exit_cleanup(1);
+  }
+
+  sum_end(file_sum1);
+
+  if (remote_version >= 14) {
+    read_buf(f_in,file_sum2,MD4_SUM_LENGTH);
+    if (verbose > 2)
+      fprintf(FINFO,"got file_sum\n");
+    if (fd != -1 && memcmp(file_sum1,file_sum2,MD4_SUM_LENGTH) != 0)
+      return 0;
+  }
+  return 1;
 }

@@ -1,1 +1,1 @@
-fputs (_("Fingerprint: "), fp);
+fputs (" -----\n\n", fp);

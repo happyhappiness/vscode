@@ -1,1 +1,1 @@
-fprintf(FINFO,"renaming %s to %s\n",fnametmp,fname);
+rprintf(FINFO,"skipping directory %s\n",fname);

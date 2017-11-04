@@ -1,1 +1,1 @@
-!tool_create_output_file(outs);
+warnf(config->global, "Error building form post!\n");

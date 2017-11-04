@@ -1,0 +1,18 @@
+puts(
+" the file if it was updated since yesterday:\n"
+"\n"
+"        curl -z yesterday http://remote.server.com/remote.html\n"
+"\n"
+" Curl will then accept a wide range of date formats. You always make the date\n"
+" check the other way around by prepending it with a dash '-'.\n"
+"\n"
+"DICT\n"
+"\n"
+"  For fun try\n"
+"\n"
+"        curl dict://dict.org/m:curl\n"
+"        curl dict://dict.org/d:heisenbug:jargon\n"
+"        curl dict://dict.org/d:daniel:web1913\n"
+"\n"
+"  Aliases for 'm' are 'match' and 'find', and aliases for 'd' are 'define'\n"
+);

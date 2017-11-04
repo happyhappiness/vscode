@@ -1,1 +1,2 @@
-mutt_window_mvprintw (MuttIndexWindow, HDR_CRYPTINFO, 40, "%s", _("Encrypt with: "));
+fprintf (fp, "%*s", KeyInfoPadding[KIP_FINGERPRINT],
+               _(KeyInfoPrompts[KIP_FINGERPRINT]));

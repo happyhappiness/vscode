@@ -1,2 +1,1 @@
-fprintf(FERROR,"unlink %s: %s\n",
-			dest,strerror(errno));
+fprintf(f,"    --force              force deletion of directories even if not empty\n");

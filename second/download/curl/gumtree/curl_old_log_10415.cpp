@@ -1,1 +1,0 @@
-warnf(operation, "Failed to create/open output");

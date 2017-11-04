@@ -1,2 +1,1 @@
-fprintf(FERROR,"offset=%d sum=%08x\n",
-	      offset,sum);
+fprintf(FERROR,"recv_files phase=%d\n",phase);

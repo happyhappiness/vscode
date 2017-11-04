@@ -1,10 +1,11 @@
 fputs(
-"  libcurl will attempt to use persistent connections for the transfers so that\n"
-"  the second transfer to the same host can use the same connection that was\n"
-"  already initiated and was left open in the previous transfer. This greatly\n"
-"  decreases connection time for all but the first transfer and it makes a far\n"
-"  better use of the network.\n"
+"  same command line if they are using the same host, as that'll make the\n"
+"  transfers faster. If you use a http proxy for file transfers, practically\n"
+"  all transfers will be persistent.\n"
 "\n"
-"  Note that curl cannot use persistent connections for transfers that are used\n"
-"  in subsequence curl invokes. Try to stuff as many URLs as possible on the\n"
+"MULTIPLE TRANSFERS WITH A SINGLE COMMAND LINE\n"
+"\n"
+"  As is mentioned above, you can download multiple files with one command line\n"
+"  by simply adding more URLs. If you want those to get saved to a local file\n"
+"  instead of just printed to stdout, you need to add one save option for each\n"
 , stdout);

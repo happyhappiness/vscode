@@ -1,1 +1,1 @@
-fprintf(fp, format, help, " ");
+out_of_memory("glob_expand");

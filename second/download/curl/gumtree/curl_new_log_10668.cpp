@@ -1,12 +1,9 @@
 fputs(
-"                        specifies two separate 100-byte ranges(*)(H)\n"
+"              If  a  transient  error is returned when curl tries to perform a\n"
+"              transfer, it will retry this number of times before  giving  up.\n"
+"              Setting  the  number to 0 makes curl do no retries (which is the\n"
+"              default). Transient error means either: a timeout,  an  FTP  4xx\n"
+"              response code or an HTTP 5xx response code.\n"
 "\n"
-"       (*)  =  NOTE  that this will cause the server to reply with a multipart\n"
-"       response!\n"
-"\n"
-"       Only digit characters (0-9) are valid in the 'start' and 'stop'  fields\n"
-"       of  the 'start-stop' range syntax. If a non-digit character is given in\n"
-"       the range, the server's response will be unspecified, depending on  the\n"
-"       server's configuration.\n"
-"\n"
+"              When  curl  is about to retry a transfer, it will first wait one\n"
 , stdout);

@@ -1,1 +1,0 @@
-printw ("%s%s", _(" sign as: "), PgpSignAs ? PgpSignAs : _("<default>"));

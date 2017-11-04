@@ -1,1 +1,1 @@
-fprintf(f,"-L, --copy-links         treat soft links like regular files\n");
+fprintf(FINFO,"hash search b=%d len=%d\n",s->n,(int)len);

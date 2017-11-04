@@ -1,1 +1,2 @@
-rprintf(FINFO,"file list sent\n");
+rprintf(FINFO,"%s -> %s\n",
+		fname,file->link);

@@ -1,1 +1,1 @@
-fprintf(FINFO,"skipping non-regular file %s\n",fname);
+fprintf(FERROR,"ERROR: out of memory in %s\n",str);

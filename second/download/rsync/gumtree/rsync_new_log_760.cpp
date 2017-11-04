@@ -1,1 +1,1 @@
-out_of_memory("is_in_group");
+io_printf(f_out, "@ERROR: your client is speaking an incompatible beta of protocol 30\n");

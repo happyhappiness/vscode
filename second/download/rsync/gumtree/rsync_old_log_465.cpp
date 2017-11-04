@@ -1,1 +1,1 @@
-fprintf(FINFO,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
+fprintf(f,"-z, --compress           compress file data\n");

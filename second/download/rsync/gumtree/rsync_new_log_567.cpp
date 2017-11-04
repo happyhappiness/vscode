@@ -1,1 +1,1 @@
-rprintf(FINFO,"got file_sum\n");
+rprintf(FINFO,"generate_files phase=%d\n",phase);

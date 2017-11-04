@@ -1,1 +1,1 @@
-fprintf(f, "\\#%03o", CVAL(inbuf.buf, inbuf.pos++));
+fprintf(stderr, "%s" "Continuing without compression.\n\n", err_buf);

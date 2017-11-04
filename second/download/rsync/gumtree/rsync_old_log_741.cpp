@@ -1,1 +1,0 @@
-out_of_memory("string_area_new buffer");

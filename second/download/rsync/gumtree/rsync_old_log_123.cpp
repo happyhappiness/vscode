@@ -1,1 +1,0 @@
-fprintf(stderr,"chdir %s : %s\n",dbuf,strerror(errno));

@@ -1,1 +1,1 @@
-fprintf (fp, _("Valid To ..: %s\n"), shortbuf);
+printf ("\nCompilation CFLAGS: %s\n", cc_cflags);

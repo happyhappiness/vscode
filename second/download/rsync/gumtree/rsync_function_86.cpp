@@ -1,10 +1,30 @@
-void write_int(int f,int x)
+void add_exclude_list(char *pattern,char ***list)
 {
-  char b[4];
-  SIVAL(b,0,x);
-  if (write(f,b,4) != 4) {
-    fprintf(stderr,"write_int failed : %s\n",strerror(errno));
-    exit(1);
+  int len=0;
+  if (list && *list)
+    for (; (*list)[len]; len++) ;
+
+  if (strcmp(pattern,"!") == 0) {
+    if (verbose > 2)
+      fprintf(stderr,"clearing exclude list\n");
+    while ((len)--) 
+      free((*list)[len]);
+    free((*list));
+    *list = NULL;
+    return;
   }
-  total_written += 4;
+
+  if (!*list) {
+    *list = (char **)malloc(sizeof(char *)*2);
+  } else {
+    *list = (char **)realloc(*list,sizeof(char *)*(len+2));
+  }
+
+  if (!*list || !((*list)[len] = strdup(pattern)))
+    out_of_memory("add_exclude");
+
+  if (verbose > 2)
+    fprintf(stderr,"add_exclude(%s)\n",pattern);
+  
+  (*list)[len+1] = NULL;
 }

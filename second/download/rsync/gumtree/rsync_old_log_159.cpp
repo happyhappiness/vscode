@@ -1,1 +1,1 @@
-fprintf(stderr,"receiver read %d\n",read_total());
+fprintf(stderr,"skipping non-regular file %s\n",fname);

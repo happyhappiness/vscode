@@ -1,1 +1,1 @@
-fprintf(FINFO,"done\n");
+fprintf(f,"-a, --archive            archive mode (same as -rlptDog)\n");

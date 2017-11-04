@@ -1,1 +1,1 @@
-fprintf(FERROR,"%s : %s\n",fname,strerror(errno));
+fprintf(FINFO,"receiver read %ld\n",(long)read_total());

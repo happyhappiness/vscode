@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: setgroups failed\n");
+fprintf(out, "local const unsigned long FAR ");

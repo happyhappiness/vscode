@@ -1,15 +1,7 @@
-void poptPrintUsage(poptContext con, FILE * f, /*@unused@*/ int flags) {
-    int cursor;
+static void init_delayed_bits(int max_ndx)
+{
+	delayed_slot_cnt = (max_ndx + PER_SLOT_BITS - 1) / PER_SLOT_BITS;
 
-    cursor = showHelpIntro(con, f);
-    cursor += showShortOptions(con->options, f, NULL);
-    singleTableUsage(f, cursor, con->options, NULL);
-
-    if (con->otherHelp) {
-	cursor += strlen(con->otherHelp) + 1;
-	if (cursor > 79) fprintf(f, "\n       ");
-	fprintf(f, " %s", con->otherHelp);
-    }
-
-    fprintf(f, "\n");
+	if (!(delayed_bits = (uint32**)calloc(delayed_slot_cnt, sizeof (uint32*))))
+		out_of_memory("set_delayed_bit");
 }

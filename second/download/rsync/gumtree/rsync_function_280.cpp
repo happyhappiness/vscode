@@ -1,31 +1,48 @@
-static void delete_files(struct file_list *flist)
+static void send_directory(int f,struct file_list *flist,char *dir)
 {
-  struct file_list *local_file_list;
-  char *dot=".";
-  int i, j;
-  char *last_name=NULL;
+  DIR *d;
+  struct dirent *di;
+  char fname[MAXPATHLEN];
+  int l;
+  char *p;
 
-  if (cvs_exclude)
-    add_cvs_excludes();
-
-  for (j=0;j<flist->count;j++) {
-	  if (!S_ISDIR(flist->files[j].mode)) continue;
-	  if (strcmp(flist->files[j].name,".")==0) continue;
-	  if (last_name &&
-	      flist->files[j].name[strlen(last_name)] == '/' &&
-	      strncmp(flist->files[j].name,last_name, strlen(last_name))==0)
-		  continue;
-	  last_name = flist->files[j].name;
-	  if (verbose > 1)
-		  fprintf(FINFO,"deleting in %s\n", last_name);
-	  if (!(local_file_list = send_file_list(-1,1,&last_name)))
-		  return;
-
-	  for (i=local_file_list->count-1;i>=0;i--) {
-		  if (!local_file_list->files[i].name) continue;
-		  if (-1 == flist_find(flist,&local_file_list->files[i])) {
-			  delete_one(&local_file_list->files[i]);
-		  }    
-	  }
+  d = opendir(dir);
+  if (!d) {
+    fprintf(FERROR,"%s: %s\n",
+	    dir,strerror(errno));
+    return;
   }
+
+  strncpy(fname,dir,MAXPATHLEN-1);
+  fname[MAXPATHLEN-1]=0;
+  l = strlen(fname);
+  if (fname[l-1] != '/') {
+        if (l == MAXPATHLEN-1) {
+              fprintf(FERROR,"skipping long-named directory %s\n",fname);
+              closedir(d);
+              return;
+        }
+	  strcat(fname,"/");
+	  l++;
+  }
+  p = fname + strlen(fname);
+
+  if (cvs_exclude) {
+    if (strlen(fname) + strlen(".cvsignore") <= MAXPATHLEN-1) {
+      strcpy(p,".cvsignore");
+      local_exclude_list = make_exclude_list(fname,NULL,0);
+    } else {
+      fprintf(FERROR,"cannot cvs-exclude in long-named directory %s\n",fname);
+    }
+  }  
+
+  for (di=readdir(d); di; di=readdir(d)) {
+    if (strcmp(di->d_name,".")==0 ||
+	strcmp(di->d_name,"..")==0)
+      continue;
+    strncpy(p,di->d_name,MAXPATHLEN-(l+1));
+    send_file_name(f,flist,fname);
+  }
+
+  closedir(d);
 }

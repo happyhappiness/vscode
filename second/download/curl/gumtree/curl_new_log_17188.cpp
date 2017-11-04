@@ -1,0 +1,15 @@
+puts(
+"          Maximum time in seconds that you allow the whole opera�\n"
+"          tion to take.  This is useful for preventing your batch\n"
+"          jobs  from  hanging  for  hours due to slow networks or\n"
+"          links going down.  This doesn't  work  fully  in  win32\n"
+"          systems.  See also the --connect-timeout option.\n"
+"\n"
+"          If this option is used several times, the last one will\n"
+"          be used.\n"
+"\n"
+"     -M/--manual\n"
+"          Manual. Display the huge help text.\n"
+"\n"
+"     -n/--netrc\n"
+);

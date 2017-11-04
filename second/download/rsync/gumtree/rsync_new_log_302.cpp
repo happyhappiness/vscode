@@ -1,2 +1,1 @@
-fprintf(FERROR,"open %s: %s\n",
-			dest,strerror(errno));
+fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");

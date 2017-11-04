@@ -1,1 +1,1 @@
-fprintf(stderr,"deleting directory %s\n",f->name);
+fprintf(stderr,"Failed to dup/close : %s\n",strerror(errno));

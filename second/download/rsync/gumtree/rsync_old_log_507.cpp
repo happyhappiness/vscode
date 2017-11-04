@@ -1,1 +1,1 @@
-fprintf(f,"the backup suffix defaults to %s\n",BACKUP_SUFFIX);
+fprintf(FINFO,"%s is uptodate\n",fname);

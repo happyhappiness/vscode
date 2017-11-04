@@ -1,2 +1,2 @@
 warnf(config,
-              "--libcurl option was disabled at build-time!\n");
+              "--include and --remote-header-name cannot be combined.\n");

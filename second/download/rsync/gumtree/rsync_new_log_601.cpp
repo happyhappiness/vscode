@@ -1,1 +1,1 @@
-rprintf(FINFO,"sender finished %s\n",fname);
+out_of_memory("unsafe_symlink");

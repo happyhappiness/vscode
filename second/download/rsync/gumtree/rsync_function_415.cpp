@@ -1,33 +1,22 @@
-void setup_protocol(int f_out,int f_in)
+void write_longint(int f, int64 x)
 {
-  if (am_server) {
-    remote_version = read_int(f_in);
-    write_int(f_out,PROTOCOL_VERSION);
-    write_flush(f_out);
-  } else {
-    write_int(f_out,PROTOCOL_VERSION);
-    write_flush(f_out);
-    remote_version = read_int(f_in);
-  }
+	extern int remote_version;
+	char b[8];
+	int ret;
 
-  if (remote_version < MIN_PROTOCOL_VERSION ||
-      remote_version > MAX_PROTOCOL_VERSION) {
-    fprintf(FERROR,"protocol version mismatch - is your shell clean?\n");
-    exit_cleanup(1);
-  }	
+	if (remote_version < 16 || x <= 0x7FFFFFFF) {
+		write_int(f, (int)x);
+		return;
+	}
 
-  if (verbose > 2)
-	  fprintf(FINFO, "local_version=%d remote_version=%d\n",
-		  PROTOCOL_VERSION, remote_version);
+	write_int(f, -1);
+	SIVAL(b,0,(x&0xFFFFFFFF));
+	SIVAL(b,4,((x>>32)&0xFFFFFFFF));
 
-  if (remote_version >= 12) {
-    if (am_server) {
-      checksum_seed = time(NULL);
-      write_int(f_out,checksum_seed);
-    } else {
-      checksum_seed = read_int(f_in);
-    }
-  }
-
-  checksum_init();
+	if ((ret=writefd(f,b,8)) != 8) {
+		fprintf(FERROR,"write_longint failed : %s\n",
+			ret==-1?strerror(errno):"EOF");
+		exit_cleanup(1);
+	}
+	total_written += 8;
 }

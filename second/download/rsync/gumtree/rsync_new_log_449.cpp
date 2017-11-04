@@ -1,1 +1,0 @@
-rprintf(FERROR,"select error: %s\n", strerror(errno));

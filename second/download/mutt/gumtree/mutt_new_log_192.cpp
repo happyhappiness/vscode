@@ -1,1 +1,1 @@
-state_puts (msg, s);
+state_puts (buf, s);

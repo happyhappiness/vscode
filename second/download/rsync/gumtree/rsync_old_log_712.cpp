@@ -1,1 +1,1 @@
-fprintf(f, " %s", fn);
+out_of_memory("make_exclude");

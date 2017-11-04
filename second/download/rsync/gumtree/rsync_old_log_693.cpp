@@ -1,1 +1,0 @@
-io_printf(fd,"%s", line);

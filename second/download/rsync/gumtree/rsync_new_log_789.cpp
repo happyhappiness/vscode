@@ -1,1 +1,4 @@
-out_of_memory("msg_list_add");
+fprintf(stderr,
+			        "%s: %s\n",
+				poptBadOption(pc, POPT_BADOPTION_NOALIAS),
+				poptStrerror(opt));

@@ -1,1 +1,1 @@
-fprintf(f,"-z, --compress           compress file data\n");
+fprintf(FERROR,"%s : not a regular file (recv_files)\n",fname);

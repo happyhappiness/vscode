@@ -1,1 +1,0 @@
-fprintf(FINFO,"sender finished %s\n",fname);

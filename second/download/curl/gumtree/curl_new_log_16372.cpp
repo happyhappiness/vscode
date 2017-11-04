@@ -1,11 +1,11 @@
 fputs(
-"              To use a Metalink file in the local file system, use FILE proto-\n"
-"              col (file://):\n"
+"              thus use --keepalive to enforce keepalive.\n"
 "\n"
-"               curl --metalink file://example.metalink\n"
+"       --no-npn\n"
+"              (HTTPS) Disable the NPN TLS extension. NPN is enabled by default\n"
+"              if libcurl was built with an SSL library that supports NPN.  NPN\n"
+"              is  used  by  a libcurl that supports HTTP/2 to negotiate HTTP/2\n"
+"              support with the server during https sessions.\n"
 "\n"
-"              Please note that if FILE protocol is disabled, there is  no  way\n"
-"              to  use  a local Metalink file at the time of this writing. Also\n"
-"              note that if --metalink and -i,  --include  are  used  together,\n"
-"              --include  will be ignored. This is because including headers in\n"
+"              See also --no-alpn  and  --http2.  --no-npn  requires  that  the\n"
 , stdout);

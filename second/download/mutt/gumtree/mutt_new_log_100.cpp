@@ -1,1 +1,1 @@
-fprintf (msg->fp, "C<%s>", SmimeCryptAlg);
+fprintf(stderr, "%s%s%s", tsl, str, fsl);

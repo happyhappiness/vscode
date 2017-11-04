@@ -1,1 +1,1 @@
-fprintf(FERROR,"generate_files phase=%d\n",phase);
+fprintf(FINFO,"deleting in %s\n", last_name);

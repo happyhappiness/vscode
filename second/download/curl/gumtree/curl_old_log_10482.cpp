@@ -1,11 +1,10 @@
 fputs(
-"              Typical  browsers  always  discard  session cookies when they're\n"
-"              closed down.\n"
+"              url = \"http://curl.haxx.se/docs/\"\n"
 "\n"
-"       -J, --remote-header-name\n"
-"              (HTTP) This option tells the -O, --remote-name option to use the\n"
-"              server-specified   Content-Disposition   filename   instead   of\n"
-"              extracting a filename from the URL.\n"
+"              When curl is invoked, it always (unless -q is used) checks for a\n"
+"              default  config  file  and  uses it if found. The default config\n"
+"              file is checked for in the following places in this order:\n"
 "\n"
-"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
+"              1) curl tries to find the \"home dir\": It first  checks  for  the\n"
+"              CURL_HOME and then the HOME environment variables. Failing that,\n"
 , stdout);

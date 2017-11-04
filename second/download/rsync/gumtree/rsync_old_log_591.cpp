@@ -1,1 +1,2 @@
-fprintf(FINFO,"recv_files finished\n");
+fprintf(FERROR,"open %s: %s\n",
+			dest,strerror(errno));

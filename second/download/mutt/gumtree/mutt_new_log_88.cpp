@@ -1,1 +1,1 @@
-!ascii_strncasecmp ("user-agent", tmp->data, 10);
+fprintf (msg->fp, "%s", mutt_make_date (buf, sizeof (buf)));

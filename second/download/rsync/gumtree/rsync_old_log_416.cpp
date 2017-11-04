@@ -1,1 +1,2 @@
-fprintf(FINFO,"clearing exclude list\n");
+fprintf(FERROR,"write_buf failed : %s\n",
+	    ret==-1?strerror(errno):"EOF");

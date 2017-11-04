@@ -1,1 +1,1 @@
-fprintf(FINFO,"skipping directory %s\n",fname);
+fprintf(FINFO,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());

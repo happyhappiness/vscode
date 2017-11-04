@@ -1,1 +1,1 @@
-fprintf(FINFO,"cmd=");
+fprintf(f,"-W, --whole-file         copy whole files, no incremental checks\n");

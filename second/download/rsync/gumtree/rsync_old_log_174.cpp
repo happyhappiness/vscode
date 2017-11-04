@@ -1,1 +1,1 @@
-fprintf(stderr,"stat %s : %s\n",fname,strerror(errno));
+fprintf(stderr,"deleting directory %s\n",f->name);

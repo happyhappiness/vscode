@@ -1,1 +1,1 @@
-out_of_memory("receive_sums");
+out_of_memory("generate_sums");

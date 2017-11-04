@@ -1,9 +1,10 @@
 fputs(
-"              This  command  line  option will activate the cookie engine that\n"
-"              makes curl record and use cookies. Another way to activate it is\n"
-"              to use the -b, --cookie option.\n"
+"              will be used. Since 7.45.0 guessing can be disabled by setting a\n"
+"              default protocol, see --proto-default for details.\n"
 "\n"
-"              If the cookie jar can't be created or written to, the whole curl\n"
-"              operation won't fail or even report an error clearly.  Using  -v\n"
-"              will get a warning displayed, but that is the only visible feed-\n"
+"              This  option  may  be used any number of times. To control where\n"
+"              this URL is written, use the -o, --output or the  -O,  --remote-\n"
+"              name options.\n"
+"       -v, --verbose\n"
+"              Be  more  verbose/talkative  during  the  operation.  Useful for\n"
 , stdout);

@@ -1,11 +1,11 @@
 fputs(
-"                     on.  Just  be careful so that the content doesn't contain\n"
-"                     any = or @ symbols, as that will  then  make  the  syntax\n"
-"                     match one of the other cases below!\n"
+"              cation scheme that prevents the password from  being  sent  over\n"
+"              the  wire in clear text. Use this in combination with the normal\n"
+"              -u, --user option to  set  user  name  and  password.  See  also\n"
+"              --ntlm, --negotiate and --anyauth for related options.\n"
 "\n"
-"              =content\n"
-"                     This  will make curl URL-encode the content and pass that\n"
-"                     on. The preceding = symbol is not included in the data.\n"
+"              If  this  option  is  used  several times, only the first one is\n"
+"              used.\n"
 "\n"
-"              name=content\n"
+"       --disable-eprt\n"
 , stdout);

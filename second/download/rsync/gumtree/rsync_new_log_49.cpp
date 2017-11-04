@@ -1,1 +1,1 @@
-fprintf(stderr,"generator wrote %d\n",write_total());
+fprintf(am_server?stderr:stdout,"done\n");

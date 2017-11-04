@@ -1,1 +1,2 @@
-fprintf(stderr,"recv_files(%d) starting\n",flist->count);
+fprintf(stderr,"Failed to exec %s : %s\n",
+	      command[0],strerror(errno));

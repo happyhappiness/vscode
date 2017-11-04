@@ -1,1 +1,1 @@
-fprintf(FINFO,"added %s to delete list\n", f_name(file));
+rprintf(FERROR,"select error: %s\n", strerror(errno));

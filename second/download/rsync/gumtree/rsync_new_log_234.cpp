@@ -1,1 +1,1 @@
-fprintf(FERROR,"pipe failed in do_recv\n");
+fprintf(FERROR,"%s : not a regular file (generator)\n",fname);

@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s/\n",fname);
+fprintf(FINFO,"make_file(%s)\n",fname);
