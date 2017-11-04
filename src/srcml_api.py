@@ -123,6 +123,12 @@ class SrcmlApi:
         parent_iter = self.log_node.iterancestors()
         for parent in parent_iter:
             tag = self._remove_prefix(parent)
+            # skip current if
+            if tag == 'condition':
+                parent_iter = parent.getparent().iterancestors()
+                break
+        for parent in parent_iter:
+            tag = self._remove_prefix(parent)
             # filter by tag[if or switch]
             if tag == 'if' or tag == 'switch':
                 # filter by if/switch --confition
@@ -528,8 +534,8 @@ if __name__ == "__main__":
     # input function cpp file
     # srcml_api = SrcmlApi('second/download/rsync/gumtree/curl_repos_function_698.cpp', is_function=True)
     # print srcml_api.get_logs_calls_types()
-    srcml_api = SrcmlApi('second/download/rsync/gumtree/rsync_function_698.cpp')
-    if srcml_api.set_log_loc(12):
+    srcml_api = SrcmlApi('second/download/mutt/gumtree/mutt_repos_function_1636.cpp')
+    if srcml_api.set_log_loc(26):
         if srcml_api.set_control_dependence():
             print srcml_api.get_control_info()
             print srcml_api.get_log_info()
