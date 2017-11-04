@@ -18,9 +18,9 @@ def is_match_for_insert_rule(rule_feature, function_feature):
     types = function_feature[1]
     # validate whether any one in check or variable is in calls and types
     rule_infos = check + variable
-    function_info = calls + types + ['null']
+    function_info = calls + types
     for info in rule_infos:
-        if not info in function_info:
+        if info and not info.split('_')[0] in function_info:
             return False
     return True
 
