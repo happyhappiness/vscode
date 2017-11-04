@@ -1,1 +1,1 @@
-fprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));
+fprintf(FERROR,"pipe: %s\n",strerror(errno));

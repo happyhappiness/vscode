@@ -1,11 +1,12 @@
 fputs(
-"                             until the first byte was just about to be  trans-\n"
-"                             ferred.  This  includes time_pretransfer and also\n"
-"                             the time  the  server  needed  to  calculate  the\n"
-"                             result.\n"
+"              size_header    The total amount of bytes of the downloaded head-\n"
+"                             ers.\n"
 "\n"
-"              size_download  The total amount of bytes that were downloaded.\n"
+"              size_request   The total amount of bytes that were sent  in  the\n"
+"                             HTTP request.\n"
 "\n"
-"              size_upload    The total amount of bytes that were uploaded.\n"
+"              speed_download The average download speed that curl measured for\n"
+"                             the complete download. Bytes per second.\n"
 "\n"
+"              speed_upload   The average upload speed that curl  measured  for\n"
 , stdout);

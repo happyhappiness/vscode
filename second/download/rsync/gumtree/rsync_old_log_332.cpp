@@ -1,1 +1,1 @@
-fprintf(FERROR,"server_sender starting pid=%d\n",(int)getpid());
+fprintf(FERROR,"skipping non-regular file %s\n",fname);

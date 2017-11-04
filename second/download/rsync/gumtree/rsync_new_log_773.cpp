@@ -1,1 +1,1 @@
-fprintf(stderr, ": %s (%d)\n", strerror(errcode), errcode);
+out_of_memory("send_extra_file_list");

@@ -1,1 +1,2 @@
-fprintf(stderr,"server_sender starting pid=%d\n",(int)getpid());
+fprintf(stderr, "false_alarms=%d tag_hits=%d matches=%d\n",
+	    false_alarms, tag_hits, matches);

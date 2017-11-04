@@ -1,1 +1,1 @@
-fprintf(f,"-e, --rsh COMMAND        specify rsh replacement\n");
+fprintf(FERROR,"stat(%s) : %s\n", fname, strerror(errno));

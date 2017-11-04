@@ -1,1 +1,1 @@
-fprintf(FINFO,"recv_files(%s)\n",fname);
+rprintf(FINFO,"excluding file %s\n",fname);

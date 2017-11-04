@@ -1,1 +1,1 @@
-fputs (idx ? _(" aka ......: ") :_("Name ......: "), fp);
+fprintf (fp, _("Key Usage .: "));

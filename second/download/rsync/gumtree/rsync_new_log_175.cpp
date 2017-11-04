@@ -1,2 +1,1 @@
-fprintf(FERROR,"failed to set times on %s : %s\n",
-	      fname,strerror(errno));
+fprintf(FERROR,"recv_files(%d) starting\n",flist->count);

@@ -1,2 +1,1 @@
-fprintf(FERROR,"write_buf failed : %s\n",
-	    ret==-1?strerror(errno):"EOF");
+fprintf(f,"-n, --dry-run            show what would have been transferred\n");

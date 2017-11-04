@@ -1,1 +1,1 @@
-mutt_yesorno (prompt, (v == MUTT_ASKYES));
+state_puts (p, s);

@@ -1,1 +1,0 @@
-fprintf(FERROR,"sending sums for %d\n",i);

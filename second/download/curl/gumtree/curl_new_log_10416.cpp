@@ -1,2 +1,2 @@
-warnf(heads->config->global, "Header data exceeds single call write "
-          "limit!\n");
+warnf(config->global, "Header data size exceeds single call write "
+            "limit!\n");

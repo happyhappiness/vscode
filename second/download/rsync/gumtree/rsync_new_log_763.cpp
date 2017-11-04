@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: Unknown module '%s'\n", name);
+write_sbuf(f_out, "\n");

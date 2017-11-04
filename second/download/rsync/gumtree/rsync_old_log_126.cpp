@@ -1,1 +1,1 @@
-fprintf(stderr,"recv_file_name(%s)\n",flist->files[i].name);
+fprintf(stderr,"-D only allowed for root\n");

@@ -1,1 +1,1 @@
-rprintf(FINFO,"%s is a hard link\n",f_name(file));
+rprintf(FINFO,"recv_files finished\n");

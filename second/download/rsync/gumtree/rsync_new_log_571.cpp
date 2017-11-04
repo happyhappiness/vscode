@@ -1,1 +1,1 @@
-rprintf(FINFO,"deleting directory %s\n",f_name(f));
+rprintf(FERROR, "deflate returned %d\n", r);

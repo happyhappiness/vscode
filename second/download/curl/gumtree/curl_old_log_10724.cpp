@@ -1,11 +1,11 @@
 fputs(
-"              tions.  Common  additional HTTP requests include PUT and DELETE,\n"
-"              but related technologies like WebDAV offers PROPFIND, COPY, MOVE\n"
-"              and more.\n"
+"              with -y and is 30 if not set.\n"
 "\n"
-"              Normally  you  don't  need  this option. All sorts of GET, HEAD,\n"
-"              POST and PUT requests are rather invoked by using dedicated com-\n"
-"              mand line options.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              This  option  only  changes  the  actual  word  used in the HTTP\n"
+"       -z, --time-cond <date expression>|<file>\n"
+"              (HTTP/FTP) Request a file that has been modified later than  the\n"
+"              given  time  and date, or one that has been modified before that\n"
+"              time. The <date expression> can be all sorts of date strings  or\n"
+"              if it doesn't match any internal ones, it is taken as a filename\n"
 , stdout);

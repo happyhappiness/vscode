@@ -1,1 +1,1 @@
-fprintf(FINFO,"deleting %s\n",f_name(f));
+fprintf(FINFO,"added %s to delete list\n", f_name(file));

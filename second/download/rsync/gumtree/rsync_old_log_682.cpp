@@ -1,1 +1,1 @@
-io_printf(fd,"%s\n", sargs[i]);
+out_of_memory("send_file_list");

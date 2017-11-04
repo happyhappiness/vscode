@@ -1,1 +1,1 @@
-out_of_memory("glob_expand");
+io_printf(f_out, "@RSYNCD: %d\n", PROTOCOL_VERSION);

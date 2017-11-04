@@ -1,2 +1,2 @@
-fprintf(FINFO,"%s -> %s\n",
-		fname,file->link);
+fprintf(FERROR,"copy %s -> %s : %s\n",
+				      fnametmp,fname,strerror(errno));

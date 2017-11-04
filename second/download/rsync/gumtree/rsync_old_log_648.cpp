@@ -1,1 +1,1 @@
-out_of_memory("generate_sums");
+io_printf(fd,"@ERROR: Unknown module '%s'\n", line);

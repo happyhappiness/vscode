@@ -1,1 +1,1 @@
-fprintf(f,"-S, --sparse             handle sparse files efficiently\n");
+fprintf(FINFO,"sending file_sum\n");

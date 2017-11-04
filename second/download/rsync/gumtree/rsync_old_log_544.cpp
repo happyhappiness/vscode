@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s is uptodate\n",fname);
+fprintf(FERROR,"filename too long\n");

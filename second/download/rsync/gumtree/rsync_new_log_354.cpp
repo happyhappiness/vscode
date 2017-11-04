@@ -1,1 +1,1 @@
-fprintf(FERROR,"stat(%s) : %s\n", fname, strerror(errno));
+fprintf(FINFO,"send_files phase=%d\n",phase);

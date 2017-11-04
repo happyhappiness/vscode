@@ -1,1 +1,1 @@
-fprintf(FERROR,"file list sent\n");
+fprintf(FERROR,"got file_sum\n");

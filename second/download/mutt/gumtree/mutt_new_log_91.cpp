@@ -1,1 +1,1 @@
-fprintf (fp, "%s%s: ", NONULL (pfx), tag);
+fprintf (msg->fp, "<%s>", SmimeDefaultKey);

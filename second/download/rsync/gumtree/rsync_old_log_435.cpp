@@ -1,1 +1,1 @@
-fprintf(FINFO,"receiving file list ... ");
+fprintf(f,"Options:\n");

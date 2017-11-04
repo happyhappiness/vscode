@@ -1,1 +1,2 @@
-fprintf(f,"    --delete             delete files that don't exist on the sending side\n");
+fprintf(FERROR,"opendir(%s): %s\n",
+			fname,strerror(errno));

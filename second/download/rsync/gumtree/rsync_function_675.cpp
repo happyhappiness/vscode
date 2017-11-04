@@ -1,27 +1,43 @@
-static void flist_expand(struct file_list *flist)
+struct file_list *create_flist_from_batch(void)
 {
-	if (flist->count >= flist->malloced) {
-		size_t new_bytes;
-		void *new_ptr;
-		
-		if (flist->malloced < 1000)
-			flist->malloced += 1000;
-		else
-			flist->malloced *= 2;
+	unsigned char flags;
 
-		new_bytes = sizeof(flist->files[0]) * flist->malloced;
-		
-		new_ptr = realloc(flist->files, new_bytes);
+	fdb_open = 1;
+	fdb_close = 0;
 
-		if (verbose >= 2) {
-			rprintf(FINFO, RSYNC_NAME ": expand file_list to %.0f bytes, did%s move\n",
-				(double) new_bytes,
-				(new_ptr == flist->files) ? " not" : "");
-		}
-		
-		flist->files = (struct file_struct **) new_ptr;
-
-		if (!flist->files)
-			out_of_memory("flist_expand");
+	batch_flist = new(struct file_list);
+	if (!batch_flist) {
+		out_of_memory("create_flist_from_batch");
 	}
+	batch_flist->count = 0;
+	batch_flist->malloced = 1000;
+	batch_flist->files = new_array(struct file_struct *,
+				       batch_flist->malloced);
+	if (!batch_flist->files) {
+		out_of_memory("create_flist_from_batch");
+	}
+
+	for (flags = read_batch_flags(); flags; flags = read_batch_flags()) {
+
+		int i = batch_flist->count;
+
+		if (i >= batch_flist->malloced) {
+			if (batch_flist->malloced < 1000)
+				batch_flist->malloced += 1000;
+			else
+				batch_flist->malloced *= 2;
+			batch_flist->files
+				= realloc_array(batch_flist->files,
+						struct file_struct *,
+						batch_flist->malloced);
+			if (!batch_flist->files)
+				out_of_memory("create_flist_from_batch");
+		}
+		read_batch_flist_info(&batch_flist->files[i]);
+		batch_flist->files[i]->flags = flags;
+
+		batch_flist->count++;
+	}
+
+	return batch_flist;
 }

@@ -1,1 +1,1 @@
-out_of_memory("receive_file_entry 2");
+fprintf(FINFO,"recv_file_name(%s)\n",f_name(flist->files[i]));

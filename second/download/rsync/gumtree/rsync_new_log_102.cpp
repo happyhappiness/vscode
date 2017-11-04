@@ -1,1 +1,1 @@
-fprintf(stderr,"protocol version mismatch - is your shell clean?\n");
+fprintf(FERROR,"recv_file_name(%s)\n",flist->files[i].name);

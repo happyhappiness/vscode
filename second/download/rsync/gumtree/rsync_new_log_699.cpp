@@ -1,1 +1,1 @@
-write_int(f_out, sum.remainder);
+out_of_memory("rsync_module");

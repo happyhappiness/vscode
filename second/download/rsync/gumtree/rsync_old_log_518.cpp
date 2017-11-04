@@ -1,1 +1,1 @@
-fprintf(FINFO, "sum=%.8x k=%d\n", sum, k);
+fprintf(FINFO,"skipping non-regular file %s\n",fname);

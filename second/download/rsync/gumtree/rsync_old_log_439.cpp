@@ -1,1 +1,1 @@
-fprintf(FINFO,"recv_file_list done\n");
+fprintf(f,"-r, --recursive          recurse into directories\n");

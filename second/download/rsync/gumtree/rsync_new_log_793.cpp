@@ -1,1 +1,1 @@
-out_of_memory("auth_server");
+fprintf(F," -f, --fake-super            display attributes including fake-super xattrs\n");

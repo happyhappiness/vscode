@@ -1,1 +1,0 @@
-fprintf(FERROR,"recv_file_list starting\n");

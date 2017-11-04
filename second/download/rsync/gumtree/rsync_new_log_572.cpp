@@ -1,1 +1,2 @@
-rprintf(FINFO,"added %s to delete list\n", f_name(file));
+rprintf(FERROR, "deflate on token returned %d (%d bytes left)\n",
+		    r, tx_strm.avail_in);

@@ -1,1 +1,0 @@
-fprintf (fp, _("Serial-No .: 0x%s\n"), s);

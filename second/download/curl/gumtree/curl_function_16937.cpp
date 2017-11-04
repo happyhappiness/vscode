@@ -183,26 +183,26 @@ puts (
 "          same command line, the data pieces  specified  will  be\n"
 "          merged together with a separating &-letter. Thus, using\n"
 "          '-d name=daniel -d skill=lousy' would generate  a  post\n"
-"          chunk that looks like 'name=daniel&skill=lousy'.\n"
+"          chunk that looks like\n"
 "\n"
+"          If you start the data with the letter @, the rest\n"
 );
  puts(
-"          If  you  start  the  data  with  the letter @, the rest\n"
-"          should be a file name to read the data from,  or  -  if\n"
-"          you  want  curl  to  read  the  data  from  stdin.  The\n"
-"          contents of the file must already be url-encoded.  Mul�\n"
+"          should be a file name to read the data from, or - if\n"
+"          you want curl to read the data from stdin.  The\n"
+"          contents of the file must already be url-encoded. Mul�\n"
 "          tiple files can also be specified.\n"
 "\n"
-"          To  post data purely binary, you should instead use the\n"
+"          To post data purely binary, you should instead use the\n"
 "          --data-binary option.\n"
 "\n"
 "          -d/--data is the same as --data-ascii.\n"
 "\n"
-);
- puts(
 "          If this option is used serveral times, the ones follow�\n"
 "          ing the first will append data.\n"
 "\n"
+);
+ puts(
 "     --data-ascii <data>\n"
 "          (HTTP) This is an alias for the -d/--data option.\n"
 "\n"
@@ -210,151 +210,148 @@ puts (
 "          ing the first will append data.\n"
 "\n"
 "     --data-binary <data>\n"
-"          (HTTP) This posts data in a similar manner  as  --data-\n"
-"          ascii  does, although when using this option the entire\n"
+"          (HTTP) This posts data in a similar manner as --data-\n"
+"          ascii does, although when using this option the entire\n"
+"          context of the posted data is kept as-is. If you want\n"
+"          to post a binary file without the strip-newlines fea�\n"
 );
  puts(
-"          context of the posted data is kept as-is. If  you  want\n"
-"          to  post  a binary file without the strip-newlines fea�\n"
 "          ture of the --data-ascii option, this is for you.\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "          If this option is used serveral times, the ones follow�\n"
 "          ing the first will append data.\n"
 "\n"
 "     -D/--dump-header <file>\n"
-"          (HTTP/FTP) Write the HTTP headers to this  file.  Write\n"
-);
- puts(
+"          (HTTP/FTP) Write the HTTP headers to this file. Write\n"
 "          the FTP file info to this file if -I/--head is used.\n"
 "\n"
-"          This  option is handy to use when you want to store the\n"
-"          cookies that a HTTP site  sends  to  you.  The  cookies\n"
+"          This option is handy to use when you want to store the\n"
+);
+ puts(
+"          cookies that a HTTP site sends to you. The cookies\n"
 "          could then be read in a second curl invoke by using the\n"
 "          -b/--cookie option!\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -e/--referer <URL>\n"
 "          (HTTP) Sends the \"Referer Page\" information to the HTTP\n"
+"          server. This can also be set with the -H/--header flag\n"
+"          of course.  When used with -L/--location you can append\n"
 );
  puts(
-"          server. This can also be set with the -H/--header  flag\n"
-"          of course.  When used with -L/--location you can append\n"
-"          \";auto\" to the referer URL to make  curl  automatically\n"
-"          set  the  previous  URL  when  it  follows  a Location:\n"
-"          header. The \";auto\" string can be used alone,  even  if\n"
+"          \";auto\" to the referer URL to make curl automatically\n"
+"          set the previous URL when it follows a Location:\n"
+"          header. The \";auto\" string can be used alone, even if\n"
 "          you don't set an initial referer.\n"
 "\n"
-"          If  this  option  is  used serveral times, the last one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     --egd-file <file>\n"
+"          (HTTPS) Specify the path name to the Entropy Gathering\n"
+"          Daemon socket. The socket is used to seed the random\n"
 );
  puts(
-"          (HTTPS) Specify the path name to the Entropy  Gathering\n"
-"          Daemon  socket.  The  socket is used to seed the random\n"
-"          engine for SSL connections. See also the  --random-file\n"
+"          engine for SSL connections. See also the --random-file\n"
 "          option.\n"
 "\n"
 "     -E/--cert <certificate[:password]>\n"
-"          (HTTPS)  Tells  curl  to  use the specified certificate\n"
-"          file when getting a file with  HTTPS.  The  certificate\n"
-"          must  be in PEM format.  If the optional password isn't\n"
-);
- puts(
+"          (HTTPS) Tells curl to use the specified certificate\n"
+"          file when getting a file with HTTPS. The certificate\n"
+"          must be in PEM format.  If the optional password isn't\n"
 "          specified, it will be queried for on the terminal. Note\n"
-"          that  this  certificate is the private key and the pri�\n"
+"          that this certificate is the private key and the pri�\n"
 "          vate certificate concatenated!\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
+);
+ puts(
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     --cacert <CA certificate>\n"
-"          (HTTPS)  Tells  curl  to  use the specified certificate\n"
+"          (HTTPS) Tells curl to use the specified certificate\n"
 "          file to verify the peer. The certificate must be in PEM\n"
 "          format.\n"
 "\n"
-);
- puts(
-"          If  this  option  is  used serveral times, the last one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -f/--fail\n"
-"          (HTTP) Fail silently  (no  output  at  all)  on  server\n"
-"          errors.  This is mostly done like this to better enable\n"
-"          scripts etc to better deal  with  failed  attempts.  In\n"
-"          normal cases when a HTTP server fails to deliver a doc�\n"
-"          ument, it returns a HTML  document  stating  so  (which\n"
+"          (HTTP) Fail silently (no output at all) on server\n"
+"          errors. This is mostly done like this to better enable\n"
 );
  puts(
+"          scripts etc to better deal with failed attempts. In\n"
+"          normal cases when a HTTP server fails to deliver a doc�\n"
+"          ument, it returns a HTML document stating so (which\n"
 "          often also describes why and more). This flag will pre�\n"
-"          vent  curl  from  outputting  that  and  fail  silently\n"
+"          vent curl from outputting that and fail silently\n"
 "          instead.\n"
 "\n"
-"          If  this  option  is  used twice, the second will again\n"
+"          If this option is used twice, the second will again\n"
 "          disable silent failure.\n"
 "\n"
 "     -F/--form <name=content>\n"
-"          (HTTP) This lets curl emulate a filled in form in which\n"
-"          a  user has pressed the submit button. This causes curl\n"
-"          to POST data using the content-type multipart/form-data\n"
 );
  puts(
-"          according  to RFC1867. This enables uploading of binary\n"
+"          (HTTP) This lets curl emulate a filled in form in which\n"
+"          a user has pressed the submit button. This causes curl\n"
+"          to POST data using the content-type multipart/form-data\n"
+"          according to RFC1867. This enables uploading of binary\n"
 "          files etc. To force the 'content' part to be be a file,\n"
-"          prefix  the  file  name with an @ sign. To just get the\n"
+"          prefix the file name with an @ sign. To just get the\n"
 "          content part from a file, prefix the file name with the\n"
+);
+ puts(
 "          letter <. The difference between @ and < is then that @\n"
 "          makes a file get attached in the post as a file upload,\n"
-"          while  the  <  makes a text field and just get the con�\n"
-);
- puts(
+"          while the < makes a text field and just get the con�\n"
 "          tents for that text field from a file.\n"
-"          Example, to send your  password  file  to  the  server,\n"
-"          where 'password' is the name of the form-field to which\n"
-"          /etc/passwd will be the input:\n"
+"          Example, to send your password file to the server,\n"
+"          where input:\n"
 "\n"
 "          curl -F password=@/etc/passwd www.mypasswords.com\n"
 "\n"
 "          To read the file's content from stdin insted of a file,\n"
+);
+ puts(
 "          use - where the file name should've been. This goes for\n"
 "          both @ and < constructs.\n"
 "\n"
-);
- puts(
 "          This option can be used multiple times.\n"
 "\n"
 "     -g/--globoff\n"
-"          This option switches off  the  \"URL  globbing  parser\".\n"
-"          When  you  set  this  option, you can specify URLs that\n"
-"          contain the letters  {}[]  without  having  them  being\n"
+"          This option switches off the \"URL globbing parser\".\n"
+"          When you set this option, you can specify URLs that\n"
+"          contain the letters {}[] without having them being\n"
 "          interpreted by curl itself. Note that these letters are\n"
-"          not normal  legal  URL  contents  but  they  should  be\n"
+"          not normal legal URL contents but they should be\n"
+);
+ puts(
 "          encoded according to the URI standard. (Option added in\n"
 "          curl 7.6)\n"
 "\n"
-);
- puts(
 "     -h/--help\n"
 "          Usage help.\n"
 "\n"
 "     -H/--header <header>\n"
 "          (HTTP) Extra header to use when getting a web page. You\n"
-"          may  specify  any number of extra headers. Note that if\n"
-"          you should add a custom header that has the  same  name\n"
+"          may specify any number of extra headers. Note that if\n"
+"          you should add a custom header that has the same name\n"
 "          as one of the internal ones curl would use, your exter�\n"
-"          nally set header will be used instead of  the  internal\n"
-"          one.  This  allows you to make even trickier stuff than\n"
+"          nally set header will be used instead of the internal\n"
 );
  puts(
-"          curl would normally do. You should not  replace  inter�\n"
-"          nally  set  headers without knowing perfectly well what\n"
-"          you're doing. Replacing an  internal  header  with  one\n"
-"          without  content  on  the  right side of the colon will\n"
+"          one. This allows you to make even trickier stuff than\n"
+"          curl would normally do. You should not replace inter�\n"
+"          nally set headers without knowing perfectly well what\n"
+"          you're doing. Replacing an internal header with one\n"
+"          without content on the right side of the colon will\n"
 "          prevent that header from appearing.\n"
 "\n"
 "          This option can be used multiple times.\n"
@@ -363,149 +360,148 @@ puts (
 "          (HTTP) Include the HTTP-header in the output. The HTTP-\n"
 );
  puts(
-"          header  includes  things  like server-name, date of the\n"
+"          header includes things like server-name, date of the\n"
 "          document, HTTP-version and more...\n"
 "\n"
-"          If this option is used twice,  the  second  will  again\n"
+"          If this option is used twice, the second will again\n"
 "          disable header include.\n"
 "\n"
 "     --interface <name>\n"
-"          Perform  an  operation using a specified interface. You\n"
-"          can enter interface name, IP address or host  name.  An\n"
+"          Perform an operation using a specified interface. You\n"
+"          can enter interface name, IP address or host name. An\n"
 "          example could look like:\n"
-"          curl --interface eth0:1 http://www.netscape.com/\n"
 "\n"
+"          curl --interface eth0:1 http://www.netscape.com/\n"
 );
  puts(
-"          If  this  option  is  used serveral times, the last one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -I/--head\n"
-"          (HTTP/FTP) Fetch  the  HTTP-header  only!  HTTP-servers\n"
+"          (HTTP/FTP) Fetch the HTTP-header only! HTTP-servers\n"
 "          feature the command HEAD which this uses to get nothing\n"
-"          but the header of a document. When used on a FTP  file,\n"
+"          but the header of a document. When used on a FTP file,\n"
 "          curl displays the file size only.\n"
 "\n"
-"          If  this  option  is  used twice, the second will again\n"
+"          If this option is used twice, the second will again\n"
 "          disable header only.\n"
 "\n"
 "     --krb4 <level>\n"
 );
  puts(
-"          (FTP) Enable  kerberos4  authentication  and  use.  The\n"
-"          level  must  be  entered  and should be one of 'clear',\n"
-"          'safe', 'confidential' or 'private'. Should you  use  a\n"
-"          level  that is not one of these, 'private' will instead\n"
+"          (FTP) Enable kerberos4 authentication and use. The\n"
+"          level must be entered and should be one of 'clear',\n"
+"          'safe', 'confidential' or 'private'. Should you use a\n"
+"          level that is not one of these, 'private' will instead\n"
 "          be used.\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -K/--config <config file>\n"
-"          Specify  which config file to read curl arguments from.\n"
+"          Specify which config file to read curl arguments from.\n"
 );
  puts(
-"          The config file is a text file in  which  command  line\n"
-"          arguments  can be written which then will be used as if\n"
-"          they were written on the actual command  line.  Options\n"
+"          The config file is a text file in which command line\n"
+"          arguments can be written which then will be used as if\n"
+"          they were written on the actual command line. Options\n"
 "          and their parameters must be specified on the same con�\n"
-"          fig file line. If the parameter  is  to  contain  white\n"
-"          spaces,  the  parameter must be inclosed within quotes.\n"
-"          If the first column of a config line is a  '#'  charac�\n"
+"          fig file line. If the parameter is to contain white\n"
+"          spaces, the parameter must be inclosed within quotes.\n"
+"          If the first column of a config line is a '#' charac�\n"
 );
  puts(
 "          ter, the rest of the line will be treated as a comment.\n"
 "\n"
-"          Specify the filename as '-' to make curl read the  file\n"
+"          Specify the filename as '-' to make curl read the file\n"
 "          from stdin.\n"
 "\n"
 "          This option can be used multiple times.\n"
 "\n"
 "     -l/--list-only\n"
 "          (FTP) When listing an FTP directory, this switch forces\n"
-"          a name-only view.  Especially useful  if  you  want  to\n"
-"          machine-parse  the  contents  of an FTP directory since\n"
-"          the normal directory view doesn't use a  standard  look\n"
+"          a name-only view.  Especially useful if you want to\n"
+"          machine-parse the contents of an FTP directory since\n"
+"          the normal directory view doesn't use a standard look\n"
 );
  puts(
 "          or format.\n"
 "\n"
-"          If  this  option  is  used twice, the second will again\n"
+"          If this option is used twice, the second will again\n"
 "          disable list only.\n"
 "\n"
 "     -L/--location\n"
-"          (HTTP/HTTPS) If the server reports that  the  requested\n"
-"          page  has  a  different  location  (indicated  with the\n"
-"          header line Location:) this flag will let curl  attempt\n"
+"          (HTTP/HTTPS) If the server reports that the requested\n"
+"          page has a different location (indicated with the\n"
+"          header line Location:) this flag will let curl attempt\n"
 "          to reattempt the get on the new place. If used together\n"
 "          with -i or -I, headers from all requested pages will be\n"
 );
  puts(
-"          shown.  If  this  flag is used when making a HTTP POST,\n"
+"          shown. If this flag is used when making a HTTP POST,\n"
 "          curl will automatically switch to GET after the initial\n"
 "          POST has been done.\n"
 "\n"
-"          If  this  option  is  used twice, the second will again\n"
+"          If this option is used twice, the second will again\n"
 "          disable location following.\n"
 "\n"
 "     -m/--max-time <seconds>\n"
 "          Maximum time in seconds that you allow the whole opera�\n"
 "          tion to take.  This is useful for preventing your batch\n"
-"          jobs from hanging for hours due  to  slow  networks  or\n"
+"          jobs from hanging for hours due to slow networks or\n"
 );
  puts(
-"          links  going  down.   This  doesn't work fully in win32\n"
+"          links going down.  This doesn't work fully in win32\n"
 "          systems.  See also the --connect-timeout option.\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -M/--manual\n"
 "          Manual. Display the huge help text.\n"
 "\n"
 "     -n/--netrc\n"
-"          Makes  curl  scan  the  .netrc  file in the user's home\n"
-"          directory for login name and password.  This  is  typi�\n"
-"          cally  used  for  ftp  on unix. If used with http, curl\n"
+"          Makes curl scan the .netrc file in the user's home\n"
+"          directory for login name and password. This is typi�\n"
+"          cally used for ftp on unix. If used with http, curl\n"
 );
  puts(
-"          will  enable  user  authentication.  See  netrc(4)  for\n"
-"          details  on  the file format. Curl will not complain if\n"
-"          that file hasn't the right permissions (it  should  not\n"
-"          be  world nor group readable). The environment variable\n"
+"          will enable user authentication. See netrc(4) for\n"
+"          details on the file format. Curl will not complain if\n"
+"          that file hasn't the right permissions (it should not\n"
+"          be world nor group readable). The environment variable\n"
 "          \"HOME\" is used to find the home directory.\n"
 "\n"
-"          A quick and very simple  example  of  how  to  setup  a\n"
-"          .netrc   to   allow   curl   to   ftp  to  the  machine\n"
+"          A quick and very simple example of how to setup a\n"
+"          .netrc to allow curl to ftp to the machine\n"
+"          host.domain.com with user name\n"
+"\n"
 );
  puts(
-"          host.domain.com with user name  'myself'  and  password\n"
-"          'secret' should look similar to:\n"
-"\n"
 "          machine host.domain.com login myself password secret\n"
 "\n"
-"          If  this  option  is  used twice, the second will again\n"
+"          If this option is used twice, the second will again\n"
 "          disable netrc usage.\n"
 "\n"
 "     -N/--no-buffer\n"
-"          Disables the buffering of the output stream. In  normal\n"
+"          Disables the buffering of the output stream. In normal\n"
 "          work situations, curl will use a standard buffered out�\n"
-"          put stream that will have the effect that it will  out�\n"
+"          put stream that will have the effect that it will out�\n"
+"          put the data in chunks, not necessarily exactly when\n"
 );
  puts(
-"          put  the  data  in chunks, not necessarily exactly when\n"
-"          the data arrives.  Using this option will disable  that\n"
+"          the data arrives.  Using this option will disable that\n"
 "          buffering.\n"
-"          If  this  option  is  used twice, the second will again\n"
-"          switch on buffering.\n"
 "\n"
+"          If this option is used twice, the second will again\n"
+"          switch on buffering.\n"
 "     -o/--output <file>\n"
-"          Write output to <file> instead of stdout.  If  you  are\n"
+"          Write output to <file> instead of stdout. If you are\n"
 "          using {} or [] to fetch multiple documents, you can use\n"
-"          '#' followed by a number in the <file> specifier.  That\n"
+"          '#' followed by a number in the <file> specifier. That\n"
+"          variable will be replaced with the current string for\n"
 );
  puts(
-"          variable  will  be replaced with the current string for\n"
 "          the URL being fetched. Like in:\n"
 "\n"
 "            curl http://{one,two}.site.com -o \"file_#1.txt\"\n"
@@ -514,95 +510,95 @@ puts (
 "\n"
 "            curl http://{site,host}.host[1-5].com -o \"#1_#2\"\n"
 "\n"
-"          You may use this option as many times as you have  num�\n"
+"          You may use this option as many times as you have num�\n"
 "          ber of URLs.\n"
 "\n"
 "     -O/--remote-name\n"
 "          Write output to a local file named like the remote file\n"
-);
- puts(
 "          we get. (Only the file part of the remote file is used,\n"
 "          the path is cut off.)\n"
 "\n"
-"          You  may use this option as many times as you have num�\n"
+);
+ puts(
+"          You may use this option as many times as you have num�\n"
 "          ber of URLs.\n"
 "\n"
 "     -p/--proxytunnel\n"
 "          When an HTTP proxy is used, this option will cause non-\n"
-"          HTTP  protocols  to attempt to tunnel through the proxy\n"
-"          instead of merely using it to do HTTP-like  operations.\n"
+"          HTTP protocols to attempt to tunnel through the proxy\n"
+"          instead of merely using it to do HTTP-like operations.\n"
 "          The tunnel approach is made with the HTTP proxy CONNECT\n"
+"          request and requires that the proxy allows direct con�\n"
+"          nect to the remote port number curl wants to tunnel\n"
 );
  puts(
-"          request and requires that the proxy allows direct  con�\n"
-"          nect  to  the  remote  port number curl wants to tunnel\n"
 "          through to.\n"
 "\n"
-"          If this option is used twice,  the  second  will  again\n"
+"          If this option is used twice, the second will again\n"
 "          disable proxy tunnel.\n"
 "\n"
 "     -P/--ftpport <address>\n"
-"          (FTP)  Reverses  the initiator/listener roles when con�\n"
-"          necting with ftp. This switch makes Curl use  the  PORT\n"
-"          command  instead  of  PASV. In practice, PORT tells the\n"
+"          (FTP) Reverses the initiator/listener roles when con�\n"
+"          necting with ftp. This switch makes Curl use the PORT\n"
+"          command instead of PASV. In practice, PORT tells the\n"
+"          server to connect to the client's specified address and\n"
+"          port, while PASV asks the server for an ip address and\n"
 );
  puts(
-"          server to connect to the client's specified address and\n"
-"          port,  while PASV asks the server for an ip address and\n"
 "          port to connect to. <address> should be one of:\n"
 "\n"
-"          interface   i.e \"eth0\" to specify which interface's  IP\n"
+"          interface   i.e \"eth0\" to specify which interface's IP\n"
 "                      address you want to use  (Unix only)\n"
 "\n"
 "          IP address  i.e \"192.168.10.1\" to specify exact IP num�\n"
 "                      ber\n"
+"\n"
 "          host name   i.e \"my.host.domain\" to specify machine\n"
+"          -           (any single-letter string) to make it pick\n"
+"                      the machine's default\n"
 "\n"
 );
  puts(
-"          -           (any single-letter string) to make it  pick\n"
-"                      the machine's default\n"
-"\n"
-"     If  this option is used serveral times, the last one will be\n"
+"     If this option is used serveral times, the last one will be\n"
 "     used.\n"
 "\n"
 "     -q   If used as the first parameter on the command line, the\n"
-"          $HOME/.curlrc  file will not be read and used as a con�\n"
+"          $HOME/.curlrc file will not be read and used as a con�\n"
 "          fig file.\n"
 "\n"
 "     -Q/--quote <comand>\n"
-"          (FTP) Send an  arbitrary  command  to  the  remote  FTP\n"
-"          server,  by  using the QUOTE command of the server. Not\n"
+"          (FTP) Send an arbitrary command to the remote FTP\n"
+"          server, by using the QUOTE command of the server. Not\n"
+"          all servers support this command, and the set of QUOTE\n"
 );
  puts(
-"          all servers support this command, and the set of  QUOTE\n"
-"          commands  are  server specific! Quote commands are sent\n"
-"          BEFORE the transfer is taking place. To  make  commands\n"
-"          take  place  after  a  successful transfer, prefix them\n"
+"          commands are server specific! Quote commands are sent\n"
+"          BEFORE the transfer is taking place. To make commands\n"
+"          take place after a successful transfer, prefix them\n"
 "          with a dash '-'. You may specify any amount of commands\n"
-"          to  be run before and after the transfer. If the server\n"
-"          returns failure for one of  the  commands,  the  entire\n"
+"          to be run before and after the transfer. If the server\n"
+"          returns failure for one of the commands, the entire\n"
 "          operation will be aborted.\n"
 "\n"
-);
- puts(
 "          This option can be used multiple times.\n"
 "\n"
 "     --random-file <file>\n"
-"          (HTTPS)  Specify  the path name to file containing what\n"
-"          will be considered as random data. The data is used  to\n"
-"          seed  the  random engine for SSL connections.  See also\n"
+);
+ puts(
+"          (HTTPS) Specify the path name to file containing what\n"
+"          will be considered as random data. The data is used to\n"
+"          seed the random engine for SSL connections.  See also\n"
 "          the --edg-file option.\n"
 "\n"
 "     -r/--range <range>\n"
-"          (HTTP/FTP) Retrieve a byte range (i.e a  partial  docu�\n"
-"          ment)  from  a  HTTP/1.1  or  FTP server. Ranges can be\n"
-);
- puts(
+"          (HTTP/FTP) Retrieve a byte range (i.e a partial docu�\n"
+"          ment) from a HTTP/1.1 or FTP server. Ranges can be\n"
 "          specified in a number of ways.\n"
 "\n"
 "          0-499     specifies the first 500 bytes\n"
 "\n"
+);
+ puts(
 "          500-999   specifies the second 500 bytes\n"
 "\n"
 "          -500      specifies the last 500 bytes\n"
@@ -616,44 +612,43 @@ puts (
 "                    specifies 300 bytes from offset 500(H)\n"
 "\n"
 "          100-199,500-599\n"
+"                    specifies two separate 100 bytes ranges(*)(H)\n"
 );
  puts(
-"                    specifies two separate 100 bytes ranges(*)(H)\n"
-"\n"
-"     (*) = NOTE that this will cause the server to reply  with  a\n"
+"     (*) = NOTE that this will cause the server to reply with a\n"
 "     multipart response!\n"
 "\n"
-"     You  should  also be aware that many HTTP/1.1 servers do not\n"
+"     You should also be aware that many HTTP/1.1 servers do not\n"
 "     have this feature enabled, so that when you attempt to get a\n"
 "     range, you'll instead get the whole document.\n"
 "\n"
-"     FTP  range  downloads only support the simple syntax 'start-\n"
-"     stop' (optionally with  one  of  the  numbers  omitted).  It\n"
-);
- puts(
+"     FTP range downloads only support the simple syntax 'start-\n"
+"     stop' (optionally with one of the numbers omitted). It\n"
 "     depends on the non-RFC command SIZE.\n"
 "\n"
-"     If  this option is used serveral times, the last one will be\n"
+);
+ puts(
+"     If this option is used serveral times, the last one will be\n"
 "     used.\n"
 "\n"
 "     -s/--silent\n"
-"          Silent mode. Don't show progress meter  or  error  mes�\n"
+"          Silent mode. Don't show progress meter or error mes�\n"
 "          sages.  Makes Curl mute.\n"
 "\n"
-"          If  this  option  is  used twice, the second will again\n"
+"          If this option is used twice, the second will again\n"
 "          disable mute.\n"
 "\n"
 "     -S/--show-error\n"
-"          When used with -s it makes curl show error  message  if\n"
+"          When used with -s it makes curl show error message if\n"
 "          it fails.\n"
+"\n"
+"          If this option is used twice, the second will again\n"
+"          disable show error.\n"
 "\n"
 );
  puts(
-"          If  this  option  is  used twice, the second will again\n"
-"          disable show error.\n"
-"\n"
 "     -t/--telnet-option <OPT=val>\n"
-"          Pass options to the telnet protocol. Supported  options\n"
+"          Pass options to the telnet protocol. Supported options\n"
 "          are:\n"
 "\n"
 "          TTYPE=<term> Sets the terminal type.\n"
@@ -663,210 +658,210 @@ puts (
 "          NEW_ENV=<var,val> Sets an environment variable.\n"
 "\n"
 "     -T/--upload-file <file>\n"
-"          Like  -t,  but this transfers the specified local file.\n"
+"          Like -t, but this transfers the specified local file.\n"
+"          If there is no file part in the specified URL, Curl\n"
 );
  puts(
-"          If there is no file part in  the  specified  URL,  Curl\n"
 "          will append the local file name. NOTE that you must use\n"
-"          a trailing / on the last directory to really  prove  to\n"
+"          a trailing / on the last directory to really prove to\n"
 "          Curl that there is no file name or curl will think that\n"
-"          your last directory name is the  remote  file  name  to\n"
-"          use.  That  will most likely cause the upload operation\n"
-"          to fail. If this is used on a http(s) server,  the  PUT\n"
+"          your last directory name is the remote file name to\n"
+"          use. That will most likely cause the upload operation\n"
+"          to fail. If this is used on a http(s) server, the PUT\n"
 "          command will be used.\n"
 "\n"
+"          If this option is used serveral times, the last one\n"
 );
  puts(
-"          If  this  option  is  used serveral times, the last one\n"
 "          will be used.\n"
-"\n"
 "     -u/--user <user:password>\n"
-"          Specify user and password to  use  when  fetching.  See\n"
-"          README.curl  for  detailed examples of how to use this.\n"
-"          If no password is  specified,  curl  will  ask  for  it\n"
+"          Specify user and password to use when fetching. See\n"
+"          README.curl for detailed examples of how to use this.\n"
+"          If no password is specified, curl will ask for it\n"
 "          interactively.\n"
 "\n"
-"          If  this  option  is  used serveral times, the last one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -U/--proxy-user <user:password>\n"
+"          Specify user and password to use for Proxy authentica�\n"
 );
  puts(
-"          Specify user and password to use for Proxy  authentica�\n"
 "          tion. If no password is specified, curl will ask for it\n"
 "          interactively.\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     --url <URL>\n"
-"          Specify  a  URL  to  fetch. This option is mostly handy\n"
+"          Specify a URL to fetch. This option is mostly handy\n"
 "          when you wanna specify URL(s) in a config file.\n"
 "\n"
 "          This option may be used any number of times. To control\n"
-);
- puts(
-"          where  this  URL  is  written,  use  the  -o  or the -O\n"
+"          where this URL is written, use the -o or the -O\n"
 "          options.\n"
 "\n"
 "     -v/--verbose\n"
-"          Makes  the  fetching  more  verbose/talkative.   Mostly\n"
-"          usable  for  debugging.  Lines  starting with '>' means\n"
-"          data sent by curl, '<' means data received by curl that\n"
-"          is  hidden  in normal cases and lines starting with '*'\n"
-"          means additional info provided by curl.\n"
-"\n"
-"          If this option is used twice,  the  second  will  again\n"
 );
  puts(
+"          Makes the fetching more verbose/talkative. Mostly\n"
+"          usable for debugging. Lines starting with '>' means\n"
+"          data sent by curl, '<' means data received by curl that\n"
+"          is hidden in normal cases and lines starting with '*'\n"
+"          means additional info provided by curl.\n"
+"\n"
+"          If this option is used twice, the second will again\n"
 "          disable verbose.\n"
 "\n"
 "     -V/--version\n"
-"          Displays  the  full  version of curl, libcurl and other\n"
+"          Displays the full version of curl, libcurl and other\n"
+);
+ puts(
 "          3rd party libraries linked with the executable.\n"
 "\n"
 "     -w/--write-out <format>\n"
-"          Defines what to display after a completed and  success�\n"
-"          ful  operation. The format is a string that may contain\n"
-"          plain text mixed with  any  number  of  variables.  The\n"
+"          Defines what to display after a completed and success�\n"
+"          ful operation. The format is a string that may contain\n"
+"          plain text mixed with any number of variables. The\n"
 "          string can be specified as \"string\", to get read from a\n"
-);
- puts(
-"          particular file you specify it \"@filename\" and to  tell\n"
+"          particular file you specify it \"@filename\" and to tell\n"
 "          curl to read the format from stdin you write \"@-\".\n"
 "\n"
-"          The variables present in the output format will be sub�\n"
-"          stituted by the value or text that curl thinks fit,  as\n"
-"          described  below.  All  variables  are  specified  like\n"
-"          %{variable_name} and to output  a  normal  %  you  just\n"
-"          write  them  like %%. You can output a newline by using\n"
 );
  puts(
+"          The variables present in the output format will be sub�\n"
+"          stituted by the value or text that curl thinks fit, as\n"
+"          described below. All variables are specified like\n"
+"          %{variable_name} and to output a normal % you just\n"
+"          write them like %%. You can output a newline by using\n"
 "          \\n, a carrige return with \\r and a tab space with \\t.\n"
 "\n"
-"          NOTE:  The  %-letter  is  a  special  letter   in   the\n"
-"          win32-environment,  where  all occurrences of % must be\n"
+"          NOTE: The %-letter is a special letter in the\n"
+);
+ puts(
+"          win32-environment, where all occurrences of % must be\n"
 "          doubled when using this option.\n"
 "\n"
 "          Available variables are at this point:\n"
 "\n"
-"          url_effective  The URL that was fetched last.  This  is\n"
+"          url_effective  The URL that was fetched last. This is\n"
 "                         mostly meaningful if you've told curl to\n"
 "                         follow location: headers.\n"
 "\n"
-);
- puts(
 "          http_code      The numerical code that was found in the\n"
 "                         last retrieved HTTP(S) page.\n"
 "\n"
-"          time_total     The  total  time,  in  seconds, that the\n"
-"                         full operation lasted. The time will  be\n"
+);
+ puts(
+"          time_total     The total time, in seconds, that the\n"
+"                         full operation lasted. The time will be\n"
 "                         displayed with millisecond resolution.\n"
 "\n"
 "          time_namelookup\n"
-"                         The  time,  in seconds, it took from the\n"
-"                         start until the name resolving was  com�\n"
-);
- puts(
+"                         The time, in seconds, it took from the\n"
+"                         start until the name resolving was com�\n"
 "                         pleted.\n"
 "\n"
-"          time_connect   The  time,  in seconds, it took from the\n"
-"                         start until the connect  to  the  remote\n"
+"          time_connect   The time, in seconds, it took from the\n"
+);
+ puts(
+"                         start until the connect to the remote\n"
 "                         host (or proxy) was completed.\n"
 "\n"
 "          time_pretransfer\n"
-"                         The  time,  in seconds, it took from the\n"
-"                         start until the file  transfer  is  just\n"
-"                         about  to  begin. This includes all pre-\n"
+"                         The time, in seconds, it took from the\n"
+"                         start until the file transfer is just\n"
+"                         about to begin. This includes all pre-\n"
+"                         transfer commands and negotiations that\n"
+"                         are specific to the particular proto�\n"
 );
  puts(
-"                         transfer commands and negotiations  that\n"
-"                         are  specific  to  the particular proto�\n"
 "                         col(s) involved.\n"
 "\n"
-"          size_download  The total  amount  of  bytes  that  were\n"
+"          size_download  The total amount of bytes that were\n"
 "                         downloaded.\n"
 "\n"
-"          size_upload    The  total  amount  of  bytes  that were\n"
+"          size_upload    The total amount of bytes that were\n"
 "                         uploaded.\n"
 "\n"
-"          size_header    The total amount of bytes of  the  down�\n"
+"          size_header    The total amount of bytes of the down�\n"
 "                         loaded headers.\n"
 "\n"
-);
- puts(
 "          size_request   The total amount of bytes that were sent\n"
 "                         in the HTTP request.\n"
 "\n"
-"          speed_download The average  download  speed  that  curl\n"
+);
+ puts(
+"          speed_download The average download speed that curl\n"
 "                         measured for the complete download.\n"
-"          speed_upload   The  average upload speed that curl mea�\n"
-"                         sured for the complete upload.\n"
 "\n"
-"     If this option is used serveral times, the last one will  be\n"
+"          speed_upload   The average upload speed that curl\n"
+"                         measured for the complete upload.\n"
+"\n"
+"     If this option is used serveral times, the last one will be\n"
 "     used.\n"
 "\n"
 "     -x/--proxy <proxyhost[:port]>\n"
-);
- puts(
-"          Use  specified  proxy. If the port number is not speci�\n"
+"          Use specified proxy. If the port number is not speci�\n"
 "          fied, it is assumed at port 1080.\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
+);
+ puts(
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -X/--request <command>\n"
-"          (HTTP)  Specifies a custom request to use when communi�\n"
-"          cating with the HTTP  server.   The  specified  request\n"
+"          (HTTP) Specifies a custom request to use when communi�\n"
+"          cating with the HTTP server.  The specified request\n"
 "          will be used instead of the standard GET. Read the HTTP\n"
 "          1.1 specification for details and explanations.\n"
 "\n"
-);
- puts(
-"          (FTP) Specifies a custom FTP command to use instead  of\n"
+"          (FTP) Specifies a custom FTP command to use instead of\n"
 "          LIST when doing file lists with ftp.\n"
 "\n"
-"          If  this  option  is  used serveral times, the last one\n"
+);
+ puts(
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -y/--speed-time <time>\n"
 "          If a download is slower than speed-limit bytes per sec�\n"
-"          ond  during  a  speed-time  period,  the  download gets\n"
+"          ond during a speed-time period, the download gets\n"
 "          aborted. If speed-time is used, the default speed-limit\n"
 "          will be 1 unless set with -y.\n"
 "\n"
-);
- puts(
-"          If  this  option  is  used serveral times, the last one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -Y/--speed-limit <speed>\n"
+);
+ puts(
 "          If a download is slower than this given speed, in bytes\n"
-"          per  second,  for  speed-time  seconds it gets aborted.\n"
+"          per second, for speed-time seconds it gets aborted.\n"
 "          speed-time is set with -Y and is 30 if not set.\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -z/--time-cond <date expression>\n"
+"          (HTTP) Request to get a file that has been modified\n"
+"          later than the given time and date, or one that has\n"
 );
  puts(
-"          (HTTP)  Request  to  get  a file that has been modified\n"
-"          later than the given time and date,  or  one  that  has\n"
 "          been modified before that time. The date expression can\n"
 "          be all sorts of date strings or if it doesn't match any\n"
-"          internal  ones,  it  tries to get the time from a given\n"
-"          file name instead! See the  GNU  date(1)  or  curl_get�\n"
+"          internal ones, it tries to get the time from a given\n"
+"          file name instead! See the GNU date(1) or curl_get�\n"
 "          date(3) man pages for date expression details.\n"
 "\n"
+"          Start the date expression with a dash (-) to make it\n"
+"          request for a document that is older than the given\n"
 );
  puts(
-"          Start  the  date  expression with a dash (-) to make it\n"
-"          request for a document that is  older  than  the  given\n"
 "          date/time, default is a document that is newer than the\n"
 "          specified date/time.\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "     -3/--sslv3\n"
@@ -874,40 +869,38 @@ puts (
 "          ing with a remote SSL server.\n"
 "\n"
 "     -2/--sslv2\n"
-);
- puts(
 "          (HTTPS) Forces curl to use SSL version 2 when negotiat�\n"
 "          ing with a remote SSL server.\n"
 "\n"
 "     -#/--progress-bar\n"
-"          Make  curl  display  progress information as a progress\n"
+);
+ puts(
+"          Make curl display progress information as a progress\n"
 "          bar instead of the default statistics.\n"
 "\n"
-"          If this option is used twice,  the  second  will  again\n"
+"          If this option is used twice, the second will again\n"
 "          disable the progress bar.\n"
 "\n"
 "     --crlf\n"
-"          (FTP)  Convert  LF  to  CRLF  in upload. Useful for MVS\n"
+"          (FTP) Convert LF to CRLF in upload. Useful for MVS\n"
 "          (OS/390).\n"
 "\n"
-);
- puts(
-"          If this option is used twice,  the  second  will  again\n"
+"          If this option is used twice, the second will again\n"
 "          disable crlf converting.\n"
 "\n"
 "     --stderr <file>\n"
-"          Redirect  all  writes  to  stderr to the specified file\n"
+"          Redirect all writes to stderr to the specified file\n"
+);
+ puts(
 "          instead. If the file name is a plain '-', it is instead\n"
 "          written to stdout. This option has no point when you're\n"
 "          using a shell with decent redirecting capabilities.\n"
 "\n"
-"          If this option is used serveral  times,  the  last  one\n"
+"          If this option is used serveral times, the last one\n"
 "          will be used.\n"
 "\n"
 "FILES\n"
 "     ~/.curlrc\n"
-);
- puts(
 "          Default config file.\n"
 "\n"
 "ENVIRONMENT\n"
@@ -915,6 +908,8 @@ puts (
 "          Sets proxy server to use for HTTP.\n"
 "\n"
 "     HTTPS_PROXY [protocol://]<host>[:port]\n"
+);
+ puts(
 "          Sets proxy server to use for HTTPS.\n"
 "\n"
 "     FTP_PROXY [protocol://]<host>[:port]\n"
@@ -923,134 +918,134 @@ puts (
 "          Sets proxy server to use for GOPHER.\n"
 "\n"
 "     ALL_PROXY [protocol://]<host>[:port]\n"
-);
- puts(
-"          Sets  proxy server to use if no protocol-specific proxy\n"
+"          Sets proxy server to use if no protocol-specific proxy\n"
 "          is set.\n"
 "\n"
 "     NO_PROXY <comma-separated list of hosts>\n"
 "          list of host names that shouldn't go through any proxy.\n"
+);
+ puts(
 "          If set to a asterisk '*' only, it matches all hosts.\n"
 "\n"
 "     COLUMNS <integer>\n"
-"          The  width of the terminal.  This variable only affects\n"
+"          The width of the terminal.  This variable only affects\n"
 "          curl when the --progress-bar option is used.\n"
 "\n"
 "EXIT CODES\n"
 "     There exists a bunch of different error codes and their cor�\n"
-);
- puts(
-"     responding  error messages that may appear during bad condi�\n"
+"     responding error messages that may appear during bad condi�\n"
 "     tions. At the time of this writing, the exit codes are:\n"
 "\n"
 "     1    Unsupported protocol. This build of curl has no support\n"
+);
+ puts(
 "          for this protocol.\n"
 "\n"
 "     2    Failed to initialize.\n"
 "\n"
 "     3    URL malformat. The syntax was not correct.\n"
 "\n"
-"     4    URL  user malformatted. The user-part of the URL syntax\n"
+"     4    URL user malformatted. The user-part of the URL syntax\n"
 "          was not correct.\n"
 "\n"
-"     5    Couldn't resolve proxy. The given proxy host could  not\n"
+"     5    Couldn't resolve proxy. The given proxy host could not\n"
 "          be resolved.\n"
 "\n"
-);
- puts(
-"     6    Couldn't  resolve  host.  The given remote host was not\n"
+"     6    Couldn't resolve host. The given remote host was not\n"
 "          resolved.\n"
 "\n"
 "     7    Failed to connect to host.\n"
 "\n"
-"     8    FTP weird server  reply.  The  server  sent  data  curl\n"
+"     8    FTP weird server reply. The server sent data curl\n"
+);
+ puts(
 "          couldn't parse.\n"
 "\n"
 "     9    FTP access denied. The server denied login.\n"
 "\n"
-"     10   FTP  user/password  incorrect.  Either one or both were\n"
+"     10   FTP user/password incorrect. Either one or both were\n"
 "          not accepted by the server.\n"
 "\n"
-"     11   FTP weird PASS reply. Curl  couldn't  parse  the  reply\n"
+"     11   FTP weird PASS reply. Curl couldn't parse the reply\n"
 "          sent to the PASS request.\n"
+"\n"
+"     12   FTP weird USER reply. Curl couldn't parse the reply\n"
+"          sent to the USER request.\n"
+"     13   FTP weird PASV reply, Curl couldn't parse the reply\n"
+"          sent to the PASV request.\n"
 "\n"
 );
  puts(
-"     12   FTP  weird  USER  reply.  Curl couldn't parse the reply\n"
-"          sent to the USER request.\n"
-"     13   FTP weird PASV reply, Curl  couldn't  parse  the  reply\n"
-"          sent to the PASV request.\n"
-"\n"
-"     14   FTP  weird 227 format. Curl couldn't parse the 227-line\n"
+"     14   FTP weird 227 format. Curl couldn't parse the 227-line\n"
 "          the server sent.\n"
 "\n"
 "     15   FTP can't get host. Couldn't resolve the host IP we got\n"
 "          in the 227-line.\n"
 "\n"
-"     16   FTP  can't  reconnect.  Couldn't connect to the host we\n"
+"     16   FTP can't reconnect. Couldn't connect to the host we\n"
 "          got in the 227-line.\n"
 "\n"
-);
- puts(
-"     17   FTP  couldn't  set  binary.  Couldn't  change  transfer\n"
+"     17   FTP couldn't set binary. Couldn't change transfer\n"
 "          method to binary.\n"
 "\n"
 "     18   Partial file. Only a part of the file was transfered.\n"
 "\n"
 "     19   FTP couldn't RETR file. The RETR command failed.\n"
 "\n"
-"     20   FTP  write  error. The transfer was reported bad by the\n"
-"          server.\n"
-"\n"
-"     21   FTP quote error. A quote command  returned  error  from\n"
-"          the server.\n"
-"\n"
-"     22   HTTP  not found. The requested page was not found. This\n"
 );
  puts(
+"     20   FTP write error. The transfer was reported bad by the\n"
+"          server.\n"
+"\n"
+"     21   FTP quote error. A quote command returned error from\n"
+"          the server.\n"
+"\n"
+"     22   HTTP not found. The requested page was not found. This\n"
 "          return code only appears if --fail is used.\n"
 "\n"
-"     23   Write error.  Curl  couldn't  write  data  to  a  local\n"
+"     23   Write error. Curl couldn't write data to a local\n"
 "          filesystem or similar.\n"
 "\n"
 "     24   Malformat user. User name badly specified.\n"
 "\n"
-"     25   FTP  couldn't  STOR  file.  The  server denied the STOR\n"
+"     25   FTP couldn't STOR file. The server denied the STOR\n"
+);
+ puts(
 "          operation.\n"
 "\n"
 "     26   Read error. Various reading problems.\n"
 "\n"
 "     27   Out of memory. A memory allocation request failed.\n"
 "\n"
-"     28   Operation timeout. The specified  time-out  period  was\n"
-);
- puts(
+"     28   Operation timeout. The specified time-out period was\n"
 "          reached according to the conditions.\n"
 "\n"
-"     29   FTP  couldn't set ASCII. The server returned an unknown\n"
+"     29   FTP couldn't set ASCII. The server returned an unknown\n"
 "          reply.\n"
 "\n"
 "     30   FTP PORT failed. The PORT command failed.\n"
 "\n"
 "     31   FTP couldn't use REST. The REST command failed.\n"
 "\n"
-"     32   FTP couldn't use SIZE. The  SIZE  command  failed.  The\n"
-"          command  is  an  extension to the original FTP spec RFC\n"
+);
+ puts(
+"     32   FTP couldn't use SIZE. The SIZE command failed. The\n"
+"          command is an extension to the original FTP spec RFC\n"
 "          959.\n"
 "\n"
 "     33   HTTP range error. The range \"command\" didn't work.\n"
 "\n"
-);
- puts(
-"     34   HTTP  post  error.  Internal  post-request   generation\n"
+"     34   HTTP post error. Internal post-request generation\n"
 "          error.\n"
 "\n"
 "     35   SSL connect error. The SSL handshaking failed.\n"
 "\n"
-"     36   FTP  bad  download resume. Couldn't continue an earlier\n"
+"     36   FTP bad download resume. Couldn't continue an earlier\n"
 "          aborted download.\n"
 "\n"
-"     37   FILE couldn't read file. Failed to open the file.  Per�\n"
+"     37   FILE couldn't read file. Failed to open the file. Per�\n"
+);
+ puts(
 "          missions?\n"
 "\n"
 "     38   LDAP cannot bind. LDAP bind operation failed.\n"
@@ -1059,12 +1054,10 @@ puts (
 "\n"
 "     40   Library not found. The LDAP library was not found.\n"
 "\n"
-);
- puts(
-"     41   Function  not  found.  A required LDAP function was not\n"
+"     41   Function not found. A required LDAP function was not\n"
 "          found.\n"
 "\n"
-"     42   Aborted by callback. An application told curl to  abort\n"
+"     42   Aborted by callback. An application told curl to abort\n"
 "          the operation.\n"
 "\n"
 "     43   Internal error. A function was called with a bad param�\n"
@@ -1072,29 +1065,29 @@ puts (
 "\n"
 "     44   Internal error. A function was called in a bad order.\n"
 "\n"
-"     45   Interface error. A specified outgoing  interface  could\n"
-"          not be used.\n"
-"\n"
-"     46   Bad  password  entered. An error was signalled when the\n"
 );
  puts(
+"     45   Interface error. A specified outgoing interface could\n"
+"          not be used.\n"
+"\n"
+"     46   Bad password entered. An error was signalled when the\n"
 "          password was entered.\n"
 "\n"
-"     47   Too many redirects. When following redirects, curl  hit\n"
+"     47   Too many redirects. When following redirects, curl hit\n"
 "          the maximum amount.\n"
 "\n"
-"     XX   There  will  appear  more  error  codes  here in future\n"
-"          releases. The existing ones are meant to never  change.\n"
+"     XX   There will appear more error codes here in future\n"
+"          releases. The existing ones are meant to never change.\n"
 "\n"
 "BUGS\n"
 "     If you do find bugs, mail them to curl-bug@haxx.se.\n"
 "\n"
 "AUTHORS / CONTRIBUTORS\n"
+);
+ puts(
 "      - Daniel Stenberg <Daniel.Stenberg@haxx.se>\n"
 "      - Rafael Sagula <sagula@inf.ufrgs.br>\n"
 "      - Sampo Kellomaki <sampo@iki.fi>\n"
-);
- puts(
 "      - Linas Vepstas <linas@linas.org>\n"
 "      - Bjorn Reese <breese@mail1.stofanet.dk>\n"
 "      - Johan Anderson <johan@homemail.com>\n"
@@ -1103,11 +1096,11 @@ puts (
 "      - Ryan Nelson <ryan@inch.com>\n"
 "      - Bj�rn Stenberg <Bjorn.Stenberg@haxx.se>\n"
 "      - Angus Mackay <amackay@gus.ml.org>\n"
+);
+ puts(
 "      - Eric Young <eay@cryptsoft.com>\n"
 "      - Simon Dick <simond@totally.irrelevant.org>\n"
 "      - Oren Tirosh <oren@monty.hishome.net>\n"
-);
- puts(
 "      - Steven G. Johnson <stevenj@alum.mit.edu>\n"
 "      - Gilbert Ramirez Jr. <gram@verdict.uthscsa.edu>\n"
 "      - Andr�s Garc�a <ornalux@redestb.es>\n"
@@ -1115,12 +1108,12 @@ puts (
 "      - Mark Butler <butlerm@xmission.com>\n"
 "      - Eric Thelin <eric@generation-i.com>\n"
 "      - Marc Boucher <marc@mbsi.ca>\n"
+);
+ puts(
 "      - Greg Onufer <Greg.Onufer@Eng.Sun.COM>\n"
 "      - Doug Kaufman <dkaufman@rahul.net>\n"
 "      - David Eriksson <david@2good.com>\n"
 "      - Ralph Beckmann <rabe@uni-paderborn.de>\n"
-);
- puts(
 "      - T. Yamada <tai@imasy.or.jp>\n"
 "      - Lars J. Aas <larsa@sim.no>\n"
 "      - J�rn Hartroth <Joern.Hartroth@computer.org>\n"
@@ -1128,12 +1121,12 @@ puts (
 "      - Linus Nielsen Feltzing <linus@haxx.se>\n"
 "      - Felix von Leitner <felix@convergence.de>\n"
 "      - Dan Zitter <dzitter@zitter.net>\n"
+);
+ puts(
 "      - Jongki Suwandi <Jongki.Suwandi@eng.sun.com>\n"
 "      - Chris Maltby <chris@aurema.com>\n"
 "      - Ron Zapp <rzapper@yahoo.com>\n"
 "      - Paul Marquis <pmarquis@iname.com>\n"
-);
- puts(
 "      - Ellis Pritchard <ellis@citria.com>\n"
 "      - Damien Adant <dams@usa.net>\n"
 "      - Chris <cbayliss@csc.come>\n"
@@ -1142,11 +1135,11 @@ puts (
 "      - David LeBlanc <dleblanc@qnx.com>\n"
 "      - Rich Gray at Plus Technologies\n"
 "      - Luong Dinh Dung <u8luong@lhsystems.hu>\n"
+);
+ puts(
 "      - Torsten Foertsch <torsten.foertsch@gmx.net>\n"
 "      - Kristian K�hntopp <kris@koehntopp.de>\n"
 "      - Fred Noz <FNoz@siac.com>\n"
-);
- puts(
 "      - Caolan McNamara <caolan@csn.ul.ie>\n"
 "      - Albert Chin-A-Young <china@thewrittenword.com>\n"
 "      - Stephen Kick <skick@epicrealm.com>\n"
@@ -1155,10 +1148,10 @@ puts (
 "      - Jason S. Priebe <priebe@wral-tv.com>\n"
 "      - T. Bharath <TBharath@responsenetworks.com>\n"
 "      - Alexander Kourakos <awk@users.sourceforge.net>\n"
-"      - James Griffiths <griffiths_james@yahoo.com>\n"
-"      - Loic Dachary <loic@senga.org>\n"
 );
  puts(
+"      - James Griffiths <griffiths_james@yahoo.com>\n"
+"      - Loic Dachary <loic@senga.org>\n"
 "      - Robert Weaver <robert.weaver@sabre.com>\n"
 "      - Ingo Ralf Blum <ingoralfblum@ingoralfblum.com>\n"
 "      - Jun-ichiro itojun Hagino <itojun@iijlab.net>\n"
@@ -1175,14 +1168,14 @@ puts (
 "LATEST VERSION\n"
 "\n"
 "  You always find news about what's going on as well as the latest versions\n"
+);
+ puts(
 "  from the curl web pages, located at:\n"
 "\n"
 "        http://curl.haxx.se\n"
 "\n"
 "SIMPLE USAGE\n"
 "\n"
-);
- puts(
 "  Get the main page from netscape's web-server:\n"
 "\n"
 "        curl http://www.netscape.com/\n"
@@ -1191,20 +1184,20 @@ puts (
 "\n"
 "        curl ftp://ftp.funet.fi/README\n"
 "\n"
-"  Get a web page from a server using port 8000:\n"
-"\n"
-"        curl http://www.weirdserver.com:8000/\n"
-"\n"
-"  Get a list of the root directory of an FTP site:\n"
-"\n"
-"        curl ftp://cool.haxx.se/\n"
-"\n"
 "  Get a gopher document from funet's gopher server:\n"
 "\n"
 "        curl gopher://gopher.funet.fi\n"
 "\n"
+"  Get a web page from a server using port 8000:\n"
+"\n"
+"        curl http://www.weirdserver.com:8000/\n"
+"\n"
 );
  puts(
+"  Get a list of the root directory of an FTP site:\n"
+"\n"
+"        curl ftp://cool.haxx.se/\n"
+"\n"
 "  Get the definition of curl from a dictionary:\n"
 "\n"
 "        curl dict://dict.org/m:curl\n"
@@ -1220,11 +1213,11 @@ puts (
 "        curl -o thatpage.html http://www.netscape.com/\n"
 "\n"
 "  Get a web page and store in a local file, make the local file get the name\n"
+);
+ puts(
 "  of the remote document (if no file name part is specified in the URL, this\n"
 "  will fail):\n"
 "\n"
-);
- puts(
 "        curl -O http://www.netscape.com/index.html\n"
 "\n"
 "  Fetch two files and store them with their remote names:\n"
@@ -1241,12 +1234,12 @@ puts (
 "\n"
 "   or specify them with the -u flag like\n"
 "\n"
+);
+ puts(
 "        curl -u name:passwd ftp://machine.domain:port/full/path/to/file\n"
 "\n"
 " HTTP\n"
 "\n"
-);
- puts(
 "   The HTTP URL doesn't support user and password in the URL string. Curl\n"
 "   does support that anyway to provide a ftp-style interface and thus you can\n"
 "   pick a file like:\n"
@@ -1257,9 +1250,9 @@ puts (
 "\n"
 "        curl -u name:passwd http://machine.domain/full/path/to/file\n"
 "\n"
-"   NOTE! Since HTTP URLs don't support user and password, you can't use that\n"
 );
  puts(
+"   NOTE! Since HTTP URLs don't support user and password, you can't use that\n"
 "   style when using Curl via a proxy. You _must_ use the -u style fetch\n"
 "   during such circumstances.\n"
 "\n"
@@ -1277,11 +1270,11 @@ puts (
 "\n"
 "        curl -x my-proxy:888 ftp://ftp.leachsite.com/README\n"
 "\n"
+);
+ puts(
 " Get a file from a HTTP server that requires user and password, using the\n"
 " same proxy as above:\n"
 "\n"
-);
- puts(
 "        curl -u user:passwd -x my-proxy:888 http://www.get.this/\n"
 "\n"
 " Some proxies require special authentication. Specify by using -U as above:\n"
@@ -1294,11 +1287,11 @@ puts (
 "RANGES\n"
 "\n"
 "  With HTTP 1.1 byte-ranges were introduced. Using this, a client can request\n"
+);
+ puts(
 "  to get only one or more subparts of a specified document. Curl supports\n"
 "  this with the -r flag.\n"
 "\n"
-);
- puts(
 "  Get the first 100 bytes of a document:\n"
 "\n"
 "        curl -r 0-99 http://www.get.this/\n"
@@ -1318,12 +1311,12 @@ puts (
 "\n"
 " FTP\n"
 "\n"
+);
+ puts(
 "  Upload all data on stdin to a specified ftp site:\n"
 "\n"
 "        curl -t ftp://ftp.upload.com/myfile\n"
 "\n"
-);
- puts(
 "  Upload data from a specified file, login with user and password:\n"
 "\n"
 "        curl -T uploadfile -u user:passwd ftp://ftp.upload.com/myfile\n"
@@ -1335,11 +1328,11 @@ puts (
 "\n"
 "  Upload a local file to get appended to the remote file using ftp:\n"
 "\n"
+);
+ puts(
 "        curl -T localfile -a ftp://ftp.upload.com/remotefile\n"
 "\n"
 "  Curl also supports ftp upload through a proxy, but only if the proxy is\n"
-);
- puts(
 "  configured to allow that kind of tunneling. If it does, you can run curl in\n"
 "  a fashion similar to:\n"
 "\n"
@@ -1352,14 +1345,14 @@ puts (
 "        curl -t http://www.upload.com/myfile\n"
 "\n"
 "  Note that the http server must've been configured to accept PUT before this\n"
+);
+ puts(
 "  can be done successfully.\n"
 "\n"
 "  For other ways to do http data upload, see the POST section below.\n"
 "\n"
 "VERBOSE / DEBUG\n"
 "\n"
-);
- puts(
 "  If curl fails where it isn't supposed to, if the servers don't let you\n"
 "  in, if you can't understand the responses: use the -v flag to get VERBOSE\n"
 "  fetching. Curl will output lots of info and all data it sends and\n"
@@ -1369,9 +1362,9 @@ puts (
 "\n"
 "DETAILED INFORMATION\n"
 "\n"
-"  Different protocols provide different ways of getting detailed information\n"
 );
  puts(
+"  Different protocols provide different ways of getting detailed information\n"
 "  about specific files/documents. To get curl to show detailed information\n"
 "  about a single file, you should use -I/--head option. It displays all\n"
 "  available info on a single file for HTTP and FTP. The HTTP information is a\n"
@@ -1379,12 +1372,12 @@ puts (
 "\n"
 "  For HTTP, you can get the header information (the same as -I would show)\n"
 "  shown before the data by using -i/--include. Curl understands the\n"
-"  -D/--dump-header option when getting files from both FTP and HTTP, and it\n"
 );
  puts(
+"  -D/--dump-header option when getting files from both FTP and HTTP, and it\n"
 "  will then store the headers in the specified file.\n"
 "\n"
-"  Store the HTTP headers in a separate file (headers.txt in the example):\n"
+"  Store the HTTP headers in a separate file:\n"
 "\n"
 "        curl --dump-header headers.txt curl.haxx.se\n"
 "\n"
@@ -1395,10 +1388,10 @@ puts (
 "POST (HTTP)\n"
 "\n"
 "  It's easy to post data using curl. This is done using the -d <data>\n"
-"  option.  The post data must be urlencoded.\n"
-"\n"
 );
  puts(
+"  option.  The post data must be urlencoded.\n"
+"\n"
 "  Post a simple \"name\" and \"phone\" guestbook.\n"
 "\n"
 "        curl -d \"name=Rafael%20Sagula&phone=3320780\" \\\n"
@@ -1410,10 +1403,10 @@ puts (
 "  a perl program called formfind.pl on the curl site that helps with this).\n"
 "\n"
 "  If there's a \"normal\" post, you use -d to post. -d takes a full \"post\n"
-"  string\", which is in the format\n"
-"\n"
 );
  puts(
+"  string\", which is in the format\n"
+"\n"
 "        <variable1>=<data1>&<variable2>=<data2>&...\n"
 "\n"
 "  The 'variable' names are the names set with \"name=\" in the <input> tags, and\n"
@@ -1451,59 +1444,59 @@ puts (
 "\n"
 "  -F accepts parameters like -F \"name=contents\". If you want the contents to\n"
 "  be read from a file, use <@filename> as contents. When specifying a file,\n"
-"  you can also specify the file content type by appending ';type=<mime type>'\n"
+"  you can also specify which content type the file is, by appending\n"
 );
  puts(
-"  to the file name. You can also post the contents of several files in one field.\n"
-"  For example, the field name 'coolfiles' is used to send three  files, with\n"
-"  different content types using the following syntax:\n"
+"  ';type=<mime type>' to the file name. You can also post contents of several\n"
+"  files in one field. So that the field name 'coolfiles' can be sent three\n"
+"  files with different content types in a manner similar to:\n"
 "\n"
 "        curl -F \"coolfiles=@fil1.gif;type=image/gif,fil2.txt,fil3.html\" \\\n"
 "        http://www.post.com/postit.cgi\n"
 "\n"
-"  If the content-type is not specified, curl will try to guess from the file\n"
-"  extension  (it only knows a few), or use the previously specified type\n"
+"  If content-type is not specified, curl will try to guess from the extension\n"
+"  (it only knows a few), or use the previously specified type (from an earlier\n"
 );
  puts(
-"  (from an earlier file if several files are specified in a list) or else it\n"
-"  will  using the default type 'text/plain'.\n"
+"  file if several files are specified in a list) or finally using the default\n"
+"  type 'text/plain'.\n"
 "\n"
 "  Emulate a fill-in form with -F. Let's say you fill in three fields in a\n"
 "  form. One field is a file name which to post, one field is your name and one\n"
 "  field is a file description. We want to post the file we have written named\n"
 "  \"cooltext.txt\". To let curl do the posting of this data instead of your\n"
+"  favourite browser, you have to check out the HTML of the form page to get to\n"
 );
  puts(
-"  favourite browser, you have to read the HTML source of the form page and find\n"
-"  the names of the input fields. In our example, the input field names are\n"
+"  know the names of the input fields. In our example, the input field names are\n"
 "  'file', 'yourname' and 'filedescription'.\n"
 "\n"
 "        curl -F \"file=@cooltext.txt\" -F \"yourname=Daniel\" \\\n"
 "             -F \"filedescription=Cool text file with cool text inside\" \\\n"
 "             http://www.post.com/postit.cgi\n"
 "\n"
-"  To send two files in one post you can do it in two ways:\n"
+"  So, to send two files in one post you can do it in two ways:\n"
 "\n"
-);
- puts(
 "  1. Send multiple files in a single \"field\" with a single field name:\n"
 " \n"
 "        curl -F \"pictures=@dog.gif,cat.gif\" \n"
 " \n"
+);
+ puts(
 "  2. Send two fields with two field names: \n"
 "\n"
 "        curl -F \"docpicture=@dog.gif\" -F \"catpicture=@cat.gif\" \n"
 "\n"
-"REFERRER\n"
+"REFERER\n"
 "\n"
 "  A HTTP request has the option to include information about which address\n"
-"  that referred to actual page.  Curl allows you to specify the\n"
-"  referrer to be used on the command line. It is especially useful to\n"
-);
- puts(
+"  that referred to actual page, and curl allows the user to specify that\n"
+"  referrer to get specified on the command line. It is especially useful to\n"
 "  fool or trick stupid servers or CGI scripts that rely on that information\n"
 "  being available or contain certain data.\n"
 "\n"
+);
+ puts(
 "        curl -e www.coolsite.com http://www.showme.com/\n"
 "\n"
 "  NOTE: The referer field is defined in the HTTP spec to be a full URL.\n"
@@ -1513,14 +1506,14 @@ puts (
 "  A HTTP request has the option to include information about the browser\n"
 "  that generated the request. Curl allows it to be specified on the command\n"
 "  line. It is especially useful to fool or trick stupid servers or CGI\n"
-);
- puts(
 "  scripts that only accept certain browsers.\n"
 "\n"
 "  Example:\n"
 "\n"
 "  curl -A 'Mozilla/3.0 (Win95; I)' http://www.nationsbank.com/\n"
 "\n"
+);
+ puts(
 "  Other common strings:\n"
 "    'Mozilla/3.0 (Win95; I)'     Netscape Version 3 for Windows 95\n"
 "    'Mozilla/3.04 (Win95; U)'    Netscape Version 3 for Windows 95\n"
@@ -1528,10 +1521,10 @@ puts (
 "    'Mozilla/4.04 [en] (X11; U; AIX 4.2; Nav)'           NS for AIX\n"
 "    'Mozilla/4.05 [en] (X11; U; Linux 2.0.32 i586)'      NS for Linux\n"
 "\n"
-);
- puts(
 "  Note that Internet Explorer tries hard to be compatible in every way:\n"
 "    'Mozilla/4.0 (compatible; MSIE 4.01; Windows 95)'    MSIE for W95\n"
+);
+ puts(
 "\n"
 "  Mozilla is not the only possible User-Agent name:\n"
 "    'Konqueror/1.0'             KDE File Manager desktop client\n"
@@ -1541,21 +1534,21 @@ puts (
 "\n"
 "  Cookies are generally used by web servers to keep state information at the\n"
 "  client's side. The server sets cookies by sending a response line in the\n"
-);
- puts(
 "  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
 "  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
+);
+ puts(
 "  like \"NAME1=VALUE1; NAME2=VALUE2;\"). The server can also specify for what\n"
 "  path the \"cookie\" should be used for (by specifying \"path=value\"), when the\n"
 "  cookie should expire (\"expire=DATE\"), for what domain to use it\n"
 "  (\"domain=NAME\") and if it should be used on secure connections only\n"
 "  (\"secure\").\n"
 "\n"
-);
- puts(
 "  If you've received a page from a server that contains a header like:\n"
 "        Set-Cookie: sessionid=boo123; path=\"/foo\";\n"
 "\n"
+);
+ puts(
 "  it means the server wants that first pair passed on when we get anything in\n"
 "  a path beginning with \"/foo\".\n"
 "\n"
@@ -1565,12 +1558,12 @@ puts (
 "\n"
 "  Curl also has the ability to use previously received cookies in following\n"
 "  sessions. If you get cookies from a server and store them in a file in a\n"
-);
- puts(
 "  manner similar to:\n"
 "\n"
 "        curl --dump-header headers www.example.com\n"
 "\n"
+);
+ puts(
 "  ... you can then in a second connect to that (or another) site, use the\n"
 "  cookies from the 'headers' file like:\n"
 "\n"
@@ -1579,21 +1572,15 @@ puts (
 "  Note that by specifying -b you enable the \"cookie awareness\" and with -L\n"
 "  you can make curl follow a location: (which often is used in combination\n"
 "  with cookies). So that if a site sends cookies and a location, you can\n"
+"  use a non-existing file to trig the cookie awareness like:\n"
+"\n"
+"        curl -L -b empty-file www.example.com\n"
+"\n"
 );
  puts(
-"  use a non-existing file to trigger the cookie awareness like:\n"
-"\n"
-"        curl -L -b empty.txt www.example.com\n"
-"\n"
 "  The file to read cookies from must be formatted using plain HTTP headers OR\n"
 "  as netscape's cookie file. Curl will determine what kind it is based on the\n"
-"  file contents.  In the above command, curl will parse the header and store\n"
-"  the cookies received from www.example.com.  curl will send to the server the\n"
-"  stored cookies which match the request as it follows the location.  The\n"
-);
- puts(
-"  file \"empty.txt\" may be a non-existant file.\n"
-"  \n"
+"  file contents.\n"
 "\n"
 "PROGRESS METER\n"
 "\n"
@@ -1602,11 +1589,11 @@ puts (
 "\n"
 "  % Total    % Received % Xferd  Average Speed          Time             Curr.\n"
 "                                 Dload  Upload Total    Current  Left    Speed\n"
+);
+ puts(
 "  0  151M    0 38608    0     0   9406      0  4:41:43  0:00:04  4:41:39  9287\n"
 "\n"
 "  From left-to-right:\n"
-);
- puts(
 "   %             - percentage completed of the whole transfer\n"
 "   Total         - total size of the whole expected transfer\n"
 "   %             - percentage completed of the download\n"
@@ -1614,37 +1601,37 @@ puts (
 "   %             - percentage completed of the upload\n"
 "   Xferd         - currently uploaded amount of bytes\n"
 "   Average Speed\n"
+);
+ puts(
 "   Dload         - the average transfer speed of the download\n"
 "   Average Speed\n"
 "   Upload        - the average transfer speed of the upload\n"
-);
- puts(
 "   Time Total    - expected time to complete the operation\n"
 "   Time Current  - time passed since the invoke\n"
 "   Time Left     - expected time left to completetion\n"
 "   Curr.Speed    - the average transfer speed the last 5 seconds (the first\n"
 "                   5 seconds of a transfer is based on less time of course.)\n"
 "\n"
+);
+ puts(
 "  The -# option will display a totally different progress bar that doesn't\n"
 "  need much explanation!\n"
 "\n"
 "SPEED LIMIT\n"
 "\n"
-);
- puts(
-"  Curl allows the user to set the transfer speed conditions that must be met\n"
-"  to let the transfer keep going. By using the switch -y and -Y you\n"
-"  can make curl abort transfers if the transfer speed is below the specified\n"
-"  lowest limit for a specified time.\n"
+"  Curl offers the user to set conditions regarding transfer speed that must\n"
+"  be met to let the transfer keep going. By using the switch -y and -Y you\n"
+"  can make curl abort transfers if the transfer speed doesn't exceed your\n"
+"  given lowest limit for a specified time.\n"
 "\n"
-"  To have curl abort the download if the speed is slower than 3000 bytes per\n"
+"  To let curl abandon downloading this page if its slower than 3000 bytes per\n"
 "  second for 1 minute, run:\n"
 "\n"
+);
+ puts(
 "        curl -y 3000 -Y 60 www.far-away-site.com\n"
 "\n"
 "  This can very well be used in combination with the overall time limit, so\n"
-);
- puts(
 "  that the above operatioin must be completed in whole within 30 minutes:\n"
 "\n"
 "        curl -m 1800 -y 3000 -Y 60 www.far-away-site.com\n"
@@ -1655,10 +1642,10 @@ puts (
 "  systems) from the user's home dir on startup.\n"
 "\n"
 "  The config file could be made up with normal command line switches, but you\n"
-"  can also specify the long options without the dashes to make it more\n"
-"  readable. You can separate the options and the parameter with spaces, or\n"
 );
  puts(
+"  can also specify the long options without the dashes to make it more\n"
+"  readable. You can separate the options and the parameter with spaces, or\n"
 "  with = or :. Comments can be used within the file. If the first letter on a\n"
 "  line is a '#'-letter the rest of the line is treated as a comment.\n"
 "\n"
@@ -1666,14 +1653,14 @@ puts (
 "  parameter within double quotes (\"). Within those quotes, you specify a\n"
 "  quote as \\\".\n"
 "\n"
+);
+ puts(
 "  NOTE: You must specify options and their arguments on the same line.\n"
 "\n"
 "  Example, set default time out and proxy in a config file:\n"
 "\n"
 "        # We want a 30 minute timeout:\n"
 "        -m 1800\n"
-);
- puts(
 "        # ... and we use a proxy for all accesses:\n"
 "        proxy = proxy.our.domain.com:8080\n"
 "\n"
@@ -1681,6 +1668,8 @@ puts (
 "  leading up to the first characters of each line are ignored.\n"
 "\n"
 "  Prevent curl from reading the default file by using -q as the first command\n"
+);
+ puts(
 "  line parameter, like:\n"
 "\n"
 "        curl -q www.thatsite.com\n"
@@ -1688,14 +1677,14 @@ puts (
 "  Force curl to get and display a local help page in case it is invoked\n"
 "  without URL by making a config file similar to:\n"
 "\n"
-);
- puts(
 "        # default url to get\n"
 "        url = \"http://help.with.curl.com/curlhelp.html\"\n"
 "\n"
 "  You can specify another config file to be read by using the -K/--config\n"
 "  flag. If you set config file name to \"-\" it'll read the config from stdin,\n"
 "  which can be handy if you want to hide options from being visible in process\n"
+);
+ puts(
 "  tables etc:\n"
 "\n"
 "        echo \"user = user:passwd\" | curl -K - http://that.secret.site.com\n"
@@ -1703,8 +1692,6 @@ puts (
 "EXTRA HEADERS\n"
 "\n"
 "  When using curl in your own very special programs, you may end up needing\n"
-);
- puts(
 "  to pass on your own custom headers when getting a web page. You can do\n"
 "  this by using the -H flag.\n"
 "\n"
@@ -1714,10 +1701,10 @@ puts (
 "        curl -H \"X-you-and-me: yes\" www.love.com\n"
 "\n"
 "  This can also be useful in case you want curl to send a different text in a\n"
-"  header than it normally does. The -H header you specify then replaces the\n"
-"  header curl would normally send. If you replace an internal header with an\n"
 );
  puts(
+"  header than it normally does. The -H header you specify then replaces the\n"
+"  header curl would normally send. If you replace an internal header with an\n"
 "  empty one, you prevent that header from being sent. To prevent the Host:\n"
 "  header from being used:\n"
 "\n"
@@ -1729,11 +1716,11 @@ puts (
 "  relative the directory you enter. To get the file 'README' from your home\n"
 "  directory at your ftp site, do:\n"
 "\n"
+);
+ puts(
 "        curl ftp://user:passwd@my.site.com/README\n"
 "\n"
 "  But if you want the README file from the root directory of that very same\n"
-);
- puts(
 "  site, you need to specify the absolute file name:\n"
 "\n"
 "        curl ftp://user:passwd@my.site.com//README\n"
@@ -1746,10 +1733,10 @@ puts (
 "  connction as soon as data is about to get transfered. There are two ways to\n"
 "  do this.\n"
 "\n"
-"  The default way for curl is to issue the PASV command which causes the\n"
-"  server to open another port and await another connection performed by the\n"
 );
  puts(
+"  The default way for curl is to issue the PASV command which causes the\n"
+"  server to open another port and await another connection performed by the\n"
 "  client. This is good if the client is behind a firewall that don't allow\n"
 "  incoming connections.\n"
 "\n"
@@ -1757,18 +1744,20 @@ puts (
 "\n"
 "  If the server for example, is behind a firewall that don't allow connections\n"
 "  on other ports than 21 (or if it just doesn't support the PASV command), the\n"
+);
+ puts(
 "  other way to do it is to use the PORT command and instruct the server to\n"
 "  connect to the client on the given (as parameters to the PORT command) IP\n"
 "  number and port.\n"
 "\n"
-);
- puts(
 "  The -P flag to curl supports a few different options. Your machine may have\n"
 "  several IP-addresses and/or network interfaces and curl allows you to select\n"
 "  which of them to use. Default address can also be used:\n"
 "\n"
 "        curl -P - ftp.download.com\n"
 "\n"
+);
+ puts(
 "  Download with PORT but use the IP address of our 'le0' interface (this does\n"
 "  not work on windows):\n"
 "\n"
@@ -1776,8 +1765,6 @@ puts (
 "\n"
 "  Download with PORT but use 192.168.0.10 as our IP address to use:\n"
 "\n"
-);
- puts(
 "        curl -P 192.168.0.10 ftp.download.com\n"
 "\n"
 "NETWORK INTERFACE\n"
@@ -1792,6 +1779,8 @@ puts (
 "\n"
 "HTTPS\n"
 "\n"
+);
+ puts(
 "  Secure HTTP requires SSL libraries to be installed and used when curl is\n"
 "  built. If that is done, curl is capable of retrieving and posting documents\n"
 "  using the HTTPS procotol.\n"
@@ -1800,37 +1789,35 @@ puts (
 "\n"
 "        curl https://www.secure-site.com\n"
 "\n"
-);
- puts(
 "  Curl is also capable of using your personal certificates to get/post files\n"
 "  from sites that require valid certificates. The only drawback is that the\n"
 "  certificate needs to be in PEM-format. PEM is a standard and open format to\n"
+);
+ puts(
 "  store certificates with, but it is not used by the most commonly used\n"
 "  browsers (Netscape and MSEI both use the so called PKCS#12 format). If you\n"
 "  want curl to use the certificates you use with your (favourite) browser, you\n"
-);
- puts(
 "  may need to download/compile a converter that can convert your browser's\n"
 "  formatted certificates to PEM formatted ones. This kind of converter is\n"
 "  included in recent versions of OpenSSL, and for older versions Dr Stephen\n"
+);
+ puts(
 "  N. Henson has written a patch for SSLeay that adds this functionality. You\n"
 "  can get his patch (that requires an SSLeay installation) from his site at:\n"
 "  http://www.drh-consultancy.demon.co.uk/\n"
 "\n"
-);
- puts(
 "  Example on how to automatically retrieve a document using a certificate with\n"
 "  a personal password:\n"
 "\n"
 "        curl -E /path/to/cert.pem:password https://secure.site.com/\n"
 "\n"
 "  If you neglect to specify the password on the command line, you will be\n"
+);
+ puts(
 "  prompted for the correct password before any data can be received.\n"
 "\n"
 "  Many older SSL-servers have problems with SSLv3 or TLS, that newer versions\n"
 "  of OpenSSL etc is using, therefore it is sometimes useful to specify what\n"
-);
- puts(
 "  SSL-version curl should use. Use -3 or -2 to specify that exact SSL version\n"
 "  to use:\n"
 "\n"
@@ -1839,13 +1826,13 @@ puts (
 "  Otherwise, curl will first attempt to use v3 and then v2.\n"
 "\n"
 "  To use OpenSSL to convert your favourite browser's certificate into a PEM\n"
+);
+ puts(
 "  formatted one that curl can use, do something like this (assuming netscape,\n"
 "  but IE is likely to work similarly):\n"
 "\n"
 "    You start with hitting the 'security' menu button in netscape. \n"
 "\n"
-);
- puts(
 "    Select 'certificates->yours' and then pick a certificate in the list \n"
 "\n"
 "    Press the 'export' button \n"
@@ -1857,14 +1844,14 @@ puts (
 "    Run the 'openssl' application to convert the certificate. If you cd to the\n"
 "    openssl installation, you can do it like:\n"
 "\n"
+);
+ puts(
 "     # ./apps/openssl pkcs12 -certfile [file you saved] -out [PEMfile]\n"
 "\n"
 "\n"
 "RESUMING FILE TRANSFERS\n"
 "\n"
 " To continue a file transfer where it was previously aborted, curl supports\n"
-);
- puts(
 " resume on http(s) downloads as well as ftp uploads and downloads.\n"
 "\n"
 " Continue downloading a document:\n"
@@ -1877,14 +1864,14 @@ puts (
 "\n"
 " Continue downloading a document from a web server(*2):\n"
 "\n"
+);
+ puts(
 "        curl -c -o file http://www.server.com/\n"
 "\n"
 " (*1) = This requires that the ftp server supports the non-standard command\n"
 "        SIZE. If it doesn't, curl will say so.\n"
 "\n"
-);
- puts(
-" (*2) = This requires that the web server supports at least HTTP/1.1. If it\n"
+" (*2) = This requires that the wb server supports at least HTTP/1.1. If it\n"
 "        doesn't, curl will say so.\n"
 "\n"
 "TIME CONDITIONS\n"
@@ -1893,11 +1880,11 @@ puts (
 " requests. It is If-Modified-Since or If-Unmodified-Since. Curl allow you to\n"
 " specify them with the -z/--time-cond flag.\n"
 "\n"
+);
+ puts(
 " For example, you can easily make a download that only gets performed if the\n"
 " remote file is newer than a local copy. It would be made like:\n"
 "\n"
-);
- puts(
 "        curl -z local.html http://remote.server.com/remote.html\n"
 "\n"
 " Or you can download a file only if the local file is newer than the remote\n"
@@ -1906,12 +1893,12 @@ puts (
 "        curl -z -local.html http://remote.server.com/remote.html\n"
 "\n"
 " You can specify a \"free text\" date as condition. Tell curl to only download\n"
+);
+ puts(
 " the file if it was updated since yesterday:\n"
 "\n"
 "        curl -z yesterday http://remote.server.com/remote.html\n"
 "\n"
-);
- puts(
 " Curl will then accept a wide range of date formats. You always make the date\n"
 " check the other way around by prepending it with a dash '-'.\n"
 "\n"
@@ -1924,12 +1911,12 @@ puts (
 "        curl dict://dict.org/d:daniel:web1913\n"
 "\n"
 "  Aliases for 'm' are 'match' and 'find', and aliases for 'd' are 'define'\n"
+);
+ puts(
 "  and 'lookup'. For example,\n"
 "\n"
 "        curl dict://dict.org/find:curl\n"
 "\n"
-);
- puts(
 "  Commands that break the URL description of the RFC (but not the DICT\n"
 "  protocol) are\n"
 "\n"

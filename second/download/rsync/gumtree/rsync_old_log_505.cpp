@@ -1,1 +1,2 @@
-fprintf(f,"    --version            print version number\n");
+fprintf(FERROR,"chown %s : %s\n",
+				  fname,strerror(errno));

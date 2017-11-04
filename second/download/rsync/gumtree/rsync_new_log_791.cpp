@@ -1,1 +1,1 @@
-out_of_memory("set_delayed_bit");
+fprintf(F,"Trivial file listing program for portably checking rsync\n");

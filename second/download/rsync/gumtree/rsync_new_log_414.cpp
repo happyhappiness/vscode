@@ -1,1 +1,2 @@
-rprintf(FERROR,"protocol version mismatch - is your shell clean?\n");
+rprintf(FERROR,"write_int failed : %s\n",
+	    ret==-1?strerror(errno):"EOF");

@@ -1,1 +1,1 @@
-fprintf(stderr,"chdir %s : %s\n",dir,strerror(errno));
+fprintf(stderr,"deleting %s\n",local_file_list->files[i].name);

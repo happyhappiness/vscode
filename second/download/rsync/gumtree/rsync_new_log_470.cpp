@@ -1,1 +1,0 @@
-setup_protocol(f_out, f_in);

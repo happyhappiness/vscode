@@ -1,1 +1,1 @@
-warnf(config->global, "curl_mime_subparts failed!\n");
+warnf(global, "unsupported rate\n");

@@ -1,11 +1,11 @@
 fputs(
-"              details on the default config file search path.\n"
+"              Using this option, curl will instead  return  an  error  on  the\n"
+"              first  transfer  that  fails,  independent of the amount of URLs\n"
+"              that are given on the command line. This way, no transfer  fail-\n"
+"              ures go undetected by scripts and similar.\n"
 "\n"
-"       --dns-interface <interface>\n"
-"              (DNS)  Tell  curl  to send outgoing DNS requests through <inter-\n"
-"              face>. This option is a counterpart to --interface  (which  does\n"
-"              not  affect  DNS). The supplied string must be an interface name\n"
-"              (not an address).\n"
+"              This option is global and does not need to be specified for each\n"
+"              use of -:, --next.\n"
 "\n"
-"              See also --dns-ipv4-addr  and  --dns-ipv6-addr.  --dns-interface\n"
+"              This option does not imply -f, --fail, which causes transfers to\n"
 , stdout);

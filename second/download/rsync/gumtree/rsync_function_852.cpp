@@ -1,184 +1,144 @@
-void generate_files(int f_out, const char *local_name)
+void rwrite(enum logcode code, const char *buf, int len, int is_utf8)
 {
-	int i, ndx;
-	char fbuf[MAXPATHLEN];
-	int itemizing;
-	enum logcode code;
-	int save_do_progress = do_progress;
-
-	if (protocol_version >= 29) {
-		itemizing = 1;
-		maybe_ATTRS_REPORT = stdout_format_has_i ? 0 : ATTRS_REPORT;
-		code = logfile_format_has_i ? FNONE : FLOG;
-	} else if (am_daemon) {
-		itemizing = logfile_format_has_i && do_xfers;
-		maybe_ATTRS_REPORT = ATTRS_REPORT;
-		code = itemizing || !do_xfers ? FCLIENT : FINFO;
-	} else if (!am_server) {
-		itemizing = stdout_format_has_i;
-		maybe_ATTRS_REPORT = stdout_format_has_i ? 0 : ATTRS_REPORT;
-		code = itemizing ? FNONE : FINFO;
-	} else {
-		itemizing = 0;
-		maybe_ATTRS_REPORT = ATTRS_REPORT;
-		code = FINFO;
-	}
-	solo_file = local_name;
-	dir_tweaking = !(list_only || solo_file || dry_run);
-	need_retouch_dir_times = preserve_times > 1;
-	lull_mod = allowed_lull * 5;
-
-	if (verbose > 2)
-		rprintf(FINFO, "generator starting pid=%ld\n", (long)getpid());
-
-	if (delete_before && !solo_file && cur_flist->used > 0)
-		do_delete_pass();
-	if (delete_during == 2) {
-		deldelay_size = BIGPATHBUFLEN * 4;
-		deldelay_buf = new_array(char, deldelay_size);
-		if (!deldelay_buf)
-			out_of_memory("delete-delay");
-	}
-	do_progress = 0;
-
-	if (append_mode > 0 || whole_file < 0)
-		whole_file = 0;
-	if (verbose >= 2) {
-		rprintf(FINFO, "delta-transmission %s\n",
-			whole_file
-			? "disabled for local transfer or --whole-file"
-			: "enabled");
-	}
-
-	/* Since we often fill up the outgoing socket and then just sit around
-	 * waiting for the other 2 processes to do their thing, we don't want
-	 * to exit on a timeout.  If the data stops flowing, the receiver will
-	 * notice that and let us know via the redo pipe (or its closing). */
-	ignore_timeout = 1;
-
-	dflt_perms = (ACCESSPERMS & ~orig_umask);
-
-	do {
-#ifdef SUPPORT_HARD_LINKS
-		if (preserve_hard_links && inc_recurse) {
-			while (!flist_eof && file_total < FILECNT_LOOKAHEAD/2)
-				wait_for_receiver();
-		}
+	int trailing_CR_or_NL;
+	FILE *f = msgs2stderr ? stderr : stdout;
+#ifdef ICONV_OPTION
+	iconv_t ic = is_utf8 && ic_recv != (iconv_t)-1 ? ic_recv : ic_chck;
+#else
+#ifdef ICONV_CONST
+	iconv_t ic = ic_chck;
+#endif
 #endif
 
-		if (inc_recurse && cur_flist->parent_ndx >= 0) {
-			struct file_struct *fp = dir_flist->files[cur_flist->parent_ndx];
-			f_name(fp, fbuf);
-			ndx = cur_flist->ndx_start - 1;
-			recv_generator(fbuf, fp, ndx, itemizing, code, f_out);
-			if (delete_during && dry_run < 2 && !list_only) {
-				if (BITS_SETnUNSET(fp->flags, FLAG_CONTENT_DIR, FLAG_MISSING_DIR)) {
-					dev_t dirdev;
-					if (one_file_system) {
-						uint32 *devp = F_DIR_DEV_P(fp);
-						dirdev = MAKEDEV(DEV_MAJOR(devp), DEV_MINOR(devp));
-					} else
-						dirdev = MAKEDEV(0, 0);
-					delete_in_dir(f_name(fp, fbuf), fp, &dirdev);
-				}
+	if (len < 0)
+		exit_cleanup(RERR_MESSAGEIO);
+
+	if (msgs2stderr) {
+		if (!am_daemon) {
+			if (code == FLOG)
+				return;
+			goto output_msg;
+		}
+		if (code == FCLIENT)
+			return;
+		code = FLOG;
+	} else if (send_msgs_to_gen) {
+		assert(!is_utf8);
+		/* Pass the message to our sibling in native charset. */
+		send_msg((enum msgcode)code, buf, len, 0);
+		return;
+	}
+
+	if (code == FERROR_SOCKET) /* This gets simplified for a non-sibling. */
+		code = FERROR;
+	else if (code == FERROR_UTF8) {
+		is_utf8 = 1;
+		code = FERROR;
+	}
+
+	if (code == FCLIENT)
+		code = FINFO;
+	else if (am_daemon || logfile_name) {
+		static int in_block;
+		char msg[2048];
+		int priority = code == FINFO || code == FLOG ? LOG_INFO :  LOG_WARNING;
+
+		if (in_block)
+			return;
+		in_block = 1;
+		if (!log_initialised)
+			log_init(0);
+		strlcpy(msg, buf, MIN((int)sizeof msg, len + 1));
+		logit(priority, msg);
+		in_block = 0;
+
+		if (code == FLOG || (am_daemon && !am_server))
+			return;
+	} else if (code == FLOG)
+		return;
+
+	if (quiet && code == FINFO)
+		return;
+
+	if (am_server) {
+		enum msgcode msg = (enum msgcode)code;
+		if (protocol_version < 30) {
+			if (msg == MSG_ERROR)
+				msg = MSG_ERROR_XFER;
+			else if (msg == MSG_WARNING)
+				msg = MSG_INFO;
+		}
+		/* Pass the message to the non-server side. */
+		if (send_msg(msg, buf, len, !is_utf8))
+			return;
+		if (am_daemon) {
+			/* TODO: can we send the error to the user somehow? */
+			return;
+		}
+		f = stderr;
+	}
+
+output_msg:
+	switch (code) {
+	case FERROR_XFER:
+		got_xfer_error = 1;
+		/* FALL THROUGH */
+	case FERROR:
+	case FERROR_UTF8:
+	case FERROR_SOCKET:
+	case FWARNING:
+		f = stderr;
+		break;
+	case FLOG:
+	case FINFO:
+	case FCLIENT:
+		break;
+	default:
+		fprintf(stderr, "Unknown logcode in rwrite(): %d [%s]\n", (int)code, who_am_i());
+		exit_cleanup(RERR_MESSAGEIO);
+	}
+
+	if (output_needs_newline) {
+		fputc('\n', f);
+		output_needs_newline = 0;
+	}
+
+	trailing_CR_or_NL = len && (buf[len-1] == '\n' || buf[len-1] == '\r')
+			  ? buf[--len] : 0;
+
+	if (len && buf[0] == '\r') {
+		fputc('\r', f);
+		buf++;
+		len--;
+	}
+
+#ifdef ICONV_CONST
+	if (ic != (iconv_t)-1) {
+		xbuf outbuf, inbuf;
+		char convbuf[1024];
+		int ierrno;
+
+		INIT_CONST_XBUF(outbuf, convbuf);
+		INIT_XBUF(inbuf, (char*)buf, len, (size_t)-1);
+
+		while (inbuf.len) {
+			iconvbufs(ic, &inbuf, &outbuf, inbuf.pos ? 0 : ICB_INIT);
+			ierrno = errno;
+			if (outbuf.len) {
+				filtered_fwrite(f, convbuf, outbuf.len, 0);
+				outbuf.len = 0;
 			}
-		}
-		for (i = cur_flist->low; i <= cur_flist->high; i++) {
-			struct file_struct *file = cur_flist->sorted[i];
-
-			if (!F_IS_ACTIVE(file))
+			if (!ierrno || ierrno == E2BIG)
 				continue;
-
-			if (unsort_ndx)
-				ndx = F_NDX(file);
-			else
-				ndx = i + cur_flist->ndx_start;
-
-			if (solo_file)
-				strlcpy(fbuf, solo_file, sizeof fbuf);
-			else
-				f_name(file, fbuf);
-			recv_generator(fbuf, file, ndx, itemizing, code, f_out);
-
-			check_for_finished_files(itemizing, code, 0);
-
-			if (allowed_lull && !(i % lull_mod))
-				maybe_send_keepalive();
-			else if (!(i & 0xFF))
-				maybe_flush_socket(0);
+			fprintf(f, "\\#%03o", CVAL(inbuf.buf, inbuf.pos++));
+			inbuf.len--;
 		}
+	} else
+#endif
+		filtered_fwrite(f, buf, len, !allow_8bit_chars);
 
-		if (!inc_recurse) {
-			write_ndx(f_out, NDX_DONE);
-			break;
-		}
-
-		while (1) {
-			check_for_finished_files(itemizing, code, 1);
-			if (cur_flist->next || flist_eof)
-				break;
-			wait_for_receiver();
-		}
-	} while ((cur_flist = cur_flist->next) != NULL);
-
-	if (delete_during)
-		delete_in_dir(NULL, NULL, &dev_zero);
-	phase++;
-	if (verbose > 2)
-		rprintf(FINFO, "generate_files phase=%d\n", phase);
-
-	while (1) {
-		check_for_finished_files(itemizing, code, 1);
-		if (msgdone_cnt)
-			break;
-		wait_for_receiver();
+	if (trailing_CR_or_NL) {
+		fputc(trailing_CR_or_NL, f);
+		fflush(f);
 	}
-
-	phase++;
-	if (verbose > 2)
-		rprintf(FINFO, "generate_files phase=%d\n", phase);
-
-	write_ndx(f_out, NDX_DONE);
-	/* Reduce round-trip lag-time for a useless delay-updates phase. */
-	if (protocol_version >= 29 && !delay_updates)
-		write_ndx(f_out, NDX_DONE);
-
-	/* Read MSG_DONE for the redo phase (and any prior messages). */
-	while (1) {
-		check_for_finished_files(itemizing, code, 0);
-		if (msgdone_cnt > 1)
-			break;
-		wait_for_receiver();
-	}
-
-	if (protocol_version >= 29) {
-		phase++;
-		if (verbose > 2)
-			rprintf(FINFO, "generate_files phase=%d\n", phase);
-		if (delay_updates)
-			write_ndx(f_out, NDX_DONE);
-		/* Read MSG_DONE for delay-updates phase & prior messages. */
-		while (msgdone_cnt == 2)
-			wait_for_receiver();
-	}
-
-	do_progress = save_do_progress;
-	if (delete_during == 2)
-		do_delayed_deletions(fbuf);
-	if (delete_after && !solo_file && file_total > 0)
-		do_delete_pass();
-
-	if ((need_retouch_dir_perms || need_retouch_dir_times)
-	 && dir_tweaking && (!inc_recurse || delete_during == 2))
-		touch_up_dirs(dir_flist, -1);
-
-	if (max_delete >= 0 && deletion_count > max_delete) {
-		rprintf(FINFO,
-			"Deletions stopped due to --max-delete limit (%d skipped)\n",
-			deletion_count - max_delete);
-		io_error |= IOERR_DEL_LIMIT;
-	}
-
-	if (verbose > 2)
-		rprintf(FINFO, "generate_files finished\n");
 }

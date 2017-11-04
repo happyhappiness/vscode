@@ -1,1 +1,0 @@
-fprintf(stderr,"rename %s %s : %s\n",fname,fnamebak,strerror(errno));

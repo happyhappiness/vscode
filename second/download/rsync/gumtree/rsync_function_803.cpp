@@ -1,24 +1,31 @@
-static char *finish_pre_exec(pid_t pid, int fd, char *request,
-			     int argc, char *argv[])
+void glob_expand(char *base1, char ***argv_ptr, int *argc_ptr, int *maxargs_ptr)
 {
-	int j, status = -1;
+	char *s = (*argv_ptr)[*argc_ptr];
+	char *p, *q;
+	char *base = base1;
+	int base_len = strlen(base);
 
-	if (request) {
-		write_buf(fd, request, strlen(request)+1);
-		for (j = 0; j < argc; j++)
-			write_buf(fd, argv[j], strlen(argv[j])+1);
+	if (!s || !*s)
+		return;
+
+	if (strncmp(s, base, base_len) == 0)
+		s += base_len;
+
+	if (!(s = strdup(s)))
+		out_of_memory("glob_expand");
+
+	if (asprintf(&base," %s/", base1) <= 0)
+		out_of_memory("glob_expand");
+	base_len++;
+
+	for (q = s; *q; q = p + base_len) {
+		if ((p = strstr(q, base)) != NULL)
+			*p = '\0'; /* split it at this point */
+		glob_expand_one(q, argv_ptr, argc_ptr, maxargs_ptr);
+		if (!p)
+			break;
 	}
 
-	write_byte(fd, 0);
-
-	close(fd);
-
-	if (wait_process(pid, &status, 0) < 0
-	 || !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-		char *e;
-		if (asprintf(&e, "pre-xfer exec returned failure (%d)\n", status) < 0)
-			out_of_memory("finish_pre_exec");
-		return e;
-	}
-	return NULL;
+	free(s);
+	free(base);
 }

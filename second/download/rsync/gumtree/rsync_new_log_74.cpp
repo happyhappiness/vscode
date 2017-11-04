@@ -1,1 +1,1 @@
-fprintf(stderr,"unlink %s : %s\n",f->name,strerror(errno));
+out_of_memory("receive_file_entry");

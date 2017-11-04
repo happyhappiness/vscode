@@ -1,1 +1,1 @@
-state_attach_puts (_("created: "), s);
+mutt_window_mvprintw (MuttIndexWindow, HDR_CRYPT, 0, TITLE_FMT, "Security: ");

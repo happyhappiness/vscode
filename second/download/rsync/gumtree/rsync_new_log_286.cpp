@@ -1,1 +1,1 @@
-fprintf(f,"-L, --copy-links         treat soft links like regular files\n");
+fprintf(FINFO,"received %d names\n",flist->count);

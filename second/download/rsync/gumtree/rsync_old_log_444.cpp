@@ -1,2 +1,1 @@
-fprintf(FERROR,"read timeout after %d second - exiting\n", 
-			(int)(t-last_io));
+fprintf(f,"-L, --copy-links         treat soft links like regular files\n");

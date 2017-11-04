@@ -1,1 +1,1 @@
-fprintf(stderr, "%s", msg);
+out_of_memory("io_start_buffering_out");

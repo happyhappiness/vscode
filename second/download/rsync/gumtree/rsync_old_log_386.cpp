@@ -1,1 +1,1 @@
-fprintf(FERROR,"redoing %s(%d)\n",fname,i);
+fprintf(FINFO,"make_file(%s)\n",fname);

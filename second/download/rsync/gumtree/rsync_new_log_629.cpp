@@ -1,2 +1,1 @@
-rprintf(FERROR,"write %s: %s\n",
-				dest,strerror(errno));
+io_printf(fd, "@ERROR: setgroups failed\n");

@@ -1,1 +1,2 @@
-fprintf(f, "\n%s\n", D_(sub_transdom, opt->descrip));
+io_printf(f_out, "@ERROR: failed to open lock file %s\n",
+				  lp_lock_file(i));

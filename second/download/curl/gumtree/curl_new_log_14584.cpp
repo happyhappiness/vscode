@@ -1,9 +1,11 @@
 fputs(
-"              with  any  number of variables. The format can be specified as a\n"
-"              literal \"string\", or you can have curl read the  format  from  a\n"
-"              file  with  \"@filename\" and to tell curl to read the format from\n"
-"              stdin you write \"@-\".\n"
+"              num_redirects  Number  of  redirects  that  were followed in the\n"
+"                             request. (Added in 7.12.3)\n"
 "\n"
-"              The variables present in the output format will  be  substituted\n"
-"              by  the  value or text that curl thinks fit, as described below.\n"
+"              proxy_ssl_verify_result\n"
+"                             The result of the HTTPS proxy's SSL peer certifi-\n"
+"                             cate verification that was requested. 0 means the\n"
+"                             verification was successful. (Added in 7.52.0)\n"
+"\n"
+"              redirect_url   When an HTTP request was made without -L to  fol-\n"
 , stdout);

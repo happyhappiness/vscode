@@ -1,11 +1,11 @@
 fputs(
-"              exclusive.  It will also abide by --netrc-optional if specified.\n"
+"              should  ever  get  hurt  by attempting to reuse SSL session-IDs,\n"
+"              there seem to be broken SSL implementations in the wild that may\n"
+"              require  you to disable this in order for you to succeed. (Added\n"
+"              in 7.16.0)\n"
 "\n"
-"       --netrc-optional\n"
-"              Very similar to --netrc, but this option makes the .netrc  usage\n"
-"              optional and not mandatory as the --netrc option does.\n"
+"              Note that this is the negated option name  documented.  You  can\n"
+"              thus use --sessionid to enforce session-ID caching.\n"
 "\n"
-"       --negotiate\n"
-"              (HTTP)  Enables  GSS-Negotiate authentication. The GSS-Negotiate\n"
-"              method was designed by Microsoft and is used in their web appli-\n"
+"       --noproxy <no-proxy-list>\n"
 , stdout);

@@ -1,11 +1,12 @@
 fputs(
-"              name of the form-field to which portrait.jpg will be the input:\n"
+"                     i.e \"192.168.10.1\" to specify the exact IP address\n"
 "\n"
-"               curl -F profile=@portrait.jpg https://example.com/upload.cgi\n"
+"              host name\n"
+"                     i.e \"my.host.domain\" to specify the machine\n"
 "\n"
-"              To read content from stdin instead of a file, use - as the file-\n"
-"              name. This goes for both @ and <  constructs.  Unfortunately  it\n"
-"              does  not support reading the file from a named pipe or similar,\n"
-"              as it needs the full size before the transfer starts.\n"
+"              -      make curl pick the same IP address that is  already  used\n"
+"                     for the control connection\n"
 "\n"
+"       If  this  option is used several times, the last one will be used. Dis-\n"
+"       able the use of PORT with --ftp-pasv. Disable the attempt  to  use  the\n"
 , stdout);

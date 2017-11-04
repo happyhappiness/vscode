@@ -1,1 +1,2 @@
-fprintf (fp, "%*s", KeyInfoPadding[KIP_NAME], _(KeyInfoPrompts[KIP_NAME]));
+fprintf (fp, "%*s", KeyInfoPadding[KIP_KEY_USAGE],
+                   _(KeyInfoPrompts[KIP_KEY_USAGE]));

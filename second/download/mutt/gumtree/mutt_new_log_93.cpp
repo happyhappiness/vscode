@@ -1,1 +1,1 @@
-(fputs (pfx, fp);
+state_attach_puts (_("KeyID "), s);

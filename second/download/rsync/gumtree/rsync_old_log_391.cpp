@@ -1,1 +1,1 @@
-fprintf(FERROR,"send_files(%d,%s)\n",i,fname);
+fprintf(FINFO,"building file list ... ");

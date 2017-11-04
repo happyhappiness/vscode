@@ -1,9 +1,12 @@
 fputs(
-"              (FTP) When listing an FTP directory, this switch forces a  name-\n"
-"              only  view.   Especially useful if you want to machine-parse the\n"
-"              contents of an FTP directory since  the  normal  directory  view\n"
-"              doesn't use a standard look or format.\n"
+"              include subdirectories and symbolic links.\n"
 "\n"
-"              This  option  causes  an  FTP NLST command to be sent.  Some FTP\n"
-"              servers list only files in their response to NLST; they  do  not\n"
+"       --local-port <num>[-num]\n"
+"              Set a preferred number or range of local port numbers to use for\n"
+"              the connection(s).  Note that  port  numbers  by  nature  are  a\n"
+"              scarce resource that will be busy at times so setting this range\n"
+"              to something too narrow might cause unnecessary connection setup\n"
+"              failures. (Added in 7.15.2)\n"
+"\n"
+"       -L/--location\n"
 , stdout);

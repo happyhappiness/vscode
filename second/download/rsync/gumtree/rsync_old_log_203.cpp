@@ -1,1 +1,1 @@
-fprintf(stderr,"recv_files(%s)\n",fname);
+fprintf(stderr,"Failed to close : %s\n",strerror(errno));

@@ -1,1 +1,1 @@
-warnf(config->global, "Error building form post!\n");
+warnf(global, "--trace overrides an earlier trace/verbose option\n");

@@ -1,1 +1,1 @@
-fprintf(stderr,"recv_generator(%s)\n",fname);
+fprintf(stderr,"mktemp %s failed\n",fnametmp);

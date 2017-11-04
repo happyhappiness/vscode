@@ -1,1 +1,2 @@
-rprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));
+rprintf(FERROR,"ERROR: file corruption in %s. File changed during transfer?\n",
+			      fname);

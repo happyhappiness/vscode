@@ -1,0 +1,1 @@
+rprintf(FERROR, "internal: args[] overflowed in do_cmd()\n");

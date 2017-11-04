@@ -1,1 +1,1 @@
-rprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));
+rprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));

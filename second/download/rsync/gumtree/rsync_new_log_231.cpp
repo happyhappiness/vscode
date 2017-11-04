@@ -1,1 +1,1 @@
-fprintf(FERROR,"out of memory in %s\n",str);
+fprintf(FERROR,"mkdir %s : %s\n",fname,strerror(errno));

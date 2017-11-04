@@ -1,1 +1,0 @@
-fprintf(FERROR,"-D only allowed for root\n");

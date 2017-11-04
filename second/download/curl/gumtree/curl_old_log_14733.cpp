@@ -1,12 +1,10 @@
 fputs(
-"                     file  operand  to the user ID specified by the user oper-\n"
-"                     and. The user operand is a decimal integer user ID.\n"
+"              extracting a filename from the URL.\n"
 "\n"
-"              ln source_file target_file\n"
-"                     The ln and symlink commands create a symbolic link at the\n"
-"                     target_file  location  pointing  to the source_file loca-\n"
-"                     tion.\n"
+"              If  the  server  specifies a file name and a file with that name\n"
+"              already exists in the current working directory it will  not  be\n"
+"              overwritten and an error will occur. If the server doesn't spec-\n"
+"              ify a file name then this option has no effect.\n"
 "\n"
-"              mkdir directory_name\n"
-"                     The mkdir command creates  the  directory  named  by  the\n"
+"              There's no attempt to decode %-sequences (yet) in  the  provided\n"
 , stdout);

@@ -1,1 +1,1 @@
-fprintf(stderr,"received %d names\n",flist->count);
+fprintf(stderr,"bad option -%c\n",opt);

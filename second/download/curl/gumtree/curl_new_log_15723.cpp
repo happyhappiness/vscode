@@ -1,10 +1,12 @@
 fputs(
-"              with the proper end-of-line marker, you should thus not add that\n"
-"              as a part of the header content: do not add newlines or carriage\n"
-"              returns, they will only mess things up for you.\n"
+"              ing,  it may take longer than this given time period. To limit a\n"
+"              single request's maximum time, use  -m,  --max-time.   Set  this\n"
+"              option to zero to not timeout retries.\n"
 "\n"
-"              Headers  specified  with  this  option  will  not be included in\n"
-"              requests that curl knows will not be sent to a proxy.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Starting in 7.55.0, this option can take an argument  in  @file-\n"
+"              Added in 7.12.3.\n"
+"\n"
+"       --retry <num>\n"
+"              If  a  transient  error is returned when curl tries to perform a\n"
 , stdout);

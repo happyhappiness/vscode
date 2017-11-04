@@ -1,2 +1,1 @@
-fprintf(stderr,"offset=%d sum=%08x\n",
-	      offset,sum);
+fprintf(stderr,"mapped %s of size %d\n",fname,(int)st.st_size);

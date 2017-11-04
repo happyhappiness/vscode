@@ -1,1 +1,2 @@
-fprintf(FERROR,"recv_files finished\n");
+fprintf(FERROR,"%s: %s\n",
+			dir,strerror(errno));

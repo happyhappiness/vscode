@@ -1,1 +1,1 @@
-warnf(config->global, "curl_mime_init failed!\n");
+warnf(config->global, "setting file %s  failed!\n", data);

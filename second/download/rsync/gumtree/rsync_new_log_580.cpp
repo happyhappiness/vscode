@@ -1,1 +1,1 @@
-rprintf(FINFO,"recv mapped %s of size %d\n",fname,(int)st.st_size);
+rprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));

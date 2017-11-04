@@ -1,0 +1,1 @@
+fprintf(FERROR,"skipping non-regular file %s\n",fname);

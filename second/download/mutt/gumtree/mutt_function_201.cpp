@@ -1,47 +1,126 @@
-static void print_smime_keyinfo (const char* msg, gpgme_signature_t sig,
-                                 gpgme_key_t key, STATE *s)
+static int parse_setenv(BUFFER *tmp, BUFFER *s, unsigned long data, BUFFER *err)
 {
-  size_t msglen;
-  gpgme_user_id_t uids = NULL;
-  int i, aka = 0;
+  int query, unset, len;
+  char work[LONG_STRING];
+  char **save, **envp = envlist;
+  int count = 0;
 
-  state_attach_puts (msg, s);
-  state_attach_puts (" ", s);
-  /* key is NULL when not present in the user's keyring */
-  if (key)
+  query = 0;
+  unset = data & MUTT_SET_UNSET;
+
+  if (!MoreArgs (s))
   {
-    for (uids = key->uids; uids; uids = uids->next)
-    {
-      if (uids->revoked)
-	continue;
-      if (aka)
-      {
-        /* TODO: need to account for msg wide characters
-         * and "aka" translation length */
-	msglen = mutt_strlen (msg) - 4;
-	for (i = 0; i < msglen; i++)
-	  state_attach_puts(" ", s);
-	state_attach_puts(_("aka: "), s);
-      }
-      state_attach_puts (uids->uid, s);
-      state_attach_puts ("\n", s);
-
-      aka = 1;
-    }
+    strfcpy (err->data, _("too few arguments"), err->dsize);
+    return -1;
   }
+
+  if (*s->dptr == '?')
+  {
+    query = 1;
+    s->dptr++;
+  }
+
+  /* get variable name */
+  mutt_extract_token (tmp, s, MUTT_TOKEN_EQUAL);
+  len = strlen (tmp->data);
+
+  if (query)
+  {
+    int found = 0;
+    while (envp && *envp)
+    {
+      if (!mutt_strncmp (tmp->data, *envp, len))
+      {
+        if (!found)
+        {
+          mutt_endwin (NULL);
+          found = 1;
+        }
+        puts (*envp);
+      }
+      envp++;
+    }
+
+    if (found)
+    {
+      set_option (OPTFORCEREDRAWINDEX);
+      set_option (OPTFORCEREDRAWPAGER);
+      mutt_any_key_to_continue (NULL);
+      return 0;
+    }
+
+    snprintf (err->data, err->dsize, _("%s is unset"), tmp->data);
+    return -1;
+  }
+
+  if (unset)
+  {
+    count = 0;
+    while (envp && *envp)
+    {
+      if (!mutt_strncmp (tmp->data, *envp, len) && (*envp)[len] == '=')
+      {
+        /* shuffle down */
+        save = envp++;
+        while (*envp)
+        {
+          *save++ = *envp++;
+          count++;
+        }
+        *save = NULL;
+        safe_realloc (&envlist, sizeof(char *) * (count+1));
+        return 0;
+      }
+      envp++;
+      count++;
+    }
+    return -1;
+  }
+
+  if (*s->dptr == '=')
+  {
+    s->dptr++;
+    SKIPWS (s->dptr);
+  }
+
+  if (!MoreArgs (s))
+  {
+    strfcpy (err->data, _("too few arguments"), err->dsize);
+    return -1;
+  }
+
+  /* Look for current slot to overwrite */
+  count = 0;
+  while (envp && *envp)
+  {
+    if (!mutt_strncmp (tmp->data, *envp, len) && (*envp)[len] == '=')
+    {
+      FREE (envp);     /* __FREE_CHECKED__ */
+      break;
+    }
+    envp++;
+    count++;
+  }
+
+  /* Format var=value string */
+  strfcpy (work, tmp->data, sizeof(work));
+  len = strlen (work);
+  work[len++] = '=';
+  mutt_extract_token (tmp, s, 0);
+  strfcpy (&work[len], tmp->data, sizeof(work)-len);
+
+  /* If slot found, overwrite */
+  if (*envp)
+    *envp = safe_strdup (work);
+
+  /* If not found, add new slot */
   else
   {
-    state_attach_puts (_("KeyID "), s);
-    state_attach_puts (sig->fpr, s);
-    state_attach_puts ("\n", s);
+    *envp = safe_strdup (work);
+    count++;
+    safe_realloc (&envlist, sizeof(char *) * (count + 1));
+    envlist[count] = NULL;
   }
 
-  msglen = mutt_strlen (msg) - 8;
-  /* TODO: need to account for msg wide characters
-   * and "created" translation length */
-  for (i = 0; i < msglen; i++)
-    state_attach_puts(" ", s);
-  state_attach_puts (_("created: "), s);
-  print_time (sig->timestamp, s);
-  state_attach_puts ("\n", s);  
+  return 0;
 }

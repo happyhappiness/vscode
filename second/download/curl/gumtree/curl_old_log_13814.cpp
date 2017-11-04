@@ -1,11 +1,9 @@
 fputs(
-"              This option requires a library built with GSS-API or  SSPI  sup-\n"
-"              port.  Use  -V,  --version  to  see  if  your curl supports GSS-\n"
-"              API/SSPI and SPNEGO.\n"
+"              string,  meaning  \"use  the request's original host/port\".  This\n"
+"              option can be used many times to add many connect rules.  (Added\n"
+"              in 7.49.0).\n"
 "\n"
-"              When using this option, you must also provide a fake -u,  --user\n"
-"              option  to  activate the authentication code properly. Sending a\n"
-"              '-u :' is enough as the user  name  and  password  from  the  -u\n"
-"              option aren't actually used.\n"
-"\n"
+"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
+"              method was designed by Microsoft and is used by IIS web servers.\n"
+"              It  is a proprietary protocol, reverse-engineered by clever peo-\n"
 , stdout);

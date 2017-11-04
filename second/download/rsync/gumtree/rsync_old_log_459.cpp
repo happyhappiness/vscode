@@ -1,1 +1,1 @@
-fprintf(FINFO,"created directory %s\n",name);
+fprintf(f,"    --delete             delete files that don't exist on the sending side\n");

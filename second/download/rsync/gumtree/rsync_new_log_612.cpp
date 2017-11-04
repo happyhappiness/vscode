@@ -1,1 +1,1 @@
-rprintf(FERROR, "inflate returned %d (%d bytes)\n", r, n);
+out_of_memory("add_include_line");

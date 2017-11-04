@@ -1,1 +1,1 @@
-fprintf(FERROR,"out of memory in %s\n",str);
+fprintf(FINFO,"recv_file_list done\n");

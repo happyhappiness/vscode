@@ -1,1 +1,1 @@
-out_of_memory("read_write");
+set_perms(fname,&flist->files[i],&st,1);

@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: setgid failed\n");
+out_of_memory("add_to_list");

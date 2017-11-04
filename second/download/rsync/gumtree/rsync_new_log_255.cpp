@@ -1,2 +1,1 @@
-fprintf(stderr,"write_buf failed : %s\n",
-	    ret==-1?strerror(errno):"EOF");
+fprintf(f,"-L, --copy-links         treat soft links like regular files\n");

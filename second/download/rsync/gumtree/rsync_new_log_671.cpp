@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: invalid gid %s\n", p);
+fprintf(fp, "\n       ");

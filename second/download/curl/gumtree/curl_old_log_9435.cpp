@@ -1,11 +1,12 @@
 fputs(
-"              This is very similar to --trace, but leaves out the hex part and\n"
-"              only shows the ASCII part of the dump. It makes  smaller  output\n"
-"              that might be easier to read for untrained humans.\n"
+"              curl  to select the user name and password from your environment\n"
+"              by specifying a single colon with this option: \"-u :\".\n"
 "\n"
-"              This option overrides previous uses of -v, --verbose or --trace.\n"
 "              If this option is used several times, the last one will be used.\n"
 "\n"
-"       --trace-time\n"
-"              Prepends  a  time  stamp to each trace or verbose line that curl\n"
+"       -U, --proxy-user <user:password>\n"
+"              Specify the user name and password to use for proxy  authentica-\n"
+"              tion.\n"
+"\n"
+"              If  you  use  a  Windows  SSPI-enabled curl binary and do either\n"
 , stdout);

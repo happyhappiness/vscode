@@ -1,1 +1,1 @@
-fprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);
+fprintf(FINFO,"send_files starting\n");

@@ -1,1 +1,1 @@
-fprintf(stderr,"\n");
+fprintf(stderr, "sum=%.8x k=%d\n", sum, k);

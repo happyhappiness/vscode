@@ -1,2 +1,2 @@
-fprintf(FERROR,"read timeout after %d second - exiting\n", 
-			(int)(t-last_io));
+fprintf(FINFO,"count=%d rem=%d n=%d flength=%d\n",
+	    s->count,s->remainder,s->n,(int)s->flength);

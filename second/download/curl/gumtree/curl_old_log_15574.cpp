@@ -1,0 +1,15 @@
+fputs(
+"               https://curl.haxx.se/docs/sslcerts.html\n"
+"              See also --proxy-insecure and --cacert.\n"
+"\n"
+"       --interface <name>\n"
+"\n"
+"              Perform an operation using a specified interface. You can  enter\n"
+"              interface  name,  IP address or host name. An example could look\n"
+"              like:\n"
+"\n"
+"               curl --interface eth0:1 https://www.example.com/\n"
+"\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+, stdout);

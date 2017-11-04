@@ -1,9 +1,10 @@
 fputs(
-"              The variables present in the output format will  be  substituted\n"
-"              by  the  value or text that curl thinks fit, as described below.\n"
-"              All variables are specified as %{variable_name} and to output  a\n"
-"              normal  % you just write them as %%. You can output a newline by\n"
-"              using \\n, a carriage return with \\r and a tab space with \\t.\n"
+"                             The  time,  in  seconds,  it  took from the start\n"
+"                             until the name resolving was completed.\n"
 "\n"
-"              NOTE: The %-symbol is a special symbol in the win32-environment,\n"
+"              time_pretransfer\n"
+"                             The time, in seconds,  it  took  from  the  start\n"
+"                             until  the file transfer was just about to begin.\n"
+"                             This includes all pre-transfer commands and nego-\n"
+"                             tiations that are specific to the particular pro-\n"
 , stdout);

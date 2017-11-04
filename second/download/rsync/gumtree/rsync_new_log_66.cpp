@@ -1,1 +1,1 @@
-fprintf(stderr,"mktemp %s failed\n",fnametmp);
+fprintf(stderr,"deleting %s\n",f->name);

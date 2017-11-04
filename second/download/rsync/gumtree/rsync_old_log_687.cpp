@@ -1,1 +1,0 @@
-io_printf(fd,"@ERROR: auth failed on module %s\n",name);

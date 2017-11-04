@@ -1,1 +1,1 @@
-fprintf(FINFO,"building file list ... ");
+fprintf(FERROR,"chdir %s: %s\n",dir,strerror(errno));

@@ -1,1 +1,1 @@
-fprintf(FERROR,"fstat failed : %s\n",strerror(errno));
+out_of_memory("add_delete_entry");

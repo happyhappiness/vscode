@@ -1,2 +1,1 @@
-fprintf(FERROR,"generator starting pid=%d count=%d\n",
-	    (int)getpid(),flist->count);
+fprintf(FERROR,"generate_files phase=%d\n",phase);

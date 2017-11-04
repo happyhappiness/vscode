@@ -1,2 +1,1 @@
-fprintf(FERROR,"chdir %s : %s (4)\n",
-			  dir,strerror(errno));
+fprintf(f,"    --exclude FILE       exclude file FILE\n");

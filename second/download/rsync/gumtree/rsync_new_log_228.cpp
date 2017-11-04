@@ -1,1 +1,1 @@
-fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+fprintf(f,"    --csum-length LENGTH set the checksum length\n");

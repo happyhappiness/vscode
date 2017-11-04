@@ -1,1 +1,1 @@
-fprintf(stderr,"open %s : %s\n",fnametmp,strerror(errno));
+fprintf(stderr,"rmdir %s : %s\n",f->name,strerror(errno));

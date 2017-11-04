@@ -1,1 +1,1 @@
-fprintf(FERROR,"ERROR: hard links not supported on this platform\n");
+fprintf(FERROR,"unlink %s : %s\n",fname,strerror(errno));

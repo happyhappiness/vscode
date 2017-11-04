@@ -1,1 +1,1 @@
-fprintf(FINFO,"IO error encountered - skipping file deletion\n");
+fprintf(FERROR, "inflate init failed\n");

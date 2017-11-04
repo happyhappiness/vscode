@@ -1,1 +1,1 @@
-rprintf(FERROR,"ERROR: out of memory in %s\n",str);
+io_printf(fd,"@RSYNCD: EXIT\n");

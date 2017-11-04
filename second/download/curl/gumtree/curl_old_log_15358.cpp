@@ -1,10 +1,10 @@
 fputs(
-"              ported for FTP). You may specify any number of commands.\n"
+"              ter is given in the range, the server's response will be unspec-\n"
+"              ified, depending on the server's configuration.\n"
 "\n"
-"              If the server returns failure  for  one  of  the  commands,  the\n"
-"              entire  operation  will  be aborted. You must send syntactically\n"
-"              correct FTP commands as RFC 959 defines to FTP servers,  or  one\n"
-"              of the commands listed below to SFTP servers.\n"
+"              You should also be aware that many HTTP/1.1 servers do not  have\n"
+"              this  feature  enabled, so that when you attempt to get a range,\n"
+"              you'll instead get the whole document.\n"
 "\n"
-"              This  option can be used multiple times. When speaking to an FTP\n"
+"              FTP and SFTP range downloads only  support  the  simple  'start-\n"
 , stdout);

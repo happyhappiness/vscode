@@ -1,1 +1,2 @@
-fprintf(FERROR,"skipping long-named directory %s\n",fname);
+fprintf(FERROR,"read timeout after %d second - exiting\n", 
+			(int)(t-last_io));

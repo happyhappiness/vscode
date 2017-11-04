@@ -1,1 +1,1 @@
-fprintf(f,"    --rsync-path PATH    specify path to rsync on the remote machine\n");
+out_of_memory("checksum_init");

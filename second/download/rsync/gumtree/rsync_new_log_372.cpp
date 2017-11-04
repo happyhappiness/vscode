@@ -1,1 +1,1 @@
-fprintf(FINFO,"sending sums for %d\n",i);
+fprintf(FERROR,"ERROR: buffer overflow in %s\n",str);

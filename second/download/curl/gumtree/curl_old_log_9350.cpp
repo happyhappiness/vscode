@@ -1,11 +1,11 @@
 fputs(
-"              --data @foobar. When --data is told to read  from  a  file  like\n"
-"              that, carriage returns and newlines will be stripped out.\n"
+"                     on.  Just  be careful so that the content doesn't contain\n"
+"                     any = or @ symbols, as that will  then  make  the  syntax\n"
+"                     match one of the other cases below!\n"
 "\n"
-"       -D, --dump-header <file>\n"
-"              Write the protocol headers to the specified file.\n"
+"              =content\n"
+"                     This  will make curl URL-encode the content and pass that\n"
+"                     on. The preceding = symbol is not included in the data.\n"
 "\n"
-"              This  option  is handy to use when you want to store the headers\n"
-"              that an HTTP site sends to you. Cookies from the  headers  could\n"
-"              then  be  read  in  a  second  curl  invocation by using the -b,\n"
+"              name=content\n"
 , stdout);

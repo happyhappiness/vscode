@@ -1,1 +1,1 @@
-rprintf(FERROR, "inflate init failed\n");
+fprintf(f, "%d\n", pid);

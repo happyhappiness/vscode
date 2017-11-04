@@ -1,0 +1,1 @@
+out_of_memory("full_fname");

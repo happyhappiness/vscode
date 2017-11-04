@@ -1,1 +1,0 @@
-mutt_error (_("Error extracting key data!\n"));

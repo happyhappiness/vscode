@@ -1,1 +1,1 @@
-fprintf(stderr,"readlink %s : %s\n",fname,strerror(errno));
+fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));

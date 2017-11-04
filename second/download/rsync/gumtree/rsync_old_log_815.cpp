@@ -1,1 +1,0 @@
-out_of_memory("set_delayed_bit");

@@ -1,1 +1,1 @@
-fprintf (fp, _("%s, %lu bit %s\n"), s2, aval, s);
+printf ("%s", _("DEBUG was not defined during compilation.  Ignored.\n"));

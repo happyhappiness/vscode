@@ -1,1 +1,1 @@
-state_puts (buf, s);
+printw ("%*s", HeaderPadding[HDR_CRYPTINFO], _(Prompts[HDR_CRYPTINFO]));

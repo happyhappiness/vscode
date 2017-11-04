@@ -1,1 +1,1 @@
-printw (TITLE_FMT "%s", _("sign as: "), SmimeDefaultKey ? SmimeDefaultKey : _("<default>"));
+(option (OPTCONFIRMCREATE);

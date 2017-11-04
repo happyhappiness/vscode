@@ -1,2 +1,2 @@
-fprintf(FINFO,"count=%d rem=%d n=%d flength=%d\n",
-	    s->count,s->remainder,s->n,(int)s->flength);
+fprintf(FINFO,"generator starting pid=%d count=%d\n",
+	    (int)getpid(),flist->count);

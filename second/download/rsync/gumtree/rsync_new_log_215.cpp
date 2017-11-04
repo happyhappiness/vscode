@@ -1,1 +1,1 @@
-fprintf(FERROR,"receive_sums failed\n");
+fprintf(FERROR,"sending sums for %d\n",i);

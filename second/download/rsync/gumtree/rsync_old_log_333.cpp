@@ -1,1 +1,1 @@
-fprintf(FERROR,"receiver read %d\n",read_total());
+fprintf(FERROR,"%s : not a regular file (generator)\n",fname);

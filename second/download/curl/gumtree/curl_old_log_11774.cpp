@@ -1,10 +1,9 @@
 fputs(
-"       -I, --head\n"
-"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
-"              the  command  HEAD which this uses to get nothing but the header\n"
-"              of a document. When used on an FTP or FILE file,  curl  displays\n"
-"              the file size and last modification time only.\n"
+"              equals  characters  can  be used as separators. If the option is\n"
+"              specified with one or two dashes,  there  can  be  no  colon  or\n"
+"              equals character between the option and its parameter.\n"
 "\n"
-"       --interface <name>\n"
-"              Perform  an operation using a specified interface. You can enter\n"
+"              If the parameter is to contain whitespace, the parameter must be\n"
+"              enclosed within quotes.  Within  double  quotes,  the  following\n"
+"              escape  sequences  are  available:  \\\\, \\\", \\t, \\n, \\r and \\v. A\n"
 , stdout);

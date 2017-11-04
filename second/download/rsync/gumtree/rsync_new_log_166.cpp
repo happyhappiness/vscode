@@ -1,1 +1,1 @@
-fprintf(FERROR,"built hash table\n");
+fprintf(FERROR,"data recv %d at %d\n",i,(int)offset);

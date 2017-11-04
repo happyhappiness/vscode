@@ -1,1 +1,1 @@
-flist_expand(flist);
+io_printf(f_out, "@RSYNCD: %d\n", protocol_version);

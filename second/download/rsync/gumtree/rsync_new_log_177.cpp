@@ -1,1 +1,1 @@
-fprintf(FERROR,"chown %s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"fstat %s : %s\n",fname,strerror(errno));

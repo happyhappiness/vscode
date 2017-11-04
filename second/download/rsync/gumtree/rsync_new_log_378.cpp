@@ -1,1 +1,1 @@
-fprintf(FERROR,"rmdir %s : %s\n",f_name(f),strerror(errno));
+rprintf(FERROR,"protocol version mismatch - is your shell clean?\n");

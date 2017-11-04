@@ -1,1 +1,1 @@
-rprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+rprintf(FLOG,"failed to create pid file %s\n", pid_file);

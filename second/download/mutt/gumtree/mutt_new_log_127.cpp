@@ -1,1 +1,1 @@
-fputs (_("Cannot use -E flag with stdin\n"), stderr);
+mutt_yesorno(msg, MUTT_YES);

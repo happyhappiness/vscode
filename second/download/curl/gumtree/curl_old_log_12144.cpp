@@ -1,0 +1,17 @@
+fputs(
+"       75     Character conversion failed.\n"
+"\n"
+"       76     Character conversion functions required.\n"
+"\n"
+"       77     Problem with reading the SSL CA cert (path? access rights?).\n"
+"\n"
+"       78     The resource referenced in the URL does not exist.\n"
+"\n"
+"       79     An unspecified error occurred during the SSH session.\n"
+"\n"
+"       80     Failed to shut down the SSL connection.\n"
+"\n"
+"       82     Could not load CRL file,  missing  or  wrong  format  (added  in\n"
+"              7.19.0).\n"
+"\n"
+, stdout);

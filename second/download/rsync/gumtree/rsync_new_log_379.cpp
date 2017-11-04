@@ -1,1 +1,2 @@
-fprintf(FINFO,"deleting directory %s\n",f_name(f));
+rprintf(FINFO, "local_version=%d remote_version=%d\n",
+			PROTOCOL_VERSION, remote_version);

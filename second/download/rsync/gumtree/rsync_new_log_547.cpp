@@ -1,2 +1,1 @@
-rprintf(FERROR,"mkdir %s : %s (2)\n",
-			    fname,strerror(errno));
+rprintf(FINFO,"renaming %s to %s\n",fnametmp,fname);

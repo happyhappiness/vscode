@@ -1,1 +1,1 @@
-fprintf(f,"    --exclude FILE       exclude file FILE\n");
+fprintf(FERROR,"stat %s : %s\n",fname,strerror(errno));

@@ -1,1 +1,1 @@
-rprintf(FINFO,"generator wrote %ld\n",(long)write_total());
+out_of_memory("glob_expand");

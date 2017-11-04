@@ -1,51 +1,39 @@
-static void send_directory(int f,struct file_list *flist,char *dir)
+static char *get_local_name(struct file_list *flist,char *name)
 {
-	DIR *d;
-	struct dirent *di;
-	char fname[MAXPATHLEN];
-	int l;
-	char *p;
+  struct stat st;
 
-	d = opendir(dir);
-	if (!d) {
-		io_error = 1;
-		fprintf(FERROR,"%s: %s\n",
-			dir,strerror(errno));
-		return;
-	}
+  if (stat(name,&st) == 0) {
+    if (S_ISDIR(st.st_mode)) {
+      if (chdir(name) != 0) {
+	fprintf(FERROR,"chdir %s : %s (1)\n",name,strerror(errno));
+	exit_cleanup(1);
+      }
+      return NULL;
+    }
+    if (flist->count > 1) {
+      fprintf(FERROR,"ERROR: destination must be a directory when copying more than 1 file\n");
+      exit_cleanup(1);
+    }
+    return name;
+  }
 
-	strncpy(fname,dir,MAXPATHLEN-1);
-	fname[MAXPATHLEN-1]=0;
-	l = strlen(fname);
-	if (fname[l-1] != '/') {
-		if (l == MAXPATHLEN-1) {
-			io_error = 1;
-			fprintf(FERROR,"skipping long-named directory %s\n",fname);
-			closedir(d);
-			return;
-		}
-		strcat(fname,"/");
-		l++;
-	}
-	p = fname + strlen(fname);
+  if (flist->count == 1)
+    return name;
 
-	if (cvs_exclude) {
-		if (strlen(fname) + strlen(".cvsignore") <= MAXPATHLEN-1) {
-			strcpy(p,".cvsignore");
-			local_exclude_list = make_exclude_list(fname,NULL,0);
-		} else {
-			io_error = 1;
-			fprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);
-		}
-	}  
-	
-	for (di=readdir(d); di; di=readdir(d)) {
-		if (strcmp(di->d_name,".")==0 ||
-		    strcmp(di->d_name,"..")==0)
-			continue;
-		strncpy(p,di->d_name,MAXPATHLEN-(l+1));
-		send_file_name(f,flist,fname,recurse,FLAG_DELETE);
-	}
+  if (!name) 
+    return NULL;
 
-	closedir(d);
+  if (do_mkdir(name,0777 & ~orig_umask) != 0) {
+    fprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));
+    exit_cleanup(1);
+  } else {
+    fprintf(FINFO,"created directory %s\n",name);
+  }
+
+  if (chdir(name) != 0) {
+    fprintf(FERROR,"chdir %s : %s (2)\n",name,strerror(errno));
+    exit_cleanup(1);
+  }
+
+  return NULL;
 }

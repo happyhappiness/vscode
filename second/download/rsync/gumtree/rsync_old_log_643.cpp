@@ -1,0 +1,1 @@
+io_printf(fd,"@RSYNCD: %d\n", PROTOCOL_VERSION);

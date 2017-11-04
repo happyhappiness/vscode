@@ -1,2 +1,1 @@
-fprintf(FINFO,"%s => %s\n",
-			f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));
+rprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");

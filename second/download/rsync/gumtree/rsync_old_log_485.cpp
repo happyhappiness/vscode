@@ -1,1 +1,1 @@
-fprintf(f,"-D, --devices            preserve devices (root only)\n");
+fprintf(FINFO,"built hash table\n");

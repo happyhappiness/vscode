@@ -1,48 +1,27 @@
-static void send_directory(int f,struct file_list *flist,char *dir)
+int64 read_longint(int f)
 {
-  DIR *d;
-  struct dirent *di;
-  char fname[MAXPATHLEN];
-  int l;
-  char *p;
+	extern int remote_version;
+	int64 ret;
+	char b[8];
+	ret = read_int(f);
 
-  d = opendir(dir);
-  if (!d) {
-    fprintf(FERROR,"%s: %s\n",
-	    dir,strerror(errno));
-    return;
-  }
+	if (ret != -1) return ret;
 
-  strncpy(fname,dir,MAXPATHLEN-1);
-  fname[MAXPATHLEN-1]=0;
-  l = strlen(fname);
-  if (fname[l-1] != '/') {
-        if (l == MAXPATHLEN-1) {
-              fprintf(FERROR,"skipping long-named directory %s\n",fname);
-              closedir(d);
-              return;
-        }
-	  strcat(fname,"/");
-	  l++;
-  }
-  p = fname + strlen(fname);
+#ifndef HAVE_LONGLONG
+	fprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");
+	exit_cleanup(1);
+#else
+	if (remote_version >= 16) {
+		if ((ret=readfd(f,b,8)) != 8) {
+			if (verbose > 1) 
+				fprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
+					getpid(),8,ret==-1?strerror(errno):"EOF");
+			exit_cleanup(1);
+		}
+		total_read += 8;
+		ret = IVAL(b,0) | (((int64)IVAL(b,4))<<32);
+	}
+#endif
 
-  if (cvs_exclude) {
-    if (strlen(fname) + strlen(".cvsignore") <= MAXPATHLEN-1) {
-      strcpy(p,".cvsignore");
-      local_exclude_list = make_exclude_list(fname,NULL,0);
-    } else {
-      fprintf(FERROR,"cannot cvs-exclude in long-named directory %s\n",fname);
-    }
-  }  
-
-  for (di=readdir(d); di; di=readdir(d)) {
-    if (strcmp(di->d_name,".")==0 ||
-	strcmp(di->d_name,"..")==0)
-      continue;
-    strncpy(p,di->d_name,MAXPATHLEN-(l+1));
-    send_file_name(f,flist,fname);
-  }
-
-  closedir(d);
+	return ret;
 }

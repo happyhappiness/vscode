@@ -1,1 +1,1 @@
-fprintf(stderr,"recv_file_list starting\n");
+fprintf(stderr,"-o only allowed for root\n");

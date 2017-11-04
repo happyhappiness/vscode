@@ -1,1 +1,1 @@
-fprintf(fp, " %s", fn);
+out_of_memory("add_rule");

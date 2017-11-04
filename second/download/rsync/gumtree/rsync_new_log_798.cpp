@@ -1,1 +1,1 @@
-fprintf(out, "#ifdef BYFOUR\n");
+out_of_memory("recv_user_name");

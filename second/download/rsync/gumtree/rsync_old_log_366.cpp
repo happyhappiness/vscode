@@ -1,1 +1,2 @@
-fprintf(FINFO,"%s is a hard link\n",file->name);
+fprintf(FINFO,"parent=%d child=%d sender=%d recurse=%d\n",
+	      (int)getpid(),pid,sender,recurse);

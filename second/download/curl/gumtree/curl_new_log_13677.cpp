@@ -1,1 +1,0 @@
-printf("Reading response.\n");

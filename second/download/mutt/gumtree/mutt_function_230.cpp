@@ -1,281 +1,346 @@
-static void print_key_info (gpgme_key_t key, FILE *fp)
+static void show_version (void)
 {
-  int idx;
-  const char *s = NULL, *s2 = NULL;
-  time_t tt = 0;
-  struct tm *tm;
-  char shortbuf[SHORT_STRING];
-  unsigned long aval = 0;
-  const char *delim;
-  int is_pgp = 0;
-  int i;
-  gpgme_user_id_t uid = NULL;
-  static int max_header_width = 0;
-  int width;
+  struct utsname uts;
 
-  if (!max_header_width)
-  {
-    for (i = 0; i < KIP_END; i++)
-    {
-      KeyInfoPadding[i] = mutt_strlen (_(KeyInfoPrompts[i]));
-      width = mutt_strwidth (_(KeyInfoPrompts[i]));
-      if (max_header_width < width)
-        max_header_width = width;
-      KeyInfoPadding[i] -= width;
-    }
-    for (i = 0; i < KIP_END; i++)
-      KeyInfoPadding[i] += max_header_width;
-  }
+  puts (mutt_make_version());
+  puts (_(Notice));
 
-  is_pgp = key->protocol == GPGME_PROTOCOL_OpenPGP;
+  uname (&uts);
 
-  for (idx = 0, uid = key->uids; uid; idx++, uid = uid->next)
-    {
-      if (uid->revoked)
-        continue;
-
-      s = uid->uid;
-
-      if (!idx)
-        fprintf (fp, "%*s", KeyInfoPadding[KIP_NAME], _(KeyInfoPrompts[KIP_NAME]));
-      else
-        fprintf (fp, "%*s", KeyInfoPadding[KIP_AKA], _(KeyInfoPrompts[KIP_AKA]));
-      if (uid->invalid)
-        {
-          /* L10N: comes after the Name or aka if the key is invalid */
-          fputs (_("[Invalid]"), fp);
-          putc (' ', fp);
-        }
-      if (is_pgp)
-        print_utf8 (fp, s, strlen(s));
-      else
-        parse_and_print_user_id (fp, s);
-      putc ('\n', fp);
-    }
-
-  if (key->subkeys && (key->subkeys->timestamp > 0))
-    {
-      tt = key->subkeys->timestamp;
-
-      tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-      strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
+#ifdef _AIX
+  printf ("System: %s %s.%s", uts.sysname, uts.version, uts.release);
+#elif defined (SCO)
+  printf ("System: SCO %s", uts.release);
 #else
-      strftime (shortbuf, sizeof shortbuf, "%c", tm);
+  printf ("System: %s %s", uts.sysname, uts.release);
 #endif
-      fprintf (fp, "%*s%s\n", KeyInfoPadding[KIP_VALID_FROM],
-               _(KeyInfoPrompts[KIP_VALID_FROM]), shortbuf);
-    }
 
-  if (key->subkeys && (key->subkeys->expires > 0))
-    {
-      tt = key->subkeys->expires;
+  printf (" (%s)", uts.machine);
 
-      tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-      strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
+#ifdef NCURSES_VERSION
+  printf ("\nncurses: %s (compiled with %s)", curses_version(), NCURSES_VERSION);
+#elif defined(USE_SLANG_CURSES)
+  printf ("\nslang: %d", SLANG_VERSION);
+#endif
+
+#ifdef _LIBICONV_VERSION
+  printf ("\nlibiconv: %d.%d", _LIBICONV_VERSION >> 8,
+	  _LIBICONV_VERSION & 0xff);
+#endif
+
+#ifdef HAVE_LIBIDN
+  printf ("\nlibidn: %s (compiled with %s)", stringprep_check_version (NULL), 
+	  STRINGPREP_VERSION);
+#endif
+
+#ifdef USE_HCACHE
+  printf ("\nhcache backend: %s", mutt_hcache_backend ());
+#endif
+
+  puts ("\n\nCompiler:");
+  rstrip_in_place((char *)cc_version);
+  puts (cc_version);
+
+  rstrip_in_place((char *)configure_options);
+  printf ("\nConfigure options: %s\n", configure_options);
+
+  rstrip_in_place((char *)cc_cflags);
+  printf ("\nCompilation CFLAGS: %s\n", cc_cflags);
+
+  puts (_("\nCompile options:"));
+
+#ifdef DOMAIN
+  printf ("DOMAIN=\"%s\"\n", DOMAIN);
 #else
-      strftime (shortbuf, sizeof shortbuf, "%c", tm);
+  puts ("-DOMAIN");
 #endif
-      fprintf (fp, "%*s%s\n", KeyInfoPadding[KIP_VALID_TO],
-               _(KeyInfoPrompts[KIP_VALID_TO]), shortbuf);
-    }
 
-  if (key->subkeys)
-    s = gpgme_pubkey_algo_name (key->subkeys->pubkey_algo);
-  else
-    s = "?";
-
-  s2 = is_pgp ? "PGP" : "X.509";
-
-  if (key->subkeys)
-    aval = key->subkeys->length;
-
-  fprintf (fp, "%*s", KeyInfoPadding[KIP_KEY_TYPE],
-           _(KeyInfoPrompts[KIP_KEY_TYPE]));
-  /* L10N: This is printed after "Key Type: " and looks like this:
-   *       PGP, 2048 bit RSA */
-  fprintf (fp, _("%s, %lu bit %s\n"), s2, aval, s);
-
-  fprintf (fp, "%*s", KeyInfoPadding[KIP_KEY_USAGE],
-           _(KeyInfoPrompts[KIP_KEY_USAGE]));
-  delim = "";
-
-  if (key_check_cap (key, KEY_CAP_CAN_ENCRYPT))
-    {
-      /* L10N: value in Key Usage: field */
-      fprintf (fp, "%s%s", delim, _("encryption"));
-      delim = _(", ");
-    }
-  if (key_check_cap (key, KEY_CAP_CAN_SIGN))
-    {
-      /* L10N: value in Key Usage: field */
-      fprintf (fp, "%s%s", delim, _("signing"));
-      delim = _(", ");
-    }
-  if (key_check_cap (key, KEY_CAP_CAN_CERTIFY))
-    {
-      /* L10N: value in Key Usage: field */
-      fprintf (fp, "%s%s", delim, _("certification"));
-      delim = _(", ");
-    }
-  putc ('\n', fp);
-
-  if (key->subkeys)
-    {
-      s = key->subkeys->fpr;
-      fprintf (fp, "%*s", KeyInfoPadding[KIP_FINGERPRINT],
-               _(KeyInfoPrompts[KIP_FINGERPRINT]));
-      if (is_pgp && strlen (s) == 40)
-        {
-          for (i=0; *s && s[1] && s[2] && s[3] && s[4]; s += 4, i++)
-            {
-              putc (*s, fp);
-              putc (s[1], fp);
-              putc (s[2], fp);
-              putc (s[3], fp);
-              putc (is_pgp? ' ':':', fp);
-              if (is_pgp && i == 4)
-                putc (' ', fp);
-            }
-        }
-      else
-        {
-          for (i=0; *s && s[1] && s[2]; s += 2, i++)
-            {
-              putc (*s, fp);
-              putc (s[1], fp);
-              putc (is_pgp? ' ':':', fp);
-              if (is_pgp && i == 7)
-                putc (' ', fp);
-            }
-        }
-      fprintf (fp, "%s\n", s);
-    }
-
-  if (key->issuer_serial)
-    {
-      s = key->issuer_serial;
-      if (s)
-        fprintf (fp, "%*s0x%s\n", KeyInfoPadding[KIP_SERIAL_NO],
-                 _(KeyInfoPrompts[KIP_SERIAL_NO]), s);
-    }
-
-  if (key->issuer_name)
-    {
-      s = key->issuer_name;
-      if (s)
-	{
-          fprintf (fp, "%*s", KeyInfoPadding[KIP_ISSUED_BY],
-                 _(KeyInfoPrompts[KIP_ISSUED_BY]));
-	  parse_and_print_user_id (fp, s);
-	  putc ('\n', fp);
-	}
-    }
-
-  /* For PGP we list all subkeys. */
-  if (is_pgp)
-    {
-      gpgme_subkey_t subkey = NULL;
-
-      for (idx = 1, subkey = key->subkeys; subkey;
-           idx++, subkey = subkey->next)
-        {
-	  s = subkey->keyid;
-
-          putc ('\n', fp);
-          if ( strlen (s) == 16)
-            s += 8; /* display only the short keyID */
-          fprintf (fp, "%*s0x%s", KeyInfoPadding[KIP_SUBKEY],
-                 _(KeyInfoPrompts[KIP_SUBKEY]), s);
-	  if (subkey->revoked)
-            {
-              putc (' ', fp);
-              /* L10N: describes a subkey */
-              fputs (_("[Revoked]"), fp);
-            }
-	  if (subkey->invalid)
-            {
-              putc (' ', fp);
-              /* L10N: describes a subkey */
-              fputs (_("[Invalid]"), fp);
-            }
-	  if (subkey->expired)
-            {
-              putc (' ', fp);
-              /* L10N: describes a subkey */
-              fputs (_("[Expired]"), fp);
-            }
-	  if (subkey->disabled)
-            {
-              putc (' ', fp);
-              /* L10N: describes a subkey */
-              fputs (_("[Disabled]"), fp);
-            }
-          putc ('\n', fp);
-
-	  if (subkey->timestamp > 0)
-	    {
-	      tt = subkey->timestamp;
-
-              tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-              strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
+#ifdef DEBUG
+  puts ("+DEBUG");
 #else
-              strftime (shortbuf, sizeof shortbuf, "%c", tm);
+  puts ("-DEBUG");
 #endif
-              fprintf (fp, "%*s%s\n", KeyInfoPadding[KIP_VALID_FROM],
-                       _(KeyInfoPrompts[KIP_VALID_FROM]), shortbuf);
-            }
+  
 
-	  if (subkey->expires > 0)
-	    {
-	      tt = subkey->expires;
+  
+  puts (
 
-              tm = localtime (&tt);
-#ifdef HAVE_LANGINFO_D_T_FMT
-              strftime (shortbuf, sizeof shortbuf, nl_langinfo (D_T_FMT), tm);
+#ifdef HOMESPOOL
+	"+HOMESPOOL  "
 #else
-              strftime (shortbuf, sizeof shortbuf, "%c", tm);
+	"-HOMESPOOL  "
 #endif
-              fprintf (fp, "%*s%s\n", KeyInfoPadding[KIP_VALID_TO],
-                       _(KeyInfoPrompts[KIP_VALID_TO]), shortbuf);
-            }
 
-	  if (subkey)
-	    s = gpgme_pubkey_algo_name (subkey->pubkey_algo);
-	  else
-            s = "?";
+#ifdef USE_SETGID
+	"+USE_SETGID  "
+#else
+	"-USE_SETGID  "
+#endif
 
-	  if (subkey)
-	    aval = subkey->length;
-	  else
-	    aval = 0;
+#ifdef USE_DOTLOCK
+	"+USE_DOTLOCK  "
+#else
+	"-USE_DOTLOCK  "
+#endif
 
-          fprintf (fp, "%*s", KeyInfoPadding[KIP_KEY_TYPE],
-                   _(KeyInfoPrompts[KIP_KEY_TYPE]));
-          fprintf (fp, _("%s, %lu bit %s\n"), "PGP", aval, s);
+#ifdef DL_STANDALONE
+	"+DL_STANDALONE  "
+#else
+	"-DL_STANDALONE  "
+#endif
 
-          fprintf (fp, "%*s", KeyInfoPadding[KIP_KEY_USAGE],
-                   _(KeyInfoPrompts[KIP_KEY_USAGE]));
-          delim = "";
+#ifdef USE_FCNTL
+	"+USE_FCNTL  "
+#else
+	"-USE_FCNTL  "
+#endif
 
-	  if (subkey->can_encrypt)
-            {
-              fprintf (fp, "%s%s", delim, _("encryption"));
-              delim = _(", ");
-            }
-          if (subkey->can_sign)
-            {
-              fprintf (fp, "%s%s", delim, _("signing"));
-              delim = _(", ");
-            }
-          if (subkey->can_certify)
-            {
-              fprintf (fp, "%s%s", delim, _("certification"));
-              delim = _(", ");
-            }
-          putc ('\n', fp);
-        }
-    }
+#ifdef USE_FLOCK
+	"+USE_FLOCK   "
+#else
+	"-USE_FLOCK   "
+#endif
+    );
+  puts (
+#ifdef USE_POP
+	"+USE_POP  "
+#else
+	"-USE_POP  "
+#endif
+
+#ifdef USE_IMAP
+        "+USE_IMAP  "
+#else
+        "-USE_IMAP  "
+#endif
+
+#ifdef USE_SMTP
+	"+USE_SMTP  "
+#else
+	"-USE_SMTP  "
+#endif
+	"\n"
+	
+#ifdef USE_SSL_OPENSSL
+	"+USE_SSL_OPENSSL  "
+#else
+	"-USE_SSL_OPENSSL  "
+#endif
+
+#ifdef USE_SSL_GNUTLS
+	"+USE_SSL_GNUTLS  "
+#else
+	"-USE_SSL_GNUTLS  "
+#endif
+
+#ifdef USE_SASL
+	"+USE_SASL  "
+#else
+	"-USE_SASL  "
+#endif
+#ifdef USE_GSS
+	"+USE_GSS  "
+#else
+	"-USE_GSS  "
+#endif
+
+#if HAVE_GETADDRINFO
+	"+HAVE_GETADDRINFO  "
+#else
+	"-HAVE_GETADDRINFO  "
+#endif
+        );
+  	
+  puts (
+#ifdef HAVE_REGCOMP
+	"+HAVE_REGCOMP  "
+#else
+	"-HAVE_REGCOMP  "
+#endif
+
+#ifdef USE_GNU_REGEX
+	"+USE_GNU_REGEX  "
+#else
+	"-USE_GNU_REGEX  "
+#endif
+
+	"\n"
+	
+#ifdef HAVE_COLOR
+	"+HAVE_COLOR  "
+#else
+	"-HAVE_COLOR  "
+#endif
+	
+#ifdef HAVE_START_COLOR
+	"+HAVE_START_COLOR  "
+#else
+	"-HAVE_START_COLOR  "
+#endif
+	
+#ifdef HAVE_TYPEAHEAD
+	"+HAVE_TYPEAHEAD  "
+#else
+	"-HAVE_TYPEAHEAD  "
+#endif
+	
+#ifdef HAVE_BKGDSET
+	"+HAVE_BKGDSET  "
+#else
+	"-HAVE_BKGDSET  "
+#endif
+
+	"\n"
+	
+#ifdef HAVE_CURS_SET
+	"+HAVE_CURS_SET  "
+#else
+	"-HAVE_CURS_SET  "
+#endif
+	
+#ifdef HAVE_META
+	"+HAVE_META  "
+#else
+	"-HAVE_META  "
+#endif
+	
+#ifdef HAVE_RESIZETERM
+	"+HAVE_RESIZETERM  "
+#else
+	"-HAVE_RESIZETERM  "
+#endif
+        );	
+  
+  puts (
+#ifdef CRYPT_BACKEND_CLASSIC_PGP
+        "+CRYPT_BACKEND_CLASSIC_PGP  "
+#else
+        "-CRYPT_BACKEND_CLASSIC_PGP  "
+#endif
+#ifdef CRYPT_BACKEND_CLASSIC_SMIME
+        "+CRYPT_BACKEND_CLASSIC_SMIME  "
+#else
+        "-CRYPT_BACKEND_CLASSIC_SMIME  "
+#endif
+#ifdef CRYPT_BACKEND_GPGME
+        "+CRYPT_BACKEND_GPGME  "
+#else
+        "-CRYPT_BACKEND_GPGME  "
+#endif
+        );
+  
+  puts (
+#ifdef EXACT_ADDRESS
+	"+EXACT_ADDRESS  "
+#else
+	"-EXACT_ADDRESS  "
+#endif
+
+#ifdef SUN_ATTACHMENT
+	"+SUN_ATTACHMENT  "
+#else
+	"-SUN_ATTACHMENT  "
+#endif
+
+	"\n"
+	
+#ifdef ENABLE_NLS
+	"+ENABLE_NLS  "
+#else
+	"-ENABLE_NLS  "
+#endif
+
+#ifdef LOCALES_HACK
+	"+LOCALES_HACK  "
+#else
+	"-LOCALES_HACK  "
+#endif
+	      
+#ifdef HAVE_WC_FUNCS
+	"+HAVE_WC_FUNCS  "
+#else
+	"-HAVE_WC_FUNCS  "
+#endif
+	
+#ifdef HAVE_LANGINFO_CODESET
+	"+HAVE_LANGINFO_CODESET  "
+#else
+	"-HAVE_LANGINFO_CODESET  "
+#endif
+
+	
+#ifdef HAVE_LANGINFO_YESEXPR
+ 	"+HAVE_LANGINFO_YESEXPR  "
+#else
+ 	"-HAVE_LANGINFO_YESEXPR  "
+#endif
+	
+	"\n"
+
+#if HAVE_ICONV
+	"+HAVE_ICONV  "
+#else
+	"-HAVE_ICONV  "
+#endif
+
+#if ICONV_NONTRANS
+	"+ICONV_NONTRANS  "
+#else
+	"-ICONV_NONTRANS  "
+#endif
+
+#if HAVE_LIBIDN
+	"+HAVE_LIBIDN  "
+#else
+	"-HAVE_LIBIDN  "
+#endif
+	
+#if HAVE_GETSID
+	"+HAVE_GETSID  "
+#else
+	"-HAVE_GETSID  "
+#endif
+
+#if USE_HCACHE
+	"+USE_HCACHE  "
+#else
+	"-USE_HCACHE  "
+#endif
+
+#ifdef USE_SIDEBAR
+	"+USE_SIDEBAR  "
+#else
+	"-USE_SIDEBAR  "
+#endif
+
+#ifdef USE_COMPRESSED
+	"+USE_COMPRESSED  "
+#else
+	"-USE_COMPRESSED  "
+#endif
+
+	);
+
+#ifdef ISPELL
+  printf ("ISPELL=\"%s\"\n", ISPELL);
+#else
+  puts ("-ISPELL");
+#endif
+
+  printf ("SENDMAIL=\"%s\"\n", SENDMAIL);
+  printf ("MAILPATH=\"%s\"\n", MAILPATH);
+  printf ("PKGDATADIR=\"%s\"\n", PKGDATADIR);
+  printf ("SYSCONFDIR=\"%s\"\n", SYSCONFDIR);
+  printf ("EXECSHELL=\"%s\"\n", EXECSHELL);
+#ifdef MIXMASTER
+  printf ("MIXMASTER=\"%s\"\n", MIXMASTER);
+#else
+  puts ("-MIXMASTER");
+#endif
+
+  puts(_(ReachingUs));
+
+  mutt_print_patchlist();
+  
+  exit (0);
 }

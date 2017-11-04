@@ -1,1 +1,2 @@
-fprintf(stderr,"mkdir %s : %s\n",name,strerror(errno));
+fprintf(stderr,"potential match at %d target=%d %d sum=%08x\n",
+		    offset,j,i,sum);

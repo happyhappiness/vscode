@@ -1,1 +1,1 @@
-fprintf(stderr,"failed to load config file %s\n", config_file);
+io_printf(f_out, "@ERROR: setuid failed\n");

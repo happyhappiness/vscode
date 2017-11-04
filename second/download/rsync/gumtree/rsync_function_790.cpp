@@ -1,7 +1,12 @@
-static void init_delayed_bits(int max_ndx)
+static void tls_usage(int ret)
 {
-	delayed_slot_cnt = (max_ndx + PER_SLOT_BITS - 1) / PER_SLOT_BITS;
-
-	if (!(delayed_bits = (uint32**)calloc(delayed_slot_cnt, sizeof (uint32*))))
-		out_of_memory("set_delayed_bit");
+  FILE *F = ret ? stderr : stdout;
+  fprintf(F,"usage: " PROGRAM " [OPTIONS] FILE ...\n");
+  fprintf(F,"Trivial file listing program for portably checking rsync\n");
+  fprintf(F,"\nOptions:\n");
+#ifdef SUPPORT_XATTRS
+  fprintf(F," -f, --fake-super            display attributes including fake-super xattrs\n");
+#endif
+  fprintf(F," -h, --help                  show this help\n");
+  exit(ret);
 }

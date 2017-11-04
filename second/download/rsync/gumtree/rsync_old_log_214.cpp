@@ -1,1 +1,1 @@
-fprintf(stderr,"send_files(%d,%s)\n",i,fname);
+fprintf(FERROR,"mapped %s of size %d\n",fname,(int)st.st_size);

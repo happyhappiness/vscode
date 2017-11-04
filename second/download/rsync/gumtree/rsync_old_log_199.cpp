@@ -1,1 +1,1 @@
-fprintf(stderr,"deleting %s\n",f->name);
+fprintf(stderr,"pipe: %s\n",strerror(errno));

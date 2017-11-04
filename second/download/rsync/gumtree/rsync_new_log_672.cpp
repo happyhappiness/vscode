@@ -1,1 +1,1 @@
-io_printf(fd,"@RSYNCD: EXIT\n");
+io_printf(f_out, "@ERROR: setgroups failed\n");

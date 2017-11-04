@@ -1,1 +1,1 @@
-out_of_memory("md4 sum");
+fprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);

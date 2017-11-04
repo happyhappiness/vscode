@@ -1,1 +1,1 @@
-fprintf(FINFO,"gen mapped %s of size %d\n",fname,(int)st.st_size);
+fprintf(FERROR,"Failed to close : %s\n",strerror(errno));

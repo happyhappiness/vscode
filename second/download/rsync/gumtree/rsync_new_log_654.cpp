@@ -1,1 +1,1 @@
-fprintf(f, "%d\n", pid);
+fprintf(stderr, "\n");

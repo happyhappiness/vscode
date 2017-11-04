@@ -1,1 +1,1 @@
-rprintf(FERROR, "io_printf() was too long for the buffer.\n");
+fprintf(F," -L, --link-owner            display the owner+group on a symlink\n");

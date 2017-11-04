@@ -1,1 +1,0 @@
-rprintf(FINFO,"created directory %s\n",name);

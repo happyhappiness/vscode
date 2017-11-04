@@ -1,9 +1,10 @@
 fputs(
-"              exact). To make commands take place after a successful transfer,\n"
-"              prefix them with a dash '-'.  To make  commands  be  sent  after\n"
-"              curl has changed the working directory, just before the transfer\n"
-"              command(s), prefix the command with a '+'  (this  is  only  sup-\n"
-"              ported for FTP). You may specify any number of commands.\n"
+"              extracting a filename from the URL.\n"
 "\n"
-"              If  the  server  returns  failure  for  one of the commands, the\n"
+"              If the server specifies a file name and a file  with  that  name\n"
+"              already  exists  in the current working directory it will not be\n"
+"              overwritten and an error will occur. If the server doesn't spec-\n"
+"              ify a file name then this option has no effect.\n"
+"\n"
+"              There's  no  attempt to decode %-sequences (yet) in the provided\n"
 , stdout);

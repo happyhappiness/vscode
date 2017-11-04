@@ -1,1 +1,2 @@
-out_of_memory("receive_file_entry");
+fprintf(FINFO,"hash search s->n=%d len=%d count=%d\n",
+			s->n,(int)len,s->count);

@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_files(%s)\n",fname);
+fprintf(FERROR,"Failed to close : %s\n",strerror(errno));

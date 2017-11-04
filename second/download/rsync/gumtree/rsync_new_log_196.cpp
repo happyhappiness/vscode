@@ -1,1 +1,2 @@
-fprintf(FERROR,"write failed on %s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"mkdir %s : %s\n",
+		file->name,strerror(errno));

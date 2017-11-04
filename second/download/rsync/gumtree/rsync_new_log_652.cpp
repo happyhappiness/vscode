@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: chdir failed\n");
+fprintf(stderr, "==> execvp(%s) argv[%d]:", argv[0], argc);

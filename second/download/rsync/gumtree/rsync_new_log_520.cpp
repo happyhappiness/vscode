@@ -1,1 +1,1 @@
-rprintf(FINFO,"offset=%d sum=%08x\n",(int)offset,sum);
+rprintf(FINFO,"%s is newer\n",fname);

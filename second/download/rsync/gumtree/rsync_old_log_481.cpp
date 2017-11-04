@@ -1,1 +1,1 @@
-fprintf(f,"-H, --hard-links         preserve hard links\n");
+fprintf(FINFO, "sum=%.8x k=%d\n", sum, k);

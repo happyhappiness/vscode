@@ -1,1 +1,1 @@
-fprintf(f,"-b, --backup             make backups (default ~ extension)\n");
+fprintf(FINFO,"waiting on %d\n",pid);

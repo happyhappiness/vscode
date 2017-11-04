@@ -1,1 +1,1 @@
-io_printf(f_out, "%s", line);
+out_of_memory("is_in_group");

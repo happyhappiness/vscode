@@ -1,1 +1,1 @@
-out_of_memory("io_start_buffering_in");
+fprintf(stderr, "failed to fork: %s\n", strerror(errno));

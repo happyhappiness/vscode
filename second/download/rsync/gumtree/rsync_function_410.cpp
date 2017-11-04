@@ -1,30 +1,27 @@
-static void hard_link_one(int i)
+int64 read_longint(int f)
 {
-	struct stat st1,st2;
+	extern int remote_version;
+	int64 ret;
+	char b[8];
+	ret = read_int(f);
 
-	if (link_stat(f_name(&hlink_list[i-1]),&st1) != 0) return;
+	if (ret != -1) return ret;
 
-	if (link_stat(f_name(&hlink_list[i]),&st2) != 0) {
-		if (do_link(f_name(&hlink_list[i-1]),f_name(&hlink_list[i])) != 0) {
-			if (verbose > 0)
-				fprintf(FINFO,"link %s => %s : %s\n",
-					f_name(&hlink_list[i]),
-					f_name(&hlink_list[i-1]),strerror(errno));
-			return;
+#ifndef HAVE_LONGLONG
+	fprintf(FERROR,"Integer overflow - attempted 64 bit offset\n");
+	exit_cleanup(1);
+#else
+	if (remote_version >= 16) {
+		if ((ret=readfd(f,b,8)) != 8) {
+			if (verbose > 1) 
+				fprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
+					getpid(),8,ret==-1?strerror(errno):"EOF");
+			exit_cleanup(1);
 		}
-	} else {
-		if (st2.st_dev == st1.st_dev && st2.st_ino == st1.st_ino) return;
-		
-		if (do_unlink(f_name(&hlink_list[i])) != 0 ||
-		    do_link(f_name(&hlink_list[i-1]),f_name(&hlink_list[i])) != 0) {
-			if (verbose > 0)
-				fprintf(FINFO,"link %s => %s : %s\n",
-					f_name(&hlink_list[i]),
-					f_name(&hlink_list[i-1]),strerror(errno));
-			return;
-		}
+		total_read += 8;
+		ret = IVAL(b,0) | (((int64)IVAL(b,4))<<32);
 	}
-	if (verbose > 0)
-		fprintf(FINFO,"%s => %s\n",
-			f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));
+#endif
+
+	return ret;
 }

@@ -1,0 +1,1 @@
+path_failure(f_out, strstr(module_dir, "/./"), False);

@@ -1,11 +1,11 @@
 fputs(
-"              To use a Metalink file in the local file system, use FILE proto-\n"
-"              col (file://):\n"
+"              will have the effect that it will output the data in chunks, not\n"
+"              necessarily exactly when the data arrives.   Using  this  option\n"
+"              will disable that buffering.\n"
 "\n"
-"              curl --metalink file://example.metalink\n"
+"              Note  that  this  is the negated option name documented. You can\n"
+"              thus use --buffer to enforce the buffering.\n"
 "\n"
-"              Please note that if FILE protocol is disabled, there is  no  way\n"
-"              to  use  a local Metalink file at the time of this writing. Also\n"
-"              note  that  if  --metalink  and  --include  are  used  together,\n"
-"              --include  will be ignored. This is because including headers in\n"
+"       --netrc-file\n"
+"              This option is similar to --netrc, except that you  provide  the\n"
 , stdout);

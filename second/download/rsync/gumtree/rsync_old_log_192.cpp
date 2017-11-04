@@ -1,0 +1,1 @@
+fprintf(stderr,"calling match_sums %s\n",fname);

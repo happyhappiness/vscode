@@ -1,1 +1,1 @@
-fprintf(FINFO,"receiver read %ld\n",(long)read_total());
+fprintf(f,"-T  --temp-dir DIR       create temporary files in directory DIR\n");

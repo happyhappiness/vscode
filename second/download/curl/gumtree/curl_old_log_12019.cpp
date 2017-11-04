@@ -1,12 +1,9 @@
 fputs(
-"              url_effective  The URL that was fetched last. This is most mean-\n"
-"                             ingful  if  you've  told curl to follow location:\n"
-"                             headers.\n"
+"              request,  it does not alter the way curl behaves. So for example\n"
+"              if you want to make a proper HEAD request, using  -X  HEAD  will\n"
+"              not suffice. You need to use the -I, --head option.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       -x, --proxy <[protocol://][user:password@]proxyhost[:port]>\n"
-"              Use the specified proxy.\n"
-"\n"
-"              The proxy string can be specified with a protocol://  prefix  to\n"
+"              The method string you set with -X will be used for all requests,\n"
+"              which if you for example use -L, --location may cause unintended\n"
+"              side-effects  when  curl doesn't change request method according\n"
 , stdout);

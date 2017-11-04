@@ -1,0 +1,16 @@
+fputs(
+"  Get a file from an SSH server using SCP using a private key\n"
+"  (not password-protected) to authenticate:\n"
+"\n"
+"        curl -u username: --key ~/.ssh/id_rsa \\\n"
+"             scp://example.com/~/file.txt\n"
+"\n"
+"  Get a file from an SSH server using SCP using a private key\n"
+"  (password-protected) to authenticate:\n"
+"\n"
+"        curl -u username: --key ~/.ssh/id_rsa --pass private_key_password \\\n"
+"             scp://example.com/~/file.txt\n"
+"\n"
+"  Get the main page from an IPv6 web server:\n"
+"\n"
+, stdout);

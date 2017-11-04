@@ -1,1 +1,1 @@
-fprintf(stderr,"failed to load config file %s\n", config_file);
+fprintf(f, "\n%s\n", D_(sub_transdom, opt->descrip));

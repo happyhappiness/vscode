@@ -1,1 +1,2 @@
-fprintf(f,"-S, --sparse             handle sparse files efficiently\n");
+fprintf(FERROR,"failed to set times on %s : %s\n",
+	      fname,strerror(errno));

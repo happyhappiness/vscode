@@ -1,9 +1,11 @@
 fputs(
-"              default).  Transient  error  means either: a timeout, an FTP 4xx\n"
-"              response code or an HTTP 5xx response code.\n"
+"              you  disable  this  exponential  backoff  algorithm.  See   also\n"
+"              --retry-max-time  to  limit  the total time allowed for retries.\n"
+"              (Added in 7.12.3)\n"
 "\n"
-"              When curl is about to retry a transfer, it will first  wait  one\n"
-"              second  and  then for all forthcoming retries it will double the\n"
-"              waiting time until it reaches 10 minutes which then will be  the\n"
-"              delay  between  the rest of the retries.  By using --retry-delay\n"
+"              If this option is used several times, the last one will be used.\n"
+"\n"
+"       --retry-delay <seconds>\n"
+"              Make curl sleep this amount of time before  each  retry  when  a\n"
+"              transfer  has  failed  with  a  transient  error (it changes the\n"
 , stdout);

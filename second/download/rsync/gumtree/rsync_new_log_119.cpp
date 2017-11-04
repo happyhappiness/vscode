@@ -1,1 +1,1 @@
-fprintf(FERROR,"%s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());

@@ -1,2 +1,2 @@
-rprintf(FERROR, "inflate flush returned %d (%d bytes)\n",
-			    r, n);
+fprintf(logfile,"%s [%d] %s", 
+			timestring(time(NULL)), (int)getpid(), buf);

@@ -1,1 +1,2 @@
-(mutt_yesorno (msg, M_YES);
+state_attach_puts (_("Warning: The key used to create the "
+                               "signature expired at: "), s);

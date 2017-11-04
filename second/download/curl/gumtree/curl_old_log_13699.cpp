@@ -1,12 +1,9 @@
 fputs(
-"              FTP server command SIZE will not be used by curl.\n"
+"              (HTTP) Sends the specified data in a POST request  to  the  HTTP\n"
+"              server,  in  the  same  way  that a browser does when a user has\n"
+"              filled in an HTML form and presses the submit button. This  will\n"
+"              cause curl to pass the data to the server using the content-type\n"
+"              application/x-www-form-urlencoded.  Compare to -F, --form.\n"
 "\n"
-"              Use  \"-C  -\" to tell curl to automatically find out where/how to\n"
-"              resume the transfer. It then uses the given  output/input  files\n"
-"              to figure that out.\n"
-"\n"
-"              If this option is used several times, the last one will be used.\n"
-"\n"
-"       --ciphers <list of ciphers>\n"
-"              (SSL) Specifies which ciphers to use in the connection. The list\n"
+"              -d, --data is the same as --data-ascii. --data-raw is almost the\n"
 , stdout);

@@ -1,69 +1,48 @@
-static struct file_struct *make_file(char *fname)
+void match_sums(int f,struct sum_struct *s,struct map_struct *buf,off_t len)
 {
-  static struct file_struct file;
-  struct stat st;
-  char sum[SUM_LENGTH];
+  char file_sum[MD4_SUM_LENGTH];
 
-  bzero(sum,SUM_LENGTH);
+  last_match = 0;
+  false_alarms = 0;
+  tag_hits = 0;
+  matches=0;
+  data_transfer=0;
 
-  if (link_stat(fname,&st) != 0) {
-    fprintf(FERROR,"%s: %s\n",
-	    fname,strerror(errno));
-    return NULL;
+  sum_init();
+
+  if (len > 0 && s->count>0) {
+    build_hash_table(s);
+
+    if (verbose > 2) 
+      fprintf(FERROR,"built hash table\n");
+
+    hash_search(f,s,buf,len);
+
+    if (verbose > 2) 
+      fprintf(FERROR,"done hash search\n");
+  } else {
+    matched(f,s,buf,len,-1);
   }
 
-  if (S_ISDIR(st.st_mode) && !recurse) {
-    fprintf(FERROR,"skipping directory %s\n",fname);
-    return NULL;
+  sum_end(file_sum);
+
+  if (remote_version >= 14) {
+    if (verbose > 2)
+      fprintf(FERROR,"sending file_sum\n");
+    write_buf(f,file_sum,MD4_SUM_LENGTH);
   }
 
-  if (one_file_system && st.st_dev != filesystem_dev)
-    return NULL;
-
-  if (!match_file_name(fname,&st))
-    return NULL;
+  if (targets) {
+    free(targets);
+    targets=NULL;
+  }
 
   if (verbose > 2)
-    fprintf(FERROR,"make_file(%s)\n",fname);
+    fprintf(FERROR, "false_alarms=%d tag_hits=%d matches=%d\n",
+	    false_alarms, tag_hits, matches);
 
-  bzero((char *)&file,sizeof(file));
-
-  file.name = strdup(fname);
-  file.modtime = st.st_mtime;
-  file.length = st.st_size;
-  file.mode = st.st_mode;
-  file.uid = st.st_uid;
-  file.gid = st.st_gid;
-  file.dev = st.st_dev;
-  file.inode = st.st_ino;
-#ifdef HAVE_ST_RDEV
-  file.rdev = st.st_rdev;
-#endif
-
-#if SUPPORT_LINKS
-  if (S_ISLNK(st.st_mode)) {
-    int l;
-    char lnk[MAXPATHLEN];
-    if ((l=readlink(fname,lnk,MAXPATHLEN-1)) == -1) {
-      fprintf(FERROR,"readlink %s : %s\n",fname,strerror(errno));
-      return NULL;
-    }
-    lnk[l] = 0;
-    file.link = strdup(lnk);
-  }
-#endif
-
-  if (always_checksum && S_ISREG(st.st_mode)) {
-    file_checksum(fname,file.sum,st.st_size);
-  }       
-
-  if (flist_dir)
-    file.dir = strdup(flist_dir);
-  else
-    file.dir = NULL;
-
-  if (!S_ISDIR(st.st_mode))
-    total_size += st.st_size;
-
-  return &file;
+  total_tag_hits += tag_hits;
+  total_false_alarms += false_alarms;
+  total_matches += matches;
+  total_data_transfer += data_transfer;
 }

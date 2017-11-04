@@ -1,1 +1,1 @@
-fprintf(FERROR,"Failed to close : %s\n",strerror(errno));
+io_printf(fd,"@ERROR: invalid gid\n");

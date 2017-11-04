@@ -1,2 +1,1 @@
-warnf(config, "Keep-alive functionality somewhat crippled due to "
-                "missing support in your operating system!\n");
+warnf(config, "unrecognized delegation method '%s', using none\n", str);

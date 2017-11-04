@@ -1,1 +1,1 @@
-fprintf(FERROR,"stat %s : %s\n",fname,strerror(errno));
+fprintf(FERROR,"deleting directory %s\n",f->name);

@@ -1,1 +1,2 @@
-fprintf(stderr,"protocol version mismatch - is your shell clean?\n");
+fprintf(stderr,"link %s -> %s : %s\n",
+	      fname,flist->files[i].link,strerror(errno));

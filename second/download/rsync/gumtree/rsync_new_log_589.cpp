@@ -1,2 +1,2 @@
-rprintf(FERROR,"ERROR: file corruption in %s. File changed during transfer?\n",
-			      fname);
+rprintf(FERROR,"open %s: %s\n",
+			source,strerror(errno));

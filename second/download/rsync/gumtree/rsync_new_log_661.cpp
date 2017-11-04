@@ -1,1 +1,1 @@
-rprintf(FLOG,"failed to create pid file %s\n", pid_file);
+fprintf(fp, POPT_("Usage:"));

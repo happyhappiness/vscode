@@ -1,2 +1,1 @@
-rprintf(FERROR,"readlink %s : %s\n",
-				fname,strerror(errno));
+rprintf(FINFO,"created directory %s\n",name);

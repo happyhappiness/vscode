@@ -1,1 +1,1 @@
-fprintf(f, " %s\n", con->otherHelp);
+out_of_memory("make_exclude");

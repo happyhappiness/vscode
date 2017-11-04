@@ -1,1 +1,1 @@
-fprintf(f,"    --timeout TIME       set IO timeout in seconds\n");
+fprintf(FINFO,"sending sums for %d\n",i);

@@ -1,1 +1,1 @@
-io_printf(f_out, "\n");
+out_of_memory(msg);

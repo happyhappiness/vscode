@@ -1,11 +1,11 @@
 fputs(
-"              should  ever  get  hurt  by attempting to reuse SSL session-IDs,\n"
-"              there seem to be broken SSL implementations in the wild that may\n"
-"              require  you to disable this in order for you to succeed. (Added\n"
-"              in 7.16.0)\n"
+"              (Only  the file part of the remote file is used, the path is cut\n"
+"              off.)\n"
 "\n"
-"              Note that this is the negated option name  documented.  You  can\n"
-"              thus use --sessionid to enforce session-ID caching.\n"
+"              The remote file name to use for saving  is  extracted  from  the\n"
+"              given URL, nothing else.\n"
 "\n"
-"       --noproxy <no-proxy-list>\n"
+"              Consequentially,  the  file will be saved in the current working\n"
+"              directory. If you want the file saved in a different  directory,\n"
+"              make sure you change current working directory before you invoke\n"
 , stdout);

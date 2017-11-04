@@ -1,1 +1,0 @@
-fprintf(stderr,"mkdir %s : %s\n",argv[0],strerror(errno));

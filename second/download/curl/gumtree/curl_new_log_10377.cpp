@@ -1,10 +1,9 @@
 fputs(
-"              Tells  curl to pick a suitable authentication method when commu-\n"
-"              nicating with  the  given  proxy.  This  might  cause  an  extra\n"
-"              request/response round-trip. (Added in 7.13.2)\n"
+"              (As of 7.39.0, curl attempts to automatically extract the public\n"
+"              key  from the private key file, so passing this option is gener-\n"
+"              ally not required. Note that this public key extraction requires\n"
+"              libcurl  to  be linked against a copy of libssh2 1.2.8 or higher\n"
+"              that is itself linked against OpenSSL.)\n"
 "\n"
-"       --proxy-basic\n"
-"              Tells  curl  to use HTTP Basic authentication when communicating\n"
-"              with the given proxy. Use --basic for enabling HTTP Basic with a\n"
-"              remote  host.  Basic  is  the default authentication method curl\n"
+"       -q     If used as the first parameter on the command line,  the  curlrc\n"
 , stdout);

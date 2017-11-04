@@ -1,1 +1,1 @@
-out_of_memory("server_options");
+fprintf(out, "  },\n  {\n");

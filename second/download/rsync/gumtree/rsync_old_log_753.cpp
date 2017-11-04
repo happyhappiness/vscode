@@ -1,1 +1,2 @@
-out_of_memory("server_options");
+fprintf(logfile,"%s [%d] %s",
+			timestring(time(NULL)), (int)getpid(), buf);

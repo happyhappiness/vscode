@@ -1,1 +1,1 @@
-fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
+fprintf(stderr,"failed to create pid file %s\n", pid_file);

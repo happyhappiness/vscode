@@ -1,12 +1,9 @@
 fputs(
-"              entered and should be one of 'clear', 'safe', 'confidential', or\n"
-"              'private'. Should you use a level that  is  not  one  of  these,\n"
-"              'private' will instead be used.\n"
+"              authentication is used, curl only sends its credentials  to  the\n"
+"              initial  host.  If a redirect takes curl to a different host, it\n"
+"              won't be able to intercept the user+password. See  also  --loca-\n"
+"              tion-trusted  on how to change this. You can limit the amount of\n"
+"              redirects to follow by using the --max-redirs option.\n"
 "\n"
-"              If this option is used several times, the last one will be used.\n"
-"              --krb  requires that the underlying libcurl was built to support\n"
-"              Kerberos.\n"
-"\n"
-"       --libcurl <file>\n"
-"              Append this option to any ordinary curl command  line,  and  you\n"
+"              When curl follows a redirect and the request is not a plain  GET\n"
 , stdout);

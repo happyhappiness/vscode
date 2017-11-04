@@ -1,1 +1,1 @@
-fprintf(FERROR,"skipping non-regular file %s\n",fname);
+fprintf(FERROR,"out of memory in %s\n",str);

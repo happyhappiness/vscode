@@ -1,1 +1,1 @@
-fprintf (fp, "Sender: %s\n", buffer);
+state_attach_puts ("\n", s);

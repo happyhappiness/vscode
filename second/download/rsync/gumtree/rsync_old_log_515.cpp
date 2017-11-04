@@ -1,1 +1,1 @@
-fprintf(FINFO,"nothing to do\n");
+fprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));

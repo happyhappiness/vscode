@@ -1,19 +1,12 @@
-struct file_list *flist_new(void)
+void bitbag_set_bit(struct bitbag *bb, int ndx)
 {
-	struct file_list *flist;
+	int slot = ndx / BB_PER_SLOT_BITS;
+	ndx %= BB_PER_SLOT_BITS;
 
-	flist = new(struct file_list);
-	if (!flist)
-		out_of_memory("send_file_list");
+	if (!bb->bits[slot]) {
+		if (!(bb->bits[slot] = (uint32*)calloc(BB_PER_SLOT_INTS, 4)))
+			out_of_memory("bitbag_set_bit");
+	}
 
-	flist->count = 0;
-	flist->malloced = 0;
-	flist->files = NULL;
-
-#if ARENA_SIZE > 0
-	flist->string_area = string_area_new(0);
-#else
-	flist->string_area = NULL;
-#endif
-	return flist;
+	bb->bits[slot][ndx/32] |= 1u << (ndx % 32);
 }

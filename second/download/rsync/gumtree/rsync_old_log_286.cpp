@@ -1,0 +1,1 @@
+fprintf(FERROR,"received %d names\n",flist->count);

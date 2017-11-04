@@ -1,1 +1,1 @@
-state_attach_puts (t0, s);
+state_attach_puts (uids->uid, s);

@@ -1,1 +1,1 @@
-fprintf(f,"    --force              force deletion of directories even if not empty\n");
+fprintf(FINFO,"gen mapped %s of size %d\n",fname,(int)st.st_size);

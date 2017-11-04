@@ -1,2 +1,2 @@
-fprintf(FERROR,"read %s: %s\n",
-			source,strerror(errno));
+fprintf(FINFO,"parent=%d child=%d sender=%d recurse=%d\n",
+	      (int)getpid(),pid,sender,recurse);

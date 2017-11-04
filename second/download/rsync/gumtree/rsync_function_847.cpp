@@ -1,177 +1,144 @@
-void setup_protocol(int f_out,int f_in)
+static int readfd_unbuffered(int fd, char *buf, size_t len)
 {
-	if (am_sender)
-		file_extra_cnt += PTR_EXTRA_CNT;
-	else
-		file_extra_cnt++;
-	if (preserve_uid)
-		uid_ndx = ++file_extra_cnt;
-	if (preserve_gid)
-		gid_ndx = ++file_extra_cnt;
-	if (preserve_acls && !am_sender)
-		acls_ndx = ++file_extra_cnt;
-	if (preserve_xattrs)
-		xattrs_ndx = ++file_extra_cnt;
+	size_t msg_bytes;
+	int tag, cnt = 0;
+	char line[BIGPATHBUFLEN];
 
-	if (am_server)
-		set_allow_inc_recurse();
+	if (!iobuf_in || fd != iobuf_f_in)
+		return read_timeout(fd, buf, len);
 
-	if (remote_protocol == 0) {
-		if (am_server && !local_server)
-			check_sub_protocol();
-		if (!read_batch)
-			write_int(f_out, protocol_version);
-		remote_protocol = read_int(f_in);
-		if (protocol_version > remote_protocol)
-			protocol_version = remote_protocol;
-	}
-	if (read_batch && remote_protocol > protocol_version) {
-		rprintf(FERROR, "The protocol version in the batch file is too new (%d > %d).\n",
-			remote_protocol, protocol_version);
-		exit_cleanup(RERR_PROTOCOL);
+	if (!io_multiplexing_in && iobuf_in_remaining == 0) {
+		iobuf_in_remaining = read_timeout(fd, iobuf_in, iobuf_in_siz);
+		iobuf_in_ndx = 0;
 	}
 
-	if (verbose > 3) {
-		rprintf(FINFO, "(%s) Protocol versions: remote=%d, negotiated=%d\n",
-			am_server? "Server" : "Client", remote_protocol, protocol_version);
-	}
-	if (remote_protocol < MIN_PROTOCOL_VERSION
-	 || remote_protocol > MAX_PROTOCOL_VERSION) {
-		rprintf(FERROR,"protocol version mismatch -- is your shell clean?\n");
-		rprintf(FERROR,"(see the rsync man page for an explanation)\n");
-		exit_cleanup(RERR_PROTOCOL);
-	}
-	if (remote_protocol < OLD_PROTOCOL_VERSION) {
-		rprintf(FINFO,"%s is very old version of rsync, upgrade recommended.\n",
-			am_server? "Client" : "Server");
-	}
-	if (protocol_version < MIN_PROTOCOL_VERSION) {
-		rprintf(FERROR, "--protocol must be at least %d on the %s.\n",
-			MIN_PROTOCOL_VERSION, am_server? "Server" : "Client");
-		exit_cleanup(RERR_PROTOCOL);
-	}
-	if (protocol_version > PROTOCOL_VERSION) {
-		rprintf(FERROR, "--protocol must be no more than %d on the %s.\n",
-			PROTOCOL_VERSION, am_server? "Server" : "Client");
-		exit_cleanup(RERR_PROTOCOL);
-	}
-	if (read_batch)
-		check_batch_flags();
-
-	if (protocol_version < 30) {
-		if (append_mode == 1)
-			append_mode = 2;
-		if (preserve_acls && !local_server) {
-			rprintf(FERROR,
-			    "--acls requires protocol 30 or higher"
-			    " (negotiated %d).\n",
-			    protocol_version);
-			exit_cleanup(RERR_PROTOCOL);
-		}
-		if (preserve_xattrs && !local_server) {
-			rprintf(FERROR,
-			    "--xattrs requires protocol 30 or higher"
-			    " (negotiated %d).\n",
-			    protocol_version);
-			exit_cleanup(RERR_PROTOCOL);
-		}
-	}
-
-	if (delete_mode && !(delete_before+delete_during+delete_after)) {
-		if (protocol_version < 30)
-			delete_before = 1;
-		else
-			delete_during = 1;
-	}
-
-	if (protocol_version < 29) {
-		if (fuzzy_basis) {
-			rprintf(FERROR,
-			    "--fuzzy requires protocol 29 or higher"
-			    " (negotiated %d).\n",
-			    protocol_version);
-			exit_cleanup(RERR_PROTOCOL);
+	while (cnt == 0) {
+		if (iobuf_in_remaining) {
+			len = MIN(len, iobuf_in_remaining);
+			memcpy(buf, iobuf_in + iobuf_in_ndx, len);
+			iobuf_in_ndx += len;
+			iobuf_in_remaining -= len;
+			cnt = len;
+			break;
 		}
 
-		if (basis_dir_cnt && inplace) {
-			rprintf(FERROR,
-			    "%s with --inplace requires protocol 29 or higher"
-			    " (negotiated %d).\n",
-			    dest_option, protocol_version);
-			exit_cleanup(RERR_PROTOCOL);
-		}
+		read_loop(fd, line, 4);
+		tag = IVAL(line, 0);
 
-		if (basis_dir_cnt > 1) {
-			rprintf(FERROR,
-			    "Using more than one %s option requires protocol"
-			    " 29 or higher (negotiated %d).\n",
-			    dest_option, protocol_version);
-			exit_cleanup(RERR_PROTOCOL);
-		}
+		msg_bytes = tag & 0xFFFFFF;
+		tag = (tag >> 24) - MPLEX_BASE;
 
-		if (prune_empty_dirs) {
-			rprintf(FERROR,
-			    "--prune-empty-dirs requires protocol 29 or higher"
-			    " (negotiated %d).\n",
-			    protocol_version);
-			exit_cleanup(RERR_PROTOCOL);
-		}
-	} else if (protocol_version >= 30) {
-		int compat_flags;
-		if (am_server) {
-			compat_flags = allow_inc_recurse ? CF_INC_RECURSE : 0;
-#if defined HAVE_LUTIMES && defined HAVE_UTIMES
-			compat_flags |= CF_SYMLINK_TIMES;
-#endif
-			write_byte(f_out, compat_flags);
-		} else
-			compat_flags = read_byte(f_in);
-		/* The inc_recurse var MUST be set to 0 or 1. */
-		inc_recurse = compat_flags & CF_INC_RECURSE ? 1 : 0;
-		if (am_sender) {
-			receiver_symlink_times = am_server
-			    ? strchr(client_info, 'L') != NULL
-			    : !!(compat_flags & CF_SYMLINK_TIMES);
-		}
-#if defined HAVE_LUTIMES && defined HAVE_UTIMES
-		else
-			receiver_symlink_times = 1;
-#endif
-		if (inc_recurse && !allow_inc_recurse) {
-			/* This should only be able to happen in a batch. */
-			fprintf(stderr,
-			    "Incompatible options specified for inc-recursive %s.\n",
-			    read_batch ? "batch file" : "connection");
-			exit_cleanup(RERR_SYNTAX);
-		}
-		need_messages_from_generator = 1;
-	}
-
-	if (need_unsorted_flist && (!am_sender || inc_recurse))
-		unsort_ndx = ++file_extra_cnt;
-
-	if (partial_dir && *partial_dir != '/' && (!am_server || local_server)) {
-		int flags = MATCHFLG_NO_PREFIXES | MATCHFLG_DIRECTORY;
-		if (!am_sender || protocol_version >= 30)
-			flags |= MATCHFLG_PERISHABLE;
-		parse_rule(&filter_list, partial_dir, flags, 0);
-	}
-
-
+		switch (tag) {
+		case MSG_DATA:
+			if (msg_bytes > iobuf_in_siz) {
+				if (!(iobuf_in = realloc_array(iobuf_in, char,
+							       msg_bytes)))
+					out_of_memory("readfd_unbuffered");
+				iobuf_in_siz = msg_bytes;
+			}
+			read_loop(fd, iobuf_in, msg_bytes);
+			iobuf_in_remaining = msg_bytes;
+			iobuf_in_ndx = 0;
+			break;
+		case MSG_NOOP:
+			if (msg_bytes != 0)
+				goto invalid_msg;
+			if (am_sender)
+				maybe_send_keepalive();
+			break;
+		case MSG_IO_ERROR:
+			if (msg_bytes != 4)
+				goto invalid_msg;
+			read_loop(fd, line, msg_bytes);
+			send_msg_int(MSG_IO_ERROR, IVAL(line, 0));
+			io_error |= IVAL(line, 0);
+			break;
+		case MSG_DELETED:
+			if (msg_bytes >= sizeof line)
+				goto overflow;
 #ifdef ICONV_OPTION
-	if (protect_args && files_from) {
-		if (am_sender)
-			filesfrom_convert = filesfrom_host && ic_send != (iconv_t)-1;
-		else
-			filesfrom_convert = !filesfrom_host && ic_recv != (iconv_t)-1;
-	}
-#endif
+			if (ic_recv != (iconv_t)-1) {
+				xbuf outbuf, inbuf;
+				char ibuf[512];
+				int add_null = 0;
 
-	if (am_server) {
-		if (!checksum_seed)
-			checksum_seed = time(NULL);
-		write_int(f_out, checksum_seed);
-	} else {
-		checksum_seed = read_int(f_in);
+				INIT_CONST_XBUF(outbuf, line);
+				INIT_XBUF(inbuf, ibuf, 0, -1);
+
+				while (msg_bytes) {
+					inbuf.len = msg_bytes > sizeof ibuf
+						  ? sizeof ibuf : msg_bytes;
+					read_loop(fd, inbuf.buf, inbuf.len);
+					if (!(msg_bytes -= inbuf.len)
+					 && !ibuf[inbuf.len-1])
+						inbuf.len--, add_null = 1;
+					if (iconvbufs(ic_send, &inbuf, &outbuf,
+					    ICB_INCLUDE_BAD | ICB_INCLUDE_INCOMPLETE) < 0)
+						goto overflow;
+				}
+				if (add_null) {
+					if (outbuf.len == outbuf.size)
+						goto overflow;
+					outbuf.buf[outbuf.len++] = '\0';
+				}
+				msg_bytes = outbuf.len;
+			} else
+#endif
+				read_loop(fd, line, msg_bytes);
+			/* A directory name was sent with the trailing null */
+			if (msg_bytes > 0 && !line[msg_bytes-1])
+				log_delete(line, S_IFDIR);
+			else {
+				line[msg_bytes] = '\0';
+				log_delete(line, S_IFREG);
+			}
+			break;
+		case MSG_SUCCESS:
+			if (msg_bytes != 4) {
+			  invalid_msg:
+				rprintf(FERROR, "invalid multi-message %d:%ld [%s]\n",
+					tag, (long)msg_bytes, who_am_i());
+				exit_cleanup(RERR_STREAMIO);
+			}
+			read_loop(fd, line, msg_bytes);
+			successful_send(IVAL(line, 0));
+			break;
+		case MSG_NO_SEND:
+			if (msg_bytes != 4)
+				goto invalid_msg;
+			read_loop(fd, line, msg_bytes);
+			send_msg_int(MSG_NO_SEND, IVAL(line, 0));
+			break;
+		case MSG_INFO:
+		case MSG_ERROR:
+		case MSG_ERROR_XFER:
+		case MSG_WARNING:
+			if (msg_bytes >= sizeof line) {
+			    overflow:
+				rprintf(FERROR,
+					"multiplexing overflow %d:%ld [%s]\n",
+					tag, (long)msg_bytes, who_am_i());
+				exit_cleanup(RERR_STREAMIO);
+			}
+			read_loop(fd, line, msg_bytes);
+			rwrite((enum logcode)tag, line, msg_bytes, 1);
+			if (first_message) {
+				if (list_only && !am_sender && tag == 1) {
+					line[msg_bytes] = '\0';
+					check_for_d_option_error(line);
+				}
+				first_message = 0;
+			}
+			break;
+		default:
+			rprintf(FERROR, "unexpected tag %d [%s]\n",
+				tag, who_am_i());
+			exit_cleanup(RERR_STREAMIO);
+		}
 	}
+
+	if (iobuf_in_remaining == 0)
+		io_flush(NORMAL_FLUSH);
+
+	return cnt;
 }

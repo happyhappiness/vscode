@@ -1,1 +1,0 @@
-fprintf(FERROR, "inflate init failed\n");

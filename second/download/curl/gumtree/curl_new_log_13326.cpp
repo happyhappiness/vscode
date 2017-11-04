@@ -1,0 +1,15 @@
+fputs(
+"  it means the server wants that first pair passed on when we get anything in\n"
+"  a path beginning with \"/foo\".\n"
+"\n"
+"  Example, get a page that wants my name passed in a cookie:\n"
+"\n"
+"        curl -b \"name=Daniel\" www.sillypage.com\n"
+"\n"
+"  Curl also has the ability to use previously received cookies in following\n"
+"  sessions. If you get cookies from a server and store them in a file in a\n"
+"  manner similar to:\n"
+"\n"
+"        curl --dump-header headers www.example.com\n"
+"\n"
+, stdout);

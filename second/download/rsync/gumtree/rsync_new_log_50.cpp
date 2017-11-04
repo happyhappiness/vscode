@@ -1,2 +1,1 @@
-fprintf(stderr,"removing duplicate name %s from file list\n",
-		flist->files[i].name);
+fprintf(f,"    --delete             delete files that don't exist on the sending side\n");

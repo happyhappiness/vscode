@@ -1,2 +1,0 @@
-rprintf(FERROR,"chdir %s : %s (4)\n",
-				dir,strerror(errno));

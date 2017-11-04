@@ -1,1 +1,1 @@
-fprintf(FERROR,"-D only allowed for root\n");
+fprintf(FERROR,"chown %s : %s\n",fname,strerror(errno));

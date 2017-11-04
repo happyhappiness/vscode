@@ -1,0 +1,1 @@
+fputs(stringp, stream);

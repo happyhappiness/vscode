@@ -1,1 +1,2 @@
-fprintf(FERROR,"data recv %d at %d\n",i,(int)offset);
+fprintf(FINFO,"%s => %s\n",
+		      f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));

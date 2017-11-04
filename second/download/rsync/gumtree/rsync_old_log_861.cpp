@@ -1,1 +1,0 @@
-fprintf(f, "\\#%03o", *(uchar*)in_buf++);

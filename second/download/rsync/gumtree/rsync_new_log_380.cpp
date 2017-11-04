@@ -1,1 +1,1 @@
-fprintf(FINFO,"IO error encountered - skipping file deletion\n");
+rprintf(FINFO,"clearing exclude list\n");

@@ -1,1 +1,1 @@
-out_of_memory("io_start_buffering_out");
+fprintf(stderr, "failed to create pid file %s: %s\n", pid_file, strerror(errno));

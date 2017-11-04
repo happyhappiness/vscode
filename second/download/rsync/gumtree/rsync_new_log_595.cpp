@@ -1,1 +1,1 @@
-rprintf(FINFO,"send_files(%d,%s)\n",i,fname);
+out_of_memory("add_exclude_line");

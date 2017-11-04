@@ -1,1 +1,1 @@
-rprintf(FINFO,"skipping non-regular file %s\n",fname);
+rprintf(FINFO,"send_files starting\n");

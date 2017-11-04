@@ -1,1 +1,1 @@
-fprintf (msg->fp, "Content-Length: %ld\n", (long) ftell (tempfp));
+printf ("fpr:::::::::");

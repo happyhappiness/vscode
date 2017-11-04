@@ -1,1 +1,1 @@
-io_printf(f_out, "%.*s\n", modlen, modname);
+out_of_memory("set_env_str");

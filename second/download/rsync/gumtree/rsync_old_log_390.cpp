@@ -1,1 +1,1 @@
-fprintf(FERROR,"send_files phase=%d\n",phase);
+fprintf(FINFO,"cannot cvs-exclude in long-named directory %s\n",fname);

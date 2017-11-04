@@ -1,11 +1,11 @@
 fputs(
-"              (HTTP) Like -L, --location, but will allow sending  the  name  +\n"
-"              password to all hosts that the site may redirect to. This may or\n"
-"              may not introduce a security breach if the site redirects you to\n"
-"              a  site  to which you'll send your authentication info (which is\n"
-"              plaintext in the case of HTTP Basic authentication).\n"
+"              fer  ends  up  being larger than this given limit. This concerns\n"
+"              both FTP and HTTP transfers.\n"
 "\n"
-"              See also -u, --user.\n"
+"              See also --limit-rate.\n"
 "\n"
-"       -L, --location\n"
+"       --max-redirs <num>\n"
+"              (HTTP) Set maximum  number  of  redirection-followings  allowed.\n"
+"              When  -L,  --location is used, is used to prevent curl from fol-\n"
+"              lowing redirections \"in absurdum\". By default, the limit is  set\n"
 , stdout);

@@ -1,2 +1,1 @@
-warnf(global, "Failed to create the file %s: %s\n", outs->filename,
-          strerror(errno));
+!tool_create_output_file(outs);

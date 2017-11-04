@@ -1,11 +1,10 @@
 fputs(
-"              HTTPS proxy. Hence pre proxy.\n"
+"              with the proper end-of-line marker, you should thus not add that\n"
+"              as a part of the header content: do not add newlines or carriage\n"
+"              returns, they will only mess things up for you.\n"
 "\n"
-"              The pre proxy string should be specified with a protocol:// pre-\n"
-"              fix  to  specify  alternative  proxy  protocols.  Use socks4://,\n"
-"              socks4a://, socks5:// or  socks5h://  to  request  the  specific\n"
-"              SOCKS  version  to be used. No protocol specified will make curl\n"
-"              default to SOCKS4.\n"
+"              Headers  specified  with  this  option  will  not be included in\n"
+"              requests that curl knows will not be sent to a proxy.\n"
 "\n"
-"              If the port number is not specified in the proxy string,  it  is\n"
+"              Starting in 7.55.0, this option can take an argument  in  @file-\n"
 , stdout);

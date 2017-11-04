@@ -1,2 +1,2 @@
-fprintf(FERROR,"parent=%d child=%d sender=%d recurse=%d\n",
-	      (int)getpid(),pid,sender,recurse);
+fprintf(FERROR,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);

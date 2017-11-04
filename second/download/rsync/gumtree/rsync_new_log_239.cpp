@@ -1,2 +1,1 @@
-fprintf(FERROR,"\nError: MDupdate called with illegal count value %d."
-              ,count);
+fprintf(FERROR,"select error: %s\n", strerror(errno));

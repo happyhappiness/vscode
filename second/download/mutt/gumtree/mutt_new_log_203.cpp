@@ -1,1 +1,1 @@
-state_puts ("\n", s);
+printw ("%s", PgpSignAs ? PgpSignAs : _("<default>"));

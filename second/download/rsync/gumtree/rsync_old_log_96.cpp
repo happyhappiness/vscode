@@ -1,1 +1,1 @@
-fprintf(stderr,"mmap : %s\n",strerror(errno));
+fprintf(stderr,"skipping directory %s\n",fname);

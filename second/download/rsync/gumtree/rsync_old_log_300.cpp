@@ -1,0 +1,1 @@
+fprintf(FERROR,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());

@@ -1,1 +1,1 @@
-rprintf(FERROR,"recv_generator failed to open %s\n",fname);
+rprintf(FINFO,"send_files phase=%d\n",phase);

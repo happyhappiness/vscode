@@ -1,1 +1,1 @@
-fprintf(FERROR,"send_files starting\n");
+fprintf(FERROR,"recv_generator(%s,%d)\n",fname,i);

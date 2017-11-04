@@ -1,1 +1,1 @@
-out_of_memory("add_exclude_line");
+io_printf(f_out, "%s\n", path);

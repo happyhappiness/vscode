@@ -1,1 +1,1 @@
-fprintf(stderr,"clearing exclude list\n");
+fprintf(stderr,"cmd=");

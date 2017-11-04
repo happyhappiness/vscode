@@ -1,1 +1,1 @@
-fprintf(stderr,"excluding file %s\n",fname);
+fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));

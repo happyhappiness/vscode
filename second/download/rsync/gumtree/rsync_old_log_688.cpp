@@ -1,1 +1,1 @@
-io_printf(fd,"@ERROR: invalid uid %s\n", p);
+out_of_memory("server_options");

@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: protocol startup error\n");
+io_printf(f_out, "@ERROR: too many groups\n");

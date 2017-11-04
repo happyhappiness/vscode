@@ -1,1 +1,1 @@
-fprintf(FERROR,"receiver read %d\n",read_total());
+fprintf(FINFO,"add_exclude(%s)\n",pattern);

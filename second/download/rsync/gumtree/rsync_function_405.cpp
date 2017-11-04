@@ -1,49 +1,30 @@
-int local_child(int argc, char **argv,int *f_in,int *f_out)
+static void hard_link_one(int i)
 {
-	int pid;
-	int to_child_pipe[2];
-	int from_child_pipe[2];
+	struct stat st1,st2;
 
-	if (pipe(to_child_pipe) < 0 ||
-	    pipe(from_child_pipe) < 0) {
-		fprintf(FERROR,"pipe: %s\n",strerror(errno));
-		exit_cleanup(1);
-	}
+	if (link_stat(f_name(&hlink_list[i-1]),&st1) != 0) return;
 
-
-	pid = do_fork();
-	if (pid < 0) {
-		fprintf(FERROR,"fork: %s\n",strerror(errno));
-		exit_cleanup(1);
-	}
-
-	if (pid == 0) {
-		extern int am_sender;
-		extern int am_server;
-
-		am_sender = !am_sender;
-		am_server = 1;		
-
-		if (dup2(to_child_pipe[0], STDIN_FILENO) < 0 ||
-		    close(to_child_pipe[1]) < 0 ||
-		    close(from_child_pipe[0]) < 0 ||
-		    dup2(from_child_pipe[1], STDOUT_FILENO) < 0) {
-			fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));
-			exit_cleanup(1);
+	if (link_stat(f_name(&hlink_list[i]),&st2) != 0) {
+		if (do_link(f_name(&hlink_list[i-1]),f_name(&hlink_list[i])) != 0) {
+			if (verbose > 0)
+				fprintf(FINFO,"link %s => %s : %s\n",
+					f_name(&hlink_list[i]),
+					f_name(&hlink_list[i-1]),strerror(errno));
+			return;
 		}
-		if (to_child_pipe[0] != STDIN_FILENO) close(to_child_pipe[0]);
-		if (from_child_pipe[1] != STDOUT_FILENO) close(from_child_pipe[1]);
-		start_server(argc, argv);
+	} else {
+		if (st2.st_dev == st1.st_dev && st2.st_ino == st1.st_ino) return;
+		
+		if (do_unlink(f_name(&hlink_list[i])) != 0 ||
+		    do_link(f_name(&hlink_list[i-1]),f_name(&hlink_list[i])) != 0) {
+			if (verbose > 0)
+				fprintf(FINFO,"link %s => %s : %s\n",
+					f_name(&hlink_list[i]),
+					f_name(&hlink_list[i-1]),strerror(errno));
+			return;
+		}
 	}
-
-	if (close(from_child_pipe[1]) < 0 ||
-	    close(to_child_pipe[0]) < 0) {
-		fprintf(FERROR,"Failed to close : %s\n",strerror(errno));   
-		exit_cleanup(1);
-	}
-
-	*f_in = from_child_pipe[0];
-	*f_out = to_child_pipe[1];
-  
-	return pid;
+	if (verbose > 0)
+		fprintf(FINFO,"%s => %s\n",
+			f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));
 }

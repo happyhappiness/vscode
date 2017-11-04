@@ -1,1 +1,1 @@
-fprintf(FERROR,"excluding file %s\n",fname);
+fprintf(FERROR, "sum=%.8x k=%d\n", sum, k);

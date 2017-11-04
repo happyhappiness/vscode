@@ -1,1 +1,1 @@
-fprintf(stderr,"excluding file %s\n",fname);
+fprintf(stderr,"chdir %s : %s\n",name,strerror(errno));

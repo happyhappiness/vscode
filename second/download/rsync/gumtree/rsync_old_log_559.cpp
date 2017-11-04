@@ -1,1 +1,1 @@
-fprintf(FERROR,"skipping %s\n",fname);
+fprintf(FERROR,"receive_sums failed\n");

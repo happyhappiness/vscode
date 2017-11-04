@@ -1,11 +1,11 @@
 fputs(
-"              method, which you can do with  --basic,  --digest,  --ntlm,  and\n"
-"              --negotiate.\n"
+"              NOTE that the file specified with -b, --cookie is only  used  as\n"
+"              input.  No cookies will be stored in the file. To store cookies,\n"
+"              use the -c, --cookie-jar option or you could even save the  HTTP\n"
+"              headers to a file using -D, --dump-header!\n"
 "\n"
-"              Note  that  using --anyauth is not recommended if you do uploads\n"
-"              from stdin, since it may require data to be sent twice and  then\n"
-"              the client must be able to rewind. If the need should arise when\n"
-"              uploading from stdin, the upload operation will fail.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"       -b, --cookie <name=data>\n"
+"       -B, --use-ascii\n"
+"              (FTP/LDAP)  Enable  ASCII  transfer.  For  FTP, this can also be\n"
 , stdout);

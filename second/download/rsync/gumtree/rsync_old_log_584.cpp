@@ -1,1 +1,1 @@
-fprintf(FINFO,"renaming %s to %s\n",fnametmp,fname);
+fprintf(FERROR,"fork: %s\n",strerror(errno));

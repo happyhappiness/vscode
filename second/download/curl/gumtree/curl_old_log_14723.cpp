@@ -1,9 +1,12 @@
 fputs(
-"              This option overrides existing environment  variables  that  set\n"
-"              the  proxy  to use. If there's an environment variable setting a\n"
-"              proxy, you can set proxy to \"\" to override it.\n"
+"                     the  file  operand to the group ID specified by the group\n"
+"                     operand. The group operand is a decimal integer group ID.\n"
 "\n"
-"              All operations that are performed over an HTTP proxy will trans-\n"
-"              parently  be  converted  to HTTP. It means that certain protocol\n"
-"              specific operations might not be available. This is not the case\n"
+"              chmod mode file\n"
+"                     The chmod command modifies the  file  mode  bits  of  the\n"
+"                     specified file. The mode operand is an octal integer mode\n"
+"                     number.\n"
+"\n"
+"              chown user file\n"
+"                     The chown command sets the owner of the file named by the\n"
 , stdout);

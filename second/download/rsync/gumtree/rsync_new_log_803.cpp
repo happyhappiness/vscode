@@ -1,1 +1,1 @@
-out_of_memory("finish_pre_exec");
+out_of_memory("glob_expand_module");

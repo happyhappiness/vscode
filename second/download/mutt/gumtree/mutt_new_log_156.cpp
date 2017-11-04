@@ -1,1 +1,1 @@
-(fputs (MMDF_SEP, msg->fp);
+state_puts ("\n", s);

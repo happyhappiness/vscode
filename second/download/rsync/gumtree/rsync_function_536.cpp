@@ -1,52 +1,42 @@
-static struct sum_struct *generate_sums(struct map_struct *buf,off_t len,int n)
+static void delete_files(struct file_list *flist)
 {
-  int i;
-  struct sum_struct *s;
-  int count;
-  int block_len = n;
-  int remainder = (len%block_len);
-  off_t offset = 0;
+	struct file_list *local_file_list;
+	int i, j;
+	char *name;
 
-  count = (len+(block_len-1))/block_len;
+	if (cvs_exclude)
+		add_cvs_excludes();
 
-  s = (struct sum_struct *)malloc(sizeof(*s));
-  if (!s) out_of_memory("generate_sums");
+	if (io_error) {
+		fprintf(FINFO,"IO error encountered - skipping file deletion\n");
+		return;
+	}
 
-  s->count = count;
-  s->remainder = remainder;
-  s->n = n;
-  s->flength = len;
+	for (j=0;j<flist->count;j++) {
+		if (!S_ISDIR(flist->files[j]->mode) || 
+		    !(flist->files[j]->flags & FLAG_DELETE)) continue;
 
-  if (count==0) {
-    s->sums = NULL;
-    return s;
-  }
+		if (delete_already_done(flist, j)) continue;
 
-  if (verbose > 3)
-    fprintf(FINFO,"count=%d rem=%d n=%d flength=%d\n",
-	    s->count,s->remainder,s->n,(int)s->flength);
+		name = strdup(f_name(flist->files[j]));
 
-  s->sums = (struct sum_buf *)malloc(sizeof(s->sums[0])*s->count);
-  if (!s->sums) out_of_memory("generate_sums");
-  
-  for (i=0;i<count;i++) {
-    int n1 = MIN(len,n);
-    char *map = map_ptr(buf,offset,n1);
+		if (!(local_file_list = send_file_list(-1,1,&name))) {
+			free(name);
+			continue;
+		}
 
-    s->sums[i].sum1 = get_checksum1(map,n1);
-    get_checksum2(map,n1,s->sums[i].sum2);
+		if (verbose > 1)
+			fprintf(FINFO,"deleting in %s\n", name);
 
-    s->sums[i].offset = offset;
-    s->sums[i].len = n1;
-    s->sums[i].i = i;
-
-    if (verbose > 3)
-      fprintf(FINFO,"chunk[%d] offset=%d len=%d sum1=%08x\n",
-	      i,(int)s->sums[i].offset,s->sums[i].len,s->sums[i].sum1);
-
-    len -= n1;
-    offset += n1;
-  }
-
-  return s;
+		for (i=local_file_list->count-1;i>=0;i--) {
+			if (!local_file_list->files[i]->basename) continue;
+			if (S_ISDIR(local_file_list->files[i]->mode))
+				add_delete_entry(local_file_list->files[i]);
+			if (-1 == flist_find(flist,local_file_list->files[i])) {
+				delete_one(local_file_list->files[i]);
+			}    
+		}
+		flist_free(local_file_list);
+		free(name);
+	}
 }

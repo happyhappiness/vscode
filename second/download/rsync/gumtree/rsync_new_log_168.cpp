@@ -1,2 +1,2 @@
-fprintf(FERROR, "false_alarms=%d tag_hits=%d matches=%d\n",
-	    false_alarms, tag_hits, matches);
+fprintf(FERROR,"chunk[%d] of size %d at %d offset=%d\n",
+		i,len,(int)offset2,(int)offset);

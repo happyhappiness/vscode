@@ -1,1 +1,0 @@
-fprintf(stderr,"recv_files failed to open %s\n",fname);

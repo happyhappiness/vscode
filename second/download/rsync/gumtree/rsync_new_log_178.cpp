@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s\n",fname);
+fprintf(FERROR,"%s : not a regular file\n",fname);

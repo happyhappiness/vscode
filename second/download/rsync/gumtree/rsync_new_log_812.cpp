@@ -1,1 +1,1 @@
-fprintf(f, "\\#%03o", *(uchar*)s);
+overflow_exit("recv_xattr_request");

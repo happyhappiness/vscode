@@ -1,1 +1,1 @@
-putenv(p);
+out_of_memory("start_inband_exchange");

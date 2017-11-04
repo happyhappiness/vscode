@@ -1,1 +1,1 @@
-fprintf(FERROR,"chdir %s : %s\n",dbuf,strerror(errno));
+fprintf(f,"-H, --hard-links         preserve hard links\n");

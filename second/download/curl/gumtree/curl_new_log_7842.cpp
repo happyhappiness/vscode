@@ -1,3 +1,1 @@
-fputs(
-"  these mailing lists instead of mailing any individual.\n"
-, stdout);
+warnf(config, "skip unknown form field: %s\n", unknown);

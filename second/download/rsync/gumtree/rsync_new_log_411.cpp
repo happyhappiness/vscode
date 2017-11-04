@@ -1,1 +1,2 @@
-)malloc(sizeof(delete_list[0])*dlist_alloc_len);
+rprintf(FERROR,"(%d) Error reading %d bytes : %s\n",
+					getpid(),8,ret==-1?strerror(errno):"EOF");

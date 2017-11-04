@@ -1,1 +1,1 @@
-out_of_memory("parse_size_arg");
+out_of_memory("match_gnums");

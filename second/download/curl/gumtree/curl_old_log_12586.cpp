@@ -1,9 +1,11 @@
 fputs(
-"  use the default type 'application/octet-stream'.\n"
+"    'Konqueror/1.0'             KDE File Manager desktop client\n"
+"    'Lynx/2.7.1 libwww-FM/2.14' Lynx command line browser\n"
 "\n"
-"  Emulate a fill-in form with -F. Let's say you fill in three fields in a\n"
-"  form. One field is a file name which to post, one field is your name and one\n"
-"  field is a file description. We want to post the file we have written named\n"
-"  \"cooltext.txt\". To let curl do the posting of this data instead of your\n"
-"  favourite browser, you have to read the HTML source of the form page and\n"
+"COOKIES\n"
+"\n"
+"  Cookies are generally used by web servers to keep state information at the\n"
+"  client's side. The server sets cookies by sending a response line in the\n"
+"  headers that looks like 'Set-Cookie: <data>' where the data part then\n"
+"  typically contains a set of NAME=VALUE pairs (separated by semicolons ';'\n"
 , stdout);

@@ -1,9 +1,12 @@
 fputs(
-"              match  local.com,  local.com:80,  and  www.local.com,  but   not\n"
-"              www.notlocal.com.  (Added in 7.19.4).\n"
+"       -O, --remote-name\n"
+"              Write output to a local file named like the remote file we  get.\n"
+"              (Only  the file part of the remote file is used, the path is cut\n"
+"              off.)\n"
 "\n"
-"       --ntlm (HTTP)  Enables  NTLM  authentication.  The  NTLM authentication\n"
-"              method was designed by Microsoft and is used by IIS web servers.\n"
-"              It  is a proprietary protocol, reverse-engineered by clever peo-\n"
-"              ple and implemented in curl based on their efforts. This kind of\n"
+"              The remote file name to use for saving  is  extracted  from  the\n"
+"              given URL, nothing else.\n"
+"\n"
+"              Consequentially,  the  file will be saved in the current working\n"
+"              directory. If you want the file saved in a different  directory,\n"
 , stdout);

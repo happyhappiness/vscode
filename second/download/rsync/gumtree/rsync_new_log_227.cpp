@@ -1,1 +1,2 @@
-fprintf(FERROR,"fork: %s\n",strerror(errno));
+fprintf(stderr,"write_buf failed : %s\n",
+	    ret==-1?strerror(errno):"EOF");

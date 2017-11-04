@@ -1,1 +1,1 @@
-fprintf (fp, _("Key Usage .: "));
+fputs ("----- Forwarded message from ", fp);

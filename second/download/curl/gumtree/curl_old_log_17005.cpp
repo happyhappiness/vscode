@@ -1,0 +1,15 @@
+puts(
+"          If this option is used several times, the last one will\n"
+"          be used.\n"
+"\n"
+"     --cacert <CA certificate>\n"
+"          (HTTPS) Tells curl to  use  the  specified  certificate\n"
+"          file to verify the peer. The certificate must be in PEM\n"
+"          format.\n"
+"\n"
+"          If this option is used several times, the last one will\n"
+"          be used.\n"
+"\n"
+"     -f/--fail\n"
+"          (HTTP)  Fail  silently  (no  output  at  all) on server\n"
+);

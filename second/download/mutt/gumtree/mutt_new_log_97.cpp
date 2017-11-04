@@ -1,1 +1,1 @@
-fprintf (f, "Resent-Message-ID: %s\n", msgid_str);
+state_attach_puts ( fpr, s );

@@ -1,1 +1,2 @@
-fprintf(FERROR,"skipping %s\n",fname);
+fprintf(FINFO,"%s => %s\n",
+		      f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));

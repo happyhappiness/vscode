@@ -1,1 +1,0 @@
-fprintf(FERROR,"fork: %s\n",strerror(errno));

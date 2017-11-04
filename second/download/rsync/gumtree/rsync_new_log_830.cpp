@@ -1,1 +1,1 @@
-rprintf(FERROR, "internal: args[] overflowed in do_cmd()\n");
+io_printf(f_out, "@ERROR: invalid gid %s\n", gname);

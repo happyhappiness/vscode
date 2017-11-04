@@ -1,12 +1,9 @@
 fputs(
-"              numbers to use for the connection(s).  Note that port numbers by\n"
-"              nature  are a scarce resource that will be busy at times so set-\n"
-"              ting this range to something too narrow might cause  unnecessary\n"
-"              connection setup failures.\n"
+"              If this option is used several times, the last one will be used.\n"
 "\n"
-"              Added in 7.15.2.\n"
-"\n"
-"       --location-trusted\n"
-"              (HTTP)  Like  -L,  --location, but will allow sending the name +\n"
-"              password to all hosts that the site may redirect to. This may or\n"
+"       -m, --max-time <time>\n"
+"              Maximum time in seconds that you allow the  whole  operation  to\n"
+"              take.   This is useful for preventing your batch jobs from hang-\n"
+"              ing for hours due to slow networks or links going  down.   Since\n"
+"              7.32.0, this option accepts decimal values, but the actual time-\n"
 , stdout);

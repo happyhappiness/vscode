@@ -1,1 +1,1 @@
-fprintf(FINFO,"server_recv(%d) starting pid=%d\n",argc,(int)getpid());
+fprintf(FINFO,"%s is newer\n",fname);

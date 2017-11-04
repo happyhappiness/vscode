@@ -1,54 +1,72 @@
-static void singleOptionHelp(FILE * f, int maxLeftCol, 
-			     const struct poptOption * opt,
-			     const char *translation_domain) {
-    int indentLength = maxLeftCol + 5;
-    int lineLength = 79 - indentLength;
-    const char * help = D_(translation_domain, opt->descrip);
-    int helpLength;
-    const char * ch;
-    char format[10];
-    char * left;
-    const char * argDescrip = getArgDescrip(opt, translation_domain);
+char *sanitize_path(char *dest, const char *p, const char *rootdir, int depth)
+{
+	char *start, *sanp;
+	int rlen = 0;
 
-    left = malloc(maxLeftCol + 1);
-    *left = '\0';
+	if (dest != p) {
+		int plen = strlen(p);
+		if (*p == '/') {
+			if (!rootdir)
+				rootdir = lp_path(module_id);
+			rlen = strlen(rootdir);
+			depth = 0;
+			p++;
+		}
+		if (dest) {
+			if (rlen + plen + 1 >= MAXPATHLEN)
+				return NULL;
+		} else if (!(dest = new_array(char, rlen + plen + 1)))
+			out_of_memory("sanitize_path");
+		if (rlen) {
+			memcpy(dest, rootdir, rlen);
+			if (rlen > 1)
+				dest[rlen++] = '/';
+		}
+	}
 
-    if (opt->longName && opt->shortName)
-	sprintf(left, "-%c, --%s", opt->shortName, opt->longName);
-    else if (opt->shortName) 
-	sprintf(left, "-%c", opt->shortName);
-    else if (opt->longName)
-	sprintf(left, "--%s", opt->longName);
-    if (!*left) return ;
-    if (argDescrip) {
-	strcat(left, "=");
-	strcat(left, argDescrip);
-    }
+	start = sanp = dest + rlen;
+	while (*p != '\0') {
+		/* discard leading or extra slashes */
+		if (*p == '/') {
+			p++;
+			continue;
+		}
+		/* this loop iterates once per filename component in p.
+		 * both p (and sanp if the original had a slash) should
+		 * always be left pointing after a slash
+		 */
+		if (*p == '.' && (p[1] == '/' || p[1] == '\0')) {
+			/* skip "." component */
+			p++;
+			continue;
+		}
+		if (*p == '.' && p[1] == '.' && (p[2] == '/' || p[2] == '\0')) {
+			/* ".." component followed by slash or end */
+			if (depth <= 0 || sanp != start) {
+				p += 2;
+				if (sanp != start) {
+					/* back up sanp one level */
+					--sanp; /* now pointing at slash */
+					while (sanp > start && sanp[-1] != '/') {
+						/* skip back up to slash */
+						sanp--;
+					}
+				}
+				continue;
+			}
+			/* allow depth levels of .. at the beginning */
+			depth--;
+			/* move the virtual beginning to leave the .. alone */
+			start = sanp + 3;
+		}
+		/* copy one component through next slash */
+		while (*p && (*sanp++ = *p++) != '/') {}
+	}
+	if (sanp == dest) {
+		/* ended up with nothing, so put in "." component */
+		*sanp++ = '.';
+	}
+	*sanp = '\0';
 
-    if (help)
-	fprintf(f,"  %-*s   ", maxLeftCol, left);
-    else {
-	fprintf(f,"  %s\n", left); 
-	goto out;
-    }
-
-    helpLength = strlen(help);
-    while (helpLength > lineLength) {
-	ch = help + lineLength - 1;
-	while (ch > help && !isspace(*ch)) ch--;
-	if (ch == help) break;		/* give up */
-	while (ch > (help + 1) && isspace(*ch)) ch--;
-	ch++;
-
-	sprintf(format, "%%.%ds\n%%%ds", (int) (ch - help), indentLength);
-	fprintf(f, format, help, " ");
-	help = ch;
-	while (isspace(*help) && *help) help++;
-	helpLength = strlen(help);
-    }
-
-    if (helpLength) fprintf(f, "%s\n", help);
-
-out:
-    free(left);
+	return dest;
 }

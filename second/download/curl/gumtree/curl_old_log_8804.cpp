@@ -1,1 +1,1 @@
-warnf(config, "Failed to create/open output");
+warnf(config, "Failed to open %s to write libcurl code!\n", o);

@@ -1,1 +1,1 @@
-mutt_window_mvprintw (MuttIndexWindow, HDR_CRYPT, 0, TITLE_FMT, "Security: ");
+fprintf (fp, _("Valid To ..: %s\n"), shortbuf);

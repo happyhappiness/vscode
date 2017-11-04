@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: fork failed\n");
+out_of_memory("expand_item_list");

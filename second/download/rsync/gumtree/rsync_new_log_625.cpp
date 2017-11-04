@@ -1,1 +1,3 @@
-rprintf(FERROR,"ERROR: buffer overflow in %s\n",str);
+fprintf (stderr,
+				 RSYNC_NAME ": execute socket program \"%s\"\n",
+				 prog);

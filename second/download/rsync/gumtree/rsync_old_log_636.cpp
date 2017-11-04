@@ -1,1 +1,2 @@
-out_of_memory("map_ptr");
+io_printf(fd,"@ERROR: failed to open lock file %s : %s\n",
+				  lp_lock_file(i), strerror(errno));

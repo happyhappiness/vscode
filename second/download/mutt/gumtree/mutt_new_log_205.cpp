@@ -1,1 +1,1 @@
-state_puts (_("               expires: "), s);
+mutt_window_mvprintw (MuttIndexWindow, HDR_CRYPTINFO, 40, "%s", _("Encrypt with: "));

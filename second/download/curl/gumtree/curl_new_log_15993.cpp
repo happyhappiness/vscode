@@ -1,11 +1,11 @@
 fputs(
-"              port.  Use  -V,  --version  to  see  if  your curl supports GSS-\n"
-"              API/SSPI or SPNEGO.\n"
+"              thus use --keepalive to enforce keepalive.\n"
 "\n"
-"              When using this option, you must also provide a fake -u,  --user\n"
-"              option  to  activate the authentication code properly. Sending a\n"
-"              '-u :' is enough as the user name  and  password  from  the  -u,\n"
-"              --user option aren't actually used.\n"
+"       --no-npn\n"
+"              (HTTPS) Disable the NPN TLS extension. NPN is enabled by default\n"
+"              if  libcurl was built with an SSL library that supports NPN. NPN\n"
+"              is used by a libcurl that supports HTTP/2  to  negotiate  HTTP/2\n"
+"              support with the server during https sessions.\n"
 "\n"
-"              If  this  option  is  used  several times, only the first one is\n"
+"              See  also  --no-alpn  and  --http2.  --no-npn  requires that the\n"
 , stdout);

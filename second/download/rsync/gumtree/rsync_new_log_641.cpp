@@ -1,1 +1,1 @@
-out_of_memory("writefd");
+io_printf(f_out, "@ERROR: setgid failed\n");

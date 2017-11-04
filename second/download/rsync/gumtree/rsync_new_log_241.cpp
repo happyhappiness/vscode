@@ -1,1 +1,1 @@
-fprintf(FERROR,"gen mapped %s of size %d\n",fname,(int)st.st_size);
+fprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));

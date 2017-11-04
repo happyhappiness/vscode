@@ -1,9 +1,12 @@
 fputs(
-"              used. This is because undoing a GET doesn't make sense, but  you\n"
-"              should then instead enforce the alternative method you prefer.\n"
+"              rect Content-Length for files larger than 2 gigabytes.\n"
 "\n"
-"       -H, --header <header>\n"
-"              (HTTP)  Extra header to include in the request when sending HTTP\n"
-"              to a server. You may specify any number of extra  headers.  Note\n"
-"              that if you should add a custom header that has the same name as\n"
+"       -i, --include\n"
+"              (HTTP) Include the HTTP-header in the  output.  The  HTTP-header\n"
+"              includes  things  like  server-name, date of the document, HTTP-\n"
+"              version and more...\n"
+"\n"
+"       -I, --head\n"
+"              (HTTP/FTP/FILE) Fetch the HTTP-header only! HTTP-servers feature\n"
+"              the  command  HEAD which this uses to get nothing but the header\n"
 , stdout);

@@ -1,1 +1,1 @@
-write_sbuf(f_out, "\n");
+out_of_memory("set_env_num");

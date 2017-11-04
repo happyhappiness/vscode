@@ -1,1 +1,1 @@
-fprintf(FERROR,"waiting on %d\n",pid);
+fprintf(FERROR,"mknod %s : %s\n",fname,strerror(errno));

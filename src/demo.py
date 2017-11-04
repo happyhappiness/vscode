@@ -19,10 +19,10 @@ def analyze_and_cluster(repos_list, repos_name_list):
         # update repos value of my constant
         my_constant.reset_repos(repos)
         # analyze and cluster old and new
-        analyze_hunk.fetch_hunk()
-        analyze_control_old_new.analyze_old_new(True)
-        analyze_control_old_new_cluster.cluster()
-        analyze_control_old_new_cluster.generate_class()
+        # analyze_hunk.fetch_hunk()
+        # analyze_control_old_new.analyze_old_new(True)
+        # analyze_control_old_new_cluster.cluster()
+        # analyze_control_old_new_cluster.generate_class()
         # analyze and cluster repos
         analyze_control_repos.analyze_repos(repos_name_list[index])
         analyze_control_repos.cluster_repos_log()

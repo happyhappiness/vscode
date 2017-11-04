@@ -1,1 +1,1 @@
-out_of_memory("init_hard_links");
+out_of_memory("open_socket_in");

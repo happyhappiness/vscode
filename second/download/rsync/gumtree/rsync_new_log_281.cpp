@@ -1,1 +1,1 @@
-fprintf(FERROR,"filename too long\n");
+fprintf(FINFO,"skipping directory %s\n",fname);

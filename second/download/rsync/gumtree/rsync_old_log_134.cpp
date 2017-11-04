@@ -1,1 +1,1 @@
-fprintf(stderr,"%s ",args[i]);
+fprintf(stderr,"hash search b=%d len=%d\n",s->n,(int)len);

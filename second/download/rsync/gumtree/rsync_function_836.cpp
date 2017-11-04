@@ -1,7 +1,7 @@
 static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
 {
-	int argc, opt_cnt;
-	char **argv, *chroot_path = NULL;
+	int argc;
+	char **argv, **orig_argv, **orig_early_argv, *module_chdir;
 	char line[BIGPATHBUFLEN];
 	uid_t uid = (uid_t)-2;  /* canonically "nobody" */
 	gid_t gid = (gid_t)-2;
@@ -102,29 +102,34 @@ static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
 	 * supplementary groups. */
 
 	module_dir = lp_path(i);
+	if (*module_dir == '\0') {
+		rprintf(FLOG, "No path specified for module %s\n", name);
+		io_printf(f_out, "@ERROR: no path setting.\n");
+		return -1;
+	}
 	if (use_chroot) {
 		if ((p = strstr(module_dir, "/./")) != NULL) {
-			*p = '\0';
-			p += 2;
-		} else if ((p = strdup("/")) == NULL)
-			out_of_memory("rsync_module");
+			*p = '\0'; /* Temporary... */
+			if (!(module_chdir = normalize_path(module_dir, True, NULL)))
+				return path_failure(f_out, module_dir, False);
+			*p = '/';
+			if (!(p = normalize_path(p + 2, True, &module_dirlen)))
+				return path_failure(f_out, strstr(module_dir, "/./"), False);
+			if (!(full_module_path = normalize_path(module_dir, False, NULL)))
+				full_module_path = module_dir;
+			module_dir = p;
+		} else {
+			if (!(module_chdir = normalize_path(module_dir, False, NULL)))
+				return path_failure(f_out, module_dir, False);
+			full_module_path = module_chdir;
+			module_dir = "/";
+			module_dirlen = 1;
+		}
+	} else {
+		if (!(module_chdir = normalize_path(module_dir, False, &module_dirlen)))
+			return path_failure(f_out, module_dir, False);
+		full_module_path = module_dir = module_chdir;
 	}
-
-	/* We do a push_dir() that doesn't actually call chdir()
-	 * just to make a relative path absolute. */
-	strlcpy(line, curr_dir, sizeof line);
-	if (!push_dir(module_dir, 1))
-		goto chdir_failed;
-	if (strcmp(curr_dir, module_dir) != 0
-	 && (module_dir = strdup(curr_dir)) == NULL)
-		out_of_memory("rsync_module");
-	push_dir(line, 1); /* Restore curr_dir. */
-
-	if (use_chroot) {
-		chroot_path = module_dir;
-		module_dir = p; /* p is "/" or our inside-chroot path */
-	}
-	module_dirlen = clean_fname(module_dir, CFN_COLLAPSE_DOT_DOT_DIRS | CFN_DROP_TRAILING_DOT_DIR);
 
 	if (module_dirlen == 1) {
 		module_dirlen = 0;
@@ -133,25 +138,25 @@ static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
 		set_filter_dir(module_dir, module_dirlen);
 
 	p = lp_filter(i);
-	parse_rule(&server_filter_list, p, MATCHFLG_WORD_SPLIT,
-		   XFLG_ABS_IF_SLASH);
+	parse_rule(&daemon_filter_list, p, MATCHFLG_WORD_SPLIT,
+		   XFLG_ABS_IF_SLASH | XFLG_DIR2WILD3);
 
 	p = lp_include_from(i);
-	parse_filter_file(&server_filter_list, p, MATCHFLG_INCLUDE,
-	    XFLG_ABS_IF_SLASH | XFLG_OLD_PREFIXES | XFLG_FATAL_ERRORS);
+	parse_filter_file(&daemon_filter_list, p, MATCHFLG_INCLUDE,
+	    XFLG_ABS_IF_SLASH | XFLG_DIR2WILD3 | XFLG_OLD_PREFIXES | XFLG_FATAL_ERRORS);
 
 	p = lp_include(i);
-	parse_rule(&server_filter_list, p,
+	parse_rule(&daemon_filter_list, p,
 		   MATCHFLG_INCLUDE | MATCHFLG_WORD_SPLIT,
-		   XFLG_ABS_IF_SLASH | XFLG_OLD_PREFIXES);
+		   XFLG_ABS_IF_SLASH | XFLG_DIR2WILD3 | XFLG_OLD_PREFIXES);
 
 	p = lp_exclude_from(i);
-	parse_filter_file(&server_filter_list, p, 0,
-	    XFLG_ABS_IF_SLASH | XFLG_OLD_PREFIXES | XFLG_FATAL_ERRORS);
+	parse_filter_file(&daemon_filter_list, p, 0,
+	    XFLG_ABS_IF_SLASH | XFLG_DIR2WILD3 | XFLG_OLD_PREFIXES | XFLG_FATAL_ERRORS);
 
 	p = lp_exclude(i);
-	parse_rule(&server_filter_list, p, MATCHFLG_WORD_SPLIT,
-		   XFLG_ABS_IF_SLASH | XFLG_OLD_PREFIXES);
+	parse_rule(&daemon_filter_list, p, MATCHFLG_WORD_SPLIT,
+		   XFLG_ABS_IF_SLASH | XFLG_DIR2WILD3 | XFLG_OLD_PREFIXES);
 
 	log_init(1);
 
@@ -160,16 +165,8 @@ static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
 		char *modname, *modpath, *hostaddr, *hostname, *username;
 		int status;
 
-		if (!use_chroot)
-			p = module_dir;
-		else if (module_dirlen) {
-			pathjoin(line, sizeof line, chroot_path, module_dir+1);
-			p = line;
-		} else
-			p = chroot_path;
-
 		if (asprintf(&modname, "RSYNC_MODULE_NAME=%s", name) < 0
-		 || asprintf(&modpath, "RSYNC_MODULE_PATH=%s", p) < 0
+		 || asprintf(&modpath, "RSYNC_MODULE_PATH=%s", full_module_path) < 0
 		 || asprintf(&hostaddr, "RSYNC_HOST_ADDR=%s", addr) < 0
 		 || asprintf(&hostname, "RSYNC_HOST_NAME=%s", host) < 0
 		 || asprintf(&username, "RSYNC_USER_NAME=%s", auth_user) < 0)
@@ -203,7 +200,8 @@ static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
 					status = -1;
 				if (asprintf(&p, "RSYNC_EXIT_STATUS=%d", status) > 0)
 					putenv(p);
-				system(lp_postxfer_exec(i));
+				if (system(lp_postxfer_exec(i)) < 0)
+					status = -1;
 				_exit(status);
 			}
 		}
@@ -269,30 +267,24 @@ static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
 		 * a warning, unless a "require chroot" flag is set,
 		 * in which case we fail.
 		 */
-		if (chroot(chroot_path)) {
-			rsyserr(FLOG, errno, "chroot %s failed", chroot_path);
+		if (chroot(module_chdir)) {
+			rsyserr(FLOG, errno, "chroot %s failed", module_chdir);
 			io_printf(f_out, "@ERROR: chroot failed\n");
 			return -1;
 		}
-		if (!push_dir(module_dir, 0))
-			goto chdir_failed;
-		if (module_dirlen)
-			sanitize_paths = 1;
-	} else {
-		if (!push_dir(module_dir, 0)) {
-		  chdir_failed:
-			rsyserr(FLOG, errno, "chdir %s failed\n", module_dir);
-			io_printf(f_out, "@ERROR: chdir failed\n");
-			return -1;
-		}
-		sanitize_paths = 1;
+		module_chdir = module_dir;
 	}
+
+	if (!change_dir(module_chdir, CD_NORMAL))
+		return path_failure(f_out, module_chdir, True);
+	if (module_dirlen || !use_chroot)
+		sanitize_paths = 1;
 
 	if ((munge_symlinks = lp_munge_symlinks(i)) < 0)
 		munge_symlinks = !use_chroot || module_dirlen;
 	if (munge_symlinks) {
 		STRUCT_STAT st;
-		if (stat(SYMLINK_PREFIX, &st) == 0 && S_ISDIR(st.st_mode)) {
+		if (do_stat(SYMLINK_PREFIX, &st) == 0 && S_ISDIR(st.st_mode)) {
 			rprintf(FLOG, "Symlink munging is unsupported when a %s directory exists.\n",
 				SYMLINK_PREFIX);
 			io_printf(f_out, "@ERROR: daemon security issue -- contact admin\n", name);
@@ -326,7 +318,11 @@ static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
 		}
 #endif
 
-		if (setuid(uid)) {
+		if (setuid(uid) < 0
+#ifdef HAVE_SETEUID
+		 || seteuid(uid) < 0
+#endif
+		) {
 			rsyserr(FLOG, errno, "setuid %d failed", (int)uid);
 			io_printf(f_out, "@ERROR: setuid failed\n");
 			return -1;
@@ -347,24 +343,40 @@ static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
 
 	io_printf(f_out, "@RSYNCD: OK\n");
 
-	opt_cnt = read_args(f_in, name, line, sizeof line, rl_nulls, &argv, &argc, &request);
+	read_args(f_in, name, line, sizeof line, rl_nulls, &argv, &argc, &request);
+	orig_argv = argv;
+
+	verbose = 0; /* future verbosity is controlled by client options */
+	ret = parse_arguments(&argc, (const char ***) &argv);
+	if (protect_args && ret) {
+		orig_early_argv = orig_argv;
+		protect_args = 2;
+		read_args(f_in, name, line, sizeof line, 1, &argv, &argc, &request);
+		orig_argv = argv;
+		ret = parse_arguments(&argc, (const char ***) &argv);
+	} else
+		orig_early_argv = NULL;
 
 	if (pre_exec_pid) {
 		err_msg = finish_pre_exec(pre_exec_pid, pre_exec_fd, request,
-					  opt_cnt, argv);
+					  orig_early_argv, orig_argv);
 	}
 
-	verbose = 0; /* future verbosity is controlled by client options */
-	ret = parse_arguments(&argc, (const char ***) &argv, 0);
+	if (orig_early_argv)
+		free(orig_early_argv);
+
 	am_server = 1; /* Don't let someone try to be tricky. */
+	quiet = 0;
 	if (lp_ignore_errors(module_id))
 		ignore_errors = 1;
 	if (write_batch < 0)
 		dry_run = 1;
 
-	if (lp_fake_super(i))
+	if (lp_fake_super(i)) {
+		if (preserve_xattrs > 1)
+			preserve_xattrs = 1;
 		am_root = -1;
-	else if (am_root < 0) /* Treat --fake-super from client as --super. */
+	} else if (am_root < 0) /* Treat --fake-super from client as --super. */
 		am_root = 2;
 
 	if (filesfrom_fd == 0)
@@ -444,7 +456,7 @@ static int rsync_module(int f_in, int f_out, int i, char *addr, char *host)
 	 && (use_chroot ? lp_numeric_ids(i) != False : lp_numeric_ids(i) == True))
 		numeric_ids = -1; /* Set --numeric-ids w/o breaking protocol. */
 
-	if (lp_timeout(i) && lp_timeout(i) > io_timeout)
+	if (lp_timeout(i) && (!io_timeout || lp_timeout(i) < io_timeout))
 		set_io_timeout(lp_timeout(i));
 
 	/* If we have some incoming/outgoing chmod changes, append them to

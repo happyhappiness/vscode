@@ -1,2 +1,1 @@
-state_puts (_("WARNING: PKA entry does not match "
-			       "signer's address: "), s);
+state_puts (sig->fpr, s);

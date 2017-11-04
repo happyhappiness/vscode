@@ -1,2 +1,2 @@
-fprintf(FINFO,"chunk[%d] of size %d at %d offset=%d\n",
-		i,len,(int)offset2,(int)offset);
+fprintf(FINFO,"%s => %s\n",
+			f_name(&hlink_list[i]),f_name(&hlink_list[i-1]));

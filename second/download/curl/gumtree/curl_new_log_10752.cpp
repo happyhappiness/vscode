@@ -1,2 +1,2 @@
-warnf(config->global,
-                    "fcntl failed on fd=%d: %s\n", infd, strerror(errno));
+warnf(config->global, "unrecognized ftp file method '%s', using default\n",
+        str);

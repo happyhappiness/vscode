@@ -1,1 +1,1 @@
-warnf(config, "Illegally formatted content-type field!\n");
+warnf(config, "curl_formadd failed!\n");

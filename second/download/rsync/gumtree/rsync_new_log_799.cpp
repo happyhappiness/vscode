@@ -1,1 +1,1 @@
-fprintf(out, "  },\n  {\n");
+out_of_memory("recv_group_name");

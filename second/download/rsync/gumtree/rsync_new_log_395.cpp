@@ -1,1 +1,2 @@
-fprintf(FINFO,"send files finished\n");
+rprintf(FERROR,"chdir %s : %s\n",
+					dir,strerror(errno));

@@ -1,1 +1,2 @@
-fprintf(FERROR,"chdir %s : %s (2)\n",name,strerror(errno));
+fprintf(FINFO, "local_version=%d remote_version=%d\n",
+		  PROTOCOL_VERSION, remote_version);

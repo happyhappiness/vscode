@@ -1,1 +1,1 @@
-fprintf(stderr, "\n");
+fprintf(stderr, ": %s (%d)\n", strerror(errcode), errcode);

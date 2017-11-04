@@ -1,1 +1,1 @@
-fprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));
+fprintf(f,"-C, --cvs-exclude        auto ignore files in the same way CVS does\n");

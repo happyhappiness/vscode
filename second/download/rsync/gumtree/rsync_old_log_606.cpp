@@ -1,1 +1,0 @@
-fprintf(FINFO,"generator wrote %ld\n",(long)write_total());

@@ -1,1 +1,1 @@
-fprintf(am_server?stderr:stdout,"building file list ... ");
+fprintf(stderr,"map_file failed : %s\n",strerror(errno));

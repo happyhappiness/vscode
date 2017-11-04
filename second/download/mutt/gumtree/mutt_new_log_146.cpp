@@ -1,2 +1,1 @@
-(mutt_yesorno (_("PGP already selected. Clear & continue ? "),
-                                MUTT_YES);
+mutt_yesorno(msg, MUTT_YES);

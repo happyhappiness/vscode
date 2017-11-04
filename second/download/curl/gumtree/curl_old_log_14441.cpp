@@ -1,9 +1,12 @@
 fputs(
-"              prefix them with a dash '-'.  To make  commands  be  sent  after\n"
-"              curl has changed the working directory, just before the transfer\n"
-"              command(s), prefix the command with a '+'  (this  is  only  sup-\n"
-"              ported for FTP). You may specify any number of commands.\n"
+"              rmdir directory\n"
+"                     The rmdir command removes the directory  entry  specified\n"
+"                     by the directory operand, provided it is empty.\n"
 "\n"
-"              If  the  server  returns  failure  for  one of the commands, the\n"
-"              entire operation will be aborted. You  must  send  syntactically\n"
+"              symlink source_file target_file\n"
+"                     See ln.\n"
+"\n"
+"       --random-file <file>\n"
+"              Specify the path name to file containing what will be considered\n"
+"              as random data. The data may be used to seed the  random  engine\n"
 , stdout);

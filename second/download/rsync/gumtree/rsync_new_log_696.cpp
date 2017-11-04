@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: Unknown command '%s'\n", line);
+io_printf(f_out, "@ERROR: Unknown module '%s'\n", name);

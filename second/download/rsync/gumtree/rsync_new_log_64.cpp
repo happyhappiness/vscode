@@ -1,2 +1,1 @@
-fprintf(stderr,"unlink %s : %s\n",
-		  local_file_list->files[i].name,strerror(errno));
+fprintf(stderr,"write failed on %s : %s\n",fname,strerror(errno));

@@ -1,1 +1,2 @@
-fprintf(FINFO,"data recv %d at %d\n",i,(int)offset);
+fprintf(FINFO,"send_files mapped %s of size %d\n",
+			  fname,(int)st.st_size);

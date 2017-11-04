@@ -1,1 +1,0 @@
-fprintf(FERROR,"ERROR: buffer overflow in %s\n",str);

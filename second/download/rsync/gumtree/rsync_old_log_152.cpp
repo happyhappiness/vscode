@@ -1,1 +1,1 @@
-fprintf(stderr,"protocol version mismatch - is your shell clean?\n");
+fprintf(am_server?stderr:stdout,"%s is uptodate\n",fname);

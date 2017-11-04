@@ -1,1 +1,1 @@
-rprintf(FINFO,"hash search b=%d len=%d\n",s->n,(int)len);
+rprintf(FINFO,"%s is a hard link\n",f_name(file));

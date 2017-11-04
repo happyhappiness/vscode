@@ -1,1 +1,2 @@
-fprintf(FERROR,"ERROR: symbolic links not supported\n");
+fprintf(FERROR,"mkdir %s : %s (2)\n",
+			    fname,strerror(errno));

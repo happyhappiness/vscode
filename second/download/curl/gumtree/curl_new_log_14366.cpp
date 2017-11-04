@@ -1,11 +1,11 @@
 fputs(
-"              Added in 7.16.1.\n"
+"              may not introduce a security breach if the site redirects you to\n"
+"              a site to which you'll send your authentication info  (which  is\n"
+"              plaintext in the case of HTTP Basic authentication).\n"
 "\n"
-"       --limit-rate <speed>\n"
-"              Specify  the  maximum  transfer  rate you want curl to use - for\n"
-"              both downloads and uploads. This feature is useful if you have a\n"
-"              limited pipe and you'd like your transfer not to use your entire\n"
-"              bandwidth. To make it slower than it otherwise would be.\n"
+"              See also -u, --user.\n"
 "\n"
-"              The given speed is measured in bytes/second, unless a suffix  is\n"
+"       -L, --location\n"
+"              (HTTP)  If  the server reports that the requested page has moved\n"
+"              to a different location (indicated with a Location: header and a\n"
 , stdout);

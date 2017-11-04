@@ -1,1 +1,1 @@
-fprintf(f,"-R, --relative           use relative path names\n");
+out_of_memory("receive_file_entry");

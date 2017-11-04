@@ -1,67 +1,31 @@
-static void 
-verify_key (crypt_key_t *key)
+static void redraw_mix_line (LIST *chain)
 {
-  FILE *fp;
-  char cmd[LONG_STRING], tempfile[_POSIX_PATH_MAX];
-  const char *s;
-  gpgme_ctx_t listctx = NULL;
-  gpgme_error_t err;
-  gpgme_key_t k = NULL;
-  int maxdepth = 100;
+  int c;
+  char *t;
 
-  mutt_mktemp (tempfile, sizeof (tempfile));
-  if (!(fp = safe_fopen (tempfile, "w")))
-    {
-      mutt_perror _("Can't create temporary file");
-      return;
-    }
-  mutt_message _("Collecting data...");
+  /* L10N: "Mix" refers to the MixMaster chain for anonymous email */
+  mutt_window_mvprintw (MuttIndexWindow, HDR_MIX, 0, TITLE_FMT, _("Mix: "));
 
-  print_key_info (key->kobj, fp);
+  if (!chain)
+  {
+    addstr ("<no chain defined>");
+    mutt_window_clrtoeol (MuttIndexWindow);
+    return;
+  }
+  
+  for (c = 12; chain; chain = chain->next)
+  {
+    t = chain->data;
+    if (t && t[0] == '0' && t[1] == '\0')
+      t = "<random>";
+    
+    if (c + mutt_strlen (t) + 2 >= MuttIndexWindow->cols)
+      break;
 
-  err = gpgme_new (&listctx);
-  if (err)
-    {
-      fprintf (fp, "Internal error: can't create gpgme context: %s\n",
-               gpgme_strerror (err));
-      goto leave;
-    }
-  if ((key->flags & KEYFLAG_ISX509))
-      gpgme_set_protocol (listctx, GPGME_PROTOCOL_CMS);
+    addstr (NONULL(t));
+    if (chain->next)
+      addstr (", ");
 
-  k = key->kobj;
-  gpgme_key_ref (k);
-  while ((s = k->chain_id) && k->subkeys && strcmp (s, k->subkeys->fpr) )
-    {
-      putc ('\n', fp);
-      err = gpgme_op_keylist_start (listctx, s, 0);
-      gpgme_key_unref (k);
-      k = NULL;
-      if (!err)
-	err = gpgme_op_keylist_next (listctx, &k);
-      if (err)
-        {
-          fprintf (fp, _("Error finding issuer key: %s\n"),
-                   gpgme_strerror (err));
-          goto leave;
-        }
-      gpgme_op_keylist_end (listctx);
-      
-      print_key_info (k, fp);
-      if (!--maxdepth)
-        {
-          putc ('\n', fp);
-          fputs (_("Error: certification chain to long - stopping here\n"),
-                 fp);
-          break;
-        }
-    }
-
- leave:
-  gpgme_key_unref (k);
-  gpgme_release (listctx);
-  safe_fclose (&fp);
-  mutt_clear_error ();
-  snprintf (cmd, sizeof (cmd), _("Key ID: 0x%s"),  crypt_keyid (key));
-  mutt_do_pager (cmd, tempfile, 0, NULL);
+    c += mutt_strlen (t) + 2;
+  }
 }

@@ -1,2 +1,1 @@
-rprintf(FERROR, "deflate on token returned %d (%d bytes left)\n",
-		    r, tx_strm.avail_in);
+fprintf(stderr,"failed to create pid file %s\n", pid_file);

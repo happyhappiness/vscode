@@ -1,1 +1,1 @@
-io_printf(f_out, "@ERROR: Unknown module '%s'\n", line);
+out_of_memory("rsync_module");

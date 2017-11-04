@@ -1,1 +1,1 @@
-rprintf(FINFO,"receiving file list ... ");
+recv_exclude_list(f_in);

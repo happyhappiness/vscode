@@ -1,1 +1,1 @@
-rprintf(FINFO,"recv_files(%d) starting\n",flist->count);
+rprintf(FERROR, "inflate returned %d (%d bytes)\n", r, n);

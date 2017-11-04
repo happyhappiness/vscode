@@ -1,1 +1,1 @@
-out_of_memory(msg);
+)new_array(char, sz);

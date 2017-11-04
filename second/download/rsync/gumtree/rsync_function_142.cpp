@@ -1,34 +1,10 @@
-void do_server_sender(int argc,char *argv[])
+void match_report(void)
 {
-  int i;
-  char *dir = argv[0];
-  struct file_list *flist;
+  if (verbose <= 1)
+    return;
 
-  if (verbose > 2)
-    fprintf(stderr,"server_sender starting pid=%d\n",(int)getpid());
-  
-  if (chdir(dir) != 0) {
-    fprintf(stderr,"chdir %s: %s\n",dir,strerror(errno));
-    exit_cleanup(1);
-  }
-  argc--;
-  argv++;
-  
-  if (strcmp(dir,".")) {
-    int l = strlen(dir);
-    for (i=0;i<argc;i++)
-      argv[i] += l+1;
-  }
-
-  if (argc == 0 && recurse) {
-    argc=1;
-    argv--;
-    argv[0] = ".";
-  }
-    
-
-  flist = send_file_list(STDOUT_FILENO,recurse,argc,argv);
-  send_files(flist,STDOUT_FILENO,STDIN_FILENO);
-  report(STDOUT_FILENO);
-  exit_cleanup(0);
+  fprintf(am_server?stderr:stdout,
+	  "total: matches=%d  tag_hits=%d  false_alarms=%d  data=%d\n",
+	  total_matches,total_tag_hits,
+	  total_false_alarms,total_data_transfer);
 }

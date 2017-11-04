@@ -1,1 +1,1 @@
-rprintf(FERROR, "deflate returned %d\n", r);
+io_printf(fd,"@ERROR: chdir failed\n");

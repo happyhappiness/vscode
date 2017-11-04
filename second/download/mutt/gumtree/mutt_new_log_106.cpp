@@ -1,1 +1,3 @@
-state_attach_puts (_("Error getting key information for KeyID "), s);
+state_printf (s, _("[-- Error: "
+                       "Unknown multipart/signed protocol %s! --]\n\n"),
+                  mutt_get_parameter ("protocol", b->parameter));

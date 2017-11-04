@@ -1,1 +1,2 @@
-fprintf(FERROR,"ERROR: file corruption in %s\n",fname);
+fprintf(FERROR,"readlink %s : %s\n",
+				fname,strerror(errno));

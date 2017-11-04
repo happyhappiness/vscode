@@ -1,1 +1,1 @@
-fprintf(stderr,"dev=0x%x\n",(int)file->dev);
+fprintf(stderr,"readlink %s : %s\n",fname,strerror(errno));

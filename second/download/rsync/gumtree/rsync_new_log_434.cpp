@@ -1,1 +1,1 @@
-rprintf(FINFO,"send_file_list done\n");
+setup_protocol(f_out, f_in);

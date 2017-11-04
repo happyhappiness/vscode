@@ -1,1 +1,2 @@
-fprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));
+fprintf(FERROR,"read %s: %s\n",
+			source,strerror(errno));

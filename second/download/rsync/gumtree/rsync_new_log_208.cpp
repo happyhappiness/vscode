@@ -1,1 +1,1 @@
-fprintf(FERROR,"open %s : %s\n",fnametmp,strerror(errno));
+fprintf(f,"-z, --compress           compress file data\n");

@@ -1,1 +1,1 @@
-fprintf(FINFO,"generator wrote %ld\n",(long)write_total());
+rprintf(FINFO,"receiving file list ... ");

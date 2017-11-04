@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s/\n",fname);
+fprintf(FERROR,"make_file(%s)\n",fname);

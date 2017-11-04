@@ -1,1 +1,0 @@
-fprintf(stderr,"sender finished %s\n",fname);

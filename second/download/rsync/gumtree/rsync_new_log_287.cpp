@@ -1,1 +1,2 @@
-fprintf(f,"-W, --whole-file         copy whole files, no incremental checks\n");
+fprintf(FINFO,"removing duplicate name %s from file list %d\n",
+					f_name(flist->files[i-1]),i-1);

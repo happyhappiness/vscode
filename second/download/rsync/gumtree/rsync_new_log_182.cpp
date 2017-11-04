@@ -1,2 +1,1 @@
-fprintf(FINFO,"%s -> %s\n",
-		fname,file->link);
+fprintf(FERROR,"renaming %s to %s\n",fnametmp,fname);

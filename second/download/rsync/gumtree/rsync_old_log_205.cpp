@@ -1,1 +1,2 @@
-fprintf(stderr,"%s : not a regular file\n",fname);
+fprintf(FERROR,"Error reading %d bytes : %s\n",
+	      4,ret==-1?strerror(errno):"EOF");

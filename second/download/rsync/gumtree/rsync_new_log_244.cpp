@@ -1,1 +1,1 @@
-fprintf(FERROR,"recv_files phase=%d\n",phase);
+fprintf(FERROR,"receiver read %d\n",read_total());

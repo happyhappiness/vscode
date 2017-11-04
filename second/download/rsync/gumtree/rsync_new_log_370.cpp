@@ -1,1 +1,1 @@
-fprintf(FINFO,"%s is newer\n",fname);
+fprintf(FERROR,"Failed to dup/close : %s\n",strerror(errno));

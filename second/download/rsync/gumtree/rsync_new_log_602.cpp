@@ -1,1 +1,1 @@
-rprintf(FINFO,"send files finished\n");
+out_of_memory("writefd");

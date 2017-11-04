@@ -1,1 +1,2 @@
-fprintf(FERROR,"recv_files(%d) starting\n",flist->count);
+fprintf(FERROR,"Failed to exec %s : %s\n",
+	      command[0],strerror(errno));

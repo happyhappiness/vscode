@@ -1,1 +1,1 @@
-fprintf(FINFO,"deleting %s\n", buf);
+fprintf(FINFO,"sender finished %s\n",fname);

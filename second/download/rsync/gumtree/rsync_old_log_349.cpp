@@ -1,1 +1,1 @@
-fprintf(FERROR,"done hash search\n");
+fprintf(FERROR,"renaming %s to %s\n",fnametmp,fname);

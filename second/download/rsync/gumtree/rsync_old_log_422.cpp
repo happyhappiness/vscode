@@ -1,1 +1,1 @@
-fprintf(FINFO,"make_file(%s)\n",fname);
+fprintf(FERROR,"mkdir %s : %s (1)\n",name,strerror(errno));

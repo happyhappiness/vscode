@@ -1,1 +1,1 @@
-fprintf(FERROR,"sending file_sum\n");
+fprintf(FERROR,"redoing %s(%d)\n",fname,i);
