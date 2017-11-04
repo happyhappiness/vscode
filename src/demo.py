@@ -20,7 +20,7 @@ def analyze_and_cluster(repos_list, repos_name_list):
         my_constant.reset_repos(repos)
         # analyze and cluster old and new
         # analyze_hunk.fetch_hunk()
-        analyze_control_old_new.analyze_old_new(False)
+        analyze_control_old_new.analyze_old_new(True)
         analyze_control_old_new_cluster.cluster()
         analyze_control_old_new_cluster.generate_class()
         # analyze and cluster repos
