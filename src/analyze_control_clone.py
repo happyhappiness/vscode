@@ -19,9 +19,21 @@ def is_match_for_insert_rule(rule_feature, function_feature):
     # validate whether any one in check or variable is in calls and types
     rule_infos = check + variable
     function_info = calls + types
+    # limit the maxium none info ratio
+    max_none_ratio = 0.5
+    rule_size = len(rule_infos)
+    max_none_size = max_none_ratio * rule_size
+    none_counter = 0
     for info in rule_infos:
-        if info and not info.split('_')[0] in function_info:
-            return False
+        if info:
+            # no function or type info
+            if not info.split('_')[0] in function_info:
+                return False
+        else:
+            # sum none counter and compare against max none size
+            none_counter += 1
+            if none_counter > max_none_size:
+                return False
     return True
 
 def is_match_for_modify_rule(rule_feature, repos_log_feature):
