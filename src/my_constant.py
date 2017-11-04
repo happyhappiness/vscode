@@ -6,7 +6,7 @@
 """
 repository
 """
-REPOS = 'rsync'
+REPOS = 'mutt'
 """
 stroed file name prefix
 """
