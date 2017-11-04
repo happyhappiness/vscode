@@ -18,7 +18,7 @@ def is_match_for_insert_rule(rule_feature, function_feature):
     types = function_feature[1]
     # validate whether any one in check or variable is in calls and types
     rule_infos = check + variable
-    function_info = calls + types
+    function_info = calls + types + ['null']
     for info in rule_infos:
         if not info in function_info:
             return False
@@ -55,7 +55,7 @@ def seek_clone():
     rule_counter = 0
     # get length and transfer iterator to list
     rule_size, rule_records = my_util.get_csv_record_len(rule_records)
-    repos_function_record = list(repos_function_records)
+    repos_function_records = list(repos_function_records)
     repos_log_records = list(repos_log_records)
     # search clone instance for each rule
     for rule_record in islice(rule_records, 1, None):

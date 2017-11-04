@@ -162,8 +162,8 @@ class SrcmlApi:
             # filter by call function name -> call info
             name = self._get_text_for_nested_name(call_node[0])
             if name in self.log_functions:
-                # loc
-                loc = self._get_location_for_nested_node(call_node[0])
+                # loc(from 1)
+                loc = self._get_location_for_nested_node(call_node[0]) - 1
                 # log
                 log = self._get_text(call_node)
                 # check
