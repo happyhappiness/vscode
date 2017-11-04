@@ -27,7 +27,7 @@ def is_match_for_insert_rule(rule_feature, function_feature):
     for info in rule_infos:
         if info:
             # no function or type info
-            if not info.split('_')[0] in function_info:
+            if not info.replace('_ret','').replace('_arg','') in function_info:
                 return False
         else:
             # sum none counter and compare against max none size
