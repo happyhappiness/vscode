@@ -121,4 +121,28 @@ CURLcode Curl_fillreadbuffer(struct connectdata *conn, int bytes, int *nreadp)
       length = strlen(hexbuffer);
     }
     result = Curl_convert_to_network(data, data->req.upload_fromhere, length);
-    /* Curl_convert_to_networ
+    /* Curl_convert_to_network calls failf if unsuccessful */
+    if(result)
+      return(result);
+#endif /* CURL_DOES_CONVERSIONS */
+
+    if((nread - hexlen) == 0)
+      /* mark this as done once this chunk is transferred */
+      data->req.upload_done = TRUE;
+
+    nread+=(int)strlen(endofline_native); /* for the added end of line */
+  }
+#ifdef CURL_DOES_CONVERSIONS
+  else if((data->set.prefer_ascii) && (!sending_http_headers)) {
+    CURLcode result;
+    result = Curl_convert_to_network(data, data->req.upload_fromhere, nread);
+    /* Curl_convert_to_network calls failf if unsuccessful */
+    if(result)
+      return result;
+  }
+#endif /* CURL_DOES_CONVERSIONS */
+
+  *nreadp = nread;
+
+  return CURLE_OK;
+}

@@ -108,4 +108,124 @@ static CURLcode bindlocal(struct connectdata *conn,
 
       if(af == AF_INET)
         conn->ip_version = CURL_IPRESOLVE_V4;
-#ifdef 
+#ifdef ENABLE_IPV6
+      else if(af == AF_INET6)
+        conn->ip_version = CURL_IPRESOLVE_V6;
+#endif
+
+      rc = Curl_resolv(conn, dev, 0, &h);
+      if(rc == CURLRESOLV_PENDING)
+        (void)Curl_resolver_wait_resolv(conn, &h);
+      conn->ip_version = ipver;
+
+      if(h) {
+        /* convert the resolved address, sizeof myhost >= INET_ADDRSTRLEN */
+        Curl_printable_address(h->addr, myhost, sizeof(myhost));
+        infof(data, "Name '%s' family %i resolved to '%s' family %i\n",
+              dev, af, myhost, h->addr->ai_family);
+        Curl_resolv_unlock(data, h);
+        done = 1;
+      }
+      else {
+        /*
+         * provided dev was no interface (or interfaces are not supported
+         * e.g. solaris) no ip address and no domain we fail here
+         */
+        done = -1;
+      }
+    }
+
+    if(done > 0) {
+#ifdef ENABLE_IPV6
+      /* IPv6 address */
+      if(af == AF_INET6) {
+#ifdef HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
+        char *scope_ptr = strchr(myhost, '%');
+        if(scope_ptr)
+          *(scope_ptr++) = 0;
+#endif
+        if(Curl_inet_pton(AF_INET6, myhost, &si6->sin6_addr) > 0) {
+          si6->sin6_family = AF_INET6;
+          si6->sin6_port = htons(port);
+#ifdef HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
+          if(scope_ptr)
+            /* The "myhost" string either comes from Curl_if2ip or from
+               Curl_printable_address. The latter returns only numeric scope
+               IDs and the former returns none at all.  So the scope ID, if
+               present, is known to be numeric */
+            si6->sin6_scope_id = atoi(scope_ptr);
+#endif
+        }
+        sizeof_sa = sizeof(struct sockaddr_in6);
+      }
+      else
+#endif
+      /* IPv4 address */
+      if((af == AF_INET) &&
+         (Curl_inet_pton(AF_INET, myhost, &si4->sin_addr) > 0)) {
+        si4->sin_family = AF_INET;
+        si4->sin_port = htons(port);
+        sizeof_sa = sizeof(struct sockaddr_in);
+      }
+    }
+
+    if(done < 1) {
+      failf(data, "Couldn't bind to '%s'", dev);
+      return CURLE_INTERFACE_FAILED;
+    }
+  }
+  else {
+    /* no device was given, prepare sa to match af's needs */
+#ifdef ENABLE_IPV6
+    if(af == AF_INET6) {
+      si6->sin6_family = AF_INET6;
+      si6->sin6_port = htons(port);
+      sizeof_sa = sizeof(struct sockaddr_in6);
+    }
+    else
+#endif
+    if(af == AF_INET) {
+      si4->sin_family = AF_INET;
+      si4->sin_port = htons(port);
+      sizeof_sa = sizeof(struct sockaddr_in);
+    }
+  }
+
+  for(;;) {
+    if(bind(sockfd, sock, sizeof_sa) >= 0) {
+      /* we succeeded to bind */
+      struct Curl_sockaddr_storage add;
+      curl_socklen_t size = sizeof(add);
+      memset(&add, 0, sizeof(struct Curl_sockaddr_storage));
+      if(getsockname(sockfd, (struct sockaddr *) &add, &size) < 0) {
+        data->state.os_errno = error = SOCKERRNO;
+        failf(data, "getsockname() failed with errno %d: %s",
+              error, Curl_strerror(conn, error));
+        return CURLE_INTERFACE_FAILED;
+      }
+      infof(data, "Local port: %hu\n", port);
+      conn->bits.bound = TRUE;
+      return CURLE_OK;
+    }
+
+    if(--portnum > 0) {
+      infof(data, "Bind to local port %hu failed, trying next\n", port);
+      port++; /* try next port */
+      /* We re-use/clobber the port variable here below */
+      if(sock->sa_family == AF_INET)
+        si4->sin_port = ntohs(port);
+#ifdef ENABLE_IPV6
+      else
+        si6->sin6_port = ntohs(port);
+#endif
+    }
+    else
+      break;
+  }
+
+  data->state.os_errno = error = SOCKERRNO;
+  failf(data, "bind failed with errno %d: %s",
+        error, Curl_strerror(conn, error));
+
+  return CURLE_INTERFACE_FAILED;
+}
