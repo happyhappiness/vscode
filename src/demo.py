@@ -48,8 +48,8 @@ main function
 """
 if __name__ == "__main__":
     # 'httpd', 'git',
-    reposes = ['mutt', 'rsync', 'curl']
-    repos_names = ['mutt-1.7.2', 'rsync-1.4.4', 'curl-7.41.0']
+    reposes = ['mutt', 'rsync', 'curl', 'git', 'httpd']
+    repos_names = ['mutt-1.7.2', 'rsync-1.4.4', 'curl-7.41.0', 'git-2.6.7', 'httpd-2.3.8']
     analyze_and_cluster(reposes, repos_names)
     # do_statistics(reposes)
 
