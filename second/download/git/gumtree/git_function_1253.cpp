@@ -1,22 +1,65 @@
-static int check_collison(struct object_entry *entry)
+static int git_parse_source(config_fn_t fn, void *data)
 {
-	struct compare_data data;
-	enum object_type type;
-	unsigned long size;
+	int comment = 0;
+	int baselen = 0;
+	struct strbuf *var = &cf->var;
 
-	if (entry->size <= big_file_threshold || entry->type != OBJ_BLOB)
-		return -1;
+	/* U+FEFF Byte Order Mark in UTF8 */
+	static const unsigned char *utf8_bom = (unsigned char *) "\xef\xbb\xbf";
+	const unsigned char *bomptr = utf8_bom;
 
-	memset(&data, 0, sizeof(data));
-	data.entry = entry;
-	data.st = open_istream(entry->idx.sha1, &type, &size, NULL);
-	if (!data.st)
-		return -1;
-	if (size != entry->size || type != entry->type)
-		die(_("SHA1 COLLISION FOUND WITH %s !"),
-		    sha1_to_hex(entry->idx.sha1));
-	unpack_data(entry, compare_objects, &data);
-	close_istream(data.st);
-	free(data.buf);
-	return 0;
+	for (;;) {
+		int c = get_next_char();
+		if (bomptr && *bomptr) {
+			/* We are at the file beginning; skip UTF8-encoded BOM
+			 * if present. Sane editors won't put this in on their
+			 * own, but e.g. Windows Notepad will do it happily. */
+			if ((unsigned char) c == *bomptr) {
+				bomptr++;
+				continue;
+			} else {
+				/* Do not tolerate partial BOM. */
+				if (bomptr != utf8_bom)
+					break;
+				/* No BOM at file beginning. Cool. */
+				bomptr = NULL;
+			}
+		}
+		if (c == '\n') {
+			if (cf->eof)
+				return 0;
+			comment = 0;
+			continue;
+		}
+		if (comment || isspace(c))
+			continue;
+		if (c == '#' || c == ';') {
+			comment = 1;
+			continue;
+		}
+		if (c == '[') {
+			/* Reset prior to determining a new stem */
+			strbuf_reset(var);
+			if (get_base_var(var) < 0 || var->len < 1)
+				break;
+			strbuf_addch(var, '.');
+			baselen = var->len;
+			continue;
+		}
+		if (!isalpha(c))
+			break;
+		/*
+		 * Truncate the var name back to the section header
+		 * stem prior to grabbing the suffix part of the name
+		 * and the value.
+		 */
+		strbuf_setlen(var, baselen);
+		strbuf_addch(var, tolower(c));
+		if (get_value(fn, data, var) < 0)
+			break;
+	}
+	if (cf->die_on_error)
+		die("bad config file line %d in %s", cf->linenr, cf->name);
+	else
+		return error("bad config file line %d in %s", cf->linenr, cf->name);
 }

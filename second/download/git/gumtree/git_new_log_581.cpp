@@ -1,2 +1,2 @@
-die("Failed to read notes tree referenced by %s (%s)",
-		    notes_ref, oid_to_hex(&object_oid));
+warning(_("You seem to have moved HEAD. "
+			  "Not rewinding, check your HEAD!"));

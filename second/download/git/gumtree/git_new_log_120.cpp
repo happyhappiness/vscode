@@ -1,1 +1,1 @@
-die("delete %s: extra input: %s", refname, next);
+die_errno("%s: index file open failed", path);

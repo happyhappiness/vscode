@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+die("cannot describe '%s'", sha1_to_hex(sha1));

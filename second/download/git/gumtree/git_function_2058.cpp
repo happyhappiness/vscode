@@ -1,16 +1,54 @@
-static void mark_expected_rev(char *bisect_rev_hex)
+static void diagnose_invalid_index_path(int stage,
+					const char *prefix,
+					const char *filename)
 {
-	int len = strlen(bisect_rev_hex);
-	const char *filename = git_path("BISECT_EXPECTED_REV");
-	int fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+	const struct cache_entry *ce;
+	int pos;
+	unsigned namelen = strlen(filename);
+	unsigned fullnamelen;
+	char *fullname;
 
-	if (fd < 0)
-		die_errno("could not create file '%s'", filename);
+	if (!prefix)
+		prefix = "";
 
-	bisect_rev_hex[len] = '\n';
-	write_or_die(fd, bisect_rev_hex, len + 1);
-	bisect_rev_hex[len] = '\0';
+	/* Wrong stage number? */
+	pos = cache_name_pos(filename, namelen);
+	if (pos < 0)
+		pos = -pos - 1;
+	if (pos < active_nr) {
+		ce = active_cache[pos];
+		if (ce_namelen(ce) == namelen &&
+		    !memcmp(ce->name, filename, namelen))
+			die("Path '%s' is in the index, but not at stage %d.\n"
+			    "Did you mean ':%d:%s'?",
+			    filename, stage,
+			    ce_stage(ce), filename);
+	}
 
-	if (close(fd) < 0)
-		die("closing file %s: %s", filename, strerror(errno));
+	/* Confusion between relative and absolute filenames? */
+	fullnamelen = namelen + strlen(prefix);
+	fullname = xmalloc(fullnamelen + 1);
+	strcpy(fullname, prefix);
+	strcat(fullname, filename);
+	pos = cache_name_pos(fullname, fullnamelen);
+	if (pos < 0)
+		pos = -pos - 1;
+	if (pos < active_nr) {
+		ce = active_cache[pos];
+		if (ce_namelen(ce) == fullnamelen &&
+		    !memcmp(ce->name, fullname, fullnamelen))
+			die("Path '%s' is in the index, but not '%s'.\n"
+			    "Did you mean ':%d:%s' aka ':%d:./%s'?",
+			    fullname, filename,
+			    ce_stage(ce), fullname,
+			    ce_stage(ce), filename);
+	}
+
+	if (file_exists(filename))
+		die("Path '%s' exists on disk, but not in the index.", filename);
+	if (errno == ENOENT || errno == ENOTDIR)
+		die("Path '%s' does not exist (neither on disk nor in the index).",
+		    filename);
+
+	free(fullname);
 }

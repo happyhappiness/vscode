@@ -1,3 +1,1 @@
-error_buf(err,
-				 _("branch '%s' has no remote for pushing"),
-				 branch->name);
+die("failed to write object %s", oid_to_hex(&obj->oid));

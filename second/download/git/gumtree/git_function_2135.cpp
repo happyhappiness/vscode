@@ -1,84 +1,64 @@
-static void write_crash_report(const char *err)
+const char *fmt_ident(const char *name, const char *email,
+		      const char *date_str, int flag)
 {
-	const char *loc = git_path("fast_import_crash_%"PRIuMAX, (uintmax_t) getpid());
-	FILE *rpt = fopen(loc, "w");
-	struct branch *b;
-	unsigned long lu;
-	struct recent_command *rc;
+	static struct strbuf ident = STRBUF_INIT;
+	int strict = (flag & IDENT_STRICT);
+	int want_date = !(flag & IDENT_NO_DATE);
+	int want_name = !(flag & IDENT_NO_NAME);
 
-	if (!rpt) {
-		error("can't write crash report %s: %s", loc, strerror(errno));
-		return;
-	}
-
-	fprintf(stderr, "fast-import: dumping crash report to %s\n", loc);
-
-	fprintf(rpt, "fast-import crash report:\n");
-	fprintf(rpt, "    fast-import process: %"PRIuMAX"\n", (uintmax_t) getpid());
-	fprintf(rpt, "    parent process     : %"PRIuMAX"\n", (uintmax_t) getppid());
-	fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_LOCAL));
-	fputc('\n', rpt);
-
-	fputs("fatal: ", rpt);
-	fputs(err, rpt);
-	fputc('\n', rpt);
-
-	fputc('\n', rpt);
-	fputs("Most Recent Commands Before Crash\n", rpt);
-	fputs("---------------------------------\n", rpt);
-	for (rc = cmd_hist.next; rc != &cmd_hist; rc = rc->next) {
-		if (rc->next == &cmd_hist)
-			fputs("* ", rpt);
-		else
-			fputs("  ", rpt);
-		fputs(rc->buf, rpt);
-		fputc('\n', rpt);
-	}
-
-	fputc('\n', rpt);
-	fputs("Active Branch LRU\n", rpt);
-	fputs("-----------------\n", rpt);
-	fprintf(rpt, "    active_branches = %lu cur, %lu max\n",
-		cur_active_branches,
-		max_active_branches);
-	fputc('\n', rpt);
-	fputs("  pos  clock name\n", rpt);
-	fputs("  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n", rpt);
-	for (b = active_branches, lu = 0; b; b = b->active_next_branch)
-		fprintf(rpt, "  %2lu) %6" PRIuMAX" %s\n",
-			++lu, b->last_commit, b->name);
-
-	fputc('\n', rpt);
-	fputs("Inactive Branches\n", rpt);
-	fputs("-----------------\n", rpt);
-	for (lu = 0; lu < branch_table_sz; lu++) {
-		for (b = branch_table[lu]; b; b = b->table_next_branch)
-			write_branch_report(rpt, b);
-	}
-
-	if (first_tag) {
-		struct tag *tg;
-		fputc('\n', rpt);
-		fputs("Annotated Tags\n", rpt);
-		fputs("--------------\n", rpt);
-		for (tg = first_tag; tg; tg = tg->next_tag) {
-			fputs(sha1_to_hex(tg->sha1), rpt);
-			fputc(' ', rpt);
-			fputs(tg->name, rpt);
-			fputc('\n', rpt);
+	if (want_name) {
+		int using_default = 0;
+		if (!name) {
+			name = ident_default_name();
+			using_default = 1;
+			if (strict && default_name_is_bogus) {
+				fputs(env_hint, stderr);
+				die("unable to auto-detect name (got '%s')", name);
+			}
+			if (strict && ident_use_config_only
+			    && !(ident_config_given & IDENT_NAME_GIVEN))
+				die("user.useConfigOnly set but no name given");
+		}
+		if (!*name) {
+			struct passwd *pw;
+			if (strict) {
+				if (using_default)
+					fputs(env_hint, stderr);
+				die("empty ident name (for <%s>) not allowed", email);
+			}
+			pw = xgetpwuid_self(NULL);
+			name = pw->pw_name;
 		}
 	}
 
-	fputc('\n', rpt);
-	fputs("Marks\n", rpt);
-	fputs("-----\n", rpt);
-	if (export_marks_file)
-		fprintf(rpt, "  exported to %s\n", export_marks_file);
-	else
-		dump_marks_helper(rpt, 0, marks);
+	if (!email) {
+		email = ident_default_email();
+		if (strict && default_email_is_bogus) {
+			fputs(env_hint, stderr);
+			die("unable to auto-detect email address (got '%s')", email);
+		}
+		if (strict && ident_use_config_only
+		    && !(ident_config_given & IDENT_MAIL_GIVEN))
+			die("user.useConfigOnly set but no mail given");
+	}
 
-	fputc('\n', rpt);
-	fputs("-------------------\n", rpt);
-	fputs("END OF CRASH REPORT\n", rpt);
-	fclose(rpt);
+	strbuf_reset(&ident);
+	if (want_name) {
+		strbuf_addstr_without_crud(&ident, name);
+		strbuf_addstr(&ident, " <");
+	}
+	strbuf_addstr_without_crud(&ident, email);
+	if (want_name)
+			strbuf_addch(&ident, '>');
+	if (want_date) {
+		strbuf_addch(&ident, ' ');
+		if (date_str && date_str[0]) {
+			if (parse_date(date_str, &ident) < 0)
+				die("invalid date format: %s", date_str);
+		}
+		else
+			strbuf_addstr(&ident, ident_default_date());
+	}
+
+	return ident.buf;
 }

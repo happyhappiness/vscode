@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00104)
-                         "unable to start piped log program '%s': %s",
-                         pl->program, apr_strerror(status, buf, sizeof(buf)));
+fprintf(stderr,
+                "post_rotate: could not set up process attributes for '%s': %s\n",
+                config->postrotate_prog,
+                apr_strerror(rv, error, sizeof(error)));

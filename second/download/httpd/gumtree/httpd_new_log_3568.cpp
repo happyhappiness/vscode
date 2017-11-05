@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0,
-                          cmd->pool, APLOGNO(01574) "module %s is already loaded, skipping",
-                          modname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, result, r, APLOGNO(01513)
+                    MODNAME ": read failed: %s", r->filename);

@@ -1,1 +1,1 @@
-warning("--no-curl not supported in this build");
+die("unable to generate diff for %s", pair->one->path);

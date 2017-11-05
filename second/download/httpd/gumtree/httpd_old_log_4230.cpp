@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                            "proxy: BALANCER: (%s). All workers are in error state",
-                            (*balancer)->name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                         "Reconfigured cipher suite will force renegotiation");

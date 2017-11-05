@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                                    "Inflated content length of %" APR_OFF_T_FMT
-                                    " is larger than the configured limit"
-                                    " of %" APR_OFF_T_FMT, 
-                                    ctx->inflate_total, inflate_limit);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Custom DH parameters (%d bits) for %s loaded from %s",
+                     BN_num_bits(dhparams->p), vhost_id,
+                     mctx->pks->cert_files[0]);

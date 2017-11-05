@@ -1,1 +1,2 @@
-fprintf(stderr, "Entering state %d\n", ssl_expr_yystate);
+ap_log_error(APLOG_MARK, APLOG_ERR, ret, NULL, 
+                            "error getting data from UDP!!");

@@ -1,1 +1,1 @@
-die("No path in gitfile: %s", path);
+warning("Duplicated ref: %s", ref1->name);

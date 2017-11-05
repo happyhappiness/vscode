@@ -1,1 +1,1 @@
-die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");
+die(_("-n option is only allowed in list mode"));

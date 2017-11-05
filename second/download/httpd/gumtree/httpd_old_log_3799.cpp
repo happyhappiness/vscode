@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                                 "cgid daemon process died, restarting");
+ap_rvputs(r, r->uri, "\">\n<dl>", NULL);

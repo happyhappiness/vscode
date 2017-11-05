@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         "WARNING: MaxClients of %d would require %d "
-                         "servers and ", max_clients, ap_daemons_limit);
+fprintf(stderr,"The %s service is successfully installed.\n", mpm_display_name);

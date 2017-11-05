@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                          "Request header exceeds LimitRequestFieldSize: "
-                          "%.*s", field_name_len(field), field);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, pool,
+                      "DBD: driver for %s is invalid or corrupted", svr->name);

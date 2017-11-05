@@ -1,1 +1,1 @@
-argv_array_push(argv, sha1_to_hex(sha1));
+die("BUG: no entry found");

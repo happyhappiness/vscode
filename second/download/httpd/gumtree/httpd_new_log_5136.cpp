@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00222)
-            "no listening sockets available, shutting down");
+ap_rvputs(r, "RestartTime: ",
+                  ap_ht_time(r->pool,
+                             ap_scoreboard_image->global->restart_time,
+                             DEFAULT_TIME_FORMAT, 0),
+                  "\n", NULL);

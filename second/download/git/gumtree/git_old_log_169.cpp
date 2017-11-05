@@ -1,1 +1,0 @@
-die(str, updates[i]->ref_name);

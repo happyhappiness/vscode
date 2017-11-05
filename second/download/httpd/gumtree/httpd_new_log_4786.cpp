@@ -1,1 +1,2 @@
-ap_log_error(file, line, APLOG_MODULE_INDEX, level, rv, s, "%s", buf);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, ap_server_conf, APLOGNO(00453)
+                     "Child process is running");

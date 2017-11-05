@@ -1,25 +1,25 @@
-static void strip_submodule_slash_expensive(struct pathspec_item *item)
+static int for_each_tag_name(const char **argv, each_tag_name_fn fn,
+			     const void *cb_data)
 {
-	int i;
+	const char **p;
+	char ref[PATH_MAX];
+	int had_error = 0;
+	unsigned char sha1[20];
 
-	for (i = 0; i < active_nr; i++) {
-		struct cache_entry *ce = active_cache[i];
-		int ce_len = ce_namelen(ce);
-
-		if (!S_ISGITLINK(ce->ce_mode))
+	for (p = argv; *p; p++) {
+		if (snprintf(ref, sizeof(ref), "refs/tags/%s", *p)
+					>= sizeof(ref)) {
+			error(_("tag name too long: %.*s..."), 50, *p);
+			had_error = 1;
 			continue;
-
-		if (item->len <= ce_len || item->match[ce_len] != '/' ||
-		    memcmp(ce->name, item->match, ce_len))
-			continue;
-
-		if (item->len == ce_len + 1) {
-			/* strip trailing slash */
-			item->len--;
-			item->match[item->len] = '\0';
-		} else {
-			die(_("Pathspec '%s' is in submodule '%.*s'"),
-			    item->original, ce_len, ce->name);
 		}
+		if (read_ref(ref, sha1)) {
+			error(_("tag '%s' not found."), *p);
+			had_error = 1;
+			continue;
+		}
+		if (fn(*p, ref, sha1, cb_data))
+			had_error = 1;
 	}
+	return had_error;
 }

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                       "Could not open group file: %s", grpfile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: user `%s' in realm `%s' denied by provider: %s",
+                      r->user, conf->realm, r->uri);

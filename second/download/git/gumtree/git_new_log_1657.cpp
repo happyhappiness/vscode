@@ -1,1 +1,1 @@
-die("BUG: create ref with null new_sha1");
+die("unable to generate diffstat for %s", one->path);

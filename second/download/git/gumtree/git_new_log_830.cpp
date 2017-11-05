@@ -1,1 +1,1 @@
-error(_("could not read HEAD's commit message"));
+git_die_config(key, _("Invalid %s: '%s'"), key, *output);

@@ -1,2 +1,2 @@
-die("BUG: unknown ref type %d of ref %s",
-		    ref_type(refname), refname);
+die(_("missing object %s for %s"),
+		    oid_to_hex(tagged), ref->refname);

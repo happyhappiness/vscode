@@ -1,2 +1,2 @@
-print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-				 "already exists", porcelain, summary_width);
+error(_("invalid contents: '%s'"),
+				rebase_path_amend());

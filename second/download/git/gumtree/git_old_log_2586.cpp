@@ -1,1 +1,1 @@
-fprintf(out, "%s ", sha1_to_hex(obj->sha1));
+warning("object %s: %s", oid_to_hex(&obj->oid), message);

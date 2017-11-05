@@ -1,22 +1,30 @@
-apr_status_t h2_task_output_write(h2_task_output *output,
-                                  ap_filter_t* f, apr_bucket_brigade* bb)
+static int ap_proxy_retry_worker(const char *proxy_function, proxy_worker *worker,
+        server_rec *s)
 {
-    apr_status_t status;
-    if (APR_BRIGADE_EMPTY(bb)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task_output(%s): empty write", output->env->id);
-        return APR_SUCCESS;
+    if (worker->s->status & PROXY_WORKER_IN_ERROR) {
+        if (PROXY_WORKER_IS(worker, PROXY_WORKER_STOPPED)) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(3305)
+                         "%s: Won't retry worker (%s): stopped",
+                         proxy_function, worker->s->hostname);
+            return DECLINED;
+        }
+        if ((worker->s->status & PROXY_WORKER_IGNORE_ERRORS)
+            || apr_time_now() > worker->s->error_time + worker->s->retry) {
+            ++worker->s->retries;
+            worker->s->status &= ~PROXY_WORKER_IN_ERROR;
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00932)
+                         "%s: worker for (%s) has been marked for retry",
+                         proxy_function, worker->s->hostname);
+            return OK;
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00933)
+                         "%s: too soon to retry worker for (%s)",
+                         proxy_function, worker->s->hostname);
+            return DECLINED;
+        }
     }
-    
-    status = open_if_needed(output, f, bb);
-    if (status != APR_EOF) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_output(%s): opened and passed brigade", 
-                      output->env->id);
-        return status;
+    else {
+        return OK;
     }
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_task_output(%s): write brigade", output->env->id);
-    return h2_mplx_out_write(output->env->mplx, output->env->stream_id, 
-                             f, bb, output->env->io);
 }

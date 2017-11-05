@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                                 "Copy of SGL failed to obtain shared memory, "
-                                 "couldn't update cache");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  "proxy: error creating PASV socket");

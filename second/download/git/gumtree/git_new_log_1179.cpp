@@ -1,1 +1,1 @@
-child_die(CHILD_ERR_ERRNO);
+die_errno("Could not change back to '%s'", cwd.buf);

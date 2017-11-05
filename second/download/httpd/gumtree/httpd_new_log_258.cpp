@@ -1,2 +1,3 @@
-fprintf(stderr, "%s: must include a wildcard pattern "
-                    "for Include %s\n", ap_server_argv0, fname);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " Automatically lowering MaxClients to %d.  To increase,",
+                    server_limit * ap_threads_per_child);

@@ -1,52 +1,31 @@
-int log_ref_setup(const char *refname, struct strbuf *sb_logfile)
+static int process_input_file(struct strbuf **lines,
+			      struct trailer_item **in_tok_first,
+			      struct trailer_item **in_tok_last)
 {
-	int logfd, oflags = O_APPEND | O_WRONLY;
-	char *logfile;
+	int count = 0;
+	int patch_start, trailer_start, trailer_end, i;
 
-	strbuf_git_path(sb_logfile, "logs/%s", refname);
-	logfile = sb_logfile->buf;
-	/* make sure the rest of the function can't change "logfile" */
-	sb_logfile = NULL;
-	if (log_all_ref_updates &&
-	    (starts_with(refname, "refs/heads/") ||
-	     starts_with(refname, "refs/remotes/") ||
-	     starts_with(refname, "refs/notes/") ||
-	     !strcmp(refname, "HEAD"))) {
-		if (safe_create_leading_directories(logfile) < 0) {
-			int save_errno = errno;
-			error("unable to create directory for %s", logfile);
-			errno = save_errno;
-			return -1;
-		}
-		oflags |= O_CREAT;
-	}
+	/* Get the line count */
+	while (lines[count])
+		count++;
 
-	logfd = open(logfile, oflags, 0666);
-	if (logfd < 0) {
-		if (!(oflags & O_CREAT) && (errno == ENOENT || errno == EISDIR))
-			return 0;
+	patch_start = find_patch_start(lines, count);
+	trailer_end = find_trailer_end(lines, patch_start);
+	trailer_start = find_trailer_start(lines, trailer_end);
 
-		if (errno == EISDIR) {
-			if (remove_empty_directories(logfile)) {
-				int save_errno = errno;
-				error("There are still logs under '%s'",
-				      logfile);
-				errno = save_errno;
-				return -1;
-			}
-			logfd = open(logfile, oflags, 0666);
-		}
+	/* Print lines before the trailers as is */
+	print_lines(lines, 0, trailer_start);
 
-		if (logfd < 0) {
-			int save_errno = errno;
-			error("Unable to append to %s: %s", logfile,
-			      strerror(errno));
-			errno = save_errno;
-			return -1;
+	if (!has_blank_line_before(lines, trailer_start - 1))
+		printf("\n");
+
+	/* Parse trailer lines */
+	for (i = trailer_start; i < trailer_end; i++) {
+		if (lines[i]->buf[0] != comment_line_char) {
+			struct trailer_item *new = create_trailer_item(lines[i]->buf);
+			add_trailer_item(in_tok_first, in_tok_last, new);
 		}
 	}
 
-	adjust_shared_perm(logfile);
-	close(logfd);
-	return 0;
+	return trailer_end;
 }

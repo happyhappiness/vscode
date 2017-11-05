@@ -1,1 +1,2 @@
-die_errno("Could not change back to '%s'", cwd.buf);
+error("%s: not a valid attribute name",
+					name);

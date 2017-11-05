@@ -1,32 +1,47 @@
-static void mark_tree_contents_uninteresting(struct tree *tree)
+static struct grep_expr *prep_header_patterns(struct grep_opt *opt)
 {
-	struct tree_desc desc;
-	struct name_entry entry;
-	struct object *obj = &tree->object;
+	struct grep_pat *p;
+	struct grep_expr *header_expr;
+	struct grep_expr *(header_group[GREP_HEADER_FIELD_MAX]);
+	enum grep_header_field fld;
 
-	if (!has_sha1_file(obj->sha1))
-		return;
-	if (parse_tree(tree) < 0)
-		die("bad tree %s", sha1_to_hex(obj->sha1));
+	if (!opt->header_list)
+		return NULL;
 
-	init_tree_desc(&desc, tree->buffer, tree->size);
-	while (tree_entry(&desc, &entry)) {
-		switch (object_type(entry.mode)) {
-		case OBJ_TREE:
-			mark_tree_uninteresting(lookup_tree(entry.sha1));
-			break;
-		case OBJ_BLOB:
-			mark_blob_uninteresting(lookup_blob(entry.sha1));
-			break;
-		default:
-			/* Subproject commit - not in this repository */
-			break;
-		}
+	for (p = opt->header_list; p; p = p->next) {
+		if (p->token != GREP_PATTERN_HEAD)
+			die("bug: a non-header pattern in grep header list.");
+		if (p->field < GREP_HEADER_FIELD_MIN ||
+		    GREP_HEADER_FIELD_MAX <= p->field)
+			die("bug: unknown header field %d", p->field);
+		compile_regexp(p, opt);
 	}
 
-	/*
-	 * We don't care about the tree any more
-	 * after it has been marked uninteresting.
-	 */
-	free_tree_buffer(tree);
+	for (fld = 0; fld < GREP_HEADER_FIELD_MAX; fld++)
+		header_group[fld] = NULL;
+
+	for (p = opt->header_list; p; p = p->next) {
+		struct grep_expr *h;
+		struct grep_pat *pp = p;
+
+		h = compile_pattern_atom(&pp);
+		if (!h || pp != p->next)
+			die("bug: malformed header expr");
+		if (!header_group[p->field]) {
+			header_group[p->field] = h;
+			continue;
+		}
+		header_group[p->field] = grep_or_expr(h, header_group[p->field]);
+	}
+
+	header_expr = NULL;
+
+	for (fld = 0; fld < GREP_HEADER_FIELD_MAX; fld++) {
+		if (!header_group[fld])
+			continue;
+		if (!header_expr)
+			header_expr = grep_true_expr();
+		header_expr = grep_or_expr(header_group[fld], header_expr);
+	}
+	return header_expr;
 }

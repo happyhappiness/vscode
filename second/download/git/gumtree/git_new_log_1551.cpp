@@ -1,1 +1,1 @@
-error(_("pack-objects died"));
+printf(" %s ", diff_unique_abbrev(p->oid.hash, opt->abbrev));

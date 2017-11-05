@@ -1,11 +1,21 @@
-struct passwd *xgetpwuid_self(void)
+static int resolve_relative_url_test(int argc, const char **argv, const char *prefix)
 {
-	struct passwd *pw;
+	char *remoteurl, *res;
+	const char *up_path, *url;
 
-	errno = 0;
-	pw = getpwuid(getuid());
-	if (!pw)
-		die(_("unable to look up current user in the passwd file: %s"),
-		    errno ? strerror(errno) : _("no such user"));
-	return pw;
+	if (argc != 4)
+		die("resolve-relative-url-test only accepts three arguments: <up_path> <remoteurl> <url>");
+
+	up_path = argv[1];
+	remoteurl = xstrdup(argv[2]);
+	url = argv[3];
+
+	if (!strcmp(up_path, "(null)"))
+		up_path = NULL;
+
+	res = relative_url(remoteurl, url, up_path);
+	puts(res);
+	free(res);
+	free(remoteurl);
+	return 0;
 }

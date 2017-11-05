@@ -1,1 +1,1 @@
-error("bogus commit object %s", oid_to_hex(&item->object.oid));
+die_errno(_("Could not open file '%s'"), filename);

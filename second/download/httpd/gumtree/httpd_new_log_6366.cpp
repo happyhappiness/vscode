@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03056)
-                          "h2_mplx(%ld): release_join -> destroy, "
-                          "%d tasks still present", 
-                          m->id, (int)h2_ihash_count(m->tasks));
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
+                     APLOGNO(10012) "Failed to open the '%s' service",
+                     mpm_display_name);

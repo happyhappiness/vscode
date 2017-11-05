@@ -1,1 +1,1 @@
-die_errno("mmap failed");
+die("BUG: pack_name does not end in .pack");

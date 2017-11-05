@@ -1,1 +1,1 @@
-printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
+git_die_config(key, NULL);

@@ -1,1 +1,1 @@
-fprintf(stderr, _("Testing mtime in '%s' "), cwd);
+printf(_("Updated tag '%s' (was %s)\n"), tag, find_unique_abbrev(prev.hash, DEFAULT_ABBREV));

@@ -1,1 +1,2 @@
-die("Reference has invalid name: '%s'", refname);
+die("BUG: both update and delete flags are set on %s",
+				    ce->name);

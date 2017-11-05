@@ -1,1 +1,1 @@
-die_errno("unable to read object %s", oid_to_hex(oid));
+printf("root %s\n", oid_to_hex(&commit->object.oid));

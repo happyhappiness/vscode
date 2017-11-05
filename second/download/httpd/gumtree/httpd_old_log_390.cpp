@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "cache: stale cache - test conditional");
+printf("Processing: " CONF_FMT_STRING,
+		   mind, (int) (totald + 0.5), sdd, meand, maxd);

@@ -1,1 +1,1 @@
-ap_rputs("<tr>", r);
+ap_add_output_filter("MOD_EXPIRES", NULL, r, r->connection);

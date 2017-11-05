@@ -1,2 +1,2 @@
-error("Could not read %s",
-			     oid_to_hex(&item->object.oid));
+fprintf(opt->diffopt.file, "%s<%s>\n", (i > 0 ? "\t" : "References: "),
+			       opt->ref_message_ids->items[i].string);

@@ -1,1 +1,1 @@
-die(_("no URLs configured for remote '%s'"), remotename);
+error_errno("poll failed, resuming");

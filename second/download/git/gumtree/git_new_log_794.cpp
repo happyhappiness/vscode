@@ -1,2 +1,1 @@
-usage_msg_opt(_("--abort expects no arguments"),
-			      builtin_merge_usage, builtin_merge_options);
+die("object not found: %s", oid_to_hex(&oid));

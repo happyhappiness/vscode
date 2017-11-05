@@ -1,15 +1,21 @@
-static int error_dirty_index(struct replay_opts *opts)
+static struct object *parse_loose_object(const unsigned char *sha1,
+					 const char *path)
 {
-	if (read_cache_unmerged())
-		return error_resolve_conflict(action_name(opts));
+	struct object *obj;
+	void *contents;
+	enum object_type type;
+	unsigned long size;
+	int eaten;
 
-	/* Different translation strings for cherry-pick and revert */
-	if (opts->action == REPLAY_PICK)
-		error(_("Your local changes would be overwritten by cherry-pick."));
-	else
-		error(_("Your local changes would be overwritten by revert."));
+	if (read_loose_object(path, sha1, &type, &size, &contents) < 0)
+		return NULL;
 
-	if (advice_commit_before_merge)
-		advise(_("Commit your changes or stash them to proceed."));
-	return -1;
+	if (!contents && type != OBJ_BLOB)
+		die("BUG: read_loose_object streamed a non-blob");
+
+	obj = parse_object_buffer(sha1, type, size, contents, &eaten);
+
+	if (!eaten)
+		free(contents);
+	return obj;
 }

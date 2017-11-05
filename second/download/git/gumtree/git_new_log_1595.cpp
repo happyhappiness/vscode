@@ -1,2 +1,1 @@
-git_die_config("pack.compression",
-					"bad pack compression level %d", pack_compression_level);
+packet_write(1, "%s %s^{}\n", oid_to_hex(&peeled), refname_nons);

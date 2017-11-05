@@ -1,1 +1,1 @@
-die("unable to read %s", sha1_to_hex(entry->idx.sha1));
+die("bad pack compression level %d", level);

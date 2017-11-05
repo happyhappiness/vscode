@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02144)
-                          "No privilege to set user/group");
+ap_log_error(APLOG_MARK, APLOG_ERR, rv,
+                             main_server, APLOGNO(01250)
+                             "Error writing pid %" APR_PID_T_FMT " to handler", pid);

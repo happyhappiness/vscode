@@ -1,1 +1,1 @@
-die("BUG: attempt to commit unlocked object");
+die_errno("mmap failed");

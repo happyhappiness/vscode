@@ -1,1 +1,1 @@
-die("update %s: missing <newvalue>", refname);
+die("Missing space after tree-ish: %s", command_buf.buf);

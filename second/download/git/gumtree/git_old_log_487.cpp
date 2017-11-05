@@ -1,3 +1,1 @@
-die("Could not read from remote repository.\n\n"
-		    "Please make sure you have the correct access rights\n"
-		    "and the repository exists.");
+error("short SHA1 %.*s is ambiguous.", len, hex_pfx);

@@ -1,1 +1,1 @@
-fprintf_ln(stderr, _("Rejected hunk #%d."), cnt);
+error("read from external filter %s failed", cmd);

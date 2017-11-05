@@ -1,1 +1,1 @@
-die("--contents and --reverse do not blend well.");
+error_errno("cannot open mbox %s", file);

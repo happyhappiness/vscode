@@ -1,1 +1,1 @@
-die("unable to write object to database");
+die(_("Not a valid object name: '%s'"), old_ref);

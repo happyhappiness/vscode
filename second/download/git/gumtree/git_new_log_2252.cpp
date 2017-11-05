@@ -1,1 +1,1 @@
-status_printf_ln(s, color, _("No commands done."));
+error_errno(_("could not write branch description template"));

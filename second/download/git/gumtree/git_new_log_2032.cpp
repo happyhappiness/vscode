@@ -1,2 +1,2 @@
-die(_("your current branch '%s' does not have any commits yet"),
-	    refname);
+packet_buf_write(&preamble, "%s %s\n",
+				 oid_to_hex(&ref->old_oid), ref->name);

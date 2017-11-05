@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK,APLOG_INFO, 0, NULL, APLOGNO(00434)
-                             "Using ConfigArgs of the installed service "
-                             "\"%s\".", service_name);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_session:  stream(%ld-%d): WINDOW_UPDATE "
+                          "incr=%d", 
+                          session->id, (int)frame->hd.stream_id,
+                          frame->window_update.window_size_increment);

@@ -1,31 +1,21 @@
-static char *prepare_initial(struct scoreboard *sb)
+static void queue_commands_from_cert(struct command **tail,
+				     struct strbuf *push_cert)
 {
-	int i;
-	const char *final_commit_name = NULL;
-	struct rev_info *revs = sb->revs;
+	const char *boc, *eoc;
 
-	/*
-	 * There must be one and only one negative commit, and it must be
-	 * the boundary.
-	 */
-	for (i = 0; i < revs->pending.nr; i++) {
-		struct object *obj = revs->pending.objects[i].item;
-		if (!(obj->flags & UNINTERESTING))
-			continue;
-		obj = deref_tag(obj, NULL, 0);
-		if (obj->type != OBJ_COMMIT)
-			die("Non commit %s?", revs->pending.objects[i].name);
-		if (sb->final)
-			die("More than one commit to dig up from, %s and %s?",
-			    revs->pending.objects[i].name,
-			    final_commit_name);
-		sb->final = (struct commit *) obj;
-		final_commit_name = revs->pending.objects[i].name;
+	if (*tail)
+		die("protocol error: got both push certificate and unsigned commands");
+
+	boc = strstr(push_cert->buf, "\n\n");
+	if (!boc)
+		die("malformed push certificate %.*s", 100, push_cert->buf);
+	else
+		boc += 2;
+	eoc = push_cert->buf + parse_signature(push_cert->buf, push_cert->len);
+
+	while (boc < eoc) {
+		const char *eol = memchr(boc, '\n', eoc - boc);
+		tail = queue_command(tail, boc, eol ? eol - boc : eoc - eol);
+		boc = eol ? eol + 1 : eoc;
 	}
-
-	if (!final_commit_name)
-		final_commit_name = dwim_reverse_initial(sb);
-	if (!final_commit_name)
-		die("No commit to dig up from?");
-	return xstrdup(final_commit_name);
 }

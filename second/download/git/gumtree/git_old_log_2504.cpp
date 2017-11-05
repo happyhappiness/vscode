@@ -1,0 +1,1 @@
+printf(_("Final output: %d %s\n"), nr, stage);

@@ -1,1 +1,0 @@
-die("Option '--stat-graph-width' requires a value");

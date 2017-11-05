@@ -1,53 +1,78 @@
-static void show_rebase_information(struct wt_status *s,
-					struct wt_status_state *state,
-					const char *color)
+unsigned is_submodule_modified(const char *path, int ignore_untracked)
 {
-	if (state->rebase_interactive_in_progress) {
-		int i;
-		int nr_lines_to_show = 2;
+	struct child_process cp = CHILD_PROCESS_INIT;
+	struct strbuf buf = STRBUF_INIT;
+	FILE *fp;
+	unsigned dirty_submodule = 0;
+	const char *git_dir;
+	int ignore_cp_exit_code = 0;
 
-		struct string_list have_done = STRING_LIST_INIT_DUP;
-		struct string_list yet_to_do = STRING_LIST_INIT_DUP;
-
-		read_rebase_todolist("rebase-merge/done", &have_done);
-		if (read_rebase_todolist("rebase-merge/git-rebase-todo",
-					 &yet_to_do))
-			status_printf_ln(s, color,
-				_("git-rebase-todo is missing."));
-		if (have_done.nr == 0)
-			status_printf_ln(s, color, _("No commands done."));
-		else {
-			status_printf_ln(s, color,
-				Q_("Last command done (%d command done):",
-					"Last commands done (%d commands done):",
-					have_done.nr),
-				have_done.nr);
-			for (i = (have_done.nr > nr_lines_to_show)
-				? have_done.nr - nr_lines_to_show : 0;
-				i < have_done.nr;
-				i++)
-				status_printf_ln(s, color, "   %s", have_done.items[i].string);
-			if (have_done.nr > nr_lines_to_show && s->hints)
-				status_printf_ln(s, color,
-					_("  (see more in file %s)"), git_path("rebase-merge/done"));
-		}
-
-		if (yet_to_do.nr == 0)
-			status_printf_ln(s, color,
-					 _("No commands remaining."));
-		else {
-			status_printf_ln(s, color,
-				Q_("Next command to do (%d remaining command):",
-					"Next commands to do (%d remaining commands):",
-					yet_to_do.nr),
-				yet_to_do.nr);
-			for (i = 0; i < nr_lines_to_show && i < yet_to_do.nr; i++)
-				status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);
-			if (s->hints)
-				status_printf_ln(s, color,
-					_("  (use \"git rebase --edit-todo\" to view and edit)"));
-		}
-		string_list_clear(&yet_to_do, 0);
-		string_list_clear(&have_done, 0);
+	strbuf_addf(&buf, "%s/.git", path);
+	git_dir = read_gitfile(buf.buf);
+	if (!git_dir)
+		git_dir = buf.buf;
+	if (!is_git_directory(git_dir)) {
+		if (is_directory(git_dir))
+			die(_("'%s' not recognized as a git repository"), git_dir);
+		strbuf_release(&buf);
+		/* The submodule is not checked out, so it is not modified */
+		return 0;
 	}
+	strbuf_reset(&buf);
+
+	argv_array_pushl(&cp.args, "status", "--porcelain=2", NULL);
+	if (ignore_untracked)
+		argv_array_push(&cp.args, "-uno");
+
+	prepare_submodule_repo_env(&cp.env_array);
+	cp.git_cmd = 1;
+	cp.no_stdin = 1;
+	cp.out = -1;
+	cp.dir = path;
+	if (start_command(&cp))
+		die("Could not run 'git status --porcelain=2' in submodule %s", path);
+
+	fp = xfdopen(cp.out, "r");
+	while (strbuf_getwholeline(&buf, fp, '\n') != EOF) {
+		/* regular untracked files */
+		if (buf.buf[0] == '?')
+			dirty_submodule |= DIRTY_SUBMODULE_UNTRACKED;
+
+		if (buf.buf[0] == 'u' ||
+		    buf.buf[0] == '1' ||
+		    buf.buf[0] == '2') {
+			/* T = line type, XY = status, SSSS = submodule state */
+			if (buf.len < strlen("T XY SSSS"))
+				die("BUG: invalid status --porcelain=2 line %s",
+				    buf.buf);
+
+			if (buf.buf[5] == 'S' && buf.buf[8] == 'U')
+				/* nested untracked file */
+				dirty_submodule |= DIRTY_SUBMODULE_UNTRACKED;
+
+			if (buf.buf[0] == 'u' ||
+			    buf.buf[0] == '2' ||
+			    memcmp(buf.buf + 5, "S..U", 4))
+				/* other change */
+				dirty_submodule |= DIRTY_SUBMODULE_MODIFIED;
+		}
+
+		if ((dirty_submodule & DIRTY_SUBMODULE_MODIFIED) &&
+		    ((dirty_submodule & DIRTY_SUBMODULE_UNTRACKED) ||
+		     ignore_untracked)) {
+			/*
+			 * We're not interested in any further information from
+			 * the child any more, neither output nor its exit code.
+			 */
+			ignore_cp_exit_code = 1;
+			break;
+		}
+	}
+	fclose(fp);
+
+	if (finish_command(&cp) && !ignore_cp_exit_code)
+		die("'git status --porcelain=2' failed in submodule %s", path);
+
+	strbuf_release(&buf);
+	return dirty_submodule;
 }

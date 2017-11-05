@@ -1,1 +1,1 @@
-die_errno(_("Could not open file '%s'"), filename);
+printf("reset %s\n", (const char*)commit->util);

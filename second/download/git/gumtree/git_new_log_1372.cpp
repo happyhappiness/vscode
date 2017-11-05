@@ -1,2 +1,2 @@
-die("Could not parse remote commit %s (%s)",
-		    oid_to_hex(&remote_oid), o->remote_ref);
+error("Out of memory, malloc failed (tried to allocate %lu bytes)",
+				      (unsigned long)size);

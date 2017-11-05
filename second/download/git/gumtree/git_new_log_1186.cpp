@@ -1,1 +1,1 @@
-fprintf(stdout, "%s", item->string);
+die(_("unable to update temporary index"));

@@ -1,3 +1,2 @@
-warning("Cannot handle more than %d bases. "
-				"Ignoring %s.",
-				(int)ARRAY_SIZE(bases)-1, argv[i]);
+die("Failed to read notes tree referenced by %s (%s)",
+		    notes_ref, sha1_to_hex(object_sha1));

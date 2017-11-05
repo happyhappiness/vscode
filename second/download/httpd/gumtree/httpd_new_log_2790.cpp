@@ -1,2 +1,3 @@
-fprintf(stderr, "%s: table created by %p hit limit of %u\n",
-                func ? func : "table_push", t->creator, t->a.nalloc);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01645)
+                      "authz_dbd: query for %s failed; user %s [%s]",
+                      action, r->user, message?message:noerror);

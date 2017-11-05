@@ -1,1 +1,2 @@
-error(_("Your local changes would be overwritten by cherry-pick."));
+printf("tagged %s %s", typename(tag->tagged->type),
+				describe_object(tag->tagged));

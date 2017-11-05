@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(10022)
-                          "h2_mplx(%ld): task(%s) has not-shutdown "
-                          "engine(%s)", m->id, task->id, 
-                          h2_req_engine_get_id(task->engine));
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02564)
+                             "Failed to configure encrypted (?) private key %s,"
+                             " check %s", key_id, keyfile);

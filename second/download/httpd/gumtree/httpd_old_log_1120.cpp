@@ -1,1 +1,0 @@
-(isprint(c = code[3]);

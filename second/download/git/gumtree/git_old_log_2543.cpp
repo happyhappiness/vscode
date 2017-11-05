@@ -1,1 +1,1 @@
-error("unable to delete existing %s", newrefname);
+printf("      %s\n", msg);

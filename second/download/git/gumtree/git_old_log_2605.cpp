@@ -1,2 +1,1 @@
-warning("failed utime() on %s: %s",
-				tmp_file, strerror(errno));
+printf("%s%s+++ b/%s%s\n", prefix, c_meta, pair->two->path, c_reset);

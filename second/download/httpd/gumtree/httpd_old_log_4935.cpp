@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-              "Ignoring deprecated use of DefaultType in line %d of %s.",
-                     cmd->directive->line_num, cmd->directive->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+        "Done with config file %s", cfp->name);

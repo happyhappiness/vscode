@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf, APLOGNO(00448)
-                             "Parent: Cannot create shutdown event %s", signal_shutdown_name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): submitting push promise fail: %s",
+                      session->id, is->id, nghttp2_strerror(nid));

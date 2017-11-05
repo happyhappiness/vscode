@@ -1,1 +1,1 @@
-die("update: missing <ref>");
+die("bad --word-diff argument: %s", arg);

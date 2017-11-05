@@ -1,2 +1,1 @@
-die("multiple stage entries for merged file '%s'",
-				ce->name);
+die("Could not read ref %s", private);

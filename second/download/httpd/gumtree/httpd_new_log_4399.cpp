@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01154) "send_socket failed:");
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, server, APLOGNO(02180)
+                     "The debug mode of Apache should only "
+                     "be started by an unprivileged user!");

@@ -1,1 +1,0 @@
-die(_("unable to create backing store for newly created file %s"), path);

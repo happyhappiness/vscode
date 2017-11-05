@@ -1,1 +1,0 @@
-die("bad tree object");

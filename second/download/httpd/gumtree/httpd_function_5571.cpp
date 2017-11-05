@@ -1,70 +1,31 @@
-static char *get_lines_till_end_token(apr_pool_t * pool,
-                                      ap_configfile_t * config_file,
-                                      const char *end_token,
-                                      const char *begin_token,
-                                      const char *where,
-                                      apr_array_header_t ** plines)
+h2_task_input *h2_task_input_create(h2_task *task, apr_pool_t *pool, 
+                                    apr_bucket_alloc_t *bucket_alloc)
 {
-    apr_array_header_t *lines = apr_array_make(pool, 1, sizeof(char *));
-    char line[MAX_STRING_LEN];  /* sorry, but this is expected by getline:-( */
-    int macro_nesting = 1, any_nesting = 1;
-    int line_number_start = config_file->line_number;
-
-    while (!ap_cfg_getline(line, MAX_STRING_LEN, config_file)) {
-        char *ptr = line;
-        char *first, **new;
-        /* skip comments */
-        if (*line == '#')
-            continue;
-        first = ap_getword_conf_nc(pool, &ptr);
-        if (first) {
-            /* detect nesting... */
-            if (!strncmp(first, "</", 2)) {
-                any_nesting--;
-                if (any_nesting < 0) {
-                    ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING,
-                                 0, NULL,
-                                 "bad (negative) nesting on line %d of %s",
-                                 config_file->line_number - line_number_start,
-                                 where);
-                }
-            }
-            else if (!strncmp(first, "<", 1)) {
-                any_nesting++;
-            }
-
-            if (!strcasecmp(first, end_token)) {
-                /* check for proper closing */
-                char * endp = (char *) ap_strrchr_c(line, '>');
-
-                /* this cannot happen if end_token contains '>' */
-                if (endp == NULL) {
-                  return "end directive missing closing '>'";
-                }
-
-                warn_if_non_blank(
-                    "non blank chars found after directive closing",
-                    endp+1, config_file);
-
-                macro_nesting--;
-                if (!macro_nesting) {
-                    if (any_nesting) {
-                        ap_log_error(APLOG_MARK,
-                                     APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
-                                     "bad cumulated nesting (%+d) in %s",
-                                     any_nesting, where);
-                    }
-                    *plines = lines;
-                    return NULL;
-                }
-            }
-            else if (begin_token && !strcasecmp(first, begin_token)) {
-                macro_nesting++;
+    h2_task_input *input = apr_pcalloc(pool, sizeof(h2_task_input));
+    if (input) {
+        input->task = task;
+        input->bb = NULL;
+        
+        if (task->serialize_headers) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                          "h2_task_input(%s): serialize request %s %s", 
+                          task->id, task->request->method, task->request->path);
+            input->bb = apr_brigade_create(pool, bucket_alloc);
+            apr_brigade_printf(input->bb, NULL, NULL, "%s %s HTTP/1.1\r\n", 
+                               task->request->method, task->request->path);
+            apr_table_do(ser_header, input, task->request->headers, NULL);
+            apr_brigade_puts(input->bb, NULL, NULL, "\r\n");
+            if (input->task->input_eos) {
+                APR_BRIGADE_INSERT_TAIL(input->bb, apr_bucket_eos_create(bucket_alloc));
             }
         }
-        new = apr_array_push(lines);
-        *new = apr_psprintf(pool, "%s" APR_EOL_STR, line); /* put EOL back? */
+        else if (!input->task->input_eos) {
+            input->bb = apr_brigade_create(pool, bucket_alloc);
+        }
+        else {
+            /* We do not serialize and have eos already, no need to
+             * create a bucket brigade. */
+        }
     }
-
-    return apr_psprintf(pool, "expected token not found: %s", end_token);
+    return input;
 }

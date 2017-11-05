@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c,
-                  "h2_mplx(%ld-%d): can_beam_file denied on %s", 
-                  m->id, beam->id, beam->tag);
+ap_log_error(APLOG_MARK, loglevel, rv, s, APLOGNO(00952)
+                         "%s: error creating fam %d socket for target %s",
+                         proxy_function,
+                         backend_addr->family,
+                         worker->s->hostname);

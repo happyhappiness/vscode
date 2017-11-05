@@ -1,121 +1,142 @@
-static int module_clone(int argc, const char **argv, const char *prefix)
+static int try_delta(struct unpacked *trg, struct unpacked *src,
+		     unsigned max_depth, unsigned long *mem_usage)
 {
-	const char *name = NULL, *url = NULL, *depth = NULL;
-	int quiet = 0;
-	int progress = 0;
-	FILE *submodule_dot_git;
-	char *p, *path = NULL, *sm_gitdir;
-	struct strbuf rel_path = STRBUF_INIT;
-	struct strbuf sb = STRBUF_INIT;
-	struct string_list reference = STRING_LIST_INIT_NODUP;
-	char *sm_alternate = NULL, *error_strategy = NULL;
+	struct object_entry *trg_entry = trg->entry;
+	struct object_entry *src_entry = src->entry;
+	unsigned long trg_size, src_size, delta_size, sizediff, max_size, sz;
+	unsigned ref_depth;
+	enum object_type type;
+	void *delta_buf;
 
-	struct option module_clone_options[] = {
-		OPT_STRING(0, "prefix", &prefix,
-			   N_("path"),
-			   N_("alternative anchor for relative paths")),
-		OPT_STRING(0, "path", &path,
-			   N_("path"),
-			   N_("where the new submodule will be cloned to")),
-		OPT_STRING(0, "name", &name,
-			   N_("string"),
-			   N_("name of the new submodule")),
-		OPT_STRING(0, "url", &url,
-			   N_("string"),
-			   N_("url where to clone the submodule from")),
-		OPT_STRING_LIST(0, "reference", &reference,
-			   N_("repo"),
-			   N_("reference repository")),
-		OPT_STRING(0, "depth", &depth,
-			   N_("string"),
-			   N_("depth for shallow clones")),
-		OPT__QUIET(&quiet, "Suppress output for cloning a submodule"),
-		OPT_BOOL(0, "progress", &progress,
-			   N_("force cloning progress")),
-		OPT_END()
-	};
+	/* Don't bother doing diffs between different types */
+	if (trg_entry->type != src_entry->type)
+		return -1;
 
-	const char *const git_submodule_helper_usage[] = {
-		N_("git submodule--helper clone [--prefix=<path>] [--quiet] "
-		   "[--reference <repository>] [--name <name>] [--depth <depth>] "
-		   "--url <url> --path <path>"),
-		NULL
-	};
+	/*
+	 * We do not bother to try a delta that we discarded on an
+	 * earlier try, but only when reusing delta data.  Note that
+	 * src_entry that is marked as the preferred_base should always
+	 * be considered, as even if we produce a suboptimal delta against
+	 * it, we will still save the transfer cost, as we already know
+	 * the other side has it and we won't send src_entry at all.
+	 */
+	if (reuse_delta && trg_entry->in_pack &&
+	    trg_entry->in_pack == src_entry->in_pack &&
+	    !src_entry->preferred_base &&
+	    trg_entry->in_pack_type != OBJ_REF_DELTA &&
+	    trg_entry->in_pack_type != OBJ_OFS_DELTA)
+		return 0;
 
-	argc = parse_options(argc, argv, prefix, module_clone_options,
-			     git_submodule_helper_usage, 0);
+	/* Let's not bust the allowed depth. */
+	if (src->depth >= max_depth)
+		return 0;
 
-	if (argc || !url || !path || !*path)
-		usage_with_options(git_submodule_helper_usage,
-				   module_clone_options);
-
-	strbuf_addf(&sb, "%s/modules/%s", get_git_dir(), name);
-	sm_gitdir = absolute_pathdup(sb.buf);
-	strbuf_reset(&sb);
-
-	if (!is_absolute_path(path)) {
-		strbuf_addf(&sb, "%s/%s", get_git_work_tree(), path);
-		path = strbuf_detach(&sb, NULL);
-	} else
-		path = xstrdup(path);
-
-	if (!file_exists(sm_gitdir)) {
-		if (safe_create_leading_directories_const(sm_gitdir) < 0)
-			die(_("could not create directory '%s'"), sm_gitdir);
-
-		prepare_possible_alternates(name, &reference);
-
-		if (clone_submodule(path, sm_gitdir, url, depth, &reference,
-				    quiet, progress))
-			die(_("clone of '%s' into submodule path '%s' failed"),
-			    url, path);
+	/* Now some size filtering heuristics. */
+	trg_size = trg_entry->size;
+	if (!trg_entry->delta) {
+		max_size = trg_size/2 - 20;
+		ref_depth = 1;
 	} else {
-		if (safe_create_leading_directories_const(path) < 0)
-			die(_("could not create directory '%s'"), path);
-		strbuf_addf(&sb, "%s/index", sm_gitdir);
-		unlink_or_warn(sb.buf);
-		strbuf_reset(&sb);
+		max_size = trg_entry->delta_size;
+		ref_depth = trg->depth;
+	}
+	max_size = (uint64_t)max_size * (max_depth - src->depth) /
+						(max_depth - ref_depth + 1);
+	if (max_size == 0)
+		return 0;
+	src_size = src_entry->size;
+	sizediff = src_size < trg_size ? trg_size - src_size : 0;
+	if (sizediff >= max_size)
+		return 0;
+	if (trg_size < src_size / 32)
+		return 0;
+
+	/* Load data if not already done */
+	if (!trg->data) {
+		read_lock();
+		trg->data = read_sha1_file(trg_entry->idx.sha1, &type, &sz);
+		read_unlock();
+		if (!trg->data)
+			die("object %s cannot be read",
+			    sha1_to_hex(trg_entry->idx.sha1));
+		if (sz != trg_size)
+			die("object %s inconsistent object length (%lu vs %lu)",
+			    sha1_to_hex(trg_entry->idx.sha1), sz, trg_size);
+		*mem_usage += sz;
+	}
+	if (!src->data) {
+		read_lock();
+		src->data = read_sha1_file(src_entry->idx.sha1, &type, &sz);
+		read_unlock();
+		if (!src->data) {
+			if (src_entry->preferred_base) {
+				static int warned = 0;
+				if (!warned++)
+					warning("object %s cannot be read",
+						sha1_to_hex(src_entry->idx.sha1));
+				/*
+				 * Those objects are not included in the
+				 * resulting pack.  Be resilient and ignore
+				 * them if they can't be read, in case the
+				 * pack could be created nevertheless.
+				 */
+				return 0;
+			}
+			die("object %s cannot be read",
+			    sha1_to_hex(src_entry->idx.sha1));
+		}
+		if (sz != src_size)
+			die("object %s inconsistent object length (%lu vs %lu)",
+			    sha1_to_hex(src_entry->idx.sha1), sz, src_size);
+		*mem_usage += sz;
+	}
+	if (!src->index) {
+		src->index = create_delta_index(src->data, src_size);
+		if (!src->index) {
+			static int warned = 0;
+			if (!warned++)
+				warning("suboptimal pack - out of memory");
+			return 0;
+		}
+		*mem_usage += sizeof_delta_index(src->index);
 	}
 
-	/* Write a .git file in the submodule to redirect to the superproject. */
-	strbuf_addf(&sb, "%s/.git", path);
-	if (safe_create_leading_directories_const(sb.buf) < 0)
-		die(_("could not create leading directories of '%s'"), sb.buf);
-	submodule_dot_git = fopen(sb.buf, "w");
-	if (!submodule_dot_git)
-		die_errno(_("cannot open file '%s'"), sb.buf);
+	delta_buf = create_delta(src->index, trg->data, trg_size, &delta_size, max_size);
+	if (!delta_buf)
+		return 0;
 
-	fprintf_or_die(submodule_dot_git, "gitdir: %s\n",
-		       relative_path(sm_gitdir, path, &rel_path));
-	if (fclose(submodule_dot_git))
-		die(_("could not close file %s"), sb.buf);
-	strbuf_reset(&sb);
-	strbuf_reset(&rel_path);
+	if (trg_entry->delta) {
+		/* Prefer only shallower same-sized deltas. */
+		if (delta_size == trg_entry->delta_size &&
+		    src->depth + 1 >= trg->depth) {
+			free(delta_buf);
+			return 0;
+		}
+	}
 
-	/* Redirect the worktree of the submodule in the superproject's config */
-	p = git_pathdup_submodule(path, "config");
-	if (!p)
-		die(_("could not get submodule directory for '%s'"), path);
-	git_config_set_in_file(p, "core.worktree",
-			       relative_path(path, sm_gitdir, &rel_path));
+	/*
+	 * Handle memory allocation outside of the cache
+	 * accounting lock.  Compiler will optimize the strangeness
+	 * away when NO_PTHREADS is defined.
+	 */
+	free(trg_entry->delta_data);
+	cache_lock();
+	if (trg_entry->delta_data) {
+		delta_cache_size -= trg_entry->delta_size;
+		trg_entry->delta_data = NULL;
+	}
+	if (delta_cacheable(src_size, trg_size, delta_size)) {
+		delta_cache_size += delta_size;
+		cache_unlock();
+		trg_entry->delta_data = xrealloc(delta_buf, delta_size);
+	} else {
+		cache_unlock();
+		free(delta_buf);
+	}
 
-	/* setup alternateLocation and alternateErrorStrategy in the cloned submodule if needed */
-	git_config_get_string("submodule.alternateLocation", &sm_alternate);
-	if (sm_alternate)
-		git_config_set_in_file(p, "submodule.alternateLocation",
-					   sm_alternate);
-	git_config_get_string("submodule.alternateErrorStrategy", &error_strategy);
-	if (error_strategy)
-		git_config_set_in_file(p, "submodule.alternateErrorStrategy",
-					   error_strategy);
+	trg_entry->delta = src_entry;
+	trg_entry->delta_size = delta_size;
+	trg->depth = src->depth + 1;
 
-	free(sm_alternate);
-	free(error_strategy);
-
-	strbuf_release(&sb);
-	strbuf_release(&rel_path);
-	free(sm_gitdir);
-	free(path);
-	free(p);
-	return 0;
+	return 1;
 }

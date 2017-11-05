@@ -1,2 +1,4 @@
-die("an empty %s object %s?",
-		    typename(type), oid_to_hex(oid));
+die(Q_("premature end of pack file, %lu byte missing",
+			       "premature end of pack file, %lu bytes missing",
+			       len),
+			    len);

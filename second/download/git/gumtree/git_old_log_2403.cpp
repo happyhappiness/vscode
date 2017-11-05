@@ -1,1 +1,1 @@
-die("Request too large to send");
+error("seek error: %s", strerror(errno));

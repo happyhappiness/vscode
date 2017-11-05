@@ -1,0 +1,1 @@
+error_errno("cannot create pipe");

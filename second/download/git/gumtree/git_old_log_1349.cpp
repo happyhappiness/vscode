@@ -1,1 +1,1 @@
-die("object not found: %s", sha1_to_hex(sha1));
+error(_("Failed to lock HEAD during fast_forward_to"));

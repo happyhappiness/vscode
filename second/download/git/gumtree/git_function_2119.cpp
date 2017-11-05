@@ -1,17 +1,42 @@
-static int run_gpg_verify(const unsigned char *sha1, const char *buf, unsigned long size, int verbose)
+void shortlog_add_commit(struct shortlog *log, struct commit *commit)
 {
-	struct signature_check signature_check;
+	const char *author = NULL, *buffer;
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf ufbuf = STRBUF_INIT;
 
-	memset(&signature_check, 0, sizeof(signature_check));
+	pp_commit_easy(CMIT_FMT_RAW, commit, &buf);
+	buffer = buf.buf;
+	while (*buffer && *buffer != '\n') {
+		const char *eol = strchr(buffer, '\n');
 
-	check_commit_signature(lookup_commit(sha1), &signature_check);
+		if (eol == NULL)
+			eol = buffer + strlen(buffer);
+		else
+			eol++;
 
-	if (verbose && signature_check.payload)
-		fputs(signature_check.payload, stdout);
-
-	if (signature_check.gpg_output)
-		fputs(signature_check.gpg_output, stderr);
-
-	signature_check_clear(&signature_check);
-	return signature_check.result != 'G';
+		if (starts_with(buffer, "author "))
+			author = buffer + 7;
+		buffer = eol;
+	}
+	if (!author) {
+		warning(_("Missing author: %s"),
+		    oid_to_hex(&commit->object.oid));
+		return;
+	}
+	if (log->user_format) {
+		struct pretty_print_context ctx = {0};
+		ctx.fmt = CMIT_FMT_USERFORMAT;
+		ctx.abbrev = log->abbrev;
+		ctx.subject = "";
+		ctx.after_subject = "";
+		ctx.date_mode.type = DATE_NORMAL;
+		ctx.output_encoding = get_log_output_encoding();
+		pretty_print_commit(&ctx, commit, &ufbuf);
+		buffer = ufbuf.buf;
+	} else if (*buffer) {
+		buffer++;
+	}
+	insert_one_record(log, author, !*buffer ? "<none>" : buffer);
+	strbuf_release(&ufbuf);
+	strbuf_release(&buf);
 }

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(03464)
-                      "URI path '%s' matches proxy handler '%s'", r->uri,
-                      found);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                                         APLOGNO(02551) "bad md5 match");

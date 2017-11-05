@@ -1,0 +1,1 @@
+fprintf(stderr, "Opening file %s\n", status->filename);

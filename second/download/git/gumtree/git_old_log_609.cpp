@@ -1,1 +1,0 @@
-error(_("Could not resolve HEAD commit\n"));

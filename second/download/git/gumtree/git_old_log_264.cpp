@@ -1,4 +1,2 @@
-error(_("missing binary patch data for '%s'"),
-			     patch->new_name ?
-			     patch->new_name :
-			     patch->old_name);
+error(_("Failed to copy notes from '%s' to '%s'"),
+			      split[0]->buf, split[1]->buf);

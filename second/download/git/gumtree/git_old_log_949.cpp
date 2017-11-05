@@ -1,1 +1,2 @@
-die("no email was given and auto-detection is disabled");
+die_errno("exec '%s': cd to '%s' failed", cmd->argv[0],
+			    cmd->dir);

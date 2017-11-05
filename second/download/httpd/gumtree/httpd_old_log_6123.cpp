@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "h2_switch init");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01757)
+                 "generating secret for digest authentication ...");

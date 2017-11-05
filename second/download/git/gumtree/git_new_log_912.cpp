@@ -1,2 +1,1 @@
-status_printf_ln(s, color,
-				_("git-rebase-todo is missing."));
+die(_("'%s' not recognized as a git repository"), git_dir);

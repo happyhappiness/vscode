@@ -1,30 +1,57 @@
-static void find_copy_in_blob(struct scoreboard *sb,
-			      struct blame_entry *ent,
-			      struct origin *parent,
-			      struct blame_entry *split,
-			      mmfile_t *file_p)
+void test_bitmap_walk(struct rev_info *revs)
 {
-	const char *cp;
-	mmfile_t file_o;
-	struct handle_split_cb_data d;
+	struct object *root;
+	struct bitmap *result = NULL;
+	khiter_t pos;
+	size_t result_popcnt;
+	struct bitmap_test_data tdata;
 
-	memset(&d, 0, sizeof(d));
-	d.sb = sb; d.ent = ent; d.parent = parent; d.split = split;
-	/*
-	 * Prepare mmfile that contains only the lines in ent.
-	 */
-	cp = nth_line(sb, ent->lno);
-	file_o.ptr = (char *) cp;
-	file_o.size = nth_line(sb, ent->lno + ent->num_lines) - cp;
+	if (prepare_bitmap_git())
+		die("failed to load bitmap indexes");
 
-	/*
-	 * file_o is a part of final image we are annotating.
-	 * file_p partially may match that image.
-	 */
-	memset(split, 0, sizeof(struct blame_entry [3]));
-	if (diff_hunks(file_p, &file_o, 1, handle_split_cb, &d))
-		die("unable to generate diff (%s)",
-		    sha1_to_hex(parent->commit->object.sha1));
-	/* remainder, if any, all match the preimage */
-	handle_split(sb, ent, d.tlno, d.plno, ent->num_lines, parent, split);
+	if (revs->pending.nr != 1)
+		die("you must specify exactly one commit to test");
+
+	fprintf(stderr, "Bitmap v%d test (%d entries loaded)\n",
+		bitmap_git.version, bitmap_git.entry_count);
+
+	root = revs->pending.objects[0].item;
+	pos = kh_get_sha1(bitmap_git.bitmaps, root->sha1);
+
+	if (pos < kh_end(bitmap_git.bitmaps)) {
+		struct stored_bitmap *st = kh_value(bitmap_git.bitmaps, pos);
+		struct ewah_bitmap *bm = lookup_stored_bitmap(st);
+
+		fprintf(stderr, "Found bitmap for %s. %d bits / %08x checksum\n",
+			sha1_to_hex(root->sha1), (int)bm->bit_size, ewah_checksum(bm));
+
+		result = ewah_to_bitmap(bm);
+	}
+
+	if (result == NULL)
+		die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));
+
+	revs->tag_objects = 1;
+	revs->tree_objects = 1;
+	revs->blob_objects = 1;
+
+	result_popcnt = bitmap_popcount(result);
+
+	if (prepare_revision_walk(revs))
+		die("revision walk setup failed");
+
+	tdata.base = bitmap_new();
+	tdata.prg = start_progress("Verifying bitmap entries", result_popcnt);
+	tdata.seen = 0;
+
+	traverse_commit_list(revs, &test_show_commit, &test_show_object, &tdata);
+
+	stop_progress(&tdata.prg);
+
+	if (bitmap_equals(result, tdata.base))
+		fprintf(stderr, "OK!\n");
+	else
+		fprintf(stderr, "Mismatch!\n");
+
+	bitmap_free(result);
 }

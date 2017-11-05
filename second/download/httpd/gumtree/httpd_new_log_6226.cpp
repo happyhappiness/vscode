@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03304)
-                          "Unhandled bucket type of type %s in"
-                          " ap_proxy_buckets_lifetime_transform", e->type->name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                  H2_STRM_LOG(APLOGNO(03076), is, "SERVER_PUSH %d for %s %s on %d"),
+                  nid, push->req->method, push->req->path, is->id);

@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "[%" APR_PID_T_FMT "] auth_ldap authorise: "
-                              "require ldap-filter: user's DN has not been defined; failing authorisation",
-                              getpid());
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
+               r->method);

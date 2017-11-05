@@ -1,2 +1,2 @@
-strbuf_addf(&desc, _("(HEAD detached at %s)"),
-				state.detached_from);
+printf("Added resolved note for object %s: %s\n",
+				oid_to_hex(&obj_oid), oid_to_hex(&blob_oid));

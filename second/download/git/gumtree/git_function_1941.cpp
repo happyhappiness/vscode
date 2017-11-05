@@ -1,20 +1,8 @@
-static struct ref_entry *create_ref_entry(const char *refname,
-					  const unsigned char *sha1, int flag,
-					  int check_name)
+static void finish_object(struct object *obj, const char *name, void *cb_data)
 {
-	int len;
-	struct ref_entry *ref;
-
-	if (check_name &&
-	    check_refname_format(refname, REFNAME_ALLOW_ONELEVEL))
-		die("Reference has invalid format: '%s'", refname);
-	if (!check_name && !refname_is_safe(refname))
-		die("Reference has invalid name: '%s'", refname);
-	len = strlen(refname) + 1;
-	ref = xmalloc(sizeof(struct ref_entry) + len);
-	hashcpy(ref->u.value.sha1, sha1);
-	hashclr(ref->u.value.peeled);
-	memcpy(ref->name, refname, len);
-	ref->flag = flag;
-	return ref;
+	struct rev_list_info *info = cb_data;
+	if (obj->type == OBJ_BLOB && !has_sha1_file(obj->sha1))
+		die("missing blob object '%s'", sha1_to_hex(obj->sha1));
+	if (info->revs->verify_objects && !obj->parsed && obj->type != OBJ_COMMIT)
+		parse_object(obj->sha1);
 }

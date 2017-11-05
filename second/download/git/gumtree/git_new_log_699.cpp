@@ -1,1 +1,2 @@
-packet_write_fmt(1, "NAK\n");
+error("sha1 mismatch for %s (expected %s)", path,
+			      sha1_to_hex(expected_sha1));

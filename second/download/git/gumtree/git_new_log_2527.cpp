@@ -1,0 +1,1 @@
+error(_("Unknown -s/--strategy: %s"), strategy);

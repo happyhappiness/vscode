@@ -1,1 +1,1 @@
-ap_rputs("Uninitialized", r);
+ap_rvputs(r, "</form>\n", NULL);

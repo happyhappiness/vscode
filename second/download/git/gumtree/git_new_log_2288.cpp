@@ -1,1 +1,1 @@
-die_errno("unable to write credential store");
+warning_errno(_("failed to stat '%s'"), ce->name);

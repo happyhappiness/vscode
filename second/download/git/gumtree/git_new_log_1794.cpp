@@ -1,2 +1,1 @@
-error("unable to commit reflog '%s' (%s)",
-					log_file, strerror(errno));
+set_common_push_options(transport, data->name, flags);

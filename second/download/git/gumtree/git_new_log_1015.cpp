@@ -1,1 +1,2 @@
-error("new object is the same as the old one: '%s'", oid_to_hex(&old));
+die(_("unable to read %s"),
+				    oid_to_hex(&entry->idx.oid));

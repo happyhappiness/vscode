@@ -1,1 +1,1 @@
-fprintf (stderr, "\n");
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, msg);

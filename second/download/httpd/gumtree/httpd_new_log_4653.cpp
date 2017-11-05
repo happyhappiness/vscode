@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01888)
-                         "Init: Failed to load Crypto Device API `%s'",
-                         mc->szCryptoDevice);
+ap_relieve_child_processes(prefork_note_child_killed);

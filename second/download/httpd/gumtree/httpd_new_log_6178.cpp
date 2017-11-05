@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03001)
-                              "%d:  '%s'", i, lua_tostring(L, i));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                          "h2_mplx(%ld): idle, no tasks ongoing, %d streams",
+                          m->id, (int)h2_ihash_count(m->streams));

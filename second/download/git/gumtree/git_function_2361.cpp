@@ -1,24 +1,42 @@
-static unsigned check_object(struct object *obj)
+static int rerere_forget_one_path(const char *path, struct string_list *rr)
 {
-	if (!obj)
-		return 0;
+	const char *filename;
+	struct rerere_id *id;
+	unsigned char sha1[20];
+	int ret;
+	struct string_list_item *item;
 
-	if (!(obj->flags & FLAG_LINK))
-		return 0;
+	/*
+	 * Recreate the original conflict from the stages in the
+	 * index and compute the conflict ID
+	 */
+	ret = handle_cache(path, sha1, NULL);
+	if (ret < 1)
+		return error("Could not parse conflict hunks in '%s'", path);
 
-	if (!(obj->flags & FLAG_CHECKED)) {
-		unsigned long size;
-		int type = sha1_object_info(obj->sha1, &size);
-		if (type <= 0)
-			die(_("did not receive expected object %s"),
-			      sha1_to_hex(obj->sha1));
-		if (type != obj->type)
-			die(_("object %s: expected type %s, found %s"),
-			    sha1_to_hex(obj->sha1),
-			    typename(obj->type), typename(type));
-		obj->flags |= FLAG_CHECKED;
-		return 1;
-	}
+	/* Nuke the recorded resolution for the conflict */
+	id = new_rerere_id(sha1);
+	filename = rerere_path(id, "postimage");
+	if (unlink(filename))
+		return (errno == ENOENT
+			? error("no remembered resolution for %s", path)
+			: error("cannot unlink %s: %s", filename, strerror(errno)));
 
+	/*
+	 * Update the preimage so that the user can resolve the
+	 * conflict in the working tree, run us again to record
+	 * the postimage.
+	 */
+	handle_cache(path, sha1, rerere_path(id, "preimage"));
+	fprintf(stderr, "Updated preimage for '%s'\n", path);
+
+	/*
+	 * And remember that we can record resolution for this
+	 * conflict when the user is done.
+	 */
+	item = string_list_insert(rr, path);
+	free_rerere_id(item);
+	item->util = id;
+	fprintf(stderr, "Forgot resolution for %s\n", path);
 	return 0;
 }

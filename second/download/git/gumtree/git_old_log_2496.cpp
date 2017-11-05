@@ -1,1 +1,1 @@
-die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));
+fprintf(f, "%s\n", oid_to_hex(&obj->oid));

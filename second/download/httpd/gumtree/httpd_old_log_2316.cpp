@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(),
-                     NULL, "Could not create WatchWindow");
+fprintf(stderr, "Rotation time must be > 0\n");

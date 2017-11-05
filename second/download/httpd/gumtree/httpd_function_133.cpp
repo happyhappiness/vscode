@@ -1,37 +1,62 @@
-long ssl_io_data_cb(BIO *bio, int cmd,
-                    MODSSL_BIO_CB_ARG_TYPE *argp,
-                    int argi, long argl, long rc)
+int convert_secure_socket(conn_rec *c, apr_socket_t *csd)
 {
-    SSL *ssl;
-    conn_rec *c;
-    server_rec *s;
+	int rcode;
+	struct tlsclientopts sWS2Opts;
+	struct nwtlsopts sNWTLSOpts;
+   	struct sslserveropts opts;
+    unsigned long ulFlags;
+    SOCKET sock;
+    unicode_t keyFileName[60];
 
-    if ((ssl = (SSL *)BIO_get_callback_arg(bio)) == NULL)
-        return rc;
-    if ((c = (conn_rec *)SSL_get_app_data(ssl)) == NULL)
-        return rc;
-    s = c->base_server;
+    apr_os_sock_get(&sock, csd);
 
-    if (   cmd == (BIO_CB_WRITE|BIO_CB_RETURN)
-        || cmd == (BIO_CB_READ |BIO_CB_RETURN) ) {
-        if (rc >= 0) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "%s: %s %ld/%d bytes %s BIO#%p [mem: %p] %s",
-                    SSL_LIBRARY_NAME,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    rc, argi, (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "to" : "from"),
-                    bio, argp,
-                    (argp != NULL ? "(BIO dump follows)" : "(Oops, no memory buffer?)"));
-            if (argp != NULL)
-                ssl_io_data_dump(s, argp, rc);
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                    "%s: I/O error, %d bytes expected to %s on BIO#%p [mem: %p]",
-                    SSL_LIBRARY_NAME, argi,
-                    (cmd == (BIO_CB_WRITE|BIO_CB_RETURN) ? "write" : "read"),
-                    bio, argp);
-        }
+    /* zero out buffers */
+	memset((char *)&sWS2Opts, 0, sizeof(struct tlsclientopts));
+	memset((char *)&sNWTLSOpts, 0, sizeof(struct nwtlsopts));
+
+    /* turn on ssl for the socket */
+	ulFlags = (numcerts ? SO_TLS_ENABLE : SO_TLS_ENABLE | SO_TLS_BLIND_ACCEPT);
+	rcode = WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
+                     NULL, 0, NULL, NULL, NULL);
+	if (SOCKET_ERROR == rcode)
+	{
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
+		return rcode;
+	}
+
+    ulFlags = SO_TLS_UNCLEAN_SHUTDOWN;
+	WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
+                     NULL, 0, NULL, NULL, NULL);
+
+    /* setup the socket for SSL */
+    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
+    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
+    sWS2Opts.options = &sNWTLSOpts;
+
+    if (numcerts) {
+    	sNWTLSOpts.walletProvider 		= WAL_PROV_DER;	//the wallet provider defined in wdefs.h
+    	sNWTLSOpts.TrustedRootList 		= certarray;	//array of certs in UNICODE format
+    	sNWTLSOpts.numElementsInTRList 	= numcerts;     //number of certs in TRList
     }
-    return rc;
+    else {
+        /* setup the socket for SSL */
+    	unicpy(keyFileName, L"SSL CertificateIP");
+    	sWS2Opts.wallet = keyFileName;    /* no client certificate */
+    	sWS2Opts.walletlen = unilen(keyFileName);
+    
+    	sNWTLSOpts.walletProvider 		= WAL_PROV_KMO;	//the wallet provider defined in wdefs.h
+    }
+
+    /* make the IOCTL call */
+    rcode = WSAIoctl(sock, SO_TLS_SET_CLIENT, &sWS2Opts,
+                     sizeof(struct tlsclientopts), NULL, 0, NULL,
+                     NULL, NULL);
+
+    /* make sure that it was successfull */
+	if(SOCKET_ERROR == rcode ){
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server,
+                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
+	}		
+	return rcode;
 }

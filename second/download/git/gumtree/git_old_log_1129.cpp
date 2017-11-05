@@ -1,1 +1,1 @@
-die_errno(_("Cannot change to '%s/..'"), cwd.buf);
+error("Could not open %s", path);

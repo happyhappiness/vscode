@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c,
-                      "h2_ngn_shed(%ld): create engine %s (%s)", 
-                      shed->c->id, newngn->id, newngn->type);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01298)
+                 "LDAP cache: Setting shared memory cache file to %s bytes.",
+                 st->cache_file);

@@ -1,1 +1,1 @@
-strbuf_addstr(&sb, path);
+printf("Diag: path=%s\n", path ? path : "NULL");

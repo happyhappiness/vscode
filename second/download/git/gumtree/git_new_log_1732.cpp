@@ -1,2 +1,1 @@
-fprintf(stderr, "curl_easy_perform() failed: %s\n",
-					curl_easy_strerror(res));
+die("could not read ref '%s'", pseudoref);

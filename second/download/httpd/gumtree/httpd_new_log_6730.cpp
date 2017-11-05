@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03443)
-                              "Empty folded line encountered");
+fprintf(stderr, "Error truncating the file %s\n", status->current.name);

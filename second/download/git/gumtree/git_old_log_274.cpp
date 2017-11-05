@@ -1,1 +1,2 @@
-error(_("failed to read %s"), name);
+error(_("No note found for object %s."),
+			       sha1_to_hex(object));

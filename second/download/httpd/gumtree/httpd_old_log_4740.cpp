@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                         "Reconfigured cipher suite will force renegotiation");
+ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                     "Parent: Duplicating socket %d and sending it to child process %d",
+                     nsd, dwProcessId);

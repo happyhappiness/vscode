@@ -1,1 +1,1 @@
-die("unknown pending object %s (%s)", oid_to_hex(&obj->oid), name);
+error(_("unrecognized binary patch at line %d"), state->linenr-1);

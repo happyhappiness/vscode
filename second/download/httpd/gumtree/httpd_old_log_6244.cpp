@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
-                                     "pollset remove failed");
+ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
+                                      APLOGNO(02950) 
+                                      "h2_session(%ld): error reading, terminating",
+                                      session->id);

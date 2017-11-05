@@ -1,1 +1,1 @@
-die("--reverse --first-parent together require range along first-parent chain");
+error_errno("readlink(%s)", elem->path);

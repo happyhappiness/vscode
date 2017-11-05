@@ -1,2 +1,1 @@
-error("cannot fdopen %s (%s)",
-			      reflog_lock.filename.buf, strerror(errno));
+die("helper %s does not support dry-run", name);

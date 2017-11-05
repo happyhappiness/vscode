@@ -1,1 +1,2 @@
-printf("    [^\\x%02x]", c);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Cannot find certificate storage");

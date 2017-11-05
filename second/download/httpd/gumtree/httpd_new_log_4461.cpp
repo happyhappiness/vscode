@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01100)
-                          "Ignoring bogus HTTP header returned by %s (%s)",
-                          r->uri, r->method);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, rv, p, APLOGNO(00076)
+                              "Failed to enable APR_TCP_DEFER_ACCEPT");

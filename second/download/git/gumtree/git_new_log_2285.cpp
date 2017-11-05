@@ -1,1 +1,1 @@
-die("BUG! Want to close pack marked 'do-not-close'");
+die(_("--[no-]autostash option is only valid with --rebase."));

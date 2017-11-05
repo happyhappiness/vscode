@@ -1,1 +1,2 @@
-printf("%s %s\n", sha1_to_hex(result), name);
+printf("              to %7s %s\n",
+				 typename(obj->type), sha1_to_hex(obj->sha1));

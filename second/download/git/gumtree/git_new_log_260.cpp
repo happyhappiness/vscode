@@ -1,0 +1,1 @@
+die(_("cannot read note data from non-blob object '%s'."), arg);

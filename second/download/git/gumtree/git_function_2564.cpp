@@ -1,40 +1,96 @@
-static int do_for_each_reflog(struct strbuf *name, each_ref_fn fn, void *cb_data)
+static int git_parse_source(config_fn_t fn, void *data)
 {
-	DIR *d = opendir(git_path("logs/%s", name->buf));
-	int retval = 0;
-	struct dirent *de;
-	int oldlen = name->len;
+	int comment = 0;
+	int baselen = 0;
+	struct strbuf *var = &cf->var;
+	int error_return = 0;
+	char *error_msg = NULL;
 
-	if (!d)
-		return name->len ? errno : 0;
+	/* U+FEFF Byte Order Mark in UTF8 */
+	const char *bomptr = utf8_bom;
 
-	while ((de = readdir(d)) != NULL) {
-		struct stat st;
-
-		if (de->d_name[0] == '.')
-			continue;
-		if (ends_with(de->d_name, ".lock"))
-			continue;
-		strbuf_addstr(name, de->d_name);
-		if (stat(git_path("logs/%s", name->buf), &st) < 0) {
-			; /* silently ignore */
-		} else {
-			if (S_ISDIR(st.st_mode)) {
-				strbuf_addch(name, '/');
-				retval = do_for_each_reflog(name, fn, cb_data);
+	for (;;) {
+		int c = get_next_char();
+		if (bomptr && *bomptr) {
+			/* We are at the file beginning; skip UTF8-encoded BOM
+			 * if present. Sane editors won't put this in on their
+			 * own, but e.g. Windows Notepad will do it happily. */
+			if (c == (*bomptr & 0377)) {
+				bomptr++;
+				continue;
 			} else {
-				struct object_id oid;
-
-				if (read_ref_full(name->buf, 0, oid.hash, NULL))
-					retval = error("bad ref for %s", name->buf);
-				else
-					retval = fn(name->buf, &oid, 0, cb_data);
+				/* Do not tolerate partial BOM. */
+				if (bomptr != utf8_bom)
+					break;
+				/* No BOM at file beginning. Cool. */
+				bomptr = NULL;
 			}
-			if (retval)
-				break;
 		}
-		strbuf_setlen(name, oldlen);
+		if (c == '\n') {
+			if (cf->eof)
+				return 0;
+			comment = 0;
+			continue;
+		}
+		if (comment || isspace(c))
+			continue;
+		if (c == '#' || c == ';') {
+			comment = 1;
+			continue;
+		}
+		if (c == '[') {
+			/* Reset prior to determining a new stem */
+			strbuf_reset(var);
+			if (get_base_var(var) < 0 || var->len < 1)
+				break;
+			strbuf_addch(var, '.');
+			baselen = var->len;
+			continue;
+		}
+		if (!isalpha(c))
+			break;
+		/*
+		 * Truncate the var name back to the section header
+		 * stem prior to grabbing the suffix part of the name
+		 * and the value.
+		 */
+		strbuf_setlen(var, baselen);
+		strbuf_addch(var, tolower(c));
+		if (get_value(fn, data, var) < 0)
+			break;
 	}
-	closedir(d);
-	return retval;
+
+	switch (cf->origin_type) {
+	case CONFIG_ORIGIN_BLOB:
+		error_msg = xstrfmt(_("bad config line %d in blob %s"),
+				      cf->linenr, cf->name);
+		break;
+	case CONFIG_ORIGIN_FILE:
+		error_msg = xstrfmt(_("bad config line %d in file %s"),
+				      cf->linenr, cf->name);
+		break;
+	case CONFIG_ORIGIN_STDIN:
+		error_msg = xstrfmt(_("bad config line %d in standard input"),
+				      cf->linenr);
+		break;
+	case CONFIG_ORIGIN_SUBMODULE_BLOB:
+		error_msg = xstrfmt(_("bad config line %d in submodule-blob %s"),
+				       cf->linenr, cf->name);
+		break;
+	case CONFIG_ORIGIN_CMDLINE:
+		error_msg = xstrfmt(_("bad config line %d in command line %s"),
+				       cf->linenr, cf->name);
+		break;
+	default:
+		error_msg = xstrfmt(_("bad config line %d in %s"),
+				      cf->linenr, cf->name);
+	}
+
+	if (cf->die_on_error)
+		die("%s", error_msg);
+	else
+		error_return = error("%s", error_msg);
+
+	free(error_msg);
+	return error_return;
 }

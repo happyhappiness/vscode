@@ -1,1 +1,1 @@
-die("unable to generate word diff");
+printf("%s ", caller_name ? caller_name : sha1_to_hex(sha1));

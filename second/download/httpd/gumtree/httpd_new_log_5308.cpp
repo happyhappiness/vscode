@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf, APLOGNO(00450)
-                             "%s: Unable to create the start_mutex.",
-                             service_name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): failed to create stream obj %d",
+                      session->id, is->id, nid);

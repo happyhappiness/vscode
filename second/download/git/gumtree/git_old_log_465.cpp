@@ -1,1 +1,0 @@
-die("no branches given, and HEAD is not valid");

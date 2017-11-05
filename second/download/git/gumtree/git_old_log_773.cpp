@@ -1,2 +1,1 @@
-die_errno("Invalid symlink '%s'",
-						  sb.buf);
+die("git_all_attrs died");

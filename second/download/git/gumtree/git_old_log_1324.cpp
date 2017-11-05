@@ -1,1 +1,0 @@
-error("initialization for external filter '%s' failed", cmd);

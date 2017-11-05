@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01609)
-                             "Cannot get media parameter.");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, "canonicalising URL %s", url);

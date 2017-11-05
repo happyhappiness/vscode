@@ -1,2 +1,2 @@
-warning("protocol restrictions not applied to curl redirects because\n"
-			"your curl version is too old (>= 7.19.4)");
+error(_("Could not parse commit %s\n"),
+			     oid_to_hex(&commit->object.oid));

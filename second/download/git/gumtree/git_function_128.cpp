@@ -1,19 +1,27 @@
-int winansi_fputs(const char *str, FILE *stream)
+int read_ref_at(const char *refname, unsigned long at_time, int cnt,
+		unsigned char *sha1, char **msg,
+		unsigned long *cutoff_time, int *cutoff_tz, int *cutoff_cnt)
 {
-	int rv;
+	struct read_ref_at_cb cb;
 
-	if (!isatty(fileno(stream)))
-		return fputs(str, stream);
+	memset(&cb, 0, sizeof(cb));
+	cb.refname = refname;
+	cb.at_time = at_time;
+	cb.cnt = cnt;
+	cb.msg = msg;
+	cb.cutoff_time = cutoff_time;
+	cb.cutoff_tz = cutoff_tz;
+	cb.cutoff_cnt = cutoff_cnt;
+	cb.sha1 = sha1;
 
-	init();
+	for_each_reflog_ent_reverse(refname, read_ref_at_ent, &cb);
 
-	if (!console)
-		return fputs(str, stream);
-
-	rv = ansi_emulate(str, stream);
-
-	if (rv >= 0)
+	if (!cb.reccnt)
+		die("Log for %s is empty.", refname);
+	if (cb.found_it)
 		return 0;
-	else
-		return EOF;
+
+	for_each_reflog_ent(refname, read_ref_at_ent_oldest, &cb);
+
+	return 1;
 }

@@ -1,2 +1,1 @@
-fprintf(pipe_fd, "%s\n",
-			oid_to_hex(&have_obj.objects[i].item->oid));
+fputs(diff_get_color_opt(&opt->diffopt, DIFF_COMMIT), opt->diffopt.file);

@@ -1,1 +1,1 @@
-packet_buf_write(&req_buf, "deepen-since %lu", max_age);
+packet_write_fmt(1, "%s %s^{}\n", oid_to_hex(&peeled), refname_nons);

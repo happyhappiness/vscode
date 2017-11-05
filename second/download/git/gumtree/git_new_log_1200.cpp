@@ -1,0 +1,1 @@
+anonymize_ident_line(&committer, &committer_end);

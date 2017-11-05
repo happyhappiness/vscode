@@ -1,1 +1,1 @@
-error("core.commentChar should only be one character");
+error("fetch failed.");

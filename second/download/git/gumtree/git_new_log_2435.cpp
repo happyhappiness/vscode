@@ -1,1 +1,1 @@
-die("sent error to the client: %s", buf.buf);
+error(_("Merging is not possible because you have unmerged files."));

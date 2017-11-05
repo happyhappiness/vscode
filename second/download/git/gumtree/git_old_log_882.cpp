@@ -1,1 +1,0 @@
-die("Not a git repository: %s", dir);

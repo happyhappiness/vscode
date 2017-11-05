@@ -1,2 +1,1 @@
-die("credential helper '%s' told us to quit",
-			    c->helpers.items[i].string);
+error("object %s: %s", sha1_to_hex(obj->sha1), message);

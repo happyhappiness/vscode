@@ -1,2 +1,2 @@
-die("the receiving end asked to sign an invalid nonce <%.*s>",
-		    len, nonce);
+warning("Expected git repo version <= %d, found %d",
+			GIT_REPO_VERSION_READ, repository_format_version);

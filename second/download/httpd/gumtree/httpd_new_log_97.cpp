@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                  "CGI process %" APR_PID_T_FMT " didn't exit, sending SIGKILL again",
-                  pid);
+ap_log_error(APLOG_MARK, APLOG_INFO, inctx->rc, c->base_server,
+                            "SSL library error %d reading data", ssl_err);

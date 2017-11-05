@@ -1,30 +1,33 @@
-static const char *parse_cmd_update(struct strbuf *input, const char *next)
+static void parse_argv(void)
 {
-	char *refname;
-	unsigned char new_sha1[20];
-	unsigned char old_sha1[20];
-	int have_old;
+	unsigned int i;
 
-	refname = parse_refname(input, &next);
-	if (!refname)
-		die("update: missing <ref>");
+	for (i = 1; i < global_argc; i++) {
+		const char *a = global_argv[i];
 
-	if (parse_next_sha1(input, &next, new_sha1, "update", refname,
-			    PARSE_SHA1_ALLOW_EMPTY))
-		die("update %s: missing <newvalue>", refname);
+		if (*a != '-' || !strcmp(a, "--"))
+			break;
 
-	have_old = !parse_next_sha1(input, &next, old_sha1, "update", refname,
-				    PARSE_SHA1_OLD);
+		if (!skip_prefix(a, "--", &a))
+			die("unknown option %s", a);
 
-	if (*next != line_termination)
-		die("update %s: extra input: %s", refname, next);
+		if (parse_one_option(a))
+			continue;
 
-	if (ref_transaction_update(transaction, refname, new_sha1, old_sha1,
-				   update_flags, have_old, &err))
-		die("%s", err.buf);
+		if (parse_one_feature(a, 0))
+			continue;
 
-	update_flags = 0;
-	free(refname);
+		if (skip_prefix(a, "cat-blob-fd=", &a)) {
+			option_cat_blob_fd(a);
+			continue;
+		}
 
-	return next;
+		die("unknown option --%s", a);
+	}
+	if (i != global_argc)
+		usage(fast_import_usage);
+
+	seen_data_command = 1;
+	if (import_marks_file)
+		read_marks();
 }

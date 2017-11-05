@@ -1,2 +1,3 @@
-fprintf(stderr,"The %s service has %s.\n", mpm_display_name,
-               signal ? "restarted" : "stopped");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01972)
+                      "could not resolve address of OCSP responder %s",
+                      uri->hostinfo);

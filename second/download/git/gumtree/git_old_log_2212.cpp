@@ -1,1 +1,1 @@
-die(_("Could not format %s."), todo_file);
+die("user.useConfigOnly set but no mail given");

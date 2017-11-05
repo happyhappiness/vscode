@@ -1,2 +1,3 @@
-log_scripterror(r, conf, HTTP_SERVICE_UNAVAILABLE, connect_errno, 
-                                   apr_pstrcat(r->pool, APLOGNO(02833) "ScriptSock ", sockname, " does not exist", NULL));
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                             APLOGNO(03104)
+                             "apr_thread_create: unable to create worker thread");

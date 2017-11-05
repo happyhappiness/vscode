@@ -1,18 +1,20 @@
-static void check_ref_valid(unsigned char object[20],
-			    unsigned char prev[20],
-			    char *ref,
-			    int ref_size,
-			    int force)
+static void *get_delta(struct object_entry *entry)
 {
-	if (snprintf(ref, ref_size,
-		     "%s%s", git_replace_ref_base,
-		     sha1_to_hex(object)) > ref_size - 1)
-		die("replace ref name too long: %.*s...", 50, ref);
-	if (check_refname_format(ref, 0))
-		die("'%s' is not a valid ref name.", ref);
+	unsigned long size, base_size, delta_size;
+	void *buf, *base_buf, *delta_buf;
+	enum object_type type;
 
-	if (read_ref(ref, prev))
-		hashclr(prev);
-	else if (!force)
-		die("replace ref '%s' already exists", ref);
+	buf = read_sha1_file(entry->idx.sha1, &type, &size);
+	if (!buf)
+		die("unable to read %s", sha1_to_hex(entry->idx.sha1));
+	base_buf = read_sha1_file(entry->delta->idx.sha1, &type, &base_size);
+	if (!base_buf)
+		die("unable to read %s", sha1_to_hex(entry->delta->idx.sha1));
+	delta_buf = diff_delta(base_buf, base_size,
+			       buf, size, &delta_size, 0);
+	if (!delta_buf || delta_size != entry->delta_size)
+		die("delta size changed");
+	free(buf);
+	free(base_buf);
+	return delta_buf;
 }

@@ -1,2 +1,3 @@
-packet_write(1, "shallow %s",
-						oid_to_hex(&object->oid));
+fprintf(opt->diffopt.file, " (from %s)",
+			       find_unique_abbrev(parent->object.oid.hash,
+						  abbrev_commit));

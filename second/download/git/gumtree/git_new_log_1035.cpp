@@ -1,3 +1,2 @@
-warning(_("core.splitIndex is set to true; "
-				  "remove or change it, if you really want to "
-				  "disable split index"));
+printf("%s %s\n", oid_to_hex(&r->list[i].oid),
+				r->list[i].name);

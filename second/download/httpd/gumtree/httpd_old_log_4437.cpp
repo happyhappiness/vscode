@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: pre_connection setup failed (%d)",
-                     rc);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Invalid method in request %s", r->the_request);

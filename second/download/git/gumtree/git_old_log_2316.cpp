@@ -1,1 +1,2 @@
-die(_("malformed object name %s"), arg);
+error("opening %s: %s", config_filename,
+			      strerror(errno));

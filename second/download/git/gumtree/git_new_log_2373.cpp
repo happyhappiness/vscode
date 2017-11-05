@@ -1,1 +1,1 @@
-printf("%s	%s\n", oid_to_hex(&ref->old_oid), ref->name);;
+strbuf_write(&pp->children[i].err, stderr);

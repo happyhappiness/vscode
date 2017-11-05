@@ -1,2 +1,1 @@
-error(_("The note contents have been left in %s"),
-				d->edit_path);
+die("Invalid SHA-1: %s", buffer);

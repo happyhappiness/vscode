@@ -1,1 +1,0 @@
-die("BUG: not unique item in first-parent chain");

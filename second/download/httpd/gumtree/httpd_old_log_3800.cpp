@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, NULL,
-                             "Couldn't unlink unix domain socket %s",
-                             sockname);
+ap_rvputs(r, "value=\"", ap_escape_html(r->pool, wsel->s->route),
+                      NULL);

@@ -1,1 +1,1 @@
-warning(_(rename_limit_warning));
+packet_write_fmt(1, "ACK %s ready\n", hex);

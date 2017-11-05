@@ -1,1 +1,1 @@
-die(_("malformed object at '%s'"), refname);
+fprintf(file, "%s%s\n", pathname, S_ISDIR(mode) ? "/" : "");

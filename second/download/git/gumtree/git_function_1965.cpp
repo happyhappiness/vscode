@@ -1,26 +1,22 @@
-static const char *get_upstream_branch(const char *branch_buf, int len)
+static char *color_output(char *out, int len, const struct color *c, char type)
 {
-	char *branch = xstrndup(branch_buf, len);
-	struct branch *upstream = branch_get(*branch ? branch : NULL);
-
-	/*
-	 * Upstream can be NULL only if branch refers to HEAD and HEAD
-	 * points to something different than a branch.
-	 */
-	if (!upstream)
-		die(_("HEAD does not point to a branch"));
-	if (!upstream->merge || !upstream->merge[0]->dst) {
-		if (!ref_exists(upstream->refname))
-			die(_("No such branch: '%s'"), branch);
-		if (!upstream->merge) {
-			die(_("No upstream configured for branch '%s'"),
-				upstream->name);
-		}
-		die(
-			_("Upstream branch '%s' not stored as a remote-tracking branch"),
-			upstream->merge[0]->src);
+	switch (c->type) {
+	case COLOR_UNSPECIFIED:
+	case COLOR_NORMAL:
+		break;
+	case COLOR_ANSI:
+		if (len < 2)
+			die("BUG: color parsing ran out of space");
+		*out++ = type;
+		*out++ = '0' + c->value;
+		break;
+	case COLOR_256:
+		out += xsnprintf(out, len, "%c8;5;%d", type, c->value);
+		break;
+	case COLOR_RGB:
+		out += xsnprintf(out, len, "%c8;2;%d;%d;%d", type,
+				 c->red, c->green, c->blue);
+		break;
 	}
-	free(branch);
-
-	return upstream->merge[0]->dst;
+	return out;
 }

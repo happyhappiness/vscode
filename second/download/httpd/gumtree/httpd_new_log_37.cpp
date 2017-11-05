@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                     "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
-                     "value of %d threads,", ap_threads_per_child, 
-                     thread_limit);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     " lowering ThreadsPerChild to %d. To increase, please"
+                     " see the", thread_limit);

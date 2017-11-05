@@ -1,1 +1,1 @@
-die(_("cannot read existing object info %s"), oid_to_hex(oid));
+error(_("bad config file line %d in %s"), cf->linenr, cf->name);

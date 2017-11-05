@@ -1,1 +1,1 @@
-ap_rputs(" -D BUFFERED_LOGS\n", r);
+ap_rputs("</td>\n", r);

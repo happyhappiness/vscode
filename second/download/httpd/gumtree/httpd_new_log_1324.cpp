@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "Failed expression: %s", req->cpExpr);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                         "ajp_marshal_into_msgb: "
+                         "Error appending the method '%s' as request attribute",
+                         r->method);

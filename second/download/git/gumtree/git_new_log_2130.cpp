@@ -1,0 +1,1 @@
+die("socket directory must be an absolute path");

@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "proxy: FCGI: Got bogus record %d", type);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "OCSP stapling initialized");

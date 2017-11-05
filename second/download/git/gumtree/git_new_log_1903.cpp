@@ -1,1 +1,1 @@
-die_errno(_("failed to delete directory %s"), path);
+die(_("object type mismatch at %s"), oid_to_hex(&obj->oid));

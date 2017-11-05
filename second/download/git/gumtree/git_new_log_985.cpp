@@ -1,1 +1,1 @@
-die(_("could not read symlink file %s"), path);
+die(_("cannot read existing object info %s"), oid_to_hex(oid));

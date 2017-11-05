@@ -1,2 +1,1 @@
-warning("%s %s: missing <newvalue>, treating as zero",
-				command, refname);
+die("cannot start proxy %s", git_proxy_command);

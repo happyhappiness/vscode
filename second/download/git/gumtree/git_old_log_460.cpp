@@ -1,2 +1,1 @@
-packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
-			     vhost, 0);
+die(_("Unusable instruction sheet: %s"), git_path_todo_file());

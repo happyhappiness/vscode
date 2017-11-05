@@ -1,1 +1,0 @@
-die(_("empty commit set passed"));

@@ -1,2 +1,2 @@
-error("Object %s is a %s, not a blob",
+error("Object %s is a %s, not a tree",
 		      sha1_to_hex(sha1), typename(obj->type));

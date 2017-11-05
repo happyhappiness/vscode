@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c,
-                                  "SSL input filter read failed.");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %d: Exit event signaled. Child process is "
+                         "ending.", my_pid);

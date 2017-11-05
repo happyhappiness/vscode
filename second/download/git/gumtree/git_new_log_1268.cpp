@@ -1,1 +1,1 @@
-write_name(fullname);
+vreportf("error: ", err, params);

@@ -1,108 +1,79 @@
-static unsigned long write_no_reuse_object(struct sha1file *f, struct object_entry *entry,
-					   unsigned long limit, int usable_delta)
+static CURL *get_curl_handle(void)
 {
-	unsigned long size, datalen;
-	unsigned char header[MAX_PACK_OBJECT_HEADER],
-		      dheader[MAX_PACK_OBJECT_HEADER];
-	unsigned hdrlen;
-	enum object_type type;
-	void *buf;
-	struct git_istream *st = NULL;
+	CURL *result = curl_easy_init();
 
-	if (!usable_delta) {
-		if (entry->type == OBJ_BLOB &&
-		    entry->size > big_file_threshold &&
-		    (st = open_istream(entry->idx.sha1, &type, &size, NULL)) != NULL)
-			buf = NULL;
-		else {
-			buf = read_sha1_file(entry->idx.sha1, &type, &size);
-			if (!buf)
-				die(_("unable to read %s"), sha1_to_hex(entry->idx.sha1));
-		}
-		/*
-		 * make sure no cached delta data remains from a
-		 * previous attempt before a pack split occurred.
-		 */
-		free(entry->delta_data);
-		entry->delta_data = NULL;
-		entry->z_delta_size = 0;
-	} else if (entry->delta_data) {
-		size = entry->delta_size;
-		buf = entry->delta_data;
-		entry->delta_data = NULL;
-		type = (allow_ofs_delta && entry->delta->idx.offset) ?
-			OBJ_OFS_DELTA : OBJ_REF_DELTA;
+	if (!result)
+		die("curl_easy_init failed");
+
+	if (!curl_ssl_verify) {
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 0);
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 0);
 	} else {
-		buf = get_delta(entry);
-		size = entry->delta_size;
-		type = (allow_ofs_delta && entry->delta->idx.offset) ?
-			OBJ_OFS_DELTA : OBJ_REF_DELTA;
+		/* Verify authenticity of the peer's certificate */
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 1);
+		/* The name in the cert must match whom we tried to connect */
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 2);
 	}
 
-	if (st)	/* large blob case, just assume we don't compress well */
-		datalen = size;
-	else if (entry->z_delta_size)
-		datalen = entry->z_delta_size;
-	else
-		datalen = do_compress(&buf, size);
+#if LIBCURL_VERSION_NUM >= 0x070907
+	curl_easy_setopt(result, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
+#endif
+#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
+	curl_easy_setopt(result, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+#endif
 
-	/*
-	 * The object header is a byte of 'type' followed by zero or
-	 * more bytes of length.
-	 */
-	hdrlen = encode_in_pack_object_header(header, sizeof(header),
-					      type, size);
+	if (http_proactive_auth)
+		init_curl_http_auth(result);
 
-	if (type == OBJ_OFS_DELTA) {
-		/*
-		 * Deltas with relative base contain an additional
-		 * encoding of the relative offset for the delta
-		 * base from this object's position in the pack.
-		 */
-		off_t ofs = entry->idx.offset - entry->delta->idx.offset;
-		unsigned pos = sizeof(dheader) - 1;
-		dheader[pos] = ofs & 127;
-		while (ofs >>= 7)
-			dheader[--pos] = 128 | (--ofs & 127);
-		if (limit && hdrlen + sizeof(dheader) - pos + datalen + 20 >= limit) {
-			if (st)
-				close_istream(st);
-			free(buf);
-			return 0;
-		}
-		sha1write(f, header, hdrlen);
-		sha1write(f, dheader + pos, sizeof(dheader) - pos);
-		hdrlen += sizeof(dheader) - pos;
-	} else if (type == OBJ_REF_DELTA) {
-		/*
-		 * Deltas with a base reference contain
-		 * an additional 20 bytes for the base sha1.
-		 */
-		if (limit && hdrlen + 20 + datalen + 20 >= limit) {
-			if (st)
-				close_istream(st);
-			free(buf);
-			return 0;
-		}
-		sha1write(f, header, hdrlen);
-		sha1write(f, entry->delta->idx.sha1, 20);
-		hdrlen += 20;
-	} else {
-		if (limit && hdrlen + datalen + 20 >= limit) {
-			if (st)
-				close_istream(st);
-			free(buf);
-			return 0;
-		}
-		sha1write(f, header, hdrlen);
-	}
-	if (st) {
-		datalen = write_large_blob_data(st, f, entry->idx.sha1);
-		close_istream(st);
-	} else {
-		sha1write(f, buf, datalen);
-		free(buf);
+	if (ssl_cert != NULL)
+		curl_easy_setopt(result, CURLOPT_SSLCERT, ssl_cert);
+	if (has_cert_password())
+		curl_easy_setopt(result, CURLOPT_KEYPASSWD, cert_auth.password);
+#if LIBCURL_VERSION_NUM >= 0x070903
+	if (ssl_key != NULL)
+		curl_easy_setopt(result, CURLOPT_SSLKEY, ssl_key);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x070908
+	if (ssl_capath != NULL)
+		curl_easy_setopt(result, CURLOPT_CAPATH, ssl_capath);
+#endif
+	if (ssl_cainfo != NULL)
+		curl_easy_setopt(result, CURLOPT_CAINFO, ssl_cainfo);
+
+	if (curl_low_speed_limit > 0 && curl_low_speed_time > 0) {
+		curl_easy_setopt(result, CURLOPT_LOW_SPEED_LIMIT,
+				 curl_low_speed_limit);
+		curl_easy_setopt(result, CURLOPT_LOW_SPEED_TIME,
+				 curl_low_speed_time);
 	}
 
-	return hdrlen + datalen;
+	curl_easy_setopt(result, CURLOPT_FOLLOWLOCATION, 1);
+#if LIBCURL_VERSION_NUM >= 0x071301
+	curl_easy_setopt(result, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
+#elif LIBCURL_VERSION_NUM >= 0x071101
+	curl_easy_setopt(result, CURLOPT_POST301, 1);
+#endif
+
+	if (getenv("GIT_CURL_VERBOSE"))
+		curl_easy_setopt(result, CURLOPT_VERBOSE, 1);
+
+	curl_easy_setopt(result, CURLOPT_USERAGENT,
+		user_agent ? user_agent : git_user_agent());
+
+	if (curl_ftp_no_epsv)
+		curl_easy_setopt(result, CURLOPT_FTP_USE_EPSV, 0);
+
+#ifdef CURLOPT_USE_SSL
+	if (curl_ssl_try)
+		curl_easy_setopt(result, CURLOPT_USE_SSL, CURLUSESSL_TRY);
+#endif
+
+	if (curl_http_proxy) {
+		curl_easy_setopt(result, CURLOPT_PROXY, curl_http_proxy);
+		curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+	}
+
+	set_curl_keepalive(result);
+
+	return result;
 }

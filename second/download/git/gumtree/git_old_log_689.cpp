@@ -1,1 +1,0 @@
-warning("%s unexpectedly said: '%s'", data->name, buf.buf);

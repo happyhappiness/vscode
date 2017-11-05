@@ -1,1 +1,1 @@
-warning(_("--shallow-exclude is ignored in local clones; use file:// instead."));
+die(_("Server does not support shallow clients"));

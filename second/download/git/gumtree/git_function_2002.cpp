@@ -1,11 +1,7 @@
-static void copy_request(const char *prog_name, int out)
+static void show_children(struct rev_info *opt, struct commit *commit, int abbrev)
 {
-	unsigned char *buf;
-	ssize_t n = read_request(0, &buf);
-	if (n < 0)
-		die_errno("error reading request body");
-	if (write_in_full(out, buf, n) != n)
-		die("%s aborted reading request", prog_name);
-	close(out);
-	free(buf);
+	struct commit_list *p = lookup_decoration(&opt->children, &commit->object);
+	for ( ; p; p = p->next) {
+		printf(" %s", find_unique_abbrev(p->item->object.sha1, abbrev));
+	}
 }

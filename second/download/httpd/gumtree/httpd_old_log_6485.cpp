@@ -1,3 +1,5 @@
-ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
-                 "mod_http2 (v%s, nghttp2 %s), initializing...",
-                 MOD_HTTP2_VERSION, ngh2? ngh2->version_str : "unknown");
+ap_rvputs(r, "<tr>\n<td><a href='", r->uri, "?b=",
+                          balancer->s->name + sizeof(BALANCER_PREFIX) - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->s->name),
+                          "&nonce=", balancer->s->nonce,
+                          "'>", NULL);

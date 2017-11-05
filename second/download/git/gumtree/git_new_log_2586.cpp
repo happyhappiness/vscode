@@ -1,1 +1,1 @@
-memcpy(m, name, nlen + 1);
+warning("object %s: %s", describe_object(o, obj), message);

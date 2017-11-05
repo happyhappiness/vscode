@@ -1,2 +1,1 @@
-fprintf(stderr, "Staged '%s' using previous resolution.\n",
-			item->string);
+error("Unknown object type for %s", describe_object(options, obj));

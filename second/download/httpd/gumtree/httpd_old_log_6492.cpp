@@ -1,1 +1,1 @@
-ap_rputs("OK", r);
+ap_rvputs(r, "</form>\n", NULL);

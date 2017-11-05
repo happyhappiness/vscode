@@ -1,2 +1,2 @@
-die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+die(_("No url found for submodule path '%s' in .gitmodules"),
+			displaypath);

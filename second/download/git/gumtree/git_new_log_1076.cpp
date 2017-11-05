@@ -1,2 +1,1 @@
-die("unknown object type for %s: %s",
-		    oid_to_hex(oid), typename(type));
+die("Couldn't JIT the PCRE2 pattern '%s', got '%d'\n", p->pattern, jitret);

@@ -1,1 +1,1 @@
-error(FAILED_RUN, prune_worktrees.argv[0]);
+die ("Could not read tag %s", oid_to_hex(&tag->object.oid));

@@ -1,2 +1,1 @@
-printf("Multiple merge bases found. Using the first "
-				"(%.7s)\n", oid_to_hex(base_oid));
+die_errno(_("unable to get current working directory"));

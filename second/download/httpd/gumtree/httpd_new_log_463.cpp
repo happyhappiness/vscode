@@ -1,1 +1,2 @@
-header_file(r->pool, conf, dobj, key);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                       "Could not open group file: %s", grpfile);

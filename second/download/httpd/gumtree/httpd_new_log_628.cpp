@@ -1,0 +1,1 @@
+ap_rputs(" -D AP_HAVE_RELIABLE_PIPED_LOGS\n", r);

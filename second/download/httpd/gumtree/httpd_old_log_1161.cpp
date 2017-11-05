@@ -1,0 +1,1 @@
+err("Cannot mix POST and HEAD\n");

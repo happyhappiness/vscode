@@ -1,2 +1,1 @@
-error(_("could not update HEAD to %s"),
-					head_ref.buf);
+warning("could not freshen shared index '%s'", shared_index);

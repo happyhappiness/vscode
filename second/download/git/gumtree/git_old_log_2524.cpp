@@ -1,1 +1,1 @@
-die("internal error: packed-refs not locked");
+error("cannot mix --commit, --abort or -s/--strategy");

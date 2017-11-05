@@ -1,2 +1,4 @@
-ap_rvputs(r, "<input type=hidden name=\"nonce\" value=\"", 
-                      balancer_nonce, "\">\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01748)
+                  "auth_ldap authorize filter: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);

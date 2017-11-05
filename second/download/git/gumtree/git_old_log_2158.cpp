@@ -1,1 +1,2 @@
-error("cannot fix permission bits on %s", lk->filename.buf);
+die("missing object %s for %s",
+		    sha1_to_hex(ref->objectname), ref->refname);

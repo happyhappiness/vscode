@@ -1,1 +1,0 @@
-die(_("make_cache_entry failed for path '%s'"), name);

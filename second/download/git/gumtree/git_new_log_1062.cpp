@@ -1,1 +1,1 @@
-die("unable to create lazy_dir_thread");
+die("object not found: %s", oid_to_hex(&oid));

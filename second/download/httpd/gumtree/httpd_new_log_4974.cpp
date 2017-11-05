@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, stat, p, APLOGNO(00072)
-                      "make_sock: could not bind to address %pI",
-                      server->bind_addr);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00540)
+                      "XML parser error (at end). status=%d", status);

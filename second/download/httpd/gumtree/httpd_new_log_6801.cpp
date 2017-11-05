@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                          "h2_mplx(%ld): idle, but %d streams to process",
-                          m->id, (int)h2_iq_count(m->q));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02556)
+                         "\"SSLOpenSSLConfCmd %s %s\" applied to %s",
+                         param->name, param->value, sc->vhost_id);

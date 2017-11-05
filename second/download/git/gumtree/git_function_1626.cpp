@@ -1,43 +1,30 @@
-static void parse_options_check(const struct option *opts)
+static void find_copy_in_blob(struct scoreboard *sb,
+			      struct blame_entry *ent,
+			      struct origin *parent,
+			      struct blame_entry *split,
+			      mmfile_t *file_p)
 {
-	int err = 0;
-	char short_opts[128];
+	const char *cp;
+	mmfile_t file_o;
+	struct handle_split_cb_data d;
 
-	memset(short_opts, '\0', sizeof(short_opts));
-	for (; opts->type != OPTION_END; opts++) {
-		if ((opts->flags & PARSE_OPT_LASTARG_DEFAULT) &&
-		    (opts->flags & PARSE_OPT_OPTARG))
-			err |= optbug(opts, "uses incompatible flags "
-					"LASTARG_DEFAULT and OPTARG");
-		if (opts->short_name) {
-			if (0x7F <= opts->short_name)
-				err |= optbug(opts, "invalid short name");
-			else if (short_opts[opts->short_name]++)
-				err |= optbug(opts, "short name already used");
-		}
-		if (opts->flags & PARSE_OPT_NODASH &&
-		    ((opts->flags & PARSE_OPT_OPTARG) ||
-		     !(opts->flags & PARSE_OPT_NOARG) ||
-		     !(opts->flags & PARSE_OPT_NONEG) ||
-		     opts->long_name))
-			err |= optbug(opts, "uses feature "
-					"not supported for dashless options");
-		switch (opts->type) {
-		case OPTION_COUNTUP:
-		case OPTION_BIT:
-		case OPTION_NEGBIT:
-		case OPTION_SET_INT:
-		case OPTION_NUMBER:
-			if ((opts->flags & PARSE_OPT_OPTARG) ||
-			    !(opts->flags & PARSE_OPT_NOARG))
-				err |= optbug(opts, "should not accept an argument");
-		default:
-			; /* ok. (usually accepts an argument) */
-		}
-		if (opts->argh &&
-		    strcspn(opts->argh, " _") != strlen(opts->argh))
-			err |= optbug(opts, "multi-word argh should use dash to separate words");
-	}
-	if (err)
-		exit(128);
+	memset(&d, 0, sizeof(d));
+	d.sb = sb; d.ent = ent; d.parent = parent; d.split = split;
+	/*
+	 * Prepare mmfile that contains only the lines in ent.
+	 */
+	cp = nth_line(sb, ent->lno);
+	file_o.ptr = (char *) cp;
+	file_o.size = nth_line(sb, ent->lno + ent->num_lines) - cp;
+
+	/*
+	 * file_o is a part of final image we are annotating.
+	 * file_p partially may match that image.
+	 */
+	memset(split, 0, sizeof(struct blame_entry [3]));
+	if (diff_hunks(file_p, &file_o, 1, handle_split_cb, &d))
+		die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));
+	/* remainder, if any, all match the preimage */
+	handle_split(sb, ent, d.tlno, d.plno, ent->num_lines, parent, split);
 }

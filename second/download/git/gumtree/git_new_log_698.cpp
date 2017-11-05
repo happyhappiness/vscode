@@ -1,1 +1,1 @@
-packet_write_fmt(1, "ACK %s ready\n", last_hex);
+error("unable to unpack contents of %s", path);

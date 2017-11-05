@@ -1,3 +1,2 @@
-fprintf(stderr,
-				"%.*s is not a valid attribute name: %s:%d\n",
-				len, cp, src, lineno);
+fprintf_ln(stderr, _("in %0.1f seconds automatically..."),
+				(float)autocorrect/10.0);

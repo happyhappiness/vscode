@@ -1,1 +1,1 @@
-error(_("Could not remove config section '%s'"), buf.buf);
+die("'%s': not a non-negative integer", arg + 1);

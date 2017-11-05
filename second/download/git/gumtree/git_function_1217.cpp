@@ -1,21 +1,16 @@
-static void append_merge_parents(struct commit_list **tail)
+static void prepare_move_submodule(const char *src, int first,
+				   const char **submodule_gitfile)
 {
-	int merge_head;
-	struct strbuf line = STRBUF_INIT;
-
-	merge_head = open(git_path_merge_head(), O_RDONLY);
-	if (merge_head < 0) {
-		if (errno == ENOENT)
-			return;
-		die("cannot open '%s' for reading", git_path_merge_head());
-	}
-
-	while (!strbuf_getwholeline_fd(&line, merge_head, '\n')) {
-		struct object_id oid;
-		if (line.len < GIT_SHA1_HEXSZ || get_oid_hex(line.buf, &oid))
-			die("unknown line in '%s': %s", git_path_merge_head(), line.buf);
-		tail = append_parent(tail, &oid);
-	}
-	close(merge_head);
-	strbuf_release(&line);
+	struct strbuf submodule_dotgit = STRBUF_INIT;
+	if (!S_ISGITLINK(active_cache[first]->ce_mode))
+		die(_("Directory %s is in index and no submodule?"), src);
+	if (!is_staging_gitmodules_ok())
+		die(_("Please stage your changes to .gitmodules or stash them to proceed"));
+	strbuf_addf(&submodule_dotgit, "%s/.git", src);
+	*submodule_gitfile = read_gitfile(submodule_dotgit.buf);
+	if (*submodule_gitfile)
+		*submodule_gitfile = xstrdup(*submodule_gitfile);
+	else
+		*submodule_gitfile = SUBMODULE_WITH_GITDIR;
+	strbuf_release(&submodule_dotgit);
 }

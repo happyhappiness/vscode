@@ -1,53 +1,138 @@
-static void wt_porcelain_v2_print_tracking(struct wt_status *s)
+int cmd_gc(int argc, const char **argv, const char *prefix)
 {
-	struct branch *branch;
-	const char *base;
-	const char *branch_name;
-	struct wt_status_state state;
-	int ab_info, nr_ahead, nr_behind;
-	char eol = s->null_termination ? '\0' : '\n';
+	int aggressive = 0;
+	int auto_gc = 0;
+	int quiet = 0;
+	int force = 0;
+	const char *name;
+	pid_t pid;
+	int daemonized = 0;
 
-	memset(&state, 0, sizeof(state));
-	wt_status_get_state(&state, s->branch && !strcmp(s->branch, "HEAD"));
+	struct option builtin_gc_options[] = {
+		OPT__QUIET(&quiet, N_("suppress progress reporting")),
+		{ OPTION_STRING, 0, "prune", &prune_expire, N_("date"),
+			N_("prune unreferenced objects"),
+			PARSE_OPT_OPTARG, NULL, (intptr_t)prune_expire },
+		OPT_BOOL(0, "aggressive", &aggressive, N_("be more thorough (increased runtime)")),
+		OPT_BOOL(0, "auto", &auto_gc, N_("enable auto-gc mode")),
+		OPT_BOOL(0, "force", &force, N_("force running gc even if there may be another gc running")),
+		OPT_END()
+	};
 
-	fprintf(s->fp, "# branch.oid %s%c",
-			(s->is_initial ? "(initial)" : sha1_to_hex(s->sha1_commit)),
-			eol);
+	if (argc == 2 && !strcmp(argv[1], "-h"))
+		usage_with_options(builtin_gc_usage, builtin_gc_options);
 
-	if (!s->branch)
-		fprintf(s->fp, "# branch.head %s%c", "(unknown)", eol);
-	else {
-		if (!strcmp(s->branch, "HEAD")) {
-			fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);
+	argv_array_pushl(&pack_refs_cmd, "pack-refs", "--all", "--prune", NULL);
+	argv_array_pushl(&reflog, "reflog", "expire", "--all", NULL);
+	argv_array_pushl(&repack, "repack", "-d", "-l", NULL);
+	argv_array_pushl(&prune, "prune", "--expire", NULL);
+	argv_array_pushl(&prune_worktrees, "worktree", "prune", "--expire", NULL);
+	argv_array_pushl(&rerere, "rerere", "gc", NULL);
 
-			if (state.rebase_in_progress || state.rebase_interactive_in_progress)
-				branch_name = state.onto;
-			else if (state.detached_from)
-				branch_name = state.detached_from;
+	/* default expiry time, overwritten in gc_config */
+	gc_config();
+	if (parse_expiry_date(gc_log_expire, &gc_log_expire_time))
+		die(_("Failed to parse gc.logexpiry value %s"), gc_log_expire);
+
+	if (pack_refs < 0)
+		pack_refs = !is_bare_repository();
+
+	argc = parse_options(argc, argv, prefix, builtin_gc_options,
+			     builtin_gc_usage, 0);
+	if (argc > 0)
+		usage_with_options(builtin_gc_usage, builtin_gc_options);
+
+	if (aggressive) {
+		argv_array_push(&repack, "-f");
+		if (aggressive_depth > 0)
+			argv_array_pushf(&repack, "--depth=%d", aggressive_depth);
+		if (aggressive_window > 0)
+			argv_array_pushf(&repack, "--window=%d", aggressive_window);
+	}
+	if (quiet)
+		argv_array_push(&repack, "-q");
+
+	if (auto_gc) {
+		/*
+		 * Auto-gc should be least intrusive as possible.
+		 */
+		if (!need_to_gc())
+			return 0;
+		if (!quiet) {
+			if (detach_auto)
+				fprintf(stderr, _("Auto packing the repository in background for optimum performance.\n"));
 			else
-				branch_name = "";
-		} else {
-			branch_name = NULL;
-			skip_prefix(s->branch, "refs/heads/", &branch_name);
-
-			fprintf(s->fp, "# branch.head %s%c", branch_name, eol);
+				fprintf(stderr, _("Auto packing the repository for optimum performance.\n"));
+			fprintf(stderr, _("See \"git help gc\" for manual housekeeping.\n"));
 		}
+		if (detach_auto) {
+			if (report_last_gc_error())
+				return -1;
 
-		/* Lookup stats on the upstream tracking branch, if set. */
-		branch = branch_get(branch_name);
-		base = NULL;
-		ab_info = (stat_tracking_info(branch, &nr_ahead, &nr_behind, &base) == 0);
-		if (base) {
-			base = shorten_unambiguous_ref(base, 0);
-			fprintf(s->fp, "# branch.upstream %s%c", base, eol);
-			free((char *)base);
+			if (gc_before_repack())
+				return -1;
+			/*
+			 * failure to daemonize is ok, we'll continue
+			 * in foreground
+			 */
+			daemonized = !daemonize();
+		}
+	} else
+		add_repack_all_option();
 
-			if (ab_info)
-				fprintf(s->fp, "# branch.ab +%d -%d%c", nr_ahead, nr_behind, eol);
+	name = lock_repo_for_gc(force, &pid);
+	if (name) {
+		if (auto_gc)
+			return 0; /* be quiet on --auto */
+		die(_("gc is already running on machine '%s' pid %"PRIuMAX" (use --force if not)"),
+		    name, (uintmax_t)pid);
+	}
+
+	if (daemonized) {
+		hold_lock_file_for_update(&log_lock,
+					  git_path("gc.log"),
+					  LOCK_DIE_ON_ERROR);
+		dup2(get_lock_file_fd(&log_lock), 2);
+		sigchain_push_common(process_log_file_on_signal);
+		atexit(process_log_file_at_exit);
+	}
+
+	if (gc_before_repack())
+		return -1;
+
+	if (!repository_format_precious_objects) {
+		if (run_command_v_opt(repack.argv, RUN_GIT_CMD))
+			return error(FAILED_RUN, repack.argv[0]);
+
+		if (prune_expire) {
+			argv_array_push(&prune, prune_expire);
+			if (quiet)
+				argv_array_push(&prune, "--no-progress");
+			if (run_command_v_opt(prune.argv, RUN_GIT_CMD))
+				return error(FAILED_RUN, prune.argv[0]);
 		}
 	}
 
-	free(state.branch);
-	free(state.onto);
-	free(state.detached_from);
+	if (prune_worktrees_expire) {
+		argv_array_push(&prune_worktrees, prune_worktrees_expire);
+		if (run_command_v_opt(prune_worktrees.argv, RUN_GIT_CMD))
+			return error(FAILED_RUN, prune_worktrees.argv[0]);
+	}
+
+	if (run_command_v_opt(rerere.argv, RUN_GIT_CMD))
+		return error(FAILED_RUN, rerere.argv[0]);
+
+	report_garbage = report_pack_garbage;
+	reprepare_packed_git();
+	if (pack_garbage.nr > 0)
+		clean_pack_garbage();
+
+	if (auto_gc && too_many_loose_objects())
+		warning(_("There are too many unreachable loose objects; "
+			"run 'git prune' to remove them."));
+
+	if (!daemonized)
+		unlink(git_path("gc.log"));
+
+	return 0;
 }

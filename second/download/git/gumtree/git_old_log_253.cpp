@@ -1,1 +1,1 @@
-die(_("patch with only garbage at line %d"), state->linenr);
+die("Could not resolve ref '%s'", o.branch1);

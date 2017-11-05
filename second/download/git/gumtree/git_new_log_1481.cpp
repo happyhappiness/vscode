@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+die("unable to generate diff");

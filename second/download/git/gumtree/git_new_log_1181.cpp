@@ -1,1 +1,1 @@
-fprintf(stderr, "%s%s\n", prefix, msg);
+strbuf_release(&err);

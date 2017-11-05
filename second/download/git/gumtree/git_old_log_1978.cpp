@@ -1,2 +1,1 @@
-error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
+fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_MODE(LOCAL)));

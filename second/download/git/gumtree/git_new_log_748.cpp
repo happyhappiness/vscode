@@ -1,1 +1,1 @@
-error("abbrev length out of range: %d", abbrev);
+die(_("no name was given and auto-detection is disabled"));

@@ -1,1 +1,1 @@
-error(_("some refs could not be read"));
+error("could not lock config file %s: %s", config_filename, strerror(errno));

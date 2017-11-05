@@ -1,1 +1,1 @@
-die_errno("Could not read '%s'", path);
+die(_("unrecognized color: %%(color:%s)"), color_value);

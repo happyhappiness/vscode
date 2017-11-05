@@ -1,1 +1,1 @@
-printf(_("Remove %s [y/N]? "), qname);
+get_lock_file_path(lock->lk);

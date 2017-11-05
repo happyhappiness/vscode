@@ -1,1 +1,2 @@
-printf("[%s%s ", head, initial_commit ? _(" (root-commit)") : "");
+warning("protocol restrictions not applied to curl redirects because\n"
+			"your curl version is too old (>= 7.19.4)");

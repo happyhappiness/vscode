@@ -1,1 +1,1 @@
-printf("-- \n%s", signature);
+die_errno("unable to read from mktree");

@@ -1,1 +1,1 @@
-die("could not read %s%s", prompt, strerror(errno));
+error("unable to write current sha1 into %s", newrefname);

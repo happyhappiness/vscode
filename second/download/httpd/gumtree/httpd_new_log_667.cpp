@@ -1,2 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter "
-                          "\"%s\" to tag exec in %s", tag, file);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                         "RewriteOptions: MaxRedirects option has been "
+                         "removed in favor of the global "
+                         "LimitInternalRecursion directive and will be "
+                         "ignored.");

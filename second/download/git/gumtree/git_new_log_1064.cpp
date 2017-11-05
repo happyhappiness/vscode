@@ -1,1 +1,1 @@
-die("unable to create lazy_name_thread");
+die("The commit %s is corrupt", oid_to_hex(&b->oid));

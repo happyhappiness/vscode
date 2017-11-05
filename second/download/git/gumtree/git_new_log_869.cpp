@@ -1,1 +1,1 @@
-error(_("could not commit staged changes."));
+die(_("format: %%(if) atom used without a %%(then) atom"));

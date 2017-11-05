@@ -1,44 +1,35 @@
-static void get_commit_info(struct am_state *state, struct commit *commit)
+static int list_tags(struct ref_filter *filter, struct ref_sorting *sorting,
+		     struct ref_format *format)
 {
-	const char *buffer, *ident_line, *author_date, *msg;
-	size_t ident_len;
-	struct ident_split ident_split;
-	struct strbuf sb = STRBUF_INIT;
+	struct ref_array array;
+	char *to_free = NULL;
+	int i;
 
-	buffer = logmsg_reencode(commit, NULL, get_commit_output_encoding());
+	memset(&array, 0, sizeof(array));
 
-	ident_line = find_commit_header(buffer, "author", &ident_len);
+	if (filter->lines == -1)
+		filter->lines = 0;
 
-	if (split_ident_line(&ident_split, ident_line, ident_len) < 0) {
-		strbuf_add(&sb, ident_line, ident_len);
-		die(_("invalid ident line: %s"), sb.buf);
+	if (!format->format) {
+		if (filter->lines) {
+			to_free = xstrfmt("%s %%(contents:lines=%d)",
+					  "%(align:15)%(refname:lstrip=2)%(end)",
+					  filter->lines);
+			format->format = to_free;
+		} else
+			format->format = "%(refname:lstrip=2)";
 	}
 
-	assert(!state->author_name);
-	if (ident_split.name_begin) {
-		strbuf_add(&sb, ident_split.name_begin,
-			ident_split.name_end - ident_split.name_begin);
-		state->author_name = strbuf_detach(&sb, NULL);
-	} else
-		state->author_name = xstrdup("");
+	if (verify_ref_format(format))
+		die(_("unable to parse format string"));
+	filter->with_commit_tag_algo = 1;
+	filter_refs(&array, filter, FILTER_REFS_TAGS);
+	ref_array_sort(sorting, &array);
 
-	assert(!state->author_email);
-	if (ident_split.mail_begin) {
-		strbuf_add(&sb, ident_split.mail_begin,
-			ident_split.mail_end - ident_split.mail_begin);
-		state->author_email = strbuf_detach(&sb, NULL);
-	} else
-		state->author_email = xstrdup("");
+	for (i = 0; i < array.nr; i++)
+		show_ref_array_item(array.items[i], format);
+	ref_array_clear(&array);
+	free(to_free);
 
-	author_date = show_ident_date(&ident_split, DATE_MODE(NORMAL));
-	strbuf_addstr(&sb, author_date);
-	assert(!state->author_date);
-	state->author_date = strbuf_detach(&sb, NULL);
-
-	assert(!state->msg);
-	msg = strstr(buffer, "\n\n");
-	if (!msg)
-		die(_("unable to parse commit %s"), oid_to_hex(&commit->object.oid));
-	state->msg = xstrdup(msg + 2);
-	state->msg_len = strlen(state->msg);
+	return 0;
 }

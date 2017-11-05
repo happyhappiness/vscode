@@ -1,1 +1,1 @@
-error("'%s' exists; cannot create '%s'", entry->name, refname);
+die(_("your current branch appears to be broken"));

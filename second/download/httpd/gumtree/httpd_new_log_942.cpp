@@ -1,2 +1,1 @@
-apr_pstrcat(p, "Include directory '", path, "' not found",
-                               NULL);
+fprintf(stderr, "apr_table_overlap: b's pool is not an ancestor of a's\n");

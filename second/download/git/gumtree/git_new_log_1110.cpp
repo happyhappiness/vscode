@@ -1,1 +1,1 @@
-!ref_resolves_to_object(iter->refname, iter->oid, iter->flags);
+die_errno("couldn't read %s", packed_refs_file);

@@ -1,13 +1,24 @@
-static int error_failed_squash(struct commit *commit,
-	struct replay_opts *opts, int subject_len, const char *subject)
+int ref_transaction_abort(struct ref_transaction *transaction,
+			  struct strbuf *err)
 {
-	if (rename(rebase_path_squash_msg(), rebase_path_message()))
-		return error(_("could not rename '%s' to '%s'"),
-			rebase_path_squash_msg(), rebase_path_message());
-	unlink(rebase_path_fixup_msg());
-	unlink(git_path("MERGE_MSG"));
-	if (copy_file(git_path("MERGE_MSG"), rebase_path_message(), 0666))
-		return error(_("could not copy '%s' to '%s'"),
-			     rebase_path_message(), git_path("MERGE_MSG"));
-	return error_with_patch(commit, subject, subject_len, opts, 1, 0);
+	struct ref_store *refs = transaction->ref_store;
+	int ret = 0;
+
+	switch (transaction->state) {
+	case REF_TRANSACTION_OPEN:
+		/* No need to abort explicitly. */
+		break;
+	case REF_TRANSACTION_PREPARED:
+		ret = refs->be->transaction_abort(refs, transaction, err);
+		break;
+	case REF_TRANSACTION_CLOSED:
+		die("BUG: abort called on a closed reference transaction");
+		break;
+	default:
+		die("BUG: unexpected reference transaction state");
+		break;
+	}
+
+	ref_transaction_free(transaction);
+	return ret;
 }

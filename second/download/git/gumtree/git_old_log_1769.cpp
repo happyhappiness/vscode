@@ -1,2 +1,2 @@
-die("unable to generate combined diff for %s",
-		    sha1_to_hex(parent));
+error(_("cannot read %s: %s"), filename, ferror(f) ?
+			strerror(errno) : _("unexpected end of file"));

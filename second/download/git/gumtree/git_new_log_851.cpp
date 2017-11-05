@@ -1,1 +1,2 @@
-error(_("cannot store %s"), stash_sha1.buf);
+die(_("Escape character '\\' not allowed as "
+				      "last character in attr value"));

@@ -1,1 +1,1 @@
-error("%s: invalid reflog entry %s", refname, oid_to_hex(oid));
+printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);

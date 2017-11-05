@@ -1,1 +1,1 @@
-die(_("No such remote '%s'"), remotename);
+error_errno("cannot stat '%s'", ce->name);

@@ -1,2 +1,2 @@
-error("bad tree pointer in commit %s",
-			     oid_to_hex(&item->object.oid));
+die(_("Badly quoted content in file '%s': %s"),
+			    filename, str.buf);

@@ -1,2 +1,1 @@
-error("Couldn't write %s",
-					lock->lk->filename.buf);
+die_errno(_("failed to create file %s"), path);

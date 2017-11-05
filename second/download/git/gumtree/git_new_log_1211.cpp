@@ -1,1 +1,1 @@
-printf("author-time %"PRItime"\n", ci.author_time);
+die(_("Not a valid object name %s"), obj_name);

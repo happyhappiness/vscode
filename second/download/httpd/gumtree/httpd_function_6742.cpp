@@ -1,278 +1,380 @@
-static void output_results(int sig)
+apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
+                            ap_input_mode_t mode, apr_read_type_e block,
+                            apr_off_t readbytes)
 {
-    double timetaken;
+    apr_bucket *e;
+    http_ctx_t *ctx = f->ctx;
+    apr_status_t rv;
+    apr_off_t totalread;
+    int http_error = HTTP_REQUEST_ENTITY_TOO_LARGE;
+    apr_bucket_brigade *bb;
 
-    if (sig) {
-        lasttime = apr_time_now();  /* record final time if interrupted */
-    }
-    timetaken = (double) (lasttime - start) / APR_USEC_PER_SEC;
-
-    printf("\n\n");
-    printf("Server Software:        %s\n", servername);
-    printf("Server Hostname:        %s\n", hostname);
-    printf("Server Port:            %hu\n", port);
-#ifdef USE_SSL
-    if (is_ssl && ssl_info) {
-        printf("SSL/TLS Protocol:       %s\n", ssl_info);
-    }
-#ifdef HAVE_TLSEXT
-    if (is_ssl && tls_sni) {
-        printf("TLS Server Name:        %s\n", tls_sni);
-    }
-#endif
-#endif
-    printf("\n");
-    printf("Document Path:          %s\n", path);
-    if (nolength)
-        printf("Document Length:        Variable\n");
-    else
-        printf("Document Length:        %" APR_SIZE_T_FMT " bytes\n", doclen);
-    printf("\n");
-    printf("Concurrency Level:      %d\n", concurrency);
-    printf("Time taken for tests:   %.3f seconds\n", timetaken);
-    printf("Complete requests:      %d\n", done);
-    printf("Failed requests:        %d\n", bad);
-    if (bad)
-        printf("   (Connect: %d, Receive: %d, Length: %d, Exceptions: %d)\n",
-            err_conn, err_recv, err_length, err_except);
-    if (epipe)
-        printf("Write errors:           %d\n", epipe);
-    if (err_response)
-        printf("Non-2xx responses:      %d\n", err_response);
-    if (keepalive)
-        printf("Keep-Alive requests:    %d\n", doneka);
-    printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
-    if (send_body)
-        printf("Total body sent:        %" APR_INT64_T_FMT "\n",
-               totalposted);
-    printf("HTML transferred:       %" APR_INT64_T_FMT " bytes\n", totalbread);
-
-    /* avoid divide by zero */
-    if (timetaken && done) {
-        printf("Requests per second:    %.2f [#/sec] (mean)\n",
-               (double) done / timetaken);
-        printf("Time per request:       %.3f [ms] (mean)\n",
-               (double) concurrency * timetaken * 1000 / done);
-        printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
-               (double) timetaken * 1000 / done);
-        printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
-               (double) totalread / 1024 / timetaken);
-        if (send_body) {
-            printf("                        %.2f kb/s sent\n",
-               (double) totalposted / 1024 / timetaken);
-            printf("                        %.2f kb/s total\n",
-               (double) (totalread + totalposted) / 1024 / timetaken);
-        }
+    /* just get out of the way of things we don't want. */
+    if (mode != AP_MODE_READBYTES && mode != AP_MODE_GETLINE) {
+        return ap_get_brigade(f->next, b, mode, block, readbytes);
     }
 
-    if (done > 0) {
-        /* work out connection times */
-        int i;
-        apr_time_t totalcon = 0, total = 0, totald = 0, totalwait = 0;
-        apr_time_t meancon, meantot, meand, meanwait;
-        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX, mind = AB_MAX,
-                            minwait = AB_MAX;
-        apr_interval_time_t maxcon = 0, maxtot = 0, maxd = 0, maxwait = 0;
-        apr_interval_time_t mediancon = 0, mediantot = 0, mediand = 0, medianwait = 0;
-        double sdtot = 0, sdcon = 0, sdd = 0, sdwait = 0;
+    if (!ctx) {
+        const char *tenc, *lenp;
+        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
+        ctx->state = BODY_NONE;
+        ctx->pos = ctx->chunk_ln;
+        ctx->bb = apr_brigade_create(f->r->pool, f->c->bucket_alloc);
+        bb = ctx->bb;
 
-        for (i = 0; i < done; i++) {
-            struct data *s = &stats[i];
-            mincon = ap_min(mincon, s->ctime);
-            mintot = ap_min(mintot, s->time);
-            mind = ap_min(mind, s->time - s->ctime);
-            minwait = ap_min(minwait, s->waittime);
-
-            maxcon = ap_max(maxcon, s->ctime);
-            maxtot = ap_max(maxtot, s->time);
-            maxd = ap_max(maxd, s->time - s->ctime);
-            maxwait = ap_max(maxwait, s->waittime);
-
-            totalcon += s->ctime;
-            total += s->time;
-            totald += s->time - s->ctime;
-            totalwait += s->waittime;
-        }
-        meancon = totalcon / done;
-        meantot = total / done;
-        meand = totald / done;
-        meanwait = totalwait / done;
-
-        /* calculating the sample variance: the sum of the squared deviations, divided by n-1 */
-        for (i = 0; i < done; i++) {
-            struct data *s = &stats[i];
-            double a;
-            a = ((double)s->time - meantot);
-            sdtot += a * a;
-            a = ((double)s->ctime - meancon);
-            sdcon += a * a;
-            a = ((double)s->time - (double)s->ctime - meand);
-            sdd += a * a;
-            a = ((double)s->waittime - meanwait);
-            sdwait += a * a;
-        }
-
-        sdtot = (done > 1) ? sqrt(sdtot / (done - 1)) : 0;
-        sdcon = (done > 1) ? sqrt(sdcon / (done - 1)) : 0;
-        sdd = (done > 1) ? sqrt(sdd / (done - 1)) : 0;
-        sdwait = (done > 1) ? sqrt(sdwait / (done - 1)) : 0;
-
-        /*
-         * XXX: what is better; this hideous cast of the compradre function; or
-         * the four warnings during compile ? dirkx just does not know and
-         * hates both/
+        /* LimitRequestBody does not apply to proxied responses.
+         * Consider implementing this check in its own filter.
+         * Would adding a directive to limit the size of proxied
+         * responses be useful?
          */
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) compradre);
-        if ((done > 1) && (done % 2))
-            mediancon = (stats[done / 2].ctime + stats[done / 2 + 1].ctime) / 2;
-        else
-            mediancon = stats[done / 2].ctime;
-
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) compri);
-        if ((done > 1) && (done % 2))
-            mediand = (stats[done / 2].time + stats[done / 2 + 1].time \
-            -stats[done / 2].ctime - stats[done / 2 + 1].ctime) / 2;
-        else
-            mediand = stats[done / 2].time - stats[done / 2].ctime;
-
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) compwait);
-        if ((done > 1) && (done % 2))
-            medianwait = (stats[done / 2].waittime + stats[done / 2 + 1].waittime) / 2;
-        else
-            medianwait = stats[done / 2].waittime;
-
-        qsort(stats, done, sizeof(struct data),
-              (int (*) (const void *, const void *)) comprando);
-        if ((done > 1) && (done % 2))
-            mediantot = (stats[done / 2].time + stats[done / 2 + 1].time) / 2;
-        else
-            mediantot = stats[done / 2].time;
-
-        printf("\nConnection Times (ms)\n");
-        /*
-         * Reduce stats from apr time to milliseconds
-         */
-        mincon     = ap_round_ms(mincon);
-        mind       = ap_round_ms(mind);
-        minwait    = ap_round_ms(minwait);
-        mintot     = ap_round_ms(mintot);
-        meancon    = ap_round_ms(meancon);
-        meand      = ap_round_ms(meand);
-        meanwait   = ap_round_ms(meanwait);
-        meantot    = ap_round_ms(meantot);
-        mediancon  = ap_round_ms(mediancon);
-        mediand    = ap_round_ms(mediand);
-        medianwait = ap_round_ms(medianwait);
-        mediantot  = ap_round_ms(mediantot);
-        maxcon     = ap_round_ms(maxcon);
-        maxd       = ap_round_ms(maxd);
-        maxwait    = ap_round_ms(maxwait);
-        maxtot     = ap_round_ms(maxtot);
-        sdcon      = ap_double_ms(sdcon);
-        sdd        = ap_double_ms(sdd);
-        sdwait     = ap_double_ms(sdwait);
-        sdtot      = ap_double_ms(sdtot);
-
-        if (confidence) {
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4" APR_TIME_T_FMT " %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
-            printf("              min  mean[+/-sd] median   max\n");
-            printf("Connect:    " CONF_FMT_STRING,
-                   mincon, meancon, sdcon, mediancon, maxcon);
-            printf("Processing: " CONF_FMT_STRING,
-                   mind, meand, sdd, mediand, maxd);
-            printf("Waiting:    " CONF_FMT_STRING,
-                   minwait, meanwait, sdwait, medianwait, maxwait);
-            printf("Total:      " CONF_FMT_STRING,
-                   mintot, meantot, sdtot, mediantot, maxtot);
-#undef CONF_FMT_STRING
-
-#define     SANE(what,mean,median,sd) \
-              { \
-                double d = (double)mean - median; \
-                if (d < 0) d = -d; \
-                if (d > 2 * sd ) \
-                    printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
-                           "       deviation apart. These results are NOT reliable.\n"); \
-                else if (d > sd ) \
-                    printf("WARNING: The median and mean for " what " are not within a normal deviation\n" \
-                           "        These results are probably not that reliable.\n"); \
-            }
-            SANE("the initial connection time", meancon, mediancon, sdcon);
-            SANE("the processing time", meand, mediand, sdd);
-            SANE("the waiting time", meanwait, medianwait, sdwait);
-            SANE("the total time", meantot, mediantot, sdtot);
+        if (!f->r->proxyreq) {
+            ctx->limit = ap_get_limit_req_body(f->r);
         }
         else {
-            printf("              min   avg   max\n");
-#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
-            printf("Connect:    " CONF_FMT_STRING, mincon, meancon, maxcon);
-            printf("Processing: " CONF_FMT_STRING, mind, meand, maxd);
-            printf("Waiting:    " CONF_FMT_STRING, minwait, meanwait, maxwait);
-            printf("Total:      " CONF_FMT_STRING, mintot, meantot, maxtot);
-#undef CONF_FMT_STRING
+            ctx->limit = 0;
         }
 
+        tenc = apr_table_get(f->r->headers_in, "Transfer-Encoding");
+        lenp = apr_table_get(f->r->headers_in, "Content-Length");
 
-        /* Sorted on total connect times */
-        if (percentile && (done > 1)) {
-            printf("\nPercentage of the requests served within a certain time (ms)\n");
-            for (i = 0; i < sizeof(percs) / sizeof(int); i++) {
-                if (percs[i] <= 0)
-                    printf(" 0%%  <0> (never)\n");
-                else if (percs[i] >= 100)
-                    printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
-                           ap_round_ms(stats[done - 1].time));
-                else
-                    printf("  %d%%  %5" APR_TIME_T_FMT "\n", percs[i],
-                           ap_round_ms(stats[(int) (done * percs[i] / 100)].time));
+        if (tenc) {
+            if (strcasecmp(tenc, "chunked") == 0 /* fast path */
+                    || ap_find_last_token(f->r->pool, tenc, "chunked")) {
+                ctx->state = BODY_CHUNK;
+            }
+            else if (f->r->proxyreq == PROXYREQ_RESPONSE) {
+                /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
+                 * Section 3.3.3.3: "If a Transfer-Encoding header field is
+                 * present in a response and the chunked transfer coding is not
+                 * the final encoding, the message body length is determined by
+                 * reading the connection until it is closed by the server."
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(02555)
+                              "Unknown Transfer-Encoding: %s;"
+                              " using read-until-close", tenc);
+                tenc = NULL;
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(01585)
+                              "Unknown Transfer-Encoding: %s", tenc);
+                return bail_out_on_error(ctx, f, HTTP_NOT_IMPLEMENTED);
+            }
+            lenp = NULL;
+        }
+        if (lenp) {
+            char *endstr;
+
+            ctx->state = BODY_LENGTH;
+
+            /* Protects against over/underflow, non-digit chars in the
+             * string (excluding leading space) (the endstr checks)
+             * and a negative number. */
+            if (apr_strtoff(&ctx->remaining, lenp, &endstr, 10)
+                || endstr == lenp || *endstr || ctx->remaining < 0) {
+
+                ctx->remaining = 0;
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(01587)
+                              "Invalid Content-Length");
+
+                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
+            }
+
+            /* If we have a limit in effect and we know the C-L ahead of
+             * time, stop it here if it is invalid.
+             */
+            if (ctx->limit && ctx->limit < ctx->remaining) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(01588)
+                          "Requested content-length of %" APR_OFF_T_FMT
+                          " is larger than the configured limit"
+                          " of %" APR_OFF_T_FMT, ctx->remaining, ctx->limit);
+                return bail_out_on_error(ctx, f, HTTP_REQUEST_ENTITY_TOO_LARGE);
             }
         }
-        if (csvperc) {
-            FILE *out = fopen(csvperc, "w");
-            if (!out) {
-                perror("Cannot open CSV output file");
-                exit(1);
-            }
-            fprintf(out, "" "Percentage served" "," "Time in ms" "\n");
-            for (i = 0; i <= 100; i++) {
-                double t;
-                if (i == 0)
-                    t = ap_double_ms(stats[0].time);
-                else if (i == 100)
-                    t = ap_double_ms(stats[done - 1].time);
-                else
-                    t = ap_double_ms(stats[(int) (0.5 + done * i / 100.0)].time);
-                fprintf(out, "%d,%.3f\n", i, t);
-            }
-            fclose(out);
+
+        /* If we don't have a request entity indicated by the headers, EOS.
+         * (BODY_NONE is a valid intermediate state due to trailers,
+         *  but it isn't a valid starting state.)
+         *
+         * RFC 2616 Section 4.4 note 5 states that connection-close
+         * is invalid for a request entity - request bodies must be
+         * denoted by C-L or T-E: chunked.
+         *
+         * Note that since the proxy uses this filter to handle the
+         * proxied *response*, proxy responses MUST be exempt.
+         */
+        if (ctx->state == BODY_NONE && f->r->proxyreq != PROXYREQ_RESPONSE) {
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(b, e);
+            ctx->eos_sent = 1;
+            return APR_SUCCESS;
         }
-        if (gnuplot) {
-            FILE *out = fopen(gnuplot, "w");
-            char tmstring[APR_CTIME_LEN];
-            if (!out) {
-                perror("Cannot open gnuplot output file");
-                exit(1);
+
+        /* Since we're about to read data, send 100-Continue if needed.
+         * Only valid on chunked and C-L bodies where the C-L is > 0. */
+        if ((ctx->state == BODY_CHUNK ||
+            (ctx->state == BODY_LENGTH && ctx->remaining > 0)) &&
+            f->r->expecting_100 && f->r->proto_num >= HTTP_VERSION(1,1) &&
+            !(f->r->eos_sent || f->r->bytes_sent)) {
+            if (!ap_is_HTTP_SUCCESS(f->r->status)) {
+                ctx->state = BODY_NONE;
+                ctx->eos_sent = 1;
+            } else {
+                char *tmp;
+                int len;
+
+                /* if we send an interim response, we're no longer
+                 * in a state of expecting one.
+                 */
+                f->r->expecting_100 = 0;
+                tmp = apr_pstrcat(f->r->pool, AP_SERVER_PROTOCOL, " ",
+                                  ap_get_status_line(HTTP_CONTINUE), CRLF CRLF,
+                                  NULL);
+                len = strlen(tmp);
+                ap_xlate_proto_to_ascii(tmp, len);
+                apr_brigade_cleanup(bb);
+                e = apr_bucket_pool_create(tmp, len, f->r->pool,
+                                           f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_HEAD(bb, e);
+                e = apr_bucket_flush_create(f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(bb, e);
+
+                ap_pass_brigade(f->c->output_filters, bb);
             }
-            fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");
-            for (i = 0; i < done; i++) {
-                (void) apr_ctime(tmstring, stats[i].starttime);
-                fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT
-                               "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT
-                               "\t%" APR_TIME_T_FMT "\n", tmstring,
-                        apr_time_sec(stats[i].starttime),
-                        ap_round_ms(stats[i].ctime),
-                        ap_round_ms(stats[i].time - stats[i].ctime),
-                        ap_round_ms(stats[i].time),
-                        ap_round_ms(stats[i].waittime));
+        }
+
+        /* We can't read the chunk until after sending 100 if required. */
+        if (ctx->state == BODY_CHUNK) {
+            apr_brigade_cleanup(bb);
+
+            rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
+                                block, 0);
+
+            /* for timeout */
+            if (block == APR_NONBLOCK_READ &&
+                ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
+                  (APR_STATUS_IS_EAGAIN(rv)) )) {
+                ctx->state = BODY_CHUNK_PART;
+                return APR_EAGAIN;
             }
-            fclose(out);
+
+            if (rv == APR_SUCCESS) {
+                rv = get_chunk_line(ctx, bb, f->r->server->limit_req_line);
+                if (APR_STATUS_IS_EAGAIN(rv)) {
+                    apr_brigade_cleanup(bb);
+                    ctx->state = BODY_CHUNK_PART;
+                    return rv;
+                }
+                if (rv == APR_SUCCESS) {
+                    ctx->remaining = get_chunk_size(ctx->chunk_ln);
+                    if (ctx->remaining == INVALID_CHAR) {
+                        rv = APR_EGENERAL;
+                        http_error = HTTP_BAD_REQUEST;
+                    }
+                }
+            }
+            apr_brigade_cleanup(bb);
+
+            /* Detect chunksize error (such as overflow) */
+            if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r, APLOGNO(01589) "Error reading first chunk %s ",
+                              (ctx->remaining < 0) ? "(overflow)" : "");
+                if (APR_STATUS_IS_TIMEUP(rv) || ctx->remaining > 0) {
+                    http_error = HTTP_REQUEST_TIME_OUT;
+                }
+                ctx->remaining = 0; /* Reset it in case we have to
+                                     * come back here later */
+                return bail_out_on_error(ctx, f, http_error);
+            }
+
+            if (!ctx->remaining) {
+                /* Handle trailers by calling ap_get_mime_headers again! */
+                ctx->state = BODY_NONE;
+                ap_get_mime_headers(f->r);
+                e = apr_bucket_eos_create(f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(b, e);
+                ctx->eos_sent = 1;
+                return APR_SUCCESS;
+            }
+        }
+    }
+    else {
+        bb = ctx->bb;
+    }
+
+    if (ctx->eos_sent) {
+        e = apr_bucket_eos_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(b, e);
+        return APR_SUCCESS;
+    }
+
+    if (!ctx->remaining) {
+        switch (ctx->state) {
+        case BODY_NONE:
+            break;
+        case BODY_LENGTH:
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(b, e);
+            ctx->eos_sent = 1;
+            return APR_SUCCESS;
+        case BODY_CHUNK:
+        case BODY_CHUNK_PART:
+            {
+                apr_brigade_cleanup(bb);
+
+                /* We need to read the CRLF after the chunk.  */
+                if (ctx->state == BODY_CHUNK) {
+                    rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
+                                        block, 0);
+                    if (block == APR_NONBLOCK_READ &&
+                        ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
+                          (APR_STATUS_IS_EAGAIN(rv)) )) {
+                        return APR_EAGAIN;
+                    }
+                    /* If we get an error, then leave */
+                    if (rv == APR_EOF) {
+                        return APR_INCOMPLETE;
+                    }
+                    if (rv != APR_SUCCESS) {
+                        return rv;
+                    }
+                    /*
+                     * We really don't care whats on this line. If it is RFC
+                     * compliant it should be only \r\n. If there is more
+                     * before we just ignore it as long as we do not get over
+                     * the limit for request lines.
+                     */
+                    rv = get_remaining_chunk_line(ctx, bb,
+                                                  f->r->server->limit_req_line);
+                    apr_brigade_cleanup(bb);
+                    if (APR_STATUS_IS_EAGAIN(rv)) {
+                        return rv;
+                    }
+                } else {
+                    rv = APR_SUCCESS;
+                }
+
+                if (rv == APR_SUCCESS) {
+                    /* Read the real chunk line. */
+                    rv = ap_get_brigade(f->next, bb, AP_MODE_GETLINE,
+                                        block, 0);
+                    /* Test timeout */
+                    if (block == APR_NONBLOCK_READ &&
+                        ( (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(bb)) ||
+                          (APR_STATUS_IS_EAGAIN(rv)) )) {
+                        ctx->state = BODY_CHUNK_PART;
+                        return APR_EAGAIN;
+                    }
+                    ctx->state = BODY_CHUNK;
+                    if (rv == APR_SUCCESS) {
+                        rv = get_chunk_line(ctx, bb, f->r->server->limit_req_line);
+                        if (APR_STATUS_IS_EAGAIN(rv)) {
+                            ctx->state = BODY_CHUNK_PART;
+                            apr_brigade_cleanup(bb);
+                            return rv;
+                        }
+                        if (rv == APR_SUCCESS) {
+                            ctx->remaining = get_chunk_size(ctx->chunk_ln);
+                            if (ctx->remaining == INVALID_CHAR) {
+                                rv = APR_EGENERAL;
+                                http_error = HTTP_BAD_REQUEST;
+                            }
+                        }
+                    }
+                    apr_brigade_cleanup(bb);
+                }
+
+                /* Detect chunksize error (such as overflow) */
+                if (rv != APR_SUCCESS || ctx->remaining < 0) {
+                    ap_log_rerror(APLOG_MARK, APLOG_INFO, rv, f->r, APLOGNO(01590) "Error reading chunk %s ",
+                                  (ctx->remaining < 0) ? "(overflow)" : "");
+                    if (APR_STATUS_IS_TIMEUP(rv) || ctx->remaining > 0) {
+                        http_error = HTTP_REQUEST_TIME_OUT;
+                    }
+                    ctx->remaining = 0; /* Reset it in case we have to
+                                         * come back here later */
+                    return bail_out_on_error(ctx, f, http_error);
+                }
+
+                if (!ctx->remaining) {
+                    /* Handle trailers by calling ap_get_mime_headers again! */
+                    ctx->state = BODY_NONE;
+                    ap_get_mime_headers(f->r);
+                    e = apr_bucket_eos_create(f->c->bucket_alloc);
+                    APR_BRIGADE_INSERT_TAIL(b, e);
+                    ctx->eos_sent = 1;
+                    return APR_SUCCESS;
+                }
+            }
+            break;
         }
     }
 
-    if (sig) {
-        exit(1);
+    /* Ensure that the caller can not go over our boundary point. */
+    if (ctx->state == BODY_LENGTH || ctx->state == BODY_CHUNK) {
+        if (ctx->remaining < readbytes) {
+            readbytes = ctx->remaining;
+        }
+        AP_DEBUG_ASSERT(readbytes > 0);
     }
+
+    rv = ap_get_brigade(f->next, b, mode, block, readbytes);
+
+    if (rv == APR_EOF && ctx->state != BODY_NONE &&
+            ctx->remaining > 0) {
+        return APR_INCOMPLETE;
+    }
+    if (rv != APR_SUCCESS) {
+        return rv;
+    }
+
+    /* How many bytes did we just read? */
+    apr_brigade_length(b, 0, &totalread);
+
+    /* If this happens, we have a bucket of unknown length.  Die because
+     * it means our assumptions have changed. */
+    AP_DEBUG_ASSERT(totalread >= 0);
+
+    if (ctx->state != BODY_NONE) {
+        ctx->remaining -= totalread;
+        if (ctx->remaining > 0) {
+            e = APR_BRIGADE_LAST(b);
+            if (APR_BUCKET_IS_EOS(e)) {
+                apr_bucket_delete(e);
+                return APR_INCOMPLETE;
+            }
+        }
+    }
+
+    /* If we have no more bytes remaining on a C-L request,
+     * save the callter a roundtrip to discover EOS.
+     */
+    if (ctx->state == BODY_LENGTH && ctx->remaining == 0) {
+        e = apr_bucket_eos_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(b, e);
+    }
+
+    /* We have a limit in effect. */
+    if (ctx->limit) {
+        /* FIXME: Note that we might get slightly confused on chunked inputs
+         * as we'd need to compensate for the chunk lengths which may not
+         * really count.  This seems to be up for interpretation.  */
+        ctx->limit_used += totalread;
+        if (ctx->limit < ctx->limit_used) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(01591)
+                          "Read content-length of %" APR_OFF_T_FMT
+                          " is larger than the configured limit"
+                          " of %" APR_OFF_T_FMT, ctx->limit_used, ctx->limit);
+            apr_brigade_cleanup(bb);
+            e = ap_bucket_error_create(HTTP_REQUEST_ENTITY_TOO_LARGE, NULL,
+                                       f->r->pool,
+                                       f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+            ctx->eos_sent = 1;
+            return ap_pass_brigade(f->r->output_filters, bb);
+        }
+    }
+
+    return APR_SUCCESS;
 }

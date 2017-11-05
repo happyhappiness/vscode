@@ -1,19 +1,21 @@
-static void show_name(const struct object *obj,
-		      const char *caller_name,
-		      int always, int allow_undefined, int name_only)
+static int udt_do_write(struct unidirectional_transfer *t)
 {
-	const char *name;
-	const unsigned char *sha1 = obj->sha1;
+	ssize_t bytes;
 
-	if (!name_only)
-		printf("%s ", caller_name ? caller_name : sha1_to_hex(sha1));
-	name = get_rev_name(obj);
-	if (name)
-		printf("%s\n", name);
-	else if (allow_undefined)
-		printf("undefined\n");
-	else if (always)
-		printf("%s\n", find_unique_abbrev(sha1, DEFAULT_ABBREV));
-	else
-		die("cannot describe '%s'", sha1_to_hex(sha1));
+	if (t->bufuse == 0)
+		return 0;	/* Nothing to write. */
+
+	transfer_debug("%s is writable", t->dest_name);
+	bytes = xwrite(t->dest, t->buf, t->bufuse);
+	if (bytes < 0 && errno != EWOULDBLOCK) {
+		error("write(%s) failed: %s", t->dest_name, strerror(errno));
+		return -1;
+	} else if (bytes > 0) {
+		t->bufuse -= bytes;
+		if (t->bufuse)
+			memmove(t->buf, t->buf + bytes, t->bufuse);
+		transfer_debug("Wrote %i bytes to %s (buffer now at %i)",
+			(int)bytes, t->dest_name, (int)t->bufuse);
+	}
+	return 0;
 }

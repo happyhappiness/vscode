@@ -1,1 +1,4 @@
-fputs(find_unique_abbrev(commit->object.sha1, abbrev_commit), stdout);
+printf("M %06o %s ", spec->mode,
+				       sha1_to_hex(anonymize ?
+						   anonymize_sha1(spec->sha1) :
+						   spec->sha1));

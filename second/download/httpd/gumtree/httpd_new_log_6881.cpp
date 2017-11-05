@@ -1,5 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, 
-                                  H2_SSSN_LOG(APLOGNO(03079), session, 
-                                  "started on %s:%d"), 
-                                  session->s->server_hostname,
-                                  c->local_addr->port);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02646)
+                    "ajp_marshal_into_msgb: "
+                    "Error appending attribute %s=%s",
+                    key, val);

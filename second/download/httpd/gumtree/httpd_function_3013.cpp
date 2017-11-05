@@ -1,36 +1,35 @@
-static authz_status dbdgroup_check_authorization(request_rec *r,
-                                              const char *require_args)
+static apr_status_t socache_mc_retrieve(ap_socache_instance_t *ctx, server_rec *s, 
+                                        const unsigned char *id, unsigned int idlen,
+                                        unsigned char *dest, unsigned int *destlen,
+                                        apr_pool_t *p)
 {
-    int i, rv;
-    const char *w;
-    apr_array_header_t *groups = NULL;
-    const char *t;
-    authz_dbd_cfg *cfg = ap_get_module_config(r->per_dir_config,
-                                              &authz_dbd_module);
+    apr_size_t data_len;
+    char buf[MC_KEY_LEN], *data;
+    apr_status_t rv;
 
-    if (!r->user) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
-        return AUTHZ_DENIED;
+    if (socache_mc_id2key(ctx, id, idlen, buf, sizeof buf)) {
+        return APR_EINVAL;
     }
 
-    if (groups == NULL) {
-        groups = apr_array_make(r->pool, 4, sizeof(const char*));
-        rv = authz_dbd_group_query(r, cfg, groups);
-        if (rv != OK) {
-            return AUTHZ_GENERAL_ERROR;
+    /* ### this could do with a subpool, but _getp looks like it will
+     * eat memory like it's going out of fashion anyway. */
+
+    rv = apr_memcache_getp(ctx->mc, p, buf, &data, &data_len, NULL);
+    if (rv) {
+        if (rv != APR_NOTFOUND) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "scache_mc: 'retrieve' FAIL");
         }
+        return rv;
     }
+    else if (data_len > *destlen) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                     "scache_mc: 'retrieve' OVERFLOW");
+        return APR_ENOMEM;
+    }    
 
-    t = require_args;
-    while (t[0]) {
-        w = ap_getword_white(r->pool, &t);
-        for (i=0; i < groups->nelts; ++i) {
-            if (!strcmp(w, ((const char**)groups->elts)[i])) {
-                return AUTHZ_GRANTED;
-            }
-        }
-    }
+    memcpy(dest, data, data_len);
+    *destlen = data_len;
 
-    return AUTHZ_DENIED;
+    return APR_SUCCESS;
 }

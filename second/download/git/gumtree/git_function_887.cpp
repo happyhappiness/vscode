@@ -1,56 +1,46 @@
-static int check_stream_sha1(git_zstream *stream,
-			     const char *hdr,
-			     unsigned long size,
-			     const char *path,
-			     const unsigned char *expected_sha1)
+static int pack_if_possible_fn(struct ref_entry *entry, void *cb_data)
 {
-	git_SHA_CTX c;
-	unsigned char real_sha1[GIT_SHA1_RAWSZ];
-	unsigned char buf[4096];
-	unsigned long total_read;
-	int status = Z_OK;
+	struct pack_refs_cb_data *cb = cb_data;
+	enum peel_status peel_status;
+	struct ref_entry *packed_entry;
+	int is_tag_ref = starts_with(entry->name, "refs/tags/");
 
-	git_SHA1_Init(&c);
-	git_SHA1_Update(&c, hdr, stream->total_out);
+	/* Do not pack per-worktree refs: */
+	if (ref_type(entry->name) != REF_TYPE_NORMAL)
+		return 0;
 
-	/*
-	 * We already read some bytes into hdr, but the ones up to the NUL
-	 * do not count against the object's content size.
-	 */
-	total_read = stream->total_out - strlen(hdr) - 1;
+	/* ALWAYS pack tags */
+	if (!(cb->flags & PACK_REFS_ALL) && !is_tag_ref)
+		return 0;
 
-	/*
-	 * This size comparison must be "<=" to read the final zlib packets;
-	 * see the comment in unpack_sha1_rest for details.
-	 */
-	while (total_read <= size &&
-	       (status == Z_OK || status == Z_BUF_ERROR)) {
-		stream->next_out = buf;
-		stream->avail_out = sizeof(buf);
-		if (size - total_read < stream->avail_out)
-			stream->avail_out = size - total_read;
-		status = git_inflate(stream, Z_FINISH);
-		git_SHA1_Update(&c, buf, stream->next_out - buf);
-		total_read += stream->next_out - buf;
+	/* Do not pack symbolic or broken refs: */
+	if ((entry->flag & REF_ISSYMREF) || !entry_resolves_to_object(entry))
+		return 0;
+
+	/* Add a packed ref cache entry equivalent to the loose entry. */
+	peel_status = peel_entry(entry, 1);
+	if (peel_status != PEEL_PEELED && peel_status != PEEL_NON_TAG)
+		die("internal error peeling reference %s (%s)",
+		    entry->name, oid_to_hex(&entry->u.value.oid));
+	packed_entry = find_ref(cb->packed_refs, entry->name);
+	if (packed_entry) {
+		/* Overwrite existing packed entry with info from loose entry */
+		packed_entry->flag = REF_ISPACKED | REF_KNOWS_PEELED;
+		oidcpy(&packed_entry->u.value.oid, &entry->u.value.oid);
+	} else {
+		packed_entry = create_ref_entry(entry->name, entry->u.value.oid.hash,
+						REF_ISPACKED | REF_KNOWS_PEELED, 0);
+		add_ref(cb->packed_refs, packed_entry);
 	}
-	git_inflate_end(stream);
+	oidcpy(&packed_entry->u.value.peeled, &entry->u.value.peeled);
 
-	if (status != Z_STREAM_END) {
-		error("corrupt loose object '%s'", sha1_to_hex(expected_sha1));
-		return -1;
+	/* Schedule the loose reference for pruning if requested. */
+	if ((cb->flags & PACK_REFS_PRUNE)) {
+		struct ref_to_prune *n;
+		FLEX_ALLOC_STR(n, name, entry->name);
+		hashcpy(n->sha1, entry->u.value.oid.hash);
+		n->next = cb->ref_to_prune;
+		cb->ref_to_prune = n;
 	}
-	if (stream->avail_in) {
-		error("garbage at end of loose object '%s'",
-		      sha1_to_hex(expected_sha1));
-		return -1;
-	}
-
-	git_SHA1_Final(real_sha1, &c);
-	if (hashcmp(expected_sha1, real_sha1)) {
-		error("sha1 mismatch for %s (expected %s)", path,
-		      sha1_to_hex(expected_sha1));
-		return -1;
-	}
-
 	return 0;
 }

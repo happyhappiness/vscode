@@ -1,0 +1,1 @@
+die("%s", error_msg);

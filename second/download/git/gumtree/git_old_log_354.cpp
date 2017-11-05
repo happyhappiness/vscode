@@ -1,3 +1,2 @@
-die("Cannot read blob %s for path %s",
-			    sha1_to_hex(o->blob_sha1),
-			    o->path);
+error("unknown value after ws-error-highlight=%.*s",
+			      (int)(arg - orig_arg), orig_arg);

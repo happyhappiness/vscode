@@ -1,18 +1,35 @@
-static int show_merge_base(struct commit **rev, int rev_nr, int show_all)
+int index_path(unsigned char *sha1, const char *path, struct stat *st, unsigned flags)
 {
-	struct commit_list *result;
+	int fd;
+	struct strbuf sb = STRBUF_INIT;
 
-	result = get_merge_bases_many_dirty(rev[0], rev_nr - 1, rev + 1);
-
-	if (!result)
-		return 1;
-
-	while (result) {
-		printf("%s\n", sha1_to_hex(result->item->object.sha1));
-		if (!show_all)
-			return 0;
-		result = result->next;
+	switch (st->st_mode & S_IFMT) {
+	case S_IFREG:
+		fd = open(path, O_RDONLY);
+		if (fd < 0)
+			return error("open(\"%s\"): %s", path,
+				     strerror(errno));
+		if (index_fd(sha1, fd, st, OBJ_BLOB, path, flags) < 0)
+			return error("%s: failed to insert into database",
+				     path);
+		break;
+	case S_IFLNK:
+		if (strbuf_readlink(&sb, path, st->st_size)) {
+			char *errstr = strerror(errno);
+			return error("readlink(\"%s\"): %s", path,
+			             errstr);
+		}
+		if (!(flags & HASH_WRITE_OBJECT))
+			hash_sha1_file(sb.buf, sb.len, blob_type, sha1);
+		else if (write_sha1_file(sb.buf, sb.len, blob_type, sha1))
+			return error("%s: failed to insert into database",
+				     path);
+		strbuf_release(&sb);
+		break;
+	case S_IFDIR:
+		return resolve_gitlink_ref(path, "HEAD", sha1);
+	default:
+		return error("%s: unsupported file type", path);
 	}
-
 	return 0;
 }

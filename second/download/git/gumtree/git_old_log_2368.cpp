@@ -1,1 +1,1 @@
-die(_("insane git directory %s"), git_dir);
+error("cannot create pipe: %s", strerror(errno));

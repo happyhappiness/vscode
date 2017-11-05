@@ -1,2 +1,1 @@
-die("unable to generate combined diff for %s",
-		    sha1_to_hex(parent));
+die(_("Could not make %s writable by group"), dir);

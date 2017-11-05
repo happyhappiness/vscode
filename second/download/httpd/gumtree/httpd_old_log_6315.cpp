@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " ThreadsPerChild of %d, decreasing to nearest "
-                         "multiple %d,", threads_per_child,
-                         tmp_max_workers);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection, 
+                                  APLOGNO(03369)
+                                  "h2_proxy_session(%s): rescheduled request %s",
+                                  ctx->engine_id, task_id);

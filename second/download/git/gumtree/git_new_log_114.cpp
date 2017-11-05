@@ -1,1 +1,1 @@
-die("create: missing <ref>");
+die_errno("could not move to %s", orig_cwd);

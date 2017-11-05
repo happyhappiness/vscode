@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01301)
-                 "ldap cache: Setting operation cache TTL to %ld microseconds.",
-                 st->compare_cache_ttl);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01052)
+                          "error listening to ftp data socket %pI", local_addr);

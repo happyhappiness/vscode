@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR,
-                      0, r, APLOGNO(00571) "need AuthType to note auth failure: %s", r->uri);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, "h2_h2, task, declined");

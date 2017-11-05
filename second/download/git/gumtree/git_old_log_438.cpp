@@ -1,1 +1,1 @@
-error("Failed to delete ref NOTES_MERGE_REF");
+error(_("Your local changes would be overwritten by cherry-pick."));

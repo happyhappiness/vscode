@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                         (startup ? NULL : s),
-                         "could not create accept mutex");
+apr_bucket_split(b, remain);

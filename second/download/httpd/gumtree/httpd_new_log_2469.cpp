@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
-                      "Request received from client: %s",
-                      ap_escape_logitem(r->pool, r->the_request));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "unusably short session_id provided "
+                "(%u bytes)", idlen);

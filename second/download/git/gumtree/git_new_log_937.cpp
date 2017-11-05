@@ -1,1 +1,0 @@
-report_unmatched_refs(sought, nr_sought);

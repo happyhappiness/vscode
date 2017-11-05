@@ -1,1 +1,1 @@
-error("unable to unpack contents of %s", path);
+die_errno("unable to overwrite old ref-pack file");

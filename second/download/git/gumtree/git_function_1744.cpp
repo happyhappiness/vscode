@@ -1,32 +1,37 @@
-static const char *find_author_by_nickname(const char *name)
+static int log_ref_write_1(const char *refname, const unsigned char *old_sha1,
+			   const unsigned char *new_sha1, const char *msg,
+			   struct strbuf *sb_log_file)
 {
-	struct rev_info revs;
-	struct commit *commit;
-	struct strbuf buf = STRBUF_INIT;
-	struct string_list mailmap = STRING_LIST_INIT_NODUP;
-	const char *av[20];
-	int ac = 0;
+	int logfd, result, oflags = O_APPEND | O_WRONLY;
+	char *log_file;
 
-	init_revisions(&revs, NULL);
-	strbuf_addf(&buf, "--author=%s", name);
-	av[++ac] = "--all";
-	av[++ac] = "-i";
-	av[++ac] = buf.buf;
-	av[++ac] = NULL;
-	setup_revisions(ac, av, &revs, NULL);
-	revs.mailmap = &mailmap;
-	read_mailmap(revs.mailmap, NULL);
+	if (log_all_ref_updates < 0)
+		log_all_ref_updates = !is_bare_repository();
 
-	if (prepare_revision_walk(&revs))
-		die(_("revision walk setup failed"));
-	commit = get_revision(&revs);
-	if (commit) {
-		struct pretty_print_context ctx = {0};
-		ctx.date_mode = DATE_NORMAL;
-		strbuf_release(&buf);
-		format_commit_message(commit, "%aN <%aE>", &buf, &ctx);
-		clear_mailmap(&mailmap);
-		return strbuf_detach(&buf, NULL);
+	result = log_ref_setup(refname, sb_log_file);
+	if (result)
+		return result;
+	log_file = sb_log_file->buf;
+	/* make sure the rest of the function can't change "log_file" */
+	sb_log_file = NULL;
+
+	logfd = open(log_file, oflags);
+	if (logfd < 0)
+		return 0;
+	result = log_ref_write_fd(logfd, old_sha1, new_sha1,
+				  git_committer_info(0), msg);
+	if (result) {
+		int save_errno = errno;
+		close(logfd);
+		error("Unable to append to %s", log_file);
+		errno = save_errno;
+		return -1;
 	}
-	die(_("No existing author found with '%s'"), name);
+	if (close(logfd)) {
+		int save_errno = errno;
+		error("Unable to append to %s", log_file);
+		errno = save_errno;
+		return -1;
+	}
+	return 0;
 }

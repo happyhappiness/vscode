@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r,
-                              "[%d] auth_ldap authorise: checking attribute"
-                              " %s has value %s", getpid(), w, value);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                             r->server,
+                             "proxy: server %s returned Transfer-Encoding and Content-Length",
+                             p_conn->name);

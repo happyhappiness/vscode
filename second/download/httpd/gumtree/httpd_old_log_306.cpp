@@ -1,0 +1,1 @@
+fprintf(stderr, "Use -c option to create new one.\n");

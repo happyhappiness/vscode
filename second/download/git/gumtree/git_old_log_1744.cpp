@@ -1,1 +1,1 @@
-die(_("No existing author found with '%s'"), name);
+error("Unable to append to %s", log_file);

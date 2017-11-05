@@ -1,2 +1,3 @@
 ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "cache: Caching url: %s", url);
+                     "mem_cache: URL %s failed the size check and will not be cached.",
+                     key);

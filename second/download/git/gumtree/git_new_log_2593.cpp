@@ -1,1 +1,1 @@
-die("bad tree compare for commit %s", oid_to_hex(&commit->object.oid));
+not_found(&hdr, "Request not supported: '%s'", dir);

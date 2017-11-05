@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03446)
-                          "HTTP Request Line; Missing URI");
+ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_netos_error(),
+                         ap_server_conf, APLOGNO(02323)
+                         "winnt_accept: failed to retrieve GetAcceptExSockaddrs, try 'AcceptFilter none'");

@@ -1,91 +1,90 @@
-static int delete_branches(int argc, const char **argv, int force, int kinds,
-			   int quiet)
+static void finish_request(struct transfer_request *request)
 {
-	struct commit *head_rev = NULL;
-	unsigned char sha1[20];
-	char *name = NULL;
-	const char *fmt;
-	int i;
-	int ret = 0;
-	int remote_branch = 0;
-	struct strbuf bname = STRBUF_INIT;
+	struct http_pack_request *preq;
+	struct http_object_request *obj_req;
 
-	switch (kinds) {
-	case REF_REMOTE_BRANCH:
-		fmt = "refs/remotes/%s";
-		/* For subsequent UI messages */
-		remote_branch = 1;
+	request->curl_result = request->slot->curl_result;
+	request->http_code = request->slot->http_code;
+	request->slot = NULL;
 
-		force = 1;
-		break;
-	case REF_LOCAL_BRANCH:
-		fmt = "refs/heads/%s";
-		break;
-	default:
-		die(_("cannot use -a with -d"));
+	/* Keep locks active */
+	check_locks();
+
+	if (request->headers != NULL)
+		curl_slist_free_all(request->headers);
+
+	/* URL is reused for MOVE after PUT */
+	if (request->state != RUN_PUT) {
+		free(request->url);
+		request->url = NULL;
 	}
 
-	if (!force) {
-		head_rev = lookup_commit_reference(head_sha1);
-		if (!head_rev)
-			die(_("Couldn't look up commit object for HEAD"));
+	if (request->state == RUN_MKCOL) {
+		if (request->curl_result == CURLE_OK ||
+		    request->http_code == 405) {
+			remote_dir_exists[request->obj->sha1[0]] = 1;
+			start_put(request);
+		} else {
+			fprintf(stderr, "MKCOL %s failed, aborting (%d/%ld)\n",
+				sha1_to_hex(request->obj->sha1),
+				request->curl_result, request->http_code);
+			request->state = ABORTED;
+			aborted = 1;
+		}
+	} else if (request->state == RUN_PUT) {
+		if (request->curl_result == CURLE_OK) {
+			start_move(request);
+		} else {
+			fprintf(stderr,	"PUT %s failed, aborting (%d/%ld)\n",
+				sha1_to_hex(request->obj->sha1),
+				request->curl_result, request->http_code);
+			request->state = ABORTED;
+			aborted = 1;
+		}
+	} else if (request->state == RUN_MOVE) {
+		if (request->curl_result == CURLE_OK) {
+			if (push_verbosely)
+				fprintf(stderr, "    sent %s\n",
+					sha1_to_hex(request->obj->sha1));
+			request->obj->flags |= REMOTE;
+			release_request(request);
+		} else {
+			fprintf(stderr, "MOVE %s failed, aborting (%d/%ld)\n",
+				sha1_to_hex(request->obj->sha1),
+				request->curl_result, request->http_code);
+			request->state = ABORTED;
+			aborted = 1;
+		}
+	} else if (request->state == RUN_FETCH_LOOSE) {
+		obj_req = (struct http_object_request *)request->userData;
+
+		if (finish_http_object_request(obj_req) == 0)
+			if (obj_req->rename == 0)
+				request->obj->flags |= (LOCAL | REMOTE);
+
+		/* Try fetching packed if necessary */
+		if (request->obj->flags & LOCAL) {
+			release_http_object_request(obj_req);
+			release_request(request);
+		} else
+			start_fetch_packed(request);
+
+	} else if (request->state == RUN_FETCH_PACKED) {
+		int fail = 1;
+		if (request->curl_result != CURLE_OK) {
+			fprintf(stderr, "Unable to get pack file %s\n%s",
+				request->url, curl_errorstr);
+		} else {
+			preq = (struct http_pack_request *)request->userData;
+
+			if (preq) {
+				if (finish_http_pack_request(preq) == 0)
+					fail = 0;
+				release_http_pack_request(preq);
+			}
+		}
+		if (fail)
+			repo->can_update_info_refs = 0;
+		release_request(request);
 	}
-	for (i = 0; i < argc; i++, strbuf_release(&bname)) {
-		const char *target;
-		int flags = 0;
-
-		strbuf_branchname(&bname, argv[i]);
-		if (kinds == REF_LOCAL_BRANCH && !strcmp(head, bname.buf)) {
-			error(_("Cannot delete the branch '%s' "
-			      "which you are currently on."), bname.buf);
-			ret = 1;
-			continue;
-		}
-
-		free(name);
-
-		name = mkpathdup(fmt, bname.buf);
-		target = resolve_ref_unsafe(name,
-					    RESOLVE_REF_READING
-					    | RESOLVE_REF_NO_RECURSE
-					    | RESOLVE_REF_ALLOW_BAD_NAME,
-					    sha1, &flags);
-		if (!target) {
-			error(remote_branch
-			      ? _("remote branch '%s' not found.")
-			      : _("branch '%s' not found."), bname.buf);
-			ret = 1;
-			continue;
-		}
-
-		if (!(flags & (REF_ISSYMREF|REF_ISBROKEN)) &&
-		    check_branch_commit(bname.buf, name, sha1, head_rev, kinds,
-					force)) {
-			ret = 1;
-			continue;
-		}
-
-		if (delete_ref(name, sha1, REF_NODEREF)) {
-			error(remote_branch
-			      ? _("Error deleting remote branch '%s'")
-			      : _("Error deleting branch '%s'"),
-			      bname.buf);
-			ret = 1;
-			continue;
-		}
-		if (!quiet) {
-			printf(remote_branch
-			       ? _("Deleted remote branch %s (was %s).\n")
-			       : _("Deleted branch %s (was %s).\n"),
-			       bname.buf,
-			       (flags & REF_ISBROKEN) ? "broken"
-			       : (flags & REF_ISSYMREF) ? target
-			       : find_unique_abbrev(sha1, DEFAULT_ABBREV));
-		}
-		delete_branch_config(bname.buf);
-	}
-
-	free(name);
-
-	return(ret);
 }

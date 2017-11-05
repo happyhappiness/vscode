@@ -1,79 +1,81 @@
-static int rm(int argc, const char **argv)
+const char *get_superproject_working_tree(void)
 {
-	struct option options[] = {
-		OPT_END()
-	};
-	struct remote *remote;
-	struct strbuf buf = STRBUF_INIT;
-	struct known_remotes known_remotes = { NULL, NULL };
-	struct string_list branches = STRING_LIST_INIT_DUP;
-	struct string_list skipped = STRING_LIST_INIT_DUP;
-	struct branches_for_remote cb_data;
-	int i, result;
+	struct child_process cp = CHILD_PROCESS_INIT;
+	struct strbuf sb = STRBUF_INIT;
+	const char *one_up = real_path_if_valid("../");
+	const char *cwd = xgetcwd();
+	const char *ret = NULL;
+	const char *subpath;
+	int code;
+	ssize_t len;
 
-	memset(&cb_data, 0, sizeof(cb_data));
-	cb_data.branches = &branches;
-	cb_data.skipped = &skipped;
-	cb_data.keep = &known_remotes;
+	if (!is_inside_work_tree())
+		/*
+		 * FIXME:
+		 * We might have a superproject, but it is harder
+		 * to determine.
+		 */
+		return NULL;
 
-	if (argc != 2)
-		usage_with_options(builtin_remote_rm_usage, options);
+	if (!one_up)
+		return NULL;
 
-	remote = remote_get(argv[1]);
-	if (!remote_is_configured(remote, 1))
-		die(_("No such remote: %s"), argv[1]);
+	subpath = relative_path(cwd, one_up, &sb);
 
-	known_remotes.to_delete = remote;
-	for_each_remote(add_known_remote, &known_remotes);
+	prepare_submodule_repo_env(&cp.env_array);
+	argv_array_pop(&cp.env_array);
 
-	read_branches();
-	for (i = 0; i < branch_list.nr; i++) {
-		struct string_list_item *item = branch_list.items + i;
-		struct branch_info *info = item->util;
-		if (info->remote_name && !strcmp(info->remote_name, remote->name)) {
-			const char *keys[] = { "remote", "merge", NULL }, **k;
-			for (k = keys; *k; k++) {
-				strbuf_reset(&buf);
-				strbuf_addf(&buf, "branch.%s.%s",
-						item->string, *k);
-				result = git_config_set_gently(buf.buf, NULL);
-				if (result && result != CONFIG_NOTHING_SET)
-					die(_("could not unset '%s'"), buf.buf);
-			}
-		}
+	argv_array_pushl(&cp.args, "--literal-pathspecs", "-C", "..",
+			"ls-files", "-z", "--stage", "--full-name", "--",
+			subpath, NULL);
+	strbuf_reset(&sb);
+
+	cp.no_stdin = 1;
+	cp.no_stderr = 1;
+	cp.out = -1;
+	cp.git_cmd = 1;
+
+	if (start_command(&cp))
+		die(_("could not start ls-files in .."));
+
+	len = strbuf_read(&sb, cp.out, PATH_MAX);
+	close(cp.out);
+
+	if (starts_with(sb.buf, "160000")) {
+		int super_sub_len;
+		int cwd_len = strlen(cwd);
+		char *super_sub, *super_wt;
+
+		/*
+		 * There is a superproject having this repo as a submodule.
+		 * The format is <mode> SP <hash> SP <stage> TAB <full name> \0,
+		 * We're only interested in the name after the tab.
+		 */
+		super_sub = strchr(sb.buf, '\t') + 1;
+		super_sub_len = sb.buf + sb.len - super_sub - 1;
+
+		if (super_sub_len > cwd_len ||
+		    strcmp(&cwd[cwd_len - super_sub_len], super_sub))
+			die (_("BUG: returned path string doesn't match cwd?"));
+
+		super_wt = xstrdup(cwd);
+		super_wt[cwd_len - super_sub_len] = '\0';
+
+		ret = real_path(super_wt);
+		free(super_wt);
 	}
+	strbuf_release(&sb);
 
-	/*
-	 * We cannot just pass a function to for_each_ref() which deletes
-	 * the branches one by one, since for_each_ref() relies on cached
-	 * refs, which are invalidated when deleting a branch.
-	 */
-	cb_data.remote = remote;
-	result = for_each_ref(add_branch_for_removal, &cb_data);
-	strbuf_release(&buf);
+	code = finish_command(&cp);
 
-	if (!result)
-		result = delete_refs(&branches, REF_NODEREF);
-	string_list_clear(&branches, 0);
+	if (code == 128)
+		/* '../' is not a git repository */
+		return NULL;
+	if (code == 0 && len == 0)
+		/* There is an unrelated git repository at '../' */
+		return NULL;
+	if (code)
+		die(_("ls-tree returned unexpected return code %d"), code);
 
-	if (skipped.nr) {
-		fprintf_ln(stderr,
-			   Q_("Note: A branch outside the refs/remotes/ hierarchy was not removed;\n"
-			      "to delete it, use:",
-			      "Note: Some branches outside the refs/remotes/ hierarchy were not removed;\n"
-			      "to delete them, use:",
-			      skipped.nr));
-		for (i = 0; i < skipped.nr; i++)
-			fprintf(stderr, "  git branch -d %s\n",
-				skipped.items[i].string);
-	}
-	string_list_clear(&skipped, 0);
-
-	if (!result) {
-		strbuf_addf(&buf, "remote.%s", remote->name);
-		if (git_config_rename_section(buf.buf, NULL) < 1)
-			return error(_("Could not remove config section '%s'"), buf.buf);
-	}
-
-	return result;
+	return ret;
 }

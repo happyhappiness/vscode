@@ -1,1 +1,1 @@
-error("Could not open %s", path);
+die(_("No existing author found with '%s'"), name);

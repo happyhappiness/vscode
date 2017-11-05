@@ -1,1 +1,1 @@
-printf(_("Applied autostash.\n"));
+error("Could not write client identification");

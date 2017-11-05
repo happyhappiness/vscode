@@ -1,1 +1,2 @@
-die("BUG: reference backend %s is unknown", be_name);
+printf("broken link from %7s %s\n",
+			   printable_type(parent), describe_object(parent));

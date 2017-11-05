@@ -1,2 +1,1 @@
-die(_("A notes merge into %s is already in-progress at %s"),
-			    default_notes_ref(), existing);
+die(_("unable to write parameters to config file"));

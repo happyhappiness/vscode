@@ -1,2 +1,1 @@
-error("cannot seek back reflog for %s: %s",
-				     refname, strerror(errno));
+die(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);

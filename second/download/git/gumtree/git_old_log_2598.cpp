@@ -1,2 +1,1 @@
-error(_("Commit %s is a merge but no -m option was given."),
-				sha1_to_hex(commit->object.sha1));
+die("Cannot read blob %s", sha1_to_hex(spec->sha1));

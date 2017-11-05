@@ -1,71 +1,72 @@
-static int parse_next_sha1(struct strbuf *input, const char **next,
-			   unsigned char *sha1,
-			   const char *command, const char *refname,
-			   int flags)
+static int stat_opt(struct diff_options *options, const char **av)
 {
-	struct strbuf arg = STRBUF_INIT;
-	int ret = 0;
+	const char *arg = av[0];
+	char *end;
+	int width = options->stat_width;
+	int name_width = options->stat_name_width;
+	int graph_width = options->stat_graph_width;
+	int count = options->stat_count;
+	int argcount = 1;
 
-	if (*next == input->buf + input->len)
-		goto eof;
+	if (!skip_prefix(arg, "--stat", &arg))
+		die("BUG: stat option does not begin with --stat: %s", arg);
+	end = (char *)arg;
 
-	if (line_termination) {
-		/* Without -z, consume SP and use next argument */
-		if (!**next || **next == line_termination)
-			return 1;
-		if (**next != ' ')
-			die("%s %s: expected SP but got: %s",
-			    command, refname, *next);
-		(*next)++;
-		*next = parse_arg(*next, &arg);
-		if (arg.len) {
-			if (get_sha1(arg.buf, sha1))
-				goto invalid;
-		} else {
-			/* Without -z, an empty value means all zeros: */
-			hashclr(sha1);
+	switch (*arg) {
+	case '-':
+		if (skip_prefix(arg, "-width", &arg)) {
+			if (*arg == '=')
+				width = strtoul(arg + 1, &end, 10);
+			else if (!*arg && !av[1])
+				die("Option '--stat-width' requires a value");
+			else if (!*arg) {
+				width = strtoul(av[1], &end, 10);
+				argcount = 2;
+			}
+		} else if (skip_prefix(arg, "-name-width", &arg)) {
+			if (*arg == '=')
+				name_width = strtoul(arg + 1, &end, 10);
+			else if (!*arg && !av[1])
+				die("Option '--stat-name-width' requires a value");
+			else if (!*arg) {
+				name_width = strtoul(av[1], &end, 10);
+				argcount = 2;
+			}
+		} else if (skip_prefix(arg, "-graph-width", &arg)) {
+			if (*arg == '=')
+				graph_width = strtoul(arg + 1, &end, 10);
+			else if (!*arg && !av[1])
+				die("Option '--stat-graph-width' requires a value");
+			else if (!*arg) {
+				graph_width = strtoul(av[1], &end, 10);
+				argcount = 2;
+			}
+		} else if (skip_prefix(arg, "-count", &arg)) {
+			if (*arg == '=')
+				count = strtoul(arg + 1, &end, 10);
+			else if (!*arg && !av[1])
+				die("Option '--stat-count' requires a value");
+			else if (!*arg) {
+				count = strtoul(av[1], &end, 10);
+				argcount = 2;
+			}
 		}
-	} else {
-		/* With -z, read the next NUL-terminated line */
-		if (**next)
-			die("%s %s: expected NUL but got: %s",
-			    command, refname, *next);
-		(*next)++;
-		if (*next == input->buf + input->len)
-			goto eof;
-		strbuf_addstr(&arg, *next);
-		*next += arg.len;
-
-		if (arg.len) {
-			if (get_sha1(arg.buf, sha1))
-				goto invalid;
-		} else if (flags & PARSE_SHA1_ALLOW_EMPTY) {
-			/* With -z, treat an empty value as all zeros: */
-			warning("%s %s: missing <newvalue>, treating as zero",
-				command, refname);
-			hashclr(sha1);
-		} else {
-			/*
-			 * With -z, an empty non-required value means
-			 * unspecified:
-			 */
-			ret = 1;
-		}
+		break;
+	case '=':
+		width = strtoul(arg+1, &end, 10);
+		if (*end == ',')
+			name_width = strtoul(end+1, &end, 10);
+		if (*end == ',')
+			count = strtoul(end+1, &end, 10);
 	}
 
-	strbuf_release(&arg);
-
-	return ret;
-
- invalid:
-	die(flags & PARSE_SHA1_OLD ?
-	    "%s %s: invalid <oldvalue>: %s" :
-	    "%s %s: invalid <newvalue>: %s",
-	    command, refname, arg.buf);
-
- eof:
-	die(flags & PARSE_SHA1_OLD ?
-	    "%s %s: unexpected end of input when reading <oldvalue>" :
-	    "%s %s: unexpected end of input when reading <newvalue>",
-	    command, refname);
+	/* Important! This checks all the error cases! */
+	if (*end)
+		return 0;
+	options->output_format |= DIFF_FORMAT_DIFFSTAT;
+	options->stat_name_width = name_width;
+	options->stat_graph_width = graph_width;
+	options->stat_width = width;
+	options->stat_count = count;
+	return argcount;
 }

@@ -1,21 +1,14 @@
-DWORD WINAPI service_nt_dispatch_thread(LPVOID nada)
+h2_stream *h2_stream_create(int id, apr_pool_t *pool, struct h2_mplx *m)
 {
-    apr_status_t rv = APR_SUCCESS;
-
-    SERVICE_TABLE_ENTRY dispatchTable[] =
-    {
-        { "", service_nt_main_fn },
-        { NULL, NULL }
-    };
-
-    /* ###: utf-ize */
-    if (!StartServiceCtrlDispatcher(dispatchTable))
-    {
-        /* This is a genuine failure of the SCM. */
-        rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     "Error starting service control dispatcher");
+    h2_stream *stream = apr_pcalloc(pool, sizeof(h2_stream));
+    if (stream != NULL) {
+        stream->id = id;
+        stream->state = H2_STREAM_ST_IDLE;
+        stream->pool = pool;
+        stream->m = m;
+        stream->request = h2_request_create(id, pool, m->c->bucket_alloc);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,
+                      "h2_stream(%ld-%d): created", m->id, stream->id);
     }
-
-    return (rv);
+    return stream;
 }

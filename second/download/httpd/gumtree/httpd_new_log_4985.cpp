@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, NULL, APLOGNO(00088)
-                 "%s", description);
+fprintf(stderr, "    -B address      Address to bind to when making outgoing connections\n");

@@ -1,1 +1,2 @@
-die("BUG: pack_name does not end in .pack");
+printf("              to %7s %s\n",
+				 typename(obj->type), describe_object(obj));

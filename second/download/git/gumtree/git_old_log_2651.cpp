@@ -1,1 +1,1 @@
-die("Invalid search pattern: %s", prefix);
+die("ren1_dst != ren2_dst");

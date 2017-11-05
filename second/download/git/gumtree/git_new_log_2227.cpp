@@ -1,3 +1,1 @@
-warning("Log for '%.*s' only goes "
-						"back to %s.", len, str,
-						show_date(co_time, co_tz, DATE_MODE(RFC2822)));
+fprintf_ln(stderr, "    git pull %s %s", _("<remote>"), _("<branch>"));

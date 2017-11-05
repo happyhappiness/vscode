@@ -1,2 +1,1 @@
-error("in tree %s: entry %s has bad mode %.6o",
-					oid_to_hex(&tree->object.oid), entry.path, entry.mode);
+die_errno(_("could not read file '%s'"), filename);

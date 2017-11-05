@@ -1,1 +1,1 @@
-die("Could not parse object '%s'", argv[i]);
+die(_("unable to write new index file"));

@@ -1,2 +1,1 @@
-die(_("could not run 'git status in submodule '%s'"),
-				path);
+warning("ignoring dangling symref %s.", fullref.buf);

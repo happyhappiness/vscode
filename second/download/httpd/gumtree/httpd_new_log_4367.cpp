@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01024)
-                      "woke from poll(), i=%d", pollcnt);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01939)
+                     "stapling_renew_response: Error parsing uri %s",
+                      ocspuri);

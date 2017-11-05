@@ -1,1 +1,1 @@
-error("unable to write current sha1 into %s: %s", oldrefname, err.buf);
+fprintf(outfile, "%s%c %s\n", tok, separators[0], val);

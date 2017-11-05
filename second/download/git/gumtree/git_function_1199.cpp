@@ -1,16 +1,39 @@
-static void dos_time(timestamp_t *timestamp, int *dos_date, int *dos_time)
+static void anonymize_ident_line(const char **beg, const char **end)
 {
-	time_t time;
-	struct tm *t;
+	static struct strbuf buffers[] = { STRBUF_INIT, STRBUF_INIT };
+	static unsigned which_buffer;
 
-	if (date_overflows(*timestamp))
-		die("timestamp too large for this system: %"PRItime,
-		    *timestamp);
-	time = (time_t)*timestamp;
-	t = localtime(&time);
-	*timestamp = time;
+	struct strbuf *out;
+	struct ident_split split;
+	const char *end_of_header;
 
-	*dos_date = t->tm_mday + (t->tm_mon + 1) * 32 +
-	            (t->tm_year + 1900 - 1980) * 512;
-	*dos_time = t->tm_sec / 2 + t->tm_min * 32 + t->tm_hour * 2048;
+	out = &buffers[which_buffer++];
+	which_buffer %= ARRAY_SIZE(buffers);
+	strbuf_reset(out);
+
+	/* skip "committer", "author", "tagger", etc */
+	end_of_header = strchr(*beg, ' ');
+	if (!end_of_header)
+		die("BUG: malformed line fed to anonymize_ident_line: %.*s",
+		    (int)(*end - *beg), *beg);
+	end_of_header++;
+	strbuf_add(out, *beg, end_of_header - *beg);
+
+	if (!split_ident_line(&split, end_of_header, *end - end_of_header) &&
+	    split.date_begin) {
+		const char *ident;
+		size_t len;
+
+		len = split.mail_end - split.name_begin;
+		ident = anonymize_mem(&idents, anonymize_ident,
+				      split.name_begin, &len);
+		strbuf_add(out, ident, len);
+		strbuf_addch(out, ' ');
+		strbuf_add(out, split.date_begin, split.tz_end - split.date_begin);
+	} else {
+		strbuf_addstr(out, "Malformed Ident <malformed@example.com> 0 -0000");
+	}
+
+	*beg = out->buf;
+	*end = out->buf + out->len;
 }

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                     "Parent: Unable to send the exit event handle to the child");
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c,
+                      "h2_from_h1(%d): err bucket status=%d", 
+                      from_h1->stream_id, st);

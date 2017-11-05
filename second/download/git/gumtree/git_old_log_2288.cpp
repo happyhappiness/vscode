@@ -1,1 +1,1 @@
-die_errno("unable to commit credential store");
+warning("'%s': %s", ce->name, strerror(errno));

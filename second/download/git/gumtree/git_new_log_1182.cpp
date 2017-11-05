@@ -1,1 +1,1 @@
-vreportf(prefix, fmt, params);
+die(_("revision walk setup failed"));

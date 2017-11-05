@@ -1,1 +1,1 @@
-fputs(sb.buf, stdout);
+fprintf(realstdout, "%s\n", filename.buf + outdir_offset);

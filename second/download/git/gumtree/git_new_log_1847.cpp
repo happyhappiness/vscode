@@ -1,2 +1,2 @@
-error("unable to generate patch-id diff for %s",
-				     p->one->path);
+die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

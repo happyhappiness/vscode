@@ -1,1 +1,1 @@
-ap_rputs("<table cellspacing=0 cellpadding=0>\n", r);
+fprintf(stderr,"Testing httpd.conf....\n");

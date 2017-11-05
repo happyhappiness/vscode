@@ -1,2 +1,1 @@
-error("cannot read %d bytes from reflog for %s: %s",
-				     cnt, refname, strerror(errno));
+error(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);

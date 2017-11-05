@@ -1,13 +1,37 @@
-static int checkout_target(struct index_state *istate,
-			   struct cache_entry *ce, struct stat *st)
+static int show(int argc, const char **argv, const char *prefix)
 {
-	struct checkout costate;
+	const char *object_ref;
+	struct notes_tree *t;
+	unsigned char object[20];
+	const unsigned char *note;
+	int retval;
+	struct option options[] = {
+		OPT_END()
+	};
 
-	memset(&costate, 0, sizeof(costate));
-	costate.base_dir = "";
-	costate.refresh_cache = 1;
-	costate.istate = istate;
-	if (checkout_entry(ce, &costate, NULL) || lstat(ce->name, st))
-		return error(_("cannot checkout %s"), ce->name);
-	return 0;
+	argc = parse_options(argc, argv, prefix, options, git_notes_show_usage,
+			     0);
+
+	if (1 < argc) {
+		error(_("too many parameters"));
+		usage_with_options(git_notes_show_usage, options);
+	}
+
+	object_ref = argc ? argv[0] : "HEAD";
+
+	if (get_sha1(object_ref, object))
+		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
+
+	t = init_notes_check("show", 0);
+	note = get_note(t, object);
+
+	if (!note)
+		retval = error(_("No note found for object %s."),
+			       sha1_to_hex(object));
+	else {
+		const char *show_args[3] = {"show", sha1_to_hex(note), NULL};
+		retval = execv_git_cmd(show_args);
+	}
+	free_notes(t);
+	return retval;
 }

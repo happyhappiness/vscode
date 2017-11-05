@@ -1,1 +1,1 @@
-die("Missing space after tree-ish: %s", command_buf.buf);
+fprintf(stderr, "Defaulting to tracing on stderr...\n");

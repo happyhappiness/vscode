@@ -1,1 +1,1 @@
-die(_("Not a valid object name: '%s'"), argv[i]);
+die("BUG: invalid cmdmode %d", (int)cmdmode);

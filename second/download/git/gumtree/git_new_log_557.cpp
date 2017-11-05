@@ -1,1 +1,1 @@
-print_verbose(args, _("Server supports no-done"));
+error(_("cannot %s: You have unstaged changes."), _(action));

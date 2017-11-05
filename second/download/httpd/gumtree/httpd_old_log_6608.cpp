@@ -1,3 +1,7 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, stream->r, APLOGNO(03359)
-                  "h2_proxy_session(%s): pass response data for "
-                  "stream %d, %d bytes", session->id, stream_id, (int)len);
+apr_file_printf(stderr_log,
+                    "[%s] [client %s] mod_ext_filter (%d)%s: %s\n",
+                    time_str,
+                    r->useragent_ip,
+                    err,
+                    apr_strerror(err, errbuf, sizeof(errbuf)),
+                    description);

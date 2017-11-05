@@ -1,1 +1,1 @@
-error(_("unrecognized argument: %s"), argv[1]);
+error("copy-fd: write returned %s", strerror(errno));

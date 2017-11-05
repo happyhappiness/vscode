@@ -1,1 +1,2 @@
-noindex_filespec(NULL, 0);
+warning("unknown repository extension: %s",
+				unknown_extensions.items[i].string);

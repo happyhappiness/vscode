@@ -1,2 +1,1 @@
-die(_("could not start 'git status' in submodule '%s'"),
-				path);
+warning("die() called many times. Recursion error or racy threaded death!");

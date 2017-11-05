@@ -1,1 +1,1 @@
-get_lock_file_path(lock->lk);
+die_errno(_("could not rename temporary file to %s"), file);

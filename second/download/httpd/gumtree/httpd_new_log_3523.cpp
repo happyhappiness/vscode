@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00847)
-                 "insert happened at idx=%d, data=(%u:%u)", new_idx,
-                 id_offset, data_offset);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(00683)
+                      "cannot access type map file: %s", rr->filename);

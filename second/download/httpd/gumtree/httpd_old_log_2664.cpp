@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                     "proxy: send body failed to %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: realm mismatch - got `%s' but expected `%s'",
+                      resp->realm, conf->realm);

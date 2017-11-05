@@ -1,1 +1,1 @@
-die("BUG: ref_update_reject_duplicates() received unsorted list");
+append_msgs_to_imap(&server, &all_msgs, total);

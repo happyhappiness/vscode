@@ -1,1 +1,1 @@
-die_errno(_("cannot stat '%s'"), path);
+error("waitpid for %s failed: %s", argv0, strerror(errno));

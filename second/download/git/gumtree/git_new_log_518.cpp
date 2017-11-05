@@ -1,1 +1,1 @@
-die_want_option("--stat-width");
+error("%s", err.buf);

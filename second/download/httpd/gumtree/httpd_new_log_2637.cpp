@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, cfg->server,
-                         "DBD: driver for %s is invalid or corrupted",
-                         cfg->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, sts, s, APLOGNO(01761)
+                     "Failed to find temporary directory");

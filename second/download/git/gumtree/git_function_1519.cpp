@@ -1,16 +1,25 @@
-static void prepare_move_submodule(const char *src, int first,
-				   const char **submodule_gitfile)
+static void separate_git_dir(const char *git_dir)
 {
-	struct strbuf submodule_dotgit = STRBUF_INIT;
-	if (!S_ISGITLINK(active_cache[first]->ce_mode))
-		die(_("Directory %s is in index and no submodule?"), src);
-	if (!is_staging_gitmodules_ok())
-		die(_("Please stage your changes to .gitmodules or stash them to proceed"));
-	strbuf_addf(&submodule_dotgit, "%s/.git", src);
-	*submodule_gitfile = read_gitfile(submodule_dotgit.buf);
-	if (*submodule_gitfile)
-		*submodule_gitfile = xstrdup(*submodule_gitfile);
-	else
-		*submodule_gitfile = SUBMODULE_WITH_GITDIR;
-	strbuf_release(&submodule_dotgit);
+	struct stat st;
+	FILE *fp;
+
+	if (!stat(git_link, &st)) {
+		const char *src;
+
+		if (S_ISREG(st.st_mode))
+			src = read_gitfile(git_link);
+		else if (S_ISDIR(st.st_mode))
+			src = git_link;
+		else
+			die(_("unable to handle file type %d"), (int)st.st_mode);
+
+		if (rename(src, git_dir))
+			die_errno(_("unable to move %s to %s"), src, git_dir);
+	}
+
+	fp = fopen(git_link, "w");
+	if (!fp)
+		die(_("Could not create git link %s"), git_link);
+	fprintf(fp, "gitdir: %s\n", git_dir);
+	fclose(fp);
 }

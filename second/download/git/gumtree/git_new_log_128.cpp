@@ -1,1 +1,1 @@
-die_errno(fmt, params);
+die("Log for %s is empty.", refname);

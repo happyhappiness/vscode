@@ -1,1 +1,1 @@
-ap_get_module_config(r->request_config, &info_module);
+ap_rputs("Err", r);

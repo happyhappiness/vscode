@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: unable to read file %s\n", 
-                            argv[0], pwfilename);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-w] [-k start|restart|stop|shutdown]", pad);

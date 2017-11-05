@@ -1,8 +1,10 @@
-static void store_pid(const char *path)
+static void show_result_list(struct merge_list *entry)
 {
-	FILE *f = fopen(path, "w");
-	if (!f)
-		die_errno("cannot open pid file '%s'", path);
-	if (fprintf(f, "%"PRIuMAX"\n", (uintmax_t) getpid()) < 0 || fclose(f) != 0)
-		die_errno("failed to write pid file '%s'", path);
+	printf("%s\n", explanation(entry));
+	do {
+		struct merge_list *link = entry->link;
+		static const char *desc[4] = { "result", "base", "our", "their" };
+		printf("  %-6s %o %s %s\n", desc[entry->stage], entry->mode, sha1_to_hex(entry->blob->object.sha1), entry->path);
+		entry = link;
+	} while (entry);
 }

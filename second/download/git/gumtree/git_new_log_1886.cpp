@@ -1,2 +1,2 @@
-die("not something we can merge in %s: %s",
-			    filename, merge_names->buf + pos);
+printf("%s %s\n",
+		       oid_to_hex(&ref->old_oid), ref->name);

@@ -1,21 +1,29 @@
-const char *setup_temporary_shallow(const struct sha1_array *extra)
+static int command_loop(const char *child)
 {
-	struct strbuf sb = STRBUF_INIT;
-	int fd;
+	char buffer[MAXCOMMAND];
 
-	if (write_shallow_commits(&sb, 0, extra)) {
-		fd = xmks_tempfile(&temporary_shallow, git_path("shallow_XXXXXX"));
+	while (1) {
+		size_t i;
+		if (!fgets(buffer, MAXCOMMAND - 1, stdin)) {
+			if (ferror(stdin))
+				die("Comammand input error");
+			exit(0);
+		}
+		/* Strip end of line characters. */
+		i = strlen(buffer);
+		while (i > 0 && isspace(buffer[i - 1]))
+			buffer[--i] = 0;
 
-		if (write_in_full(fd, sb.buf, sb.len) != sb.len)
-			die_errno("failed to write to %s",
-				  get_tempfile_path(&temporary_shallow));
-		close_tempfile(&temporary_shallow);
-		strbuf_release(&sb);
-		return get_tempfile_path(&temporary_shallow);
+		if (!strcmp(buffer, "capabilities")) {
+			printf("*connect\n\n");
+			fflush(stdout);
+		} else if (!strncmp(buffer, "connect ", 8)) {
+			printf("\n");
+			fflush(stdout);
+			return run_child(child, buffer + 8);
+		} else {
+			fprintf(stderr, "Bad command");
+			return 1;
+		}
 	}
-	/*
-	 * is_repository_shallow() sees empty string as "no shallow
-	 * file".
-	 */
-	return get_tempfile_path(&temporary_shallow);
 }

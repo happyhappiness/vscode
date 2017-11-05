@@ -1,1 +1,1 @@
-die("BUG: observed stagemask 0x%x != expected stagemask 0x%x", sum, d->stagemask);
+error("key does not contain a section: %s", key);

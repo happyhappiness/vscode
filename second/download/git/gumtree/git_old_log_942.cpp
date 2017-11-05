@@ -1,1 +1,1 @@
-die("unknown mode for %s", arg);
+die_errno(_("dup2(%d,%d) failed"), fd, to);

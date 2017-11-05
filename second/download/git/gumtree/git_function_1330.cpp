@@ -1,29 +1,22 @@
-static int diff_cache(struct rev_info *revs,
-		      const unsigned char *tree_sha1,
-		      const char *tree_name,
-		      int cached)
+static void prune_ref(struct ref_to_prune *r)
 {
-	struct tree *tree;
-	struct tree_desc t;
-	struct unpack_trees_options opts;
+	struct ref_transaction *transaction;
+	struct strbuf err = STRBUF_INIT;
 
-	tree = parse_tree_indirect(tree_sha1);
-	if (!tree)
-		return error("bad tree object %s",
-			     tree_name ? tree_name : sha1_to_hex(tree_sha1));
-	memset(&opts, 0, sizeof(opts));
-	opts.head_idx = 1;
-	opts.index_only = cached;
-	opts.diff_index_cached = (cached &&
-				  !DIFF_OPT_TST(&revs->diffopt, FIND_COPIES_HARDER));
-	opts.merge = 1;
-	opts.fn = oneway_diff;
-	opts.unpack_data = revs;
-	opts.src_index = &the_index;
-	opts.dst_index = NULL;
-	opts.pathspec = &revs->diffopt.pathspec;
-	opts.pathspec->recursive = 1;
+	if (check_refname_format(r->name, 0))
+		return;
 
-	init_tree_desc(&t, tree->buffer, tree->size);
-	return unpack_trees(1, &t, &opts);
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_delete(transaction, r->name, r->sha1,
+				   REF_ISPRUNING, 1, NULL, &err) ||
+	    ref_transaction_commit(transaction, &err)) {
+		ref_transaction_free(transaction);
+		error("%s", err.buf);
+		strbuf_release(&err);
+		return;
+	}
+	ref_transaction_free(transaction);
+	strbuf_release(&err);
+	try_remove_empty_parents(r->name);
 }

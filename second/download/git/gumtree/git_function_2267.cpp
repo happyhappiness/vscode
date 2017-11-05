@@ -1,66 +1,49 @@
-static void builtin_diffstat(const char *name_a, const char *name_b,
-			     struct diff_filespec *one,
-			     struct diff_filespec *two,
-			     struct diffstat_t *diffstat,
-			     struct diff_options *o,
-			     struct diff_filepair *p)
+static void prepare_bases(struct base_tree_info *bases,
+			  struct commit *base,
+			  struct commit **list,
+			  int total)
 {
-	mmfile_t mf1, mf2;
-	struct diffstat_file *data;
-	int same_contents;
-	int complete_rewrite = 0;
+	struct commit *commit;
+	struct rev_info revs;
+	struct diff_options diffopt;
+	int i;
 
-	if (!DIFF_PAIR_UNMERGED(p)) {
-		if (p->status == DIFF_STATUS_MODIFIED && p->score)
-			complete_rewrite = 1;
-	}
-
-	data = diffstat_add(diffstat, name_a, name_b);
-	data->is_interesting = p->status != DIFF_STATUS_UNKNOWN;
-
-	if (!one || !two) {
-		data->is_unmerged = 1;
+	if (!base)
 		return;
+
+	diff_setup(&diffopt);
+	DIFF_OPT_SET(&diffopt, RECURSIVE);
+	diff_setup_done(&diffopt);
+
+	oidcpy(&bases->base_commit, &base->object.oid);
+
+	init_revisions(&revs, NULL);
+	revs.max_parents = 1;
+	revs.topo_order = 1;
+	for (i = 0; i < total; i++) {
+		list[i]->object.flags &= ~UNINTERESTING;
+		add_pending_object(&revs, &list[i]->object, "rev_list");
+		list[i]->util = (void *)1;
 	}
+	base->object.flags |= UNINTERESTING;
+	add_pending_object(&revs, &base->object, "base");
 
-	same_contents = !hashcmp(one->sha1, two->sha1);
-
-	if (diff_filespec_is_binary(one) || diff_filespec_is_binary(two)) {
-		data->is_binary = 1;
-		if (same_contents) {
-			data->added = 0;
-			data->deleted = 0;
-		} else {
-			data->added = diff_filespec_size(two);
-			data->deleted = diff_filespec_size(one);
-		}
+	if (prepare_revision_walk(&revs))
+		die(_("revision walk setup failed"));
+	/*
+	 * Traverse the commits list, get prerequisite patch ids
+	 * and stuff them in bases structure.
+	 */
+	while ((commit = get_revision(&revs)) != NULL) {
+		unsigned char sha1[20];
+		struct object_id *patch_id;
+		if (commit->util)
+			continue;
+		if (commit_patch_id(commit, &diffopt, sha1))
+			die(_("cannot get patch id"));
+		ALLOC_GROW(bases->patch_id, bases->nr_patch_id + 1, bases->alloc_patch_id);
+		patch_id = bases->patch_id + bases->nr_patch_id;
+		hashcpy(patch_id->hash, sha1);
+		bases->nr_patch_id++;
 	}
-
-	else if (complete_rewrite) {
-		diff_populate_filespec(one, 0);
-		diff_populate_filespec(two, 0);
-		data->deleted = count_lines(one->data, one->size);
-		data->added = count_lines(two->data, two->size);
-	}
-
-	else if (!same_contents) {
-		/* Crazy xdl interfaces.. */
-		xpparam_t xpp;
-		xdemitconf_t xecfg;
-
-		if (fill_mmfile(&mf1, one) < 0 || fill_mmfile(&mf2, two) < 0)
-			die("unable to read files to diff");
-
-		memset(&xpp, 0, sizeof(xpp));
-		memset(&xecfg, 0, sizeof(xecfg));
-		xpp.flags = o->xdl_opts;
-		xecfg.ctxlen = o->context;
-		xecfg.interhunkctxlen = o->interhunkcontext;
-		if (xdi_diff_outf(&mf1, &mf2, diffstat_consume, diffstat,
-				  &xpp, &xecfg))
-			die("unable to generate diffstat for %s", one->path);
-	}
-
-	diff_free_filespec_data(one);
-	diff_free_filespec_data(two);
 }

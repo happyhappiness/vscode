@@ -1,1 +1,1 @@
-die("Unable to write new index file");
+die("update: missing <ref>");

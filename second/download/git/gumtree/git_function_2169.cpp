@@ -1,19 +1,22 @@
-int commit_lock_file(struct lock_file *lk)
+static void pp_cleanup(struct parallel_processes *pp)
 {
-	static struct strbuf result_file = STRBUF_INIT;
-	int err;
+	int i;
 
-	if (!lk->active)
-		die("BUG: attempt to commit unlocked object");
+	trace_printf("run_processes_parallel: done");
+	for (i = 0; i < pp->max_processes; i++) {
+		strbuf_release(&pp->children[i].err);
+		child_process_clear(&pp->children[i].process);
+	}
 
-	if (lk->filename.len <= LOCK_SUFFIX_LEN ||
-	    strcmp(lk->filename.buf + lk->filename.len - LOCK_SUFFIX_LEN, LOCK_SUFFIX))
-		die("BUG: lockfile filename corrupt");
+	free(pp->children);
+	free(pp->pfd);
 
-	/* remove ".lock": */
-	strbuf_add(&result_file, lk->filename.buf,
-		   lk->filename.len - LOCK_SUFFIX_LEN);
-	err = commit_lock_file_to(lk, result_file.buf);
-	strbuf_reset(&result_file);
-	return err;
+	/*
+	 * When get_next_task added messages to the buffer in its last
+	 * iteration, the buffered output is non empty.
+	 */
+	fputs(pp->buffered_output.buf, stderr);
+	strbuf_release(&pp->buffered_output);
+
+	sigchain_pop_common();
 }

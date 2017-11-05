@@ -1,2 +1,1 @@
-error("%s %s", oid_to_hex(&refs.objects[i].item->oid),
-				refs.objects[i].name);
+die(_("Option --exec can only be used together with --remote"));

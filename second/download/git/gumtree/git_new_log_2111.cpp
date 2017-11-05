@@ -1,1 +1,1 @@
-warning("Skipping unknown msg id '%s'", var);
+die(_("no input file given for in-place editing"));

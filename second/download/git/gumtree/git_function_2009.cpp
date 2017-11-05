@@ -1,17 +1,18 @@
-void *xmmap(void *start, size_t length,
-	int prot, int flags, int fd, off_t offset)
+void *object_as_type(struct object *obj, enum object_type type, int quiet)
 {
-	void *ret;
-
-	mmap_limit_check(length);
-	ret = mmap(start, length, prot, flags, fd, offset);
-	if (ret == MAP_FAILED) {
-		if (!length)
-			return NULL;
-		release_pack_memory(length);
-		ret = mmap(start, length, prot, flags, fd, offset);
-		if (ret == MAP_FAILED)
-			die_errno("Out of memory? mmap failed");
+	if (obj->type == type)
+		return obj;
+	else if (obj->type == OBJ_NONE) {
+		if (type == OBJ_COMMIT)
+			((struct commit *)obj)->index = alloc_commit_index();
+		obj->type = type;
+		return obj;
 	}
-	return ret;
+	else {
+		if (!quiet)
+			error("object %s is a %s, not a %s",
+			      sha1_to_hex(obj->sha1),
+			      typename(obj->type), typename(type));
+		return NULL;
+	}
 }

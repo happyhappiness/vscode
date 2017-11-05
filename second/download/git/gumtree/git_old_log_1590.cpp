@@ -1,1 +1,1 @@
-error("Unable to update %s", ref_name.buf);
+error("problems writing temporary file %s", buf->buf);

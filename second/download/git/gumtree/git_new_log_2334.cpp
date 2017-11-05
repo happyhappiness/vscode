@@ -1,2 +1,1 @@
-warning ("Stripping signature from tag %s",
-					 oid_to_hex(&tag->object.oid));
+error_errno("unable to unlink old '%s'", path.buf);

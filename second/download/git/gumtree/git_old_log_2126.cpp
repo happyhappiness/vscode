@@ -1,2 +1,2 @@
-die("unable to generate combined diff for %s",
-		    oid_to_hex(parent));
+die(_("bad numeric config value '%s' for '%s' in %s: %s"),
+		    value, name, cf->name, reason);

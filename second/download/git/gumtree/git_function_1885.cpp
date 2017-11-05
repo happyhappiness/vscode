@@ -1,53 +1,151 @@
-static void handle_fetch_head(struct commit_list **remotes, struct strbuf *merge_names)
+static int store_updated_refs(const char *raw_url, const char *remote_name,
+		struct ref *ref_map)
 {
-	const char *filename;
-	int fd, pos, npos;
-	struct strbuf fetch_head_file = STRBUF_INIT;
+	FILE *fp;
+	struct commit *commit;
+	int url_len, i, rc = 0;
+	struct strbuf note = STRBUF_INIT;
+	const char *what, *kind;
+	struct ref *rm;
+	char *url;
+	const char *filename = dry_run ? "/dev/null" : git_path_fetch_head();
+	int want_status;
 
-	if (!merge_names)
-		merge_names = &fetch_head_file;
+	fp = fopen(filename, "a");
+	if (!fp)
+		return error(_("cannot open %s: %s\n"), filename, strerror(errno));
 
-	filename = git_path("FETCH_HEAD");
-	fd = open(filename, O_RDONLY);
-	if (fd < 0)
-		die_errno(_("could not open '%s' for reading"), filename);
+	if (raw_url)
+		url = transport_anonymize_url(raw_url);
+	else
+		url = xstrdup("foreign");
 
-	if (strbuf_read(merge_names, fd, 0) < 0)
-		die_errno(_("could not read '%s'"), filename);
-	if (close(fd) < 0)
-		die_errno(_("could not close '%s'"), filename);
-
-	for (pos = 0; pos < merge_names->len; pos = npos) {
-		unsigned char sha1[20];
-		char *ptr;
-		struct commit *commit;
-
-		ptr = strchr(merge_names->buf + pos, '\n');
-		if (ptr)
-			npos = ptr - merge_names->buf + 1;
-		else
-			npos = merge_names->len;
-
-		if (npos - pos < 40 + 2 ||
-		    get_sha1_hex(merge_names->buf + pos, sha1))
-			commit = NULL; /* bad */
-		else if (memcmp(merge_names->buf + pos + 40, "\t\t", 2))
-			continue; /* not-for-merge */
-		else {
-			char saved = merge_names->buf[pos + 40];
-			merge_names->buf[pos + 40] = '\0';
-			commit = get_merge_parent(merge_names->buf + pos);
-			merge_names->buf[pos + 40] = saved;
-		}
-		if (!commit) {
-			if (ptr)
-				*ptr = '\0';
-			die("not something we can merge in %s: %s",
-			    filename, merge_names->buf + pos);
-		}
-		remotes = &commit_list_insert(commit, remotes)->next;
+	rm = ref_map;
+	if (check_everything_connected(iterate_ref_map, 0, &rm)) {
+		rc = error(_("%s did not send all necessary objects\n"), url);
+		goto abort;
 	}
 
-	if (merge_names == &fetch_head_file)
-		strbuf_release(&fetch_head_file);
+	/*
+	 * We do a pass for each fetch_head_status type in their enum order, so
+	 * merged entries are written before not-for-merge. That lets readers
+	 * use FETCH_HEAD as a refname to refer to the ref to be merged.
+	 */
+	for (want_status = FETCH_HEAD_MERGE;
+	     want_status <= FETCH_HEAD_IGNORE;
+	     want_status++) {
+		for (rm = ref_map; rm; rm = rm->next) {
+			struct ref *ref = NULL;
+			const char *merge_status_marker = "";
+
+			if (rm->status == REF_STATUS_REJECT_SHALLOW) {
+				if (want_status == FETCH_HEAD_MERGE)
+					warning(_("reject %s because shallow roots are not allowed to be updated"),
+						rm->peer_ref ? rm->peer_ref->name : rm->name);
+				continue;
+			}
+
+			commit = lookup_commit_reference_gently(rm->old_sha1, 1);
+			if (!commit)
+				rm->fetch_head_status = FETCH_HEAD_NOT_FOR_MERGE;
+
+			if (rm->fetch_head_status != want_status)
+				continue;
+
+			if (rm->peer_ref) {
+				ref = xcalloc(1, sizeof(*ref) + strlen(rm->peer_ref->name) + 1);
+				strcpy(ref->name, rm->peer_ref->name);
+				hashcpy(ref->old_sha1, rm->peer_ref->old_sha1);
+				hashcpy(ref->new_sha1, rm->old_sha1);
+				ref->force = rm->peer_ref->force;
+			}
+
+
+			if (!strcmp(rm->name, "HEAD")) {
+				kind = "";
+				what = "";
+			}
+			else if (starts_with(rm->name, "refs/heads/")) {
+				kind = "branch";
+				what = rm->name + 11;
+			}
+			else if (starts_with(rm->name, "refs/tags/")) {
+				kind = "tag";
+				what = rm->name + 10;
+			}
+			else if (starts_with(rm->name, "refs/remotes/")) {
+				kind = "remote-tracking branch";
+				what = rm->name + 13;
+			}
+			else {
+				kind = "";
+				what = rm->name;
+			}
+
+			url_len = strlen(url);
+			for (i = url_len - 1; url[i] == '/' && 0 <= i; i--)
+				;
+			url_len = i + 1;
+			if (4 < i && !strncmp(".git", url + i - 3, 4))
+				url_len = i - 3;
+
+			strbuf_reset(&note);
+			if (*what) {
+				if (*kind)
+					strbuf_addf(&note, "%s ", kind);
+				strbuf_addf(&note, "'%s' of ", what);
+			}
+			switch (rm->fetch_head_status) {
+			case FETCH_HEAD_NOT_FOR_MERGE:
+				merge_status_marker = "not-for-merge";
+				/* fall-through */
+			case FETCH_HEAD_MERGE:
+				fprintf(fp, "%s\t%s\t%s",
+					sha1_to_hex(rm->old_sha1),
+					merge_status_marker,
+					note.buf);
+				for (i = 0; i < url_len; ++i)
+					if ('\n' == url[i])
+						fputs("\\n", fp);
+					else
+						fputc(url[i], fp);
+				fputc('\n', fp);
+				break;
+			default:
+				/* do not write anything to FETCH_HEAD */
+				break;
+			}
+
+			strbuf_reset(&note);
+			if (ref) {
+				rc |= update_local_ref(ref, what, rm, &note);
+				free(ref);
+			} else
+				strbuf_addf(&note, "* %-*s %-*s -> FETCH_HEAD",
+					    TRANSPORT_SUMMARY_WIDTH,
+					    *kind ? kind : "branch",
+					    REFCOL_WIDTH,
+					    *what ? what : "HEAD");
+			if (note.len) {
+				if (verbosity >= 0 && !shown_url) {
+					fprintf(stderr, _("From %.*s\n"),
+							url_len, url);
+					shown_url = 1;
+				}
+				if (verbosity >= 0)
+					fprintf(stderr, " %s\n", note.buf);
+			}
+		}
+	}
+
+	if (rc & STORE_REF_ERROR_DF_CONFLICT)
+		error(_("some local refs could not be updated; try running\n"
+		      " 'git remote prune %s' to remove any old, conflicting "
+		      "branches"), remote_name);
+
+ abort:
+	strbuf_release(&note);
+	free(url);
+	fclose(fp);
+	return rc;
 }

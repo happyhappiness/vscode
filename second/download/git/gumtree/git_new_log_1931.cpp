@@ -1,1 +1,1 @@
-die_errno(_("failed to get kernel name and information"));
+die(_("no URLs configured for remote '%s'"), remotename);

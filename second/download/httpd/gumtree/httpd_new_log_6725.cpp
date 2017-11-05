@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02421)
-                          "HTTP Request Line; URI must not contain a fragment");
+printf("<tr %s><th colspan=2 %s>Transfer rate:</th>"
+           "<td colspan=2 %s>%.2f kb/s received</td></tr>\n",
+           trstring, tdstring, tdstring, (double) totalread / 1024 / timetaken);

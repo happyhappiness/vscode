@@ -1,1 +1,1 @@
-fputs(sha1_to_hex(commit->object.sha1), stdout);
+warning("unable to %s %s: %s", op, file, strerror(errno));

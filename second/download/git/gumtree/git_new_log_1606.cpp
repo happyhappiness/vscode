@@ -1,1 +1,2 @@
-git_die_config("imap.host", "Missing value for 'imap.host'");
+strbuf_addf(err, "unable to resolve reference %s: %s",
+				    orig_refname, strerror(last_errno));

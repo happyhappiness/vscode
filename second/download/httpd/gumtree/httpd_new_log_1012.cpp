@@ -1,1 +1,1 @@
-(APR_STATUS_IS_EINTR(rv);
+apr_file_printf(errfile, "Usage:" NL);

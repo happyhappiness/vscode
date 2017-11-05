@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                 "initialize MM %pp RMM %pp",
-                 mc->pSessionCacheDataMM, mc->pSessionCacheDataRMM);
+ap_fputstrs(output, bb,
+                  "<D:status>HTTP/1.1 ",
+                  ap_get_status_line(response->status),
+                  "</D:status>" DEBUG_CR,
+                  NULL);

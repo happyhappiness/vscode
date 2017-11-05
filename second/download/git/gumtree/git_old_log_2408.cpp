@@ -1,2 +1,1 @@
-fputs(find_unique_abbrev(commit->object.sha1, revs->abbrev),
-		      stdout);
+error("cannot open fd %d: %s", in_fd, strerror(errno));

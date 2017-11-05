@@ -1,5 +1,2 @@
-status_printf_ln(s, GIT_COLOR_NORMAL,
-				_("%s"
-				"Author:    %s"),
-				ident_shown++ ? "" : "\n",
-				author_ident->buf);
+usage_msg_opt("--format and -d cannot be used together",
+			      git_replace_usage, options);

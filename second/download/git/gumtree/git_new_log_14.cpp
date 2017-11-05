@@ -1,2 +1,1 @@
-die("expected commit for %s, got %s",
-			    sha1_to_hex(commit->object.sha1), typename(type));
+object_as_type(obj, OBJ_BLOB, 0);

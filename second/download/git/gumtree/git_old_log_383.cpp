@@ -1,1 +1,1 @@
-die(_("reference repository '%s' is shallow"), item->string);
+die("protocol error: bad pack header");

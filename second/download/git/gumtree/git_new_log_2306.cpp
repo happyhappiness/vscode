@@ -1,4 +1,1 @@
-fprintf(stderr, "%s in %s has negative refcnt %d\n",
-				ent->suspect->path,
-				oid_to_hex(&ent->suspect->commit->object.oid),
-				ent->suspect->refcnt);
+printf("%s", relative_path(argv[1], argv[2], &sb));

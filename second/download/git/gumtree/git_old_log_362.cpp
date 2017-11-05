@@ -1,1 +1,1 @@
-die("--reverse --first-parent together require range along first-parent chain");
+die("git fetch-pack: expected ACK/NAK, got EOF");

@@ -1,1 +1,1 @@
-error(_("cannot checkout %s"), ce->name);
+die(_("Failed to resolve '%s' as a valid ref."), object_ref);

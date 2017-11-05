@@ -1,1 +1,1 @@
-die(_("could not stat file '%s'"), ce->name);
+die("Timestamp too large for this system: %"PRItime, time);

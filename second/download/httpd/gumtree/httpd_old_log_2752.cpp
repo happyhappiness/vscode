@@ -1,4 +1,3 @@
-fprintf(stderr,
-                "Usage: %s [-l] <logfile> <rotation time in seconds> "
-                "[offset minutes from UTC] or <rotation size in megabytes>\n\n",
-                argv[0]);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: "
+                          "require dn: authorization successful");

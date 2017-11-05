@@ -1,1 +1,1 @@
-die("'git status --porcelain -uall --ignore-submodules=none' failed in submodule %s", path);
+warning("ignoring dangling symref %s.", fullref);

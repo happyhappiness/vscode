@@ -1,104 +1,92 @@
-int reflog_expire(const char *refname, const unsigned char *sha1,
-		 unsigned int flags,
-		 reflog_expiry_prepare_fn prepare_fn,
-		 reflog_expiry_should_prune_fn should_prune_fn,
-		 reflog_expiry_cleanup_fn cleanup_fn,
-		 void *policy_cb_data)
+static int delete_branches(int argc, const char **argv, int force, int kinds,
+			   int quiet)
 {
-	static struct lock_file reflog_lock;
-	struct expire_reflog_cb cb;
-	struct ref_lock *lock;
-	char *log_file;
-	int status = 0;
-	int type;
-	struct strbuf err = STRBUF_INIT;
+	struct commit *head_rev = NULL;
+	unsigned char sha1[20];
+	char *name = NULL;
+	const char *fmt;
+	int i;
+	int ret = 0;
+	int remote_branch = 0;
+	struct strbuf bname = STRBUF_INIT;
 
-	memset(&cb, 0, sizeof(cb));
-	cb.flags = flags;
-	cb.policy_cb = policy_cb_data;
-	cb.should_prune_fn = should_prune_fn;
+	switch (kinds) {
+	case FILTER_REFS_REMOTES:
+		fmt = "refs/remotes/%s";
+		/* For subsequent UI messages */
+		remote_branch = 1;
 
-	/*
-	 * The reflog file is locked by holding the lock on the
-	 * reference itself, plus we might need to update the
-	 * reference if --updateref was specified:
-	 */
-	lock = lock_ref_sha1_basic(refname, sha1, NULL, NULL, 0, &type, &err);
-	if (!lock) {
-		error("cannot lock ref '%s': %s", refname, err.buf);
-		strbuf_release(&err);
-		return -1;
-	}
-	if (!reflog_exists(refname)) {
-		unlock_ref(lock);
-		return 0;
+		force = 1;
+		break;
+	case FILTER_REFS_BRANCHES:
+		fmt = "refs/heads/%s";
+		break;
+	default:
+		die(_("cannot use -a with -d"));
 	}
 
-	log_file = git_pathdup("logs/%s", refname);
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * Even though holding $GIT_DIR/logs/$reflog.lock has
-		 * no locking implications, we use the lock_file
-		 * machinery here anyway because it does a lot of the
-		 * work we need, including cleaning up if the program
-		 * exits unexpectedly.
-		 */
-		if (hold_lock_file_for_update(&reflog_lock, log_file, 0) < 0) {
-			struct strbuf err = STRBUF_INIT;
-			unable_to_lock_message(log_file, errno, &err);
-			error("%s", err.buf);
-			strbuf_release(&err);
-			goto failure;
+	if (!force) {
+		head_rev = lookup_commit_reference(head_sha1);
+		if (!head_rev)
+			die(_("Couldn't look up commit object for HEAD"));
+	}
+	for (i = 0; i < argc; i++, strbuf_release(&bname)) {
+		const char *target;
+		int flags = 0;
+
+		strbuf_branchname(&bname, argv[i]);
+		if (kinds == FILTER_REFS_BRANCHES && !strcmp(head, bname.buf)) {
+			error(_("Cannot delete the branch '%s' "
+			      "which you are currently on."), bname.buf);
+			ret = 1;
+			continue;
 		}
-		cb.newlog = fdopen_lock_file(&reflog_lock, "w");
-		if (!cb.newlog) {
-			error("cannot fdopen %s (%s)",
-			      reflog_lock.filename.buf, strerror(errno));
-			goto failure;
+
+		free(name);
+
+		name = mkpathdup(fmt, bname.buf);
+		target = resolve_ref_unsafe(name,
+					    RESOLVE_REF_READING
+					    | RESOLVE_REF_NO_RECURSE
+					    | RESOLVE_REF_ALLOW_BAD_NAME,
+					    sha1, &flags);
+		if (!target) {
+			error(remote_branch
+			      ? _("remote-tracking branch '%s' not found.")
+			      : _("branch '%s' not found."), bname.buf);
+			ret = 1;
+			continue;
 		}
+
+		if (!(flags & (REF_ISSYMREF|REF_ISBROKEN)) &&
+		    check_branch_commit(bname.buf, name, sha1, head_rev, kinds,
+					force)) {
+			ret = 1;
+			continue;
+		}
+
+		if (delete_ref(name, is_null_sha1(sha1) ? NULL : sha1,
+			       REF_NODEREF)) {
+			error(remote_branch
+			      ? _("Error deleting remote-tracking branch '%s'")
+			      : _("Error deleting branch '%s'"),
+			      bname.buf);
+			ret = 1;
+			continue;
+		}
+		if (!quiet) {
+			printf(remote_branch
+			       ? _("Deleted remote-tracking branch %s (was %s).\n")
+			       : _("Deleted branch %s (was %s).\n"),
+			       bname.buf,
+			       (flags & REF_ISBROKEN) ? "broken"
+			       : (flags & REF_ISSYMREF) ? target
+			       : find_unique_abbrev(sha1, DEFAULT_ABBREV));
+		}
+		delete_branch_config(bname.buf);
 	}
 
-	(*prepare_fn)(refname, sha1, cb.policy_cb);
-	for_each_reflog_ent(refname, expire_reflog_ent, &cb);
-	(*cleanup_fn)(cb.policy_cb);
+	free(name);
 
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * It doesn't make sense to adjust a reference pointed
-		 * to by a symbolic ref based on expiring entries in
-		 * the symbolic reference's reflog. Nor can we update
-		 * a reference if there are no remaining reflog
-		 * entries.
-		 */
-		int update = (flags & EXPIRE_REFLOGS_UPDATE_REF) &&
-			!(type & REF_ISSYMREF) &&
-			!is_null_sha1(cb.last_kept_sha1);
-
-		if (close_lock_file(&reflog_lock)) {
-			status |= error("couldn't write %s: %s", log_file,
-					strerror(errno));
-		} else if (update &&
-			   (write_in_full(lock->lk->fd,
-				sha1_to_hex(cb.last_kept_sha1), 40) != 40 ||
-			 write_str_in_full(lock->lk->fd, "\n") != 1 ||
-			 close_ref(lock) < 0)) {
-			status |= error("couldn't write %s",
-					lock->lk->filename.buf);
-			rollback_lock_file(&reflog_lock);
-		} else if (commit_lock_file(&reflog_lock)) {
-			status |= error("unable to commit reflog '%s' (%s)",
-					log_file, strerror(errno));
-		} else if (update && commit_ref(lock)) {
-			status |= error("couldn't set %s", lock->ref_name);
-		}
-	}
-	free(log_file);
-	unlock_ref(lock);
-	return status;
-
- failure:
-	rollback_lock_file(&reflog_lock);
-	free(log_file);
-	unlock_ref(lock);
-	return -1;
+	return(ret);
 }

@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01973)
-                  "connecting to OCSP responder '%s'", uri->hostinfo);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00303)
+                         "ServerLimit of %d not allowed, increasing to 1",
+                         server_limit);

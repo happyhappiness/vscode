@@ -1,5 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task_input(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      input->task->id, block, 
-                      (long)readbytes, (long)bblen);
+ap_rputs("<tr><td>Method</td><td><select name='w_hm'>\n", r);

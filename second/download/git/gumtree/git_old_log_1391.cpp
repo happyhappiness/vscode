@@ -1,2 +1,3 @@
-die(_("missing object %s for %s"),
-		    sha1_to_hex(tagged), ref->refname);
+error(_("Cannot add notes. Found existing notes "
+				       "for object %s. Use '-f' to overwrite "
+				       "existing notes"), sha1_to_hex(object));

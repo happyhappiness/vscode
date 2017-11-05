@@ -1,1 +1,1 @@
-die(_("no matching remote head"));
+die(_("--stdin requires a git repository"));

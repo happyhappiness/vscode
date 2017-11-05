@@ -1,1 +1,2 @@
-die("remote '%s' not configured", argv[1]);
+warning("object %s cannot be read",
+						oid_to_hex(&src_entry->idx.oid));

@@ -1,17 +1,16 @@
-static void show_submodule(struct repository *superproject,
-			   struct dir_struct *dir, const char *path)
+void convert_to_git_filter_fd(const char *path, int fd, struct strbuf *dst,
+			      enum safe_crlf checksafe)
 {
-	struct repository submodule;
+	struct conv_attrs ca;
+	convert_attrs(&ca, path);
 
-	if (repo_submodule_init(&submodule, superproject, path))
-		return;
+	assert(ca.drv);
+	assert(ca.drv->clean);
 
-	if (repo_read_index(&submodule) < 0)
-		die("index file corrupt");
+	if (!apply_filter(path, NULL, 0, fd, dst, ca.drv->clean))
+		die("%s: clean filter '%s' failed", path, ca.drv->name);
 
-	repo_read_gitmodules(&submodule);
-
-	show_files(&submodule, dir);
-
-	repo_clear(&submodule);
+	ca.crlf_action = input_crlf_action(ca.crlf_action, ca.eol_attr);
+	crlf_to_git(path, dst->buf, dst->len, dst, ca.crlf_action, checksafe);
+	ident_to_git(path, dst->buf, dst->len, dst, ca.ident);
 }

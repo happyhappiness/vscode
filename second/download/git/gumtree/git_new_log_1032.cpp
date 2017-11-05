@@ -1,1 +1,1 @@
-die(_("--no-contains option is only allowed in list mode"));
+printf(_("Deleted tag '%s' (was %s)\n"), name, find_unique_abbrev(oid->hash, DEFAULT_ABBREV));

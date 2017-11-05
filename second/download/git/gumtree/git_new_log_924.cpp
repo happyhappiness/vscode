@@ -1,1 +1,1 @@
-error("invalid key: %s", key);
+die("bad %s argument: %s", opt, arg);

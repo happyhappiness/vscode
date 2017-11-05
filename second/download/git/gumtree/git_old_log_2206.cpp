@@ -1,1 +1,1 @@
-die_errno(_("Could not create sequencer directory %s"), seq_dir);
+die(_("Could not set '%s' to '%s'"), key, value);

@@ -1,1 +1,1 @@
-die("data too large to fit into virtual memory space");
+err(o, _("object %s is not a blob"), oid_to_hex(oid));

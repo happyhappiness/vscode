@@ -1,1 +1,1 @@
-ap_rputs("Ok", r);
+ap_rputs("</table>\n", r);

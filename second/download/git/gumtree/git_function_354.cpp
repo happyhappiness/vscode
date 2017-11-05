@@ -1,24 +1,28 @@
-static void fill_origin_blob(struct diff_options *opt,
-			     struct origin *o, mmfile_t *file)
+static int parse_ws_error_highlight(struct diff_options *opt, const char *arg)
 {
-	if (!o->file.ptr) {
-		enum object_type type;
-		unsigned long file_size;
-
-		num_read_blob++;
-		if (DIFF_OPT_TST(opt, ALLOW_TEXTCONV) &&
-		    textconv_object(o->path, o->mode, o->blob_sha1, 1, &file->ptr, &file_size))
-			;
-		else
-			file->ptr = read_sha1_file(o->blob_sha1, &type, &file_size);
-		file->size = file_size;
-
-		if (!file->ptr)
-			die("Cannot read blob %s for path %s",
-			    sha1_to_hex(o->blob_sha1),
-			    o->path);
-		o->file = *file;
+	const char *orig_arg = arg;
+	unsigned val = 0;
+	while (*arg) {
+		if (parse_one_token(&arg, "none"))
+			val = 0;
+		else if (parse_one_token(&arg, "default"))
+			val = WSEH_NEW;
+		else if (parse_one_token(&arg, "all"))
+			val = WSEH_NEW | WSEH_OLD | WSEH_CONTEXT;
+		else if (parse_one_token(&arg, "new"))
+			val |= WSEH_NEW;
+		else if (parse_one_token(&arg, "old"))
+			val |= WSEH_OLD;
+		else if (parse_one_token(&arg, "context"))
+			val |= WSEH_CONTEXT;
+		else {
+			error("unknown value after ws-error-highlight=%.*s",
+			      (int)(arg - orig_arg), orig_arg);
+			return 0;
+		}
+		if (*arg)
+			arg++;
 	}
-	else
-		*file = o->file;
+	opt->ws_error_highlight = val;
+	return 1;
 }

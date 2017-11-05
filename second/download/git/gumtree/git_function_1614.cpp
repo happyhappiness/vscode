@@ -1,49 +1,36 @@
-static int lock_file(struct lock_file *lk, const char *path, int flags)
+static ssize_t read_request(int fd, unsigned char **out)
 {
-	size_t pathlen = strlen(path);
+	size_t len = 0, alloc = 8192;
+	unsigned char *buf = xmalloc(alloc);
 
-	if (!lock_file_list) {
-		/* One-time initialization */
-		sigchain_push_common(remove_lock_files_on_signal);
-		atexit(remove_lock_files_on_exit);
-	}
+	if (max_request_buffer < alloc)
+		max_request_buffer = alloc;
 
-	if (lk->active)
-		die("BUG: cannot lock_file(\"%s\") using active struct lock_file",
-		    path);
-	if (!lk->on_list) {
-		/* Initialize *lk and add it to lock_file_list: */
-		lk->fd = -1;
-		lk->fp = NULL;
-		lk->active = 0;
-		lk->owner = 0;
-		strbuf_init(&lk->filename, pathlen + LOCK_SUFFIX_LEN);
-		lk->next = lock_file_list;
-		lock_file_list = lk;
-		lk->on_list = 1;
-	} else if (lk->filename.len) {
-		/* This shouldn't happen, but better safe than sorry. */
-		die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
-		    path);
-	}
+	while (1) {
+		ssize_t cnt;
 
-	strbuf_add(&lk->filename, path, pathlen);
-	if (!(flags & LOCK_NO_DEREF))
-		resolve_symlink(&lk->filename);
-	strbuf_addstr(&lk->filename, LOCK_SUFFIX);
-	lk->fd = open(lk->filename.buf, O_RDWR | O_CREAT | O_EXCL, 0666);
-	if (lk->fd < 0) {
-		strbuf_reset(&lk->filename);
-		return -1;
+		cnt = read_in_full(fd, buf + len, alloc - len);
+		if (cnt < 0) {
+			free(buf);
+			return -1;
+		}
+
+		/* partial read from read_in_full means we hit EOF */
+		len += cnt;
+		if (len < alloc) {
+			*out = buf;
+			return len;
+		}
+
+		/* otherwise, grow and try again (if we can) */
+		if (alloc == max_request_buffer)
+			die("request was larger than our maximum size (%lu);"
+			    " try setting GIT_HTTP_MAX_REQUEST_BUFFER",
+			    max_request_buffer);
+
+		alloc = alloc_nr(alloc);
+		if (alloc > max_request_buffer)
+			alloc = max_request_buffer;
+		REALLOC_ARRAY(buf, alloc);
 	}
-	lk->owner = getpid();
-	lk->active = 1;
-	if (adjust_shared_perm(lk->filename.buf)) {
-		int save_errno = errno;
-		error("cannot fix permission bits on %s", lk->filename.buf);
-		rollback_lock_file(lk);
-		errno = save_errno;
-		return -1;
-	}
-	return lk->fd;
 }

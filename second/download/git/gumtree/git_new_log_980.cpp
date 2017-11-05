@@ -1,1 +1,1 @@
-printf("%s", suffix);
+warning(_("no threads support, ignoring --threads"));

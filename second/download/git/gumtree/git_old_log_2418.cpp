@@ -1,1 +1,1 @@
-die_errno("unable to read object %s", oid_to_hex(oid));
+die(_("pack has bad object at offset %lu: %s"), offset, buf);

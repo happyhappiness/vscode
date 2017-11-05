@@ -1,1 +1,1 @@
-die("Log %s is empty.", logfile);
+status_printf_ln(s, GIT_COLOR_NORMAL, "");

@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt, arg);
+fprintf(opt->diffopt.file, "\t%s", (char *) commit->util);

@@ -1,1 +1,2 @@
-die("dumb http transport does not support --depth");
+printf("              to %7s %s\n",
+				 typename(obj->type), describe_object(obj));

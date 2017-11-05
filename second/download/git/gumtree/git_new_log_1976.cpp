@@ -1,2 +1,1 @@
-error("problems writing temporary file %s: %s",
-			     buf->buf, strerror(errno));
+die("unknown date format %s", format);

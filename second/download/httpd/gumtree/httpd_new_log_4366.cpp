@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01023) "error apr_poll()");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01938)
+                 "stapling_renew_response: querying responder");

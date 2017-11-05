@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "Deleting ");
+ap_rputs("</table>\n</p>\n", r);

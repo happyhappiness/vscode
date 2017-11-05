@@ -1,1 +1,1 @@
-die_errno(_("could not open '%s' for reading"), path);
+error_errno(_("could not open '%s' for reading"), *paths);

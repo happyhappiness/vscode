@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+vreportf(prefix, fmt, params);

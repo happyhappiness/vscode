@@ -1,1 +1,1 @@
-die("Invalid SHA-1: %s", buffer);
+die(_("unrecognized format: %%(%s)"), atom->name);

@@ -1,1 +1,1 @@
-die(_("the receiving end does not support --atomic push"));
+die_errno(_("could not open '%s' for writing"), path);

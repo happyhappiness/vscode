@@ -1,1 +1,0 @@
-fprintf(stderr, "Usage: htdigest [-c] passwordfile realm username\n");

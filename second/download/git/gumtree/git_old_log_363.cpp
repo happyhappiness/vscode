@@ -1,1 +1,1 @@
-die("no such path %s in %s", path, final_commit_name);
+die("git fetch_pack: expected ACK/NAK, got '%s'", line);

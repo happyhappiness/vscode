@@ -1,3 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool,
-                      "h2_request(%d): unanounced trailers",
-                      req->id);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_NOTFOUND, session->c,
+                      APLOGNO(02924) 
+                      "h2_stream(%ld-%d): send_data, lookup stream",
+                      session->id, (int)stream_id);

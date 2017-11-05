@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "RewriteRule '%s' and URI '%s' "
-                              "exceeded maximum length (%d)", 
-                              p->pattern, r->uri, 2*r->server->limit_req_line );
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              APLOGNO(02536) "couldn't encode envvar '%s' in %"
+                              APR_SIZE_T_FMT " bytes",
+                              elts[next_elem].key, avail_len);

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Syntax error in type map, no ':' in %s for header %s",
-                      r->filename, header);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                         "%s", inet_ntoa(This->mask));

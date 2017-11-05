@@ -1,19 +1,33 @@
-static void git_config_raw(config_fn_t fn, void *data)
+static void walk_commit_list(struct rev_info *revs,
+			     struct connectivity_progress *cp)
 {
-	struct config_options opts = {0};
+	int i;
+	struct commit *commit;
+	struct object_array objects = OBJECT_ARRAY_INIT;
 
-	opts.respect_includes = 1;
-	if (git_config_with_options(fn, data, NULL, &opts) < 0)
-		/*
-		 * git_config_with_options() normally returns only
-		 * zero, as most errors are fatal, and
-		 * non-fatal potential errors are guarded by "if"
-		 * statements that are entered only when no error is
-		 * possible.
-		 *
-		 * If we ever encounter a non-fatal error, it means
-		 * something went really wrong and we should stop
-		 * immediately.
-		 */
-		die(_("unknown error occurred while reading the configuration files"));
+	/* Walk all commits, process their trees */
+	while ((commit = get_revision(revs)) != NULL) {
+		process_tree(commit->tree, &objects, NULL, "", cp);
+		update_progress(cp);
+	}
+
+	/* Then walk all the pending objects, recursively processing them too */
+	for (i = 0; i < revs->pending.nr; i++) {
+		struct object_array_entry *pending = revs->pending.objects + i;
+		struct object *obj = pending->item;
+		const char *name = pending->name;
+		if (obj->type == OBJ_TAG) {
+			process_tag((struct tag *) obj, &objects, name, cp);
+			continue;
+		}
+		if (obj->type == OBJ_TREE) {
+			process_tree((struct tree *)obj, &objects, NULL, name, cp);
+			continue;
+		}
+		if (obj->type == OBJ_BLOB) {
+			process_blob((struct blob *)obj, &objects, NULL, name, cp);
+			continue;
+		}
+		die("unknown pending object %s (%s)", sha1_to_hex(obj->sha1), name);
+	}
 }

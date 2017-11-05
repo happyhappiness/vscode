@@ -1,59 +1,94 @@
-static void show_ce_entry(const char *tag, const struct cache_entry *ce)
+int git_config_rename_section_in_file(const char *config_filename,
+				      const char *old_name, const char *new_name)
 {
-	struct strbuf name = STRBUF_INIT;
-	int len = max_prefix_len;
-	if (super_prefix)
-		strbuf_addstr(&name, super_prefix);
-	strbuf_addstr(&name, ce->name);
+	int ret = 0, remove = 0;
+	char *filename_buf = NULL;
+	struct lock_file *lock;
+	int out_fd;
+	char buf[1024];
+	FILE *config_file;
+	struct stat st;
 
-	if (len >= ce_namelen(ce))
-		die("git ls-files: internal error - cache entry not superset of prefix");
-
-	if (recurse_submodules && S_ISGITLINK(ce->ce_mode) &&
-	    submodule_path_match(&pathspec, name.buf, ps_matched)) {
-		show_gitlink(ce);
-	} else if (match_pathspec(&pathspec, name.buf, name.len,
-				  len, ps_matched,
-				  S_ISDIR(ce->ce_mode) ||
-				  S_ISGITLINK(ce->ce_mode))) {
-		if (tag && *tag && show_valid_bit &&
-		    (ce->ce_flags & CE_VALID)) {
-			static char alttag[4];
-			memcpy(alttag, tag, 3);
-			if (isalpha(tag[0]))
-				alttag[0] = tolower(tag[0]);
-			else if (tag[0] == '?')
-				alttag[0] = '!';
-			else {
-				alttag[0] = 'v';
-				alttag[1] = tag[0];
-				alttag[2] = ' ';
-				alttag[3] = 0;
-			}
-			tag = alttag;
-		}
-
-		if (!show_stage) {
-			fputs(tag, stdout);
-		} else {
-			printf("%s%06o %s %d\t",
-			       tag,
-			       ce->ce_mode,
-			       find_unique_abbrev(ce->oid.hash, abbrev),
-			       ce_stage(ce));
-		}
-		write_eolinfo(ce, ce->name);
-		write_name(ce->name);
-		if (debug_mode) {
-			const struct stat_data *sd = &ce->ce_stat_data;
-
-			printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);
-			printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);
-			printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
-			printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
-			printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
-		}
+	if (new_name && !section_name_is_ok(new_name)) {
+		ret = error("invalid section name: %s", new_name);
+		goto out;
 	}
 
-	strbuf_release(&name);
+	if (!config_filename)
+		config_filename = filename_buf = git_pathdup("config");
+
+	lock = xcalloc(1, sizeof(struct lock_file));
+	out_fd = hold_lock_file_for_update(lock, config_filename, 0);
+	if (out_fd < 0) {
+		ret = error("could not lock config file %s", config_filename);
+		goto out;
+	}
+
+	if (!(config_file = fopen(config_filename, "rb"))) {
+		/* no config file means nothing to rename, no error */
+		goto unlock_and_out;
+	}
+
+	fstat(fileno(config_file), &st);
+
+	if (chmod(lock->filename, st.st_mode & 07777) < 0) {
+		ret = error("chmod on %s failed: %s",
+				lock->filename, strerror(errno));
+		goto out;
+	}
+
+	while (fgets(buf, sizeof(buf), config_file)) {
+		int i;
+		int length;
+		char *output = buf;
+		for (i = 0; buf[i] && isspace(buf[i]); i++)
+			; /* do nothing */
+		if (buf[i] == '[') {
+			/* it's a section */
+			int offset = section_name_match(&buf[i], old_name);
+			if (offset > 0) {
+				ret++;
+				if (new_name == NULL) {
+					remove = 1;
+					continue;
+				}
+				store.baselen = strlen(new_name);
+				if (!store_write_section(out_fd, new_name)) {
+					ret = write_error(lock->filename);
+					goto out;
+				}
+				/*
+				 * We wrote out the new section, with
+				 * a newline, now skip the old
+				 * section's length
+				 */
+				output += offset + i;
+				if (strlen(output) > 0) {
+					/*
+					 * More content means there's
+					 * a declaration to put on the
+					 * next line; indent with a
+					 * tab
+					 */
+					output -= 1;
+					output[0] = '\t';
+				}
+			}
+			remove = 0;
+		}
+		if (remove)
+			continue;
+		length = strlen(output);
+		if (write_in_full(out_fd, output, length) != length) {
+			ret = write_error(lock->filename);
+			goto out;
+		}
+	}
+	fclose(config_file);
+unlock_and_out:
+	if (commit_lock_file(lock) < 0)
+		ret = error("could not commit config file %s", config_filename);
+out:
+	free(filename_buf);
+	return ret;
 }

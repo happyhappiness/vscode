@@ -1,1 +1,2 @@
-die("Log for %s is empty.", refname);
+warning("skipping invalid relative alternate: %s/%s",
+				src_repo, line.buf);

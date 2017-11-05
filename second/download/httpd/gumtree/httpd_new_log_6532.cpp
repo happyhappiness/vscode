@@ -1,1 +1,1 @@
-ap_rputs("<hr><br />\n", r);
+fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n");

@@ -1,1 +1,1 @@
-die("BUG: inbody_header_accum, if not empty, must always contain a valid in-body header");
+die(_("invalid date format: %s"), date_str);

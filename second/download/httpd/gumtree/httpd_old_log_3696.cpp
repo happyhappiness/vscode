@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
-                                  rv, f->r, "apr_pollset_poll()");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: roundrobin index: %d (%d)",
+                 ctx->index, (int)getpid());

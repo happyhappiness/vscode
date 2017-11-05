@@ -1,2 +1,1 @@
-die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+printf("previous %s ", oid_to_hex(&prev->commit->object.oid));

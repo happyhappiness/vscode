@@ -1,1 +1,1 @@
-status_printf_ln(s, color(WT_STATUS_HEADER, s), "");
+die_errno(_("unable to write file '%s' mode %o"), path, mode);

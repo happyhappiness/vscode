@@ -1,30 +1,27 @@
-static void init_curl_proxy_auth(CURL *result)
+void transport_take_over(struct transport *transport,
+			 struct child_process *child)
 {
-	if (proxy_auth.username) {
-		if (!proxy_auth.password)
-			credential_fill(&proxy_auth);
-		set_proxyauth_name_password(result);
-	}
+	struct git_transport_data *data;
 
-	var_override(&http_proxy_authmethod, getenv("GIT_HTTP_PROXY_AUTHMETHOD"));
+	if (!transport->smart_options)
+		die("Bug detected: Taking over transport requires non-NULL "
+		    "smart_options field.");
 
-#if LIBCURL_VERSION_NUM >= 0x070a07 /* CURLOPT_PROXYAUTH and CURLAUTH_ANY */
-	if (http_proxy_authmethod) {
-		int i;
-		for (i = 0; i < ARRAY_SIZE(proxy_authmethods); i++) {
-			if (!strcmp(http_proxy_authmethod, proxy_authmethods[i].name)) {
-				curl_easy_setopt(result, CURLOPT_PROXYAUTH,
-						proxy_authmethods[i].curlauth_param);
-				break;
-			}
-		}
-		if (i == ARRAY_SIZE(proxy_authmethods)) {
-			warning("unsupported proxy authentication method %s: using anyauth",
-					http_proxy_authmethod);
-			curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-		}
-	}
-	else
-		curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-#endif
+	data = xcalloc(1, sizeof(*data));
+	data->options = *transport->smart_options;
+	data->conn = child;
+	data->fd[0] = data->conn->out;
+	data->fd[1] = data->conn->in;
+	data->got_remote_heads = 0;
+	transport->data = data;
+
+	transport->set_option = NULL;
+	transport->get_refs_list = get_refs_via_connect;
+	transport->fetch = fetch_refs_via_pack;
+	transport->push = NULL;
+	transport->push_refs = git_transport_push;
+	transport->disconnect = disconnect_git;
+	transport->smart_options = &(data->options);
+
+	transport->cannot_reuse = 1;
 }

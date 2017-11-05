@@ -1,1 +1,0 @@
-die("insanely long object directory %s", objdir);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
-                     "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, &env.c,
+                      APLOGNO(02957) "h2_task(%s): error setting up h2_task_env", 
+                      env.id);

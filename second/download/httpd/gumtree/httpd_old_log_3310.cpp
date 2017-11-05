@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
-                     "make_secure_socket: for %s, WSAIoctl: "
-                     "(SO_SSL_SET_SERVER)", addr);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "couldn't spawn child process: %s", r->filename);

@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task_output(%s): empty write", output->task->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(3305)
+                         "%s: Won't retry worker (%s): stopped",
+                         proxy_function, worker->s->hostname);

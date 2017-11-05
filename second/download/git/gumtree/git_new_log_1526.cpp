@@ -1,1 +1,1 @@
-die("unable to add recent objects");
+printf("%s %s\n", oid_to_hex(result), name);

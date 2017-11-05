@@ -1,2 +1,1 @@
-printf(": %s: %s\n",
-			       git_attr_name(check->items[j].attr), value);
+printf("author-time %"PRItime"\n", ci.author_time);

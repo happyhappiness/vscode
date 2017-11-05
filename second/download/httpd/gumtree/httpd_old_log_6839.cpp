@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
-                  "h2_session(%ld): malloc(%ld)",
-                  session->id, (long)size);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                  "from session: " MOD_SESSION_USER ": %s, " MOD_SESSION_PW
+                  ": %s, " MOD_AUTH_FORM_HASH ": %s",
+                  user ? *user : "<null>", pw ? *pw : "<null>",
+                  hash ? *hash : "<null>");

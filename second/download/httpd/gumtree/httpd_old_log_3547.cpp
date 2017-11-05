@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ctx->s,
-                     "Heartmonitor: Unable to set file permssions on %s",
-                     path);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "internal error in mod_cern_meta: %s", r->filename);

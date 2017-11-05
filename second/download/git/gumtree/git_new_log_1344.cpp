@@ -1,1 +1,1 @@
-die("object not found: %s", oid_to_hex(&oid));
+packet_buf_write(req_buf, "push-cert%c%s", 0, cap_string);

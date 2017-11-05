@@ -1,1 +1,1 @@
-receive_unpack_status(in);
+error(_("empty mbox: '%s'"), file);

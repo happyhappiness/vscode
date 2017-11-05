@@ -1,1 +1,0 @@
-error(FAILED_RUN, reflog.argv[0]);

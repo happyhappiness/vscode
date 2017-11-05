@@ -1,1 +1,1 @@
-die("file %s has only %lu lines", path, lno);
+die("invalid shallow line: %s", line);

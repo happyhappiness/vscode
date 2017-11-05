@@ -1,1 +1,1 @@
-die(_("The remote end hung up upon initial contact"));
+error("unknown hint type for '%s': %s", var, value);

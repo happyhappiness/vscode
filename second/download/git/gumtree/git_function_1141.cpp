@@ -1,18 +1,11 @@
-static void submodule_reset_index(const char *path)
+static void wt_longstatus_print_stash_summary(struct wt_status *s)
 {
-	struct child_process cp = CHILD_PROCESS_INIT;
-	prepare_submodule_repo_env_no_git_dir(&cp.env_array);
+	int stash_count = 0;
 
-	cp.git_cmd = 1;
-	cp.no_stdin = 1;
-	cp.dir = path;
-
-	argv_array_pushf(&cp.args, "--super-prefix=%s%s/",
-				   get_super_prefix_or_empty(), path);
-	argv_array_pushl(&cp.args, "read-tree", "-u", "--reset", NULL);
-
-	argv_array_push(&cp.args, EMPTY_TREE_SHA1_HEX);
-
-	if (run_command(&cp))
-		die("could not reset submodule index");
+	for_each_reflog_ent("refs/stash", stash_count_refs, &stash_count);
+	if (stash_count > 0)
+		status_printf_ln(s, GIT_COLOR_NORMAL,
+				 Q_("Your stash currently has %d entry",
+				    "Your stash currently has %d entries", stash_count),
+				 stash_count);
 }

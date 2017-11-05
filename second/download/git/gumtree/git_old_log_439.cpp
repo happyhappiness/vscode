@@ -1,1 +1,1 @@
-error("Failed to remove 'git notes merge' worktree");
+error(_("Your local changes would be overwritten by revert."));

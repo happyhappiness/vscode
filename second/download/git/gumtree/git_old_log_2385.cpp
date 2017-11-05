@@ -1,1 +1,2 @@
-fprintf(fout, "\n");
+error("open(\"%s\"): %s", path,
+				     strerror(errno));

@@ -1,1 +1,1 @@
-die(_("unrecognized format: %%(%s)"), atom->name);
+die("BUG: unhandled unmerged status %x", stagemask);

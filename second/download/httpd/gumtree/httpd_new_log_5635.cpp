@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     APLOGNO(00369)  "Failed to open the Windows service "
-                     "manager, perhaps you forgot to log in as Adminstrator?");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                         ref ? APLOGNO(03226) "Spelling fix: %s: %d candidates from %s"
+                             : APLOGNO(03227) "Spelling fix: %s: %d candidates%s",
+                         r->uri, candidates->nelts,
+                         (ref ? ref : ""));

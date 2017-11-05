@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABORT)");
+fprintf(stderr, "The -c flag creates a new file.\n");

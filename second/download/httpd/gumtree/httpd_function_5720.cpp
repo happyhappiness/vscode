@@ -1,111 +1,102 @@
-static int netware_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s)
+static void * APR_THREAD_FUNC start_threads(apr_thread_t *thd, void *dummy)
 {
-    apr_status_t status=0;
+    thread_starter *ts = dummy;
+    apr_thread_t **threads = ts->threads;
+    apr_threadattr_t *thread_attr = ts->threadattr;
+    int child_num_arg = ts->child_num_arg;
+    int my_child_num = child_num_arg;
+    proc_info *my_info;
+    apr_status_t rv;
+    int i;
+    int threads_created = 0;
+    int listener_started = 0;
+    int loops;
+    int prev_threads_created;
 
-    pconf = _pconf;
-    ap_server_conf = s;
-
-    if (setup_listeners(s)) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, status, s, APLOGNO(00223)
-            "no listening sockets available, shutting down");
-        return -1;
+    /* We must create the fd queues before we start up the listener
+     * and worker threads. */
+    worker_queue = apr_pcalloc(pchild, sizeof(*worker_queue));
+    rv = ap_queue_init(worker_queue, threads_per_child, pchild);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "ap_queue_init() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
     }
 
-    restart_pending = shutdown_pending = 0;
-    worker_thread_count = 0;
+    rv = ap_queue_info_create(&worker_queue_info, pchild,
+                              threads_per_child);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                     "ap_queue_info_create() failed");
+        clean_child_exit(APEXIT_CHILDFATAL);
+    }
 
-    if (!is_graceful) {
-        if (ap_run_pre_mpm(s->process->pool, SB_NOT_SHARED) != OK) {
-            return 1;
+    worker_sockets = apr_pcalloc(pchild, threads_per_child
+                                        * sizeof(apr_socket_t *));
+
+    loops = prev_threads_created = 0;
+    while (1) {
+        /* threads_per_child does not include the listener thread */
+        for (i = 0; i < threads_per_child; i++) {
+            int status = ap_scoreboard_image->servers[child_num_arg][i].status;
+
+            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
+                continue;
+            }
+
+            my_info = (proc_info *)ap_malloc(sizeof(proc_info));
+            my_info->pid = my_child_num;
+            my_info->tid = i;
+            my_info->sd = 0;
+
+            /* We are creating threads right now */
+            ap_update_child_status_from_indexes(my_child_num, i,
+                                                SERVER_STARTING, NULL);
+            /* We let each thread update its own scoreboard entry.  This is
+             * done because it lets us deal with tid better.
+             */
+            rv = apr_thread_create(&threads[i], thread_attr,
+                                   worker_thread, my_info, pchild);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                    "apr_thread_create: unable to create worker thread");
+                /* let the parent decide how bad this really is */
+                clean_child_exit(APEXIT_CHILDSICK);
+            }
+            threads_created++;
+        }
+        /* Start the listener only when there are workers available */
+        if (!listener_started && threads_created) {
+            create_listener_thread(ts);
+            listener_started = 1;
+        }
+        if (start_thread_may_exit || threads_created == threads_per_child) {
+            break;
+        }
+        /* wait for previous generation to clean up an entry */
+        apr_sleep(apr_time_from_sec(1));
+        ++loops;
+        if (loops % 120 == 0) { /* every couple of minutes */
+            if (prev_threads_created == threads_created) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                             "child %" APR_PID_T_FMT " isn't taking over "
+                             "slots very quickly (%d of %d)",
+                             ap_my_pid, threads_created, threads_per_child);
+            }
+            prev_threads_created = threads_created;
         }
     }
 
-    /* Only set slot 0 since that is all NetWare will ever have. */
-    ap_scoreboard_image->parent[0].pid = getpid();
-    ap_run_child_status(ap_server_conf,
-                        ap_scoreboard_image->parent[0].pid,
-                        ap_my_generation,
-                        0,
-                        MPM_CHILD_STARTED);
-
-    set_signals();
-
-    apr_pool_create(&pmain, pconf);
-    ap_run_child_init(pmain, ap_server_conf);
-
-    if (ap_threads_max_free < ap_threads_min_free + 1)  /* Don't thrash... */
-        ap_threads_max_free = ap_threads_min_free + 1;
-    request_count = 0;
-
-    startup_workers(ap_threads_to_start);
-
-     /* Allow the Apache screen to be closed normally on exit() only if it
-        has not been explicitly forced to close on exit(). (ie. the -E flag
-        was specified at startup) */
-    if (hold_screen_on_exit > 0) {
-        hold_screen_on_exit = 0;
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00224)
-            "%s configured -- resuming normal operations",
-            ap_get_server_description());
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf, APLOGNO(00225)
-            "Server built: %s", ap_get_server_built());
-    ap_log_command_line(plog, s);
-    show_server_data();
-
-    mpm_state = AP_MPMQ_RUNNING;
-    while (!restart_pending && !shutdown_pending) {
-        perform_idle_server_maintenance(pconf);
-        if (show_settings)
-            display_settings();
-        apr_thread_yield();
-        apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
-    }
-    mpm_state = AP_MPMQ_STOPPING;
-
-    ap_run_child_status(ap_server_conf,
-                        ap_scoreboard_image->parent[0].pid,
-                        ap_my_generation,
-                        0,
-                        MPM_CHILD_EXITED);
-
-    /* Shutdown the listen sockets so that we don't get stuck in a blocking call.
-    shutdown_listeners();*/
-
-    if (shutdown_pending) { /* Got an unload from the console */
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00226)
-            "caught SIGTERM, shutting down");
-
-        while (worker_thread_count > 0) {
-            printf ("\rShutdown pending. Waiting for %u thread(s) to terminate...",
-                    worker_thread_count);
-            apr_thread_yield();
-        }
-
-        mpm_main_cleanup();
-        return 1;
-    }
-    else {  /* the only other way out is a restart */
-        /* advance to the next generation */
-        /* XXX: we really need to make sure this new generation number isn't in
-         * use by any of the children.
-         */
-        ++ap_my_generation;
-        ap_scoreboard_image->global->running_generation = ap_my_generation;
-
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00227)
-                "Graceful restart requested, doing restart");
-
-        /* Wait for all of the threads to terminate before initiating the restart */
-        while (worker_thread_count > 0) {
-            printf ("\rRestart pending. Waiting for %u thread(s) to terminate...",
-                    worker_thread_count);
-            apr_thread_yield();
-        }
-        printf ("\nRestarting...\n");
-    }
-
-    mpm_main_cleanup();
-    return 0;
+    /* What state should this child_main process be listed as in the
+     * scoreboard...?
+     *  ap_update_child_status_from_indexes(my_child_num, i, SERVER_STARTING,
+     *                                      (request_rec *) NULL);
+     *
+     *  This state should be listed separately in the scoreboard, in some kind
+     *  of process_status, not mixed in with the worker threads' status.
+     *  "life_status" is almost right, but it's in the worker's structure, and
+     *  the name could be clearer.   gla
+     */
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
 }

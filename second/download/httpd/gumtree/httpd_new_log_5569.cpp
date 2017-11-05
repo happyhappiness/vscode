@@ -1,1 +1,2 @@
-ap_rputs("</td></tr>\n</table>\n", r);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, 
+                      "h2_task(%s), frozen", task->id);

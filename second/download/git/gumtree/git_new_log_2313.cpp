@@ -1,1 +1,1 @@
-memset(&array, 0, sizeof(array));
+warning_errno("malloc failed");

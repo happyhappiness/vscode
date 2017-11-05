@@ -1,2 +1,2 @@
-(fprintf(f, ":%"PRIu32" %s\n", mark,
-				sha1_to_hex(deco->base->sha1));
+error(_("could not create temporary file '%s': %s"),
+			     path, strerror(errno));

@@ -1,1 +1,0 @@
-die("BUG: prepare called twice on reference transaction");

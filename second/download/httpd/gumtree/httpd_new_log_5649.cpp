@@ -1,3 +1,3 @@
-fprintf(stderr, signal ? "The '%s' service is restarting.\n"
-                           : "The '%s' service is stopping.\n",
-                    mpm_display_name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02254)
+                                  "Reduced client verification depth will "
+                                  "force renegotiation");

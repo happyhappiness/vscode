@@ -1,1 +1,2 @@
-die_errno("couldn't read %s", packed_refs_file);
+fprintf(stderr, _("Removing note for object %s\n"),
+			sha1_to_hex(object));

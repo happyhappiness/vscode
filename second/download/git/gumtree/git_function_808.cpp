@@ -1,17 +1,18 @@
-static void flush_one_pair(struct diff_filepair *p, struct diff_options *opt)
+static void check_ref_valid(unsigned char object[20],
+			    unsigned char prev[20],
+			    char *ref,
+			    int ref_size,
+			    int force)
 {
-	int fmt = opt->output_format;
+	if (snprintf(ref, ref_size,
+		     "%s%s", git_replace_ref_base,
+		     sha1_to_hex(object)) > ref_size - 1)
+		die("replace ref name too long: %.*s...", 50, ref);
+	if (check_refname_format(ref, 0))
+		die("'%s' is not a valid ref name.", ref);
 
-	if (fmt & DIFF_FORMAT_CHECKDIFF)
-		diff_flush_checkdiff(p, opt);
-	else if (fmt & (DIFF_FORMAT_RAW | DIFF_FORMAT_NAME_STATUS))
-		diff_flush_raw(p, opt);
-	else if (fmt & DIFF_FORMAT_NAME) {
-		const char *name_a, *name_b;
-		name_a = p->two->path;
-		name_b = NULL;
-		strip_prefix(opt->prefix_length, &name_a, &name_b);
-		fprintf(opt->file, "%s", diff_line_prefix(opt));
-		write_name_quoted(name_a, opt->file, opt->line_termination);
-	}
+	if (read_ref(ref, prev))
+		hashclr(prev);
+	else if (!force)
+		die("replace ref '%s' already exists", ref);
 }

@@ -1,3 +1,2 @@
-die ("Tag %s tags unexported %s!",
-				     oid_to_hex(&tag->object.oid),
-				     typename(tagged->type));
+error_errno("Unable to write marks file %s",
+				       export_marks_file);

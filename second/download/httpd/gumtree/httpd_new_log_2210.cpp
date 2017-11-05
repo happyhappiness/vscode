@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "MaxClients of %d exceeds ServerLimit value "
-                         "of %d, decreasing to match",
-                         ap_daemons_limit, server_limit);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+            "%s configured -- resuming normal operations",
+            ap_get_server_description());

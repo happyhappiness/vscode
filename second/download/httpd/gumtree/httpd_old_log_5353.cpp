@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                     "Couldn't initialize signal thread");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                              "h2_task_input(%s): getline: %s",
+                              input->env->id, buffer);

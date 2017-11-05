@@ -1,1 +1,1 @@
-die(_("unable to add cache entry for %s"), patch->new_name);
+die("CRLF would be replaced by LF in %s.", path);

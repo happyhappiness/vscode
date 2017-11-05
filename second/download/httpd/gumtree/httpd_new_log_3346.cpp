@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02161)
-                         "Can't chdir to new root");
+log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01265)
+                "attempt to invoke directory as script");

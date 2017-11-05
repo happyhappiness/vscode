@@ -1,2 +1,1 @@
-error("%s: not a valid attribute name",
-					     argv[i]);
+printf("num read blob: %d\n", sb.num_read_blob);

@@ -1,1 +1,1 @@
-die(_("failed to resolve '%s' as a valid ref."), argv[0]);
+die("BUG: main_ref_store initialized twice");

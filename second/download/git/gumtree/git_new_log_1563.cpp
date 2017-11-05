@@ -1,1 +1,1 @@
-die(_("failed to expand user dir in: '%s'"), value);
+die("loose refname is dangerous: %s", refname.buf);

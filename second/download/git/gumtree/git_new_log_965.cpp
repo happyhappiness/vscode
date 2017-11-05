@@ -1,1 +1,1 @@
-die("BUG: non-INDEX attr direction in a bare repo");
+die("strange hostname '%s' blocked", host);

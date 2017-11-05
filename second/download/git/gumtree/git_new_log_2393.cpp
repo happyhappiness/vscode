@@ -1,1 +1,1 @@
-printf("%s ", caller_name ? caller_name : oid_to_hex(oid));
+error_errno("read(%s) failed", t->src_name);

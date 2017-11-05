@@ -1,1 +1,1 @@
-die(_("cannot read existing object info %s"), sha1_to_hex(sha1));
+error("bad config file line %d in %s", cf->linenr, cf->name);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(03100)
-                     "ap_queue_init() failed");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                          H2_SSSN_MSG(session, "unknown event %d"), ev);

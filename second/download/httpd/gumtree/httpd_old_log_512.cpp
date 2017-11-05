@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                         "proxy: pass request data failed to %pI (%s)",
-                         p_conn->addr, p_conn->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          PARTITION_ERR_FMT, range_start, clength);

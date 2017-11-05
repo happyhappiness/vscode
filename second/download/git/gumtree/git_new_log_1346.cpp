@@ -1,1 +1,1 @@
-die("The commit %s is corrupt", oid_to_hex(&b->oid));
+packet_buf_write(req_buf, "push-cert-end\n");

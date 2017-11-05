@@ -1,7 +1,4 @@
-NORETURN void unable_to_lock_index_die(const char *path, int err)
+static void wt_status_print_trailer(struct wt_status *s)
 {
-	struct strbuf buf = STRBUF_INIT;
-
-	unable_to_lock_message(path, err, &buf);
-	die("%s", buf.buf);
+	status_printf_ln(s, color(WT_STATUS_HEADER, s), "");
 }

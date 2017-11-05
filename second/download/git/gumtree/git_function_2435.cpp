@@ -1,12 +1,12 @@
-static void error_clnt(const char *fmt, ...)
+int error_resolve_conflict(const char *me)
 {
-	char buf[1024];
-	va_list params;
-	int len;
-
-	va_start(params, fmt);
-	len = vsprintf(buf, fmt, params);
-	va_end(params);
-	send_sideband(1, 3, buf, len, LARGE_PACKET_MAX);
-	die("sent error to the client: %s", buf);
+	error("%s is not possible because you have unmerged files.", me);
+	if (advice_resolve_conflict)
+		/*
+		 * Message used both when 'git commit' fails and when
+		 * other commands doing a merge do.
+		 */
+		advise(_("Fix them up in the work tree, and then use 'git add/rm <file>'\n"
+			 "as appropriate to mark resolution and make a commit."));
+	return -1;
 }

@@ -1,1 +1,2 @@
-error(_("could not delete references: %s"), err.buf);
+strbuf_addf(err, "Fetching submodule %s%s\n",
+					    spf->prefix, ce->name);

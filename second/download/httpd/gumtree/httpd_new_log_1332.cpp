@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf,
-                     "Couldn't create pollset in child; check system or user limits");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "Init: Skipping generating temporary "
+                     "%d bit RSA private key in FIPS mode", bits);

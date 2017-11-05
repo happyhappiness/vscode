@@ -1,1 +1,1 @@
-die("BUG: oid abbreviation out of range: %d", abbrev);
+strbuf_addstr(err, _("empty filename in tree entry"));

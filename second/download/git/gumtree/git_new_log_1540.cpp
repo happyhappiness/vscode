@@ -1,1 +1,1 @@
-ref_transaction_free(transaction);
+fprintf(stderr, _("Testing "));

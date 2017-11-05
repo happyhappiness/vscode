@@ -1,1 +1,1 @@
-error(_("Failed to lock HEAD during fast_forward_to"));
+die("unknown option passed through to git apply");

@@ -1,3 +1,2 @@
-printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
-       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
-       trstring, tdstring, tdstring, totalbread);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02135)
+                  "Could not find a command associated with the %s extension", ext);

@@ -1,2 +1,1 @@
-fprintf(pipe_fd, "%s\n",
-			sha1_to_hex(want_obj.objects[i].item->sha1));
+fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit), stdout);

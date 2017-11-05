@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03072)
-                      "h2_stream(%ld-%d): submit %d trailers",
-                      session->id, (int)stream->id,(int) nh->nvlen);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                                  "Removing LDAP connection last used %" APR_TIME_T_FMT " seconds ago",
+                                  (now - l->freed) / APR_USEC_PER_SEC);

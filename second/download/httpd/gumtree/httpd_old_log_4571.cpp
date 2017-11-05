@@ -1,6 +1,3 @@
-ap_log_error(APLOG_MARK, loglevel, rv, s,
-                                 "proxy: %s: attempt to connect to %s:%d "
-                                 "via http CONNECT through %pI (%s) failed",
-                                 proxy_function,
-                                 forward->target_host, forward->target_port,
-                                 backend_addr, worker->hostname);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         "WARNING: MaxClients of %d would require %d "
+                         "servers and ", max_clients, ap_daemons_limit);

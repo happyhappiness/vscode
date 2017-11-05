@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(03142)
-                             "apr_thread_create: unable to create worker thread");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                      H2_STRM_MSG(stream, "found %d push candidates"),
+                      pushes->nelts);

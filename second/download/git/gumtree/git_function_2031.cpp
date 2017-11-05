@@ -1,14 +1,12 @@
-static void NORETURN diagnose_missing_default(const char *def)
+static void output_refs(struct ref *refs)
 {
-	unsigned char sha1[20];
-	int flags;
-	const char *refname;
-
-	refname = resolve_ref_unsafe(def, 0, sha1, &flags);
-	if (!refname || !(flags & REF_ISSYMREF) || (flags & REF_ISBROKEN))
-		die(_("your current branch appears to be broken"));
-
-	skip_prefix(refname, "refs/heads/", &refname);
-	die(_("your current branch '%s' does not have any commits yet"),
-	    refname);
+	struct ref *posn;
+	for (posn = refs; posn; posn = posn->next) {
+		if (posn->symref)
+			printf("@%s %s\n", posn->symref, posn->name);
+		else
+			printf("%s %s\n", sha1_to_hex(posn->old_sha1), posn->name);
+	}
+	printf("\n");
+	fflush(stdout);
 }

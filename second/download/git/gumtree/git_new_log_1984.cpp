@@ -1,1 +1,1 @@
-die_errno(_("could not write to %s"), path);
+die("BUG: pack tmpfile does not end in .pack.temp?");

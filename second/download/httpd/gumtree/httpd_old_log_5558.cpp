@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ServerSupportFunction "
-                          "HSE_REQ_GET_CERT_INFO_EX "
-                          "is not supported: %s", r->filename);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, task->c,
+                      APLOGNO(02957) "h2_task(%s): error setting up h2_task", 
+                      task->id);

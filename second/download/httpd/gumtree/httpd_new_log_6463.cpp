@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                          "h2_task(%s): getline: %s",
-                          task->id, buffer);
+ap_rvputs(r, "      <httpd:stickysession>", balancer->s->sticky,
+                          "</httpd:stickysession>\n", NULL);

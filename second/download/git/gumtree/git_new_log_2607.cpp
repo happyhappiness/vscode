@@ -1,2 +1,1 @@
-printf("Removing %s from .git/shallow\n",
-				       oid_to_hex(&c->object.oid));
+fprintf(rev->diffopt.file, "%s\n", output_prefix(&rev->diffopt));

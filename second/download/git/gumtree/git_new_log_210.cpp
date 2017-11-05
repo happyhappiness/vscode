@@ -1,2 +1,3 @@
-warning("skipping invalid relative alternate: %s/%s",
-				src_repo, line.buf);
+die(Q_("file %s has only %lu line",
+			       "file %s has only %lu lines",
+			       lno), path, lno);

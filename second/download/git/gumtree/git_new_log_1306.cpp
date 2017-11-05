@@ -1,1 +1,1 @@
-usage("git submodule--helper <command>");
+die(_("BUG: reopen a lockfile that is still open"));

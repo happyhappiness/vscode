@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00175)
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, stream->session->c, 
+                  "h2_stream(%ld-%d): destroy", 
+                  stream->session->id, stream->id);

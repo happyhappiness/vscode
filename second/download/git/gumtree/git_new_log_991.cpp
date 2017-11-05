@@ -1,1 +1,2 @@
-die_errno ("Could not write blob '%s'", oid_to_hex(oid));
+printf(" %u %s", obj_stat[i].delta_depth,
+			       oid_to_hex(&bobj->idx.oid));

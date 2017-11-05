@@ -1,1 +1,1 @@
-die("replace ref '%s' already exists", ref);
+die("unable to read %s", sha1_to_hex(entry->idx.sha1));

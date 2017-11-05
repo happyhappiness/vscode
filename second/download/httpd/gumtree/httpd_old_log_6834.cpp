@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      "h2_session(%ld): destroy", session->id);
+apr_file_printf(errfile, "Could not open directory %s: %s" APR_EOL_STR,
+                base, apr_strerror(rv, errmsg, sizeof errmsg));

@@ -1,82 +1,36 @@
-static struct cache_tree *read_one(const char **buffer, unsigned long *size_p)
+static void process_tree(struct tree *tree,
+			 struct object_array *p,
+			 struct name_path *path,
+			 const char *name,
+			 struct connectivity_progress *cp)
 {
-	const char *buf = *buffer;
-	unsigned long size = *size_p;
-	const char *cp;
-	char *ep;
-	struct cache_tree *it;
-	int i, subtree_nr;
+	struct object *obj = &tree->object;
+	struct tree_desc desc;
+	struct name_entry entry;
+	struct name_path me;
 
-	it = NULL;
-	/* skip name, but make sure name exists */
-	while (size && *buf) {
-		size--;
-		buf++;
+	if (!tree)
+		die("bad tree object");
+	if (obj->flags & SEEN)
+		return;
+	obj->flags |= SEEN;
+	update_progress(cp);
+	if (parse_tree(tree) < 0)
+		die("bad tree object %s", sha1_to_hex(obj->sha1));
+	add_object(obj, p, path, name);
+	me.up = path;
+	me.elem = name;
+	me.elem_len = strlen(name);
+
+	init_tree_desc(&desc, tree->buffer, tree->size);
+
+	while (tree_entry(&desc, &entry)) {
+		if (S_ISDIR(entry.mode))
+			process_tree(lookup_tree(entry.sha1), p, &me, entry.path, cp);
+		else if (S_ISGITLINK(entry.mode))
+			process_gitlink(entry.sha1, p, &me, entry.path);
+		else
+			process_blob(lookup_blob(entry.sha1), p, &me, entry.path, cp);
 	}
-	if (!size)
-		goto free_return;
-	buf++; size--;
-	it = cache_tree();
-
-	cp = buf;
-	it->entry_count = strtol(cp, &ep, 10);
-	if (cp == ep)
-		goto free_return;
-	cp = ep;
-	subtree_nr = strtol(cp, &ep, 10);
-	if (cp == ep)
-		goto free_return;
-	while (size && *buf && *buf != '\n') {
-		size--;
-		buf++;
-	}
-	if (!size)
-		goto free_return;
-	buf++; size--;
-	if (0 <= it->entry_count) {
-		if (size < 20)
-			goto free_return;
-		hashcpy(it->sha1, (const unsigned char*)buf);
-		buf += 20;
-		size -= 20;
-	}
-
-#if DEBUG
-	if (0 <= it->entry_count)
-		fprintf(stderr, "cache-tree <%s> (%d ent, %d subtree) %s\n",
-			*buffer, it->entry_count, subtree_nr,
-			sha1_to_hex(it->sha1));
-	else
-		fprintf(stderr, "cache-tree <%s> (%d subtrees) invalid\n",
-			*buffer, subtree_nr);
-#endif
-
-	/*
-	 * Just a heuristic -- we do not add directories that often but
-	 * we do not want to have to extend it immediately when we do,
-	 * hence +2.
-	 */
-	it->subtree_alloc = subtree_nr + 2;
-	it->down = xcalloc(it->subtree_alloc, sizeof(struct cache_tree_sub *));
-	for (i = 0; i < subtree_nr; i++) {
-		/* read each subtree */
-		struct cache_tree *sub;
-		struct cache_tree_sub *subtree;
-		const char *name = buf;
-
-		sub = read_one(&buf, &size);
-		if (!sub)
-			goto free_return;
-		subtree = cache_tree_sub(it, name);
-		subtree->cache_tree = sub;
-	}
-	if (subtree_nr != it->subtree_nr)
-		die("cache-tree: internal error");
-	*buffer = buf;
-	*size_p = size;
-	return it;
-
- free_return:
-	cache_tree_free(&it);
-	return NULL;
+	free_tree_buffer(tree);
 }

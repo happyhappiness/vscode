@@ -1,1 +1,1 @@
-printf("%s\n", find_unique_abbrev(oid->hash, DEFAULT_ABBREV));
+error_errno("write(%s) failed", t->dest_name);

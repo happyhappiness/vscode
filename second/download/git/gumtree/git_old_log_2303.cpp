@@ -1,2 +1,2 @@
-die("unable to generate diff (%s)",
-		    sha1_to_hex(parent->commit->object.sha1));
+die(_("fatal: '%s' is not a valid submodule--helper "
+	      "subcommand"), argv[1]);

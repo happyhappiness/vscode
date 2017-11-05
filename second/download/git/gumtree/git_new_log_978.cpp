@@ -1,1 +1,1 @@
-printf("-%d-g%s", depth, find_unique_abbrev(oid->hash, abbrev));
+warning(_("no threads support, ignoring %s"), var);

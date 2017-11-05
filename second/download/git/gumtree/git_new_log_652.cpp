@@ -1,1 +1,1 @@
-error(_("can't revert as initial commit"));
+error(_("no commits parsed."));

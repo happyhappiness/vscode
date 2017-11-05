@@ -1,1 +1,4 @@
-die("BUG: packed-ref cache cleared while locked");
+error(_("Cannot add notes. "
+					"Found existing notes for object %s. "
+					"Use '-f' to overwrite existing notes"),
+					sha1_to_hex(object));

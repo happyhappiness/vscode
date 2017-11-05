@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                  "h2_mplx(%ld-%d): exists, started=%d, scheduled=%d, ready=%d", 
-                  m->id, stream->id, stream->started, stream->scheduled,
-                  h2_stream_is_ready(stream));
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02457)
+                  "AuthBasicFake: \"Authorization: %s\"",
+                  auth_line);

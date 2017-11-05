@@ -1,1 +1,1 @@
-strbuf_addf(err, str, updates[i]->refname);
+error("packfile %s cannot be accessed", p->pack_name);

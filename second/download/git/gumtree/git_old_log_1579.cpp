@@ -1,2 +1,1 @@
-error("copy-fd: read returned %s",
-				     strerror(read_error));
+(fprintf(fp, "%s	%s\n", sha1_to_hex(sha1), path) <;

@@ -1,7 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                          "h2_stream(%ld-%d): PRIORITY frame "
-                          " weight=%d, dependsOn=%d, exclusive=%d", 
-                          session->id, (int)frame->hd.stream_id,
-                          frame->priority.pri_spec.weight,
-                          frame->priority.pri_spec.stream_id,
-                          frame->priority.pri_spec.exclusive);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, ppcb_arg->s, APLOGNO(01968)
+                         "Init: Requesting pass phrase via builtin terminal "
+                         "dialog");

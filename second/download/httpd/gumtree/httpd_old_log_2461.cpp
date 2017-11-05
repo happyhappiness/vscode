@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "Request header exceeds LimitRequestFieldSize "
-                              "after folding: %.*s",
-                              field_name_len(last_field), last_field);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "loop=%u, count=%u, curr_pos=%u",
+                     loop, count, curr_pos);

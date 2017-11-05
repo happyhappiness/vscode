@@ -1,1 +1,0 @@
-apr_file_printf(outfile, "%s %s", hostname, space + 1);

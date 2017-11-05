@@ -1,1 +1,3 @@
-have_out_data_for(m, stream, 0);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(02463)
+                "PUT/POST/DELETE: Adding CACHE_INVALIDATE filter for %s",
+                r->uri);

@@ -1,1 +1,1 @@
-die("Error on reachable objects of %s", oid_to_hex(&obj->oid));
+die("strange hostname '%s' blocked", ssh_host);

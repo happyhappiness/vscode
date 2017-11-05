@@ -1,1 +1,1 @@
-die_errno(_("Could not write to '%s'"), filename);
+die(_("could not create directory '%s'"), path);

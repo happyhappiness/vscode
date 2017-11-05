@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+die_errno(_("Could not write to %s"), todo_file);

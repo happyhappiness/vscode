@@ -1,22 +1,10 @@
-static void sanity_check_refcnt(struct scoreboard *sb)
+static int resolve_relative_path(int argc, const char **argv, const char *prefix)
 {
-	int baa = 0;
-	struct blame_entry *ent;
+	struct strbuf sb = STRBUF_INIT;
+	if (argc != 3)
+		die("submodule--helper relative_path takes exactly 2 arguments, got %d", argc);
 
-	for (ent = sb->ent; ent; ent = ent->next) {
-		/* Nobody should have zero or negative refcnt */
-		if (ent->suspect->refcnt <= 0) {
-			fprintf(stderr, "%s in %s has negative refcnt %d\n",
-				ent->suspect->path,
-				sha1_to_hex(ent->suspect->commit->object.sha1),
-				ent->suspect->refcnt);
-			baa = 1;
-		}
-	}
-	if (baa) {
-		int opt = 0160;
-		find_alignment(sb, &opt);
-		output(sb, opt);
-		die("Baa %d!", baa);
-	}
+	printf("%s", relative_path(argv[1], argv[2], &sb));
+	strbuf_release(&sb);
+	return 0;
 }

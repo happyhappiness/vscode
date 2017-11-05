@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
-                     "proxy: FTP: declining URL %s - proxyhost %s specified:", url, proxyhost);
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, status, r,
+                              "%s pcfg_openfile: unable to check htaccess file, "
+                              "ensure it is readable",
+                              filename);

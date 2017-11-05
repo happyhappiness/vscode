@@ -1,131 +1,43 @@
-apr_status_t h2_util_move(apr_bucket_brigade *to, apr_bucket_brigade *from, 
-                          apr_off_t maxlen, int *pfile_handles_allowed, 
-                          const char *msg)
+static void task_destroy(h2_mplx *m, h2_task *task, int called_from_master)
 {
-    apr_status_t status = APR_SUCCESS;
-    int same_alloc;
+    conn_rec *slave = NULL;
+    int reuse_slave = 0;
     
-    AP_DEBUG_ASSERT(to);
-    AP_DEBUG_ASSERT(from);
-    same_alloc = (to->bucket_alloc == from->bucket_alloc);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
+                  "h2_task(%s): destroy", task->id);
+    if (called_from_master) {
+        /* Process outstanding events before destruction */
+        h2_stream *stream = h2_ihash_get(m->streams, task->stream_id);
+        if (stream) {
+            input_consumed_signal(m, stream);
+        }
+    }
+    
+    h2_beam_on_produced(task->output.beam, NULL, NULL);
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, 
+                  APLOGNO(03385) "h2_task(%s): destroy "
+                  "output beam empty=%d, holds proxies=%d", 
+                  task->id,
+                  h2_beam_empty(task->output.beam),
+                  h2_beam_holds_proxies(task->output.beam));
+    
+    slave = task->c;
+    reuse_slave = ((m->spare_slaves->nelts < m->spare_slaves->nalloc)
+                   && !task->rst_error);
+    
+    h2_ihash_remove(m->tasks, task->stream_id);
+    h2_ihash_remove(m->redo_tasks, task->stream_id);
+    h2_task_destroy(task);
 
-    if (!FILE_MOVE) {
-        pfile_handles_allowed = NULL;
-    }
-    
-    if (!APR_BRIGADE_EMPTY(from)) {
-        apr_bucket *b, *end;
-        
-        status = last_not_included(from, maxlen, same_alloc,
-                                   pfile_handles_allowed, &end);
-        if (status != APR_SUCCESS) {
-            return status;
+    if (slave) {
+        if (reuse_slave && slave->keepalive == AP_CONN_KEEPALIVE) {
+            APR_ARRAY_PUSH(m->spare_slaves, conn_rec*) = slave;
         }
-        
-        while (!APR_BRIGADE_EMPTY(from) && status == APR_SUCCESS) {
-            b = APR_BRIGADE_FIRST(from);
-            if (b == end) {
-                break;
-            }
-            
-            if (same_alloc || (b->list == to->bucket_alloc)) {
-                /* both brigades use the same bucket_alloc and auto-cleanups
-                 * have the same life time. It's therefore safe to just move
-                 * directly. */
-                APR_BUCKET_REMOVE(b);
-                APR_BRIGADE_INSERT_TAIL(to, b);
-#if LOG_BUCKETS
-                ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p,
-                              "h2_util_move: %s, passed bucket(same bucket_alloc) "
-                              "%ld-%ld, type=%s",
-                              msg, (long)b->start, (long)b->length, 
-                              APR_BUCKET_IS_METADATA(b)? 
-                              (APR_BUCKET_IS_EOS(b)? "EOS": 
-                               (APR_BUCKET_IS_FLUSH(b)? "FLUSH" : "META")) : 
-                              (APR_BUCKET_IS_FILE(b)? "FILE" : "DATA"));
-#endif
-            }
-            else if (DEEP_COPY) {
-                /* we have not managed the magic of passing buckets from
-                 * one thread to another. Any attempts result in
-                 * cleanup of pools scrambling memory.
-                 */
-                if (APR_BUCKET_IS_METADATA(b)) {
-                    if (APR_BUCKET_IS_EOS(b)) {
-                        APR_BRIGADE_INSERT_TAIL(to, apr_bucket_eos_create(to->bucket_alloc));
-                    }
-                    else if (APR_BUCKET_IS_FLUSH(b)) {
-                        APR_BRIGADE_INSERT_TAIL(to, apr_bucket_flush_create(to->bucket_alloc));
-                    }
-                    else {
-                        /* ignore */
-                    }
-                }
-                else if (pfile_handles_allowed 
-                         && *pfile_handles_allowed > 0 
-                         && APR_BUCKET_IS_FILE(b)) {
-                    /* We do not want to read files when passing buckets, if
-                     * we can avoid it. However, what we've come up so far
-                     * is not working corrently, resulting either in crashes or
-                     * too many open file descriptors.
-                     */
-                    apr_bucket_file *f = (apr_bucket_file *)b->data;
-                    apr_file_t *fd = f->fd;
-                    int setaside = (f->readpool != to->p);
-#if LOG_BUCKETS
-                    ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p,
-                                  "h2_util_move: %s, moving FILE bucket %ld-%ld "
-                                  "from=%lx(p=%lx) to=%lx(p=%lx), setaside=%d",
-                                  msg, (long)b->start, (long)b->length, 
-                                  (long)from, (long)from->p, 
-                                  (long)to, (long)to->p, setaside);
-#endif
-                    if (setaside) {
-                        status = apr_file_setaside(&fd, fd, to->p);
-                        if (status != APR_SUCCESS) {
-                            ap_log_perror(APLOG_MARK, APLOG_ERR, status, to->p,
-                                          APLOGNO(02947) "h2_util: %s, setaside FILE", 
-                                          msg);
-                            return status;
-                        }
-                    }
-                    apr_brigade_insert_file(to, fd, b->start, b->length, 
-                                            to->p);
-                    --(*pfile_handles_allowed);
-                }
-                else {
-                    const char *data;
-                    apr_size_t len;
-                    status = apr_bucket_read(b, &data, &len, APR_BLOCK_READ);
-                    if (status == APR_SUCCESS && len > 0) {
-                        status = apr_brigade_write(to, NULL, NULL, data, len);
-#if LOG_BUCKETS
-                        ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p,
-                                      "h2_util_move: %s, copied bucket %ld-%ld "
-                                      "from=%lx(p=%lx) to=%lx(p=%lx)",
-                                      msg, (long)b->start, (long)b->length, 
-                                      (long)from, (long)from->p, 
-                                      (long)to, (long)to->p);
-#endif
-                    }
-                }
-                apr_bucket_delete(b);
-            }
-            else {
-                apr_bucket_setaside(b, to->p);
-                APR_BUCKET_REMOVE(b);
-                APR_BRIGADE_INSERT_TAIL(to, b);
-#if LOG_BUCKETS
-                ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p,
-                              "h2_util_move: %s, passed setaside bucket %ld-%ld "
-                              "from=%lx(p=%lx) to=%lx(p=%lx)",
-                              msg, (long)b->start, (long)b->length, 
-                              (long)from, (long)from->p, 
-                              (long)to, (long)to->p);
-#endif
-            }
+        else {
+            slave->sbh = NULL;
+            h2_slave_destroy(slave);
         }
     }
     
-    return status;
+    check_tx_free(m);
 }

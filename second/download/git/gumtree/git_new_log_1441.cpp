@@ -1,1 +1,2 @@
-die("submodule--helper push-check requires at least 2 arguments");
+error("couldn't write %s: %s", log_file,
+					strerror(errno));

@@ -1,2 +1,1 @@
-error("copy-fd: write returned %s",
-				     strerror(errno));
+die("invalid object type");

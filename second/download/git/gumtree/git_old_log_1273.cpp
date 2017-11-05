@@ -1,1 +1,2 @@
-die_errno(_("Could not open '%s' for writing"), filename);
+error("copy-fd: read returned %s",
+				     strerror(read_error));

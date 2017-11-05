@@ -1,1 +1,2 @@
-fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02144)
+                          "No privilege to set user/group");

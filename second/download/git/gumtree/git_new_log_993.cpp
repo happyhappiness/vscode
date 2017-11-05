@@ -1,1 +1,1 @@
-die("object not found: %s", oid_to_hex(&oid));
+printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);

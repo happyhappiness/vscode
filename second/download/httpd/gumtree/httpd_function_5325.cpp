@@ -1,51 +1,50 @@
-apr_status_t mpm_service_uninstall(void)
+apr_status_t h2_stream_schedule(h2_stream *stream, int eos,
+                                h2_stream_pri_cmp *cmp, void *ctx)
 {
-    apr_status_t rv;
-    SC_HANDLE schService;
-    SC_HANDLE schSCManager;
-
-    fprintf(stderr,"Removing the %s service\n", mpm_display_name);
-
-    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
-                                 SC_MANAGER_CONNECT);
-    if (!schSCManager) {
-        rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     "Failed to open the WinNT service manager.");
-        return (rv);
+    apr_status_t status;
+    AP_DEBUG_ASSERT(stream);
+    AP_DEBUG_ASSERT(stream->session);
+    AP_DEBUG_ASSERT(stream->session->mplx);
+    
+    if (!output_open(stream)) {
+        return APR_ECONNRESET;
     }
-
-    /* ###: utf-ize */
-    schService = OpenService(schSCManager, mpm_service_name, DELETE);
-
-    if (!schService) {
-        rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                        "%s: OpenService failed", mpm_display_name);
-        return (rv);
+    if (stream->scheduled) {
+        return APR_EINVAL;
     }
-
-    /* assure the service is stopped before continuing
-     *
-     * This may be out of order... we might not be able to be
-     * granted all access if the service is running anyway.
-     *
-     * And do we want to make it *this easy* for them
-     * to uninstall their service unintentionally?
+    if (eos) {
+        close_input(stream);
+    }
+    
+    /* Seeing the end-of-headers, we have everything we need to 
+     * start processing it.
      */
-    /* ap_stop_service(schService);
-     */
-
-    if (DeleteService(schService) == 0) {
-        rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     "%s: Failed to delete the service.", mpm_display_name);
-        return (rv);
+    status = h2_request_end_headers(stream->request, stream->pool, eos);
+    if (status == APR_SUCCESS) {
+        if (!eos) {
+            stream->bbin = apr_brigade_create(stream->pool, 
+                                              stream->session->c->bucket_alloc);
+        }
+        stream->input_remaining = stream->request->content_length;
+        
+        status = h2_mplx_process(stream->session->mplx, stream->id, 
+                                 stream->request, eos, cmp, ctx);
+        stream->scheduled = 1;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
+                      "h2_stream(%ld-%d): scheduled %s %s://%s%s",
+                      stream->session->id, stream->id,
+                      stream->request->method, stream->request->scheme,
+                      stream->request->authority, stream->request->path);
     }
-
-    CloseServiceHandle(schService);
-    CloseServiceHandle(schSCManager);
-
-    fprintf(stderr,"The %s service has been removed successfully.\n", mpm_display_name);
-    return APR_SUCCESS;
+    else {
+        h2_stream_rst(stream, H2_ERR_INTERNAL_ERROR);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
+                      "h2_stream(%ld-%d): RST=2 (internal err) %s %s://%s%s",
+                      stream->session->id, stream->id,
+                      stream->request->method, stream->request->scheme,
+                      stream->request->authority, stream->request->path);
+    }
+    
+    return status;
 }

@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+die_errno("Cannot change to '%s'", subdir);

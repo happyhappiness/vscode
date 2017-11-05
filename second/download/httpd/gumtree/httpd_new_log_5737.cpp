@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02032)
-                             "Hostname %s provided via SNI and hostname %s provided"
-                             " via HTTP select a different server",
-                             servername, r->hostname);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00322)
+                         "WARNING: MinSpareThreads of %d not allowed, "
+                         "increasing to 1 to avoid almost certain server failure. "
+                         "Please read the documentation.", min_spare_threads);

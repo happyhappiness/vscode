@@ -1,2 +1,1 @@
-git_die_config("pack.indexversion",
-					"bad pack.indexversion=%"PRIu32, pack_idx_opts.version);
+die_errno(_("could not open %s for writing"), path);

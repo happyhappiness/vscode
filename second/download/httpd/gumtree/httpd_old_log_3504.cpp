@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "subcache_data_size = %u", header->subcache_data_size);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "got a vm!");

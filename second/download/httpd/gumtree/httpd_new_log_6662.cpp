@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, task->c, 
-                      "h2_task(%s): send_out done", task->id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02485)
+                                  "Encountered extra data after compressed data");

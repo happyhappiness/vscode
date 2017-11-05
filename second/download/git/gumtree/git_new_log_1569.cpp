@@ -1,1 +1,3 @@
-die(_("unknown error occured while reading the configuration files"));
+error_buf(err,
+				 _("no upstream configured for branch '%s'"),
+				 branch->name);

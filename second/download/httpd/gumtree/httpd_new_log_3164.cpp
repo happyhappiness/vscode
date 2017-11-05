@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01662)
-                          "Error retrieving results while looking up '%s:%s' "
-                          "in database", user, realm);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c,
+                      "mod_dumpio: %s - %d", f->frec->name, ret);

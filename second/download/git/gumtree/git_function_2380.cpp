@@ -1,57 +1,39 @@
-static int handle_commit_msg(struct strbuf *line)
+int finalize_object_file(const char *tmpfile, const char *filename)
 {
-	static int still_looking = 1;
+	int ret = 0;
 
-	if (!cmitmsg)
-		return 0;
+	if (object_creation_mode == OBJECT_CREATION_USES_RENAMES)
+		goto try_rename;
+	else if (link(tmpfile, filename))
+		ret = errno;
 
-	if (still_looking) {
-		if (!line->len || (line->len == 1 && line->buf[0] == '\n'))
-			return 0;
+	/*
+	 * Coda hack - coda doesn't like cross-directory links,
+	 * so we fall back to a rename, which will mean that it
+	 * won't be able to check collisions, but that's not a
+	 * big deal.
+	 *
+	 * The same holds for FAT formatted media.
+	 *
+	 * When this succeeds, we just return.  We have nothing
+	 * left to unlink.
+	 */
+	if (ret && ret != EEXIST) {
+	try_rename:
+		if (!rename(tmpfile, filename))
+			goto out;
+		ret = errno;
 	}
-
-	if (use_inbody_headers && still_looking) {
-		still_looking = check_header(line, s_hdr_data, 0);
-		if (still_looking)
-			return 0;
-	} else
-		/* Only trim the first (blank) line of the commit message
-		 * when ignoring in-body headers.
-		 */
-		still_looking = 0;
-
-	/* normalize the log message to UTF-8. */
-	if (metainfo_charset)
-		convert_to_utf8(line, charset.buf);
-
-	if (use_scissors && is_scissors_line(line)) {
-		int i;
-		if (fseek(cmitmsg, 0L, SEEK_SET))
-			die_errno("Could not rewind output message file");
-		if (ftruncate(fileno(cmitmsg), 0))
-			die_errno("Could not truncate output message file at scissors");
-		still_looking = 1;
-
-		/*
-		 * We may have already read "secondary headers"; purge
-		 * them to give ourselves a clean restart.
-		 */
-		for (i = 0; header[i]; i++) {
-			if (s_hdr_data[i])
-				strbuf_release(s_hdr_data[i]);
-			s_hdr_data[i] = NULL;
+	unlink_or_warn(tmpfile);
+	if (ret) {
+		if (ret != EEXIST) {
+			return error("unable to write sha1 filename %s: %s", filename, strerror(ret));
 		}
-		return 0;
+		/* FIXME!!! Collision check here ? */
 	}
 
-	if (patchbreak(line)) {
-		if (message_id)
-			fprintf(cmitmsg, "Message-Id: %s\n", message_id);
-		fclose(cmitmsg);
-		cmitmsg = NULL;
-		return 1;
-	}
-
-	fputs(line->buf, cmitmsg);
+out:
+	if (adjust_shared_perm(filename))
+		return error("unable to set permission to '%s'", filename);
 	return 0;
 }

@@ -1,1 +1,2 @@
-die("BUG: setup_git_env called without repository");
+error("bad tree object %s",
+			     tree_name ? tree_name : oid_to_hex(tree_oid));

@@ -1,3 +1,6 @@
-apr_file_printf(errfile,
-            "On other systems than Windows and NetWare the '-p' flag will "
-            "probably not work." NL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "auth_ldap authorise: require group "
+                                  "(sub-group): authorisation successful "
+                                  "(attribute %s) [%s][%d - %s]",
+                                  ent[i].name, ldc->reason, result,
+                                  ldap_err2string(result));

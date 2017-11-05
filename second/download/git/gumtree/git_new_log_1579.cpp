@@ -1,2 +1,1 @@
-error("copy-fd: read returned %s",
-				     strerror(errno));
+(fprintf(fp, "%s	%s\n", oid_to_hex(oid), path) <;

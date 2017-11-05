@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+error(_("invalid mode on line %d: %s"), linenr, line);

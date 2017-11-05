@@ -1,2 +1,4 @@
-apr_file_printf(errfile, "%s: username too long (> %d)" NL,
-                argv[0], MAX_STRING_LEN - 1);
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check user.  Check your authn provider!"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

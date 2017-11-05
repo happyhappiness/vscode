@@ -1,1 +1,1 @@
-die("unable to generate word diff");
+die(_("base commit should be the ancestor of revision list"));

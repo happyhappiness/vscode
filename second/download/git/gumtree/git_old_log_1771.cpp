@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+die(_("Could not format %s."), todo_file);

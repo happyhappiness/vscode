@@ -1,18 +1,22 @@
-static void read_rebase_todolist(const char *fname, struct string_list *lines)
+static void reject_rebase_or_bisect_branch(const char *target)
 {
-	struct strbuf line = STRBUF_INIT;
-	FILE *f = fopen(git_path("%s", fname), "r");
+	struct worktree **worktrees = get_worktrees();
+	int i;
 
-	if (!f)
-		die_errno("Could not open file %s for reading",
-			  git_path("%s", fname));
-	while (!strbuf_getline(&line, f, '\n')) {
-		if (line.len && line.buf[0] == comment_line_char)
+	for (i = 0; worktrees[i]; i++) {
+		struct worktree *wt = worktrees[i];
+
+		if (!wt->is_detached)
 			continue;
-		strbuf_trim(&line);
-		if (!line.len)
-			continue;
-		abbrev_sha1_in_line(&line);
-		string_list_append(lines, line.buf);
+
+		if (is_worktree_being_rebased(wt, target))
+			die(_("Branch %s is being rebased at %s"),
+			    target, wt->path);
+
+		if (is_worktree_being_bisected(wt, target))
+			die(_("Branch %s is being bisected at %s"),
+			    target, wt->path);
 	}
+
+	free_worktrees(worktrees);
 }

@@ -1,116 +1,39 @@
-static const char *setup_git_directory_gently_1(int *nongit_ok)
+static int handle_file(const char *path, unsigned char *sha1, const char *output)
 {
-	const char *env_ceiling_dirs = getenv(CEILING_DIRECTORIES_ENVIRONMENT);
-	struct string_list ceiling_dirs = STRING_LIST_INIT_DUP;
-	static struct strbuf cwd = STRBUF_INIT;
-	const char *gitdirenv, *ret;
-	char *gitfile;
-	int offset, offset_parent, ceil_offset = -1;
-	dev_t current_device = 0;
-	int one_filesystem = 1;
+	int hunk_no = 0;
+	struct rerere_io_file io;
+	int marker_size = ll_merge_marker_size(path);
 
-	/*
-	 * We may have read an incomplete configuration before
-	 * setting-up the git directory. If so, clear the cache so
-	 * that the next queries to the configuration reload complete
-	 * configuration (including the per-repo config file that we
-	 * ignored previously).
-	 */
-	git_config_clear();
+	memset(&io, 0, sizeof(io));
+	io.io.getline = rerere_file_getline;
+	io.input = fopen(path, "r");
+	io.io.wrerror = 0;
+	if (!io.input)
+		return error("Could not open %s", path);
 
-	/*
-	 * Let's assume that we are in a git repository.
-	 * If it turns out later that we are somewhere else, the value will be
-	 * updated accordingly.
-	 */
-	if (nongit_ok)
-		*nongit_ok = 0;
-
-	if (strbuf_getcwd(&cwd))
-		die_errno(_("Unable to read current working directory"));
-	offset = cwd.len;
-
-	/*
-	 * If GIT_DIR is set explicitly, we're not going
-	 * to do any discovery, but we still do repository
-	 * validation.
-	 */
-	gitdirenv = getenv(GIT_DIR_ENVIRONMENT);
-	if (gitdirenv)
-		return setup_explicit_git_dir(gitdirenv, &cwd, nongit_ok);
-
-	if (env_ceiling_dirs) {
-		int empty_entry_found = 0;
-
-		string_list_split(&ceiling_dirs, env_ceiling_dirs, PATH_SEP, -1);
-		filter_string_list(&ceiling_dirs, 0,
-				   canonicalize_ceiling_entry, &empty_entry_found);
-		ceil_offset = longest_ancestor_length(cwd.buf, &ceiling_dirs);
-		string_list_clear(&ceiling_dirs, 0);
+	if (output) {
+		io.io.output = fopen(output, "w");
+		if (!io.io.output) {
+			fclose(io.input);
+			return error("Could not write %s", output);
+		}
 	}
 
-	if (ceil_offset < 0 && has_dos_drive_prefix(cwd.buf))
-		ceil_offset = 1;
+	hunk_no = handle_path(sha1, (struct rerere_io *)&io, marker_size);
 
-	/*
-	 * Test in the following order (relative to the cwd):
-	 * - .git (file containing "gitdir: <path>")
-	 * - .git/
-	 * - ./ (bare)
-	 * - ../.git
-	 * - ../.git/
-	 * - ../ (bare)
-	 * - ../../.git/
-	 *   etc.
-	 */
-	one_filesystem = !git_env_bool("GIT_DISCOVERY_ACROSS_FILESYSTEM", 0);
-	if (one_filesystem)
-		current_device = get_device_or_die(".", NULL, 0);
-	for (;;) {
-		gitfile = (char*)read_gitfile(DEFAULT_GIT_DIR_ENVIRONMENT);
-		if (gitfile)
-			gitdirenv = gitfile = xstrdup(gitfile);
-		else {
-			if (is_git_directory(DEFAULT_GIT_DIR_ENVIRONMENT))
-				gitdirenv = DEFAULT_GIT_DIR_ENVIRONMENT;
-		}
+	fclose(io.input);
+	if (io.io.wrerror)
+		error("There were errors while writing %s (%s)",
+		      path, strerror(io.io.wrerror));
+	if (io.io.output && fclose(io.io.output))
+		io.io.wrerror = error_errno("Failed to flush %s", path);
 
-		if (gitdirenv) {
-			ret = setup_discovered_git_dir(gitdirenv,
-						       &cwd, offset,
-						       nongit_ok);
-			free(gitfile);
-			return ret;
-		}
-		free(gitfile);
-
-		if (is_git_directory("."))
-			return setup_bare_git_dir(&cwd, offset, nongit_ok);
-
-		offset_parent = offset;
-		while (--offset_parent > ceil_offset && cwd.buf[offset_parent] != '/');
-		if (offset_parent <= ceil_offset)
-			return setup_nongit(cwd.buf, nongit_ok);
-		if (one_filesystem) {
-			dev_t parent_device = get_device_or_die("..", cwd.buf,
-								offset);
-			if (parent_device != current_device) {
-				if (nongit_ok) {
-					if (chdir(cwd.buf))
-						die_errno(_("Cannot come back to cwd"));
-					*nongit_ok = 1;
-					return NULL;
-				}
-				strbuf_setlen(&cwd, offset);
-				die(_("Not a git repository (or any parent up to mount point %s)\n"
-				"Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set)."),
-				    cwd.buf);
-			}
-		}
-		if (chdir("..")) {
-			strbuf_setlen(&cwd, offset);
-			die_errno(_("Cannot change to '%s/..'"), cwd.buf);
-		}
-		offset = offset_parent;
+	if (hunk_no < 0) {
+		if (output)
+			unlink_or_warn(output);
+		return error("Could not parse conflict hunks in %s", path);
 	}
+	if (io.io.wrerror)
+		return -1;
+	return hunk_no;
 }

@@ -1,29 +1,42 @@
-static void repo_read_config(struct repository *repo)
+static void add_recent_object(const unsigned char *sha1,
+			      unsigned long mtime,
+			      struct recent_data *data)
 {
-	struct config_options opts;
+	struct object *obj;
+	enum object_type type;
 
-	opts.respect_includes = 1;
-	opts.commondir = repo->commondir;
-	opts.git_dir = repo->gitdir;
+	if (mtime <= data->timestamp)
+		return;
 
-	if (!repo->config)
-		repo->config = xcalloc(1, sizeof(struct config_set));
-	else
-		git_configset_clear(repo->config);
+	/*
+	 * We do not want to call parse_object here, because
+	 * inflating blobs and trees could be very expensive.
+	 * However, we do need to know the correct type for
+	 * later processing, and the revision machinery expects
+	 * commits and tags to have been parsed.
+	 */
+	type = sha1_object_info(sha1, NULL);
+	if (type < 0)
+		die("unable to get object info for %s", sha1_to_hex(sha1));
 
-	git_configset_init(repo->config);
+	switch (type) {
+	case OBJ_TAG:
+	case OBJ_COMMIT:
+		obj = parse_object_or_die(sha1, NULL);
+		break;
+	case OBJ_TREE:
+		obj = (struct object *)lookup_tree(sha1);
+		break;
+	case OBJ_BLOB:
+		obj = (struct object *)lookup_blob(sha1);
+		break;
+	default:
+		die("unknown object type for %s: %s",
+		    sha1_to_hex(sha1), typename(type));
+	}
 
-	if (config_with_options(config_set_callback, repo->config, NULL, &opts) < 0)
-		/*
-		 * config_with_options() normally returns only
-		 * zero, as most errors are fatal, and
-		 * non-fatal potential errors are guarded by "if"
-		 * statements that are entered only when no error is
-		 * possible.
-		 *
-		 * If we ever encounter a non-fatal error, it means
-		 * something went really wrong and we should stop
-		 * immediately.
-		 */
-		die(_("unknown error occurred while reading the configuration files"));
+	if (!obj)
+		die("unable to lookup %s", sha1_to_hex(sha1));
+
+	add_pending_object(data->revs, obj, "");
 }

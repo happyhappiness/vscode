@@ -1,1 +1,1 @@
-die(_("invalid commit %s"), oid_to_hex(result_oid));
+xgetcwd();

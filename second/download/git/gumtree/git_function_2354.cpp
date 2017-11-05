@@ -1,41 +1,59 @@
-static int fsck_obj(struct object *obj)
+static int merge(const struct rerere_id *id, const char *path)
 {
-	if (obj->flags & SEEN)
-		return 0;
-	obj->flags |= SEEN;
+	FILE *f;
+	int ret;
+	mmfile_t cur = {NULL, 0}, base = {NULL, 0}, other = {NULL, 0};
+	mmbuffer_t result = {NULL, 0};
 
-	if (verbose)
-		fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), sha1_to_hex(obj->sha1));
-
-	if (fsck_walk(obj, NULL, &fsck_obj_options))
-		objerror(obj, "broken links");
-	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
-		return -1;
-
-	if (obj->type == OBJ_TREE) {
-		struct tree *item = (struct tree *) obj;
-
-		free_tree_buffer(item);
+	/*
+	 * Normalize the conflicts in path and write it out to
+	 * "thisimage" temporary file.
+	 */
+	if (handle_file(path, NULL, rerere_path(id, "thisimage")) < 0) {
+		ret = 1;
+		goto out;
 	}
 
-	if (obj->type == OBJ_COMMIT) {
-		struct commit *commit = (struct commit *) obj;
-
-		free_commit_buffer(commit);
-
-		if (!commit->parents && show_root)
-			printf("root %s\n", sha1_to_hex(commit->object.sha1));
+	if (read_mmfile(&cur, rerere_path(id, "thisimage")) ||
+	    read_mmfile(&base, rerere_path(id, "preimage")) ||
+	    read_mmfile(&other, rerere_path(id, "postimage"))) {
+		ret = 1;
+		goto out;
 	}
 
-	if (obj->type == OBJ_TAG) {
-		struct tag *tag = (struct tag *) obj;
+	/*
+	 * A three-way merge. Note that this honors user-customizable
+	 * low-level merge driver settings.
+	 */
+	ret = ll_merge(&result, path, &base, NULL, &cur, "", &other, "", NULL);
+	if (ret)
+		goto out;
 
-		if (show_tags && tag->tagged) {
-			printf("tagged %s %s", typename(tag->tagged->type), sha1_to_hex(tag->tagged->sha1));
-			printf(" (%s) in %s\n", tag->tag, sha1_to_hex(tag->object.sha1));
-		}
-	}
+	/*
+	 * A successful replay of recorded resolution.
+	 * Mark that "postimage" was used to help gc.
+	 */
+	if (utime(rerere_path(id, "postimage"), NULL) < 0)
+		warning("failed utime() on %s: %s",
+			rerere_path(id, "postimage"),
+			strerror(errno));
 
-	return 0;
+	/* Update "path" with the resolution */
+	f = fopen(path, "w");
+	if (!f)
+		return error("Could not open %s: %s", path,
+			     strerror(errno));
+	if (fwrite(result.ptr, result.size, 1, f) != 1)
+		error("Could not write %s: %s", path, strerror(errno));
+	if (fclose(f))
+		return error("Writing %s failed: %s", path,
+			     strerror(errno));
+
+out:
+	free(cur.ptr);
+	free(base.ptr);
+	free(other.ptr);
+	free(result.ptr);
+
+	return ret;
 }

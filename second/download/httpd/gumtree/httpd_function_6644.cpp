@@ -1,298 +1,227 @@
-apr_status_t h2_session_process(h2_session *session, int async)
+request_rec *ap_read_request(conn_rec *conn)
 {
-    apr_status_t status = APR_SUCCESS;
-    conn_rec *c = session->c;
-    int rv, mpm_state, trace = APLOGctrace3(c);
+    request_rec *r;
+    apr_pool_t *p;
+    const char *expect;
+    int access_status = HTTP_OK;
+    apr_bucket_brigade *tmp_bb;
+    apr_socket_t *csd;
+    apr_interval_time_t cur_timeout;
 
-    if (trace) {
-        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                      "h2_session(%ld): process start, async=%d", 
-                      session->id, async);
-    }
-                  
-    if (c->cs) {
-        c->cs->state = CONN_STATE_WRITE_COMPLETION;
-    }
-    
-    while (session->state != H2_SESSION_ST_DONE) {
-        trace = APLOGctrace3(c);
-        session->have_read = session->have_written = 0;
 
-        if (session->local.accepting 
-            && !ap_mpm_query(AP_MPMQ_MPM_STATE, &mpm_state)) {
-            if (mpm_state == AP_MPMQ_STOPPING) {
-                dispatch_event(session, H2_SESSION_EV_MPM_STOPPING, 0, NULL);
+    apr_pool_create(&p, conn->pool);
+    apr_pool_tag(p, "request");
+    r = apr_pcalloc(p, sizeof(request_rec));
+    AP_READ_REQUEST_ENTRY((intptr_t)r, (uintptr_t)conn);
+    r->pool            = p;
+    r->connection      = conn;
+    r->server          = conn->base_server;
+
+    r->user            = NULL;
+    r->ap_auth_type    = NULL;
+
+    r->allowed_methods = ap_make_method_list(p, 2);
+
+    r->headers_in      = apr_table_make(r->pool, 25);
+    r->subprocess_env  = apr_table_make(r->pool, 25);
+    r->headers_out     = apr_table_make(r->pool, 12);
+    r->err_headers_out = apr_table_make(r->pool, 5);
+    r->notes           = apr_table_make(r->pool, 5);
+
+    r->request_config  = ap_create_request_config(r->pool);
+    /* Must be set before we run create request hook */
+
+    r->proto_output_filters = conn->output_filters;
+    r->output_filters  = r->proto_output_filters;
+    r->proto_input_filters = conn->input_filters;
+    r->input_filters   = r->proto_input_filters;
+    ap_run_create_request(r);
+    r->per_dir_config  = r->server->lookup_defaults;
+
+    r->sent_bodyct     = 0;                      /* bytect isn't for body */
+
+    r->read_length     = 0;
+    r->read_body       = REQUEST_NO_BODY;
+
+    r->status          = HTTP_OK;  /* Until further notice */
+    r->the_request     = NULL;
+
+    /* Begin by presuming any module can make its own path_info assumptions,
+     * until some module interjects and changes the value.
+     */
+    r->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
+
+    r->useragent_addr = conn->client_addr;
+    r->useragent_ip = conn->client_ip;
+
+    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+
+    ap_run_pre_read_request(r, conn);
+
+    /* Get the request... */
+    if (!read_request_line(r, tmp_bb)) {
+        if (r->status == HTTP_REQUEST_URI_TOO_LARGE
+            || r->status == HTTP_BAD_REQUEST) {
+            if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00565)
+                              "request failed: URI too long (longer than %d)",
+                              r->server->limit_req_line);
             }
+            else if (r->method == NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00566)
+                              "request failed: invalid characters in URI");
+            }
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
         }
-        
-        session->status[0] = '\0';
-        
-        switch (session->state) {
-            case H2_SESSION_ST_INIT:
-                ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_READ, c);
-                if (!h2_is_acceptable_connection(c, 1)) {
-                    update_child_status(session, SERVER_BUSY_READ, "inadequate security");
-                    h2_session_shutdown(session, NGHTTP2_INADEQUATE_SECURITY, NULL, 1);
-                } 
-                else {
-                    update_child_status(session, SERVER_BUSY_READ, "init");
-                    status = h2_session_start(session, &rv);
-                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03079)
-                                  "h2_session(%ld): started on %s:%d", session->id,
-                                  session->s->server_hostname,
-                                  c->local_addr->port);
-                    if (status != APR_SUCCESS) {
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
-                    }
-                    dispatch_event(session, H2_SESSION_EV_INIT, 0, NULL);
-                }
-                break;
-                
-            case H2_SESSION_ST_IDLE:
-                /* make certain, we send everything before we idle */
-                h2_conn_io_flush(&session->io);
-                if (!session->keep_sync_until && async && !session->open_streams
-                    && !session->r && session->remote.emitted_count) {
-                    if (trace) {
-                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): async idle, nonblock read, "
-                                      "%d streams open", session->id, 
-                                      session->open_streams);
-                    }
-                    /* We do not return to the async mpm immediately, since under
-                     * load, mpms show the tendency to throw keep_alive connections
-                     * away very rapidly.
-                     * So, if we are still processing streams, we wait for the
-                     * normal timeout first and, on timeout, close.
-                     * If we have no streams, we still wait a short amount of
-                     * time here for the next frame to arrive, before handing
-                     * it to keep_alive processing of the mpm.
-                     */
-                    status = h2_session_read(session, 0);
-                    
-                    if (status == APR_SUCCESS) {
-                        session->have_read = 1;
-                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
-                    }
-                    else if (APR_STATUS_IS_EAGAIN(status) || APR_STATUS_IS_TIMEUP(status)) {
-                        if (apr_time_now() > session->idle_until) {
-                            dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, NULL);
-                        }
-                        else {
-                            status = APR_EAGAIN;
-                            goto out;
-                        }
-                    }
-                    else {
-                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
-				      APLOGNO(03403)
-                                      "h2_session(%ld): idle, no data, error", 
-                                      session->id);
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, "timeout");
-                    }
-                }
-                else {
-                    if (trace) {
-                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): sync idle, stutter 1-sec, "
-                                      "%d streams open", session->id,
-                                      session->open_streams);
-                    }
-                    /* We wait in smaller increments, using a 1 second timeout.
-                     * That gives us the chance to check for MPMQ_STOPPING often. 
-                     */
-                    status = h2_mplx_idle(session->mplx);
-                    if (status != APR_SUCCESS) {
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
-                                       H2_ERR_ENHANCE_YOUR_CALM, "less is more");
-                    }
-                    h2_filter_cin_timeout_set(session->cin, apr_time_from_sec(1));
-                    status = h2_session_read(session, 1);
-                    if (status == APR_SUCCESS) {
-                        session->have_read = 1;
-                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
-                    }
-                    else if (status == APR_EAGAIN) {
-                        /* nothing to read */
-                    }
-                    else if (APR_STATUS_IS_TIMEUP(status)) {
-                        apr_time_t now = apr_time_now();
-                        if (now > session->keep_sync_until) {
-                            /* if we are on an async mpm, now is the time that
-                             * we may dare to pass control to it. */
-                            session->keep_sync_until = 0;
-                        }
-                        if (now > session->idle_until) {
-                            if (trace) {
-                                ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                              "h2_session(%ld): keepalive timeout",
-                                              session->id);
-                            }
-                            dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, "timeout");
-                        }
-                        else if (trace) {                        
-                            ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                          "h2_session(%ld): keepalive, %f sec left",
-                                          session->id, (session->idle_until - now) / 1000000.0f);
-                        }
-                        /* continue reading handling */
-                    }
-                    else if (APR_STATUS_IS_ECONNABORTED(status)
-                             || APR_STATUS_IS_ECONNRESET(status)
-                             || APR_STATUS_IS_EOF(status)
-                             || APR_STATUS_IS_EBADF(status)) {
-                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): input gone", session->id);
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
-                    }
-                    else {
-                        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): idle(1 sec timeout) "
-                                      "read failed", session->id);
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, "error");
-                    }
-                }
-                
-                break;
-                
-            case H2_SESSION_ST_BUSY:
-                if (nghttp2_session_want_read(session->ngh2)) {
-                    ap_update_child_status(session->c->sbh, SERVER_BUSY_READ, NULL);
-                    h2_filter_cin_timeout_set(session->cin, session->s->timeout);
-                    status = h2_session_read(session, 0);
-                    if (status == APR_SUCCESS) {
-                        session->have_read = 1;
-                        dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
-                    }
-                    else if (status == APR_EAGAIN) {
-                        /* nothing to read */
-                    }
-                    else if (APR_STATUS_IS_TIMEUP(status)) {
-                        dispatch_event(session, H2_SESSION_EV_CONN_TIMEOUT, 0, NULL);
-                        break;
-                    }
-                    else {
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
-                    }
-                }
-                
-                /* trigger window updates, stream resumes and submits */
-                status = h2_mplx_dispatch_master_events(session->mplx, 
-                                                        on_stream_resume,
-                                                        session);
-                if (status != APR_SUCCESS) {
-                    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, c,
-                                  "h2_session(%ld): dispatch error", 
-                                  session->id);
-                    dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
-                                   H2_ERR_INTERNAL_ERROR, 
-                                   "dispatch error");
-                    break;
-                }
-                
-                if (nghttp2_session_want_write(session->ngh2)) {
-                    ap_update_child_status(session->c->sbh, SERVER_BUSY_WRITE, NULL);
-                    status = h2_session_send(session);
-                    if (status != APR_SUCCESS) {
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
-                                       H2_ERR_INTERNAL_ERROR, "writing");
-                        break;
-                    }
-                }
-                
-                if (session->have_read || session->have_written) {
-                    if (session->wait_us) {
-                        session->wait_us = 0;
-                    }
-                }
-                else if (!nghttp2_session_want_write(session->ngh2)) {
-                    dispatch_event(session, H2_SESSION_EV_NO_IO, 0, NULL);
-                }
-                break;
-                
-            case H2_SESSION_ST_WAIT:
-                if (session->wait_us <= 0) {
-                    session->wait_us = 10;
-                    if (h2_conn_io_flush(&session->io) != APR_SUCCESS) {
-                        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
-                        break;
-                    }
-                }
-                else {
-                    /* repeating, increase timer for graceful backoff */
-                    session->wait_us = H2MIN(session->wait_us*2, MAX_WAIT_MICROS);
-                }
-
-                if (trace) {
-                    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                                  "h2_session: wait for data, %ld micros", 
-                                  (long)session->wait_us);
-                }
-                status = h2_mplx_out_trywait(session->mplx, session->wait_us, 
-                                             session->iowait);
-                if (status == APR_SUCCESS) {
-                    session->wait_us = 0;
-                    dispatch_event(session, H2_SESSION_EV_DATA_READ, 0, NULL);
-                }
-                else if (APR_STATUS_IS_TIMEUP(status)) {
-                    /* go back to checking all inputs again */
-                    transit(session, "wait cycle", session->local.accepting? 
-                            H2_SESSION_ST_BUSY : H2_SESSION_ST_DONE);
-                }
-                else if (APR_STATUS_IS_ECONNRESET(status) 
-                         || APR_STATUS_IS_ECONNABORTED(status)) {
-                    dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
-                }
-                else {
-                    ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
-				  APLOGNO(03404)
-                                  "h2_session(%ld): waiting on conditional",
-                                  session->id);
-                    h2_session_shutdown(session, H2_ERR_INTERNAL_ERROR, 
-                                        "cond wait error", 0);
-                }
-                break;
-                
-            default:
-                ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
-                              APLOGNO(03080)
-                              "h2_session(%ld): unknown state %d", session->id, session->state);
-                dispatch_event(session, H2_SESSION_EV_PROTO_ERROR, 0, NULL);
-                break;
+        else if (r->status == HTTP_REQUEST_TIME_OUT) {
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            if (!r->connection->keepalives) {
+                ap_run_log_transaction(r);
+            }
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
         }
 
-        if (!nghttp2_session_want_read(session->ngh2) 
-                 && !nghttp2_session_want_write(session->ngh2)) {
-            dispatch_event(session, H2_SESSION_EV_NGH2_DONE, 0, NULL); 
-        }
-        if (session->reprioritize) {
-            h2_mplx_reprioritize(session->mplx, stream_pri_cmp, session);
-            session->reprioritize = 0;
-        }
-    }
-    
-out:
-    if (trace) {
-        ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                      "h2_session(%ld): [%s] process returns", 
-                      session->id, state_name(session->state));
-    }
-    
-    if ((session->state != H2_SESSION_ST_DONE)
-        && (APR_STATUS_IS_EOF(status)
-            || APR_STATUS_IS_ECONNRESET(status) 
-            || APR_STATUS_IS_ECONNABORTED(status))) {
-        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 0, NULL);
+        apr_brigade_destroy(tmp_bb);
+        r = NULL;
+        goto traceout;
     }
 
-    status = APR_SUCCESS;
-    if (session->state == H2_SESSION_ST_DONE) {
-        status = APR_EOF;
-        if (!session->eoc_written) {
-            session->eoc_written = 1;
-            h2_conn_io_write_eoc(&session->io, session);
+    /* We may have been in keep_alive_timeout mode, so toggle back
+     * to the normal timeout mode as we fetch the header lines,
+     * as necessary.
+     */
+    csd = ap_get_conn_socket(conn);
+    apr_socket_timeout_get(csd, &cur_timeout);
+    if (cur_timeout != conn->base_server->timeout) {
+        apr_socket_timeout_set(csd, conn->base_server->timeout);
+        cur_timeout = conn->base_server->timeout;
+    }
+
+    if (!r->assbackwards) {
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00567)
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        }
+
+        if (apr_table_get(r->headers_in, "Transfer-Encoding")
+            && apr_table_get(r->headers_in, "Content-Length")) {
+            /* 2616 section 4.4, point 3: "if both Transfer-Encoding
+             * and Content-Length are received, the latter MUST be
+             * ignored"; so unset it here to prevent any confusion
+             * later. */
+            apr_table_unset(r->headers_in, "Content-Length");
         }
     }
-    
-    return status;
+    else {
+        if (r->header_only) {
+            /*
+             * Client asked for headers only with HTTP/0.9, which doesn't send
+             * headers! Have to dink things just to make sure the error message
+             * comes through...
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00568)
+                          "client sent invalid HTTP/0.9 request: HEAD %s",
+                          r->uri);
+            r->header_only = 0;
+            r->status = HTTP_BAD_REQUEST;
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        }
+    }
+
+    apr_brigade_destroy(tmp_bb);
+
+    /* update what we think the virtual host is based on the headers we've
+     * now read. may update status.
+     */
+    ap_update_vhost_from_headers(r);
+
+    /* Toggle to the Host:-based vhost's timeout mode to fetch the
+     * request body and send the response body, if needed.
+     */
+    if (cur_timeout != r->server->timeout) {
+        apr_socket_timeout_set(csd, r->server->timeout);
+        cur_timeout = r->server->timeout;
+    }
+
+    /* we may have switched to another server */
+    r->per_dir_config = r->server->lookup_defaults;
+
+    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
+        || ((r->proto_num == HTTP_VERSION(1, 1))
+            && !apr_table_get(r->headers_in, "Host"))) {
+        /*
+         * Client sent us an HTTP/1.1 or later request without telling us the
+         * hostname, either with a full URL or a Host: header. We therefore
+         * need to (as per the 1.1 spec) send an error.  As a special case,
+         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
+         * a Host: header, and the server MUST respond with 400 if it doesn't.
+         */
+        access_status = HTTP_BAD_REQUEST;
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00569)
+                      "client sent HTTP/1.1 request without hostname "
+                      "(see RFC2616 section 14.23): %s", r->uri);
+    }
+
+    /*
+     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
+     * called by ap_die and by ap_send_error_response works correctly on
+     * status codes that do not cause the connection to be dropped and
+     * in situations where the connection should be kept alive.
+     */
+
+    ap_add_input_filter_handle(ap_http_input_filter_handle,
+                               NULL, r, r->connection);
+
+    if (access_status != HTTP_OK
+        || (access_status = ap_run_post_read_request(r))) {
+        ap_die(access_status, r);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        r = NULL;
+        goto traceout;
+    }
+
+    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
+        && (expect[0] != '\0')) {
+        /*
+         * The Expect header field was added to HTTP/1.1 after RFC 2068
+         * as a means to signal when a 100 response is desired and,
+         * unfortunately, to signal a poor man's mandatory extension that
+         * the server must understand or return 417 Expectation Failed.
+         */
+        if (strcasecmp(expect, "100-continue") == 0) {
+            r->expecting_100 = 1;
+        }
+        else {
+            r->status = HTTP_EXPECTATION_FAILED;
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00570)
+                          "client sent an unrecognized expectation value of "
+                          "Expect: %s", expect);
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            goto traceout;
+        }
+    }
+
+    AP_READ_REQUEST_SUCCESS((uintptr_t)r, (char *)r->method, (char *)r->uri, (char *)r->server->defn_name, r->status);
+    return r;
+    traceout:
+    AP_READ_REQUEST_FAILURE((uintptr_t)r);
+    return r;
 }

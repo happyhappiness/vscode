@@ -1,1 +1,1 @@
-die(_("unable to parse --pretty format"));
+die("unable to generate diff for %s", name);

@@ -1,1 +1,1 @@
-die(_("SHA1 COLLISION FOUND WITH %s !"), oid_to_hex(oid));
+die(_("failed to expand user dir in: '%s'"), value);

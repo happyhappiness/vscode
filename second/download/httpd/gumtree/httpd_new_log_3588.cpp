@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00639)
-                 "DBD [%s] Error: %s", svr->cfg->name, errmsg);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01537)
+                    MODNAME ": invalid m->type (%d) in mprint().",
+                    m->type);

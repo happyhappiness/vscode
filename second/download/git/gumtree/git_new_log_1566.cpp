@@ -1,1 +1,2 @@
-die(_("invalid mode for object creation: %s"), value);
+die("internal error peeling reference %s (%s)",
+		    entry->name, oid_to_hex(&entry->u.value.oid));

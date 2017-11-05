@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+die(_("revision walk setup failed"));

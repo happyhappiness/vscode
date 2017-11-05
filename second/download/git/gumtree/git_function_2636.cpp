@@ -1,28 +1,27 @@
-static int migrate_file(struct remote *remote)
+struct tree *write_tree_from_memory(struct merge_options *o)
 {
-	struct strbuf buf = STRBUF_INIT;
-	int i;
+	struct tree *result = NULL;
 
-	strbuf_addf(&buf, "remote.%s.url", remote->name);
-	for (i = 0; i < remote->url_nr; i++)
-		if (git_config_set_multivar(buf.buf, remote->url[i], "^$", 0))
-			return error(_("Could not append '%s' to '%s'"),
-					remote->url[i], buf.buf);
-	strbuf_reset(&buf);
-	strbuf_addf(&buf, "remote.%s.push", remote->name);
-	for (i = 0; i < remote->push_refspec_nr; i++)
-		if (git_config_set_multivar(buf.buf, remote->push_refspec[i], "^$", 0))
-			return error(_("Could not append '%s' to '%s'"),
-					remote->push_refspec[i], buf.buf);
-	strbuf_reset(&buf);
-	strbuf_addf(&buf, "remote.%s.fetch", remote->name);
-	for (i = 0; i < remote->fetch_refspec_nr; i++)
-		if (git_config_set_multivar(buf.buf, remote->fetch_refspec[i], "^$", 0))
-			return error(_("Could not append '%s' to '%s'"),
-					remote->fetch_refspec[i], buf.buf);
-	if (remote->origin == REMOTE_REMOTES)
-		unlink_or_warn(git_path("remotes/%s", remote->name));
-	else if (remote->origin == REMOTE_BRANCHES)
-		unlink_or_warn(git_path("branches/%s", remote->name));
-	return 0;
+	if (unmerged_cache()) {
+		int i;
+		fprintf(stderr, "BUG: There are unmerged index entries:\n");
+		for (i = 0; i < active_nr; i++) {
+			const struct cache_entry *ce = active_cache[i];
+			if (ce_stage(ce))
+				fprintf(stderr, "BUG: %d %.*s\n", ce_stage(ce),
+					(int)ce_namelen(ce), ce->name);
+		}
+		die("Bug in merge-recursive.c");
+	}
+
+	if (!active_cache_tree)
+		active_cache_tree = cache_tree();
+
+	if (!cache_tree_fully_valid(active_cache_tree) &&
+	    cache_tree_update(&the_index, 0) < 0)
+		die(_("error building trees"));
+
+	result = lookup_tree(active_cache_tree->sha1);
+
+	return result;
 }

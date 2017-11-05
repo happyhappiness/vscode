@@ -1,1 +1,2 @@
-warning(_(msg_warn_remove_failed), qname);
+error("%s: invalid sha1 pointer in cache-tree",
+			      sha1_to_hex(it->sha1));

@@ -1,1 +1,1 @@
-die(_("could not create directory '%s'"), new_git_dir);
+error(_("could not stat '%s'"), todo_file);

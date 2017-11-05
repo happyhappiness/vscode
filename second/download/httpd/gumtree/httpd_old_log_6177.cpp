@@ -1,1 +1,0 @@
-ap_log_perror(APLOG_MARK, APLOG_INFO, 0, pool, "installing hooks");

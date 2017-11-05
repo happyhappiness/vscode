@@ -1,1 +1,1 @@
-ap_add_input_filter("H2_REQUEST", task, r, r->connection);
+apr_file_printf(errfile, "%s: %s" NL, argv[0], ctx->errstr);

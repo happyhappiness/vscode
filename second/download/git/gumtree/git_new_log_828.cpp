@@ -1,1 +1,2 @@
-error(_("need a HEAD to fixup"));
+error(_("relative config include "
+				       "conditionals must come from files"));

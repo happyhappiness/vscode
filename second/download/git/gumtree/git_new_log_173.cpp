@@ -1,1 +1,1 @@
-error("remote-curl: usage: git remote-curl <remote> [<url>]");
+die("strange port '%s' blocked", port);

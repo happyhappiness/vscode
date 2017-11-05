@@ -1,23 +1,39 @@
-int git_config_get_untracked_cache(void)
+static void write_one(struct strbuf *buffer, struct cache_tree *it,
+                      const char *path, int pathlen)
 {
-	int val = -1;
-	const char *v;
+	int i;
 
-	/* Hack for test programs like test-dump-untracked-cache */
-	if (ignore_untracked_cache_config)
-		return -1;
+	/* One "cache-tree" entry consists of the following:
+	 * path (NUL terminated)
+	 * entry_count, subtree_nr ("%d %d\n")
+	 * tree-sha1 (missing if invalid)
+	 * subtree_nr "cache-tree" entries for subtrees.
+	 */
+	strbuf_grow(buffer, pathlen + 100);
+	strbuf_add(buffer, path, pathlen);
+	strbuf_addf(buffer, "%c%d %d\n", 0, it->entry_count, it->subtree_nr);
 
-	if (!git_config_get_maybe_bool("core.untrackedcache", &val))
-		return val;
+#if DEBUG
+	if (0 <= it->entry_count)
+		fprintf(stderr, "cache-tree <%.*s> (%d ent, %d subtree) %s\n",
+			pathlen, path, it->entry_count, it->subtree_nr,
+			sha1_to_hex(it->sha1));
+	else
+		fprintf(stderr, "cache-tree <%.*s> (%d subtree) invalid\n",
+			pathlen, path, it->subtree_nr);
+#endif
 
-	if (!git_config_get_value("core.untrackedcache", &v)) {
-		if (!strcasecmp(v, "keep"))
-			return -1;
-
-		error("unknown core.untrackedCache value '%s'; "
-		      "using 'keep' default value", v);
-		return -1;
+	if (0 <= it->entry_count) {
+		strbuf_add(buffer, it->sha1, 20);
 	}
-
-	return -1; /* default value */
+	for (i = 0; i < it->subtree_nr; i++) {
+		struct cache_tree_sub *down = it->down[i];
+		if (i) {
+			struct cache_tree_sub *prev = it->down[i-1];
+			if (subtree_name_cmp(down->name, down->namelen,
+					     prev->name, prev->namelen) <= 0)
+				die("fatal - unsorted cache subtree");
+		}
+		write_one(buffer, down->cache_tree, down->name, down->namelen);
+	}
 }

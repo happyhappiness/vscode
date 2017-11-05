@@ -1,1 +1,1 @@
-die("bad tree %s", oid_to_hex(&obj->oid));
+die("BUG: a non-header pattern in grep header list.");

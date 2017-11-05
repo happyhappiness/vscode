@@ -1,2 +1,3 @@
-die(_("bad config variable '%s' in file '%s' at line %d"),
-		    key, filename, linenr);
+error_buf(err,
+				 _("branch '%s' has no remote for pushing"),
+				 branch->name);

@@ -1,140 +1,68 @@
-static const char *update(struct command *cmd, struct shallow_info *si)
+int create_symref(const char *ref_target, const char *refs_heads_master,
+		  const char *logmsg)
 {
-	const char *name = cmd->ref_name;
-	struct strbuf namespaced_name_buf = STRBUF_INIT;
-	const char *namespaced_name, *ret;
-	unsigned char *old_sha1 = cmd->old_sha1;
-	unsigned char *new_sha1 = cmd->new_sha1;
+	char *lockpath = NULL;
+	char ref[1000];
+	int fd, len, written;
+	char *git_HEAD = git_pathdup("%s", ref_target);
+	unsigned char old_sha1[20], new_sha1[20];
+	struct strbuf err = STRBUF_INIT;
 
-	/* only refs/... are allowed */
-	if (!starts_with(name, "refs/") || check_refname_format(name + 5, 0)) {
-		rp_error("refusing to create funny ref '%s' remotely", name);
-		return "funny refname";
+	if (logmsg && read_ref(ref_target, old_sha1))
+		hashclr(old_sha1);
+
+	if (safe_create_leading_directories(git_HEAD) < 0)
+		return error("unable to create directory for %s", git_HEAD);
+
+#ifndef NO_SYMLINK_HEAD
+	if (prefer_symlink_refs) {
+		unlink(git_HEAD);
+		if (!symlink(refs_heads_master, git_HEAD))
+			goto done;
+		fprintf(stderr, "no symlink - falling back to symbolic ref\n");
 	}
+#endif
 
-	strbuf_addf(&namespaced_name_buf, "%s%s", get_git_namespace(), name);
-	namespaced_name = strbuf_detach(&namespaced_name_buf, NULL);
-
-	if (is_ref_checked_out(namespaced_name)) {
-		switch (deny_current_branch) {
-		case DENY_IGNORE:
-			break;
-		case DENY_WARN:
-			rp_warning("updating the current branch");
-			break;
-		case DENY_REFUSE:
-		case DENY_UNCONFIGURED:
-			rp_error("refusing to update checked out branch: %s", name);
-			if (deny_current_branch == DENY_UNCONFIGURED)
-				refuse_unconfigured_deny();
-			return "branch is currently checked out";
-		case DENY_UPDATE_INSTEAD:
-			ret = update_worktree(new_sha1);
-			if (ret)
-				return ret;
-			break;
-		}
+	len = snprintf(ref, sizeof(ref), "ref: %s\n", refs_heads_master);
+	if (sizeof(ref) <= len) {
+		error("refname too long: %s", refs_heads_master);
+		goto error_free_return;
 	}
-
-	if (!is_null_sha1(new_sha1) && !has_sha1_file(new_sha1)) {
-		error("unpack should have generated %s, "
-		      "but I can't find it!", sha1_to_hex(new_sha1));
-		return "bad pack";
+	lockpath = mkpathdup("%s.lock", git_HEAD);
+	fd = open(lockpath, O_CREAT | O_EXCL | O_WRONLY, 0666);
+	if (fd < 0) {
+		error("Unable to open %s for writing", lockpath);
+		goto error_free_return;
 	}
-
-	if (!is_null_sha1(old_sha1) && is_null_sha1(new_sha1)) {
-		if (deny_deletes && starts_with(name, "refs/heads/")) {
-			rp_error("denying ref deletion for %s", name);
-			return "deletion prohibited";
-		}
-
-		if (!strcmp(namespaced_name, head_name)) {
-			switch (deny_delete_current) {
-			case DENY_IGNORE:
-				break;
-			case DENY_WARN:
-				rp_warning("deleting the current branch");
-				break;
-			case DENY_REFUSE:
-			case DENY_UNCONFIGURED:
-			case DENY_UPDATE_INSTEAD:
-				if (deny_delete_current == DENY_UNCONFIGURED)
-					refuse_unconfigured_deny_delete_current();
-				rp_error("refusing to delete the current branch: %s", name);
-				return "deletion of the current branch prohibited";
-			default:
-				return "Invalid denyDeleteCurrent setting";
-			}
-		}
+	written = write_in_full(fd, ref, len);
+	if (close(fd) != 0 || written != len) {
+		error("Unable to write to %s", lockpath);
+		goto error_unlink_return;
 	}
-
-	if (deny_non_fast_forwards && !is_null_sha1(new_sha1) &&
-	    !is_null_sha1(old_sha1) &&
-	    starts_with(name, "refs/heads/")) {
-		struct object *old_object, *new_object;
-		struct commit *old_commit, *new_commit;
-
-		old_object = parse_object(old_sha1);
-		new_object = parse_object(new_sha1);
-
-		if (!old_object || !new_object ||
-		    old_object->type != OBJ_COMMIT ||
-		    new_object->type != OBJ_COMMIT) {
-			error("bad sha1 objects for %s", name);
-			return "bad ref";
-		}
-		old_commit = (struct commit *)old_object;
-		new_commit = (struct commit *)new_object;
-		if (!in_merge_bases(old_commit, new_commit)) {
-			rp_error("denying non-fast-forward %s"
-				 " (you should pull first)", name);
-			return "non-fast-forward";
-		}
+	if (rename(lockpath, git_HEAD) < 0) {
+		error("Unable to create %s", git_HEAD);
+		goto error_unlink_return;
 	}
-	if (run_update_hook(cmd)) {
-		rp_error("hook declined to update %s", name);
-		return "hook declined";
+	if (adjust_shared_perm(git_HEAD)) {
+		error("Unable to fix permissions on %s", lockpath);
+	error_unlink_return:
+		unlink_or_warn(lockpath);
+	error_free_return:
+		free(lockpath);
+		free(git_HEAD);
+		return -1;
 	}
+	free(lockpath);
 
-	if (is_null_sha1(new_sha1)) {
-		if (!parse_object(old_sha1)) {
-			old_sha1 = NULL;
-			if (ref_exists(name)) {
-				rp_warning("Allowing deletion of corrupt ref.");
-			} else {
-				rp_warning("Deleting a non-existent ref.");
-				cmd->did_not_exist = 1;
-			}
-		}
-		if (delete_ref(namespaced_name, old_sha1, 0)) {
-			rp_error("failed to delete %s", name);
-			return "failed to delete";
-		}
-		return NULL; /* good */
-	}
-	else {
-		struct strbuf err = STRBUF_INIT;
-		struct ref_transaction *transaction;
-
-		if (shallow_update && si->shallow_ref[cmd->index] &&
-		    update_shallow_ref(cmd, si))
-			return "shallow error";
-
-		transaction = ref_transaction_begin(&err);
-		if (!transaction ||
-		    ref_transaction_update(transaction, namespaced_name,
-					   new_sha1, old_sha1, 0, 1, "push",
-					   &err) ||
-		    ref_transaction_commit(transaction, &err)) {
-			ref_transaction_free(transaction);
-
-			rp_error("%s", err.buf);
-			strbuf_release(&err);
-			return "failed to update ref";
-		}
-
-		ref_transaction_free(transaction);
+#ifndef NO_SYMLINK_HEAD
+	done:
+#endif
+	if (logmsg && !read_ref(refs_heads_master, new_sha1) &&
+		log_ref_write(ref_target, old_sha1, new_sha1, logmsg, 0, &err)) {
+		error("%s", err.buf);
 		strbuf_release(&err);
-		return NULL; /* good */
 	}
+
+	free(git_HEAD);
+	return 0;
 }

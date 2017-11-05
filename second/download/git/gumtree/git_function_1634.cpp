@@ -1,42 +1,91 @@
-static void add_recent_object(const unsigned char *sha1,
-			      unsigned long mtime,
-			      struct recent_data *data)
+static int diff_get_patch_id(struct diff_options *options, unsigned char *sha1)
 {
-	struct object *obj;
-	enum object_type type;
+	struct diff_queue_struct *q = &diff_queued_diff;
+	int i;
+	git_SHA_CTX ctx;
+	struct patch_id_t data;
+	char buffer[PATH_MAX * 4 + 20];
 
-	if (mtime <= data->timestamp)
-		return;
+	git_SHA1_Init(&ctx);
+	memset(&data, 0, sizeof(struct patch_id_t));
+	data.ctx = &ctx;
 
-	/*
-	 * We do not want to call parse_object here, because
-	 * inflating blobs and trees could be very expensive.
-	 * However, we do need to know the correct type for
-	 * later processing, and the revision machinery expects
-	 * commits and tags to have been parsed.
-	 */
-	type = sha1_object_info(sha1, NULL);
-	if (type < 0)
-		die("unable to get object info for %s", sha1_to_hex(sha1));
+	for (i = 0; i < q->nr; i++) {
+		xpparam_t xpp;
+		xdemitconf_t xecfg;
+		mmfile_t mf1, mf2;
+		struct diff_filepair *p = q->queue[i];
+		int len1, len2;
 
-	switch (type) {
-	case OBJ_TAG:
-	case OBJ_COMMIT:
-		obj = parse_object_or_die(sha1, NULL);
-		break;
-	case OBJ_TREE:
-		obj = (struct object *)lookup_tree(sha1);
-		break;
-	case OBJ_BLOB:
-		obj = (struct object *)lookup_blob(sha1);
-		break;
-	default:
-		die("unknown object type for %s: %s",
-		    sha1_to_hex(sha1), typename(type));
+		memset(&xpp, 0, sizeof(xpp));
+		memset(&xecfg, 0, sizeof(xecfg));
+		if (p->status == 0)
+			return error("internal diff status error");
+		if (p->status == DIFF_STATUS_UNKNOWN)
+			continue;
+		if (diff_unmodified_pair(p))
+			continue;
+		if ((DIFF_FILE_VALID(p->one) && S_ISDIR(p->one->mode)) ||
+		    (DIFF_FILE_VALID(p->two) && S_ISDIR(p->two->mode)))
+			continue;
+		if (DIFF_PAIR_UNMERGED(p))
+			continue;
+
+		diff_fill_sha1_info(p->one);
+		diff_fill_sha1_info(p->two);
+		if (fill_mmfile(&mf1, p->one) < 0 ||
+				fill_mmfile(&mf2, p->two) < 0)
+			return error("unable to read files to diff");
+
+		len1 = remove_space(p->one->path, strlen(p->one->path));
+		len2 = remove_space(p->two->path, strlen(p->two->path));
+		if (p->one->mode == 0)
+			len1 = snprintf(buffer, sizeof(buffer),
+					"diff--gita/%.*sb/%.*s"
+					"newfilemode%06o"
+					"---/dev/null"
+					"+++b/%.*s",
+					len1, p->one->path,
+					len2, p->two->path,
+					p->two->mode,
+					len2, p->two->path);
+		else if (p->two->mode == 0)
+			len1 = snprintf(buffer, sizeof(buffer),
+					"diff--gita/%.*sb/%.*s"
+					"deletedfilemode%06o"
+					"---a/%.*s"
+					"+++/dev/null",
+					len1, p->one->path,
+					len2, p->two->path,
+					p->one->mode,
+					len1, p->one->path);
+		else
+			len1 = snprintf(buffer, sizeof(buffer),
+					"diff--gita/%.*sb/%.*s"
+					"---a/%.*s"
+					"+++b/%.*s",
+					len1, p->one->path,
+					len2, p->two->path,
+					len1, p->one->path,
+					len2, p->two->path);
+		git_SHA1_Update(&ctx, buffer, len1);
+
+		if (diff_filespec_is_binary(p->one) ||
+		    diff_filespec_is_binary(p->two)) {
+			git_SHA1_Update(&ctx, sha1_to_hex(p->one->sha1), 40);
+			git_SHA1_Update(&ctx, sha1_to_hex(p->two->sha1), 40);
+			continue;
+		}
+
+		xpp.flags = 0;
+		xecfg.ctxlen = 3;
+		xecfg.flags = 0;
+		if (xdi_diff_outf(&mf1, &mf2, patch_id_consume, &data,
+				  &xpp, &xecfg))
+			return error("unable to generate patch-id diff for %s",
+				     p->one->path);
 	}
 
-	if (!obj)
-		die("unable to lookup %s", sha1_to_hex(sha1));
-
-	add_pending_object(data->revs, obj, "");
+	git_SHA1_Final(sha1, &ctx);
+	return 0;
 }

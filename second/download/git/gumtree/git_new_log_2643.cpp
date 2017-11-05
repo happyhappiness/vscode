@@ -1,2 +1,1 @@
-die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+err(o, _("blob expected for %s '%s'"), oid_to_hex(oid), path);

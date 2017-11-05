@@ -1,1 +1,1 @@
-die("mktree reported failure");
+die(_("malformed mergetag in commit '%s'"), ref);

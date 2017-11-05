@@ -1,1 +1,4 @@
-error(_("unable to parse remote unpack status: %s"), line);
+fprintf_ln(stderr,
+			   Q_("\nThe most similar command is",
+			      "\nThe most similar commands are",
+			   n));

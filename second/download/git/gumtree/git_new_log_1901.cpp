@@ -1,1 +1,1 @@
-die_errno(_("failed to create file %s"), path);
+fprintf(stderr, "bad sha1 file: %s\n", path);

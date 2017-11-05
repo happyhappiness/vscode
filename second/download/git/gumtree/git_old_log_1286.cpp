@@ -1,2 +1,2 @@
-error(_("no note found for object %s."),
-			       sha1_to_hex(object));
+error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(saved_errno));

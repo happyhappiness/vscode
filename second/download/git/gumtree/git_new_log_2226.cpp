@@ -1,1 +1,1 @@
-die_errno("unable to move new alternates file into place");
+fprintf_ln(stderr, "    git pull %s %s", _("<remote>"), _("<branch>"));

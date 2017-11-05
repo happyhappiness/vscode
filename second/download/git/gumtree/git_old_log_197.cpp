@@ -1,1 +1,1 @@
-status_printf_ln(s, color(WT_STATUS_HEADER, s), "");
+packet_write(fd[1], "argument --format=%s\n", format);

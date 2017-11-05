@@ -1,2 +1,2 @@
-error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
+strbuf_addf(err, "There are still logs under "
+					    "'%s'", logfile->buf);

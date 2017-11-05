@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
-                     apr_get_os_error(), NULL,
-                     APLOGNO(00369)  "Failed to open the Windows service "
-                     "manager, perhaps you forgot to log in as Adminstrator?");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03306)
+                          "ap_proxy_transfer_between_connections: "
+                          "read %" APR_OFF_T_FMT
+                          " bytes from %s", len, name);

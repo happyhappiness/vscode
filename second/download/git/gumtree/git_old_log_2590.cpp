@@ -1,1 +1,1 @@
-die("update_treesame %s", sha1_to_hex(commit->object.sha1));
+die("bug: malformed header expr");

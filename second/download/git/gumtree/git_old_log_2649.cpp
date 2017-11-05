@@ -1,0 +1,1 @@
+die(_("unsupported object type in the tree"));

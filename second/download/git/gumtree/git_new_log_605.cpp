@@ -1,1 +1,2 @@
-error(_("failed to finalize '%s'."), filename);
+fprintf(stderr, "Checking %s %s\n",
+			printable_type(obj), describe_object(obj));

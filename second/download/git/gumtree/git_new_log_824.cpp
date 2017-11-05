@@ -1,1 +1,1 @@
-fputs(buf.buf, stderr);
+die(_("--no-contains option is only allowed in list mode"));

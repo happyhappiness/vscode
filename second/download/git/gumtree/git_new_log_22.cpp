@@ -1,1 +1,1 @@
-error("%s is not possible because you have unmerged files.", me);
+die("BUG: remote HEAD points at non-head?");

@@ -1,20 +1,15 @@
-int parse_tree_gently(struct tree *item, int quiet_on_missing)
+static void show_sig_lines(struct rev_info *opt, int status, const char *bol)
 {
-	 enum object_type type;
-	 void *buffer;
-	 unsigned long size;
+	const char *color, *reset, *eol;
 
-	if (item->object.parsed)
-		return 0;
-	buffer = read_sha1_file(item->object.sha1, &type, &size);
-	if (!buffer)
-		return quiet_on_missing ? -1 :
-			error("Could not read %s",
-			     sha1_to_hex(item->object.sha1));
-	if (type != OBJ_TREE) {
-		free(buffer);
-		return error("Object %s not a tree",
-			     sha1_to_hex(item->object.sha1));
+	color = diff_get_color_opt(&opt->diffopt,
+				   status ? DIFF_WHITESPACE : DIFF_FRAGINFO);
+	reset = diff_get_color_opt(&opt->diffopt, DIFF_RESET);
+	while (*bol) {
+		eol = strchrnul(bol, '\n');
+		printf("%s%.*s%s%s", color, (int)(eol - bol), bol, reset,
+		       *eol ? "\n" : "");
+		graph_show_oneline(opt->graph);
+		bol = (*eol) ? (eol + 1) : eol;
 	}
-	return parse_tree_buffer(item, buffer, size);
 }

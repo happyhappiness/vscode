@@ -1,1 +1,1 @@
-fprintf(opt->file, "%s", diff_line_prefix(opt));
+die("'%s' is not a valid ref name.", ref->buf);

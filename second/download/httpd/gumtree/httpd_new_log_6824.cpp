@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                              H2_SSSN_MSG(session, "on_frame_rcv %s"), buffer);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
+                         "atomics not working as expected - add32 of negative number");

@@ -1,1 +1,1 @@
-die("BUG: invalid value for shared_repository");
+error_errno("cannot create pipe");

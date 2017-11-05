@@ -1,1 +1,1 @@
-printf(": %s: %s\n", git_attr_name(check[j].attr), value);
+printf("author-time %lu\n", ci.author_time);

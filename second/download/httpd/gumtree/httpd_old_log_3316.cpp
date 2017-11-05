@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                     "Error: %d with WSAIoctl(SO_TLS_SET_SERVER)", WSAGetLastError());
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "execution failure "
+                              "for parameter \"%s\" to tag exec in file %s",
+                              tag, r->filename);

@@ -1,1 +1,1 @@
-die("unable to auto-detect name (got '%s')", name);
+die(_("Expecting a full ref name, got %s"), refname);

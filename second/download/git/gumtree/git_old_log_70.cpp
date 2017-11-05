@@ -1,0 +1,1 @@
+die("badly quoted argument: %s", next);

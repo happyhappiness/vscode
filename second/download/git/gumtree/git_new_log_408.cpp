@@ -1,2 +1,1 @@
-die("ls-files --recurse-submodules does not support "
-		    "--error-unmatch");
+fputs(_(env_hint), stderr);

@@ -1,1 +1,1 @@
-die("git-http-push failed");
+err(o, _("Failed to execute internal merge"));

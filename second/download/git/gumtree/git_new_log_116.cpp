@@ -1,1 +1,0 @@
-die("create %s: zero <newvalue>", refname);

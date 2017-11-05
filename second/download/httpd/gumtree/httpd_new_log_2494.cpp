@@ -1,2 +1,2 @@
-printf("INFO: %s header == \n---\n%s\n---\n", 
-               method_str[method], request);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "auth_ldap authenticate: no password specified");

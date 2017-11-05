@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                             APLOGNO(03104)
-                             "apr_thread_create: unable to create worker thread");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, 
+                                  H2_SSSN_LOG(APLOGNO(03079), session, 
+                                  "started on %s:%d"), 
+                                  session->s->server_hostname,
+                                  c->local_addr->port);

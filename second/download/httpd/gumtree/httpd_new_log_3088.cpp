@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "Buggy authn provider failed to set user for %s",
-                                  r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02096)
+                 "wd callback %s", HM_WATHCHDOG_NAME);

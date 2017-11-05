@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+warning("realloc failed: '%s'", strerror(errno));

@@ -1,1 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01161) "Found route %s", *route);
+ap_add_output_filter(ssl_io_coalesce, NULL, r, c);

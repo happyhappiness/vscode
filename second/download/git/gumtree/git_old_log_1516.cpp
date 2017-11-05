@@ -1,2 +1,4 @@
-die(_("You have not concluded your merge (MERGE_HEAD exists).\n"
-				  "Please, commit your changes before you can merge."));
+die(Q_("pack has %d unresolved delta",
+		       "pack has %d unresolved deltas",
+		       nr_deltas - nr_resolved_deltas),
+		    nr_deltas - nr_resolved_deltas);

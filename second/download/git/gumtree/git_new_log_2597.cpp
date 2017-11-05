@@ -1,2 +1,1 @@
-error(_("Could not parse parent commit %s\n"),
-				oid_to_hex(&parent->object.oid));
+die("BUG: buffer too small. Please report a bug.");

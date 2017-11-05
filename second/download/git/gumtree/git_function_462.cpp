@@ -1,24 +1,20 @@
-static int append_ref(const char *refname, const struct object_id *oid,
-		      int allow_dups)
+static int read_and_refresh_cache(struct replay_opts *opts)
 {
-	struct commit *commit = lookup_commit_reference_gently(oid->hash, 1);
-	int i;
-
-	if (!commit)
-		return 0;
-
-	if (!allow_dups) {
-		/* Avoid adding the same thing twice */
-		for (i = 0; i < ref_name_cnt; i++)
-			if (!strcmp(refname, ref_name[i]))
-				return 0;
+	static struct lock_file index_lock;
+	int index_fd = hold_locked_index(&index_lock, 0);
+	if (read_index_preload(&the_index, NULL) < 0) {
+		rollback_lock_file(&index_lock);
+		return error(_("git %s: failed to read the index"),
+			_(action_name(opts)));
 	}
-	if (MAX_REVS <= ref_name_cnt) {
-		warning("ignoring %s; cannot handle more than %d refs",
-			refname, MAX_REVS);
-		return 0;
+	refresh_index(&the_index, REFRESH_QUIET|REFRESH_UNMERGED, NULL, NULL, NULL);
+	if (the_index.cache_changed && index_fd >= 0) {
+		if (write_locked_index(&the_index, &index_lock, COMMIT_LOCK)) {
+			rollback_lock_file(&index_lock);
+			return error(_("git %s: failed to refresh the index"),
+				_(action_name(opts)));
+		}
 	}
-	ref_name[ref_name_cnt++] = xstrdup(refname);
-	ref_name[ref_name_cnt] = NULL;
+	rollback_lock_file(&index_lock);
 	return 0;
 }

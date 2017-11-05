@@ -1,1 +1,1 @@
-argv_array_pushf(&av, "--max-age=%lu", deepen_since);
+die(_("could not recurse into submodule '%s'"), path);

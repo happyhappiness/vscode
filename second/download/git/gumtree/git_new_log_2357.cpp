@@ -1,1 +1,1 @@
-fprintf(stderr, "bad sha1 file: %s\n", path);
+error_errno("Writing %s failed", path);

@@ -1,19 +1,20 @@
-int winansi_fputs(const char *str, FILE *stream)
+static int ref_update_reject_duplicates(struct ref_update **updates, int n,
+					enum action_on_err onerr)
 {
-	int rv;
-
-	if (!isatty(fileno(stream)))
-		return fputs(str, stream);
-
-	init();
-
-	if (!console)
-		return fputs(str, stream);
-
-	rv = ansi_emulate(str, stream);
-
-	if (rv >= 0)
-		return 0;
-	else
-		return EOF;
+	int i;
+	for (i = 1; i < n; i++)
+		if (!strcmp(updates[i - 1]->ref_name, updates[i]->ref_name)) {
+			const char *str =
+				"Multiple updates for ref '%s' not allowed.";
+			switch (onerr) {
+			case MSG_ON_ERR:
+				error(str, updates[i]->ref_name); break;
+			case DIE_ON_ERR:
+				die(str, updates[i]->ref_name); break;
+			case QUIET_ON_ERR:
+				break;
+			}
+			return 1;
+		}
+	return 0;
 }

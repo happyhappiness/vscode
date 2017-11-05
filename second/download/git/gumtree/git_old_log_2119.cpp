@@ -1,1 +1,1 @@
-fputs(signature_check.payload, stdout);
+insert_one_record(log, author, !*buffer ? "<none>" : buffer);

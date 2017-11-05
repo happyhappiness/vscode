@@ -1,1 +1,1 @@
-die("Error reading %s", path);
+memset(format, 0, sizeof(*format));

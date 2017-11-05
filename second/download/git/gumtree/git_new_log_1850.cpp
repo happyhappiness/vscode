@@ -1,1 +1,1 @@
-die("transport '%s' not allowed", type);
+die("could not open output 'info'");

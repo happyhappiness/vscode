@@ -1,1 +1,1 @@
-die("invalid commit %s", sha1_to_hex(result_sha1));
+wt_status_print_other(s, &s->ignored, _("Ignored files"), "add -f");

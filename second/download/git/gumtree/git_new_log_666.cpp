@@ -1,1 +1,1 @@
-die("git-cvsserver only handles server: %s", arg);
+fprintf(f, "%d\n", todo_list->done_nr);

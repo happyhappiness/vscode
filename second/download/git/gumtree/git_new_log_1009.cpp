@@ -1,2 +1,2 @@
-error("unpack should have generated %s, "
-		      "but I can't find it!", oid_to_hex(new_oid));
+fprintf(stderr, _("Overwriting existing notes for object %s\n"),
+			oid_to_hex(&object));

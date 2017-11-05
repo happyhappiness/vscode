@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "authz_dbd: %s of user %s updated %d rows",
-                          action, r->user, nrows);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown parameter \"%s\" "
+                      "to tag if in %s", tag, r->filename);

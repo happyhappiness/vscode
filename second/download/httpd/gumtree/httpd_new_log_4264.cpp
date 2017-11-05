@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_EMERG, rv, r, APLOGNO(01195)
-                                      "worker slotmem_grab failed");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02043)
+                              "SSL virtual host for servername %s found",
+                              servername);

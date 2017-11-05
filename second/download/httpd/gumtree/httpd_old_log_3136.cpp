@@ -1,3 +1,3 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: received invalid opaque - got `%s'",
-                      resp->opaque);
+                          "The request body, if present, must be a "
+                          "DAV:checkout element.");

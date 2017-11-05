@@ -1,1 +1,1 @@
-die("not in a git directory");
+strbuf_addf(&o->obuf, _("(bad commit)\n"));

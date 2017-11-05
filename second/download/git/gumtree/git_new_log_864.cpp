@@ -1,1 +1,1 @@
-error(_("could not remove CHERRY_PICK_HEAD"));
+die(_("Integer value expected refname:lstrip=%s"), arg);

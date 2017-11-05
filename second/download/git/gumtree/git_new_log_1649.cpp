@@ -1,1 +1,1 @@
-error("%s", err.buf);
+fputs(prefix, fh);

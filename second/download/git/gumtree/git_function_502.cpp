@@ -1,63 +1,65 @@
-static int filter_buffer_or_fd(int in, int out, void *data)
+static int print_one_push_status(struct ref *ref, const char *dest, int count, int porcelain)
 {
-	/*
-	 * Spawn cmd and feed the buffer contents through its stdin.
-	 */
-	struct child_process child_process = CHILD_PROCESS_INIT;
-	struct filter_params *params = (struct filter_params *)data;
-	int write_err, status;
-	const char *argv[] = { NULL, NULL };
-
-	/* apply % substitution to cmd */
-	struct strbuf cmd = STRBUF_INIT;
-	struct strbuf path = STRBUF_INIT;
-	struct strbuf_expand_dict_entry dict[] = {
-		{ "f", NULL, },
-		{ NULL, NULL, },
-	};
-
-	/* quote the path to preserve spaces, etc. */
-	sq_quote_buf(&path, params->path);
-	dict[0].value = path.buf;
-
-	/* expand all %f with the quoted path */
-	strbuf_expand(&cmd, params->cmd, strbuf_expand_dict_cb, &dict);
-	strbuf_release(&path);
-
-	argv[0] = cmd.buf;
-
-	child_process.argv = argv;
-	child_process.use_shell = 1;
-	child_process.in = -1;
-	child_process.out = out;
-
-	if (start_command(&child_process))
-		return error("cannot fork to run external filter %s", params->cmd);
-
-	sigchain_push(SIGPIPE, SIG_IGN);
-
-	if (params->src) {
-		write_err = (write_in_full(child_process.in,
-					   params->src, params->size) < 0);
-		if (errno == EPIPE)
-			write_err = 0;
-	} else {
-		write_err = copy_fd(params->fd, child_process.in);
-		if (write_err == COPY_WRITE_ERROR && errno == EPIPE)
-			write_err = 0;
+	if (!count) {
+		char *url = transport_anonymize_url(dest);
+		fprintf(porcelain ? stdout : stderr, "To %s\n", url);
+		free(url);
 	}
 
-	if (close(child_process.in))
-		write_err = 1;
-	if (write_err)
-		error("cannot feed the input to external filter %s", params->cmd);
+	switch(ref->status) {
+	case REF_STATUS_NONE:
+		print_ref_status('X', "[no match]", ref, NULL, NULL, porcelain);
+		break;
+	case REF_STATUS_REJECT_NODELETE:
+		print_ref_status('!', "[rejected]", ref, NULL,
+						 "remote does not support deleting refs", porcelain);
+		break;
+	case REF_STATUS_UPTODATE:
+		print_ref_status('=', "[up to date]", ref,
+						 ref->peer_ref, NULL, porcelain);
+		break;
+	case REF_STATUS_REJECT_NONFASTFORWARD:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "non-fast-forward", porcelain);
+		break;
+	case REF_STATUS_REJECT_ALREADY_EXISTS:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "already exists", porcelain);
+		break;
+	case REF_STATUS_REJECT_FETCH_FIRST:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "fetch first", porcelain);
+		break;
+	case REF_STATUS_REJECT_NEEDS_FORCE:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "needs force", porcelain);
+		break;
+	case REF_STATUS_REJECT_STALE:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "stale info", porcelain);
+		break;
+	case REF_STATUS_REJECT_SHALLOW:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "new shallow roots not allowed", porcelain);
+		break;
+	case REF_STATUS_REMOTE_REJECT:
+		print_ref_status('!', "[remote rejected]", ref,
+						 ref->deletion ? NULL : ref->peer_ref,
+						 ref->remote_status, porcelain);
+		break;
+	case REF_STATUS_EXPECTING_REPORT:
+		print_ref_status('!', "[remote failure]", ref,
+						 ref->deletion ? NULL : ref->peer_ref,
+						 "remote failed to report status", porcelain);
+		break;
+	case REF_STATUS_ATOMIC_PUSH_FAILED:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "atomic push failed", porcelain);
+		break;
+	case REF_STATUS_OK:
+		print_ok_ref_status(ref, porcelain);
+		break;
+	}
 
-	sigchain_pop(SIGPIPE);
-
-	status = finish_command(&child_process);
-	if (status)
-		error("external filter %s failed %d", params->cmd, status);
-
-	strbuf_release(&cmd);
-	return (write_err || status);
+	return 1;
 }

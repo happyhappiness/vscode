@@ -1,2 +1,2 @@
-die ("Can't find replacement commit for tag %s\n",
-					     oid_to_hex(&tag->object.oid));
+error_errno("Unable to write file %s",
+				       export_marks_file);

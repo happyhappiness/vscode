@@ -1,1 +1,1 @@
-printf(_("Updated tag '%s' (was %s)\n"), tag, find_unique_abbrev(prev.hash, DEFAULT_ABBREV));
+die("BUG: attempt to commit unlocked object to \"%s\"", path);

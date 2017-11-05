@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                      "Error while reading HTTP trailer: %i%s%s",
-                      r->status, error_notes ? ": " : "",
-                      error_notes ? error_notes : "");
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                         "h2_workers: got %d worker, adding 1", 
+                         workers->worker_count);

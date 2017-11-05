@@ -1,1 +1,1 @@
-error(_("bad config file line %d in %s"), cf->linenr, cf->name);
+die_errno("Cannot come back to cwd");

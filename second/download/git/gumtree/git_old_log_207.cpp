@@ -1,1 +1,1 @@
-fputs("~\n", ecbdata->opt->file);
+die("--reverse --first-parent together require range along first-parent chain");

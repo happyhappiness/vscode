@@ -1,1 +1,1 @@
-die("oops");
+error("cannot create pipe: %s", strerror(errno));

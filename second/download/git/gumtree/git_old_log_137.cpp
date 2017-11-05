@@ -1,1 +1,1 @@
-die("cannot start proxy %s", argv[0]);
+fprintf(stderr, "Unknown command '%s'\n", buf.buf);

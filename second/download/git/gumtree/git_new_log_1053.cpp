@@ -1,1 +1,1 @@
-warning(_("negative value for http.postbuffer; defaulting to %d"), LARGE_PACKET_MAX);
+fputs(oid_to_hex(&tg->oid), rpt);

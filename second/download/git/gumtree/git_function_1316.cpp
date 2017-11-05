@@ -1,11 +1,15 @@
-struct commit *lookup_commit_or_die(const unsigned char *sha1, const char *ref_name)
+static void process_tag(struct tag *tag, struct object_array *p,
+			const char *name, struct connectivity_progress *cp)
 {
-	struct commit *c = lookup_commit_reference(sha1);
-	if (!c)
-		die(_("could not parse %s"), ref_name);
-	if (hashcmp(sha1, c->object.oid.hash)) {
-		warning(_("%s %s is not a commit!"),
-			ref_name, sha1_to_hex(sha1));
-	}
-	return c;
+	struct object *obj = &tag->object;
+
+	if (obj->flags & SEEN)
+		return;
+	obj->flags |= SEEN;
+	update_progress(cp);
+
+	if (parse_tag(tag) < 0)
+		die("bad tag object %s", sha1_to_hex(obj->sha1));
+	if (tag->tagged)
+		add_object(tag->tagged, p, NULL, name);
 }

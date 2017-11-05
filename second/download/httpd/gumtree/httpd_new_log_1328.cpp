@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, conn,
-                      "Certificate Verification: Error (%d): %s",
-                      errnum, X509_verify_cert_error_string(errnum));
+fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");

@@ -1,1 +1,1 @@
-verify_ref_format(format);
+die_errno("error writing to pack-objects");

@@ -1,1 +1,1 @@
-error("Unable to update %s", ref_name);
+error("no such remote ref %s", sought[i]->name);

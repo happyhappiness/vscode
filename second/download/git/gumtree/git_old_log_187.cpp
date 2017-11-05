@@ -1,1 +1,1 @@
-die("corrupt tree sha %s", sha1_to_hex(sha1));
+fprintf(output, fmt, sb.buf);

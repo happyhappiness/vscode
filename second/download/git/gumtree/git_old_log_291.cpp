@@ -1,1 +1,1 @@
-error(_("path %s has been renamed/deleted"), old_name);
+rp_error("%s", refuse_unconfigured_deny_msg[i]);

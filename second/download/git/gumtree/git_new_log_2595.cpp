@@ -1,2 +1,1 @@
-die("Failed to simplify parents of commit %s",
-			    oid_to_hex(&commit->object.oid));
+not_found(&hdr, "Repository not exported: '%s'", dir);

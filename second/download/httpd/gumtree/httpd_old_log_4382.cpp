@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server, "HEADER: -EOH-");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "stapling_cb: renewing cached response");

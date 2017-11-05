@@ -1,1 +1,1 @@
-fprintf_ln(stderr, _("Hunk #%d applied cleanly."), cnt);
+error("external filter %s failed %d", params->cmd, status);

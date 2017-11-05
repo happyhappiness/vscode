@@ -1,67 +1,44 @@
-static void threaded_lazy_init_name_hash(
-	struct index_state *istate)
+static void cat_blob(struct object_entry *oe, unsigned char sha1[20])
 {
-	int nr_each;
-	int k_start;
-	int t;
-	struct lazy_entry *lazy_entries;
-	struct lazy_dir_thread_data *td_dir;
-	struct lazy_name_thread_data *td_name;
+	struct strbuf line = STRBUF_INIT;
+	unsigned long size;
+	enum object_type type = 0;
+	char *buf;
 
-	k_start = 0;
-	nr_each = DIV_ROUND_UP(istate->cache_nr, lazy_nr_dir_threads);
-
-	lazy_entries = xcalloc(istate->cache_nr, sizeof(struct lazy_entry));
-	td_dir = xcalloc(lazy_nr_dir_threads, sizeof(struct lazy_dir_thread_data));
-	td_name = xcalloc(1, sizeof(struct lazy_name_thread_data));
-
-	init_dir_mutex();
-
-	/*
-	 * Phase 1:
-	 * Build "istate->dir_hash" using n "dir" threads (and a read-only index).
-	 */
-	for (t = 0; t < lazy_nr_dir_threads; t++) {
-		struct lazy_dir_thread_data *td_dir_t = td_dir + t;
-		td_dir_t->istate = istate;
-		td_dir_t->lazy_entries = lazy_entries;
-		td_dir_t->k_start = k_start;
-		k_start += nr_each;
-		if (k_start > istate->cache_nr)
-			k_start = istate->cache_nr;
-		td_dir_t->k_end = k_start;
-		if (pthread_create(&td_dir_t->pthread, NULL, lazy_dir_thread_proc, td_dir_t))
-			die("unable to create lazy_dir_thread");
-	}
-	for (t = 0; t < lazy_nr_dir_threads; t++) {
-		struct lazy_dir_thread_data *td_dir_t = td_dir + t;
-		if (pthread_join(td_dir_t->pthread, NULL))
-			die("unable to join lazy_dir_thread");
+	if (!oe || oe->pack_id == MAX_PACK_ID) {
+		buf = read_sha1_file(sha1, &type, &size);
+	} else {
+		type = oe->type;
+		buf = gfi_unpack_entry(oe, &size);
 	}
 
 	/*
-	 * Phase 2:
-	 * Iterate over all index entries and add them to the "istate->name_hash"
-	 * using a single "name" background thread.
-	 * (Testing showed it wasn't worth running more than 1 thread for this.)
-	 *
-	 * Meanwhile, finish updating the parent directory ref-counts for each
-	 * index entry using the current thread.  (This step is very fast and
-	 * doesn't need threading.)
+	 * Output based on batch_one_object() from cat-file.c.
 	 */
-	td_name->istate = istate;
-	td_name->lazy_entries = lazy_entries;
-	if (pthread_create(&td_name->pthread, NULL, lazy_name_thread_proc, td_name))
-		die("unable to create lazy_name_thread");
-
-	lazy_update_dir_ref_counts(istate, lazy_entries);
-
-	if (pthread_join(td_name->pthread, NULL))
-		die("unable to join lazy_name_thread");
-
-	cleanup_dir_mutex();
-
-	free(td_name);
-	free(td_dir);
-	free(lazy_entries);
+	if (type <= 0) {
+		strbuf_reset(&line);
+		strbuf_addf(&line, "%s missing\n", sha1_to_hex(sha1));
+		cat_blob_write(line.buf, line.len);
+		strbuf_release(&line);
+		free(buf);
+		return;
+	}
+	if (!buf)
+		die("Can't read object %s", sha1_to_hex(sha1));
+	if (type != OBJ_BLOB)
+		die("Object %s is a %s but a blob was expected.",
+		    sha1_to_hex(sha1), typename(type));
+	strbuf_reset(&line);
+	strbuf_addf(&line, "%s %s %lu\n", sha1_to_hex(sha1),
+						typename(type), size);
+	cat_blob_write(line.buf, line.len);
+	strbuf_release(&line);
+	cat_blob_write(buf, size);
+	cat_blob_write("\n", 1);
+	if (oe && oe->pack_id == pack_id) {
+		last_blob.offset = oe->idx.offset;
+		strbuf_attach(&last_blob.data, buf, size, size);
+		last_blob.depth = oe->depth;
+	} else
+		free(buf);
 }

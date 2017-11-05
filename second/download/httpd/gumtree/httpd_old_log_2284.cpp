@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %lu: Retrieved our scoreboard from the parent.", my_pid);
+ap_rvputs(r, "<a href=\"", r->uri, "?b=",
+                      balancer->name + sizeof("balancer://") - 1,
+                      "\">", NULL);

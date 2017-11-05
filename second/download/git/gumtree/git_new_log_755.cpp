@@ -1,1 +1,1 @@
-fprintf(stderr, "fatal: %s\n\n", msg);
+die("strange hostname '%s' blocked", host);

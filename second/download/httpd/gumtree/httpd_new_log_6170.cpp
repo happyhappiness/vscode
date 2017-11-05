@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, status, workers->s,
-                     "h2_workers: register mplx(%ld), idle=%d", 
-                     m->id, workers->idle_workers);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                  "h2_mplx(%ld): released", m->id);

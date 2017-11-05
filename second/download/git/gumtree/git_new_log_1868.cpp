@@ -1,1 +1,1 @@
-die("git cat-file --allow-unknown-type: use with -s or -t");
+printf("%s", find_unique_abbrev(oid->hash, abbrev));

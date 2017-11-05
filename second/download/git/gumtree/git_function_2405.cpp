@@ -1,9 +1,6 @@
-static void send_git_request(int stdin_fd, const char *serv, const char *repo,
-	const char *vhost)
+static int write_strbuf(struct strbuf *sb, FILE *out)
 {
-	if (!vhost)
-		packet_write(stdin_fd, "%s %s%c", serv, repo, 0);
-	else
-		packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
-			     vhost, 0);
+	if (fwrite(sb->buf, 1, sb->len, out) == sb->len)	/* Success. */
+		return 0;
+	return error("cannot write delta postimage: %s", strerror(errno));
 }

@@ -1,1 +1,1 @@
-printf("%s \n", ap_get_server_version());
+ap_rvputs(request_rec *r,...);

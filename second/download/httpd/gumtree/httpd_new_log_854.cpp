@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, rc, c,
-                          "SSL library error %d in handshake "
-                          "(server %s)", ssl_err,
-                          ssl_util_vhostid(c->pool, c->base_server));
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -d directory       : specify an alternate initial "
+                 "ServerRoot");

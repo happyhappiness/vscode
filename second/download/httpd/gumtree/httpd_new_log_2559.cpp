@@ -1,1 +1,0 @@
-fprintf(stderr, "Rotation file forced open:   %12s\n", config->force_open ? "yes" : "no");

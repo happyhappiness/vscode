@@ -1,94 +1,83 @@
-int git_config_rename_section_in_file(const char *config_filename,
-				      const char *old_name, const char *new_name)
+int cmd_receive_pack(int argc, const char **argv, const char *prefix)
 {
-	int ret = 0, remove = 0;
-	char *filename_buf = NULL;
-	struct lock_file *lock;
-	int out_fd;
-	char buf[1024];
-	FILE *config_file;
-	struct stat st;
+	int advertise_refs = 0;
+	struct command *commands;
+	struct sha1_array shallow = SHA1_ARRAY_INIT;
+	struct sha1_array ref = SHA1_ARRAY_INIT;
+	struct shallow_info si;
 
-	if (new_name && !section_name_is_ok(new_name)) {
-		ret = error("invalid section name: %s", new_name);
-		goto out;
+	struct option options[] = {
+		OPT__QUIET(&quiet, N_("quiet")),
+		OPT_HIDDEN_BOOL(0, "stateless-rpc", &stateless_rpc, NULL),
+		OPT_HIDDEN_BOOL(0, "advertise-refs", &advertise_refs, NULL),
+		OPT_HIDDEN_BOOL(0, "reject-thin-pack-for-testing", &reject_thin, NULL),
+		OPT_END()
+	};
+
+	packet_trace_identity("receive-pack");
+
+	argc = parse_options(argc, argv, prefix, options, receive_pack_usage, 0);
+
+	if (argc > 1)
+		usage_msg_opt(_("Too many arguments."), receive_pack_usage, options);
+	if (argc == 0)
+		usage_msg_opt(_("You must specify a directory."), receive_pack_usage, options);
+
+	service_dir = argv[0];
+
+	setup_path();
+
+	if (!enter_repo(service_dir, 0))
+		die("'%s' does not appear to be a git repository", service_dir);
+
+	git_config(receive_pack_config, NULL);
+	if (cert_nonce_seed)
+		push_cert_nonce = prepare_push_cert_nonce(service_dir, time(NULL));
+
+	if (0 <= transfer_unpack_limit)
+		unpack_limit = transfer_unpack_limit;
+	else if (0 <= receive_unpack_limit)
+		unpack_limit = receive_unpack_limit;
+
+	if (advertise_refs || !stateless_rpc) {
+		write_head_info();
 	}
+	if (advertise_refs)
+		return 0;
 
-	if (!config_filename)
-		config_filename = filename_buf = git_pathdup("config");
+	if ((commands = read_head_info(&shallow)) != NULL) {
+		const char *unpack_status = NULL;
 
-	lock = xcalloc(1, sizeof(struct lock_file));
-	out_fd = hold_lock_file_for_update(lock, config_filename, 0);
-	if (out_fd < 0) {
-		ret = error("could not lock config file %s", config_filename);
-		goto out;
-	}
-
-	if (!(config_file = fopen(config_filename, "rb"))) {
-		/* no config file means nothing to rename, no error */
-		goto unlock_and_out;
-	}
-
-	fstat(fileno(config_file), &st);
-
-	if (chmod(get_lock_file_path(lock), st.st_mode & 07777) < 0) {
-		ret = error("chmod on %s failed: %s",
-			    get_lock_file_path(lock), strerror(errno));
-		goto out;
-	}
-
-	while (fgets(buf, sizeof(buf), config_file)) {
-		int i;
-		int length;
-		char *output = buf;
-		for (i = 0; buf[i] && isspace(buf[i]); i++)
-			; /* do nothing */
-		if (buf[i] == '[') {
-			/* it's a section */
-			int offset = section_name_match(&buf[i], old_name);
-			if (offset > 0) {
-				ret++;
-				if (new_name == NULL) {
-					remove = 1;
-					continue;
-				}
-				store.baselen = strlen(new_name);
-				if (!store_write_section(out_fd, new_name)) {
-					ret = write_error(get_lock_file_path(lock));
-					goto out;
-				}
-				/*
-				 * We wrote out the new section, with
-				 * a newline, now skip the old
-				 * section's length
-				 */
-				output += offset + i;
-				if (strlen(output) > 0) {
-					/*
-					 * More content means there's
-					 * a declaration to put on the
-					 * next line; indent with a
-					 * tab
-					 */
-					output -= 1;
-					output[0] = '\t';
-				}
-			}
-			remove = 0;
+		prepare_shallow_info(&si, &shallow);
+		if (!si.nr_ours && !si.nr_theirs)
+			shallow_update = 0;
+		if (!delete_only(commands)) {
+			unpack_status = unpack_with_sideband(&si);
+			update_shallow_info(commands, &si, &ref);
 		}
-		if (remove)
-			continue;
-		length = strlen(output);
-		if (write_in_full(out_fd, output, length) != length) {
-			ret = write_error(get_lock_file_path(lock));
-			goto out;
+		execute_commands(commands, unpack_status, &si);
+		if (pack_lockfile)
+			unlink_or_warn(pack_lockfile);
+		if (report_status)
+			report(commands, unpack_status);
+		run_receive_hook(commands, "post-receive", 1);
+		run_update_post_hook(commands);
+		if (auto_gc) {
+			const char *argv_gc_auto[] = {
+				"gc", "--auto", "--quiet", NULL,
+			};
+			int opt = RUN_GIT_CMD | RUN_COMMAND_STDOUT_TO_STDERR;
+			close_all_packs();
+			run_command_v_opt(argv_gc_auto, opt);
 		}
+		if (auto_update_server_info)
+			update_server_info(0);
+		clear_shallow_info(&si);
 	}
-	fclose(config_file);
-unlock_and_out:
-	if (commit_lock_file(lock) < 0)
-		ret = error("could not commit config file %s", config_filename);
-out:
-	free(filename_buf);
-	return ret;
+	if (use_sideband)
+		packet_flush(1);
+	sha1_array_clear(&shallow);
+	sha1_array_clear(&ref);
+	free((void *)push_cert_nonce);
+	return 0;
 }

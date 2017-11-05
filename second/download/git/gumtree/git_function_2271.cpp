@@ -1,54 +1,36 @@
-static int process_diff_filepair(struct rev_info *rev,
-				 struct diff_filepair *pair,
-				 struct line_log_data *range,
-				 struct diff_ranges **diff_out)
+static int populate_maildir_list(struct string_list *list, const char *path)
 {
-	struct line_log_data *rg = range;
-	struct range_set tmp;
-	struct diff_ranges diff;
-	mmfile_t file_parent, file_target;
+	DIR *dir;
+	struct dirent *dent;
+	char *name = NULL;
+	char *subs[] = { "cur", "new", NULL };
+	char **sub;
+	int ret = -1;
 
-	assert(pair->two->path);
-	while (rg) {
-		assert(rg->path);
-		if (!strcmp(rg->path, pair->two->path))
-			break;
-		rg = rg->next;
+	for (sub = subs; *sub; ++sub) {
+		free(name);
+		name = xstrfmt("%s/%s", path, *sub);
+		if ((dir = opendir(name)) == NULL) {
+			if (errno == ENOENT)
+				continue;
+			error("cannot opendir %s (%s)", name, strerror(errno));
+			goto out;
+		}
+
+		while ((dent = readdir(dir)) != NULL) {
+			if (dent->d_name[0] == '.')
+				continue;
+			free(name);
+			name = xstrfmt("%s/%s", *sub, dent->d_name);
+			string_list_insert(list, name);
+		}
+
+		closedir(dir);
 	}
 
-	if (!rg)
-		return 0;
-	if (rg->ranges.nr == 0)
-		return 0;
+	ret = 0;
 
-	assert(pair->two->sha1_valid);
-	diff_populate_filespec(pair->two, 0);
-	file_target.ptr = pair->two->data;
-	file_target.size = pair->two->size;
-
-	if (pair->one->sha1_valid) {
-		diff_populate_filespec(pair->one, 0);
-		file_parent.ptr = pair->one->data;
-		file_parent.size = pair->one->size;
-	} else {
-		file_parent.ptr = "";
-		file_parent.size = 0;
-	}
-
-	diff_ranges_init(&diff);
-	if (collect_diff(&file_parent, &file_target, &diff))
-		die("unable to generate diff for %s", pair->one->path);
-
-	/* NEEDSWORK should apply some heuristics to prevent mismatches */
-	free(rg->path);
-	rg->path = xstrdup(pair->one->path);
-
-	range_set_init(&tmp, 0);
-	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
-	range_set_release(&rg->ranges);
-	range_set_move(&rg->ranges, &tmp);
-
-	diff_ranges_release(&diff);
-
-	return ((*diff_out)->parent.nr > 0);
+out:
+	free(name);
+	return ret;
 }

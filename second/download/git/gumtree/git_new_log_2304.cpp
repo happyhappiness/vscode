@@ -1,1 +1,1 @@
-printf("previous %s ", oid_to_hex(&prev->commit->object.oid));
+die(_("bad value for update parameter"));

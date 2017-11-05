@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     "Error starting service control dispatcher");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,
+                      "h2_stream(%ld-%d): created", m->id, stream->id);

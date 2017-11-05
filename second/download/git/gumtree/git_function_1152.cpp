@@ -1,26 +1,43 @@
-static int check_submodule_move_head(const struct cache_entry *ce,
-				     const char *old_id,
-				     const char *new_id,
-				     struct unpack_trees_options *o)
+static int push_check(int argc, const char **argv, const char *prefix)
 {
-	const struct submodule *sub = submodule_from_ce(ce);
-	if (!sub)
-		return 0;
+	struct remote *remote;
 
-	switch (sub->update_strategy.type) {
-	case SM_UPDATE_UNSPECIFIED:
-	case SM_UPDATE_CHECKOUT:
-		if (submodule_move_head(ce->name, old_id, new_id, SUBMODULE_MOVE_HEAD_DRY_RUN))
-			return o->gently ? -1 :
-				add_rejected_path(o, ERROR_WOULD_LOSE_SUBMODULE, ce->name);
-		return 0;
-	case SM_UPDATE_NONE:
-		return 0;
-	case SM_UPDATE_REBASE:
-	case SM_UPDATE_MERGE:
-	case SM_UPDATE_COMMAND:
-	default:
-		warning(_("submodule update strategy not supported for submodule '%s'"), ce->name);
-		return -1;
+	if (argc < 2)
+		die("submodule--helper push-check requires at least 1 argument");
+
+	/*
+	 * The remote must be configured.
+	 * This is to avoid pushing to the exact same URL as the parent.
+	 */
+	remote = pushremote_get(argv[1]);
+	if (!remote || remote->origin == REMOTE_UNCONFIGURED)
+		die("remote '%s' not configured", argv[1]);
+
+	/* Check the refspec */
+	if (argc > 2) {
+		int i, refspec_nr = argc - 2;
+		struct ref *local_refs = get_local_heads();
+		struct refspec *refspec = parse_push_refspec(refspec_nr,
+							     argv + 2);
+
+		for (i = 0; i < refspec_nr; i++) {
+			struct refspec *rs = refspec + i;
+
+			if (rs->pattern || rs->matching)
+				continue;
+
+			/*
+			 * LHS must match a single ref
+			 * NEEDSWORK: add logic to special case 'HEAD' once
+			 * working with submodules in a detached head state
+			 * ceases to be the norm.
+			 */
+			if (count_refspec_match(rs->src, local_refs, NULL) != 1)
+				die("src refspec '%s' must name a ref",
+				    rs->src);
+		}
+		free_refspec(refspec_nr, refspec);
 	}
+
+	return 0;
 }

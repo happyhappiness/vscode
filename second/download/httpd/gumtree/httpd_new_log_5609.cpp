@@ -1,5 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02824)
-                         "%s: connection established with %pI (%s)",
-                         proxy_function,
-                         backend_addr,
-                         worker->s->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03007)
+                              "%d:  %g", i, lua_tonumber(L, i));

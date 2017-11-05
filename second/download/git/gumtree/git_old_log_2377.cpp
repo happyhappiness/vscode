@@ -1,1 +1,1 @@
-die_errno("Could not rewind output message file");
+error("unable to update %s: %s", path, strerror(errno));

@@ -1,1 +1,1 @@
-error(_("%s: wrong type"), old_name);
+error(_("Failed to find tree of %s."), sha1_to_hex(sha1));

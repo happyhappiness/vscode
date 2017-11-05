@@ -1,14 +1,22 @@
-static void add_packed_ref(struct files_ref_store *refs,
-			   const char *refname, const struct object_id *oid)
+void credential_fill(struct credential *c)
 {
-	struct packed_ref_cache *packed_ref_cache = get_packed_ref_cache(refs);
+	int i;
 
-	if (!is_lock_file_locked(&refs->packed_refs_lock))
-		die("BUG: packed refs not locked");
+	if (c->username && c->password)
+		return;
 
-	if (check_refname_format(refname, REFNAME_ALLOW_ONELEVEL))
-		die("Reference has invalid format: '%s'", refname);
+	credential_apply_config(c);
 
-	add_ref_entry(get_packed_ref_dir(packed_ref_cache),
-		      create_ref_entry(refname, oid, REF_ISPACKED));
+	for (i = 0; i < c->helpers.nr; i++) {
+		credential_do(c, c->helpers.items[i].string, "get");
+		if (c->username && c->password)
+			return;
+		if (c->quit)
+			die("credential helper '%s' told us to quit",
+			    c->helpers.items[i].string);
+	}
+
+	credential_getpass(c);
+	if (!c->username && !c->password)
+		die("unable to get password from user");
 }

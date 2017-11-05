@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt, arg);
+die("strange hostname '%s' blocked", ssh_host);

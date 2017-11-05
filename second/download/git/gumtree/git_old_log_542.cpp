@@ -1,2 +1,1 @@
-fprintf(stderr, "got ack %d %s\n", ack,
-							sha1_to_hex(result_sha1));
+wt_status_print_other(s, &s->untracked, _("Untracked files"), "add");

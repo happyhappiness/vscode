@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, stream->session->c, 
-                          "h2_stream(%ld-%d): destroy, closed file %d", 
-                          stream->session->id, stream->id, i);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02125)
+                 "Error: %d with WSAIoctl(SO_TLS_SET_CLIENT)",
+                 WSAGetLastError());

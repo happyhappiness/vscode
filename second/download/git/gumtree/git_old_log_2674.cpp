@@ -1,1 +1,1 @@
-printf_ln(_("rebases onto remote %s"), merge->items[0].string);
+die(_("Error wrapping up %s"), filename);

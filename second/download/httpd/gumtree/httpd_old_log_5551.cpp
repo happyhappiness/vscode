@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ServerSupportFunction "
-                          "HSE_REQ_DONE_WITH_SESSION is not supported: %s",
-                          r->filename);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "protocol propose: connection requirements not met");

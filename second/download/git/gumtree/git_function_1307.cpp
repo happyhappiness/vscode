@@ -1,8 +1,9 @@
-static int delete_tag(const char *name, const char *ref,
-		      const unsigned char *sha1, const void *cb_data)
+int reopen_lock_file(struct lock_file *lk)
 {
-	if (delete_ref(NULL, ref, sha1, 0))
-		return 1;
-	printf(_("Deleted tag '%s' (was %s)\n"), name, find_unique_abbrev(sha1, DEFAULT_ABBREV));
-	return 0;
+	if (0 <= lk->fd)
+		die(_("BUG: reopen a lockfile that is still open"));
+	if (!lk->active)
+		die(_("BUG: reopen a lockfile that has been committed"));
+	lk->fd = open(lk->filename.buf, O_WRONLY);
+	return lk->fd;
 }

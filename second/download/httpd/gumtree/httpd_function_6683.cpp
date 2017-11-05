@@ -1,31 +1,50 @@
-h2_task *h2_task_create(conn_rec *c, const h2_request *req, 
-                        h2_bucket_beam *input, h2_mplx *mplx)
+static int lua_websocket_ping(lua_State *L) 
 {
-    apr_pool_t *pool;
-    h2_task *task;
+    apr_socket_t *sock;
+    apr_size_t plen;
+    char prelude[2];
+    apr_status_t rv;
+    request_rec *r = ap_lua_check_request_rec(L, 1);
+    sock = ap_get_conn_socket(r->connection);
     
-    apr_pool_create(&pool, c->pool);
-    task = apr_pcalloc(pool, sizeof(h2_task));
-    if (task == NULL) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, c,
-                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
-                      c->id, req->id);
-        return NULL;
+    /* Send a header that says: PING. */
+    prelude[0] = 0x89; /* ping  opcode */
+    prelude[1] = 0;
+    plen = 2;
+    apr_socket_send(sock, prelude, &plen);
+    
+    
+    /* Get opcode and FIN bit from pong */
+    plen = 2;
+    rv = apr_socket_recv(sock, prelude, &plen);
+    if (rv == APR_SUCCESS) {
+        unsigned char opcode = prelude[0];
+        unsigned char len = prelude[1];
+        unsigned char mask = len >> 7;
+        if (mask) len -= 128;
+        plen = len;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                        "Websocket: Got PONG opcode: %x", opcode);
+        if (opcode == 0x8A) {
+            lua_pushboolean(L, 1);
+        }
+        else {
+            lua_pushboolean(L, 0);
+        }
+        if (plen > 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                        "Websocket: Reading %lu bytes of PONG", plen);
+            return 1;
+        }
+        if (mask) {
+            plen = 2;
+            apr_socket_recv(sock, prelude, &plen);
+            plen = 2;
+            apr_socket_recv(sock, prelude, &plen);
+        }
     }
-    
-    task->id          = apr_psprintf(pool, "%ld-%d", c->id, req->id);
-    task->stream_id   = req->id;
-    task->c           = c;
-    task->mplx        = mplx;
-    task->c->keepalives = mplx->c->keepalives;
-    task->pool        = pool;
-    task->request     = req;
-    task->ser_headers = req->serialize;
-    task->blocking    = 1;
-    task->input.beam  = input;
-    
-    apr_thread_cond_create(&task->cond, pool);
-
-    h2_ctx_create_for(c, task);
-    return task;
+    else {
+        lua_pushboolean(L, 0);
+    }
+    return 1;
 }

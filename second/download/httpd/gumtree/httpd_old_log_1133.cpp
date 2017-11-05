@@ -1,1 +1,2 @@
-printf("%s", OP_names[*code++]);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                             "Re-negotiation request failed");

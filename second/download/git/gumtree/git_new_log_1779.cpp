@@ -1,0 +1,1 @@
+die("Too large to be a .git file: '%s'", path);

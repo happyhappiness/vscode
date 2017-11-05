@@ -1,12 +1,21 @@
-static void mmap_limit_check(size_t length)
+static void batch_object_write(const char *obj_name, struct batch_options *opt,
+			       struct expand_data *data)
 {
-	static size_t limit = 0;
-	if (!limit) {
-		limit = git_env_ulong("GIT_MMAP_LIMIT", 0);
-		if (!limit)
-			limit = SIZE_MAX;
+	struct strbuf buf = STRBUF_INIT;
+
+	if (sha1_object_info_extended(data->sha1, &data->info, LOOKUP_REPLACE_OBJECT) < 0) {
+		printf("%s missing\n", obj_name ? obj_name : sha1_to_hex(data->sha1));
+		fflush(stdout);
+		return;
 	}
-	if (length > limit)
-		die("attempting to mmap %"PRIuMAX" over limit %"PRIuMAX,
-		    (uintmax_t)length, (uintmax_t)limit);
+
+	strbuf_expand(&buf, opt->format, expand_format, data);
+	strbuf_addch(&buf, '\n');
+	batch_write(opt, buf.buf, buf.len);
+	strbuf_release(&buf);
+
+	if (opt->print_contents) {
+		print_object_or_die(opt, data);
+		batch_write(opt, "\n", 1);
+	}
 }

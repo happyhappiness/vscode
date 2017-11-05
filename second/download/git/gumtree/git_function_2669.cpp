@@ -1,16 +1,35 @@
-static void write_eolinfo(const struct cache_entry *ce, const char *path)
+int ref_transaction_update(struct ref_transaction *transaction,
+			   const char *refname,
+			   const unsigned char *new_sha1,
+			   const unsigned char *old_sha1,
+			   unsigned int flags, const char *msg,
+			   struct strbuf *err)
 {
-	if (!show_eol)
-		return;
-	else {
-		struct stat st;
-		const char *i_txt = "";
-		const char *w_txt = "";
-		const char *a_txt = get_convert_attr_ascii(path);
-		if (ce && S_ISREG(ce->ce_mode))
-			i_txt = get_cached_convert_stats_ascii(ce->name);
-		if (!lstat(path, &st) && S_ISREG(st.st_mode))
-			w_txt = get_wt_convert_stats_ascii(path);
-		printf("i/%-5s w/%-5s attr/%-17s\t", i_txt, w_txt, a_txt);
+	struct ref_update *update;
+
+	assert(err);
+
+	if (transaction->state != REF_TRANSACTION_OPEN)
+		die("BUG: update called for transaction that is not open");
+
+	if (new_sha1 && !is_null_sha1(new_sha1) &&
+	    check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
+		strbuf_addf(err, "refusing to update ref with bad name %s",
+			    refname);
+		return -1;
 	}
+
+	update = add_update(transaction, refname);
+	if (new_sha1) {
+		hashcpy(update->new_sha1, new_sha1);
+		flags |= REF_HAVE_NEW;
+	}
+	if (old_sha1) {
+		hashcpy(update->old_sha1, old_sha1);
+		flags |= REF_HAVE_OLD;
+	}
+	update->flags = flags;
+	if (msg)
+		update->msg = xstrdup(msg);
+	return 0;
 }

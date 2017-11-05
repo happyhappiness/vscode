@@ -1,2 +1,1 @@
-error("unknown core.untrackedCache value '%s'; "
-		      "using 'keep' default value", v);
+die_errno(_("Cannot change to '%s/..'"), cwd.buf);

@@ -1,1 +1,1 @@
-die("Log %s is corrupt.", logfile);
+fprintf(ecbdata->opt->file, "%s", ecbdata->header->buf);

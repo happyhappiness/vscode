@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                     "Couldn't initialize cross-process lock in child");
+apr_file_printf(errfile, "%s: -c and -D options conflict\n", argv[0]);

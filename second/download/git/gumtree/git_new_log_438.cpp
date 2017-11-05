@@ -1,1 +1,1 @@
-error(_("failed to delete ref NOTES_MERGE_REF"));
+warning_errno(_("could not read '%s'"), path);

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "r->uri = %s", r->uri ? r->uri : "(unexpectedly NULL)");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " Automatically lowering MaxClients to %d.  To increase,",
+                    server_limit * ap_threads_per_child);

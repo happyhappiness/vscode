@@ -1,1 +1,1 @@
-ap_rputs("Err", r);
+ap_rputs("</td></tr>\n", r);

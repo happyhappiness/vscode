@@ -1,1 +1,2 @@
-fprintf(cmitmsg, "Message-Id: %s\n", message_id);
+error("unable to open object pack directory: %s: %s",
+			      path.buf, strerror(errno));

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                          "h2_mplx(%ld-%d): open response: %s",
-                          m->id, stream_id, response->status);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, shed->c,
+                      "h2_ngn_shed(%ld): abort while pulling requests %s", 
+                      shed->c->id, ngn->id);

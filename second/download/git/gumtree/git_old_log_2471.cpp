@@ -1,3 +1,2 @@
-fprintf(stderr,	"PUT %s failed, aborting (%d/%ld)\n",
-				sha1_to_hex(request->obj->sha1),
-				request->curl_result, request->http_code);
+die("git diff header lacks filename information "
+				    "(line %d)", linenr);

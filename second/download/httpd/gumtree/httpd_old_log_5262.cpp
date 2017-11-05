@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                 "Child %d: retrieved %d listeners from parent", my_pid, lcnt);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, APR_NOTFOUND, m->c,
+                              APLOGNO(02953) "h2_mplx(%ld): stream for response %d",
+                              m->id, response->stream_id);

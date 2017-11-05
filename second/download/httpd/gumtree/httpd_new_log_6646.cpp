@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
-                      c->log_id, len? buffer : line);
+apr_file_printf(errfile, "Could not open passwd file %s for writing: %pm\n",
+                    argv[2], &rv);

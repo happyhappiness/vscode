@@ -1,1 +1,1 @@
-error("'%s' was not filtered properly", path->string);
+error("running trailer command '%s' failed", cmd.buf);

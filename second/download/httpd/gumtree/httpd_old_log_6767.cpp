@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03391)
-                                  "h2_conn_io(%ld): pass bucket(%ld)", 
-                                  io->c->id, (long)b->length);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02338)
+                 "%s shm[%d] (0x%pp) for worker: %s", action, i, (void *)shm,
+                 worker->s->name);

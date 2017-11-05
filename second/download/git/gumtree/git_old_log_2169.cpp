@@ -1,1 +1,0 @@
-die("BUG: lockfile filename corrupt");

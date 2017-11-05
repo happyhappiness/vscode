@@ -1,26 +1,23 @@
-void shortlog_add_commit(struct shortlog *log, struct commit *commit)
+static void NORETURN die_verify_filename(const char *prefix,
+					 const char *arg,
+					 int diagnose_misspelt_rev)
 {
-	struct strbuf author = STRBUF_INIT;
-	struct strbuf oneline = STRBUF_INIT;
-	struct pretty_print_context ctx = {0};
+	if (!diagnose_misspelt_rev)
+		die("%s: no such path in the working tree.\n"
+		    "Use 'git <command> -- <path>...' to specify paths that do not exist locally.",
+		    arg);
+	/*
+	 * Saying "'(icase)foo' does not exist in the index" when the
+	 * user gave us ":(icase)foo" is just stupid.  A magic pathspec
+	 * begins with a colon and is followed by a non-alnum; do not
+	 * let maybe_die_on_misspelt_object_name() even trigger.
+	 */
+	if (!(arg[0] == ':' && !isalnum(arg[1])))
+		maybe_die_on_misspelt_object_name(arg, prefix);
 
-	ctx.fmt = CMIT_FMT_USERFORMAT;
-	ctx.abbrev = log->abbrev;
-	ctx.subject = "";
-	ctx.after_subject = "";
-	ctx.date_mode.type = DATE_NORMAL;
-	ctx.output_encoding = get_log_output_encoding();
+	/* ... or fall back the most general message. */
+	die("ambiguous argument '%s': unknown revision or path not in the working tree.\n"
+	    "Use '--' to separate paths from revisions, like this:\n"
+	    "'git <command> [<revision>...] -- [<file>...]'", arg);
 
-	format_commit_message(commit, "%an <%ae>", &author, &ctx);
-	if (!log->summary) {
-		if (log->user_format)
-			pretty_print_commit(&ctx, commit, &oneline);
-		else
-			format_commit_message(commit, "%s", &oneline, &ctx);
-	}
-
-	insert_one_record(log, author.buf, oneline.len ? oneline.buf : "<none>");
-
-	strbuf_release(&author);
-	strbuf_release(&oneline);
 }

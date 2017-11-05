@@ -1,1 +1,3 @@
-print_rebase_state(s, state, color);
+error(_("Cannot delete branch '%s' "
+					"checked out at '%s'"),
+				      bname.buf, wt->path);

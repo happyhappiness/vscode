@@ -1,3 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                     "LDAPSharedCacheSize is too small. Increase it or "
-                     "reduce LDAPCacheEntries/LDAPOpCacheEntries!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "Failed to flush CGI output to client");

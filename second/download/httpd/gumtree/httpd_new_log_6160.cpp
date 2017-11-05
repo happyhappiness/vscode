@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                     "h2_worker(%d): looking for work", h2_worker_get_id(worker));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, APLOGNO(03198)
+                          "h2_mplx(%ld): waited %d sec for %d tasks", 
+                          m->id, i*wait_secs, (int)h2_ihash_count(m->shold));

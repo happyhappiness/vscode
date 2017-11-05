@@ -1,2 +1,1 @@
-die("git diff header lacks filename information "
-				    "(line %d)", state->linenr);
+die (_("--subject-prefix and -k are mutually exclusive."));

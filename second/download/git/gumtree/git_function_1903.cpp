@@ -1,6 +1,11 @@
-static void xrmdir(const char *path)
+static int mark_link(struct object *obj, int type, void *data, struct fsck_options *options)
 {
-	path = get_mtime_path(path);
-	if (rmdir(path))
-		die_errno(_("failed to delete directory %s"), path);
+	if (!obj)
+		return -1;
+
+	if (type != OBJ_ANY && obj->type != type)
+		die(_("object type mismatch at %s"), sha1_to_hex(obj->sha1));
+
+	obj->flags |= FLAG_LINK;
+	return 0;
 }

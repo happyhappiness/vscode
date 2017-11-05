@@ -1,2 +1,1 @@
-error(_("Cannot get commit message for %s"),
-			oid_to_hex(&commit->object.oid));
+fputs("\\ No newline at end of file\n", file);

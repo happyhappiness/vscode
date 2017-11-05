@@ -1,2 +1,2 @@
-fprintf_ln(stderr, _("directory stat info does not "
-				     "change after deleting a directory"));
+error(_("Could not read object %s"),
+					    oid_to_hex(&t->tagged->oid));

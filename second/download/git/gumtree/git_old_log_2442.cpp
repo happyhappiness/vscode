@@ -1,0 +1,1 @@
+die("Unexpected option --remote");

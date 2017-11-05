@@ -1,1 +1,1 @@
-die("Could not open skip list: %s", path);
+die(_("expected format: %%(color:<color>)"));

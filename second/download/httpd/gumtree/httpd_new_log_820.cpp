@@ -1,5 +1,2 @@
-ap_log_error(APLOG_MARK, loglevel, rv, s,
-                         "proxy: %s: error creating fam %d socket for target %s",
-                         proxy_function,
-                         backend_addr->family,
-                         worker->hostname);
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL,
+                     "%s: %s", ap_server_argv0, error);

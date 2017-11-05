@@ -1,1 +1,1 @@
-error(_("Could not read object %s"), oid_to_hex(oid));
+packet_write_fmt(1, "# service=git-%s\n", svc->name);

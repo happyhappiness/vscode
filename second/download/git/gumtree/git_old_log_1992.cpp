@@ -1,1 +1,1 @@
-error("there are still refs under '%s'", orig_refname);
+die("bad tree object %s", sha1_to_hex(obj->sha1));

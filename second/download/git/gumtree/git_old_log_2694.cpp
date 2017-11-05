@@ -1,0 +1,1 @@
+die("transport: invalid depth option '%s'", value);

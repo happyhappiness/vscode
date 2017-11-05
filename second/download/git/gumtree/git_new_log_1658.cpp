@@ -1,1 +1,1 @@
-die("BUG: delete called for transaction that is not open");
+die("unable to generate checkdiff for %s", one->path);

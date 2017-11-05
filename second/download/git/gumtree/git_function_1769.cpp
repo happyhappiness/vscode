@@ -1,69 +1,41 @@
-static void combine_diff(const unsigned char *parent, unsigned int mode,
-			 mmfile_t *result_file,
-			 struct sline *sline, unsigned int cnt, int n,
-			 int num_parent, int result_deleted,
-			 struct userdiff_driver *textconv,
-			 const char *path, long flags)
+static int sequencer_rollback(struct replay_opts *opts)
 {
-	unsigned int p_lno, lno;
-	unsigned long nmask = (1UL << n);
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	mmfile_t parent_file;
-	struct combine_diff_state state;
-	unsigned long sz;
+	const char *filename;
+	FILE *f;
+	unsigned char sha1[20];
+	struct strbuf buf = STRBUF_INIT;
 
-	if (result_deleted)
-		return; /* result deleted */
-
-	parent_file.ptr = grab_blob(parent, mode, &sz, textconv, path);
-	parent_file.size = sz;
-	memset(&xpp, 0, sizeof(xpp));
-	xpp.flags = flags;
-	memset(&xecfg, 0, sizeof(xecfg));
-	memset(&state, 0, sizeof(state));
-	state.nmask = nmask;
-	state.sline = sline;
-	state.lno = 1;
-	state.num_parent = num_parent;
-	state.n = n;
-
-	if (xdi_diff_outf(&parent_file, result_file, consume_line, &state,
-			  &xpp, &xecfg))
-		die("unable to generate combined diff for %s",
-		    sha1_to_hex(parent));
-	free(parent_file.ptr);
-
-	/* Assign line numbers for this parent.
-	 *
-	 * sline[lno].p_lno[n] records the first line number
-	 * (counting from 1) for parent N if the final hunk display
-	 * started by showing sline[lno] (possibly showing the lost
-	 * lines attached to it first).
-	 */
-	for (lno = 0,  p_lno = 1; lno <= cnt; lno++) {
-		struct lline *ll;
-		sline[lno].p_lno[n] = p_lno;
-
-		/* Coalesce new lines */
-		if (sline[lno].plost.lost_head) {
-			struct sline *sl = &sline[lno];
-			sl->lost = coalesce_lines(sl->lost, &sl->lenlost,
-						  sl->plost.lost_head,
-						  sl->plost.len, n, flags);
-			sl->plost.lost_head = sl->plost.lost_tail = NULL;
-			sl->plost.len = 0;
-		}
-
-		/* How many lines would this sline advance the p_lno? */
-		ll = sline[lno].lost;
-		while (ll) {
-			if (ll->parent_map & nmask)
-				p_lno++; /* '-' means parent had it */
-			ll = ll->next;
-		}
-		if (lno < cnt && !(sline[lno].flag & nmask))
-			p_lno++; /* no '+' means parent had it */
+	filename = git_path(SEQ_HEAD_FILE);
+	f = fopen(filename, "r");
+	if (!f && errno == ENOENT) {
+		/*
+		 * There is no multiple-cherry-pick in progress.
+		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
+		 * a single-cherry-pick in progress, abort that.
+		 */
+		return rollback_single_pick();
 	}
-	sline[lno].p_lno[n] = p_lno; /* trailer */
+	if (!f)
+		return error(_("cannot open %s: %s"), filename,
+						strerror(errno));
+	if (strbuf_getline(&buf, f, '\n')) {
+		error(_("cannot read %s: %s"), filename, ferror(f) ?
+			strerror(errno) : _("unexpected end of file"));
+		fclose(f);
+		goto fail;
+	}
+	fclose(f);
+	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
+		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
+			filename);
+		goto fail;
+	}
+	if (reset_for_rollback(sha1))
+		goto fail;
+	remove_sequencer_state();
+	strbuf_release(&buf);
+	return 0;
+fail:
+	strbuf_release(&buf);
+	return -1;
 }

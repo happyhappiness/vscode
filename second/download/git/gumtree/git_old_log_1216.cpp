@@ -1,1 +1,2 @@
-die("cannot open '%s' for reading", git_path_merge_head());
+die(_("You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists).\n"
+			    "Please, commit your changes before you can merge."));

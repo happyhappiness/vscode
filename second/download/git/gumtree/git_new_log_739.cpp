@@ -1,1 +1,1 @@
-error("Unable to update %s", ref_name.buf);
+report_unmatched_refs(sought, nr_sought);

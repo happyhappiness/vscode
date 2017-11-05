@@ -1,98 +1,117 @@
-static CURL *get_curl_handle(void)
+static void show_commit(struct commit *commit, void *data)
 {
-	CURL *result = curl_easy_init();
-	long allowed_protocols = 0;
+	struct rev_list_info *info = data;
+	struct rev_info *revs = info->revs;
 
-	if (!result)
-		die("curl_easy_init failed");
+	if (info->flags & REV_LIST_QUIET) {
+		finish_commit(commit, data);
+		return;
+	}
 
-	if (!curl_ssl_verify) {
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 0);
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 0);
+	graph_show_commit(revs->graph);
+
+	if (revs->count) {
+		if (commit->object.flags & PATCHSAME)
+			revs->count_same++;
+		else if (commit->object.flags & SYMMETRIC_LEFT)
+			revs->count_left++;
+		else
+			revs->count_right++;
+		finish_commit(commit, data);
+		return;
+	}
+
+	if (info->show_timestamp)
+		printf("%lu ", commit->date);
+	if (info->header_prefix)
+		fputs(info->header_prefix, stdout);
+
+	if (!revs->graph)
+		fputs(get_revision_mark(revs, commit), stdout);
+	if (revs->abbrev_commit && revs->abbrev)
+		fputs(find_unique_abbrev(commit->object.sha1, revs->abbrev),
+		      stdout);
+	else
+		fputs(sha1_to_hex(commit->object.sha1), stdout);
+	if (revs->print_parents) {
+		struct commit_list *parents = commit->parents;
+		while (parents) {
+			printf(" %s", sha1_to_hex(parents->item->object.sha1));
+			parents = parents->next;
+		}
+	}
+	if (revs->children.name) {
+		struct commit_list *children;
+
+		children = lookup_decoration(&revs->children, &commit->object);
+		while (children) {
+			printf(" %s", sha1_to_hex(children->item->object.sha1));
+			children = children->next;
+		}
+	}
+	show_decorations(revs, commit);
+	if (revs->commit_format == CMIT_FMT_ONELINE)
+		putchar(' ');
+	else
+		putchar('\n');
+
+	if (revs->verbose_header && get_cached_commit_buffer(commit, NULL)) {
+		struct strbuf buf = STRBUF_INIT;
+		struct pretty_print_context ctx = {0};
+		ctx.abbrev = revs->abbrev;
+		ctx.date_mode = revs->date_mode;
+		ctx.date_mode_explicit = revs->date_mode_explicit;
+		ctx.fmt = revs->commit_format;
+		ctx.output_encoding = get_log_output_encoding();
+		pretty_print_commit(&ctx, commit, &buf);
+		if (revs->graph) {
+			if (buf.len) {
+				if (revs->commit_format != CMIT_FMT_ONELINE)
+					graph_show_oneline(revs->graph);
+
+				graph_show_commit_msg(revs->graph, &buf);
+
+				/*
+				 * Add a newline after the commit message.
+				 *
+				 * Usually, this newline produces a blank
+				 * padding line between entries, in which case
+				 * we need to add graph padding on this line.
+				 *
+				 * However, the commit message may not end in a
+				 * newline.  In this case the newline simply
+				 * ends the last line of the commit message,
+				 * and we don't need any graph output.  (This
+				 * always happens with CMIT_FMT_ONELINE, and it
+				 * happens with CMIT_FMT_USERFORMAT when the
+				 * format doesn't explicitly end in a newline.)
+				 */
+				if (buf.len && buf.buf[buf.len - 1] == '\n')
+					graph_show_padding(revs->graph);
+				putchar('\n');
+			} else {
+				/*
+				 * If the message buffer is empty, just show
+				 * the rest of the graph output for this
+				 * commit.
+				 */
+				if (graph_show_remainder(revs->graph))
+					putchar('\n');
+				if (revs->commit_format == CMIT_FMT_ONELINE)
+					putchar('\n');
+			}
+		} else {
+			if (revs->commit_format != CMIT_FMT_USERFORMAT ||
+			    buf.len) {
+				fwrite(buf.buf, 1, buf.len, stdout);
+				putchar(info->hdr_termination);
+			}
+		}
+		strbuf_release(&buf);
 	} else {
-		/* Verify authenticity of the peer's certificate */
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 1);
-		/* The name in the cert must match whom we tried to connect */
-		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 2);
+		if (graph_show_remainder(revs->graph))
+			putchar('\n');
 	}
-
-#if LIBCURL_VERSION_NUM >= 0x070907
-	curl_easy_setopt(result, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
-#endif
-#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
-	curl_easy_setopt(result, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
-#endif
-
-	if (http_proactive_auth)
-		init_curl_http_auth(result);
-
-	if (ssl_cert != NULL)
-		curl_easy_setopt(result, CURLOPT_SSLCERT, ssl_cert);
-	if (has_cert_password())
-		curl_easy_setopt(result, CURLOPT_KEYPASSWD, cert_auth.password);
-#if LIBCURL_VERSION_NUM >= 0x070903
-	if (ssl_key != NULL)
-		curl_easy_setopt(result, CURLOPT_SSLKEY, ssl_key);
-#endif
-#if LIBCURL_VERSION_NUM >= 0x070908
-	if (ssl_capath != NULL)
-		curl_easy_setopt(result, CURLOPT_CAPATH, ssl_capath);
-#endif
-	if (ssl_cainfo != NULL)
-		curl_easy_setopt(result, CURLOPT_CAINFO, ssl_cainfo);
-
-	if (curl_low_speed_limit > 0 && curl_low_speed_time > 0) {
-		curl_easy_setopt(result, CURLOPT_LOW_SPEED_LIMIT,
-				 curl_low_speed_limit);
-		curl_easy_setopt(result, CURLOPT_LOW_SPEED_TIME,
-				 curl_low_speed_time);
-	}
-
-	curl_easy_setopt(result, CURLOPT_FOLLOWLOCATION, 1);
-	curl_easy_setopt(result, CURLOPT_MAXREDIRS, 20);
-#if LIBCURL_VERSION_NUM >= 0x071301
-	curl_easy_setopt(result, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
-#elif LIBCURL_VERSION_NUM >= 0x071101
-	curl_easy_setopt(result, CURLOPT_POST301, 1);
-#endif
-#if LIBCURL_VERSION_NUM >= 0x071304
-	if (is_transport_allowed("http"))
-		allowed_protocols |= CURLPROTO_HTTP;
-	if (is_transport_allowed("https"))
-		allowed_protocols |= CURLPROTO_HTTPS;
-	if (is_transport_allowed("ftp"))
-		allowed_protocols |= CURLPROTO_FTP;
-	if (is_transport_allowed("ftps"))
-		allowed_protocols |= CURLPROTO_FTPS;
-	curl_easy_setopt(result, CURLOPT_REDIR_PROTOCOLS, allowed_protocols);
-#else
-	if (transport_restrict_protocols())
-		warning("protocol restrictions not applied to curl redirects because\n"
-			"your curl version is too old (>= 7.19.4)");
-#endif
-
-	if (getenv("GIT_CURL_VERBOSE"))
-		curl_easy_setopt(result, CURLOPT_VERBOSE, 1);
-
-	curl_easy_setopt(result, CURLOPT_USERAGENT,
-		user_agent ? user_agent : git_user_agent());
-
-	if (curl_ftp_no_epsv)
-		curl_easy_setopt(result, CURLOPT_FTP_USE_EPSV, 0);
-
-#ifdef CURLOPT_USE_SSL
-	if (curl_ssl_try)
-		curl_easy_setopt(result, CURLOPT_USE_SSL, CURLUSESSL_TRY);
-#endif
-
-	if (curl_http_proxy) {
-		curl_easy_setopt(result, CURLOPT_PROXY, curl_http_proxy);
-	}
-#if LIBCURL_VERSION_NUM >= 0x070a07
-	curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-#endif
-
-	set_curl_keepalive(result);
-
-	return result;
+	maybe_flush_or_die(stdout, "stdout");
+	finish_commit(commit, data);
 }

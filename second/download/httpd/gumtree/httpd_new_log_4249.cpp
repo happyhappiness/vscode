@@ -1,1 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01185) "worker slotmem_create failed");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02266)
+                          "Access to %s denied for %s "
+                          "(requirement expression not fulfilled)",
+                          r->filename, r->useragent_ip);

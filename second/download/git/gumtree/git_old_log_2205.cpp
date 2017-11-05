@@ -1,1 +1,1 @@
-die(_("Malformed options sheet: %s"), opts_file);
+error("Malformed value for %s: %s", var, value);

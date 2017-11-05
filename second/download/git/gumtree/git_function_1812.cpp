@@ -1,24 +1,30 @@
-static int load_patch_target(struct strbuf *buf,
-			     const struct cache_entry *ce,
-			     struct stat *st,
-			     const char *name,
-			     unsigned expected_mode)
+static void pass_blame_to_parent(struct scoreboard *sb,
+				 struct origin *target,
+				 struct origin *parent)
 {
-	if (cached || check_index) {
-		if (read_file_or_gitlink(ce, buf))
-			return error(_("read of %s failed"), name);
-	} else if (name) {
-		if (S_ISGITLINK(expected_mode)) {
-			if (ce)
-				return read_file_or_gitlink(ce, buf);
-			else
-				return SUBMODULE_PATCH_WITHOUT_INDEX;
-		} else if (has_symlink_leading_path(name, strlen(name))) {
-			return error(_("reading from '%s' beyond a symbolic link"), name);
-		} else {
-			if (read_old_data(st, name, buf))
-				return error(_("read of %s failed"), name);
-		}
-	}
-	return 0;
+	mmfile_t file_p, file_o;
+	struct blame_chunk_cb_data d;
+	struct blame_entry *newdest = NULL;
+
+	if (!target->suspects)
+		return; /* nothing remains for this target */
+
+	d.parent = parent;
+	d.offset = 0;
+	d.dstq = &newdest; d.srcq = &target->suspects;
+
+	fill_origin_blob(&sb->revs->diffopt, parent, &file_p);
+	fill_origin_blob(&sb->revs->diffopt, target, &file_o);
+	num_get_patch++;
+
+	if (diff_hunks(&file_p, &file_o, 0, blame_chunk_cb, &d))
+		die("unable to generate diff (%s -> %s)",
+		    sha1_to_hex(parent->commit->object.sha1),
+		    sha1_to_hex(target->commit->object.sha1));
+	/* The rest are the same as the parent */
+	blame_chunk(&d.dstq, &d.srcq, INT_MAX, d.offset, INT_MAX, parent);
+	*d.dstq = NULL;
+	queue_blames(sb, parent, newdest);
+
+	return;
 }

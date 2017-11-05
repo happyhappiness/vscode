@@ -1,1 +1,0 @@
-die (_("--subject-prefix and -k are mutually exclusive."));

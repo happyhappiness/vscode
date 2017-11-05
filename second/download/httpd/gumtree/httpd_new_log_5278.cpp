@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s, APLOGNO(00422)
-                     "Parent: Received shutdown signal -- Shutting down the server.");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                  "h2_session(%ld-%d): consumed %ld bytes",
+                  session->id, stream_id, (long)bytes_read);

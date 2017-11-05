@@ -1,45 +1,31 @@
-static int curl_append_msgs_to_imap(struct imap_server_conf *server,
-				    struct strbuf* all_msgs, int total) {
-	int ofs = 0;
-	int n = 0;
-	struct buffer msgbuf = { STRBUF_INIT, 0 };
-	CURL *curl;
-	CURLcode res = CURLE_OK;
+static int delete_pseudoref(const char *pseudoref, const unsigned char *old_sha1)
+{
+	static struct lock_file lock;
+	const char *filename;
 
-	curl = setup_curl(server);
-	curl_easy_setopt(curl, CURLOPT_READDATA, &msgbuf);
+	filename = git_path("%s", pseudoref);
 
-	fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");
-	while (1) {
-		unsigned percent = n * 100 / total;
-		int prev_len;
+	if (old_sha1 && !is_null_sha1(old_sha1)) {
+		int fd;
+		unsigned char actual_old_sha1[20];
 
-		fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);
-
-		prev_len = msgbuf.buf.len;
-		if (!split_msg(all_msgs, &msgbuf.buf, &ofs))
-			break;
-		if (server->use_html)
-			wrap_in_html(&msgbuf.buf);
-		lf_to_crlf(&msgbuf.buf);
-
-		curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
-				 (curl_off_t)(msgbuf.buf.len-prev_len));
-
-		res = curl_easy_perform(curl);
-
-		if(res != CURLE_OK) {
-			fprintf(stderr, "curl_easy_perform() failed: %s\n",
-					curl_easy_strerror(res));
-			break;
+		fd = hold_lock_file_for_update(&lock, filename,
+					       LOCK_DIE_ON_ERROR);
+		if (fd < 0)
+			die_errno(_("Could not open '%s' for writing"), filename);
+		if (read_ref(pseudoref, actual_old_sha1))
+			die("could not read ref '%s'", pseudoref);
+		if (hashcmp(actual_old_sha1, old_sha1)) {
+			warning("Unexpected sha1 when deleting %s", pseudoref);
+			rollback_lock_file(&lock);
+			return -1;
 		}
 
-		n++;
+		unlink(filename);
+		rollback_lock_file(&lock);
+	} else {
+		unlink(filename);
 	}
-	fprintf(stderr, "\n");
-
-	curl_easy_cleanup(curl);
-	curl_global_cleanup();
 
 	return 0;
 }

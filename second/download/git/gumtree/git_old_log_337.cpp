@@ -1,1 +1,1 @@
-fprintf(stderr, "U %s\n", item->string);
+error("external filter %s failed", cmd);

@@ -1,15 +1,17 @@
-static void prepare_revs(struct replay_opts *opts)
+static void flush_one_pair(struct diff_filepair *p, struct diff_options *opt)
 {
-	/*
-	 * picking (but not reverting) ranges (but not individual revisions)
-	 * should be done in reverse
-	 */
-	if (opts->action == REPLAY_PICK && !opts->revs->no_walk)
-		opts->revs->reverse ^= 1;
+	int fmt = opt->output_format;
 
-	if (prepare_revision_walk(opts->revs))
-		die(_("revision walk setup failed"));
-
-	if (!opts->revs->commits)
-		die(_("empty commit set passed"));
+	if (fmt & DIFF_FORMAT_CHECKDIFF)
+		diff_flush_checkdiff(p, opt);
+	else if (fmt & (DIFF_FORMAT_RAW | DIFF_FORMAT_NAME_STATUS))
+		diff_flush_raw(p, opt);
+	else if (fmt & DIFF_FORMAT_NAME) {
+		const char *name_a, *name_b;
+		name_a = p->two->path;
+		name_b = NULL;
+		strip_prefix(opt->prefix_length, &name_a, &name_b);
+		fprintf(opt->file, "%s", diff_line_prefix(opt));
+		write_name_quoted(name_a, opt->file, opt->line_termination);
+	}
 }

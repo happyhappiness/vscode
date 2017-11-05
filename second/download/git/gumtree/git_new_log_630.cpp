@@ -1,1 +1,2 @@
-error(_("could not read '%s'."), todo_file);
+die(_("Pathspec '%s' is in submodule '%.*s'"),
+		    item->original, ce_len, ce->name);

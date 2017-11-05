@@ -1,0 +1,1 @@
+die("ls-files --recurse-submodules unsupported mode");

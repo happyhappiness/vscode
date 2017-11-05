@@ -1,2 +1,1 @@
-error("cannot rename %s to %s",
-					newlog_path, log_file);
+die_errno(_("Could not write to %s"), head_file);

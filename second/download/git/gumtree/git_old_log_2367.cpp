@@ -1,1 +1,1 @@
-die(_("insanely long template path %s"), template_dir);
+error("cannot spawn %s: %s", cmd->argv[0], strerror(errno));

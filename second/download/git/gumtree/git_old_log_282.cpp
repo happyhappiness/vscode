@@ -1,1 +1,1 @@
-error(_("%s: does not match index"), name);
+die("Failed to finalize notes merge");

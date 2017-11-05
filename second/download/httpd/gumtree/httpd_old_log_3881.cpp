@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, "Error reading chunk %s ", 
-                                  (ctx->remaining < 0) ? "(overflow)" : "");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "proxy: FCGI: sending env var '%s' value '%s'",
+                      elts[i].key, elts[i].val);

@@ -1,26 +1,14 @@
-int ssl_stapling_mutex_reinit(server_rec *s, apr_pool_t *p)
+static apr_status_t pod_signal_internal(ap_pod_t *pod)
 {
-    SSLModConfigRec *mc = myModConfig(s);
     apr_status_t rv;
-    const char *lockfile;
+    char char_of_death = '!';
+    apr_size_t one = 1;
 
-    if (mc->stapling_mutex == NULL) {
-        return TRUE;
+    rv = apr_file_write(pod->pod_out, &char_of_death, &one);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                     "write pipe_of_death");
     }
 
-    lockfile = apr_global_mutex_lockfile(mc->stapling_mutex);
-    if ((rv = apr_global_mutex_child_init(&mc->stapling_mutex,
-                                          lockfile, p)) != APR_SUCCESS) {
-        if (lockfile) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "Cannot reinit %s mutex with file `%s'",
-                         SSL_STAPLING_MUTEX_TYPE, lockfile);
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, s,
-                         "Cannot reinit %s mutex", SSL_STAPLING_MUTEX_TYPE);
-        }
-        return FALSE;
-    }
-    return TRUE;
+    return rv;
 }

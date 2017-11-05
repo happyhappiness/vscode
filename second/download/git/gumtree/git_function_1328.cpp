@@ -1,26 +1,20 @@
-static int local_tzoffset(timestamp_t time)
+static void write_packed_entry(int fd, char *refname, unsigned char *sha1,
+			       unsigned char *peeled)
 {
-	time_t t, t_local;
-	struct tm tm;
-	int offset, eastwest;
+	char line[PATH_MAX + 100];
+	int len;
 
-	if (date_overflows(time))
-		die("Timestamp too large for this system: %"PRItime, time);
+	len = snprintf(line, sizeof(line), "%s %s\n",
+		       sha1_to_hex(sha1), refname);
+	/* this should not happen but just being defensive */
+	if (len > sizeof(line))
+		die("too long a refname '%s'", refname);
+	write_or_die(fd, line, len);
 
-	t = (time_t)time;
-	localtime_r(&t, &tm);
-	t_local = tm_to_time_t(&tm);
-
-	if (t_local == -1)
-		return 0; /* error; just use +0000 */
-	if (t_local < t) {
-		eastwest = -1;
-		offset = t - t_local;
-	} else {
-		eastwest = 1;
-		offset = t_local - t;
+	if (peeled) {
+		if (snprintf(line, sizeof(line), "^%s\n",
+			     sha1_to_hex(peeled)) != PEELED_LINE_LENGTH)
+			die("internal error");
+		write_or_die(fd, line, PEELED_LINE_LENGTH);
 	}
-	offset /= 60; /* in minutes */
-	offset = (offset % 60) + ((offset / 60) * 100);
-	return offset * eastwest;
 }

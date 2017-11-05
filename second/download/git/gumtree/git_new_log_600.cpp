@@ -1,2 +1,2 @@
-die("BUG: ref_store for submodule '%s' initialized twice",
-			    submodule);
+fprintf(stderr, "%s in %s %s: %s\n",
+		msg_type, printable_type(obj), describe_object(obj), err);

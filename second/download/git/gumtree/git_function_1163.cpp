@@ -1,40 +1,46 @@
-static int apply_autostash(struct replay_opts *opts)
+static int handshake_version(struct child_process *process,
+			     const char *welcome_prefix, int *versions,
+			     int *chosen_version)
 {
-	struct strbuf stash_sha1 = STRBUF_INIT;
-	struct child_process child = CHILD_PROCESS_INIT;
-	int ret = 0;
+	int version_scratch;
+	int i;
+	char *line;
+	const char *p;
 
-	if (!read_oneliner(&stash_sha1, rebase_path_autostash(), 1)) {
-		strbuf_release(&stash_sha1);
-		return 0;
+	if (!chosen_version)
+		chosen_version = &version_scratch;
+
+	if (packet_write_fmt_gently(process->in, "%s-client\n",
+				    welcome_prefix))
+		return error("Could not write client identification");
+	for (i = 0; versions[i]; i++) {
+		if (packet_write_fmt_gently(process->in, "version=%d\n",
+					    versions[i]))
+			return error("Could not write requested version");
 	}
-	strbuf_trim(&stash_sha1);
+	if (packet_flush_gently(process->in))
+		return error("Could not write flush packet");
 
-	child.git_cmd = 1;
-	argv_array_push(&child.args, "stash");
-	argv_array_push(&child.args, "apply");
-	argv_array_push(&child.args, stash_sha1.buf);
-	if (!run_command(&child))
-		printf(_("Applied autostash."));
-	else {
-		struct child_process store = CHILD_PROCESS_INIT;
+	if (!(line = packet_read_line(process->out, NULL)) ||
+	    !skip_prefix(line, welcome_prefix, &p) ||
+	    strcmp(p, "-server"))
+		return error("Unexpected line '%s', expected %s-server",
+			     line ? line : "<flush packet>", welcome_prefix);
+	if (!(line = packet_read_line(process->out, NULL)) ||
+	    !skip_prefix(line, "version=", &p) ||
+	    strtol_i(p, 10, chosen_version))
+		return error("Unexpected line '%s', expected version",
+			     line ? line : "<flush packet>");
+	if ((line = packet_read_line(process->out, NULL)))
+		return error("Unexpected line '%s', expected flush", line);
 
-		store.git_cmd = 1;
-		argv_array_push(&store.args, "stash");
-		argv_array_push(&store.args, "store");
-		argv_array_push(&store.args, "-m");
-		argv_array_push(&store.args, "autostash");
-		argv_array_push(&store.args, "-q");
-		argv_array_push(&store.args, stash_sha1.buf);
-		if (run_command(&store))
-			ret = error(_("cannot store %s"), stash_sha1.buf);
-		else
-			printf(_("Applying autostash resulted in conflicts.\n"
-				"Your changes are safe in the stash.\n"
-				"You can run \"git stash pop\" or"
-				" \"git stash drop\" at any time.\n"));
+	/* Check to make sure that the version received is supported */
+	for (i = 0; versions[i]; i++) {
+		if (versions[i] == *chosen_version)
+			break;
 	}
+	if (!versions[i])
+		return error("Version %d not supported", *chosen_version);
 
-	strbuf_release(&stash_sha1);
-	return ret;
+	return 0;
 }

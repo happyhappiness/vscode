@@ -1,1 +1,0 @@
-ap_rputs("\"<b><code>R</code></b>\" Reading Request,<br />\n", r);

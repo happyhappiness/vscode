@@ -1,1 +1,1 @@
-die(_("%s already exists"), git_dir);
+die("can't use --super-prefix from a subdirectory");

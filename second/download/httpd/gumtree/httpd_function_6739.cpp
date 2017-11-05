@@ -1,71 +1,70 @@
-static void fix_hostname(request_rec *r)
+static authz_status group_check_authorization(request_rec *r,
+                                              const char *require_args,
+                                              const void *parsed_require_args)
 {
-    char *host, *scope_id;
-    char *dst;
-    apr_port_t port;
-    apr_status_t rv;
-    const char *c;
+    authz_groupfile_config_rec *conf = ap_get_module_config(r->per_dir_config,
+            &authz_groupfile_module);
+    char *user = r->user;
 
-    /* According to RFC 2616, Host header field CAN be blank. */
-    if (!*r->hostname) {
-        return;
+    const char *err = NULL;
+    const ap_expr_info_t *expr = parsed_require_args;
+    const char *require;
+
+    const char *t, *w;
+    apr_table_t *grpstatus = NULL;
+    apr_status_t status;
+
+    if (!user) {
+        return AUTHZ_DENIED_NO_USER;
     }
 
-    /* apr_parse_addr_port will interpret a bare integer as a port
-     * which is incorrect in this context.  So treat it separately.
+    /* If there is no group file - then we are not
+     * configured. So decline.
      */
-    for (c = r->hostname; apr_isdigit(*c); ++c);
-    if (!*c) {  /* pure integer */
-        return;
+    if (!(conf->groupfile)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01664)
+                        "No group file was specified in the configuration");
+        return AUTHZ_DENIED;
     }
 
-    rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
-    if (rv != APR_SUCCESS || scope_id) {
-        goto bad;
+    status = groups_for_user(r->pool, user, conf->groupfile,
+                                &grpstatus);
+
+    if (status != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01665)
+                        "Could not open group file: %s",
+                        conf->groupfile);
+        return AUTHZ_DENIED;
     }
 
-    if (port) {
-        /* Don't throw the Host: header's port number away:
-           save it in parsed_uri -- ap_get_server_port() needs it! */
-        /* @@@ XXX there should be a better way to pass the port.
-         *         Like r->hostname, there should be a r->portno
-         */
-        r->parsed_uri.port = port;
-        r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
+    if (apr_is_empty_table(grpstatus)) {
+        /* no groups available, so exit immediately */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01666)
+                      "Authorization of user %s to access %s failed, reason: "
+                      "user doesn't appear in group file (%s).",
+                      r->user, r->uri, conf->groupfile);
+        return AUTHZ_DENIED;
     }
 
-    /* if the hostname is an IPv6 numeric address string, it was validated
-     * already; otherwise, further validation is needed
-     */
-    if (r->hostname[0] != '[') {
-        for (dst = host; *dst; dst++) {
-            if (apr_islower(*dst)) {
-                /* leave char unchanged */
-            }
-            else if (*dst == '.') {
-                if (*(dst + 1) == '.') {
-                    goto bad;
-                }
-            }
-            else if (apr_isupper(*dst)) {
-                *dst = apr_tolower(*dst);
-            }
-            else if (*dst == '/' || *dst == '\\') {
-                goto bad;
-            }
-        }
-        /* strip trailing gubbins */
-        if (dst > host && dst[-1] == '.') {
-            dst[-1] = '\0';
+    require = ap_expr_str_exec(r, expr, &err);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02592)
+                      "authz_groupfile authorize: require group: Can't "
+                      "evaluate require expression: %s", err);
+        return AUTHZ_DENIED;
+    }
+
+    t = require;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
+        if (apr_table_get(grpstatus, w)) {
+            return AUTHZ_GRANTED;
         }
     }
-    r->hostname = host;
-    return;
 
-bad:
-    r->status = HTTP_BAD_REQUEST;
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00550)
-                  "Client sent malformed Host header: %s",
-                  r->hostname);
-    return;
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01667)
+                    "Authorization of user %s to access %s failed, reason: "
+                    "user is not part of the 'require'ed group(s).",
+                    r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

@@ -1,1 +1,1 @@
-die("unable to generate diff");
+die_errno("unable to write credential store");

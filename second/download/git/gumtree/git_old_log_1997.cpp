@@ -1,1 +1,1 @@
-error("unable to lock %s for update", newrefname);
+fprintf(stderr, "\n  from %s\n  to   %s\n", old_hex, new_hex);

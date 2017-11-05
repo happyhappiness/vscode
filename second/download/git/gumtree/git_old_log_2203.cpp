@@ -1,1 +1,1 @@
-die(_("Could not read %s."), todo_file);
+error("Could not expand include path '%s'", path);

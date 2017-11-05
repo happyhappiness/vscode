@@ -1,1 +1,0 @@
-die(_("'%s' is already checked out at '%s'"), new->name, gitdir.buf);

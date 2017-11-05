@@ -1,1 +1,0 @@
-die("no such ref: HEAD");

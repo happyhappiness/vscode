@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02817)
-                    "could not release lock for cache status");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, 
+                      "slave_conn(%ld): has no task", c->id);

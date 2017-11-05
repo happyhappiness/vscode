@@ -1,1 +1,2 @@
-warning(_("could not lookup configuration '%s'. Assuming this repository is its own authoritative upstream."), remotesb.buf);
+warning("recursive delta detected for object %s",
+			oid_to_hex(&e->idx.oid));

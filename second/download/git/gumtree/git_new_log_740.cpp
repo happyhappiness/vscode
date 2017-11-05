@@ -1,1 +1,2 @@
-die(_("could not parse %s"), am_path(state, "abort-safety"));
+die_errno(_("cannot write keep file '%s'"),
+					  keep_name);

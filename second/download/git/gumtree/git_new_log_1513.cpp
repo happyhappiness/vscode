@@ -1,1 +1,1 @@
-die(_("git show %s: bad file"), obj_name);
+git_die_config(key, _("Invalid %s: '%s'"), key, *output);

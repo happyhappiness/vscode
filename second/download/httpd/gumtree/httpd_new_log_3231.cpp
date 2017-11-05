@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01730)
-            "ldap authorize: Userid is blank, AuthType=%s",
-            r->ap_auth_type);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, f->c, APLOGNO(01378)
+                              "filter_init for %s failed", p->frec->name);

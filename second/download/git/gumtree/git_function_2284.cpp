@@ -1,54 +1,129 @@
-static int check_repository_format_gently(const char *gitdir, int *nongit_ok)
+static void write_pack_file(void)
 {
-	struct strbuf sb = STRBUF_INIT;
-	const char *repo_config;
-	config_fn_t fn;
-	int ret = 0;
+	uint32_t i = 0, j;
+	struct sha1file *f;
+	off_t offset;
+	uint32_t nr_remaining = nr_result;
+	time_t last_mtime = 0;
+	struct object_entry **write_order;
 
-	string_list_clear(&unknown_extensions, 0);
+	if (progress > pack_to_stdout)
+		progress_state = start_progress(_("Writing objects"), nr_result);
+	ALLOC_ARRAY(written_list, to_pack.nr_objects);
+	write_order = compute_write_order();
 
-	if (get_common_dir(&sb, gitdir))
-		fn = check_repo_format;
-	else
-		fn = check_repository_format_version;
-	strbuf_addstr(&sb, "/config");
-	repo_config = sb.buf;
+	do {
+		unsigned char sha1[20];
+		char *pack_tmp_name = NULL;
 
-	/*
-	 * git_config() can't be used here because it calls git_pathdup()
-	 * to get $GIT_CONFIG/config. That call will make setup_git_env()
-	 * set git_dir to ".git".
-	 *
-	 * We are in gitdir setup, no git dir has been found useable yet.
-	 * Use a gentler version of git_config() to check if this repo
-	 * is a good one.
-	 */
-	git_config_early(fn, NULL, repo_config);
-	if (GIT_REPO_VERSION_READ < repository_format_version) {
-		if (!nongit_ok)
-			die ("Expected git repo version <= %d, found %d",
-			     GIT_REPO_VERSION_READ, repository_format_version);
-		warning("Expected git repo version <= %d, found %d",
-			GIT_REPO_VERSION_READ, repository_format_version);
-		warning("Please upgrade Git");
-		*nongit_ok = -1;
-		ret = -1;
-	}
+		if (pack_to_stdout)
+			f = sha1fd_throughput(1, "<stdout>", progress_state);
+		else
+			f = create_tmp_packfile(&pack_tmp_name);
 
-	if (repository_format_version >= 1 && unknown_extensions.nr) {
-		int i;
+		offset = write_pack_header(f, nr_remaining);
 
-		if (!nongit_ok)
-			die("unknown repository extension: %s",
-			    unknown_extensions.items[0].string);
+		if (reuse_packfile) {
+			off_t packfile_size;
+			assert(pack_to_stdout);
 
-		for (i = 0; i < unknown_extensions.nr; i++)
-			warning("unknown repository extension: %s",
-				unknown_extensions.items[i].string);
-		*nongit_ok = -1;
-		ret = -1;
-	}
+			packfile_size = write_reused_pack(f);
+			offset += packfile_size;
+		}
 
-	strbuf_release(&sb);
-	return ret;
+		nr_written = 0;
+		for (; i < to_pack.nr_objects; i++) {
+			struct object_entry *e = write_order[i];
+			if (write_one(f, e, &offset) == WRITE_ONE_BREAK)
+				break;
+			display_progress(progress_state, written);
+		}
+
+		/*
+		 * Did we write the wrong # entries in the header?
+		 * If so, rewrite it like in fast-import
+		 */
+		if (pack_to_stdout) {
+			sha1close(f, sha1, CSUM_CLOSE);
+		} else if (nr_written == nr_remaining) {
+			sha1close(f, sha1, CSUM_FSYNC);
+		} else {
+			int fd = sha1close(f, sha1, 0);
+			fixup_pack_header_footer(fd, sha1, pack_tmp_name,
+						 nr_written, sha1, offset);
+			close(fd);
+			if (write_bitmap_index) {
+				warning(_(no_split_warning));
+				write_bitmap_index = 0;
+			}
+		}
+
+		if (!pack_to_stdout) {
+			struct stat st;
+			struct strbuf tmpname = STRBUF_INIT;
+
+			/*
+			 * Packs are runtime accessed in their mtime
+			 * order since newer packs are more likely to contain
+			 * younger objects.  So if we are creating multiple
+			 * packs then we should modify the mtime of later ones
+			 * to preserve this property.
+			 */
+			if (stat(pack_tmp_name, &st) < 0) {
+				warning("failed to stat %s: %s",
+					pack_tmp_name, strerror(errno));
+			} else if (!last_mtime) {
+				last_mtime = st.st_mtime;
+			} else {
+				struct utimbuf utb;
+				utb.actime = st.st_atime;
+				utb.modtime = --last_mtime;
+				if (utime(pack_tmp_name, &utb) < 0)
+					warning("failed utime() on %s: %s",
+						pack_tmp_name, strerror(errno));
+			}
+
+			strbuf_addf(&tmpname, "%s-", base_name);
+
+			if (write_bitmap_index) {
+				bitmap_writer_set_checksum(sha1);
+				bitmap_writer_build_type_index(written_list, nr_written);
+			}
+
+			finish_tmp_packfile(&tmpname, pack_tmp_name,
+					    written_list, nr_written,
+					    &pack_idx_opts, sha1);
+
+			if (write_bitmap_index) {
+				strbuf_addf(&tmpname, "%s.bitmap", sha1_to_hex(sha1));
+
+				stop_progress(&progress_state);
+
+				bitmap_writer_show_progress(progress);
+				bitmap_writer_reuse_bitmaps(&to_pack);
+				bitmap_writer_select_commits(indexed_commits, indexed_commits_nr, -1);
+				bitmap_writer_build(&to_pack);
+				bitmap_writer_finish(written_list, nr_written,
+						     tmpname.buf, write_bitmap_options);
+				write_bitmap_index = 0;
+			}
+
+			strbuf_release(&tmpname);
+			free(pack_tmp_name);
+			puts(sha1_to_hex(sha1));
+		}
+
+		/* mark written objects as written to previous pack */
+		for (j = 0; j < nr_written; j++) {
+			written_list[j]->offset = (off_t)-1;
+		}
+		nr_remaining -= nr_written;
+	} while (nr_remaining && i < to_pack.nr_objects);
+
+	free(written_list);
+	free(write_order);
+	stop_progress(&progress_state);
+	if (written != nr_result)
+		die("wrote %"PRIu32" objects while expecting %"PRIu32,
+			written, nr_result);
 }

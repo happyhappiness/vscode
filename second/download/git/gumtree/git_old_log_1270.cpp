@@ -1,1 +1,2 @@
-printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
+error("chmod on %s failed: %s",
+				lock->filename, strerror(errno));

@@ -1,1 +1,1 @@
-hashmap_init(&submodule_ref_stores, submodule_hash_cmp, 0);
+die("BUG: %s ref_store '%s' initialized twice", type, name);

@@ -1,1 +1,3 @@
-error("key does not contain variable name: %s", key);
+logerror("Could not listen to %s: %s",
+			 ip2str(AF_INET, (struct sockaddr *)&sin, sizeof(sin)),
+			 strerror(errno));

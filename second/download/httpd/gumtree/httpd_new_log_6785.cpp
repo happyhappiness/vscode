@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c, 
-                  H2_STRM_MSG(stream, "cleanup"));
+apr_file_printf(out, "  %s\n",
+                                APR_ARRAY_IDX(pks->cert_files,
+                                              i, const char *));

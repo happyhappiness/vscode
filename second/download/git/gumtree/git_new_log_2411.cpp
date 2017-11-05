@@ -1,1 +1,1 @@
-printf(" %s", oid_to_hex(&children->item->object.oid));
+die(_("--chmod param '%s' must be either -x or +x"), chmod_arg);

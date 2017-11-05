@@ -1,1 +1,1 @@
-die(_("BUG: reopen a lockfile that has been committed"));
+die("unable to set up work tree using invalid config");

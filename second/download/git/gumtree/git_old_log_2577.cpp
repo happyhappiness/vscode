@@ -1,2 +1,1 @@
-error("unable to write reflog %s: %s",
-					log_file, strerror(errno));
+die("unable to read %s", sha1_to_hex(s->sha1));

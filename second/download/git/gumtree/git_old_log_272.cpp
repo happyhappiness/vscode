@@ -1,1 +1,1 @@
-error(_("patch failed: %s:%ld"), name, frag->oldpos);
+die(_("Failed to resolve '%s' as a valid ref."), object_ref);

@@ -1,1 +1,3 @@
-apr_file_printf(errfile, " -s  Force SHA encryption of the password." NL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r,
+                          "proxy: error reading status line from remote "
+                          "server %s:%d", backend->hostname, backend->port);

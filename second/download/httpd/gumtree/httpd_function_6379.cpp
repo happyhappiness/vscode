@@ -1,51 +1,52 @@
-h2_stream *h2_mplx_next_submit(h2_mplx *m, h2_ihash_t *streams)
+static authz_status authz_alias_check_authorization(request_rec *r,
+                                                    const char *require_args,
+                                                    const void *parsed_require_args)
 {
-    apr_status_t status;
-    h2_stream *stream = NULL;
-    int acquired;
+    const char *provider_name;
+    authz_status ret = AUTHZ_DENIED;
 
-    AP_DEBUG_ASSERT(m);
-    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
-        h2_io *io = h2_io_set_shift(m->ready_ios);
-        if (io && !m->aborted) {
-            stream = h2_ihash_get(streams, io->id);
-            if (stream) {
-                io->submitted = 1;
-                if (io->rst_error) {
-                    h2_stream_rst(stream, io->rst_error);
-                }
-                else {
-                    AP_DEBUG_ASSERT(io->response);
-                    H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_next_submit_pre");
-                    h2_stream_set_response(stream, io->response, io->bbout);
-                    H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_next_submit_post");
-                }
-            }
-            else {
-                /* We have the io ready, but the stream has gone away, maybe
-                 * reset by the client. Should no longer happen since such
-                 * streams should clear io's from the ready queue.
-                 */
-                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03347)
-                              "h2_mplx(%ld): stream for response %d closed, "
-                              "resetting io to close request processing",
-                              m->id, io->id);
-                h2_io_make_orphaned(io, H2_ERR_STREAM_CLOSED);
-                if (!io->worker_started || io->worker_done) {
-                    io_destroy(m, io, 1);
-                }
-                else {
-                    /* hang around until the h2_task is done, but
-                     * shutdown input and send out any events (e.g. window
-                     * updates) asap. */
-                    h2_io_in_shutdown(io);
-                    io_in_consumed_signal(m, io);
-                }
-            }
-            
-            h2_io_signal(io, H2_IO_WRITE);
+    /* Look up the provider alias in the alias list.
+     * Get the the dir_config and call ap_Merge_per_dir_configs()
+     * Call the real provider->check_authorization() function
+     * return the result of the above function call
+     */
+
+    provider_name = apr_table_get(r->notes, AUTHZ_PROVIDER_NAME_NOTE);
+
+    if (provider_name) {
+        authz_core_srv_conf *authcfg;
+        provider_alias_rec *prvdraliasrec;
+
+        authcfg = ap_get_module_config(r->server->module_config,
+                                       &authz_core_module);
+
+        prvdraliasrec = apr_hash_get(authcfg->alias_rec, provider_name,
+                                     APR_HASH_KEY_STRING);
+
+        /* If we found the alias provider in the list, then merge the directory
+           configurations and call the real provider */
+        if (prvdraliasrec) {
+            ap_conf_vector_t *orig_dir_config = r->per_dir_config;
+
+            r->per_dir_config =
+                ap_merge_per_dir_configs(r->pool, orig_dir_config,
+                                         prvdraliasrec->sec_auth);
+
+            ret = prvdraliasrec->provider->
+                check_authorization(r, prvdraliasrec->provider_args,
+                                    prvdraliasrec->provider_parsed_args);
+
+            r->per_dir_config = orig_dir_config;
         }
-        leave_mutex(m, acquired);
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02305)
+                          "no alias provider found for '%s' (BUG?)",
+                          provider_name);
+        }
     }
-    return stream;
+    else {
+        ap_assert(provider_name != NULL);
+    }
+
+    return ret;
 }

@@ -1,3 +1,1 @@
-print_ref_status('!', "[rejected]", ref, NULL,
-				 "remote does not support deleting refs",
-				 porcelain, summary_width);
+error(_("could not remove CHERRY_PICK_HEAD"));

@@ -1,31 +1,22 @@
-static int submodule_needs_pushing(const char *path, const unsigned char sha1[20])
+static void check_vector_remove(struct attr_check *check)
 {
-	if (add_submodule_odb(path) || !lookup_commit_reference(sha1))
-		return 0;
+	int i;
 
-	if (for_each_remote_ref_submodule(path, has_remote, NULL) > 0) {
-		struct child_process cp = CHILD_PROCESS_INIT;
-		const char *argv[] = {"rev-list", NULL, "--not", "--remotes", "-n", "1" , NULL};
-		struct strbuf buf = STRBUF_INIT;
-		int needs_pushing = 0;
+	vector_lock();
 
-		argv[1] = sha1_to_hex(sha1);
-		cp.argv = argv;
-		prepare_submodule_repo_env(&cp.env_array);
-		cp.git_cmd = 1;
-		cp.no_stdin = 1;
-		cp.out = -1;
-		cp.dir = path;
-		if (start_command(&cp))
-			die("Could not run 'git rev-list %s --not --remotes -n 1' command in submodule %s",
-				sha1_to_hex(sha1), path);
-		if (strbuf_read(&buf, cp.out, 41))
-			needs_pushing = 1;
-		finish_command(&cp);
-		close(cp.out);
-		strbuf_release(&buf);
-		return needs_pushing;
-	}
+	/* Find entry */
+	for (i = 0; i < check_vector.nr; i++)
+		if (check_vector.checks[i] == check)
+			break;
 
-	return 0;
+	if (i >= check_vector.nr)
+		die("BUG: no entry found");
+
+	/* shift entries over */
+	for (; i < check_vector.nr - 1; i++)
+		check_vector.checks[i] = check_vector.checks[i + 1];
+
+	check_vector.nr--;
+
+	vector_unlock();
 }

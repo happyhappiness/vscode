@@ -1,0 +1,1 @@
+err("Cannot mix HEAD with other methods\n");

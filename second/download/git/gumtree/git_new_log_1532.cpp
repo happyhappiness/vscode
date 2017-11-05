@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+die_errno("unable to read object %s", oid_to_hex(oid));

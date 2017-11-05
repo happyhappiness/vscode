@@ -1,2 +1,2 @@
-error(_("The note contents have been left in %s"),
-				d->edit_path);
+printf("CONFLICT (%s): Merge conflict in notes for "
+				"object %s\n", reason, sha1_to_hex(p->obj));

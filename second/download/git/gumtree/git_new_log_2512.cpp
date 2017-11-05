@@ -1,1 +1,1 @@
-opterror(opt, "must point to a commit", 0);
+fprintf(rev->diffopt.file, "\n");

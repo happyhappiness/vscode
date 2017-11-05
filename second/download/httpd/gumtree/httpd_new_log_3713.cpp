@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "Content-Type condition for '%s' %s",
-                          provider->frec->name,
-                          match ? "matched" : "did not match");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(00882)
+                                      "ajp_send_data_msg failed");

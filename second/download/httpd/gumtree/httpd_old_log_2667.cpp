@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: got response from %pI (%s)",
-                     conn->worker->cp->addr,
-                     conn->worker->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "Digest: user `%s' in realm `%s' denied by provider: %s",
+                      r->user, conf->realm, r->uri);

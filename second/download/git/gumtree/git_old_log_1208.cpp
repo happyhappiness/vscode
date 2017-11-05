@@ -1,1 +1,3 @@
-die("internal error in blame::blame_chunk_cb");
+die(write_object
+		    ? "Unable to add %s to database"
+		    : "Unable to hash %s", path);

@@ -1,1 +1,1 @@
-die("BUG: state->lock_file should not be NULL");
+die(permissions_advice, dir);

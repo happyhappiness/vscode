@@ -1,2 +1,3 @@
-printf("broken link from %7s %s\n",
-			   typename(parent->type), describe_object(parent));
+fprintf(stderr, " %-11s %8d %s\n",
+				prio_names[t->name->prio],
+				t->depth, t->name->path);

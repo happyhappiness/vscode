@@ -1,1 +1,1 @@
-die("failed to parse %s", k);
+error_buf(err, _("HEAD does not point to a branch"));

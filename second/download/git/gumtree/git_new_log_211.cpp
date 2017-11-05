@@ -1,1 +1,1 @@
-error("packfile %s cannot be accessed", p->pack_name);
+die("%s not a valid tag", oid_to_hex(&oid));

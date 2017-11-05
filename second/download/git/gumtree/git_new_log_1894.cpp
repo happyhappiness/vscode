@@ -1,1 +1,1 @@
-die("--git-path requires an argument");
+fprintf(f, "%s\n", oid_to_hex(&obj->oid));

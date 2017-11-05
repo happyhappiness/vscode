@@ -1,1 +1,1 @@
-print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg, porcelain);
+fprintf(opt->diffopt.file, "In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);

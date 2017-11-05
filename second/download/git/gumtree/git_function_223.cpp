@@ -1,58 +1,88 @@
-static int run_apply(const struct am_state *state, const char *index_file)
+int cmd_cat_file(int argc, const char **argv, const char *prefix)
 {
-	struct argv_array apply_paths = ARGV_ARRAY_INIT;
-	struct argv_array apply_opts = ARGV_ARRAY_INIT;
-	struct apply_state apply_state;
-	int res, opts_left;
-	static struct lock_file lock_file;
-	int force_apply = 0;
-	int options = 0;
+	int opt = 0;
+	const char *exp_type = NULL, *obj_name = NULL;
+	struct batch_options batch = {0};
+	int unknown_type = 0;
 
-	if (init_apply_state(&apply_state, NULL, &lock_file))
-		die("BUG: init_apply_state() failed");
+	const struct option options[] = {
+		OPT_GROUP(N_("<type> can be one of: blob, tree, commit, tag")),
+		OPT_CMDMODE('t', NULL, &opt, N_("show object type"), 't'),
+		OPT_CMDMODE('s', NULL, &opt, N_("show object size"), 's'),
+		OPT_CMDMODE('e', NULL, &opt,
+			    N_("exit with zero when there's no error"), 'e'),
+		OPT_CMDMODE('p', NULL, &opt, N_("pretty-print object's content"), 'p'),
+		OPT_CMDMODE(0, "textconv", &opt,
+			    N_("for blob objects, run textconv on object's content"), 'c'),
+		OPT_CMDMODE(0, "filters", &opt,
+			    N_("for blob objects, run filters on object's content"), 'w'),
+		OPT_STRING(0, "path", &force_path, N_("blob"),
+			   N_("use a specific path for --textconv/--filters")),
+		OPT_BOOL(0, "allow-unknown-type", &unknown_type,
+			  N_("allow -s and -t to work with broken/corrupt objects")),
+		OPT_BOOL(0, "buffer", &batch.buffer_output, N_("buffer --batch output")),
+		{ OPTION_CALLBACK, 0, "batch", &batch, "format",
+			N_("show info and content of objects fed from the standard input"),
+			PARSE_OPT_OPTARG, batch_option_callback },
+		{ OPTION_CALLBACK, 0, "batch-check", &batch, "format",
+			N_("show info about objects fed from the standard input"),
+			PARSE_OPT_OPTARG, batch_option_callback },
+		OPT_BOOL(0, "follow-symlinks", &batch.follow_symlinks,
+			 N_("follow in-tree symlinks (used with --batch or --batch-check)")),
+		OPT_BOOL(0, "batch-all-objects", &batch.all_objects,
+			 N_("show all objects with --batch or --batch-check")),
+		OPT_END()
+	};
 
-	argv_array_push(&apply_opts, "apply");
-	argv_array_pushv(&apply_opts, state->git_apply_opts.argv);
+	git_config(git_cat_file_config, NULL);
 
-	opts_left = apply_parse_options(apply_opts.argc, apply_opts.argv,
-					&apply_state, &force_apply, &options,
-					NULL);
+	batch.buffer_output = -1;
+	argc = parse_options(argc, argv, prefix, options, cat_file_usage, 0);
 
-	if (opts_left != 0)
-		die("unknown option passed through to git apply");
-
-	if (index_file) {
-		apply_state.index_file = index_file;
-		apply_state.cached = 1;
-	} else
-		apply_state.check_index = 1;
-
-	/*
-	 * If we are allowed to fall back on 3-way merge, don't give false
-	 * errors during the initial attempt.
-	 */
-	if (state->threeway && !index_file)
-		apply_state.apply_verbosity = verbosity_silent;
-
-	if (check_apply_state(&apply_state, force_apply))
-		die("BUG: check_apply_state() failed");
-
-	argv_array_push(&apply_paths, am_path(state, "patch"));
-
-	res = apply_all_patches(&apply_state, apply_paths.argc, apply_paths.argv, options);
-
-	argv_array_clear(&apply_paths);
-	argv_array_clear(&apply_opts);
-	clear_apply_state(&apply_state);
-
-	if (res)
-		return res;
-
-	if (index_file) {
-		/* Reload index as apply_all_patches() will have modified it. */
-		discard_cache();
-		read_cache_from(index_file);
+	if (opt) {
+		if (batch.enabled && (opt == 'c' || opt == 'w'))
+			batch.cmdmode = opt;
+		else if (argc == 1)
+			obj_name = argv[0];
+		else
+			usage_with_options(cat_file_usage, options);
+	}
+	if (!opt && !batch.enabled) {
+		if (argc == 2) {
+			exp_type = argv[0];
+			obj_name = argv[1];
+		} else
+			usage_with_options(cat_file_usage, options);
+	}
+	if (batch.enabled) {
+		if (batch.cmdmode != opt || argc)
+			usage_with_options(cat_file_usage, options);
+		if (batch.cmdmode && batch.all_objects)
+			die("--batch-all-objects cannot be combined with "
+			    "--textconv nor with --filters");
 	}
 
-	return 0;
+	if ((batch.follow_symlinks || batch.all_objects) && !batch.enabled) {
+		usage_with_options(cat_file_usage, options);
+	}
+
+	if (force_path && opt != 'c' && opt != 'w') {
+		error("--path=<path> needs --textconv or --filters");
+		usage_with_options(cat_file_usage, options);
+	}
+
+	if (force_path && batch.enabled) {
+		error("--path=<path> incompatible with --batch");
+		usage_with_options(cat_file_usage, options);
+	}
+
+	if (batch.buffer_output < 0)
+		batch.buffer_output = batch.all_objects;
+
+	if (batch.enabled)
+		return batch_objects(&batch);
+
+	if (unknown_type && opt != 't' && opt != 's')
+		die("git cat-file --allow-unknown-type: use with -s or -t");
+	return cat_one_file(opt, exp_type, obj_name, unknown_type);
 }

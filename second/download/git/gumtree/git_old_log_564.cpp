@@ -1,2 +1,1 @@
-fprintf(stderr, "Server version is %.*s\n",
-				agent_len, agent_feature);
+die(_("could not parse %s"), am_path(state, "abort_safety"));

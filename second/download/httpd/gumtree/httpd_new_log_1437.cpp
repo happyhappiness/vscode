@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
-                         "Child %lu: Process exiting because it reached "
-                         "MaxRequestsPerChild. Signaling the parent to "
-                         "restart a new child process.", my_pid);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                                  "Request header field name is malformed: "
+                                  "%.*s", (int)LOG_NAME_MAX_LEN, last_field);

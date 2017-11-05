@@ -1,1 +1,2 @@
-ap_rvputs(r, "<td>", balancer->s->sticky, NULL);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(01984)
+                          "OCSP response: got EOF");

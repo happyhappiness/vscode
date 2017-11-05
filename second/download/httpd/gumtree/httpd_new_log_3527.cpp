@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00851)
-                 "shmcb_subcache_retrieve found no match");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00687)
+                      "Negotiation: discovered file(s) matching request: %s"
+                      " (None could be negotiated).",
+                      r->filename);

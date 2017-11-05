@@ -1,1 +1,0 @@
-printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);

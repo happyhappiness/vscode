@@ -1,17 +1,27 @@
-int bind_merge(const struct cache_entry * const *src,
-	       struct unpack_trees_options *o)
+static void submodule_push_check(const char *path, const struct remote *remote,
+				 const char **refspec, int refspec_nr)
 {
-	const struct cache_entry *old = src[0];
-	const struct cache_entry *a = src[1];
+	struct child_process cp = CHILD_PROCESS_INIT;
+	int i;
 
-	if (o->merge_size != 1)
-		return error("Cannot do a bind merge of %d trees",
-			     o->merge_size);
-	if (a && old)
-		return o->gently ? -1 :
-			error(ERRORMSG(o, ERROR_BIND_OVERLAP), a->name, old->name);
-	if (!a)
-		return keep_entry(old, o);
-	else
-		return merged_entry(a, NULL, o);
+	argv_array_push(&cp.args, "submodule--helper");
+	argv_array_push(&cp.args, "push-check");
+	argv_array_push(&cp.args, remote->name);
+
+	for (i = 0; i < refspec_nr; i++)
+		argv_array_push(&cp.args, refspec[i]);
+
+	prepare_submodule_repo_env(&cp.env_array);
+	cp.git_cmd = 1;
+	cp.no_stdin = 1;
+	cp.no_stdout = 1;
+	cp.dir = path;
+
+	/*
+	 * Simply indicate if 'submodule--helper push-check' failed.
+	 * More detailed error information will be provided by the
+	 * child process.
+	 */
+	if (run_command(&cp))
+		die("process for submodule '%s' failed", path);
 }

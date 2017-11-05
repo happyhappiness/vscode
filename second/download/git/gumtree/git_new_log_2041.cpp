@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", name);
+die("bad object %s", oid_to_hex(&tag->tagged->oid));

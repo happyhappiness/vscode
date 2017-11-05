@@ -1,1 +1,1 @@
-error(_("unknown -s/--strategy: %s"), strategy);
+die("Unknown command: %d", command);

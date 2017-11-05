@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c, APLOGNO(03310)
-                              "error setting alpn protos from '%s'", alpn_note);
+ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s, APLOGNO(00426)
+                         "Parent: SetEvent for child process event %pp failed.",
+                         event_handles[CHILD_HANDLE]);

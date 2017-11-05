@@ -1,29 +1,16 @@
-void die_path_inside_submodule(const struct index_state *istate,
-			       const struct pathspec *ps)
+static void warn_if_skipped_connectivity_check(struct command *commands,
+					       struct shallow_info *si)
 {
-	int i, j;
+	struct command *cmd;
+	int checked_connectivity = 1;
 
-	for (i = 0; i < istate->cache_nr; i++) {
-		struct cache_entry *ce = istate->cache[i];
-		int ce_len = ce_namelen(ce);
-
-		if (!S_ISGITLINK(ce->ce_mode))
-			continue;
-
-		for (j = 0; j < ps->nr ; j++) {
-			const struct pathspec_item *item = &ps->items[j];
-
-			if (item->len <= ce_len)
-				continue;
-			if (item->match[ce_len] != '/')
-				continue;
-			if (strncmp(ce->name, item->match, ce_len))
-				continue;
-			if (item->len == ce_len + 1)
-				continue;
-
-			die(_("Pathspec '%s' is in submodule '%.*s'"),
-			    item->original, ce_len, ce->name);
+	for (cmd = commands; cmd; cmd = cmd->next) {
+		if (should_process_cmd(cmd) && si->shallow_ref[cmd->index]) {
+			error("BUG: connectivity check has not been run on ref %s",
+			      cmd->ref_name);
+			checked_connectivity = 0;
 		}
 	}
+	if (!checked_connectivity)
+		die("BUG: connectivity check skipped???");
 }

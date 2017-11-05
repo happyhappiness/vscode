@@ -1,0 +1,1 @@
+ap_rputs(" -D APR_PROCESS_LOCK_IS_GLOBAL\n", r);

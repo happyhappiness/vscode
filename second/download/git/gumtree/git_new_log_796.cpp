@@ -1,1 +1,1 @@
-die(_("There is no merge in progress (MERGE_HEAD missing)."));
+error("Object %s already has a mark", oid_to_hex(&oid));

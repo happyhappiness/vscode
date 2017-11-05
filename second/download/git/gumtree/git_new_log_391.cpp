@@ -1,1 +1,1 @@
-printf("%s\n", oid_to_hex(&commit_oid));
+print_verbose(args, _("Server supports side-band-64k"));

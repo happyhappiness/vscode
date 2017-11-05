@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                 "Configuring permitted SSL ciphers [%s]",
-                 suite);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);

@@ -1,1 +1,1 @@
-die("git cat-file: could not get object info");
+memset(&array, 0, sizeof(array));

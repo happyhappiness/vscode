@@ -1,1 +1,1 @@
-error(_("could not read HEAD"));
+die("BUG: how is this possible?");

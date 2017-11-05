@@ -1,66 +1,41 @@
-int cmd_rerere(int argc, const char **argv, const char *prefix)
+static int sequencer_rollback(struct replay_opts *opts)
 {
-	struct string_list merge_rr = STRING_LIST_INIT_DUP;
-	int i, fd, autoupdate = -1, flags = 0;
+	const char *filename;
+	FILE *f;
+	unsigned char sha1[20];
+	struct strbuf buf = STRBUF_INIT;
 
-	struct option options[] = {
-		OPT_SET_INT(0, "rerere-autoupdate", &autoupdate,
-			N_("register clean resolutions in index"), 1),
-		OPT_END(),
-	};
-
-	argc = parse_options(argc, argv, prefix, options, rerere_usage, 0);
-
-	git_config(git_xmerge_config, NULL);
-
-	if (autoupdate == 1)
-		flags = RERERE_AUTOUPDATE;
-	if (autoupdate == 0)
-		flags = RERERE_NOAUTOUPDATE;
-
-	if (argc < 1)
-		return rerere(flags);
-
-	if (!strcmp(argv[0], "forget")) {
-		struct pathspec pathspec;
-		if (argc < 2)
-			warning("'git rerere forget' without paths is deprecated");
-		parse_pathspec(&pathspec, 0, PATHSPEC_PREFER_CWD,
-			       prefix, argv + 1);
-		return rerere_forget(&pathspec);
+	filename = git_path(SEQ_HEAD_FILE);
+	f = fopen(filename, "r");
+	if (!f && errno == ENOENT) {
+		/*
+		 * There is no multiple-cherry-pick in progress.
+		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
+		 * a single-cherry-pick in progress, abort that.
+		 */
+		return rollback_single_pick();
 	}
-
-	fd = setup_rerere(&merge_rr, flags);
-	if (fd < 0)
-		return 0;
-
-	if (!strcmp(argv[0], "clear")) {
-		rerere_clear(&merge_rr);
-	} else if (!strcmp(argv[0], "gc"))
-		rerere_gc(&merge_rr);
-	else if (!strcmp(argv[0], "status"))
-		for (i = 0; i < merge_rr.nr; i++)
-			printf("%s\n", merge_rr.items[i].string);
-	else if (!strcmp(argv[0], "remaining")) {
-		rerere_remaining(&merge_rr);
-		for (i = 0; i < merge_rr.nr; i++) {
-			if (merge_rr.items[i].util != RERERE_RESOLVED)
-				printf("%s\n", merge_rr.items[i].string);
-			else
-				/* prepare for later call to
-				 * string_list_clear() */
-				merge_rr.items[i].util = NULL;
-		}
-	} else if (!strcmp(argv[0], "diff"))
-		for (i = 0; i < merge_rr.nr; i++) {
-			const char *path = merge_rr.items[i].string;
-			const char *name = (const char *)merge_rr.items[i].util;
-			if (diff_two(rerere_path(name, "preimage"), path, path, path))
-				die("unable to generate diff for %s", name);
-		}
-	else
-		usage_with_options(rerere_usage, options);
-
-	string_list_clear(&merge_rr, 1);
+	if (!f)
+		return error(_("cannot open %s: %s"), filename,
+						strerror(errno));
+	if (strbuf_getline(&buf, f, '\n')) {
+		error(_("cannot read %s: %s"), filename, ferror(f) ?
+			strerror(errno) : _("unexpected end of file"));
+		fclose(f);
+		goto fail;
+	}
+	fclose(f);
+	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
+		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
+			filename);
+		goto fail;
+	}
+	if (reset_for_rollback(sha1))
+		goto fail;
+	remove_sequencer_state();
+	strbuf_release(&buf);
 	return 0;
+fail:
+	strbuf_release(&buf);
+	return -1;
 }

@@ -1,10 +1,15 @@
-static int ref_resolves_to_object(struct ref_entry *entry)
+static void print_commit(char sign, struct commit *commit, int verbose,
+			 int abbrev)
 {
-	if (entry->flag & REF_ISBROKEN)
-		return 0;
-	if (!has_sha1_file(entry->u.value.oid.hash)) {
-		error("%s does not point to a valid object!", entry->name);
-		return 0;
+	if (!verbose) {
+		printf("%c %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev));
+	} else {
+		struct strbuf buf = STRBUF_INIT;
+		pp_commit_easy(CMIT_FMT_ONELINE, commit, &buf);
+		printf("%c %s %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev),
+		       buf.buf);
+		strbuf_release(&buf);
 	}
-	return 1;
 }

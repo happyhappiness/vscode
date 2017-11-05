@@ -1,1 +1,1 @@
-is_blank_line(buf + ll);
+die(_("Cannot change to '%s'"), dir.buf);

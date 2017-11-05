@@ -1,1 +1,1 @@
-parse_long_magic(magic, prefix_len, elem);
+die("submodule--helper push-check requires at least 1 argument");

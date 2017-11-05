@@ -1,2 +1,3 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                      H2_SSSN_MSG(session, "process start, async=%d"), async);
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+            "mod_lua: Failed to create shared memory segment on file %s",
+                     lua_ivm_shmfile);

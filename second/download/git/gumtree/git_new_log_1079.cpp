@@ -1,3 +1,2 @@
-die("broken index, expect %s in %s, got %s",
-		    base_sha1_hex, base_path,
-		    sha1_to_hex(split_index->base->sha1));
+die("BUG: The pcre2_jit_on variable should be 0 or 1, not %d",
+		    p->pcre1_jit_on);

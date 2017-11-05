@@ -1,19 +1,15 @@
-int commit_lock_file(struct lock_file *lk)
+static void fsck_handle_reflog_sha1(const char *refname, unsigned char *sha1)
 {
-	static struct strbuf result_file = STRBUF_INIT;
-	int err;
+	struct object *obj;
 
-	if (!lk->active)
-		die("BUG: attempt to commit unlocked object");
-
-	if (lk->filename.len <= LOCK_SUFFIX_LEN ||
-	    strcmp(lk->filename.buf + lk->filename.len - LOCK_SUFFIX_LEN, LOCK_SUFFIX))
-		die("BUG: lockfile filename corrupt");
-
-	/* remove ".lock": */
-	strbuf_add(&result_file, lk->filename.buf,
-		   lk->filename.len - LOCK_SUFFIX_LEN);
-	err = commit_lock_file_to(lk, result_file.buf);
-	strbuf_reset(&result_file);
-	return err;
+	if (!is_null_sha1(sha1)) {
+		obj = lookup_object(sha1);
+		if (obj) {
+			obj->used = 1;
+			mark_object_reachable(obj);
+		} else {
+			error("%s: invalid reflog entry %s", refname, sha1_to_hex(sha1));
+			errors_found |= ERROR_REACHABLE;
+		}
+	}
 }

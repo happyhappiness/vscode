@@ -1,1 +1,3 @@
-printf("%6d\t%s\n", onelines->nr, log->list.items[i].string);
+die("ambiguous argument '%s': both revision and filename\n"
+	    "Use '--' to separate paths from revisions, like this:\n"
+	    "'git <command> [<revision>...] -- [<file>...]'", arg);

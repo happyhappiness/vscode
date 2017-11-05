@@ -1,1 +1,2 @@
-error("object file %s is empty", path);
+die("BUG: unknown ref type %d of ref %s",
+		    ref_type(refname), refname);

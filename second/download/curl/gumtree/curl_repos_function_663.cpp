@@ -137,4 +137,65 @@ static int select_ws(int nfds, fd_set *readfds, fd_set *writefds,
       }
       else if(fds == fileno(stdout) || fds == fileno(stderr)) {
         /* stdout and stderr are never ready for read or exceptional */
-        
+        FD_CLR(sock, readfds);
+        FD_CLR(sock, exceptfds);
+      }
+      else {
+        /* try to handle the event with the WINSOCK2 functions */
+        wsanetevents.lNetworkEvents = 0;
+        error = WSAEnumNetworkEvents(fds, handle, &wsanetevents);
+        if(error != SOCKET_ERROR) {
+          /* remove from descriptor set if not ready for read/accept/close */
+          if(!(wsanetevents.lNetworkEvents & (FD_READ|FD_ACCEPT|FD_CLOSE)))
+            FD_CLR(sock, readfds);
+
+          /* remove from descriptor set if not ready for write/connect */
+          if(!(wsanetevents.lNetworkEvents & (FD_WRITE|FD_CONNECT)))
+            FD_CLR(sock, writefds);
+
+          /* HACK:
+           * use exceptfds together with readfds to signal
+           * that the connection was closed by the client.
+           *
+           * Reason: FD_CLOSE is only signaled once, sometimes
+           * at the same time as FD_READ with data being available.
+           * This means that recv/sread is not reliable to detect
+           * that the connection is closed.
+           */
+          /* remove from descriptor set if not exceptional */
+          if(!(wsanetevents.lNetworkEvents & (FD_OOB|FD_CLOSE)))
+            FD_CLR(sock, exceptfds);
+        }
+      }
+
+      /* check if the event has not been filtered using specific tests */
+      if(FD_ISSET(sock, readfds) || FD_ISSET(sock, writefds) ||
+         FD_ISSET(sock, exceptfds)) {
+        ret++;
+      }
+    }
+    else {
+      /* remove from all descriptor sets since this handle did not trigger */
+      FD_CLR(sock, readfds);
+      FD_CLR(sock, writefds);
+      FD_CLR(sock, exceptfds);
+    }
+  }
+
+  for(idx = 0; idx < wsa; idx++) {
+    WSAEventSelect(data[idx].wsasock, NULL, 0);
+    WSACloseEvent(data[idx].wsaevent);
+  }
+
+  for(idx = 0; idx < thd; idx++) {
+    WaitForSingleObject(data[idx].thread, INFINITE);
+    CloseHandle(data[idx].thread);
+  }
+
+  CloseHandle(waitevent);
+
+  free(handles);
+  free(data);
+
+  return ret;
+}

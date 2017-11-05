@@ -1,1 +1,1 @@
-ap_rputs("\"<b><code>_</code></b>\" Waiting for Connection, \n", r);
+ap_rvputs(r, "<tr>\n<td>", (*worker)->scheme, "</td>", NULL);

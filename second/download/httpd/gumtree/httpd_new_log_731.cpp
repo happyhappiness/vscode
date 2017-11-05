@@ -1,1 +1,1 @@
-ap_rputs(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n", r);
+printf("%s\n", pks->cert_files[i]);

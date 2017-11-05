@@ -1,110 +1,72 @@
-static void init_pathspec_item(struct pathspec_item *item, unsigned flags,
-			       const char *prefix, int prefixlen,
-			       const char *elt)
+static void create_note(const unsigned char *object, struct msg_arg *msg,
+			int append_only, const unsigned char *prev,
+			unsigned char *result)
 {
-	unsigned magic = 0, element_magic = 0;
-	const char *copyfrom = elt;
-	char *match;
-	int pathspec_prefix = -1;
+	char *path = NULL;
 
-	item->attr_check = NULL;
-	item->attr_match = NULL;
-	item->attr_match_nr = 0;
+	if (msg->use_editor || !msg->given) {
+		int fd;
+		struct strbuf buf = STRBUF_INIT;
 
-	/* PATHSPEC_LITERAL_PATH ignores magic */
-	if (flags & PATHSPEC_LITERAL_PATH) {
-		magic = PATHSPEC_LITERAL;
-	} else {
-		copyfrom = parse_element_magic(&element_magic,
-					       &pathspec_prefix,
-					       item,
-					       elt);
-		magic |= element_magic;
-		magic |= get_global_magic(element_magic);
+		/* write the template message before editing: */
+		path = git_pathdup("NOTES_EDITMSG");
+		fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+		if (fd < 0)
+			die_errno(_("could not create file '%s'"), path);
+
+		if (msg->given)
+			write_or_die(fd, msg->buf.buf, msg->buf.len);
+		else if (prev && !append_only)
+			write_note_data(fd, prev);
+
+		strbuf_addch(&buf, '\n');
+		strbuf_add_commented_lines(&buf, note_template, strlen(note_template));
+		strbuf_addch(&buf, '\n');
+		write_or_die(fd, buf.buf, buf.len);
+
+		write_commented_object(fd, object);
+
+		close(fd);
+		strbuf_release(&buf);
+		strbuf_reset(&(msg->buf));
+
+		if (launch_editor(path, &(msg->buf), NULL)) {
+			die(_("Please supply the note contents using either -m" \
+			    " or -F option"));
+		}
+		stripspace(&(msg->buf), 1);
 	}
 
-	item->magic = magic;
+	if (prev && append_only) {
+		/* Append buf to previous note contents */
+		unsigned long size;
+		enum object_type type;
+		char *prev_buf = read_sha1_file(prev, &type, &size);
 
-	if (pathspec_prefix >= 0 &&
-	    (prefixlen || (prefix && *prefix)))
-		die("BUG: 'prefix' magic is supposed to be used at worktree's root");
-
-	if ((magic & PATHSPEC_LITERAL) && (magic & PATHSPEC_GLOB))
-		die(_("%s: 'literal' and 'glob' are incompatible"), elt);
-
-	/* Create match string which will be used for pathspec matching */
-	if (pathspec_prefix >= 0) {
-		match = xstrdup(copyfrom);
-		prefixlen = pathspec_prefix;
-	} else if (magic & PATHSPEC_FROMTOP) {
-		match = xstrdup(copyfrom);
-		prefixlen = 0;
-	} else {
-		match = prefix_path_gently(prefix, prefixlen,
-					   &prefixlen, copyfrom);
-		if (!match)
-			die(_("%s: '%s' is outside repository"), elt, copyfrom);
+		strbuf_grow(&(msg->buf), size + 1);
+		if (msg->buf.len && prev_buf && size)
+			strbuf_insert(&(msg->buf), 0, "\n", 1);
+		if (prev_buf && size)
+			strbuf_insert(&(msg->buf), 0, prev_buf, size);
+		free(prev_buf);
 	}
 
-	item->match = match;
-	item->len = strlen(item->match);
-	item->prefix = prefixlen;
-
-	/*
-	 * Prefix the pathspec (keep all magic) and assign to
-	 * original. Useful for passing to another command.
-	 */
-	if ((flags & PATHSPEC_PREFIX_ORIGIN) &&
-	    !get_literal_global()) {
-		struct strbuf sb = STRBUF_INIT;
-
-		/* Preserve the actual prefix length of each pattern */
-		prefix_magic(&sb, prefixlen, element_magic);
-
-		strbuf_addstr(&sb, match);
-		item->original = strbuf_detach(&sb, NULL);
+	if (!msg->buf.len) {
+		fprintf(stderr, _("Removing note for object %s\n"),
+			sha1_to_hex(object));
+		hashclr(result);
 	} else {
-		item->original = xstrdup(elt);
+		if (write_sha1_file(msg->buf.buf, msg->buf.len, blob_type, result)) {
+			error(_("unable to write note object"));
+			if (path)
+				error(_("The note contents have been left in %s"),
+				      path);
+			exit(128);
+		}
 	}
 
-	if (flags & PATHSPEC_STRIP_SUBMODULE_SLASH_CHEAP)
-		strip_submodule_slash_cheap(item);
-
-	if (flags & PATHSPEC_STRIP_SUBMODULE_SLASH_EXPENSIVE)
-		strip_submodule_slash_expensive(item);
-
-	if (magic & PATHSPEC_LITERAL) {
-		item->nowildcard_len = item->len;
-	} else {
-		item->nowildcard_len = simple_length(item->match);
-		if (item->nowildcard_len < prefixlen)
-			item->nowildcard_len = prefixlen;
-	}
-
-	item->flags = 0;
-	if (magic & PATHSPEC_GLOB) {
-		/*
-		 * FIXME: should we enable ONESTAR in _GLOB for
-		 * pattern "* * / * . c"?
-		 */
-	} else {
-		if (item->nowildcard_len < item->len &&
-		    item->match[item->nowildcard_len] == '*' &&
-		    no_wildcard(item->match + item->nowildcard_len + 1))
-			item->flags |= PATHSPEC_ONESTAR;
-	}
-
-	/* sanity checks, pathspec matchers assume these are sane */
-	if (item->nowildcard_len > item->len ||
-	    item->prefix         > item->len) {
-		/*
-		 * This case can be triggered by the user pointing us to a
-		 * pathspec inside a submodule, which is an input error.
-		 * Detect that here and complain, but fallback in the
-		 * non-submodule case to a BUG, as we have no idea what
-		 * would trigger that.
-		 */
-		die_inside_submodule_path(item);
-		die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");
+	if (path) {
+		unlink_or_warn(path);
+		free(path);
 	}
 }

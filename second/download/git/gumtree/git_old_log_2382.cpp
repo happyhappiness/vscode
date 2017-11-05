@@ -1,1 +1,1 @@
-fprintf(fout, "Author: %s\n", name.buf);
+error("unable to create temporary file: %s", strerror(errno));

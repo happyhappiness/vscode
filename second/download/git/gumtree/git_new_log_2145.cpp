@@ -1,1 +1,1 @@
-die("Missing '=': '%s'", buf);
+die(_("unrecognized %%(objectname) argument: %s"), arg);

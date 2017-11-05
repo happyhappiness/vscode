@@ -1,1 +1,1 @@
-die(_("invalid --decorate option: %s"), arg);
+error("invalid key pattern: %s", key_);

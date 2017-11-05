@@ -1,1 +1,1 @@
-error("flush packet write failed");
+strbuf_reset(resolved);

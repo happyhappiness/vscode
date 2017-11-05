@@ -1,47 +1,111 @@
-static int log_ref_write(const char *refname, const unsigned char *old_sha1,
-			 const unsigned char *new_sha1, const char *msg)
+void wt_status_print(struct wt_status *s)
 {
-	int logfd, result, written, oflags = O_APPEND | O_WRONLY;
-	unsigned maxlen, len;
-	int msglen;
-	char log_file[PATH_MAX];
-	char *logrec;
-	const char *committer;
+	const char *branch_color = color(WT_STATUS_ONBRANCH, s);
+	const char *branch_status_color = color(WT_STATUS_HEADER, s);
+	struct wt_status_state state;
 
-	if (log_all_ref_updates < 0)
-		log_all_ref_updates = !is_bare_repository();
+	memset(&state, 0, sizeof(state));
+	wt_status_get_state(&state,
+			    s->branch && !strcmp(s->branch, "HEAD"));
 
-	result = log_ref_setup(refname, log_file, sizeof(log_file));
-	if (result)
-		return result;
-
-	logfd = open(log_file, oflags);
-	if (logfd < 0)
-		return 0;
-	msglen = msg ? strlen(msg) : 0;
-	committer = git_committer_info(0);
-	maxlen = strlen(committer) + msglen + 100;
-	logrec = xmalloc(maxlen);
-	len = sprintf(logrec, "%s %s %s\n",
-		      sha1_to_hex(old_sha1),
-		      sha1_to_hex(new_sha1),
-		      committer);
-	if (msglen)
-		len += copy_msg(logrec + len - 1, msg) - 1;
-	written = len <= maxlen ? write_in_full(logfd, logrec, len) : -1;
-	free(logrec);
-	if (written != len) {
-		int save_errno = errno;
-		close(logfd);
-		error("Unable to append to %s", log_file);
-		errno = save_errno;
-		return -1;
+	if (s->branch) {
+		const char *on_what = _("On branch ");
+		const char *branch_name = s->branch;
+		if (starts_with(branch_name, "refs/heads/"))
+			branch_name += 11;
+		else if (!strcmp(branch_name, "HEAD")) {
+			branch_status_color = color(WT_STATUS_NOBRANCH, s);
+			if (state.rebase_in_progress || state.rebase_interactive_in_progress) {
+				on_what = _("rebase in progress; onto ");
+				branch_name = state.onto;
+			} else if (state.detached_from) {
+				unsigned char sha1[20];
+				branch_name = state.detached_from;
+				if (!get_sha1("HEAD", sha1) &&
+				    !hashcmp(sha1, state.detached_sha1))
+					on_what = _("HEAD detached at ");
+				else
+					on_what = _("HEAD detached from ");
+			} else {
+				branch_name = "";
+				on_what = _("Not currently on any branch.");
+			}
+		}
+		status_printf(s, color(WT_STATUS_HEADER, s), "");
+		status_printf_more(s, branch_status_color, "%s", on_what);
+		status_printf_more(s, branch_color, "%s\n", branch_name);
+		if (!s->is_initial)
+			wt_status_print_tracking(s);
 	}
-	if (close(logfd)) {
-		int save_errno = errno;
-		error("Unable to append to %s", log_file);
-		errno = save_errno;
-		return -1;
+
+	wt_status_print_state(s, &state);
+	free(state.branch);
+	free(state.onto);
+	free(state.detached_from);
+
+	if (s->is_initial) {
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), "");
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));
+		status_printf_ln(s, color(WT_STATUS_HEADER, s), "");
 	}
-	return 0;
+
+	wt_status_print_updated(s);
+	wt_status_print_unmerged(s);
+	wt_status_print_changed(s);
+	if (s->submodule_summary &&
+	    (!s->ignore_submodule_arg ||
+	     strcmp(s->ignore_submodule_arg, "all"))) {
+		wt_status_print_submodule_summary(s, 0);  /* staged */
+		wt_status_print_submodule_summary(s, 1);  /* unstaged */
+	}
+	if (s->show_untracked_files) {
+		wt_status_print_other(s, &s->untracked, _("Untracked files"), "add");
+		if (s->show_ignored_files)
+			wt_status_print_other(s, &s->ignored, _("Ignored files"), "add -f");
+		if (advice_status_u_option && 2000 < s->untracked_in_ms) {
+			status_printf_ln(s, GIT_COLOR_NORMAL, "");
+			status_printf_ln(s, GIT_COLOR_NORMAL,
+					 _("It took %.2f seconds to enumerate untracked files. 'status -uno'\n"
+					   "may speed it up, but you have to be careful not to forget to add\n"
+					   "new files yourself (see 'git help status')."),
+					 s->untracked_in_ms / 1000.0);
+		}
+	} else if (s->commitable)
+		status_printf_ln(s, GIT_COLOR_NORMAL, _("Untracked files not listed%s"),
+			s->hints
+			? _(" (use -u option to show untracked files)") : "");
+
+	if (s->verbose)
+		wt_status_print_verbose(s);
+	if (!s->commitable) {
+		if (s->amend)
+			status_printf_ln(s, GIT_COLOR_NORMAL, _("No changes"));
+		else if (s->nowarn)
+			; /* nothing */
+		else if (s->workdir_dirty) {
+			if (s->hints)
+				printf(_("no changes added to commit "
+					 "(use \"git add\" and/or \"git commit -a\")\n"));
+			else
+				printf(_("no changes added to commit\n"));
+		} else if (s->untracked.nr) {
+			if (s->hints)
+				printf(_("nothing added to commit but untracked files "
+					 "present (use \"git add\" to track)\n"));
+			else
+				printf(_("nothing added to commit but untracked files present\n"));
+		} else if (s->is_initial) {
+			if (s->hints)
+				printf(_("nothing to commit (create/copy files "
+					 "and use \"git add\" to track)\n"));
+			else
+				printf(_("nothing to commit\n"));
+		} else if (!s->show_untracked_files) {
+			if (s->hints)
+				printf(_("nothing to commit (use -u to show untracked files)\n"));
+			else
+				printf(_("nothing to commit\n"));
+		} else
+			printf(_("nothing to commit, working directory clean\n"));
+	}
 }

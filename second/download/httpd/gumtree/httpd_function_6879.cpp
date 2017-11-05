@@ -1,17 +1,30 @@
-static apr_status_t dispatch_master(h2_session *session) {
-    apr_status_t status;
-    
-    status = h2_mplx_dispatch_master_events(session->mplx, 
-                                            on_stream_resume, session);
-    if (status == APR_EAGAIN) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, session->c,
-                      H2_SSSN_MSG(session, "no master event available"));
+static char* process_tags(header_entry *hdr, request_rec *r)
+{
+    int i;
+    const char *s;
+    char *str = NULL;
+    format_tag *tag = NULL;
+
+    if (hdr->expr_out) { 
+        const char *err;
+        const char *val;
+        val = ap_expr_str_exec(r, hdr->expr_out, &err);
+        if (err) { 
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02557)
+                          "Can't evaluate value expression: %s", err);
+            return "";
+        }
+        return apr_pstrdup(r->pool, val);
     }
-    else if (status != APR_SUCCESS) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, session->c,
-                      H2_SSSN_MSG(session, "dispatch error"));
-        dispatch_event(session, H2_SESSION_EV_CONN_ERROR, 
-                       H2_ERR_INTERNAL_ERROR, "dispatch error");
+
+    tag = (format_tag*) hdr->ta->elts;
+
+    for (i = 0; i < hdr->ta->nelts; i++) {
+        s = tag[i].func(r, tag[i].arg);
+        if (str == NULL)
+            str = apr_pstrdup(r->pool, s);
+        else
+            str = apr_pstrcat(r->pool, str, s, NULL);
     }
-    return status;
+    return str ? str : "";
 }

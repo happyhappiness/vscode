@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%s): task_done, stream still open", 
-                          task->id);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                                  "... did not match '%s'", *type);

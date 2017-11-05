@@ -1,2 +1,1 @@
-fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
+error("Unable to update %s", ref_name.buf);

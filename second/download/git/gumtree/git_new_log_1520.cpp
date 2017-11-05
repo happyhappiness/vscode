@@ -1,1 +1,1 @@
-die(_("%.*s is in index"), len_w_slash, src_w_slash);
+die_errno(_("could not open '%s' for reading"), filename);

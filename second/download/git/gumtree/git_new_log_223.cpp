@@ -1,1 +1,2 @@
-die("BUG: check_apply_state() failed");
+die("--batch-all-objects cannot be combined with "
+			    "--textconv nor with --filters");

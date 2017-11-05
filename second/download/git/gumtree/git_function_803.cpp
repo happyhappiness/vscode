@@ -1,20 +1,28 @@
-int cmd_submodule__helper(int argc, const char **argv, const char *prefix)
+static int prune_object(const unsigned char *sha1, const char *fullpath,
+			void *data)
 {
-	int i;
-	if (argc < 2)
-		die(_("submodule--helper subcommand must be "
-		      "called with a subcommand"));
+	struct stat st;
 
-	for (i = 0; i < ARRAY_SIZE(commands); i++) {
-		if (!strcmp(argv[1], commands[i].cmd)) {
-			if (get_super_prefix() &&
-			    !(commands[i].option & SUPPORT_SUPER_PREFIX))
-				die(_("%s doesn't support --super-prefix"),
-				    commands[i].cmd);
-			return commands[i].fn(argc - 1, argv + 1, prefix);
-		}
+	/*
+	 * Do we know about this object?
+	 * It must have been reachable
+	 */
+	if (lookup_object(sha1))
+		return 0;
+
+	if (lstat(fullpath, &st)) {
+		/* report errors, but do not stop pruning */
+		error("Could not stat '%s'", fullpath);
+		return 0;
 	}
-
-	die(_("'%s' is not a valid submodule--helper "
-	      "subcommand"), argv[1]);
+	if (st.st_mtime > expire)
+		return 0;
+	if (show_only || verbose) {
+		enum object_type type = sha1_object_info(sha1, NULL);
+		printf("%s %s\n", sha1_to_hex(sha1),
+		       (type > 0) ? typename(type) : "unknown");
+	}
+	if (!show_only)
+		unlink_or_warn(fullpath);
+	return 0;
 }

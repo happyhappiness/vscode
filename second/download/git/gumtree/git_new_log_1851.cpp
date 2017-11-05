@@ -1,1 +1,1 @@
-noindex_filespec(NULL, 0);
+strbuf_addbuf(&msg, &mi.log_message);

@@ -1,7 +1,23 @@
-void h2_session_eoc_callback(h2_session *session)
+static apr_status_t stream_pool_cleanup(void *ctx)
 {
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                  "session(%ld): cleanup and destroy", session->id);
-    apr_pool_cleanup_kill(session->pool, session, session_pool_cleanup);
-    h2_session_destroy(session);
+    h2_stream *stream = ctx;
+    apr_status_t status;
+    
+    if (stream->input) {
+        h2_beam_destroy(stream->input);
+        stream->input = NULL;
+    }
+    if (stream->files) {
+        apr_file_t *file;
+        int i;
+        for (i = 0; i < stream->files->nelts; ++i) {
+            file = APR_ARRAY_IDX(stream->files, i, apr_file_t*);
+            status = apr_file_close(file);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, stream->session->c, 
+                          "h2_stream(%ld-%d): destroy, closed file %d", 
+                          stream->session->id, stream->id, i);
+        }
+        stream->files = NULL;
+    }
+    return APR_SUCCESS;
 }

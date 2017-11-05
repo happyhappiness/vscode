@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL, APLOGNO(00042)
-                     "apr_MD5InitEBCDIC() failed");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn, APLOGNO()
+                      "h2_request(%d): access_status=%d, request_create failed",
+                      req->id, access_status);

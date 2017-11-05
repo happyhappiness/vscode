@@ -1,21 +1,14 @@
-void parse_date_format(const char *format, struct date_mode *mode)
+static void handle_skipped_merge_base(const unsigned char *mb)
 {
-	const char *p;
+	char *mb_hex = sha1_to_hex(mb);
+	char *bad_hex = sha1_to_hex(current_bad_oid->hash);
+	char *good_hex = join_sha1_array_hex(&good_revs, ' ');
 
-	/* historical alias */
-	if (!strcmp(format, "local"))
-		format = "default-local";
-
-	mode->type = parse_date_type(format, &p);
-	mode->local = 0;
-
-	if (skip_prefix(p, "-local", &p))
-		mode->local = 1;
-
-	if (mode->type == DATE_STRFTIME) {
-		if (!skip_prefix(p, ":", &p))
-			die("date format missing colon separator: %s", format);
-		mode->strftime_fmt = xstrdup(p);
-	} else if (*p)
-		die("unknown date format %s", format);
+	warning("the merge base between %s and [%s] "
+		"must be skipped.\n"
+		"So we cannot be sure the first %s commit is "
+		"between %s and %s.\n"
+		"We continue anyway.",
+		bad_hex, good_hex, term_bad, mb_hex, bad_hex);
+	free(good_hex);
 }

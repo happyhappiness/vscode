@@ -1,1 +1,0 @@
-ap_add_output_filter(logio_filter_name, NULL, NULL, c);

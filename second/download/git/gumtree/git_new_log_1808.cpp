@@ -1,2 +1,2 @@
-status_printf_ln(s, c,
-			"--------------------------------------------------");
+status_printf_ln(s, color,
+					 _("No commands remaining."));

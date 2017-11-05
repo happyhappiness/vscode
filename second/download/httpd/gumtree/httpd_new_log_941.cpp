@@ -1,2 +1,2 @@
-apr_pstrcat(p, "Wildcard patterns not allowed in Include ",
-                               fname, NULL);
+fprintf(stderr,
+		"apr_table_overlay: base's pool is not an ancestor of p\n");

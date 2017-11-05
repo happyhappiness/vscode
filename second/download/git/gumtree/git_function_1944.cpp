@@ -1,21 +1,32 @@
-static struct ref_lock *verify_lock(struct ref_lock *lock,
-	const unsigned char *old_sha1, int mustexist)
+static void show_one_commit(struct commit *commit, int no_name)
 {
-	if (read_ref_full(lock->ref_name,
-			  mustexist ? RESOLVE_REF_READING : 0,
-			  lock->old_sha1, NULL)) {
-		int save_errno = errno;
-		error("Can't verify ref %s", lock->ref_name);
-		unlock_ref(lock);
-		errno = save_errno;
-		return NULL;
+	struct strbuf pretty = STRBUF_INIT;
+	const char *pretty_str = "(unavailable)";
+	struct commit_name *name = commit->util;
+
+	if (commit->object.parsed) {
+		pp_commit_easy(CMIT_FMT_ONELINE, commit, &pretty);
+		pretty_str = pretty.buf;
 	}
-	if (hashcmp(lock->old_sha1, old_sha1)) {
-		error("Ref %s is at %s but expected %s", lock->ref_name,
-			sha1_to_hex(lock->old_sha1), sha1_to_hex(old_sha1));
-		unlock_ref(lock);
-		errno = EBUSY;
-		return NULL;
+	if (starts_with(pretty_str, "[PATCH] "))
+		pretty_str += 8;
+
+	if (!no_name) {
+		if (name && name->head_name) {
+			printf("[%s", name->head_name);
+			if (name->generation) {
+				if (name->generation == 1)
+					printf("^");
+				else
+					printf("~%d", name->generation);
+			}
+			printf("] ");
+		}
+		else
+			printf("[%s] ",
+			       find_unique_abbrev(commit->object.sha1,
+						  DEFAULT_ABBREV));
 	}
-	return lock;
+	puts(pretty_str);
+	strbuf_release(&pretty);
 }

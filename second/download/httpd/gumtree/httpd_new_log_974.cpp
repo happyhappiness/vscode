@@ -1,1 +1,1 @@
-printf("yes (fixed process count)\n");
+print_internals(re, stdout);

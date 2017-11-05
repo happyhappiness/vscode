@@ -1,5 +1,4 @@
-die("Path '%s' is in the index, but not '%s'.\n"
-			    "Did you mean ':%d:%s' aka ':%d:./%s'?",
-			    fullname.buf, filename,
-			    ce_stage(ce), fullname.buf,
-			    ce_stage(ce), filename);
+fprintf(opt->file, "%s%s@@ -%ld,%ld +%ld,%ld @@%s\n",
+		       prefix, c_frag,
+		       p_start+1, p_end-p_start, t_start+1, t_end-t_start,
+		       c_reset);

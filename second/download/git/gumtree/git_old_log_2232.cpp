@@ -1,2 +1,1 @@
-die_errno("failed to write to %s",
-				  shallow_lock.filename.buf);
+die (_("Please, stage your changes to .gitmodules or stash them to proceed"));

@@ -1,1 +1,3 @@
-insert_one_record(log, v, oneline.buf);
+error((opts->action == REPLAY_REVERT)
+			    ? _("Cannot cherry-pick during a revert.")
+			    : _("Cannot cherry-pick during another cherry-pick."));

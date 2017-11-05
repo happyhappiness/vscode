@@ -1,42 +1,28 @@
-static int split_one(FILE *mbox, const char *name, int allow_bare)
+static void gc_config(void)
 {
-	FILE *output;
-	int fd;
-	int status = 0;
-	int is_bare = !is_from_line(buf.buf, buf.len);
+	const char *value;
 
-	if (is_bare && !allow_bare) {
-		fprintf(stderr, "corrupt mailbox\n");
-		exit(1);
+	if (!git_config_get_value("gc.packrefs", &value)) {
+		if (value && !strcmp(value, "notbare"))
+			pack_refs = -1;
+		else
+			pack_refs = git_config_bool("gc.packrefs", value);
 	}
-	fd = open(name, O_WRONLY | O_CREAT | O_EXCL, 0666);
-	if (fd < 0)
-		die_errno("cannot open output file '%s'", name);
-	output = xfdopen(fd, "w");
 
-	/* Copy it out, while searching for a line that begins with
-	 * "From " and having something that looks like a date format.
-	 */
-	for (;;) {
-		if (!keep_cr && buf.len > 1 && buf.buf[buf.len-1] == '\n' &&
-			buf.buf[buf.len-2] == '\r') {
-			strbuf_setlen(&buf, buf.len-2);
-			strbuf_addch(&buf, '\n');
-		}
+	git_config_get_int("gc.aggressivewindow", &aggressive_window);
+	git_config_get_int("gc.aggressivedepth", &aggressive_depth);
+	git_config_get_int("gc.auto", &gc_auto_threshold);
+	git_config_get_int("gc.autopacklimit", &gc_auto_pack_limit);
+	git_config_get_bool("gc.autodetach", &detach_auto);
 
-		if (fwrite(buf.buf, 1, buf.len, output) != buf.len)
-			die_errno("cannot write output");
-
-		if (strbuf_getwholeline(&buf, mbox, '\n')) {
-			if (feof(mbox)) {
-				status = 1;
-				break;
+	if (!git_config_get_string_const("gc.pruneexpire", &prune_expire)) {
+		if (strcmp(prune_expire, "now")) {
+			unsigned long now = approxidate("now");
+			if (approxidate(prune_expire) >= now) {
+				git_die_config("gc.pruneexpire", _("Invalid gc.pruneexpire: '%s'"),
+						prune_expire);
 			}
-			die_errno("cannot read mbox");
 		}
-		if (!is_bare && is_from_line(buf.buf, buf.len))
-			break; /* done with one message */
 	}
-	fclose(output);
-	return status;
+	git_config(git_default_config, NULL);
 }

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
-                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
-                  session->id, stream->id, (long)len, eos);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, status, NULL, APLOGNO(00104)
+                         "unable to start piped log program '%s'",
+                         pl->program);

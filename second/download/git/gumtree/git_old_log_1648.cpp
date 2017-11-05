@@ -1,1 +1,1 @@
-error("cannot delete '%s' from packed refs", refnames[i]);
+fprintf(stderr, "%s%s\n", prefix, msg);

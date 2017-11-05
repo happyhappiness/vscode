@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, APR_EEXIST, r->server,
-                     "Could not stat a cache lock file: %s",
-                     lockname);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, p,
+                      "Maximum new request methods %d reached while "
+                      "registering method %s.",
+                      METHOD_NUMBER_LAST, methname);

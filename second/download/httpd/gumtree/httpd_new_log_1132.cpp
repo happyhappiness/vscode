@@ -1,1 +1,3 @@
-printf("First char = \\x%02x%s\n", ch, caseless);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "Performing full renegotiation: "
+                          "complete handshake protocol");

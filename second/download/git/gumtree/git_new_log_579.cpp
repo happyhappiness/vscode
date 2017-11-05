@@ -1,1 +1,1 @@
-fputs(_(env_hint), stderr);
+die(_("could not parse %s"), git_path_abort_safety_file());

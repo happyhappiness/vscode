@@ -1,26 +1,27 @@
-static char *get_header(const struct commit *commit, const char *msg,
-			const char *key)
+static void show_diff(struct merge_list *entry)
 {
-	int key_len = strlen(key);
-	const char *line = msg;
+	unsigned long size;
+	mmfile_t src, dst;
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	xdemitcb_t ecb;
 
-	while (line) {
-		const char *eol = strchrnul(line, '\n'), *next;
+	xpp.flags = 0;
+	memset(&xecfg, 0, sizeof(xecfg));
+	xecfg.ctxlen = 3;
+	ecb.outf = show_outf;
+	ecb.priv = NULL;
 
-		if (line == eol)
-			return NULL;
-		if (!*eol) {
-			warning("malformed commit (header is missing newline): %s",
-				sha1_to_hex(commit->object.sha1));
-			next = NULL;
-		} else
-			next = eol + 1;
-		if (eol - line > key_len &&
-		    !strncmp(line, key, key_len) &&
-		    line[key_len] == ' ') {
-			return xmemdupz(line + key_len + 1, eol - line - key_len - 1);
-		}
-		line = next;
-	}
-	return NULL;
+	src.ptr = origin(entry, &size);
+	if (!src.ptr)
+		size = 0;
+	src.size = size;
+	dst.ptr = result(entry, &size);
+	if (!dst.ptr)
+		size = 0;
+	dst.size = size;
+	if (xdi_diff(&src, &dst, &xpp, &xecfg, &ecb))
+		die("unable to generate diff");
+	free(src.ptr);
+	free(dst.ptr);
 }

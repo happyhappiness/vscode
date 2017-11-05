@@ -1,1 +1,1 @@
-die("Corrupt mode in %s", oid_to_hex(oid));
+die("revision walk setup failed");

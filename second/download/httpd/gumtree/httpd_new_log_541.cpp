@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                          "Error reading request entity data");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, "unknown value "
+                              "\"%s\" to parameter \"encoding\" of tag echo in "
+                              "%s", tag_val, r->filename);

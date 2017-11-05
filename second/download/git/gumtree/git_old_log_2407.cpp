@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", name);
+error("cannot open %s: %s", filename ? filename : "NULL", strerror(errno));

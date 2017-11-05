@@ -1,2 +1,1 @@
-fprintf(opt->file, "%s ",
-			diff_unique_abbrev(p->two->oid.hash, opt->abbrev));
+packet_write(1, "NAK\n");

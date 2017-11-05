@@ -1,1 +1,0 @@
-die("unsupported file type %s", read_from);

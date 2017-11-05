@@ -1,1 +1,1 @@
-error("unable to write current sha1 into %s", newrefname);
+printf("%s%s\n", tok, val);

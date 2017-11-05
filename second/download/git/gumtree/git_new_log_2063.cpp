@@ -1,1 +1,1 @@
-die("a %s revision is needed", term_bad);
+die("bad %s argument: %s", opt, arg);

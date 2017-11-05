@@ -1,1 +1,1 @@
-die(_("no email was given and auto-detection is disabled"));
+child_die(CHILD_ERR_CHDIR);

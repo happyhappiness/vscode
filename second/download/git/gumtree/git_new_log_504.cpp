@@ -1,1 +1,2 @@
-error("read from external filter '%s' failed", cmd);
+print_ref_status('=', "[up to date]", ref,
+				 ref->peer_ref, NULL, porcelain, summary_width);

@@ -1,2 +1,1 @@
-fprintf(stderr, _("submodule '%s' cannot add alternate: %s"),
-					sas->submodule_name, err.buf);
+error_errno(_("could not lock '%s'"), todo_path);

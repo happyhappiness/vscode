@@ -1,9 +1,6 @@
-static int create_file(const char *path)
+static int fsck_cruft(const char *basename, const char *path, void *data)
 {
-	int fd;
-	path = get_mtime_path(path);
-	fd = open(path, O_CREAT | O_RDWR, 0644);
-	if (fd < 0)
-		die_errno(_("failed to create file %s"), path);
-	return fd;
+	if (!starts_with(basename, "tmp_obj_"))
+		fprintf(stderr, "bad sha1 file: %s\n", path);
+	return 0;
 }

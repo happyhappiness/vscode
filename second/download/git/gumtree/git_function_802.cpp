@@ -1,90 +1,88 @@
-static void init_submodule(const char *path, const char *prefix, int quiet)
+static void sha1_object(const void *data, struct object_entry *obj_entry,
+			unsigned long size, enum object_type type,
+			const unsigned char *sha1)
 {
-	const struct submodule *sub;
-	struct strbuf sb = STRBUF_INIT;
-	char *upd = NULL, *url = NULL, *displaypath;
+	void *new_data = NULL;
+	int collision_test_needed = 0;
 
-	/* Only loads from .gitmodules, no overlay with .git/config */
-	gitmodules_config();
+	assert(data || obj_entry);
 
-	if (prefix && get_super_prefix())
-		die("BUG: cannot have prefix and superprefix");
-	else if (prefix)
-		displaypath = xstrdup(relative_path(path, prefix, &sb));
-	else if (get_super_prefix()) {
-		strbuf_addf(&sb, "%s%s", get_super_prefix(), path);
-		displaypath = strbuf_detach(&sb, NULL);
-	} else
-		displaypath = xstrdup(path);
+	if (startup_info->have_repository) {
+		read_lock();
+		collision_test_needed = has_sha1_file_with_flags(sha1, HAS_SHA1_QUICK);
+		read_unlock();
+	}
 
-	sub = submodule_from_path(null_sha1, path);
+	if (collision_test_needed && !data) {
+		read_lock();
+		if (!check_collison(obj_entry))
+			collision_test_needed = 0;
+		read_unlock();
+	}
+	if (collision_test_needed) {
+		void *has_data;
+		enum object_type has_type;
+		unsigned long has_size;
+		read_lock();
+		has_type = sha1_object_info(sha1, &has_size);
+		if (has_type < 0)
+			die(_("cannot read existing object info %s"), sha1_to_hex(sha1));
+		if (has_type != type || has_size != size)
+			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+		has_data = read_sha1_file(sha1, &has_type, &has_size);
+		read_unlock();
+		if (!data)
+			data = new_data = get_data_from_pack(obj_entry);
+		if (!has_data)
+			die(_("cannot read existing object %s"), sha1_to_hex(sha1));
+		if (size != has_size || type != has_type ||
+		    memcmp(data, has_data, size) != 0)
+			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+		free(has_data);
+	}
 
-	if (!sub)
-		die(_("No url found for submodule path '%s' in .gitmodules"),
-			displaypath);
+	if (strict) {
+		read_lock();
+		if (type == OBJ_BLOB) {
+			struct blob *blob = lookup_blob(sha1);
+			if (blob)
+				blob->object.flags |= FLAG_CHECKED;
+			else
+				die(_("invalid blob object %s"), sha1_to_hex(sha1));
+		} else {
+			struct object *obj;
+			int eaten;
+			void *buf = (void *) data;
 
-	/*
-	 * Copy url setting when it is not set yet.
-	 * To look up the url in .git/config, we must not fall back to
-	 * .gitmodules, so look it up directly.
-	 */
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "submodule.%s.url", sub->name);
-	if (git_config_get_string(sb.buf, &url)) {
-		url = xstrdup(sub->url);
+			assert(data && "data can only be NULL for large _blobs_");
 
-		if (!url)
-			die(_("No url found for submodule path '%s' in .gitmodules"),
-				displaypath);
+			/*
+			 * we do not need to free the memory here, as the
+			 * buf is deleted by the caller.
+			 */
+			obj = parse_object_buffer(sha1, type, size, buf, &eaten);
+			if (!obj)
+				die(_("invalid %s"), typename(type));
+			if (do_fsck_object &&
+			    fsck_object(obj, buf, size, &fsck_options))
+				die(_("Error in object"));
+			if (fsck_walk(obj, NULL, &fsck_options))
+				die(_("Not all child objects of %s are reachable"), oid_to_hex(&obj->oid));
 
-		/* Possibly a url relative to parent */
-		if (starts_with_dot_dot_slash(url) ||
-		    starts_with_dot_slash(url)) {
-			char *remoteurl, *relurl;
-			char *remote = get_default_remote();
-			struct strbuf remotesb = STRBUF_INIT;
-			strbuf_addf(&remotesb, "remote.%s.url", remote);
-			free(remote);
-
-			if (git_config_get_string(remotesb.buf, &remoteurl))
-				/*
-				 * The repository is its own
-				 * authoritative upstream
-				 */
-				remoteurl = xgetcwd();
-			relurl = relative_url(remoteurl, url, NULL);
-			strbuf_release(&remotesb);
-			free(remoteurl);
-			free(url);
-			url = relurl;
+			if (obj->type == OBJ_TREE) {
+				struct tree *item = (struct tree *) obj;
+				item->buffer = NULL;
+				obj->parsed = 0;
+			}
+			if (obj->type == OBJ_COMMIT) {
+				struct commit *commit = (struct commit *) obj;
+				if (detach_commit_buffer(commit, NULL) != data)
+					die("BUG: parse_object_buffer transmogrified our buffer");
+			}
+			obj->flags |= FLAG_CHECKED;
 		}
-
-		if (git_config_set_gently(sb.buf, url))
-			die(_("Failed to register url for submodule path '%s'"),
-			    displaypath);
-		if (!quiet)
-			fprintf(stderr,
-				_("Submodule '%s' (%s) registered for path '%s'\n"),
-				sub->name, url, displaypath);
+		read_unlock();
 	}
 
-	/* Copy "update" setting when it is not set yet */
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "submodule.%s.update", sub->name);
-	if (git_config_get_string(sb.buf, &upd) &&
-	    sub->update_strategy.type != SM_UPDATE_UNSPECIFIED) {
-		if (sub->update_strategy.type == SM_UPDATE_COMMAND) {
-			fprintf(stderr, _("warning: command update mode suggested for submodule '%s'\n"),
-				sub->name);
-			upd = xstrdup("none");
-		} else
-			upd = xstrdup(submodule_strategy_to_string(&sub->update_strategy));
-
-		if (git_config_set_gently(sb.buf, upd))
-			die(_("Failed to register update mode for submodule path '%s'"), displaypath);
-	}
-	strbuf_release(&sb);
-	free(displaypath);
-	free(url);
-	free(upd);
+	free(new_data);
 }

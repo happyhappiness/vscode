@@ -1,1 +1,1 @@
-die(_("invalid date format: %s"), date_str);
+die_errno(_("open /dev/null failed"));

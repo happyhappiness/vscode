@@ -1,1 +1,2 @@
-die(_("local object %s is corrupt"), sha1_to_hex(d->base.sha1));
+warning ("Exporting signed tag %s",
+					 sha1_to_hex(tag->object.sha1));

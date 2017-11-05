@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(00053)
-                     "write pipe_of_death");
+h2_conn_io_bb_log(c, 0, APLOG_TRACE2, "master conn pass", bb);

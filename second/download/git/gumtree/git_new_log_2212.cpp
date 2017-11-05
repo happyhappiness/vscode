@@ -1,1 +1,1 @@
-die(_("Could not format %s."), git_path_todo_file());
+die("no email was given and auto-detection is disabled");

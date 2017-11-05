@@ -1,1 +1,1 @@
-strbuf_addf(&buf, "%s/", get_object_directory());
+fprintf(f, "%d\n", todo_list->total_nr);

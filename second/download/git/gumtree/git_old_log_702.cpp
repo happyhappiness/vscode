@@ -1,1 +1,1 @@
-packet_write(1, "ACK %s continue\n", hex);
+die("'git status --porcelain -uall --ignore-submodules=none' failed in submodule %s", path);

@@ -1,2 +1,2 @@
-warning("Expected git repo version <= %d, found %d",
-			GIT_REPO_VERSION, repository_format_version);
+die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), existing);

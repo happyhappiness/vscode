@@ -1,1 +1,2 @@
-die("internal error: pack revindex fubar");
+die(N_("Could not read ref %s"),
+					    (*tail)->name);

@@ -1,1 +1,1 @@
-printf("    forked:     ");
+(isprint(ch);

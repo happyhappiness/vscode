@@ -1,1 +1,1 @@
-die("unable to mark recent objects");
+die("unable to generate diff for %s", pair->one->path);

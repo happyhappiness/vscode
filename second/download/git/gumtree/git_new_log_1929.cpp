@@ -1,2 +1,1 @@
-error("unknown value after ws-error-highlight=%.*s",
-			      (int)(arg - orig_arg), orig_arg);
+parse_push_recurse_submodules_arg(opt->long_name, arg);

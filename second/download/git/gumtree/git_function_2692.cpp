@@ -1,84 +1,60 @@
-static struct untracked_cache_dir *validate_untracked_cache(struct dir_struct *dir,
-						      int base_len,
-						      const struct pathspec *pathspec)
+static int git_trailer_config(const char *conf_key, const char *value, void *cb)
 {
-	struct untracked_cache_dir *root;
+	const char *trailer_item, *variable_name;
+	struct trailer_item *item;
+	struct conf_info *conf;
+	char *name = NULL;
+	enum trailer_info_type type;
+	int i;
 
-	if (!dir->untracked || getenv("GIT_DISABLE_UNTRACKED_CACHE"))
-		return NULL;
+	if (!skip_prefix(conf_key, "trailer.", &trailer_item))
+		return 0;
 
-	/*
-	 * We only support $GIT_DIR/info/exclude and core.excludesfile
-	 * as the global ignore rule files. Any other additions
-	 * (e.g. from command line) invalidate the cache. This
-	 * condition also catches running setup_standard_excludes()
-	 * before setting dir->untracked!
-	 */
-	if (dir->unmanaged_exclude_files)
-		return NULL;
+	variable_name = strrchr(trailer_item, '.');
+	if (!variable_name)
+		return 0;
 
-	/*
-	 * Optimize for the main use case only: whole-tree git
-	 * status. More work involved in treat_leading_path() if we
-	 * use cache on just a subset of the worktree. pathspec
-	 * support could make the matter even worse.
-	 */
-	if (base_len || (pathspec && pathspec->nr))
-		return NULL;
-
-	/* Different set of flags may produce different results */
-	if (dir->flags != dir->untracked->dir_flags ||
-	    /*
-	     * See treat_directory(), case index_nonexistent. Without
-	     * this flag, we may need to also cache .git file content
-	     * for the resolve_gitlink_ref() call, which we don't.
-	     */
-	    !(dir->flags & DIR_SHOW_OTHER_DIRECTORIES) ||
-	    /* We don't support collecting ignore files */
-	    (dir->flags & (DIR_SHOW_IGNORED | DIR_SHOW_IGNORED_TOO |
-			   DIR_COLLECT_IGNORED)))
-		return NULL;
-
-	/*
-	 * If we use .gitignore in the cache and now you change it to
-	 * .gitexclude, everything will go wrong.
-	 */
-	if (dir->exclude_per_dir != dir->untracked->exclude_per_dir &&
-	    strcmp(dir->exclude_per_dir, dir->untracked->exclude_per_dir))
-		return NULL;
-
-	/*
-	 * EXC_CMDL is not considered in the cache. If people set it,
-	 * skip the cache.
-	 */
-	if (dir->exclude_list_group[EXC_CMDL].nr)
-		return NULL;
-
-	if (!ident_in_untracked(dir->untracked)) {
-		warning(_("Untracked cache is disabled on this system."));
-		return NULL;
+	variable_name++;
+	for (i = 0; i < ARRAY_SIZE(trailer_config_items); i++) {
+		if (strcmp(trailer_config_items[i].name, variable_name))
+			continue;
+		name = xstrndup(trailer_item,  variable_name - trailer_item - 1);
+		type = trailer_config_items[i].type;
+		break;
 	}
 
-	if (!dir->untracked->root) {
-		const int len = sizeof(*dir->untracked->root);
-		dir->untracked->root = xmalloc(len);
-		memset(dir->untracked->root, 0, len);
-	}
+	if (!name)
+		return 0;
 
-	/* Validate $GIT_DIR/info/exclude and core.excludesfile */
-	root = dir->untracked->root;
-	if (hashcmp(dir->ss_info_exclude.sha1,
-		    dir->untracked->ss_info_exclude.sha1)) {
-		invalidate_gitignore(dir->untracked, root);
-		dir->untracked->ss_info_exclude = dir->ss_info_exclude;
-	}
-	if (hashcmp(dir->ss_excludes_file.sha1,
-		    dir->untracked->ss_excludes_file.sha1)) {
-		invalidate_gitignore(dir->untracked, root);
-		dir->untracked->ss_excludes_file = dir->ss_excludes_file;
-	}
+	item = get_conf_item(name);
+	conf = &item->conf;
+	free(name);
 
-	/* Make sure this directory is not dropped out at saving phase */
-	root->recurse = 1;
-	return root;
+	switch (type) {
+	case TRAILER_KEY:
+		if (conf->key)
+			warning(_("more than one %s"), conf_key);
+		conf->key = xstrdup(value);
+		break;
+	case TRAILER_COMMAND:
+		if (conf->command)
+			warning(_("more than one %s"), conf_key);
+		conf->command = xstrdup(value);
+		break;
+	case TRAILER_WHERE:
+		if (set_where(conf, value))
+			warning(_("unknown value '%s' for key '%s'"), value, conf_key);
+		break;
+	case TRAILER_IF_EXISTS:
+		if (set_if_exists(conf, value))
+			warning(_("unknown value '%s' for key '%s'"), value, conf_key);
+		break;
+	case TRAILER_IF_MISSING:
+		if (set_if_missing(conf, value))
+			warning(_("unknown value '%s' for key '%s'"), value, conf_key);
+		break;
+	default:
+		die("internal bug in trailer.c");
+	}
+	return 0;
 }

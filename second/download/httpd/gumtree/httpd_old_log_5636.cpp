@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00373)
-                        "%s: OpenService failed", mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                 "%s(): BufferOverflowException %" APR_SIZE_T_FMT
+                 " %" APR_SIZE_T_FMT,
+                 context, msg->pos, msg->len);

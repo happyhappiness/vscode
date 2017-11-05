@@ -1,1 +1,1 @@
-die("BUG: could not get submodule information for '%s'", path);
+fputs("\n", s->fp);

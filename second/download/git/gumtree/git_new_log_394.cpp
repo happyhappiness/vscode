@@ -1,1 +1,1 @@
-die(_("Negative depth in --deepen is not supported"));
+die(_("Server does not support --shallow-exclude"));

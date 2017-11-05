@@ -1,1 +1,1 @@
-(fprintf(fp, "%s	%s\n", oid_to_hex(oid), path) <;
+printf("HEAD %s\n", sha1_to_hex(wt->head_sha1));

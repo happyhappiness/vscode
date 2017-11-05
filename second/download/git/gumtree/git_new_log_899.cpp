@@ -1,1 +1,1 @@
-die(_("could not lookup name for submodule '%s'"), path);
+packet_buf_write(&req_buf, "%s", item->string);

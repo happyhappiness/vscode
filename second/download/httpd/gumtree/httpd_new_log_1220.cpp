@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "%s: could not determine temp dir" NL,
-                        argv[0]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);

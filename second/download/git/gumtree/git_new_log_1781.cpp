@@ -1,1 +1,1 @@
-die("BUG: create called without valid new_sha1");
+die("Invalid gitfile format: %s", path);

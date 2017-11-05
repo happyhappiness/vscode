@@ -1,2 +1,2 @@
-error("Out of memory, malloc failed (tried to allocate %lu bytes)",
-				      (unsigned long)size);
+die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), existing);

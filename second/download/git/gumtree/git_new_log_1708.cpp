@@ -1,1 +1,1 @@
-die("BUG: unable to parse our own ident: %s", buf->buf);
+die_errno("unable to dup file descriptor");

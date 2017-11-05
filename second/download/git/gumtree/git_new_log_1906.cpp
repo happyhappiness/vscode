@@ -1,2 +1,1 @@
-fprintf_ln(stderr,_("directory stat info does not "
-				    "change after adding a new file"));
+die(_("Not all child objects of %s are reachable"), oid_to_hex(&obj->oid));

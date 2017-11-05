@@ -1,1 +1,1 @@
-error(_("%s: %s"), name, strerror(errno));
+die("Failed to resolve NOTES_MERGE_REF");

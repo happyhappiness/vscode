@@ -1,2 +1,1 @@
-fprintf(o->file, "%sBinary files %s and %s differ\n",
-				line_prefix, lbl[0], lbl[1]);
+packet_write(fd, "shallow %s\n", oid_to_hex(&graft->oid));

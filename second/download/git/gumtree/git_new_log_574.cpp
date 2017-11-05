@@ -1,2 +1,2 @@
-warning("Unknown delegation method '%s': using default",
-				curl_deleg);
+warning("adding alternate object store: %s",
+					target.buf);

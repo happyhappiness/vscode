@@ -1,31 +1,30 @@
-static int git_pack_config(const char *k, const char *v, void *cb)
+int write_file(const char *path, int fatal, const char *fmt, ...)
 {
-	if (!strcmp(k, "pack.depth")) {
-		max_depth = git_config_int(k, v);
-		if (max_depth > MAX_DEPTH)
-			max_depth = MAX_DEPTH;
-		return 0;
+	struct strbuf sb = STRBUF_INIT;
+	va_list params;
+	int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0666);
+	if (fd < 0) {
+		if (fatal)
+			die_errno(_("could not open %s for writing"), path);
+		return -1;
 	}
-	if (!strcmp(k, "pack.compression")) {
-		int level = git_config_int(k, v);
-		if (level == -1)
-			level = Z_DEFAULT_COMPRESSION;
-		else if (level < 0 || level > Z_BEST_COMPRESSION)
-			die("bad pack compression level %d", level);
-		pack_compression_level = level;
-		pack_compression_seen = 1;
-		return 0;
+	va_start(params, fmt);
+	strbuf_vaddf(&sb, fmt, params);
+	va_end(params);
+	if (write_in_full(fd, sb.buf, sb.len) != sb.len) {
+		int err = errno;
+		close(fd);
+		strbuf_release(&sb);
+		errno = err;
+		if (fatal)
+			die_errno(_("could not write to %s"), path);
+		return -1;
 	}
-	if (!strcmp(k, "pack.indexversion")) {
-		pack_idx_opts.version = git_config_int(k, v);
-		if (pack_idx_opts.version > 2)
-			die("bad pack.indexversion=%"PRIu32,
-			    pack_idx_opts.version);
-		return 0;
+	strbuf_release(&sb);
+	if (close(fd)) {
+		if (fatal)
+			die_errno(_("could not close %s"), path);
+		return -1;
 	}
-	if (!strcmp(k, "pack.packsizelimit")) {
-		max_packsize = git_config_ulong(k, v);
-		return 0;
-	}
-	return git_default_config(k, v, cb);
+	return 0;
 }

@@ -1,3 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
-                  "h2_request(%d): rwrite %s host=%s://%s%s",
-                  req->id, req->method, req->scheme, req->authority, req->path);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01476)
+                          "request details scope:%u, filename:%s, function:%s",
+                          spec->scope,
+                          spec->file,
+                          hook_spec->function_name ? hook_spec->function_name : "-");

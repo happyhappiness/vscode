@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                         (startup ? NULL : s),
-                         "could not open pipe-of-death");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00036)
+                              "access to %s failed (filesystem path '%s')", 
+                              r->uri, r->filename);

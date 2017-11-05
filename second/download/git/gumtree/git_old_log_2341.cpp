@@ -1,2 +1,1 @@
-printf("%s %s\n",
-		       sha1_to_hex(ref->old_sha1), ref->name);
+error(_("'%s': short read %s"), filename, strerror(errno));

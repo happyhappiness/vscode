@@ -1,1 +1,3 @@
-ap_rputs(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n", r);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+          "proxy: all workers are busy.  Unable to serve %s",
+          *url);

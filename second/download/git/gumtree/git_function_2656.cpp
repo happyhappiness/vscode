@@ -1,148 +1,73 @@
-struct child_process *git_connect(int fd[2], const char *url,
-				  const char *prog, int flags)
+int merge_trees(struct merge_options *o,
+		struct tree *head,
+		struct tree *merge,
+		struct tree *common,
+		struct tree **result)
 {
-	char *hostandport, *path;
-	struct child_process *conn = &no_fork;
-	enum protocol protocol;
-	struct strbuf cmd = STRBUF_INIT;
+	int code, clean;
 
-	/* Without this we cannot rely on waitpid() to tell
-	 * what happened to our children.
-	 */
-	signal(SIGCHLD, SIG_DFL);
-
-	protocol = parse_connect_url(url, &hostandport, &path);
-	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
-		printf("Diag: url=%s\n", url ? url : "NULL");
-		printf("Diag: protocol=%s\n", prot_name(protocol));
-		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
-		printf("Diag: path=%s\n", path ? path : "NULL");
-		conn = NULL;
-	} else if (protocol == PROTO_GIT) {
-		/*
-		 * Set up virtual host information based on where we will
-		 * connect, unless the user has overridden us in
-		 * the environment.
-		 */
-		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
-		if (target_host)
-			target_host = xstrdup(target_host);
-		else
-			target_host = xstrdup(hostandport);
-
-		transport_check_allowed("git");
-
-		/* These underlying connection commands die() if they
-		 * cannot connect.
-		 */
-		if (git_use_proxy(hostandport))
-			conn = git_proxy_connect(fd, hostandport);
-		else
-			git_tcp_connect(fd, hostandport, flags);
-		/*
-		 * Separate original protocol components prog and path
-		 * from extended host header with a NUL byte.
-		 *
-		 * Note: Do not add any other headers here!  Doing so
-		 * will cause older git-daemon servers to crash.
-		 */
-		packet_write(fd[1],
-			     "%s %s%chost=%s%c",
-			     prog, path, 0,
-			     target_host, 0);
-		free(target_host);
-	} else {
-		conn = xmalloc(sizeof(*conn));
-		child_process_init(conn);
-
-		if (looks_like_command_line_option(path))
-			die("strange pathname '%s' blocked", path);
-
-		strbuf_addstr(&cmd, prog);
-		strbuf_addch(&cmd, ' ');
-		sq_quote_buf(&cmd, path);
-
-		/* remove repo-local variables from the environment */
-		conn->env = local_repo_env;
-		conn->use_shell = 1;
-		conn->in = conn->out = -1;
-		if (protocol == PROTO_SSH) {
-			const char *ssh;
-			int putty = 0, tortoiseplink = 0;
-			char *ssh_host = hostandport;
-			const char *port = NULL;
-			transport_check_allowed("ssh");
-			get_host_and_port(&ssh_host, &port);
-
-			if (!port)
-				port = get_port(ssh_host);
-
-			if (flags & CONNECT_DIAG_URL) {
-				printf("Diag: url=%s\n", url ? url : "NULL");
-				printf("Diag: protocol=%s\n", prot_name(protocol));
-				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
-				printf("Diag: port=%s\n", port ? port : "NONE");
-				printf("Diag: path=%s\n", path ? path : "NULL");
-
-				free(hostandport);
-				free(path);
-				free(conn);
-				return NULL;
-			}
-
-			if (looks_like_command_line_option(ssh_host))
-				die("strange hostname '%s' blocked", ssh_host);
-
-			ssh = getenv("GIT_SSH_COMMAND");
-			if (!ssh) {
-				const char *base;
-				char *ssh_dup;
-
-				/*
-				 * GIT_SSH is the no-shell version of
-				 * GIT_SSH_COMMAND (and must remain so for
-				 * historical compatibility).
-				 */
-				conn->use_shell = 0;
-
-				ssh = getenv("GIT_SSH");
-				if (!ssh)
-					ssh = "ssh";
-
-				ssh_dup = xstrdup(ssh);
-				base = basename(ssh_dup);
-
-				tortoiseplink = !strcasecmp(base, "tortoiseplink") ||
-					!strcasecmp(base, "tortoiseplink.exe");
-				putty = tortoiseplink ||
-					!strcasecmp(base, "plink") ||
-					!strcasecmp(base, "plink.exe");
-
-				free(ssh_dup);
-			}
-
-			argv_array_push(&conn->args, ssh);
-			if (tortoiseplink)
-				argv_array_push(&conn->args, "-batch");
-			if (port) {
-				/* P is for PuTTY, p is for OpenSSH */
-				argv_array_push(&conn->args, putty ? "-P" : "-p");
-				argv_array_push(&conn->args, port);
-			}
-			argv_array_push(&conn->args, ssh_host);
-		} else {
-			transport_check_allowed("file");
-		}
-		argv_array_push(&conn->args, cmd.buf);
-
-		if (start_command(conn))
-			die("unable to fork");
-
-		fd[0] = conn->out; /* read from child's stdout */
-		fd[1] = conn->in;  /* write to child's stdin */
-		strbuf_release(&cmd);
+	if (o->subtree_shift) {
+		merge = shift_tree_object(head, merge, o->subtree_shift);
+		common = shift_tree_object(head, common, o->subtree_shift);
 	}
-	free(hostandport);
-	free(path);
-	return conn;
+
+	if (sha_eq(common->object.oid.hash, merge->object.oid.hash)) {
+		output(o, 0, _("Already up-to-date!"));
+		*result = head;
+		return 1;
+	}
+
+	code = git_merge_trees(o->call_depth, common, head, merge);
+
+	if (code != 0) {
+		if (show(o, 4) || o->call_depth)
+			die(_("merging of trees %s and %s failed"),
+			    oid_to_hex(&head->object.oid),
+			    oid_to_hex(&merge->object.oid));
+		else
+			exit(128);
+	}
+
+	if (unmerged_cache()) {
+		struct string_list *entries, *re_head, *re_merge;
+		int i;
+		string_list_clear(&o->current_file_set, 1);
+		string_list_clear(&o->current_directory_set, 1);
+		get_files_dirs(o, head);
+		get_files_dirs(o, merge);
+
+		entries = get_unmerged();
+		record_df_conflict_files(o, entries);
+		re_head  = get_renames(o, head, common, head, merge, entries);
+		re_merge = get_renames(o, merge, common, head, merge, entries);
+		clean = process_renames(o, re_head, re_merge);
+		for (i = entries->nr-1; 0 <= i; i--) {
+			const char *path = entries->items[i].string;
+			struct stage_data *e = entries->items[i].util;
+			if (!e->processed
+				&& !process_entry(o, path, e))
+				clean = 0;
+		}
+		for (i = 0; i < entries->nr; i++) {
+			struct stage_data *e = entries->items[i].util;
+			if (!e->processed)
+				die(_("Unprocessed path??? %s"),
+				    entries->items[i].string);
+		}
+
+		string_list_clear(re_merge, 0);
+		string_list_clear(re_head, 0);
+		string_list_clear(entries, 1);
+
+		free(re_merge);
+		free(re_head);
+		free(entries);
+	}
+	else
+		clean = 1;
+
+	if (o->call_depth)
+		*result = write_tree_from_memory(o);
+
+	return clean;
 }

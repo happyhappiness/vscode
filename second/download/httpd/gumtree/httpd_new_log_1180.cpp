@@ -1,1 +1,2 @@
-fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s,
+                 "DBD: child init failed!");

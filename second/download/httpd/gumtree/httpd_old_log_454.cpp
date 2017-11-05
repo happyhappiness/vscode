@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "gcing a cache entry");
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: pass request data failed to %pI (%s)",
+                         p_conn->addr, p_conn->name);

@@ -1,2 +1,1 @@
-error(_("git %s: failed to refresh the index"),
-				_(action_name(opts)));
+die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");

@@ -1,2 +1,4 @@
-ap_register_input_filter("H2_REQUEST", h2_filter_request_in,
-                             NULL, AP_FTYPE_PROTOCOL);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                    "Websocket: SSL Frame contained %lu bytes, "\
+                            "pushed to Lua stack", 
+                        remaining);

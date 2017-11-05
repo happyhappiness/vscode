@@ -1,1 +1,1 @@
-die("create %s: extra input: %s", refname, next);
+error("%s", buf.buf);

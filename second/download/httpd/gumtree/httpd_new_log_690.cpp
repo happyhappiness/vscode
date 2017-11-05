@@ -1,1 +1,1 @@
-(mod_info_has_cmd(cmds, dir);
+ap_rputs(apr_strfsize(worker->s->transferred, fbuf), r);

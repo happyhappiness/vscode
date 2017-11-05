@@ -1,1 +1,2 @@
-die("No path in gitfile: %s", path);
+strbuf_addf(err, "\n\t%s",
+				    format->unknown_extensions.items[i].string);

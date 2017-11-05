@@ -1,2 +1,1 @@
-error("unable to restore logfile %s from "TMP_RENAMED_LOG": %s",
-			oldrefname, strerror(errno));
+die("BUG: commit called for transaction that is not open");

@@ -1,3 +1,3 @@
-apr_file_printf(errfile, "%s: The file %s does not appear "
-                                         "to be a valid htpasswd file." NL,
-                                argv[0], pwfilename);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %*s [-k start|restart|graceful|graceful-stop|stop]",
+                 pad_len, " ");

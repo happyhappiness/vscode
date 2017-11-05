@@ -1,1 +1,0 @@
-ap_rputs(DEBUG_CR "<D:href>", r);

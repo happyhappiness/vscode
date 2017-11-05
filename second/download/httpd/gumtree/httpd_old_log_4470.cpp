@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c,
-                                      "proxy: error reading response");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, APR_EBADPATH, NULL,
+                         "%s: Invalid error log path %s.",
+                         ap_server_argv0, s->error_fname);

@@ -1,2 +1,1 @@
-error(_("Not tracking: ambiguous information for ref %s"),
-				orig_ref);
+printf("virtual %s\n", merge_remote_util(commit)->name);

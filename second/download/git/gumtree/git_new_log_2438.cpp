@@ -1,1 +1,1 @@
-printf("HEAD %s\n", sha1_to_hex(wt->head_sha1));
+error(_("Pulling is not possible because you have unmerged files."));

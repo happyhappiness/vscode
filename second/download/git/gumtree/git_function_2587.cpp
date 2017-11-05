@@ -1,12 +1,9 @@
-void show_object_with_name(FILE *out, struct object *obj,
-			   const struct name_path *path, const char *component)
+int fsck_error_function(struct object *obj, int msg_type, const char *message)
 {
-	struct name_path leaf;
-	leaf.up = (struct name_path *)path;
-	leaf.elem = component;
-	leaf.elem_len = strlen(component);
-
-	fprintf(out, "%s ", oid_to_hex(&obj->oid));
-	show_path_truncated(out, &leaf);
-	fputc('\n', out);
+	if (msg_type == FSCK_WARN) {
+		warning("object %s: %s", oid_to_hex(&obj->oid), message);
+		return 0;
+	}
+	error("object %s: %s", oid_to_hex(&obj->oid), message);
+	return 1;
 }

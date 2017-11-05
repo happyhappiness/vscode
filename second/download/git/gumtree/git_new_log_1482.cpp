@@ -1,1 +1,1 @@
-die(_("unable to write index file"));
+die("unable to generate diff for %s", name);

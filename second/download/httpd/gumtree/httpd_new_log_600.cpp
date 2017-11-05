@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                 "inflate: extra field too big (not "
-                                 "supported)");
+mod_info_show_parents(r, node->parent, from, to - 1);

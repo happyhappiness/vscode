@@ -1,1 +1,0 @@
-warning("ignoring broken ref %s.", fullref);

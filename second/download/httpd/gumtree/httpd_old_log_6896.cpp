@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, stream->session->c, 
-                          "h2_stream(%ld-%d): destroy, closed file %d", 
-                          stream->session->id, stream->id, i);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                                 "All workers busy, not accepting new conns"
+                                 "in this process");

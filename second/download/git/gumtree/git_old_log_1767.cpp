@@ -1,1 +1,1 @@
-error("Couldn't set %s", lock->ref_name);
+die(_("Error wrapping up %s."), head_file);

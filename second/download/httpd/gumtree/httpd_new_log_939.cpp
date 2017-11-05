@@ -1,3 +1,1 @@
-apr_psprintf(p, "Syntax error on line %d of %s: %s",
-                            parms.err_directive->line_num,
-                            parms.err_directive->filename, error);
+fprintf(stderr, "apr_table_addn: key not in ancestor pool of t\n");

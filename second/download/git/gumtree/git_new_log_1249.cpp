@@ -1,1 +1,1 @@
-warning(_("no threads support, ignoring --threads"));
+error(_("unrecognized argument: %s"), argv[1]);

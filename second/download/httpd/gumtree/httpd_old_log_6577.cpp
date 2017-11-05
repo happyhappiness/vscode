@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "adding task output filter");
+apr_file_printf(errfile,
+            "On other systems than Windows and NetWare the '-p' flag will "
+            "probably not work." NL);

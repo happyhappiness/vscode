@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03366)
-                      "h2_proxy_session(%s): terminated, %d streams unfinished",
-                      session->id, (int)h2_proxy_ihash_count(session->streams));
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02330)
+                                "lua: Failed to obtain lua interpreter for %s %s",
+                                function_name, filename);

@@ -1,1 +1,1 @@
-die(_("-b and -B are mutually exclusive"));
+die(_("bad config file line %d in %s"), cf->linenr, cf->name);

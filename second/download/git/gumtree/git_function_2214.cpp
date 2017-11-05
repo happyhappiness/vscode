@@ -1,20 +1,37 @@
-static void save_todo(struct commit_list *todo_list, struct replay_opts *opts)
+static char *cram(const char *challenge_64, const char *user, const char *pass)
 {
-	const char *todo_file = git_path(SEQ_TODO_FILE);
-	static struct lock_file todo_lock;
-	struct strbuf buf = STRBUF_INIT;
-	int fd;
+	int i, resp_len, encoded_len, decoded_len;
+	unsigned char hash[16];
+	char hex[33];
+	char *response, *response_64, *challenge;
 
-	fd = hold_lock_file_for_update(&todo_lock, todo_file, LOCK_DIE_ON_ERROR);
-	if (format_todo(&buf, todo_list, opts) < 0)
-		die(_("Could not format %s."), todo_file);
-	if (write_in_full(fd, buf.buf, buf.len) < 0) {
-		strbuf_release(&buf);
-		die_errno(_("Could not write to %s"), todo_file);
+	/*
+	 * length of challenge_64 (i.e. base-64 encoded string) is a good
+	 * enough upper bound for challenge (decoded result).
+	 */
+	encoded_len = strlen(challenge_64);
+	challenge = xmalloc(encoded_len);
+	decoded_len = EVP_DecodeBlock((unsigned char *)challenge,
+				      (unsigned char *)challenge_64, encoded_len);
+	if (decoded_len < 0)
+		die("invalid challenge %s", challenge_64);
+	if (!HMAC(EVP_md5(), pass, strlen(pass), (unsigned char *)challenge, decoded_len, hash, NULL))
+		die("HMAC error");
+
+	hex[32] = 0;
+	for (i = 0; i < 16; i++) {
+		hex[2 * i] = hexchar((hash[i] >> 4) & 0xf);
+		hex[2 * i + 1] = hexchar(hash[i] & 0xf);
 	}
-	if (commit_lock_file(&todo_lock) < 0) {
-		strbuf_release(&buf);
-		die(_("Error wrapping up %s."), todo_file);
-	}
-	strbuf_release(&buf);
+
+	/* response: "<user> <digest in hex>" */
+	response = xstrfmt("%s %s", user, hex);
+	resp_len = strlen(response);
+
+	response_64 = xmallocz(ENCODED_SIZE(resp_len));
+	encoded_len = EVP_EncodeBlock((unsigned char *)response_64,
+				      (unsigned char *)response, resp_len);
+	if (encoded_len < 0)
+		die("EVP_EncodeBlock error");
+	return (char *)response_64;
 }

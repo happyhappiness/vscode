@@ -1,1 +1,2 @@
-ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);
+printf("%sdebug: state %d, reading %d (%s)\n",
+                        YYPREFIX, YYFINAL, ssl_expr_yychar, ssl_expr_yys);

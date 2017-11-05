@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c, APLOGNO(03399)
-                      "h2_ngn_shed(%ld): pull task, nothing, first task %s", 
-                      shed->c->id, entry->task->id);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, APLOGNO(02313)
+                  "%s details: scope: %s, file: %s, func: %s",
+                  what, scope_to_string(spec->scope), spec->file,
+                  function ? function : "-");

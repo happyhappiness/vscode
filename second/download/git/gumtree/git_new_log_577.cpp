@@ -1,1 +1,1 @@
-fputs(_(env_hint), stderr);
+error_buf(err, _("HEAD does not point to a branch"));

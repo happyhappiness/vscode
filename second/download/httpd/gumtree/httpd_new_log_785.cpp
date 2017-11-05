@@ -1,1 +1,1 @@
-ap_rvputs(r, "<tr>\n<td>", worker->scheme, "</td>", NULL);
+ap_rputs("<b><font color=\"#ffffff\" face=\"Arial,Helvetica\">SSL/TLS Session Cache Status:</font></b>\r", r);

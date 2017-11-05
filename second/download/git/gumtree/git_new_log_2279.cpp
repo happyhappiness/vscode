@@ -1,1 +1,2 @@
-warning("No LOGIN_OPTIONS support in this cURL version");
+error_errno("Could not open %s for writing",
+					  filename);

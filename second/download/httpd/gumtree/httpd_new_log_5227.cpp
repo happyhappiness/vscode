@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
-                         ap_server_conf, APLOGNO(00356)
-                         "Child: WAIT_FAILED -- shutting down server");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, 
+                      "select protocol from %s, choices=%s for server %s", 
+                      p, apr_array_pstrcat(pool, choices, ','),
+                      s->server_hostname);

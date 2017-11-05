@@ -1,0 +1,1 @@
+printf("previous %s ", sha1_to_hex(prev->commit->object.sha1));

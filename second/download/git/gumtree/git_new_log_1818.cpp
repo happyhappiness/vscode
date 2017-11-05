@@ -1,1 +1,1 @@
-printf("Diag: protocol=%s\n", prot_name(protocol));
+die("unable to generate diff for %s", one->path);

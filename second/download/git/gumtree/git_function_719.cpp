@@ -1,111 +1,78 @@
-void wt_status_print(struct wt_status *s)
+int versioncmp(const char *s1, const char *s2)
 {
-	const char *branch_color = color(WT_STATUS_ONBRANCH, s);
-	const char *branch_status_color = color(WT_STATUS_HEADER, s);
-	struct wt_status_state state;
+	const unsigned char *p1 = (const unsigned char *) s1;
+	const unsigned char *p2 = (const unsigned char *) s2;
+	unsigned char c1, c2;
+	int state, diff;
 
-	memset(&state, 0, sizeof(state));
-	wt_status_get_state(&state,
-			    s->branch && !strcmp(s->branch, "HEAD"));
+	/*
+	 * Symbol(s)    0       [1-9]   others
+	 * Transition   (10) 0  (01) d  (00) x
+	 */
+	static const uint8_t next_state[] = {
+		/* state    x    d    0  */
+		/* S_N */  S_N, S_I, S_Z,
+		/* S_I */  S_N, S_I, S_I,
+		/* S_F */  S_N, S_F, S_F,
+		/* S_Z */  S_N, S_F, S_Z
+	};
 
-	if (s->branch) {
-		const char *on_what = _("On branch ");
-		const char *branch_name = s->branch;
-		if (!strcmp(branch_name, "HEAD")) {
-			branch_status_color = color(WT_STATUS_NOBRANCH, s);
-			if (state.rebase_in_progress || state.rebase_interactive_in_progress) {
-				if (state.rebase_interactive_in_progress)
-					on_what = _("interactive rebase in progress; onto ");
-				else
-					on_what = _("rebase in progress; onto ");
-				branch_name = state.onto;
-			} else if (state.detached_from) {
-				branch_name = state.detached_from;
-				if (state.detached_at)
-					on_what = _("HEAD detached at ");
-				else
-					on_what = _("HEAD detached from ");
-			} else {
-				branch_name = "";
-				on_what = _("Not currently on any branch.");
-			}
+	static const int8_t result_type[] = {
+		/* state   x/x  x/d  x/0  d/x  d/d  d/0  0/x  0/d  0/0  */
+
+		/* S_N */  CMP, CMP, CMP, CMP, LEN, CMP, CMP, CMP, CMP,
+		/* S_I */  CMP, -1,  -1,  +1,  LEN, LEN, +1,  LEN, LEN,
+		/* S_F */  CMP, CMP, CMP, CMP, CMP, CMP, CMP, CMP, CMP,
+		/* S_Z */  CMP, +1,  +1,  -1,  CMP, CMP, -1,  CMP, CMP
+	};
+
+	if (p1 == p2)
+		return 0;
+
+	c1 = *p1++;
+	c2 = *p2++;
+	/* Hint: '0' is a digit too.  */
+	state = S_N + ((c1 == '0') + (isdigit (c1) != 0));
+
+	while ((diff = c1 - c2) == 0) {
+		if (c1 == '\0')
+			return diff;
+
+		state = next_state[state];
+		c1 = *p1++;
+		c2 = *p2++;
+		state += (c1 == '0') + (isdigit (c1) != 0);
+	}
+
+	if (!initialized) {
+		const struct string_list *deprecated_prereleases;
+		initialized = 1;
+		prereleases = git_config_get_value_multi("versionsort.suffix");
+		deprecated_prereleases = git_config_get_value_multi("versionsort.prereleasesuffix");
+		if (prereleases) {
+			if (deprecated_prereleases)
+				warning("ignoring versionsort.prereleasesuffix because versionsort.suffix is set");
 		} else
-			skip_prefix(branch_name, "refs/heads/", &branch_name);
-		status_printf(s, color(WT_STATUS_HEADER, s), "%s", "");
-		status_printf_more(s, branch_status_color, "%s", on_what);
-		status_printf_more(s, branch_color, "%s\n", branch_name);
-		if (!s->is_initial)
-			wt_status_print_tracking(s);
+			prereleases = deprecated_prereleases;
 	}
+	if (prereleases && swap_prereleases(s1, s2, (const char *) p1 - s1 - 1,
+					    &diff))
+		return diff;
 
-	wt_status_print_state(s, &state);
-	free(state.branch);
-	free(state.onto);
-	free(state.detached_from);
+	state = result_type[state * 3 + (((c2 == '0') + (isdigit (c2) != 0)))];
 
-	if (s->is_initial) {
-		status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
-		status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));
-		status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
-	}
+	switch (state) {
+	case CMP:
+		return diff;
 
-	wt_status_print_updated(s);
-	wt_status_print_unmerged(s);
-	wt_status_print_changed(s);
-	if (s->submodule_summary &&
-	    (!s->ignore_submodule_arg ||
-	     strcmp(s->ignore_submodule_arg, "all"))) {
-		wt_status_print_submodule_summary(s, 0);  /* staged */
-		wt_status_print_submodule_summary(s, 1);  /* unstaged */
-	}
-	if (s->show_untracked_files) {
-		wt_status_print_other(s, &s->untracked, _("Untracked files"), "add");
-		if (s->show_ignored_files)
-			wt_status_print_other(s, &s->ignored, _("Ignored files"), "add -f");
-		if (advice_status_u_option && 2000 < s->untracked_in_ms) {
-			status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");
-			status_printf_ln(s, GIT_COLOR_NORMAL,
-					 _("It took %.2f seconds to enumerate untracked files. 'status -uno'\n"
-					   "may speed it up, but you have to be careful not to forget to add\n"
-					   "new files yourself (see 'git help status')."),
-					 s->untracked_in_ms / 1000.0);
-		}
-	} else if (s->commitable)
-		status_printf_ln(s, GIT_COLOR_NORMAL, _("Untracked files not listed%s"),
-			s->hints
-			? _(" (use -u option to show untracked files)") : "");
+	case LEN:
+		while (isdigit (*p1++))
+			if (!isdigit (*p2++))
+				return 1;
 
-	if (s->verbose)
-		wt_status_print_verbose(s);
-	if (!s->commitable) {
-		if (s->amend)
-			status_printf_ln(s, GIT_COLOR_NORMAL, _("No changes"));
-		else if (s->nowarn)
-			; /* nothing */
-		else if (s->workdir_dirty) {
-			if (s->hints)
-				printf(_("no changes added to commit "
-					 "(use \"git add\" and/or \"git commit -a\")\n"));
-			else
-				printf(_("no changes added to commit\n"));
-		} else if (s->untracked.nr) {
-			if (s->hints)
-				printf(_("nothing added to commit but untracked files "
-					 "present (use \"git add\" to track)\n"));
-			else
-				printf(_("nothing added to commit but untracked files present\n"));
-		} else if (s->is_initial) {
-			if (s->hints)
-				printf(_("nothing to commit (create/copy files "
-					 "and use \"git add\" to track)\n"));
-			else
-				printf(_("nothing to commit\n"));
-		} else if (!s->show_untracked_files) {
-			if (s->hints)
-				printf(_("nothing to commit (use -u to show untracked files)\n"));
-			else
-				printf(_("nothing to commit\n"));
-		} else
-			printf(_("nothing to commit, working tree clean\n"));
+		return isdigit (*p2) ? -1 : diff;
+
+	default:
+		return state;
 	}
 }

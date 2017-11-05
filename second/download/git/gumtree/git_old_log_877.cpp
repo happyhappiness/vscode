@@ -1,1 +1,2 @@
-die_errno("Error opening '%s'", path);
+die(_("ref '%s' does not have %ld components to :strip"),
+			    refname, nr);

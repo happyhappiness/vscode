@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, conn,
-                          "cannot perform OCSP validation for cert "
-                          "if issuer has not been verified "
-                          "(optional_no_ca configured)");
+ap_log_error(APLOG_MARK,APLOG_CRIT, rv, NULL,
+                     "Failed to get the full path of %s", process->argv[0]);

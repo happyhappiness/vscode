@@ -1,1 +1,1 @@
-die("no branches given, and HEAD is not valid");
+printf("sizeof-long: %d\n", (int)sizeof(long));

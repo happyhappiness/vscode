@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02440)
-                          "read %" APR_OFF_T_FMT
-                          " bytes from %s", len, name);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02937) 
+                      "h2_stream(%ld-%d): data requested but stream not found",
+                      session->id, (int)stream_id);

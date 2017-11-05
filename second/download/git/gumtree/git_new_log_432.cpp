@@ -1,1 +1,2 @@
-die(_("failed to resolve '%s' as a valid ref."), object_ref);
+die("BUG: ref_store for submodule '%s' initialized twice",
+			    submodule);

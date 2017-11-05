@@ -1,3 +1,4 @@
 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "Changed client verification locations will force "
-                      "renegotiation");
+                                  "Request header field is missing ':' "
+                                  "separator: %.*s", (int)LOG_NAME_MAX_LEN,
+                                  last_field);

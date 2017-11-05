@@ -1,2 +1,1 @@
-die(_("Unimplemented pathspec magic '%c' in '%s'"),
-			    ch, elem);
+die("remote '%s' not configured", argv[1]);

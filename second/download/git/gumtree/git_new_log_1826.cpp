@@ -1,1 +1,1 @@
-die_errno("unable to open /dev/null");
+die("--contents and --reverse do not blend well.");

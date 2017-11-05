@@ -1,10 +1,10 @@
-static void write_config(struct string_list *config)
+static int ref_resolves_to_object(struct ref_entry *entry)
 {
-	int i;
-
-	for (i = 0; i < config->nr; i++) {
-		if (git_config_parse_parameter(config->items[i].string,
-					       write_one_config, NULL) < 0)
-			die("unable to write parameters to config file");
+	if (entry->flag & REF_ISBROKEN)
+		return 0;
+	if (!has_sha1_file(entry->u.value.oid.hash)) {
+		error("%s does not point to a valid object!", entry->name);
+		return 0;
 	}
+	return 1;
 }

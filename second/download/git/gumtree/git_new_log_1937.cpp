@@ -1,1 +1,2 @@
-printf("\n%s\n", _(common_cmd_groups[common_cmds[i].group]));
+fputs(find_unique_abbrev(commit->object.oid.hash, revs->abbrev),
+		      stdout);

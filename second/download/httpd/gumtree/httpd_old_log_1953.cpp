@@ -1,1 +1,0 @@
-ap_rvputs(r, "<td>", worker->hostname, "</td><td>", NULL);

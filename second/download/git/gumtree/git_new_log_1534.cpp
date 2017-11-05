@@ -1,1 +1,1 @@
-die("malformed push certificate %.*s", 100, push_cert->buf);
+die_errno(_("failed to create directory %s"), path);

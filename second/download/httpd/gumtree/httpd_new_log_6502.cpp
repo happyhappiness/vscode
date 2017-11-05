@@ -1,2 +1,3 @@
-ap_rvputs(r, "value='", ap_escape_html(r->pool, wsel->s->redirect),
-                      NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02402)
+                             "re-grabbing shm[%d] (0x%pp) for worker: %s", i, (void *)shm,
+                             worker->s->name);

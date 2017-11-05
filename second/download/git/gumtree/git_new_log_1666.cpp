@@ -1,1 +1,1 @@
-packet_buf_write(req_buf, "push-cert%c%s", 0, cap_string);
+error(_("You have not concluded your merge (MERGE_HEAD exists)."));

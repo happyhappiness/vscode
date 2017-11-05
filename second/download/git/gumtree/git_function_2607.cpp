@@ -1,24 +1,8 @@
-static int write_one_shallow(const struct commit_graft *graft, void *cb_data)
+static void dump_diff_hacky(struct rev_info *rev, struct line_log_data *range)
 {
-	struct write_shallow_data *data = cb_data;
-	const char *hex = oid_to_hex(&graft->oid);
-	if (graft->nr_parent != -1)
-		return 0;
-	if (data->flags & SEEN_ONLY) {
-		struct commit *c = lookup_commit(graft->oid.hash);
-		if (!c || !(c->object.flags & SEEN)) {
-			if (data->flags & VERBOSE)
-				printf("Removing %s from .git/shallow\n",
-				       sha1_to_hex(c->object.sha1));
-			return 0;
-		}
+	fprintf(rev->diffopt.file, "%s\n", output_prefix(&rev->diffopt));
+	while (range) {
+		dump_diff_hacky_one(rev, range);
+		range = range->next;
 	}
-	data->count++;
-	if (data->use_pack_protocol)
-		packet_buf_write(data->out, "shallow %s", hex);
-	else {
-		strbuf_addstr(data->out, hex);
-		strbuf_addch(data->out, '\n');
-	}
-	return 0;
 }

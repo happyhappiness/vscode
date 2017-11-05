@@ -1,1 +1,1 @@
-die(_("malformed object name %s"), arg);
+fprintf(rev->diffopt.file, "%s\n", sb.buf);

@@ -1,1 +1,1 @@
-die("Error reading %s", path);
+die(_("format: %%(then) atom used after %%(else)"));

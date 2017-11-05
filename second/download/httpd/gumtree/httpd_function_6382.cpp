@@ -1,37 +1,24 @@
-static apr_status_t out_open(h2_mplx *m, int stream_id, h2_response *response,
-                             ap_filter_t* f, apr_bucket_brigade *bb,
-                             struct apr_thread_cond_t *iowait)
+static authz_status expr_check_authorization(request_rec *r,
+                                             const char *require_line,
+                                             const void *parsed_require_line)
 {
-    apr_status_t status = APR_SUCCESS;
-    
-    h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
-    if (io && !io->orphaned) {
-        if (f) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                          "h2_mplx(%ld-%d): open response: %d, rst=%d",
-                          m->id, stream_id, response->http_status, 
-                          response->rst_error);
-        }
-        
-        h2_io_set_response(io, response);
-        h2_io_set_add(m->ready_ios, io);
-        if (response && response->http_status < 300) {
-            /* we might see some file buckets in the output, see
-             * if we have enough handles reserved. */
-            check_tx_reservation(m);
-        }
-        if (bb) {
-            status = out_write(m, io, f, 0, bb, iowait);
-            if (status == APR_INCOMPLETE) {
-                /* write will have transferred as much data as possible.
-                   caller has to deal with non-empty brigade */
-                status = APR_SUCCESS;
-            }
-        }
-        have_out_data_for(m, stream_id);
+    const char *err = NULL;
+    const struct require_expr_info *info = parsed_require_line;
+    int rc = ap_expr_exec(r, info->expr, &err);
+
+    if (rc < 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02320)
+                      "Error evaluating expression in 'Require expr': %s",
+                      err);
+        return AUTHZ_GENERAL_ERROR;
+    }
+    else if (rc == 0) {
+        if (info->want_user)
+            return AUTHZ_DENIED_NO_USER;
+        else
+            return AUTHZ_DENIED;
     }
     else {
-        status = APR_ECONNABORTED;
+        return AUTHZ_GRANTED;
     }
-    return status;
 }

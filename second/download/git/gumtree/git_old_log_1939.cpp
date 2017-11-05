@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", pair->one->path);
+printf(" %s", sha1_to_hex(parents->item->object.sha1));

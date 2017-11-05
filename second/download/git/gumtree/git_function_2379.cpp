@@ -1,57 +1,65 @@
-static int handle_commit_msg(struct strbuf *line)
+static void prepare_packed_git_one(char *objdir, int local)
 {
-	static int still_looking = 1;
+	struct strbuf path = STRBUF_INIT;
+	size_t dirnamelen;
+	DIR *dir;
+	struct dirent *de;
+	struct string_list garbage = STRING_LIST_INIT_DUP;
 
-	if (!cmitmsg)
-		return 0;
-
-	if (still_looking) {
-		if (!line->len || (line->len == 1 && line->buf[0] == '\n'))
-			return 0;
+	strbuf_addstr(&path, objdir);
+	strbuf_addstr(&path, "/pack");
+	dir = opendir(path.buf);
+	if (!dir) {
+		if (errno != ENOENT)
+			error("unable to open object pack directory: %s: %s",
+			      path.buf, strerror(errno));
+		strbuf_release(&path);
+		return;
 	}
+	strbuf_addch(&path, '/');
+	dirnamelen = path.len;
+	while ((de = readdir(dir)) != NULL) {
+		struct packed_git *p;
+		size_t base_len;
 
-	if (use_inbody_headers && still_looking) {
-		still_looking = check_header(line, s_hdr_data, 0);
-		if (still_looking)
-			return 0;
-	} else
-		/* Only trim the first (blank) line of the commit message
-		 * when ignoring in-body headers.
-		 */
-		still_looking = 0;
+		if (is_dot_or_dotdot(de->d_name))
+			continue;
 
-	/* normalize the log message to UTF-8. */
-	if (metainfo_charset)
-		convert_to_utf8(line, charset.buf);
+		strbuf_setlen(&path, dirnamelen);
+		strbuf_addstr(&path, de->d_name);
 
-	if (use_scissors && is_scissors_line(line)) {
-		int i;
-		if (fseek(cmitmsg, 0L, SEEK_SET))
-			die_errno("Could not rewind output message file");
-		if (ftruncate(fileno(cmitmsg), 0))
-			die_errno("Could not truncate output message file at scissors");
-		still_looking = 1;
-
-		/*
-		 * We may have already read "secondary headers"; purge
-		 * them to give ourselves a clean restart.
-		 */
-		for (i = 0; header[i]; i++) {
-			if (s_hdr_data[i])
-				strbuf_release(s_hdr_data[i]);
-			s_hdr_data[i] = NULL;
+		base_len = path.len;
+		if (strip_suffix_mem(path.buf, &base_len, ".idx")) {
+			/* Don't reopen a pack we already have. */
+			for (p = packed_git; p; p = p->next) {
+				size_t len;
+				if (strip_suffix(p->pack_name, ".pack", &len) &&
+				    len == base_len &&
+				    !memcmp(p->pack_name, path.buf, len))
+					break;
+			}
+			if (p == NULL &&
+			    /*
+			     * See if it really is a valid .idx file with
+			     * corresponding .pack file that we can map.
+			     */
+			    (p = add_packed_git(path.buf, path.len, local)) != NULL)
+				install_packed_git(p);
 		}
-		return 0;
-	}
 
-	if (patchbreak(line)) {
-		if (message_id)
-			fprintf(cmitmsg, "Message-Id: %s\n", message_id);
-		fclose(cmitmsg);
-		cmitmsg = NULL;
-		return 1;
-	}
+		if (!report_garbage)
+			continue;
 
-	fputs(line->buf, cmitmsg);
-	return 0;
+		if (ends_with(de->d_name, ".idx") ||
+		    ends_with(de->d_name, ".pack") ||
+		    ends_with(de->d_name, ".bitmap") ||
+		    ends_with(de->d_name, ".keep"))
+			string_list_append(&garbage, path.buf);
+		else
+			report_garbage(PACKDIR_FILE_GARBAGE, path.buf);
+	}
+	closedir(dir);
+	report_pack_garbage(&garbage);
+	string_list_clear(&garbage, 0);
+	strbuf_release(&path);
 }

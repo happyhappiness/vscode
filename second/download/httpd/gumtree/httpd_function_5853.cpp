@@ -1,12 +1,19 @@
-apr_status_t h2_session_close(h2_session *session)
+apr_status_t h2_stream_set_request(h2_stream *stream, request_rec *r)
 {
-    AP_DEBUG_ASSERT(session);
-    if (!session->aborted) {
-        h2_session_abort_int(session, 0);
+    apr_status_t status;
+    AP_DEBUG_ASSERT(stream);
+    if (stream->rst_error) {
+        return APR_ECONNRESET;
     }
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0,session->c,
-                  "h2_session: closing, writing eoc");
-    
-    h2_session_cleanup(session);
-    return h2_conn_io_close(&session->io, session);           
+    set_state(stream, H2_STREAM_ST_OPEN);
+    status = h2_request_rwrite(stream->request, stream->pool, r);
+    stream->request->serialize = h2_config_geti(h2_config_rget(r), 
+                                                H2_CONF_SER_HEADERS);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
+                  "h2_request(%d): rwrite %s host=%s://%s%s",
+                  stream->request->id, stream->request->method, 
+                  stream->request->scheme, stream->request->authority, 
+                  stream->request->path);
+
+    return status;
 }

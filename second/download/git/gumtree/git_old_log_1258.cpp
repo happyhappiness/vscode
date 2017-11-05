@@ -1,1 +1,1 @@
-die(_("invalid blob object %s"), sha1_to_hex(sha1));
+die("bad zlib compression level %d", level);

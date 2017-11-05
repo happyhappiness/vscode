@@ -1,51 +1,48 @@
-static int split_mbox(const char *file, const char *dir, int allow_bare,
-		      int nr_prec, int skip)
+int async_query_available_blobs(const char *cmd, struct string_list *available_paths)
 {
-	int ret = -1;
-	int peek;
+	int err;
+	char *line;
+	struct cmd2process *entry;
+	struct child_process *process;
+	struct strbuf filter_status = STRBUF_INIT;
 
-	FILE *f = !strcmp(file, "-") ? stdin : fopen(file, "r");
-	int file_done = 0;
+	assert(subprocess_map_initialized);
+	entry = (struct cmd2process *)subprocess_find_entry(&subprocess_map, cmd);
+	if (!entry) {
+		error("external filter '%s' is not available anymore although "
+		      "not all paths have been filtered", cmd);
+		return 0;
+	}
+	process = &entry->subprocess.process;
+	sigchain_push(SIGPIPE, SIG_IGN);
 
-	if (!f) {
-		error_errno("cannot open mbox %s", file);
-		goto out;
+	err = packet_write_fmt_gently(
+		process->in, "command=list_available_blobs\n");
+	if (err)
+		goto done;
+
+	err = packet_flush_gently(process->in);
+	if (err)
+		goto done;
+
+	while ((line = packet_read_line(process->out, NULL))) {
+		const char *path;
+		if (skip_prefix(line, "pathname=", &path))
+			string_list_insert(available_paths, xstrdup(path));
+		else
+			; /* ignore unknown keys */
 	}
 
-	do {
-		peek = fgetc(f);
-		if (peek == EOF) {
-			if (f == stdin)
-				/* empty stdin is OK */
-				ret = skip;
-			else {
-				fclose(f);
-				error(_("empty mbox: '%s'"), file);
-			}
-			goto out;
-		}
-	} while (isspace(peek));
-	ungetc(peek, f);
+	err = subprocess_read_status(process->out, &filter_status);
+	if (err)
+		goto done;
 
-	if (strbuf_getwholeline(&buf, f, '\n')) {
-		/* empty stdin is OK */
-		if (f != stdin) {
-			error("cannot read mbox %s", file);
-			goto out;
-		}
-		file_done = 1;
-	}
+	err = strcmp(filter_status.buf, "success");
 
-	while (!file_done) {
-		char *name = xstrfmt("%s/%0*d", dir, nr_prec, ++skip);
-		file_done = split_one(f, name, allow_bare);
-		free(name);
-	}
+done:
+	sigchain_pop(SIGPIPE);
 
-	if (f != stdin)
-		fclose(f);
-
-	ret = skip;
-out:
-	return ret;
+	if (err)
+		handle_filter_error(&filter_status, entry, 0);
+	return !err;
 }

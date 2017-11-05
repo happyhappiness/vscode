@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03083)
-                      "protocol switch: current proto != http/1.1, declined");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00698)
+                  "cache: Key for entity %s?%s is %s", path, query, *key);

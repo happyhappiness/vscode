@@ -1,1 +1,1 @@
-die_errno("Could not open '%s'", optarg);
+maybe_flush_or_die(stdout, "stdout");

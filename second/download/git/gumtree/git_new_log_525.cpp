@@ -1,1 +1,1 @@
-warning(_(degrade_cc_to_c_warning));
+packet_write_fmt(1, "ACK %s\n", last_hex);

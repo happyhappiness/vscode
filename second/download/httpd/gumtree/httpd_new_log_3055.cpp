@@ -1,1 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG + level, 0, r, "%s", logline);
+ap_log_error(APLOG_MARK, APLOG_WARNING, rv,
+                         NULL, APLOGNO(02097) "Heartbeat: apr_socket_create failed");

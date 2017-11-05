@@ -1,1 +1,2 @@
-error("object %s: %s", oid_to_hex(&obj->oid), message);
+fprintf(stderr, _("No testable commit found.\n"
+			"Maybe you started with bad path parameters?\n"));

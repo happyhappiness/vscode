@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
-                      "->03198: h2_stream(%ld-NULL): NULL", m->id);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02459)
+                      "AuthBasicFake: empty password expression for URI '%s', ignoring", r->uri);

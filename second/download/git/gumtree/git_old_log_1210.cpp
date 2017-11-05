@@ -1,2 +1,1 @@
-die("unable to generate diff (%s)",
-		    oid_to_hex(&parent->commit->object.oid));
+die("unrecognized argument: %s", argv[1]);

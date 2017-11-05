@@ -1,1 +1,1 @@
-printf("prune %s", message);
+die(_("Could not read %s."), todo_file);

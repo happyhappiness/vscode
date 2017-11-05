@@ -1,88 +1,81 @@
-int cmd_cat_file(int argc, const char **argv, const char *prefix)
+static int everything_local(struct fetch_pack_args *args,
+			    struct ref **refs,
+			    struct ref **sought, int nr_sought)
 {
-	int opt = 0;
-	const char *exp_type = NULL, *obj_name = NULL;
-	struct batch_options batch = {0};
-	int unknown_type = 0;
+	struct ref *ref;
+	int retval;
+	unsigned long cutoff = 0;
 
-	const struct option options[] = {
-		OPT_GROUP(N_("<type> can be one of: blob, tree, commit, tag")),
-		OPT_CMDMODE('t', NULL, &opt, N_("show object type"), 't'),
-		OPT_CMDMODE('s', NULL, &opt, N_("show object size"), 's'),
-		OPT_CMDMODE('e', NULL, &opt,
-			    N_("exit with zero when there's no error"), 'e'),
-		OPT_CMDMODE('p', NULL, &opt, N_("pretty-print object's content"), 'p'),
-		OPT_CMDMODE(0, "textconv", &opt,
-			    N_("for blob objects, run textconv on object's content"), 'c'),
-		OPT_CMDMODE(0, "filters", &opt,
-			    N_("for blob objects, run filters on object's content"), 'w'),
-		OPT_STRING(0, "path", &force_path, N_("blob"),
-			   N_("use a specific path for --textconv/--filters")),
-		OPT_BOOL(0, "allow-unknown-type", &unknown_type,
-			  N_("allow -s and -t to work with broken/corrupt objects")),
-		OPT_BOOL(0, "buffer", &batch.buffer_output, N_("buffer --batch output")),
-		{ OPTION_CALLBACK, 0, "batch", &batch, "format",
-			N_("show info and content of objects fed from the standard input"),
-			PARSE_OPT_OPTARG, batch_option_callback },
-		{ OPTION_CALLBACK, 0, "batch-check", &batch, "format",
-			N_("show info about objects fed from the standard input"),
-			PARSE_OPT_OPTARG, batch_option_callback },
-		OPT_BOOL(0, "follow-symlinks", &batch.follow_symlinks,
-			 N_("follow in-tree symlinks (used with --batch or --batch-check)")),
-		OPT_BOOL(0, "batch-all-objects", &batch.all_objects,
-			 N_("show all objects with --batch or --batch-check")),
-		OPT_END()
-	};
+	save_commit_buffer = 0;
 
-	git_config(git_cat_file_config, NULL);
+	for (ref = *refs; ref; ref = ref->next) {
+		struct object *o;
 
-	batch.buffer_output = -1;
-	argc = parse_options(argc, argv, prefix, options, cat_file_usage, 0);
+		if (!has_object_file(&ref->old_oid))
+			continue;
 
-	if (opt) {
-		if (batch.enabled && (opt == 'c' || opt == 'w'))
-			batch.cmdmode = opt;
-		else if (argc == 1)
-			obj_name = argv[0];
-		else
-			usage_with_options(cat_file_usage, options);
-	}
-	if (!opt && !batch.enabled) {
-		if (argc == 2) {
-			exp_type = argv[0];
-			obj_name = argv[1];
-		} else
-			usage_with_options(cat_file_usage, options);
-	}
-	if (batch.enabled) {
-		if (batch.cmdmode != opt || argc)
-			usage_with_options(cat_file_usage, options);
-		if (batch.cmdmode && batch.all_objects)
-			die("--batch-all-objects cannot be combined with "
-			    "--textconv nor with --filters");
+		o = parse_object(ref->old_oid.hash);
+		if (!o)
+			continue;
+
+		/* We already have it -- which may mean that we were
+		 * in sync with the other side at some time after
+		 * that (it is OK if we guess wrong here).
+		 */
+		if (o->type == OBJ_COMMIT) {
+			struct commit *commit = (struct commit *)o;
+			if (!cutoff || cutoff < commit->date)
+				cutoff = commit->date;
+		}
 	}
 
-	if ((batch.follow_symlinks || batch.all_objects) && !batch.enabled) {
-		usage_with_options(cat_file_usage, options);
+	if (!args->depth) {
+		for_each_ref(mark_complete_oid, NULL);
+		for_each_alternate_ref(mark_alternate_complete, NULL);
+		commit_list_sort_by_date(&complete);
+		if (cutoff)
+			mark_recent_complete_commits(args, cutoff);
 	}
 
-	if (force_path && opt != 'c' && opt != 'w') {
-		error("--path=<path> needs --textconv or --filters");
-		usage_with_options(cat_file_usage, options);
+	/*
+	 * Mark all complete remote refs as common refs.
+	 * Don't mark them common yet; the server has to be told so first.
+	 */
+	for (ref = *refs; ref; ref = ref->next) {
+		struct object *o = deref_tag(lookup_object(ref->old_oid.hash),
+					     NULL, 0);
+
+		if (!o || o->type != OBJ_COMMIT || !(o->flags & COMPLETE))
+			continue;
+
+		if (!(o->flags & SEEN)) {
+			rev_list_push((struct commit *)o, COMMON_REF | SEEN);
+
+			mark_common((struct commit *)o, 1, 1);
+		}
 	}
 
-	if (force_path && batch.enabled) {
-		error("--path=<path> incompatible with --batch");
-		usage_with_options(cat_file_usage, options);
+	filter_refs(args, refs, sought, nr_sought);
+
+	for (retval = 1, ref = *refs; ref ; ref = ref->next) {
+		const unsigned char *remote = ref->old_oid.hash;
+		struct object *o;
+
+		o = lookup_object(remote);
+		if (!o || !(o->flags & COMPLETE)) {
+			retval = 0;
+			if (!args->verbose)
+				continue;
+			fprintf(stderr,
+				"want %s (%s)\n", sha1_to_hex(remote),
+				ref->name);
+			continue;
+		}
+		if (!args->verbose)
+			continue;
+		fprintf(stderr,
+			"already have %s (%s)\n", sha1_to_hex(remote),
+			ref->name);
 	}
-
-	if (batch.buffer_output < 0)
-		batch.buffer_output = batch.all_objects;
-
-	if (batch.enabled)
-		return batch_objects(&batch);
-
-	if (unknown_type && opt != 't' && opt != 's')
-		die("git cat-file --allow-unknown-type: use with -s or -t");
-	return cat_one_file(opt, exp_type, obj_name, unknown_type);
+	return retval;
 }

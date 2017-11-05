@@ -1,1 +1,1 @@
-warning("%s unexpectedly said: '%s'", data->name, buf->buf);
+die("Not a git repository: %s", dir);

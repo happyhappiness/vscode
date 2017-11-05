@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
-                                  "Got error '%s'", iobuf);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  '%s'", i, lua_tostring(L, i));

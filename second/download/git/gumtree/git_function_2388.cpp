@@ -1,23 +1,15 @@
-static int handle_octopus(int count, const char **args, int show_all)
+int submodule_config(const char *var, const char *value, void *cb)
 {
-	struct commit_list *revs = NULL;
-	struct commit_list *result;
-	int i;
-
-	for (i = count - 1; i >= 0; i--)
-		commit_list_insert(get_commit_reference(args[i]), &revs);
-
-	result = reduce_heads(get_octopus_merge_bases(revs));
-
-	if (!result)
-		return 1;
-
-	while (result) {
-		printf("%s\n", sha1_to_hex(result->item->object.sha1));
-		if (!show_all)
-			return 0;
-		result = result->next;
+	if (!strcmp(var, "submodule.fetchjobs")) {
+		parallel_jobs = git_config_int(var, value);
+		if (parallel_jobs < 0)
+			die(_("negative values not allowed for submodule.fetchJobs"));
+		return 0;
+	} else if (starts_with(var, "submodule."))
+		return parse_submodule_config_option(var, value);
+	else if (!strcmp(var, "fetch.recursesubmodules")) {
+		config_fetch_recurse_submodules = parse_fetch_recurse_submodules_arg(var, value);
+		return 0;
 	}
-
 	return 0;
 }

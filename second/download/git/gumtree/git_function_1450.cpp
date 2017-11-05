@@ -1,77 +1,30 @@
-int finish_delayed_checkout(struct checkout *state)
+static const char *apply_command(const char *command, const char *arg)
 {
-	int errs = 0;
-	struct string_list_item *filter, *path;
-	struct delayed_checkout *dco = state->delayed_checkout;
+	struct strbuf cmd = STRBUF_INIT;
+	struct strbuf buf = STRBUF_INIT;
+	struct child_process cp = CHILD_PROCESS_INIT;
+	const char *argv[] = {NULL, NULL};
+	const char *result;
 
-	if (!state->delayed_checkout)
-		return errs;
+	strbuf_addstr(&cmd, command);
+	if (arg)
+		strbuf_replace(&cmd, TRAILER_ARG_STRING, arg);
 
-	dco->state = CE_RETRY;
-	while (dco->filters.nr > 0) {
-		for_each_string_list_item(filter, &dco->filters) {
-			struct string_list available_paths = STRING_LIST_INIT_NODUP;
+	argv[0] = cmd.buf;
+	cp.argv = argv;
+	cp.env = local_repo_env;
+	cp.no_stdin = 1;
+	cp.use_shell = 1;
 
-			if (!async_query_available_blobs(filter->string, &available_paths)) {
-				/* Filter reported an error */
-				errs = 1;
-				filter->string = "";
-				continue;
-			}
-			if (available_paths.nr <= 0) {
-				/*
-				 * Filter responded with no entries. That means
-				 * the filter is done and we can remove the
-				 * filter from the list (see
-				 * "string_list_remove_empty_items" call below).
-				 */
-				filter->string = "";
-				continue;
-			}
-
-			/*
-			 * In dco->paths we store a list of all delayed paths.
-			 * The filter just send us a list of available paths.
-			 * Remove them from the list.
-			 */
-			filter_string_list(&dco->paths, 0,
-				&remove_available_paths, &available_paths);
-
-			for_each_string_list_item(path, &available_paths) {
-				struct cache_entry* ce;
-
-				if (!path->util) {
-					error("external filter '%s' signaled that '%s' "
-					      "is now available although it has not been "
-					      "delayed earlier",
-					      filter->string, path->string);
-					errs |= 1;
-
-					/*
-					 * Do not ask the filter for available blobs,
-					 * again, as the filter is likely buggy.
-					 */
-					filter->string = "";
-					continue;
-				}
-				ce = index_file_exists(state->istate, path->string,
-						       strlen(path->string), 0);
-				errs |= (ce ? checkout_entry(ce, state, NULL) : 1);
-			}
-		}
-		string_list_remove_empty_items(&dco->filters, 0);
+	if (capture_command(&cp, &buf, 1024)) {
+		error("running trailer command '%s' failed", cmd.buf);
+		strbuf_release(&buf);
+		result = xstrdup("");
+	} else {
+		strbuf_trim(&buf);
+		result = strbuf_detach(&buf, NULL);
 	}
-	string_list_clear(&dco->filters, 0);
 
-	/* At this point we should not have any delayed paths anymore. */
-	errs |= dco->paths.nr;
-	for_each_string_list_item(path, &dco->paths) {
-		error("'%s' was not filtered properly", path->string);
-	}
-	string_list_clear(&dco->paths, 0);
-
-	free(dco);
-	state->delayed_checkout = NULL;
-
-	return errs;
+	strbuf_release(&cmd);
+	return result;
 }

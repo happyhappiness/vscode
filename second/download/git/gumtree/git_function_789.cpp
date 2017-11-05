@@ -1,21 +1,47 @@
-static struct object *parse_loose_object(const unsigned char *sha1,
-					 const char *path)
+static void export_blob(const unsigned char *sha1)
 {
-	struct object *obj;
-	void *contents;
-	enum object_type type;
 	unsigned long size;
+	enum object_type type;
+	char *buf;
+	struct object *object;
 	int eaten;
 
-	if (read_loose_object(path, sha1, &type, &size, &contents) < 0)
-		return NULL;
+	if (no_data)
+		return;
 
-	if (!contents && type != OBJ_BLOB)
-		die("BUG: read_loose_object streamed a non-blob");
+	if (is_null_sha1(sha1))
+		return;
 
-	obj = parse_object_buffer(sha1, type, size, contents, &eaten);
+	object = lookup_object(sha1);
+	if (object && object->flags & SHOWN)
+		return;
 
+	if (anonymize) {
+		buf = anonymize_blob(&size);
+		object = (struct object *)lookup_blob(sha1);
+		eaten = 0;
+	} else {
+		buf = read_sha1_file(sha1, &type, &size);
+		if (!buf)
+			die ("Could not read blob %s", sha1_to_hex(sha1));
+		if (check_sha1_signature(sha1, buf, size, typename(type)) < 0)
+			die("sha1 mismatch in blob %s", sha1_to_hex(sha1));
+		object = parse_object_buffer(sha1, type, size, buf, &eaten);
+	}
+
+	if (!object)
+		die("Could not read blob %s", sha1_to_hex(sha1));
+
+	mark_next_object(object);
+
+	printf("blob\nmark :%"PRIu32"\ndata %lu\n", last_idnum, size);
+	if (size && fwrite(buf, size, 1, stdout) != 1)
+		die_errno ("Could not write blob '%s'", sha1_to_hex(sha1));
+	printf("\n");
+
+	show_progress();
+
+	object->flags |= SHOWN;
 	if (!eaten)
-		free(contents);
-	return obj;
+		free(buf);
 }

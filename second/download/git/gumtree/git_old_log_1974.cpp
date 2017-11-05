@@ -1,2 +1,1 @@
-fprintf(fp, "gitdir: %s\n", relative_path(git_dir, real_work_tree,
-						  &rel_path));
+printf(format, sha1_to_hex(list->item->object.sha1));

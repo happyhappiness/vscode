@@ -1,1 +1,1 @@
-die("remote-helpers do not support ref deletion");
+die(_("unrecognized whitespace option '%s'"), option);

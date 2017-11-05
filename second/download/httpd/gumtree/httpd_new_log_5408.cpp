@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, APLOGNO(00545)
-                     "MaxRequestsPerChild is deprecated, use "
-                     "MaxConnectionsPerChild instead.");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, rv, r,
+                          "Failed to flush CGI output to client");

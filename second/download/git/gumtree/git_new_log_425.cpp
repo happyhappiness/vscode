@@ -1,1 +1,1 @@
-die(_("failed to resolve '%s' as a valid ref."), split[1]->buf);
+error("flush packet write failed");

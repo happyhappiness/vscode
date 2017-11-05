@@ -1,2 +1,1 @@
-error("sha1 mismatch for %s (expected %s)", path,
-		      sha1_to_hex(expected_sha1));
+!ref_resolves_to_object(iter->refname, iter->oid, iter->flags);

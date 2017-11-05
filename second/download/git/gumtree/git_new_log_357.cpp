@@ -1,1 +1,1 @@
-die("No commit to dig up from?");
+warning(_(degrade_cc_to_c_warning));

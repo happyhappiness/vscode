@@ -1,58 +1,76 @@
-static int sha1_loose_object_info(const unsigned char *sha1,
-				  struct object_info *oi,
-				  int flags)
+int verify_bundle(struct bundle_header *header, int verbose)
 {
-	int status = 0;
-	unsigned long mapsize;
-	void *map;
-	git_zstream stream;
-	char hdr[32];
-	struct strbuf hdrbuf = STRBUF_INIT;
-
-	if (oi->delta_base_sha1)
-		hashclr(oi->delta_base_sha1);
-
 	/*
-	 * If we don't care about type or size, then we don't
-	 * need to look inside the object at all. Note that we
-	 * do not optimize out the stat call, even if the
-	 * caller doesn't care about the disk-size, since our
-	 * return value implicitly indicates whether the
-	 * object even exists.
+	 * Do fast check, then if any prereqs are missing then go line by line
+	 * to be verbose about the errors
 	 */
-	if (!oi->typep && !oi->typename && !oi->sizep) {
-		struct stat st;
-		if (stat_sha1_file(sha1, &st) < 0)
-			return -1;
-		if (oi->disk_sizep)
-			*oi->disk_sizep = st.st_size;
-		return 0;
-	}
+	struct ref_list *p = &header->prerequisites;
+	struct rev_info revs;
+	const char *argv[] = {NULL, "--all", NULL};
+	struct object_array refs;
+	struct commit *commit;
+	int i, ret = 0, req_nr;
+	const char *message = _("Repository lacks these prerequisite commits:");
 
-	map = map_sha1_file(sha1, &mapsize);
-	if (!map)
-		return -1;
-	if (oi->disk_sizep)
-		*oi->disk_sizep = mapsize;
-	if ((flags & LOOKUP_UNKNOWN_OBJECT)) {
-		if (unpack_sha1_header_to_strbuf(&stream, map, mapsize, hdr, sizeof(hdr), &hdrbuf) < 0)
-			status = error("unable to unpack %s header with --allow-unknown-type",
-				       sha1_to_hex(sha1));
-	} else if (unpack_sha1_header(&stream, map, mapsize, hdr, sizeof(hdr)) < 0)
-		status = error("unable to unpack %s header",
-			       sha1_to_hex(sha1));
-	if (status < 0)
-		; /* Do nothing */
-	else if (hdrbuf.len) {
-		if ((status = parse_sha1_header_extended(hdrbuf.buf, oi, flags)) < 0)
-			status = error("unable to parse %s header with --allow-unknown-type",
-				       sha1_to_hex(sha1));
-	} else if ((status = parse_sha1_header_extended(hdr, oi, flags)) < 0)
-		status = error("unable to parse %s header", sha1_to_hex(sha1));
-	git_inflate_end(&stream);
-	munmap(map, mapsize);
-	if (status && oi->typep)
-		*oi->typep = status;
-	strbuf_release(&hdrbuf);
-	return 0;
+	init_revisions(&revs, NULL);
+	for (i = 0; i < p->nr; i++) {
+		struct ref_list_entry *e = p->list + i;
+		struct object *o = parse_object(e->sha1);
+		if (o) {
+			o->flags |= PREREQ_MARK;
+			add_pending_object(&revs, o, e->name);
+			continue;
+		}
+		if (++ret == 1)
+			error("%s", message);
+		error("%s %s", sha1_to_hex(e->sha1), e->name);
+	}
+	if (revs.pending.nr != p->nr)
+		return ret;
+	req_nr = revs.pending.nr;
+	setup_revisions(2, argv, &revs, NULL);
+
+	refs = revs.pending;
+	revs.leak_pending = 1;
+
+	if (prepare_revision_walk(&revs))
+		die(_("revision walk setup failed"));
+
+	i = req_nr;
+	while (i && (commit = get_revision(&revs)))
+		if (commit->object.flags & PREREQ_MARK)
+			i--;
+
+	for (i = 0; i < req_nr; i++)
+		if (!(refs.objects[i].item->flags & SHOWN)) {
+			if (++ret == 1)
+				error("%s", message);
+			error("%s %s", sha1_to_hex(refs.objects[i].item->sha1),
+				refs.objects[i].name);
+		}
+
+	clear_commit_marks_for_object_array(&refs, ALL_REV_FLAGS);
+	free(refs.objects);
+
+	if (verbose) {
+		struct ref_list *r;
+
+		r = &header->references;
+		printf_ln(Q_("The bundle contains this ref:",
+			     "The bundle contains these %d refs:",
+			     r->nr),
+			  r->nr);
+		list_refs(r, 0, NULL);
+		r = &header->prerequisites;
+		if (!r->nr) {
+			printf_ln(_("The bundle records a complete history."));
+		} else {
+			printf_ln(Q_("The bundle requires this ref:",
+				     "The bundle requires these %d refs:",
+				     r->nr),
+				  r->nr);
+			list_refs(r, 0, NULL);
+		}
+	}
+	return ret;
 }

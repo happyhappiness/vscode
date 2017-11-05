@@ -1,63 +1,44 @@
-static struct line_log_data *
-parse_lines(struct commit *commit, const char *prefix, struct string_list *args)
+static void get_commit_info(struct am_state *state, struct commit *commit)
 {
-	long lines = 0;
-	unsigned long *ends = NULL;
-	struct nth_line_cb cb_data;
-	struct string_list_item *item;
-	struct line_log_data *ranges = NULL;
-	struct line_log_data *p;
+	const char *buffer, *ident_line, *author_date, *msg;
+	size_t ident_len;
+	struct ident_split ident_split;
+	struct strbuf sb = STRBUF_INIT;
 
-	for_each_string_list_item(item, args) {
-		const char *name_part, *range_part;
-		char *full_name;
-		struct diff_filespec *spec;
-		long begin = 0, end = 0;
-		long anchor;
+	buffer = logmsg_reencode(commit, NULL, get_commit_output_encoding());
 
-		name_part = skip_range_arg(item->string);
-		if (!name_part || *name_part != ':' || !name_part[1])
-			die("-L argument '%s' not of the form start,end:file",
-			    item->string);
-		range_part = xstrndup(item->string, name_part - item->string);
-		name_part++;
+	ident_line = find_commit_header(buffer, "author", &ident_len);
 
-		full_name = prefix_path(prefix, prefix ? strlen(prefix) : 0,
-					name_part);
-
-		spec = alloc_filespec(full_name);
-		fill_blob_sha1(commit, spec);
-		fill_line_ends(spec, &lines, &ends);
-		cb_data.spec = spec;
-		cb_data.lines = lines;
-		cb_data.line_ends = ends;
-
-		p = search_line_log_data(ranges, full_name, NULL);
-		if (p && p->ranges.nr)
-			anchor = p->ranges.ranges[p->ranges.nr - 1].end + 1;
-		else
-			anchor = 1;
-
-		if (parse_range_arg(range_part, nth_line, &cb_data,
-				    lines, anchor, &begin, &end,
-				    full_name))
-			die("malformed -L argument '%s'", range_part);
-		if (lines < end || ((lines || begin) && lines < begin))
-			die("file %s has only %lu lines", name_part, lines);
-		if (begin < 1)
-			begin = 1;
-		if (end < 1)
-			end = lines;
-		begin--;
-		line_log_data_insert(&ranges, full_name, begin, end);
-
-		free_filespec(spec);
-		free(ends);
-		ends = NULL;
+	if (split_ident_line(&ident_split, ident_line, ident_len) < 0) {
+		strbuf_add(&sb, ident_line, ident_len);
+		die(_("invalid ident line: %s"), sb.buf);
 	}
 
-	for (p = ranges; p; p = p->next)
-		sort_and_merge_range_set(&p->ranges);
+	assert(!state->author_name);
+	if (ident_split.name_begin) {
+		strbuf_add(&sb, ident_split.name_begin,
+			ident_split.name_end - ident_split.name_begin);
+		state->author_name = strbuf_detach(&sb, NULL);
+	} else
+		state->author_name = xstrdup("");
 
-	return ranges;
+	assert(!state->author_email);
+	if (ident_split.mail_begin) {
+		strbuf_add(&sb, ident_split.mail_begin,
+			ident_split.mail_end - ident_split.mail_begin);
+		state->author_email = strbuf_detach(&sb, NULL);
+	} else
+		state->author_email = xstrdup("");
+
+	author_date = show_ident_date(&ident_split, DATE_MODE(NORMAL));
+	strbuf_addstr(&sb, author_date);
+	assert(!state->author_date);
+	state->author_date = strbuf_detach(&sb, NULL);
+
+	assert(!state->msg);
+	msg = strstr(buffer, "\n\n");
+	if (!msg)
+		die(_("unable to parse commit %s"), sha1_to_hex(commit->object.sha1));
+	state->msg = xstrdup(msg + 2);
+	state->msg_len = strlen(state->msg);
 }

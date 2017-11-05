@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-            "Server built: %s", ap_get_server_built());
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
+                      "Error while reading HTTP trailer: %i%s%s",
+                      r->status, error_notes ? ": " : "",
+                      error_notes ? error_notes : "");

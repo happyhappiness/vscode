@@ -1,6 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "Certificate Verification: "
-                     "depth: %d, subject: %s, issuer: %s",
-                     errdepth,
-                     sname ? sname : "-unknown-",
-                     iname ? iname : "-unknown-");
+ap_rvputs(r, "<tr>\n<td><a href=\"", r->uri, "?b=",
+                          balancer->name + sizeof("balancer://") - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->name),
+                          "&nonce=", balancer_nonce, 
+                          "\">", NULL);

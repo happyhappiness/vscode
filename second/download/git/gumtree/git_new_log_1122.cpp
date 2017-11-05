@@ -1,1 +1,1 @@
-die("cannot handle pushes this big");
+die("BUG: prepare called twice on reference transaction");

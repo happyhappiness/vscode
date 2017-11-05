@@ -1,19 +1,16 @@
-static void say_patch_name(FILE *output, const char *fmt, struct patch *patch)
+static int opt_parse_porcelain(const struct option *opt, const char *arg, int unset)
 {
-	struct strbuf sb = STRBUF_INIT;
+	enum wt_status_format *value = (enum wt_status_format *)opt->value;
+	if (unset)
+		*value = STATUS_FORMAT_NONE;
+	else if (!arg)
+		*value = STATUS_FORMAT_PORCELAIN;
+	else if (!strcmp(arg, "v1") || !strcmp(arg, "1"))
+		*value = STATUS_FORMAT_PORCELAIN;
+	else if (!strcmp(arg, "v2") || !strcmp(arg, "2"))
+		*value = STATUS_FORMAT_PORCELAIN_V2;
+	else
+		die("unsupported porcelain version '%s'", arg);
 
-	if (patch->old_name && patch->new_name &&
-	    strcmp(patch->old_name, patch->new_name)) {
-		quote_c_style(patch->old_name, &sb, NULL, 0);
-		strbuf_addstr(&sb, " => ");
-		quote_c_style(patch->new_name, &sb, NULL, 0);
-	} else {
-		const char *n = patch->new_name;
-		if (!n)
-			n = patch->old_name;
-		quote_c_style(n, &sb, NULL, 0);
-	}
-	fprintf(output, fmt, sb.buf);
-	fputc('\n', output);
-	strbuf_release(&sb);
+	return 0;
 }

@@ -1,58 +1,21 @@
-static int sha1_loose_object_info(const unsigned char *sha1,
-				  struct object_info *oi,
-				  int flags)
+static void show_worktree(struct worktree *wt, int path_maxlen, int abbrev_len)
 {
-	int status = 0;
-	unsigned long mapsize;
-	void *map;
-	git_zstream stream;
-	char hdr[32];
-	struct strbuf hdrbuf = STRBUF_INIT;
+	struct strbuf sb = STRBUF_INIT;
+	int cur_path_len = strlen(wt->path);
+	int path_adj = cur_path_len - utf8_strwidth(wt->path);
 
-	if (oi->delta_base_sha1)
-		hashclr(oi->delta_base_sha1);
-
-	/*
-	 * If we don't care about type or size, then we don't
-	 * need to look inside the object at all. Note that we
-	 * do not optimize out the stat call, even if the
-	 * caller doesn't care about the disk-size, since our
-	 * return value implicitly indicates whether the
-	 * object even exists.
-	 */
-	if (!oi->typep && !oi->typename && !oi->sizep) {
-		struct stat st;
-		if (stat_sha1_file(sha1, &st) < 0)
-			return -1;
-		if (oi->disk_sizep)
-			*oi->disk_sizep = st.st_size;
-		return 0;
+	strbuf_addf(&sb, "%-*s ", 1 + path_maxlen + path_adj, wt->path);
+	if (wt->is_bare)
+		strbuf_addstr(&sb, "(bare)");
+	else {
+		strbuf_addf(&sb, "%-*s ", abbrev_len,
+				find_unique_abbrev(wt->head_sha1, DEFAULT_ABBREV));
+		if (!wt->is_detached)
+			strbuf_addf(&sb, "[%s]", shorten_unambiguous_ref(wt->head_ref, 0));
+		else
+			strbuf_addstr(&sb, "(detached HEAD)");
 	}
+	printf("%s\n", sb.buf);
 
-	map = map_sha1_file(sha1, &mapsize);
-	if (!map)
-		return -1;
-	if (oi->disk_sizep)
-		*oi->disk_sizep = mapsize;
-	if ((flags & LOOKUP_UNKNOWN_OBJECT)) {
-		if (unpack_sha1_header_to_strbuf(&stream, map, mapsize, hdr, sizeof(hdr), &hdrbuf) < 0)
-			status = error("unable to unpack %s header with --allow-unknown-type",
-				       sha1_to_hex(sha1));
-	} else if (unpack_sha1_header(&stream, map, mapsize, hdr, sizeof(hdr)) < 0)
-		status = error("unable to unpack %s header",
-			       sha1_to_hex(sha1));
-	if (status < 0)
-		; /* Do nothing */
-	else if (hdrbuf.len) {
-		if ((status = parse_sha1_header_extended(hdrbuf.buf, oi, flags)) < 0)
-			status = error("unable to parse %s header with --allow-unknown-type",
-				       sha1_to_hex(sha1));
-	} else if ((status = parse_sha1_header_extended(hdr, oi, flags)) < 0)
-		status = error("unable to parse %s header", sha1_to_hex(sha1));
-	git_inflate_end(&stream);
-	munmap(map, mapsize);
-	if (status && oi->typep)
-		*oi->typep = status;
-	strbuf_release(&hdrbuf);
-	return 0;
+	strbuf_release(&sb);
 }

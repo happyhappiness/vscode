@@ -1,1 +1,1 @@
-die("cannot start proxy %s", argv[0]);
+warning("packfile %s cannot be accessed", p->pack_name);

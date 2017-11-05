@@ -1,54 +1,22 @@
-static int process_diff_filepair(struct rev_info *rev,
-				 struct diff_filepair *pair,
-				 struct line_log_data *range,
-				 struct diff_ranges **diff_out)
+static const char *strip_ref_components(const char *refname, const char *nr_arg)
 {
-	struct line_log_data *rg = range;
-	struct range_set tmp;
-	struct diff_ranges diff;
-	mmfile_t file_parent, file_target;
+	char *end;
+	long nr = strtol(nr_arg, &end, 10);
+	long remaining = nr;
+	const char *start = refname;
 
-	assert(pair->two->path);
-	while (rg) {
-		assert(rg->path);
-		if (!strcmp(rg->path, pair->two->path))
+	if (nr < 1 || *end != '\0')
+		die(":strip= requires a positive integer argument");
+
+	while (remaining) {
+		switch (*start++) {
+		case '\0':
+			die("ref '%s' does not have %ld components to :strip",
+			    refname, nr);
+		case '/':
+			remaining--;
 			break;
-		rg = rg->next;
+		}
 	}
-
-	if (!rg)
-		return 0;
-	if (rg->ranges.nr == 0)
-		return 0;
-
-	assert(pair->two->sha1_valid);
-	diff_populate_filespec(pair->two, 0);
-	file_target.ptr = pair->two->data;
-	file_target.size = pair->two->size;
-
-	if (pair->one->sha1_valid) {
-		diff_populate_filespec(pair->one, 0);
-		file_parent.ptr = pair->one->data;
-		file_parent.size = pair->one->size;
-	} else {
-		file_parent.ptr = "";
-		file_parent.size = 0;
-	}
-
-	diff_ranges_init(&diff);
-	if (collect_diff(&file_parent, &file_target, &diff))
-		die("unable to generate diff for %s", pair->one->path);
-
-	/* NEEDSWORK should apply some heuristics to prevent mismatches */
-	free(rg->path);
-	rg->path = xstrdup(pair->one->path);
-
-	range_set_init(&tmp, 0);
-	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
-	range_set_release(&rg->ranges);
-	range_set_move(&rg->ranges, &tmp);
-
-	diff_ranges_release(&diff);
-
-	return ((*diff_out)->parent.nr > 0);
+	return start;
 }

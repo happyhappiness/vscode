@@ -1,1 +1,1 @@
-die("BUG: operation %s only allowed for main ref store", caller);
+die ("BUG: error initializing pathspec_item");

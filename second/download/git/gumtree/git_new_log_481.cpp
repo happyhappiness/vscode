@@ -1,1 +1,1 @@
-packet_write_fmt(1, "ACK\n");
+error(_("can't revert as initial commit"));

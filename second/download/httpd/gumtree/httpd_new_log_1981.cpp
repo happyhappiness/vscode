@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
-                 "proxy:<FTP: %3.3u %s", rc, message);
+ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                     "Parent: Duplicating socket %d and sending it to child process %d",
+                     nsd, dwProcessId);

@@ -1,1 +1,2 @@
-child_die(CHILD_ERR_CHDIR);
+die_errno("Invalid symlink '%s'",
+						  sb.buf);

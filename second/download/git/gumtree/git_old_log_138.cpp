@@ -1,1 +1,0 @@
-fprintf(stderr, "external diff died, stopping at %s.\n", name);

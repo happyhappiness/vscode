@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                 "h2_workers: adding worker(%d)", h2_worker_get_id(w));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%s): task_done, stream still open", 
+                          task->id);

@@ -1,2 +1,2 @@
-error("attempting to allocate %"PRIuMAX" over limit %"PRIuMAX,
-			      (uintmax_t)size, (uintmax_t)limit);
+die("BUG: local ref %s is outside of refs/notes/",
+			    o.local_ref);

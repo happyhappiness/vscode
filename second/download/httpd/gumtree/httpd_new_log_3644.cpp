@@ -1,1 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE7, 0, c, "mod_dumpio: %s", f->frec->name);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
+               "ajp_unmarshal_response: Header[%d] [%s] = [%s]",
+                       i, stringname, value);

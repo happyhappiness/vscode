@@ -1,1 +1,1 @@
-die("BUG: read_loose_object streamed a non-blob");
+die ("Could not read blob %s", oid_to_hex(oid));

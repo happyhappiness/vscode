@@ -1,35 +1,42 @@
-static int clean_index(const unsigned char *head, const unsigned char *remote)
+static int add_one_reference(struct string_list_item *item, void *cb_data)
 {
-	struct tree *head_tree, *remote_tree, *index_tree;
-	unsigned char index[GIT_SHA1_RAWSZ];
+	char *ref_git;
+	const char *repo;
+	struct strbuf alternate = STRBUF_INIT;
 
-	head_tree = parse_tree_indirect(head);
-	if (!head_tree)
-		return error(_("Could not parse object '%s'."), sha1_to_hex(head));
+	/* Beware: read_gitfile(), real_path() and mkpath() return static buffer */
+	ref_git = xstrdup(real_path(item->string));
 
-	remote_tree = parse_tree_indirect(remote);
-	if (!remote_tree)
-		return error(_("Could not parse object '%s'."), sha1_to_hex(remote));
+	repo = read_gitfile(ref_git);
+	if (!repo)
+		repo = read_gitfile(mkpath("%s/.git", ref_git));
+	if (repo) {
+		free(ref_git);
+		ref_git = xstrdup(repo);
+	}
 
-	read_cache_unmerged();
+	if (!repo && is_directory(mkpath("%s/.git/objects", ref_git))) {
+		char *ref_git_git = mkpathdup("%s/.git", ref_git);
+		free(ref_git);
+		ref_git = ref_git_git;
+	} else if (!is_directory(mkpath("%s/objects", ref_git))) {
+		struct strbuf sb = STRBUF_INIT;
+		if (get_common_dir(&sb, ref_git))
+			die(_("reference repository '%s' as a linked checkout is not supported yet."),
+			    item->string);
+		die(_("reference repository '%s' is not a local repository."),
+		    item->string);
+	}
 
-	if (fast_forward_to(head_tree, head_tree, 1))
-		return -1;
+	if (!access(mkpath("%s/shallow", ref_git), F_OK))
+		die(_("reference repository '%s' is shallow"), item->string);
 
-	if (write_cache_as_tree(index, 0, NULL))
-		return -1;
+	if (!access(mkpath("%s/info/grafts", ref_git), F_OK))
+		die(_("reference repository '%s' is grafted"), item->string);
 
-	index_tree = parse_tree_indirect(index);
-	if (!index_tree)
-		return error(_("Could not parse object '%s'."), sha1_to_hex(index));
-
-	if (fast_forward_to(index_tree, remote_tree, 0))
-		return -1;
-
-	if (merge_tree(remote_tree))
-		return -1;
-
-	remove_branch_state();
-
+	strbuf_addf(&alternate, "%s/objects", ref_git);
+	add_to_alternates_file(alternate.buf);
+	strbuf_release(&alternate);
+	free(ref_git);
 	return 0;
 }

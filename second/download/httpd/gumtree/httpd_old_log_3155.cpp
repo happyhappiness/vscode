@@ -1,3 +1,2 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Failed to acquire database connection to look up "
-                      "user '%s'", user);
+                      "The request is missing a Destination header.");

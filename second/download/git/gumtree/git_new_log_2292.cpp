@@ -1,2 +1,1 @@
-error("unable to write reflog %s: %s",
-					log_file, strerror(errno));
+die("resolve-relative-url only accepts one or two arguments");

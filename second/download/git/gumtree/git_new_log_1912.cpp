@@ -1,1 +1,2 @@
-die_errno(_("failed to delete directory %s"), mtime_dir.buf);
+printf("%c %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev));

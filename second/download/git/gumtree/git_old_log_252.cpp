@@ -1,1 +1,1 @@
-error(_("unrecognized binary patch at line %d"), state->linenr-1);
+die("Not handling anything other than two heads merge.");

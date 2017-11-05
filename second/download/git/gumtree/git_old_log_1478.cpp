@@ -1,1 +1,2 @@
-die_errno(_("Failed to write ref"));
+die("-L argument '%s' not of the form start,end:file",
+			    item->string);

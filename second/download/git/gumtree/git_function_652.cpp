@@ -1,77 +1,64 @@
-int sequencer_pick_revisions(struct replay_opts *opts)
+static int read_populate_todo(struct todo_list *todo_list,
+			struct replay_opts *opts)
 {
-	struct commit_list *todo_list = NULL;
-	unsigned char sha1[20];
-	int i;
+	const char *todo_file = get_todo_path(opts);
+	int fd, res;
 
-	if (opts->subcommand == REPLAY_NONE)
-		assert(opts->revs);
-
-	read_and_refresh_cache(opts);
-
-	/*
-	 * Decide what to do depending on the arguments; a fresh
-	 * cherry-pick should be handled differently from an existing
-	 * one that is being continued
-	 */
-	if (opts->subcommand == REPLAY_REMOVE_STATE) {
-		remove_sequencer_state();
-		return 0;
+	strbuf_reset(&todo_list->buf);
+	fd = open(todo_file, O_RDONLY);
+	if (fd < 0)
+		return error_errno(_("could not open '%s'"), todo_file);
+	if (strbuf_read(&todo_list->buf, fd, 0) < 0) {
+		close(fd);
+		return error(_("could not read '%s'."), todo_file);
 	}
-	if (opts->subcommand == REPLAY_ROLLBACK)
-		return sequencer_rollback(opts);
-	if (opts->subcommand == REPLAY_CONTINUE)
-		return sequencer_continue(opts);
+	close(fd);
 
-	for (i = 0; i < opts->revs->pending.nr; i++) {
-		unsigned char sha1[20];
-		const char *name = opts->revs->pending.objects[i].name;
-
-		/* This happens when using --stdin. */
-		if (!strlen(name))
-			continue;
-
-		if (!get_sha1(name, sha1)) {
-			if (!lookup_commit_reference_gently(sha1, 1)) {
-				enum object_type type = sha1_object_info(sha1, NULL);
-				die(_("%s: can't cherry-pick a %s"), name, typename(type));
-			}
-		} else
-			die(_("%s: bad revision"), name);
+	res = parse_insn_buffer(todo_list->buf.buf, todo_list);
+	if (res) {
+		if (is_rebase_i(opts))
+			return error(_("please fix this using "
+				       "'git rebase --edit-todo'."));
+		return error(_("unusable instruction sheet: '%s'"), todo_file);
 	}
 
-	/*
-	 * If we were called as "git cherry-pick <commit>", just
-	 * cherry-pick/revert it, set CHERRY_PICK_HEAD /
-	 * REVERT_HEAD, and don't touch the sequencer state.
-	 * This means it is possible to cherry-pick in the middle
-	 * of a cherry-pick sequence.
-	 */
-	if (opts->revs->cmdline.nr == 1 &&
-	    opts->revs->cmdline.rev->whence == REV_CMD_REV &&
-	    opts->revs->no_walk &&
-	    !opts->revs->cmdline.rev->flags) {
-		struct commit *cmit;
-		if (prepare_revision_walk(opts->revs))
-			die(_("revision walk setup failed"));
-		cmit = get_revision(opts->revs);
-		if (!cmit || get_revision(opts->revs))
-			die("BUG: expected exactly one commit from walk");
-		return single_pick(cmit, opts);
+	if (!todo_list->nr &&
+	    (!is_rebase_i(opts) || !file_exists(rebase_path_done())))
+		return error(_("no commits parsed."));
+
+	if (!is_rebase_i(opts)) {
+		enum todo_command valid =
+			opts->action == REPLAY_PICK ? TODO_PICK : TODO_REVERT;
+		int i;
+
+		for (i = 0; i < todo_list->nr; i++)
+			if (valid == todo_list->items[i].command)
+				continue;
+			else if (valid == TODO_PICK)
+				return error(_("cannot cherry-pick during a revert."));
+			else
+				return error(_("cannot revert during a cherry-pick."));
 	}
 
-	/*
-	 * Start a new cherry-pick/ revert sequence; but
-	 * first, make sure that an existing one isn't in
-	 * progress
-	 */
+	if (is_rebase_i(opts)) {
+		struct todo_list done = TODO_LIST_INIT;
+		FILE *f = fopen(rebase_path_msgtotal(), "w");
 
-	walk_revs_populate_todo(&todo_list, opts);
-	if (create_seq_dir() < 0)
-		return -1;
-	if (get_sha1("HEAD", sha1) && (opts->action == REPLAY_REVERT))
-		return error(_("Can't revert as initial commit"));
-	save_head(sha1_to_hex(sha1));
-	save_opts(opts);
-	return pick_commits(todo_list, opts);
+		if (strbuf_read_file(&done.buf, rebase_path_done(), 0) > 0 &&
+				!parse_insn_buffer(done.buf.buf, &done))
+			todo_list->done_nr = count_commands(&done);
+		else
+			todo_list->done_nr = 0;
+
+		todo_list->total_nr = todo_list->done_nr
+			+ count_commands(todo_list);
+		todo_list_release(&done);
+
+		if (f) {
+			fprintf(f, "%d\n", todo_list->total_nr);
+			fclose(f);
+		}
+	}
+
+	return 0;
 }

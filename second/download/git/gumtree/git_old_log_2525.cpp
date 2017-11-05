@@ -1,1 +1,1 @@
-die_errno("unable to fdopen packed-refs descriptor");
+error("Must specify a notes ref to merge");

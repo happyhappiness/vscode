@@ -1,1 +1,1 @@
-printf(" %s mode %06o %s\n", newdelete, mode, name);
+packet_write(1, "NACK unable to spawn subprocess\n");

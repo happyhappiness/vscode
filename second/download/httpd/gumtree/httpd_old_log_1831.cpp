@@ -1,4 +1,6 @@
-ap_rvputs(r, "</td><td>",
-                                  terminate_description(d, ar[x]->desc,
-                                                        autoindex_opts,
-                                                        desc_width), NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Inter-Process Session Cache: "
+                 "request=%s status=%s id=%s %s(session %s)",
+                 request, status,
+                 SSL_SESSION_id2sz(id, idlen, buf, sizeof(buf)),
+                 timeout_str, result);

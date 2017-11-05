@@ -1,1 +1,1 @@
-die_errno("Error opening '%s'", path);
+free(git_work_tree_cfg);

@@ -1,1 +1,1 @@
-die(_("--reflog option needs one branch name"));
+error(_("cannot revert during a cherry-pick."));

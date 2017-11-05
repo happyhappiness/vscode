@@ -1,1 +1,1 @@
-error(_("malformed object name '%s'"), arg);
+fprintf(stderr, "flushed.\n");

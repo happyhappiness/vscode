@@ -1,1 +1,2 @@
-die("transport '%s' not allowed", type);
+error(_("Commit %s is a merge but no -m option was given."),
+				oid_to_hex(&commit->object.oid));

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01889)
-                         "Init: Failed to enable Crypto Device API `%s'",
-                         mc->szCryptoDevice);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00170)
+           "caught " AP_SIG_GRACEFUL_STOP_STRING ", shutting down gracefully");

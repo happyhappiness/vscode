@@ -1,148 +1,146 @@
-static int apply_rewrite_list(request_rec *r, apr_array_header_t *rewriterules,
-                              char *perdir)
+static apr_status_t send_environment(proxy_conn_rec *conn, request_rec *r,
+                                     int request_id)
 {
-    rewriterule_entry *entries;
-    rewriterule_entry *p;
-    int i;
-    int changed;
-    int rc;
-    int s;
-    rewrite_ctx *ctx;
-    int round = 1;
+    const apr_array_header_t *envarr;
+    const apr_table_entry_t *elts;
+    struct iovec vec[2];
+    fcgi_header header;
+    unsigned char farray[FCGI_HEADER_LEN];
+    apr_size_t bodylen, envlen;
+    char *body, *itr;
+    apr_status_t rv;
+    apr_size_t len;
+    int i, numenv;
 
-    ctx = apr_palloc(r->pool, sizeof(*ctx));
-    ctx->perdir = perdir;
-    ctx->r = r;
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
 
-    /*
-     *  Iterate over all existing rules
-     */
-    entries = (rewriterule_entry *)rewriterules->elts;
-    changed = 0;
-    loop:
-    for (i = 0; i < rewriterules->nelts; i++) {
-        p = &entries[i];
+    /* XXX are there any FastCGI specific env vars we need to send? */
 
-        /*
-         *  Ignore this rule on subrequests if we are explicitly
-         *  asked to do so or this is a proxy-throughput or a
-         *  forced redirect rule.
-         */
-        if (r->main != NULL &&
-            (p->flags & RULEFLAG_IGNOREONSUBREQ ||
-             p->flags & RULEFLAG_FORCEREDIRECT    )) {
+    bodylen = envlen = 0;
+
+    /* XXX mod_cgi/mod_cgid use ap_create_environment here, which fills in
+     *     the TZ value specially.  We could use that, but it would mean
+     *     parsing the key/value pairs back OUT of the allocated env array,
+     *     not to mention allocating a totally useless array in the first
+     *     place, which would suck. */
+
+    envarr = apr_table_elts(r->subprocess_env);
+
+    elts = (const apr_table_entry_t *) envarr->elts;
+
+    for (i = 0; i < envarr->nelts; ++i) {
+        apr_size_t keylen, vallen;
+
+        if (! elts[i].key) {
             continue;
         }
 
-        /*
-         *  Apply the current rule.
-         */
-        ctx->vary = NULL;
-        rc = apply_rewrite_rule(p, ctx);
+        keylen = strlen(elts[i].key);
 
-        if (rc) {
-
-            /* Catch looping rules with pathinfo growing unbounded */
-            if ( strlen( r->filename ) > 2*r->server->limit_req_line ) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "RewriteRule '%s' and URI '%s' "
-                              "exceeded maximum length (%d)", 
-                              p->pattern, r->uri, 2*r->server->limit_req_line );
-                r->status = HTTP_INTERNAL_SERVER_ERROR;
-                return ACTION_STATUS;
-            }
-
-            /* Regardless of what we do next, we've found a match. Check to see
-             * if any of the request header fields were involved, and add them
-             * to the Vary field of the response.
-             */
-            if (ctx->vary) {
-                apr_table_merge(r->headers_out, "Vary", ctx->vary);
-            }
-
-            /*
-             * The rule sets the response code (implies match-only)
-             */
-            if (p->flags & RULEFLAG_STATUS) {
-                return ACTION_STATUS;
-            }
-
-            /*
-             * Indicate a change if this was not a match-only rule.
-             */
-            if (rc != 2) {
-                changed = ((p->flags & RULEFLAG_NOESCAPE)
-                           ? ACTION_NOESCAPE : ACTION_NORMAL);
-            }
-
-            /*
-             *  Pass-Through Feature (`RewriteRule .. .. [PT]'):
-             *  Because the Apache 1.x API is very limited we
-             *  need this hack to pass the rewritten URL to other
-             *  modules like mod_alias, mod_userdir, etc.
-             */
-            if (p->flags & RULEFLAG_PASSTHROUGH) {
-                rewritelog((r, 2, perdir, "forcing '%s' to get passed through "
-                           "to next API URI-to-filename handler", r->filename));
-                r->filename = apr_pstrcat(r->pool, "passthrough:",
-                                         r->filename, NULL);
-                changed = ACTION_NORMAL;
-                break;
-            }
-
-            if (p->flags & RULEFLAG_END) {
-                rewritelog((r, 8, perdir, "Rule has END flag, no further rewriting for this request"));
-                apr_pool_userdata_set("1", really_last_key, apr_pool_cleanup_null, r->pool);
-                break;
-            }
-            /*
-             *  Stop processing also on proxy pass-through and
-             *  last-rule and new-round flags.
-             */
-            if (p->flags & (RULEFLAG_PROXY | RULEFLAG_LASTRULE)) {
-                break;
-            }
-
-            /*
-             *  On "new-round" flag we just start from the top of
-             *  the rewriting ruleset again.
-             */
-            if (p->flags & RULEFLAG_NEWROUND) {
-                if (++round >= p->maxrounds) { 
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02596)
-                                  "RewriteRule '%s' and URI '%s' exceeded "
-                                  "maximum number of rounds (%d) via the [N] flag", 
-                                  p->pattern, r->uri, p->maxrounds);
-
-                    r->status = HTTP_INTERNAL_SERVER_ERROR;
-                    return ACTION_STATUS; 
-                }
-                goto loop;
-            }
-
-            /*
-             *  If we are forced to skip N next rules, do it now.
-             */
-            if (p->skip > 0) {
-                s = p->skip;
-                while (   i < rewriterules->nelts
-                       && s > 0) {
-                    i++;
-                    s--;
-                }
-            }
+        if (keylen >> 7 == 0) {
+            envlen += 1;
         }
         else {
-            /*
-             *  If current rule is chained with next rule(s),
-             *  skip all this next rule(s)
-             */
-            while (   i < rewriterules->nelts
-                   && p->flags & RULEFLAG_CHAIN) {
-                i++;
-                p = &entries[i];
-            }
+            envlen += 4;
         }
+
+        envlen += keylen;
+
+        vallen = strlen(elts[i].val);
+
+#ifdef FCGI_DUMP_ENV_VARS
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01062)
+                      "sending env var '%s' value '%s'",
+                      elts[i].key, elts[i].val);
+#endif
+
+        if (vallen >> 7 == 0) {
+            envlen += 1;
+        }
+        else {
+            envlen += 4;
+        }
+
+        envlen += vallen;
+
+        /* The cast of bodylen is safe since FCGI_MAX_ENV_SIZE is for sure an int */
+        if (envlen > FCGI_MAX_ENV_SIZE) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01063)
+                          "truncating environment to %d bytes and %d elements",
+                          (int)bodylen, i);
+            break;
+        }
+
+        bodylen = envlen;
     }
-    return changed;
+
+    numenv = i;
+
+    body = apr_pcalloc(r->pool, bodylen);
+
+    itr = body;
+
+    for (i = 0; i < numenv; ++i) {
+        apr_size_t keylen, vallen;
+
+        if (! elts[i].key) {
+            continue;
+        }
+
+        keylen = strlen(elts[i].key);
+
+        if (keylen >> 7 == 0) {
+            itr[0] = keylen & 0xff;
+            itr += 1;
+        }
+        else {
+            itr[0] = ((keylen >> 24) & 0xff) | 0x80;
+            itr[1] = ((keylen >> 16) & 0xff);
+            itr[2] = ((keylen >> 8) & 0xff);
+            itr[3] = ((keylen) & 0xff);
+            itr += 4;
+        }
+
+        vallen = strlen(elts[i].val);
+
+        if (vallen >> 7 == 0) {
+            itr[0] = vallen & 0xff;
+            itr += 1;
+        }
+        else {
+            itr[0] = ((vallen >> 24) & 0xff) | 0x80;
+            itr[1] = ((vallen >> 16) & 0xff);
+            itr[2] = ((vallen >> 8) & 0xff);
+            itr[3] = ((vallen) & 0xff);
+            itr += 4;
+        }
+
+        memcpy(itr, elts[i].key, keylen);
+        itr += keylen;
+
+        memcpy(itr, elts[i].val, vallen);
+        itr += vallen;
+    }
+
+    fill_in_header(&header, FCGI_PARAMS, request_id, bodylen, 0);
+    fcgi_header_to_array(&header, farray);
+
+    vec[0].iov_base = (void *)farray;
+    vec[0].iov_len = sizeof(farray);
+    vec[1].iov_base = body;
+    vec[1].iov_len = bodylen;
+
+    rv = send_data(conn, vec, 2, &len, 1);
+    if (rv) {
+        return rv;
+    }
+
+    fill_in_header(&header, FCGI_PARAMS, request_id, 0, 0);
+    fcgi_header_to_array(&header, farray);
+
+    vec[0].iov_base = (void *)farray;
+    vec[0].iov_len = sizeof(farray);
+
+    return send_data(conn, vec, 1, &len, 1);
 }

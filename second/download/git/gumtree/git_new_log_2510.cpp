@@ -1,1 +1,1 @@
-die(_("format: %%(end) atom missing"));
+fprintf(file, "-- \n%s", signature);

@@ -1,4 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, 
-                          pool, APLOGNO(02956) 
-                          "h2_response: content-length"
-                          " value not parsed: %s", s);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                      "h2_stream(%ld-%d): send_data_cb, wanted %ld bytes, "
+                      "got %ld from stream",
+                      session->id, (int)stream_id, (long)length, (long)len);

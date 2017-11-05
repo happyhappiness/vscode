@@ -1,2 +1,2 @@
-die("unable to get type of object %s",
-				    oid_to_hex(&entry->idx.oid));
+die("BUG: cannot lock_file(\"%s\") using active struct lock_file",
+		    path);

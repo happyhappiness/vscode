@@ -1,1 +1,1 @@
-error(_("%s: already exists in index"), new_name);
+die("--reflog option needs one branch name");

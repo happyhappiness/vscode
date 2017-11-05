@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, slave,
-                                  H2_STRM_LOG(APLOGNO(02941), stream, 
-                                  "create task"));
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01913)
+                     "Unable to initialize TLS session ticket key callback "
+                     "(incompatible OpenSSL version?)");

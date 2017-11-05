@@ -1,1 +1,1 @@
-die(":strip= requires a positive integer argument");
+error("%s", o->obuf.buf);

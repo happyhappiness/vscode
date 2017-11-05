@@ -1,1 +1,1 @@
-printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
+git_die_config(key, NULL);

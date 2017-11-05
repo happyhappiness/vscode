@@ -1,17 +1,26 @@
-static void check_reachable_object(struct object *obj)
+static int add_mailname_host(struct strbuf *buf)
 {
-	/*
-	 * We obviously want the object to be parsed,
-	 * except if it was in a pack-file and we didn't
-	 * do a full fsck
-	 */
-	if (!(obj->flags & HAS_OBJ)) {
-		if (has_sha1_pack(obj->sha1))
-			return; /* it is in pack - forget about it */
-		if (connectivity_only && has_sha1_file(obj->sha1))
-			return;
-		printf("missing %s %s\n", typename(obj->type), sha1_to_hex(obj->sha1));
-		errors_found |= ERROR_REACHABLE;
-		return;
+	FILE *mailname;
+	struct strbuf mailnamebuf = STRBUF_INIT;
+
+	mailname = fopen("/etc/mailname", "r");
+	if (!mailname) {
+		if (errno != ENOENT)
+			warning("cannot open /etc/mailname: %s",
+				strerror(errno));
+		return -1;
 	}
+	if (strbuf_getline(&mailnamebuf, mailname) == EOF) {
+		if (ferror(mailname))
+			warning("cannot read /etc/mailname: %s",
+				strerror(errno));
+		strbuf_release(&mailnamebuf);
+		fclose(mailname);
+		return -1;
+	}
+	/* success! */
+	strbuf_addbuf(buf, &mailnamebuf);
+	strbuf_release(&mailnamebuf);
+	fclose(mailname);
+	return 0;
 }

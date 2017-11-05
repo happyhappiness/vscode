@@ -1,22 +1,32 @@
-static void check_safe_crlf(const char *path, enum crlf_action crlf_action,
-			    struct text_stat *old_stats, struct text_stat *new_stats,
-			    enum safe_crlf checksafe)
+static void print_ok_ref_status(struct ref *ref, int porcelain)
 {
-	if (old_stats->crlf && !new_stats->crlf ) {
-		/*
-		 * CRLFs would not be restored by checkout
-		 */
-		if (checksafe == SAFE_CRLF_WARN)
-			warning("CRLF will be replaced by LF in %s.\nThe file will have its original line endings in your working directory.", path);
-		else /* i.e. SAFE_CRLF_FAIL */
-			die("CRLF would be replaced by LF in %s.", path);
-	} else if (old_stats->lonelf && !new_stats->lonelf ) {
-		/*
-		 * CRLFs would be added by checkout
-		 */
-		if (checksafe == SAFE_CRLF_WARN)
-			warning("LF will be replaced by CRLF in %s.\nThe file will have its original line endings in your working directory.", path);
-		else /* i.e. SAFE_CRLF_FAIL */
-			die("LF would be replaced by CRLF in %s", path);
+	if (ref->deletion)
+		print_ref_status('-', "[deleted]", ref, NULL, NULL, porcelain);
+	else if (is_null_oid(&ref->old_oid))
+		print_ref_status('*',
+			(starts_with(ref->name, "refs/tags/") ? "[new tag]" :
+			"[new branch]"),
+			ref, ref->peer_ref, NULL, porcelain);
+	else {
+		struct strbuf quickref = STRBUF_INIT;
+		char type;
+		const char *msg;
+
+		strbuf_add_unique_abbrev(&quickref, ref->old_oid.hash,
+					 DEFAULT_ABBREV);
+		if (ref->forced_update) {
+			strbuf_addstr(&quickref, "...");
+			type = '+';
+			msg = "forced update";
+		} else {
+			strbuf_addstr(&quickref, "..");
+			type = ' ';
+			msg = NULL;
+		}
+		strbuf_add_unique_abbrev(&quickref, ref->new_oid.hash,
+					 DEFAULT_ABBREV);
+
+		print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg, porcelain);
+		strbuf_release(&quickref);
 	}
 }

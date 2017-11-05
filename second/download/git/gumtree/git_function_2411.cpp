@@ -1,117 +1,153 @@
-static void show_commit(struct commit *commit, void *data)
+int cmd_add(int argc, const char **argv, const char *prefix)
 {
-	struct rev_list_info *info = data;
-	struct rev_info *revs = info->revs;
+	int exit_status = 0;
+	struct pathspec pathspec;
+	struct dir_struct dir;
+	int flags, force_mode;
+	int add_new_files;
+	int require_pathspec;
+	char *seen = NULL;
 
-	if (info->flags & REV_LIST_QUIET) {
-		finish_commit(commit, data);
-		return;
-	}
+	git_config(add_config, NULL);
 
-	graph_show_commit(revs->graph);
+	argc = parse_options(argc, argv, prefix, builtin_add_options,
+			  builtin_add_usage, PARSE_OPT_KEEP_ARGV0);
+	if (patch_interactive)
+		add_interactive = 1;
+	if (add_interactive)
+		exit(interactive_add(argc - 1, argv + 1, prefix, patch_interactive));
 
-	if (revs->count) {
-		if (commit->object.flags & PATCHSAME)
-			revs->count_same++;
-		else if (commit->object.flags & SYMMETRIC_LEFT)
-			revs->count_left++;
-		else
-			revs->count_right++;
-		finish_commit(commit, data);
-		return;
-	}
+	if (edit_interactive)
+		return(edit_patch(argc, argv, prefix));
+	argc--;
+	argv++;
 
-	if (info->show_timestamp)
-		printf("%lu ", commit->date);
-	if (info->header_prefix)
-		fputs(info->header_prefix, stdout);
+	if (0 <= addremove_explicit)
+		addremove = addremove_explicit;
+	else if (take_worktree_changes && ADDREMOVE_DEFAULT)
+		addremove = 0; /* "-u" was given but not "-A" */
 
-	if (!revs->graph)
-		fputs(get_revision_mark(revs, commit), stdout);
-	if (revs->abbrev_commit && revs->abbrev)
-		fputs(find_unique_abbrev(commit->object.sha1, revs->abbrev),
-		      stdout);
+	if (addremove && take_worktree_changes)
+		die(_("-A and -u are mutually incompatible"));
+
+	if (!take_worktree_changes && addremove_explicit < 0 && argc)
+		/* Turn "git add pathspec..." to "git add -A pathspec..." */
+		addremove = 1;
+
+	if (!show_only && ignore_missing)
+		die(_("Option --ignore-missing can only be used together with --dry-run"));
+
+	if (!chmod_arg)
+		force_mode = 0;
+	else if (!strcmp(chmod_arg, "-x"))
+		force_mode = 0666;
+	else if (!strcmp(chmod_arg, "+x"))
+		force_mode = 0777;
 	else
-		fputs(sha1_to_hex(commit->object.sha1), stdout);
-	if (revs->print_parents) {
-		struct commit_list *parents = commit->parents;
-		while (parents) {
-			printf(" %s", sha1_to_hex(parents->item->object.sha1));
-			parents = parents->next;
-		}
+		die(_("--chmod param '%s' must be either -x or +x"), chmod_arg);
+
+	add_new_files = !take_worktree_changes && !refresh_only;
+	require_pathspec = !(take_worktree_changes || (0 < addremove_explicit));
+
+	hold_locked_index(&lock_file, 1);
+
+	flags = ((verbose ? ADD_CACHE_VERBOSE : 0) |
+		 (show_only ? ADD_CACHE_PRETEND : 0) |
+		 (intent_to_add ? ADD_CACHE_INTENT : 0) |
+		 (ignore_add_errors ? ADD_CACHE_IGNORE_ERRORS : 0) |
+		 (!(addremove || take_worktree_changes)
+		  ? ADD_CACHE_IGNORE_REMOVAL : 0));
+
+	if (require_pathspec && argc == 0) {
+		fprintf(stderr, _("Nothing specified, nothing added.\n"));
+		fprintf(stderr, _("Maybe you wanted to say 'git add .'?\n"));
+		return 0;
 	}
-	if (revs->children.name) {
-		struct commit_list *children;
 
-		children = lookup_decoration(&revs->children, &commit->object);
-		while (children) {
-			printf(" %s", sha1_to_hex(children->item->object.sha1));
-			children = children->next;
+	if (read_cache() < 0)
+		die(_("index file corrupt"));
+
+	/*
+	 * Check the "pathspec '%s' did not match any files" block
+	 * below before enabling new magic.
+	 */
+	parse_pathspec(&pathspec, 0,
+		       PATHSPEC_PREFER_FULL |
+		       PATHSPEC_SYMLINK_LEADING_PATH |
+		       PATHSPEC_STRIP_SUBMODULE_SLASH_EXPENSIVE,
+		       prefix, argv);
+
+	if (add_new_files) {
+		int baselen;
+
+		/* Set up the default git porcelain excludes */
+		memset(&dir, 0, sizeof(dir));
+		if (!ignored_too) {
+			dir.flags |= DIR_COLLECT_IGNORED;
+			setup_standard_excludes(&dir);
 		}
+
+		/* This picks up the paths that are not tracked */
+		baselen = fill_directory(&dir, &pathspec);
+		if (pathspec.nr)
+			seen = prune_directory(&dir, &pathspec, baselen);
 	}
-	show_decorations(revs, commit);
-	if (revs->commit_format == CMIT_FMT_ONELINE)
-		putchar(' ');
-	else
-		putchar('\n');
 
-	if (revs->verbose_header && get_cached_commit_buffer(commit, NULL)) {
-		struct strbuf buf = STRBUF_INIT;
-		struct pretty_print_context ctx = {0};
-		ctx.abbrev = revs->abbrev;
-		ctx.date_mode = revs->date_mode;
-		ctx.date_mode_explicit = revs->date_mode_explicit;
-		ctx.fmt = revs->commit_format;
-		ctx.output_encoding = get_log_output_encoding();
-		pretty_print_commit(&ctx, commit, &buf);
-		if (revs->graph) {
-			if (buf.len) {
-				if (revs->commit_format != CMIT_FMT_ONELINE)
-					graph_show_oneline(revs->graph);
+	if (refresh_only) {
+		refresh(verbose, &pathspec);
+		goto finish;
+	}
 
-				graph_show_commit_msg(revs->graph, &buf);
+	if (pathspec.nr) {
+		int i;
 
-				/*
-				 * Add a newline after the commit message.
-				 *
-				 * Usually, this newline produces a blank
-				 * padding line between entries, in which case
-				 * we need to add graph padding on this line.
-				 *
-				 * However, the commit message may not end in a
-				 * newline.  In this case the newline simply
-				 * ends the last line of the commit message,
-				 * and we don't need any graph output.  (This
-				 * always happens with CMIT_FMT_ONELINE, and it
-				 * happens with CMIT_FMT_USERFORMAT when the
-				 * format doesn't explicitly end in a newline.)
-				 */
-				if (buf.len && buf.buf[buf.len - 1] == '\n')
-					graph_show_padding(revs->graph);
-				putchar('\n');
-			} else {
-				/*
-				 * If the message buffer is empty, just show
-				 * the rest of the graph output for this
-				 * commit.
-				 */
-				if (graph_show_remainder(revs->graph))
-					putchar('\n');
-				if (revs->commit_format == CMIT_FMT_ONELINE)
-					putchar('\n');
+		if (!seen)
+			seen = find_pathspecs_matching_against_index(&pathspec);
+
+		/*
+		 * file_exists() assumes exact match
+		 */
+		GUARD_PATHSPEC(&pathspec,
+			       PATHSPEC_FROMTOP |
+			       PATHSPEC_LITERAL |
+			       PATHSPEC_GLOB |
+			       PATHSPEC_ICASE |
+			       PATHSPEC_EXCLUDE);
+
+		for (i = 0; i < pathspec.nr; i++) {
+			const char *path = pathspec.items[i].match;
+			if (pathspec.items[i].magic & PATHSPEC_EXCLUDE)
+				continue;
+			if (!seen[i] && path[0] &&
+			    ((pathspec.items[i].magic &
+			      (PATHSPEC_GLOB | PATHSPEC_ICASE)) ||
+			     !file_exists(path))) {
+				if (ignore_missing) {
+					int dtype = DT_UNKNOWN;
+					if (is_excluded(&dir, path, &dtype))
+						dir_add_ignored(&dir, path, pathspec.items[i].len);
+				} else
+					die(_("pathspec '%s' did not match any files"),
+					    pathspec.items[i].original);
 			}
-		} else {
-			if (revs->commit_format != CMIT_FMT_USERFORMAT ||
-			    buf.len) {
-				fwrite(buf.buf, 1, buf.len, stdout);
-				putchar(info->hdr_termination);
-			}
 		}
-		strbuf_release(&buf);
-	} else {
-		if (graph_show_remainder(revs->graph))
-			putchar('\n');
+		free(seen);
 	}
-	maybe_flush_or_die(stdout, "stdout");
-	finish_commit(commit, data);
+
+	plug_bulk_checkin();
+
+	exit_status |= add_files_to_cache(prefix, &pathspec, flags, force_mode);
+
+	if (add_new_files)
+		exit_status |= add_files(&dir, flags, force_mode);
+
+	unplug_bulk_checkin();
+
+finish:
+	if (active_cache_changed) {
+		if (write_locked_index(&the_index, &lock_file, COMMIT_LOCK))
+			die(_("Unable to write new index file"));
+	}
+
+	return exit_status;
 }

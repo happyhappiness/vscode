@@ -1,2 +1,1 @@
-die(_("invalid number of threads specified (%d) for %s"),
-			    num_threads, var);
+strbuf_addf(err, "couldn't set '%s'", lock->ref_name);

@@ -1,25 +1,11 @@
-static int alt_odb_usable(struct strbuf *path, const char *normalized_objdir)
+static int intend_to_amend(void)
 {
-	struct alternate_object_database *alt;
+	unsigned char head[20];
+	char *p;
 
-	/* Detect cases where alternate disappeared */
-	if (!is_directory(path->buf)) {
-		error("object directory %s does not exist; "
-		      "check .git/objects/info/alternates.",
-		      path->buf);
-		return 0;
-	}
+	if (get_sha1("HEAD", head))
+		return error(_("cannot read HEAD"));
 
-	/*
-	 * Prevent the common mistake of listing the same
-	 * thing twice, or object directory itself.
-	 */
-	for (alt = alt_odb_list; alt; alt = alt->next) {
-		if (!fspathcmp(path->buf, alt->path))
-			return 0;
-	}
-	if (!fspathcmp(path->buf, normalized_objdir))
-		return 0;
-
-	return 1;
+	p = sha1_to_hex(head);
+	return write_message(p, strlen(p), rebase_path_amend(), 1);
 }

@@ -1,1 +1,2 @@
-ap_rputs("<tr><td bgcolor=\"#000000\">\n", r);
+fprintf(stderr,"Errors reported here must be corrected before the "
+                "service can be started.\n");

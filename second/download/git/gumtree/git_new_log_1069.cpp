@@ -1,1 +1,1 @@
-die("cannot use '%c' for value matching", *src);
+packet_buf_write(&req_buf, "deepen-since %"PRItime, max_age);

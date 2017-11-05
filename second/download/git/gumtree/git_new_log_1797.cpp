@@ -1,1 +1,1 @@
-die(_("--first-parent is incompatible with --bisect"));
+die_errno(_("could not open '%s' for writing"), path);

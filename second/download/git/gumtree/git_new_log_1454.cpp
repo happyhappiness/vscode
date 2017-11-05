@@ -1,1 +1,2 @@
-die(_("Failed to resolve HEAD as a valid ref."));
+status_printf_ln(s, c,
+			"--------------------------------------------------");

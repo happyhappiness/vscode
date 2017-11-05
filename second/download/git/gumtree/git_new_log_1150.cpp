@@ -1,2 +1,1 @@
-warning("invalid line while parsing alternate refs: %s",
-				line.buf);
+fprintf(stderr, "cannot chmod %cx '%s'\n", flip, ce->name);

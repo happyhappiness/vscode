@@ -1,1 +1,2 @@
-die("BUG: %s called for a submodule", caller);
+die("BUG: ref_store for submodule '%s' initialized twice",
+		    submodule);

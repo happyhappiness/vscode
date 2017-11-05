@@ -1,0 +1,1 @@
+printf_ln(_("Bye."));

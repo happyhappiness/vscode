@@ -1,1 +1,0 @@
-fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");

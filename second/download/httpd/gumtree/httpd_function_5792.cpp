@@ -1,32 +1,26 @@
-apr_status_t h2_conn_io_flush(h2_conn_io *io)
+apr_status_t h2_mplx_stream_done(h2_mplx *m, int stream_id, int rst_error)
 {
-    if (io->unflushed) {
-        apr_status_t status; 
-        if (io->buflen > 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
-                          "h2_conn_io: flush, flushing %ld bytes", (long)io->buflen);
-            bucketeer_buffer(io);
-            io->buflen = 0;
+    apr_status_t status = APR_SUCCESS;
+    int acquired;
+    
+    /* This maybe called from inside callbacks that already hold the lock.
+     * E.g. when we are streaming out DATA and the EOF triggers the stream
+     * release.
+     */
+    AP_DEBUG_ASSERT(m);
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
+
+        /* there should be an h2_io, once the stream has been scheduled
+         * for processing, e.g. when we received all HEADERs. But when
+         * a stream is cancelled very early, it will not exist. */
+        if (io) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c, 
+                          "h2_mplx(%ld-%d): marking stream as done.", 
+                          m->id, stream_id);
+            io_stream_done(m, io, rst_error);
         }
-        /* Append flush.
-         */
-        APR_BRIGADE_INSERT_TAIL(io->output,
-                                apr_bucket_flush_create(io->output->bucket_alloc));
-        
-        /* Send it out through installed filters (TLS) to the client */
-        status = flush_out(io->output, io);
-        
-        if (status == APR_SUCCESS) {
-            /* These are all fine and no reason for concern. Everything else
-             * is interesting. */
-            io->unflushed = 0;
-        }
-        else {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, io->connection,
-                          "h2_conn_io: flush error");
-        }
-        
-        return status;
+        leave_mutex(m, acquired);
     }
-    return APR_SUCCESS;
+    return status;
 }

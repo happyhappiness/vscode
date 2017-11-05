@@ -1,2 +1,1 @@
-error("chmod on %s failed: %s",
-				lock->filename, strerror(errno));
+error("remote-curl: error reading command stream from git");

@@ -1,1 +1,2 @@
-fprintf(stderr, " which contains %s\n", oid_to_hex(&request->obj->oid));
+die(_("patch fragment without header at line %d: %.*s"),
+			    state->linenr, (int)len-1, line);

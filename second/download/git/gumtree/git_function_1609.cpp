@@ -1,43 +1,18 @@
-static char *resolve_symlink(char *p, size_t s)
+static int rename_ref_available(const char *oldname, const char *newname)
 {
-	int depth = MAXDEPTH;
+	struct string_list skip = STRING_LIST_INIT_NODUP;
+	struct strbuf err = STRBUF_INIT;
+	int ret;
 
-	while (depth--) {
-		char link[PATH_MAX];
-		int link_len = readlink(p, link, sizeof(link));
-		if (link_len < 0) {
-			/* not a symlink anymore */
-			return p;
-		}
-		else if (link_len < sizeof(link))
-			/* readlink() never null-terminates */
-			link[link_len] = '\0';
-		else {
-			warning("%s: symlink too long", p);
-			return p;
-		}
+	string_list_insert(&skip, oldname);
+	ret = !verify_refname_available(newname, NULL, &skip,
+					get_packed_refs(&ref_cache), &err)
+		&& !verify_refname_available(newname, NULL, &skip,
+					     get_loose_refs(&ref_cache), &err);
+	if (!ret)
+		error("%s", err.buf);
 
-		if (is_absolute_path(link)) {
-			/* absolute path simply replaces p */
-			if (link_len < s)
-				strcpy(p, link);
-			else {
-				warning("%s: symlink too long", p);
-				return p;
-			}
-		} else {
-			/*
-			 * link is a relative path, so I must replace the
-			 * last element of p with it.
-			 */
-			char *r = (char *)last_path_elm(p);
-			if (r - p + link_len < s)
-				strcpy(r, link);
-			else {
-				warning("%s: symlink too long", p);
-				return p;
-			}
-		}
-	}
-	return p;
+	string_list_clear(&skip, 0);
+	strbuf_release(&err);
+	return ret;
 }

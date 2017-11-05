@@ -1,29 +1,37 @@
-int expand_ref(const char *str, int len, unsigned char *sha1, char **ref)
+static int prefix_ref_iterator_advance(struct ref_iterator *ref_iterator)
 {
-	const char **p, *r;
-	int refs_found = 0;
+	struct prefix_ref_iterator *iter =
+		(struct prefix_ref_iterator *)ref_iterator;
+	int ok;
 
-	*ref = NULL;
-	for (p = ref_rev_parse_rules; *p; p++) {
-		char fullref[PATH_MAX];
-		unsigned char sha1_from_ref[20];
-		unsigned char *this_result;
-		int flag;
+	while ((ok = ref_iterator_advance(iter->iter0)) == ITER_OK) {
+		if (!starts_with(iter->iter0->refname, iter->prefix))
+			continue;
 
-		this_result = refs_found ? sha1_from_ref : sha1;
-		mksnpath(fullref, sizeof(fullref), *p, len, str);
-		r = resolve_ref_unsafe(fullref, RESOLVE_REF_READING,
-				       this_result, &flag);
-		if (r) {
-			if (!refs_found++)
-				*ref = xstrdup(r);
-			if (!warn_ambiguous_refs)
-				break;
-		} else if ((flag & REF_ISSYMREF) && strcmp(fullref, "HEAD")) {
-			warning("ignoring dangling symref %s.", fullref);
-		} else if ((flag & REF_ISBROKEN) && strchr(fullref, '/')) {
-			warning("ignoring broken ref %s.", fullref);
+		if (iter->trim) {
+			/*
+			 * It is nonsense to trim off characters that
+			 * you haven't already checked for via a
+			 * prefix check, whether via this
+			 * `prefix_ref_iterator` or upstream in
+			 * `iter0`). So if there wouldn't be at least
+			 * one character left in the refname after
+			 * trimming, report it as a bug:
+			 */
+			if (strlen(iter->iter0->refname) <= iter->trim)
+				die("BUG: attempt to trim too many characters");
+			iter->base.refname = iter->iter0->refname + iter->trim;
+		} else {
+			iter->base.refname = iter->iter0->refname;
 		}
+
+		iter->base.oid = iter->iter0->oid;
+		iter->base.flags = iter->iter0->flags;
+		return ITER_OK;
 	}
-	return refs_found;
+
+	iter->iter0 = NULL;
+	if (ref_iterator_abort(ref_iterator) != ITER_DONE)
+		return ITER_ERROR;
+	return ok;
 }

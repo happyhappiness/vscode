@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                                 ap_server_conf,
-                                 "server reached MaxClients setting, consider"
-                                 " raising the MaxClients setting");
+ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, 
+                    "Websocket: Upgrade from HTTP to Websocket failed");

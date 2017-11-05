@@ -1,1 +1,1 @@
-warning("ignoring dangling symref %s.", fullref.buf);
+die("BUG: attempt to trim too many characters");

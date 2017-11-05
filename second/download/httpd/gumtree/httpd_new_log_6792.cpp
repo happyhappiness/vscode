@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                      H2_STRM_MSG(stream, "task_done, in hold"));
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02568)
+                     "Certificate and private key %s configured from %s and %s",
+                     key_id, certfile, keyfile);

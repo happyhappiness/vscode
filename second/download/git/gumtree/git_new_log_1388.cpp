@@ -1,1 +1,1 @@
-die ("BUG: error initializing pathspec_item");
+die_errno(_("could not create file '%s'"), d->edit_path);

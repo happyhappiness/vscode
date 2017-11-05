@@ -1,2 +1,1 @@
-fprintf(stderr, "Marking %s as complete\n",
-				oid_to_hex(&complete->item->object.oid));
+die(_("a %s revision is needed"), term_bad);

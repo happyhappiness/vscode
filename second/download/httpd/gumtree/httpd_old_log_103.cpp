@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                             c->base_server,
-                             "SSL Proxy connect failed");
+ap_log_error(APLOG_MARK, APLOG_ERR, ret, NULL,
+                     "Error in ssl_hook_CloseConnection");

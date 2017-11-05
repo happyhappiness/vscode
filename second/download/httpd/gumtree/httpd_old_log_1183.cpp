@@ -1,1 +1,0 @@
-printf("Can\'t alloc postfile buffer\n");

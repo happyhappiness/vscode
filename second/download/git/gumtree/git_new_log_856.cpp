@@ -1,1 +1,1 @@
-error(_("unknown command %d"), item->command);
+die("BUG: should have same number of entries");

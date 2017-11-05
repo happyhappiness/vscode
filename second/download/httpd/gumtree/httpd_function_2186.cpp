@@ -1,20 +1,26 @@
-static const char *set_min_free_threads(cmd_parms *cmd, void *dummy, const char *arg)
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
 {
-    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
-    if (err != NULL) {
-        return err;
-    }
+    apr_status_t rv;
 
-    ap_threads_min_free = atoi(arg);
-    if (ap_threads_min_free <= 0) {
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "WARNING: detected MinSpareServers set to non-positive.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "Resetting to 1 to avoid almost certain Apache failure.");
-       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                    "Please read the documentation.");
-       ap_threads_min_free = 1;
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+            "proxy: BALANCER: lock");
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
+    /* TODO: calculate the bytes transferred
+     * This will enable to elect the worker that has
+     * the lowest load.
+     * The bytes transferred depends on the protocol
+     * used, so each protocol handler should keep the
+     * track on that.
+     */
 
-    return NULL;
+    PROXY_THREAD_UNLOCK(balancer);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy_balancer_post_request for (%s)", balancer->name);
+
+    return OK;
 }

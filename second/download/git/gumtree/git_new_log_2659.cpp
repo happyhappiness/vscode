@@ -1,1 +1,1 @@
-die(_("unable to update HEAD"));
+err(o, _("Unable to write index."));

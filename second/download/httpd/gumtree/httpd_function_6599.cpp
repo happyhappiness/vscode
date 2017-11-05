@@ -1,119 +1,71 @@
-static void task_done(h2_mplx *m, h2_task *task, h2_req_engine *ngn)
+static int cache_save_store(ap_filter_t *f, apr_bucket_brigade *in,
+        cache_server_conf *conf, cache_request_rec *cache)
 {
-    if (task->frozen) {
-        /* this task was handed over to an engine for processing 
-         * and the original worker has finished. That means the 
-         * engine may start processing now. */
-        h2_task_thaw(task);
-        /* we do not want the task to block on writing response
-         * bodies into the mplx. */
-        h2_task_set_io_blocking(task, 0);
-        apr_thread_cond_broadcast(m->task_thawed);
-        return;
-    }
-    else {
-        h2_stream *stream;
-        
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                      "h2_mplx(%ld): task(%s) done", m->id, task->id);
-        out_close(m, task);
-        stream = h2_ihash_get(m->streams, task->stream_id);
-        
-        if (ngn) {
-            apr_off_t bytes = 0;
-            if (task->output.beam) {
-                h2_beam_send(task->output.beam, NULL, APR_NONBLOCK_READ);
-                bytes += h2_beam_get_buffered(task->output.beam);
-            }
-            if (bytes > 0) {
-                /* we need to report consumed and current buffered output
-                 * to the engine. The request will be streamed out or cancelled,
-                 * no more data is coming from it and the engine should update
-                 * its calculations before we destroy this information. */
-                h2_req_engine_out_consumed(ngn, task->c, bytes);
-            }
+    int rv = APR_SUCCESS;
+    apr_bucket *e;
+
+    /* pass the brigade in into the cache provider, which is then
+     * expected to move cached buckets to the out brigade, for us
+     * to pass up the filter stack. repeat until in is empty, or
+     * we fail.
+     */
+    while (APR_SUCCESS == rv && !APR_BRIGADE_EMPTY(in)) {
+
+        rv = cache->provider->store_body(cache->handle, f->r, in, cache->out);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, f->r, APLOGNO(00765)
+                    "cache: Cache provider's store_body failed!");
+            ap_remove_output_filter(f);
+
+            /* give someone else the chance to cache the file */
+            cache_remove_lock(conf, cache, f->r, NULL);
+
+            /* give up trying to cache, just step out the way */
+            APR_BRIGADE_PREPEND(in, cache->out);
+            return ap_pass_brigade(f->next, in);
+
         }
-        
-        if (task->engine) {
-            if (!h2_req_engine_is_shutdown(task->engine)) {
-                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,
-                              "h2_mplx(%ld): task(%s) has not-shutdown "
-                              "engine(%s)", m->id, task->id, 
-                              h2_req_engine_get_id(task->engine));
-            }
-            h2_ngn_shed_done_ngn(m->ngn_shed, task->engine);
-        }
-        
-        if (!m->aborted && stream && m->redo_tasks
-            && h2_ihash_get(m->redo_tasks, task->stream_id)) {
-            /* reset and schedule again */
-            h2_task_redo(task);
-            h2_ihash_remove(m->redo_tasks, task->stream_id);
-            h2_iq_add(m->q, task->stream_id, NULL, NULL);
-            return;
-        }
-        
-        task->worker_done = 1;
-        task->done_at = apr_time_now();
-        if (task->output.beam) {
-            h2_beam_on_consumed(task->output.beam, NULL, NULL);
-            h2_beam_mutex_set(task->output.beam, NULL, NULL, NULL);
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                      "h2_mplx(%s): request done, %f ms elapsed", task->id, 
-                      (task->done_at - task->started_at) / 1000.0);
-        if (task->started_at > m->last_idle_block) {
-            /* this task finished without causing an 'idle block', e.g.
-             * a block by flow control.
-             */
-            if (task->done_at- m->last_limit_change >= m->limit_change_interval
-                && m->workers_limit < m->workers_max) {
-                /* Well behaving stream, allow it more workers */
-                m->workers_limit = H2MIN(m->workers_limit * 2, 
-                                         m->workers_max);
-                m->last_limit_change = task->done_at;
-                m->need_registration = 1;
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                              "h2_mplx(%ld): increase worker limit to %d",
-                              m->id, m->workers_limit);
+
+        /* does the out brigade contain eos? if so, we're done, commit! */
+        for (e = APR_BRIGADE_FIRST(cache->out);
+             e != APR_BRIGADE_SENTINEL(cache->out);
+             e = APR_BUCKET_NEXT(e))
+        {
+            if (APR_BUCKET_IS_EOS(e)) {
+                rv = cache->provider->commit_entity(cache->handle, f->r);
+                break;
             }
         }
-        
-        if (stream) {
-            /* hang around until the stream deregisters */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%s): task_done, stream still open", 
-                          task->id);
-            if (h2_stream_is_suspended(stream)) {
-                /* more data will not arrive, resume the stream */
-                h2_ihash_add(m->sresume, stream);
-                have_out_data_for(m, stream->id);
-            }
-        }
-        else {
-            /* stream no longer active, was it placed in hold? */
-            stream = h2_ihash_get(m->shold, task->stream_id);
-            if (stream) {
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                              "h2_mplx(%s): task_done, stream in hold", 
-                              task->id);
-                /* We cannot destroy the stream here since this is 
-                 * called from a worker thread and freeing memory pools
-                 * is only safe in the only thread using it (and its
-                 * parent pool / allocator) */
-                h2_ihash_remove(m->shold, stream->id);
-                h2_ihash_add(m->spurge, stream);
+
+        /* conditionally remove the lock as soon as we see the eos bucket */
+        cache_remove_lock(conf, cache, f->r, cache->out);
+
+        if (APR_BRIGADE_EMPTY(cache->out)) {
+            if (APR_BRIGADE_EMPTY(in)) {
+                /* cache provider wants more data before passing the brigade
+                 * upstream, oblige the provider by leaving to fetch more.
+                 */
+                break;
             }
             else {
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                              "h2_mplx(%s): task_done, stream not found", 
-                              task->id);
-                task_destroy(m, task, 0);
-            }
-            
-            if (m->join_wait) {
-                apr_thread_cond_signal(m->join_wait);
+                /* oops, no data out, but not all data read in either, be
+                 * safe and stand down to prevent a spin.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, f->r, APLOGNO(00766)
+                        "cache: Cache provider's store_body returned an "
+                        "empty brigade, but didn't consume all of the"
+                        "input brigade, standing down to prevent a spin");
+                ap_remove_output_filter(f);
+
+                /* give someone else the chance to cache the file */
+                cache_remove_lock(conf, cache, f->r, NULL);
+
+                return ap_pass_brigade(f->next, in);
             }
         }
+
+        rv = ap_pass_brigade(f->next, cache->out);
     }
+
+    return rv;
 }

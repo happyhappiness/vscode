@@ -1,2 +1,1 @@
-printf("dangling %s %s\n", typename(obj->type),
-			       oid_to_hex(&obj->oid));
+error_errno("unable to open mailmap at %s", filename);

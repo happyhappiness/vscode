@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+error("%s", err.buf);

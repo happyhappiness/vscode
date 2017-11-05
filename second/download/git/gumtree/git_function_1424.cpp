@@ -1,33 +1,41 @@
-static int got_sha1(const char *hex, unsigned char *sha1)
+static void execute_commands_atomic(struct command *commands,
+					struct shallow_info *si)
 {
-	struct object *o;
-	int we_knew_they_have = 0;
+	struct command *cmd;
+	struct strbuf err = STRBUF_INIT;
+	const char *reported_error = "atomic push failure";
 
-	if (get_sha1_hex(hex, sha1))
-		die("git upload-pack: expected SHA1 object, got '%s'", hex);
-	if (!has_sha1_file(sha1))
-		return -1;
+	transaction = ref_transaction_begin(&err);
+	if (!transaction) {
+		rp_error("%s", err.buf);
+		strbuf_reset(&err);
+		reported_error = "transaction failed to start";
+		goto failure;
+	}
 
-	o = parse_object(sha1);
-	if (!o)
-		die("oops (%s)", sha1_to_hex(sha1));
-	if (o->type == OBJ_COMMIT) {
-		struct commit_list *parents;
-		struct commit *commit = (struct commit *)o;
-		if (o->flags & THEY_HAVE)
-			we_knew_they_have = 1;
-		else
-			o->flags |= THEY_HAVE;
-		if (!oldest_have || (commit->date < oldest_have))
-			oldest_have = commit->date;
-		for (parents = commit->parents;
-		     parents;
-		     parents = parents->next)
-			parents->item->object.flags |= THEY_HAVE;
+	for (cmd = commands; cmd; cmd = cmd->next) {
+		if (!should_process_cmd(cmd))
+			continue;
+
+		cmd->error_string = update(cmd, si);
+
+		if (cmd->error_string)
+			goto failure;
 	}
-	if (!we_knew_they_have) {
-		add_object_array(o, NULL, &have_obj);
-		return 1;
+
+	if (ref_transaction_commit(transaction, &err)) {
+		rp_error("%s", err.buf);
+		reported_error = "atomic transaction failed";
+		goto failure;
 	}
-	return 0;
+	goto cleanup;
+
+failure:
+	for (cmd = commands; cmd; cmd = cmd->next)
+		if (!cmd->error_string)
+			cmd->error_string = reported_error;
+
+cleanup:
+	ref_transaction_free(transaction);
+	strbuf_release(&err);
 }

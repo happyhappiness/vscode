@@ -1,1 +1,1 @@
-object_as_type(obj, OBJ_TAG, 0);
+die("internal error in blame::blame_chunk_cb");

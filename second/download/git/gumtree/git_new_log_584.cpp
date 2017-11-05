@@ -1,1 +1,2 @@
-printf("Auto-merging notes for %s\n", oid_to_hex(&p->obj));
+die("Could not run 'git rev-list <commits> --not --remotes -n 1' command in submodule %s",
+					path);

@@ -1,1 +1,1 @@
-die("object '%s' is not a blob!", oid_to_hex(oid));
+printf("%s	%s\n", oid_to_hex(&ref->old_oid), ref->name);;

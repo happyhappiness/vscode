@@ -1,22 +1,15 @@
-void credential_fill(struct credential *c)
+int fsck_error_function(struct object *obj, int type, const char *fmt, ...)
 {
-	int i;
+	va_list ap;
+	struct strbuf sb = STRBUF_INIT;
 
-	if (c->username && c->password)
-		return;
+	strbuf_addf(&sb, "object %s:", sha1_to_hex(obj->sha1));
 
-	credential_apply_config(c);
+	va_start(ap, fmt);
+	strbuf_vaddf(&sb, fmt, ap);
+	va_end(ap);
 
-	for (i = 0; i < c->helpers.nr; i++) {
-		credential_do(c, c->helpers.items[i].string, "get");
-		if (c->username && c->password)
-			return;
-		if (c->quit)
-			die("credential helper '%s' told us to quit",
-			    c->helpers.items[i].string);
-	}
-
-	credential_getpass(c);
-	if (!c->username && !c->password)
-		die("unable to get password from user");
+	error("%s", sb.buf);
+	strbuf_release(&sb);
+	return 1;
 }

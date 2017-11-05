@@ -1,1 +1,0 @@
-die_errno("Cannot stat '%s'", contents_from);

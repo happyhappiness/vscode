@@ -1,1 +1,1 @@
-die_errno("Could not switch to '%s'", buf);
+warning("--use-curl not supported in this build");

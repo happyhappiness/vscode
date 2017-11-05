@@ -1,0 +1,1 @@
+(APR_STATUS_IS_EINTR(rv);

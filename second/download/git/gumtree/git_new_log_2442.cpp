@@ -1,1 +1,1 @@
-printf("%s\n", sb.buf);
+die(_("Unexpected option --remote"));

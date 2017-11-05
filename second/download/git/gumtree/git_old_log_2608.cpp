@@ -1,2 +1,1 @@
-die("unable to parse commit %s",
-			    sha1_to_hex(c->object.sha1));
+printf(" %s", find_unique_abbrev(parent->object.oid.hash, abbrev));

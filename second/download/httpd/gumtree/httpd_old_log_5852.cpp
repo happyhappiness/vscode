@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_NOTFOUND, session->c,
-                      APLOGNO(02937) 
-                      "h2_stream(%ld-%d): data requested but stream not found",
-                      session->id, (int)stream_id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
+                  "h2_stream(%ld-%d): set_response(%d)", 
+                  stream->session->id, stream->id, stream->sos->response->http_status);

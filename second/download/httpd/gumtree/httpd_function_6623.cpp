@@ -1,53 +1,67 @@
-apr_status_t h2_request_add_header(h2_request *req, apr_pool_t *pool, 
-                                   const char *name, size_t nlen,
-                                   const char *value, size_t vlen)
+static void child_init(apr_pool_t *p, server_rec *s)
 {
-    apr_status_t status = APR_SUCCESS;
-    
-    if (nlen <= 0) {
-        return status;
+    proxy_worker *reverse = NULL;
+
+    apr_status_t rv = apr_global_mutex_child_init(&proxy_mutex,
+                                      apr_global_mutex_lockfile(proxy_mutex),
+                                      p);
+    if (rv != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(02479)
+                     "could not init proxy_mutex in child");
+        exit(1); /* Ugly, but what else? */
     }
-    
-    if (name[0] == ':') {
-        /* pseudo header, see ch. 8.1.2.3, always should come first */
-        if (!apr_is_empty_table(req->headers)) {
-            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
-                          APLOGNO(02917) 
-                          "h2_request(%d): pseudo header after request start",
-                          req->id);
-            return APR_EGENERAL;
+
+    /* TODO */
+    while (s) {
+        void *sconf = s->module_config;
+        proxy_server_conf *conf;
+        proxy_worker *worker;
+        int i;
+
+        conf = (proxy_server_conf *)ap_get_module_config(sconf, &proxy_module);
+        /*
+         * NOTE: non-balancer members don't use shm at all...
+         *       after all, why should they?
+         */
+        worker = (proxy_worker *)conf->workers->elts;
+        for (i = 0; i < conf->workers->nelts; i++, worker++) {
+            ap_proxy_initialize_worker(worker, s, conf->pool);
         }
-        
-        if (H2_HEADER_METHOD_LEN == nlen
-            && !strncmp(H2_HEADER_METHOD, name, nlen)) {
-            req->method = apr_pstrndup(pool, value, vlen);
+        /* Create and initialize forward worker if defined */
+        if (conf->req_set && conf->req) {
+            proxy_worker *forward;
+            ap_proxy_define_worker(p, &forward, NULL, NULL, "http://www.apache.org", 0);
+            conf->forward = forward;
+            PROXY_STRNCPY(conf->forward->s->name,     "proxy:forward");
+            PROXY_STRNCPY(conf->forward->s->hostname, "*");
+            PROXY_STRNCPY(conf->forward->s->scheme,   "*");
+            conf->forward->hash.def = conf->forward->s->hash.def =
+                ap_proxy_hashfunc(conf->forward->s->name, PROXY_HASHFUNC_DEFAULT);
+             conf->forward->hash.fnv = conf->forward->s->hash.fnv =
+                ap_proxy_hashfunc(conf->forward->s->name, PROXY_HASHFUNC_FNV);
+            /* Do not disable worker in case of errors */
+            conf->forward->s->status |= PROXY_WORKER_IGNORE_ERRORS;
+            ap_proxy_initialize_worker(conf->forward, s, conf->pool);
+            /* Disable address cache for generic forward worker */
+            conf->forward->s->is_address_reusable = 0;
         }
-        else if (H2_HEADER_SCHEME_LEN == nlen
-                 && !strncmp(H2_HEADER_SCHEME, name, nlen)) {
-            req->scheme = apr_pstrndup(pool, value, vlen);
+        if (!reverse) {
+            ap_proxy_define_worker(p, &reverse, NULL, NULL, "http://www.apache.org", 0);
+            PROXY_STRNCPY(reverse->s->name,     "proxy:reverse");
+            PROXY_STRNCPY(reverse->s->hostname, "*");
+            PROXY_STRNCPY(reverse->s->scheme,   "*");
+            reverse->hash.def = reverse->s->hash.def =
+                ap_proxy_hashfunc(reverse->s->name, PROXY_HASHFUNC_DEFAULT);
+            reverse->hash.fnv = reverse->s->hash.fnv =
+                ap_proxy_hashfunc(reverse->s->name, PROXY_HASHFUNC_FNV);
+            /* Do not disable worker in case of errors */
+            reverse->s->status |= PROXY_WORKER_IGNORE_ERRORS;
+            conf->reverse = reverse;
+            ap_proxy_initialize_worker(conf->reverse, s, conf->pool);
+            /* Disable address cache for generic reverse worker */
+            reverse->s->is_address_reusable = 0;
         }
-        else if (H2_HEADER_PATH_LEN == nlen
-                 && !strncmp(H2_HEADER_PATH, name, nlen)) {
-            req->path = apr_pstrndup(pool, value, vlen);
-        }
-        else if (H2_HEADER_AUTH_LEN == nlen
-                 && !strncmp(H2_HEADER_AUTH, name, nlen)) {
-            req->authority = apr_pstrndup(pool, value, vlen);
-        }
-        else {
-            char buffer[32];
-            memset(buffer, 0, 32);
-            strncpy(buffer, name, (nlen > 31)? 31 : nlen);
-            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
-                          APLOGNO(02954) 
-                          "h2_request(%d): ignoring unknown pseudo header %s",
-                          req->id, buffer);
-        }
+        conf->reverse = reverse;
+        s = s->next;
     }
-    else {
-        /* non-pseudo header, append to work bucket of stream */
-        status = h2_headers_add_h1(req->headers, pool, name, nlen, value, vlen);
-    }
-    
-    return status;
 }

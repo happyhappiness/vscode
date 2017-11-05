@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00200)
-                         "no listening sockets available, shutting down");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 0, NULL,
+                     APLOGNO(00377) "The '%s' service is already started!",
+                     mpm_display_name);

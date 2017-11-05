@@ -1,4 +1,2 @@
-warning(
-				"external filter '%s' requested unsupported filter capability '%s'",
-				cmd, cap_name
-			);
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "needs force", porcelain, summary_width);

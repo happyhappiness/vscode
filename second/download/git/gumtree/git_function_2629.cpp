@@ -1,22 +1,22 @@
-static const char *strip_ref_components(const char *refname, const char *nr_arg)
+static int err(struct merge_options *o, const char *err, ...)
 {
-	char *end;
-	long nr = strtol(nr_arg, &end, 10);
-	long remaining = nr;
-	const char *start = refname;
+	va_list params;
 
-	if (nr < 1 || *end != '\0')
-		die(":strip= requires a positive integer argument");
-
-	while (remaining) {
-		switch (*start++) {
-		case '\0':
-			die("ref '%s' does not have %ld components to :strip",
-			    refname, nr);
-		case '/':
-			remaining--;
-			break;
-		}
+	if (o->buffer_output < 2)
+		flush_output(o);
+	else {
+		strbuf_complete(&o->obuf, '\n');
+		strbuf_addstr(&o->obuf, "error: ");
 	}
-	return start;
+	va_start(params, err);
+	strbuf_vaddf(&o->obuf, err, params);
+	va_end(params);
+	if (o->buffer_output > 1)
+		strbuf_addch(&o->obuf, '\n');
+	else {
+		error("%s", o->obuf.buf);
+		strbuf_reset(&o->obuf);
+	}
+
+	return -1;
 }

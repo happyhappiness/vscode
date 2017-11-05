@@ -1,1 +1,1 @@
-die("revision walk setup failed");
+die("transport '%s' not allowed", type);

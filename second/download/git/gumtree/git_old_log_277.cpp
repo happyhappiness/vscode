@@ -1,2 +1,1 @@
-error(_("path %s has been renamed/deleted"),
-			     patch->old_name);
+error("Failed to remove 'git notes merge' worktree");

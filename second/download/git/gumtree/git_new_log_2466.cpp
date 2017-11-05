@@ -1,1 +1,2 @@
-die("BUG: pack tmpfile does not end in .pack.temp?");
+die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"),
+			    *name, state->linenr);

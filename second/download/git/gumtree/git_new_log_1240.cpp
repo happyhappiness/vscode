@@ -1,1 +1,1 @@
-printf("num commits: %d\n", sb.num_commits);
+strbuf_release(&err);

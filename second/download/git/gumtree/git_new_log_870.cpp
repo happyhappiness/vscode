@@ -1,1 +1,1 @@
-die_errno("Error opening '%s'", path);
+die(_("format: %%(then) atom used without an %%(if) atom"));

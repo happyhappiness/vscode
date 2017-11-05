@@ -1,0 +1,1 @@
+die(_("not handling anything other than two heads merge."));

@@ -1,1 +1,2 @@
-ap_rputs("\"<b><code>L</code></b>\" Logging, \n", r);
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+                     "proxy: CONNECT: declining URL %s", url);

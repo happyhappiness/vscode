@@ -1,1 +1,2 @@
-error(_("tag name too long: %.*s..."), 50, *p);
+die("unable to get type of object %s",
+				    sha1_to_hex(entry->idx.sha1));

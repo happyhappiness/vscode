@@ -1,1 +1,2 @@
-fprintf(stderr, " which contains %s\n", sha1_to_hex(request->obj->sha1));
+die(_("patch fragment without header at line %d: %.*s"),
+			    linenr, (int)len-1, line);

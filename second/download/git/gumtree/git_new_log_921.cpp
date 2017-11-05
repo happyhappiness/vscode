@@ -1,1 +1,1 @@
-die(_("could not unset '%s'"), buf.buf);
+die(_("could not start ls-files in .."));

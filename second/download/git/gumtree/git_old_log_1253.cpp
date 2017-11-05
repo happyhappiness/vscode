@@ -1,2 +1,1 @@
-die(_("SHA1 COLLISION FOUND WITH %s !"),
-		    sha1_to_hex(entry->idx.sha1));
+die("bad config file line %d in %s", cf->linenr, cf->name);

@@ -1,1 +1,1 @@
-die("BUG: fill_textconv called with non-textconv driver");
+err(o, _("cannot read object %s '%s'"), oid_to_hex(oid), path);

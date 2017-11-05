@@ -1,1 +1,2 @@
-error("external filter '%s' does not support filter protocol version 2", cmd);
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "fetch first", porcelain, summary_width);

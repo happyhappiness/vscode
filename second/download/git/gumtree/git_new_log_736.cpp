@@ -1,1 +1,1 @@
-error("%s", hint);
+error(_("unable to parse remote unpack status: %s"), line);

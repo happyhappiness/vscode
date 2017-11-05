@@ -1,1 +1,3 @@
-strbuf_addf(err, "can't verify ref %s", lock->ref_name);
+printf("[%s] ",
+			       find_unique_abbrev(commit->object.oid.hash,
+						  DEFAULT_ABBREV));

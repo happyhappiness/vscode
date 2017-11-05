@@ -1,2 +1,2 @@
-die("BUG: The pcre1_jit_on variable should be 0 or 1, not %d",
-		    p->pcre1_jit_on);
+die("attempting to mmap %"PRIuMAX" over limit %"PRIuMAX,
+		    (uintmax_t)length, (uintmax_t)limit);

@@ -1,0 +1,1 @@
+die(_("Negative depth in --deepen is not supported"));

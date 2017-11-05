@@ -1,2 +1,3 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "Digest: invalid nc %s received - not a number", snc);
+                      "The request body does not contain "
+                      "a \"propertyupdate\" element.");

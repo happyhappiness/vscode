@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                 "cache: Key for entity %s?%s is %s", r->parsed_uri.path,
-                 r->parsed_uri.query, *key);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "Init: Generating temporary EC parameters (256 bits)");

@@ -1,1 +1,1 @@
-die(_("invalid attribute name %s"), attr_name);
+printf("%s\n", commands[i].cmd);

@@ -1,1 +1,1 @@
-die("BUG: fdopen_lock_file() called for unlocked object");
+die("%s aborted reading request", prog_name);

@@ -1,1 +1,1 @@
-diagnose_missing_default(revs->def);
+strcpy(id->hex, hex);

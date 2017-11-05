@@ -1,26 +1,25 @@
-static int fetch_dumb(int nr_heads, struct ref **to_fetch)
+static struct child_process *git_proxy_connect(int fd[2], char *host)
 {
-	struct walker *walker;
-	char **targets = xmalloc(nr_heads * sizeof(char*));
-	int ret, i;
+	const char *port = STR(DEFAULT_GIT_PORT);
+	struct child_process *proxy;
 
-	if (options.depth)
-		die("dumb http transport does not support --depth");
-	for (i = 0; i < nr_heads; i++)
-		targets[i] = xstrdup(sha1_to_hex(to_fetch[i]->old_sha1));
+	get_host_and_port(&host, &port);
 
-	walker = get_http_walker(url.buf);
-	walker->get_all = 1;
-	walker->get_tree = 1;
-	walker->get_history = 1;
-	walker->get_verbosely = options.verbosity >= 3;
-	walker->get_recover = 0;
-	ret = walker_fetch(walker, nr_heads, targets, NULL, NULL);
-	walker_free(walker);
+	if (looks_like_command_line_option(host))
+		die("strange hostname '%s' blocked", host);
+	if (looks_like_command_line_option(port))
+		die("strange port '%s' blocked", port);
 
-	for (i = 0; i < nr_heads; i++)
-		free(targets[i]);
-	free(targets);
-
-	return ret ? error("Fetch failed.") : 0;
+	proxy = xmalloc(sizeof(*proxy));
+	child_process_init(proxy);
+	argv_array_push(&proxy->args, git_proxy_command);
+	argv_array_push(&proxy->args, host);
+	argv_array_push(&proxy->args, port);
+	proxy->in = -1;
+	proxy->out = -1;
+	if (start_command(proxy))
+		die("cannot start proxy %s", git_proxy_command);
+	fd[0] = proxy->out; /* read from proxy stdout */
+	fd[1] = proxy->in;  /* write to proxy stdin */
+	return proxy;
 }

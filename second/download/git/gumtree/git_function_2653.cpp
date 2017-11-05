@@ -1,21 +1,15 @@
-void *xcalloc(size_t nmemb, size_t size)
+static int read_sha1_strbuf(const unsigned char *sha1, struct strbuf *dst)
 {
-	void *ret;
-
-	if (unsigned_mult_overflows(nmemb, size))
-		die("data too large to fit into virtual memory space");
-
-	memory_limit_check(size * nmemb, 0);
-	ret = calloc(nmemb, size);
-	if (!ret && (!nmemb || !size))
-		ret = calloc(1, 1);
-	if (!ret) {
-		try_to_free_routine(nmemb * size);
-		ret = calloc(nmemb, size);
-		if (!ret && (!nmemb || !size))
-			ret = calloc(1, 1);
-		if (!ret)
-			die("Out of memory, calloc failed");
+	void *buf;
+	enum object_type type;
+	unsigned long size;
+	buf = read_sha1_file(sha1, &type, &size);
+	if (!buf)
+		return error(_("cannot read object %s"), sha1_to_hex(sha1));
+	if (type != OBJ_BLOB) {
+		free(buf);
+		return error(_("object %s is not a blob"), sha1_to_hex(sha1));
 	}
-	return ret;
+	strbuf_attach(dst, buf, size, size + 1);
+	return 0;
 }

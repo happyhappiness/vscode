@@ -1,1 +1,2 @@
-ap_rvputs(r, ap_proxy_parse_wstatus(r->pool, *worker), NULL);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02216)
+                     "ssl_stapling_init_cert: error allocating memory!");

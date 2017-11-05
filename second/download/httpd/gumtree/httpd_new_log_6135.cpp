@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                      "h2_task(%s): process_conn returned frozen task", 
-                      task->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
+                  "h2_stream(%ld-%d): created slave", master->id, slave_id);

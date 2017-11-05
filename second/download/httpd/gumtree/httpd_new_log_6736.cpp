@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00566)
-                              "request failed: malformed request line");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02589)
+                      "auth_ldap authorize: require ldap-filter: Can't "
+                      "evaluate require expression: %s", err);

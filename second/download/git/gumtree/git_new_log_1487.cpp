@@ -1,1 +1,1 @@
-die(_("commit '%s' has malformed author line"), author_message);
+die("unable to generate checkdiff for %s", one->path);

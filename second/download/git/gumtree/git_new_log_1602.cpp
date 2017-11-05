@@ -1,4 +1,7 @@
-fprintf(stderr, "IMAP command '%s' returned response (%s) - %s\n",
-					!starts_with(cmdp->cmd, "LOGIN") ?
-							cmdp->cmd : "LOGIN <user> <pass>",
-							arg, cmd ? cmd : "");
+printf(remote_branch
+			       ? _("Deleted remote-tracking branch %s (was %s).\n")
+			       : _("Deleted branch %s (was %s).\n"),
+			       bname.buf,
+			       (flags & REF_ISBROKEN) ? "broken"
+			       : (flags & REF_ISSYMREF) ? target
+			       : find_unique_abbrev(sha1, DEFAULT_ABBREV));

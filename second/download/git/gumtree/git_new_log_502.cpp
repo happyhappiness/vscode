@@ -1,1 +1,2 @@
-error("external filter '%s' failed %d", params->cmd, status);
+print_ref_status('X', "[no match]", ref, NULL, NULL,
+				 porcelain, summary_width);

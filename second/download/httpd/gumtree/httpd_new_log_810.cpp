@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-             "proxy: initialized single connection worker %d in child %" APR_PID_T_FMT " for (%s)",
-             worker->id, getpid(), worker->hostname);
+apr_psprintf(p, "Directory %s exceeds the maximum include "
+                                "directory nesting level of %u. You have "
+                                "probably a recursion somewhere.", path,
+                                AP_MAX_INCLUDE_DIR_DEPTH);

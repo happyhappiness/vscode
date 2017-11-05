@@ -1,115 +1,198 @@
-static int files_rename_ref(struct ref_store *ref_store,
-			    const char *oldrefname, const char *newrefname,
-			    const char *logmsg)
+static int files_transaction_commit(struct ref_store *ref_store,
+				    struct ref_transaction *transaction,
+				    struct strbuf *err)
 {
 	struct files_ref_store *refs =
-		files_downcast(ref_store, 0, "rename_ref");
-	unsigned char sha1[20], orig_sha1[20];
-	int flag = 0, logmoved = 0;
-	struct ref_lock *lock;
-	struct stat loginfo;
-	int log = !lstat(git_path("logs/%s", oldrefname), &loginfo);
-	struct strbuf err = STRBUF_INIT;
+		files_downcast(ref_store, REF_STORE_WRITE,
+			       "ref_transaction_commit");
+	int ret = 0, i;
+	struct string_list refs_to_delete = STRING_LIST_INIT_NODUP;
+	struct string_list_item *ref_to_delete;
+	struct string_list affected_refnames = STRING_LIST_INIT_NODUP;
+	char *head_ref = NULL;
+	int head_type;
+	struct object_id head_oid;
+	struct strbuf sb = STRBUF_INIT;
 
-	if (log && S_ISLNK(loginfo.st_mode))
-		return error("reflog for %s is a symlink", oldrefname);
+	assert(err);
 
-	if (!resolve_ref_unsafe(oldrefname, RESOLVE_REF_READING | RESOLVE_REF_NO_RECURSE,
-				orig_sha1, &flag))
-		return error("refname %s not found", oldrefname);
+	if (transaction->state != REF_TRANSACTION_OPEN)
+		die("BUG: commit called for transaction that is not open");
 
-	if (flag & REF_ISSYMREF)
-		return error("refname %s is a symbolic ref, renaming it is not supported",
-			oldrefname);
-	if (!rename_ref_available(oldrefname, newrefname))
-		return 1;
-
-	if (log && rename(git_path("logs/%s", oldrefname), git_path(TMP_RENAMED_LOG)))
-		return error("unable to move logfile logs/%s to "TMP_RENAMED_LOG": %s",
-			oldrefname, strerror(errno));
-
-	if (delete_ref(oldrefname, orig_sha1, REF_NODEREF)) {
-		error("unable to delete old %s", oldrefname);
-		goto rollback;
+	if (!transaction->nr) {
+		transaction->state = REF_TRANSACTION_CLOSED;
+		return 0;
 	}
 
 	/*
-	 * Since we are doing a shallow lookup, sha1 is not the
-	 * correct value to pass to delete_ref as old_sha1. But that
-	 * doesn't matter, because an old_sha1 check wouldn't add to
-	 * the safety anyway; we want to delete the reference whatever
-	 * its current value.
+	 * Fail if a refname appears more than once in the
+	 * transaction. (If we end up splitting up any updates using
+	 * split_symref_update() or split_head_update(), those
+	 * functions will check that the new updates don't have the
+	 * same refname as any existing ones.)
 	 */
-	if (!read_ref_full(newrefname, RESOLVE_REF_READING | RESOLVE_REF_NO_RECURSE,
-			   sha1, NULL) &&
-	    delete_ref(newrefname, NULL, REF_NODEREF)) {
-		if (errno==EISDIR) {
-			struct strbuf path = STRBUF_INIT;
-			int result;
+	for (i = 0; i < transaction->nr; i++) {
+		struct ref_update *update = transaction->updates[i];
+		struct string_list_item *item =
+			string_list_append(&affected_refnames, update->refname);
 
-			strbuf_git_path(&path, "%s", newrefname);
-			result = remove_empty_directories(&path);
-			strbuf_release(&path);
+		/*
+		 * We store a pointer to update in item->util, but at
+		 * the moment we never use the value of this field
+		 * except to check whether it is non-NULL.
+		 */
+		item->util = update;
+	}
+	string_list_sort(&affected_refnames);
+	if (ref_update_reject_duplicates(&affected_refnames, err)) {
+		ret = TRANSACTION_GENERIC_ERROR;
+		goto cleanup;
+	}
 
-			if (result) {
-				error("Directory not empty: %s", newrefname);
-				goto rollback;
+	/*
+	 * Special hack: If a branch is updated directly and HEAD
+	 * points to it (may happen on the remote side of a push
+	 * for example) then logically the HEAD reflog should be
+	 * updated too.
+	 *
+	 * A generic solution would require reverse symref lookups,
+	 * but finding all symrefs pointing to a given branch would be
+	 * rather costly for this rare event (the direct update of a
+	 * branch) to be worth it. So let's cheat and check with HEAD
+	 * only, which should cover 99% of all usage scenarios (even
+	 * 100% of the default ones).
+	 *
+	 * So if HEAD is a symbolic reference, then record the name of
+	 * the reference that it points to. If we see an update of
+	 * head_ref within the transaction, then split_head_update()
+	 * arranges for the reflog of HEAD to be updated, too.
+	 */
+	head_ref = refs_resolve_refdup(ref_store, "HEAD",
+				       RESOLVE_REF_NO_RECURSE,
+				       head_oid.hash, &head_type);
+
+	if (head_ref && !(head_type & REF_ISSYMREF)) {
+		free(head_ref);
+		head_ref = NULL;
+	}
+
+	/*
+	 * Acquire all locks, verify old values if provided, check
+	 * that new values are valid, and write new values to the
+	 * lockfiles, ready to be activated. Only keep one lockfile
+	 * open at a time to avoid running out of file descriptors.
+	 */
+	for (i = 0; i < transaction->nr; i++) {
+		struct ref_update *update = transaction->updates[i];
+
+		ret = lock_ref_for_update(refs, update, transaction,
+					  head_ref, &affected_refnames, err);
+		if (ret)
+			goto cleanup;
+	}
+
+	/* Perform updates first so live commits remain referenced */
+	for (i = 0; i < transaction->nr; i++) {
+		struct ref_update *update = transaction->updates[i];
+		struct ref_lock *lock = update->backend_data;
+
+		if (update->flags & REF_NEEDS_COMMIT ||
+		    update->flags & REF_LOG_ONLY) {
+			if (files_log_ref_write(refs,
+						lock->ref_name,
+						lock->old_oid.hash,
+						update->new_sha1,
+						update->msg, update->flags,
+						err)) {
+				char *old_msg = strbuf_detach(err, NULL);
+
+				strbuf_addf(err, "cannot update the ref '%s': %s",
+					    lock->ref_name, old_msg);
+				free(old_msg);
+				unlock_ref(lock);
+				update->backend_data = NULL;
+				ret = TRANSACTION_GENERIC_ERROR;
+				goto cleanup;
 			}
-		} else {
-			error("unable to delete existing %s", newrefname);
-			goto rollback;
+		}
+		if (update->flags & REF_NEEDS_COMMIT) {
+			clear_loose_ref_cache(refs);
+			if (commit_ref(lock)) {
+				strbuf_addf(err, "couldn't set '%s'", lock->ref_name);
+				unlock_ref(lock);
+				update->backend_data = NULL;
+				ret = TRANSACTION_GENERIC_ERROR;
+				goto cleanup;
+			}
+		}
+	}
+	/* Perform deletes now that updates are safely completed */
+	for (i = 0; i < transaction->nr; i++) {
+		struct ref_update *update = transaction->updates[i];
+		struct ref_lock *lock = update->backend_data;
+
+		if (update->flags & REF_DELETING &&
+		    !(update->flags & REF_LOG_ONLY)) {
+			if (!(update->type & REF_ISPACKED) ||
+			    update->type & REF_ISSYMREF) {
+				/* It is a loose reference. */
+				strbuf_reset(&sb);
+				files_ref_path(refs, &sb, lock->ref_name);
+				if (unlink_or_msg(sb.buf, err)) {
+					ret = TRANSACTION_GENERIC_ERROR;
+					goto cleanup;
+				}
+				update->flags |= REF_DELETED_LOOSE;
+			}
+
+			if (!(update->flags & REF_ISPRUNING))
+				string_list_append(&refs_to_delete,
+						   lock->ref_name);
 		}
 	}
 
-	if (log && rename_tmp_log(newrefname))
-		goto rollback;
-
-	logmoved = log;
-
-	lock = lock_ref_sha1_basic(refs, newrefname, NULL, NULL, NULL,
-				   REF_NODEREF, NULL, &err);
-	if (!lock) {
-		error("unable to rename '%s' to '%s': %s", oldrefname, newrefname, err.buf);
-		strbuf_release(&err);
-		goto rollback;
-	}
-	hashcpy(lock->old_oid.hash, orig_sha1);
-
-	if (write_ref_to_lockfile(lock, orig_sha1, &err) ||
-	    commit_ref_update(refs, lock, orig_sha1, logmsg, &err)) {
-		error("unable to write current sha1 into %s: %s", newrefname, err.buf);
-		strbuf_release(&err);
-		goto rollback;
+	if (repack_without_refs(refs, &refs_to_delete, err)) {
+		ret = TRANSACTION_GENERIC_ERROR;
+		goto cleanup;
 	}
 
-	return 0;
-
- rollback:
-	lock = lock_ref_sha1_basic(refs, oldrefname, NULL, NULL, NULL,
-				   REF_NODEREF, NULL, &err);
-	if (!lock) {
-		error("unable to lock %s for rollback: %s", oldrefname, err.buf);
-		strbuf_release(&err);
-		goto rollbacklog;
+	/* Delete the reflogs of any references that were deleted: */
+	for_each_string_list_item(ref_to_delete, &refs_to_delete) {
+		strbuf_reset(&sb);
+		files_reflog_path(refs, &sb, ref_to_delete->string);
+		if (!unlink_or_warn(sb.buf))
+			try_remove_empty_parents(refs, ref_to_delete->string,
+						 REMOVE_EMPTY_PARENTS_REFLOG);
 	}
 
-	flag = log_all_ref_updates;
-	log_all_ref_updates = LOG_REFS_NONE;
-	if (write_ref_to_lockfile(lock, orig_sha1, &err) ||
-	    commit_ref_update(refs, lock, orig_sha1, NULL, &err)) {
-		error("unable to write current sha1 into %s: %s", oldrefname, err.buf);
-		strbuf_release(&err);
+	clear_loose_ref_cache(refs);
+
+cleanup:
+	strbuf_release(&sb);
+	transaction->state = REF_TRANSACTION_CLOSED;
+
+	for (i = 0; i < transaction->nr; i++) {
+		struct ref_update *update = transaction->updates[i];
+		struct ref_lock *lock = update->backend_data;
+
+		if (lock)
+			unlock_ref(lock);
+
+		if (update->flags & REF_DELETED_LOOSE) {
+			/*
+			 * The loose reference was deleted. Delete any
+			 * empty parent directories. (Note that this
+			 * can only work because we have already
+			 * removed the lockfile.)
+			 */
+			try_remove_empty_parents(refs, update->refname,
+						 REMOVE_EMPTY_PARENTS_REF);
+		}
 	}
-	log_all_ref_updates = flag;
 
- rollbacklog:
-	if (logmoved && rename(git_path("logs/%s", newrefname), git_path("logs/%s", oldrefname)))
-		error("unable to restore logfile %s from %s: %s",
-			oldrefname, newrefname, strerror(errno));
-	if (!logmoved && log &&
-	    rename(git_path(TMP_RENAMED_LOG), git_path("logs/%s", oldrefname)))
-		error("unable to restore logfile %s from "TMP_RENAMED_LOG": %s",
-			oldrefname, strerror(errno));
+	string_list_clear(&refs_to_delete, 0);
+	free(head_ref);
+	string_list_clear(&affected_refnames, 0);
 
-	return 1;
+	return ret;
 }

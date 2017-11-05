@@ -1,14 +1,16 @@
-static void exit_if_skipped_commits(struct commit_list *tried,
-				    const struct object_id *bad)
+int open_pack_index(struct packed_git *p)
 {
-	if (!tried)
-		return;
+	char *idx_name;
+	size_t len;
+	int ret;
 
-	printf("There are only 'skip'ped commits left to test.\n"
-	       "The first bad commit could be any of:\n");
-	print_commit_list(tried, "%s\n", "%s\n");
-	if (bad)
-		printf("%s\n", oid_to_hex(bad));
-	printf("We cannot bisect more!\n");
-	exit(2);
+	if (p->index_data)
+		return 0;
+
+	if (!strip_suffix(p->pack_name, ".pack", &len))
+		die("BUG: pack_name does not end in .pack");
+	idx_name = xstrfmt("%.*s.idx", (int)len, p->pack_name);
+	ret = check_packed_git_idx(idx_name, p);
+	free(idx_name);
+	return ret;
 }

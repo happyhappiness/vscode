@@ -1,1 +1,2 @@
-die(_("unable to parse default color value"));
+die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

@@ -1,1 +1,1 @@
-warning("symbolic ref is dangling: %s", path);
+error_errno("Could not write to %s", filename);

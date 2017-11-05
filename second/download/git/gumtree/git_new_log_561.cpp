@@ -1,1 +1,1 @@
-die(_("Server does not support --shallow-since"));
+fprintf(stderr, "BUG: %s\n", msg);

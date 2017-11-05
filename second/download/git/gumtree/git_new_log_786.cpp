@@ -1,2 +1,1 @@
-fprintf(stderr, "Checking %s %s\n",
-			printable_type(obj), describe_object(obj));
+die(_("could not read symlink file %s"), path);

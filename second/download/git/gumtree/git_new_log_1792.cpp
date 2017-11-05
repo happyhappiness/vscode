@@ -1,2 +1,1 @@
-error("couldn't write %s: %s", log_file,
-					strerror(errno));
+die("helper %s does not support --signed", name);

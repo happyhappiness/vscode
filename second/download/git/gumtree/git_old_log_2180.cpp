@@ -1,1 +1,1 @@
-error("unable to create directory for %s", logfile);
+error("running trailer command '%s' failed", cmd.buf);

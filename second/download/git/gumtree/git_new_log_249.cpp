@@ -1,0 +1,1 @@
+die(_("unknown option %s"), arg);

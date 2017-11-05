@@ -1,1 +1,1 @@
-printf(" %s", sha1_to_hex(parents->item->object.sha1));
+warning(_("unable to access '%s': %s"), path, strerror(errno));

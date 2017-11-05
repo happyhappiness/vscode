@@ -1,1 +1,1 @@
-print_signature_buffer(&signature_check, flags);
+insert_one_record(log, author.buf, oneline.len ? oneline.buf : "<none>");

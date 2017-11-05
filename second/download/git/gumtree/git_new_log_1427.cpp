@@ -1,1 +1,0 @@
-warning("die() called many times. Recursion error or racy threaded death!");

@@ -1,1 +1,0 @@
-error(_("new file depends on old contents"));

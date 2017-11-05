@@ -1,1 +1,3 @@
-printf(" Copyright 1997-2005 The Apache Software Foundation, http://www.apache.org/<br>\n");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "mem_cache: URL %s didn't receive complete response, not caching",
+                                 h->cache_obj->key);

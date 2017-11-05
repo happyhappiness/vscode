@@ -1,1 +1,1 @@
-error("fetch failed.");
+die("strange hostname '%s' blocked", host);

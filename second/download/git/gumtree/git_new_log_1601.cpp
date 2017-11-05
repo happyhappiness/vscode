@@ -1,2 +1,4 @@
-fprintf(stderr, "Also look at %s\n",
-						target.buf);
+error(remote_branch
+			      ? _("Error deleting remote-tracking branch '%s'")
+			      : _("Error deleting branch '%s'"),
+			      bname.buf);

@@ -1,19 +1,41 @@
-int commit_lock_file(struct lock_file *lk)
+static void pp_init(struct parallel_processes *pp,
+		    int n,
+		    get_next_task_fn get_next_task,
+		    start_failure_fn start_failure,
+		    task_finished_fn task_finished,
+		    void *data)
 {
-	static struct strbuf result_file = STRBUF_INIT;
-	int err;
+	int i;
 
-	if (!lk->active)
-		die("BUG: attempt to commit unlocked object");
+	if (n < 1)
+		n = online_cpus();
 
-	if (lk->filename.len <= LOCK_SUFFIX_LEN ||
-	    strcmp(lk->filename.buf + lk->filename.len - LOCK_SUFFIX_LEN, LOCK_SUFFIX))
-		die("BUG: lockfile filename corrupt");
+	pp->max_processes = n;
 
-	/* remove ".lock": */
-	strbuf_add(&result_file, lk->filename.buf,
-		   lk->filename.len - LOCK_SUFFIX_LEN);
-	err = commit_lock_file_to(lk, result_file.buf);
-	strbuf_reset(&result_file);
-	return err;
+	trace_printf("run_processes_parallel: preparing to run up to %d tasks", n);
+
+	pp->data = data;
+	if (!get_next_task)
+		die("BUG: you need to specify a get_next_task function");
+	pp->get_next_task = get_next_task;
+
+	pp->start_failure = start_failure ? start_failure : default_start_failure;
+	pp->task_finished = task_finished ? task_finished : default_task_finished;
+
+	pp->nr_processes = 0;
+	pp->output_owner = 0;
+	pp->shutdown = 0;
+	pp->children = xcalloc(n, sizeof(*pp->children));
+	pp->pfd = xcalloc(n, sizeof(*pp->pfd));
+	strbuf_init(&pp->buffered_output, 0);
+
+	for (i = 0; i < n; i++) {
+		strbuf_init(&pp->children[i].err, 0);
+		child_process_init(&pp->children[i].process);
+		pp->pfd[i].events = POLLIN | POLLHUP;
+		pp->pfd[i].fd = -1;
+	}
+
+	pp_for_signal = pp;
+	sigchain_push_common(handle_children_on_signal);
 }

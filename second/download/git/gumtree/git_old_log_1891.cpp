@@ -1,1 +1,1 @@
-printf("%s -> %s\n", refname, sha1_to_hex(sha1));
+printf("missing %s %s\n", typename(obj->type), sha1_to_hex(obj->sha1));

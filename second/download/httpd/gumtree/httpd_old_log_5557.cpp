@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "ServerSupportFunction HSE_REQ_ABORTIVE_CLOSE"
-                          " is not supported: %s", r->filename);
+ap_log_perror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, pool,
+                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
+                      session_id, req->id);

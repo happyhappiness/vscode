@@ -1,1 +1,1 @@
-error("reflog for %s is a symlink", oldrefname);
+printf_ln(_("  HEAD branch: %s"), "(not queried)");

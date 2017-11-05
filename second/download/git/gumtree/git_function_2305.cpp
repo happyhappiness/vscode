@@ -1,13 +1,10 @@
-static void found_guilty_entry(struct blame_entry *ent)
+static int resolve_relative_path(int argc, const char **argv, const char *prefix)
 {
-	if (incremental) {
-		struct origin *suspect = ent->suspect;
+	struct strbuf sb = STRBUF_INIT;
+	if (argc != 3)
+		die("submodule--helper relative_path takes exactly 2 arguments, got %d", argc);
 
-		printf("%s %d %d %d\n",
-		       sha1_to_hex(suspect->commit->object.sha1),
-		       ent->s_lno + 1, ent->lno + 1, ent->num_lines);
-		emit_one_suspect_detail(suspect, 0);
-		write_filename_info(suspect->path);
-		maybe_flush_or_die(stdout, "stdout");
-	}
+	printf("%s", relative_path(argv[1], argv[2], &sb));
+	strbuf_release(&sb);
+	return 0;
 }

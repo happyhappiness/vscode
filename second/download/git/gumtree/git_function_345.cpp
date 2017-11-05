@@ -1,29 +1,32 @@
-static void check_apply_state(struct apply_state *state, int force_apply)
+static void init_socket_directory(const char *path)
 {
-	int is_not_gitdir = !startup_info->have_repository;
+	struct stat st;
+	char *path_copy = xstrdup(path);
+	char *dir = dirname(path_copy);
 
-	if (state->apply_with_reject && state->threeway)
-		die("--reject and --3way cannot be used together.");
-	if (state->cached && state->threeway)
-		die("--cached and --3way cannot be used together.");
-	if (state->threeway) {
-		if (is_not_gitdir)
-			die(_("--3way outside a repository"));
-		state->check_index = 1;
+	if (!stat(dir, &st)) {
+		if (st.st_mode & 077)
+			die(permissions_advice, dir);
+	} else {
+		/*
+		 * We must be sure to create the directory with the correct mode,
+		 * not just chmod it after the fact; otherwise, there is a race
+		 * condition in which somebody can chdir to it, sleep, then try to open
+		 * our protected socket.
+		 */
+		if (safe_create_leading_directories_const(dir) < 0)
+			die_errno("unable to create directories for '%s'", dir);
+		if (mkdir(dir, 0700) < 0)
+			die_errno("unable to mkdir '%s'", dir);
 	}
-	if (state->apply_with_reject)
-		state->apply = state->apply_verbosely = 1;
-	if (!force_apply && (state->diffstat || state->numstat || state->summary || state->check || state->fake_ancestor))
-		state->apply = 0;
-	if (state->check_index && is_not_gitdir)
-		die(_("--index outside a repository"));
-	if (state->cached) {
-		if (is_not_gitdir)
-			die(_("--cached outside a repository"));
-		state->check_index = 1;
-	}
-	if (state->check_index)
-		state->unsafe_paths = 0;
-	if (!state->lock_file)
-		die("BUG: state->lock_file should not be NULL");
+
+	if (chdir(dir))
+		/*
+		 * We don't actually care what our cwd is; we chdir here just to
+		 * be a friendly daemon and avoid tying up our original cwd.
+		 * If this fails, it's OK to just continue without that benefit.
+		 */
+		;
+
+	free(path_copy);
 }

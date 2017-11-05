@@ -1,19 +1,14 @@
-int delete_ref(const char *refname, const unsigned char *sha1, int delopt)
+void vreportf(const char *prefix, const char *err, va_list params)
 {
-	struct ref_transaction *transaction;
-	struct strbuf err = STRBUF_INIT;
+	FILE *fh = error_handle ? error_handle : stderr;
 
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_delete(transaction, refname, sha1, delopt,
-				   sha1 && !is_null_sha1(sha1), NULL, &err) ||
-	    ref_transaction_commit(transaction, &err)) {
-		error("%s", err.buf);
-		ref_transaction_free(transaction);
-		strbuf_release(&err);
-		return 1;
+	fflush(fh);
+	if (!tweaked_error_buffering) {
+		setvbuf(fh, NULL, _IOLBF, 0);
+		tweaked_error_buffering = 1;
 	}
-	ref_transaction_free(transaction);
-	strbuf_release(&err);
-	return 0;
+
+	fputs(prefix, fh);
+	vfprintf(fh, err, params);
+	fputc('\n', fh);
 }

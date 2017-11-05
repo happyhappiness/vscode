@@ -1,4 +1,9 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03073)
-                      "h2_stream(%ld-%d): submit response %d, REMOTE_WINDOW_SIZE=%u",
-                      session->id, stream->id, response->http_status,
-                      (unsigned int)nghttp2_session_get_stream_remote_window_size(session->ngh2, stream->id));
+ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, ap_server_conf,
+                             "connections: %u (clogged: %u write-completion: %d "
+                             "keep-alive: %d lingering: %d suspended: %u)",
+                             apr_atomic_read32(&connection_count),
+                             apr_atomic_read32(&clogged_count),
+                             write_completion_q.count,
+                             keepalive_q.count,
+                             apr_atomic_read32(&lingering_count),
+                             apr_atomic_read32(&suspended_count));

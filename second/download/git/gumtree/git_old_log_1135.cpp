@@ -1,1 +1,1 @@
-die("'git status --porcelain' failed in submodule %s", path);
+die("oops (%s)", sha1_to_hex(sha1));

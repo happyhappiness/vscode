@@ -1,2 +1,2 @@
-die("git upload-pack: not our ref %s",
-			    sha1_to_hex(sha1_buf));
+error("BUG: connectivity check has not been run on ref %s",
+			      cmd->ref_name);

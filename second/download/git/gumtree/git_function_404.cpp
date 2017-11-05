@@ -1,26 +1,31 @@
-static int show_tag_object(const unsigned char *sha1, struct rev_info *rev)
+static void get_info_refs(struct strbuf *hdr, char *arg)
 {
-	unsigned long size;
-	enum object_type type;
-	char *buf = read_sha1_file(sha1, &type, &size);
-	int offset = 0;
+	const char *service_name = get_parameter("service");
+	struct strbuf buf = STRBUF_INIT;
 
-	if (!buf)
-		return error(_("Could not read object %s"), sha1_to_hex(sha1));
+	hdr_nocache(hdr);
 
-	assert(type == OBJ_TAG);
-	while (offset < size && buf[offset] != '\n') {
-		int new_offset = offset + 1;
-		while (new_offset < size && buf[new_offset++] != '\n')
-			; /* do nothing */
-		if (starts_with(buf + offset, "tagger "))
-			show_tagger(buf + offset + 7,
-				    new_offset - offset - 7, rev);
-		offset = new_offset;
+	if (service_name) {
+		const char *argv[] = {NULL /* service name */,
+			"--stateless-rpc", "--advertise-refs",
+			".", NULL};
+		struct rpc_service *svc = select_service(hdr, service_name);
+
+		strbuf_addf(&buf, "application/x-git-%s-advertisement",
+			svc->name);
+		hdr_str(hdr, content_type, buf.buf);
+		end_headers(hdr);
+
+		packet_write(1, "# service=git-%s\n", svc->name);
+		packet_flush(1);
+
+		argv[0] = svc->name;
+		run_service(argv, 0);
+
+	} else {
+		select_getanyfile(hdr);
+		for_each_namespaced_ref(show_text_ref, &buf);
+		send_strbuf(hdr, "text/plain", &buf);
 	}
-
-	if (offset < size)
-		fwrite(buf + offset, size - offset, 1, rev->diffopt.file);
-	free(buf);
-	return 0;
+	strbuf_release(&buf);
 }

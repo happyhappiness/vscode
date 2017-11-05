@@ -1,0 +1,1 @@
+apr_file_printf(writetty, "Ok: Pass Phrase Dialog successful.\n");

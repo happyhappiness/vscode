@@ -1,1 +1,3 @@
-error(_("Could not parse object '%s'."), oid_to_hex(remote));
+fprintf(stderr,
+				_("info: Could not add alternate for '%s': %s\n"),
+				item->string, err.buf);

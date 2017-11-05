@@ -1,1 +1,1 @@
-printf(" -D OS=\"" OS "\"\n");
+RRETURN(MATCH_NOMATCH);

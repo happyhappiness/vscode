@@ -1,2 +1,2 @@
-error("unpack should have generated %s, "
-		      "but I can't find it!", sha1_to_hex(new_sha1));
+fprintf(stderr, _("Overwriting existing notes for object %s\n"),
+			sha1_to_hex(object));

@@ -1,0 +1,1 @@
+die("revision walk setup failed");

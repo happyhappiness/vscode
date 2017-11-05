@@ -1,2 +1,2 @@
-die("unable to generate diff (%s)",
-		    oid_to_hex(&parent->commit->object.oid));
+die(_("'%s' is not a valid submodule--helper "
+	      "subcommand"), argv[1]);

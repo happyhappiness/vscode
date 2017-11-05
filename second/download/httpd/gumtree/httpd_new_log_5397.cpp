@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00319)
-                         "MaxRequestWorkers of %d would require %d servers and "
-                         "exceed ServerLimit of %d, decreasing to %d",
-                         max_workers, ap_daemons_limit, server_limit,
-                         server_limit * threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02993)
+                     "Failed to create shared memory segment on file %s",
+                     shmfilename);

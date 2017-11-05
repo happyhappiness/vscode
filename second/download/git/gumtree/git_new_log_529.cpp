@@ -1,1 +1,1 @@
-die(_("git fetch-pack: expected shallow list"));
+packet_write_fmt(1, "ACK %s continue\n", last_hex);

@@ -1,2 +1,1 @@
-error_buf(err,
-						 _("cannot resolve 'simple' push to a single destination"));
+die("sent error to the client: %s", buf.buf);

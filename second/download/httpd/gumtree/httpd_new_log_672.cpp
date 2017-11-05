@@ -1,1 +1,1 @@
-ap_close_listeners();
+apr_file_printf(out, " %s (shared)\n", modi->name);

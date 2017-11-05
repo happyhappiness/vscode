@@ -1,1 +1,1 @@
-error("unable to rename '%s' to '%s': %s", oldrefname, newrefname, err.buf);
+die("submodule--helper relative_path takes exactly 2 arguments, got %d", argc);

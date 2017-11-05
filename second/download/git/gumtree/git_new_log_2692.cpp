@@ -1,1 +1,1 @@
-warning(_("Untracked cache is disabled on this system or location."));
+die("BUG: trailer.c: unhandled type %d", type);

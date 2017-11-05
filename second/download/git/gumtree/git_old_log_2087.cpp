@@ -1,1 +1,0 @@
-error("malformed format string %s", sp);

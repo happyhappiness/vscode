@@ -1,1 +1,1 @@
-fprintf(stderr, _("Applied autostash.\n"));
+printf("[%s%s ", head, initial_commit ? _(" (root-commit)") : "");

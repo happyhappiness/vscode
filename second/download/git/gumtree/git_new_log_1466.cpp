@@ -1,1 +1,1 @@
-die_errno("BUG: unexpected fast_export_ls_rev error");
+printf("Diag: port=%s\n", port ? port : "NONE");

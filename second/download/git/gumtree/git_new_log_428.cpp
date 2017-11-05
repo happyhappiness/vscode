@@ -1,1 +1,1 @@
-die(_("failed to resolve '%s' as a valid ref."), argv[0]);
+error("packet write failed - data exceeds max packet size");

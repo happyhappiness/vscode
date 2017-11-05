@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                         "%s on line %d of %s: %s",
-                         what, cfg->line_number, cfg->name, ptr);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, 
+                      "h2_task(%s), thawed", task->id);

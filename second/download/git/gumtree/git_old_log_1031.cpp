@@ -1,1 +1,2 @@
-die(_("--merged and --no-merged option are only allowed with -l"));
+die(_("submodule--helper subcommand must be "
+		      "called with a subcommand"));

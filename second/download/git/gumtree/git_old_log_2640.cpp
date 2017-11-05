@@ -1,1 +1,2 @@
-die("remote-ext command has too many arguments");
+error(_("refusing to lose untracked file at '%s'"),
+			     path);

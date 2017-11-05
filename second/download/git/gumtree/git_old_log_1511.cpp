@@ -1,1 +1,1 @@
-die("unrecognized argument: %s", argv[1]);
+fprintf(stderr, "Invalid pattern: %s\n", regex_);

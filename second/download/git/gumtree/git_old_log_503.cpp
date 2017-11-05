@@ -1,1 +1,2 @@
-error("read from external filter %s failed", cmd);
+print_ref_status('!', "[rejected]", ref, NULL,
+						 "remote does not support deleting refs", porcelain);

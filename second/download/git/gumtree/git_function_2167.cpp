@@ -1,19 +1,18 @@
-int commit_lock_file_to(struct lock_file *lk, const char *path)
+int create_symref(const char *refname, const char *target, const char *logmsg)
 {
-	if (!lk->active)
-		die("BUG: attempt to commit unlocked object to \"%s\"", path);
+	struct strbuf err = STRBUF_INIT;
+	struct ref_lock *lock;
+	int ret;
 
-	if (close_lock_file(lk))
-		return -1;
-
-	if (rename(lk->filename.buf, path)) {
-		int save_errno = errno;
-		rollback_lock_file(lk);
-		errno = save_errno;
+	lock = lock_ref_sha1_basic(refname, NULL, NULL, NULL, REF_NODEREF, NULL,
+				   &err);
+	if (!lock) {
+		error("%s", err.buf);
+		strbuf_release(&err);
 		return -1;
 	}
 
-	lk->active = 0;
-	strbuf_reset(&lk->filename);
-	return 0;
+	ret = create_symref_locked(lock, refname, target, logmsg);
+	unlock_ref(lock);
+	return ret;
 }

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, "[%" APR_PID_T_FMT "]"
-                          " util_ldap: no subgroups for %s" , getpid(), dn);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                     "about to force-expire, subcache: idx_used=%d, "
+                     "data_used=%d", subcache->idx_used, subcache->data_used);

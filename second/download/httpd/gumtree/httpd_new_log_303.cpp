@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                         "the listener thread didn't exit");
+apr_file_printf(errfile, "Adding password for %s in realm %s.\n", 
+                    argv[4], argv[3]);

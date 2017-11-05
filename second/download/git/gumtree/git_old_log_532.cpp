@@ -1,1 +1,1 @@
-die("--stateless-rpc requires multi_ack_detailed");
+packet_write(1, "NAK\n");

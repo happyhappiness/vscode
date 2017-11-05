@@ -1,2 +1,1 @@
-error(_("cannot %s: Your index contains uncommitted changes."),
-			      _(action));
+error("pack-objects died of signal %d", rc - 128);

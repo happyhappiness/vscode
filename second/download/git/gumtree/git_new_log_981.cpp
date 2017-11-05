@@ -1,3 +1,2 @@
-fprintf(stderr, " %-*s %8d %s\n",
-				label_width, _(prio_names[t->name->prio]),
-				t->depth, t->name->path);
+die(_("SHA1 COLLISION FOUND WITH %s !"),
+			    oid_to_hex(&data->entry->idx.oid));

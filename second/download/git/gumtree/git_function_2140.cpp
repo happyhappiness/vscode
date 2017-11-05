@@ -1,36 +1,13 @@
-static void init_skiplist(struct fsck_options *options, const char *path)
+static void remote_ref_atom_parser(struct used_atom *atom, const char *arg)
 {
-	static struct sha1_array skiplist = SHA1_ARRAY_INIT;
-	int sorted, fd;
-	char buffer[41];
-	unsigned char sha1[20];
-
-	if (options->skiplist)
-		sorted = options->skiplist->sorted;
-	else {
-		sorted = 1;
-		options->skiplist = &skiplist;
-	}
-
-	fd = open(path, O_RDONLY);
-	if (fd < 0)
-		die("Could not open skip list: %s", path);
-	for (;;) {
-		int result = read_in_full(fd, buffer, sizeof(buffer));
-		if (result < 0)
-			die_errno("Could not read '%s'", path);
-		if (!result)
-			break;
-		if (get_sha1_hex(buffer, sha1) || buffer[40] != '\n')
-			die("Invalid SHA-1: %s", buffer);
-		sha1_array_append(&skiplist, sha1);
-		if (sorted && skiplist.nr > 1 &&
-				hashcmp(skiplist.sha1[skiplist.nr - 2],
-					sha1) > 0)
-			sorted = 0;
-	}
-	close(fd);
-
-	if (sorted)
-		skiplist.sorted = 1;
+	if (!arg)
+		atom->u.remote_ref = RR_NORMAL;
+	else if (!strcmp(arg, "short"))
+		atom->u.remote_ref = RR_SHORTEN;
+	else if (!strcmp(arg, "track"))
+		atom->u.remote_ref = RR_TRACK;
+	else if (!strcmp(arg, "trackshort"))
+		atom->u.remote_ref = RR_TRACKSHORT;
+	else
+		die(_("unrecognized format: %%(%s)"), atom->name);
 }

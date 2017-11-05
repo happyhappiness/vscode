@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01007)
-               "ajp_handle_cping_cpong: ajp_msg_create failed");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01901)
+                     "Host %s: unable to configure X.509 CRL storage "
+                     "for certificate revocation", mctx->sc->vhost_id);

@@ -1,1 +1,2 @@
-printf("previous %s ", oid_to_hex(&prev->commit->object.oid));
+die("BUG: confusing delta dfs state in first pass: %d",
+			    cur->dfs_state);

@@ -1,1 +1,2 @@
-die_errno(_("cannot create configuration file %s"), config_file);
+die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

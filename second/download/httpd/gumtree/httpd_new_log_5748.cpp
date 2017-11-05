@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02840)
-                      "ALPN negotiated protocol name too long");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00968)
+               "ajp_marshal_into_msgb: "
+               "Error appending the message beginning");

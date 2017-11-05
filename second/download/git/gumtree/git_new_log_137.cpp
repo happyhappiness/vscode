@@ -1,1 +1,1 @@
-die("cannot start proxy %s", git_proxy_command);
+error("remote-curl: unknown command '%s' from git", buf.buf);

@@ -1,1 +1,2 @@
-die("unable to read blob object %s", oid_to_hex(oid));
+warning("Invalid parameter '%s' for config option "
+					"'submodule.%s.ignore'", value, name.buf);

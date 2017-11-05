@@ -1,1 +1,2 @@
-warning(_("--dissociate given, but there is no --reference"));
+error("chmod on %s failed: %s",
+			      get_lock_file_path(lock), strerror(errno));

@@ -1,1 +1,1 @@
-ap_rputc('0' + i % 10, r);
+ap_rputs("Dis", r);

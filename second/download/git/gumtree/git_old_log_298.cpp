@@ -1,1 +1,1 @@
-error("%s: %s", new_name, strerror(errno));
+error("no matching refs with %s", av);

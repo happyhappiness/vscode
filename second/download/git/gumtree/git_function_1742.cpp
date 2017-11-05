@@ -1,37 +1,52 @@
-static int verify_absent_1(const struct cache_entry *ce,
-			   enum unpack_trees_error_types error_type,
-			   struct unpack_trees_options *o)
+int log_ref_setup(const char *refname, struct strbuf *sb_logfile)
 {
-	int len;
-	struct stat st;
+	int logfd, oflags = O_APPEND | O_WRONLY;
+	char *logfile;
 
-	if (o->index_only || o->reset || !o->update)
-		return 0;
-
-	len = check_leading_path(ce->name, ce_namelen(ce));
-	if (!len)
-		return 0;
-	else if (len > 0) {
-		char *path;
-		int ret;
-
-		path = xmemdupz(ce->name, len);
-		if (lstat(path, &st))
-			ret = error("cannot stat '%s': %s", path,
-					strerror(errno));
-		else
-			ret = check_ok_to_remove(path, len, DT_UNKNOWN, NULL,
-						 &st, error_type, o);
-		free(path);
-		return ret;
-	} else if (lstat(ce->name, &st)) {
-		if (errno != ENOENT)
-			return error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
-		return 0;
-	} else {
-		return check_ok_to_remove(ce->name, ce_namelen(ce),
-					  ce_to_dtype(ce), ce, &st,
-					  error_type, o);
+	strbuf_git_path(sb_logfile, "logs/%s", refname);
+	logfile = sb_logfile->buf;
+	/* make sure the rest of the function can't change "logfile" */
+	sb_logfile = NULL;
+	if (log_all_ref_updates &&
+	    (starts_with(refname, "refs/heads/") ||
+	     starts_with(refname, "refs/remotes/") ||
+	     starts_with(refname, "refs/notes/") ||
+	     !strcmp(refname, "HEAD"))) {
+		if (safe_create_leading_directories(logfile) < 0) {
+			int save_errno = errno;
+			error("unable to create directory for %s", logfile);
+			errno = save_errno;
+			return -1;
+		}
+		oflags |= O_CREAT;
 	}
+
+	logfd = open(logfile, oflags, 0666);
+	if (logfd < 0) {
+		if (!(oflags & O_CREAT) && (errno == ENOENT || errno == EISDIR))
+			return 0;
+
+		if (errno == EISDIR) {
+			if (remove_empty_directories(logfile)) {
+				int save_errno = errno;
+				error("There are still logs under '%s'",
+				      logfile);
+				errno = save_errno;
+				return -1;
+			}
+			logfd = open(logfile, oflags, 0666);
+		}
+
+		if (logfd < 0) {
+			int save_errno = errno;
+			error("Unable to append to %s: %s", logfile,
+			      strerror(errno));
+			errno = save_errno;
+			return -1;
+		}
+	}
+
+	adjust_shared_perm(logfile);
+	close(logfd);
+	return 0;
 }

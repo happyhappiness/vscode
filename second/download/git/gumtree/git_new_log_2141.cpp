@@ -1,1 +1,1 @@
-die("Unknown fsck message type: '%s'", str);
+die(_("%%(body) does not take arguments"));

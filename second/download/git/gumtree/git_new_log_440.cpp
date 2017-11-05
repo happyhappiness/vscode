@@ -1,1 +1,2 @@
-die(_("failed to read ref NOTES_MERGE_PARTIAL"));
+error(_("%s: Unable to write new index file"),
+			_(action_name(opts)));

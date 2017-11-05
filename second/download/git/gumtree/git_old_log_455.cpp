@@ -1,2 +1,1 @@
-packet_write(1, "%s %s%c%s\n",
-			     sha1_to_hex(sha1), path, 0, cap.buf);
+die(_("git %s: failed to read the index"), action_name(opts));

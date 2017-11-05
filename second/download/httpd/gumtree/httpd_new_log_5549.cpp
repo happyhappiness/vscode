@@ -1,1 +1,1 @@
-fprintf(stderr, "Unable to poll stdin\n");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "h2_switch init");

@@ -1,45 +1,46 @@
-static int get_delta(struct rev_info *revs, struct remote_lock *lock)
+static int parse_binary(char *buffer, unsigned long size, struct patch *patch)
 {
-	int i;
-	struct commit *commit;
-	struct object_list **p = &objects;
-	int count = 0;
+	/*
+	 * We have read "GIT binary patch\n"; what follows is a line
+	 * that says the patch method (currently, either "literal" or
+	 * "delta") and the length of data before deflating; a
+	 * sequence of 'length-byte' followed by base-85 encoded data
+	 * follows.
+	 *
+	 * When a binary patch is reversible, there is another binary
+	 * hunk in the same format, starting with patch method (either
+	 * "literal" or "delta") with the length of data, and a sequence
+	 * of length-byte + base-85 encoded data, terminated with another
+	 * empty line.  This data, when applied to the postimage, produces
+	 * the preimage.
+	 */
+	struct fragment *forward;
+	struct fragment *reverse;
+	int status;
+	int used, used_1;
 
-	while ((commit = get_revision(revs)) != NULL) {
-		p = process_tree(commit->tree, p);
-		commit->object.flags |= LOCAL;
-		if (!(commit->object.flags & UNINTERESTING))
-			count += add_send_request(&commit->object, lock);
+	forward = parse_binary_hunk(&buffer, &size, &status, &used);
+	if (!forward && !status)
+		/* there has to be one hunk (forward hunk) */
+		return error(_("unrecognized binary patch at line %d"), linenr-1);
+	if (status)
+		/* otherwise we already gave an error message */
+		return status;
+
+	reverse = parse_binary_hunk(&buffer, &size, &status, &used_1);
+	if (reverse)
+		used += used_1;
+	else if (status) {
+		/*
+		 * Not having reverse hunk is not an error, but having
+		 * a corrupt reverse hunk is.
+		 */
+		free((void*) forward->patch);
+		free(forward);
+		return status;
 	}
-
-	for (i = 0; i < revs->pending.nr; i++) {
-		struct object_array_entry *entry = revs->pending.objects + i;
-		struct object *obj = entry->item;
-		const char *name = entry->name;
-
-		if (obj->flags & (UNINTERESTING | SEEN))
-			continue;
-		if (obj->type == OBJ_TAG) {
-			obj->flags |= SEEN;
-			p = add_one_object(obj, p);
-			continue;
-		}
-		if (obj->type == OBJ_TREE) {
-			p = process_tree((struct tree *)obj, p);
-			continue;
-		}
-		if (obj->type == OBJ_BLOB) {
-			p = process_blob((struct blob *)obj, p);
-			continue;
-		}
-		die("unknown pending object %s (%s)", sha1_to_hex(obj->sha1), name);
-	}
-
-	while (objects) {
-		if (!(objects->item->flags & UNINTERESTING))
-			count += add_send_request(objects->item, lock);
-		objects = objects->next;
-	}
-
-	return count;
+	forward->next = reverse;
+	patch->fragments = forward;
+	patch->is_binary = 1;
+	return used;
 }

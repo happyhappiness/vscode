@@ -1,1 +1,2 @@
-die_errno("cannot open or read '%s'", read_from);
+error(_("The note contents has been left in %s"),
+				      path);

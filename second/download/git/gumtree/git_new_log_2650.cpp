@@ -1,0 +1,1 @@
+die("BUG: ren1_src != ren2_src");

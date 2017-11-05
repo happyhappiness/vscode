@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01155)
-                          "failed to create dummy socket");
+ap_log_error(APLOG_MARK, APLOG_EMERG, errno,
+                         ap_server_conf, APLOGNO(02181) "ufork: Possible mis-configuration "
+                         "for user %s - Aborting.", user);

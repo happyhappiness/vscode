@@ -1,1 +1,1 @@
-opt->output(opt, child_output.buf, child_output.len);
+printf("%s %s\n", oid_to_hex(note_oid), oid_to_hex(object_oid));

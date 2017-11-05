@@ -1,1 +1,1 @@
-usage(usage_msg);
+die("BUG: get_locked_file_path() called for unlocked object");

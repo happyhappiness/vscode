@@ -1,2 +1,1 @@
-die(_("--reflog is incompatible with --all, --remotes, "
-			      "--independent or --merge-base"));
+error(_("unusable instruction sheet: '%s'"), todo_file);

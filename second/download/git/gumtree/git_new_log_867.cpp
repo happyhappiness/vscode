@@ -1,2 +1,1 @@
-error(_("invalid contents: '%s'"),
-				rebase_path_amend());
+die(_("positive value expected objectname:short=%s"), arg);

@@ -1,1 +1,1 @@
-error(_("%s: does not match index"), old_name);
+packet_write(stdin_fd, "%s %s%c", serv, repo, 0);

@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, ap_server_conf,
-                                 "%u/%u workers shutdown",
-                                 apr_atomic_read32(&threads_shutdown),
-                                 threads_per_child);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02540)
+                     "Custom DH parameters (%d bits) for %s loaded from %s",
+                     BN_num_bits(dhparams->p), vhost_id,
+                     mctx->pks->cert_files[0]);

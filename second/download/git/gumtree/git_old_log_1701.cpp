@@ -1,1 +1,0 @@
-die(_("no files added"));

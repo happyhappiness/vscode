@@ -1,1 +1,1 @@
-fprintf(f, "%d\n", todo_list->done_nr);
+die(_("Only one 'attr:' specification is allowed."));

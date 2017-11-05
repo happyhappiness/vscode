@@ -1,1 +1,1 @@
-xstrdup(srvc->host);
+status_printf_ln(s, c, "%s", "");

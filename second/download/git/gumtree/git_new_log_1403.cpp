@@ -1,1 +1,1 @@
-die("BUG: attempt to trim too many characters");
+fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");

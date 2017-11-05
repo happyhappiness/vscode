@@ -1,2 +1,1 @@
-die(_("Missing ')' at the end of pathspec magic in '%s'"),
-		    elem);
+warning(_("could not lookup configuration '%s'. Assuming this repository is its own authoritative upstream."), remotesb.buf);

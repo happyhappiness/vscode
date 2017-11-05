@@ -1,6 +1,2 @@
-warning(Q_("cannot handle more than %d base. "
-				   "Ignoring %s.",
-				   "cannot handle more than %d bases. "
-				   "Ignoring %s.",
-				    (int)ARRAY_SIZE(bases)-1),
-				(int)ARRAY_SIZE(bases)-1, argv[i]);
+die("Failed to read notes tree referenced by %s (%s)",
+		    notes_ref, oid_to_hex(&object_oid));

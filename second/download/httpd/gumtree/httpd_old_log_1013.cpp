@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                  "apr_accept");
+apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username\n");

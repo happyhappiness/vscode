@@ -1,29 +1,47 @@
-static unsigned update_treesame(struct rev_info *revs, struct commit *commit)
+static struct grep_expr *prep_header_patterns(struct grep_opt *opt)
 {
-	if (commit->parents && commit->parents->next) {
-		unsigned n;
-		struct treesame_state *st;
-		struct commit_list *p;
-		unsigned relevant_parents;
-		unsigned relevant_change, irrelevant_change;
+	struct grep_pat *p;
+	struct grep_expr *header_expr;
+	struct grep_expr *(header_group[GREP_HEADER_FIELD_MAX]);
+	enum grep_header_field fld;
 
-		st = lookup_decoration(&revs->treesame, &commit->object);
-		if (!st)
-			die("update_treesame %s", sha1_to_hex(commit->object.sha1));
-		relevant_parents = 0;
-		relevant_change = irrelevant_change = 0;
-		for (p = commit->parents, n = 0; p; n++, p = p->next) {
-			if (relevant_commit(p->item)) {
-				relevant_change |= !st->treesame[n];
-				relevant_parents++;
-			} else
-				irrelevant_change |= !st->treesame[n];
-		}
-		if (relevant_parents ? relevant_change : irrelevant_change)
-			commit->object.flags &= ~TREESAME;
-		else
-			commit->object.flags |= TREESAME;
+	if (!opt->header_list)
+		return NULL;
+
+	for (p = opt->header_list; p; p = p->next) {
+		if (p->token != GREP_PATTERN_HEAD)
+			die("bug: a non-header pattern in grep header list.");
+		if (p->field < GREP_HEADER_FIELD_MIN ||
+		    GREP_HEADER_FIELD_MAX <= p->field)
+			die("bug: unknown header field %d", p->field);
+		compile_regexp(p, opt);
 	}
 
-	return commit->object.flags & TREESAME;
+	for (fld = 0; fld < GREP_HEADER_FIELD_MAX; fld++)
+		header_group[fld] = NULL;
+
+	for (p = opt->header_list; p; p = p->next) {
+		struct grep_expr *h;
+		struct grep_pat *pp = p;
+
+		h = compile_pattern_atom(&pp);
+		if (!h || pp != p->next)
+			die("bug: malformed header expr");
+		if (!header_group[p->field]) {
+			header_group[p->field] = h;
+			continue;
+		}
+		header_group[p->field] = grep_or_expr(h, header_group[p->field]);
+	}
+
+	header_expr = NULL;
+
+	for (fld = 0; fld < GREP_HEADER_FIELD_MAX; fld++) {
+		if (!header_group[fld])
+			continue;
+		if (!header_expr)
+			header_expr = grep_true_expr();
+		header_expr = grep_or_expr(header_group[fld], header_expr);
+	}
+	return header_expr;
 }

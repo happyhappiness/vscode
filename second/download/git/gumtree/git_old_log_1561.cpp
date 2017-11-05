@@ -1,2 +1,0 @@
-die("bad numeric config value '%s' for '%s' in %s: %s",
-		    value, name, cf->name, reason);

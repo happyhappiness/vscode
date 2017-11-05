@@ -1,1 +1,1 @@
-error("Unable to update %s", b->name);
+fprintf(f, "%s\n", sha1_to_hex(sha1));

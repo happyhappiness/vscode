@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, shed->c, APLOGNO(03396)
-                  "h2_ngn_shed(%ld): pull task for engine %s, shutdown=%d", 
-                  shed->c->id, ngn->id, want_shutdown);
+ap_log_rerror(
+                APLOG_MARK, APLOG_INFO, 0, r, APLOGNO() "cache: %s responded with an uncacheable 304, retrying the request. Reason: %s", r->unparsed_uri, reason);

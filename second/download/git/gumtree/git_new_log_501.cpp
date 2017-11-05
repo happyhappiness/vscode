@@ -1,1 +1,2 @@
-error("cannot feed the input to external filter '%s'", params->cmd);
+print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg,
+				 porcelain, summary_width);

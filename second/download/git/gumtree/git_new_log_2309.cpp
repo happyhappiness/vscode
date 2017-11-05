@@ -1,1 +1,1 @@
-die("--reverse and --first-parent together require specified latest commit");
+error_errno(_("failed to remove '%s'"), path.buf);

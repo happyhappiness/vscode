@@ -1,32 +1,32 @@
-static void wt_longstatus_print_tracking(struct wt_status *s)
+int ref_transaction_create(struct ref_transaction *transaction,
+			   const char *refname,
+			   const unsigned char *new_sha1,
+			   int flags, const char *msg,
+			   struct strbuf *err)
 {
-	struct strbuf sb = STRBUF_INIT;
-	const char *cp, *ep, *branch_name;
-	struct branch *branch;
-	char comment_line_string[3];
-	int i;
+	struct ref_update *update;
 
-	assert(s->branch && !s->is_initial);
-	if (!skip_prefix(s->branch, "refs/heads/", &branch_name))
-		return;
-	branch = branch_get(branch_name);
-	if (!format_tracking_info(branch, &sb))
-		return;
+	assert(err);
 
-	i = 0;
-	if (s->display_comment_prefix) {
-		comment_line_string[i++] = comment_line_char;
-		comment_line_string[i++] = ' ';
+	if (transaction->state != REF_TRANSACTION_OPEN)
+		die("BUG: create called for transaction that is not open");
+
+	if (!new_sha1 || is_null_sha1(new_sha1))
+		die("BUG: create ref with null new_sha1");
+
+	if (check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
+		strbuf_addf(err, "refusing to create ref with bad name %s",
+			    refname);
+		return -1;
 	}
-	comment_line_string[i] = '\0';
 
-	for (cp = sb.buf; (ep = strchr(cp, '\n')) != NULL; cp = ep + 1)
-		color_fprintf_ln(s->fp, color(WT_STATUS_HEADER, s),
-				 "%s%.*s", comment_line_string,
-				 (int)(ep - cp), cp);
-	if (s->display_comment_prefix)
-		color_fprintf_ln(s->fp, color(WT_STATUS_HEADER, s), "%c",
-				 comment_line_char);
-	else
-		fputs("", s->fp);
+	update = add_update(transaction, refname);
+
+	hashcpy(update->new_sha1, new_sha1);
+	hashclr(update->old_sha1);
+	update->flags = flags;
+	update->have_old = 1;
+	if (msg)
+		update->msg = xstrdup(msg);
+	return 0;
 }

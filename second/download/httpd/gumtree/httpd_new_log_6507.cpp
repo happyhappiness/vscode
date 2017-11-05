@@ -1,1 +1,2 @@
-ap_rputs("</select>\n</td></tr>\n", r);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02335)
+                 "restoring %s", storename);

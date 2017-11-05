@@ -1,3 +1,2 @@
-ap_rvputs(r, "<h1>Menu for ", 
-                  ap_escape_html(r->pool, r->uri),
-                  "</h1>\n<hr />\n\n", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01685)
+                      "Authn cache: found credentials for %s", user);

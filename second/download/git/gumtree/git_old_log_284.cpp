@@ -1,1 +1,1 @@
-fprintf(stderr, "Falling back to three-way merge...\n");
+error(_("Unknown -s/--strategy: %s"), strategy);

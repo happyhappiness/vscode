@@ -1,1 +1,1 @@
-die(_("could not start ls-files in .."));
+die("strange hostname '%s' blocked", host);

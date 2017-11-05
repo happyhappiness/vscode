@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die(_("protocol error: bad pack header"));

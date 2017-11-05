@@ -1,1 +1,1 @@
-die("object %s changed size!?", oid_to_hex(oid));
+packet_buf_write(&req_buf, "deepen-not %s", s->string);

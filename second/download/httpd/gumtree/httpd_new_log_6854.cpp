@@ -1,1 +1,1 @@
-h2_stream_set_request(stream, push->req);
+apr_bucket_read(e, &data, &len, APR_BLOCK_READ);

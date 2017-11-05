@@ -1,1 +1,1 @@
-error(_("failed to finalize '%s'."), git_path_head_file());
+error(_("could not read HEAD's commit message"));

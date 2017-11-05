@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0, cmd->pool, APLOGNO(01578)
-                 "WARNING: LoadModule not supported on this platform");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01517)
+                MODNAME ": apprentice read %d lines, %d rules, %d errors",
+                lineno, rule, errs);

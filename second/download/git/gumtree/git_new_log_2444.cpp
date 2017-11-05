@@ -1,1 +1,1 @@
-die("BUG: color parsing ran out of space");
+die(_("Unexpected option --output"));

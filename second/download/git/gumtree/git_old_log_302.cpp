@@ -1,2 +1,2 @@
-error(_("%s: already exists in working directory"),
-				     new_name);
+die("Only %d entries can be shown at one time.",
+			    MAX_REVS);

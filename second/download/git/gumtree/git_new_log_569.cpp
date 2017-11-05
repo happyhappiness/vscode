@@ -1,1 +1,0 @@
-die("%s doesn't support --super-prefix", p->cmd);

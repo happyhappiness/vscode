@@ -1,1 +1,1 @@
-printf(" %s", find_unique_abbrev(p->item->object.sha1, abbrev));
+error(_("corrupt index file"));

@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+die("bad tree compare for commit %s", oid_to_hex(&commit->object.oid));

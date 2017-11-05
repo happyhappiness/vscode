@@ -1,1 +1,0 @@
-die(_("Failed to chdir: %s"), prefix);

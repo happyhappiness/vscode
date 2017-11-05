@@ -1,1 +1,2 @@
-die(_("unable to parse commit %s"), oid_to_hex(&commit->object.oid));
+usage_with_options(git_submodule_helper_usage,
+				   module_clone_options);

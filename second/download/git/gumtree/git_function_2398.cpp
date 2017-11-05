@@ -1,22 +1,37 @@
-static int option_parse_recurse_submodules(const struct option *opt,
-				   const char *arg, int unset)
+static int verify_absent_1(const struct cache_entry *ce,
+			   enum unpack_trees_error_types error_type,
+			   struct unpack_trees_options *o)
 {
-	int *flags = opt->value;
+	int len;
+	struct stat st;
 
-	if (*flags & (TRANSPORT_RECURSE_SUBMODULES_CHECK |
-		      TRANSPORT_RECURSE_SUBMODULES_ON_DEMAND))
-		die("%s can only be used once.", opt->long_name);
+	if (o->index_only || o->reset || !o->update)
+		return 0;
 
-	if (arg) {
-		if (!strcmp(arg, "check"))
-			*flags |= TRANSPORT_RECURSE_SUBMODULES_CHECK;
-		else if (!strcmp(arg, "on-demand"))
-			*flags |= TRANSPORT_RECURSE_SUBMODULES_ON_DEMAND;
+	len = check_leading_path(ce->name, ce_namelen(ce));
+	if (!len)
+		return 0;
+	else if (len > 0) {
+		char *path;
+		int ret;
+
+		path = xmemdupz(ce->name, len);
+		if (lstat(path, &st))
+			ret = error("cannot stat '%s': %s", path,
+					strerror(errno));
 		else
-			die("bad %s argument: %s", opt->long_name, arg);
-	} else
-		die("option %s needs an argument (check|on-demand)",
-				opt->long_name);
-
-	return 0;
+			ret = check_ok_to_remove(path, len, DT_UNKNOWN, NULL,
+						 &st, error_type, o);
+		free(path);
+		return ret;
+	} else if (lstat(ce->name, &st)) {
+		if (errno != ENOENT)
+			return error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));
+		return 0;
+	} else {
+		return check_ok_to_remove(ce->name, ce_namelen(ce),
+					  ce_to_dtype(ce), ce, &st,
+					  error_type, o);
+	}
 }

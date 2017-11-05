@@ -1,1 +1,2 @@
-printf("%s missing\n", obj_name ? obj_name : sha1_to_hex(data->sha1));
+packet_write(1, "unshallow %s",
+					oid_to_hex(&object->oid));

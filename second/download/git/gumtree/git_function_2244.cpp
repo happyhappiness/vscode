@@ -1,31 +1,24 @@
-int xopen(const char *path, int oflag, ...)
+void read_bisect_terms(const char **read_bad, const char **read_good)
 {
-	mode_t mode = 0;
-	va_list ap;
+	struct strbuf str = STRBUF_INIT;
+	const char *filename = git_path("BISECT_TERMS");
+	FILE *fp = fopen(filename, "r");
 
-	/*
-	 * va_arg() will have undefined behavior if the specified type is not
-	 * compatible with the argument type. Since integers are promoted to
-	 * ints, we fetch the next argument as an int, and then cast it to a
-	 * mode_t to avoid undefined behavior.
-	 */
-	va_start(ap, oflag);
-	if (oflag & O_CREAT)
-		mode = va_arg(ap, int);
-	va_end(ap);
-
-	for (;;) {
-		int fd = open(path, oflag, mode);
-		if (fd >= 0)
-			return fd;
-		if (errno == EINTR)
-			continue;
-
-		if ((oflag & O_RDWR) == O_RDWR)
-			die_errno(_("could not open '%s' for reading and writing"), path);
-		else if ((oflag & O_WRONLY) == O_WRONLY)
-			die_errno(_("could not open '%s' for writing"), path);
-		else
-			die_errno(_("could not open '%s' for reading"), path);
+	if (!fp) {
+		if (errno == ENOENT) {
+			*read_bad = "bad";
+			*read_good = "good";
+			return;
+		} else {
+			die("could not read file '%s': %s", filename,
+				strerror(errno));
+		}
+	} else {
+		strbuf_getline_lf(&str, fp);
+		*read_bad = strbuf_detach(&str, NULL);
+		strbuf_getline_lf(&str, fp);
+		*read_good = strbuf_detach(&str, NULL);
 	}
+	strbuf_release(&str);
+	fclose(fp);
 }

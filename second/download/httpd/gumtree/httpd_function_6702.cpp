@@ -1,20 +1,29 @@
-static void event_note_child_lost_slot(int slot, pid_t newpid)
+static int ssl_tmp_keys_init(server_rec *s)
 {
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00458)
-                 "pid %" APR_PID_T_FMT " taking over scoreboard slot from "
-                 "%" APR_PID_T_FMT "%s",
-                 newpid,
-                 ap_scoreboard_image->parent[slot].pid,
-                 ap_scoreboard_image->parent[slot].quiescing ?
-                 " (quiescing)" : "");
-    ap_run_child_status(ap_server_conf,
-                        ap_scoreboard_image->parent[slot].pid,
-                        ap_scoreboard_image->parent[slot].generation,
-                        slot, MPM_CHILD_LOST_SLOT);
-    /* Don't forget about this exiting child process, or we
-     * won't be able to kill it if it doesn't exit by the
-     * time the server is shut down.
-     */
-    ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid,
-                                  ap_scoreboard_image->parent[slot].generation);
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                 "Init: Generating temporary RSA private keys (512/1024 bits)");
+
+    if (MODSSL_TMP_KEY_INIT_RSA(s, 512) ||
+        MODSSL_TMP_KEY_INIT_RSA(s, 1024)) {
+        return !OK;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                 "Init: Generating temporary DH parameters (512/1024 bits)");
+
+    if (MODSSL_TMP_KEY_INIT_DH(s, 512) ||
+        MODSSL_TMP_KEY_INIT_DH(s, 1024)) {
+        return !OK;
+    }
+
+#ifndef OPENSSL_NO_EC
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
+                 "Init: Generating temporary EC parameters (256 bits)");
+
+    if (MODSSL_TMP_KEY_INIT_EC(s, 256)) {
+        return !OK;
+    }
+#endif
+
+    return OK;
 }

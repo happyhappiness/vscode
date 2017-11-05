@@ -1,1 +1,0 @@
-error("cannot fork to run external filter '%s'", cmd);

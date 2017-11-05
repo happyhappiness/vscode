@@ -1,1 +1,2 @@
-warning("packfile %s cannot be accessed", p->pack_name);
+fprintf(stderr, "    sent %s\n",
+					sha1_to_hex(request->obj->sha1));

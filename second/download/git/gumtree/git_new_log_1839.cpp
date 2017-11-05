@@ -1,2 +1,2 @@
-die("unable to generate diff (%s)",
-		    sha1_to_hex(parent->commit->object.sha1));
+error("could not write config file %s: %s",
+			    config_filename, strerror(errno));

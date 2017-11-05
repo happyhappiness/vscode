@@ -1,1 +1,2 @@
-fprintf(stderr, "IMAP error: could not create missing mailbox\n");
+strbuf_addf(err, "there are still refs under '%s'",
+					    orig_refname);

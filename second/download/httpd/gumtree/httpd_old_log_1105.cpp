@@ -1,1 +1,0 @@
-(isprint(re->first_char);

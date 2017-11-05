@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing MaxRequestWorkers to %d.",
-                         server_limit, server_limit);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, c, APLOGNO(03060)
+                      "h2_request(%ld-%d): pseudo header in trailer",
+                      c->id, stream->id);

@@ -1,24 +1,18 @@
-apr_status_t h2_request_rwrite(h2_request *req, request_rec *r, h2_mplx *m)
+static int on_invalid_frame_recv_cb(nghttp2_session *ngh2,
+                                    const nghttp2_frame *frame,
+                                    int error, void *userp)
 {
-    apr_status_t status;
-    req->method = r->method;
-    req->authority = r->hostname;
-    req->path = r->uri;
-    if (!ap_strchr_c(req->authority, ':') && r->parsed_uri.port_str) {
-        req->authority = apr_psprintf(req->pool, "%s:%s", req->authority,
-                                      r->parsed_uri.port_str);
+    h2_session *session = (h2_session *)userp;
+    (void)ngh2;
+    
+    if (APLOGcdebug(session->c)) {
+        char buffer[256];
+        
+        h2_util_frame_print(frame, buffer, sizeof(buffer)/sizeof(buffer[0]));
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03063)
+                      "h2_session(%ld): recv unknown FRAME[%s], frames=%ld/%ld (r/s)",
+                      session->id, buffer, (long)session->frames_received,
+                     (long)session->frames_sent);
     }
-    req->scheme = NULL;
-    
-    
-    status = insert_request_line(req, m);
-    if (status == APR_SUCCESS) {
-        status = h2_to_h1_add_headers(req->to_h1, r->headers_in);
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
-                  "h2_request(%d): written request %s %s, host=%s",
-                  req->id, req->method, req->path, req->authority);
-    
-    return status;
+    return 0;
 }

@@ -1,44 +1,64 @@
-static int add(int ac, const char **av, const char *prefix)
+static int git_parse_source(config_fn_t fn, void *data)
 {
-	int force = 0, detach = 0;
-	const char *new_branch = NULL, *new_branch_force = NULL;
-	const char *path, *branch;
-	struct argv_array cmd = ARGV_ARRAY_INIT;
-	struct option options[] = {
-		OPT__FORCE(&force, N_("checkout <branch> even if already checked out in other worktree")),
-		OPT_STRING('b', NULL, &new_branch, N_("branch"),
-			   N_("create a new branch")),
-		OPT_STRING('B', NULL, &new_branch_force, N_("branch"),
-			   N_("create or reset a branch")),
-		OPT_BOOL(0, "detach", &detach, N_("detach HEAD at named commit")),
-		OPT_END()
-	};
+	int comment = 0;
+	int baselen = 0;
+	struct strbuf *var = &cf->var;
 
-	ac = parse_options(ac, av, prefix, options, worktree_usage, 0);
-	if (new_branch && new_branch_force)
-		die(_("-b and -B are mutually exclusive"));
-	if (ac < 1 || ac > 2)
-		usage_with_options(worktree_usage, options);
+	/* U+FEFF Byte Order Mark in UTF8 */
+	const char *bomptr = utf8_bom;
 
-	path = prefix ? prefix_filename(prefix, strlen(prefix), av[0]) : av[0];
-	branch = ac < 2 ? "HEAD" : av[1];
-
-	if (ac < 2 && !new_branch && !new_branch_force) {
-		int n;
-		const char *s = worktree_basename(path, &n);
-		new_branch = xstrndup(s, n);
+	for (;;) {
+		int c = get_next_char();
+		if (bomptr && *bomptr) {
+			/* We are at the file beginning; skip UTF8-encoded BOM
+			 * if present. Sane editors won't put this in on their
+			 * own, but e.g. Windows Notepad will do it happily. */
+			if (c == (*bomptr & 0377)) {
+				bomptr++;
+				continue;
+			} else {
+				/* Do not tolerate partial BOM. */
+				if (bomptr != utf8_bom)
+					break;
+				/* No BOM at file beginning. Cool. */
+				bomptr = NULL;
+			}
+		}
+		if (c == '\n') {
+			if (cf->eof)
+				return 0;
+			comment = 0;
+			continue;
+		}
+		if (comment || isspace(c))
+			continue;
+		if (c == '#' || c == ';') {
+			comment = 1;
+			continue;
+		}
+		if (c == '[') {
+			/* Reset prior to determining a new stem */
+			strbuf_reset(var);
+			if (get_base_var(var) < 0 || var->len < 1)
+				break;
+			strbuf_addch(var, '.');
+			baselen = var->len;
+			continue;
+		}
+		if (!isalpha(c))
+			break;
+		/*
+		 * Truncate the var name back to the section header
+		 * stem prior to grabbing the suffix part of the name
+		 * and the value.
+		 */
+		strbuf_setlen(var, baselen);
+		strbuf_addch(var, tolower(c));
+		if (get_value(fn, data, var) < 0)
+			break;
 	}
-
-	argv_array_push(&cmd, "checkout");
-	if (force)
-		argv_array_push(&cmd, "--ignore-other-worktrees");
-	if (new_branch)
-		argv_array_pushl(&cmd, "-b", new_branch, NULL);
-	if (new_branch_force)
-		argv_array_pushl(&cmd, "-B", new_branch_force, NULL);
-	if (detach)
-		argv_array_push(&cmd, "--detach");
-	argv_array_push(&cmd, branch);
-
-	return add_worktree(path, cmd.argv);
+	if (cf->die_on_error)
+		die(_("bad config file line %d in %s"), cf->linenr, cf->name);
+	else
+		return error(_("bad config file line %d in %s"), cf->linenr, cf->name);
 }

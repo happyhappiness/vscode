@@ -1,70 +1,89 @@
-static authz_status group_check_authorization(request_rec *r,
-                                              const char *require_args,
-                                              const void *parsed_require_args)
+static int stapling_cb(SSL *ssl, void *arg)
 {
-    authz_groupfile_config_rec *conf = ap_get_module_config(r->per_dir_config,
-            &authz_groupfile_module);
-    char *user = r->user;
+    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
+    server_rec *s       = mySrvFromConn(conn);
+    SSLSrvConfigRec *sc = mySrvConfig(s);
+    SSLConnRec *sslconn = myConnConfig(conn);
+    modssl_ctx_t *mctx  = myCtxConfig(sslconn, sc);
+    certinfo *cinf = NULL;
+    OCSP_RESPONSE *rsp = NULL;
+    int rv;
+    BOOL ok = TRUE;
 
-    const char *err = NULL;
-    const ap_expr_info_t *expr = parsed_require_args;
-    const char *require;
-
-    const char *t, *w;
-    apr_table_t *grpstatus = NULL;
-    apr_status_t status;
-
-    if (!user) {
-        return AUTHZ_DENIED_NO_USER;
+    if (sc->server->stapling_enabled != TRUE) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01950)
+                     "stapling_cb: OCSP Stapling disabled");
+        return SSL_TLSEXT_ERR_NOACK;
     }
 
-    /* If there is no group file - then we are not
-     * configured. So decline.
-     */
-    if (!(conf->groupfile)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01664)
-                        "No group file was specified in the configuration");
-        return AUTHZ_DENIED;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01951)
+                 "stapling_cb: OCSP Stapling callback called");
+
+    cinf = stapling_get_certinfo(s, mctx, ssl);
+    if (cinf == NULL) {
+        return SSL_TLSEXT_ERR_NOACK;
     }
 
-    status = groups_for_user(r->pool, user, conf->groupfile,
-                                &grpstatus);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01952)
+                 "stapling_cb: retrieved cached certificate data");
 
-    if (status != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01665)
-                        "Could not open group file: %s",
-                        conf->groupfile);
-        return AUTHZ_DENIED;
+    rv = get_and_check_cached_response(s, mctx, &rsp, &ok, cinf, conn->pool);
+    if (rv != 0) {
+        return rv;
     }
 
-    if (apr_is_empty_table(grpstatus)) {
-        /* no groups available, so exit immediately */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01666)
-                      "Authorization of user %s to access %s failed, reason: "
-                      "user doesn't appear in group file (%s).",
-                      r->user, r->uri, conf->groupfile);
-        return AUTHZ_DENIED;
-    }
+    if (rsp == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01954)
+                     "stapling_cb: renewing cached response");
+        stapling_refresh_mutex_on(s);
+        /* Maybe another request refreshed the OCSP response while this
+         * thread waited for the mutex.  Check again.
+         */
+        rv = get_and_check_cached_response(s, mctx, &rsp, &ok, cinf,
+                                           conn->pool);
+        if (rv != 0) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_cb: error checking for cached response "
+                         "after obtaining refresh mutex");
+            stapling_refresh_mutex_off(s);
+            return rv;
+        }
+        else if (rsp) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_cb: don't need to refresh cached response "
+                         "after obtaining refresh mutex");
+            stapling_refresh_mutex_off(s);
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "stapling_cb: still must refresh cached response "
+                         "after obtaining refresh mutex");
+            rv = stapling_renew_response(s, mctx, ssl, cinf, &rsp, &ok,
+                                         conn->pool);
+            stapling_refresh_mutex_off(s);
 
-    require = ap_expr_str_exec(r, expr, &err);
-    if (err) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02592)
-                      "authz_groupfile authorize: require group: Can't "
-                      "evaluate require expression: %s", err);
-        return AUTHZ_DENIED;
-    }
-
-    t = require;
-    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
-        if (apr_table_get(grpstatus, w)) {
-            return AUTHZ_GRANTED;
+            if (rv == TRUE) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "stapling_cb: success renewing response");
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01955)
+                             "stapling_cb: fatal error renewing response");
+                return SSL_TLSEXT_ERR_ALERT_FATAL;
+            }
         }
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01667)
-                    "Authorization of user %s to access %s failed, reason: "
-                    "user is not part of the 'require'ed group(s).",
-                    r->user, r->uri);
+    if (rsp && ((ok == TRUE) || (mctx->stapling_return_errors == TRUE))) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01956)
+                     "stapling_cb: setting response");
+        if (!stapling_set_response(ssl, rsp))
+            return SSL_TLSEXT_ERR_ALERT_FATAL;
+        return SSL_TLSEXT_ERR_OK;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01957)
+                 "stapling_cb: no suitable response available");
 
-    return AUTHZ_DENIED;
+    return SSL_TLSEXT_ERR_NOACK;
+
 }

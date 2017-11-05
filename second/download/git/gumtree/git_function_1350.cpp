@@ -1,50 +1,31 @@
-static struct object_entry *dereference(struct object_entry *oe,
-					unsigned char sha1[20])
+static int fast_forward_to(const unsigned char *to, const unsigned char *from,
+			int unborn, struct replay_opts *opts)
 {
-	unsigned long size;
-	char *buf = NULL;
-	if (!oe) {
-		enum object_type type = sha1_object_info(sha1, NULL);
-		if (type < 0)
-			die("object not found: %s", sha1_to_hex(sha1));
-		/* cache it! */
-		oe = insert_object(sha1);
-		oe->type = type;
-		oe->pack_id = MAX_PACK_ID;
-		oe->idx.offset = 1;
-	}
-	switch (oe->type) {
-	case OBJ_TREE:	/* easy case. */
-		return oe;
-	case OBJ_COMMIT:
-	case OBJ_TAG:
-		break;
-	default:
-		die("Not a tree-ish: %s", command_buf.buf);
+	struct ref_transaction *transaction;
+	struct strbuf sb = STRBUF_INIT;
+	struct strbuf err = STRBUF_INIT;
+
+	read_cache();
+	if (checkout_fast_forward(from, to, 1))
+		exit(128); /* the callee should have complained already */
+
+	strbuf_addf(&sb, "%s: fast-forward", action_name(opts));
+
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_update(transaction, "HEAD",
+				   to, unborn ? null_sha1 : from,
+				   0, 1, sb.buf, &err) ||
+	    ref_transaction_commit(transaction, &err)) {
+		ref_transaction_free(transaction);
+		error("%s", err.buf);
+		strbuf_release(&sb);
+		strbuf_release(&err);
+		return -1;
 	}
 
-	if (oe->pack_id != MAX_PACK_ID) {	/* in a pack being written */
-		buf = gfi_unpack_entry(oe, &size);
-	} else {
-		enum object_type unused;
-		buf = read_sha1_file(sha1, &unused, &size);
-	}
-	if (!buf)
-		die("Can't load object %s", sha1_to_hex(sha1));
-
-	/* Peel one layer. */
-	switch (oe->type) {
-	case OBJ_TAG:
-		if (size < 40 + strlen("object ") ||
-		    get_sha1_hex(buf + strlen("object "), sha1))
-			die("Invalid SHA1 in tag: %s", command_buf.buf);
-		break;
-	case OBJ_COMMIT:
-		if (size < 40 + strlen("tree ") ||
-		    get_sha1_hex(buf + strlen("tree "), sha1))
-			die("Invalid SHA1 in commit: %s", command_buf.buf);
-	}
-
-	free(buf);
-	return find_object(sha1);
+	strbuf_release(&sb);
+	strbuf_release(&err);
+	ref_transaction_free(transaction);
+	return 0;
 }

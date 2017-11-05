@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
-                          "Requested content-length of %" APR_OFF_T_FMT 
-                          " is larger than the configured limit"
-                          " of %" APR_OFF_T_FMT, ctx->remaining, ctx->limit);
+ap_log_error(APLOG_MARK, APLOG_INFO, rc, c->base_server,
+                         "SSL handshake interrupted by system "
+                         "[Hint: Stop button pressed in browser?!]");

@@ -1,0 +1,1 @@
+die("index file corrupt");

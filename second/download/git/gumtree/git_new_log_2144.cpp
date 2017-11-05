@@ -1,1 +1,1 @@
-die("skiplist requires a path");
+die(_("unrecognized %%(contents) argument: %s"), arg);

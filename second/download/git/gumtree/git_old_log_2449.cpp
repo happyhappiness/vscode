@@ -1,1 +1,1 @@
-error("bad parents in commit %s", sha1_to_hex(item->object.sha1));
+printf("We cannot bisect more!\n");

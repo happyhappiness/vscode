@@ -1,2 +1,4 @@
-printf("%s was both good and bad\n",
-		       oid_to_hex(current_bad_oid));
+fprintf(stderr, "%s in %s has negative refcnt %d\n",
+				ent->suspect->path,
+				oid_to_hex(&ent->suspect->commit->object.oid),
+				ent->suspect->refcnt);

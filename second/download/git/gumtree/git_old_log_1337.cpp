@@ -1,1 +1,0 @@
-fprintf(pack_edges, " %s", sha1_to_hex(t->sha1));

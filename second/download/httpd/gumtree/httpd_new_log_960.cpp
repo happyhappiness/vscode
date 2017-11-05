@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
-                     "unable to replace stderr with error_log");
+fprintf(f, " */\n\n/* End of chartables.c */\n");

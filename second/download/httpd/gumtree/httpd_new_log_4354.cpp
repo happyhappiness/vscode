@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01017)
-                              "error on %s - ap_pass_brigade",
-                              name);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01926)
+                 "stapling_get_cert_info: stapling not supported for certificate");

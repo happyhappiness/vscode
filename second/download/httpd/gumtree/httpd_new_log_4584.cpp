@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01818)
-                          "attempt made to save the session twice, "
-                          "session not saved: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_ALERT, APR_FROM_OS_ERROR(rc), s, APLOGNO(00204)
+                     "failure creating accept mutex, shutting down");

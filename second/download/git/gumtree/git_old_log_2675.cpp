@@ -1,1 +1,1 @@
-insert_one_record(log, author + 8, oneline);
+error(_("Cannot %s during a %s"), action_str, action_name(opts));

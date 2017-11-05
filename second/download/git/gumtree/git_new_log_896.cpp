@@ -1,1 +1,1 @@
-die(_("could not lookup name for submodule '%s'"), path);
+hashmap_init(&submodule_ref_stores, submodule_hash_cmp, 0);

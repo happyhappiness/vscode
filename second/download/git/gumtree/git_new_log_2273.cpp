@@ -1,1 +1,1 @@
-die("combining --first-parent and --reverse is not supported");
+error_errno("cannot read mail %s", file);

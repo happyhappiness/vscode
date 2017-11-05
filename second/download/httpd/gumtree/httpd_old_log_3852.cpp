@@ -1,1 +1,1 @@
-ap_rputs("<p>Scoreboard Key:<br />\n", r);
+ap_rvputs(r, "<td>", balancer->sticky, NULL);

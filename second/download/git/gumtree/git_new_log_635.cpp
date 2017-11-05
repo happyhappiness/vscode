@@ -1,1 +1,1 @@
-error(_("unusable instruction sheet: '%s'"), todo_file);
+die(_("Unknown action: %d"), opts->action);

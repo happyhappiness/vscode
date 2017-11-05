@@ -1,1 +1,1 @@
-printf("%s ", caller_name ? caller_name : sha1_to_hex(sha1));
+error("read(%s) failed: %s", t->src_name, strerror(errno));

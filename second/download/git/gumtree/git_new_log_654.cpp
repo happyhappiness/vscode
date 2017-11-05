@@ -1,3 +1,1 @@
-error("object directory %s does not exist; "
-		      "check .git/objects/info/alternates.",
-		      path->buf);
+error(_("cannot read HEAD"));

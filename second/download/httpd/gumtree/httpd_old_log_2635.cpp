@@ -1,2 +1,1 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, rec->pool,
-                      "DBD: driver for %s not available", svr->name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "Digest: done");

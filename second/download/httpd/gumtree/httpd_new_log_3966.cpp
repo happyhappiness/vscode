@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(01479) "FOO!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r, APLOGNO(01102)
+                          "error reading status line from remote "
+                          "server %s:%d", backend->hostname, backend->port);

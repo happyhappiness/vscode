@@ -1,8 +1,16 @@
-static void finish_object(struct object *obj, const char *name, void *cb_data)
+static void git_config_raw(config_fn_t fn, void *data)
 {
-	struct rev_list_info *info = cb_data;
-	if (obj->type == OBJ_BLOB && !has_sha1_file(obj->sha1))
-		die("missing blob object '%s'", sha1_to_hex(obj->sha1));
-	if (info->revs->verify_objects && !obj->parsed && obj->type != OBJ_COMMIT)
-		parse_object(obj->sha1);
+	if (git_config_with_options(fn, data, NULL, 1) < 0)
+		/*
+		 * git_config_with_options() normally returns only
+		 * positive values, as most errors are fatal, and
+		 * non-fatal potential errors are guarded by "if"
+		 * statements that are entered only when no error is
+		 * possible.
+		 *
+		 * If we ever encounter a non-fatal error, it means
+		 * something went really wrong and we should stop
+		 * immediately.
+		 */
+		die(_("unknown error occured while reading the configuration files"));
 }

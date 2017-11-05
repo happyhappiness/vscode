@@ -1,1 +1,1 @@
-error("pack-objects died of signal %d", rc - 128);
+die("you must specify at least one tree to merge");

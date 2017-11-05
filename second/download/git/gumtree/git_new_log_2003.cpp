@@ -1,1 +1,1 @@
-die("%s aborted reading request", prog_name);
+fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit), stdout);

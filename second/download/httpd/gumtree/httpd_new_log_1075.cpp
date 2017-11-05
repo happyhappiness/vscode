@@ -1,1 +1,3 @@
-fprintf(stderr, "apr_table_addn: key not in ancestor pool of t\n");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+              "proxy: worker %s already initialized",
+              worker->name);

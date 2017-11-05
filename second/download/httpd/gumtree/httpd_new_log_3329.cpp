@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02142) "In child!");
+ap_log_error(APLOG_MARK, APLOG_ERR, stat,
+                         main_server, APLOGNO(01248)
+                         "Error reading request on cgid socket");

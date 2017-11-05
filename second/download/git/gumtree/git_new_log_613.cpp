@@ -1,2 +1,2 @@
-error(_(staged_changes_advice),
-				     gpg_opt, gpg_opt);
+usage_msg_opt(_("--continue expects no arguments"),
+			      builtin_merge_usage, builtin_merge_options);

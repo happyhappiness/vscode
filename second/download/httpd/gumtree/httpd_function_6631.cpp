@@ -1,18 +1,23 @@
-static int on_invalid_header_cb(nghttp2_session *ngh2, 
-                                const nghttp2_frame *frame, 
-                                const uint8_t *name, size_t namelen, 
-                                const uint8_t *value, size_t valuelen, 
-                                uint8_t flags, void *user_data)
+static apr_status_t slotmem_fgrab(ap_slotmem_instance_t *slot, unsigned int id)
 {
-    h2_session *session = user_data;
-    if (APLOGcdebug(session->c)) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03456)
-                      "h2_session(%ld-%d): denying stream with invalid header "
-                      "'%s: %s'", session->id, (int)frame->hd.stream_id,
-                      apr_pstrndup(session->pool, (const char *)name, namelen),
-                      apr_pstrndup(session->pool, (const char *)value, valuelen));
+    char *inuse;
+    
+    if (!slot) {
+        return APR_ENOSHMAVAIL;
     }
-    return nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                     frame->hd.stream_id, 
-                                     NGHTTP2_PROTOCOL_ERROR);
+
+    if (id >= slot->desc.num) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02236)
+                     "slotmem(%s) fgrab failed. Num %u/num_free %u",
+                     slot->name, slotmem_num_slots(slot),
+                     slotmem_num_free_slots(slot));
+        return APR_EINVAL;
+    }
+    inuse = slot->inuse + id;
+
+    if (!*inuse) {
+        *inuse = 1;
+        (*slot->num_free)--;
+    }
+    return APR_SUCCESS;
 }

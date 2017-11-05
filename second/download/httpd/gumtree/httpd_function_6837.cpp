@@ -1,32 +1,22 @@
-static apr_status_t session_pool_cleanup(void *data)
+static void log_pid(apr_pool_t *pool, const char *pidfilename, apr_file_t **pidfile)
 {
-    h2_session *session = data;
-    /* On a controlled connection shutdown, this gets never
-     * called as we deregister and destroy our pool manually.
-     * However when we have an async mpm, and handed it our idle
-     * connection, it will just cleanup once the connection is closed
-     * from the other side (and sometimes even from out side) and
-     * here we arrive then.
-     */
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                  "session(%ld): pool_cleanup", session->id);
-    
-    if (session->state != H2_SESSION_ST_DONE) {
-        /* Not good. The connection is being torn down and we have
-         * not sent a goaway. This is considered a protocol error and
-         * the client has to assume that any streams "in flight" may have
-         * been processed and are not safe to retry.
-         * As clients with idle connection may only learn about a closed
-         * connection when sending the next request, this has the effect
-         * that at least this one request will fail.
-         */
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, session->c, APLOGNO(03199)
-                      "session(%ld): connection disappeared without proper "
-                      "goodbye, clients will be confused, should not happen", 
-                      session->id);
+    apr_status_t status;
+    char errmsg[120];
+    pid_t mypid = getpid();
+
+    if (APR_SUCCESS == (status = apr_file_open(pidfile, pidfilename,
+                APR_FOPEN_WRITE | APR_FOPEN_CREATE | APR_FOPEN_TRUNCATE |
+                APR_FOPEN_DELONCLOSE, APR_FPROT_UREAD | APR_FPROT_UWRITE |
+                APR_FPROT_GREAD | APR_FPROT_WREAD, pool))) {
+        apr_file_printf(*pidfile, "%" APR_PID_T_FMT APR_EOL_STR, mypid);
     }
-    /* keep us from destroying the pool, since that is already ongoing. */
-    session->pool = NULL;
-    h2_session_destroy(session);
-    return APR_SUCCESS;
+    else {
+        if (errfile) {
+            apr_file_printf(errfile,
+                            "Could not write the pid file '%s': %s" APR_EOL_STR,
+                            pidfilename,
+                            apr_strerror(status, errmsg, sizeof errmsg));
+        }
+        exit(1);
+    }
 }

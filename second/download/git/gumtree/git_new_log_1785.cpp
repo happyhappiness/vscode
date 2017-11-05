@@ -1,1 +1,1 @@
-printf("would prune %s", message);
+die_errno("unable to move new alternates file into place");

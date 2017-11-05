@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
-                  "h2_session(%ld): free()",
-                  session->id);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
+				  APLOGNO(03404)
+                                  "h2_session(%ld): waiting on conditional",
+                                  session->id);

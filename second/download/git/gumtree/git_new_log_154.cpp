@@ -1,1 +1,1 @@
-error("Unable to append to %s", log_file);
+status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");

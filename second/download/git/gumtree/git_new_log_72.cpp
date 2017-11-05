@@ -1,1 +1,1 @@
-die(_("could not write replacement commit for: '%s'"), old_ref);
+(check_refname_format(ref.buf, REFNAME_ALLOW_ONELEVEL);

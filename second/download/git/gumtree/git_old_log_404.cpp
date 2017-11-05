@@ -1,1 +1,1 @@
-error(_("Could not read object %s"), sha1_to_hex(sha1));
+packet_write(1, "# service=git-%s\n", svc->name);

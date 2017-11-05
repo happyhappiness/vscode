@@ -1,3 +1,2 @@
-fprintf(stderr, " %-11s %8d %s\n",
-				prio_names[t->name->prio],
-				t->depth, t->name->path);
+die(_("SHA1 COLLISION FOUND WITH %s !"),
+			    sha1_to_hex(data->entry->idx.sha1));

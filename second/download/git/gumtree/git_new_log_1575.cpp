@@ -1,1 +1,1 @@
-warning(_("%s has multiple values"), key);
+error_buf(err, _("push has no destination (push.default is 'nothing')"));

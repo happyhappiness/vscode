@@ -1,1 +1,1 @@
-die("BUG: unhandled push situation");
+printf("worktree %s\n", wt->path);

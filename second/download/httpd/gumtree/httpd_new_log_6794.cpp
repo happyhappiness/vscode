@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                  "h2_mplx(%ld): released", m->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02541)
+                     "ECDH curve %s for %s specified in %s",
+                     OBJ_nid2sn(nid), vhost_id, certfile);

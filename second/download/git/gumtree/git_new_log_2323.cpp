@@ -1,1 +1,1 @@
-printf("%s", find_unique_abbrev(oid->hash, abbrev));
+error_errno(_("failed write to rev-list"));

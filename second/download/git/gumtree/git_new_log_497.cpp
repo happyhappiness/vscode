@@ -1,1 +1,2 @@
-die(_("CRLF would be replaced by LF in %s."), path);
+error(_("empty trailer token in trailer '%.*s'"),
+			      (int) sb.len, sb.buf);

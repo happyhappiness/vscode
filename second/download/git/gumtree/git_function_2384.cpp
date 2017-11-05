@@ -1,32 +1,22 @@
-static void handle_info(void)
+static int index_core(unsigned char *sha1, int fd, size_t size,
+		      enum object_type type, const char *path,
+		      unsigned flags)
 {
-	struct strbuf *hdr;
-	int i;
+	int ret;
 
-	for (i = 0; header[i]; i++) {
-		/* only print inbody headers if we output a patch file */
-		if (patch_lines && s_hdr_data[i])
-			hdr = s_hdr_data[i];
-		else if (p_hdr_data[i])
-			hdr = p_hdr_data[i];
+	if (!size) {
+		ret = index_mem(sha1, "", size, type, path, flags);
+	} else if (size <= SMALL_FILE_SIZE) {
+		char *buf = xmalloc(size);
+		if (size == read_in_full(fd, buf, size))
+			ret = index_mem(sha1, buf, size, type, path, flags);
 		else
-			continue;
-
-		if (!strcmp(header[i], "Subject")) {
-			if (!keep_subject) {
-				cleanup_subject(hdr);
-				cleanup_space(hdr);
-			}
-			output_header_lines(fout, "Subject", hdr);
-		} else if (!strcmp(header[i], "From")) {
-			cleanup_space(hdr);
-			handle_from(hdr);
-			fprintf(fout, "Author: %s\n", name.buf);
-			fprintf(fout, "Email: %s\n", email.buf);
-		} else {
-			cleanup_space(hdr);
-			fprintf(fout, "%s: %s\n", header[i], hdr->buf);
-		}
+			ret = error("short read %s", strerror(errno));
+		free(buf);
+	} else {
+		void *buf = xmmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+		ret = index_mem(sha1, buf, size, type, path, flags);
+		munmap(buf, size);
 	}
-	fprintf(fout, "\n");
+	return ret;
 }

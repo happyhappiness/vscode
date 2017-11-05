@@ -1,1 +1,1 @@
-error("empty patch: '%s'", patch);
+die(_("Failed to resolve HEAD as a valid ref."));

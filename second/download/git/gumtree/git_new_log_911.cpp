@@ -1,1 +1,1 @@
-warning("ignoring versionsort.prereleasesuffix because versionsort.suffix is set");
+die("'git status --porcelain=2' failed in submodule %s", path);

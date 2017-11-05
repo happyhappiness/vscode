@@ -1,1 +1,1 @@
-warning("Unexpected sha1 when deleting %s", pseudoref);
+fputs(pp->children[i].err.buf, stderr);

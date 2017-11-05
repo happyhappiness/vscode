@@ -1,1 +1,1 @@
-die("curl_easy_init failed");
+strbuf_release(&filename);

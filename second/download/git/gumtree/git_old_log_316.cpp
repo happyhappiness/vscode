@@ -1,1 +1,1 @@
-printf(" %s %s\n", newdelete, name);
+packet_write(1, "ACK\n");

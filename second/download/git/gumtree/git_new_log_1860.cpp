@@ -1,1 +1,1 @@
-printf("%s\n", sb.buf);
+die("BUG: not unique item in first-parent chain");

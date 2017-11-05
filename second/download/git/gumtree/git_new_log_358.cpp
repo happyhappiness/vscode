@@ -1,1 +1,1 @@
-die(_("--progress can't be used with --incremental or porcelain formats"));
+warning(_(rename_limit_warning));

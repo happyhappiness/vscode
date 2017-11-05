@@ -1,1 +1,0 @@
-die("could not open output 'info'");

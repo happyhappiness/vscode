@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     APLOGNO(00374) "Failed to delete the '%s' service",
-                     mpm_display_name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                (direct_connect) ? APLOGNO(03231) "NoProxy for %s" : APLOGNO(03232) "UseProxy for %s",
+                r->uri);

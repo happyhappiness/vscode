@@ -1,1 +1,1 @@
-error(_("invalid color value: %.*s"), value_len, value);
+warning(_("Untracked cache is disabled on this system."));

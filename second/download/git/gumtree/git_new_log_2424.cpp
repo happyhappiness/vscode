@@ -1,1 +1,1 @@
-free(to_free);
+xwrite(2, outbuf.buf, outbuf.len);

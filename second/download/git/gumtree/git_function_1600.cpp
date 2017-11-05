@@ -1,88 +1,91 @@
-void http_init(struct remote *remote, const char *url, int proactive_auth)
+static int delete_branches(int argc, const char **argv, int force, int kinds,
+			   int quiet)
 {
-	char *low_speed_limit;
-	char *low_speed_time;
-	char *normalized_url;
-	struct urlmatch_config config = { STRING_LIST_INIT_DUP };
+	struct commit *head_rev = NULL;
+	unsigned char sha1[20];
+	char *name = NULL;
+	const char *fmt;
+	int i;
+	int ret = 0;
+	int remote_branch = 0;
+	struct strbuf bname = STRBUF_INIT;
 
-	config.section = "http";
-	config.key = NULL;
-	config.collect_fn = http_options;
-	config.cascade_fn = git_default_config;
-	config.cb = NULL;
+	switch (kinds) {
+	case REF_REMOTE_BRANCH:
+		fmt = "refs/remotes/%s";
+		/* For subsequent UI messages */
+		remote_branch = 1;
 
-	http_is_verbose = 0;
-	normalized_url = url_normalize(url, &config.url);
-
-	git_config(urlmatch_config_entry, &config);
-	free(normalized_url);
-
-	curl_global_init(CURL_GLOBAL_ALL);
-
-	http_proactive_auth = proactive_auth;
-
-	if (remote && remote->http_proxy)
-		curl_http_proxy = xstrdup(remote->http_proxy);
-
-	pragma_header = curl_slist_append(pragma_header, "Pragma: no-cache");
-	no_pragma_header = curl_slist_append(no_pragma_header, "Pragma:");
-
-#ifdef USE_CURL_MULTI
-	{
-		char *http_max_requests = getenv("GIT_HTTP_MAX_REQUESTS");
-		if (http_max_requests != NULL)
-			max_requests = atoi(http_max_requests);
+		force = 1;
+		break;
+	case REF_LOCAL_BRANCH:
+		fmt = "refs/heads/%s";
+		break;
+	default:
+		die(_("cannot use -a with -d"));
 	}
 
-	curlm = curl_multi_init();
-	if (curlm == NULL) {
-		fprintf(stderr, "Error creating curl multi handle.\n");
-		exit(1);
+	if (!force) {
+		head_rev = lookup_commit_reference(head_sha1);
+		if (!head_rev)
+			die(_("Couldn't look up commit object for HEAD"));
 	}
-#endif
+	for (i = 0; i < argc; i++, strbuf_release(&bname)) {
+		const char *target;
+		int flags = 0;
 
-	if (getenv("GIT_SSL_NO_VERIFY"))
-		curl_ssl_verify = 0;
+		strbuf_branchname(&bname, argv[i]);
+		if (kinds == REF_LOCAL_BRANCH && !strcmp(head, bname.buf)) {
+			error(_("Cannot delete the branch '%s' "
+			      "which you are currently on."), bname.buf);
+			ret = 1;
+			continue;
+		}
 
-	set_from_env(&ssl_cert, "GIT_SSL_CERT");
-#if LIBCURL_VERSION_NUM >= 0x070903
-	set_from_env(&ssl_key, "GIT_SSL_KEY");
-#endif
-#if LIBCURL_VERSION_NUM >= 0x070908
-	set_from_env(&ssl_capath, "GIT_SSL_CAPATH");
-#endif
-	set_from_env(&ssl_cainfo, "GIT_SSL_CAINFO");
+		free(name);
 
-	set_from_env(&user_agent, "GIT_HTTP_USER_AGENT");
+		name = mkpathdup(fmt, bname.buf);
+		target = resolve_ref_unsafe(name,
+					    RESOLVE_REF_READING
+					    | RESOLVE_REF_NO_RECURSE
+					    | RESOLVE_REF_ALLOW_BAD_NAME,
+					    sha1, &flags);
+		if (!target) {
+			error(remote_branch
+			      ? _("remote branch '%s' not found.")
+			      : _("branch '%s' not found."), bname.buf);
+			ret = 1;
+			continue;
+		}
 
-	low_speed_limit = getenv("GIT_HTTP_LOW_SPEED_LIMIT");
-	if (low_speed_limit != NULL)
-		curl_low_speed_limit = strtol(low_speed_limit, NULL, 10);
-	low_speed_time = getenv("GIT_HTTP_LOW_SPEED_TIME");
-	if (low_speed_time != NULL)
-		curl_low_speed_time = strtol(low_speed_time, NULL, 10);
+		if (!(flags & (REF_ISSYMREF|REF_ISBROKEN)) &&
+		    check_branch_commit(bname.buf, name, sha1, head_rev, kinds,
+					force)) {
+			ret = 1;
+			continue;
+		}
 
-	if (curl_ssl_verify == -1)
-		curl_ssl_verify = 1;
-
-	curl_session_count = 0;
-#ifdef USE_CURL_MULTI
-	if (max_requests < 1)
-		max_requests = DEFAULT_MAX_REQUESTS;
-#endif
-
-	if (getenv("GIT_CURL_FTP_NO_EPSV"))
-		curl_ftp_no_epsv = 1;
-
-	if (url) {
-		credential_from_url(&http_auth, url);
-		if (!ssl_cert_password_required &&
-		    getenv("GIT_SSL_CERT_PASSWORD_PROTECTED") &&
-		    starts_with(url, "https://"))
-			ssl_cert_password_required = 1;
+		if (delete_ref(name, sha1, REF_NODEREF)) {
+			error(remote_branch
+			      ? _("Error deleting remote branch '%s'")
+			      : _("Error deleting branch '%s'"),
+			      bname.buf);
+			ret = 1;
+			continue;
+		}
+		if (!quiet) {
+			printf(remote_branch
+			       ? _("Deleted remote branch %s (was %s).\n")
+			       : _("Deleted branch %s (was %s).\n"),
+			       bname.buf,
+			       (flags & REF_ISBROKEN) ? "broken"
+			       : (flags & REF_ISSYMREF) ? target
+			       : find_unique_abbrev(sha1, DEFAULT_ABBREV));
+		}
+		delete_branch_config(bname.buf);
 	}
 
-#ifndef NO_CURL_EASY_DUPHANDLE
-	curl_default = get_curl_handle();
-#endif
+	free(name);
+
+	return(ret);
 }

@@ -1,1 +1,2 @@
-printf("Total POSTed:           %" APR_INT64_T_FMT "\n", totalposted);
+apr_psprintf(p, "ip address '%s' appears to be invalid: %s",
+                                w, msgbuf);

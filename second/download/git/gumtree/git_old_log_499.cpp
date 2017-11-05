@@ -1,1 +1,1 @@
-die("LF would be replaced by CRLF in %s", path);
+print_ref_status('-', "[deleted]", ref, NULL, NULL, porcelain);

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, f->r->server,
-                 "cache: CACHE filter was added twice, or was added in quick "
-    		     "handler mode and will be ignored.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                 "ldap cache: Setting shared memory cache size to "
+                 "%" APR_SIZE_T_FMT " bytes.",
+                 st->cache_bytes);

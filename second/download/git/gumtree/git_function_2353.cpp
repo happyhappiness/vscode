@@ -1,41 +1,40 @@
-static int fsck_obj(struct object *obj)
+static int handle_file(const char *path, unsigned char *sha1, const char *output)
 {
-	if (obj->flags & SEEN)
-		return 0;
-	obj->flags |= SEEN;
+	int hunk_no = 0;
+	struct rerere_io_file io;
+	int marker_size = ll_merge_marker_size(path);
 
-	if (verbose)
-		fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), sha1_to_hex(obj->sha1));
+	memset(&io, 0, sizeof(io));
+	io.io.getline = rerere_file_getline;
+	io.input = fopen(path, "r");
+	io.io.wrerror = 0;
+	if (!io.input)
+		return error("Could not open %s", path);
 
-	if (fsck_walk(obj, NULL, &fsck_obj_options))
-		objerror(obj, "broken links");
-	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
-		return -1;
-
-	if (obj->type == OBJ_TREE) {
-		struct tree *item = (struct tree *) obj;
-
-		free_tree_buffer(item);
-	}
-
-	if (obj->type == OBJ_COMMIT) {
-		struct commit *commit = (struct commit *) obj;
-
-		free_commit_buffer(commit);
-
-		if (!commit->parents && show_root)
-			printf("root %s\n", sha1_to_hex(commit->object.sha1));
-	}
-
-	if (obj->type == OBJ_TAG) {
-		struct tag *tag = (struct tag *) obj;
-
-		if (show_tags && tag->tagged) {
-			printf("tagged %s %s", typename(tag->tagged->type), sha1_to_hex(tag->tagged->sha1));
-			printf(" (%s) in %s\n", tag->tag, sha1_to_hex(tag->object.sha1));
+	if (output) {
+		io.io.output = fopen(output, "w");
+		if (!io.io.output) {
+			fclose(io.input);
+			return error("Could not write %s", output);
 		}
 	}
 
-	return 0;
+	hunk_no = handle_path(sha1, (struct rerere_io *)&io, marker_size);
+
+	fclose(io.input);
+	if (io.io.wrerror)
+		error("There were errors while writing %s (%s)",
+		      path, strerror(io.io.wrerror));
+	if (io.io.output && fclose(io.io.output))
+		io.io.wrerror = error("Failed to flush %s: %s",
+				      path, strerror(errno));
+
+	if (hunk_no < 0) {
+		if (output)
+			unlink_or_warn(output);
+		return error("Could not parse conflict hunks in %s", path);
+	}
+	if (io.io.wrerror)
+		return -1;
+	return hunk_no;
 }

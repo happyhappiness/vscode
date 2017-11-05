@@ -1,9 +1,26 @@
-void h2_stream_rst(h2_stream *stream, int error_code)
+static apr_status_t send_out(h2_task *task, apr_bucket_brigade* bb)
 {
-    stream->rst_error = error_code;
-    close_input(stream);
-    close_output(stream);
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                  "h2_stream(%ld-%d): reset, error=%d", 
-                  stream->session->id, stream->id, error_code);
+    apr_off_t written, left;
+    apr_status_t status;
+
+    apr_brigade_length(bb, 0, &written);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                  "h2_task(%s): write response body (%ld bytes)", 
+                  task->id, (long)written);
+    
+    status = h2_beam_send(task->output.beam, bb, 
+                          task->blocking? APR_BLOCK_READ
+                          : APR_NONBLOCK_READ);
+    if (APR_STATUS_IS_EAGAIN(status)) {
+        apr_brigade_length(bb, 0, &left);
+        written -= left;
+        status = APR_SUCCESS;
+    }
+    if (status == APR_SUCCESS) {
+        task->output.written += written;
+        if (h2_task_logio_add_bytes_out) {
+            h2_task_logio_add_bytes_out(task->c, written);
+        }
+    }
+    return status;
 }

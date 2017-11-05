@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01076)
-                  "url: %s proxyname: %s proxyport: %d",
-                 url, proxyname, proxyport);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(02173)
+                     "Invalid parameters for %s", cmd->cmd->name);

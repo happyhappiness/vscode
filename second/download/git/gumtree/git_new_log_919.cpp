@@ -1,1 +1,1 @@
-die(_("unable to resolve revision: %s"), arg);
+error(_("submodule '%s' has dirty index"), path);

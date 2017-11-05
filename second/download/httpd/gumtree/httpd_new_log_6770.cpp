@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                              "h2_session(%ld): read", f->c->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00926)
+                     "worker %s local already initialized",
+                     ap_proxy_worker_name(p, worker));

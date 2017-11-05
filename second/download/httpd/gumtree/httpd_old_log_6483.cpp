@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                     "h2_worker(%d): done", h2_worker_get_id(worker));
+ap_rvputs(r, "<a href='", r->uri, "?b=",
+                      balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
+                      "&nonce=", balancer->s->nonce,
+                      "'>", NULL);

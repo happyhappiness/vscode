@@ -1,1 +1,1 @@
-die("unable to lookup %s", oid_to_hex(oid));
+die("Couldn't allocate PCRE2 JIT stack");

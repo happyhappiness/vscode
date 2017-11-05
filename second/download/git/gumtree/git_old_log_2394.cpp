@@ -1,1 +1,1 @@
-printf("%s\n", find_unique_abbrev(sha1, DEFAULT_ABBREV));
+error("write(%s) failed: %s", t->dest_name, strerror(errno));

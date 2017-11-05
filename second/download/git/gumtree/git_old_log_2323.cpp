@@ -1,1 +1,2 @@
-printf("%s", find_unique_abbrev(sha1, abbrev));
+error(_("failed write to rev-list: %s"),
+				      strerror(errno));

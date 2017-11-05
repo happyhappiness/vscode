@@ -1,1 +1,2 @@
-ap_rputs("<tr><td>Disable Failover:</td>", r);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01872)
+                         "Could not initialize stapling cache. Exiting.");

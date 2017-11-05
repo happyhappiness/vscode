@@ -1,2 +1,2 @@
-die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+error(_("%s: cannot parse parent commit %s"),
+			action_name(opts), oid_to_hex(&parent->object.oid));

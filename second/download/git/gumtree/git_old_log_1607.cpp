@@ -1,1 +1,1 @@
-error("%s: lacks value", var);
+error("unable to create directory for %s", ref_file);

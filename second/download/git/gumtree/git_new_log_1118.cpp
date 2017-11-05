@@ -1,1 +1,1 @@
-warning("ignoring broken ref %s.", fullref.buf);
+die("BUG: free called on a prepared reference transaction");

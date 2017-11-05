@@ -1,1 +1,1 @@
-die("BUG: finalize_deferred_config() should have been called");
+error("invalid key (newline): %s", key);

@@ -1,13 +1,19 @@
-void set_git_work_tree(const char *new_work_tree)
+int delete_ref(const char *refname, const unsigned char *sha1, int delopt)
 {
-	if (git_work_tree_initialized) {
-		new_work_tree = real_path(new_work_tree);
-		if (strcmp(new_work_tree, work_tree))
-			die("internal error: work tree has already been set\n"
-			    "Current worktree: %s\nNew worktree: %s",
-			    work_tree, new_work_tree);
-		return;
+	struct ref_transaction *transaction;
+	struct strbuf err = STRBUF_INIT;
+
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_delete(transaction, refname, sha1, delopt,
+				   sha1 && !is_null_sha1(sha1), NULL, &err) ||
+	    ref_transaction_commit(transaction, &err)) {
+		error("%s", err.buf);
+		ref_transaction_free(transaction);
+		strbuf_release(&err);
+		return 1;
 	}
-	git_work_tree_initialized = 1;
-	work_tree = real_pathdup(new_work_tree, 1);
+	ref_transaction_free(transaction);
+	strbuf_release(&err);
+	return 0;
 }

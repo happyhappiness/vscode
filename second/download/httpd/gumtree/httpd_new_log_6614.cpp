@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                          "h2_proxy_session(%s): write, rv=%d", session->id, rv);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(02333)
+                          "Error loading %s: %s", spec->file,
+                          rc == LUA_ERRMEM ? "memory allocation error"
+                                           : lua_tostring(L, 0));

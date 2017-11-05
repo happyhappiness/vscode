@@ -1,1 +1,0 @@
-rp_error("failed to delete %s", name);

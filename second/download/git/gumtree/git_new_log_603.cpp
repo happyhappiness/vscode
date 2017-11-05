@@ -1,1 +1,2 @@
-die("dumb http transport does not support shallow capabilities");
+printf("              to %7s %s\n",
+				 printable_type(obj), describe_object(obj));

@@ -1,1 +1,0 @@
-die(_("Error wrapping up %s."), git_path_head_file());

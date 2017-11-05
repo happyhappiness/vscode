@@ -1,2 +1,1 @@
-strbuf_addf(err, "there are still refs under '%s'",
-					    orig_refname);
+die("bad tree object %s", oid_to_hex(&obj->oid));

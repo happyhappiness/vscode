@@ -1,2 +1,3 @@
-die("unable to pack objects reachable from tag %s",
-			    oid_to_hex(oid));
+die("More than one commit to dig up from, %s and %s?",
+			    revs->pending.objects[i].name,
+			    final_commit_name);

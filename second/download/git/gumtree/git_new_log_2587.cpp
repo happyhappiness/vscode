@@ -1,1 +1,1 @@
-fprintf(out, "%s ", oid_to_hex(&obj->oid));
+error("object %s: %s", describe_object(o, obj), message);

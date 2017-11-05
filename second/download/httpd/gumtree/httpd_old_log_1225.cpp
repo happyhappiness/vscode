@@ -1,1 +1,3 @@
-apr_file_printf(errfile, "password for user %s\n", user);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "       %s [-k start|restart|graceful|stop]",
+                 pad);

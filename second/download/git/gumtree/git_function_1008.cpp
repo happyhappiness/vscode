@@ -1,112 +1,75 @@
-int cmd_pull(int argc, const char **argv, const char *prefix)
+static int copy(int argc, const char **argv, const char *prefix)
 {
-	const char *repo, **refspecs;
-	struct sha1_array merge_heads = SHA1_ARRAY_INIT;
-	unsigned char orig_head[GIT_SHA1_RAWSZ], curr_head[GIT_SHA1_RAWSZ];
-	unsigned char rebase_fork_point[GIT_SHA1_RAWSZ];
+	int retval = 0, force = 0, from_stdin = 0;
+	const unsigned char *from_note, *note;
+	const char *object_ref;
+	unsigned char object[20], from_obj[20];
+	struct notes_tree *t;
+	const char *rewrite_cmd = NULL;
+	struct option options[] = {
+		OPT__FORCE(&force, N_("replace existing notes")),
+		OPT_BOOL(0, "stdin", &from_stdin, N_("read objects from stdin")),
+		OPT_STRING(0, "for-rewrite", &rewrite_cmd, N_("command"),
+			   N_("load rewriting config for <command> (implies "
+			      "--stdin)")),
+		OPT_END()
+	};
 
-	if (!getenv("GIT_REFLOG_ACTION"))
-		set_reflog_message(argc, argv);
+	argc = parse_options(argc, argv, prefix, options, git_notes_copy_usage,
+			     0);
 
-	argc = parse_options(argc, argv, prefix, pull_options, pull_usage, 0);
-
-	parse_repo_refspecs(argc, argv, &repo, &refspecs);
-
-	if (!opt_ff)
-		opt_ff = xstrdup_or_null(config_get_ff());
-
-	if (opt_rebase < 0)
-		opt_rebase = config_get_rebase();
-
-	git_config(git_pull_config, NULL);
-
-	if (read_cache_unmerged())
-		die_resolve_conflict("pull");
-
-	if (file_exists(git_path("MERGE_HEAD")))
-		die_conclude_merge();
-
-	if (get_sha1("HEAD", orig_head))
-		hashclr(orig_head);
-
-	if (!opt_rebase && opt_autostash != -1)
-		die(_("--[no-]autostash option is only valid with --rebase."));
-
-	if (opt_rebase) {
-		int autostash = config_autostash;
-		if (opt_autostash != -1)
-			autostash = opt_autostash;
-
-		if (is_null_sha1(orig_head) && !is_cache_unborn())
-			die(_("Updating an unborn branch with changes added to the index."));
-
-		if (!autostash)
-			require_clean_work_tree(N_("pull with rebase"),
-				_("please commit or stash them."), 1, 0);
-
-		if (get_rebase_fork_point(rebase_fork_point, repo, *refspecs))
-			hashclr(rebase_fork_point);
-	}
-
-	if (run_fetch(repo, refspecs))
-		return 1;
-
-	if (opt_dry_run)
-		return 0;
-
-	if (get_sha1("HEAD", curr_head))
-		hashclr(curr_head);
-
-	if (!is_null_sha1(orig_head) && !is_null_sha1(curr_head) &&
-			hashcmp(orig_head, curr_head)) {
-		/*
-		 * The fetch involved updating the current branch.
-		 *
-		 * The working tree and the index file are still based on
-		 * orig_head commit, but we are merging into curr_head.
-		 * Update the working tree to match curr_head.
-		 */
-
-		warning(_("fetch updated the current branch head.\n"
-			"fast-forwarding your working tree from\n"
-			"commit %s."), sha1_to_hex(orig_head));
-
-		if (checkout_fast_forward(orig_head, curr_head, 0))
-			die(_("Cannot fast-forward your working tree.\n"
-				"After making sure that you saved anything precious from\n"
-				"$ git diff %s\n"
-				"output, run\n"
-				"$ git reset --hard\n"
-				"to recover."), sha1_to_hex(orig_head));
-	}
-
-	get_merge_heads(&merge_heads);
-
-	if (!merge_heads.nr)
-		die_no_merge_candidates(repo, refspecs);
-
-	if (is_null_sha1(orig_head)) {
-		if (merge_heads.nr > 1)
-			die(_("Cannot merge multiple branches into empty head."));
-		return pull_into_void(*merge_heads.sha1, curr_head);
-	}
-	if (opt_rebase && merge_heads.nr > 1)
-		die(_("Cannot rebase onto multiple branches."));
-
-	if (opt_rebase) {
-		struct commit_list *list = NULL;
-		struct commit *merge_head, *head;
-
-		head = lookup_commit_reference(orig_head);
-		commit_list_insert(head, &list);
-		merge_head = lookup_commit_reference(merge_heads.sha1[0]);
-		if (is_descendant_of(merge_head, list)) {
-			/* we can fast-forward this without invoking rebase */
-			opt_ff = "--ff-only";
-			return run_merge();
+	if (from_stdin || rewrite_cmd) {
+		if (argc) {
+			error(_("too many parameters"));
+			usage_with_options(git_notes_copy_usage, options);
+		} else {
+			return notes_copy_from_stdin(force, rewrite_cmd);
 		}
-		return run_rebase(curr_head, *merge_heads.sha1, rebase_fork_point);
-	} else {
-		return run_merge();
 	}
+
+	if (argc < 2) {
+		error(_("too few parameters"));
+		usage_with_options(git_notes_copy_usage, options);
+	}
+	if (2 < argc) {
+		error(_("too many parameters"));
+		usage_with_options(git_notes_copy_usage, options);
+	}
+
+	if (get_sha1(argv[0], from_obj))
+		die(_("failed to resolve '%s' as a valid ref."), argv[0]);
+
+	object_ref = 1 < argc ? argv[1] : "HEAD";
+
+	if (get_sha1(object_ref, object))
+		die(_("failed to resolve '%s' as a valid ref."), object_ref);
+
+	t = init_notes_check("copy", NOTES_INIT_WRITABLE);
+	note = get_note(t, object);
+
+	if (note) {
+		if (!force) {
+			retval = error(_("Cannot copy notes. Found existing "
+				       "notes for object %s. Use '-f' to "
+				       "overwrite existing notes"),
+				       sha1_to_hex(object));
+			goto out;
+		}
+		fprintf(stderr, _("Overwriting existing notes for object %s\n"),
+			sha1_to_hex(object));
+	}
+
+	from_note = get_note(t, from_obj);
+	if (!from_note) {
+		retval = error(_("missing notes on source object %s. Cannot "
+			       "copy."), sha1_to_hex(from_obj));
+		goto out;
+	}
+
+	if (add_note(t, object, from_note, combine_notes_overwrite))
+		die("BUG: combine_notes_overwrite failed");
+	commit_notes(t, "Notes added by 'git notes copy'");
+out:
+	free_notes(t);
+	return retval;
 }

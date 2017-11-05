@@ -1,1 +1,2 @@
-printf_ln("%s", url[i]);
+fputs("fatal: recursion detected in die_errno handler\n",
+			stderr);

@@ -1,1 +1,1 @@
-printf("num get patch: %d\n", num_get_patch);
+die(_("%s: cannot lock the ref"), ref.buf);

@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                  "control connection complete");
+ap_log_perror(APLOG_MARK, APLOG_STARTUP, 0,
+                          cmd->pool, APLOGNO(00112)
+                          "Warning: DocumentRoot [%s] does not exist",
+                          arg);

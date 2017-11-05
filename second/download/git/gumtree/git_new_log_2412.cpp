@@ -1,1 +1,1 @@
-die("missing blob object '%s'", oid_to_hex(&obj->oid));
+die(_("unknown error occurred while reading the configuration files"));

@@ -1,38 +1,21 @@
-static void show_tag_lines(const struct object_id *oid, int lines)
+static void compile_fixed_regexp(struct grep_pat *p, struct grep_opt *opt)
 {
-	int i;
-	unsigned long size;
-	enum object_type type;
-	char *buf, *sp, *eol;
-	size_t len;
+	struct strbuf sb = STRBUF_INIT;
+	int err;
+	int regflags;
 
-	buf = read_sha1_file(oid->hash, &type, &size);
-	if (!buf)
-		die_errno("unable to read object %s", oid_to_hex(oid));
-	if (type != OBJ_COMMIT && type != OBJ_TAG)
-		goto free_return;
-	if (!size)
-		die("an empty %s object %s?",
-		    typename(type), oid_to_hex(oid));
-
-	/* skip header */
-	sp = strstr(buf, "\n\n");
-	if (!sp)
-		goto free_return;
-
-	/* only take up to "lines" lines, and strip the signature from a tag */
-	if (type == OBJ_TAG)
-		size = parse_signature(buf, size);
-	for (i = 0, sp += 2; i < lines && sp < buf + size; i++) {
-		if (i)
-			printf("\n    ");
-		eol = memchr(sp, '\n', size - (sp - buf));
-		len = eol ? eol - sp : size - (sp - buf);
-		fwrite(sp, len, 1, stdout);
-		if (!eol)
-			break;
-		sp = eol + 1;
+	basic_regex_quote_buf(&sb, p->pattern);
+	regflags = opt->regflags & ~REG_EXTENDED;
+	if (opt->ignore_case)
+		regflags |= REG_ICASE;
+	err = regcomp(&p->regexp, sb.buf, regflags);
+	if (opt->debug)
+		fprintf(stderr, "fixed %s\n", sb.buf);
+	strbuf_release(&sb);
+	if (err) {
+		char errbuf[1024];
+		regerror(err, &p->regexp, errbuf, sizeof(errbuf));
+		regfree(&p->regexp);
+		compile_regexp_failed(p, errbuf);
 	}
-free_return:
-	free(buf);
 }

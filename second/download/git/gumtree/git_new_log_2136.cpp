@@ -1,1 +1,1 @@
-die("Not a mark: %s", p);
+die("user.useConfigOnly set but no mail given");

@@ -1,2 +1,1 @@
-error("unable to generate patch-id diff for %s",
-				     p->one->path);
+printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));

@@ -1,1 +1,1 @@
-die("Unhandled message id: %s", msg_id);
+die(_("%%(subject) does not take arguments"));

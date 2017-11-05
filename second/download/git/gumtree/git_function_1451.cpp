@@ -1,36 +1,62 @@
-void format_ref_array_item(struct ref_array_item *info, const char *format,
-			   int quote_style, struct strbuf *final_buf)
+static int print_one_push_status(struct ref *ref, const char *dest, int count, int porcelain)
 {
-	const char *cp, *sp, *ep;
-	struct ref_formatting_state state = REF_FORMATTING_STATE_INIT;
+	if (!count)
+		fprintf(porcelain ? stdout : stderr, "To %s\n", dest);
 
-	state.quote_style = quote_style;
-	push_stack_element(&state.stack);
-
-	for (cp = format; *cp && (sp = find_next(cp)); cp = ep + 1) {
-		struct atom_value *atomv;
-
-		ep = strchr(sp, ')');
-		if (cp < sp)
-			append_literal(cp, sp, &state);
-		get_ref_atom_value(info, parse_ref_filter_atom(sp + 2, ep), &atomv);
-		atomv->handler(atomv, &state);
+	switch(ref->status) {
+	case REF_STATUS_NONE:
+		print_ref_status('X', "[no match]", ref, NULL, NULL, porcelain);
+		break;
+	case REF_STATUS_REJECT_NODELETE:
+		print_ref_status('!', "[rejected]", ref, NULL,
+						 "remote does not support deleting refs", porcelain);
+		break;
+	case REF_STATUS_UPTODATE:
+		print_ref_status('=', "[up to date]", ref,
+						 ref->peer_ref, NULL, porcelain);
+		break;
+	case REF_STATUS_REJECT_NONFASTFORWARD:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "non-fast-forward", porcelain);
+		break;
+	case REF_STATUS_REJECT_ALREADY_EXISTS:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "already exists", porcelain);
+		break;
+	case REF_STATUS_REJECT_FETCH_FIRST:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "fetch first", porcelain);
+		break;
+	case REF_STATUS_REJECT_NEEDS_FORCE:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "needs force", porcelain);
+		break;
+	case REF_STATUS_REJECT_STALE:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "stale info", porcelain);
+		break;
+	case REF_STATUS_REJECT_SHALLOW:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "new shallow roots not allowed", porcelain);
+		break;
+	case REF_STATUS_REMOTE_REJECT:
+		print_ref_status('!', "[remote rejected]", ref,
+						 ref->deletion ? NULL : ref->peer_ref,
+						 ref->remote_status, porcelain);
+		break;
+	case REF_STATUS_EXPECTING_REPORT:
+		print_ref_status('!', "[remote failure]", ref,
+						 ref->deletion ? NULL : ref->peer_ref,
+						 "remote failed to report status", porcelain);
+		break;
+	case REF_STATUS_ATOMIC_PUSH_FAILED:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "atomic push failed", porcelain);
+		break;
+	case REF_STATUS_OK:
+		print_ok_ref_status(ref, porcelain);
+		break;
 	}
-	if (*cp) {
-		sp = cp + strlen(cp);
-		append_literal(cp, sp, &state);
-	}
-	if (need_color_reset_at_eol) {
-		struct atom_value resetv;
-		char color[COLOR_MAXLEN] = "";
 
-		if (color_parse("reset", color) < 0)
-			die("BUG: couldn't parse 'reset' as a color");
-		resetv.s = color;
-		append_atom(&resetv, &state);
-	}
-	if (state.stack->prev)
-		die(_("format: %%(end) atom missing"));
-	strbuf_addbuf(final_buf, &state.stack->output);
-	pop_stack_element(&state.stack);
+	return 1;
 }

@@ -1,12 +1,13 @@
-static int write_packed_entry_fn(struct ref_entry *entry, void *cb_data)
+static int git_config_get_notes_strategy(const char *key,
+					 enum notes_merge_strategy *strategy)
 {
-	enum peel_status peel_status = peel_entry(entry, 0);
+	char *value;
 
-	if (peel_status != PEEL_PEELED && peel_status != PEEL_NON_TAG)
-		error("internal error: %s is not a valid packed reference!",
-		      entry->name);
-	write_packed_entry(cb_data, entry->name, entry->u.value.oid.hash,
-			   peel_status == PEEL_PEELED ?
-			   entry->u.value.peeled.hash : NULL);
+	if (git_config_get_string(key, &value))
+		return 1;
+	if (parse_notes_merge_strategy(value, strategy))
+		git_die_config(key, "unknown notes merge strategy %s", value);
+
+	free(value);
 	return 0;
 }

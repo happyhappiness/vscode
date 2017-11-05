@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, lvl, 0, c, 
-                      H2_STRM_MSG(s, "out-buffer(%s)"), len? buffer : "empty");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(02645)
+                          "Server name not provided via TLS extension "
+                          "(using default/first virtual host)");

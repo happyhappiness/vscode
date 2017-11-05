@@ -1,1 +1,2 @@
-printf("Diag: path=%s\n", path ? path : "NULL");
+error("unable to generate patch-id diff for %s",
+				     p->one->path);

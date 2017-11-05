@@ -1,1 +1,1 @@
-print_verbose(args, _("Server supports multi_ack"));
+error(_("additionally, your index contains uncommitted changes."));

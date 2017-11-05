@@ -1,1 +1,8 @@
-ap_rputs(" -D APACHE_MPM_DIR=\"" APACHE_MPM_DIR "\"\n", r);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "Connection: Client IP: %s, Protocol: %s, "
+                     "Cipher: %s (%s/%s bits)",
+                     ssl_var_lookup(NULL, s, c, NULL, "REMOTE_ADDR"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_PROTOCOL"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_USEKEYSIZE"),
+                     ssl_var_lookup(NULL, s, c, NULL, "SSL_CIPHER_ALGKEYSIZE"));

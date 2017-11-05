@@ -1,1 +1,2 @@
-die(_("Failed to read object '%s'."), arg);
+printf("Using remote notes for %s\n",
+						sha1_to_hex(p->obj));

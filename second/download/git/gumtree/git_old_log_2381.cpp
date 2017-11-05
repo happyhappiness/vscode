@@ -1,1 +1,1 @@
-fprintf(fout, "%s: %.*s\n", hdr, len, sp);
+error("file write error (%s)", strerror(errno));

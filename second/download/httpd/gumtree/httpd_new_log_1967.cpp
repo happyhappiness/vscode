@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                      "proxy: an error occurred creating a new connection "
-                      "to %pI (%s)", connect_addr, connectname);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "Child %d: Failure releasing the start mutex", my_pid);

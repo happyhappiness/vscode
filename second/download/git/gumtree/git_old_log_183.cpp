@@ -1,3 +1,1 @@
-fprintf(stderr, "If you want to trace into a file, "
-		"then please set %s to an absolute pathname "
-		"(starting with /).\n", key);
+error(_("Could not parse object '%s'."), sha1_to_hex(remote));

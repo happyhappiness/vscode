@@ -1,1 +1,1 @@
-die("unable to generate word diff");
+fputs(env_hint, stderr);

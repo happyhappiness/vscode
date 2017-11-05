@@ -1,1 +1,1 @@
-packet_write_fmt(1, "ACK %s\n", last_hex);
+die("git-cvsserver only handles server: %s", arg);

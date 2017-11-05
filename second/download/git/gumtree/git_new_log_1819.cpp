@@ -1,1 +1,1 @@
-printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+die("unable to generate diffstat for %s", one->path);

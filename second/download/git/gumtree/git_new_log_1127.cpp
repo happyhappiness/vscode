@@ -1,1 +1,1 @@
-die(_("Cannot change to '%s'"), dir.buf);
+die("BUG: commit called on a closed reference transaction");

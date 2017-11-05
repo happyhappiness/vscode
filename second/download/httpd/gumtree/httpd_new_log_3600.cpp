@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00586)
-                      "The \"propfind\" element does not contain one of "
-                      "the required child elements (the specific command).");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01548)
+                    "((%lx & %lx) == %lx) = %d", v, l, l, matched);

@@ -1,24 +1,9 @@
-static void summary_patch_list(struct patch *patch)
+static void die_initial_contact(int got_at_least_one_head)
 {
-	struct patch *p;
-
-	for (p = patch; p; p = p->next) {
-		if (p->is_new)
-			show_file_mode_name("create", p->new_mode, p->new_name);
-		else if (p->is_delete)
-			show_file_mode_name("delete", p->old_mode, p->old_name);
-		else {
-			if (p->is_rename || p->is_copy)
-				show_rename_copy(p);
-			else {
-				if (p->score) {
-					printf(" rewrite %s (%d%%)\n",
-					       p->new_name, p->score);
-					show_mode_change(p, 0);
-				}
-				else
-					show_mode_change(p, 1);
-			}
-		}
-	}
+	if (got_at_least_one_head)
+		die("The remote end hung up upon initial contact");
+	else
+		die("Could not read from remote repository.\n\n"
+		    "Please make sure you have the correct access rights\n"
+		    "and the repository exists.");
 }

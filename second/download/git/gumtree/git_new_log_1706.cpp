@@ -1,1 +1,1 @@
-die_errno(_("cannot unlink temporary alternates file"));
+fprintf_ln(stderr, _("Preparing %s (identifier %s)"), path, name);

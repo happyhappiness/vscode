@@ -1,1 +1,0 @@
-error(_("pack-objects died"));

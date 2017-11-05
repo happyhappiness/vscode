@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00502)
-                         "WARNING: ThreadLimit of %d exceeds compile-time "
-                         "limit of", thread_limit);
+ssl_log_xerror(SSLLOG_MARK, APLOG_ERR, 0, ptemp, s, x,
+                           APLOGNO(02814) "ssl_stapling_init_cert: no OCSP URI "
+                           "in certificate and no SSLStaplingForceURL "
+                           "configured for server %s", mctx->sc->vhost_id);

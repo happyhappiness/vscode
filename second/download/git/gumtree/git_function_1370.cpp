@@ -1,16 +1,11 @@
-static void write_note_to_worktree(const unsigned char *obj,
-				   const unsigned char *note)
+static void memory_limit_check(size_t size)
 {
-	enum object_type type;
-	unsigned long size;
-	void *buf = read_sha1_file(note, &type, &size);
-
-	if (!buf)
-		die("cannot read note %s for object %s",
-		    sha1_to_hex(note), sha1_to_hex(obj));
-	if (type != OBJ_BLOB)
-		die("blob expected in note %s for object %s",
-		    sha1_to_hex(note), sha1_to_hex(obj));
-	write_buf_to_worktree(obj, buf, size);
-	free(buf);
+	static int limit = -1;
+	if (limit == -1) {
+		const char *env = getenv("GIT_ALLOC_LIMIT");
+		limit = env ? atoi(env) * 1024 : 0;
+	}
+	if (limit && size > limit)
+		die("attempting to allocate %"PRIuMAX" over limit %d",
+		    (intmax_t)size, limit);
 }

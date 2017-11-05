@@ -1,1 +1,2 @@
-die(_("Could not read %s."), git_path_todo_file());
+die (_("Pathspec '%s' is in submodule '%.*s'"),
+				     elt, ce_len, ce->name);

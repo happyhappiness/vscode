@@ -1,1 +1,1 @@
-die(_("Unusable instruction sheet: %s"), todo_file);
+error("Malformed value for %s", var);

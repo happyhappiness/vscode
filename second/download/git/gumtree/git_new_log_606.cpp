@@ -1,1 +1,2 @@
-warning_errno(_("could not read '%s'"), path);
+printf("tagged %s %s", printable_type(tag->tagged),
+				describe_object(tag->tagged));

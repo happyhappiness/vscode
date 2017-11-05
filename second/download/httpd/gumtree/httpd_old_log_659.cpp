@@ -1,5 +1,5 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                                  "unknown directive \"%s\" in parsed doc %s",
-                                  apr_pstrmemdup(r->pool, ctx->directive,
-                                                 ctx->ctx->directive_length),
-                                                 r->filename);
+                      "mod_rewrite: maximum number of internal redirects "
+                      "reached. Assuming configuration error. Use "
+                      "'RewriteOptions MaxRedirects' to increase the limit "
+                      "if neccessary.");

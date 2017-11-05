@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the HARD_THREAD_LIMIT"
-                         "define in");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Zlib: Validation bytes not present");

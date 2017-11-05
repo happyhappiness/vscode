@@ -1,1 +1,1 @@
-die(_("unable to auto-detect email address (got '%s')"), email);
+child_die(CHILD_ERR_SILENT);

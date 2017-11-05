@@ -1,1 +1,1 @@
-fprintf_ln(stderr, _("Preparing %s (identifier %s)"), path, name);
+fprintf(stderr, _("Testing mtime in '%s' "), xgetcwd());

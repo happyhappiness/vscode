@@ -1,1 +1,1 @@
-status_printf_ln(s, c, "");
+fprintf(stderr, "Falling back to three-way merge...\n");

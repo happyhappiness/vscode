@@ -1,2 +1,1 @@
-error("%s: not a valid attribute name",
-					name);
+printf("num read blob: %d\n", num_read_blob);

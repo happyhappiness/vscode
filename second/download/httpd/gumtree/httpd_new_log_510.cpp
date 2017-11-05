@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
-                                 "proxy: write to temporary file %s failed",
-                                 tmpfile_name);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                          "rejecting client initiated renegotiation");

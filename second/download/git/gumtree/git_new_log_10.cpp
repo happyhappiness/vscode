@@ -1,1 +1,1 @@
-die(_("--follow requires exactly one pathspec"));
+die("BUG: parse_object_buffer transmogrified our buffer");

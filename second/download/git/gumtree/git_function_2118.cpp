@@ -1,24 +1,17 @@
-static int send_pack_config(const char *k, const char *v, void *cb)
+static void read_from_stdin(struct shortlog *log)
 {
-	git_gpg_config(k, v, NULL);
+	char author[1024], oneline[1024];
 
-	if (!strcmp(k, "push.gpgsign")) {
-		const char *value;
-		if (!git_config_get_value("push.gpgsign", &value)) {
-			switch (git_config_maybe_bool("push.gpgsign", value)) {
-			case 0:
-				args.push_cert = SEND_PACK_PUSH_CERT_NEVER;
-				break;
-			case 1:
-				args.push_cert = SEND_PACK_PUSH_CERT_ALWAYS;
-				break;
-			default:
-				if (value && !strcasecmp(value, "if-asked"))
-					args.push_cert = SEND_PACK_PUSH_CERT_IF_ASKED;
-				else
-					return error("Invalid value for '%s'", k);
-			}
-		}
+	while (fgets(author, sizeof(author), stdin) != NULL) {
+		if (!(author[0] == 'A' || author[0] == 'a') ||
+		    !starts_with(author + 1, "uthor: "))
+			continue;
+		while (fgets(oneline, sizeof(oneline), stdin) &&
+		       oneline[0] != '\n')
+			; /* discard headers */
+		while (fgets(oneline, sizeof(oneline), stdin) &&
+		       oneline[0] == '\n')
+			; /* discard blanks */
+		insert_one_record(log, author + 8, oneline);
 	}
-	return 0;
 }

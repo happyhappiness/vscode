@@ -1,1 +1,1 @@
-fprintf(stderr, "\n");
+die_errno(_("Could not open '%s' for writing"), filename);

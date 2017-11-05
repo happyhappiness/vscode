@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(00871)
-                          "ap_get_brigade failed");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00201)
+                         "caught %s, shutting down",
+                         (rc == DONE) ? "SIGTERM" : "error");

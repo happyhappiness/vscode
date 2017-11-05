@@ -1,80 +1,38 @@
-int init_db(const char *git_dir, const char *real_git_dir,
-	    const char *template_dir, unsigned int flags)
+static void execv_dashed_external(const char **argv)
 {
-	int reinit;
-	int exist_ok = flags & INIT_DB_EXIST_OK;
-	char *original_git_dir = xstrdup(real_path(git_dir));
+	struct strbuf cmd = STRBUF_INIT;
+	const char *tmp;
+	int status;
 
-	if (real_git_dir) {
-		struct stat st;
+	if (get_super_prefix())
+		die("%s doesn't support --super-prefix", argv[0]);
 
-		if (!exist_ok && !stat(git_dir, &st))
-			die(_("%s already exists"), git_dir);
+	if (use_pager == -1)
+		use_pager = check_pager_config(argv[0]);
+	commit_pager_choice();
 
-		if (!exist_ok && !stat(real_git_dir, &st))
-			die(_("%s already exists"), real_git_dir);
+	strbuf_addf(&cmd, "git-%s", argv[0]);
 
-		set_git_dir(real_path(real_git_dir));
-		git_dir = get_git_dir();
-		separate_git_dir(git_dir, original_git_dir);
-	}
-	else {
-		set_git_dir(real_path(git_dir));
-		git_dir = get_git_dir();
-	}
-	startup_info->have_repository = 1;
-
-	safe_create_dir(git_dir, 0);
-
-	init_is_bare_repository = is_bare_repository();
-
-	/* Check to see if the repository version is right.
-	 * Note that a newly created repository does not have
-	 * config file, so this will not fail.  What we are catching
-	 * is an attempt to reinitialize new repository with an old tool.
+	/*
+	 * argv[0] must be the git command, but the argv array
+	 * belongs to the caller, and may be reused in
+	 * subsequent loop iterations. Save argv[0] and
+	 * restore it on error.
 	 */
-	check_repository_format();
+	tmp = argv[0];
+	argv[0] = cmd.buf;
 
-	reinit = create_default_files(template_dir, original_git_dir);
+	trace_argv_printf(argv, "trace: exec:");
 
-	create_object_directory();
+	/*
+	 * if we fail because the command is not found, it is
+	 * OK to return. Otherwise, we just pass along the status code.
+	 */
+	status = run_command_v_opt(argv, RUN_SILENT_EXEC_FAILURE | RUN_CLEAN_ON_EXIT);
+	if (status >= 0 || errno != ENOENT)
+		exit(status);
 
-	if (get_shared_repository()) {
-		char buf[10];
-		/* We do not spell "group" and such, so that
-		 * the configuration can be read by older version
-		 * of git. Note, we use octal numbers for new share modes,
-		 * and compatibility values for PERM_GROUP and
-		 * PERM_EVERYBODY.
-		 */
-		if (get_shared_repository() < 0)
-			/* force to the mode value */
-			xsnprintf(buf, sizeof(buf), "0%o", -get_shared_repository());
-		else if (get_shared_repository() == PERM_GROUP)
-			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_GROUP);
-		else if (get_shared_repository() == PERM_EVERYBODY)
-			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_EVERYBODY);
-		else
-			die("BUG: invalid value for shared_repository");
-		git_config_set("core.sharedrepository", buf);
-		git_config_set("receive.denyNonFastforwards", "true");
-	}
+	argv[0] = tmp;
 
-	if (!(flags & INIT_DB_QUIET)) {
-		int len = strlen(git_dir);
-
-		if (reinit)
-			printf(get_shared_repository()
-			       ? _("Reinitialized existing shared Git repository in %s%s\n")
-			       : _("Reinitialized existing Git repository in %s%s\n"),
-			       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
-		else
-			printf(get_shared_repository()
-			       ? _("Initialized empty shared Git repository in %s%s\n")
-			       : _("Initialized empty Git repository in %s%s\n"),
-			       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
-	}
-
-	free(original_git_dir);
-	return 0;
+	strbuf_release(&cmd);
 }

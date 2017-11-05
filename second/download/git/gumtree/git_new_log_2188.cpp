@@ -1,1 +1,1 @@
-error("%s", log_err.buf);
+die("git-over-rsync is no longer supported");

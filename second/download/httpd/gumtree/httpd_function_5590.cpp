@@ -1,18 +1,14 @@
-static apr_status_t log_script_err(request_rec *r, apr_file_t *script_err)
+static void worker_done(h2_worker *worker, void *ctx)
 {
-    char argsbuffer[HUGE_STRING_LEN];
-    char *newline;
-    apr_status_t rv;
-
-    while ((rv = apr_file_gets(argsbuffer, HUGE_STRING_LEN,
-                               script_err)) == APR_SUCCESS) {
-        newline = strchr(argsbuffer, '\n');
-        if (newline) {
-            *newline = '\0';
-        }
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01215)
-                      "%s", argsbuffer);
+    h2_workers *workers = (h2_workers *)ctx;
+    apr_status_t status = apr_thread_mutex_lock(workers->lock);
+    if (status == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                     "h2_worker(%d): done", h2_worker_get_id(worker));
+        H2_WORKER_REMOVE(worker);
+        --workers->worker_count;
+        H2_WORKER_LIST_INSERT_TAIL(&workers->zombies, worker);
+        
+        apr_thread_mutex_unlock(workers->lock);
     }
-
-    return rv;
 }

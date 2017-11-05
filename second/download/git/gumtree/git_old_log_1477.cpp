@@ -1,1 +1,1 @@
-die_errno(_("Failed to lock ref for update"));
+error("file/directory conflict: %s, %s", name1, name2);

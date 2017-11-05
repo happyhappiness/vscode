@@ -1,1 +1,1 @@
-fputs(_(env_hint), stderr);
+warning(_("redirecting to %s"), url.buf);

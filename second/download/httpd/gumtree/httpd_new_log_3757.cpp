@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(01369) "missing "
-                          "argument name for value to tag %s in %s",
-                          apr_pstrmemdup(ctx->r->pool, intern->directive,
-                                         intern->directive_len),
-                                         ctx->r->filename);
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01180)
+                             "mutex creation of %s : %s failed", balancer_mutex_type,
+                             balancer->s->sname);

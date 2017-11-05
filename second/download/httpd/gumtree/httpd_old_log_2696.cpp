@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server,
-                    "disk_cache: rename tempfile to varyfile failed: %s -> %s",
-                    dobj->tempfile, dobj->hdrsfile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                      "Could not open password file: %s", conf->pwfile);

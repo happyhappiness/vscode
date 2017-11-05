@@ -1,1 +1,1 @@
-ap_rputs("<h1>Apache Server Status for ", r);
+ap_rvputs(r, balancer->name, "</h1>\n\n", NULL);

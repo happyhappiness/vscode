@@ -1,1 +1,1 @@
-strbuf_release(&err);
+write_file(buf->buf, 0, "%s\n", oid_to_hex(oid));

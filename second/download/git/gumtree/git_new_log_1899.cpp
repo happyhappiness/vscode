@@ -1,1 +1,1 @@
-die_errno(_("failed to create directory %s"), path);
+printf(" (%s) in %s\n", tag->tag, oid_to_hex(&tag->object.oid));

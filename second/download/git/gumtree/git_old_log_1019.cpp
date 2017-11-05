@@ -1,1 +1,2 @@
-die(_("could not create leading directories of '%s'"), sb.buf);
+error("delta base offset overflow in pack for %s",
+					      sha1_to_hex(entry->idx.sha1));

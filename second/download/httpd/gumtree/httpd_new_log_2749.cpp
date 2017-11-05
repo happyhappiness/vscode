@@ -1,3 +1,2 @@
-fprintf(stderr,
-            "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
-            argv0);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01723)
+            "ldap authorize: Creating LDAP req structure");

@@ -1,1 +1,1 @@
-die("BUG: create called for transaction that is not open");
+die("unable to generate diff for %s", one->path);

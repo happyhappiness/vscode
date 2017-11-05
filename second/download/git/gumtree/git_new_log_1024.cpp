@@ -1,2 +1,2 @@
-die("src refspec '%s' must name a ref",
-				    rs->src);
+die("object %s cannot be read",
+			    oid_to_hex(&src_entry->idx.oid));

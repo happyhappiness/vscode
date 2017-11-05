@@ -1,1 +1,1 @@
-error("Couldn't set %s", lock->ref_name);
+die("Bug: bad untracked_cache value: %d", untracked_cache);

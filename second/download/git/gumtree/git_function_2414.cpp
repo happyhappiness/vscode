@@ -1,42 +1,42 @@
-void shortlog_add_commit(struct shortlog *log, struct commit *commit)
+static int sequencer_rollback(struct replay_opts *opts)
 {
-	const char *author = NULL, *buffer;
+	FILE *f;
+	unsigned char sha1[20];
 	struct strbuf buf = STRBUF_INIT;
-	struct strbuf ufbuf = STRBUF_INIT;
 
-	pp_commit_easy(CMIT_FMT_RAW, commit, &buf);
-	buffer = buf.buf;
-	while (*buffer && *buffer != '\n') {
-		const char *eol = strchr(buffer, '\n');
-
-		if (eol == NULL)
-			eol = buffer + strlen(buffer);
-		else
-			eol++;
-
-		if (starts_with(buffer, "author "))
-			author = buffer + 7;
-		buffer = eol;
+	f = fopen(git_path_head_file(), "r");
+	if (!f && errno == ENOENT) {
+		/*
+		 * There is no multiple-cherry-pick in progress.
+		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
+		 * a single-cherry-pick in progress, abort that.
+		 */
+		return rollback_single_pick();
 	}
-	if (!author) {
-		warning(_("Missing author: %s"),
-		    sha1_to_hex(commit->object.sha1));
-		return;
+	if (!f)
+		return error_errno(_("cannot open %s"), git_path_head_file());
+	if (strbuf_getline_lf(&buf, f)) {
+		error(_("cannot read %s: %s"), git_path_head_file(),
+		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));
+		fclose(f);
+		goto fail;
 	}
-	if (log->user_format) {
-		struct pretty_print_context ctx = {0};
-		ctx.fmt = CMIT_FMT_USERFORMAT;
-		ctx.abbrev = log->abbrev;
-		ctx.subject = "";
-		ctx.after_subject = "";
-		ctx.date_mode.type = DATE_NORMAL;
-		ctx.output_encoding = get_log_output_encoding();
-		pretty_print_commit(&ctx, commit, &ufbuf);
-		buffer = ufbuf.buf;
-	} else if (*buffer) {
-		buffer++;
+	fclose(f);
+	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
+		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
+			git_path_head_file());
+		goto fail;
 	}
-	insert_one_record(log, author, !*buffer ? "<none>" : buffer);
-	strbuf_release(&ufbuf);
+	if (is_null_sha1(sha1)) {
+		error(_("cannot abort from a branch yet to be born"));
+		goto fail;
+	}
+	if (reset_for_rollback(sha1))
+		goto fail;
+	remove_sequencer_state();
 	strbuf_release(&buf);
+	return 0;
+fail:
+	strbuf_release(&buf);
+	return -1;
 }

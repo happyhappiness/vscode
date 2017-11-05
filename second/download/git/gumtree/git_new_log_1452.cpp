@@ -1,1 +1,2 @@
-die("cannot combine --walk-reflogs with history-limiting options");
+error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));

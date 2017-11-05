@@ -1,5 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, status, ap_server_conf, APLOGNO(00155)
-                     "Couldn't initialize cross-process lock in child "
-                     "(%s) (%s)",
-                     lockfile ? lockfile : "none",
-                     apr_proc_mutex_name(my_bucket->mutex));
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             APLOGNO(02304) "Discarding directive `%s' not "
+                             "allowed in AllowOverrideList at %s:%d",
+                             argv[i], cmd->directive->filename,
+                             cmd->directive->line_num);

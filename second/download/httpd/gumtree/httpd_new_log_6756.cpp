@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, master, 
-                      APLOGNO(10004) "h2_session(%ld-%d): create slave pool",
-                      master->id, slave_id);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01150)
+                         "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
+                         elts[i].key, elts[i].val, ap_proxy_worker_name(cmd->pool, worker));

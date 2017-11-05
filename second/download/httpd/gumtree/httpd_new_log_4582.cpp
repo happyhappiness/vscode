@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01816)
-                      "error while loading the session, "
-                      "session not loaded: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_ALERT, 0, s, APLOGNO(00202)
+                     "no listening sockets available, shutting down");

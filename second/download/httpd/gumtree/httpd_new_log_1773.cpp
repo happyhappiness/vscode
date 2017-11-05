@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                 "disk_cache: Cannot read header file %s",  dobj->hdrsfile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "apr_socket_opt_set(SO_RCVBUF): Failed to set "
+                          "ProxyReceiveBufferSize, using default");

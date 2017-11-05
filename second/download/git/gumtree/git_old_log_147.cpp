@@ -1,1 +1,1 @@
-fprintf(stderr, "Skipping server %s, no user\n", srvc->host);
+status_printf_ln(s, c, "");

@@ -1,1 +1,0 @@
-die("Can't load tree %s", sha1_to_hex(sha1));

@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01215)
-                      "%s", argsbuffer);
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                     "h2_worker(%d): done", h2_worker_get_id(worker));

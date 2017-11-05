@@ -1,1 +1,1 @@
-warning(_("Untracked cache is disabled on this system."));
+die("internal bug in trailer.c");

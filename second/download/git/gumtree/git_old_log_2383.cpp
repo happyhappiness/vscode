@@ -1,1 +1,2 @@
-fprintf(fout, "Email: %s\n", email.buf);
+warning("failed utime() on %s: %s",
+				tmp_file.buf, strerror(errno));

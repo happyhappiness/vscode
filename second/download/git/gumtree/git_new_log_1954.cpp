@@ -1,3 +1,1 @@
-error_buf(err,
-					 _("push refspecs for '%s' do not include '%s'"),
-					 remote->name, branch->name);
+die("Whoops! Cannot find object '%s'", oid_to_hex(&obj->oid));

@@ -1,1 +1,2 @@
-die(_("failed to resolve '%s' as a valid ref."), object_ref);
+die("BUG: ref_store is type \"%s\" not \"files\" in %s",
+		    ref_store->be->name, caller);

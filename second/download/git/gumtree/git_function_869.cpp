@@ -1,40 +1,34 @@
-static int commit_staged_changes(struct replay_opts *opts)
+static void if_then_else_handler(struct ref_formatting_stack **stack)
 {
-	int amend = 0;
+	struct ref_formatting_stack *cur = *stack;
+	struct ref_formatting_stack *prev = cur->prev;
+	struct if_then_else *if_then_else = (struct if_then_else *)cur->at_end_data;
 
-	if (has_unstaged_changes(1))
-		return error(_("cannot rebase: You have unstaged changes."));
-	if (!has_uncommitted_changes(0)) {
-		const char *cherry_pick_head = git_path("CHERRY_PICK_HEAD");
+	if (!if_then_else->then_atom_seen)
+		die(_("format: %%(if) atom used without a %%(then) atom"));
 
-		if (file_exists(cherry_pick_head) && unlink(cherry_pick_head))
-			return error(_("could not remove CHERRY_PICK_HEAD"));
-		return 0;
+	if (if_then_else->else_atom_seen) {
+		/*
+		 * There is an %(else) atom: we need to drop one state from the
+		 * stack, either the %(else) branch if the condition is satisfied, or
+		 * the %(then) branch if it isn't.
+		 */
+		if (if_then_else->condition_satisfied) {
+			strbuf_reset(&cur->output);
+			pop_stack_element(&cur);
+		} else {
+			strbuf_swap(&cur->output, &prev->output);
+			strbuf_reset(&cur->output);
+			pop_stack_element(&cur);
+		}
+	} else if (!if_then_else->condition_satisfied) {
+		/*
+		 * No %(else) atom: just drop the %(then) branch if the
+		 * condition is not satisfied.
+		 */
+		strbuf_reset(&cur->output);
 	}
 
-	if (file_exists(rebase_path_amend())) {
-		struct strbuf rev = STRBUF_INIT;
-		unsigned char head[20], to_amend[20];
-
-		if (get_sha1("HEAD", head))
-			return error(_("cannot amend non-existing commit"));
-		if (!read_oneliner(&rev, rebase_path_amend(), 0))
-			return error(_("invalid file: '%s'"), rebase_path_amend());
-		if (get_sha1_hex(rev.buf, to_amend))
-			return error(_("invalid contents: '%s'"),
-				rebase_path_amend());
-		if (hashcmp(head, to_amend))
-			return error(_("\nYou have uncommitted changes in your "
-				       "working tree. Please, commit them\n"
-				       "first and then run 'git rebase "
-				       "--continue' again."));
-
-		strbuf_release(&rev);
-		amend = 1;
-	}
-
-	if (run_git_commit(rebase_path_message(), opts, 1, 1, amend, 0))
-		return error(_("could not commit staged changes."));
-	unlink(rebase_path_amend());
-	return 0;
+	*stack = cur;
+	free(if_then_else);
 }

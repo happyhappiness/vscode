@@ -1,1 +1,1 @@
-warning(_("redirecting to %s"), url.buf);
+die("strange hostname '%s' blocked", ssh_host);

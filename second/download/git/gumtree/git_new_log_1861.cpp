@@ -1,1 +1,1 @@
-die("git cat-file: could not get object info");
+die("--reverse --first-parent together require range along first-parent chain");

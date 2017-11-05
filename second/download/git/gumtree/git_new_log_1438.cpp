@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+error("cannot lock ref '%s'", refname);

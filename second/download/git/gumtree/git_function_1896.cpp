@@ -1,61 +1,41 @@
-static int show_ref(const char *refname, const unsigned char *sha1, int flag, void *cbdata)
+static int fsck_obj(struct object *obj)
 {
-	const char *hex;
-	unsigned char peeled[20];
+	if (obj->flags & SEEN)
+		return 0;
+	obj->flags |= SEEN;
 
-	if (show_head && !strcmp(refname, "HEAD"))
-		goto match;
+	if (verbose)
+		fprintf(stderr, "Checking %s %s\n",
+			typename(obj->type), sha1_to_hex(obj->sha1));
 
-	if (tags_only || heads_only) {
-		int match;
+	if (fsck_walk(obj, NULL, &fsck_obj_options))
+		objerror(obj, "broken links");
+	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
+		return -1;
 
-		match = heads_only && starts_with(refname, "refs/heads/");
-		match |= tags_only && starts_with(refname, "refs/tags/");
-		if (!match)
-			return 0;
+	if (obj->type == OBJ_TREE) {
+		struct tree *item = (struct tree *) obj;
+
+		free_tree_buffer(item);
 	}
-	if (pattern) {
-		int reflen = strlen(refname);
-		const char **p = pattern, *m;
-		while ((m = *p++) != NULL) {
-			int len = strlen(m);
-			if (len > reflen)
-				continue;
-			if (memcmp(m, refname + reflen - len, len))
-				continue;
-			if (len == reflen)
-				goto match;
-			/* "--verify" requires an exact match */
-			if (verify)
-				continue;
-			if (refname[reflen - len - 1] == '/')
-				goto match;
+
+	if (obj->type == OBJ_COMMIT) {
+		struct commit *commit = (struct commit *) obj;
+
+		free_commit_buffer(commit);
+
+		if (!commit->parents && show_root)
+			printf("root %s\n", sha1_to_hex(commit->object.sha1));
+	}
+
+	if (obj->type == OBJ_TAG) {
+		struct tag *tag = (struct tag *) obj;
+
+		if (show_tags && tag->tagged) {
+			printf("tagged %s %s", typename(tag->tagged->type), sha1_to_hex(tag->tagged->sha1));
+			printf(" (%s) in %s\n", tag->tag, sha1_to_hex(tag->object.sha1));
 		}
-		return 0;
 	}
 
-match:
-	found_match++;
-
-	/* This changes the semantics slightly that even under quiet we
-	 * detect and return error if the repository is corrupt and
-	 * ref points at a nonexistent object.
-	 */
-	if (!has_sha1_file(sha1))
-		die("git show-ref: bad ref %s (%s)", refname,
-		    sha1_to_hex(sha1));
-
-	if (quiet)
-		return 0;
-
-	show_one(refname, sha1);
-
-	if (!deref_tags)
-		return 0;
-
-	if (!peel_ref(refname, peeled)) {
-		hex = find_unique_abbrev(peeled, abbrev);
-		printf("%s %s^{}\n", hex, refname);
-	}
 	return 0;
 }

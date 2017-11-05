@@ -1,14 +1,20 @@
-void vreportf(const char *prefix, const char *err, va_list params)
+static void update_paths(struct string_list *update)
 {
-	FILE *fh = error_handle ? error_handle : stderr;
+	int i;
 
-	fflush(fh);
-	if (!tweaked_error_buffering) {
-		setvbuf(fh, NULL, _IOLBF, 0);
-		tweaked_error_buffering = 1;
+	hold_locked_index(&index_lock, 1);
+
+	for (i = 0; i < update->nr; i++) {
+		struct string_list_item *item = &update->items[i];
+		if (add_file_to_cache(item->string, 0))
+			exit(128);
+		fprintf(stderr, "Staged '%s' using previous resolution.\n",
+			item->string);
 	}
 
-	fputs(prefix, fh);
-	vfprintf(fh, err, params);
-	fputc('\n', fh);
+	if (active_cache_changed) {
+		if (write_locked_index(&the_index, &index_lock, COMMIT_LOCK))
+			die("Unable to write new index file");
+	} else
+		rollback_lock_file(&index_lock);
 }

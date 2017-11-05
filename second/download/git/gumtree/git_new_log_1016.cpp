@@ -1,1 +1,2 @@
-error("new commit is the same as the old one: '%s'", oid_to_hex(&old));
+error("bad packed object CRC for %s",
+		      oid_to_hex(&entry->idx.oid));

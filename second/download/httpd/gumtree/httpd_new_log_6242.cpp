@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(03092)
-                     "start_lingering_close: apr_pollset_add failure");
+h2_mplx_process(session->mplx, stream, stream_pri_cmp, session);

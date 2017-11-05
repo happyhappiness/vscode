@@ -1,1 +1,1 @@
-error(_("no commits parsed."));
+parse_long_magic(magic, prefix_len, elem);

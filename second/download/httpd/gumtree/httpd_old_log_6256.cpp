@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
+ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
+				      APLOGNO(03403)
+                                      "h2_session(%ld): idle, no data, error", 
+                                      session->id);

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01290) "no subgroups for %s",
-                          dn);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01041)
+                                  "apr_socket_opt_set(SO_RCVBUF): Failed to "
+                                  "set ProxyReceiveBufferSize, using default");

@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01693)
-                      "auth_ldap authenticate: no user specified");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
+                              "Zlib: Inflated %ld to %ld : URL %s",
+                              ctx->stream.total_in, ctx->stream.total_out,
+                              r->uri);

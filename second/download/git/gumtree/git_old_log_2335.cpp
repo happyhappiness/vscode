@@ -1,3 +1,1 @@
-die ("Tag %s tags unexported object; use "
-			     "--tag-of-filtered-object=<mode> to handle it.",
-			     sha1_to_hex(tag->object.sha1));
+error("can't write crash report %s: %s", loc, strerror(errno));

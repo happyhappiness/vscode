@@ -1,2 +1,3 @@
-error("couldn't write %s",
-					get_lock_file_path(lock->lk));
+error(_("Cannot delete branch '%s' "
+					"checked out at '%s'"),
+				      bname.buf, worktree);

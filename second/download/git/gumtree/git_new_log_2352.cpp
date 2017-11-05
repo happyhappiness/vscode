@@ -1,1 +1,1 @@
-printf("root %s\n", oid_to_hex(&commit->object.oid));
+die("corrupt MERGE_RR");

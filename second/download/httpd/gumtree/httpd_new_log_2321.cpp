@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
-                     "GetModuleFileName failed");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "Error retrieving results while looking up '%s' "
+                          "in database", user);

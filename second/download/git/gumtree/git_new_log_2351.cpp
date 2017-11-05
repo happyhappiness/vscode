@@ -1,2 +1,1 @@
-fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), oid_to_hex(&obj->oid));
+error_errno("unable to stat %s", sha1_to_hex(sha1));

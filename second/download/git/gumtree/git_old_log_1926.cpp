@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+printf("%s\n", find_unique_abbrev(sha1, DEFAULT_ABBREV));

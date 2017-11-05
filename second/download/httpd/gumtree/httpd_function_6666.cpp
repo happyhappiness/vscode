@@ -1,174 +1,162 @@
-static apr_status_t input_read(h2_task *task, ap_filter_t* f,
-                               apr_bucket_brigade* bb, ap_input_mode_t mode,
-                               apr_read_type_e block, apr_off_t readbytes)
+static int uldap_cache_compare(request_rec *r, util_ldap_connection_t *ldc,
+                               const char *url, const char *dn,
+                               const char *attrib, const char *value)
 {
-    apr_status_t status = APR_SUCCESS;
-    apr_bucket *b, *next, *first_data;
-    apr_off_t bblen = 0;
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_task(%s): read, mode=%d, block=%d, readbytes=%ld", 
-                  task->id, mode, block, (long)readbytes);
-    
-    if (mode == AP_MODE_INIT) {
-        return ap_get_brigade(f->c->input_filters, bb, mode, block, readbytes);
+    int result = 0;
+    util_url_node_t *curl;
+    util_url_node_t curnode;
+    util_compare_node_t *compare_nodep;
+    util_compare_node_t the_compare_node;
+    apr_time_t curtime = 0; /* silence gcc -Wall */
+    int failures = 0;
+
+    util_ldap_state_t *st = (util_ldap_state_t *)
+                            ap_get_module_config(r->server->module_config,
+                                                 &ldap_module);
+
+    /* get cache entry (or create one) */
+    LDAP_CACHE_LOCK();
+    curnode.url = url;
+    curl = util_ald_cache_fetch(st->util_ldap_cache, &curnode);
+    if (curl == NULL) {
+        curl = util_ald_create_caches(st, url);
     }
-    
-    if (f->c->aborted || !task->request) {
-        return APR_ECONNABORTED;
-    }
-    
-    if (!task->input.bb) {
-        if (!task->input.eos_written) {
-            input_append_eos(task, f->r);
-            return APR_SUCCESS;
-        }
-        return APR_EOF;
-    }
-    
-    /* Cleanup brigades from those nasty 0 length non-meta buckets
-     * that apr_brigade_split_line() sometimes produces. */
-    for (b = APR_BRIGADE_FIRST(task->input.bb);
-         b != APR_BRIGADE_SENTINEL(task->input.bb); b = next) {
-        next = APR_BUCKET_NEXT(b);
-        if (b->length == 0 && !APR_BUCKET_IS_METADATA(b)) {
-            apr_bucket_delete(b);
-        } 
-    }
-    
-    while (APR_BRIGADE_EMPTY(task->input.bb) && !task->input.eos) {
-        /* Get more input data for our request. */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      task->id, block, (long)readbytes, (long)bblen);
-        
-        /* Override the block mode we get called with depending on the input's
-         * setting. */
-        if (task->input.beam) {
-            status = h2_beam_receive(task->input.beam, task->input.bb, block, 
-                                     H2MIN(readbytes, 32*1024));
-        }
-        else {
-            status = APR_EOF;
-        }
-        
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, f->c,
-                      "h2_task(%s): read returned", task->id);
-        if (APR_STATUS_IS_EAGAIN(status) 
-            && (mode == AP_MODE_GETLINE || block == APR_BLOCK_READ)) {
-            /* chunked input handling does not seem to like it if we
-             * return with APR_EAGAIN from a GETLINE read... 
-             * upload 100k test on test-ser.example.org hangs */
-            status = APR_SUCCESS;
-        }
-        else if (APR_STATUS_IS_EOF(status)) {
-            task->input.eos = 1;
-        }
-        else if (status != APR_SUCCESS) {
-            return status;
-        }
-        
-        /* Inspect the buckets received, detect EOS and apply
-         * chunked encoding if necessary */
-        h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                       "input.beam recv raw", task->input.bb);
-        first_data = NULL;
-        bblen = 0;
-        for (b = APR_BRIGADE_FIRST(task->input.bb); 
-             b != APR_BRIGADE_SENTINEL(task->input.bb); b = next) {
-            next = APR_BUCKET_NEXT(b);
-            if (APR_BUCKET_IS_METADATA(b)) {
-                if (first_data && task->input.chunked) {
-                    make_chunk(task, task->input.bb, first_data, bblen, b);
-                    first_data = NULL;
-                    bblen = 0;
-                }
-                if (APR_BUCKET_IS_EOS(b)) {
-                    task->input.eos = 1;
-                    input_handle_eos(task, f->r, b);
-                    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                                   "input.bb after handle eos", 
-                                   task->input.bb);
-                }
+    LDAP_CACHE_UNLOCK();
+
+    if (curl) {
+        /* make a comparison to the cache */
+        LDAP_CACHE_LOCK();
+        curtime = apr_time_now();
+
+        the_compare_node.dn = (char *)dn;
+        the_compare_node.attrib = (char *)attrib;
+        the_compare_node.value = (char *)value;
+        the_compare_node.result = 0;
+        the_compare_node.sgl_processed = 0;
+        the_compare_node.subgroupList = NULL;
+
+        compare_nodep = util_ald_cache_fetch(curl->compare_cache,
+                                             &the_compare_node);
+
+        if (compare_nodep != NULL) {
+            /* found it... */
+            if (curtime - compare_nodep->lastcompare > st->compare_cache_ttl) {
+                /* ...but it is too old */
+                util_ald_cache_remove(curl->compare_cache, compare_nodep);
             }
-            else if (b->length == 0) {
-                apr_bucket_delete(b);
-            } 
             else {
-                if (!first_data) {
-                    first_data = b;
+                /* ...and it is good */
+                if (LDAP_COMPARE_TRUE == compare_nodep->result) {
+                    ldc->reason = "Comparison true (cached)";
                 }
-                bblen += b->length;
-            }    
+                else if (LDAP_COMPARE_FALSE == compare_nodep->result) {
+                    ldc->reason = "Comparison false (cached)";
+                }
+                else if (LDAP_NO_SUCH_ATTRIBUTE == compare_nodep->result) {
+                    ldc->reason = "Comparison no such attribute (cached)";
+                }
+                else {
+                    ldc->reason = "Comparison undefined (cached)";
+                }
+
+                /* record the result code to return with the reason... */
+                result = compare_nodep->result;
+                /* and unlock this read lock */
+                LDAP_CACHE_UNLOCK();
+                return result;
+            }
         }
-        if (first_data && task->input.chunked) {
-            make_chunk(task, task->input.bb, first_data, bblen, NULL);
-        }            
-        
-        if (h2_task_logio_add_bytes_in) {
-            h2_task_logio_add_bytes_in(f->c, bblen);
-        }
-    }
-    
-    if (task->input.eos) {
-        if (!task->input.eos_written) {
-            input_append_eos(task, f->r);
-        }
-        if (APR_BRIGADE_EMPTY(task->input.bb)) {
-            return APR_EOF;
-        }
+        /* unlock this read lock */
+        LDAP_CACHE_UNLOCK();
     }
 
-    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                   "task_input.bb", task->input.bb);
-           
-    if (APR_BRIGADE_EMPTY(task->input.bb)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task(%s): no data", task->id);
-        return (block == APR_NONBLOCK_READ)? APR_EAGAIN : APR_EOF;
+start_over:
+    if (failures > st->retries) {
+        return result;
     }
-    
-    if (mode == AP_MODE_EXHAUSTIVE) {
-        /* return all we have */
-        APR_BRIGADE_CONCAT(bb, task->input.bb);
+
+    if (failures > 0 && st->retry_delay > 0) {
+        apr_sleep(st->retry_delay);
     }
-    else if (mode == AP_MODE_READBYTES) {
-        status = h2_brigade_concat_length(bb, task->input.bb, readbytes);
+
+    if (LDAP_SUCCESS != (result = uldap_connection_open(r, ldc))) {
+        /* connect failed */
+        return result;
     }
-    else if (mode == AP_MODE_SPECULATIVE) {
-        status = h2_brigade_copy_length(bb, task->input.bb, readbytes);
+
+    result = ldap_compare_s(ldc->ldap,
+                            (char *)dn,
+                            (char *)attrib,
+                            (char *)value);
+    if (AP_LDAP_IS_SERVER_DOWN(result)) {
+        /* connection failed - try again */
+        ldc->reason = "ldap_compare_s() failed with server down";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
     }
-    else if (mode == AP_MODE_GETLINE) {
-        /* we are reading a single LF line, e.g. the HTTP headers. 
-         * this has the nasty side effect to split the bucket, even
-         * though it ends with CRLF and creates a 0 length bucket */
-        status = apr_brigade_split_line(bb, task->input.bb, block, 
-                                        HUGE_STRING_LEN);
-        if (APLOGctrace1(f->c)) {
-            char buffer[1024];
-            apr_size_t len = sizeof(buffer)-1;
-            apr_brigade_flatten(bb, buffer, &len);
-            buffer[len] = 0;
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                          "h2_task(%s): getline: %s",
-                          task->id, buffer);
+    if (result == LDAP_TIMEOUT && failures == 0) {
+        /*
+         * we are reusing a connection that doesn't seem to be active anymore
+         * (firewall state drop?), let's try a new connection.
+         */
+        ldc->reason = "ldap_compare_s() failed with timeout";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
+    }
+
+    ldc->reason = "Comparison complete";
+    if ((LDAP_COMPARE_TRUE == result) ||
+        (LDAP_COMPARE_FALSE == result) ||
+        (LDAP_NO_SUCH_ATTRIBUTE == result)) {
+        if (curl) {
+            /* compare completed; caching result */
+            LDAP_CACHE_LOCK();
+            the_compare_node.lastcompare = curtime;
+            the_compare_node.result = result;
+            the_compare_node.sgl_processed = 0;
+            the_compare_node.subgroupList = NULL;
+
+            /* If the node doesn't exist then insert it, otherwise just update
+             * it with the last results
+             */
+            compare_nodep = util_ald_cache_fetch(curl->compare_cache,
+                                                 &the_compare_node);
+            if (   (compare_nodep == NULL)
+                || (strcmp(the_compare_node.dn, compare_nodep->dn) != 0)
+                || (strcmp(the_compare_node.attrib,compare_nodep->attrib) != 0)
+                || (strcmp(the_compare_node.value, compare_nodep->value) != 0))
+            {
+                void *junk;
+
+                junk = util_ald_cache_insert(curl->compare_cache,
+                                             &the_compare_node);
+                if (junk == NULL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01287)
+                                  "cache_compare: Cache insertion failure.");
+                }
+            }
+            else {
+                compare_nodep->lastcompare = curtime;
+                compare_nodep->result = result;
+            }
+            LDAP_CACHE_UNLOCK();
+        }
+        if (LDAP_COMPARE_TRUE == result) {
+            ldc->reason = "Comparison true (adding to cache)";
+            return LDAP_COMPARE_TRUE;
+        }
+        else if (LDAP_COMPARE_FALSE == result) {
+            ldc->reason = "Comparison false (adding to cache)";
+            return LDAP_COMPARE_FALSE;
+        }
+        else {
+            ldc->reason = "Comparison no such attribute (adding to cache)";
+            return LDAP_NO_SUCH_ATTRIBUTE;
         }
     }
-    else {
-        /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
-         * to support it. Seems to work. */
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                      APLOGNO(02942) 
-                      "h2_task, unsupported READ mode %d", mode);
-        status = APR_ENOTIMPL;
-    }
-    
-    if (APLOGctrace1(f->c)) {
-        apr_brigade_length(bb, 0, &bblen);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task(%s): return %ld data bytes",
-                      task->id, (long)bblen);
-    }
-    return status;
+    return result;
 }

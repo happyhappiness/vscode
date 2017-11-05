@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv,
-                             r->server, "Cache locked for url, not caching "
-                             "response: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                          "Status from backend: %d", proxy_status);

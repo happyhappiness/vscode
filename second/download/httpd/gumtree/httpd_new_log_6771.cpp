@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, f->c, APLOGNO(03046)
-                          "h2_session(%ld): error reading", f->c->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00927)
+                     "initializing worker %s local",
+                     ap_proxy_worker_name(p, worker));

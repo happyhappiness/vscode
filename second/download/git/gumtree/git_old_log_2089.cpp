@@ -1,1 +1,0 @@
-die(_("unable to parse format"));

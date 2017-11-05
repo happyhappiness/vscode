@@ -1,1 +1,1 @@
-error("unable to rewind rpc post data - try increasing http.postBuffer");
+logerror("base-path too large: %s", rpath);

@@ -1,1 +1,1 @@
-die("verify %s: extra input: %s", refname, next);
+error("Unable to append to %s", log_file);

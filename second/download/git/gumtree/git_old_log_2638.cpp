@@ -1,1 +1,1 @@
-error(_("Could not append '%s'"), buf.buf);
+error(msg, path, _(": perhaps a D/F conflict?"));

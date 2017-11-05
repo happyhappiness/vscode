@@ -1,2 +1,2 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "client used wrong authentication scheme: %s", r->uri);
+                              "Invalid response status %i", type);

@@ -1,2 +1,2 @@
-fprintf(stderr, "%s: wildcard patterns not allowed in Include "
-                    "%s\n", ap_server_argv0, fname);
+fprintf(stderr,
+		"overlay_tables: base's pool is not an ancestor of p\n");

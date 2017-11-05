@@ -1,1 +1,1 @@
-error("%s", msg);
+status_printf_ln(s, c, "");

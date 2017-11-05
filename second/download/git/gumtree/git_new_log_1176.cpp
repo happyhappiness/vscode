@@ -1,1 +1,2 @@
-die_errno("sigprocmask");
+die_errno("Could not switch to '%s'",
+						  sb.buf);

@@ -1,2 +1,1 @@
-printf("Requests per second:    %.2f [#/sec] (mean)\n",
-               (double) done / timetaken);
+apr_ipsubnet_test(localhost_v4, r->useragent_addr);

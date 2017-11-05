@@ -1,2 +1,1 @@
-error("chmod on %s failed: %s",
-				lock->filename, strerror(errno));
+error("remote-curl: usage: git remote-curl <remote> [<url>]");

@@ -1,28 +1,28 @@
-static void add_tag_chain(const struct object_id *oid)
+static char *prepare_initial(struct scoreboard *sb)
 {
-	struct tag *tag;
+	int i;
+	const char *final_commit_name = NULL;
+	struct rev_info *revs = sb->revs;
 
 	/*
-	 * We catch duplicates already in add_object_entry(), but we'd
-	 * prefer to do this extra check to avoid having to parse the
-	 * tag at all if we already know that it's being packed (e.g., if
-	 * it was included via bitmaps, we would not have parsed it
-	 * previously).
+	 * There must be one and only one negative commit, and it must be
+	 * the boundary.
 	 */
-	if (packlist_find(&to_pack, oid->hash, NULL))
-		return;
-
-	tag = lookup_tag(oid->hash);
-	while (1) {
-		if (!tag || parse_tag(tag) || !tag->tagged)
-			die("unable to pack objects reachable from tag %s",
-			    oid_to_hex(oid));
-
-		add_object_entry(tag->object.oid.hash, OBJ_TAG, NULL, 0);
-
-		if (tag->tagged->type != OBJ_TAG)
-			return;
-
-		tag = (struct tag *)tag->tagged;
+	for (i = 0; i < revs->pending.nr; i++) {
+		struct object *obj = revs->pending.objects[i].item;
+		if (!(obj->flags & UNINTERESTING))
+			continue;
+		obj = deref_tag(obj, NULL, 0);
+		if (obj->type != OBJ_COMMIT)
+			die("Non commit %s?", revs->pending.objects[i].name);
+		if (sb->final)
+			die("More than one commit to dig down to %s and %s?",
+			    revs->pending.objects[i].name,
+			    final_commit_name);
+		sb->final = (struct commit *) obj;
+		final_commit_name = revs->pending.objects[i].name;
 	}
+	if (!final_commit_name)
+		die("No commit to dig down to?");
+	return xstrdup(final_commit_name);
 }

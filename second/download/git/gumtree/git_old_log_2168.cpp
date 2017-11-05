@@ -1,1 +1,0 @@
-die("BUG: attempt to commit unlocked object");

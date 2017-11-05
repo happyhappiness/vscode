@@ -1,21 +1,46 @@
-static void read_populate_todo(struct commit_list **todo_list,
-			struct replay_opts *opts)
+static const char *parse_long_magic(unsigned *magic, int *prefix_len,
+				    const char *elem)
 {
-	struct strbuf buf = STRBUF_INIT;
-	int fd, res;
+	const char *pos;
+	const char *nextat;
 
-	fd = open(git_path_todo_file(), O_RDONLY);
-	if (fd < 0)
-		die_errno(_("Could not open %s"), git_path_todo_file());
-	if (strbuf_read(&buf, fd, 0) < 0) {
-		close(fd);
-		strbuf_release(&buf);
-		die(_("Could not read %s."), git_path_todo_file());
+	for (pos = elem + 2; *pos && *pos != ')'; pos = nextat) {
+		size_t len = strcspn(pos, ",)");
+		int i;
+
+		if (pos[len] == ',')
+			nextat = pos + len + 1; /* handle ',' */
+		else
+			nextat = pos + len; /* handle ')' and '\0' */
+
+		if (!len)
+			continue;
+
+		if (starts_with(pos, "prefix:")) {
+			char *endptr;
+			*prefix_len = strtol(pos + 7, &endptr, 10);
+			if (endptr - pos != len)
+				die(_("invalid parameter for pathspec magic 'prefix'"));
+			continue;
+		}
+
+		for (i = 0; i < ARRAY_SIZE(pathspec_magic); i++) {
+			if (strlen(pathspec_magic[i].name) == len &&
+			    !strncmp(pathspec_magic[i].name, pos, len)) {
+				*magic |= pathspec_magic[i].bit;
+				break;
+			}
+		}
+
+		if (ARRAY_SIZE(pathspec_magic) <= i)
+			die(_("Invalid pathspec magic '%.*s' in '%s'"),
+			    (int) len, pos, elem);
 	}
-	close(fd);
 
-	res = parse_insn_buffer(buf.buf, todo_list, opts);
-	strbuf_release(&buf);
-	if (res)
-		die(_("Unusable instruction sheet: %s"), git_path_todo_file());
+	if (*pos != ')')
+		die(_("Missing ')' at the end of pathspec magic in '%s'"),
+		    elem);
+	pos++;
+
+	return pos;
 }

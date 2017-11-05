@@ -1,1 +1,1 @@
-die("BUG: packed-refs not locked");
+fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");

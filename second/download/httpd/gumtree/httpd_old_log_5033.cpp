@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "creation of the timeout mutex failed.");
+ap_log_error(APLOG_MARK,
+                                     APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
+                                     "bad cumulated nesting (%+d) in %s",
+                                     any_nesting, where);

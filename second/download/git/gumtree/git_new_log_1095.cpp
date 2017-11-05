@@ -1,1 +1,1 @@
-die("BUG: unhandled RR_* enum");
+warning("object %s has unknown type id %d", oid_to_hex(oid), type);

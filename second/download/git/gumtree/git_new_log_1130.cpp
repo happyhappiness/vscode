@@ -1,2 +1,1 @@
-warning("ignoring git dir '%s': %s",
-			gitdir->buf + gitdir_offset, err.buf);
+error_errno("Could not write %s", output);

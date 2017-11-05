@@ -1,1 +1,1 @@
-fprintf(fout, "%s: %s\n", header[i], hdr->buf);
+error("short read %s", strerror(errno));

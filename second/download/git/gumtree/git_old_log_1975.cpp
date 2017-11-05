@@ -1,1 +1,1 @@
-fprintf(f, "%s\n", sha1_to_hex(sha1));
+die_errno(_("failed to unlink '%s'"), path);

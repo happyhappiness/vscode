@@ -1,34 +1,32 @@
-static int write_shared_index(struct index_state *istate,
-			      struct lock_file *lock, unsigned flags)
+static const char *find_author_by_nickname(const char *name)
 {
-	struct split_index *si = istate->split_index;
-	int fd, ret;
+	struct rev_info revs;
+	struct commit *commit;
+	struct strbuf buf = STRBUF_INIT;
+	struct string_list mailmap = STRING_LIST_INIT_NODUP;
+	const char *av[20];
+	int ac = 0;
 
-	fd = mks_tempfile(&temporary_sharedindex, git_path("sharedindex_XXXXXX"));
-	if (fd < 0) {
-		hashclr(si->base_sha1);
-		return do_write_locked_index(istate, lock, flags);
-	}
-	move_cache_to_base_index(istate);
-	ret = do_write_index(si->base, &temporary_sharedindex, 1);
-	if (ret) {
-		delete_tempfile(&temporary_sharedindex);
-		return ret;
-	}
-	ret = adjust_shared_perm(get_tempfile_path(&temporary_sharedindex));
-	if (ret) {
-		int save_errno = errno;
-		error("cannot fix permission bits on %s", get_tempfile_path(&temporary_sharedindex));
-		delete_tempfile(&temporary_sharedindex);
-		errno = save_errno;
-		return ret;
-	}
-	ret = rename_tempfile(&temporary_sharedindex,
-			      git_path("sharedindex.%s", sha1_to_hex(si->base->sha1)));
-	if (!ret) {
-		hashcpy(si->base_sha1, si->base->sha1);
-		clean_shared_index_files(sha1_to_hex(si->base->sha1));
-	}
+	init_revisions(&revs, NULL);
+	strbuf_addf(&buf, "--author=%s", name);
+	av[++ac] = "--all";
+	av[++ac] = "-i";
+	av[++ac] = buf.buf;
+	av[++ac] = NULL;
+	setup_revisions(ac, av, &revs, NULL);
+	revs.mailmap = &mailmap;
+	read_mailmap(revs.mailmap, NULL);
 
-	return ret;
+	if (prepare_revision_walk(&revs))
+		die(_("revision walk setup failed"));
+	commit = get_revision(&revs);
+	if (commit) {
+		struct pretty_print_context ctx = {0};
+		ctx.date_mode = DATE_NORMAL;
+		strbuf_release(&buf);
+		format_commit_message(commit, "%aN <%aE>", &buf, &ctx);
+		clear_mailmap(&mailmap);
+		return strbuf_detach(&buf, NULL);
+	}
+	die(_("No existing author found with '%s'"), name);
 }

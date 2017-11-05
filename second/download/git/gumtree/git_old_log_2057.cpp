@@ -1,1 +1,2 @@
-die_errno("could not create file '%s'", filename);
+warning("failed utime() on %s: %s",
+				tmp_file, strerror(errno));

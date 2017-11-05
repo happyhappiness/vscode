@@ -1,2 +1,2 @@
-error(_("Could not parse commit %s\n"),
-			     oid_to_hex(&commit->object.oid));
+die("BUG: curl_easy_getinfo for HTTP code failed: %s",
+				curl_easy_strerror(c));

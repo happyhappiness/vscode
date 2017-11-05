@@ -1,2 +1,1 @@
-packet_write(1, "unshallow %s",
-					oid_to_hex(&object->oid));
+fputs(diff_get_color_opt(&opt->diffopt, DIFF_RESET), opt->diffopt.file);

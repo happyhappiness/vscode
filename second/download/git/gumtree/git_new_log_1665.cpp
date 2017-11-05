@@ -1,1 +1,2 @@
-die(_("failed to sign the push certificate"));
+die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

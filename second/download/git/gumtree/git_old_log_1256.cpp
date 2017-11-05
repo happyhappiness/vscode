@@ -1,1 +1,1 @@
-die(_("cannot read existing object %s"), sha1_to_hex(sha1));
+die("bad numeric config value '%s' for '%s': %s", value, name, reason);

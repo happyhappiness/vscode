@@ -1,1 +1,1 @@
-die("BUG: invalid cmdmode: %c", opt->cmdmode);
+print_verbose(args, _("done"));

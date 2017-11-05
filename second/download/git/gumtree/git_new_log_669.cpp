@@ -1,1 +1,1 @@
-fprintf(outfile, "%s\n", val);
+error(_("unknown command %d"), item->command);

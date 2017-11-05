@@ -1,2 +1,1 @@
-printf("loop %"PRIuMAX"\n%s\n",
-			       (uintmax_t)strlen(obj_name), obj_name);
+error("duplicate parent %s ignored", oid_to_hex(oid));

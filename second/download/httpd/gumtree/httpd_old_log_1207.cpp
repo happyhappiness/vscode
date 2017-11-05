@@ -1,1 +1,0 @@
-apr_file_printf(errfile, "%s: -n and -D options conflict\n", argv[0]);

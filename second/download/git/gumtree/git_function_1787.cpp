@@ -1,28 +1,28 @@
-static int expire_reflog_ent(unsigned char *osha1, unsigned char *nsha1,
-			     const char *email, unsigned long timestamp, int tz,
-			     const char *message, void *cb_data)
+const char *setup_temporary_shallow(const struct sha1_array *extra)
 {
-	struct expire_reflog_cb *cb = cb_data;
-	struct expire_reflog_policy_cb *policy_cb = cb->policy_cb;
+	struct strbuf sb = STRBUF_INIT;
+	int fd;
 
-	if (cb->flags & EXPIRE_REFLOGS_REWRITE)
-		osha1 = cb->last_kept_sha1;
+	if (temporary_shallow.len)
+		die("BUG: attempt to create two temporary shallow files");
 
-	if ((*cb->should_prune_fn)(osha1, nsha1, email, timestamp, tz,
-				   message, policy_cb)) {
-		if (!cb->newlog)
-			printf("would prune %s", message);
-		else if (cb->flags & EXPIRE_REFLOGS_VERBOSE)
-			printf("prune %s", message);
-	} else {
-		if (cb->newlog) {
-			fprintf(cb->newlog, "%s %s %s %lu %+05d\t%s",
-				sha1_to_hex(osha1), sha1_to_hex(nsha1),
-				email, timestamp, tz, message);
-			hashcpy(cb->last_kept_sha1, nsha1);
-		}
-		if (cb->flags & EXPIRE_REFLOGS_VERBOSE)
-			printf("keep %s", message);
+	if (write_shallow_commits(&sb, 0, extra)) {
+		strbuf_addstr(&temporary_shallow, git_path("shallow_XXXXXX"));
+		fd = xmkstemp(temporary_shallow.buf);
+
+		atexit(remove_temporary_shallow);
+		sigchain_push_common(remove_temporary_shallow_on_signal);
+
+		if (write_in_full(fd, sb.buf, sb.len) != sb.len)
+			die_errno("failed to write to %s",
+				  temporary_shallow.buf);
+		close(fd);
+		strbuf_release(&sb);
+		return temporary_shallow.buf;
 	}
-	return 0;
+	/*
+	 * is_repository_shallow() sees empty string as "no shallow
+	 * file".
+	 */
+	return temporary_shallow.buf;
 }

@@ -1,38 +1,21 @@
-static int update_branch(struct branch *b)
+static int write_one_ref(const char *name, const unsigned char *sha1,
+		int flags, void *data)
 {
-	static const char *msg = "fast-import";
-	struct ref_lock *lock;
-	unsigned char old_sha1[20];
+	struct strbuf *buf = data;
+	int len = buf->len;
+	FILE *f;
 
-	if (read_ref(b->name, old_sha1))
-		hashclr(old_sha1);
-	if (is_null_sha1(b->sha1)) {
-		if (b->delete)
-			delete_ref(b->name, old_sha1, 0);
+	/* when called via for_each_ref(), flags is non-zero */
+	if (flags && !starts_with(name, "refs/heads/") &&
+			!starts_with(name, "refs/tags/"))
 		return 0;
-	}
-	lock = lock_any_ref_for_update(b->name, old_sha1, 0, NULL);
-	if (!lock)
-		return error("Unable to lock %s", b->name);
-	if (!force_update && !is_null_sha1(old_sha1)) {
-		struct commit *old_cmit, *new_cmit;
 
-		old_cmit = lookup_commit_reference_gently(old_sha1, 0);
-		new_cmit = lookup_commit_reference_gently(b->sha1, 0);
-		if (!old_cmit || !new_cmit) {
-			unlock_ref(lock);
-			return error("Branch %s is missing commits.", b->name);
-		}
-
-		if (!in_merge_bases(old_cmit, new_cmit)) {
-			unlock_ref(lock);
-			warning("Not updating %s"
-				" (new tip %s does not contain %s)",
-				b->name, sha1_to_hex(b->sha1), sha1_to_hex(old_sha1));
-			return -1;
-		}
-	}
-	if (write_ref_sha1(lock, b->sha1, msg) < 0)
-		return error("Unable to update %s", b->name);
+	strbuf_addstr(buf, name);
+	if (safe_create_leading_directories(buf->buf) ||
+			!(f = fopen(buf->buf, "w")) ||
+			fprintf(f, "%s\n", sha1_to_hex(sha1)) < 0 ||
+			fclose(f))
+		return error("problems writing temporary file %s", buf->buf);
+	strbuf_setlen(buf, len);
 	return 0;
 }

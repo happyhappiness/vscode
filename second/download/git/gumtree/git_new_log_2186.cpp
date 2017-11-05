@@ -1,3 +1,1 @@
-strbuf_addf(err,
-			    "Trying to write non-commit object %s to branch %s",
-			    sha1_to_hex(sha1), lock->ref_name);
+die_errno(_("could not open temporary file"));

@@ -1,25 +1,22 @@
-static void write_remote_refs(const struct ref *local_refs)
+static const char *strip_ref_components(const char *refname, const char *nr_arg)
 {
-	const struct ref *r;
+	char *end;
+	long nr = strtol(nr_arg, &end, 10);
+	long remaining = nr;
+	const char *start = refname;
 
-	struct ref_transaction *t;
-	struct strbuf err = STRBUF_INIT;
+	if (nr < 1 || *end != '\0')
+		die(":strip= requires a positive integer argument");
 
-	t = ref_transaction_begin(&err);
-	if (!t)
-		die("%s", err.buf);
-
-	for (r = local_refs; r; r = r->next) {
-		if (!r->peer_ref)
-			continue;
-		if (ref_transaction_create(t, r->peer_ref->name, r->old_sha1,
-					   0, NULL, &err))
-			die("%s", err.buf);
+	while (remaining) {
+		switch (*start++) {
+		case '\0':
+			die("ref '%s' does not have %ld components to :strip",
+			    refname, nr);
+		case '/':
+			remaining--;
+			break;
+		}
 	}
-
-	if (initial_ref_transaction_commit(t, &err))
-		die("%s", err.buf);
-
-	strbuf_release(&err);
-	ref_transaction_free(t);
+	return start;
 }

@@ -1,2 +1,3 @@
-printf(" %s", diff_aligned_abbrev(&p->parent[i].oid,
-							  opt->abbrev));
+error("object directory %s does not exist; "
+		      "check .git/objects/info/alternates.",
+		      path->buf);

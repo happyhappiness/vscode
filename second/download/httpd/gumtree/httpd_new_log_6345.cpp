@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03354)
-                    "authz_host authorize: require forward-dns: "
-                    "Can't evaluate require expression: %s", err);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(10005)
+                "too short to decrypt, aborting");

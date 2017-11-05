@@ -1,1 +1,1 @@
-die("index cache-tree records empty sub-tree");
+die_errno(_("failed to get kernel name and information"));

@@ -1,1 +1,1 @@
-printf("reset %s\n", (const char*)commit->util);
+printf("%s\n", typename(type));

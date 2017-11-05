@@ -1,1 +1,1 @@
-die(_("could not create directories for %s"), cfg_sb.buf);
+die("Timestamp too large for this system: %"PRItime, time);

@@ -1,28 +1,14 @@
-int is_git_directory(const char *suspect)
+static void show_worktree_porcelain(struct worktree *wt)
 {
-	char path[PATH_MAX];
-	size_t len = strlen(suspect);
-
-	if (PATH_MAX <= len + strlen("/objects"))
-		die("Too long path: %.*s", 60, suspect);
-	strcpy(path, suspect);
-	if (getenv(DB_ENVIRONMENT)) {
-		if (access(getenv(DB_ENVIRONMENT), X_OK))
-			return 0;
-	}
+	printf("worktree %s\n", wt->path);
+	if (wt->is_bare)
+		printf("bare\n");
 	else {
-		strcpy(path + len, "/objects");
-		if (access(path, X_OK))
-			return 0;
+		printf("HEAD %s\n", sha1_to_hex(wt->head_sha1));
+		if (wt->is_detached)
+			printf("detached\n");
+		else
+			printf("branch %s\n", wt->head_ref);
 	}
-
-	strcpy(path + len, "/refs");
-	if (access(path, X_OK))
-		return 0;
-
-	strcpy(path + len, "/HEAD");
-	if (validate_headref(path))
-		return 0;
-
-	return 1;
+	printf("\n");
 }

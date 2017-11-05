@@ -1,2 +1,1 @@
-warning ("Exporting signed tag %s",
-					 oid_to_hex(&tag->object.oid));
+error_errno("unable to create file %s", path);

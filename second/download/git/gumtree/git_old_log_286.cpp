@@ -1,2 +1,2 @@
-error("cannot read the current contents of '%s'",
-				     patch->old_name);
+die(_("Failed to store link to current notes ref (%s)"),
+			    default_notes_ref());

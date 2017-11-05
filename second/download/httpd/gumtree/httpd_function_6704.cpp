@@ -1,78 +1,97 @@
-static int make_child(server_rec * s, int slot, int bucket)
+static void ssl_init_server_certs(server_rec *s,
+                                  apr_pool_t *p,
+                                  apr_pool_t *ptemp,
+                                  modssl_ctx_t *mctx)
 {
-    int pid;
-
-    if (slot + 1 > retained->max_daemons_limit) {
-        retained->max_daemons_limit = slot + 1;
-    }
-
-    if (ap_scoreboard_image->parent[slot].pid != 0) {
-        /* XXX replace with assert or remove ? */
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(03455)
-                 "BUG: Scoreboard slot %d should be empty but is "
-                 "in use by pid %" APR_PID_T_FMT,
-                 slot, ap_scoreboard_image->parent[slot].pid);
-        return -1;
-    }
-
-    if (one_process) {
-        my_bucket = &all_buckets[0];
-
-        set_signals();
-        event_note_child_started(slot, getpid());
-        child_main(slot, 0);
-        /* NOTREACHED */
-        ap_assert(0);
-        return -1;
-    }
-
-    if ((pid = fork()) == -1) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, s, APLOGNO(00481)
-                     "fork: Unable to fork new process");
-
-        /* fork didn't succeed.  There's no need to touch the scoreboard;
-         * if we were trying to replace a failed child process, then
-         * server_main_loop() marked its workers SERVER_DEAD, and if
-         * we were trying to replace a child process that exited normally,
-         * its worker_thread()s left SERVER_DEAD or SERVER_GRACEFUL behind.
-         */
-
-        /* In case system resources are maxxed out, we don't want
-           Apache running away with the CPU trying to fork over and
-           over and over again. */
-        apr_sleep(apr_time_from_sec(10));
-
-        return -1;
-    }
-
-    if (!pid) {
-        my_bucket = &all_buckets[bucket];
-
-#ifdef HAVE_BINDPROCESSOR
-        /* By default, AIX binds to a single processor.  This bit unbinds
-         * children which will then bind to another CPU.
-         */
-        int status = bindprocessor(BINDPROCESS, (int) getpid(),
-                                   PROCESSOR_CLASS_ANY);
-        if (status != OK)
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
-                         ap_server_conf, APLOGNO(00482)
-                         "processor unbind failed");
+    const char *rsa_id, *dsa_id;
+#ifdef HAVE_ECC
+    const char *ecc_id;
+    EC_GROUP *ecparams;
+    int nid;
+    EC_KEY *eckey;
 #endif
-        RAISE_SIGSTOP(MAKE_CHILD);
+    const char *vhost_id = mctx->sc->vhost_id;
+    int i;
+    int have_rsa, have_dsa;
+    DH *dhparams;
+#ifdef HAVE_ECC
+    int have_ecc;
+#endif
 
-        apr_signal(SIGTERM, just_die);
-        child_main(slot, bucket);
-        /* NOTREACHED */
-        ap_assert(0);
-        return -1;
+    rsa_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_RSA);
+    dsa_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_DSA);
+#ifdef HAVE_ECC
+    ecc_id = ssl_asn1_table_keyfmt(ptemp, vhost_id, SSL_AIDX_ECC);
+#endif
+
+    have_rsa = ssl_server_import_cert(s, mctx, rsa_id, SSL_AIDX_RSA);
+    have_dsa = ssl_server_import_cert(s, mctx, dsa_id, SSL_AIDX_DSA);
+#ifdef HAVE_ECC
+    have_ecc = ssl_server_import_cert(s, mctx, ecc_id, SSL_AIDX_ECC);
+#endif
+
+    if (!(have_rsa || have_dsa
+#ifdef HAVE_ECC
+        || have_ecc
+#endif
+)) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01910)
+                "Oops, no " KEYTYPES " server certificate found "
+                "for '%s:%d'?!", s->server_hostname, s->port);
+        ssl_die(s);
     }
 
-    ap_scoreboard_image->parent[slot].quiescing = 0;
-    ap_scoreboard_image->parent[slot].not_accepting = 0;
-    ap_scoreboard_image->parent[slot].bucket = bucket;
-    event_note_child_started(slot, pid);
-    active_daemons++;
-    retained->total_daemons++;
-    return 0;
+    for (i = 0; i < SSL_AIDX_MAX; i++) {
+        ssl_check_public_cert(s, ptemp, mctx->pks->certs[i], i);
+    }
+
+    have_rsa = ssl_server_import_key(s, mctx, rsa_id, SSL_AIDX_RSA);
+    have_dsa = ssl_server_import_key(s, mctx, dsa_id, SSL_AIDX_DSA);
+#ifdef HAVE_ECC
+    have_ecc = ssl_server_import_key(s, mctx, ecc_id, SSL_AIDX_ECC);
+#endif
+
+    if (!(have_rsa || have_dsa
+#ifdef HAVE_ECC
+        || have_ecc
+#endif
+          )) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01911)
+                "Oops, no " KEYTYPES " server private key found?!");
+        ssl_die(s);
+    }
+
+    /*
+     * Try to read DH parameters from the (first) SSLCertificateFile
+     */
+    if ((mctx->pks->cert_files[0] != NULL) &&
+        (dhparams = ssl_dh_GetParamFromFile(mctx->pks->cert_files[0]))) {
+        SSL_CTX_set_tmp_dh(mctx->ssl_ctx, dhparams);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02540)
+                     "Custom DH parameters (%d bits) for %s loaded from %s",
+                     BN_num_bits(dhparams->p), vhost_id,
+                     mctx->pks->cert_files[0]);
+    }
+
+#ifdef HAVE_ECC
+    /*
+     * Similarly, try to read the ECDH curve name from SSLCertificateFile...
+     */
+    if ((mctx->pks->cert_files[0] != NULL) &&
+        (ecparams = ssl_ec_GetParamFromFile(mctx->pks->cert_files[0])) &&
+        (nid = EC_GROUP_get_curve_name(ecparams)) &&
+        (eckey = EC_KEY_new_by_curve_name(nid))) {
+        SSL_CTX_set_tmp_ecdh(mctx->ssl_ctx, eckey);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02541)
+                     "ECDH curve %s for %s specified in %s",
+                     OBJ_nid2sn(nid), vhost_id, mctx->pks->cert_files[0]);
+    }
+    /*
+     * ...otherwise, configure NIST P-256 (required to enable ECDHE)
+     */
+    else {
+        SSL_CTX_set_tmp_ecdh(mctx->ssl_ctx,
+                             EC_KEY_new_by_curve_name(NID_X9_62_prime256v1));
+    }
+#endif
 }

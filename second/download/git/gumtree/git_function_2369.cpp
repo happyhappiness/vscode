@@ -1,58 +1,114 @@
-int init_db(const char *template_dir, unsigned int flags)
+int start_async(struct async *async)
 {
-	int reinit;
-	const char *git_dir = get_git_dir();
+	int need_in, need_out;
+	int fdin[2], fdout[2];
+	int proc_in, proc_out;
 
-	if (git_link)
-		separate_git_dir(git_dir);
+	need_in = async->in < 0;
+	if (need_in) {
+		if (pipe(fdin) < 0) {
+			if (async->out > 0)
+				close(async->out);
+			return error("cannot create pipe: %s", strerror(errno));
+		}
+		async->in = fdin[1];
+	}
 
-	safe_create_dir(git_dir, 0);
+	need_out = async->out < 0;
+	if (need_out) {
+		if (pipe(fdout) < 0) {
+			if (need_in)
+				close_pair(fdin);
+			else if (async->in)
+				close(async->in);
+			return error("cannot create pipe: %s", strerror(errno));
+		}
+		async->out = fdout[0];
+	}
 
-	init_is_bare_repository = is_bare_repository();
+	if (need_in)
+		proc_in = fdin[0];
+	else if (async->in)
+		proc_in = async->in;
+	else
+		proc_in = -1;
 
-	/* Check to see if the repository version is right.
-	 * Note that a newly created repository does not have
-	 * config file, so this will not fail.  What we are catching
-	 * is an attempt to reinitialize new repository with an old tool.
-	 */
-	check_repository_format();
+	if (need_out)
+		proc_out = fdout[1];
+	else if (async->out)
+		proc_out = async->out;
+	else
+		proc_out = -1;
 
-	reinit = create_default_files(template_dir);
+#ifdef NO_PTHREADS
+	/* Flush stdio before fork() to avoid cloning buffers */
+	fflush(NULL);
 
-	create_object_directory();
+	async->pid = fork();
+	if (async->pid < 0) {
+		error("fork (async) failed: %s", strerror(errno));
+		goto error;
+	}
+	if (!async->pid) {
+		if (need_in)
+			close(fdin[1]);
+		if (need_out)
+			close(fdout[0]);
+		git_atexit_clear();
+		process_is_async = 1;
+		exit(!!async->proc(proc_in, proc_out, async->data));
+	}
 
-	if (shared_repository) {
-		char buf[10];
-		/* We do not spell "group" and such, so that
-		 * the configuration can be read by older version
-		 * of git. Note, we use octal numbers for new share modes,
-		 * and compatibility values for PERM_GROUP and
-		 * PERM_EVERYBODY.
+	mark_child_for_cleanup(async->pid);
+
+	if (need_in)
+		close(fdin[0]);
+	else if (async->in)
+		close(async->in);
+
+	if (need_out)
+		close(fdout[1]);
+	else if (async->out)
+		close(async->out);
+#else
+	if (!main_thread_set) {
+		/*
+		 * We assume that the first time that start_async is called
+		 * it is from the main thread.
 		 */
-		if (shared_repository < 0)
-			/* force to the mode value */
-			sprintf(buf, "0%o", -shared_repository);
-		else if (shared_repository == PERM_GROUP)
-			sprintf(buf, "%d", OLD_PERM_GROUP);
-		else if (shared_repository == PERM_EVERYBODY)
-			sprintf(buf, "%d", OLD_PERM_EVERYBODY);
-		else
-			die("oops");
-		git_config_set("core.sharedrepository", buf);
-		git_config_set("receive.denyNonFastforwards", "true");
+		main_thread_set = 1;
+		main_thread = pthread_self();
+		pthread_key_create(&async_key, NULL);
+		pthread_key_create(&async_die_counter, NULL);
+		set_die_routine(die_async);
+		set_die_is_recursing_routine(async_die_is_recursing);
 	}
 
-	if (!(flags & INIT_DB_QUIET)) {
-		int len = strlen(git_dir);
-
-		/* TRANSLATORS: The first '%s' is either "Reinitialized
-		   existing" or "Initialized empty", the second " shared" or
-		   "", and the last '%s%s' is the verbatim directory name. */
-		printf(_("%s%s Git repository in %s%s\n"),
-		       reinit ? _("Reinitialized existing") : _("Initialized empty"),
-		       shared_repository ? _(" shared") : "",
-		       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
+	if (proc_in >= 0)
+		set_cloexec(proc_in);
+	if (proc_out >= 0)
+		set_cloexec(proc_out);
+	async->proc_in = proc_in;
+	async->proc_out = proc_out;
+	{
+		int err = pthread_create(&async->tid, NULL, run_thread, async);
+		if (err) {
+			error("cannot create thread: %s", strerror(err));
+			goto error;
+		}
 	}
-
+#endif
 	return 0;
+
+error:
+	if (need_in)
+		close_pair(fdin);
+	else if (async->in)
+		close(async->in);
+
+	if (need_out)
+		close_pair(fdout);
+	else if (async->out)
+		close(async->out);
+	return -1;
 }

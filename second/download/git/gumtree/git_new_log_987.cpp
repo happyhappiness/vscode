@@ -1,2 +1,1 @@
-error("Object %s is a %s, not a commit or tree",
-	      oid_to_hex(&oid), typename(obj->type));
+die(_("cannot read existing object %s"), oid_to_hex(oid));

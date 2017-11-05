@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -t                : run syntax check for config files");
+fprintf(stderr, "    -s              Use httpS instead of HTTP (SSL)\n");

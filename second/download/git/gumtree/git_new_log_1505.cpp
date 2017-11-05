@@ -1,1 +1,2 @@
-die("BUG: couldn't parse 'reset' as a color");
+die("BUG: unknown get_sha1_with_context result %d\n",
+			       result);

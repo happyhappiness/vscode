@@ -1,2 +1,2 @@
-warning(_("unsupported sort specification '%s' in variable '%s'"),
-				var, arg);
+fprintf(stderr, "%s: protocol error: bad band #%d\n",
+				me, band);
