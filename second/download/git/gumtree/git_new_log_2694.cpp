@@ -1,1 +1,1 @@
-warning(_("Public key pinning not supported with cURL < 7.44.0"));
+die(_("transport: invalid depth option '%s'"), value);

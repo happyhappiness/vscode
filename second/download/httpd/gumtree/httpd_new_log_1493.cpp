@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "SSL proxy client cert chain verification failed for %s: %s",
-                         cert_dn, X509_verify_cert_error_string(err));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require ldap-filter: authorization "
+                              "failed [%s][%s]", getpid(),
+                              ldc->reason, ldap_err2string(result));

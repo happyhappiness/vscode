@@ -1,0 +1,1 @@
+error("no remembered resolution for '%s'", path);

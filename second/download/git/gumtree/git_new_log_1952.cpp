@@ -1,1 +1,1 @@
-error_buf(err, _("HEAD does not point to a branch"));
+die("object %s tried to add buffer twice!", oid_to_hex(&object->oid));

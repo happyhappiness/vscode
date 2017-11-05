@@ -1,1 +1,1 @@
-die("%s doesn't support --super-prefix", argv[0]);
+die(_("bad pack compression level %d"), level);

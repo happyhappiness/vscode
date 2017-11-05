@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_os_error(),
-                                 ap_server_conf, APLOGNO(00329)
-                                 "mpm_get_completion_context: "
-                                 "CreateEvent failed.");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Read: %s",
+                      MODSSL_LIBRARY_NAME, SSL_state_string_long(ssl));

@@ -1,1 +1,1 @@
-error("Object %s already has a mark", oid_to_hex(&oid));
+printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);

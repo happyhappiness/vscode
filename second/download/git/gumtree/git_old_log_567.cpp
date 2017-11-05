@@ -1,1 +1,0 @@
-die("no matching remote head");

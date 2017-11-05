@@ -1,1 +1,4 @@
-(fprintf(fp, "%s	%s\n", sha1_to_hex(sha1), path) <;
+printf("%s was both %s and %s\n",
+		       oid_to_hex(current_bad_oid),
+		       term_good,
+		       term_bad);

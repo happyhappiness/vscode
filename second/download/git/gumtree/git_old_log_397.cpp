@@ -1,1 +1,1 @@
-printf_ln(_("`git %s' is aliased to `%s'"), argv[0], alias);
+warning("no common commits");

@@ -1,2 +1,1 @@
-die_errno(_("cannot symlink '%s' '%s'"),
-					  lnk.buf, path->buf);
+error_errno("cannot fork() for %s", cmd->argv[0]);

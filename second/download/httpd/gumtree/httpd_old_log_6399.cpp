@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
-                      "h2_ngn_shed(%ld): pull task, nothing, first task %s", 
-                      shed->c->id, entry->task->id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01473)
+                      "request details scope:%u, filename:%s, function:%s",
+                      spec->scope,
+                      spec->file,
+                      "handle");

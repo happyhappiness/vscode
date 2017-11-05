@@ -1,1 +1,2 @@
-printf("Server version: %s\n", ap_get_server_description());
+ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                      0, r, APLOGNO(01615) "need AuthName: %s", r->uri);

@@ -1,1 +1,1 @@
-rollback_lock_file(&index_lock);
+warning("ignoring alternate with unknown protocol: %s", url);

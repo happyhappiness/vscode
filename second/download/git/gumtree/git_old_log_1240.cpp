@@ -1,1 +1,1 @@
-printf("num commits: %d\n", num_commits);
+die(_("%s: cannot update the ref"), ref.buf);

@@ -1,2 +1,1 @@
-error(_("affected file '%s' is beyond a symbolic link"),
-			     patch->new_name);
+die("'%s' is not a valid ref.", ref_name[num_rev]);

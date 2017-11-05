@@ -1,43 +1,52 @@
-static int push_git(struct discovery *heads, int nr_spec, char **specs)
+int bad_to_remove_submodule(const char *path, unsigned flags)
 {
-	struct rpc_state rpc;
-	int i, err;
-	struct argv_array args;
-	struct string_list_item *cas_option;
-	struct strbuf preamble = STRBUF_INIT;
+	ssize_t len;
+	struct child_process cp = CHILD_PROCESS_INIT;
+	struct strbuf buf = STRBUF_INIT;
+	int ret = 0;
 
-	argv_array_init(&args);
-	argv_array_pushl(&args, "send-pack", "--stateless-rpc", "--helper-status",
-			 NULL);
+	if (!file_exists(path) || is_empty_dir(path))
+		return 0;
 
-	if (options.thin)
-		argv_array_push(&args, "--thin");
-	if (options.dry_run)
-		argv_array_push(&args, "--dry-run");
-	if (options.verbosity == 0)
-		argv_array_push(&args, "--quiet");
-	else if (options.verbosity > 1)
-		argv_array_push(&args, "--verbose");
-	argv_array_push(&args, options.progress ? "--progress" : "--no-progress");
-	for_each_string_list_item(cas_option, &cas_options)
-		argv_array_push(&args, cas_option->string);
-	argv_array_push(&args, url.buf);
+	if (!submodule_uses_gitfile(path))
+		return 1;
 
-	argv_array_push(&args, "--stdin");
-	for (i = 0; i < nr_spec; i++)
-		packet_buf_write(&preamble, "%s\n", specs[i]);
-	packet_buf_flush(&preamble);
+	argv_array_pushl(&cp.args, "status", "--porcelain",
+				   "--ignore-submodules=none", NULL);
 
-	memset(&rpc, 0, sizeof(rpc));
-	rpc.service_name = "git-receive-pack",
-	rpc.argv = args.argv;
-	rpc.stdin_preamble = &preamble;
+	if (flags & SUBMODULE_REMOVAL_IGNORE_UNTRACKED)
+		argv_array_push(&cp.args, "-uno");
+	else
+		argv_array_push(&cp.args, "-uall");
 
-	err = rpc_service(&rpc, heads);
-	if (rpc.result.len)
-		write_or_die(1, rpc.result.buf, rpc.result.len);
-	strbuf_release(&rpc.result);
-	strbuf_release(&preamble);
-	argv_array_clear(&args);
-	return err;
+	if (!(flags & SUBMODULE_REMOVAL_IGNORE_IGNORED_UNTRACKED))
+		argv_array_push(&cp.args, "--ignored");
+
+	prepare_submodule_repo_env(&cp.env_array);
+	cp.git_cmd = 1;
+	cp.no_stdin = 1;
+	cp.out = -1;
+	cp.dir = path;
+	if (start_command(&cp)) {
+		if (flags & SUBMODULE_REMOVAL_DIE_ON_ERROR)
+			die(_("could not start 'git status in submodule '%s'"),
+				path);
+		ret = -1;
+		goto out;
+	}
+
+	len = strbuf_read(&buf, cp.out, 1024);
+	if (len > 2)
+		ret = 1;
+	close(cp.out);
+
+	if (finish_command(&cp)) {
+		if (flags & SUBMODULE_REMOVAL_DIE_ON_ERROR)
+			die(_("could not run 'git status in submodule '%s'"),
+				path);
+		ret = -1;
+	}
+out:
+	strbuf_release(&buf);
+	return ret;
 }

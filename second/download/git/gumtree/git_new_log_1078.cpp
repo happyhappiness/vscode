@@ -1,1 +1,1 @@
-warning("could not freshen shared index '%s'", shared_index);
+die("Couldn't allocate PCRE2 match context");

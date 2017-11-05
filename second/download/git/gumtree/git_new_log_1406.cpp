@@ -1,1 +1,1 @@
-die("BUG: unexpected reference transaction state");
+fprintf(stderr, "\n");

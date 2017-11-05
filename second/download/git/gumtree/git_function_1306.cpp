@@ -1,20 +1,9 @@
-int cmd_submodule__helper(int argc, const char **argv, const char *prefix)
+int reopen_lock_file(struct lock_file *lk)
 {
-	int i;
-	if (argc < 2)
-		die(_("submodule--helper subcommand must be "
-		      "called with a subcommand"));
-
-	for (i = 0; i < ARRAY_SIZE(commands); i++) {
-		if (!strcmp(argv[1], commands[i].cmd)) {
-			if (get_super_prefix() &&
-			    !(commands[i].option & SUPPORT_SUPER_PREFIX))
-				die(_("%s doesn't support --super-prefix"),
-				    commands[i].cmd);
-			return commands[i].fn(argc - 1, argv + 1, prefix);
-		}
-	}
-
-	die(_("'%s' is not a valid submodule--helper "
-	      "subcommand"), argv[1]);
+	if (0 <= lk->fd)
+		die(_("BUG: reopen a lockfile that is still open"));
+	if (!lk->active)
+		die(_("BUG: reopen a lockfile that has been committed"));
+	lk->fd = open(lk->filename.buf, O_WRONLY);
+	return lk->fd;
 }

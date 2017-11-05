@@ -1,23 +1,18 @@
-void *map_sha1_file(const unsigned char *sha1, unsigned long *size)
+static struct files_ref_store *files_downcast(struct ref_store *ref_store,
+					      unsigned int required_flags,
+					      const char *caller)
 {
-	void *map;
-	int fd;
+	struct files_ref_store *refs;
 
-	fd = open_sha1_file(sha1);
-	map = NULL;
-	if (fd >= 0) {
-		struct stat st;
+	if (ref_store->be != &refs_be_files)
+		die("BUG: ref_store is type \"%s\" not \"files\" in %s",
+		    ref_store->be->name, caller);
 
-		if (!fstat(fd, &st)) {
-			*size = xsize_t(st.st_size);
-			if (!*size) {
-				/* mmap() is forbidden on empty files */
-				error("object file %s is empty", sha1_file_name(sha1));
-				return NULL;
-			}
-			map = xmmap(NULL, *size, PROT_READ, MAP_PRIVATE, fd, 0);
-		}
-		close(fd);
-	}
-	return map;
+	refs = (struct files_ref_store *)ref_store;
+
+	if ((refs->store_flags & required_flags) != required_flags)
+		die("BUG: operation %s requires abilities 0x%x, but only have 0x%x",
+		    caller, required_flags, refs->store_flags);
+
+	return refs;
 }

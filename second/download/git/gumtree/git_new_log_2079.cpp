@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die_errno("Could not open '%s'", path);

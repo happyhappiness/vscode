@@ -1,3 +1,2 @@
-error("object %s is a %s, not a %s",
-			      oid_to_hex(&obj->oid),
-			      typename(obj->type), typename(type));
+printf("broken link from %7s %s\n",
+				 typename(parent->type), describe_object(parent));

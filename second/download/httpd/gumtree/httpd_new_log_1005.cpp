@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "  -M                 : a synonym for -t -D DUMP_MODULES");
+fprintf(stderr, "ab: Could not read POST data file: %s\n",
+                apr_strerror(rv, errmsg, sizeof errmsg));

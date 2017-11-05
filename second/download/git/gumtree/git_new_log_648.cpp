@@ -1,2 +1,1 @@
-error(_("%s: can't cherry-pick a %s"),
-					name, typename(type));
+fprintf(out, "%s\n", oid_to_hex(oid));

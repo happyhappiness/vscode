@@ -1,1 +1,1 @@
-die("unable to write parameters to config file");
+error("%s does not point to a valid object!", entry->name);

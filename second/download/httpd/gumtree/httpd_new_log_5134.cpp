@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00220)
-                    "server reached MaxRequestWorkers setting, consider"
-                    " raising the MaxRequestWorkers setting");
+ap_rvputs(r, "Server Built: ",
+                  ap_get_server_built(), "\n", NULL);

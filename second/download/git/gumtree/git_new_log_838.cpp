@@ -1,2 +1,1 @@
-error(_("please fix this using "
-				       "'git rebase --edit-todo'."));
+die(_("remote error: %s"), arg);

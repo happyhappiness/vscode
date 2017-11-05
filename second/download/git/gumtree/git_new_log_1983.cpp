@@ -1,1 +1,1 @@
-die_errno(_("could not open %s for writing"), path);
+error("object %s: %s", oid_to_hex(&obj->oid), message);

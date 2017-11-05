@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03067)
-                          "h2_session(%ld-%d): RST_STREAM by client, errror=%d",
-                          session->id, (int)frame->hd.stream_id,
-                          (int)frame->rst_stream.error_code);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01969)
+                     "Init: Requesting pass phrase from dialog filter "
+                     "program (%s)", cmd);

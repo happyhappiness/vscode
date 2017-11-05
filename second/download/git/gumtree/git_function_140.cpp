@@ -1,72 +1,24 @@
-static int stat_opt(struct diff_options *options, const char **av)
+static void write_pack_access_log(struct packed_git *p, off_t obj_offset)
 {
-	const char *arg = av[0];
-	char *end;
-	int width = options->stat_width;
-	int name_width = options->stat_name_width;
-	int graph_width = options->stat_graph_width;
-	int count = options->stat_count;
-	int argcount = 1;
+	static FILE *log_file;
 
-	if (!skip_prefix(arg, "--stat", &arg))
-		die("BUG: stat option does not begin with --stat: %s", arg);
-	end = (char *)arg;
+	if (!log_pack_access)
+		log_pack_access = getenv("GIT_TRACE_PACK_ACCESS");
+	if (!log_pack_access)
+		log_pack_access = no_log_pack_access;
+	if (log_pack_access == no_log_pack_access)
+		return;
 
-	switch (*arg) {
-	case '-':
-		if (skip_prefix(arg, "-width", &arg)) {
-			if (*arg == '=')
-				width = strtoul(arg + 1, &end, 10);
-			else if (!*arg && !av[1])
-				die("Option '--stat-width' requires a value");
-			else if (!*arg) {
-				width = strtoul(av[1], &end, 10);
-				argcount = 2;
-			}
-		} else if (skip_prefix(arg, "-name-width", &arg)) {
-			if (*arg == '=')
-				name_width = strtoul(arg + 1, &end, 10);
-			else if (!*arg && !av[1])
-				die("Option '--stat-name-width' requires a value");
-			else if (!*arg) {
-				name_width = strtoul(av[1], &end, 10);
-				argcount = 2;
-			}
-		} else if (skip_prefix(arg, "-graph-width", &arg)) {
-			if (*arg == '=')
-				graph_width = strtoul(arg + 1, &end, 10);
-			else if (!*arg && !av[1])
-				die("Option '--stat-graph-width' requires a value");
-			else if (!*arg) {
-				graph_width = strtoul(av[1], &end, 10);
-				argcount = 2;
-			}
-		} else if (skip_prefix(arg, "-count", &arg)) {
-			if (*arg == '=')
-				count = strtoul(arg + 1, &end, 10);
-			else if (!*arg && !av[1])
-				die("Option '--stat-count' requires a value");
-			else if (!*arg) {
-				count = strtoul(av[1], &end, 10);
-				argcount = 2;
-			}
+	if (!log_file) {
+		log_file = fopen(log_pack_access, "w");
+		if (!log_file) {
+			error("cannot open pack access log '%s' for writing: %s",
+			      log_pack_access, strerror(errno));
+			log_pack_access = no_log_pack_access;
+			return;
 		}
-		break;
-	case '=':
-		width = strtoul(arg+1, &end, 10);
-		if (*end == ',')
-			name_width = strtoul(end+1, &end, 10);
-		if (*end == ',')
-			count = strtoul(end+1, &end, 10);
 	}
-
-	/* Important! This checks all the error cases! */
-	if (*end)
-		return 0;
-	options->output_format |= DIFF_FORMAT_DIFFSTAT;
-	options->stat_name_width = name_width;
-	options->stat_graph_width = graph_width;
-	options->stat_width = width;
-	options->stat_count = count;
-	return argcount;
+	fprintf(log_file, "%s %"PRIuMAX"\n",
+		p->pack_name, (uintmax_t)obj_offset);
+	fflush(log_file);
 }

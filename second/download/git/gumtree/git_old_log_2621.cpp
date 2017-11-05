@@ -1,2 +1,3 @@
-packet_write(1, "shallow %s",
-						sha1_to_hex(object->sha1));
+printf(" (from %s)",
+			       find_unique_abbrev(parent->object.oid.hash,
+						  abbrev_commit));

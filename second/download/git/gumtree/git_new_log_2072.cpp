@@ -1,1 +1,2 @@
-die("unknown line in '%s': %s", git_path_merge_head(), line.buf);
+die("git upload-pack: not our ref %s",
+			    oid_to_hex(&o->oid));

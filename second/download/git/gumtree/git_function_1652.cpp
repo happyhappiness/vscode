@@ -1,17 +1,27 @@
-static struct ref_lock *update_ref_lock(const char *refname,
-					const unsigned char *oldval,
-					int flags, int *type_p,
-					enum action_on_err onerr)
+static void show_diff(struct merge_list *entry)
 {
-	struct ref_lock *lock;
-	lock = lock_any_ref_for_update(refname, oldval, flags, type_p);
-	if (!lock) {
-		const char *str = "Cannot lock the ref '%s'.";
-		switch (onerr) {
-		case UPDATE_REFS_MSG_ON_ERR: error(str, refname); break;
-		case UPDATE_REFS_DIE_ON_ERR: die(str, refname); break;
-		case UPDATE_REFS_QUIET_ON_ERR: break;
-		}
-	}
-	return lock;
+	unsigned long size;
+	mmfile_t src, dst;
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	xdemitcb_t ecb;
+
+	xpp.flags = 0;
+	memset(&xecfg, 0, sizeof(xecfg));
+	xecfg.ctxlen = 3;
+	ecb.outf = show_outf;
+	ecb.priv = NULL;
+
+	src.ptr = origin(entry, &size);
+	if (!src.ptr)
+		size = 0;
+	src.size = size;
+	dst.ptr = result(entry, &size);
+	if (!dst.ptr)
+		size = 0;
+	dst.size = size;
+	if (xdi_diff(&src, &dst, &xpp, &xecfg, &ecb))
+		die("unable to generate diff");
+	free(src.ptr);
+	free(dst.ptr);
 }

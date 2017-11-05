@@ -1,0 +1,1 @@
+die("BUG: unpack_entry: left loop at a valid delta");

@@ -1,2 +1,1 @@
-fprintf(stderr, "%s in %s %s: %s\n",
-		msg_type, typename(obj->type), oid_to_hex(&obj->oid), err);
+warning_errno("unable to set SO_KEEPALIVE on socket");

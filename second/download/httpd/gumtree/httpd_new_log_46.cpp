@@ -1,1 +1,1 @@
-fputc('\n', stderr);
+fputs("\b \b", stderr);

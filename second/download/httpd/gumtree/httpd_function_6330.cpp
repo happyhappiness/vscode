@@ -1,188 +1,58 @@
-static int remoteip_modify_request(request_rec *r)
+static proxy_worker *hc_get_hcworker(sctx_t *ctx, proxy_worker *worker,
+                                     apr_pool_t *p)
 {
-    conn_rec *c = r->connection;
-    remoteip_config_t *config = (remoteip_config_t *)
-        ap_get_module_config(r->server->module_config, &remoteip_module);
-    remoteip_req_t *req = NULL;
+    proxy_worker *hc = NULL;
+    const char* wptr;
+    apr_port_t port;
 
-    apr_sockaddr_t *temp_sa;
+    wptr = apr_psprintf(ctx->p, "%pp", worker);
+    hc = (proxy_worker *)apr_hash_get(ctx->hcworkers, wptr, APR_HASH_KEY_STRING);
+    port = (worker->s->port ? worker->s->port : ap_proxy_port_of_scheme(worker->s->scheme));
+    if (!hc) {
+        apr_uri_t uri;
+        apr_status_t rv;
+        const char *url = worker->s->name;
+        wctx_t *wctx = apr_pcalloc(ctx->p, sizeof(wctx_t));
 
-    apr_status_t rv;
-    char *remote;
-    char *proxy_ips = NULL;
-    char *parse_remote;
-    char *eos;
-    unsigned char *addrbyte;
-    void *internal = NULL;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03248)
+                     "Creating hc worker %s for %s://%s:%d",
+                     wptr, worker->s->scheme, worker->s->hostname,
+                     (int)port);
 
-    if (!config->header_name) {
-        return DECLINED;
+        ap_proxy_define_worker(ctx->p, &hc, NULL, NULL, worker->s->name, 0);
+        PROXY_STRNCPY(hc->s->name,     wptr);
+        PROXY_STRNCPY(hc->s->hostname, worker->s->hostname);
+        PROXY_STRNCPY(hc->s->scheme,   worker->s->scheme);
+        PROXY_STRNCPY(hc->s->hcuri,    worker->s->hcuri);
+        PROXY_STRNCPY(hc->s->hcexpr,   worker->s->hcexpr);
+        hc->hash.def = hc->s->hash.def = ap_proxy_hashfunc(hc->s->name, PROXY_HASHFUNC_DEFAULT);
+        hc->hash.fnv = hc->s->hash.fnv = ap_proxy_hashfunc(hc->s->name, PROXY_HASHFUNC_FNV);
+        hc->s->port = port;
+        /* Do not disable worker in case of errors */
+        hc->s->status |= PROXY_WORKER_IGNORE_ERRORS;
+        /* Mark as the "generic" worker */
+        hc->s->status |= PROXY_WORKER_GENERIC;
+        ap_proxy_initialize_worker(hc, ctx->s, ctx->p);
+        hc->s->is_address_reusable = worker->s->is_address_reusable;
+        hc->s->disablereuse = worker->s->disablereuse;
+        hc->s->method = worker->s->method;
+        rv = apr_uri_parse(p, url, &uri);
+        if (rv == APR_SUCCESS) {
+            wctx->path = apr_pstrdup(ctx->p, uri.path);
+        }
+        wctx->w = worker;
+        hc->context = wctx;
+        apr_hash_set(ctx->hcworkers, wptr, APR_HASH_KEY_STRING, hc);
     }
-
-    remote = (char *) apr_table_get(r->headers_in, config->header_name);
-    if (!remote) {
-        return OK;
+    /* This *could* have changed via the Balancer Manager */
+    /* TODO */
+    if (hc->s->method != worker->s->method) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03311)
+                     "Updating hc worker %s for %s://%s:%d",
+                     wptr, worker->s->scheme, worker->s->hostname,
+                     (int)port);
+        hc->s->method = worker->s->method;
+        apr_hash_set(ctx->hcworkers, wptr, APR_HASH_KEY_STRING, hc);
     }
-    remote = apr_pstrdup(r->pool, remote);
-
-    temp_sa = c->client_addr;
-
-    while (remote) {
-
-        /* verify c->client_addr is trusted if there is a trusted proxy list
-         */
-        if (config->proxymatch_ip) {
-            int i;
-            remoteip_proxymatch_t *match;
-            match = (remoteip_proxymatch_t *)config->proxymatch_ip->elts;
-            for (i = 0; i < config->proxymatch_ip->nelts; ++i) {
-                if (apr_ipsubnet_test(match[i].ip, c->client_addr)) {
-                    internal = match[i].internal;
-                    break;
-                }
-            }
-            if (i && i >= config->proxymatch_ip->nelts) {
-                break;
-            }
-        }
-
-        if ((parse_remote = strrchr(remote, ',')) == NULL) {
-            parse_remote = remote;
-            remote = NULL;
-        }
-        else {
-            *(parse_remote++) = '\0';
-        }
-
-        while (*parse_remote == ' ') {
-            ++parse_remote;
-        }
-
-        eos = parse_remote + strlen(parse_remote) - 1;
-        while (eos >= parse_remote && *eos == ' ') {
-            *(eos--) = '\0';
-        }
-
-        if (eos < parse_remote) {
-            if (remote) {
-                *(remote + strlen(remote)) = ',';
-            }
-            else {
-                remote = parse_remote;
-            }
-            break;
-        }
-
-        /* We map as IPv4 rather than IPv6 for equivilant host names
-         * or IPV4OVERIPV6
-         */
-        rv = apr_sockaddr_info_get(&temp_sa,  parse_remote,
-                                   APR_UNSPEC, temp_sa->port,
-                                   APR_IPV4_ADDR_OK, r->pool);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG,  rv, r, APLOGNO(01568)
-                          "RemoteIP: Header %s value of %s cannot be parsed "
-                          "as a client IP",
-                          config->header_name, parse_remote);
-
-            if (remote) {
-                *(remote + strlen(remote)) = ',';
-            }
-            else {
-                remote = parse_remote;
-            }
-            break;
-
-        }
-
-        addrbyte = (unsigned char *) &temp_sa->sa.sin.sin_addr;
-
-        /* For intranet (Internal proxies) ignore all restrictions below */
-        if (!internal
-              && ((temp_sa->family == APR_INET
-                   /* For internet (non-Internal proxies) deny all
-                    * RFC3330 designated local/private subnets:
-                    * 10.0.0.0/8   169.254.0.0/16  192.168.0.0/16
-                    * 127.0.0.0/8  172.16.0.0/12
-                    */
-                      && (addrbyte[0] == 10
-                       || addrbyte[0] == 127
-                       || (addrbyte[0] == 169 && addrbyte[1] == 254)
-                       || (addrbyte[0] == 172 && (addrbyte[1] & 0xf0) == 16)
-                       || (addrbyte[0] == 192 && addrbyte[1] == 168)))
-#if APR_HAVE_IPV6
-               || (temp_sa->family == APR_INET6
-                   /* For internet (non-Internal proxies) we translated
-                    * IPv4-over-IPv6-mapped addresses as IPv4, above.
-                    * Accept only Global Unicast 2000::/3 defined by RFC4291
-                    */
-                      && ((temp_sa->sa.sin6.sin6_addr.s6_addr[0] & 0xe0) != 0x20))
-#endif
-        )) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG,  rv, r, APLOGNO(01569)
-                          "RemoteIP: Header %s value of %s appears to be "
-                          "a private IP or nonsensical.  Ignored",
-                          config->header_name, parse_remote);
-            if (remote) {
-                *(remote + strlen(remote)) = ',';
-            }
-            else {
-                remote = parse_remote;
-            }
-
-            break;
-        }
-
-        /* save away our results */
-        if (!req) {
-            req = (remoteip_req_t *) apr_palloc(r->pool, sizeof(remoteip_req_t));
-        }
-
-        /* Set useragent_ip string */
-        if (!internal) {
-            if (proxy_ips) {
-                proxy_ips = apr_pstrcat(r->pool, proxy_ips, ", ",
-                                        c->client_ip, NULL);
-            }
-            else {
-                proxy_ips = c->client_ip;
-            }
-        }
-
-        req->useragent_addr = temp_sa;
-        apr_sockaddr_ip_get(&req->useragent_ip, req->useragent_addr);
-    }
-
-    /* Nothing happened? */
-    if (!req) {
-        return OK;
-    }
-
-    req->proxied_remote = remote;
-    req->proxy_ips = proxy_ips;
-
-    if (req->proxied_remote) {
-        apr_table_setn(r->headers_in, config->header_name,
-                       req->proxied_remote);
-    }
-    else {
-        apr_table_unset(r->headers_in, config->header_name);
-    }
-    if (req->proxy_ips) {
-        apr_table_setn(r->notes, "remoteip-proxy-ip-list", req->proxy_ips);
-        if (config->proxies_header_name) {
-            apr_table_setn(r->headers_in, config->proxies_header_name,
-                           req->proxy_ips);
-        }
-    }
-
-    r->useragent_addr = req->useragent_addr;
-    r->useragent_ip = req->useragent_ip;
-
-    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                  req->proxy_ips
-                      ? "Using %s as client's IP by proxies %s"
-                      : "Using %s as client's IP by internal proxies",
-                  req->useragent_ip, req->proxy_ips);
-    return OK;
+    return hc;
 }

@@ -1,1 +1,1 @@
-fprintf(o->file, "%s", header.buf);
+die("BUG: incompatible flags for get_sha1_with_context");

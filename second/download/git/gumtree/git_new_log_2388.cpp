@@ -1,1 +1,1 @@
-printf("%s\n", oid_to_hex(&result->item->object.oid));
+die(_("negative values not allowed for submodule.fetchJobs"));

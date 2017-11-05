@@ -1,1 +1,1 @@
-error("Invalid value for '%s'", k);
+insert_one_record(log, v, oneline.buf);

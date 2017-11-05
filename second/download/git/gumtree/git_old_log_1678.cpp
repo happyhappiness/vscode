@@ -1,1 +1,1 @@
-die_errno("Could not get directory '%s'", git_work_tree_cfg);
+die("cannot open '%s' for reading", merge_head_file);

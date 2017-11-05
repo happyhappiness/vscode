@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die("object '%s' is not a blob!", oid_to_hex(oid));

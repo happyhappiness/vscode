@@ -1,3 +1,2 @@
-die(_("merging of trees %s and %s failed"),
-			    sha1_to_hex(head->object.sha1),
-			    sha1_to_hex(merge->object.sha1));
+fprintf(stderr, "%s in %s %s: %s\n",
+		msg_type, typename(obj->type), oid_to_hex(&obj->oid), err);

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "%s: Handshake: start", SSL_LIBRARY_NAME);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              "access to %s failed (filesystem path '%s')", 
+                              r->uri, r->filename);

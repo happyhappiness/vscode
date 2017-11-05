@@ -1,7 +1,14 @@
-static int advertise_shallow_grafts_cb(const struct commit_graft *graft, void *cb)
+static void show_worktree_porcelain(struct worktree *wt)
 {
-	struct strbuf *sb = cb;
-	if (graft->nr_parent == -1)
-		packet_buf_write(sb, "shallow %s\n", sha1_to_hex(graft->sha1));
-	return 0;
+	printf("worktree %s\n", wt->path);
+	if (wt->is_bare)
+		printf("bare\n");
+	else {
+		printf("HEAD %s\n", sha1_to_hex(wt->head_sha1));
+		if (wt->is_detached)
+			printf("detached\n");
+		else
+			printf("branch %s\n", wt->head_ref);
+	}
+	printf("\n");
 }

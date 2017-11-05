@@ -1,1 +1,1 @@
-die(_("'%s' not recognized as a git repository"), git_dir);
+die("invalid shallow object %s", oid_to_hex(&oid));

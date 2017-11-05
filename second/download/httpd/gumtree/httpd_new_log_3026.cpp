@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                     "Cannot open socache DBM file `%s' for "
-                     "iterating", ctx->data_file);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00828)
+                 "subcache_data_size = %u", header->subcache_data_size);

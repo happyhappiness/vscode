@@ -1,1 +1,2 @@
-die("Whoops! Cannot find object '%s'", sha1_to_hex(obj->sha1));
+fprintf_ln(stderr, _("directory stat info does not "
+				     "change after deleting a directory"));

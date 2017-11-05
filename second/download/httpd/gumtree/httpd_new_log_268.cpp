@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, NULL,
-                 "%s", description);
+ap_fatal_signal_setup(ap_server_conf, pconf);

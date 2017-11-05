@@ -1,1 +1,1 @@
-error("%s", buf.buf);
+opterror(opt, "expects a number greater than zero", 0);

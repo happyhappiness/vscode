@@ -1,13 +1,19 @@
-int parse_fetch_recurse_submodules_arg(const char *opt, const char *arg)
+FILE *mingw_fopen (const char *filename, const char *otype)
 {
-	switch (git_config_maybe_bool(opt, arg)) {
-	case 1:
-		return RECURSE_SUBMODULES_ON;
-	case 0:
-		return RECURSE_SUBMODULES_OFF;
-	default:
-		if (!strcmp(arg, "on-demand"))
-			return RECURSE_SUBMODULES_ON_DEMAND;
-		die("bad %s argument: %s", opt, arg);
+	int hide = needs_hiding(filename);
+	FILE *file;
+	wchar_t wfilename[MAX_PATH], wotype[4];
+	if (filename && !strcmp(filename, "/dev/null"))
+		filename = "nul";
+	if (xutftowcs_path(wfilename, filename) < 0 ||
+		xutftowcs(wotype, otype, ARRAY_SIZE(wotype)) < 0)
+		return NULL;
+	if (hide && !access(filename, F_OK) && set_hidden_flag(wfilename, 0)) {
+		error("could not unhide %s", filename);
+		return NULL;
 	}
+	file = _wfopen(wfilename, wotype);
+	if (file && hide && set_hidden_flag(wfilename, 1))
+		warning("could not mark '%s' as hidden.", filename);
+	return file;
 }

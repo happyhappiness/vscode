@@ -1,1 +1,4 @@
-fprintf(stderr, "\n  from %s\n  to   %s\n", old_hex, new_hex);
+die(Q_("%d line adds whitespace errors.",
+			       "%d lines add whitespace errors.",
+			       whitespace_error),
+			    whitespace_error);

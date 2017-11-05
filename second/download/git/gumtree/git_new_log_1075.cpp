@@ -1,1 +1,1 @@
-die("unable to get object info for %s", oid_to_hex(oid));
+die("Couldn't allocate PCRE2 match data");

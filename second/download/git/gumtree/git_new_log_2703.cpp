@@ -1,1 +1,1 @@
-die(_("%%(body) does not take arguments"));
+die("BUG: unhandled diff status %c", status);

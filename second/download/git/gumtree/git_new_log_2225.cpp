@@ -1,1 +1,1 @@
-die_errno("unable to fdopen alternates lockfile");
+die("%s", err.buf);

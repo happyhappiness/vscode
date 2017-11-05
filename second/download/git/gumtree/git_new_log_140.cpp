@@ -1,1 +1,2 @@
-die("BUG: stat option does not begin with --stat: %s", arg);
+trace_printf_key(&pack_access, "%s %"PRIuMAX"\n",
+			 p->pack_name, (uintmax_t)obj_offset);

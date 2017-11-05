@@ -1,2 +1,1 @@
-printf("unreachable %s %s\n", printable_type(obj),
-			describe_object(obj));
+die(_("could not read symlink %s"), path);

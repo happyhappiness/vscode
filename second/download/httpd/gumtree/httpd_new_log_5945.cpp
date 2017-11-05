@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
-                 APLOGNO(02973) "%sWatchdog (%s) stopping",
-                 w->singleton ? "Singleton " : "", w->name);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, task->c->master, 
+                  "status_event(%s): %d", task->id, event);

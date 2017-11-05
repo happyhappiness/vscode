@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, main_server, 
-                     "Couldn't bind unix domain socket %s",
-                     sconf->sockname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+	    MODNAME ": read failed %s", r->filename);

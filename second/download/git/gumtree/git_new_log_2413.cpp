@@ -1,1 +1,2 @@
-printf("-%s\n", oid_to_hex(&commit->object.oid));
+logerror("unable to set SO_KEEPALIVE on socket: %s",
+			strerror(errno));

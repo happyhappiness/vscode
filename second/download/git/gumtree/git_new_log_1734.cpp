@@ -1,1 +1,1 @@
-warning("--use-curl not supported in this build");
+die("could not read ref '%s'", pseudoref);

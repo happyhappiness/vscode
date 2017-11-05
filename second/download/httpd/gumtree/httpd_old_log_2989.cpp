@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorize group: authorization denied for user %s to %s",
-                  getpid(), r->user, r->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
+                         "Cannot open socache DBM file `%s' for "
+                         "scanning",
+                         ctx->data_file);

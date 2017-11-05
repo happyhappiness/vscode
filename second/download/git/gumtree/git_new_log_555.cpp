@@ -1,1 +1,1 @@
-die(_("Server does not support shallow clients"));
+fprintf(s->fp, "%c %s%c", prefix, path, eol_char);

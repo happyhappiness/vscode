@@ -1,1 +1,0 @@
-ap_rvputs(r, "</th><th", (d->style_sheet != NULL) ? " class=\"indexcolsize\">" : ">", NULL);

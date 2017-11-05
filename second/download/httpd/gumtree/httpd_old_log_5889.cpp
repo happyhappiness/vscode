@@ -1,1 +1,1 @@
-ap_add_output_filter("H1_TO_H2", env, NULL, c);
+ap_rvputs(r, "> <br/> Off <input name='", name, "' id='", name, "' value='0' type=radio", NULL);

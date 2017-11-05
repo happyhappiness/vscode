@@ -1,3 +1,1 @@
-error_buf(err,
-				 _("no upstream configured for branch '%s'"),
-				 branch->name);
+ref_array_clear(&array);

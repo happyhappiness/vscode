@@ -1,2 +1,2 @@
-warning ("Stripping signature from tag %s",
-					 sha1_to_hex(tag->object.sha1));
+error("unable to unlink old '%s' (%s)",
+				     path.buf, strerror(errno));

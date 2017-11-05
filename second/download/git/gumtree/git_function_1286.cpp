@@ -1,37 +1,49 @@
-static int show(int argc, const char **argv, const char *prefix)
+static void dump_marks(void)
 {
-	const char *object_ref;
-	struct notes_tree *t;
-	unsigned char object[20];
-	const unsigned char *note;
-	int retval;
-	struct option options[] = {
-		OPT_END()
-	};
+	static struct lock_file mark_lock;
+	int mark_fd;
+	FILE *f;
 
-	argc = parse_options(argc, argv, prefix, options, git_notes_show_usage,
-			     0);
+	if (!export_marks_file)
+		return;
 
-	if (1 < argc) {
-		error(_("too many parameters"));
-		usage_with_options(git_notes_show_usage, options);
+	mark_fd = hold_lock_file_for_update(&mark_lock, export_marks_file, 0);
+	if (mark_fd < 0) {
+		failure |= error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(errno));
+		return;
 	}
 
-	object_ref = argc ? argv[0] : "HEAD";
-
-	if (get_sha1(object_ref, object))
-		die(_("failed to resolve '%s' as a valid ref."), object_ref);
-
-	t = init_notes_check("show", 0);
-	note = get_note(t, object);
-
-	if (!note)
-		retval = error(_("no note found for object %s."),
-			       sha1_to_hex(object));
-	else {
-		const char *show_args[3] = {"show", sha1_to_hex(note), NULL};
-		retval = execv_git_cmd(show_args);
+	f = fdopen(mark_fd, "w");
+	if (!f) {
+		int saved_errno = errno;
+		rollback_lock_file(&mark_lock);
+		failure |= error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(saved_errno));
+		return;
 	}
-	free_notes(t);
-	return retval;
+
+	/*
+	 * Since the lock file was fdopen()'ed, it should not be close()'ed.
+	 * Assign -1 to the lock file descriptor so that commit_lock_file()
+	 * won't try to close() it.
+	 */
+	mark_lock.fd = -1;
+
+	dump_marks_helper(f, 0, marks);
+	if (ferror(f) || fclose(f)) {
+		int saved_errno = errno;
+		rollback_lock_file(&mark_lock);
+		failure |= error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(saved_errno));
+		return;
+	}
+
+	if (commit_lock_file(&mark_lock)) {
+		int saved_errno = errno;
+		rollback_lock_file(&mark_lock);
+		failure |= error("Unable to commit marks file %s: %s",
+			export_marks_file, strerror(saved_errno));
+		return;
+	}
 }

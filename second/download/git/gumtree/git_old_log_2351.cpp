@@ -1,2 +1,2 @@
-fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), sha1_to_hex(obj->sha1));
+error("unable to stat %s: %s",
+			     sha1_to_hex(sha1), strerror(errno));

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "Re-negotiation request failed");
+ap_rvputs(r, "<pre>(Default) <a href=\"", href, "\">", text,
+               "</a></pre>\n", NULL);

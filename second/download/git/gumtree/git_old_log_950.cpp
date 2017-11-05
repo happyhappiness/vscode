@@ -1,1 +1,2 @@
-die("unable to auto-detect email address (got '%s')", email);
+error("cannot run %s: %s", cmd->argv[0],
+					strerror(ENOENT));

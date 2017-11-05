@@ -1,31 +1,56 @@
-static int delete_pseudoref(const char *pseudoref, const unsigned char *old_sha1)
+static int pp_collect_finished(struct parallel_processes *pp)
 {
-	static struct lock_file lock;
-	const char *filename;
+	int i, code;
+	int n = pp->max_processes;
+	int result = 0;
 
-	filename = git_path("%s", pseudoref);
+	while (pp->nr_processes > 0) {
+		for (i = 0; i < pp->max_processes; i++)
+			if (pp->children[i].state == GIT_CP_WAIT_CLEANUP)
+				break;
+		if (i == pp->max_processes)
+			break;
 
-	if (old_sha1 && !is_null_sha1(old_sha1)) {
-		int fd;
-		unsigned char actual_old_sha1[20];
+		code = finish_command(&pp->children[i].process);
 
-		fd = hold_lock_file_for_update(&lock, filename,
-					       LOCK_DIE_ON_ERROR);
-		if (fd < 0)
-			die_errno(_("Could not open '%s' for writing"), filename);
-		if (read_ref(pseudoref, actual_old_sha1))
-			die("could not read ref '%s'", pseudoref);
-		if (hashcmp(actual_old_sha1, old_sha1)) {
-			warning("Unexpected sha1 when deleting %s", pseudoref);
-			rollback_lock_file(&lock);
-			return -1;
+		code = pp->task_finished(code,
+					 &pp->children[i].err, pp->data,
+					 &pp->children[i].data);
+
+		if (code)
+			result = code;
+		if (code < 0)
+			break;
+
+		pp->nr_processes--;
+		pp->children[i].state = GIT_CP_FREE;
+		pp->pfd[i].fd = -1;
+		child_process_init(&pp->children[i].process);
+
+		if (i != pp->output_owner) {
+			strbuf_addbuf(&pp->buffered_output, &pp->children[i].err);
+			strbuf_reset(&pp->children[i].err);
+		} else {
+			fputs(pp->children[i].err.buf, stderr);
+			strbuf_reset(&pp->children[i].err);
+
+			/* Output all other finished child processes */
+			fputs(pp->buffered_output.buf, stderr);
+			strbuf_reset(&pp->buffered_output);
+
+			/*
+			 * Pick next process to output live.
+			 * NEEDSWORK:
+			 * For now we pick it randomly by doing a round
+			 * robin. Later we may want to pick the one with
+			 * the most output or the longest or shortest
+			 * running process time.
+			 */
+			for (i = 0; i < n; i++)
+				if (pp->children[(pp->output_owner + i) % n].state == GIT_CP_WORKING)
+					break;
+			pp->output_owner = (pp->output_owner + i) % n;
 		}
-
-		unlink(filename);
-		rollback_lock_file(&lock);
-	} else {
-		unlink(filename);
 	}
-
-	return 0;
+	return result;
 }

@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, NULL, msg);
+apr_file_printf(errfile, " -D  Delete the specified user.\n");

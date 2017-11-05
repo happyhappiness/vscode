@@ -1,1 +1,1 @@
-packet_buf_write(&req_buf, "%s", item->string);
+die("BUG: prepare called on a closed reference transaction");

@@ -1,1 +1,1 @@
-die("internal error: packed-refs not locked");
+error("too many parameters");

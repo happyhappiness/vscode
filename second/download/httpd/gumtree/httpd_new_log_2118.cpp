@@ -1,0 +1,1 @@
+apr_file_printf(output, "    Resolves    : %d" NL, resolves);

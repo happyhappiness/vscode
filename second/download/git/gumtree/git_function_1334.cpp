@@ -1,25 +1,32 @@
-static void write_branch_report(FILE *rpt, struct branch *b)
+int ref_transaction_create(struct ref_transaction *transaction,
+			   const char *refname,
+			   const unsigned char *new_sha1,
+			   int flags, const char *msg,
+			   struct strbuf *err)
 {
-	fprintf(rpt, "%s:\n", b->name);
+	struct ref_update *update;
 
-	fprintf(rpt, "  status      :");
-	if (b->active)
-		fputs(" active", rpt);
-	if (b->branch_tree.tree)
-		fputs(" loaded", rpt);
-	if (is_null_sha1(b->branch_tree.versions[1].sha1))
-		fputs(" dirty", rpt);
-	fputc('\n', rpt);
+	assert(err);
 
-	fprintf(rpt, "  tip commit  : %s\n", sha1_to_hex(b->sha1));
-	fprintf(rpt, "  old tree    : %s\n", sha1_to_hex(b->branch_tree.versions[0].sha1));
-	fprintf(rpt, "  cur tree    : %s\n", sha1_to_hex(b->branch_tree.versions[1].sha1));
-	fprintf(rpt, "  commit clock: %" PRIuMAX "\n", b->last_commit);
+	if (transaction->state != REF_TRANSACTION_OPEN)
+		die("BUG: create called for transaction that is not open");
 
-	fputs("  last pack   : ", rpt);
-	if (b->pack_id < MAX_PACK_ID)
-		fprintf(rpt, "%u", b->pack_id);
-	fputc('\n', rpt);
+	if (!new_sha1 || is_null_sha1(new_sha1))
+		die("BUG: create ref with null new_sha1");
 
-	fputc('\n', rpt);
+	if (check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
+		strbuf_addf(err, "refusing to create ref with bad name %s",
+			    refname);
+		return -1;
+	}
+
+	update = add_update(transaction, refname);
+
+	hashcpy(update->new_sha1, new_sha1);
+	hashclr(update->old_sha1);
+	update->flags = flags;
+	update->have_old = 1;
+	if (msg)
+		update->msg = xstrdup(msg);
+	return 0;
 }

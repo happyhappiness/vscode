@@ -1,2 +1,2 @@
-printf("broken link from %7s %s\n",
-				 typename(parent->type), oid_to_hex(&parent->oid));
+error_errno("Couldn't truncate temporary file %s",
+					    freq->tmpfile);

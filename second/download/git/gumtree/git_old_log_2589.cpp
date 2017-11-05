@@ -1,1 +1,1 @@
-die("bad object %s", sha1_to_hex(tag->tagged->sha1));
+die("bug: unknown header field %d", p->field);

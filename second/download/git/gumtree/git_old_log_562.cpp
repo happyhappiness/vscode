@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");
+die("unable to read blob object %s", sha1_to_hex(sha1));

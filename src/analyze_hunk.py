@@ -117,4 +117,4 @@ main function
 """
 if __name__ == "__main__":
     fetch_hunk()
-    gumtree_api.close_jvm()
+    # gumtree_api.close_jvm()

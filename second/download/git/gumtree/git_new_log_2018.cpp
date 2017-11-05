@@ -1,1 +1,1 @@
-die("unable to generate word diff");
+die(_("format: %%(end) atom used without corresponding atom"));

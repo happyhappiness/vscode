@@ -1,1 +1,1 @@
-die("unable to generate diff");
+die("bad tree %s", oid_to_hex(&obj->oid));

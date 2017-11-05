@@ -1,1 +1,1 @@
-error(_("failed to read %s"), patch->old_name);
+die("Failed to read ref NOTES_MERGE_PARTIAL");

@@ -1,1 +1,2 @@
-die("BUG: parse_object_buffer transmogrified our buffer");
+die("expected commit for %s, got %s",
+			    sha1_to_hex(commit->object.sha1), typename(type));

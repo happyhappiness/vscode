@@ -1,0 +1,1 @@
+error("duplicate parent %s ignored", sha1_to_hex(sha1));

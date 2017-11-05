@@ -1,1 +1,2 @@
-die(_("--stdin requires a git repository"));
+die("unknown mode for --abbrev-ref: %s",
+						    arg);

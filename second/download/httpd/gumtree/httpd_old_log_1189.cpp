@@ -1,1 +1,0 @@
-fprintf(stderr, cmnt + 1);

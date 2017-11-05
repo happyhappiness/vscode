@@ -1,2 +1,2 @@
-die("BUG: caller miscounted postlen: asked %d, orig = %d, used = %d",
-		    (int)postlen, (int) postimage->len, (int)(new - postimage->buf));
+strbuf_addf(err, "unable to append to %s: %s",
+				    logfile->buf, strerror(errno));

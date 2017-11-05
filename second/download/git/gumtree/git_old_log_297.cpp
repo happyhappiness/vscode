@@ -1,2 +1,2 @@
-warning(_("%s has type %o, expected %o"),
-			old_name, st_mode, patch->old_mode);
+warning("ignoring %s; cannot handle more than %d refs",
+			refname, MAX_REVS);

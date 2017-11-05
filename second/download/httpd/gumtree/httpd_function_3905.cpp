@@ -1,206 +1,85 @@
-static content_type *analyze_ct(request_rec *r, const char *s)
+static int proxy_ftp_canon(request_rec *r, char *url)
 {
-    const char *cp, *mp;
-    char *attribute, *value;
-    int quoted = 0;
-    server_rec * ss = r->server;
-    apr_pool_t * p = r->pool;
+    char *user, *password, *host, *path, *parms, *strp, sport[7];
+    apr_pool_t *p = r->pool;
+    const char *err;
+    apr_port_t port, def_port;
 
-    content_type *ctp;
-    param *pp, *npp;
+    /* */
+    if (strncasecmp(url, "ftp:", 4) == 0) {
+        url += 4;
+    }
+    else {
+        return DECLINED;
+    }
+    def_port = apr_uri_port_of_scheme("ftp");
 
-    /* initialize ctp */
-    ctp = (content_type *)apr_palloc(p, sizeof(content_type));
-    ctp->type = NULL;
-    ctp->subtype = NULL;
-    ctp->param = NULL;
+    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, r->server,
+                 "proxy: FTP: canonicalising URL %s", url);
 
-    mp = s;
+    port = def_port;
+    err = ap_proxy_canon_netloc(p, &url, &user, &password, &host, &port);
+    if (err)
+        return HTTP_BAD_REQUEST;
+    if (user != NULL && !ftp_check_string(user))
+        return HTTP_BAD_REQUEST;
+    if (password != NULL && !ftp_check_string(password))
+        return HTTP_BAD_REQUEST;
 
-    /* getting a type */
-    cp = mp;
-    while (apr_isspace(*cp)) {
-        cp++;
+    /* now parse path/parameters args, according to rfc1738 */
+    /*
+     * N.B. if this isn't a true proxy request, then the URL path (but not
+     * query args) has already been decoded. This gives rise to the problem
+     * of a ; being decoded into the path.
+     */
+    strp = strchr(url, ';');
+    if (strp != NULL) {
+        *(strp++) = '\0';
+        parms = ap_proxy_canonenc(p, strp, strlen(strp), enc_parm, 0,
+                                  r->proxyreq);
+        if (parms == NULL)
+            return HTTP_BAD_REQUEST;
     }
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "mod_mime: analyze_ct: cannot get media type from '%s'",
-                     (const char *) mp);
-        return (NULL);
-    }
-    ctp->type = cp;
-    do {
-        cp++;
-    } while (*cp && (*cp != '/') && !apr_isspace(*cp) && (*cp != ';'));
-    if (!*cp || (*cp == ';')) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "Cannot get media type from '%s'",
-                     (const char *) mp);
-        return (NULL);
-    }
-    while (apr_isspace(*cp)) {
-        cp++;
-    }
-    if (*cp != '/') {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "mod_mime: analyze_ct: cannot get media type from '%s'",
-                     (const char *) mp);
-        return (NULL);
-    }
-    ctp->type_len = cp - ctp->type;
+    else
+        parms = "";
 
-    cp++; /* skip the '/' */
+    path = ap_proxy_canonenc(p, url, strlen(url), enc_path, 0, r->proxyreq);
+    if (path == NULL)
+        return HTTP_BAD_REQUEST;
+    if (!ftp_check_string(path))
+        return HTTP_BAD_REQUEST;
 
-    /* getting a subtype */
-    while (apr_isspace(*cp)) {
-        cp++;
-    }
-    if (!*cp) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "Cannot get media subtype.");
-        return (NULL);
-    }
-    ctp->subtype = cp;
-    do {
-        cp++;
-    } while (*cp && !apr_isspace(*cp) && (*cp != ';'));
-    ctp->subtype_len = cp - ctp->subtype;
-    while (apr_isspace(*cp)) {
-        cp++;
-    }
-
-    if (*cp == '\0') {
-        return (ctp);
-    }
-
-    /* getting parameters */
-    cp++; /* skip the ';' */
-    cp = zap_sp(cp);
-    if (cp == NULL || *cp == '\0') {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                     "Cannot get media parameter.");
-        return (NULL);
-    }
-    mp = cp;
-    attribute = NULL;
-    value = NULL;
-
-    while (cp != NULL && *cp != '\0') {
-        if (attribute == NULL) {
-            if (is_token(*cp) > 0) {
-                cp++;
-                continue;
-            }
-            else if (*cp == ' ' || *cp == '\t' || *cp == '\n') {
-                cp++;
-                continue;
-            }
-            else if (*cp == '=') {
-                attribute = zap_sp_and_dup(p, mp, cp, NULL);
-                if (attribute == NULL || *attribute == '\0') {
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                 "Cannot get media parameter.");
-                    return (NULL);
-                }
-                cp++;
-                cp = zap_sp(cp);
-                if (cp == NULL || *cp == '\0') {
-                    ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                 "Cannot get media parameter.");
-                    return (NULL);
-                }
-                mp = cp;
-                continue;
-            }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                             "Cannot get media parameter.");
-                return (NULL);
-            }
+    if (r->proxyreq && r->args != NULL) {
+        if (strp != NULL) {
+            strp = ap_proxy_canonenc(p, r->args, strlen(r->args), enc_parm, 1, r->proxyreq);
+            if (strp == NULL)
+                return HTTP_BAD_REQUEST;
+            parms = apr_pstrcat(p, parms, "?", strp, NULL);
         }
         else {
-            if (mp == cp) {
-                if (*cp == '"') {
-                    quoted = 1;
-                    cp++;
-                }
-                else {
-                    quoted = 0;
-                }
-            }
-            if (quoted > 0) {
-                while (quoted && *cp != '\0') {
-                    if (is_qtext(*cp) > 0) {
-                        cp++;
-                    }
-                    else if (is_quoted_pair(cp) > 0) {
-                        cp += 2;
-                    }
-                    else if (*cp == '"') {
-                        cp++;
-                        while (*cp == ' ' || *cp == '\t' || *cp == '\n') {
-                            cp++;
-                        }
-                        if (*cp != ';' && *cp != '\0') {
-                            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                         "Cannot get media parameter.");
-                            return(NULL);
-                        }
-                        quoted = 0;
-                    }
-                    else {
-                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                     "Cannot get media parameter.");
-                        return (NULL);
-                    }
-                }
-            }
-            else {
-                while (1) {
-                    if (is_token(*cp) > 0) {
-                        cp++;
-                    }
-                    else if (*cp == '\0' || *cp == ';') {
-                        break;
-                    }
-                    else {
-                        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                                     "Cannot get media parameter.");
-                        return (NULL);
-                    }
-                }
-            }
-            value = zap_sp_and_dup(p, mp, cp, NULL);
-            if (value == NULL || *value == '\0') {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss,
-                             "Cannot get media parameter.");
-                return (NULL);
-            }
-
-            pp = apr_palloc(p, sizeof(param));
-            pp->attr = attribute;
-            pp->val = value;
-            pp->next = NULL;
-
-            if (ctp->param == NULL) {
-                ctp->param = pp;
-            }
-            else {
-                npp = ctp->param;
-                while (npp->next) {
-                    npp = npp->next;
-                }
-                npp->next = pp;
-            }
-            quoted = 0;
-            attribute = NULL;
-            value = NULL;
-            if (*cp == '\0') {
-                break;
-            }
-            cp++;
-            mp = cp;
+            strp = ap_proxy_canonenc(p, r->args, strlen(r->args), enc_fpath, 1, r->proxyreq);
+            if (strp == NULL)
+                return HTTP_BAD_REQUEST;
+            path = apr_pstrcat(p, path, "?", strp, NULL);
         }
+        r->args = NULL;
     }
-    return (ctp);
+
+/* now, rebuild URL */
+
+    if (port != def_port)
+        apr_snprintf(sport, sizeof(sport), ":%d", port);
+    else
+        sport[0] = '\0';
+
+    if (ap_strchr_c(host, ':')) { /* if literal IPv6 address */
+        host = apr_pstrcat(p, "[", host, "]", NULL);
+    }
+    r->filename = apr_pstrcat(p, "proxy:ftp://", (user != NULL) ? user : "",
+                              (password != NULL) ? ":" : "",
+                              (password != NULL) ? password : "",
+                          (user != NULL) ? "@" : "", host, sport, "/", path,
+                              (parms[0] != '\0') ? ";" : "", parms, NULL);
+
+    return OK;
 }

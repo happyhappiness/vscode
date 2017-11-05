@@ -1,3 +1,2 @@
-die("unable to generate diff (%s -> %s)",
-		    sha1_to_hex(parent->commit->object.sha1),
-		    sha1_to_hex(target->commit->object.sha1));
+fprintf(stderr, "Found bitmap for %s. %d bits / %08x checksum\n",
+			oid_to_hex(&root->oid), (int)bm->bit_size, ewah_checksum(bm));

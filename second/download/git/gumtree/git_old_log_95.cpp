@@ -1,1 +1,0 @@
-die("delete %s missing [<oldvalue>] NUL", ref.buf);

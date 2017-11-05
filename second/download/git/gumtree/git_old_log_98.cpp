@@ -1,1 +1,1 @@
-die("verify line missing <ref>");
+fputs(str, stream);

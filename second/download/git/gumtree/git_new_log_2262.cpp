@@ -1,1 +1,1 @@
-die("unable to generate diff");
+die(_("Could not find exact merge base."));

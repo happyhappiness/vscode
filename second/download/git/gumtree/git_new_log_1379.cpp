@@ -1,1 +1,2 @@
-die(_("unable to parse object: %s"), name ? name : oid_to_hex(oid));
+die("sha1 information is lacking or useless for submodule %s",
+				    name);

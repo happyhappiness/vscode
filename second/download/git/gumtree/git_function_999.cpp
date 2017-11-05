@@ -1,10 +1,17 @@
-static void git_config_date_string(const char *key, const char **output)
+static void show_submodule(struct repository *superproject,
+			   struct dir_struct *dir, const char *path)
 {
-	if (git_config_get_string_const(key, output))
+	struct repository submodule;
+
+	if (repo_submodule_init(&submodule, superproject, path))
 		return;
-	if (strcmp(*output, "now")) {
-		unsigned long now = approxidate("now");
-		if (approxidate(*output) >= now)
-			git_die_config(key, _("Invalid %s: '%s'"), key, *output);
-	}
+
+	if (repo_read_index(&submodule) < 0)
+		die("index file corrupt");
+
+	repo_read_gitmodules(&submodule);
+
+	show_files(&submodule, dir);
+
+	repo_clear(&submodule);
 }

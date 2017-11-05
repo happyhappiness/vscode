@@ -1,2 +1,1 @@
-error("Unable to commit marks file %s: %s",
-			export_marks_file, strerror(saved_errno));
+packet_write(1, "%s %s\n", sha1_to_hex(sha1), refname_nons);

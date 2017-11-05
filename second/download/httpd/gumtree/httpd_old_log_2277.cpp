@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
-                     "Child %lu: Unable to retrieve the ready event from the parent", my_pid);
+ap_rvputs(r, xhtml ? DOCTYPE_XHTML_1_0T : DOCTYPE_HTML_3_2,
+              "<html>\n <head>\n  <title>Index of ", title,
+              "</title>\n", NULL);

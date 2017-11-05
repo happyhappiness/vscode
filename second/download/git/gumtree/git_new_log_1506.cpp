@@ -1,2 +1,3 @@
-git_die_config("gc.pruneexpire", _("Invalid gc.pruneexpire: '%s'"),
-						prune_expire);
+printf("symlink %"PRIuMAX"\n%s\n",
+		       (uintmax_t)ctx.symlink_path.len,
+		       ctx.symlink_path.buf);

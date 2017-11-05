@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
-                         "mod_file_cache: unable to mmap %s, skipping", filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, cmd->server,
+                         "LDAP: Could not open SSL trusted certificate "
+                         "authority file - %s",
+                         cert->path == NULL ? file : cert->path);

@@ -1,1 +1,1 @@
-die("BUG: invalid protocol_allow_config type");
+die(_("Cannot change to '%s'"), dir.buf);

@@ -1,1 +1,0 @@
-die("could not close alternates file");

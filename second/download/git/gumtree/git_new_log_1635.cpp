@@ -1,2 +1,2 @@
-error("unable to stat %s: %s",
-			     sha1_to_hex(sha1), strerror(errno));
+warning("protocol restrictions not applied to curl redirects because\n"
+			"your curl version is too old (>= 7.19.4)");

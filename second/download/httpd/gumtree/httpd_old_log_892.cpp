@@ -1,1 +1,1 @@
-fprintf (stderr, " %d", *++ssp1);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);

@@ -1,3 +1,1 @@
-error(remote_branch
-			      ? _("remote branch '%s' not found.")
-			      : _("branch '%s' not found."), bname.buf);
+fprintf(stderr, " which contains %s\n", sha1_to_hex(request->obj->sha1));

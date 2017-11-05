@@ -1,1 +1,1 @@
-die(_("expected format: %%(color:<color>)"));
+vfprintf(stderr, fmt, ap);

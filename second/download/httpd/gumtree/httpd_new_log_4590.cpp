@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, res, r, APLOGNO(01825)
-                "the passphrase '%s' was empty", passphrase);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00210) "sigaction(SIGINT)");

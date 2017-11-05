@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, c,
-                      H2_SSSN_LOG(APLOGNO(03199), session, 
-                      "connection disappeared without proper "
-                      "goodbye, clients will be confused, should not happen"));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  "from notes: user: %s, pw: %s, method: %s, mimetype: %s",
+                  user ? *user : "<null>", pw ? *pw : "<null>",
+                  method ? *method : "<null>", mimetype ? *mimetype : "<null>");

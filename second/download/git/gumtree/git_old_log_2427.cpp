@@ -1,1 +1,1 @@
-error(_("switch 'points-at' requires an object"));
+fprintf(porcelain ? stdout : stderr, "To %s\n", dest);

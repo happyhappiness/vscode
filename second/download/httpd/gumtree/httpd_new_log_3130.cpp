@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01781)
-                          "client used wrong authentication scheme `%s': %s",
-                          resp->scheme, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00595)
+                      "Depth must be 0 or \"infinity\" for LOCK.");

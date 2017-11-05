@@ -1,1 +1,1 @@
-die("git-cvsserver only handles server: %s", arg);
+die(_("in unpopulated submodule '%s'"), ce->name);

@@ -1,2 +1,1 @@
-die(_("Invalid pathspec magic '%.*s' in '%s'"),
-			    (int) len, pos, elem);
+die("submodule--helper is-active takes exactly 1 argument");

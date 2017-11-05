@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
-                        "Could not open group file: %s",
-                        conf->groupfile);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "missing closing endif directive in parsed document"
+                          " %s", r->filename);

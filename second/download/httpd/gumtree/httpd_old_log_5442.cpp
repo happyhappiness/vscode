@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "client sent an unrecognized expectation value of "
-                          "Expect: %s", expect);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "adding h1_to_h2_resp output filter");

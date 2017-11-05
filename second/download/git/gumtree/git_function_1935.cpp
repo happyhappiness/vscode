@@ -1,7 +1,9 @@
-static inline size_t st_mult(size_t a, size_t b)
+static void send_git_request(int stdin_fd, const char *serv, const char *repo,
+	const char *vhost)
 {
-	if (unsigned_mult_overflows(a, b))
-		die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
-	return a * b;
+	if (!vhost)
+		packet_write(stdin_fd, "%s %s%c", serv, repo, 0);
+	else
+		packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
+			     vhost, 0);
 }

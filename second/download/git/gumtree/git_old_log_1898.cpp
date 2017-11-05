@@ -1,2 +1,1 @@
-die("an empty %s object %s?",
-		    typename(type), sha1_to_hex(sha1));
+printf("tagged %s %s", typename(tag->tagged->type), sha1_to_hex(tag->tagged->sha1));

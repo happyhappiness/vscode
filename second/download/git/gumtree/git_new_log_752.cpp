@@ -1,4 +1,1 @@
-die(_("unable to update url base from redirection:\n"
-		      "  asked for: %s\n"
-		      "   redirect: %s"),
-		    asked, got->buf);
+die(_("unable to auto-detect email address (got '%s')"), email);

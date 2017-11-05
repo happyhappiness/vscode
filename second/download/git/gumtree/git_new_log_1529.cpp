@@ -1,1 +1,1 @@
-rmdir(path);
+die("--git-path requires an argument");

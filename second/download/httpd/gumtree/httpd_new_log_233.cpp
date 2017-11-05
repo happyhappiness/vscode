@@ -1,2 +1,2 @@
-ap_register_output_filter("MOD_EXPIRES", expires_filter, NULL,
-                              AP_FTYPE_CONTENT_SET);
+fprintf(stderr, "%s: must include a wildcard pattern "
+                    "for Include %s\n", ap_server_argv0, fname);

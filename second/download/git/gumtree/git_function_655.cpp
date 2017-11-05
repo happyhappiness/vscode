@@ -1,70 +1,24 @@
-static int link_alt_odb_entry(const char *entry, const char *relative_base,
-	int depth, const char *normalized_objdir)
+static int error_with_patch(struct commit *commit,
+	const char *subject, int subject_len,
+	struct replay_opts *opts, int exit_code, int to_amend)
 {
-	struct alternate_object_database *ent;
-	struct alternate_object_database *alt;
-	size_t pfxlen, entlen;
-	struct strbuf pathbuf = STRBUF_INIT;
-
-	if (!is_absolute_path(entry) && relative_base) {
-		strbuf_addstr(&pathbuf, real_path(relative_base));
-		strbuf_addch(&pathbuf, '/');
-	}
-	strbuf_addstr(&pathbuf, entry);
-
-	normalize_path_copy(pathbuf.buf, pathbuf.buf);
-
-	pfxlen = strlen(pathbuf.buf);
-
-	/*
-	 * The trailing slash after the directory name is given by
-	 * this function at the end. Remove duplicates.
-	 */
-	while (pfxlen && pathbuf.buf[pfxlen-1] == '/')
-		pfxlen -= 1;
-
-	entlen = st_add(pfxlen, 43); /* '/' + 2 hex + '/' + 38 hex + NUL */
-	ent = xmalloc(st_add(sizeof(*ent), entlen));
-	memcpy(ent->base, pathbuf.buf, pfxlen);
-	strbuf_release(&pathbuf);
-
-	ent->name = ent->base + pfxlen + 1;
-	ent->base[pfxlen + 3] = '/';
-	ent->base[pfxlen] = ent->base[entlen-1] = 0;
-
-	/* Detect cases where alternate disappeared */
-	if (!is_directory(ent->base)) {
-		error("object directory %s does not exist; "
-		      "check .git/objects/info/alternates.",
-		      ent->base);
-		free(ent);
+	if (make_patch(commit, opts))
 		return -1;
-	}
 
-	/* Prevent the common mistake of listing the same
-	 * thing twice, or object directory itself.
-	 */
-	for (alt = alt_odb_list; alt; alt = alt->next) {
-		if (pfxlen == alt->name - alt->base - 1 &&
-		    !memcmp(ent->base, alt->base, pfxlen)) {
-			free(ent);
+	if (to_amend) {
+		if (intend_to_amend())
 			return -1;
-		}
-	}
-	if (!fspathcmp(ent->base, normalized_objdir)) {
-		free(ent);
-		return -1;
-	}
 
-	/* add the alternate entry */
-	*alt_odb_tail = ent;
-	alt_odb_tail = &(ent->next);
-	ent->next = NULL;
+		fprintf(stderr, "You can amend the commit now, with\n"
+			"\n"
+			"  git commit --amend %s\n"
+			"\n"
+			"Once you are satisfied with your changes, run\n"
+			"\n"
+			"  git rebase --continue\n", gpg_sign_opt_quoted(opts));
+	} else if (exit_code)
+		fprintf(stderr, "Could not apply %s... %.*s\n",
+			short_commit_name(commit), subject_len, subject);
 
-	/* recursively add alternates */
-	read_info_alternates(ent->base, depth + 1);
-
-	ent->base[pfxlen] = '/';
-
-	return 0;
+	return exit_code;
 }

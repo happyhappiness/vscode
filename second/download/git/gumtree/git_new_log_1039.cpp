@@ -1,2 +1,3 @@
-error(_("unknown core.untrackedCache value '%s'; "
-			"using 'keep' default value"), v);
+fprintf(stderr, "cache-tree <%.*s> (%d ent, %d subtree) %s\n",
+			pathlen, path, it->entry_count, it->subtree_nr,
+			oid_to_hex(&it->oid));

@@ -1,42 +1,23 @@
-void shortlog_add_commit(struct shortlog *log, struct commit *commit)
+static void NORETURN die_verify_filename(const char *prefix,
+					 const char *arg,
+					 int diagnose_misspelt_rev)
 {
-	const char *author = NULL, *buffer;
-	struct strbuf buf = STRBUF_INIT;
-	struct strbuf ufbuf = STRBUF_INIT;
+	if (!diagnose_misspelt_rev)
+		die("%s: no such path in the working tree.\n"
+		    "Use 'git <command> -- <path>...' to specify paths that do not exist locally.",
+		    arg);
+	/*
+	 * Saying "'(icase)foo' does not exist in the index" when the
+	 * user gave us ":(icase)foo" is just stupid.  A magic pathspec
+	 * begins with a colon and is followed by a non-alnum; do not
+	 * let maybe_die_on_misspelt_object_name() even trigger.
+	 */
+	if (!(arg[0] == ':' && !isalnum(arg[1])))
+		maybe_die_on_misspelt_object_name(arg, prefix);
 
-	pp_commit_easy(CMIT_FMT_RAW, commit, &buf);
-	buffer = buf.buf;
-	while (*buffer && *buffer != '\n') {
-		const char *eol = strchr(buffer, '\n');
+	/* ... or fall back the most general message. */
+	die("ambiguous argument '%s': unknown revision or path not in the working tree.\n"
+	    "Use '--' to separate paths from revisions, like this:\n"
+	    "'git <command> [<revision>...] -- [<file>...]'", arg);
 
-		if (eol == NULL)
-			eol = buffer + strlen(buffer);
-		else
-			eol++;
-
-		if (starts_with(buffer, "author "))
-			author = buffer + 7;
-		buffer = eol;
-	}
-	if (!author) {
-		warning(_("Missing author: %s"),
-		    oid_to_hex(&commit->object.oid));
-		return;
-	}
-	if (log->user_format) {
-		struct pretty_print_context ctx = {0};
-		ctx.fmt = CMIT_FMT_USERFORMAT;
-		ctx.abbrev = log->abbrev;
-		ctx.subject = "";
-		ctx.after_subject = "";
-		ctx.date_mode.type = DATE_NORMAL;
-		ctx.output_encoding = get_log_output_encoding();
-		pretty_print_commit(&ctx, commit, &ufbuf);
-		buffer = ufbuf.buf;
-	} else if (*buffer) {
-		buffer++;
-	}
-	insert_one_record(log, author, !*buffer ? "<none>" : buffer);
-	strbuf_release(&ufbuf);
-	strbuf_release(&buf);
 }

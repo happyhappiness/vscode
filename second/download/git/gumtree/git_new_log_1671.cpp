@@ -1,4 +1,4 @@
-packet_buf_write(&req_buf,
-					 "%s %s %s%c%s",
-					 old_hex, new_hex, ref->name, 0,
-					 cap_buf.buf);
+fprintf(stderr, "The merge base %s is %s.\n"
+				"This means the first '%s' commit is "
+				"between %s and [%s].\n",
+				bad_hex, term_bad, term_good, bad_hex, good_hex);

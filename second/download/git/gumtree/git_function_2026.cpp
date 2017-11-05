@@ -1,15 +1,38 @@
-void set_git_work_tree(const char *new_work_tree)
+void show_ref_array_item(struct ref_array_item *info, const char *format, int quote_style)
 {
-	if (git_work_tree_initialized) {
-		new_work_tree = real_path(new_work_tree);
-		if (strcmp(new_work_tree, work_tree))
-			die("internal error: work tree has already been set\n"
-			    "Current worktree: %s\nNew worktree: %s",
-			    work_tree, new_work_tree);
-		return;
+	const char *cp, *sp, *ep;
+	struct strbuf *final_buf;
+	struct ref_formatting_state state = REF_FORMATTING_STATE_INIT;
+
+	state.quote_style = quote_style;
+	push_stack_element(&state.stack);
+
+	for (cp = format; *cp && (sp = find_next(cp)); cp = ep + 1) {
+		struct atom_value *atomv;
+
+		ep = strchr(sp, ')');
+		if (cp < sp)
+			append_literal(cp, sp, &state);
+		get_ref_atom_value(info, parse_ref_filter_atom(sp + 2, ep), &atomv);
+		atomv->handler(atomv, &state);
 	}
-	git_work_tree_initialized = 1;
-	work_tree = xstrdup(real_path(new_work_tree));
-	if (setenv(GIT_WORK_TREE_ENVIRONMENT, work_tree, 1))
-		die("could not set GIT_WORK_TREE to '%s'", work_tree);
+	if (*cp) {
+		sp = cp + strlen(cp);
+		append_literal(cp, sp, &state);
+	}
+	if (need_color_reset_at_eol) {
+		struct atom_value resetv;
+		char color[COLOR_MAXLEN] = "";
+
+		if (color_parse("reset", color) < 0)
+			die("BUG: couldn't parse 'reset' as a color");
+		resetv.s = color;
+		append_atom(&resetv, &state);
+	}
+	if (state.stack->prev)
+		die(_("format: %%(end) atom missing"));
+	final_buf = &state.stack->output;
+	fwrite(final_buf->buf, 1, final_buf->len, stdout);
+	pop_stack_element(&state.stack);
+	putchar('\n');
 }

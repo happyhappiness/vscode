@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                  "h2_stream(%ld-%d): on_resume", session->id, stream->id);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, status, NULL, APLOGNO(00103)
+                     "piped_log_spawn: unable to setup child process '%s'",
+                     pl->program);

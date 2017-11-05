@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(01923)
-                          "could not retrieve OCSP basic response");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00371)
+                     "%s: Failed to store the ConfigArgs in the registry.",
+                     mpm_display_name);

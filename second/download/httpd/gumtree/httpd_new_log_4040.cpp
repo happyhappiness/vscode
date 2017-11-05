@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, status, srv, APLOGNO(01497)
-                         "write: rfc1413: error sending request");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00934)
+                      "all workers are busy.  Unable to serve %s", *url);

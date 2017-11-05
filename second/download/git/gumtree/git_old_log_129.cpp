@@ -1,1 +1,1 @@
-fputs(str, stream);
+error(str, updates[i]->ref_name);

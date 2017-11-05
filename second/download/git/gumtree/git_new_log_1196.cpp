@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+die(_("unable to parse default color value"));

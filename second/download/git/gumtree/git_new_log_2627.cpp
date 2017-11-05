@@ -1,1 +1,1 @@
-die_errno("Could not open '%s'", path);
+maybe_flush_or_die(opt->diffopt.file, "stdout");

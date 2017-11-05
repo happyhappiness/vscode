@@ -1,1 +1,1 @@
-error("invalid key: %s", key);
+printf_ln(_("Patch is empty. Was it split wrong?"));

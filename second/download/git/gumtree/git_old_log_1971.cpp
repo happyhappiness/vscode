@@ -1,1 +1,2 @@
-packet_write(fd, "shallow %s\n", sha1_to_hex(graft->sha1));
+error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));

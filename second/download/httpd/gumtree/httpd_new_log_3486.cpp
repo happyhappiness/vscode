@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00786)
-                         "Failed to Parse memcache Server: '%s'", split);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(01479) "FOO!");

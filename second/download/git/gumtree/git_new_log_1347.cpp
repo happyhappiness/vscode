@@ -1,1 +1,1 @@
-die("Can't read object %s", oid_to_hex(oid));
+die(_("the receiving end does not support --signed push"));

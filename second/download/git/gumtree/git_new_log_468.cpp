@@ -1,1 +1,1 @@
-die(_("no such ref %s"), *av);
+error(_("invalid value for %s: %s"), key, value);

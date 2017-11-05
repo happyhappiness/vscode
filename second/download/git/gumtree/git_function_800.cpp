@@ -1,62 +1,40 @@
-static int show_ref(const char *refname, const struct object_id *oid,
-		    int flag, void *cbdata)
+static int too_many_loose_objects(void)
 {
-	const char *hex;
-	struct object_id peeled;
-
-	if (show_head && !strcmp(refname, "HEAD"))
-		goto match;
-
-	if (tags_only || heads_only) {
-		int match;
-
-		match = heads_only && starts_with(refname, "refs/heads/");
-		match |= tags_only && starts_with(refname, "refs/tags/");
-		if (!match)
-			return 0;
-	}
-	if (pattern) {
-		int reflen = strlen(refname);
-		const char **p = pattern, *m;
-		while ((m = *p++) != NULL) {
-			int len = strlen(m);
-			if (len > reflen)
-				continue;
-			if (memcmp(m, refname + reflen - len, len))
-				continue;
-			if (len == reflen)
-				goto match;
-			/* "--verify" requires an exact match */
-			if (verify)
-				continue;
-			if (refname[reflen - len - 1] == '/')
-				goto match;
-		}
-		return 0;
-	}
-
-match:
-	found_match++;
-
-	/* This changes the semantics slightly that even under quiet we
-	 * detect and return error if the repository is corrupt and
-	 * ref points at a nonexistent object.
+	/*
+	 * Quickly check if a "gc" is needed, by estimating how
+	 * many loose objects there are.  Because SHA-1 is evenly
+	 * distributed, we can check only one and get a reasonable
+	 * estimate.
 	 */
-	if (!has_sha1_file(oid->hash))
-		die("git show-ref: bad ref %s (%s)", refname,
-		    oid_to_hex(oid));
+	char path[PATH_MAX];
+	const char *objdir = get_object_directory();
+	DIR *dir;
+	struct dirent *ent;
+	int auto_threshold;
+	int num_loose = 0;
+	int needed = 0;
 
-	if (quiet)
+	if (gc_auto_threshold <= 0)
 		return 0;
 
-	show_one(refname, oid);
-
-	if (!deref_tags)
+	if (sizeof(path) <= snprintf(path, sizeof(path), "%s/17", objdir)) {
+		warning(_("insanely long object directory %.*s"), 50, objdir);
 		return 0;
-
-	if (!peel_ref(refname, peeled.hash)) {
-		hex = find_unique_abbrev(peeled.hash, abbrev);
-		printf("%s %s^{}\n", hex, refname);
 	}
-	return 0;
+	dir = opendir(path);
+	if (!dir)
+		return 0;
+
+	auto_threshold = (gc_auto_threshold + 255) / 256;
+	while ((ent = readdir(dir)) != NULL) {
+		if (strspn(ent->d_name, "0123456789abcdef") != 38 ||
+		    ent->d_name[38] != '\0')
+			continue;
+		if (++num_loose > auto_threshold) {
+			needed = 1;
+			break;
+		}
+	}
+	closedir(dir);
+	return needed;
 }

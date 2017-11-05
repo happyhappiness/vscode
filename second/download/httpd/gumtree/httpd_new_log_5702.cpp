@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, parms->server, APLOGNO(02532)
-                             "%s: Protocol '%s' overrides already set parameter(s). "
-                             "Check if a +/- prefix is missing.",
-                             parms->cmd->name, w);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00175)
+                         "WARNING: ServerLimit of %d exceeds compile-time "
+                         "limit of %d servers, decreasing to %d.",
+                         server_limit, MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);

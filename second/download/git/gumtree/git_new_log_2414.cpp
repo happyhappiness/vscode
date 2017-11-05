@@ -1,2 +1,1 @@
-warning(_("Missing author: %s"),
-		    oid_to_hex(&commit->object.oid));
+error(_("cannot abort from a branch yet to be born"));

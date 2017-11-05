@@ -1,1 +1,2 @@
-die("'%s' is not a valid ref name.", ref);
+error(_("no note found for object %s."),
+			       sha1_to_hex(object));

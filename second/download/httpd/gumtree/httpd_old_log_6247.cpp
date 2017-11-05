@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
-                                         ap_server_conf,
-                                         "Failed to create transaction pool");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03401)
+                          "h2_session(%ld): conn error -> shutdown", session->id);

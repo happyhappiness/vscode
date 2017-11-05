@@ -1,7 +1,10 @@
-int cmd_remote_ext(int argc, const char **argv, const char *prefix)
+FILE *fdopen_lock_file(struct lock_file *lk, const char *mode)
 {
-	if (argc != 3)
-		die("Expected two arguments");
+	if (!lk->active)
+		die("BUG: fdopen_lock_file() called for unlocked object");
+	if (lk->fp)
+		die("BUG: fdopen_lock_file() called twice for file '%s'", lk->filename.buf);
 
-	return command_loop(argv[2]);
+	lk->fp = fdopen(lk->fd, mode);
+	return lk->fp;
 }

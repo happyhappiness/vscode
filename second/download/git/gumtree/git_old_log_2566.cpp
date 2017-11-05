@@ -1,1 +1,1 @@
-die("BUG: commit called for transaction that is not open");
+die(_("bad numeric config value '%s' for '%s': %s"), value, name, reason);

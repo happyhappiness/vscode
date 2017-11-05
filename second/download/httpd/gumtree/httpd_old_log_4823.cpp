@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                         "Init: Requesting pass phrase via piped dialog");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                             "apr_thread_join: unable to join worker "
+                             "thread %d",
+                             i);

@@ -1,2 +1,1 @@
-fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
+die_errno("can't find the current directory");

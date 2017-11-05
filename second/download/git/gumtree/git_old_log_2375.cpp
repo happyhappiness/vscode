@@ -1,2 +1,1 @@
-die("cannot convert from %s to %s",
-		    charset, metainfo_charset);
+fputs(pp->buffered_output.buf, stderr);

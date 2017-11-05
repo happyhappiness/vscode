@@ -1,2 +1,1 @@
-error("unable to generate patch-id diff for %s",
-				     p->one->path);
+die(_("improper format entered align:%s"), s[0]->buf);

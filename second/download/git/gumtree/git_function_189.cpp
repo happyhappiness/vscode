@@ -1,51 +1,106 @@
-static void wt_status_print_unmerged_header(struct wt_status *s)
+static struct fragment *parse_binary_hunk(struct apply_state *state,
+					  char **buf_p,
+					  unsigned long *sz_p,
+					  int *status_p,
+					  int *used_p)
 {
-	int i;
-	int del_mod_conflict = 0;
-	int both_deleted = 0;
-	int not_deleted = 0;
-	const char *c = color(WT_STATUS_HEADER, s);
+	/*
+	 * Expect a line that begins with binary patch method ("literal"
+	 * or "delta"), followed by the length of data before deflating.
+	 * a sequence of 'length-byte' followed by base-85 encoded data
+	 * should follow, terminated by a newline.
+	 *
+	 * Each 5-byte sequence of base-85 encodes up to 4 bytes,
+	 * and we would limit the patch line to 66 characters,
+	 * so one line can fit up to 13 groups that would decode
+	 * to 52 bytes max.  The length byte 'A'-'Z' corresponds
+	 * to 1-26 bytes, and 'a'-'z' corresponds to 27-52 bytes.
+	 */
+	int llen, used;
+	unsigned long size = *sz_p;
+	char *buffer = *buf_p;
+	int patch_method;
+	unsigned long origlen;
+	char *data = NULL;
+	int hunk_size = 0;
+	struct fragment *frag;
 
-	status_printf_ln(s, c, _("Unmerged paths:"));
+	llen = linelen(buffer, size);
+	used = llen;
 
-	for (i = 0; i < s->change.nr; i++) {
-		struct string_list_item *it = &(s->change.items[i]);
-		struct wt_status_change_data *d = it->util;
+	*status_p = 0;
 
-		switch (d->stagemask) {
-		case 0:
-			break;
-		case 1:
-			both_deleted = 1;
-			break;
-		case 3:
-		case 5:
-			del_mod_conflict = 1;
-			break;
-		default:
-			not_deleted = 1;
+	if (starts_with(buffer, "delta ")) {
+		patch_method = BINARY_DELTA_DEFLATED;
+		origlen = strtoul(buffer + 6, NULL, 10);
+	}
+	else if (starts_with(buffer, "literal ")) {
+		patch_method = BINARY_LITERAL_DEFLATED;
+		origlen = strtoul(buffer + 8, NULL, 10);
+	}
+	else
+		return NULL;
+
+	state->linenr++;
+	buffer += llen;
+	while (1) {
+		int byte_length, max_byte_length, newsize;
+		llen = linelen(buffer, size);
+		used += llen;
+		state->linenr++;
+		if (llen == 1) {
+			/* consume the blank line */
+			buffer++;
+			size--;
 			break;
 		}
-	}
-
-	if (!s->hints)
-		return;
-	if (s->whence != FROM_COMMIT)
-		;
-	else if (!s->is_initial)
-		status_printf_ln(s, c, _("  (use \"git reset %s <file>...\" to unstage)"), s->reference);
-	else
-		status_printf_ln(s, c, _("  (use \"git rm --cached <file>...\" to unstage)"));
-
-	if (!both_deleted) {
-		if (!del_mod_conflict)
-			status_printf_ln(s, c, _("  (use \"git add <file>...\" to mark resolution)"));
+		/*
+		 * Minimum line is "A00000\n" which is 7-byte long,
+		 * and the line length must be multiple of 5 plus 2.
+		 */
+		if ((llen < 7) || (llen-2) % 5)
+			goto corrupt;
+		max_byte_length = (llen - 2) / 5 * 4;
+		byte_length = *buffer;
+		if ('A' <= byte_length && byte_length <= 'Z')
+			byte_length = byte_length - 'A' + 1;
+		else if ('a' <= byte_length && byte_length <= 'z')
+			byte_length = byte_length - 'a' + 27;
 		else
-			status_printf_ln(s, c, _("  (use \"git add/rm <file>...\" as appropriate to mark resolution)"));
-	} else if (!del_mod_conflict && !not_deleted) {
-		status_printf_ln(s, c, _("  (use \"git rm <file>...\" to mark resolution)"));
-	} else {
-		status_printf_ln(s, c, _("  (use \"git add/rm <file>...\" as appropriate to mark resolution)"));
+			goto corrupt;
+		/* if the input length was not multiple of 4, we would
+		 * have filler at the end but the filler should never
+		 * exceed 3 bytes
+		 */
+		if (max_byte_length < byte_length ||
+		    byte_length <= max_byte_length - 4)
+			goto corrupt;
+		newsize = hunk_size + byte_length;
+		data = xrealloc(data, newsize);
+		if (decode_85(data + hunk_size, buffer + 1, byte_length))
+			goto corrupt;
+		hunk_size = newsize;
+		buffer += llen;
+		size -= llen;
 	}
-	status_printf_ln(s, c, "");
+
+	frag = xcalloc(1, sizeof(*frag));
+	frag->patch = inflate_it(data, hunk_size, origlen);
+	frag->free_patch = 1;
+	if (!frag->patch)
+		goto corrupt;
+	free(data);
+	frag->size = origlen;
+	*buf_p = buffer;
+	*sz_p = size;
+	*used_p = used;
+	frag->binary_patch_method = patch_method;
+	return frag;
+
+ corrupt:
+	free(data);
+	*status_p = -1;
+	error(_("corrupt binary patch at line %d: %.*s"),
+	      state->linenr-1, llen-1, buffer);
+	return NULL;
 }

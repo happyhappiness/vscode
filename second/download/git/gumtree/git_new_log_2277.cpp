@@ -1,1 +1,1 @@
-die(_("cannot prune in a precious-objects repo"));
+die(_("refusing to merge unrelated histories"));

@@ -1,174 +1,252 @@
-static apr_status_t input_read(h2_task *task, ap_filter_t* f,
-                               apr_bucket_brigade* bb, ap_input_mode_t mode,
-                               apr_read_type_e block, apr_off_t readbytes)
+static apr_status_t ajp_marshal_into_msgb(ajp_msg_t *msg,
+                                          request_rec *r,
+                                          apr_uri_t *uri)
 {
-    apr_status_t status = APR_SUCCESS;
-    apr_bucket *b, *next, *first_data;
-    apr_off_t bblen = 0;
-    
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_task(%s): read, mode=%d, block=%d, readbytes=%ld", 
-                  task->id, mode, block, (long)readbytes);
-    
-    if (mode == AP_MODE_INIT) {
-        return ap_get_brigade(f->c->input_filters, bb, mode, block, readbytes);
+    int method;
+    apr_uint32_t i, num_headers = 0;
+    apr_byte_t is_ssl;
+    char *remote_host;
+    const char *session_route, *envvar;
+    const apr_array_header_t *arr = apr_table_elts(r->subprocess_env);
+    const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, "Into ajp_marshal_into_msgb");
+
+    if ((method = sc_for_req_method_by_id(r)) == UNKNOWN_METHOD) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, APLOGNO(02437)
+               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
+               r->method);
+        method = SC_M_JK_STORED;
     }
-    
-    if (f->c->aborted || !task->request) {
-        return APR_ECONNABORTED;
+
+    is_ssl = (apr_byte_t) ap_proxy_conn_is_https(r->connection);
+
+    if (r->headers_in && apr_table_elts(r->headers_in)) {
+        const apr_array_header_t *t = apr_table_elts(r->headers_in);
+        num_headers = t->nelts;
     }
-    
-    if (!task->input.bb) {
-        if (!task->input.eos_written) {
-            input_append_eos(task, f->r);
-            return APR_SUCCESS;
-        }
-        return APR_EOF;
+
+    remote_host = (char *)ap_get_remote_host(r->connection, r->per_dir_config, REMOTE_HOST, NULL);
+
+    ajp_msg_reset(msg);
+
+    if (ajp_msg_append_uint8(msg, CMD_AJP13_FORWARD_REQUEST)     ||
+        ajp_msg_append_uint8(msg, (apr_byte_t) method)           ||
+        ajp_msg_append_string(msg, r->protocol)                  ||
+        ajp_msg_append_string(msg, uri->path)                    ||
+        ajp_msg_append_string(msg, r->useragent_ip)              ||
+        ajp_msg_append_string(msg, remote_host)                  ||
+        ajp_msg_append_string(msg, ap_get_server_name(r))        ||
+        ajp_msg_append_uint16(msg, (apr_uint16_t)r->connection->local_addr->port) ||
+        ajp_msg_append_uint8(msg, is_ssl)                        ||
+        ajp_msg_append_uint16(msg, (apr_uint16_t) num_headers)) {
+
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00968)
+               "ajp_marshal_into_msgb: "
+               "Error appending the message beginning");
+        return APR_EGENERAL;
     }
-    
-    /* Cleanup brigades from those nasty 0 length non-meta buckets
-     * that apr_brigade_split_line() sometimes produces. */
-    for (b = APR_BRIGADE_FIRST(task->input.bb);
-         b != APR_BRIGADE_SENTINEL(task->input.bb); b = next) {
-        next = APR_BUCKET_NEXT(b);
-        if (b->length == 0 && !APR_BUCKET_IS_METADATA(b)) {
-            apr_bucket_delete(b);
-        } 
-    }
-    
-    while (APR_BRIGADE_EMPTY(task->input.bb) && !task->input.eos) {
-        /* Get more input data for our request. */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      task->id, block, (long)readbytes, (long)bblen);
-        
-        /* Override the block mode we get called with depending on the input's
-         * setting. */
-        if (task->input.beam) {
-            status = h2_beam_receive(task->input.beam, task->input.bb, block, 
-                                     H2MIN(readbytes, 32*1024));
+
+    for (i = 0 ; i < num_headers ; i++) {
+        int sc;
+        const apr_array_header_t *t = apr_table_elts(r->headers_in);
+        const apr_table_entry_t *elts = (apr_table_entry_t *)t->elts;
+
+        if ((sc = sc_for_req_header(elts[i].key)) != UNKNOWN_METHOD) {
+            if (ajp_msg_append_uint16(msg, (apr_uint16_t)sc)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00969)
+                       "ajp_marshal_into_msgb: "
+                       "Error appending the header name");
+                return AJP_EOVERFLOW;
+            }
         }
         else {
-            status = APR_EOF;
-        }
-        
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, f->c,
-                      "h2_task(%s): read returned", task->id);
-        if (APR_STATUS_IS_EAGAIN(status) 
-            && (mode == AP_MODE_GETLINE || block == APR_BLOCK_READ)) {
-            /* chunked input handling does not seem to like it if we
-             * return with APR_EAGAIN from a GETLINE read... 
-             * upload 100k test on test-ser.example.org hangs */
-            status = APR_SUCCESS;
-        }
-        else if (APR_STATUS_IS_EOF(status)) {
-            task->input.eos = 1;
-        }
-        else if (status != APR_SUCCESS) {
-            return status;
-        }
-        
-        /* Inspect the buckets received, detect EOS and apply
-         * chunked encoding if necessary */
-        h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                       "input.beam recv raw", task->input.bb);
-        first_data = NULL;
-        bblen = 0;
-        for (b = APR_BRIGADE_FIRST(task->input.bb); 
-             b != APR_BRIGADE_SENTINEL(task->input.bb); b = next) {
-            next = APR_BUCKET_NEXT(b);
-            if (APR_BUCKET_IS_METADATA(b)) {
-                if (first_data && task->input.chunked) {
-                    make_chunk(task, task->input.bb, first_data, bblen, b);
-                    first_data = NULL;
-                    bblen = 0;
-                }
-                if (APR_BUCKET_IS_EOS(b)) {
-                    task->input.eos = 1;
-                    input_handle_eos(task, f->r, b);
-                    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                                   "input.bb after handle eos", 
-                                   task->input.bb);
-                }
+            if (ajp_msg_append_string(msg, elts[i].key)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00970)
+                       "ajp_marshal_into_msgb: "
+                       "Error appending the header name");
+                return AJP_EOVERFLOW;
             }
-            else if (b->length == 0) {
-                apr_bucket_delete(b);
-            } 
-            else {
-                if (!first_data) {
-                    first_data = b;
-                }
-                bblen += b->length;
-            }    
         }
-        if (first_data && task->input.chunked) {
-            make_chunk(task, task->input.bb, first_data, bblen, NULL);
-        }            
-        
-        if (h2_task_logio_add_bytes_in) {
-            h2_task_logio_add_bytes_in(f->c, bblen);
+
+        if (ajp_msg_append_string(msg, elts[i].val)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00971)
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the header value");
+            return AJP_EOVERFLOW;
+        }
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
+                   "ajp_marshal_into_msgb: Header[%d] [%s] = [%s]",
+                   i, elts[i].key, elts[i].val);
+    }
+
+/* XXXX need to figure out how to do this
+    if (s->secret) {
+        if (ajp_msg_append_uint8(msg, SC_A_SECRET) ||
+            ajp_msg_append_string(msg, s->secret)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                   "Error ajp_marshal_into_msgb - "
+                   "Error appending secret");
+            return APR_EGENERAL;
         }
     }
-    
-    if (task->input.eos) {
-        if (!task->input.eos_written) {
-            input_append_eos(task, f->r);
+ */
+
+    if (r->user) {
+        if (ajp_msg_append_uint8(msg, SC_A_REMOTE_USER) ||
+            ajp_msg_append_string(msg, r->user)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00972)
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the remote user");
+            return AJP_EOVERFLOW;
         }
-        if (APR_BRIGADE_EMPTY(task->input.bb)) {
-            return APR_EOF;
+    }
+    if (r->ap_auth_type) {
+        if (ajp_msg_append_uint8(msg, SC_A_AUTH_TYPE) ||
+            ajp_msg_append_string(msg, r->ap_auth_type)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00973)
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the auth type");
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* XXXX  ebcdic (args converted?) */
+    if (uri->query) {
+        if (ajp_msg_append_uint8(msg, SC_A_QUERY_STRING) ||
+            ajp_msg_append_string(msg, uri->query)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00974)
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the query string");
+            return AJP_EOVERFLOW;
+        }
+    }
+    if ((session_route = apr_table_get(r->notes, "session-route"))) {
+        if (ajp_msg_append_uint8(msg, SC_A_JVM_ROUTE) ||
+            ajp_msg_append_string(msg, session_route)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00975)
+                   "ajp_marshal_into_msgb: "
+                   "Error appending the jvm route");
+            return AJP_EOVERFLOW;
+        }
+    }
+/* XXX: Is the subprocess_env a right place?
+ * <Location /examples>
+ *   ProxyPass ajp://remote:8009/servlets-examples
+ *   SetEnv SSL_SESSION_ID CUSTOM_SSL_SESSION_ID
+ * </Location>
+ */
+    /*
+     * Only lookup SSL variables if we are currently running HTTPS.
+     * Furthermore ensure that only variables get set in the AJP message
+     * that are not NULL and not empty.
+     */
+    if (is_ssl) {
+        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
+                                       AJP13_SSL_CLIENT_CERT_INDICATOR))
+            && envvar[0]) {
+            if (ajp_msg_append_uint8(msg, SC_A_SSL_CERT)
+                || ajp_msg_append_string(msg, envvar)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00976)
+                              "ajp_marshal_into_msgb: "
+                              "Error appending the SSL certificates");
+                return AJP_EOVERFLOW;
+            }
+        }
+
+        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
+                                       AJP13_SSL_CIPHER_INDICATOR))
+            && envvar[0]) {
+            if (ajp_msg_append_uint8(msg, SC_A_SSL_CIPHER)
+                || ajp_msg_append_string(msg, envvar)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00977)
+                              "ajp_marshal_into_msgb: "
+                              "Error appending the SSL ciphers");
+                return AJP_EOVERFLOW;
+            }
+        }
+
+        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
+                                       AJP13_SSL_SESSION_INDICATOR))
+            && envvar[0]) {
+            if (ajp_msg_append_uint8(msg, SC_A_SSL_SESSION)
+                || ajp_msg_append_string(msg, envvar)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00978)
+                              "ajp_marshal_into_msgb: "
+                              "Error appending the SSL session");
+                return AJP_EOVERFLOW;
+            }
+        }
+
+        /* ssl_key_size is required by Servlet 2.3 API */
+        if ((envvar = ap_proxy_ssl_val(r->pool, r->server, r->connection, r,
+                                       AJP13_SSL_KEY_SIZE_INDICATOR))
+            && envvar[0]) {
+
+            if (ajp_msg_append_uint8(msg, SC_A_SSL_KEY_SIZE)
+                || ajp_msg_append_uint16(msg, (unsigned short) atoi(envvar))) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00979)
+                              "ajp_marshal_into_msgb: "
+                              "Error appending the SSL key size");
+                return APR_EGENERAL;
+            }
+        }
+    }
+    /* If the method was unrecognized, encode it as an attribute */
+    if (method == SC_M_JK_STORED) {
+        if (ajp_msg_append_uint8(msg, SC_A_STORED_METHOD)
+            || ajp_msg_append_string(msg, r->method)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02438)
+                          "ajp_marshal_into_msgb: "
+                          "Error appending the method '%s' as request attribute",
+                          r->method);
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* Forward the remote port information, which was forgotten
+     * from the builtin data of the AJP 13 protocol.
+     * Since the servlet spec allows to retrieve it via getRemotePort(),
+     * we provide the port to the Tomcat connector as a request
+     * attribute. Modern Tomcat versions know how to retrieve
+     * the remote port from this attribute.
+     */
+    {
+        const char *key = SC_A_REQ_REMOTE_PORT;
+        char *val = apr_itoa(r->pool, r->useragent_addr->port);
+        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+            ajp_msg_append_string(msg, key)   ||
+            ajp_msg_append_string(msg, val)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00980)
+                    "ajp_marshal_into_msgb: "
+                    "Error appending attribute %s=%s",
+                    key, val);
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* Use the environment vars prefixed with AJP_
+     * and pass it to the header striping that prefix.
+     */
+    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
+        if (!strncmp(elts[i].key, "AJP_", 4)) {
+            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+                ajp_msg_append_string(msg, elts[i].key + 4)   ||
+                ajp_msg_append_string(msg, elts[i].val)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00981)
+                        "ajp_marshal_into_msgb: "
+                        "Error appending attribute %s=%s",
+                        elts[i].key, elts[i].val);
+                return AJP_EOVERFLOW;
+            }
         }
     }
 
-    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, 
-                   "task_input.bb", task->input.bb);
-           
-    if (APR_BRIGADE_EMPTY(task->input.bb)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task(%s): no data", task->id);
-        return (block == APR_NONBLOCK_READ)? APR_EAGAIN : APR_EOF;
+    if (ajp_msg_append_uint8(msg, SC_A_ARE_DONE)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00982)
+               "ajp_marshal_into_msgb: "
+               "Error appending the message end");
+        return AJP_EOVERFLOW;
     }
-    
-    if (mode == AP_MODE_EXHAUSTIVE) {
-        /* return all we have */
-        APR_BRIGADE_CONCAT(bb, task->input.bb);
-    }
-    else if (mode == AP_MODE_READBYTES) {
-        status = h2_brigade_concat_length(bb, task->input.bb, readbytes);
-    }
-    else if (mode == AP_MODE_SPECULATIVE) {
-        status = h2_brigade_copy_length(bb, task->input.bb, readbytes);
-    }
-    else if (mode == AP_MODE_GETLINE) {
-        /* we are reading a single LF line, e.g. the HTTP headers. 
-         * this has the nasty side effect to split the bucket, even
-         * though it ends with CRLF and creates a 0 length bucket */
-        status = apr_brigade_split_line(bb, task->input.bb, block, 
-                                        HUGE_STRING_LEN);
-        if (APLOGctrace1(f->c)) {
-            char buffer[1024];
-            apr_size_t len = sizeof(buffer)-1;
-            apr_brigade_flatten(bb, buffer, &len);
-            buffer[len] = 0;
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                          "h2_task(%s): getline: %s",
-                          task->id, buffer);
-        }
-    }
-    else {
-        /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
-         * to support it. Seems to work. */
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                      APLOGNO(02942) 
-                      "h2_task, unsupported READ mode %d", mode);
-        status = APR_ENOTIMPL;
-    }
-    
-    if (APLOGctrace1(f->c)) {
-        apr_brigade_length(bb, 0, &bblen);
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task(%s): return %ld data bytes",
-                      task->id, (long)bblen);
-    }
-    return status;
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r,
+            "ajp_marshal_into_msgb: Done");
+    return APR_SUCCESS;
 }

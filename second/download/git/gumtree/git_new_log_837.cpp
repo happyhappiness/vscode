@@ -1,2 +1,1 @@
-error(_("cannot '%s' without a previous commit"),
-				command_to_string(item->command));
+die("BUG: setup_git_env called without repository");

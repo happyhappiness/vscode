@@ -1,2 +1,2 @@
-error("unable to parse %s header with --allow-unknown-type",
-				       sha1_to_hex(sha1));
+error("%s %s", oid_to_hex(&refs.objects[i].item->oid),
+				refs.objects[i].name);

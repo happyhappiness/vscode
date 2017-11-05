@@ -1,2 +1,1 @@
-warning(_("ignore invalid color '%.*s' in log.graphColors"),
-				(int)(comma - start), start);
+die("unable to get object type for %s", oid_to_hex(&old));

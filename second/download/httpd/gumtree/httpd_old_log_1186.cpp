@@ -1,1 +1,0 @@
-fprintf(stderr, "SSL not compiled in; no https support\n");

@@ -1,1 +1,2 @@
-die(_("format: %%(end) atom used without corresponding atom"));
+printf("tagged %s %s", typename(tag->tagged->type),
+				describe_object(tag->tagged));

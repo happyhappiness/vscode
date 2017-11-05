@@ -1,1 +1,1 @@
-error("Invalid value for '%s'", k);
+die(_("invalid number of threads specified (%d)"), num_threads);

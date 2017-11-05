@@ -1,80 +1,47 @@
-static struct commit *handle_commit(struct rev_info *revs,
-				    struct object_array_entry *entry)
+static struct grep_expr *prep_header_patterns(struct grep_opt *opt)
 {
-	struct object *object = entry->item;
-	const char *name = entry->name;
-	const char *path = entry->path;
-	unsigned int mode = entry->mode;
-	unsigned long flags = object->flags;
+	struct grep_pat *p;
+	struct grep_expr *header_expr;
+	struct grep_expr *(header_group[GREP_HEADER_FIELD_MAX]);
+	enum grep_header_field fld;
 
-	/*
-	 * Tag object? Look what it points to..
-	 */
-	while (object->type == OBJ_TAG) {
-		struct tag *tag = (struct tag *) object;
-		if (revs->tag_objects && !(flags & UNINTERESTING))
-			add_pending_object(revs, object, tag->tag);
-		if (!tag->tagged)
-			die("bad tag");
-		object = parse_object(tag->tagged->sha1);
-		if (!object) {
-			if (flags & UNINTERESTING)
-				return NULL;
-			die("bad object %s", sha1_to_hex(tag->tagged->sha1));
-		}
-		object->flags |= flags;
-		/*
-		 * We'll handle the tagged object by looping or dropping
-		 * through to the non-tag handlers below. Do not
-		 * propagate path data from the tag's pending entry.
-		 */
-		path = NULL;
-		mode = 0;
-	}
-
-	/*
-	 * Commit object? Just return it, we'll do all the complex
-	 * reachability crud.
-	 */
-	if (object->type == OBJ_COMMIT) {
-		struct commit *commit = (struct commit *)object;
-		if (parse_commit(commit) < 0)
-			die("unable to parse commit %s", name);
-		if (flags & UNINTERESTING) {
-			mark_parents_uninteresting(commit);
-			revs->limited = 1;
-		}
-		if (revs->show_source && !commit->util)
-			commit->util = xstrdup(name);
-		return commit;
-	}
-
-	/*
-	 * Tree object? Either mark it uninteresting, or add it
-	 * to the list of objects to look at later..
-	 */
-	if (object->type == OBJ_TREE) {
-		struct tree *tree = (struct tree *)object;
-		if (!revs->tree_objects)
-			return NULL;
-		if (flags & UNINTERESTING) {
-			mark_tree_contents_uninteresting(tree);
-			return NULL;
-		}
-		add_pending_object_with_path(revs, object, name, mode, path);
+	if (!opt->header_list)
 		return NULL;
+
+	for (p = opt->header_list; p; p = p->next) {
+		if (p->token != GREP_PATTERN_HEAD)
+			die("bug: a non-header pattern in grep header list.");
+		if (p->field < GREP_HEADER_FIELD_MIN ||
+		    GREP_HEADER_FIELD_MAX <= p->field)
+			die("bug: unknown header field %d", p->field);
+		compile_regexp(p, opt);
 	}
 
-	/*
-	 * Blob object? You know the drill by now..
-	 */
-	if (object->type == OBJ_BLOB) {
-		if (!revs->blob_objects)
-			return NULL;
-		if (flags & UNINTERESTING)
-			return NULL;
-		add_pending_object_with_path(revs, object, name, mode, path);
-		return NULL;
+	for (fld = 0; fld < GREP_HEADER_FIELD_MAX; fld++)
+		header_group[fld] = NULL;
+
+	for (p = opt->header_list; p; p = p->next) {
+		struct grep_expr *h;
+		struct grep_pat *pp = p;
+
+		h = compile_pattern_atom(&pp);
+		if (!h || pp != p->next)
+			die("bug: malformed header expr");
+		if (!header_group[p->field]) {
+			header_group[p->field] = h;
+			continue;
+		}
+		header_group[p->field] = grep_or_expr(h, header_group[p->field]);
 	}
-	die("%s is unknown object", name);
+
+	header_expr = NULL;
+
+	for (fld = 0; fld < GREP_HEADER_FIELD_MAX; fld++) {
+		if (!header_group[fld])
+			continue;
+		if (!header_expr)
+			header_expr = grep_true_expr();
+		header_expr = grep_or_expr(header_group[fld], header_expr);
+	}
+	return header_expr;
 }

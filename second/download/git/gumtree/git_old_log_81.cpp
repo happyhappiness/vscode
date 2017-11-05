@@ -1,1 +1,0 @@
-die("invalid ref format: %s", ref_name);

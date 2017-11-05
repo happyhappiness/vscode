@@ -1,1 +1,1 @@
-die("cannot describe '%s'", sha1_to_hex(sha1));
+error("%s process failed to wait: %s", name, strerror(errno));

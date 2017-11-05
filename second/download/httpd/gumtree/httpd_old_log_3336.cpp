@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r,
-                      "Error setting limit privileges");
+log_scripterror(r, conf, HTTP_INTERNAL_SERVER_ERROR, errno,
+                                   "unable to create socket to cgi daemon");

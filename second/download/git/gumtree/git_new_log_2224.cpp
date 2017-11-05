@@ -1,1 +1,1 @@
-die_errno("unable to read alternates file");
+warning("%s", err.buf);

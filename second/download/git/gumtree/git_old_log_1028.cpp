@@ -1,1 +1,1 @@
-die(_("-n option is only allowed with -l."));
+die("Expected two arguments");

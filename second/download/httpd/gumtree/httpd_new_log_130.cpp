@@ -1,2 +1,3 @@
-ap_add_output_filter(ssl_io_filter,
-                                                   filter_ctx, NULL, c);
+ap_log_error(APLOG_MARK, APLOG_CRIT, WSAGetLastError(), sconf,
+                     "make_secure_socket: for %s, WSAIoctl: "
+                     "(SO_SSL_SET_SERVER)", addr);

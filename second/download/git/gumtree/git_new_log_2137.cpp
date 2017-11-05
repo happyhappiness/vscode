@@ -1,1 +1,1 @@
-die("Unknown mark: %s", command_buf.buf);
+die("Cannot use notes ref %s", notes_ref);

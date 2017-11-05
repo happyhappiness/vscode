@@ -1,1 +1,0 @@
-ap_rvputs(r, r->uri, "\">\n<dl>", NULL);

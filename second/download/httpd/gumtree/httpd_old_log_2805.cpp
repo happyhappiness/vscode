@@ -1,2 +1,4 @@
-printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
-           (float) (totalread / 1024 / timetaken));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "Authorization of user %s to access %s failed, reason: "
+                  "user is not part of the 'require'ed group(s).",
+                  r->user, r->uri);

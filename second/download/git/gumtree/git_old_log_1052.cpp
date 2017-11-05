@@ -1,1 +1,1 @@
-die("can't use --super-prefix from a subdirectory");
+fprintf(rpt, "  cur tree    : %s\n", sha1_to_hex(b->branch_tree.versions[1].sha1));

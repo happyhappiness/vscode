@@ -1,1 +1,1 @@
-die(_("unable to resolve HEAD"));
+printf("%s (%d):\n", log->list.items[i].string, onelines->nr);

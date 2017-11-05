@@ -1,1 +1,1 @@
-printf("%s\n", sha1_to_hex(commit_sha1));
+fprintf(stderr, "Server supports side-band-64k\n");

@@ -1,1 +1,2 @@
-ap_rputs("Ok", r);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
+                      "could not serialize OCSP request");

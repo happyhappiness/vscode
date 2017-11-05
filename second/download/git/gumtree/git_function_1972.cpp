@@ -1,39 +1,29 @@
-int strbuf_getwholeline(struct strbuf *sb, FILE *fp, int term)
+int parse_commit_gently(struct commit *item, int quiet_on_missing)
 {
-	ssize_t r;
+	enum object_type type;
+	void *buffer;
+	unsigned long size;
+	int ret;
 
-	if (feof(fp))
-		return EOF;
-
-	strbuf_reset(sb);
-
-	/* Translate slopbuf to NULL, as we cannot call realloc on it */
-	if (!sb->alloc)
-		sb->buf = NULL;
-	r = getdelim(&sb->buf, &sb->alloc, term, fp);
-
-	if (r > 0) {
-		sb->len = r;
+	if (!item)
+		return -1;
+	if (item->object.parsed)
+		return 0;
+	buffer = read_sha1_file(item->object.sha1, &type, &size);
+	if (!buffer)
+		return quiet_on_missing ? -1 :
+			error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));
+	if (type != OBJ_COMMIT) {
+		free(buffer);
+		return error("Object %s not a commit",
+			     sha1_to_hex(item->object.sha1));
+	}
+	ret = parse_commit_buffer(item, buffer, size);
+	if (save_commit_buffer && !ret) {
+		set_commit_buffer(item, buffer, size);
 		return 0;
 	}
-	assert(r == -1);
-
-	/*
-	 * Normally we would have called xrealloc, which will try to free
-	 * memory and recover. But we have no way to tell getdelim() to do so.
-	 * Worse, we cannot try to recover ENOMEM ourselves, because we have
-	 * no idea how many bytes were read by getdelim.
-	 *
-	 * Dying here is reasonable. It mirrors what xrealloc would do on
-	 * catastrophic memory failure. We skip the opportunity to free pack
-	 * memory and retry, but that's unlikely to help for a malloc small
-	 * enough to hold a single line of input, anyway.
-	 */
-	if (errno == ENOMEM)
-		die("Out of memory, getdelim failed");
-
-	/* Restore slopbuf that we moved out of the way before */
-	if (!sb->buf)
-		strbuf_init(sb, 0);
-	return EOF;
+	free(buffer);
+	return ret;
 }

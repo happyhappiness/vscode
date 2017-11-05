@@ -1,34 +1,51 @@
-int ref_transaction_update(struct ref_transaction *transaction,
-			   const char *refname,
-			   const unsigned char *new_sha1,
-			   const unsigned char *old_sha1,
-			   int flags, int have_old, const char *msg,
-			   struct strbuf *err)
+static void diff_words_show(struct diff_words_data *diff_words)
 {
-	struct ref_update *update;
+	xpparam_t xpp;
+	xdemitconf_t xecfg;
+	mmfile_t minus, plus;
+	struct diff_words_style *style = diff_words->style;
 
-	assert(err);
+	struct diff_options *opt = diff_words->opt;
+	const char *line_prefix;
 
-	if (transaction->state != REF_TRANSACTION_OPEN)
-		die("BUG: update called for transaction that is not open");
+	assert(opt);
+	line_prefix = diff_line_prefix(opt);
 
-	if (have_old && !old_sha1)
-		die("BUG: have_old is true but old_sha1 is NULL");
-
-	if (!is_null_sha1(new_sha1) &&
-	    check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
-		strbuf_addf(err, "refusing to update ref with bad name %s",
-			    refname);
-		return -1;
+	/* special case: only removal */
+	if (!diff_words->plus.text.size) {
+		fputs(line_prefix, diff_words->opt->file);
+		fn_out_diff_words_write_helper(diff_words->opt->file,
+			&style->old, style->newline,
+			diff_words->minus.text.size,
+			diff_words->minus.text.ptr, line_prefix);
+		diff_words->minus.text.size = 0;
+		return;
 	}
 
-	update = add_update(transaction, refname);
-	hashcpy(update->new_sha1, new_sha1);
-	update->flags = flags;
-	update->have_old = have_old;
-	if (have_old)
-		hashcpy(update->old_sha1, old_sha1);
-	if (msg)
-		update->msg = xstrdup(msg);
-	return 0;
+	diff_words->current_plus = diff_words->plus.text.ptr;
+	diff_words->last_minus = 0;
+
+	memset(&xpp, 0, sizeof(xpp));
+	memset(&xecfg, 0, sizeof(xecfg));
+	diff_words_fill(&diff_words->minus, &minus, diff_words->word_regex);
+	diff_words_fill(&diff_words->plus, &plus, diff_words->word_regex);
+	xpp.flags = 0;
+	/* as only the hunk header will be parsed, we need a 0-context */
+	xecfg.ctxlen = 0;
+	if (xdi_diff_outf(&minus, &plus, fn_out_diff_words_aux, diff_words,
+			  &xpp, &xecfg))
+		die("unable to generate word diff");
+	free(minus.ptr);
+	free(plus.ptr);
+	if (diff_words->current_plus != diff_words->plus.text.ptr +
+			diff_words->plus.text.size) {
+		if (color_words_output_graph_prefix(diff_words))
+			fputs(line_prefix, diff_words->opt->file);
+		fn_out_diff_words_write_helper(diff_words->opt->file,
+			&style->ctx, style->newline,
+			diff_words->plus.text.ptr + diff_words->plus.text.size
+			- diff_words->current_plus, diff_words->current_plus,
+			line_prefix);
+	}
+	diff_words->minus.text.size = diff_words->plus.text.size = 0;
 }

@@ -1,2 +1,1 @@
-error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
+status_printf_ln(s, color, "   %s", have_done.items[i].string);

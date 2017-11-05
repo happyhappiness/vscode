@@ -1,0 +1,1 @@
+printf(_("(bad commit)\n"));

@@ -1,2 +1,2 @@
-die(_("missing object %s for %s"),
-		    oid_to_hex(tagged), ref->refname);
+fprintf(stderr, _("Overwriting existing notes for object %s\n"),
+			sha1_to_hex(object));

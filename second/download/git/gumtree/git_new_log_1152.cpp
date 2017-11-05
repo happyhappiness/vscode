@@ -1,1 +1,1 @@
-warning(_("submodule update strategy not supported for submodule '%s'"), ce->name);
+die("submodule--helper push-check requires at least 2 arguments");

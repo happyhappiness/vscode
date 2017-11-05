@@ -1,3 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, cmd->server,
-                 "Setting LogLevel for module %s to %s", module->name,
-                 level_str);
+fprintf(stderr,
+            "Usage: %s [-v] [-l] [-L linkname] [-f] [-t] <logfile> "
+            "{<rotation time in seconds>|<rotation size>(B|K|M|G)} "
+            "[offset minutes from UTC]\n\n",
+            argv0);

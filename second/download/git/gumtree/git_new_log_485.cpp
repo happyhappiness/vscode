@@ -1,1 +1,2 @@
-fprintf(stderr, _(commit_utf8_warn));
+die("unable to normalize object directory: %s",
+		    objdirbuf.buf);

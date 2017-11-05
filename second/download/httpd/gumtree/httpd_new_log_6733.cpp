@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03453)
-                                  "Request header field name was empty");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02586)
+                      "auth_ldap authorize: require group: Can't evaluate expression: %s",
+                      err);

@@ -1,1 +1,1 @@
-error(_("additionally, your index contains uncommitted changes."));
+receive_unpack_status(in);

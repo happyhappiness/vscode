@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02667)
-                      "unable to compile pattern \"%s\"", rexp);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                      "h2_workers: cleanup zombie %d", zombie->id);

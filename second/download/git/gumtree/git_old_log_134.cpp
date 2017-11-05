@@ -1,0 +1,1 @@
+fprintf(stderr, "Error reading command stream\n");

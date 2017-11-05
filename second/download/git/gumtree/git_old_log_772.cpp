@@ -1,1 +1,1 @@
-die_errno("Could not get current working directory");
+printf(": %s: %s\n", git_attr_name(check[j].attr), value);

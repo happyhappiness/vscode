@@ -1,1 +1,2 @@
-die("Couldn't JIT the PCRE2 pattern '%s', got '%d'\n", p->pattern, jitret);
+error("unable to get sha1 of object %u in %s",
+				     i, p->pack_name);

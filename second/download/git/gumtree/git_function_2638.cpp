@@ -1,136 +1,51 @@
-static int mv(int argc, const char **argv)
+static int make_room_for_path(struct merge_options *o, const char *path)
 {
-	struct option options[] = {
-		OPT_END()
-	};
-	struct remote *oldremote, *newremote;
-	struct strbuf buf = STRBUF_INIT, buf2 = STRBUF_INIT, buf3 = STRBUF_INIT,
-		old_remote_context = STRBUF_INIT;
-	struct string_list remote_branches = STRING_LIST_INIT_NODUP;
-	struct rename_info rename;
-	int i, refspec_updated = 0;
+	int status, i;
+	const char *msg = _("failed to create path '%s'%s");
 
-	if (argc != 3)
-		usage_with_options(builtin_remote_rename_usage, options);
-
-	rename.old = argv[1];
-	rename.new = argv[2];
-	rename.remote_branches = &remote_branches;
-
-	oldremote = remote_get(rename.old);
-	if (!oldremote)
-		die(_("No such remote: %s"), rename.old);
-
-	if (!strcmp(rename.old, rename.new) && oldremote->origin != REMOTE_CONFIG)
-		return migrate_file(oldremote);
-
-	newremote = remote_get(rename.new);
-	if (newremote && (newremote->url_nr > 1 || newremote->fetch_refspec_nr))
-		die(_("remote %s already exists."), rename.new);
-
-	strbuf_addf(&buf, "refs/heads/test:refs/remotes/%s/test", rename.new);
-	if (!valid_fetch_refspec(buf.buf))
-		die(_("'%s' is not a valid remote name"), rename.new);
-
-	strbuf_reset(&buf);
-	strbuf_addf(&buf, "remote.%s", rename.old);
-	strbuf_addf(&buf2, "remote.%s", rename.new);
-	if (git_config_rename_section(buf.buf, buf2.buf) < 1)
-		return error(_("Could not rename config section '%s' to '%s'"),
-				buf.buf, buf2.buf);
-
-	strbuf_reset(&buf);
-	strbuf_addf(&buf, "remote.%s.fetch", rename.new);
-	if (git_config_set_multivar(buf.buf, NULL, NULL, 1))
-		return error(_("Could not remove config section '%s'"), buf.buf);
-	strbuf_addf(&old_remote_context, ":refs/remotes/%s/", rename.old);
-	for (i = 0; i < oldremote->fetch_refspec_nr; i++) {
-		char *ptr;
-
-		strbuf_reset(&buf2);
-		strbuf_addstr(&buf2, oldremote->fetch_refspec[i]);
-		ptr = strstr(buf2.buf, old_remote_context.buf);
-		if (ptr) {
-			refspec_updated = 1;
-			strbuf_splice(&buf2,
-				      ptr-buf2.buf + strlen(":refs/remotes/"),
-				      strlen(rename.old), rename.new,
-				      strlen(rename.new));
-		} else
-			warning(_("Not updating non-default fetch refspec\n"
-				  "\t%s\n"
-				  "\tPlease update the configuration manually if necessary."),
-				buf2.buf);
-
-		if (git_config_set_multivar(buf.buf, buf2.buf, "^$", 0))
-			return error(_("Could not append '%s'"), buf.buf);
-	}
-
-	read_branches();
-	for (i = 0; i < branch_list.nr; i++) {
-		struct string_list_item *item = branch_list.items + i;
-		struct branch_info *info = item->util;
-		if (info->remote_name && !strcmp(info->remote_name, rename.old)) {
-			strbuf_reset(&buf);
-			strbuf_addf(&buf, "branch.%s.remote", item->string);
-			if (git_config_set(buf.buf, rename.new)) {
-				return error(_("Could not set '%s'"), buf.buf);
-			}
+	/* Unlink any D/F conflict files that are in the way */
+	for (i = 0; i < o->df_conflict_file_set.nr; i++) {
+		const char *df_path = o->df_conflict_file_set.items[i].string;
+		size_t pathlen = strlen(path);
+		size_t df_pathlen = strlen(df_path);
+		if (df_pathlen < pathlen &&
+		    path[df_pathlen] == '/' &&
+		    strncmp(path, df_path, df_pathlen) == 0) {
+			output(o, 3,
+			       _("Removing %s to make room for subdirectory\n"),
+			       df_path);
+			unlink(df_path);
+			unsorted_string_list_delete_item(&o->df_conflict_file_set,
+							 i, 0);
+			break;
 		}
 	}
 
-	if (!refspec_updated)
-		return 0;
+	/* Make sure leading directories are created */
+	status = safe_create_leading_directories_const(path);
+	if (status) {
+		if (status == SCLD_EXISTS) {
+			/* something else exists */
+			error(msg, path, _(": perhaps a D/F conflict?"));
+			return -1;
+		}
+		die(msg, path, "");
+	}
 
 	/*
-	 * First remove symrefs, then rename the rest, finally create
-	 * the new symrefs.
+	 * Do not unlink a file in the work tree if we are not
+	 * tracking it.
 	 */
-	for_each_ref(read_remote_branches, &rename);
-	for (i = 0; i < remote_branches.nr; i++) {
-		struct string_list_item *item = remote_branches.items + i;
-		int flag = 0;
-		struct object_id oid;
+	if (would_lose_untracked(path))
+		return error(_("refusing to lose untracked file at '%s'"),
+			     path);
 
-		read_ref_full(item->string, RESOLVE_REF_READING, oid.hash, &flag);
-		if (!(flag & REF_ISSYMREF))
-			continue;
-		if (delete_ref(item->string, NULL, REF_NODEREF))
-			die(_("deleting '%s' failed"), item->string);
-	}
-	for (i = 0; i < remote_branches.nr; i++) {
-		struct string_list_item *item = remote_branches.items + i;
-
-		if (item->util)
-			continue;
-		strbuf_reset(&buf);
-		strbuf_addstr(&buf, item->string);
-		strbuf_splice(&buf, strlen("refs/remotes/"), strlen(rename.old),
-				rename.new, strlen(rename.new));
-		strbuf_reset(&buf2);
-		strbuf_addf(&buf2, "remote: renamed %s to %s",
-				item->string, buf.buf);
-		if (rename_ref(item->string, buf.buf, buf2.buf))
-			die(_("renaming '%s' failed"), item->string);
-	}
-	for (i = 0; i < remote_branches.nr; i++) {
-		struct string_list_item *item = remote_branches.items + i;
-
-		if (!item->util)
-			continue;
-		strbuf_reset(&buf);
-		strbuf_addstr(&buf, item->string);
-		strbuf_splice(&buf, strlen("refs/remotes/"), strlen(rename.old),
-				rename.new, strlen(rename.new));
-		strbuf_reset(&buf2);
-		strbuf_addstr(&buf2, item->util);
-		strbuf_splice(&buf2, strlen("refs/remotes/"), strlen(rename.old),
-				rename.new, strlen(rename.new));
-		strbuf_reset(&buf3);
-		strbuf_addf(&buf3, "remote: renamed %s to %s",
-				item->string, buf.buf);
-		if (create_symref(buf.buf, buf2.buf, buf3.buf))
-			die(_("creating '%s' failed"), buf.buf);
-	}
-	return 0;
+	/* Successful unlink is good.. */
+	if (!unlink(path))
+		return 0;
+	/* .. and so is no existing file */
+	if (errno == ENOENT)
+		return 0;
+	/* .. but not some other error (who really cares what?) */
+	return error(msg, path, _(": perhaps a D/F conflict?"));
 }

@@ -1,1 +1,1 @@
-die("ls-files --recurse-submodules unsupported mode");
+fputs(_(env_hint), stderr);

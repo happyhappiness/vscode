@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, APLOGNO(03406) 
-                      "h2_task(%s), frozen", task->id);
+ap_rvputs(r, "          <httpd:route>",
+                          ap_escape_html(r->pool, worker->s->route),
+                          "</httpd:route>\n", NULL);

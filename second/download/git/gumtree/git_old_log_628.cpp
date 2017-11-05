@@ -1,1 +1,1 @@
-error(_("No commits parsed."));
+die(_("Missing ')' at the end of pathspec magic in '%s'"), elt);

@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, pool,
-                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
-                      session_id, req->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03045)
+                          "h2_session(%ld): process, closing conn", c->id);

@@ -1,1 +1,1 @@
-die(_("error in object: %s"), line);
+die("git upload-pack: deepen and deepen-since (or deepen-not) cannot be used together");

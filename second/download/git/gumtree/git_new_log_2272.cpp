@@ -1,1 +1,1 @@
-die("transport '%s' not allowed", type);
+error_errno("cannot open mail %s", file);

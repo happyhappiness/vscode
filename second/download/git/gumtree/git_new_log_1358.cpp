@@ -1,1 +1,1 @@
-die("Couldn't allocate PCRE2 match data");
+error("unable to open %s: %s", path->buf, strerror(errno));

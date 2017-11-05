@@ -1,1 +1,1 @@
-die("Reference has invalid name: '%s'", refname);
+die("missing blob object '%s'", sha1_to_hex(obj->sha1));

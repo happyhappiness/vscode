@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, 
-                         "sigaction(SIGABRT)");
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check access"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

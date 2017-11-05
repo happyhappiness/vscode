@@ -1,1 +1,3 @@
-packet_write_fmt(1, "ACK %s\n", last_hex);
+fprintf(stderr, _("Migrating git directory of '%s%s' from\n'%s' to\n'%s'\n"),
+		prefix ? prefix : "", path,
+		real_old_git_dir, real_new_git_dir);

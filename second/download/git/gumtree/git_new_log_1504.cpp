@@ -1,1 +1,2 @@
-warning("ignoring ref with broken name %s", refname);
+printf("notdir %"PRIuMAX"\n%s\n",
+			       (uintmax_t)strlen(obj_name), obj_name);

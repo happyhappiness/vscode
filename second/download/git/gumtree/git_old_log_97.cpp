@@ -1,1 +1,1 @@
-die("delete %s has extra input: %s", ref.buf, next);
+fputs(str, stream);

@@ -1,1 +1,1 @@
-error(_("Failed to lock HEAD during fast_forward_to"));
+die("a bad revision is needed");

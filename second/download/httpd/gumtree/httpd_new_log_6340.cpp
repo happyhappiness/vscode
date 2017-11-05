@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00115)
-                     "Useless use of AllowOverrideList at %s:%d",
-                     cmd->directive->filename, cmd->directive->line_num);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                                         "Checking %s worker: %s  [%d] (%pp)", balancer->s->name,
+                                         worker->s->name, worker->s->method, worker);

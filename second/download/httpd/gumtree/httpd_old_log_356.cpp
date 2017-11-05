@@ -1,1 +1,1 @@
-printf("Adding password for %s in realm %s.\n", argv[4], argv[3]);
+ap_rputs("</table>\n</p>\n", r);

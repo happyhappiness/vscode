@@ -1,1 +1,1 @@
-strbuf_addbuf(&msg, &mi.log_message);
+die(_("Failed to register update mode for submodule path '%s'"), displaypath);

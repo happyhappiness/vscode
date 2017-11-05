@@ -1,10 +1,28 @@
-static void show_result_list(struct merge_list *entry)
+int gpg_verify_tag(const unsigned char *sha1, const char *name_to_report,
+		unsigned flags)
 {
-	printf("%s\n", explanation(entry));
-	do {
-		struct merge_list *link = entry->link;
-		static const char *desc[4] = { "result", "base", "our", "their" };
-		printf("  %-6s %o %s %s\n", desc[entry->stage], entry->mode, sha1_to_hex(entry->blob->object.sha1), entry->path);
-		entry = link;
-	} while (entry);
+	enum object_type type;
+	char *buf;
+	unsigned long size;
+	int ret;
+
+	type = sha1_object_info(sha1, NULL);
+	if (type != OBJ_TAG)
+		return error("%s: cannot verify a non-tag object of type %s.",
+				name_to_report ?
+				name_to_report :
+				find_unique_abbrev(sha1, DEFAULT_ABBREV),
+				typename(type));
+
+	buf = read_sha1_file(sha1, &type, &size);
+	if (!buf)
+		return error("%s: unable to read file.",
+				name_to_report ?
+				name_to_report :
+				find_unique_abbrev(sha1, DEFAULT_ABBREV));
+
+	ret = run_gpg_verify(buf, size, flags);
+
+	free(buf);
+	return ret;
 }

@@ -1,1 +1,2 @@
-die("unable to generate checkdiff for %s", one->path);
+die("Failed to traverse parents of commit %s",
+						oid_to_hex(&commit->object.oid));

@@ -1,1 +1,1 @@
-fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_MODE(ISO8601)));
+printf(_("Bisecting: a merge base must be tested\n"));

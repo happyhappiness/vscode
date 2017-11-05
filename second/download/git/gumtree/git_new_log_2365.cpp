@@ -1,1 +1,1 @@
-die_errno(_("cannot stat '%s'"), path->buf);
+error_errno("waitpid for %s failed", argv0);

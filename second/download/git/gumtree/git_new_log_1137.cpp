@@ -1,2 +1,2 @@
-die("BUG: invalid status --porcelain=2 line %s",
-				    buf.buf);
+die("git upload-pack: not our ref %s",
+			    oid_to_hex(&oid_buf));

@@ -1,1 +1,1 @@
-die("protocol error: unexpected ref after capabilities^{}");
+die("revision walk setup failed");

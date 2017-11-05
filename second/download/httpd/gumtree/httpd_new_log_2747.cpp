@@ -1,5 +1,2 @@
-fprintf(stderr,
-            "Usage: %s [-l] <logfile> "
-            "{<rotation time in seconds>|<rotation size in megabytes>} "
-            "[offset minutes from UTC]\n\n",
-            argv0);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01721)
+                      "auth_ldap authorize: no sec->host - weird...?");

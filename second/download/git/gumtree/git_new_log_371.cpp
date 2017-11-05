@@ -1,1 +1,1 @@
-die("object %s changed type!?", oid_to_hex(oid));
+packet_buf_write(&req_buf, "deepen-since %lu", max_age);

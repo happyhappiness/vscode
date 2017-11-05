@@ -1,2 +1,1 @@
-git_die_config("pack.compression",
-					"bad pack compression level %d", pack_compression_level);
+die("empty ident name (for <%s>) not allowed", email);

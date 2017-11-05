@@ -1,1 +1,0 @@
-die("create %s has extra input: %s", ref.buf, next);

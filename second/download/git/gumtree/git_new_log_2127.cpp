@@ -1,2 +1,2 @@
-error("chmod on %s failed: %s",
-			      get_lock_file_path(lock), strerror(errno));
+error("unknown core.untrackedCache value '%s'; "
+		      "using 'keep' default value", v);

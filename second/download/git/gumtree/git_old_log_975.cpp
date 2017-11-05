@@ -1,1 +1,1 @@
-warning(_(msg_warn_remove_failed), quoted.buf);
+printf("num commits: %d\n", num_commits);

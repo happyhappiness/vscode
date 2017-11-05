@@ -1,1 +1,4 @@
-printf("Req char = \\x%02x%s\n", ch, caseless);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "Symbolic link not allowed "
+                                      "or link target not accessible: %s",
+                                      r->filename);

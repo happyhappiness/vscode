@@ -1,1 +1,1 @@
-objreport(obj, "error", err);
+die(_("unable to update HEAD"));

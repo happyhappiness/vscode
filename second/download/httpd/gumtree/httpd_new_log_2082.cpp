@@ -1,1 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "%s", buff);
+decl_die(access_status, "check user", r);

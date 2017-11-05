@@ -1,102 +1,84 @@
-static void * APR_THREAD_FUNC start_threads(apr_thread_t *thd, void *dummy)
+apr_status_t h2_stream_out_prepare(h2_stream *stream, apr_off_t *plen, 
+                                   int *peos, h2_headers **pheaders)
 {
-    thread_starter *ts = dummy;
-    apr_thread_t **threads = ts->threads;
-    apr_threadattr_t *thread_attr = ts->threadattr;
-    int child_num_arg = ts->child_num_arg;
-    int my_child_num = child_num_arg;
-    proc_info *my_info;
-    apr_status_t rv;
-    int i;
-    int threads_created = 0;
-    int listener_started = 0;
-    int loops;
-    int prev_threads_created;
+    apr_status_t status = APR_SUCCESS;
+    apr_off_t requested, missing, max_chunk = H2_DATA_CHUNK_SIZE;
+    conn_rec *c;
+    int complete;
 
-    /* We must create the fd queues before we start up the listener
-     * and worker threads. */
-    worker_queue = apr_pcalloc(pchild, sizeof(*worker_queue));
-    rv = ap_queue_init(worker_queue, threads_per_child, pchild);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                     "ap_queue_init() failed");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    ap_assert(stream);
+    
+    if (stream->rst_error) {
+        *plen = 0;
+        *peos = 1;
+        return APR_ECONNRESET;
     }
+    
+    c = stream->session->c;
+    prep_output(stream);
 
-    rv = ap_queue_info_create(&worker_queue_info, pchild,
-                              threads_per_child);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                     "ap_queue_info_create() failed");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    /* determine how much we'd like to send. We cannot send more than
+     * is requested. But we can reduce the size in case the master
+     * connection operates in smaller chunks. (TSL warmup) */
+    if (stream->session->io.write_size > 0) {
+        max_chunk = stream->session->io.write_size - 9; /* header bits */ 
     }
-
-    worker_sockets = apr_pcalloc(pchild, threads_per_child
-                                        * sizeof(apr_socket_t *));
-
-    loops = prev_threads_created = 0;
-    while (1) {
-        /* threads_per_child does not include the listener thread */
-        for (i = 0; i < threads_per_child; i++) {
-            int status = ap_scoreboard_image->servers[child_num_arg][i].status;
-
-            if (status != SERVER_GRACEFUL && status != SERVER_DEAD) {
-                continue;
-            }
-
-            my_info = (proc_info *)ap_malloc(sizeof(proc_info));
-            my_info->pid = my_child_num;
-            my_info->tid = i;
-            my_info->sd = 0;
-
-            /* We are creating threads right now */
-            ap_update_child_status_from_indexes(my_child_num, i,
-                                                SERVER_STARTING, NULL);
-            /* We let each thread update its own scoreboard entry.  This is
-             * done because it lets us deal with tid better.
-             */
-            rv = apr_thread_create(&threads[i], thread_attr,
-                                   worker_thread, my_info, pchild);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                    "apr_thread_create: unable to create worker thread");
-                /* let the parent decide how bad this really is */
-                clean_child_exit(APEXIT_CHILDSICK);
-            }
-            threads_created++;
+    requested = (*plen > 0)? H2MIN(*plen, max_chunk) : max_chunk;
+    
+    /* count the buffered data until eos or a headers bucket */
+    status = add_data(stream, requested, plen, peos, &complete, pheaders);
+    
+    if (status == APR_EAGAIN) {
+        /* TODO: ugly, someone needs to retrieve the response first */
+        h2_mplx_keep_active(stream->session->mplx, stream);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                      H2_STRM_MSG(stream, "prep, response eagain"));
+        return status;
+    }
+    else if (status != APR_SUCCESS) {
+        return status;
+    }
+    
+    if (pheaders && *pheaders) {
+        return APR_SUCCESS;
+    }
+    
+    missing = H2MIN(requested, stream->max_mem) - *plen;
+    if (complete && !*peos && missing > 0) {
+        if (stream->output) {
+            H2_STREAM_OUT_LOG(APLOG_TRACE2, stream, "pre");
+            status = h2_beam_receive(stream->output, stream->out_buffer, 
+                                     APR_NONBLOCK_READ, 
+                                     stream->max_mem - *plen);
+            H2_STREAM_OUT_LOG(APLOG_TRACE2, stream, "post");
         }
-        /* Start the listener only when there are workers available */
-        if (!listener_started && threads_created) {
-            create_listener_thread(ts);
-            listener_started = 1;
+        else {
+            status = APR_EOF;
         }
-        if (start_thread_may_exit || threads_created == threads_per_child) {
-            break;
+        
+        if (APR_STATUS_IS_EOF(status)) {
+            apr_bucket *eos = apr_bucket_eos_create(c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(stream->out_buffer, eos);
+            *peos = 1;
+            status = APR_SUCCESS;
         }
-        /* wait for previous generation to clean up an entry */
-        apr_sleep(apr_time_from_sec(1));
-        ++loops;
-        if (loops % 120 == 0) { /* every couple of minutes */
-            if (prev_threads_created == threads_created) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                             "child %" APR_PID_T_FMT " isn't taking over "
-                             "slots very quickly (%d of %d)",
-                             ap_my_pid, threads_created, threads_per_child);
-            }
-            prev_threads_created = threads_created;
+        else if (status == APR_SUCCESS) {
+            /* do it again, now that we have gotten more */
+            status = add_data(stream, requested, plen, peos, &complete, pheaders);
         }
     }
-
-    /* What state should this child_main process be listed as in the
-     * scoreboard...?
-     *  ap_update_child_status_from_indexes(my_child_num, i, SERVER_STARTING,
-     *                                      (request_rec *) NULL);
-     *
-     *  This state should be listed separately in the scoreboard, in some kind
-     *  of process_status, not mixed in with the worker threads' status.
-     *  "life_status" is almost right, but it's in the worker's structure, and
-     *  the name could be clearer.   gla
-     */
-    apr_thread_exit(thd, APR_SUCCESS);
-    return NULL;
+    
+    if (status == APR_SUCCESS) {
+        if (*peos || *plen) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                          H2_STRM_MSG(stream, "prepare, len=%ld eos=%d"),
+                          (long)*plen, *peos);
+        }
+        else {
+            status = APR_EAGAIN;
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                          H2_STRM_MSG(stream, "prepare, no data"));
+        }
+    }
+    return status;
 }

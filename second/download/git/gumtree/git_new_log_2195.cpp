@@ -1,2 +1,2 @@
-error("cannot fdopen %s (%s)",
-			      get_lock_file_path(&reflog_lock), strerror(errno));
+die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"),
+			    orig_name, linenr);

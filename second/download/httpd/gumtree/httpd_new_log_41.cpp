@@ -1,2 +1,2 @@
 ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
-                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
+                     "WARNING: Require ThreadLimit > 0, setting to 1");

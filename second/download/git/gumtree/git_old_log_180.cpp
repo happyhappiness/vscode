@@ -1,2 +1,1 @@
-error("cannot open pack access log '%s' for writing: %s",
-			      log_pack_access, strerror(errno));
+fprintf(fp, "%s ", sha1_to_hex(state->orig_commit));

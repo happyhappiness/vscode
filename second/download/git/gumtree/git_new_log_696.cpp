@@ -1,1 +1,1 @@
-error("%s", err.buf);
+error("unable to unpack header of %s", path);

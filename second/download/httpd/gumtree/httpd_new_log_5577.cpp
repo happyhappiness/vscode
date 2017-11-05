@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, APLOGNO(02800)
-                         "macro '%s' (%s): argument '%s' (#%d) never used",
-                         macro->name, macro->location, names[i], i + 1);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, output->task->c,
+                      "h2_task(%s): could not write all, saving brigade", 
+                      output->task->id);

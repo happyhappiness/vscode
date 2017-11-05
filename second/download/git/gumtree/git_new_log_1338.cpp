@@ -1,1 +1,1 @@
-die("Not a tree: %s", oid_to_hex(oid));
+error(str, refname, err.buf);

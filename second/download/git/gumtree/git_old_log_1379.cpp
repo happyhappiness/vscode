@@ -1,1 +1,2 @@
-die(_("unable to parse object: %s"), name ? name : sha1_to_hex(sha1));
+die("sha1 information is lacking or useless for submoule %s",
+				    name);

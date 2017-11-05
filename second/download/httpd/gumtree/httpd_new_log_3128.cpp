@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01779)
-                          "user %s: one-time-nonce mismatch - sending "
-                          "new nonce", r->user);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00593)
+                      "Depth must be \"0\" or \"infinity\" for COPY or MOVE.");

@@ -1,0 +1,1 @@
+die("unsupported porcelain version '%s'", arg);

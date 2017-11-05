@@ -1,81 +1,63 @@
-int cmd_ls_remote(int argc, const char **argv, const char *prefix)
+static int pump_io_round(struct io_pump *slots, int nr, struct pollfd *pfd)
 {
-	const char *dest = NULL;
-	unsigned flags = 0;
-	int get_url = 0;
-	int quiet = 0;
-	int status = 0;
-	int show_symref_target = 0;
-	const char *uploadpack = NULL;
-	const char **pattern = NULL;
+	int pollsize = 0;
+	int i;
 
-	struct remote *remote;
-	struct transport *transport;
-	const struct ref *ref;
-
-	struct option options[] = {
-		OPT__QUIET(&quiet, N_("do not print remote URL")),
-		OPT_STRING(0, "upload-pack", &uploadpack, N_("exec"),
-			   N_("path of git-upload-pack on the remote host")),
-		{ OPTION_STRING, 0, "exec", &uploadpack, N_("exec"),
-			   N_("path of git-upload-pack on the remote host"),
-			   PARSE_OPT_HIDDEN },
-		OPT_BIT('t', "tags", &flags, N_("limit to tags"), REF_TAGS),
-		OPT_BIT('h', "heads", &flags, N_("limit to heads"), REF_HEADS),
-		OPT_BIT(0, "refs", &flags, N_("do not show peeled tags"), REF_NORMAL),
-		OPT_BOOL(0, "get-url", &get_url,
-			 N_("take url.<base>.insteadOf into account")),
-		OPT_SET_INT(0, "exit-code", &status,
-			    N_("exit with exit code 2 if no matching refs are found"), 2),
-		OPT_BOOL(0, "symref", &show_symref_target,
-			 N_("show underlying ref in addition to the object pointed by it")),
-		OPT_END()
-	};
-
-	argc = parse_options(argc, argv, prefix, options, ls_remote_usage,
-			     PARSE_OPT_STOP_AT_NON_OPTION);
-	dest = argv[0];
-
-	if (argc > 1) {
-		int i;
-		pattern = xcalloc(argc, sizeof(const char *));
-		for (i = 1; i < argc; i++)
-			pattern[i - 1] = xstrfmt("*/%s", argv[i]);
+	for (i = 0; i < nr; i++) {
+		struct io_pump *io = &slots[i];
+		if (io->fd < 0)
+			continue;
+		pfd[pollsize].fd = io->fd;
+		pfd[pollsize].events = io->type;
+		io->pfd = &pfd[pollsize++];
 	}
 
-	remote = remote_get(dest);
-	if (!remote) {
-		if (dest)
-			die("bad repository '%s'", dest);
-		die("No remote configured to list refs from.");
-	}
-	if (!remote->url_nr)
-		die("remote %s has no configured URL", dest);
-
-	if (get_url) {
-		printf("%s\n", *remote->url);
+	if (!pollsize)
 		return 0;
+
+	if (poll(pfd, pollsize, -1) < 0) {
+		if (errno == EINTR)
+			return 1;
+		die_errno("poll failed");
 	}
 
-	transport = transport_get(remote, NULL);
-	if (uploadpack != NULL)
-		transport_set_option(transport, TRANS_OPT_UPLOADPACK, uploadpack);
+	for (i = 0; i < nr; i++) {
+		struct io_pump *io = &slots[i];
 
-	ref = transport_get_remote_refs(transport);
-	if (transport_disconnect(transport))
-		return 1;
+		if (io->fd < 0)
+			continue;
 
-	if (!dest && !quiet)
-		fprintf(stderr, "From %s\n", *remote->url);
-	for ( ; ref; ref = ref->next) {
-		if (!check_ref_type(ref, flags))
+		if (!(io->pfd->revents & (POLLOUT|POLLIN|POLLHUP|POLLERR|POLLNVAL)))
 			continue;
-		if (!tail_match(pattern, ref->name))
-			continue;
-		if (show_symref_target && ref->symref)
-			printf("ref: %s\t%s\n", ref->symref, ref->name);
-		printf("%s\t%s\n", oid_to_hex(&ref->old_oid), ref->name);
-		status = 0; /* we found something */
+
+		if (io->type == POLLOUT) {
+			ssize_t len = xwrite(io->fd,
+					     io->u.out.buf, io->u.out.len);
+			if (len < 0) {
+				io->error = errno;
+				close(io->fd);
+				io->fd = -1;
+			} else {
+				io->u.out.buf += len;
+				io->u.out.len -= len;
+				if (!io->u.out.len) {
+					close(io->fd);
+					io->fd = -1;
+				}
+			}
+		}
+
+		if (io->type == POLLIN) {
+			ssize_t len = strbuf_read_once(io->u.in.buf,
+						       io->fd, io->u.in.hint);
+			if (len < 0)
+				io->error = errno;
+			if (len <= 0) {
+				close(io->fd);
+				io->fd = -1;
+			}
+		}
 	}
-	return status;
+
+	return 1;
 }

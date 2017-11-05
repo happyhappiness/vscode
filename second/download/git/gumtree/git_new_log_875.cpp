@@ -1,1 +1,1 @@
-die("Not a git repository: %s", dir);
+die(_("format: %%(else) atom used more than once"));

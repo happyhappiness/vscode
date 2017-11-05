@@ -1,48 +1,50 @@
-static apr_status_t h2_task_process_request(h2_task *task, conn_rec *c)
+static apr_status_t read_to_scratch(h2_conn_io *io, apr_bucket *b)
 {
-    const h2_request *req = task->request;
-    conn_state_t *cs = c->cs;
-    request_rec *r;
-
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  "h2_task(%s): create request_rec", task->id);
-    r = h2_request_create_rec(req, c);
-    if (r && (r->status == HTTP_OK)) {
-        ap_update_child_status(c->sbh, SERVER_BUSY_READ, r);
-        
-        if (cs) {
-            cs->state = CONN_STATE_HANDLER;
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): start process_request", task->id);
-        ap_process_request(r);
-        if (task->frozen) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                          "h2_task(%s): process_request frozen", task->id);
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): process_request done", task->id);
-        
-        /* After the call to ap_process_request, the
-         * request pool will have been deleted.  We set
-         * r=NULL here to ensure that any dereference
-         * of r that might be added later in this function
-         * will result in a segfault immediately instead
-         * of nondeterministic failures later.
-         */
-        if (cs) 
-            cs->state = CONN_STATE_WRITE_COMPLETION;
-        r = NULL;
+    apr_status_t status;
+    const char *data;
+    apr_size_t len;
+    
+    if (!b->length) {
+        return APR_SUCCESS;
     }
-    else if (!r) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): create request_rec failed, r=NULL", task->id);
+    
+    ap_assert(b->length <= (io->ssize - io->slen));
+    if (APR_BUCKET_IS_FILE(b)) {
+        apr_bucket_file *f = (apr_bucket_file *)b->data;
+        apr_file_t *fd = f->fd;
+        apr_off_t offset = b->start;
+        apr_size_t len = b->length;
+        
+        /* file buckets will either mmap (which we do not want) or
+         * read 8000 byte chunks and split themself. However, we do
+         * know *exactly* how many bytes we need where.
+         */
+        status = apr_file_seek(fd, APR_SET, &offset);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+        status = apr_file_read(fd, io->scratch + io->slen, &len);
+#if LOG_SCRATCH
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, io->c, APLOGNO(03387)
+                      "h2_conn_io(%ld): FILE_to_scratch(%ld)", 
+                      io->c->id, (long)len); 
+#endif
+        if (status != APR_SUCCESS && status != APR_EOF) {
+            return status;
+        }
+        io->slen += len;
     }
     else {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): create request_rec failed, r->status=%d", 
-                      task->id, r->status);
+        status = apr_bucket_read(b, &data, &len, APR_BLOCK_READ);
+        if (status == APR_SUCCESS) {
+#if LOG_SCRATCH
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03388)
+                          "h2_conn_io(%ld): read_to_scratch(%ld)", 
+                          io->c->id, (long)b->length); 
+#endif
+            memcpy(io->scratch+io->slen, data, len);
+            io->slen += len;
+        }
     }
-
-    return APR_SUCCESS;
+    return status;
 }

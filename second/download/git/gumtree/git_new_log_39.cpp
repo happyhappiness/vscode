@@ -1,5 +1,2 @@
-status_printf_ln(s, GIT_COLOR_NORMAL,
-				_("%s"
-				"Date:      %s"),
-				ident_shown++ ? "" : "\n",
-				show_ident_date(&ai, DATE_NORMAL));
+usage_msg_opt("--raw only makes sense with --edit",
+			      git_replace_usage, options);

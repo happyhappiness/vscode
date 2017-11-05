@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                  "h2_stream(%ld-%d): data_chunk_recv, written %ld bytes",
-                  session->id, stream_id, (long)len);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02247)
+                            "Init: Unable to read server private key from "
+                            "file %s [Hint: Perhaps it is in a separate file? "
+                            "  See SSLCertificateKeyFile]", szPath);

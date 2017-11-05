@@ -1,4 +1,2 @@
-printf("committer %s <%s@%s> %"PRItime" +0000\n",
-		   *author ? author : "nobody",
-		   *author ? author : "nobody",
-		   *uuid ? uuid : "local", timestamp);
+die("-L argument '%s' not of the form start,end:file",
+			    item->string);

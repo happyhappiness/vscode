@@ -1,15 +1,41 @@
-int parse_opt_object_name(const struct option *opt, const char *arg, int unset)
+static int fsck_obj(struct object *obj)
 {
-	unsigned char sha1[20];
-
-	if (unset) {
-		sha1_array_clear(opt->value);
+	if (obj->flags & SEEN)
 		return 0;
-	}
-	if (!arg)
+	obj->flags |= SEEN;
+
+	if (verbose)
+		fprintf(stderr, "Checking %s %s\n",
+			typename(obj->type), oid_to_hex(&obj->oid));
+
+	if (fsck_walk(obj, NULL, &fsck_obj_options))
+		objerror(obj, "broken links");
+	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
 		return -1;
-	if (get_sha1(arg, sha1))
-		return error(_("malformed object name '%s'"), arg);
-	sha1_array_append(opt->value, sha1);
+
+	if (obj->type == OBJ_TREE) {
+		struct tree *item = (struct tree *) obj;
+
+		free_tree_buffer(item);
+	}
+
+	if (obj->type == OBJ_COMMIT) {
+		struct commit *commit = (struct commit *) obj;
+
+		free_commit_buffer(commit);
+
+		if (!commit->parents && show_root)
+			printf("root %s\n", oid_to_hex(&commit->object.oid));
+	}
+
+	if (obj->type == OBJ_TAG) {
+		struct tag *tag = (struct tag *) obj;
+
+		if (show_tags && tag->tagged) {
+			printf("tagged %s %s", typename(tag->tagged->type), oid_to_hex(&tag->tagged->oid));
+			printf(" (%s) in %s\n", tag->tag, oid_to_hex(&tag->object.oid));
+		}
+	}
+
 	return 0;
 }

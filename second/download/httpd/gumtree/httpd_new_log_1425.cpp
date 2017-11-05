@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
-                         "Child %lu: Listening on port %d.", my_pid, lr->bind_addr->port);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "HTTP Request Line; Unrecognized HTTP method: '%.*s' "
+                      "(disallowed by RegisteredMethods)",
+                      field_name_len(r->method), r->method);

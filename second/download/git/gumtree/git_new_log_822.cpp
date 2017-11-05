@@ -1,1 +1,1 @@
-die(_("Unknown action: %d"), opts->action);
+die(_("--points-at option is only allowed in list mode"));

@@ -1,69 +1,120 @@
-int main(int argc, char **argv)
+static CURL *get_curl_handle(void)
 {
-	struct strbuf all_msgs = STRBUF_INIT;
-	int total;
-	int nongit_ok;
+	CURL *result = curl_easy_init();
+	long allowed_protocols = 0;
 
-	git_extract_argv0_path(argv[0]);
+	if (!result)
+		die("curl_easy_init failed");
 
-	git_setup_gettext();
-
-	setup_git_directory_gently(&nongit_ok);
-	git_imap_config();
-
-	argc = parse_options(argc, (const char **)argv, "", imap_send_options, imap_send_usage, 0);
-
-	if (argc)
-		usage_with_options(imap_send_usage, imap_send_options);
-
-#ifndef USE_CURL_FOR_IMAP_SEND
-	if (use_curl) {
-		warning("--use-curl not supported in this build");
-		use_curl = 0;
+	if (!curl_ssl_verify) {
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 0);
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 0);
+	} else {
+		/* Verify authenticity of the peer's certificate */
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 1);
+		/* The name in the cert must match whom we tried to connect */
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 2);
 	}
+
+#if LIBCURL_VERSION_NUM >= 0x070907
+	curl_easy_setopt(result, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
+#endif
+#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
+	curl_easy_setopt(result, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
 #endif
 
-	if (!server.port)
-		server.port = server.use_ssl ? 993 : 143;
+	if (http_proactive_auth)
+		init_curl_http_auth(result);
 
-	if (!server.folder) {
-		fprintf(stderr, "no imap store specified\n");
-		return 1;
-	}
-	if (!server.host) {
-		if (!server.tunnel) {
-			fprintf(stderr, "no imap host specified\n");
-			return 1;
+	if (getenv("GIT_SSL_VERSION"))
+		ssl_version = getenv("GIT_SSL_VERSION");
+	if (ssl_version && *ssl_version) {
+		int i;
+		for (i = 0; i < ARRAY_SIZE(sslversions); i++) {
+			if (!strcmp(ssl_version, sslversions[i].name)) {
+				curl_easy_setopt(result, CURLOPT_SSLVERSION,
+						 sslversions[i].ssl_version);
+				break;
+			}
 		}
-		server.host = "tunnel";
+		if (i == ARRAY_SIZE(sslversions))
+			warning("unsupported ssl version %s: using default",
+				ssl_version);
 	}
 
-	/* read the messages */
-	if (read_message(stdin, &all_msgs)) {
-		fprintf(stderr, "error reading input\n");
-		return 1;
+	if (getenv("GIT_SSL_CIPHER_LIST"))
+		ssl_cipherlist = getenv("GIT_SSL_CIPHER_LIST");
+	if (ssl_cipherlist != NULL && *ssl_cipherlist)
+		curl_easy_setopt(result, CURLOPT_SSL_CIPHER_LIST,
+				ssl_cipherlist);
+
+	if (ssl_cert != NULL)
+		curl_easy_setopt(result, CURLOPT_SSLCERT, ssl_cert);
+	if (has_cert_password())
+		curl_easy_setopt(result, CURLOPT_KEYPASSWD, cert_auth.password);
+#if LIBCURL_VERSION_NUM >= 0x070903
+	if (ssl_key != NULL)
+		curl_easy_setopt(result, CURLOPT_SSLKEY, ssl_key);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x070908
+	if (ssl_capath != NULL)
+		curl_easy_setopt(result, CURLOPT_CAPATH, ssl_capath);
+#endif
+	if (ssl_cainfo != NULL)
+		curl_easy_setopt(result, CURLOPT_CAINFO, ssl_cainfo);
+
+	if (curl_low_speed_limit > 0 && curl_low_speed_time > 0) {
+		curl_easy_setopt(result, CURLOPT_LOW_SPEED_LIMIT,
+				 curl_low_speed_limit);
+		curl_easy_setopt(result, CURLOPT_LOW_SPEED_TIME,
+				 curl_low_speed_time);
 	}
 
-	if (all_msgs.len == 0) {
-		fprintf(stderr, "nothing to send\n");
-		return 1;
-	}
-
-	total = count_messages(&all_msgs);
-	if (!total) {
-		fprintf(stderr, "no messages to send\n");
-		return 1;
-	}
-
-	/* write it to the imap server */
-
-	if (server.tunnel)
-		return append_msgs_to_imap(&server, &all_msgs, total);
-
-#ifdef USE_CURL_FOR_IMAP_SEND
-	if (use_curl)
-		return curl_append_msgs_to_imap(&server, &all_msgs, total);
+	curl_easy_setopt(result, CURLOPT_FOLLOWLOCATION, 1);
+	curl_easy_setopt(result, CURLOPT_MAXREDIRS, 20);
+#if LIBCURL_VERSION_NUM >= 0x071301
+	curl_easy_setopt(result, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
+#elif LIBCURL_VERSION_NUM >= 0x071101
+	curl_easy_setopt(result, CURLOPT_POST301, 1);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x071304
+	if (is_transport_allowed("http"))
+		allowed_protocols |= CURLPROTO_HTTP;
+	if (is_transport_allowed("https"))
+		allowed_protocols |= CURLPROTO_HTTPS;
+	if (is_transport_allowed("ftp"))
+		allowed_protocols |= CURLPROTO_FTP;
+	if (is_transport_allowed("ftps"))
+		allowed_protocols |= CURLPROTO_FTPS;
+	curl_easy_setopt(result, CURLOPT_REDIR_PROTOCOLS, allowed_protocols);
+#else
+	if (transport_restrict_protocols())
+		warning("protocol restrictions not applied to curl redirects because\n"
+			"your curl version is too old (>= 7.19.4)");
 #endif
 
-	return append_msgs_to_imap(&server, &all_msgs, total);
+	if (getenv("GIT_CURL_VERBOSE"))
+		curl_easy_setopt(result, CURLOPT_VERBOSE, 1);
+
+	curl_easy_setopt(result, CURLOPT_USERAGENT,
+		user_agent ? user_agent : git_user_agent());
+
+	if (curl_ftp_no_epsv)
+		curl_easy_setopt(result, CURLOPT_FTP_USE_EPSV, 0);
+
+#ifdef CURLOPT_USE_SSL
+	if (curl_ssl_try)
+		curl_easy_setopt(result, CURLOPT_USE_SSL, CURLUSESSL_TRY);
+#endif
+
+	if (curl_http_proxy) {
+		curl_easy_setopt(result, CURLOPT_PROXY, curl_http_proxy);
+	}
+#if LIBCURL_VERSION_NUM >= 0x070a07
+	curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+#endif
+
+	set_curl_keepalive(result);
+
+	return result;
 }

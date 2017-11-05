@@ -1,1 +1,1 @@
-error(_("could not read orig-head"));
+die("unable to get object info for %s", oid_to_hex(oid));

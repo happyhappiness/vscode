@@ -1,24 +1,22 @@
-void read_bisect_terms(const char **read_bad, const char **read_good)
+int parse_tag(struct tag *item)
 {
-	struct strbuf str = STRBUF_INIT;
-	const char *filename = git_path("BISECT_TERMS");
-	FILE *fp = fopen(filename, "r");
+	enum object_type type;
+	void *data;
+	unsigned long size;
+	int ret;
 
-	if (!fp) {
-		if (errno == ENOENT) {
-			*read_bad = "bad";
-			*read_good = "good";
-			return;
-		} else {
-			die("could not read file '%s': %s", filename,
-				strerror(errno));
-		}
-	} else {
-		strbuf_getline(&str, fp, '\n');
-		*read_bad = strbuf_detach(&str, NULL);
-		strbuf_getline(&str, fp, '\n');
-		*read_good = strbuf_detach(&str, NULL);
+	if (item->object.parsed)
+		return 0;
+	data = read_sha1_file(item->object.sha1, &type, &size);
+	if (!data)
+		return error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));
+	if (type != OBJ_TAG) {
+		free(data);
+		return error("Object %s not a tag",
+			     sha1_to_hex(item->object.sha1));
 	}
-	strbuf_release(&str);
-	fclose(fp);
+	ret = parse_tag_buffer(item, data, size);
+	free(data);
+	return ret;
 }

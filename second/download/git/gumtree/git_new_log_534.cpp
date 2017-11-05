@@ -1,1 +1,1 @@
-die(_("invalid unshallow line: %s"), line);
+die("git upload-pack: ambiguous deepen-not: %s", line);

@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");
+printf_ln("%s", *url);

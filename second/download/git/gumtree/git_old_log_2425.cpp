@@ -1,1 +1,1 @@
-error(_("unsupported sort specification '%s'"), arg);
+fprintf(stderr, "%.*s", l, b);

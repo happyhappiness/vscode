@@ -1,119 +1,140 @@
-static void task_done(h2_mplx *m, h2_task *task, h2_req_engine *ngn)
+static int filter_lookup(ap_filter_t *f, ap_filter_rec_t *filter)
 {
-    if (task->frozen) {
-        /* this task was handed over to an engine for processing 
-         * and the original worker has finished. That means the 
-         * engine may start processing now. */
-        h2_task_thaw(task);
-        /* we do not want the task to block on writing response
-         * bodies into the mplx. */
-        h2_task_set_io_blocking(task, 0);
-        apr_thread_cond_broadcast(m->task_thawed);
-        return;
-    }
-    else {
-        h2_stream *stream;
-        
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                      "h2_mplx(%ld): task(%s) done", m->id, task->id);
-        out_close(m, task);
-        stream = h2_ihash_get(m->streams, task->stream_id);
-        
-        if (ngn) {
-            apr_off_t bytes = 0;
-            if (task->output.beam) {
-                h2_beam_send(task->output.beam, NULL, APR_NONBLOCK_READ);
-                bytes += h2_beam_get_buffered(task->output.beam);
+    ap_filter_provider_t *provider;
+    int match = 0;
+    const char *err = NULL;
+    request_rec *r = f->r;
+    harness_ctx *ctx = f->ctx;
+    provider_ctx *pctx;
+#ifndef NO_PROTOCOL
+    unsigned int proto_flags;
+    mod_filter_ctx *rctx = ap_get_module_config(r->request_config,
+                                                &filter_module);
+#endif
+
+    /* Check registered providers in order */
+    for (provider = filter->providers; provider; provider = provider->next) {
+        if (provider->expr) {
+            match = ap_expr_exec(r, provider->expr, &err);
+            if (err) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01379)
+                              "Error evaluating filter dispatch condition: %s",
+                              err);
+                match = 0;
             }
-            if (bytes > 0) {
-                /* we need to report consumed and current buffered output
-                 * to the engine. The request will be streamed out or cancelled,
-                 * no more data is coming from it and the engine should update
-                 * its calculations before we destroy this information. */
-                h2_req_engine_out_consumed(ngn, task->c, bytes);
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "Expression condition for '%s' %s",
+                          provider->frec->name,
+                          match ? "matched" : "did not match");
+        }
+        else if (r->content_type) {
+            const char **type = provider->types;
+            size_t len = strcspn(r->content_type, "; \t");
+            AP_DEBUG_ASSERT(type != NULL);
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                          "Content-Type '%s' ...", r->content_type);
+            while (*type) {
+                /* Handle 'content-type;charset=...' correctly */
+                if (strncmp(*type, r->content_type, len) == 0
+                    && (*type)[len] == '\0') {
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                                  "... matched '%s'", *type);
+                    match = 1;
+                    break;
+                }
+                else {
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                                  "... did not match '%s'", *type);
+                }
+                type++;
             }
-        }
-        
-        if (task->engine) {
-            if (!h2_req_engine_is_shutdown(task->engine)) {
-                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,
-                              "h2_mplx(%ld): task(%s) has not-shutdown "
-                              "engine(%s)", m->id, task->id, 
-                              h2_req_engine_get_id(task->engine));
-            }
-            h2_ngn_shed_done_ngn(m->ngn_shed, task->engine);
-        }
-        
-        if (!m->aborted && stream && m->redo_tasks
-            && h2_ihash_get(m->redo_tasks, task->stream_id)) {
-            /* reset and schedule again */
-            h2_task_redo(task);
-            h2_ihash_remove(m->redo_tasks, task->stream_id);
-            h2_iq_add(m->q, task->stream_id, NULL, NULL);
-            return;
-        }
-        
-        task->worker_done = 1;
-        task->done_at = apr_time_now();
-        if (task->output.beam) {
-            h2_beam_on_consumed(task->output.beam, NULL, NULL);
-            h2_beam_mutex_set(task->output.beam, NULL, NULL, NULL);
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                      "h2_mplx(%s): request done, %f ms elapsed", task->id, 
-                      (task->done_at - task->started_at) / 1000.0);
-        if (task->started_at > m->last_idle_block) {
-            /* this task finished without causing an 'idle block', e.g.
-             * a block by flow control.
-             */
-            if (task->done_at- m->last_limit_change >= m->limit_change_interval
-                && m->workers_limit < m->workers_max) {
-                /* Well behaving stream, allow it more workers */
-                m->workers_limit = H2MIN(m->workers_limit * 2, 
-                                         m->workers_max);
-                m->last_limit_change = task->done_at;
-                m->need_registration = 1;
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                              "h2_mplx(%ld): increase worker limit to %d",
-                              m->id, m->workers_limit);
-            }
-        }
-        
-        if (stream) {
-            /* hang around until the stream deregisters */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                          "h2_mplx(%s): task_done, stream still open", 
-                          task->id);
-            if (h2_stream_is_suspended(stream)) {
-                /* more data will not arrive, resume the stream */
-                h2_ihash_add(m->sresume, stream);
-                have_out_data_for(m, stream->id);
-            }
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "Content-Type condition for '%s' %s",
+                          provider->frec->name,
+                          match ? "matched" : "did not match");
         }
         else {
-            /* stream no longer active, was it placed in hold? */
-            stream = h2_ihash_get(m->shold, task->stream_id);
-            if (stream) {
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                              "h2_mplx(%s): task_done, stream in hold", 
-                              task->id);
-                /* We cannot destroy the stream here since this is 
-                 * called from a worker thread and freeing memory pools
-                 * is only safe in the only thread using it (and its
-                 * parent pool / allocator) */
-                h2_ihash_remove(m->shold, stream->id);
-                h2_ihash_add(m->spurge, stream);
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "Content-Type condition for '%s' did not match: "
+                          "no Content-Type", provider->frec->name);
+        }
+
+        if (match) {
+            /* condition matches this provider */
+#ifndef NO_PROTOCOL
+            /* check protocol
+             *
+             * FIXME:
+             * This is a quick hack and almost certainly buggy.
+             * The idea is that by putting this in mod_filter, we relieve
+             * filter implementations of the burden of fixing up HTTP headers
+             * for cases that are routinely affected by filters.
+             *
+             * Default is ALWAYS to do nothing, so as not to tread on the
+             * toes of filters which want to do it themselves.
+             *
+             */
+            proto_flags = provider->frec->proto_flags;
+
+            /* some specific things can't happen in a proxy */
+            if (r->proxyreq) {
+                if (proto_flags & AP_FILTER_PROTO_NO_PROXY) {
+                    /* can't use this provider; try next */
+                    continue;
+                }
+
+                if (proto_flags & AP_FILTER_PROTO_TRANSFORM) {
+                    const char *str = apr_table_get(r->headers_out,
+                                                    "Cache-Control");
+                    if (str) {
+                        char *str1 = apr_pstrdup(r->pool, str);
+                        ap_str_tolower(str1);
+                        if (strstr(str1, "no-transform")) {
+                            /* can't use this provider; try next */
+                            continue;
+                        }
+                    }
+                    apr_table_addn(r->headers_out, "Warning",
+                                   apr_psprintf(r->pool,
+                                                "214 %s Transformation applied",
+                                                r->hostname));
+                }
             }
-            else {
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
-                              "h2_mplx(%s): task_done, stream not found", 
-                              task->id);
-                task_destroy(m, task, 0);
+
+            /* things that are invalidated if the filter transforms content */
+            if (proto_flags & AP_FILTER_PROTO_CHANGE) {
+                apr_table_unset(r->headers_out, "Content-MD5");
+                apr_table_unset(r->headers_out, "ETag");
+                if (proto_flags & AP_FILTER_PROTO_CHANGE_LENGTH) {
+                    apr_table_unset(r->headers_out, "Content-Length");
+                }
             }
-            
-            if (m->join_wait) {
-                apr_thread_cond_signal(m->join_wait);
+
+            /* no-cache is for a filter that has different effect per-hit */
+            if (proto_flags & AP_FILTER_PROTO_NO_CACHE) {
+                apr_table_unset(r->headers_out, "Last-Modified");
+                apr_table_addn(r->headers_out, "Cache-Control", "no-cache");
             }
+
+            if (proto_flags & AP_FILTER_PROTO_NO_BYTERANGE) {
+                apr_table_setn(r->headers_out, "Accept-Ranges", "none");
+            }
+            else if (rctx && rctx->range) {
+                /* restore range header we saved earlier */
+                apr_table_setn(r->headers_in, "Range", rctx->range);
+                rctx->range = NULL;
+            }
+#endif
+            for (pctx = ctx->init_ctx; pctx; pctx = pctx->next) {
+                if (pctx->provider == provider) {
+                    ctx->fctx = pctx->ctx ;
+                }
+            }
+            ctx->func = provider->frec->filter_func.out_func;
+            return 1;
         }
     }
+
+    /* No provider matched */
+    return 0;
 }

@@ -1,32 +1,18 @@
-static char *try_alias(request_rec *r)
+static int on_invalid_header_cb(nghttp2_session *ngh2, 
+                                const nghttp2_frame *frame, 
+                                const uint8_t *name, size_t namelen, 
+                                const uint8_t *value, size_t valuelen, 
+                                uint8_t flags, void *user_data)
 {
-    alias_dir_conf *dirconf =
-            (alias_dir_conf *) ap_get_module_config(r->per_dir_config, &alias_module);
-
-    if (dirconf->alias) {
-        const char *err = NULL;
-
-        char *found = apr_pstrdup(r->pool,
-                ap_expr_str_exec(r, dirconf->alias, &err));
-        if (err) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02825)
-                          "Can't evaluate alias expression: %s", err);
-            return PREGSUB_ERROR;
-        }
-
-        if (dirconf->handler) { /* Set handler, and leave a note for mod_cgi */
-            r->handler = dirconf->handler;
-            apr_table_setn(r->notes, "alias-forced-type", r->handler);
-        }
-        /* XXX This is as SLOW as can be, next step, we optimize
-         * and merge to whatever part of the found path was already
-         * canonicalized.  After I finish eliminating os canonical.
-         * Better fail test for ap_server_root_relative needed here.
-         */
-        found = ap_server_root_relative(r->pool, found);
-        return found;
-
+    h2_session *session = user_data;
+    if (APLOGcdebug(session->c)) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03456)
+                      "h2_session(%ld-%d): denying stream with invalid header "
+                      "'%s: %s'", session->id, (int)frame->hd.stream_id,
+                      apr_pstrndup(session->pool, (const char *)name, namelen),
+                      apr_pstrndup(session->pool, (const char *)value, valuelen));
     }
-
-    return NULL;
+    return nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                     frame->hd.stream_id, 
+                                     NGHTTP2_PROTOCOL_ERROR);
 }

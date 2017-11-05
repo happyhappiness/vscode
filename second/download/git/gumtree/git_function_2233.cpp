@@ -1,51 +1,40 @@
-int parse_submodule_config_option(const char *var, const char *value)
+int mingw_open (const char *filename, int oflags, ...)
 {
-	struct string_list_item *config;
-	const char *name, *key;
-	int namelen;
+	va_list args;
+	unsigned mode;
+	int fd;
+	wchar_t wfilename[MAX_PATH];
 
-	if (parse_config_key(var, "submodule", &name, &namelen, &key) < 0 || !name)
-		return 0;
+	va_start(args, oflags);
+	mode = va_arg(args, int);
+	va_end(args);
 
-	if (!strcmp(key, "path")) {
-		if (!value)
-			return config_error_nonbool(var);
+	if (filename && !strcmp(filename, "/dev/null"))
+		filename = "nul";
 
-		config = unsorted_string_list_lookup(&config_name_for_path, value);
-		if (config)
-			free(config->util);
-		else
-			config = string_list_append(&config_name_for_path, xstrdup(value));
-		config->util = xmemdupz(name, namelen);
-	} else if (!strcmp(key, "fetchrecursesubmodules")) {
-		char *name_cstr = xmemdupz(name, namelen);
-		config = unsorted_string_list_lookup(&config_fetch_recurse_submodules_for_name, name_cstr);
-		if (!config)
-			config = string_list_append(&config_fetch_recurse_submodules_for_name, name_cstr);
-		else
-			free(name_cstr);
-		config->util = (void *)(intptr_t)parse_fetch_recurse_submodules_arg(var, value);
-	} else if (!strcmp(key, "ignore")) {
-		char *name_cstr;
+	if (xutftowcs_path(wfilename, filename) < 0)
+		return -1;
+	fd = _wopen(wfilename, oflags, mode);
 
-		if (!value)
-			return config_error_nonbool(var);
-
-		if (strcmp(value, "untracked") && strcmp(value, "dirty") &&
-		    strcmp(value, "all") && strcmp(value, "none")) {
-			warning("Invalid parameter \"%s\" for config option \"submodule.%s.ignore\"", value, var);
-			return 0;
-		}
-
-		name_cstr = xmemdupz(name, namelen);
-		config = unsorted_string_list_lookup(&config_ignore_for_name, name_cstr);
-		if (config) {
-			free(config->util);
-			free(name_cstr);
-		} else
-			config = string_list_append(&config_ignore_for_name, name_cstr);
-		config->util = xstrdup(value);
-		return 0;
+	if (fd < 0 && (oflags & O_ACCMODE) != O_RDONLY && errno == EACCES) {
+		DWORD attrs = GetFileAttributesW(wfilename);
+		if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY))
+			errno = EISDIR;
 	}
-	return 0;
+	if ((oflags & O_CREAT) && needs_hiding(filename)) {
+		/*
+		 * Internally, _wopen() uses the CreateFile() API which errors
+		 * out with an ERROR_ACCESS_DENIED if CREATE_ALWAYS was
+		 * specified and an already existing file's attributes do not
+		 * match *exactly*. As there is no mode or flag we can set that
+		 * would correspond to FILE_ATTRIBUTE_HIDDEN, let's just try
+		 * again *without* the O_CREAT flag (that corresponds to the
+		 * CREATE_ALWAYS flag of CreateFile()).
+		 */
+		if (fd < 0 && errno == EACCES)
+			fd = _wopen(wfilename, oflags & ~O_CREAT, mode);
+		if (fd >= 0 && set_hidden_flag(wfilename, 1))
+			warning("could not mark '%s' as hidden.", filename);
+	}
+	return fd;
 }

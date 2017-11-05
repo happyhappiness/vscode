@@ -1,26 +1,25 @@
-static void output_attr(int cnt, struct git_attr_check *check,
-	const char *file)
+static int emit_one_suspect_detail(struct origin *suspect, int repeat)
 {
-	int j;
-	for (j = 0; j < cnt; j++) {
-		const char *value = check[j].value;
+	struct commit_info ci;
 
-		if (ATTR_TRUE(value))
-			value = "set";
-		else if (ATTR_FALSE(value))
-			value = "unset";
-		else if (ATTR_UNSET(value))
-			value = "unspecified";
+	if (!repeat && (suspect->commit->object.flags & METAINFO_SHOWN))
+		return 0;
 
-		if (nul_term_line) {
-			printf("%s%c" /* path */
-			       "%s%c" /* attrname */
-			       "%s%c" /* attrvalue */,
-			       file, 0, git_attr_name(check[j].attr), 0, value, 0);
-		} else {
-			quote_c_style(file, NULL, stdout, 0);
-			printf(": %s: %s\n", git_attr_name(check[j].attr), value);
-		}
+	suspect->commit->object.flags |= METAINFO_SHOWN;
+	get_commit_info(suspect->commit, &ci, 1);
+	printf("author %s\n", ci.author.buf);
+	printf("author-mail %s\n", ci.author_mail.buf);
+	printf("author-time %lu\n", ci.author_time);
+	printf("author-tz %s\n", ci.author_tz.buf);
+	printf("committer %s\n", ci.committer.buf);
+	printf("committer-mail %s\n", ci.committer_mail.buf);
+	printf("committer-time %lu\n", ci.committer_time);
+	printf("committer-tz %s\n", ci.committer_tz.buf);
+	printf("summary %s\n", ci.summary.buf);
+	if (suspect->commit->object.flags & UNINTERESTING)
+		printf("boundary\n");
 
-	}
+	commit_info_destroy(&ci);
+
+	return 1;
 }

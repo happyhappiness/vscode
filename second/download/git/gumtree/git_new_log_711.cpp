@@ -1,0 +1,1 @@
+is_blank_line(buf + ll);

@@ -1,1 +1,1 @@
-error(_("could not resolve HEAD commit\n"));
+error("%s: object missing", sha1_to_hex(sha1));

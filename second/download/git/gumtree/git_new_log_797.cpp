@@ -1,1 +1,1 @@
-die(_("could not remove '%s'"), path);
+error("%s: invalid reflog entry %s", refname, oid_to_hex(oid));

@@ -1,13 +1,8 @@
-static int create_seq_dir(void)
+void git_config_set_multivar_in_file(const char *config_filename,
+				     const char *key, const char *value,
+				     const char *value_regex, int multi_replace)
 {
-	const char *seq_dir = git_path(SEQ_DIR);
-
-	if (file_exists(seq_dir)) {
-		error(_("a cherry-pick or revert is already in progress"));
-		advise(_("try \"git cherry-pick (--continue | --quit | --abort)\""));
-		return -1;
-	}
-	else if (mkdir(seq_dir, 0777) < 0)
-		die_errno(_("Could not create sequencer directory %s"), seq_dir);
-	return 0;
+	if (git_config_set_multivar_in_file_gently(config_filename, key, value,
+						   value_regex, multi_replace) < 0)
+		die(_("Could not set '%s' to '%s'"), key, value);
 }

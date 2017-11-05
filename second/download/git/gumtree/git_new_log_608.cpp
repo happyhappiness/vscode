@@ -1,2 +1,2 @@
-error(_("%s: Unable to write new index file"),
-			_(action_name(opts)));
+error("%s: object corrupt or missing: %s",
+		      sha1_to_hex(sha1), path);

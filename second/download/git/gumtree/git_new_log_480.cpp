@@ -1,1 +1,1 @@
-packet_write_fmt(1, "NACK unable to spawn subprocess\n");
+error("BUG: expected exactly one commit from walk");

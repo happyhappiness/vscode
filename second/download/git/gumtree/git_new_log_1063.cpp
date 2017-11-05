@@ -1,1 +1,1 @@
-die("unable to join lazy_dir_thread");
+die("Not a valid commit: %s", oid_to_hex(&b->oid));

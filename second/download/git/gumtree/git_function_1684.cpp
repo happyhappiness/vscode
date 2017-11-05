@@ -1,51 +1,104 @@
-int sha1_pos(const unsigned char *sha1, void *table, size_t nr,
-	     sha1_access_fn fn)
+static char *guess_dir_name(const char *repo, int is_bundle, int is_bare)
 {
-	size_t hi = nr;
-	size_t lo = 0;
-	size_t mi = 0;
+	const char *end = repo + strlen(repo), *start, *ptr;
+	size_t len;
+	char *dir;
 
-	if (!nr)
-		return -1;
+	/*
+	 * Skip scheme.
+	 */
+	start = strstr(repo, "://");
+	if (start == NULL)
+		start = repo;
+	else
+		start += 3;
 
-	if (nr != 1) {
-		size_t lov, hiv, miv, ofs;
-
-		for (ofs = 0; ofs < 18; ofs += 2) {
-			lov = take2(fn(0, table) + ofs);
-			hiv = take2(fn(nr - 1, table) + ofs);
-			miv = take2(sha1 + ofs);
-			if (miv < lov)
-				return -1;
-			if (hiv < miv)
-				return -1 - nr;
-			if (lov != hiv) {
-				/*
-				 * At this point miv could be equal
-				 * to hiv (but sha1 could still be higher);
-				 * the invariant of (mi < hi) should be
-				 * kept.
-				 */
-				mi = (nr - 1) * (miv - lov) / (hiv - lov);
-				if (lo <= mi && mi < hi)
-					break;
-				die("BUG: assertion failed in binary search");
-			}
-		}
-		if (18 <= ofs)
-			die("cannot happen -- lo and hi are identical");
+	/*
+	 * Skip authentication data. The stripping does happen
+	 * greedily, such that we strip up to the last '@' inside
+	 * the host part.
+	 */
+	for (ptr = start; ptr < end && !is_dir_sep(*ptr); ptr++) {
+		if (*ptr == '@')
+			start = ptr + 1;
 	}
 
-	do {
-		int cmp;
-		cmp = hashcmp(fn(mi, table), sha1);
-		if (!cmp)
-			return mi;
-		if (cmp > 0)
-			hi = mi;
-		else
-			lo = mi + 1;
-		mi = (hi + lo) / 2;
-	} while (lo < hi);
-	return -lo-1;
+	/*
+	 * Strip trailing spaces, slashes and /.git
+	 */
+	while (start < end && (is_dir_sep(end[-1]) || isspace(end[-1])))
+		end--;
+	if (end - start > 5 && is_dir_sep(end[-5]) &&
+	    !strncmp(end - 4, ".git", 4)) {
+		end -= 5;
+		while (start < end && is_dir_sep(end[-1]))
+			end--;
+	}
+
+	/*
+	 * Strip trailing port number if we've got only a
+	 * hostname (that is, there is no dir separator but a
+	 * colon). This check is required such that we do not
+	 * strip URI's like '/foo/bar:2222.git', which should
+	 * result in a dir '2222' being guessed due to backwards
+	 * compatibility.
+	 */
+	if (memchr(start, '/', end - start) == NULL
+	    && memchr(start, ':', end - start) != NULL) {
+		ptr = end;
+		while (start < ptr && isdigit(ptr[-1]) && ptr[-1] != ':')
+			ptr--;
+		if (start < ptr && ptr[-1] == ':')
+			end = ptr - 1;
+	}
+
+	/*
+	 * Find last component. To remain backwards compatible we
+	 * also regard colons as path separators, such that
+	 * cloning a repository 'foo:bar.git' would result in a
+	 * directory 'bar' being guessed.
+	 */
+	ptr = end;
+	while (start < ptr && !is_dir_sep(ptr[-1]) && ptr[-1] != ':')
+		ptr--;
+	start = ptr;
+
+	/*
+	 * Strip .{bundle,git}.
+	 */
+	len = end - start;
+	strip_suffix_mem(start, &len, is_bundle ? ".bundle" : ".git");
+
+	if (!len || (len == 1 && *start == '/'))
+	    die("No directory name could be guessed.\n"
+		"Please specify a directory on the command line");
+
+	if (is_bare)
+		dir = xstrfmt("%.*s.git", (int)len, start);
+	else
+		dir = xstrndup(start, len);
+	/*
+	 * Replace sequences of 'control' characters and whitespace
+	 * with one ascii space, remove leading and trailing spaces.
+	 */
+	if (*dir) {
+		char *out = dir;
+		int prev_space = 1 /* strip leading whitespace */;
+		for (end = dir; *end; ++end) {
+			char ch = *end;
+			if ((unsigned char)ch < '\x20')
+				ch = '\x20';
+			if (isspace(ch)) {
+				if (prev_space)
+					continue;
+				prev_space = 1;
+			} else
+				prev_space = 0;
+			*out++ = ch;
+		}
+		*out = '\0';
+		if (out > dir && prev_space)
+			out[-1] = '\0';
+	}
+	return dir;
 }

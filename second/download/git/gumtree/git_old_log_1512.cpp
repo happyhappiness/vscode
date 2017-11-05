@@ -1,1 +1,1 @@
-die("Not a valid object name %s", obj_name);
+error("%s: invalid sha1 pointer %s", refname, sha1_to_hex(sha1));

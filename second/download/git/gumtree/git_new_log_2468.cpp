@@ -1,1 +1,1 @@
-fprintf(stderr, "Unable to fetch %s, will not be able to update server info refs\n", oid_to_hex(&request->obj->oid));
+die(_("git apply: bad git-diff - expected /dev/null on line %d"), state->linenr);

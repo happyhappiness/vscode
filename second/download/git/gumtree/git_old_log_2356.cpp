@@ -1,1 +1,1 @@
-fprintf(stderr, "bad sha1 file: %s/%s\n", path, de->d_name);
+error("Could not write %s: %s", path, strerror(errno));

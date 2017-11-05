@@ -1,1 +1,1 @@
-warning(_("Failed to update main cache tree"));
+die("unable to generate word diff");

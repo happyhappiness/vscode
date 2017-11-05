@@ -1,2 +1,1 @@
-die("unable to generate combined diff for %s",
-		    sha1_to_hex(parent));
+die("unable to auto-detect name (got '%s')", name);

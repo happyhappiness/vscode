@@ -1,8 +1,15 @@
-static int fsck_error_func(struct object *obj, int type, const char *err, ...)
+static int option_parse_stage(const struct option *opt,
+			      const char *arg, int unset)
 {
-	va_list params;
-	va_start(params, err);
-	objreport(obj, (type == FSCK_WARN) ? "warning" : "error", err, params);
-	va_end(params);
-	return (type == FSCK_WARN) ? 0 : 1;
+	if (!strcmp(arg, "all")) {
+		to_tempfile = 1;
+		checkout_stage = CHECKOUT_ALL;
+	} else {
+		int ch = arg[0];
+		if ('1' <= ch && ch <= '3')
+			checkout_stage = arg[0] - '0';
+		else
+			die("stage should be between 1 and 3 or all");
+	}
+	return 0;
 }

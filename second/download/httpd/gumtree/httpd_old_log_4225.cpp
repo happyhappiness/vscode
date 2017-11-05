@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "proxy: BALANCER: (%s). Forcing recovery for worker (%s)",
-                         balancer->name, (*worker)->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "TLS upgrade handshake failed: not accepted by client!?");

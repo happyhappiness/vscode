@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00560) "Request "
-                  "header exceeds LimitRequestFieldSize after merging: %.*s",
-                  field_name_len(key), key);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
+                         "atomics not working as expected");

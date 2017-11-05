@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+die("object %s disappeared", oid_to_hex(oid));

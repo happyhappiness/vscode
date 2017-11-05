@@ -1,1 +1,0 @@
-die("usage: git-credential-cache--daemon <socket_path>");

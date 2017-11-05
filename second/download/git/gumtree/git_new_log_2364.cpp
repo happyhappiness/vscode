@@ -1,1 +1,1 @@
-strbuf_addstr(path, de->d_name);
+die("'%s': not a non-negative integer", arg);

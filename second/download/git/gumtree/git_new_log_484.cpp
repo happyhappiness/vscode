@@ -1,1 +1,2 @@
-printf(" %s ", diff_aligned_abbrev(&p->oid, opt->abbrev));
+error("unable to normalize alternate object path: %s",
+		      pathbuf.buf);

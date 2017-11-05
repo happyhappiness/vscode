@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
-                      H2_STRM_LOG(APLOGNO(03073), stream, "submit response %d, REMOTE_WINDOW_SIZE=%u"),
-                      headers->status,
-                      (unsigned int)nghttp2_session_get_stream_remote_window_size(session->ngh2, stream->id));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
+                              "Reuse %s LDC %pp", 
+                              l->bound ? "bound" : "unbound", l);

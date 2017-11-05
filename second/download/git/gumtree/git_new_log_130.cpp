@@ -1,1 +1,1 @@
-error("Tweaking file descriptors doesn't work with this MSVCRT.dll");
+die("BUG: have_old is true but old_sha1 is NULL");

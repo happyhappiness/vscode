@@ -1,1 +1,1 @@
-die(_("Cannot change to '%s'"), dir.buf);
+error_errno("Could not open %s", path);

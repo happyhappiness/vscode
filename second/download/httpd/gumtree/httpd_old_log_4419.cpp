@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
-                                 "proxy: FTP: EPSV attempt to connect to %pI failed - Firewall/NAT?", epsv_addr);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+              "Ignoring deprecated use of DefaultType in line %d of %s.",
+                     cmd->directive->line_num, cmd->directive->filename);

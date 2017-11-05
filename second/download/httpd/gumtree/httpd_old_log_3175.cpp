@@ -1,2 +1,5 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog,
-                      "failed to initialise %s cache", authn_cache_id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "xlate input filter not added implicitly because %s",
+                          !reqinfo->input_ctx ?
+                          "no input configuration available" :
+                          "another module added the filter");

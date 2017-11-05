@@ -1,47 +1,40 @@
-int sequencer_rollback(struct replay_opts *opts)
+static const char *parse_attr(const char *src, int lineno, const char *cp,
+			      struct attr_state *e)
 {
-	FILE *f;
-	unsigned char sha1[20];
-	struct strbuf buf = STRBUF_INIT;
+	const char *ep, *equals;
+	int len;
 
-	f = fopen(git_path_head_file(), "r");
-	if (!f && errno == ENOENT) {
-		/*
-		 * There is no multiple-cherry-pick in progress.
-		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
-		 * a single-cherry-pick in progress, abort that.
-		 */
-		return rollback_single_pick();
+	ep = cp + strcspn(cp, blank);
+	equals = strchr(cp, '=');
+	if (equals && ep < equals)
+		equals = NULL;
+	if (equals)
+		len = equals - cp;
+	else
+		len = ep - cp;
+	if (!e) {
+		if (*cp == '-' || *cp == '!') {
+			cp++;
+			len--;
+		}
+		if (invalid_attr_name(cp, len)) {
+			fprintf(stderr,
+				"%.*s is not a valid attribute name: %s:%d\n",
+				len, cp, src, lineno);
+			return NULL;
+		}
+	} else {
+		if (*cp == '-' || *cp == '!') {
+			e->setto = (*cp == '-') ? ATTR__FALSE : ATTR__UNSET;
+			cp++;
+			len--;
+		}
+		else if (!equals)
+			e->setto = ATTR__TRUE;
+		else {
+			e->setto = xmemdupz(equals + 1, ep - equals - 1);
+		}
+		e->attr = git_attr_internal(cp, len);
 	}
-	if (!f)
-		return error_errno(_("cannot open '%s'"), git_path_head_file());
-	if (strbuf_getline_lf(&buf, f)) {
-		error(_("cannot read '%s': %s"), git_path_head_file(),
-		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));
-		fclose(f);
-		goto fail;
-	}
-	fclose(f);
-	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
-		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
-			git_path_head_file());
-		goto fail;
-	}
-	if (is_null_sha1(sha1)) {
-		error(_("cannot abort from a branch yet to be born"));
-		goto fail;
-	}
-
-	if (!rollback_is_safe()) {
-		/* Do not error, just do not rollback */
-		warning(_("You seem to have moved HEAD. "
-			  "Not rewinding, check your HEAD!"));
-	} else
-	if (reset_for_rollback(sha1))
-		goto fail;
-	strbuf_release(&buf);
-	return sequencer_remove_state(opts);
-fail:
-	strbuf_release(&buf);
-	return -1;
+	return ep + strspn(ep, blank);
 }

@@ -1,1 +1,1 @@
-fprintf(f, ",");
+ap_rvputs(r, " </head>\n <body>\n", NULL);

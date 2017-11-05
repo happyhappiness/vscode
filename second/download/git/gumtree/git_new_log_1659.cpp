@@ -1,1 +1,2 @@
-die("BUG: have_old is true but old_sha1 is NULL");
+error("unable to generate patch-id diff for %s",
+				     p->one->path);

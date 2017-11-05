@@ -1,2 +1,1 @@
-die("Duplicate entry when writing index: %s",
-			    oid_to_hex(&object->oid));
+fprintf(stderr, "Checking %s\n", describe_object(obj));

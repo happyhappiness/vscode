@@ -1,2 +1,2 @@
-die ("Can't find replacement commit for tag %s\n",
-					     sha1_to_hex(tag->object.sha1));
+error("Unable to write file %s: %s",
+			export_marks_file, strerror(errno));

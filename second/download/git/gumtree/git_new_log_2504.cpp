@@ -1,1 +1,1 @@
-die(_("improper format entered align:%s"), s[0]->buf);
+fprintf(rev->diffopt.file, _("Final output: %d %s\n"), nr, stage);

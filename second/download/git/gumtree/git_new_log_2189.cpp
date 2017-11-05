@@ -1,1 +1,1 @@
-error("%s", err.buf);
+die_errno(_("could not read SQUASH_MSG"));

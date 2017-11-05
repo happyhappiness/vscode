@@ -1,46 +1,22 @@
-static void create_one_file(struct apply_state *state,
-			    char *path,
-			    unsigned mode,
-			    const char *buf,
-			    unsigned long size)
+static void check_safe_crlf(const char *path, enum crlf_action crlf_action,
+			    struct text_stat *old_stats, struct text_stat *new_stats,
+			    enum safe_crlf checksafe)
 {
-	if (state->cached)
-		return;
-	if (!try_create_file(path, mode, buf, size))
-		return;
-
-	if (errno == ENOENT) {
-		if (safe_create_leading_directories(path))
-			return;
-		if (!try_create_file(path, mode, buf, size))
-			return;
-	}
-
-	if (errno == EEXIST || errno == EACCES) {
-		/* We may be trying to create a file where a directory
-		 * used to be.
+	if (old_stats->crlf && !new_stats->crlf ) {
+		/*
+		 * CRLFs would not be restored by checkout
 		 */
-		struct stat st;
-		if (!lstat(path, &st) && (!S_ISDIR(st.st_mode) || !rmdir(path)))
-			errno = EEXIST;
+		if (checksafe == SAFE_CRLF_WARN)
+			warning("CRLF will be replaced by LF in %s.\nThe file will have its original line endings in your working directory.", path);
+		else /* i.e. SAFE_CRLF_FAIL */
+			die("CRLF would be replaced by LF in %s.", path);
+	} else if (old_stats->lonelf && !new_stats->lonelf ) {
+		/*
+		 * CRLFs would be added by checkout
+		 */
+		if (checksafe == SAFE_CRLF_WARN)
+			warning("LF will be replaced by CRLF in %s.\nThe file will have its original line endings in your working directory.", path);
+		else /* i.e. SAFE_CRLF_FAIL */
+			die("LF would be replaced by CRLF in %s", path);
 	}
-
-	if (errno == EEXIST) {
-		unsigned int nr = getpid();
-
-		for (;;) {
-			char newpath[PATH_MAX];
-			mksnpath(newpath, sizeof(newpath), "%s~%u", path, nr);
-			if (!try_create_file(newpath, mode, buf, size)) {
-				if (!rename(newpath, path))
-					return;
-				unlink_or_warn(newpath);
-				break;
-			}
-			if (errno != EEXIST)
-				break;
-			++nr;
-		}
-	}
-	die_errno(_("unable to write file '%s' mode %o"), path, mode);
 }

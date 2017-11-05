@@ -1,19 +1,16 @@
-static time_t gm_time_t(timestamp_t time, int tz)
+static int is_refname_available(const char *refname, const char *oldrefname,
+				struct ref_dir *dir)
 {
-	int minutes;
+	struct name_conflict_cb data;
+	data.refname = refname;
+	data.oldrefname = oldrefname;
+	data.conflicting_refname = NULL;
 
-	minutes = tz < 0 ? -tz : tz;
-	minutes = (minutes / 100)*60 + (minutes % 100);
-	minutes = tz < 0 ? -minutes : minutes;
-
-	if (minutes > 0) {
-		if (unsigned_add_overflows(time, minutes * 60))
-			die("Timestamp+tz too large: %"PRItime" +%04d",
-			    time, tz);
-	} else if (time < -minutes * 60)
-		die("Timestamp before Unix epoch: %"PRItime" %04d", time, tz);
-	time += minutes * 60;
-	if (date_overflows(time))
-		die("Timestamp too large for this system: %"PRItime, time);
-	return (time_t)time;
+	sort_ref_dir(dir);
+	if (do_for_each_entry_in_dir(dir, 0, name_conflict_fn, &data)) {
+		error("'%s' exists; cannot create '%s'",
+		      data.conflicting_refname, refname);
+		return 0;
+	}
+	return 1;
 }

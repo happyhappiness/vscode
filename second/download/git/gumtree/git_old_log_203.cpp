@@ -1,1 +1,1 @@
-fprintf(ecbdata->opt->file, "%s", ecbdata->header->buf);
+die("--progress can't be used with --incremental or porcelain formats");

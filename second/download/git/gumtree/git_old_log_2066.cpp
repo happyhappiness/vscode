@@ -1,1 +1,1 @@
-printf("%s is the first bad commit\n", bisect_rev_hex);
+print_ref_status(type, quickref, ref, ref->peer_ref, msg, porcelain);

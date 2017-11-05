@@ -1,17 +1,25 @@
-static int report_last_gc_error(void)
+static int merge_trivial(struct commit *head, struct commit_list *remoteheads)
 {
-	struct strbuf sb = STRBUF_INIT;
-	int ret;
+	unsigned char result_tree[20], result_commit[20];
+	struct commit_list *parents, **pptr = &parents;
+	static struct lock_file lock;
 
-	ret = strbuf_read_file(&sb, git_path("gc.log"), 0);
-	if (ret > 0)
-		return error(_("The last gc run reported the following. "
-			       "Please correct the root cause\n"
-			       "and remove %s.\n"
-			       "Automatic cleanup will not be performed "
-			       "until the file is removed.\n\n"
-			       "%s"),
-			     git_path("gc.log"), sb.buf);
-	strbuf_release(&sb);
+	hold_locked_index(&lock, 1);
+	refresh_cache(REFRESH_QUIET);
+	if (active_cache_changed &&
+	    write_locked_index(&the_index, &lock, COMMIT_LOCK))
+		return error(_("Unable to write index."));
+	rollback_lock_file(&lock);
+
+	write_tree_trivial(result_tree);
+	printf(_("Wonderful.\n"));
+	pptr = commit_list_append(head, pptr);
+	pptr = commit_list_append(remoteheads->item, pptr);
+	prepare_to_commit(remoteheads);
+	if (commit_tree(merge_msg.buf, merge_msg.len, result_tree, parents,
+			result_commit, NULL, sign_commit))
+		die(_("failed to write commit object"));
+	finish(head, remoteheads, result_commit, "In-index merge");
+	drop_save();
 	return 0;
 }

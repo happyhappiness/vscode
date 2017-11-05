@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                                  "proxy: error creating PASV socket");
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                     "Limiting internal redirects to very low numbers may "
+                     "cause normal requests to fail.");

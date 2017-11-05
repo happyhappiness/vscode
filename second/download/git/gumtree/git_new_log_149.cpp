@@ -1,1 +1,1 @@
-error("%s", buf.buf);
+status_printf_ln(s, c, "%s", "");

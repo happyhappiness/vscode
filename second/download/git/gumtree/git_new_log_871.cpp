@@ -1,1 +1,1 @@
-die("Too large to be a .git file: '%s'", path);
+die(_("format: %%(then) atom used more than once"));

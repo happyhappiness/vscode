@@ -1,1 +1,1 @@
-printf("%s\n", filter.tags.items[i].string);
+fprintf(stderr, "%.*s", brk + sf, b);

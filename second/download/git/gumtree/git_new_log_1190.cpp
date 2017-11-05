@@ -1,4 +1,1 @@
-fprintf_ln(stderr,
-				   _("Continuing under the assumption that "
-				     "you meant '%s'."),
-				   assumed);
+die(_("commit '%s' has malformed author line"), author_message);

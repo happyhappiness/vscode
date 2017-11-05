@@ -1,1 +1,2 @@
-error(_("could not close '%s'"), tempfile->filename.buf);
+error("Unexpected line '%s', expected version",
+			     line ? line : "<flush packet>");

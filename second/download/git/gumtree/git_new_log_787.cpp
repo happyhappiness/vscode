@@ -1,2 +1,2 @@
-printf("tagged %s %s", printable_type(tag->tagged),
-				describe_object(tag->tagged));
+die(_("could not read object %s for symlink %s"),
+				oid_to_hex(oid), path);

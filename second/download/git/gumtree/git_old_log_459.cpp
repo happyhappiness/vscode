@@ -1,1 +1,1 @@
-packet_write(stdin_fd, "%s %s%c", serv, repo, 0);
+die(_("Could not read %s."), git_path_todo_file());

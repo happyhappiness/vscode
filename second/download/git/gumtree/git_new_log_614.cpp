@@ -1,1 +1,1 @@
-die("Unknown command: %d", command);
+die(_("There is no merge in progress (MERGE_HEAD missing)."));

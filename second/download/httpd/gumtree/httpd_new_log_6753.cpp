@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, 
-                          H2_SSSN_LOG(APLOGNO(03045), session, 
-                          "process, closing conn"));
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01146)
+                             "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
+                             elts[i].key, elts[i].val, ap_proxy_worker_name(cmd->pool, worker));

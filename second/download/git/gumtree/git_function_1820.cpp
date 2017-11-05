@@ -1,120 +1,67 @@
-struct child_process *git_connect(int fd[2], const char *url,
-				  const char *prog, int flags)
+static void builtin_checkdiff(const char *name_a, const char *name_b,
+			      const char *attr_path,
+			      struct diff_filespec *one,
+			      struct diff_filespec *two,
+			      struct diff_options *o)
 {
-	char *hostandport, *path;
-	struct child_process *conn = &no_fork;
-	enum protocol protocol;
-	struct strbuf cmd = STRBUF_INIT;
+	mmfile_t mf1, mf2;
+	struct checkdiff_t data;
 
-	/* Without this we cannot rely on waitpid() to tell
-	 * what happened to our children.
+	if (!two)
+		return;
+
+	memset(&data, 0, sizeof(data));
+	data.filename = name_b ? name_b : name_a;
+	data.lineno = 0;
+	data.o = o;
+	data.ws_rule = whitespace_rule(attr_path);
+	data.conflict_marker_size = ll_merge_marker_size(attr_path);
+
+	if (fill_mmfile(&mf1, one) < 0 || fill_mmfile(&mf2, two) < 0)
+		die("unable to read files to diff");
+
+	/*
+	 * All the other codepaths check both sides, but not checking
+	 * the "old" side here is deliberate.  We are checking the newly
+	 * introduced changes, and as long as the "new" side is text, we
+	 * can and should check what it introduces.
 	 */
-	signal(SIGCHLD, SIG_DFL);
+	if (diff_filespec_is_binary(two))
+		goto free_and_return;
+	else {
+		/* Crazy xdl interfaces.. */
+		xpparam_t xpp;
+		xdemitconf_t xecfg;
 
-	protocol = parse_connect_url(url, &hostandport, &path);
-	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
-		printf("Diag: url=%s\n", url ? url : "NULL");
-		printf("Diag: protocol=%s\n", prot_name(protocol));
-		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
-		printf("Diag: path=%s\n", path ? path : "NULL");
-		conn = NULL;
-	} else if (protocol == PROTO_GIT) {
-		/*
-		 * Set up virtual host information based on where we will
-		 * connect, unless the user has overridden us in
-		 * the environment.
-		 */
-		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
-		if (target_host)
-			target_host = xstrdup(target_host);
-		else
-			target_host = xstrdup(hostandport);
+		memset(&xpp, 0, sizeof(xpp));
+		memset(&xecfg, 0, sizeof(xecfg));
+		xecfg.ctxlen = 1; /* at least one context line */
+		xpp.flags = 0;
+		if (xdi_diff_outf(&mf1, &mf2, checkdiff_consume, &data,
+				  &xpp, &xecfg))
+			die("unable to generate checkdiff for %s", one->path);
 
-		/* These underlying connection commands die() if they
-		 * cannot connect.
-		 */
-		if (git_use_proxy(hostandport))
-			conn = git_proxy_connect(fd, hostandport);
-		else
-			git_tcp_connect(fd, hostandport, flags);
-		/*
-		 * Separate original protocol components prog and path
-		 * from extended host header with a NUL byte.
-		 *
-		 * Note: Do not add any other headers here!  Doing so
-		 * will cause older git-daemon servers to crash.
-		 */
-		packet_write(fd[1],
-			     "%s %s%chost=%s%c",
-			     prog, path, 0,
-			     target_host, 0);
-		free(target_host);
-	} else {
-		conn = xmalloc(sizeof(*conn));
-		child_process_init(conn);
+		if (data.ws_rule & WS_BLANK_AT_EOF) {
+			struct emit_callback ecbdata;
+			int blank_at_eof;
 
-		strbuf_addstr(&cmd, prog);
-		strbuf_addch(&cmd, ' ');
-		sq_quote_buf(&cmd, path);
+			ecbdata.ws_rule = data.ws_rule;
+			check_blank_at_eof(&mf1, &mf2, &ecbdata);
+			blank_at_eof = ecbdata.blank_at_eof_in_postimage;
 
-		conn->in = conn->out = -1;
-		if (protocol == PROTO_SSH) {
-			const char *ssh;
-			int putty;
-			char *ssh_host = hostandport;
-			const char *port = NULL;
-			get_host_and_port(&ssh_host, &port);
-
-			if (!port)
-				port = get_port(ssh_host);
-
-			if (flags & CONNECT_DIAG_URL) {
-				printf("Diag: url=%s\n", url ? url : "NULL");
-				printf("Diag: protocol=%s\n", prot_name(protocol));
-				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
-				printf("Diag: port=%s\n", port ? port : "NONE");
-				printf("Diag: path=%s\n", path ? path : "NULL");
-
-				free(hostandport);
-				free(path);
-				return NULL;
-			} else {
-				ssh = getenv("GIT_SSH_COMMAND");
-				if (ssh) {
-					conn->use_shell = 1;
-					putty = 0;
-				} else {
-					ssh = getenv("GIT_SSH");
-					if (!ssh)
-						ssh = "ssh";
-					putty = !!strcasestr(ssh, "plink");
-				}
-
-				argv_array_push(&conn->args, ssh);
-				if (putty && !strcasestr(ssh, "tortoiseplink"))
-					argv_array_push(&conn->args, "-batch");
-				if (port) {
-					/* P is for PuTTY, p is for OpenSSH */
-					argv_array_push(&conn->args, putty ? "-P" : "-p");
-					argv_array_push(&conn->args, port);
-				}
-				argv_array_push(&conn->args, ssh_host);
+			if (blank_at_eof) {
+				static char *err;
+				if (!err)
+					err = whitespace_error_string(WS_BLANK_AT_EOF);
+				fprintf(o->file, "%s:%d: %s.\n",
+					data.filename, blank_at_eof, err);
+				data.status = 1; /* report errors */
 			}
-		} else {
-			/* remove repo-local variables from the environment */
-			conn->env = local_repo_env;
-			conn->use_shell = 1;
 		}
-		argv_array_push(&conn->args, cmd.buf);
-
-		if (start_command(conn))
-			die("unable to fork");
-
-		fd[0] = conn->out; /* read from child's stdout */
-		fd[1] = conn->in;  /* write to child's stdin */
-		strbuf_release(&cmd);
 	}
-	free(hostandport);
-	free(path);
-	return conn;
+ free_and_return:
+	diff_free_filespec_data(one);
+	diff_free_filespec_data(two);
+	if (data.status)
+		DIFF_OPT_SET(o, CHECK_FAILED);
 }

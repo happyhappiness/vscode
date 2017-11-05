@@ -1,1 +1,1 @@
-fputs(output, stderr);
+die(_("unknown field name: %.*s"), (int)(ep-atom), atom);

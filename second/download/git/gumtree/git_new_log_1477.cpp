@@ -1,1 +1,1 @@
-die("%s", err.buf);
+noindex_filespec(NULL, 0);

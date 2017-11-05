@@ -1,2 +1,1 @@
-error(_("your local changes would be overwritten by %s."),
-		_(action_name(opts)));
+die("BUG: read_loose_object streamed a non-blob");

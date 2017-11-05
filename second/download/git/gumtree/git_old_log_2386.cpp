@@ -1,1 +1,2 @@
-printf("%s\n", sha1_to_hex(result->item->object.sha1));
+error("readlink(\"%s\"): %s", path,
+			             errstr);

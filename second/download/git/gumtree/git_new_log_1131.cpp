@@ -1,1 +1,1 @@
-die("BUG: unhandled setup_git_directory_1() result");
+die("git-cvsserver only handles server: %s", arg);

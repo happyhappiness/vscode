@@ -1,16 +1,7 @@
-void convert_to_git_filter_fd(const char *path, int fd, struct strbuf *dst,
-			      enum safe_crlf checksafe)
+static int advertise_shallow_grafts_cb(const struct commit_graft *graft, void *cb)
 {
-	struct conv_attrs ca;
-	convert_attrs(&ca, path);
-
-	assert(ca.drv);
-	assert(ca.drv->clean);
-
-	if (!apply_filter(path, NULL, 0, fd, dst, ca.drv->clean))
-		die("%s: clean filter '%s' failed", path, ca.drv->name);
-
-	ca.crlf_action = input_crlf_action(ca.crlf_action, ca.eol_attr);
-	crlf_to_git(path, dst->buf, dst->len, dst, ca.crlf_action, checksafe);
-	ident_to_git(path, dst->buf, dst->len, dst, ca.ident);
+	struct strbuf *sb = cb;
+	if (graft->nr_parent == -1)
+		packet_buf_write(sb, "shallow %s\n", sha1_to_hex(graft->sha1));
+	return 0;
 }

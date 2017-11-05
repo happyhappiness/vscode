@@ -1,1 +1,1 @@
-die(_("Failed to resolve '%s' as a valid ref."), object_ref);
+die("dumb http transport does not support --depth");

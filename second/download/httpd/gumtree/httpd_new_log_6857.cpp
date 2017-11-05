@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      H2_STRM_MSG(stream, "lookup of nghttp2_stream failed"));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,  APLOGNO(02651)
+                              "Error writing request body to script %s", 
+                              r->filename);

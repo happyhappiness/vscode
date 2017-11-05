@@ -1,1 +1,1 @@
-die("curl_easy_init failed");
+die_errno(_("could not close %s"), path);

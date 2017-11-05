@@ -1,1 +1,1 @@
-fputs(_(env_hint), stderr);
+fprintf(stderr, "fatal: %s\n\n", msg);

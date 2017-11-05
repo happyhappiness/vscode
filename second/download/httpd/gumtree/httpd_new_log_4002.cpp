@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00682)
-                      "Syntax error in type map --- no header body: %s for %s",
-                      r->filename, header);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00909)
+             "2)IP-NoMatch: hostname=%s msg=Host not found", host);

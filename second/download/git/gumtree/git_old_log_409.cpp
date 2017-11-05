@@ -1,1 +1,1 @@
-printf(_("Updating %s..%s\n"), from, to);
+fputs(env_hint, stderr);

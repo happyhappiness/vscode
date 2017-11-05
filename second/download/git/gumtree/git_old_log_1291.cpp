@@ -1,1 +1,1 @@
-error("corrupt packed object for %s", sha1_to_hex(entry->idx.sha1));
+fprintf(stderr, "Error creating curl multi handle.\n");

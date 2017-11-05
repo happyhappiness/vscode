@@ -1,1 +1,1 @@
-die("'%s': not a non-negative integer", optarg);
+error("Unexpected line '%s', expected flush", line);

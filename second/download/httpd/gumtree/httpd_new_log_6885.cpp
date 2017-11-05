@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, c,
-                                              H2_SSSN_MSG(session, 
-                                              "keepalive timeout"));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, rv, r, "wstunnel_transfer complete");

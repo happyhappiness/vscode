@@ -1,2 +1,1 @@
-printf("Server loaded:  APR %s, APR-UTIL %s\n",
-           apr_version_string(), apu_version_string());
+fprintf(stderr, "Rotation based on localtime: %12s\n", config->use_localtime ? "yes" : "no");

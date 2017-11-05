@@ -1,1 +1,1 @@
-die("Option '--stat-name-width' requires a value");
+die("corrupt tree file");

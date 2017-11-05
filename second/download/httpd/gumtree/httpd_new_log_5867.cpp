@@ -1,3 +1,4 @@
-ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
-                                      "h2_session(%ld): terminating",
-                                      session->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task(%s): get more data from mplx, block=%d, "
+                      "readbytes=%ld, queued=%ld",
+                      task->id, block, (long)readbytes, (long)bblen);

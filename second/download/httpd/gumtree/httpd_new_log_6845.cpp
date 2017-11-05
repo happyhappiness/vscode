@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  H2_SSSN_MSG(session, "pool_cleanup"));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(00783)
+                "Cache already locked for stale cached URL, "
+                "pretend it is fresh: %s",
+                r->unparsed_uri);

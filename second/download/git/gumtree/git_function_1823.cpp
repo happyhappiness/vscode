@@ -1,74 +1,54 @@
-int main(int argc, char **argv)
+static int process_diff_filepair(struct rev_info *rev,
+				 struct diff_filepair *pair,
+				 struct line_log_data *range,
+				 struct diff_ranges **diff_out)
 {
-	struct strbuf all_msgs = STRBUF_INIT;
-	int total;
-	int nongit_ok;
+	struct line_log_data *rg = range;
+	struct range_set tmp;
+	struct diff_ranges diff;
+	mmfile_t file_parent, file_target;
 
-	git_extract_argv0_path(argv[0]);
-
-	git_setup_gettext();
-
-	setup_git_directory_gently(&nongit_ok);
-	git_imap_config();
-
-	argc = parse_options(argc, (const char **)argv, "", imap_send_options, imap_send_usage, 0);
-
-	if (argc)
-		usage_with_options(imap_send_usage, imap_send_options);
-
-#ifndef USE_CURL_FOR_IMAP_SEND
-	if (use_curl) {
-		warning("--curl not supported in this build");
-		use_curl = 0;
-	}
-#elif defined(NO_OPENSSL)
-	if (!use_curl) {
-		warning("--no-curl not supported in this build");
-		use_curl = 1;
-	}
-#endif
-
-	if (!server.port)
-		server.port = server.use_ssl ? 993 : 143;
-
-	if (!server.folder) {
-		fprintf(stderr, "no imap store specified\n");
-		return 1;
-	}
-	if (!server.host) {
-		if (!server.tunnel) {
-			fprintf(stderr, "no imap host specified\n");
-			return 1;
-		}
-		server.host = "tunnel";
+	assert(pair->two->path);
+	while (rg) {
+		assert(rg->path);
+		if (!strcmp(rg->path, pair->two->path))
+			break;
+		rg = rg->next;
 	}
 
-	/* read the messages */
-	if (read_message(stdin, &all_msgs)) {
-		fprintf(stderr, "error reading input\n");
-		return 1;
+	if (!rg)
+		return 0;
+	if (rg->ranges.nr == 0)
+		return 0;
+
+	assert(pair->two->sha1_valid);
+	diff_populate_filespec(pair->two, 0);
+	file_target.ptr = pair->two->data;
+	file_target.size = pair->two->size;
+
+	if (pair->one->sha1_valid) {
+		diff_populate_filespec(pair->one, 0);
+		file_parent.ptr = pair->one->data;
+		file_parent.size = pair->one->size;
+	} else {
+		file_parent.ptr = "";
+		file_parent.size = 0;
 	}
 
-	if (all_msgs.len == 0) {
-		fprintf(stderr, "nothing to send\n");
-		return 1;
-	}
+	diff_ranges_init(&diff);
+	if (collect_diff(&file_parent, &file_target, &diff))
+		die("unable to generate diff for %s", pair->one->path);
 
-	total = count_messages(&all_msgs);
-	if (!total) {
-		fprintf(stderr, "no messages to send\n");
-		return 1;
-	}
+	/* NEEDSWORK should apply some heuristics to prevent mismatches */
+	free(rg->path);
+	rg->path = xstrdup(pair->one->path);
 
-	/* write it to the imap server */
+	range_set_init(&tmp, 0);
+	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
+	range_set_release(&rg->ranges);
+	range_set_move(&rg->ranges, &tmp);
 
-	if (server.tunnel)
-		return append_msgs_to_imap(&server, &all_msgs, total);
+	diff_ranges_release(&diff);
 
-#ifdef USE_CURL_FOR_IMAP_SEND
-	if (use_curl)
-		return curl_append_msgs_to_imap(&server, &all_msgs, total);
-#endif
-
-	return append_msgs_to_imap(&server, &all_msgs, total);
+	return ((*diff_out)->parent.nr > 0);
 }

@@ -1,92 +1,159 @@
-static int pack_objects(int fd, struct ref *refs, struct sha1_array *extra, struct send_pack_args *args)
+int cmd_read_tree(int argc, const char **argv, const char *unused_prefix)
 {
-	/*
-	 * The child becomes pack-objects --revs; we feed
-	 * the revision parameters to it via its stdin and
-	 * let its stdout go back to the other end.
-	 */
-	const char *argv[] = {
-		"pack-objects",
-		"--all-progress-implied",
-		"--revs",
-		"--stdout",
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
+	int i, stage = 0;
+	unsigned char sha1[20];
+	struct tree_desc t[MAX_UNPACK_TREES];
+	struct unpack_trees_options opts;
+	int prefix_set = 0;
+	const struct option read_tree_options[] = {
+		{ OPTION_CALLBACK, 0, "index-output", NULL, N_("file"),
+		  N_("write resulting index to <file>"),
+		  PARSE_OPT_NONEG, index_output_cb },
+		OPT_BOOL(0, "empty", &read_empty,
+			    N_("only empty the index")),
+		OPT__VERBOSE(&opts.verbose_update, N_("be verbose")),
+		OPT_GROUP(N_("Merging")),
+		OPT_BOOL('m', NULL, &opts.merge,
+			 N_("perform a merge in addition to a read")),
+		OPT_BOOL(0, "trivial", &opts.trivial_merges_only,
+			 N_("3-way merge if no file level merging required")),
+		OPT_BOOL(0, "aggressive", &opts.aggressive,
+			 N_("3-way merge in presence of adds and removes")),
+		OPT_BOOL(0, "reset", &opts.reset,
+			 N_("same as -m, but discard unmerged entries")),
+		{ OPTION_STRING, 0, "prefix", &opts.prefix, N_("<subdirectory>/"),
+		  N_("read the tree into the index under <subdirectory>/"),
+		  PARSE_OPT_NONEG | PARSE_OPT_LITERAL_ARGHELP },
+		OPT_BOOL('u', NULL, &opts.update,
+			 N_("update working tree with merge result")),
+		{ OPTION_CALLBACK, 0, "exclude-per-directory", &opts,
+		  N_("gitignore"),
+		  N_("allow explicitly ignored files to be overwritten"),
+		  PARSE_OPT_NONEG, exclude_per_directory_cb },
+		OPT_BOOL('i', NULL, &opts.index_only,
+			 N_("don't check the working tree after merging")),
+		OPT__DRY_RUN(&opts.dry_run, N_("don't update the index or the work tree")),
+		OPT_BOOL(0, "no-sparse-checkout", &opts.skip_sparse_checkout,
+			 N_("skip applying sparse checkout filter")),
+		OPT_BOOL(0, "debug-unpack", &opts.debug_unpack,
+			 N_("debug unpack-trees")),
+		{ OPTION_CALLBACK, 0, "recurse-submodules", &recurse_submodules,
+			    "checkout", "control recursive updating of submodules",
+			    PARSE_OPT_OPTARG, option_parse_recurse_submodules },
+		OPT_END()
 	};
-	struct child_process po = CHILD_PROCESS_INIT;
-	FILE *po_in;
-	int i;
-	int rc;
 
-	i = 4;
-	if (args->use_thin_pack)
-		argv[i++] = "--thin";
-	if (args->use_ofs_delta)
-		argv[i++] = "--delta-base-offset";
-	if (args->quiet || !args->progress)
-		argv[i++] = "-q";
-	if (args->progress)
-		argv[i++] = "--progress";
-	if (is_repository_shallow())
-		argv[i++] = "--shallow";
-	po.argv = argv;
-	po.in = -1;
-	po.out = args->stateless_rpc ? -1 : fd;
-	po.git_cmd = 1;
-	if (start_command(&po))
-		die_errno("git pack-objects failed");
+	memset(&opts, 0, sizeof(opts));
+	opts.head_idx = -1;
+	opts.src_index = &the_index;
+	opts.dst_index = &the_index;
+
+	git_config(git_default_config, NULL);
+
+	argc = parse_options(argc, argv, unused_prefix, read_tree_options,
+			     read_tree_usage, 0);
+
+	hold_locked_index(&lock_file, LOCK_DIE_ON_ERROR);
+
+	if (recurse_submodules != RECURSE_SUBMODULES_DEFAULT) {
+		gitmodules_config();
+		git_config(submodule_config, NULL);
+		set_config_update_recurse_submodules(RECURSE_SUBMODULES_ON);
+	}
+
+	prefix_set = opts.prefix ? 1 : 0;
+	if (1 < opts.merge + opts.reset + prefix_set)
+		die("Which one? -m, --reset, or --prefix?");
 
 	/*
-	 * We feed the pack-objects we just spawned with revision
-	 * parameters by writing to the pipe.
+	 * NEEDSWORK
+	 *
+	 * The old index should be read anyway even if we're going to
+	 * destroy all index entries because we still need to preserve
+	 * certain information such as index version or split-index
+	 * mode.
 	 */
-	po_in = xfdopen(po.in, "w");
-	for (i = 0; i < extra->nr; i++)
-		feed_object(extra->sha1[i], po_in, 1);
 
-	while (refs) {
-		if (!is_null_oid(&refs->old_oid))
-			feed_object(refs->old_oid.hash, po_in, 1);
-		if (!is_null_oid(&refs->new_oid))
-			feed_object(refs->new_oid.hash, po_in, 0);
-		refs = refs->next;
+	if (opts.reset || opts.merge || opts.prefix) {
+		if (read_cache_unmerged() && (opts.prefix || opts.merge))
+			die("You need to resolve your current index first");
+		stage = opts.merge = 1;
 	}
+	resolve_undo_clear();
 
-	fflush(po_in);
-	if (ferror(po_in))
-		die_errno("error writing to pack-objects");
-	fclose(po_in);
+	for (i = 0; i < argc; i++) {
+		const char *arg = argv[i];
 
-	if (args->stateless_rpc) {
-		char *buf = xmalloc(LARGE_PACKET_MAX);
-		while (1) {
-			ssize_t n = xread(po.out, buf, LARGE_PACKET_MAX);
-			if (n <= 0)
-				break;
-			send_sideband(fd, -1, buf, n, LARGE_PACKET_MAX);
+		if (get_sha1(arg, sha1))
+			die("Not a valid object name %s", arg);
+		if (list_tree(sha1) < 0)
+			die("failed to unpack tree object %s", arg);
+		stage++;
+	}
+	if (!nr_trees && !read_empty && !opts.merge)
+		warning("read-tree: emptying the index with no arguments is deprecated; use --empty");
+	else if (nr_trees > 0 && read_empty)
+		die("passing trees as arguments contradicts --empty");
+
+	if (1 < opts.index_only + opts.update)
+		die("-u and -i at the same time makes no sense");
+	if ((opts.update || opts.index_only) && !opts.merge)
+		die("%s is meaningless without -m, --reset, or --prefix",
+		    opts.update ? "-u" : "-i");
+	if ((opts.dir && !opts.update))
+		die("--exclude-per-directory is meaningless unless -u");
+	if (opts.merge && !opts.index_only)
+		setup_work_tree();
+
+	if (opts.merge) {
+		switch (stage - 1) {
+		case 0:
+			die("you must specify at least one tree to merge");
+			break;
+		case 1:
+			opts.fn = opts.prefix ? bind_merge : oneway_merge;
+			break;
+		case 2:
+			opts.fn = twoway_merge;
+			opts.initial_checkout = is_cache_unborn();
+			break;
+		case 3:
+		default:
+			opts.fn = threeway_merge;
+			break;
 		}
-		free(buf);
-		close(po.out);
-		po.out = -1;
+
+		if (stage - 1 >= 3)
+			opts.head_idx = stage - 2;
+		else
+			opts.head_idx = 1;
 	}
 
-	rc = finish_command(&po);
-	if (rc) {
-		/*
-		 * For a normal non-zero exit, we assume pack-objects wrote
-		 * something useful to stderr. For death by signal, though,
-		 * we should mention it to the user. The exception is SIGPIPE
-		 * (141), because that's a normal occurence if the remote end
-		 * hangs up (and we'll report that by trying to read the unpack
-		 * status).
-		 */
-		if (rc > 128 && rc != 141)
-			error("pack-objects died of signal %d", rc - 128);
-		return -1;
+	if (opts.debug_unpack)
+		opts.fn = debug_merge;
+
+	cache_tree_free(&active_cache_tree);
+	for (i = 0; i < nr_trees; i++) {
+		struct tree *tree = trees[i];
+		parse_tree(tree);
+		init_tree_desc(t+i, tree->buffer, tree->size);
 	}
+	if (unpack_trees(nr_trees, t, &opts))
+		return 128;
+
+	if (opts.debug_unpack || opts.dry_run)
+		return 0; /* do not write the index out */
+
+	/*
+	 * When reading only one tree (either the most basic form,
+	 * "-m ent" or "--reset ent" form), we can obtain a fully
+	 * valid cache-tree because the index must match exactly
+	 * what came from the tree.
+	 */
+	if (nr_trees == 1 && !opts.prefix)
+		prime_cache_tree(&the_index, trees[0]);
+
+	if (write_locked_index(&the_index, &lock_file, COMMIT_LOCK))
+		die("unable to write new index file");
 	return 0;
 }

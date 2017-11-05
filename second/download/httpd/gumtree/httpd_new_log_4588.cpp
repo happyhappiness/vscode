@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01822)
-                          "error while saving the session, "
-                          "session not saved: %s", r->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, APR_FROM_OS_ERROR(rc), ap_server_conf, APLOGNO(00208)
+                     "error spawning child, slot %d", slot);

@@ -1,28 +1,47 @@
-static int task_print(void *ctx, void *val)
+static long gc(server_rec *s)
 {
-    h2_mplx *m = ctx;
-    h2_task *task = val;
+    client_entry *entry, *prev;
+    unsigned long num_removed = 0, idx;
 
-    if (task && task->request) {
-        h2_stream *stream = h2_ihash_get(m->streams, task->stream_id);
+    /* garbage collect all last entries */
 
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
-                      "->03198: h2_stream(%s): %s %s %s -> %s %d"
-                      "[orph=%d/started=%d/done=%d]", 
-                      task->id, task->request->method, 
-                      task->request->authority, task->request->path,
-                      task->response? "http" : (task->rst_error? "reset" : "?"),
-                      task->response? task->response->http_status : task->rst_error,
-                      (stream? 0 : 1), task->worker_started, 
-                      task->worker_done);
+    for (idx = 0; idx < client_list->tbl_len; idx++) {
+        entry = client_list->table[idx];
+        prev  = NULL;
+
+        if (!entry) {
+            /* This bucket is empty. */
+            continue;
+        }
+
+        while (entry->next) {   /* find last entry */
+            prev  = entry;
+            entry = entry->next;
+        }
+        if (prev) {
+            prev->next = NULL;   /* cut list */
+        }
+        else {
+            client_list->table[idx] = NULL;
+        }
+        if (entry) {                    /* remove entry */
+            apr_status_t err;
+
+            err = rmm_free(client_rmm, entry);
+            num_removed++;
+
+            if (err) {
+                /* Nothing we can really do but log... */
+                ap_log_error(APLOG_MARK, APLOG_ERR, err, s, APLOGNO()
+                             "Failed to free auth_digest client allocation");
+            }
+        }
     }
-    else if (task) {
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
-                      "->03198: h2_stream(%ld-%d): NULL", m->id, task->stream_id);
-    }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
-                      "->03198: h2_stream(%ld-NULL): NULL", m->id);
-    }
-    return 1;
+
+    /* update counters and log */
+
+    client_list->num_entries -= num_removed;
+    client_list->num_removed += num_removed;
+
+    return num_removed;
 }

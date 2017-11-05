@@ -1,1 +1,2 @@
-die("loose refname is dangerous: %s", refname.buf);
+warning(_("Missing author: %s"),
+		    oid_to_hex(&commit->object.oid));

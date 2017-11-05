@@ -1,2 +1,2 @@
-die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+err(o, _("failed to symlink '%s': %s"),
+					path, strerror(errno));

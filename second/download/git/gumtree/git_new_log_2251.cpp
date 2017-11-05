@@ -1,2 +1,2 @@
-die_errno("Could not open file %s for reading",
-			  git_path("%s", fname));
+die(_("Branch %s is being bisected at %s"),
+			    target, wt->path);

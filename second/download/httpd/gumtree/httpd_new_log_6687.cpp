@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
-                      APLOGNO(03370)
-                      "h2_proxy_session(%s): finished request %s",
-                      ctx->engine_id, task_id);
+ap_rvputs(r, "<dt>Server Built: ",
+                  ap_get_server_built(), "</dt>\n", NULL);

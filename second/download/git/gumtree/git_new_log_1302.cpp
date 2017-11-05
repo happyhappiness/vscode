@@ -1,1 +1,1 @@
-die(_("cannot rebase with locally recorded submodule modifications"));
+die("BUG: fdopen_lock_file() called twice for file '%s'", lk->filename.buf);

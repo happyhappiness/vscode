@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, session->c,
-                          H2_STRM_MSG(stream, "recv DATA, len=%d: -->%s<--"), 
-                          (int)len, load);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                                 "All workers busy, not accepting new conns "
+                                 "in this process");

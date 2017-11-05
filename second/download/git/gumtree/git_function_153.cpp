@@ -1,33 +1,32 @@
-int read_index_from(struct index_state *istate, const char *path)
+static void wt_status_print_tracking(struct wt_status *s)
 {
-	struct split_index *split_index;
-	int ret;
+	struct strbuf sb = STRBUF_INIT;
+	const char *cp, *ep;
+	struct branch *branch;
+	char comment_line_string[3];
+	int i;
 
-	/* istate->initialized covers both .git/index and .git/sharedindex.xxx */
-	if (istate->initialized)
-		return istate->cache_nr;
+	assert(s->branch && !s->is_initial);
+	if (!starts_with(s->branch, "refs/heads/"))
+		return;
+	branch = branch_get(s->branch + 11);
+	if (!format_tracking_info(branch, &sb))
+		return;
 
-	ret = do_read_index(istate, path, 0);
-	split_index = istate->split_index;
-	if (!split_index)
-		return ret;
+	i = 0;
+	if (s->display_comment_prefix) {
+		comment_line_string[i++] = comment_line_char;
+		comment_line_string[i++] = ' ';
+	}
+	comment_line_string[i] = '\0';
 
-	if (is_null_sha1(split_index->base_sha1))
-		return ret;
-
-	if (split_index->base)
-		discard_index(split_index->base);
+	for (cp = sb.buf; (ep = strchr(cp, '\n')) != NULL; cp = ep + 1)
+		color_fprintf_ln(s->fp, color(WT_STATUS_HEADER, s),
+				 "%s%.*s", comment_line_string,
+				 (int)(ep - cp), cp);
+	if (s->display_comment_prefix)
+		color_fprintf_ln(s->fp, color(WT_STATUS_HEADER, s), "%c",
+				 comment_line_char);
 	else
-		split_index->base = xcalloc(1, sizeof(*split_index->base));
-	ret = do_read_index(split_index->base,
-			    git_path("sharedindex.%s",
-				     sha1_to_hex(split_index->base_sha1)), 1);
-	if (hashcmp(split_index->base_sha1, split_index->base->sha1))
-		die("broken index, expect %s in %s, got %s",
-		    sha1_to_hex(split_index->base_sha1),
-		    git_path("sharedindex.%s",
-				     sha1_to_hex(split_index->base_sha1)),
-		    sha1_to_hex(split_index->base->sha1));
-	merge_base_index(istate);
-	return ret;
+		fprintf_ln(s->fp, "");
 }

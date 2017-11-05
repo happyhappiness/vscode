@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "Unable to create a new SSL connection from the SSL "
-                      "context");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc, NULL,
+                     "unable to replace stderr with error_log");

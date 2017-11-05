@@ -1,1 +1,3 @@
-fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);
+opterror(opt,
+				"expects a non-negative integer value with an optional k/m/g suffix",
+				flags);

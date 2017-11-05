@@ -1,14 +1,13 @@
-static void exit_if_skipped_commits(struct commit_list *tried,
-				    const unsigned char *bad)
+static void found_guilty_entry(struct blame_entry *ent)
 {
-	if (!tried)
-		return;
+	if (incremental) {
+		struct origin *suspect = ent->suspect;
 
-	printf("There are only 'skip'ped commits left to test.\n"
-	       "The first bad commit could be any of:\n");
-	print_commit_list(tried, "%s\n", "%s\n");
-	if (bad)
-		printf("%s\n", sha1_to_hex(bad));
-	printf("We cannot bisect more!\n");
-	exit(2);
+		printf("%s %d %d %d\n",
+		       sha1_to_hex(suspect->commit->object.sha1),
+		       ent->s_lno + 1, ent->lno + 1, ent->num_lines);
+		emit_one_suspect_detail(suspect, 0);
+		write_filename_info(suspect->path);
+		maybe_flush_or_die(stdout, "stdout");
+	}
 }

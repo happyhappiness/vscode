@@ -1,1 +1,1 @@
-die(_("BUG: reopen a lockfile that is still open"));
+error("Unable to create %s", git_HEAD);

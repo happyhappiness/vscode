@@ -1,2 +1,2 @@
-log_scripterror(r, conf, HTTP_NOT_FOUND, 0,
-                               "AcceptPathInfo off disallows user's path");
+ap_log_error(APLOG_MARK, APLOG_TRACE2, status, workers->s,
+                     "h2_workers: register mplx(%ld)", m->id);

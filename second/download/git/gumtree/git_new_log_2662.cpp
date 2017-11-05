@@ -1,1 +1,2 @@
-die(_("unable to update %s"), head_ref.buf);
+error("Could not get patch ID for %s",
+			oid_to_hex(&a->commit->object.oid));

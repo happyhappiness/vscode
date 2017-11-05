@@ -1,1 +1,1 @@
-die("--progress can't be used with --incremental or porcelain formats");
+get_ref(base_list[i], oid_to_hex(base_list[i]));

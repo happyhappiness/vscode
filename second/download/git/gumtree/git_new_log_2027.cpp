@@ -1,1 +1,1 @@
-die("Could not read ref %s", private);
+die(_("malformed object name %s"), arg);

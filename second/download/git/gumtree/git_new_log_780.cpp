@@ -1,1 +1,1 @@
-printf(_("Bye.\n"));
+printf("%s", suffix);

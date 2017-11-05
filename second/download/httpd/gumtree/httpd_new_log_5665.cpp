@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02805)
-                            "Inflated content ratio is larger than the "
-                            "configured limit %i by %i time(s)",
-                            dc->ratio_limit, dc->ratio_burst);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                                         ap_server_conf, APLOGNO(03098)
+                                         "ap_queue_push failed");

@@ -1,50 +1,46 @@
-static int parse_atom(const char *atom, const char *ep)
+size_t fill_textconv(struct userdiff_driver *driver,
+		     struct diff_filespec *df,
+		     char **outbuf)
 {
-	const char *sp;
-	int i, at;
+	size_t size;
 
-	sp = atom;
-	if (*sp == '*' && sp < ep)
-		sp++; /* deref */
-	if (ep <= sp)
-		die("malformed field name: %.*s", (int)(ep-atom), atom);
-
-	/* Do we have the atom already used elsewhere? */
-	for (i = 0; i < used_atom_cnt; i++) {
-		int len = strlen(used_atom[i]);
-		if (len == ep - atom && !memcmp(used_atom[i], atom, len))
-			return i;
+	if (!driver) {
+		if (!DIFF_FILE_VALID(df)) {
+			*outbuf = "";
+			return 0;
+		}
+		if (diff_populate_filespec(df, 0))
+			die("unable to read files to diff");
+		*outbuf = df->data;
+		return df->size;
 	}
 
-	/* Is the atom a valid one? */
-	for (i = 0; i < ARRAY_SIZE(valid_atom); i++) {
-		int len = strlen(valid_atom[i].name);
+	if (!driver->textconv)
+		die("BUG: fill_textconv called with non-textconv driver");
+
+	if (driver->textconv_cache && df->sha1_valid) {
+		*outbuf = notes_cache_get(driver->textconv_cache, df->sha1,
+					  &size);
+		if (*outbuf)
+			return size;
+	}
+
+	*outbuf = run_textconv(driver->textconv, df, &size);
+	if (!*outbuf)
+		die("unable to read files to diff");
+
+	if (driver->textconv_cache && df->sha1_valid) {
+		/* ignore errors, as we might be in a readonly repository */
+		notes_cache_put(driver->textconv_cache, df->sha1, *outbuf,
+				size);
 		/*
-		 * If the atom name has a colon, strip it and everything after
-		 * it off - it specifies the format for this entry, and
-		 * shouldn't be used for checking against the valid_atom
-		 * table.
+		 * we could save up changes and flush them all at the end,
+		 * but we would need an extra call after all diffing is done.
+		 * Since generating a cache entry is the slow path anyway,
+		 * this extra overhead probably isn't a big deal.
 		 */
-		const char *formatp = strchr(sp, ':');
-		if (!formatp || ep < formatp)
-			formatp = ep;
-		if (len == formatp - sp && !memcmp(valid_atom[i].name, sp, len))
-			break;
+		notes_cache_write(driver->textconv_cache);
 	}
 
-	if (ARRAY_SIZE(valid_atom) <= i)
-		die("unknown field name: %.*s", (int)(ep-atom), atom);
-
-	/* Add it in, including the deref prefix */
-	at = used_atom_cnt;
-	used_atom_cnt++;
-	REALLOC_ARRAY(used_atom, used_atom_cnt);
-	REALLOC_ARRAY(used_atom_type, used_atom_cnt);
-	used_atom[at] = xmemdupz(atom, ep - atom);
-	used_atom_type[at] = valid_atom[i].cmp_type;
-	if (*atom == '*')
-		need_tagged = 1;
-	if (!strcmp(used_atom[at], "symref"))
-		need_symref = 1;
-	return at;
+	return size;
 }

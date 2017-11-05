@@ -1,3 +1,4 @@
-fprintf(stderr,
-                "Add this:\n\nTransferLog \"|%s /some/where 86400\"\n\n",
-                argv[0]);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "auth_ldap authorize dn: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);

@@ -1,1 +1,1 @@
-ap_add_output_filter("H1_TO_H2", task, NULL, c);
+ap_rvputs(r, "> <br/> <label for='", name, "0'>Off</label> <input name='", name, "' id='", name, "0' value='0' type=radio", NULL);

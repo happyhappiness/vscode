@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                          H2_STRM_MSG(stream, "process, add to readyq"));
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02287)
+                     "Failed to read %d bytes from %s: (%d) %pm",
+                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);

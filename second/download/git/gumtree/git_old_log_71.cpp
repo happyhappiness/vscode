@@ -1,0 +1,1 @@
+die("expected NUL but got: %s", next);

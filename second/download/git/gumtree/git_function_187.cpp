@@ -1,33 +1,19 @@
-static void show_entry(struct diff_options *opt, const char *prefix,
-		       struct tree_desc *desc, struct strbuf *base)
+static void say_patch_name(FILE *output, const char *fmt, struct patch *patch)
 {
-	unsigned mode;
-	const char *path;
-	const unsigned char *sha1 = tree_entry_extract(desc, &path, &mode);
-	int pathlen = tree_entry_len(&desc->entry);
-	int old_baselen = base->len;
+	struct strbuf sb = STRBUF_INIT;
 
-	strbuf_add(base, path, pathlen);
-	if (DIFF_OPT_TST(opt, RECURSIVE) && S_ISDIR(mode)) {
-		enum object_type type;
-		struct tree_desc inner;
-		void *tree;
-		unsigned long size;
-
-		tree = read_sha1_file(sha1, &type, &size);
-		if (!tree || type != OBJ_TREE)
-			die("corrupt tree sha %s", sha1_to_hex(sha1));
-
-		if (DIFF_OPT_TST(opt, TREE_IN_RECURSIVE))
-			opt->add_remove(opt, *prefix, mode, sha1, 1, base->buf, 0);
-
-		strbuf_addch(base, '/');
-
-		init_tree_desc(&inner, tree, size);
-		show_tree(opt, prefix, &inner, base);
-		free(tree);
-	} else
-		opt->add_remove(opt, prefix[0], mode, sha1, 1, base->buf, 0);
-
-	strbuf_setlen(base, old_baselen);
+	if (patch->old_name && patch->new_name &&
+	    strcmp(patch->old_name, patch->new_name)) {
+		quote_c_style(patch->old_name, &sb, NULL, 0);
+		strbuf_addstr(&sb, " => ");
+		quote_c_style(patch->new_name, &sb, NULL, 0);
+	} else {
+		const char *n = patch->new_name;
+		if (!n)
+			n = patch->old_name;
+		quote_c_style(n, &sb, NULL, 0);
+	}
+	fprintf(output, fmt, sb.buf);
+	fputc('\n', output);
+	strbuf_release(&sb);
 }

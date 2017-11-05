@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00588)
-                          "A \"prop\" element is missing inside "
-                          "the propertyupdate command.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_ENOPROC, r, APLOGNO(01551)
+               "couldn't setup child process: %s", r->filename);

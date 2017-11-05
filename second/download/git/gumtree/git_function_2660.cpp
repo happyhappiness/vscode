@@ -1,15 +1,26 @@
-static int option_parse_stage(const struct option *opt,
-			      const char *arg, int unset)
+static void setup_pager_env(struct argv_array *env)
 {
-	if (!strcmp(arg, "all")) {
-		to_tempfile = 1;
-		checkout_stage = CHECKOUT_ALL;
-	} else {
-		int ch = arg[0];
-		if ('1' <= ch && ch <= '3')
-			checkout_stage = arg[0] - '0';
-		else
-			die("stage should be between 1 and 3 or all");
+	const char **argv;
+	int i;
+	char *pager_env = xstrdup(PAGER_ENV);
+	int n = split_cmdline(pager_env, &argv);
+
+	if (n < 0)
+		die("malformed build-time PAGER_ENV: %s",
+			split_cmdline_strerror(n));
+
+	for (i = 0; i < n; i++) {
+		char *cp = strchr(argv[i], '=');
+
+		if (!cp)
+			die("malformed build-time PAGER_ENV");
+
+		*cp = '\0';
+		if (!getenv(argv[i])) {
+			*cp = '=';
+			argv_array_push(env, argv[i]);
+		}
 	}
-	return 0;
+	free(pager_env);
+	free(argv);
 }

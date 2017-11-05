@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
-                     "proxy: FTP: Content-Type set to %s", r->content_type);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "File does not exist: %s",
+                          apr_pstrcat(r->pool, r->filename, r->path_info, NULL));

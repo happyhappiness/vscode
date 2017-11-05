@@ -1,25 +1,30 @@
-static void print_value(struct atom_value *v, int quote_style)
+static int reopen_stdout(struct commit *commit, const char *subject,
+			 struct rev_info *rev, int quiet)
 {
-	struct strbuf sb = STRBUF_INIT;
-	switch (quote_style) {
-	case QUOTE_NONE:
-		fputs(v->s, stdout);
-		break;
-	case QUOTE_SHELL:
-		sq_quote_buf(&sb, v->s);
-		break;
-	case QUOTE_PERL:
-		perl_quote_buf(&sb, v->s);
-		break;
-	case QUOTE_PYTHON:
-		python_quote_buf(&sb, v->s);
-		break;
-	case QUOTE_TCL:
-		tcl_quote_buf(&sb, v->s);
-		break;
+	struct strbuf filename = STRBUF_INIT;
+	int suffix_len = strlen(rev->patch_suffix) + 1;
+
+	if (output_directory) {
+		strbuf_addstr(&filename, output_directory);
+		if (filename.len >=
+		    PATH_MAX - FORMAT_PATCH_NAME_MAX - suffix_len)
+			return error(_("name of output directory is too long"));
+		strbuf_complete(&filename, '/');
 	}
-	if (quote_style != QUOTE_NONE) {
-		fputs(sb.buf, stdout);
-		strbuf_release(&sb);
-	}
+
+	if (rev->numbered_files)
+		strbuf_addf(&filename, "%d", rev->nr);
+	else if (commit)
+		fmt_output_commit(&filename, commit, rev);
+	else
+		fmt_output_subject(&filename, subject, rev);
+
+	if (!quiet)
+		fprintf(realstdout, "%s\n", filename.buf + outdir_offset);
+
+	if (freopen(filename.buf, "w", stdout) == NULL)
+		return error(_("Cannot open patch file %s"), filename.buf);
+
+	strbuf_release(&filename);
+	return 0;
 }

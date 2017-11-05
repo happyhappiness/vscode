@@ -1,27 +1,32 @@
-static void show_diff(struct merge_list *entry)
+static void mark_tree_contents_uninteresting(struct tree *tree)
 {
-	unsigned long size;
-	mmfile_t src, dst;
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	xdemitcb_t ecb;
+	struct tree_desc desc;
+	struct name_entry entry;
+	struct object *obj = &tree->object;
 
-	xpp.flags = 0;
-	memset(&xecfg, 0, sizeof(xecfg));
-	xecfg.ctxlen = 3;
-	ecb.outf = show_outf;
-	ecb.priv = NULL;
+	if (!has_sha1_file(obj->sha1))
+		return;
+	if (parse_tree(tree) < 0)
+		die("bad tree %s", sha1_to_hex(obj->sha1));
 
-	src.ptr = origin(entry, &size);
-	if (!src.ptr)
-		size = 0;
-	src.size = size;
-	dst.ptr = result(entry, &size);
-	if (!dst.ptr)
-		size = 0;
-	dst.size = size;
-	if (xdi_diff(&src, &dst, &xpp, &xecfg, &ecb))
-		die("unable to generate diff");
-	free(src.ptr);
-	free(dst.ptr);
+	init_tree_desc(&desc, tree->buffer, tree->size);
+	while (tree_entry(&desc, &entry)) {
+		switch (object_type(entry.mode)) {
+		case OBJ_TREE:
+			mark_tree_uninteresting(lookup_tree(entry.sha1));
+			break;
+		case OBJ_BLOB:
+			mark_blob_uninteresting(lookup_blob(entry.sha1));
+			break;
+		default:
+			/* Subproject commit - not in this repository */
+			break;
+		}
+	}
+
+	/*
+	 * We don't care about the tree any more
+	 * after it has been marked uninteresting.
+	 */
+	free_tree_buffer(tree);
 }

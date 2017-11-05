@@ -1,193 +1,192 @@
-static void create_pack_file(void)
+void show_log(struct rev_info *opt)
 {
-	struct child_process pack_objects = CHILD_PROCESS_INIT;
-	char data[8193], progress[128];
-	char abort_msg[] = "aborting due to possible repository "
-		"corruption on the remote side.";
-	int buffered = -1;
-	ssize_t sz;
-	const char *argv[13];
-	int i, arg = 0;
-	FILE *pipe_fd;
+	struct strbuf msgbuf = STRBUF_INIT;
+	struct log_info *log = opt->loginfo;
+	struct commit *commit = log->commit, *parent = log->parent;
+	int abbrev_commit = opt->abbrev_commit ? opt->abbrev : 40;
+	const char *extra_headers = opt->extra_headers;
+	struct pretty_print_context ctx = {0};
 
-	if (shallow_nr) {
-		argv[arg++] = "--shallow-file";
-		argv[arg++] = "";
+	opt->loginfo = NULL;
+	if (!opt->verbose_header) {
+		graph_show_commit(opt->graph);
+
+		if (!opt->graph)
+			put_revision_mark(opt, commit);
+		fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit), stdout);
+		if (opt->print_parents)
+			show_parents(commit, abbrev_commit);
+		if (opt->children.name)
+			show_children(opt, commit, abbrev_commit);
+		show_decorations(opt, commit);
+		if (opt->graph && !graph_is_commit_finished(opt->graph)) {
+			putchar('\n');
+			graph_show_remainder(opt->graph);
+		}
+		putchar(opt->diffopt.line_termination);
+		return;
 	}
-	argv[arg++] = "pack-objects";
-	argv[arg++] = "--revs";
-	if (use_thin_pack)
-		argv[arg++] = "--thin";
 
-	argv[arg++] = "--stdout";
-	if (shallow_nr)
-		argv[arg++] = "--shallow";
-	if (!no_progress)
-		argv[arg++] = "--progress";
-	if (use_ofs_delta)
-		argv[arg++] = "--delta-base-offset";
-	if (use_include_tag)
-		argv[arg++] = "--include-tag";
-	argv[arg++] = NULL;
+	/*
+	 * If use_terminator is set, we already handled any record termination
+	 * at the end of the last record.
+	 * Otherwise, add a diffopt.line_termination character before all
+	 * entries but the first.  (IOW, as a separator between entries)
+	 */
+	if (opt->shown_one && !opt->use_terminator) {
+		/*
+		 * If entries are separated by a newline, the output
+		 * should look human-readable.  If the last entry ended
+		 * with a newline, print the graph output before this
+		 * newline.  Otherwise it will end up as a completely blank
+		 * line and will look like a gap in the graph.
+		 *
+		 * If the entry separator is not a newline, the output is
+		 * primarily intended for programmatic consumption, and we
+		 * never want the extra graph output before the entry
+		 * separator.
+		 */
+		if (opt->diffopt.line_termination == '\n' &&
+		    !opt->missing_newline)
+			graph_show_padding(opt->graph);
+		putchar(opt->diffopt.line_termination);
+	}
+	opt->shown_one = 1;
 
-	pack_objects.in = -1;
-	pack_objects.out = -1;
-	pack_objects.err = -1;
-	pack_objects.git_cmd = 1;
-	pack_objects.argv = argv;
+	/*
+	 * If the history graph was requested,
+	 * print the graph, up to this commit's line
+	 */
+	graph_show_commit(opt->graph);
 
-	if (start_command(&pack_objects))
-		die("git upload-pack: unable to fork git-pack-objects");
-
-	pipe_fd = xfdopen(pack_objects.in, "w");
-
-	if (shallow_nr)
-		for_each_commit_graft(write_one_shallow, pipe_fd);
-
-	for (i = 0; i < want_obj.nr; i++)
-		fprintf(pipe_fd, "%s\n",
-			sha1_to_hex(want_obj.objects[i].item->sha1));
-	fprintf(pipe_fd, "--not\n");
-	for (i = 0; i < have_obj.nr; i++)
-		fprintf(pipe_fd, "%s\n",
-			sha1_to_hex(have_obj.objects[i].item->sha1));
-	for (i = 0; i < extra_edge_obj.nr; i++)
-		fprintf(pipe_fd, "%s\n",
-			sha1_to_hex(extra_edge_obj.objects[i].item->sha1));
-	fprintf(pipe_fd, "\n");
-	fflush(pipe_fd);
-	fclose(pipe_fd);
-
-	/* We read from pack_objects.err to capture stderr output for
-	 * progress bar, and pack_objects.out to capture the pack data.
+	/*
+	 * Print header line of header..
 	 */
 
-	while (1) {
-		struct pollfd pfd[2];
-		int pe, pu, pollsize;
-		int ret;
+	if (opt->commit_format == CMIT_FMT_EMAIL) {
+		log_write_email_headers(opt, commit, &ctx.subject, &extra_headers,
+					&ctx.need_8bit_cte);
+	} else if (opt->commit_format != CMIT_FMT_USERFORMAT) {
+		fputs(diff_get_color_opt(&opt->diffopt, DIFF_COMMIT), stdout);
+		if (opt->commit_format != CMIT_FMT_ONELINE)
+			fputs("commit ", stdout);
 
-		reset_timeout();
-
-		pollsize = 0;
-		pe = pu = -1;
-
-		if (0 <= pack_objects.out) {
-			pfd[pollsize].fd = pack_objects.out;
-			pfd[pollsize].events = POLLIN;
-			pu = pollsize;
-			pollsize++;
+		if (!opt->graph)
+			put_revision_mark(opt, commit);
+		fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit),
+		      stdout);
+		if (opt->print_parents)
+			show_parents(commit, abbrev_commit);
+		if (opt->children.name)
+			show_children(opt, commit, abbrev_commit);
+		if (parent)
+			printf(" (from %s)",
+			       find_unique_abbrev(parent->object.oid.hash,
+						  abbrev_commit));
+		fputs(diff_get_color_opt(&opt->diffopt, DIFF_RESET), stdout);
+		show_decorations(opt, commit);
+		if (opt->commit_format == CMIT_FMT_ONELINE) {
+			putchar(' ');
+		} else {
+			putchar('\n');
+			graph_show_oneline(opt->graph);
 		}
-		if (0 <= pack_objects.err) {
-			pfd[pollsize].fd = pack_objects.err;
-			pfd[pollsize].events = POLLIN;
-			pe = pollsize;
-			pollsize++;
-		}
-
-		if (!pollsize)
-			break;
-
-		ret = poll(pfd, pollsize,
-			keepalive < 0 ? -1 : 1000 * keepalive);
-
-		if (ret < 0) {
-			if (errno != EINTR) {
-				error("poll failed, resuming: %s",
-				      strerror(errno));
-				sleep(1);
-			}
-			continue;
-		}
-		if (0 <= pe && (pfd[pe].revents & (POLLIN|POLLHUP))) {
-			/* Status ready; we ship that in the side-band
-			 * or dump to the standard error.
+		if (opt->reflog_info) {
+			/*
+			 * setup_revisions() ensures that opt->reflog_info
+			 * and opt->graph cannot both be set,
+			 * so we don't need to worry about printing the
+			 * graph info here.
 			 */
-			sz = xread(pack_objects.err, progress,
-				  sizeof(progress));
-			if (0 < sz)
-				send_client_data(2, progress, sz);
-			else if (sz == 0) {
-				close(pack_objects.err);
-				pack_objects.err = -1;
-			}
-			else
-				goto fail;
-			/* give priority to status messages */
-			continue;
-		}
-		if (0 <= pu && (pfd[pu].revents & (POLLIN|POLLHUP))) {
-			/* Data ready; we keep the last byte to ourselves
-			 * in case we detect broken rev-list, so that we
-			 * can leave the stream corrupted.  This is
-			 * unfortunate -- unpack-objects would happily
-			 * accept a valid packdata with trailing garbage,
-			 * so appending garbage after we pass all the
-			 * pack data is not good enough to signal
-			 * breakage to downstream.
-			 */
-			char *cp = data;
-			ssize_t outsz = 0;
-			if (0 <= buffered) {
-				*cp++ = buffered;
-				outsz++;
-			}
-			sz = xread(pack_objects.out, cp,
-				  sizeof(data) - outsz);
-			if (0 < sz)
-				;
-			else if (sz == 0) {
-				close(pack_objects.out);
-				pack_objects.out = -1;
-			}
-			else
-				goto fail;
-			sz += outsz;
-			if (1 < sz) {
-				buffered = data[sz-1] & 0xFF;
-				sz--;
-			}
-			else
-				buffered = -1;
-			sz = send_client_data(1, data, sz);
-			if (sz < 0)
-				goto fail;
-		}
-
-		/*
-		 * We hit the keepalive timeout without saying anything; send
-		 * an empty message on the data sideband just to let the other
-		 * side know we're still working on it, but don't have any data
-		 * yet.
-		 *
-		 * If we don't have a sideband channel, there's no room in the
-		 * protocol to say anything, so those clients are just out of
-		 * luck.
-		 */
-		if (!ret && use_sideband) {
-			static const char buf[] = "0005\1";
-			write_or_die(1, buf, 5);
+			show_reflog_message(opt->reflog_info,
+					    opt->commit_format == CMIT_FMT_ONELINE,
+					    &opt->date_mode,
+					    opt->date_mode_explicit);
+			if (opt->commit_format == CMIT_FMT_ONELINE)
+				return;
 		}
 	}
 
-	if (finish_command(&pack_objects)) {
-		error("git upload-pack: git-pack-objects died with error.");
-		goto fail;
+	if (opt->show_signature) {
+		show_signature(opt, commit);
+		show_mergetag(opt, commit);
 	}
 
-	/* flush the data */
-	if (0 <= buffered) {
-		data[0] = buffered;
-		sz = send_client_data(1, data, 1);
-		if (sz < 0)
-			goto fail;
-		fprintf(stderr, "flushed.\n");
-	}
-	if (use_sideband)
-		packet_flush(1);
-	return;
+	if (!get_cached_commit_buffer(commit, NULL))
+		return;
 
- fail:
-	send_client_data(3, abort_msg, sizeof(abort_msg));
-	die("git upload-pack: %s", abort_msg);
+	if (opt->show_notes) {
+		int raw;
+		struct strbuf notebuf = STRBUF_INIT;
+
+		raw = (opt->commit_format == CMIT_FMT_USERFORMAT);
+		format_display_notes(commit->object.oid.hash, &notebuf,
+				     get_log_output_encoding(), raw);
+		ctx.notes_message = notebuf.len
+			? strbuf_detach(&notebuf, NULL)
+			: xcalloc(1, 1);
+	}
+
+	/*
+	 * And then the pretty-printed message itself
+	 */
+	if (ctx.need_8bit_cte >= 0 && opt->add_signoff)
+		ctx.need_8bit_cte =
+			has_non_ascii(fmt_name(getenv("GIT_COMMITTER_NAME"),
+					       getenv("GIT_COMMITTER_EMAIL")));
+	ctx.date_mode = opt->date_mode;
+	ctx.date_mode_explicit = opt->date_mode_explicit;
+	ctx.abbrev = opt->diffopt.abbrev;
+	ctx.after_subject = extra_headers;
+	ctx.preserve_subject = opt->preserve_subject;
+	ctx.reflog_info = opt->reflog_info;
+	ctx.fmt = opt->commit_format;
+	ctx.mailmap = opt->mailmap;
+	ctx.color = opt->diffopt.use_color;
+	ctx.expand_tabs_in_log = opt->expand_tabs_in_log;
+	ctx.output_encoding = get_log_output_encoding();
+	if (opt->from_ident.mail_begin && opt->from_ident.name_begin)
+		ctx.from_ident = &opt->from_ident;
+	if (opt->graph)
+		ctx.graph_width = graph_width(opt->graph);
+	pretty_print_commit(&ctx, commit, &msgbuf);
+
+	if (opt->add_signoff)
+		append_signoff(&msgbuf, 0, APPEND_SIGNOFF_DEDUP);
+
+	if ((ctx.fmt != CMIT_FMT_USERFORMAT) &&
+	    ctx.notes_message && *ctx.notes_message) {
+		if (ctx.fmt == CMIT_FMT_EMAIL) {
+			strbuf_addstr(&msgbuf, "---\n");
+			opt->shown_dashes = 1;
+		}
+		strbuf_addstr(&msgbuf, ctx.notes_message);
+	}
+
+	if (opt->show_log_size) {
+		printf("log size %i\n", (int)msgbuf.len);
+		graph_show_oneline(opt->graph);
+	}
+
+	/*
+	 * Set opt->missing_newline if msgbuf doesn't
+	 * end in a newline (including if it is empty)
+	 */
+	if (!msgbuf.len || msgbuf.buf[msgbuf.len - 1] != '\n')
+		opt->missing_newline = 1;
+	else
+		opt->missing_newline = 0;
+
+	if (opt->graph)
+		graph_show_commit_msg(opt->graph, &msgbuf);
+	else
+		fwrite(msgbuf.buf, sizeof(char), msgbuf.len, stdout);
+	if (opt->use_terminator && !commit_format_is_empty(opt->commit_format)) {
+		if (!opt->missing_newline)
+			graph_show_padding(opt->graph);
+		putchar(opt->diffopt.line_termination);
+	}
+
+	strbuf_release(&msgbuf);
+	free(ctx.notes_message);
 }

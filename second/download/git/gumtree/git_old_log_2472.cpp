@@ -1,2 +1,2 @@
-fprintf(stderr, "    sent %s\n",
-					sha1_to_hex(request->obj->sha1));
+fprintf(stderr, "%s:%d: %s.\n%.*s\n",
+		patch_input_file, linenr, err, len, line);

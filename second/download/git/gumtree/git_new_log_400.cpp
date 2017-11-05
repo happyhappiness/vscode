@@ -1,0 +1,1 @@
+fprintf(stderr, "No prefix given for --super-prefix.\n" );

@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                          H2_STRM_LOG(APLOGNO(10025), stream, "invalid response"));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
+                                  "Reuse %s LDC %pp (will rebind)", 
+                                   l->bound ? "bound" : "unbound", l);

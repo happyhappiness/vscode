@@ -1,2 +1,1 @@
-die("attempting to mmap %"PRIuMAX" over limit %"PRIuMAX,
-		    (uintmax_t)length, (uintmax_t)limit);
+printf("%s missing\n", obj_name ? obj_name : sha1_to_hex(data->sha1));

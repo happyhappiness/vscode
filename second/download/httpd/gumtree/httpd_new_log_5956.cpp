@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02993)
-                     "Failed to create shared memory segment on file %s",
-                     shmfilename);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03049)
+                              "h2_task(%s): sending trailers", task->id);

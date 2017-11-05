@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO|APLOG_EMERG, 0, s, "ap_lookup_provider %s failed", AP_SLOTMEM_PROVIDER_GROUP);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, r,
+                    MODNAME ": request config should not be NULL");

@@ -1,1 +1,2 @@
-printf("%s %s^{}\n", hex, refname);
+error("%s: object corrupt or missing: %s",
+		      oid_to_hex(oid), path);

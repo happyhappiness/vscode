@@ -1,2 +1,1 @@
-usage_msg_opt(_("--continue expects no arguments"),
-			      builtin_merge_usage, builtin_merge_options);
+die("not a commit? can't happen: %s", oid_to_hex(&oid));

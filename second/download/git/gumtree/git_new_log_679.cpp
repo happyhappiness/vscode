@@ -1,2 +1,1 @@
-print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-				 "non-fast-forward", porcelain, summary_width);
+error(_("invalid file: '%s'"), rebase_path_amend());

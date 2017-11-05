@@ -1,2 +1,2 @@
-die("the receiving end asked to sign an invalid nonce <%.*s>",
-		    len, nonce);
+die("unknown repository extension: %s",
+			    unknown_extensions.items[0].string);

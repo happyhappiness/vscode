@@ -1,1 +1,0 @@
-fprintf(stderr, "databaseName [%s]\n", databaseName);

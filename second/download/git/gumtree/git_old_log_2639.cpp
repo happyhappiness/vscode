@@ -1,1 +1,1 @@
-error(_("Could not set '%s'"), buf.buf);
+die(msg, path, "");

@@ -1,1 +1,3 @@
-fprintf(stderr, "Error truncating the file %s\n", status->current.name);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, msos->m->c,
+                  "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
+                  msos->m->id, sos->stream->id, (long)*plen, *peos);

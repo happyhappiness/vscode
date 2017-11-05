@@ -1,3 +1,2 @@
-printf("symlink %"PRIuMAX"\n%s\n",
-		       (uintmax_t)ctx.symlink_path.len,
-		       ctx.symlink_path.buf);
+fprintf(stderr, _("finished search at %s\n"),
+					oid_to_hex(&c->object.oid));

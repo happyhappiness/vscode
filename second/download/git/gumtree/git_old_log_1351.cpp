@@ -1,1 +1,2 @@
-die_errno("Cannot open '%s'", edges);
+fprintf(info_ref_fp, "%s	%s\n", sha1_to_hex(sha1), path);
+	if;

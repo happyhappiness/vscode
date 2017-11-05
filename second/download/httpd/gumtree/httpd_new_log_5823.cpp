@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, response->http_status, r, 
-                          "h2_response(%ld-%d): renegotiate forbidden, cause: %s",
-                          (long)r->connection->id, stream_id, cause);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      "h2_session(%ld): destroy", session->id);

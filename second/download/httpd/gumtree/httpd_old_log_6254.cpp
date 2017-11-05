@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
-                             "apr_thread_create: unable to create worker thread");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03079)
+                                  "h2_session(%ld): started on %s:%d", session->id,
+                                  session->s->server_hostname,
+                                  c->local_addr->port);

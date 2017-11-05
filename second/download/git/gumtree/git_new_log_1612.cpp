@@ -1,1 +1,1 @@
-error("cannot fix permission bits on %s", lk->filename.buf);
+error("cannot lock ref '%s': %s", refname, err.buf);

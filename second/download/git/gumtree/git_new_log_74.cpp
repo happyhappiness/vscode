@@ -1,1 +1,1 @@
-die("BUG: invalid cmdmode %d", (int)cmdmode);
+die("invalid ref format: %s", ref.buf);

@@ -1,30 +1,23 @@
-static int fsck_walk_tree(struct tree *tree, void *data, struct fsck_options *options)
+void read_bisect_terms(const char **read_bad, const char **read_good)
 {
-	struct tree_desc desc;
-	struct name_entry entry;
-	int res = 0;
+	struct strbuf str = STRBUF_INIT;
+	const char *filename = git_path("BISECT_TERMS");
+	FILE *fp = fopen(filename, "r");
 
-	if (parse_tree(tree))
-		return -1;
-
-	init_tree_desc(&desc, tree->buffer, tree->size);
-	while (tree_entry(&desc, &entry)) {
-		int result;
-
-		if (S_ISGITLINK(entry.mode))
-			continue;
-		if (S_ISDIR(entry.mode))
-			result = options->walk(&lookup_tree(entry.sha1)->object, OBJ_TREE, data, options);
-		else if (S_ISREG(entry.mode) || S_ISLNK(entry.mode))
-			result = options->walk(&lookup_blob(entry.sha1)->object, OBJ_BLOB, data, options);
-		else {
-			result = error("in tree %s: entry %s has bad mode %.6o",
-					sha1_to_hex(tree->object.sha1), entry.path, entry.mode);
+	if (!fp) {
+		if (errno == ENOENT) {
+			*read_bad = "bad";
+			*read_good = "good";
+			return;
+		} else {
+			die_errno("could not read file '%s'", filename);
 		}
-		if (result < 0)
-			return result;
-		if (!res)
-			res = result;
+	} else {
+		strbuf_getline_lf(&str, fp);
+		*read_bad = strbuf_detach(&str, NULL);
+		strbuf_getline_lf(&str, fp);
+		*read_good = strbuf_detach(&str, NULL);
 	}
-	return res;
+	strbuf_release(&str);
+	fclose(fp);
 }

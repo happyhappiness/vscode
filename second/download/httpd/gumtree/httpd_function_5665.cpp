@@ -1,426 +1,355 @@
-static apr_status_t deflate_in_filter(ap_filter_t *f,
-                                      apr_bucket_brigade *bb,
-                                      ap_input_mode_t mode,
-                                      apr_read_type_e block,
-                                      apr_off_t readbytes)
+static void * APR_THREAD_FUNC listener_thread(apr_thread_t * thd, void *dummy)
 {
-    apr_bucket *bkt;
-    request_rec *r = f->r;
-    deflate_ctx *ctx = f->ctx;
-    int zRC;
-    apr_status_t rv;
-    deflate_filter_config *c;
-    deflate_dirconf_t *dc;
-    apr_off_t inflate_limit;
+    timer_event_t *ep;
+    timer_event_t *te;
+    apr_status_t rc;
+    proc_info *ti = dummy;
+    int process_slot = ti->pid;
+    apr_pool_t *tpool = apr_thread_pool_get(thd);
+    void *csd = NULL;
+    apr_pool_t *ptrans;         /* Pool for per-transaction stuff */
+    ap_listen_rec *lr;
+    int have_idle_worker = 0;
+    const apr_pollfd_t *out_pfd;
+    apr_int32_t num = 0;
+    apr_interval_time_t timeout_interval;
+    apr_time_t timeout_time = 0, now, last_log;
+    listener_poll_type *pt;
+    int closed = 0, listeners_disabled = 0;
 
-    /* just get out of the way of things we don't want. */
-    if (mode != AP_MODE_READBYTES) {
-        return ap_get_brigade(f->next, bb, mode, block, readbytes);
-    }
+    last_log = apr_time_now();
+    free(ti);
 
-    c = ap_get_module_config(r->server->module_config, &deflate_module);
-    dc = ap_get_module_config(r->per_dir_config, &deflate_module);
-
-    if (!ctx || ctx->header_len < sizeof(ctx->header)) {
-        apr_size_t len;
-
-        if (!ctx) {
-            /* only work on main request/no subrequests */
-            if (!ap_is_initial_req(r)) {
-                ap_remove_input_filter(f);
-                return ap_get_brigade(f->next, bb, mode, block, readbytes);
-            }
-
-            /* We can't operate on Content-Ranges */
-            if (apr_table_get(r->headers_in, "Content-Range") != NULL) {
-                ap_remove_input_filter(f);
-                return ap_get_brigade(f->next, bb, mode, block, readbytes);
-            }
-
-            /* Check whether request body is gzipped.
-             *
-             * If it is, we're transforming the contents, invalidating
-             * some request headers including Content-Encoding.
-             *
-             * If not, we just remove ourself.
-             */
-            if (check_gzip(r, r->headers_in, NULL) == 0) {
-                ap_remove_input_filter(f);
-                return ap_get_brigade(f->next, bb, mode, block, readbytes);
-            }
-
-            f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
-            ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-            ctx->proc_bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-            ctx->buffer = apr_palloc(r->pool, c->bufferSize);
-        }
-
-        do {
-            apr_brigade_cleanup(ctx->bb);
-
-            len = sizeof(ctx->header) - ctx->header_len;
-            rv = ap_get_brigade(f->next, ctx->bb, AP_MODE_READBYTES, block,
-                                len);
-
-            /* ap_get_brigade may return success with an empty brigade for
-             * a non-blocking read which would block (an empty brigade for
-             * a blocking read is an issue which is simply forwarded here).
-             */
-            if (rv != APR_SUCCESS || APR_BRIGADE_EMPTY(ctx->bb)) {
-                return rv;
-            }
-
-            /* zero length body? step aside */
-            bkt = APR_BRIGADE_FIRST(ctx->bb);
-            if (APR_BUCKET_IS_EOS(bkt)) {
-                if (ctx->header_len) {
-                    /* If the header was (partially) read it's an error, this
-                     * is not a gzip Content-Encoding, as claimed.
-                     */
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02619)
-                                  "Encountered premature end-of-stream while "
-                                  "reading inflate header");
-                    return APR_EGENERAL;
-                }
-                APR_BUCKET_REMOVE(bkt);
-                APR_BRIGADE_INSERT_TAIL(bb, bkt);
-                ap_remove_input_filter(f);
-                return APR_SUCCESS;
-            }
-
-            rv = apr_brigade_flatten(ctx->bb,
-                                     ctx->header + ctx->header_len, &len);
-            if (rv != APR_SUCCESS) {
-                return rv;
-            }
-            if (len && !ctx->header_len) {
-                apr_table_unset(r->headers_in, "Content-Length");
-                apr_table_unset(r->headers_in, "Content-MD5");
-            }
-            ctx->header_len += len;
-
-        } while (ctx->header_len < sizeof(ctx->header));
-
-        /* We didn't get the magic bytes. */
-        if (ctx->header[0] != deflate_magic[0] ||
-            ctx->header[1] != deflate_magic[1]) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01387)
-                          "Zlib: Invalid header");
-            return APR_EGENERAL;
-        }
-
-        ctx->zlib_flags = ctx->header[3];
-        if ((ctx->zlib_flags & RESERVED)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01388)
-                          "Zlib: Invalid flags %02x", ctx->zlib_flags);
-            return APR_EGENERAL;
-        }
-
-        zRC = inflateInit2(&ctx->stream, c->windowSize);
-
-        if (zRC != Z_OK) {
-            f->ctx = NULL;
-            inflateEnd(&ctx->stream);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01389)
-                          "unable to init Zlib: "
-                          "inflateInit2 returned %d: URL %s",
-                          zRC, r->uri);
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        /* initialize deflate output buffer */
-        ctx->stream.next_out = ctx->buffer;
-        ctx->stream.avail_out = c->bufferSize;
-
-        apr_brigade_cleanup(ctx->bb);
-    }
-
-    inflate_limit = dc->inflate_limit; 
-    if (inflate_limit == 0) { 
-        /* The core is checking the deflated body, we'll check the inflated */
-        inflate_limit = ap_get_limit_req_body(f->r);
-    }
-
-    if (APR_BRIGADE_EMPTY(ctx->proc_bb)) {
-        rv = ap_get_brigade(f->next, ctx->bb, mode, block, readbytes);
-
-        /* Don't terminate on EAGAIN (or success with an empty brigade in
-         * non-blocking mode), just return focus.
-         */
-        if (block == APR_NONBLOCK_READ
-                && (APR_STATUS_IS_EAGAIN(rv)
-                    || (rv == APR_SUCCESS && APR_BRIGADE_EMPTY(ctx->bb)))) {
-            return rv;
-        }
-        if (rv != APR_SUCCESS) {
-            inflateEnd(&ctx->stream);
-            return rv;
-        }
-
-        for (bkt = APR_BRIGADE_FIRST(ctx->bb);
-             bkt != APR_BRIGADE_SENTINEL(ctx->bb);
-             bkt = APR_BUCKET_NEXT(bkt))
-        {
-            const char *data;
-            apr_size_t len;
-
-            if (APR_BUCKET_IS_EOS(bkt)) {
-                if (!ctx->done) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02481)
-                                  "Encountered premature end-of-stream while inflating");
-                    return APR_EGENERAL;
-                }
-
-                /* Move everything to the returning brigade. */
-                APR_BUCKET_REMOVE(bkt);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
-                break;
-            }
-
-            if (APR_BUCKET_IS_FLUSH(bkt)) {
-                apr_bucket *tmp_b;
-                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
-                if (zRC != Z_OK) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01391)
-                                  "Zlib error %d inflating data (%s)", zRC,
-                                  ctx->stream.msg);
-                    return APR_EGENERAL;
-                }
-
-                ctx->stream.next_out = ctx->buffer;
-                len = c->bufferSize - ctx->stream.avail_out;
- 
-                ctx->inflate_total += len;
-                if (inflate_limit && ctx->inflate_total > inflate_limit) { 
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02647)
-                            "Inflated content length of %" APR_OFF_T_FMT
-                            " is larger than the configured limit"
-                            " of %" APR_OFF_T_FMT, 
-                            ctx->inflate_total, inflate_limit);
-                    return APR_ENOSPC;
-                }
-
-                if (!check_ratio(r, ctx, dc)) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02805)
-                            "Inflated content ratio is larger than the "
-                            "configured limit %i by %i time(s)",
-                            dc->ratio_limit, dc->ratio_burst);
-                    return APR_EINVAL;
-                }
-
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                tmp_b = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_b);
-                ctx->stream.avail_out = c->bufferSize;
-
-                /* Flush everything so far in the returning brigade, but continue
-                 * reading should EOS/more follow (don't lose them).
-                 */
-                tmp_b = APR_BUCKET_PREV(bkt);
-                APR_BUCKET_REMOVE(bkt);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
-                bkt = tmp_b;
-                continue;
-            }
-
-            /* sanity check - data after completed compressed body and before eos? */
-            if (ctx->done) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02482)
-                              "Encountered extra data after compressed data");
-                return APR_EGENERAL;
-            }
-
-            /* read */
-            apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
-            if (!len) {
-                continue;
-            }
-            if (len > APR_INT32_MAX) {
-                apr_bucket_split(bkt, APR_INT32_MAX);
-                apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
-            }
-
-            if (ctx->zlib_flags) {
-                rv = consume_zlib_flags(ctx, &data, &len);
-                if (rv == APR_SUCCESS) {
-                    ctx->zlib_flags = 0;
-                }
-                if (!len) {
-                    continue;
-                }
-            }
-
-            /* pass through zlib inflate. */
-            ctx->stream.next_in = (unsigned char *)data;
-            ctx->stream.avail_in = (int)len;
-
-            zRC = Z_OK;
-
-            if (!ctx->validation_buffer) {
-                while (ctx->stream.avail_in != 0) {
-                    if (ctx->stream.avail_out == 0) {
-                        apr_bucket *tmp_heap;
-
-                        ctx->stream.next_out = ctx->buffer;
-                        len = c->bufferSize - ctx->stream.avail_out;
-
-                        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                        tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                          NULL, f->c->bucket_alloc);
-                        APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                        ctx->stream.avail_out = c->bufferSize;
-                    }
-
-                    len = ctx->stream.avail_out;
-                    zRC = inflate(&ctx->stream, Z_NO_FLUSH);
-
-                    if (zRC != Z_OK && zRC != Z_STREAM_END) {
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01392)
-                                      "Zlib error %d inflating data (%s)", zRC,
-                                      ctx->stream.msg);
-                        return APR_EGENERAL;
-                    }
-
-                    ctx->inflate_total += len - ctx->stream.avail_out;
-                    if (inflate_limit && ctx->inflate_total > inflate_limit) { 
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02648)
-                                "Inflated content length of %" APR_OFF_T_FMT
-                                " is larger than the configured limit"
-                                " of %" APR_OFF_T_FMT, 
-                                ctx->inflate_total, inflate_limit);
-                        return APR_ENOSPC;
-                    }
-
-                    if (!check_ratio(r, ctx, dc)) {
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02649)
-                                "Inflated content ratio is larger than the "
-                                "configured limit %i by %i time(s)",
-                                dc->ratio_limit, dc->ratio_burst);
-                        return APR_EINVAL;
-                    }
-
-                    if (zRC == Z_STREAM_END) {
-                        ctx->validation_buffer = apr_pcalloc(r->pool,
-                                                             VALIDATION_SIZE);
-                        ctx->validation_buffer_length = 0;
-                        break;
-                    }
-                }
-            }
-
-            if (ctx->validation_buffer) {
-                apr_bucket *tmp_heap;
-                apr_size_t avail, valid;
-                unsigned char *buf = ctx->validation_buffer;
-
-                avail = ctx->stream.avail_in;
-                valid = (apr_size_t)VALIDATION_SIZE -
-                         ctx->validation_buffer_length;
-
-                /*
-                 * We have inflated all data. Now try to capture the
-                 * validation bytes. We may not have them all available
-                 * right now, but capture what is there.
-                 */
-                if (avail < valid) {
-                    memcpy(buf + ctx->validation_buffer_length,
-                           ctx->stream.next_in, avail);
-                    ctx->validation_buffer_length += avail;
-                    continue;
-                }
-                memcpy(buf + ctx->validation_buffer_length,
-                       ctx->stream.next_in, valid);
-                ctx->validation_buffer_length += valid;
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
-                              "Zlib: Inflated %ld to %ld : URL %s",
-                              ctx->stream.total_in, ctx->stream.total_out,
-                              r->uri);
-
-                len = c->bufferSize - ctx->stream.avail_out;
-
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                  NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                ctx->stream.avail_out = c->bufferSize;
-
-                {
-                    unsigned long compCRC, compLen;
-                    compCRC = getLong(buf);
-                    if (ctx->crc != compCRC) {
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01394)
-                                      "Zlib: CRC error inflating data");
-                        return APR_EGENERAL;
-                    }
-                    compLen = getLong(buf + VALIDATION_SIZE / 2);
-                    /* gzip stores original size only as 4 byte value */
-                    if ((ctx->stream.total_out & 0xFFFFFFFF) != compLen) {
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01395)
-                                      "Zlib: Length %ld of inflated data does "
-                                      "not match expected value %ld",
-                                      ctx->stream.total_out, compLen);
-                        return APR_EGENERAL;
-                    }
-                }
-
-                inflateEnd(&ctx->stream);
-
-                ctx->done = 1;
-
-                /* Did we have trailing data behind the closing 8 bytes? */
-                if (avail > valid) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02485)
-                                  "Encountered extra data after compressed data");
-                    return APR_EGENERAL;
-                }
-            }
-
-        }
-        apr_brigade_cleanup(ctx->bb);
-    }
-
-    /* If we are about to return nothing for a 'blocking' read and we have
-     * some data in our zlib buffer, flush it out so we can return something.
+    /* the following times out events that are really close in the future
+     *   to prevent extra poll calls
+     *
+     * current value is .1 second
      */
-    if (block == APR_BLOCK_READ &&
-            APR_BRIGADE_EMPTY(ctx->proc_bb) &&
-            ctx->stream.avail_out < c->bufferSize) {
-        apr_bucket *tmp_heap;
-        apr_size_t len;
-        ctx->stream.next_out = ctx->buffer;
-        len = c->bufferSize - ctx->stream.avail_out;
+#define TIMEOUT_FUDGE_FACTOR 100000
+#define EVENT_FUDGE_FACTOR 10000
 
-        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-        tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                          NULL, f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-        ctx->stream.avail_out = c->bufferSize;
+    rc = init_pollset(tpool);
+    if (rc != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
+                     "failed to initialize pollset, "
+                     "attempting to shutdown process gracefully");
+        signal_threads(ST_GRACEFUL);
+        return NULL;
     }
 
-    if (!APR_BRIGADE_EMPTY(ctx->proc_bb)) {
-        if (apr_brigade_partition(ctx->proc_bb, readbytes, &bkt) == APR_INCOMPLETE) {
-            APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
+    /* Unblock the signal used to wake this thread up, and set a handler for
+     * it.
+     */
+    unblock_signal(LISTENER_SIGNAL);
+    apr_signal(LISTENER_SIGNAL, dummy_signal_handler);
+
+    for (;;) {
+        int workers_were_busy = 0;
+        if (listener_may_exit) {
+            close_listeners(process_slot, &closed);
+            if (terminate_mode == ST_UNGRACEFUL
+                || apr_atomic_read32(&connection_count) == 0)
+                break;
+        }
+
+        if (conns_this_child <= 0)
+            check_infinite_requests();
+
+        now = apr_time_now();
+        if (APLOGtrace6(ap_server_conf)) {
+            /* trace log status every second */
+            if (now - last_log > apr_time_from_msec(1000)) {
+                last_log = now;
+                apr_thread_mutex_lock(timeout_mutex);
+                ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, ap_server_conf,
+                             "connections: %u (clogged: %u write-completion: %d "
+                             "keep-alive: %d lingering: %d suspended: %u)",
+                             apr_atomic_read32(&connection_count),
+                             apr_atomic_read32(&clogged_count),
+                             *write_completion_q->total,
+                             *keepalive_q->total,
+                             apr_atomic_read32(&lingering_count),
+                             apr_atomic_read32(&suspended_count));
+                apr_thread_mutex_unlock(timeout_mutex);
+            }
+        }
+
+        apr_thread_mutex_lock(g_timer_skiplist_mtx);
+        te = apr_skiplist_peek(timer_skiplist);
+        if (te) {
+            if (te->when > now) {
+                timeout_interval = te->when - now;
+            }
+            else {
+                timeout_interval = 1;
+            }
         }
         else {
-            APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
-            apr_brigade_split_ex(bb, bkt, ctx->proc_bb);
+            timeout_interval = apr_time_from_msec(100);
         }
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
-            ap_remove_input_filter(f);
-        }
-    }
+        apr_thread_mutex_unlock(g_timer_skiplist_mtx);
 
-    return APR_SUCCESS;
+        rc = apr_pollset_poll(event_pollset, timeout_interval, &num, &out_pfd);
+        if (rc != APR_SUCCESS) {
+            if (APR_STATUS_IS_EINTR(rc)) {
+                continue;
+            }
+            if (!APR_STATUS_IS_TIMEUP(rc)) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rc, ap_server_conf,
+                             "apr_pollset_poll failed.  Attempting to "
+                             "shutdown process gracefully");
+                signal_threads(ST_GRACEFUL);
+            }
+        }
+
+        if (listener_may_exit) {
+            close_listeners(process_slot, &closed);
+            if (terminate_mode == ST_UNGRACEFUL
+                || apr_atomic_read32(&connection_count) == 0)
+                break;
+        }
+
+        now = apr_time_now();
+        apr_thread_mutex_lock(g_timer_skiplist_mtx);
+        ep = apr_skiplist_peek(timer_skiplist);
+        while (ep) {
+            if (ep->when < now + EVENT_FUDGE_FACTOR) {
+                apr_skiplist_pop(timer_skiplist, NULL);
+                push_timer2worker(ep);
+            }
+            else {
+                break;
+            }
+            ep = apr_skiplist_peek(timer_skiplist);
+        }
+        apr_thread_mutex_unlock(g_timer_skiplist_mtx);
+
+        while (num) {
+            pt = (listener_poll_type *) out_pfd->client_data;
+            if (pt->type == PT_CSD) {
+                /* one of the sockets is readable */
+                event_conn_state_t *cs = (event_conn_state_t *) pt->baton;
+                struct timeout_queue *remove_from_q = cs->sc->wc_q;
+                int blocking = 1;
+
+                switch (cs->pub.state) {
+                case CONN_STATE_CHECK_REQUEST_LINE_READABLE:
+                    cs->pub.state = CONN_STATE_READ_REQUEST_LINE;
+                    remove_from_q = cs->sc->ka_q;
+                    /* don't wait for a worker for a keepalive request */
+                    blocking = 0;
+                    /* FALL THROUGH */
+                case CONN_STATE_WRITE_COMPLETION:
+                    get_worker(&have_idle_worker, blocking,
+                               &workers_were_busy);
+                    apr_thread_mutex_lock(timeout_mutex);
+                    TO_QUEUE_REMOVE(remove_from_q, cs);
+                    rc = apr_pollset_remove(event_pollset, &cs->pfd);
+                    apr_thread_mutex_unlock(timeout_mutex);
+
+                    /*
+                     * Some of the pollset backends, like KQueue or Epoll
+                     * automagically remove the FD if the socket is closed,
+                     * therefore, we can accept _SUCCESS or _NOTFOUND,
+                     * and we still want to keep going
+                     */
+                    if (rc != APR_SUCCESS && !APR_STATUS_IS_NOTFOUND(rc)) {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
+                                     "pollset remove failed");
+                        start_lingering_close_nonblocking(cs);
+                        break;
+                    }
+
+                    TO_QUEUE_ELEM_INIT(cs);
+                    /* If we didn't get a worker immediately for a keep-alive
+                     * request, we close the connection, so that the client can
+                     * re-connect to a different process.
+                     */
+                    if (!have_idle_worker) {
+                        start_lingering_close_nonblocking(cs);
+                        break;
+                    }
+                    rc = push2worker(out_pfd, event_pollset);
+                    if (rc != APR_SUCCESS) {
+                        ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                                     ap_server_conf, "push2worker failed");
+                    }
+                    else {
+                        have_idle_worker = 0;
+                    }
+                    break;
+                case CONN_STATE_LINGER_NORMAL:
+                case CONN_STATE_LINGER_SHORT:
+                    process_lingering_close(cs, out_pfd);
+                    break;
+                default:
+                    ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                                 ap_server_conf,
+                                 "event_loop: unexpected state %d",
+                                 cs->pub.state);
+                    ap_assert(0);
+                }
+            }
+            else if (pt->type == PT_ACCEPT) {
+                /* A Listener Socket is ready for an accept() */
+                if (workers_were_busy) {
+                    if (!listeners_disabled)
+                        disable_listensocks(process_slot);
+                    listeners_disabled = 1;
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                                 "All workers busy, not accepting new conns "
+                                 "in this process");
+                }
+                else if (  (int)apr_atomic_read32(&connection_count)
+                           - (int)apr_atomic_read32(&lingering_count)
+                         > threads_per_child
+                           + ap_queue_info_get_idlers(worker_queue_info) *
+                             worker_factor / WORKER_FACTOR_SCALE)
+                {
+                    if (!listeners_disabled)
+                        disable_listensocks(process_slot);
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                                 "Too many open connections (%u), "
+                                 "not accepting new conns in this process",
+                                 apr_atomic_read32(&connection_count));
+                    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, ap_server_conf,
+                                 "Idle workers: %u",
+                                 ap_queue_info_get_idlers(worker_queue_info));
+                    listeners_disabled = 1;
+                }
+                else if (listeners_disabled) {
+                    listeners_disabled = 0;
+                    enable_listensocks(process_slot);
+                }
+                if (!listeners_disabled) {
+                    lr = (ap_listen_rec *) pt->baton;
+                    ap_pop_pool(&ptrans, worker_queue_info);
+
+                    if (ptrans == NULL) {
+                        /* create a new transaction pool for each accepted socket */
+                        apr_allocator_t *allocator;
+
+                        apr_allocator_create(&allocator);
+                        apr_allocator_max_free_set(allocator,
+                                                   ap_max_mem_free);
+                        apr_pool_create_ex(&ptrans, pconf, NULL, allocator);
+                        apr_allocator_owner_set(allocator, ptrans);
+                        if (ptrans == NULL) {
+                            ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                                         ap_server_conf,
+                                         "Failed to create transaction pool");
+                            signal_threads(ST_GRACEFUL);
+                            return NULL;
+                        }
+                    }
+                    apr_pool_tag(ptrans, "transaction");
+
+                    get_worker(&have_idle_worker, 1, &workers_were_busy);
+                    rc = lr->accept_func(&csd, lr, ptrans);
+
+                    /* later we trash rv and rely on csd to indicate
+                     * success/failure
+                     */
+                    AP_DEBUG_ASSERT(rc == APR_SUCCESS || !csd);
+
+                    if (rc == APR_EGENERAL) {
+                        /* E[NM]FILE, ENOMEM, etc */
+                        resource_shortage = 1;
+                        signal_threads(ST_GRACEFUL);
+                    }
+
+                    if (csd != NULL) {
+                        conns_this_child--;
+                        rc = ap_queue_push(worker_queue, csd, NULL, ptrans);
+                        if (rc != APR_SUCCESS) {
+                            /* trash the connection; we couldn't queue the connected
+                             * socket to a worker
+                             */
+                            apr_socket_close(csd);
+                            ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                                         ap_server_conf,
+                                         "ap_queue_push failed");
+                            ap_push_pool(worker_queue_info, ptrans);
+                        }
+                        else {
+                            have_idle_worker = 0;
+                        }
+                    }
+                    else {
+                        ap_push_pool(worker_queue_info, ptrans);
+                    }
+                }
+            }               /* if:else on pt->type */
+            out_pfd++;
+            num--;
+        }                   /* while for processing poll */
+
+        /* XXX possible optimization: stash the current time for use as
+         * r->request_time for new requests
+         */
+        now = apr_time_now();
+        /* We only do this once per 0.1s (TIMEOUT_FUDGE_FACTOR), or on a clock
+         * skew (if the system time is set back in the meantime, timeout_time
+         * will exceed now + TIMEOUT_FUDGE_FACTOR, can't happen otherwise).
+         */
+        if (now > timeout_time || now + TIMEOUT_FUDGE_FACTOR < timeout_time ) {
+            struct process_score *ps;
+            timeout_time = now + TIMEOUT_FUDGE_FACTOR;
+
+            /* handle timed out sockets */
+            apr_thread_mutex_lock(timeout_mutex);
+
+            /* Step 1: keepalive timeouts */
+            /* If all workers are busy, we kill older keep-alive connections so that they
+             * may connect to another process.
+             */
+            if (workers_were_busy && *keepalive_q->total) {
+                ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, ap_server_conf,
+                             "All workers are busy, will close %d keep-alive "
+                             "connections",
+                             *keepalive_q->total);
+                process_timeout_queue(keepalive_q, 0,
+                                      start_lingering_close_nonblocking);
+            }
+            else {
+                process_timeout_queue(keepalive_q, timeout_time,
+                                      start_lingering_close_nonblocking);
+            }
+            /* Step 2: write completion timeouts */
+            process_timeout_queue(write_completion_q, timeout_time,
+                                  start_lingering_close_nonblocking);
+            /* Step 3: (normal) lingering close completion timeouts */
+            process_timeout_queue(linger_q, timeout_time, stop_lingering_close);
+            /* Step 4: (short) lingering close completion timeouts */
+            process_timeout_queue(short_linger_q, timeout_time, stop_lingering_close);
+
+            ps = ap_get_scoreboard_process(process_slot);
+            ps->write_completion = *write_completion_q->total;
+            ps->keep_alive = *keepalive_q->total;
+            apr_thread_mutex_unlock(timeout_mutex);
+
+            ps->connections = apr_atomic_read32(&connection_count);
+            ps->suspended = apr_atomic_read32(&suspended_count);
+            ps->lingering_close = apr_atomic_read32(&lingering_count);
+        }
+        if (listeners_disabled && !workers_were_busy
+            && (int)apr_atomic_read32(&connection_count)
+               - (int)apr_atomic_read32(&lingering_count)
+               < ((int)ap_queue_info_get_idlers(worker_queue_info) - 1)
+                 * worker_factor / WORKER_FACTOR_SCALE + threads_per_child)
+        {
+            listeners_disabled = 0;
+            enable_listensocks(process_slot);
+        }
+        /*
+         * XXX: do we need to set some timeout that re-enables the listensocks
+         * XXX: in case no other event occurs?
+         */
+    }     /* listener main loop */
+
+    close_listeners(process_slot, &closed);
+    ap_queue_term(worker_queue);
+
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
 }

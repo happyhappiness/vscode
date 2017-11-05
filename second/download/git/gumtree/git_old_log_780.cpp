@@ -1,1 +1,1 @@
-printf_ln(_("Bye."));
+printf("%s", dirty);

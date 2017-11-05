@@ -1,1 +1,1 @@
-die("Cannot demote %s to %s", msg_id, msg_type);
+die(_("positive value expected contents:lines=%s"), arg);

@@ -1,1 +1,1 @@
-die("packed refname is dangerous: %s", refname);
+die("Bad value '%s' in environment '%s'", e, name);

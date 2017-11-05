@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServ, APLOGNO(02199)
-                         "SSL not enabled on vhost %s, skipping SSL setup",
-                         cpVHostID);
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, apr_get_os_error(), NULL, APLOGNO(00381)
+                     "Query of Service %s failed", mpm_display_name);

@@ -1,1 +1,1 @@
-fprintf(fp, "%s ", oid_to_hex(&state->orig_commit));
+error("--path=<path> needs --textconv or --filters");

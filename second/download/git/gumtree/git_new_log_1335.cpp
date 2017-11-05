@@ -1,1 +1,1 @@
-fputs(oid_to_hex(&tg->oid), rpt);
+die("BUG: create ref with null new_sha1");

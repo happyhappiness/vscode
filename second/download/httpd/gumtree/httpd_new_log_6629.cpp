@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                      APLOGNO(02920) 
-                      "h2_session:  stream(%ld-%d): on_header unknown stream",
-                      session->id, (int)frame->hd.stream_id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01859)
+                      "query execution error inserting session '%s' "
+                      "in database with '%s': %s", newkey, conf->insertlabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));

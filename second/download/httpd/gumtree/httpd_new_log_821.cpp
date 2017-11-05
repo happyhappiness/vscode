@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s,
-                         "apr_socket_opt_set(SO_RCVBUF): Failed to set "
-                         "ProxyReceiveBufferSize, using default");
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT, 0, NULL, "%s: %s",
+                     ap_server_argv0, error);

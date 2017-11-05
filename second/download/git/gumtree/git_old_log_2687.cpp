@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+die("BUG! Want to close pack marked 'do-not-close'");

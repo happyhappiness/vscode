@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                              "Line folding encountered before first"
-                              " header line");
+ap_rvputs(r, ap_get_server_name(r), "</h1>\n\n", NULL);

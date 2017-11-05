@@ -1,4 +1,3 @@
-error(remote_branch
-			      ? _("Error deleting remote-tracking branch '%s'")
-			      : _("Error deleting branch '%s'"),
-			      bname.buf);
+fprintf(stderr, "MKCOL %s failed, aborting (%d/%ld)\n",
+				oid_to_hex(&request->obj->oid),
+				request->curl_result, request->http_code);

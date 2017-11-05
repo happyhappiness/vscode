@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_stream(%ld-%d): handled, closing", 
-                      session->id, (int)stream->id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02315)
+                          "Error: authz provider %s: too many arguments", prov_spec->name);

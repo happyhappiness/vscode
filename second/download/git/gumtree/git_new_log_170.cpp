@@ -1,1 +1,2 @@
-die("BUG: have_old is true but old_sha1 is NULL");
+logerror("interpolated path too large: %s",
+				 interp_path);

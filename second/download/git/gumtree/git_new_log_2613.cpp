@@ -1,2 +1,1 @@
-error("Object %s not a tag",
-			     oid_to_hex(&item->object.oid));
+fprintf(opt->diffopt.file, "Message-Id: <%s>\n", opt->message_id);

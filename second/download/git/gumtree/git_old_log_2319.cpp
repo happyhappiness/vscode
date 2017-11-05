@@ -1,1 +1,2 @@
-error("duplicate parent %s ignored", sha1_to_hex(sha1));
+error("could not write config file %s: %s", config_filename,
+		      strerror(errno));

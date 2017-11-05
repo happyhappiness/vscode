@@ -1,1 +1,1 @@
-ap_rputs("Dis", r);
+ap_rputs("<tr><td bgcolor=\"#ffffff\">\n", r);

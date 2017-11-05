@@ -1,42 +1,16 @@
-static int merge(const char *name, const char *path)
+static int loosen_small_pack(const struct packed_git *p)
 {
-	int ret;
-	mmfile_t cur = {NULL, 0}, base = {NULL, 0}, other = {NULL, 0};
-	mmbuffer_t result = {NULL, 0};
+	struct child_process unpack = CHILD_PROCESS_INIT;
 
-	if (handle_file(path, NULL, rerere_path(name, "thisimage")) < 0)
-		return 1;
+	if (lseek(p->pack_fd, 0, SEEK_SET) < 0)
+		die_errno("Failed seeking to start of '%s'", p->pack_name);
 
-	if (read_mmfile(&cur, rerere_path(name, "thisimage")) ||
-			read_mmfile(&base, rerere_path(name, "preimage")) ||
-			read_mmfile(&other, rerere_path(name, "postimage"))) {
-		ret = 1;
-		goto out;
-	}
-	ret = ll_merge(&result, path, &base, NULL, &cur, "", &other, "", NULL);
-	if (!ret) {
-		FILE *f;
+	unpack.in = p->pack_fd;
+	unpack.git_cmd = 1;
+	unpack.stdout_to_stderr = 1;
+	argv_array_push(&unpack.args, "unpack-objects");
+	if (!show_stats)
+		argv_array_push(&unpack.args, "-q");
 
-		if (utime(rerere_path(name, "postimage"), NULL) < 0)
-			warning("failed utime() on %s: %s",
-					rerere_path(name, "postimage"),
-					strerror(errno));
-		f = fopen(path, "w");
-		if (!f)
-			return error("Could not open %s: %s", path,
-				     strerror(errno));
-		if (fwrite(result.ptr, result.size, 1, f) != 1)
-			error("Could not write %s: %s", path, strerror(errno));
-		if (fclose(f))
-			return error("Writing %s failed: %s", path,
-				     strerror(errno));
-	}
-
-out:
-	free(cur.ptr);
-	free(base.ptr);
-	free(other.ptr);
-	free(result.ptr);
-
-	return ret;
+	return run_command(&unpack);
 }

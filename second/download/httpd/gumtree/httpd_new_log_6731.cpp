@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03452)
-                                  "Request header field name presented"
-                                  " invalid whitespace");
+fprintf(stderr, "Error writing error (%s) to the file %s\n", 
+                status->errbuf, status->current.name);

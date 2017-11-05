@@ -1,1 +1,1 @@
-die(_("Server does not support --shallow-exclude"));
+die("unable to read blob object %s", oid_to_hex(oid));

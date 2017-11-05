@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00623)
-                          "Failed to query lock-null status for %s",
-                          r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r,
+            "ajp_marshal_into_msgb: Done");

@@ -1,1 +1,1 @@
-printf("alternate: ");
+die(_("Server does not support --shallow-since"));

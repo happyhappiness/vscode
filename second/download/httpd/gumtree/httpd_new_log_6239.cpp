@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03040)
-                             "stapling_cb: success renewing response");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
+                  H2_STRM_MSG(stream, "prepared len=%ld, eos=%d"), 
+                  (long)len, eos);

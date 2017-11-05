@@ -1,119 +1,114 @@
-static int create_default_files(const char *template_path)
+int start_async(struct async *async)
 {
-	const char *git_dir = get_git_dir();
-	unsigned len = strlen(git_dir);
-	static char path[PATH_MAX];
-	struct stat st1;
-	char repo_version_string[10];
-	char junk[2];
-	int reinit;
-	int filemode;
+	int need_in, need_out;
+	int fdin[2], fdout[2];
+	int proc_in, proc_out;
 
-	if (len > sizeof(path)-50)
-		die(_("insane git directory %s"), git_dir);
-	memcpy(path, git_dir, len);
-
-	if (len && path[len-1] != '/')
-		path[len++] = '/';
-
-	/*
-	 * Create .git/refs/{heads,tags}
-	 */
-	safe_create_dir(git_path("refs"), 1);
-	safe_create_dir(git_path("refs/heads"), 1);
-	safe_create_dir(git_path("refs/tags"), 1);
-
-	/* Just look for `init.templatedir` */
-	git_config(git_init_db_config, NULL);
-
-	/* First copy the templates -- we might have the default
-	 * config file there, in which case we would want to read
-	 * from it after installing.
-	 */
-	copy_templates(template_path);
-
-	git_config(git_default_config, NULL);
-	is_bare_repository_cfg = init_is_bare_repository;
-
-	/* reading existing config may have overwrote it */
-	if (init_shared_repository != -1)
-		shared_repository = init_shared_repository;
-
-	/*
-	 * We would have created the above under user's umask -- under
-	 * shared-repository settings, we would need to fix them up.
-	 */
-	if (shared_repository) {
-		adjust_shared_perm(get_git_dir());
-		adjust_shared_perm(git_path("refs"));
-		adjust_shared_perm(git_path("refs/heads"));
-		adjust_shared_perm(git_path("refs/tags"));
+	need_in = async->in < 0;
+	if (need_in) {
+		if (pipe(fdin) < 0) {
+			if (async->out > 0)
+				close(async->out);
+			return error("cannot create pipe: %s", strerror(errno));
+		}
+		async->in = fdin[1];
 	}
 
-	/*
-	 * Create the default symlink from ".git/HEAD" to the "master"
-	 * branch, if it does not exist yet.
-	 */
-	strcpy(path + len, "HEAD");
-	reinit = (!access(path, R_OK)
-		  || readlink(path, junk, sizeof(junk)-1) != -1);
-	if (!reinit) {
-		if (create_symref("HEAD", "refs/heads/master", NULL) < 0)
-			exit(1);
+	need_out = async->out < 0;
+	if (need_out) {
+		if (pipe(fdout) < 0) {
+			if (need_in)
+				close_pair(fdin);
+			else if (async->in)
+				close(async->in);
+			return error("cannot create pipe: %s", strerror(errno));
+		}
+		async->out = fdout[0];
 	}
 
-	/* This forces creation of new config file */
-	sprintf(repo_version_string, "%d", GIT_REPO_VERSION);
-	git_config_set("core.repositoryformatversion", repo_version_string);
+	if (need_in)
+		proc_in = fdin[0];
+	else if (async->in)
+		proc_in = async->in;
+	else
+		proc_in = -1;
 
-	path[len] = 0;
-	strcpy(path + len, "config");
+	if (need_out)
+		proc_out = fdout[1];
+	else if (async->out)
+		proc_out = async->out;
+	else
+		proc_out = -1;
 
-	/* Check filemode trustability */
-	filemode = TEST_FILEMODE;
-	if (TEST_FILEMODE && !lstat(path, &st1)) {
-		struct stat st2;
-		filemode = (!chmod(path, st1.st_mode ^ S_IXUSR) &&
-				!lstat(path, &st2) &&
-				st1.st_mode != st2.st_mode &&
-				!chmod(path, st1.st_mode));
-		if (filemode && !reinit && (st1.st_mode & S_IXUSR))
-			filemode = 0;
+#ifdef NO_PTHREADS
+	/* Flush stdio before fork() to avoid cloning buffers */
+	fflush(NULL);
+
+	async->pid = fork();
+	if (async->pid < 0) {
+		error("fork (async) failed: %s", strerror(errno));
+		goto error;
 	}
-	git_config_set("core.filemode", filemode ? "true" : "false");
-
-	if (is_bare_repository())
-		git_config_set("core.bare", "true");
-	else {
-		const char *work_tree = get_git_work_tree();
-		git_config_set("core.bare", "false");
-		/* allow template config file to override the default */
-		if (log_all_ref_updates == -1)
-		    git_config_set("core.logallrefupdates", "true");
-		if (needs_work_tree_config(git_dir, work_tree))
-			git_config_set("core.worktree", work_tree);
-	}
-
-	if (!reinit) {
-		/* Check if symlink is supported in the work tree */
-		path[len] = 0;
-		strcpy(path + len, "tXXXXXX");
-		if (!close(xmkstemp(path)) &&
-		    !unlink(path) &&
-		    !symlink("testing", path) &&
-		    !lstat(path, &st1) &&
-		    S_ISLNK(st1.st_mode))
-			unlink(path); /* good */
-		else
-			git_config_set("core.symlinks", "false");
-
-		/* Check if the filesystem is case-insensitive */
-		path[len] = 0;
-		strcpy(path + len, "CoNfIg");
-		if (!access(path, F_OK))
-			git_config_set("core.ignorecase", "true");
-		probe_utf8_pathname_composition(path, len);
+	if (!async->pid) {
+		if (need_in)
+			close(fdin[1]);
+		if (need_out)
+			close(fdout[0]);
+		git_atexit_clear();
+		process_is_async = 1;
+		exit(!!async->proc(proc_in, proc_out, async->data));
 	}
 
-	return reinit;
+	mark_child_for_cleanup(async->pid);
+
+	if (need_in)
+		close(fdin[0]);
+	else if (async->in)
+		close(async->in);
+
+	if (need_out)
+		close(fdout[1]);
+	else if (async->out)
+		close(async->out);
+#else
+	if (!main_thread_set) {
+		/*
+		 * We assume that the first time that start_async is called
+		 * it is from the main thread.
+		 */
+		main_thread_set = 1;
+		main_thread = pthread_self();
+		pthread_key_create(&async_key, NULL);
+		pthread_key_create(&async_die_counter, NULL);
+		set_die_routine(die_async);
+		set_die_is_recursing_routine(async_die_is_recursing);
+	}
+
+	if (proc_in >= 0)
+		set_cloexec(proc_in);
+	if (proc_out >= 0)
+		set_cloexec(proc_out);
+	async->proc_in = proc_in;
+	async->proc_out = proc_out;
+	{
+		int err = pthread_create(&async->tid, NULL, run_thread, async);
+		if (err) {
+			error("cannot create thread: %s", strerror(err));
+			goto error;
+		}
+	}
+#endif
+	return 0;
+
+error:
+	if (need_in)
+		close_pair(fdin);
+	else if (async->in)
+		close(async->in);
+
+	if (need_out)
+		close_pair(fdout);
+	else if (async->out)
+		close(async->out);
+	return -1;
 }

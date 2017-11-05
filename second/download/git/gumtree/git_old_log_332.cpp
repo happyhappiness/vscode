@@ -1,1 +1,1 @@
-error(_("cannot open %s: %s"), namebuf, strerror(errno));
+error("cannot fork to run external filter %s", params->cmd);

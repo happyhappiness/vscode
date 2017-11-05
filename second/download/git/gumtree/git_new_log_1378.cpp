@@ -1,1 +1,1 @@
-warning("object %s has unknown type id %d", oid_to_hex(oid), type);
+die("BUG: reverse reflog parser had leftover data");

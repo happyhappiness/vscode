@@ -1,1 +1,1 @@
-die(_("Server does not support --deepen"));
+error("Unable to update %s", ref_name.buf);

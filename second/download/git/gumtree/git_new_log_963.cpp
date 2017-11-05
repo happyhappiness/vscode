@@ -1,2 +1,1 @@
-die("BUG: counted %d != ended at %d",
-			    check->nr, cnt);
+fprintf(stderr, _("Applied autostash.\n"));

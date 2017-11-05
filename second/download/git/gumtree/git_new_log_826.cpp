@@ -1,3 +1,3 @@
-error(_("unexpected 1st line of squash message:"
-				       "\n\n\t%.*s"),
-				     (int)(eol - buf.buf), buf.buf);
+warning(_("core.splitIndex is set to false; "
+				  "remove or change it, if you really want to "
+				  "enable split index"));

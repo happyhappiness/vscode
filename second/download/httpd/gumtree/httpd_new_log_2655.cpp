@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, cfg->server,
-                     "DBD: Failed to create memory pool");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01779)
+                          "user %s: one-time-nonce mismatch - sending "
+                          "new nonce", r->user);

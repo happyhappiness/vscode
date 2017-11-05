@@ -1,1 +1,1 @@
-die("error while iterating over references");
+die("BUG: packed-ref cache cleared while locked");

@@ -1,1 +1,1 @@
-die("No path in gitfile: %s", path);
+die(_("format: %%(else) atom used without a %%(then) atom"));

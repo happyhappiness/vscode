@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
-                             "apr_thread_join: unable to join listener thread");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                      "h2_task_input(%s): get more data from mplx, block=%d, "
+                      "readbytes=%ld, queued=%ld",
+                      input->env->id, block, 
+                      (long)readbytes, (long)bblen);

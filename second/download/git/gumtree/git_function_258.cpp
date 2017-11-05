@@ -1,16 +1,27 @@
-static int read_old_data(struct stat *st, const char *path, struct strbuf *buf)
+static int parse_reuse_arg(const struct option *opt, const char *arg, int unset)
 {
-	switch (st->st_mode & S_IFMT) {
-	case S_IFLNK:
-		if (strbuf_readlink(buf, path, st->st_size) < 0)
-			return error(_("unable to read symlink %s"), path);
-		return 0;
-	case S_IFREG:
-		if (strbuf_read_file(buf, path, st->st_size) != st->st_size)
-			return error(_("unable to open or read %s"), path);
-		convert_to_git(path, buf->buf, buf->len, buf, 0);
-		return 0;
-	default:
-		return -1;
+	struct note_data *d = opt->value;
+	char *buf;
+	unsigned char object[20];
+	enum object_type type;
+	unsigned long len;
+
+	if (d->buf.len)
+		strbuf_addch(&d->buf, '\n');
+
+	if (get_sha1(arg, object))
+		die(_("Failed to resolve '%s' as a valid ref."), arg);
+	if (!(buf = read_sha1_file(object, &type, &len))) {
+		free(buf);
+		die(_("Failed to read object '%s'."), arg);
 	}
+	if (type != OBJ_BLOB) {
+		free(buf);
+		die(_("Cannot read note data from non-blob object '%s'."), arg);
+	}
+	strbuf_add(&d->buf, buf, len);
+	free(buf);
+
+	d->given = 1;
+	return 0;
 }

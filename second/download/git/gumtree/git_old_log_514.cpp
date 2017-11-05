@@ -1,1 +1,0 @@
-packet_write(1, "ERR %s: %s", msg, dir);

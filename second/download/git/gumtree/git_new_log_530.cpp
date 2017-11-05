@@ -1,1 +1,1 @@
-die(_("git fetch-pack: expected ACK/NAK, got EOF"));
+packet_write_fmt(1, "ACK %s\n", last_hex);

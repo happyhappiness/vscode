@@ -1,1 +1,1 @@
-die ("Could not read tag %s", oid_to_hex(&tag->object.oid));
+error_errno("could not read file '%s'", path);

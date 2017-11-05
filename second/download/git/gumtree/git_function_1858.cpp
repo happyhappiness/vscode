@@ -1,30 +1,27 @@
-static void pass_blame_to_parent(struct scoreboard *sb,
-				 struct origin *target,
-				 struct origin *parent)
+static char *prepare_final(struct scoreboard *sb)
 {
-	mmfile_t file_p, file_o;
-	struct blame_chunk_cb_data d;
-	struct blame_entry *newdest = NULL;
+	int i;
+	const char *final_commit_name = NULL;
+	struct rev_info *revs = sb->revs;
 
-	if (!target->suspects)
-		return; /* nothing remains for this target */
-
-	d.parent = parent;
-	d.offset = 0;
-	d.dstq = &newdest; d.srcq = &target->suspects;
-
-	fill_origin_blob(&sb->revs->diffopt, parent, &file_p);
-	fill_origin_blob(&sb->revs->diffopt, target, &file_o);
-	num_get_patch++;
-
-	if (diff_hunks(&file_p, &file_o, 0, blame_chunk_cb, &d))
-		die("unable to generate diff (%s -> %s)",
-		    sha1_to_hex(parent->commit->object.sha1),
-		    sha1_to_hex(target->commit->object.sha1));
-	/* The rest are the same as the parent */
-	blame_chunk(&d.dstq, &d.srcq, INT_MAX, d.offset, INT_MAX, parent);
-	*d.dstq = NULL;
-	queue_blames(sb, parent, newdest);
-
-	return;
+	/*
+	 * There must be one and only one positive commit in the
+	 * revs->pending array.
+	 */
+	for (i = 0; i < revs->pending.nr; i++) {
+		struct object *obj = revs->pending.objects[i].item;
+		if (obj->flags & UNINTERESTING)
+			continue;
+		while (obj->type == OBJ_TAG)
+			obj = deref_tag(obj, NULL, 0);
+		if (obj->type != OBJ_COMMIT)
+			die("Non commit %s?", revs->pending.objects[i].name);
+		if (sb->final)
+			die("More than one commit to dig from %s and %s?",
+			    revs->pending.objects[i].name,
+			    final_commit_name);
+		sb->final = (struct commit *) obj;
+		final_commit_name = revs->pending.objects[i].name;
+	}
+	return xstrdup_or_null(final_commit_name);
 }

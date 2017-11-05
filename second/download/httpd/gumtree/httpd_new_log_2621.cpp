@@ -1,1 +1,1 @@
-printf("Server version: %s\n", ap_get_server_description());
+fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234'. (repeatable)\n");

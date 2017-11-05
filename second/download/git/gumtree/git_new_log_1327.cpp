@@ -1,1 +1,1 @@
-die("Timestamp too large for this system: %"PRItime, time);
+error("'%s' exists; cannot create '%s'", entry->name, refname);

@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
-                      task->id, len? buffer : line);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02474)
+                "cache: Removing CACHE_REMOVE_URL filter.");

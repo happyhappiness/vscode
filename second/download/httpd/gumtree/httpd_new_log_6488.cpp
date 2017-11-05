@@ -1,1 +1,1 @@
-ap_rputs(ap_proxy_parse_wstatus(r->pool, worker), r);
+ap_rputs("\"></td></tr>\n", r);

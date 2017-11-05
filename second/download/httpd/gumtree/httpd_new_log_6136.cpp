@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                  "h2_task(%s): create request_rec", task->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, slave,
+                  "h2_stream(%s): destroy slave", 
+                  apr_table_get(slave->notes, H2_TASK_ID_NOTE));

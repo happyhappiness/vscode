@@ -1,1 +1,1 @@
-error_buf(err, _("push has no destination (push.default is 'nothing')"));
+die("Error on reachable objects of %s", oid_to_hex(&obj->oid));

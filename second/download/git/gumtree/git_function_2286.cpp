@@ -1,227 +1,83 @@
-int git_config_set_multivar_in_file(const char *config_filename,
-				const char *key, const char *value,
-				const char *value_regex, int multi_replace)
+int cmd_receive_pack(int argc, const char **argv, const char *prefix)
 {
-	int fd = -1, in_fd = -1;
-	int ret;
-	struct lock_file *lock = NULL;
-	char *filename_buf = NULL;
-	char *contents = NULL;
-	size_t contents_sz;
+	int advertise_refs = 0;
+	struct command *commands;
+	struct sha1_array shallow = SHA1_ARRAY_INIT;
+	struct sha1_array ref = SHA1_ARRAY_INIT;
+	struct shallow_info si;
 
-	/* parse-key returns negative; flip the sign to feed exit(3) */
-	ret = 0 - git_config_parse_key(key, &store.key, &store.baselen);
-	if (ret)
-		goto out_free;
+	struct option options[] = {
+		OPT__QUIET(&quiet, N_("quiet")),
+		OPT_HIDDEN_BOOL(0, "stateless-rpc", &stateless_rpc, NULL),
+		OPT_HIDDEN_BOOL(0, "advertise-refs", &advertise_refs, NULL),
+		OPT_HIDDEN_BOOL(0, "reject-thin-pack-for-testing", &reject_thin, NULL),
+		OPT_END()
+	};
 
-	store.multi_replace = multi_replace;
+	packet_trace_identity("receive-pack");
 
-	if (!config_filename)
-		config_filename = filename_buf = git_pathdup("config");
+	argc = parse_options(argc, argv, prefix, options, receive_pack_usage, 0);
 
-	/*
-	 * The lock serves a purpose in addition to locking: the new
-	 * contents of .git/config will be written into it.
-	 */
-	lock = xcalloc(1, sizeof(struct lock_file));
-	fd = hold_lock_file_for_update(lock, config_filename, 0);
-	if (fd < 0) {
-		error("could not lock config file %s: %s", config_filename, strerror(errno));
-		free(store.key);
-		ret = CONFIG_NO_LOCK;
-		goto out_free;
+	if (argc > 1)
+		usage_msg_opt(_("Too many arguments."), receive_pack_usage, options);
+	if (argc == 0)
+		usage_msg_opt(_("You must specify a directory."), receive_pack_usage, options);
+
+	service_dir = argv[0];
+
+	setup_path();
+
+	if (!enter_repo(service_dir, 0))
+		die("'%s' does not appear to be a git repository", service_dir);
+
+	git_config(receive_pack_config, NULL);
+	if (cert_nonce_seed)
+		push_cert_nonce = prepare_push_cert_nonce(service_dir, time(NULL));
+
+	if (0 <= transfer_unpack_limit)
+		unpack_limit = transfer_unpack_limit;
+	else if (0 <= receive_unpack_limit)
+		unpack_limit = receive_unpack_limit;
+
+	if (advertise_refs || !stateless_rpc) {
+		write_head_info();
 	}
+	if (advertise_refs)
+		return 0;
 
-	/*
-	 * If .git/config does not exist yet, write a minimal version.
-	 */
-	in_fd = open(config_filename, O_RDONLY);
-	if ( in_fd < 0 ) {
-		free(store.key);
+	if ((commands = read_head_info(&shallow)) != NULL) {
+		const char *unpack_status = NULL;
 
-		if ( ENOENT != errno ) {
-			error("opening %s: %s", config_filename,
-			      strerror(errno));
-			ret = CONFIG_INVALID_FILE; /* same as "invalid config file" */
-			goto out_free;
+		prepare_shallow_info(&si, &shallow);
+		if (!si.nr_ours && !si.nr_theirs)
+			shallow_update = 0;
+		if (!delete_only(commands)) {
+			unpack_status = unpack_with_sideband(&si);
+			update_shallow_info(commands, &si, &ref);
 		}
-		/* if nothing to unset, error out */
-		if (value == NULL) {
-			ret = CONFIG_NOTHING_SET;
-			goto out_free;
+		execute_commands(commands, unpack_status, &si);
+		if (pack_lockfile)
+			unlink_or_warn(pack_lockfile);
+		if (report_status)
+			report(commands, unpack_status);
+		run_receive_hook(commands, "post-receive", 1);
+		run_update_post_hook(commands);
+		if (auto_gc) {
+			const char *argv_gc_auto[] = {
+				"gc", "--auto", "--quiet", NULL,
+			};
+			int opt = RUN_GIT_CMD | RUN_COMMAND_STDOUT_TO_STDERR;
+			close_all_packs();
+			run_command_v_opt(argv_gc_auto, opt);
 		}
-
-		store.key = (char *)key;
-		if (!store_write_section(fd, key) ||
-		    !store_write_pair(fd, key, value))
-			goto write_err_out;
-	} else {
-		struct stat st;
-		size_t copy_begin, copy_end;
-		int i, new_line = 0;
-
-		if (value_regex == NULL)
-			store.value_regex = NULL;
-		else if (value_regex == CONFIG_REGEX_NONE)
-			store.value_regex = CONFIG_REGEX_NONE;
-		else {
-			if (value_regex[0] == '!') {
-				store.do_not_match = 1;
-				value_regex++;
-			} else
-				store.do_not_match = 0;
-
-			store.value_regex = (regex_t*)xmalloc(sizeof(regex_t));
-			if (regcomp(store.value_regex, value_regex,
-					REG_EXTENDED)) {
-				error("invalid pattern: %s", value_regex);
-				free(store.value_regex);
-				ret = CONFIG_INVALID_PATTERN;
-				goto out_free;
-			}
-		}
-
-		ALLOC_GROW(store.offset, 1, store.offset_alloc);
-		store.offset[0] = 0;
-		store.state = START;
-		store.seen = 0;
-
-		/*
-		 * After this, store.offset will contain the *end* offset
-		 * of the last match, or remain at 0 if no match was found.
-		 * As a side effect, we make sure to transform only a valid
-		 * existing config file.
-		 */
-		if (git_config_from_file(store_aux, config_filename, NULL)) {
-			error("invalid config file %s", config_filename);
-			free(store.key);
-			if (store.value_regex != NULL &&
-			    store.value_regex != CONFIG_REGEX_NONE) {
-				regfree(store.value_regex);
-				free(store.value_regex);
-			}
-			ret = CONFIG_INVALID_FILE;
-			goto out_free;
-		}
-
-		free(store.key);
-		if (store.value_regex != NULL &&
-		    store.value_regex != CONFIG_REGEX_NONE) {
-			regfree(store.value_regex);
-			free(store.value_regex);
-		}
-
-		/* if nothing to unset, or too many matches, error out */
-		if ((store.seen == 0 && value == NULL) ||
-				(store.seen > 1 && multi_replace == 0)) {
-			ret = CONFIG_NOTHING_SET;
-			goto out_free;
-		}
-
-		fstat(in_fd, &st);
-		contents_sz = xsize_t(st.st_size);
-		contents = xmmap_gently(NULL, contents_sz, PROT_READ,
-					MAP_PRIVATE, in_fd, 0);
-		if (contents == MAP_FAILED) {
-			if (errno == ENODEV && S_ISDIR(st.st_mode))
-				errno = EISDIR;
-			error("unable to mmap '%s': %s",
-			      config_filename, strerror(errno));
-			ret = CONFIG_INVALID_FILE;
-			contents = NULL;
-			goto out_free;
-		}
-		close(in_fd);
-		in_fd = -1;
-
-		if (chmod(get_lock_file_path(lock), st.st_mode & 07777) < 0) {
-			error("chmod on %s failed: %s",
-			      get_lock_file_path(lock), strerror(errno));
-			ret = CONFIG_NO_WRITE;
-			goto out_free;
-		}
-
-		if (store.seen == 0)
-			store.seen = 1;
-
-		for (i = 0, copy_begin = 0; i < store.seen; i++) {
-			if (store.offset[i] == 0) {
-				store.offset[i] = copy_end = contents_sz;
-			} else if (store.state != KEY_SEEN) {
-				copy_end = store.offset[i];
-			} else
-				copy_end = find_beginning_of_line(
-					contents, contents_sz,
-					store.offset[i]-2, &new_line);
-
-			if (copy_end > 0 && contents[copy_end-1] != '\n')
-				new_line = 1;
-
-			/* write the first part of the config */
-			if (copy_end > copy_begin) {
-				if (write_in_full(fd, contents + copy_begin,
-						  copy_end - copy_begin) <
-				    copy_end - copy_begin)
-					goto write_err_out;
-				if (new_line &&
-				    write_str_in_full(fd, "\n") != 1)
-					goto write_err_out;
-			}
-			copy_begin = store.offset[i];
-		}
-
-		/* write the pair (value == NULL means unset) */
-		if (value != NULL) {
-			if (store.state == START) {
-				if (!store_write_section(fd, key))
-					goto write_err_out;
-			}
-			if (!store_write_pair(fd, key, value))
-				goto write_err_out;
-		}
-
-		/* write the rest of the config */
-		if (copy_begin < contents_sz)
-			if (write_in_full(fd, contents + copy_begin,
-					  contents_sz - copy_begin) <
-			    contents_sz - copy_begin)
-				goto write_err_out;
-
-		munmap(contents, contents_sz);
-		contents = NULL;
+		if (auto_update_server_info)
+			update_server_info(0);
+		clear_shallow_info(&si);
 	}
-
-	if (commit_lock_file(lock) < 0) {
-		error("could not commit config file %s", config_filename);
-		ret = CONFIG_NO_WRITE;
-		lock = NULL;
-		goto out_free;
-	}
-
-	/*
-	 * lock is committed, so don't try to roll it back below.
-	 * NOTE: Since lockfile.c keeps a linked list of all created
-	 * lock_file structures, it isn't safe to free(lock).  It's
-	 * better to just leave it hanging around.
-	 */
-	lock = NULL;
-	ret = 0;
-
-	/* Invalidate the config cache */
-	git_config_clear();
-
-out_free:
-	if (lock)
-		rollback_lock_file(lock);
-	free(filename_buf);
-	if (contents)
-		munmap(contents, contents_sz);
-	if (in_fd >= 0)
-		close(in_fd);
-	return ret;
-
-write_err_out:
-	ret = write_error(get_lock_file_path(lock));
-	goto out_free;
-
+	if (use_sideband)
+		packet_flush(1);
+	sha1_array_clear(&shallow);
+	sha1_array_clear(&ref);
+	free((void *)push_cert_nonce);
+	return 0;
 }

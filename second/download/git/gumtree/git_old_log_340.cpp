@@ -1,1 +1,0 @@
-die("--reject and --3way cannot be used together.");

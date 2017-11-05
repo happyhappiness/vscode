@@ -1,95 +1,62 @@
-static int delete_remote_branch(const char *pattern, int force)
+int walker_fetch(struct walker *walker, int targets, char **target,
+		 const char **write_ref, const char *write_ref_log_details)
 {
-	struct ref *refs = remote_refs;
-	struct ref *remote_ref = NULL;
-	unsigned char head_sha1[20];
-	char *symref = NULL;
-	int match;
-	int patlen = strlen(pattern);
+	struct ref_lock **lock = xcalloc(targets, sizeof(struct ref_lock *));
+	unsigned char *sha1 = xmalloc(targets * 20);
+	const char *msg;
+	char *to_free = NULL;
+	int ret;
 	int i;
-	struct active_request_slot *slot;
-	struct slot_results results;
-	char *url;
 
-	/* Find the remote branch(es) matching the specified branch name */
-	for (match = 0; refs; refs = refs->next) {
-		char *name = refs->name;
-		int namelen = strlen(name);
-		if (namelen < patlen ||
-		    memcmp(name + namelen - patlen, pattern, patlen))
+	save_commit_buffer = 0;
+
+	for (i = 0; i < targets; i++) {
+		if (!write_ref || !write_ref[i])
 			continue;
-		if (namelen != patlen && name[namelen - patlen - 1] != '/')
-			continue;
-		match++;
-		remote_ref = refs;
-	}
-	if (match == 0)
-		return error("No remote branch matches %s", pattern);
-	if (match != 1)
-		return error("More than one remote branch matches %s",
-			     pattern);
 
-	/*
-	 * Remote HEAD must be a symref (not exactly foolproof; a remote
-	 * symlink to a symref will look like a symref)
-	 */
-	fetch_symref("HEAD", &symref, head_sha1);
-	if (!symref)
-		return error("Remote HEAD is not a symref");
-
-	/* Remote branch must not be the remote HEAD */
-	for (i = 0; symref && i < MAXDEPTH; i++) {
-		if (!strcmp(remote_ref->name, symref))
-			return error("Remote branch %s is the current HEAD",
-				     remote_ref->name);
-		fetch_symref(symref, &symref, head_sha1);
-	}
-
-	/* Run extra sanity checks if delete is not forced */
-	if (!force) {
-		/* Remote HEAD must resolve to a known object */
-		if (symref)
-			return error("Remote HEAD symrefs too deep");
-		if (is_null_sha1(head_sha1))
-			return error("Unable to resolve remote HEAD");
-		if (!has_sha1_file(head_sha1))
-			return error("Remote HEAD resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", sha1_to_hex(head_sha1));
-
-		/* Remote branch must resolve to a known object */
-		if (is_null_oid(&remote_ref->old_oid))
-			return error("Unable to resolve remote branch %s",
-				     remote_ref->name);
-		if (!has_object_file(&remote_ref->old_oid))
-			return error("Remote branch %s resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", remote_ref->name, oid_to_hex(&remote_ref->old_oid));
-
-		/* Remote branch must be an ancestor of remote HEAD */
-		if (!verify_merge_base(head_sha1, remote_ref)) {
-			return error("The branch '%s' is not an ancestor "
-				     "of your current HEAD.\n"
-				     "If you are sure you want to delete it,"
-				     " run:\n\t'git http-push -D %s %s'",
-				     remote_ref->name, repo->url, pattern);
+		lock[i] = lock_ref_sha1(write_ref[i], NULL);
+		if (!lock[i]) {
+			error("Can't lock ref %s", write_ref[i]);
+			goto unlock_and_fail;
 		}
 	}
 
-	/* Send delete request */
-	fprintf(stderr, "Removing remote branch '%s'\n", remote_ref->name);
-	if (dry_run)
-		return 0;
-	url = xstrfmt("%s%s", repo->url, remote_ref->name);
-	slot = get_active_slot();
-	slot->results = &results;
-	curl_setup_http_get(slot->curl, url, DAV_DELETE);
-	if (start_active_slot(slot)) {
-		run_active_slot(slot);
-		free(url);
-		if (results.curl_result != CURLE_OK)
-			return error("DELETE request failed (%d/%ld)",
-				     results.curl_result, results.http_code);
-	} else {
-		free(url);
-		return error("Unable to start DELETE request");
+	if (!walker->get_recover)
+		for_each_ref(mark_complete, NULL);
+
+	for (i = 0; i < targets; i++) {
+		if (interpret_target(walker, target[i], &sha1[20 * i])) {
+			error("Could not interpret response from server '%s' as something to pull", target[i]);
+			goto unlock_and_fail;
+		}
+		if (process(walker, lookup_unknown_object(&sha1[20 * i])))
+			goto unlock_and_fail;
 	}
 
+	if (loop(walker))
+		goto unlock_and_fail;
+
+	if (write_ref_log_details)
+		msg = to_free = xstrfmt("fetch from %s", write_ref_log_details);
+	else
+		msg = "fetch (unknown)";
+	for (i = 0; i < targets; i++) {
+		if (!write_ref || !write_ref[i])
+			continue;
+		ret = write_ref_sha1(lock[i], &sha1[20 * i], msg);
+		lock[i] = NULL;
+		if (ret)
+			goto unlock_and_fail;
+	}
+	free(to_free);
+
 	return 0;
+
+unlock_and_fail:
+	for (i = 0; i < targets; i++)
+		if (lock[i])
+			unlock_ref(lock[i]);
+	free(to_free);
+
+	return -1;
 }

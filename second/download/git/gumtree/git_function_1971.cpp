@@ -1,7 +1,29 @@
-static int advertise_shallow_grafts_cb(const struct commit_graft *graft, void *cb)
+int parse_commit_gently(struct commit *item, int quiet_on_missing)
 {
-	int fd = *(int *)cb;
-	if (graft->nr_parent == -1)
-		packet_write(fd, "shallow %s\n", sha1_to_hex(graft->sha1));
-	return 0;
+	enum object_type type;
+	void *buffer;
+	unsigned long size;
+	int ret;
+
+	if (!item)
+		return -1;
+	if (item->object.parsed)
+		return 0;
+	buffer = read_sha1_file(item->object.sha1, &type, &size);
+	if (!buffer)
+		return quiet_on_missing ? -1 :
+			error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));
+	if (type != OBJ_COMMIT) {
+		free(buffer);
+		return error("Object %s not a commit",
+			     sha1_to_hex(item->object.sha1));
+	}
+	ret = parse_commit_buffer(item, buffer, size);
+	if (save_commit_buffer && !ret) {
+		set_commit_buffer(item, buffer, size);
+		return 0;
+	}
+	free(buffer);
+	return ret;
 }

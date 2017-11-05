@@ -1,2 +1,1 @@
-fprintf(pack_edges, " %s",
-						oid_to_hex(&t->oid));
+die("BUG: have_old is true but old_sha1 is NULL");

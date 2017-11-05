@@ -1,1 +1,1 @@
-error(_("unable to open or read %s"), path);
+die(_("Failed to resolve '%s' as a valid ref."), arg);

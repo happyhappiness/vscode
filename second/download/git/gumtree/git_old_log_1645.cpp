@@ -1,1 +1,1 @@
-die("internal error");
+die("bad default revision '%s'", revs->def);

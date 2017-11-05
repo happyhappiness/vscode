@@ -1,2 +1,1 @@
-error(_("relative config include "
-				       "conditionals must come from files"));
+error("%s %s", oid_to_hex(&e->oid), e->name);

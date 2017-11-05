@@ -1,1 +1,1 @@
-die("unknown option passed through to git apply");
+die("BUG: invalid cmdmode: %c", opt->cmdmode);

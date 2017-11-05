@@ -1,0 +1,1 @@
+optbug(opts, "invalid short name");

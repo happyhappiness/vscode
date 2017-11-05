@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      "h2_session(%ld): destroy", session->id);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                      "checking remote machine [%s] against [%s]",
+                      hostname, npent[j].name);

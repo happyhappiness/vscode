@@ -1,2 +1,1 @@
-die("unable to parse commit %s",
-			    oid_to_hex(&c->object.oid));
+error(_("cannot store %s"), stash_sha1.buf);

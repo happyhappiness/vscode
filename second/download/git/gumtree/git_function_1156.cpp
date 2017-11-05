@@ -1,34 +1,59 @@
-static void am_resolve(struct am_state *state)
+static int start_multi_file_filter_fn(struct subprocess_entry *subprocess)
 {
-	validate_resume_state(state);
+	int err;
+	struct cmd2process *entry = (struct cmd2process *)subprocess;
+	struct string_list cap_list = STRING_LIST_INIT_NODUP;
+	char *cap_buf;
+	const char *cap_name;
+	struct child_process *process = &subprocess->process;
+	const char *cmd = subprocess->cmd;
 
-	say(state, stdout, _("Applying: %.*s"), linelen(state->msg), state->msg);
+	sigchain_push(SIGPIPE, SIG_IGN);
 
-	if (!index_has_changes(NULL)) {
-		printf_ln(_("No changes - did you forget to use 'git add'?\n"
-			"If there is nothing left to stage, chances are that something else\n"
-			"already introduced the same changes; you might want to skip this patch."));
-		die_user_resolve(state);
+	err = packet_writel(process->in, "git-filter-client", "version=2", NULL);
+	if (err)
+		goto done;
+
+	err = strcmp(packet_read_line(process->out, NULL), "git-filter-server");
+	if (err) {
+		error("external filter '%s' does not support filter protocol version 2", cmd);
+		goto done;
+	}
+	err = strcmp(packet_read_line(process->out, NULL), "version=2");
+	if (err)
+		goto done;
+	err = packet_read_line(process->out, NULL) != NULL;
+	if (err)
+		goto done;
+
+	err = packet_writel(process->in, "capability=clean", "capability=smudge", NULL);
+
+	for (;;) {
+		cap_buf = packet_read_line(process->out, NULL);
+		if (!cap_buf)
+			break;
+		string_list_split_in_place(&cap_list, cap_buf, '=', 1);
+
+		if (cap_list.nr != 2 || strcmp(cap_list.items[0].string, "capability"))
+			continue;
+
+		cap_name = cap_list.items[1].string;
+		if (!strcmp(cap_name, "clean")) {
+			entry->supported_capabilities |= CAP_CLEAN;
+		} else if (!strcmp(cap_name, "smudge")) {
+			entry->supported_capabilities |= CAP_SMUDGE;
+		} else {
+			warning(
+				"external filter '%s' requested unsupported filter capability '%s'",
+				cmd, cap_name
+			);
+		}
+
+		string_list_clear(&cap_list, 0);
 	}
 
-	if (unmerged_cache()) {
-		printf_ln(_("You still have unmerged paths in your index.\n"
-			"Did you forget to use 'git add'?"));
-		die_user_resolve(state);
-	}
+done:
+	sigchain_pop(SIGPIPE);
 
-	if (state->interactive) {
-		write_index_patch(state);
-		if (do_interactive(state))
-			goto next;
-	}
-
-	rerere(0);
-
-	do_commit(state);
-
-next:
-	am_next(state);
-	am_load(state);
-	am_run(state, 0);
+	return err;
 }

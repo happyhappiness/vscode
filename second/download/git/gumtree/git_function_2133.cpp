@@ -1,67 +1,97 @@
-static void builtin_checkdiff(const char *name_a, const char *name_b,
-			      const char *attr_path,
-			      struct diff_filespec *one,
-			      struct diff_filespec *two,
-			      struct diff_options *o)
+static int http_options(const char *var, const char *value, void *cb)
 {
-	mmfile_t mf1, mf2;
-	struct checkdiff_t data;
-
-	if (!two)
-		return;
-
-	memset(&data, 0, sizeof(data));
-	data.filename = name_b ? name_b : name_a;
-	data.lineno = 0;
-	data.o = o;
-	data.ws_rule = whitespace_rule(attr_path);
-	data.conflict_marker_size = ll_merge_marker_size(attr_path);
-
-	if (fill_mmfile(&mf1, one) < 0 || fill_mmfile(&mf2, two) < 0)
-		die("unable to read files to diff");
-
-	/*
-	 * All the other codepaths check both sides, but not checking
-	 * the "old" side here is deliberate.  We are checking the newly
-	 * introduced changes, and as long as the "new" side is text, we
-	 * can and should check what it introduces.
-	 */
-	if (diff_filespec_is_binary(two))
-		goto free_and_return;
-	else {
-		/* Crazy xdl interfaces.. */
-		xpparam_t xpp;
-		xdemitconf_t xecfg;
-
-		memset(&xpp, 0, sizeof(xpp));
-		memset(&xecfg, 0, sizeof(xecfg));
-		xecfg.ctxlen = 1; /* at least one context line */
-		xpp.flags = 0;
-		if (xdi_diff_outf(&mf1, &mf2, checkdiff_consume, &data,
-				  &xpp, &xecfg))
-			die("unable to generate checkdiff for %s", one->path);
-
-		if (data.ws_rule & WS_BLANK_AT_EOF) {
-			struct emit_callback ecbdata;
-			int blank_at_eof;
-
-			ecbdata.ws_rule = data.ws_rule;
-			check_blank_at_eof(&mf1, &mf2, &ecbdata);
-			blank_at_eof = ecbdata.blank_at_eof_in_postimage;
-
-			if (blank_at_eof) {
-				static char *err;
-				if (!err)
-					err = whitespace_error_string(WS_BLANK_AT_EOF);
-				fprintf(o->file, "%s:%d: %s.\n",
-					data.filename, blank_at_eof, err);
-				data.status = 1; /* report errors */
-			}
-		}
+	if (!strcmp("http.sslverify", var)) {
+		curl_ssl_verify = git_config_bool(var, value);
+		return 0;
 	}
- free_and_return:
-	diff_free_filespec_data(one);
-	diff_free_filespec_data(two);
-	if (data.status)
-		DIFF_OPT_SET(o, CHECK_FAILED);
+	if (!strcmp("http.sslcipherlist", var))
+		return git_config_string(&ssl_cipherlist, var, value);
+	if (!strcmp("http.sslversion", var))
+		return git_config_string(&ssl_version, var, value);
+	if (!strcmp("http.sslcert", var))
+		return git_config_string(&ssl_cert, var, value);
+#if LIBCURL_VERSION_NUM >= 0x070903
+	if (!strcmp("http.sslkey", var))
+		return git_config_string(&ssl_key, var, value);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x070908
+	if (!strcmp("http.sslcapath", var))
+		return git_config_pathname(&ssl_capath, var, value);
+#endif
+	if (!strcmp("http.sslcainfo", var))
+		return git_config_pathname(&ssl_cainfo, var, value);
+	if (!strcmp("http.sslcertpasswordprotected", var)) {
+		ssl_cert_password_required = git_config_bool(var, value);
+		return 0;
+	}
+	if (!strcmp("http.ssltry", var)) {
+		curl_ssl_try = git_config_bool(var, value);
+		return 0;
+	}
+	if (!strcmp("http.minsessions", var)) {
+		min_curl_sessions = git_config_int(var, value);
+#ifndef USE_CURL_MULTI
+		if (min_curl_sessions > 1)
+			min_curl_sessions = 1;
+#endif
+		return 0;
+	}
+#ifdef USE_CURL_MULTI
+	if (!strcmp("http.maxrequests", var)) {
+		max_requests = git_config_int(var, value);
+		return 0;
+	}
+#endif
+	if (!strcmp("http.lowspeedlimit", var)) {
+		curl_low_speed_limit = (long)git_config_int(var, value);
+		return 0;
+	}
+	if (!strcmp("http.lowspeedtime", var)) {
+		curl_low_speed_time = (long)git_config_int(var, value);
+		return 0;
+	}
+
+	if (!strcmp("http.noepsv", var)) {
+		curl_ftp_no_epsv = git_config_bool(var, value);
+		return 0;
+	}
+	if (!strcmp("http.proxy", var))
+		return git_config_string(&curl_http_proxy, var, value);
+
+	if (!strcmp("http.proxyauthmethod", var))
+		return git_config_string(&http_proxy_authmethod, var, value);
+
+	if (!strcmp("http.cookiefile", var))
+		return git_config_string(&curl_cookie_file, var, value);
+	if (!strcmp("http.savecookies", var)) {
+		curl_save_cookies = git_config_bool(var, value);
+		return 0;
+	}
+
+	if (!strcmp("http.postbuffer", var)) {
+		http_post_buffer = git_config_int(var, value);
+		if (http_post_buffer < LARGE_PACKET_MAX)
+			http_post_buffer = LARGE_PACKET_MAX;
+		return 0;
+	}
+
+	if (!strcmp("http.useragent", var))
+		return git_config_string(&user_agent, var, value);
+
+	if (!strcmp("http.emptyauth", var)) {
+		curl_empty_auth = git_config_bool(var, value);
+		return 0;
+	}
+
+	if (!strcmp("http.pinnedpubkey", var)) {
+#if LIBCURL_VERSION_NUM >= 0x072c00
+		return git_config_pathname(&ssl_pinnedkey, var, value);
+#else
+		warning(_("Public key pinning not supported with cURL < 7.44.0"));
+		return 0;
+#endif
+	}
+
+	/* Fall back on the default ones */
+	return git_default_config(var, value, cb);
 }

@@ -1,1 +1,2 @@
-ap_rvputs(r, "> <br/> Off <input name='", name, "' id='", name, "' value='0' type=radio", NULL);
+ap_rvputs(r, "value='", ap_escape_html(r->pool, wsel->s->route),
+                      NULL);

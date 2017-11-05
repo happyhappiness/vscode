@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03516)
-                      "h2_mplx(%ld): unexpected %d streams in hold", 
-                      m->id, (int)h2_ihash_count(m->shold));
+ap_log_error(APLOG_MARK, APLOG_WARNING|APLOG_STARTUP, 0, cmd->server,
+                 APLOGNO(02559)
+                 "The SSLCertificateChainFile directive (%s:%d) is deprecated, "
+                 "SSLCertificateFile should be used instead",
+                 cmd->directive->filename, cmd->directive->line_num);

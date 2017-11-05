@@ -1,34 +1,23 @@
-static int pcre2match(struct grep_pat *p, const char *line, const char *eol,
-		regmatch_t *match, int eflags)
+void trace_repo_setup(const char *prefix)
 {
-	int ret, flags = 0;
-	PCRE2_SIZE *ovector;
-	PCRE2_UCHAR errbuf[256];
+	static struct trace_key key = TRACE_KEY_INIT(SETUP);
+	const char *git_work_tree;
+	char cwd[PATH_MAX];
 
-	if (eflags & REG_NOTBOL)
-		flags |= PCRE2_NOTBOL;
+	if (!trace_want(&key))
+		return;
 
-	if (p->pcre2_jit_on)
-		ret = pcre2_jit_match(p->pcre2_pattern, (unsigned char *)line,
-				      eol - line, 0, flags, p->pcre2_match_data,
-				      NULL);
-	else
-		ret = pcre2_match(p->pcre2_pattern, (unsigned char *)line,
-				  eol - line, 0, flags, p->pcre2_match_data,
-				  NULL);
+	if (!getcwd(cwd, PATH_MAX))
+		die("Unable to get current working directory");
 
-	if (ret < 0 && ret != PCRE2_ERROR_NOMATCH) {
-		pcre2_get_error_message(ret, errbuf, sizeof(errbuf));
-		die("%s failed with error code %d: %s",
-		    (p->pcre2_jit_on ? "pcre2_jit_match" : "pcre2_match"), ret,
-		    errbuf);
-	}
-	if (ret > 0) {
-		ovector = pcre2_get_ovector_pointer(p->pcre2_match_data);
-		ret = 0;
-		match->rm_so = (int)ovector[0];
-		match->rm_eo = (int)ovector[1];
-	}
+	if (!(git_work_tree = get_git_work_tree()))
+		git_work_tree = "(null)";
 
-	return ret;
+	if (!prefix)
+		prefix = "(null)";
+
+	trace_printf_key(&key, "setup: git_dir: %s\n", quote_crnl(get_git_dir()));
+	trace_printf_key(&key, "setup: worktree: %s\n", quote_crnl(git_work_tree));
+	trace_printf_key(&key, "setup: cwd: %s\n", quote_crnl(cwd));
+	trace_printf_key(&key, "setup: prefix: %s\n", quote_crnl(prefix));
 }

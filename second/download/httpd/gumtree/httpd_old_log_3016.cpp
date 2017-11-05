@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-            "access to %s failed, reason: no authenticated user", r->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
+                         "Could not use default path '%s' for shmcb socache",
+                         ctx->data_file);

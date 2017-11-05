@@ -1,2 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
-                         "%s: empty argument #%d", where, i + 1);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                              "h2_task_output(%s): write without response "
+                              "for %s %s %s",
+                              output->task->id, output->task->request->method, 
+                              output->task->request->authority, 
+                              output->task->request->path);

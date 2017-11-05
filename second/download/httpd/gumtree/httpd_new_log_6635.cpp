@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
-                  "h2_stream(%ld-%d): unpexected header status %d, stream rst", 
-                  session->id, stream->id, headers->status);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(02411)
+                              "SSL Proxy: Peer certificate does not match "
+                              "for hostname %s", hostname_note);

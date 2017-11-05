@@ -1,1 +1,1 @@
-die(_("Please supply the note contents using either -m or -F option"));
+die("Could not open skip list: %s", path);

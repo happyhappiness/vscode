@@ -1,2 +1,1 @@
-error(_("The note contents have been left in %s"),
-				      path);
+warning("old-style 'git merge <msg> HEAD <commit>' is deprecated.");

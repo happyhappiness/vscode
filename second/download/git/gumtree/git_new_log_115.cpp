@@ -1,1 +1,1 @@
-die("create %s: missing <newvalue>", refname);
+xstrdup(srvc->host);

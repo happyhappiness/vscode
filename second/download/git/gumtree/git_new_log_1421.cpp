@@ -1,1 +1,1 @@
-die("revision walk setup failed");
+die("BUG: connectivity check skipped???");

@@ -1,2 +1,1 @@
-die(_("You have not concluded your notes merge "
-				    "(%s exists)."), git_path("NOTES_MERGE_*"));
+argv_array_push(argv, sha1_to_hex(sha1));

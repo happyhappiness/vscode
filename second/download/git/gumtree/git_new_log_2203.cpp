@@ -1,1 +1,1 @@
-die(_("Could not read %s."), git_path_todo_file());
+error("could not expand include path '%s'", path);

@@ -1,46 +1,81 @@
-static int pack_if_possible_fn(struct ref_entry *entry, void *cb_data)
+static struct packed_ref_cache *read_packed_refs(const char *packed_refs_file)
 {
-	struct pack_refs_cb_data *cb = cb_data;
-	enum peel_status peel_status;
-	struct ref_entry *packed_entry;
-	int is_tag_ref = starts_with(entry->name, "refs/tags/");
+	FILE *f;
+	struct packed_ref_cache *packed_refs = xcalloc(1, sizeof(*packed_refs));
+	struct ref_entry *last = NULL;
+	struct strbuf line = STRBUF_INIT;
+	enum { PEELED_NONE, PEELED_TAGS, PEELED_FULLY } peeled = PEELED_NONE;
+	struct ref_dir *dir;
 
-	/* Do not pack per-worktree refs: */
-	if (ref_type(entry->name) != REF_TYPE_NORMAL)
-		return 0;
+	acquire_packed_ref_cache(packed_refs);
+	packed_refs->cache = create_ref_cache(NULL, NULL);
+	packed_refs->cache->root->flag &= ~REF_INCOMPLETE;
 
-	/* ALWAYS pack tags */
-	if (!(cb->flags & PACK_REFS_ALL) && !is_tag_ref)
-		return 0;
-
-	/* Do not pack symbolic or broken refs: */
-	if ((entry->flag & REF_ISSYMREF) || !entry_resolves_to_object(entry))
-		return 0;
-
-	/* Add a packed ref cache entry equivalent to the loose entry. */
-	peel_status = peel_entry(entry, 1);
-	if (peel_status != PEEL_PEELED && peel_status != PEEL_NON_TAG)
-		die("internal error peeling reference %s (%s)",
-		    entry->name, oid_to_hex(&entry->u.value.oid));
-	packed_entry = find_ref(cb->packed_refs, entry->name);
-	if (packed_entry) {
-		/* Overwrite existing packed entry with info from loose entry */
-		packed_entry->flag = REF_ISPACKED | REF_KNOWS_PEELED;
-		oidcpy(&packed_entry->u.value.oid, &entry->u.value.oid);
-	} else {
-		packed_entry = create_ref_entry(entry->name, entry->u.value.oid.hash,
-						REF_ISPACKED | REF_KNOWS_PEELED, 0);
-		add_ref(cb->packed_refs, packed_entry);
+	f = fopen(packed_refs_file, "r");
+	if (!f) {
+		if (errno == ENOENT) {
+			/*
+			 * This is OK; it just means that no
+			 * "packed-refs" file has been written yet,
+			 * which is equivalent to it being empty.
+			 */
+			return packed_refs;
+		} else {
+			die_errno("couldn't read %s", packed_refs_file);
+		}
 	}
-	oidcpy(&packed_entry->u.value.peeled, &entry->u.value.peeled);
 
-	/* Schedule the loose reference for pruning if requested. */
-	if ((cb->flags & PACK_REFS_PRUNE)) {
-		struct ref_to_prune *n;
-		FLEX_ALLOC_STR(n, name, entry->name);
-		hashcpy(n->sha1, entry->u.value.oid.hash);
-		n->next = cb->ref_to_prune;
-		cb->ref_to_prune = n;
+	stat_validity_update(&packed_refs->validity, fileno(f));
+
+	dir = get_ref_dir(packed_refs->cache->root);
+	while (strbuf_getwholeline(&line, f, '\n') != EOF) {
+		struct object_id oid;
+		const char *refname;
+		const char *traits;
+
+		if (skip_prefix(line.buf, "# pack-refs with:", &traits)) {
+			if (strstr(traits, " fully-peeled "))
+				peeled = PEELED_FULLY;
+			else if (strstr(traits, " peeled "))
+				peeled = PEELED_TAGS;
+			/* perhaps other traits later as well */
+			continue;
+		}
+
+		refname = parse_ref_line(&line, &oid);
+		if (refname) {
+			int flag = REF_ISPACKED;
+
+			if (check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
+				if (!refname_is_safe(refname))
+					die("packed refname is dangerous: %s", refname);
+				oidclr(&oid);
+				flag |= REF_BAD_NAME | REF_ISBROKEN;
+			}
+			last = create_ref_entry(refname, &oid, flag);
+			if (peeled == PEELED_FULLY ||
+			    (peeled == PEELED_TAGS && starts_with(refname, "refs/tags/")))
+				last->flag |= REF_KNOWS_PEELED;
+			add_ref_entry(dir, last);
+			continue;
+		}
+		if (last &&
+		    line.buf[0] == '^' &&
+		    line.len == PEELED_LINE_LENGTH &&
+		    line.buf[PEELED_LINE_LENGTH - 1] == '\n' &&
+		    !get_oid_hex(line.buf + 1, &oid)) {
+			oidcpy(&last->u.value.peeled, &oid);
+			/*
+			 * Regardless of what the file header said,
+			 * we definitely know the value of *this*
+			 * reference:
+			 */
+			last->flag |= REF_KNOWS_PEELED;
+		}
 	}
-	return 0;
+
+	fclose(f);
+	strbuf_release(&line);
+
+	return packed_refs;
 }

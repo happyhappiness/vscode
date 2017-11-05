@@ -1,2 +1,2 @@
-error("Object %s not a tree",
-			     oid_to_hex(&item->object.oid));
+fprintf(opt->diffopt.file, "%s%.*s%s%s", color, (int)(eol - bol), bol, reset,
+		       *eol ? "\n" : "");

@@ -1,1 +1,1 @@
-packet_write(stdin_fd, "%s %s%c", serv, repo, 0);
+error_errno("cannot write delta postimage");

@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00322)
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1 to avoid almost certain server failure. "
-                         "Please read the documentation.", min_spare_threads);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, APLOGNO(10023)
+                      "giving up after %d reconnects, %d requests todo",
+                      reconnects, h2_proxy_fifo_count(ctx->requests));

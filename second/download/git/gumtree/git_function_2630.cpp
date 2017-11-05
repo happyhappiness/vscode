@@ -1,22 +1,22 @@
-static const char *strip_ref_components(const char *refname, const char *nr_arg)
+static void output_commit_title(struct merge_options *o, struct commit *commit)
 {
-	char *end;
-	long nr = strtol(nr_arg, &end, 10);
-	long remaining = nr;
-	const char *start = refname;
-
-	if (nr < 1 || *end != '\0')
-		die(":strip= requires a positive integer argument");
-
-	while (remaining) {
-		switch (*start++) {
-		case '\0':
-			die("ref '%s' does not have %ld components to :strip",
-			    refname, nr);
-		case '/':
-			remaining--;
-			break;
+	int i;
+	flush_output(o);
+	for (i = o->call_depth; i--;)
+		fputs("  ", stdout);
+	if (commit->util)
+		printf("virtual %s\n", merge_remote_util(commit)->name);
+	else {
+		printf("%s ", find_unique_abbrev(commit->object.oid.hash, DEFAULT_ABBREV));
+		if (parse_commit(commit) != 0)
+			printf(_("(bad commit)\n"));
+		else {
+			const char *title;
+			const char *msg = get_commit_buffer(commit, NULL);
+			int len = find_commit_subject(msg, &title);
+			if (len)
+				printf("%.*s\n", len, title);
+			unuse_commit_buffer(commit, msg);
 		}
 	}
-	return start;
 }

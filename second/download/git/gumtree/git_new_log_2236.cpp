@@ -1,1 +1,1 @@
-die("helper %s does not support dry-run", name);
+error("could not unhide %s", filename);

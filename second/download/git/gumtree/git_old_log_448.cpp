@@ -1,2 +1,2 @@
-die(_("Failed to store link to current notes ref (%s)"),
-			    default_notes_ref());
+error(_("Commit %s does not have parent %d"),
+				oid_to_hex(&commit->object.oid), opts->mainline);

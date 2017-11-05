@@ -1,28 +1,16 @@
-static int suggest_conflicts(int renormalizing)
+static void parse_get_mark(const char *p)
 {
-	const char *filename;
-	FILE *fp;
-	int pos;
+	struct object_entry *oe = oe;
+	char output[42];
 
-	filename = git_path("MERGE_MSG");
-	fp = fopen(filename, "a");
-	if (!fp)
-		die_errno(_("Could not open '%s' for writing"), filename);
-	fprintf(fp, "\nConflicts:\n");
-	for (pos = 0; pos < active_nr; pos++) {
-		const struct cache_entry *ce = active_cache[pos];
+	/* get-mark SP <object> LF */
+	if (*p != ':')
+		die("Not a mark: %s", p);
 
-		if (ce_stage(ce)) {
-			fprintf(fp, "\t%s\n", ce->name);
-			while (pos + 1 < active_nr &&
-					!strcmp(ce->name,
-						active_cache[pos + 1]->name))
-				pos++;
-		}
-	}
-	fclose(fp);
-	rerere(allow_rerere_auto);
-	printf(_("Automatic merge failed; "
-			"fix conflicts and then commit the result.\n"));
-	return 1;
+	oe = find_mark(parse_mark_ref_eol(p));
+	if (!oe)
+		die("Unknown mark: %s", command_buf.buf);
+
+	snprintf(output, sizeof(output), "%s\n", sha1_to_hex(oe->idx.sha1));
+	cat_blob_write(output, 41);
 }

@@ -1,0 +1,1 @@
+die("verify: missing <ref>");

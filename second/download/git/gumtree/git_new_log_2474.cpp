@@ -1,1 +1,2 @@
-die("bad tree object %s", oid_to_hex(&obj->oid));
+error(_("corrupt binary patch at line %d: %.*s"),
+	      state->linenr-1, llen-1, buffer);

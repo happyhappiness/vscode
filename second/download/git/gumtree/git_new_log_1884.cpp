@@ -1,1 +1,1 @@
-die_errno(_("could not read '%s'"), filename);
+die(_("object %s not found"), oid_to_hex(&ref->new_oid));

@@ -1,38 +1,63 @@
-static int s_update_ref(const char *action,
-			struct ref *ref,
-			int check_old)
+static int batch_one_object(const char *obj_name, struct batch_options *opt,
+			    struct expand_data *data)
 {
-	char msg[1024];
-	char *rla = getenv("GIT_REFLOG_ACTION");
-	struct ref_transaction *transaction;
-	struct strbuf err = STRBUF_INIT;
-	int ret, df_conflict = 0;
+	struct strbuf buf = STRBUF_INIT;
+	struct object_context ctx;
+	int flags = opt->follow_symlinks ? GET_SHA1_FOLLOW_SYMLINKS : 0;
+	enum follow_symlinks_result result;
 
-	if (dry_run)
+	if (!obj_name)
+	   return 1;
+
+	result = get_sha1_with_context(obj_name, flags, data->sha1, &ctx);
+	if (result != FOUND) {
+		switch (result) {
+		case MISSING_OBJECT:
+			printf("%s missing\n", obj_name);
+			break;
+		case DANGLING_SYMLINK:
+			printf("dangling %"PRIuMAX"\n%s\n",
+			       (uintmax_t)strlen(obj_name), obj_name);
+			break;
+		case SYMLINK_LOOP:
+			printf("loop %"PRIuMAX"\n%s\n",
+			       (uintmax_t)strlen(obj_name), obj_name);
+			break;
+		case NOT_DIR:
+			printf("notdir %"PRIuMAX"\n%s\n",
+			       (uintmax_t)strlen(obj_name), obj_name);
+			break;
+		default:
+			die("BUG: unknown get_sha1_with_context result %d\n",
+			       result);
+			break;
+		}
+		fflush(stdout);
 		return 0;
-	if (!rla)
-		rla = default_rla.buf;
-	snprintf(msg, sizeof(msg), "%s: %s", rla, action);
-
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_update(transaction, ref->name, ref->new_sha1,
-				   ref->old_sha1, 0, check_old, msg, &err))
-		goto fail;
-
-	ret = ref_transaction_commit(transaction, &err);
-	if (ret) {
-		df_conflict = (ret == TRANSACTION_NAME_CONFLICT);
-		goto fail;
 	}
 
-	ref_transaction_free(transaction);
-	strbuf_release(&err);
+	if (ctx.mode == 0) {
+		printf("symlink %"PRIuMAX"\n%s\n",
+		       (uintmax_t)ctx.symlink_path.len,
+		       ctx.symlink_path.buf);
+		fflush(stdout);
+		return 0;
+	}
+
+	if (sha1_object_info_extended(data->sha1, &data->info, LOOKUP_REPLACE_OBJECT) < 0) {
+		printf("%s missing\n", obj_name);
+		fflush(stdout);
+		return 0;
+	}
+
+	strbuf_expand(&buf, opt->format, expand_format, data);
+	strbuf_addch(&buf, '\n');
+	write_or_die(1, buf.buf, buf.len);
+	strbuf_release(&buf);
+
+	if (opt->print_contents) {
+		print_object_or_die(1, data);
+		write_or_die(1, "\n", 1);
+	}
 	return 0;
-fail:
-	ref_transaction_free(transaction);
-	error("%s", err.buf);
-	strbuf_release(&err);
-	return df_conflict ? STORE_REF_ERROR_DF_CONFLICT
-			   : STORE_REF_ERROR_OTHER;
 }

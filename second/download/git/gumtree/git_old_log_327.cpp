@@ -1,1 +1,1 @@
-die_errno(_("closing file '%s'"), path);
+die("strange hostname '%s' blocked", ssh_host);

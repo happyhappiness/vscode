@@ -1,61 +1,18 @@
-static struct ref *get_refs_list(struct transport *transport, int for_push)
+int parse_opt_merge_filter(const struct option *opt, const char *arg, int unset)
 {
-	struct helper_data *data = transport->data;
-	struct child_process *helper;
-	struct ref *ret = NULL;
-	struct ref **tail = &ret;
-	struct ref *posn;
-	struct strbuf buf = STRBUF_INIT;
+	struct ref_filter *rf = opt->value;
+	unsigned char sha1[20];
 
-	helper = get_helper(transport);
+	rf->merge = starts_with(opt->long_name, "no")
+		? REF_FILTER_MERGED_OMIT
+		: REF_FILTER_MERGED_INCLUDE;
 
-	if (process_connect(transport, for_push)) {
-		do_take_over(transport);
-		return transport->get_refs_list(transport, for_push);
-	}
+	if (get_sha1(arg, sha1))
+		die(_("malformed object name %s"), arg);
 
-	if (data->push && for_push)
-		write_str_in_full(helper->in, "list for-push\n");
-	else
-		write_str_in_full(helper->in, "list\n");
+	rf->merge_commit = lookup_commit_reference_gently(sha1, 0);
+	if (!rf->merge_commit)
+		return opterror(opt, "must point to a commit", 0);
 
-	while (1) {
-		char *eov, *eon;
-		if (recvline(data, &buf))
-			exit(128);
-
-		if (!*buf.buf)
-			break;
-
-		eov = strchr(buf.buf, ' ');
-		if (!eov)
-			die("Malformed response in ref list: %s", buf.buf);
-		eon = strchr(eov + 1, ' ');
-		*eov = '\0';
-		if (eon)
-			*eon = '\0';
-		*tail = alloc_ref(eov + 1);
-		if (buf.buf[0] == '@')
-			(*tail)->symref = xstrdup(buf.buf + 1);
-		else if (buf.buf[0] != '?')
-			get_sha1_hex(buf.buf, (*tail)->old_sha1);
-		if (eon) {
-			if (has_attribute(eon + 1, "unchanged")) {
-				(*tail)->status |= REF_STATUS_UPTODATE;
-				if (read_ref((*tail)->name,
-					     (*tail)->old_sha1) < 0)
-					die(N_("Could not read ref %s"),
-					    (*tail)->name);
-			}
-		}
-		tail = &((*tail)->next);
-	}
-	if (debug)
-		fprintf(stderr, "Debug: Read ref listing.\n");
-	strbuf_release(&buf);
-
-	for (posn = ret; posn; posn = posn->next)
-		resolve_remote_symref(posn, ret);
-
-	return ret;
+	return 0;
 }

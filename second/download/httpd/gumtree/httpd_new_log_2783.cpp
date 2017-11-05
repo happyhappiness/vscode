@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                     "Useless use of AllowOverride in line %d of %s.",
-                     cmd->directive->line_num, cmd->directive->filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(01628)
+                      "authorization result: granted (no directives)");

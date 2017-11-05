@@ -1,1 +1,1 @@
-fprintf(stderr, "Checking %s\n", oid_to_hex(&obj->oid));
+die("%s is not a tree", oid_to_hex(hash));

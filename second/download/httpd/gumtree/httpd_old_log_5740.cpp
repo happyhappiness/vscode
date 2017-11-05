@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
-                      "%s: Loop: %s",
-                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, 
+                      "select protocol from %s, choices=%s for server %s", 
+                      p, apr_array_pstrcat(pool, choices, ','),
+                      s->server_hostname);

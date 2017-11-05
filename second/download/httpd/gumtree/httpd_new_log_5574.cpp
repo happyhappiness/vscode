@@ -1,7 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                             0, NULL, APLOGNO(02797)
-                             "macro '%s' (%s): "
-                             "argument name prefix conflict (%s #%d and %s #%d), "
-                             "be careful about your macro definition!",
-                             macro->name, macro->location,
-                             tab[i], i + 1, tab[j], j + 1);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                  "h2_task_input(%s): no data", input->task->id);

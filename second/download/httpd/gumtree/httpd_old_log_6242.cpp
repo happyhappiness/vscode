@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "start_lingering_close: apr_pollset_add failure");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                      "h2_session(%ld): feeding %ld bytes to nghttp2",
+                      session->id, (long)len);

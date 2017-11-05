@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "missing argument for echo element in %s",
-                      r->filename);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: BALANCER: Found value %s for "
+                         "stickysession %s", *route, balancer->sticky);

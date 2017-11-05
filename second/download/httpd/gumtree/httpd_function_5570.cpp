@@ -1,17 +1,10 @@
-static void warn_if_non_blank(
-    const char * what,
-    char * ptr,
-    ap_configfile_t * cfg)
+apr_status_t h2_task_thaw(h2_task *task)
 {
-    char * p;
-    for (p=ptr; *p; p++) {
-        if (*p == '#')
-            break;
-        if (*p != ' ' && *p != '\t') {
-            ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
-                         "%s on line %d of %s: %s",
-                         what, cfg->line_number, cfg->name, ptr);
-            break;
-        }
+    if (task->frozen) {
+        task->frozen = 0;
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, 
+                      "h2_task(%s), thawed", task->id);
     }
+    task->detached = 1;
+    return APR_SUCCESS;
 }

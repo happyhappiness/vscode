@@ -1,2 +1,1 @@
-error(_("Could not append '%s' to '%s'"),
-					remote->url[i], buf.buf);
+printf("%.*s\n", len, title);

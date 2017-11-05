@@ -1,1 +1,1 @@
-die("bad default revision '%s'", revs->def);
+die("corrupt MERGE_RR");

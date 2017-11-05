@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01074)
-                      "Failed writing Environment to %s:", server_portstr);
+ap_log_error(APLOG_MARK, APLOG_EMERG, errno,
+                         ap_server_conf, APLOGNO(02171) "ufork: Possible mis-configuration "
+                         "for user %s - Aborting.", user);

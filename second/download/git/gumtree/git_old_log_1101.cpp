@@ -1,1 +1,2 @@
-die("Duplicated ref, and SHA1s don't match: %s", ref1->name);
+error("packed %s from %s is corrupt",
+				    sha1_to_hex(entries[i].sha1), p->pack_name);

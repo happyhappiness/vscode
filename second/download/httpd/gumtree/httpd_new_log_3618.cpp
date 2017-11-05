@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00604)
-                      "The request body does not contain "
-                      "an \"update\" element.");
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01499)
+                              "Failed to extract cookie value (out of mem?)");

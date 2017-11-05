@@ -1,1 +1,3 @@
-die("BUG: get_locked_file_path() called for unlocked object");
+printf("%s%s %s%s", c_reset,
+						    c_context, c_reset,
+						    c_func);

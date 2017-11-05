@@ -1,1 +1,1 @@
-fprintf(f, "%s\n", oid_to_hex(&obj->oid));
+die("unable to read tree (%s)", oid_to_hex(hash));

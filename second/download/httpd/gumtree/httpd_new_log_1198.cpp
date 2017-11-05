@@ -1,5 +1,2 @@
-apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-#if (!(defined(WIN32) || defined(TPF) || defined(NETWARE)))
-            " (default)"
-#endif
-            "." NL);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server,
+                         "worker %s already used by another worker", worker->name);

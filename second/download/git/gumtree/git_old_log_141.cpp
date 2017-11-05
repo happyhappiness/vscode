@@ -1,1 +1,1 @@
-die("bad --word-diff argument: %s", type);
+fprintf(stderr, "What does '%s' for %s mean?\n", trace, key);

@@ -1,31 +1,24 @@
-static int fast_forward_to(const unsigned char *to, const unsigned char *from,
-			int unborn, struct replay_opts *opts)
+void read_bisect_terms(const char **read_bad, const char **read_good)
 {
-	struct ref_transaction *transaction;
-	struct strbuf sb = STRBUF_INIT;
-	struct strbuf err = STRBUF_INIT;
+	struct strbuf str = STRBUF_INIT;
+	const char *filename = git_path("BISECT_TERMS");
+	FILE *fp = fopen(filename, "r");
 
-	read_cache();
-	if (checkout_fast_forward(from, to, 1))
-		exit(128); /* the callee should have complained already */
-
-	strbuf_addf(&sb, "%s: fast-forward", action_name(opts));
-
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_update(transaction, "HEAD",
-				   to, unborn ? null_sha1 : from,
-				   0, 1, sb.buf, &err) ||
-	    ref_transaction_commit(transaction, &err)) {
-		ref_transaction_free(transaction);
-		error("%s", err.buf);
-		strbuf_release(&sb);
-		strbuf_release(&err);
-		return -1;
+	if (!fp) {
+		if (errno == ENOENT) {
+			*read_bad = "bad";
+			*read_good = "good";
+			return;
+		} else {
+			die("could not read file '%s': %s", filename,
+				strerror(errno));
+		}
+	} else {
+		strbuf_getline(&str, fp, '\n');
+		*read_bad = strbuf_detach(&str, NULL);
+		strbuf_getline(&str, fp, '\n');
+		*read_good = strbuf_detach(&str, NULL);
 	}
-
-	strbuf_release(&sb);
-	strbuf_release(&err);
-	ref_transaction_free(transaction);
-	return 0;
+	strbuf_release(&str);
+	fclose(fp);
 }

@@ -1,90 +1,61 @@
-static void finish_request(struct transfer_request *request)
+static int parse_single_patch(const char *line, unsigned long size, struct patch *patch)
 {
-	struct http_pack_request *preq;
-	struct http_object_request *obj_req;
+	unsigned long offset = 0;
+	unsigned long oldlines = 0, newlines = 0, context = 0;
+	struct fragment **fragp = &patch->fragments;
 
-	request->curl_result = request->slot->curl_result;
-	request->http_code = request->slot->http_code;
-	request->slot = NULL;
+	while (size > 4 && !memcmp(line, "@@ -", 4)) {
+		struct fragment *fragment;
+		int len;
 
-	/* Keep locks active */
-	check_locks();
+		fragment = xcalloc(1, sizeof(*fragment));
+		fragment->linenr = linenr;
+		len = parse_fragment(line, size, patch, fragment);
+		if (len <= 0)
+			die(_("corrupt patch at line %d"), linenr);
+		fragment->patch = line;
+		fragment->size = len;
+		oldlines += fragment->oldlines;
+		newlines += fragment->newlines;
+		context += fragment->leading + fragment->trailing;
 
-	if (request->headers != NULL)
-		curl_slist_free_all(request->headers);
+		*fragp = fragment;
+		fragp = &fragment->next;
 
-	/* URL is reused for MOVE after PUT */
-	if (request->state != RUN_PUT) {
-		free(request->url);
-		request->url = NULL;
+		offset += len;
+		line += len;
+		size -= len;
 	}
 
-	if (request->state == RUN_MKCOL) {
-		if (request->curl_result == CURLE_OK ||
-		    request->http_code == 405) {
-			remote_dir_exists[request->obj->sha1[0]] = 1;
-			start_put(request);
-		} else {
-			fprintf(stderr, "MKCOL %s failed, aborting (%d/%ld)\n",
-				sha1_to_hex(request->obj->sha1),
-				request->curl_result, request->http_code);
-			request->state = ABORTED;
-			aborted = 1;
-		}
-	} else if (request->state == RUN_PUT) {
-		if (request->curl_result == CURLE_OK) {
-			start_move(request);
-		} else {
-			fprintf(stderr,	"PUT %s failed, aborting (%d/%ld)\n",
-				sha1_to_hex(request->obj->sha1),
-				request->curl_result, request->http_code);
-			request->state = ABORTED;
-			aborted = 1;
-		}
-	} else if (request->state == RUN_MOVE) {
-		if (request->curl_result == CURLE_OK) {
-			if (push_verbosely)
-				fprintf(stderr, "    sent %s\n",
-					sha1_to_hex(request->obj->sha1));
-			request->obj->flags |= REMOTE;
-			release_request(request);
-		} else {
-			fprintf(stderr, "MOVE %s failed, aborting (%d/%ld)\n",
-				sha1_to_hex(request->obj->sha1),
-				request->curl_result, request->http_code);
-			request->state = ABORTED;
-			aborted = 1;
-		}
-	} else if (request->state == RUN_FETCH_LOOSE) {
-		obj_req = (struct http_object_request *)request->userData;
+	/*
+	 * If something was removed (i.e. we have old-lines) it cannot
+	 * be creation, and if something was added it cannot be
+	 * deletion.  However, the reverse is not true; --unified=0
+	 * patches that only add are not necessarily creation even
+	 * though they do not have any old lines, and ones that only
+	 * delete are not necessarily deletion.
+	 *
+	 * Unfortunately, a real creation/deletion patch do _not_ have
+	 * any context line by definition, so we cannot safely tell it
+	 * apart with --unified=0 insanity.  At least if the patch has
+	 * more than one hunk it is not creation or deletion.
+	 */
+	if (patch->is_new < 0 &&
+	    (oldlines || (patch->fragments && patch->fragments->next)))
+		patch->is_new = 0;
+	if (patch->is_delete < 0 &&
+	    (newlines || (patch->fragments && patch->fragments->next)))
+		patch->is_delete = 0;
 
-		if (finish_http_object_request(obj_req) == 0)
-			if (obj_req->rename == 0)
-				request->obj->flags |= (LOCAL | REMOTE);
+	if (0 < patch->is_new && oldlines)
+		die(_("new file %s depends on old contents"), patch->new_name);
+	if (0 < patch->is_delete && newlines)
+		die(_("deleted file %s still has contents"), patch->old_name);
+	if (!patch->is_delete && !newlines && context)
+		fprintf_ln(stderr,
+			   _("** warning: "
+			     "file %s becomes empty but is not deleted"),
+			   patch->new_name);
 
-		/* Try fetching packed if necessary */
-		if (request->obj->flags & LOCAL) {
-			release_http_object_request(obj_req);
-			release_request(request);
-		} else
-			start_fetch_packed(request);
-
-	} else if (request->state == RUN_FETCH_PACKED) {
-		int fail = 1;
-		if (request->curl_result != CURLE_OK) {
-			fprintf(stderr, "Unable to get pack file %s\n%s",
-				request->url, curl_errorstr);
-		} else {
-			preq = (struct http_pack_request *)request->userData;
-
-			if (preq) {
-				if (finish_http_pack_request(preq) == 0)
-					fail = 0;
-				release_http_pack_request(preq);
-			}
-		}
-		if (fail)
-			repo->can_update_info_refs = 0;
-		release_request(request);
-	}
+	return offset;
 }

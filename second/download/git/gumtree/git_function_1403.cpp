@@ -1,37 +1,45 @@
-static int prefix_ref_iterator_advance(struct ref_iterator *ref_iterator)
-{
-	struct prefix_ref_iterator *iter =
-		(struct prefix_ref_iterator *)ref_iterator;
-	int ok;
+static int curl_append_msgs_to_imap(struct imap_server_conf *server,
+				    struct strbuf* all_msgs, int total) {
+	int ofs = 0;
+	int n = 0;
+	struct buffer msgbuf = { STRBUF_INIT, 0 };
+	CURL *curl;
+	CURLcode res = CURLE_OK;
 
-	while ((ok = ref_iterator_advance(iter->iter0)) == ITER_OK) {
-		if (!starts_with(iter->iter0->refname, iter->prefix))
-			continue;
+	curl = setup_curl(server);
+	curl_easy_setopt(curl, CURLOPT_READDATA, &msgbuf);
 
-		if (iter->trim) {
-			/*
-			 * It is nonsense to trim off characters that
-			 * you haven't already checked for via a
-			 * prefix check, whether via this
-			 * `prefix_ref_iterator` or upstream in
-			 * `iter0`). So if there wouldn't be at least
-			 * one character left in the refname after
-			 * trimming, report it as a bug:
-			 */
-			if (strlen(iter->iter0->refname) <= iter->trim)
-				die("BUG: attempt to trim too many characters");
-			iter->base.refname = iter->iter0->refname + iter->trim;
-		} else {
-			iter->base.refname = iter->iter0->refname;
+	fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");
+	while (1) {
+		unsigned percent = n * 100 / total;
+		int prev_len;
+
+		fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);
+
+		prev_len = msgbuf.buf.len;
+		if (!split_msg(all_msgs, &msgbuf.buf, &ofs))
+			break;
+		if (server->use_html)
+			wrap_in_html(&msgbuf.buf);
+		lf_to_crlf(&msgbuf.buf);
+
+		curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
+				 (curl_off_t)(msgbuf.buf.len-prev_len));
+
+		res = curl_easy_perform(curl);
+
+		if(res != CURLE_OK) {
+			fprintf(stderr, "curl_easy_perform() failed: %s\n",
+					curl_easy_strerror(res));
+			break;
 		}
 
-		iter->base.oid = iter->iter0->oid;
-		iter->base.flags = iter->iter0->flags;
-		return ITER_OK;
+		n++;
 	}
+	fprintf(stderr, "\n");
 
-	iter->iter0 = NULL;
-	if (ref_iterator_abort(ref_iterator) != ITER_DONE)
-		return ITER_ERROR;
-	return ok;
+	curl_easy_cleanup(curl);
+	curl_global_cleanup();
+
+	return 0;
 }

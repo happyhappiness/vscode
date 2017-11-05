@@ -1,2 +1,2 @@
-die(_("Not tracking: ambiguous information for ref %s"),
-		    orig_ref);
+strbuf_addf(&o->obuf, "virtual %s\n",
+			merge_remote_util(commit)->name);

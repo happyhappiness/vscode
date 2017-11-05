@@ -1,1 +1,1 @@
-die(_("Malformed ident string: '%s'"), string);
+printf("-- \n%s\n\n", signature);

@@ -1,0 +1,1 @@
+fprintf(stderr, "   -s   Force SHA encryption of the password.\n");

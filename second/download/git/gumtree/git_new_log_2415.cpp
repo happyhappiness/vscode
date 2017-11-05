@@ -1,3 +1,1 @@
-printf("[%s] ",
-			       find_unique_abbrev(commit->object.oid.hash,
-						  DEFAULT_ABBREV));
+printf(_("nothing to commit, working tree clean\n"));

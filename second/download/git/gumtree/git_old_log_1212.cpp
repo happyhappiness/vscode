@@ -1,1 +1,1 @@
-printf("committer-time %lu\n", ci.committer_time);
+die("git show %s: bad file", obj_name);

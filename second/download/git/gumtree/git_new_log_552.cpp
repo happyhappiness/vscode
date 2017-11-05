@@ -1,1 +1,1 @@
-die(_("fetch-pack: unable to fork off %s"), cmd_name);
+die("BUG: unhandled unmerged status %x", d->stagemask);

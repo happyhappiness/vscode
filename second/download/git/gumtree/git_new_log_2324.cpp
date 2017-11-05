@@ -1,3 +1,1 @@
-die(_("No annotated tags can describe '%s'.\n"
-			    "However, there were unannotated tags: try --tags."),
-			    oid_to_hex(oid));
+error_errno(_("failed to close rev-list's stdin"));

@@ -1,36 +1,65 @@
-apr_status_t h2_mplx_process(h2_mplx *m, struct h2_stream *stream, 
-                             h2_stream_pri_cmp *cmp, void *ctx)
+static void ssl_init_ctx_tls_extensions(server_rec *s,
+                                        apr_pool_t *p,
+                                        apr_pool_t *ptemp,
+                                        modssl_ctx_t *mctx)
 {
-    apr_status_t status;
-    int do_registration = 0;
-    int acquired;
-    
-    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
-        if (m->aborted) {
-            status = APR_ECONNABORTED;
-        }
-        else {
-            h2_ihash_add(m->streams, stream);
-            if (h2_stream_is_ready(stream)) {
-                h2_iq_append(m->readyq, stream->id);
-            }
-            else {
-                if (!m->need_registration) {
-                    m->need_registration = h2_iq_empty(m->q);
-                }
-                if (m->workers_busy < m->workers_max) {
-                    do_registration = m->need_registration;
-                }
-                h2_iq_add(m->q, stream->id, cmp, ctx);                
-            }
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, m->c,
-                          "h2_mplx(%ld-%d): process", m->c->id, stream->id);
-        }
-        leave_mutex(m, acquired);
+    /*
+     * Configure TLS extensions support
+     */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01893)
+                 "Configuring TLS extension handling");
+
+    /*
+     * Server name indication (SNI)
+     */
+    if (!SSL_CTX_set_tlsext_servername_callback(mctx->ssl_ctx,
+                          ssl_callback_ServerNameIndication) ||
+        !SSL_CTX_set_tlsext_servername_arg(mctx->ssl_ctx, mctx)) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01894)
+                     "Unable to initialize TLS servername extension "
+                     "callback (incompatible OpenSSL version?)");
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+        ssl_die(s);
     }
-    if (do_registration) {
-        m->need_registration = 0;
-        h2_workers_register(m->workers, m);
+
+#ifdef HAVE_OCSP_STAPLING
+    /*
+     * OCSP Stapling support, status_request extension
+     */
+    if ((mctx->pkp == FALSE) && (mctx->stapling_enabled == TRUE)) {
+        modssl_init_stapling(s, p, ptemp, mctx);
     }
-    return status;
+#endif
+
+#ifdef HAVE_SRP
+    /*
+     * TLS-SRP support
+     */
+    if (mctx->srp_vfile != NULL) {
+        int err;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02308)
+                     "Using SRP verifier file [%s]", mctx->srp_vfile);
+
+        if (!(mctx->srp_vbase = SRP_VBASE_new(mctx->srp_unknown_user_seed))) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02309)
+                         "Unable to initialize SRP verifier structure "
+                         "[%s seed]",
+                         mctx->srp_unknown_user_seed ? "with" : "without");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            ssl_die(s);
+        }
+
+        err = SRP_VBASE_init(mctx->srp_vbase, mctx->srp_vfile);
+        if (err != SRP_NO_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02310)
+                         "Unable to load SRP verifier file [error %d]", err);
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            ssl_die(s);
+        }
+
+        SSL_CTX_set_srp_username_callback(mctx->ssl_ctx,
+                                          ssl_callback_SRPServerParams);
+        SSL_CTX_set_srp_cb_arg(mctx->ssl_ctx, mctx);
+    }
+#endif
 }

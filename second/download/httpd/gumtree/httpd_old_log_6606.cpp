@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, origin, APLOGNO(03357)
-                      "pass output failed to %pI (%s)",
-                      p_conn->addr, p_conn->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01390)
+                              "Encountered EOS bucket in inflate filter (bug?)");

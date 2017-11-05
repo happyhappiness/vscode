@@ -1,1 +1,1 @@
-die("error while iterating over references");
+die("Reference has invalid format: '%s'", refname);

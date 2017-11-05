@@ -1,2 +1,2 @@
-die(_("Pathspec '%s' is in submodule '%.*s'"),
-		    item->original, ce_len, ce->name);
+die("src refspec '%s' must name a ref",
+				    rs->src);

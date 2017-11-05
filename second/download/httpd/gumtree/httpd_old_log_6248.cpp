@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
-                                         ap_server_conf,
-                                         "ap_queue_push failed");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03402)
+                      "h2_session(%ld): proto error -> shutdown", session->id);

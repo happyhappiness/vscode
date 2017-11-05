@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+die(_("positive value expected contents:lines=%s"), valp);

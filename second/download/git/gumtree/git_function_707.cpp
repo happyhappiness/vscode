@@ -1,71 +1,81 @@
-static int get_common_commits(void)
+void absorb_git_dir_into_superproject(const char *prefix,
+				      const char *path,
+				      unsigned flags)
 {
-	unsigned char sha1[20];
-	char last_hex[41];
-	int got_common = 0;
-	int got_other = 0;
-	int sent_ready = 0;
+	int err_code;
+	const char *sub_git_dir;
+	struct strbuf gitdir = STRBUF_INIT;
+	strbuf_addf(&gitdir, "%s/.git", path);
+	sub_git_dir = resolve_gitdir_gently(gitdir.buf, &err_code);
 
-	save_commit_buffer = 0;
+	/* Not populated? */
+	if (!sub_git_dir) {
+		char *real_new_git_dir;
+		const char *new_git_dir;
+		const struct submodule *sub;
 
-	for (;;) {
-		char *line = packet_read_line(0, NULL);
-		reset_timeout();
-
-		if (!line) {
-			if (multi_ack == 2 && got_common
-			    && !got_other && ok_to_give_up()) {
-				sent_ready = 1;
-				packet_write(1, "ACK %s ready\n", last_hex);
-			}
-			if (have_obj.nr == 0 || multi_ack)
-				packet_write(1, "NAK\n");
-
-			if (no_done && sent_ready) {
-				packet_write(1, "ACK %s\n", last_hex);
-				return 0;
-			}
-			if (stateless_rpc)
-				exit(0);
-			got_common = 0;
-			got_other = 0;
-			continue;
+		if (err_code == READ_GITFILE_ERR_STAT_FAILED) {
+			/* unpopulated as expected */
+			strbuf_release(&gitdir);
+			return;
 		}
-		if (starts_with(line, "have ")) {
-			switch (got_sha1(line+5, sha1)) {
-			case -1: /* they have what we do not */
-				got_other = 1;
-				if (multi_ack && ok_to_give_up()) {
-					const char *hex = sha1_to_hex(sha1);
-					if (multi_ack == 2) {
-						sent_ready = 1;
-						packet_write(1, "ACK %s ready\n", hex);
-					} else
-						packet_write(1, "ACK %s continue\n", hex);
-				}
-				break;
-			default:
-				got_common = 1;
-				memcpy(last_hex, sha1_to_hex(sha1), 41);
-				if (multi_ack == 2)
-					packet_write(1, "ACK %s common\n", last_hex);
-				else if (multi_ack)
-					packet_write(1, "ACK %s continue\n", last_hex);
-				else if (have_obj.nr == 1)
-					packet_write(1, "ACK %s\n", last_hex);
-				break;
-			}
-			continue;
-		}
-		if (!strcmp(line, "done")) {
-			if (have_obj.nr > 0) {
-				if (multi_ack)
-					packet_write(1, "ACK %s\n", last_hex);
-				return 0;
-			}
-			packet_write(1, "NAK\n");
-			return -1;
-		}
-		die("git upload-pack: expected SHA1 list, got '%s'", line);
+
+		if (err_code != READ_GITFILE_ERR_NOT_A_REPO)
+			/* We don't know what broke here. */
+			read_gitfile_error_die(err_code, path, NULL);
+
+		/*
+		* Maybe populated, but no git directory was found?
+		* This can happen if the superproject is a submodule
+		* itself and was just absorbed. The absorption of the
+		* superproject did not rewrite the git file links yet,
+		* fix it now.
+		*/
+		sub = submodule_from_path(null_sha1, path);
+		if (!sub)
+			die(_("could not lookup name for submodule '%s'"), path);
+		new_git_dir = git_path("modules/%s", sub->name);
+		if (safe_create_leading_directories_const(new_git_dir) < 0)
+			die(_("could not create directory '%s'"), new_git_dir);
+		real_new_git_dir = real_pathdup(new_git_dir);
+		connect_work_tree_and_git_dir(path, real_new_git_dir);
+
+		free(real_new_git_dir);
+	} else {
+		/* Is it already absorbed into the superprojects git dir? */
+		char *real_sub_git_dir = real_pathdup(sub_git_dir);
+		char *real_common_git_dir = real_pathdup(get_git_common_dir());
+
+		if (!starts_with(real_sub_git_dir, real_common_git_dir))
+			relocate_single_git_dir_into_superproject(prefix, path);
+
+		free(real_sub_git_dir);
+		free(real_common_git_dir);
+	}
+	strbuf_release(&gitdir);
+
+	if (flags & ABSORB_GITDIR_RECURSE_SUBMODULES) {
+		struct child_process cp = CHILD_PROCESS_INIT;
+		struct strbuf sb = STRBUF_INIT;
+
+		if (flags & ~ABSORB_GITDIR_RECURSE_SUBMODULES)
+			die("BUG: we don't know how to pass the flags down?");
+
+		if (get_super_prefix())
+			strbuf_addstr(&sb, get_super_prefix());
+		strbuf_addstr(&sb, path);
+		strbuf_addch(&sb, '/');
+
+		cp.dir = path;
+		cp.git_cmd = 1;
+		cp.no_stdin = 1;
+		argv_array_pushl(&cp.args, "--super-prefix", sb.buf,
+					   "submodule--helper",
+					   "absorb-git-dirs", NULL);
+		prepare_submodule_repo_env(&cp.env_array);
+		if (run_command(&cp))
+			die(_("could not recurse into submodule '%s'"), path);
+
+		strbuf_release(&sb);
 	}
 }

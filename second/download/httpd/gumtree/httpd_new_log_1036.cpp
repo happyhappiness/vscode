@@ -1,0 +1,1 @@
+apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d" NL, rv);

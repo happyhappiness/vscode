@@ -1,81 +1,146 @@
-const char *get_superproject_working_tree(void)
+struct child_process *git_connect(int fd[2], const char *url,
+				  const char *prog, int flags)
 {
-	struct child_process cp = CHILD_PROCESS_INIT;
-	struct strbuf sb = STRBUF_INIT;
-	const char *one_up = real_path_if_valid("../");
-	const char *cwd = xgetcwd();
-	const char *ret = NULL;
-	const char *subpath;
-	int code;
-	ssize_t len;
+	char *hostandport, *path;
+	struct child_process *conn = &no_fork;
+	enum protocol protocol;
+	struct strbuf cmd = STRBUF_INIT;
 
-	if (!is_inside_work_tree())
+	/* Without this we cannot rely on waitpid() to tell
+	 * what happened to our children.
+	 */
+	signal(SIGCHLD, SIG_DFL);
+
+	protocol = parse_connect_url(url, &hostandport, &path);
+	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
+		printf("Diag: url=%s\n", url ? url : "NULL");
+		printf("Diag: protocol=%s\n", prot_name(protocol));
+		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
+		printf("Diag: path=%s\n", path ? path : "NULL");
+		conn = NULL;
+	} else if (protocol == PROTO_GIT) {
 		/*
-		 * FIXME:
-		 * We might have a superproject, but it is harder
-		 * to determine.
+		 * Set up virtual host information based on where we will
+		 * connect, unless the user has overridden us in
+		 * the environment.
 		 */
-		return NULL;
+		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
+		if (target_host)
+			target_host = xstrdup(target_host);
+		else
+			target_host = xstrdup(hostandport);
 
-	if (!one_up)
-		return NULL;
+		transport_check_allowed("git");
 
-	subpath = relative_path(cwd, one_up, &sb);
-
-	prepare_submodule_repo_env(&cp.env_array);
-	argv_array_pop(&cp.env_array);
-
-	argv_array_pushl(&cp.args, "--literal-pathspecs", "-C", "..",
-			"ls-files", "-z", "--stage", "--full-name", "--",
-			subpath, NULL);
-	strbuf_reset(&sb);
-
-	cp.no_stdin = 1;
-	cp.no_stderr = 1;
-	cp.out = -1;
-	cp.git_cmd = 1;
-
-	if (start_command(&cp))
-		die(_("could not start ls-files in .."));
-
-	len = strbuf_read(&sb, cp.out, PATH_MAX);
-	close(cp.out);
-
-	if (starts_with(sb.buf, "160000")) {
-		int super_sub_len;
-		int cwd_len = strlen(cwd);
-		char *super_sub, *super_wt;
-
+		/* These underlying connection commands die() if they
+		 * cannot connect.
+		 */
+		if (git_use_proxy(hostandport))
+			conn = git_proxy_connect(fd, hostandport);
+		else
+			git_tcp_connect(fd, hostandport, flags);
 		/*
-		 * There is a superproject having this repo as a submodule.
-		 * The format is <mode> SP <hash> SP <stage> TAB <full name> \0,
-		 * We're only interested in the name after the tab.
+		 * Separate original protocol components prog and path
+		 * from extended host header with a NUL byte.
+		 *
+		 * Note: Do not add any other headers here!  Doing so
+		 * will cause older git-daemon servers to crash.
 		 */
-		super_sub = strchr(sb.buf, '\t') + 1;
-		super_sub_len = sb.buf + sb.len - super_sub - 1;
+		packet_write_fmt(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);
+		free(target_host);
+	} else {
+		conn = xmalloc(sizeof(*conn));
+		child_process_init(conn);
 
-		if (super_sub_len > cwd_len ||
-		    strcmp(&cwd[cwd_len - super_sub_len], super_sub))
-			die (_("BUG: returned path string doesn't match cwd?"));
+		if (looks_like_command_line_option(path))
+			die("strange pathname '%s' blocked", path);
 
-		super_wt = xstrdup(cwd);
-		super_wt[cwd_len - super_sub_len] = '\0';
+		strbuf_addstr(&cmd, prog);
+		strbuf_addch(&cmd, ' ');
+		sq_quote_buf(&cmd, path);
 
-		ret = real_path(super_wt);
-		free(super_wt);
+		/* remove repo-local variables from the environment */
+		conn->env = local_repo_env;
+		conn->use_shell = 1;
+		conn->in = conn->out = -1;
+		if (protocol == PROTO_SSH) {
+			const char *ssh;
+			int needs_batch = 0;
+			int port_option = 'p';
+			char *ssh_host = hostandport;
+			const char *port = NULL;
+			transport_check_allowed("ssh");
+			get_host_and_port(&ssh_host, &port);
+
+			if (!port)
+				port = get_port(ssh_host);
+
+			if (flags & CONNECT_DIAG_URL) {
+				printf("Diag: url=%s\n", url ? url : "NULL");
+				printf("Diag: protocol=%s\n", prot_name(protocol));
+				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+				printf("Diag: port=%s\n", port ? port : "NONE");
+				printf("Diag: path=%s\n", path ? path : "NULL");
+
+				free(hostandport);
+				free(path);
+				free(conn);
+				return NULL;
+			}
+
+			if (looks_like_command_line_option(ssh_host))
+				die("strange hostname '%s' blocked", ssh_host);
+
+			ssh = get_ssh_command();
+			if (ssh)
+				handle_ssh_variant(ssh, 1, &port_option,
+						   &needs_batch);
+			else {
+				/*
+				 * GIT_SSH is the no-shell version of
+				 * GIT_SSH_COMMAND (and must remain so for
+				 * historical compatibility).
+				 */
+				conn->use_shell = 0;
+
+				ssh = getenv("GIT_SSH");
+				if (!ssh)
+					ssh = "ssh";
+				else
+					handle_ssh_variant(ssh, 0,
+							   &port_option,
+							   &needs_batch);
+			}
+
+			argv_array_push(&conn->args, ssh);
+			if (flags & CONNECT_IPV4)
+				argv_array_push(&conn->args, "-4");
+			else if (flags & CONNECT_IPV6)
+				argv_array_push(&conn->args, "-6");
+			if (needs_batch)
+				argv_array_push(&conn->args, "-batch");
+			if (port) {
+				argv_array_pushf(&conn->args,
+						 "-%c", port_option);
+				argv_array_push(&conn->args, port);
+			}
+			argv_array_push(&conn->args, ssh_host);
+		} else {
+			transport_check_allowed("file");
+		}
+		argv_array_push(&conn->args, cmd.buf);
+
+		if (start_command(conn))
+			die("unable to fork");
+
+		fd[0] = conn->out; /* read from child's stdout */
+		fd[1] = conn->in;  /* write to child's stdin */
+		strbuf_release(&cmd);
 	}
-	strbuf_release(&sb);
-
-	code = finish_command(&cp);
-
-	if (code == 128)
-		/* '../' is not a git repository */
-		return NULL;
-	if (code == 0 && len == 0)
-		/* There is an unrelated git repository at '../' */
-		return NULL;
-	if (code)
-		die(_("ls-tree returned unexpected return code %d"), code);
-
-	return ret;
+	free(hostandport);
+	free(path);
+	return conn;
 }

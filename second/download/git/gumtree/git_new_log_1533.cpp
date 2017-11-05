@@ -1,1 +1,2 @@
-die("protocol error: got both push certificate and unsigned commands");
+die("an empty %s object %s?",
+		    typename(type), oid_to_hex(oid));

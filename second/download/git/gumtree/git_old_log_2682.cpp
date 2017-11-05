@@ -1,1 +1,1 @@
-die(_("bad config file line %d in %s"), cf->linenr, cf->name);
+die_errno("Unable to read current working directory");

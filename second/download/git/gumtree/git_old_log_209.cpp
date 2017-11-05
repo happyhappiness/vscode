@@ -1,1 +1,3 @@
-printf("  %s\n", needs_pushing->items[i].string);
+die("Cannot read blob %s for path %s",
+			    sha1_to_hex(o->blob_sha1),
+			    path);

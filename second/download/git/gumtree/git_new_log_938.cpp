@@ -1,2 +1,1 @@
-die_errno(_("cannot write keep file '%s'"),
-					  keep_name);
+die(_("--local can only be used inside a git repository"));

@@ -1,8 +1,25 @@
-static void write_cached_object(struct object *obj, struct obj_buffer *obj_buf)
+static struct child_process *git_proxy_connect(int fd[2], char *host)
 {
-	unsigned char sha1[20];
+	const char *port = STR(DEFAULT_GIT_PORT);
+	struct child_process *proxy;
 
-	if (write_sha1_file(obj_buf->buffer, obj_buf->size, typename(obj->type), sha1) < 0)
-		die("failed to write object %s", sha1_to_hex(obj->sha1));
-	obj->flags |= FLAG_WRITTEN;
+	get_host_and_port(&host, &port);
+
+	if (looks_like_command_line_option(host))
+		die("strange hostname '%s' blocked", host);
+	if (looks_like_command_line_option(port))
+		die("strange port '%s' blocked", port);
+
+	proxy = xmalloc(sizeof(*proxy));
+	child_process_init(proxy);
+	argv_array_push(&proxy->args, git_proxy_command);
+	argv_array_push(&proxy->args, host);
+	argv_array_push(&proxy->args, port);
+	proxy->in = -1;
+	proxy->out = -1;
+	if (start_command(proxy))
+		die("cannot start proxy %s", git_proxy_command);
+	fd[0] = proxy->out; /* read from proxy stdout */
+	fd[1] = proxy->in;  /* write to proxy stdin */
+	return proxy;
 }

@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+warning(_("Untracked cache is disabled on this system."));

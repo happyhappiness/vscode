@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01669)
-                      "Could not open group file: %s",
-                      conf->groupfile);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01456)
+                                  "rl: partition failed.");

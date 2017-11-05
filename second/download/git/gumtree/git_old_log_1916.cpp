@@ -1,2 +1,1 @@
-printf(" %s", diff_unique_abbrev(p->parent[i].sha1,
-							 opt->abbrev));
+fprintf(fout, "%s: %.*s\n", hdr, len, sp);

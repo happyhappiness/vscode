@@ -1,1 +1,1 @@
-die("remote-helpers do not support old:new syntax");
+die(_("unrecognized whitespace ignore option '%s'"), option);

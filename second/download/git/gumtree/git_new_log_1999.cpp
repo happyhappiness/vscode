@@ -1,1 +1,1 @@
-error("cannot lock ref '%s': %s", refname, err.buf);
+die("bad tree object %s", oid_to_hex(&obj->oid));

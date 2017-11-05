@@ -1,24 +1,14 @@
-static struct commit *find_single_final(struct rev_info *revs,
-					const char **name_p)
+static int prune_object(const unsigned char *sha1, const char *path,
+			 void *data)
 {
-	int i;
-	struct commit *found = NULL;
-	const char *name = NULL;
+	int *opts = data;
 
-	for (i = 0; i < revs->pending.nr; i++) {
-		struct object *obj = revs->pending.objects[i].item;
-		if (obj->flags & UNINTERESTING)
-			continue;
-		obj = deref_tag(obj, NULL, 0);
-		if (obj->type != OBJ_COMMIT)
-			die("Non commit %s?", revs->pending.objects[i].name);
-		if (found)
-			die("More than one commit to dig from %s and %s?",
-			    revs->pending.objects[i].name, name);
-		found = (struct commit *)obj;
-		name = revs->pending.objects[i].name;
-	}
-	if (name_p)
-		*name_p = name;
-	return found;
+	if (!has_sha1_pack(sha1))
+		return 0;
+
+	if (*opts & PRUNE_PACKED_DRY_RUN)
+		printf("rm -f %s\n", path);
+	else
+		unlink_or_warn(path);
+	return 0;
 }

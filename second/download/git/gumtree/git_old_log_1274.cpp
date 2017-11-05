@@ -1,1 +1,2 @@
-printf("%.*s%s", p_len - 40, p_start, name);
+error("copy-fd: write returned %s",
+					     strerror(write_error));

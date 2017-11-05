@@ -1,1 +1,0 @@
-fprintf(stderr, "Could not init SSL CTX");

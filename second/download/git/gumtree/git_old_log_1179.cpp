@@ -1,1 +1,1 @@
-die_errno("cannot exec '%s'", cmd->argv[0]);
+die_errno("Could not change back to '%s'", cwd);

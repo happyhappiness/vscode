@@ -1,1 +1,2 @@
-die("failed to prepare '%s' for appending", path);
+die("parse_object_buffer failed on %s for %s",
+		    sha1_to_hex(tagged), ref->refname);

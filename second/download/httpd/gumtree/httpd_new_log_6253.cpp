@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(03103)
-                     "apr_pollset_create with Thread Safety failed.");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, session->c,
+                      H2_SSSN_MSG(session, "dispatch error"));

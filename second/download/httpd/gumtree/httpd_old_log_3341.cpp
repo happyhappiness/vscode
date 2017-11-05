@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                         "getpwuid: couldn't determine user name from uid %ld, "
-                         "you probably need to modify the User directive",
-                         (long)uid);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                  "CGI process %" APR_PID_T_FMT " didn't exit, sending SIGKILL again",
+                  pid);

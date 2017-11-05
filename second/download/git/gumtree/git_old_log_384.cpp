@@ -1,1 +1,1 @@
-die(_("reference repository '%s' is grafted"), item->string);
+die("fetch-pack: unable to fork off %s", cmd_name);

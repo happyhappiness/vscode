@@ -1,1 +1,2 @@
-die(_("pack exceeds maximum allowed size"));
+error(_("%s: can't cherry-pick a %s"),
+					name, typename(type));

@@ -1,27 +1,17 @@
-static int show_reference(const char *refname, const unsigned char *sha1,
-			  int flag, void *cb_data)
+static void check_reachable_object(struct object *obj)
 {
-	struct show_data *data = cb_data;
-
-	if (!wildmatch(data->pattern, refname, 0, NULL)) {
-		if (data->format == REPLACE_FORMAT_SHORT)
-			printf("%s\n", refname);
-		else if (data->format == REPLACE_FORMAT_MEDIUM)
-			printf("%s -> %s\n", refname, sha1_to_hex(sha1));
-		else { /* data->format == REPLACE_FORMAT_LONG */
-			unsigned char object[20];
-			enum object_type obj_type, repl_type;
-
-			if (get_sha1(refname, object))
-				return error("Failed to resolve '%s' as a valid ref.", refname);
-
-			obj_type = sha1_object_info(object, NULL);
-			repl_type = sha1_object_info(sha1, NULL);
-
-			printf("%s (%s) -> %s (%s)\n", refname, typename(obj_type),
-			       sha1_to_hex(sha1), typename(repl_type));
-		}
+	/*
+	 * We obviously want the object to be parsed,
+	 * except if it was in a pack-file and we didn't
+	 * do a full fsck
+	 */
+	if (!(obj->flags & HAS_OBJ)) {
+		if (has_sha1_pack(obj->sha1))
+			return; /* it is in pack - forget about it */
+		if (connectivity_only && has_sha1_file(obj->sha1))
+			return;
+		printf("missing %s %s\n", typename(obj->type), sha1_to_hex(obj->sha1));
+		errors_found |= ERROR_REACHABLE;
+		return;
 	}
-
-	return 0;
 }

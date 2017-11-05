@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03390)
-                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
-                              io->c->id, (long)remain);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, conn->pool, APLOGNO(00923)
+                      "Pooled connection 0x%pp for worker %s has been"
+                      " already returned to the connection pool.", conn,
+                      worker->s->name);

@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                                 r->server,
-                                 "cache: nonconditional - no cached "
-                                 "etag/lastmods - add cache_in and DECLINE");
+printf("Processing: " CONF_FMT_STRING, mintot - mincon, 
+                   (total / requests) - (totalcon / requests), 
+                   maxtot - maxcon);

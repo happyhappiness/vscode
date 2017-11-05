@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00561)
-                              "Request header exceeds LimitRequestFieldSize%s"
-                              "%.*s",
-                              *field ? ": " : "",
-                              field_name_len(field), field);
+printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
+               trstring, tdstring, tdstring,
+               (double) (totalread + totalposted) / timetaken);

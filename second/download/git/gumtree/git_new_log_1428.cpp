@@ -1,1 +1,1 @@
-printf("committer %s <%s@%s> %"PRItime" +0000\n", author, author, "local", timestamp);
+error("file/directory conflict: %s, %s", name1, name2);

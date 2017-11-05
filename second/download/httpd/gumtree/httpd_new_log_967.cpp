@@ -1,1 +1,1 @@
-printf("Server MPM:     %s\n", ap_show_mpm());
+fprintf(f, "%3d", i-1);

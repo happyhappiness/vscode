@@ -1,25 +1,12 @@
-static struct child_process *git_proxy_connect(int fd[2], char *host)
+void git_attr_set_direction(enum git_attr_direction new_direction,
+			    struct index_state *istate)
 {
-	const char *port = STR(DEFAULT_GIT_PORT);
-	struct child_process *proxy;
+	if (is_bare_repository() && new_direction != GIT_ATTR_INDEX)
+		die("BUG: non-INDEX attr direction in a bare repo");
 
-	get_host_and_port(&host, &port);
+	if (new_direction != direction)
+		drop_all_attr_stacks();
 
-	if (looks_like_command_line_option(host))
-		die("strange hostname '%s' blocked", host);
-	if (looks_like_command_line_option(port))
-		die("strange port '%s' blocked", port);
-
-	proxy = xmalloc(sizeof(*proxy));
-	child_process_init(proxy);
-	argv_array_push(&proxy->args, git_proxy_command);
-	argv_array_push(&proxy->args, host);
-	argv_array_push(&proxy->args, port);
-	proxy->in = -1;
-	proxy->out = -1;
-	if (start_command(proxy))
-		die("cannot start proxy %s", git_proxy_command);
-	fd[0] = proxy->out; /* read from proxy stdout */
-	fd[1] = proxy->in;  /* write to proxy stdin */
-	return proxy;
+	direction = new_direction;
+	use_index = istate;
 }

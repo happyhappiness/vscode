@@ -1,8 +1,14 @@
-void h2_stream_set_suspended(h2_stream *stream, int suspended)
+static apr_status_t add_worker(h2_workers *workers)
 {
-    AP_DEBUG_ASSERT(stream);
-    stream->suspended = !!suspended;
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
-                  "h2_stream(%ld-%d): suspended=%d",
-                  stream->session->id, stream->id, stream->suspended);
+    h2_worker *w = h2_worker_create(workers->next_worker_id++,
+                                    workers->pool, workers->thread_attr,
+                                    get_mplx_next, worker_done, workers);
+    if (!w) {
+        return APR_ENOMEM;
+    }
+    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                 "h2_workers: adding worker(%d)", h2_worker_get_id(w));
+    ++workers->worker_count;
+    H2_WORKER_LIST_INSERT_TAIL(&workers->workers, w);
+    return APR_SUCCESS;
 }

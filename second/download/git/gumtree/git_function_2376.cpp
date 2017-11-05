@@ -1,46 +1,39 @@
-static int handle_boundary(void)
+static int sequencer_rollback(struct replay_opts *opts)
 {
-	struct strbuf newline = STRBUF_INIT;
+	FILE *f;
+	unsigned char sha1[20];
+	struct strbuf buf = STRBUF_INIT;
 
-	strbuf_addch(&newline, '\n');
-again:
-	if (line.len >= (*content_top)->len + 2 &&
-	    !memcmp(line.buf + (*content_top)->len, "--", 2)) {
-		/* we hit an end boundary */
-		/* pop the current boundary off the stack */
-		strbuf_release(*content_top);
-		free(*content_top);
-		*content_top = NULL;
-
-		/* technically won't happen as is_multipart_boundary()
-		   will fail first.  But just in case..
+	f = fopen(git_path_head_file(), "r");
+	if (!f && errno == ENOENT) {
+		/*
+		 * There is no multiple-cherry-pick in progress.
+		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
+		 * a single-cherry-pick in progress, abort that.
 		 */
-		if (--content_top < content) {
-			fprintf(stderr, "Detected mismatched boundaries, "
-					"can't recover\n");
-			exit(1);
-		}
-		handle_filter(&newline);
-		strbuf_release(&newline);
-
-		/* skip to the next boundary */
-		if (!find_boundary())
-			return 0;
-		goto again;
+		return rollback_single_pick();
 	}
-
-	/* set some defaults */
-	transfer_encoding = TE_DONTCARE;
-	strbuf_reset(&charset);
-
-	/* slurp in this section's info */
-	while (read_one_header_line(&line, fin))
-		check_header(&line, p_hdr_data, 0);
-
-	strbuf_release(&newline);
-	/* replenish line */
-	if (strbuf_getline(&line, fin, '\n'))
-		return 0;
-	strbuf_addch(&line, '\n');
-	return 1;
+	if (!f)
+		return error(_("cannot open %s: %s"), git_path_head_file(),
+						strerror(errno));
+	if (strbuf_getline_lf(&buf, f)) {
+		error(_("cannot read %s: %s"), git_path_head_file(),
+		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));
+		fclose(f);
+		goto fail;
+	}
+	fclose(f);
+	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
+		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
+			git_path_head_file());
+		goto fail;
+	}
+	if (reset_for_rollback(sha1))
+		goto fail;
+	remove_sequencer_state();
+	strbuf_release(&buf);
+	return 0;
+fail:
+	strbuf_release(&buf);
+	return -1;
 }

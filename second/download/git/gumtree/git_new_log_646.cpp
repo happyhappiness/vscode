@@ -1,1 +1,1 @@
-error_errno(_("could not write to '%s'"), todo_path);
+error(_("unknown command: %d"), command);

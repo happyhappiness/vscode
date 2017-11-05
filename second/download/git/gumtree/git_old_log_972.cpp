@@ -1,1 +1,1 @@
-die("git_all_attrs died");
+printf("committer-time %lu\n", ci.committer_time);

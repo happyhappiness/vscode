@@ -1,1 +1,1 @@
-printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);
+die(_("unknown error occured while reading the configuration files"));

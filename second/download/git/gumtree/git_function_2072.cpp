@@ -1,22 +1,88 @@
-static void append_merge_parents(struct commit_list **tail)
+static void check_non_tip(void)
 {
-	int merge_head;
-	const char *merge_head_file = git_path("MERGE_HEAD");
-	struct strbuf line = STRBUF_INIT;
+	static const char *argv[] = {
+		"rev-list", "--stdin", NULL,
+	};
+	static struct child_process cmd = CHILD_PROCESS_INIT;
+	struct object *o;
+	char namebuf[42]; /* ^ + SHA-1 + LF */
+	int i;
 
-	merge_head = open(merge_head_file, O_RDONLY);
-	if (merge_head < 0) {
-		if (errno == ENOENT)
-			return;
-		die("cannot open '%s' for reading", merge_head_file);
-	}
+	/*
+	 * In the normal in-process case without
+	 * uploadpack.allowReachableSHA1InWant,
+	 * non-tip requests can never happen.
+	 */
+	if (!stateless_rpc && !(allow_unadvertised_object_request & ALLOW_REACHABLE_SHA1))
+		goto error;
 
-	while (!strbuf_getwholeline_fd(&line, merge_head, '\n')) {
-		unsigned char sha1[20];
-		if (line.len < 40 || get_sha1_hex(line.buf, sha1))
-			die("unknown line in '%s': %s", merge_head_file, line.buf);
-		tail = append_parent(tail, sha1);
+	cmd.argv = argv;
+	cmd.git_cmd = 1;
+	cmd.no_stderr = 1;
+	cmd.in = -1;
+	cmd.out = -1;
+
+	if (start_command(&cmd))
+		goto error;
+
+	/*
+	 * If rev-list --stdin encounters an unknown commit, it
+	 * terminates, which will cause SIGPIPE in the write loop
+	 * below.
+	 */
+	sigchain_push(SIGPIPE, SIG_IGN);
+
+	namebuf[0] = '^';
+	namebuf[41] = '\n';
+	for (i = get_max_object_index(); 0 < i; ) {
+		o = get_indexed_object(--i);
+		if (!o)
+			continue;
+		if (!is_our_ref(o))
+			continue;
+		memcpy(namebuf + 1, sha1_to_hex(o->sha1), 40);
+		if (write_in_full(cmd.in, namebuf, 42) < 0)
+			goto error;
 	}
-	close(merge_head);
-	strbuf_release(&line);
+	namebuf[40] = '\n';
+	for (i = 0; i < want_obj.nr; i++) {
+		o = want_obj.objects[i].item;
+		if (is_our_ref(o))
+			continue;
+		memcpy(namebuf, sha1_to_hex(o->sha1), 40);
+		if (write_in_full(cmd.in, namebuf, 41) < 0)
+			goto error;
+	}
+	close(cmd.in);
+
+	sigchain_pop(SIGPIPE);
+
+	/*
+	 * The commits out of the rev-list are not ancestors of
+	 * our ref.
+	 */
+	i = read_in_full(cmd.out, namebuf, 1);
+	if (i)
+		goto error;
+	close(cmd.out);
+
+	/*
+	 * rev-list may have died by encountering a bad commit
+	 * in the history, in which case we do want to bail out
+	 * even when it showed no commit.
+	 */
+	if (finish_command(&cmd))
+		goto error;
+
+	/* All the non-tip ones are ancestors of what we advertised */
+	return;
+
+error:
+	/* Pick one of them (we know there at least is one) */
+	for (i = 0; i < want_obj.nr; i++) {
+		o = want_obj.objects[i].item;
+		if (!is_our_ref(o))
+			die("git upload-pack: not our ref %s",
+			    sha1_to_hex(o->sha1));
+	}
 }

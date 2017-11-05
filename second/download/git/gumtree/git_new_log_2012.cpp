@@ -1,1 +1,1 @@
-warning("ignoring broken ref %s", refname);
+die("Object not in bitmap: %s\n", oid_to_hex(&commit->object.oid));

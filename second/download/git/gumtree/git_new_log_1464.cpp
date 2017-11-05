@@ -1,2 +1,1 @@
-warning("subprocess '%s' requested unsupported capability '%s'",
-				process->argv[0], p);
+printf("Diag: protocol=%s\n", prot_name(protocol));

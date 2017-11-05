@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
-                 "Command line: '%s'", result);
+fprintf(stderr, "Rotation size interval:      %12d\n", config->sRotation);

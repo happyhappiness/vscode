@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "%s: Forcing worker (%s) into error state "
-                      "due to timeout and 'failonstatus' parameter being set",
-                       balancer->name, worker->name);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
+                                 "Server ran out of threads to serve requests. Consider "
+                                 "raising the ThreadsPerChild setting");

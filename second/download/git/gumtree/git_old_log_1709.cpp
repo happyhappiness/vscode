@@ -1,1 +1,2 @@
-die(_("Malformed ident string: '%s'"), buf->buf);
+error("chmod on %s failed: %s",
+				lock->filename.buf, strerror(errno));

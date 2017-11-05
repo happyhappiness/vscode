@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02426)
-                                  "Request header field name is malformed: "
-                                  "%.*s", (int)LOG_NAME_MAX_LEN, last_field);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02587)
+                      "auth_ldap authorize: require dn: Can't evaluate expression: %s",
+                      err);

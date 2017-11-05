@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", pair->one->path);
+die(_("malformed object at '%s'"), refname);

@@ -1,71 +1,70 @@
-static int make_child(server_rec *s, int slot)
+void h2_util_bb_log(conn_rec *c, int stream_id, int level, 
+                    const char *tag, apr_bucket_brigade *bb)
 {
-    int pid;
-
-    if (slot + 1 > max_daemons_limit) {
-        max_daemons_limit = slot + 1;
-    }
-
-    if (one_process) {
-        set_signals();
-        ap_scoreboard_image->parent[slot].pid = getpid();
-        child_main(slot);
-    }
-
-    if ((pid = fork()) == -1) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, errno, s,
-                     "fork: Unable to fork new process");
-        /* fork didn't succeed.  There's no need to touch the scoreboard;
-         * if we were trying to replace a failed child process, then
-         * server_main_loop() marked its workers SERVER_DEAD, and if
-         * we were trying to replace a child process that exited normally,
-         * its worker_thread()s left SERVER_DEAD or SERVER_GRACEFUL behind.
-         */
-
-        /* In case system resources are maxxed out, we don't want
-           Apache running away with the CPU trying to fork over and
-           over and over again. */
-        apr_sleep(apr_time_from_sec(10));
-
-        return -1;
-    }
-
-    if (!pid) {
-#ifdef HAVE_BINDPROCESSOR
-        /* By default, AIX binds to a single processor.  This bit unbinds
-         * children which will then bind to another CPU.
-         */
-        int status = bindprocessor(BINDPROCESS, (int)getpid(),
-                               PROCESSOR_CLASS_ANY);
-        if (status != OK)
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, errno,
-                         ap_server_conf,
-                         "processor unbind failed");
+    char buffer[16 * 1024];
+    const char *line = "(null)";
+    apr_size_t bmax = sizeof(buffer)/sizeof(buffer[0]);
+    int off = 0;
+    apr_bucket *b;
+    
+    if (bb) {
+        memset(buffer, 0, bmax--);
+        for (b = APR_BRIGADE_FIRST(bb); 
+             bmax && (b != APR_BRIGADE_SENTINEL(bb));
+             b = APR_BUCKET_NEXT(b)) {
+            
+            if (APR_BUCKET_IS_METADATA(b)) {
+                if (APR_BUCKET_IS_EOS(b)) {
+                    off += apr_snprintf(buffer+off, bmax-off, "eos ");
+                }
+                else if (APR_BUCKET_IS_FLUSH(b)) {
+                    off += apr_snprintf(buffer+off, bmax-off, "flush ");
+                }
+                else if (AP_BUCKET_IS_EOR(b)) {
+                    off += apr_snprintf(buffer+off, bmax-off, "eor ");
+                }
+                else {
+                    off += apr_snprintf(buffer+off, bmax-off, "meta(unknown) ");
+                }
+            }
+            else {
+                const char *btype = "data";
+                if (APR_BUCKET_IS_FILE(b)) {
+                    btype = "file";
+                }
+                else if (APR_BUCKET_IS_PIPE(b)) {
+                    btype = "pipe";
+                }
+                else if (APR_BUCKET_IS_SOCKET(b)) {
+                    btype = "socket";
+                }
+                else if (APR_BUCKET_IS_HEAP(b)) {
+                    btype = "heap";
+                }
+                else if (APR_BUCKET_IS_TRANSIENT(b)) {
+                    btype = "transient";
+                }
+                else if (APR_BUCKET_IS_IMMORTAL(b)) {
+                    btype = "immortal";
+                }
+#if APR_HAS_MMAP
+                else if (APR_BUCKET_IS_MMAP(b)) {
+                    btype = "mmap";
+                }
 #endif
-        RAISE_SIGSTOP(MAKE_CHILD);
-
-        apr_signal(SIGTERM, just_die);
-        child_main(slot);
-
-        clean_child_exit(0);
+                else if (APR_BUCKET_IS_POOL(b)) {
+                    btype = "pool";
+                }
+                
+                off += apr_snprintf(buffer+off, bmax-off, "%s[%ld] ", 
+                                    btype, 
+                                    (long)(b->length == ((apr_size_t)-1)? 
+                                           -1 : b->length));
+            }
+        }
+        line = *buffer? buffer : "(empty)";
     }
-    /* else */
-    if (ap_scoreboard_image->parent[slot].pid != 0) {
-        /* This new child process is squatting on the scoreboard
-         * entry owned by an exiting child process, which cannot
-         * exit until all active requests complete.
-         * Don't forget about this exiting child process, or we
-         * won't be able to kill it if it doesn't exit by the
-         * time the server is shut down.
-         */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                     "taking over scoreboard slot from %" APR_PID_T_FMT "%s",
-                     ap_scoreboard_image->parent[slot].pid,
-                     ap_scoreboard_image->parent[slot].quiescing ?
-                         " (quiescing)" : "");
-        ap_register_extra_mpm_process(ap_scoreboard_image->parent[slot].pid);
-    }
-    ap_scoreboard_image->parent[slot].quiescing = 0;
-    ap_scoreboard_image->parent[slot].pid = pid;
-    return 0;
+    ap_log_cerror(APLOG_MARK, level, 0, c, "bb_dump(%ld-%d)-%s: %s", 
+                  c->id, stream_id, tag, line);
+
 }

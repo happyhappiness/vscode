@@ -1,71 +1,63 @@
-static int append_ref(const char *refname, const struct object_id *oid, int flags, void *cb_data)
+void syslog(int priority, const char *fmt, ...)
 {
-	struct append_ref_cb *cb = (struct append_ref_cb *)(cb_data);
-	struct ref_list *ref_list = cb->ref_list;
-	struct ref_item *newitem;
-	struct commit *commit;
-	int kind, i;
-	const char *prefix, *orig_refname = refname;
+	WORD logtype;
+	char *str, *pos;
+	int str_len;
+	va_list ap;
 
-	static struct {
-		int kind;
-		const char *prefix;
-	} ref_kind[] = {
-		{ REF_LOCAL_BRANCH, "refs/heads/" },
-		{ REF_REMOTE_BRANCH, "refs/remotes/" },
-	};
+	if (!ms_eventlog)
+		return;
 
-	/* Detect kind */
-	for (i = 0; i < ARRAY_SIZE(ref_kind); i++) {
-		prefix = ref_kind[i].prefix;
-		if (skip_prefix(refname, prefix, &refname)) {
-			kind = ref_kind[i].kind;
-			break;
-		}
-	}
-	if (ARRAY_SIZE(ref_kind) <= i)
-		return 0;
+	va_start(ap, fmt);
+	str_len = vsnprintf(NULL, 0, fmt, ap);
+	va_end(ap);
 
-	/* Don't add types the caller doesn't want */
-	if ((kind & ref_list->kinds) == 0)
-		return 0;
-
-	if (!match_patterns(cb->pattern, refname))
-		return 0;
-
-	commit = NULL;
-	if (ref_list->verbose || ref_list->with_commit || merge_filter != NO_FILTER) {
-		commit = lookup_commit_reference_gently(oid->hash, 1);
-		if (!commit) {
-			cb->ret = error(_("branch '%s' does not point at a commit"), refname);
-			return 0;
-		}
-
-		/* Filter with with_commit if specified */
-		if (!is_descendant_of(commit, ref_list->with_commit))
-			return 0;
-
-		if (merge_filter != NO_FILTER)
-			add_pending_object(&ref_list->revs,
-					   (struct object *)commit, refname);
+	if (str_len < 0) {
+		warning("vsnprintf failed: '%s'", strerror(errno));
+		return;
 	}
 
-	ALLOC_GROW(ref_list->list, ref_list->index + 1, ref_list->alloc);
+	str = malloc(st_add(str_len, 1));
+	if (!str) {
+		warning("malloc failed: '%s'", strerror(errno));
+		return;
+	}
 
-	/* Record the new item */
-	newitem = &(ref_list->list[ref_list->index++]);
-	newitem->name = xstrdup(refname);
-	newitem->kind = kind;
-	newitem->commit = commit;
-	newitem->width = utf8_strwidth(refname);
-	newitem->dest = resolve_symref(orig_refname, prefix);
-	newitem->ignore = 0;
-	/* adjust for "remotes/" */
-	if (newitem->kind == REF_REMOTE_BRANCH &&
-	    ref_list->kinds != REF_REMOTE_BRANCH)
-		newitem->width += 8;
-	if (newitem->width > ref_list->maxwidth)
-		ref_list->maxwidth = newitem->width;
+	va_start(ap, fmt);
+	vsnprintf(str, str_len + 1, fmt, ap);
+	va_end(ap);
 
-	return 0;
+	while ((pos = strstr(str, "%1")) != NULL) {
+		str = realloc(str, st_add(++str_len, 1));
+		if (!str) {
+			warning("realloc failed: '%s'", strerror(errno));
+			return;
+		}
+		memmove(pos + 2, pos + 1, strlen(pos));
+		pos[1] = ' ';
+	}
+
+	switch (priority) {
+	case LOG_EMERG:
+	case LOG_ALERT:
+	case LOG_CRIT:
+	case LOG_ERR:
+		logtype = EVENTLOG_ERROR_TYPE;
+		break;
+
+	case LOG_WARNING:
+		logtype = EVENTLOG_WARNING_TYPE;
+		break;
+
+	case LOG_NOTICE:
+	case LOG_INFO:
+	case LOG_DEBUG:
+	default:
+		logtype = EVENTLOG_INFORMATION_TYPE;
+		break;
+	}
+
+	ReportEventA(ms_eventlog, logtype, 0, 0, NULL, 1, 0,
+	    (const char **)&str, NULL);
+	free(str);
 }

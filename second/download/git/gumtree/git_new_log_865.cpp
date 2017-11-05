@@ -1,1 +1,1 @@
-error(_("cannot amend non-existing commit"));
+die(_("Integer value expected refname:rstrip=%s"), arg);

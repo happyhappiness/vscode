@@ -1,1 +1,1 @@
-die(_("invalid path '%s'"), new_name);
+die("unable to generate diff");

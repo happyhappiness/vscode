@@ -1,4 +1,2 @@
-error(_("Cannot add notes. "
-					"Found existing notes for object %s. "
-					"Use '-f' to overwrite existing notes"),
-					oid_to_hex(&object));
+fprintf(o->file, "%sBinary files %s and %s differ\n",
+				line_prefix, lbl[0], lbl[1]);

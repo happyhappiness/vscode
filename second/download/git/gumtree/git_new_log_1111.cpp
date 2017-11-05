@@ -1,1 +1,1 @@
-strbuf_release(&buf);
+die("BUG: packed refs not locked");

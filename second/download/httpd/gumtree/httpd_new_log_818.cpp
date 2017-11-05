@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server,
-                         "proxy: lock");
+apr_psprintf(p, "Could not open config directory %s: %s",
+                                path, apr_strerror(rv, errmsg, sizeof errmsg));

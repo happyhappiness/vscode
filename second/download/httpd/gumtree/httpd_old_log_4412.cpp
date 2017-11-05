@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, uerr, r->server,
-                         "proxy: FTP: unlock");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                         "ap_get_server_port: Invalid UCN Option somehow");

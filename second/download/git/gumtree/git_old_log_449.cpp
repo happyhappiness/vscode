@@ -1,1 +1,2 @@
-error(_("Unknown subcommand: %s"), argv[0]);
+error(_("Mainline was specified but commit %s is not a merge."),
+			oid_to_hex(&commit->object.oid));

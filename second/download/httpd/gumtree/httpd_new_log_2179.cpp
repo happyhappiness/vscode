@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "StartThreads of %d not allowed, increasing to 1",
-                         ap_threads_to_start);
+ap_log_error(APLOG_MARK, APLOG_ERR, status, r->server,
+                         "proxy: AJP: cping/cpong failed to %pI (%s)",
+                         worker->cp->addr,
+                         worker->hostname);

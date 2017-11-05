@@ -1,40 +1,26 @@
-static int mark_object(struct object *obj, int type, void *data, struct fsck_options *options)
+static int add_mailname_host(struct strbuf *buf)
 {
-	struct object *parent = data;
+	FILE *mailname;
+	struct strbuf mailnamebuf = STRBUF_INIT;
 
-	/*
-	 * The only case data is NULL or type is OBJ_ANY is when
-	 * mark_object_reachable() calls us.  All the callers of
-	 * that function has non-NULL obj hence ...
-	 */
-	if (!obj) {
-		/* ... these references to parent->fld are safe here */
-		printf("broken link from %7s %s\n",
-			   typename(parent->type), sha1_to_hex(parent->sha1));
-		printf("broken link from %7s %s\n",
-			   (type == OBJ_ANY ? "unknown" : typename(type)), "unknown");
-		errors_found |= ERROR_REACHABLE;
-		return 1;
+	mailname = fopen("/etc/mailname", "r");
+	if (!mailname) {
+		if (errno != ENOENT)
+			warning("cannot open /etc/mailname: %s",
+				strerror(errno));
+		return -1;
 	}
-
-	if (type != OBJ_ANY && obj->type != type)
-		/* ... and the reference to parent is safe here */
-		objerror(parent, "wrong object type in link");
-
-	if (obj->flags & REACHABLE)
-		return 0;
-	obj->flags |= REACHABLE;
-	if (!(obj->flags & HAS_OBJ)) {
-		if (parent && !has_sha1_file(obj->sha1)) {
-			printf("broken link from %7s %s\n",
-				 typename(parent->type), sha1_to_hex(parent->sha1));
-			printf("              to %7s %s\n",
-				 typename(obj->type), sha1_to_hex(obj->sha1));
-			errors_found |= ERROR_REACHABLE;
-		}
-		return 1;
+	if (strbuf_getline(&mailnamebuf, mailname) == EOF) {
+		if (ferror(mailname))
+			warning("cannot read /etc/mailname: %s",
+				strerror(errno));
+		strbuf_release(&mailnamebuf);
+		fclose(mailname);
+		return -1;
 	}
-
-	add_object_array(obj, NULL, &pending);
+	/* success! */
+	strbuf_addbuf(buf, &mailnamebuf);
+	strbuf_release(&mailnamebuf);
+	fclose(mailname);
 	return 0;
 }

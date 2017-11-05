@@ -1,1 +1,0 @@
-die ("Could not write temporary index to %s", filename);

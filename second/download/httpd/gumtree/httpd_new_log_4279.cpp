@@ -1,1 +1,2 @@
-ap_rvputs(r, ap_proxy_parse_wstatus(r->pool, worker), NULL);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01921)
+                     "could not retrieve certificate id");

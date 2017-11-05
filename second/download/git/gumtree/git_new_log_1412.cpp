@@ -1,1 +1,1 @@
-die("BUG: abort called on a closed reference transaction");
+die("could not read %s%s", prompt, err);

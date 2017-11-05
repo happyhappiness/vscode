@@ -1,70 +1,49 @@
-static void prepare_pack(int window, int depth)
+static int lock_file(struct lock_file *lk, const char *path, int flags)
 {
-	struct object_entry **delta_list;
-	uint32_t i, nr_deltas;
-	unsigned n;
+	size_t pathlen = strlen(path);
 
-	get_object_details();
-
-	/*
-	 * If we're locally repacking then we need to be doubly careful
-	 * from now on in order to make sure no stealth corruption gets
-	 * propagated to the new pack.  Clients receiving streamed packs
-	 * should validate everything they get anyway so no need to incur
-	 * the additional cost here in that case.
-	 */
-	if (!pack_to_stdout)
-		do_check_packed_object_crc = 1;
-
-	if (!to_pack.nr_objects || !window || !depth)
-		return;
-
-	ALLOC_ARRAY(delta_list, to_pack.nr_objects);
-	nr_deltas = n = 0;
-
-	for (i = 0; i < to_pack.nr_objects; i++) {
-		struct object_entry *entry = to_pack.objects + i;
-
-		if (entry->delta)
-			/* This happens if we decided to reuse existing
-			 * delta from a pack.  "reuse_delta &&" is implied.
-			 */
-			continue;
-
-		if (entry->size < 50)
-			continue;
-
-		if (entry->no_try_delta)
-			continue;
-
-		if (!entry->preferred_base) {
-			nr_deltas++;
-			if (entry->type < 0)
-				die("unable to get type of object %s",
-				    sha1_to_hex(entry->idx.sha1));
-		} else {
-			if (entry->type < 0) {
-				/*
-				 * This object is not found, but we
-				 * don't have to include it anyway.
-				 */
-				continue;
-			}
-		}
-
-		delta_list[n++] = entry;
+	if (!lock_file_list) {
+		/* One-time initialization */
+		sigchain_push_common(remove_lock_files_on_signal);
+		atexit(remove_lock_files_on_exit);
 	}
 
-	if (nr_deltas && n > 1) {
-		unsigned nr_done = 0;
-		if (progress)
-			progress_state = start_progress(_("Compressing objects"),
-							nr_deltas);
-		QSORT(delta_list, n, type_size_sort);
-		ll_find_deltas(delta_list, n, window+1, depth, &nr_done);
-		stop_progress(&progress_state);
-		if (nr_done != nr_deltas)
-			die("inconsistency with delta count");
+	if (lk->active)
+		die("BUG: cannot lock_file(\"%s\") using active struct lock_file",
+		    path);
+	if (!lk->on_list) {
+		/* Initialize *lk and add it to lock_file_list: */
+		lk->fd = -1;
+		lk->fp = NULL;
+		lk->active = 0;
+		lk->owner = 0;
+		strbuf_init(&lk->filename, pathlen + LOCK_SUFFIX_LEN);
+		lk->next = lock_file_list;
+		lock_file_list = lk;
+		lk->on_list = 1;
+	} else if (lk->filename.len) {
+		/* This shouldn't happen, but better safe than sorry. */
+		die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
+		    path);
 	}
-	free(delta_list);
+
+	strbuf_add(&lk->filename, path, pathlen);
+	if (!(flags & LOCK_NO_DEREF))
+		resolve_symlink(&lk->filename);
+	strbuf_addstr(&lk->filename, LOCK_SUFFIX);
+	lk->fd = open(lk->filename.buf, O_RDWR | O_CREAT | O_EXCL, 0666);
+	if (lk->fd < 0) {
+		strbuf_reset(&lk->filename);
+		return -1;
+	}
+	lk->owner = getpid();
+	lk->active = 1;
+	if (adjust_shared_perm(lk->filename.buf)) {
+		int save_errno = errno;
+		error("cannot fix permission bits on %s", lk->filename.buf);
+		rollback_lock_file(lk);
+		errno = save_errno;
+		return -1;
+	}
+	return lk->fd;
 }

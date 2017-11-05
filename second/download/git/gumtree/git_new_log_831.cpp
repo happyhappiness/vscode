@@ -1,2 +1,2 @@
-error(_("cannot write '%s'"),
-				     rebase_path_fixup_msg());
+error(_("unknown core.untrackedCache value '%s'; "
+			"using 'keep' default value"), v);

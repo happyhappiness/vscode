@@ -1,2 +1,1 @@
-error("corrupt packed object for %s",
-		      oid_to_hex(&entry->idx.oid));
+die("curl_multi_init failed");

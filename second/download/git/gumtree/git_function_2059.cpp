@@ -1,21 +1,24 @@
-static int bisect_checkout(char *bisect_rev_hex, int no_checkout)
+static int write_one_shallow(const struct commit_graft *graft, void *cb_data)
 {
-
-	mark_expected_rev(bisect_rev_hex);
-
-	argv_checkout[2] = bisect_rev_hex;
-	if (no_checkout) {
-		argv_update_ref[3] = bisect_rev_hex;
-		if (run_command_v_opt(argv_update_ref, RUN_GIT_CMD))
-			die("update-ref --no-deref HEAD failed on %s",
-			    bisect_rev_hex);
-	} else {
-		int res;
-		res = run_command_v_opt(argv_checkout, RUN_GIT_CMD);
-		if (res)
-			exit(res);
+	struct write_shallow_data *data = cb_data;
+	const char *hex = oid_to_hex(&graft->oid);
+	if (graft->nr_parent != -1)
+		return 0;
+	if (data->flags & SEEN_ONLY) {
+		struct commit *c = lookup_commit(graft->oid.hash);
+		if (!c || !(c->object.flags & SEEN)) {
+			if (data->flags & VERBOSE)
+				printf("Removing %s from .git/shallow\n",
+				       sha1_to_hex(c->object.sha1));
+			return 0;
+		}
 	}
-
-	argv_show_branch[1] = bisect_rev_hex;
-	return run_command_v_opt(argv_show_branch, RUN_GIT_CMD);
+	data->count++;
+	if (data->use_pack_protocol)
+		packet_buf_write(data->out, "shallow %s", hex);
+	else {
+		strbuf_addstr(data->out, hex);
+		strbuf_addch(data->out, '\n');
+	}
+	return 0;
 }

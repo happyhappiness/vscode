@@ -1,1 +1,2 @@
-error("%s does not point to a valid object!", entry->name);
+printf("%c %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev));

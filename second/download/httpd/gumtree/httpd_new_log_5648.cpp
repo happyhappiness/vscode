@@ -1,1 +1,2 @@
-fprintf(stderr, "The '%s' service is not started.\n", mpm_display_name);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, rv, r,
+                  "ap_proxy_transfer_between_connections complete");

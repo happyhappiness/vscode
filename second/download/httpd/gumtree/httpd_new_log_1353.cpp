@@ -1,1 +1,3 @@
-fprintf(stderr, " %.*s", (int)(val.dptr+val.dsize - (cmnt+1)), cmnt + 1);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "Encountered premature end-of-stream while "
+                                  "reading inflate header");

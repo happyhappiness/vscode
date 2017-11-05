@@ -1,1 +1,2 @@
-error(_("failed to remove 'git notes merge' worktree"));
+error(_("your local changes would be overwritten by %s."),
+		_(action_name(opts)));

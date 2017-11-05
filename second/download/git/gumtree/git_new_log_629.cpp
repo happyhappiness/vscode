@@ -1,1 +1,2 @@
-error_errno(_("could not open '%s'"), todo_file);
+die(_("Unimplemented pathspec magic '%c' in '%s'"),
+			    ch, elem);

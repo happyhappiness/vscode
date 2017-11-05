@@ -1,1 +1,1 @@
-printf("%s (%d):\n", log->list.items[i].string, onelines->nr);
+die("Not a git repository (or any of the parent directories): %s", DEFAULT_GIT_DIR_ENVIRONMENT);

@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
-                      H2_SSSN_LOG(APLOGNO(02935), session, 
-                      "nghttp2_submit_settings: %s"), nghttp2_strerror(*rv));
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02376)
+                    "in-headers didn't fit in buffer %s",
+                    sobj->key);

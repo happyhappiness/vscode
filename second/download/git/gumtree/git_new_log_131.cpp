@@ -1,1 +1,1 @@
-die_errno("atexit(winansi_exit) failed");
+error("unable to rewind rpc post data - try increasing http.postBuffer");

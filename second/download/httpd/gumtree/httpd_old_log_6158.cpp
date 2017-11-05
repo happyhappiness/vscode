@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, status, worker->pool,
-                      APLOGNO(02948) "h2_worker(%d): alloc socket", 
-                      worker->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-NULL): NULL", m->id);

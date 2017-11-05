@@ -1,1 +1,1 @@
-fprintf(f, "%s\n", sha1_to_hex(obj->sha1));
+die("unable to read tree (%s)", sha1_to_hex(hash));

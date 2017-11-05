@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%ld-%d): %s", 
-                      c->id, s->id, len? buffer : line);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02124)
+                     "Error: %d with WSAIoctl(flag SO_TLS_ENABLE)",
+                     WSAGetLastError());

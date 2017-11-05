@@ -1,1 +1,0 @@
-die (_("Huh? Directory %s is in index and no submodule?"), src);

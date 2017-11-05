@@ -1,1 +1,2 @@
-die("Not a valid commit: %s", oid_to_hex(&b->oid));
+packet_buf_write(req_buf,
+				 "%.*s", (int)(np - cp), cp);

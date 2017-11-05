@@ -1,2 +1,2 @@
-error("sha1 mismatch for %s (expected %s)", path,
-			      sha1_to_hex(expected_sha1));
+error("unable to move logfile logs/%s to logs/"TMP_RENAMED_LOG": %s",
+			    oldrefname, strerror(errno));

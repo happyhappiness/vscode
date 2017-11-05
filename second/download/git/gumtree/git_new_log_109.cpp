@@ -1,4 +1,1 @@
-die(flags & PARSE_SHA1_OLD ?
-	    "%s %s: unexpected end of input when reading <oldvalue>" :
-	    "%s %s: unexpected end of input when reading <newvalue>",
-	    command, refname);
+die("BUG: stat option does not begin with --stat: %s", arg);

@@ -1,2 +1,1 @@
-error("internal error: %s is not a valid packed reference!",
-		      entry->name);
+git_die_config(key, "unknown notes merge strategy %s", value);

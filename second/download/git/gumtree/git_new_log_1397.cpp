@@ -1,1 +1,1 @@
-die("Reference has invalid format: '%s'", refname);
+fprintf(stderr, "failed to open store\n");

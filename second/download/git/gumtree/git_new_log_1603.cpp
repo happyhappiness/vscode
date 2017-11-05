@@ -1,1 +1,0 @@
-die("cannot start proxy %s", srvc->tunnel);

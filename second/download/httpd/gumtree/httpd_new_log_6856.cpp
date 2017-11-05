@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                      H2_STRM_MSG(stream, "prepared no_copy, len=%ld, eos=%d"),
-                      (long)nread, eos);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02650)
+                            "Inflated content ratio is larger than the "
+                            "configured limit %i by %i time(s)",
+                            dc->ratio_limit, dc->ratio_burst);

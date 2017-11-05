@@ -1,2 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00832) "unusably short id provided "
-                "(%u bytes)", idlen);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01473)
+                      "request details scope:%u, filename:%s, function:%s",
+                      spec->scope,
+                      spec->file,
+                      "handle");

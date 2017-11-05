@@ -1,1 +1,2 @@
-printf_ln(_("`git %s' is aliased to `%s'"), cmd, alias);
+print_verbose(args, _("Server version is %.*s"),
+				      agent_len, agent_feature);

@@ -1,1 +1,3 @@
-ap_rvputs(r, balancer->s->name, "</a></h3>\n", NULL);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, pServ, APLOGNO(02200)
+                     "Loading certificate & private key of SSL-aware server '%s'",
+                     cpVHostID);

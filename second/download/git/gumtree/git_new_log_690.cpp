@@ -1,1 +1,1 @@
-strbuf_addstr(err, _("too-short tree object"));
+read_gitfile_error_die(error_code, path, dir);

@@ -1,10 +1,20 @@
-void die_if_checked_out(const char *branch)
+int parse_tree_gently(struct tree *item, int quiet_on_missing)
 {
-	char *existing;
+	 enum object_type type;
+	 void *buffer;
+	 unsigned long size;
 
-	existing = find_shared_symref("HEAD", branch);
-	if (existing) {
-		skip_prefix(branch, "refs/heads/", &branch);
-		die(_("'%s' is already checked out at '%s'"), branch, existing);
+	if (item->object.parsed)
+		return 0;
+	buffer = read_sha1_file(item->object.sha1, &type, &size);
+	if (!buffer)
+		return quiet_on_missing ? -1 :
+			error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));
+	if (type != OBJ_TREE) {
+		free(buffer);
+		return error("Object %s not a tree",
+			     sha1_to_hex(item->object.sha1));
 	}
+	return parse_tree_buffer(item, buffer, size);
 }

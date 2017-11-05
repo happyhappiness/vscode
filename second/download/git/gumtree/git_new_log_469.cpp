@@ -1,3 +1,2 @@
-die(Q_("cannot handle more than %d rev.",
-			       "cannot handle more than %d revs.",
-			       MAX_REVS), MAX_REVS);
+error(_("malformed options sheet: '%s'"),
+			git_path_opts_file());

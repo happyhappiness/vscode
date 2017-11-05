@@ -1,1 +1,1 @@
-die("object %s disappeared", oid_to_hex(oid));
+die(_("expected shallow/unshallow, got %s"), line);

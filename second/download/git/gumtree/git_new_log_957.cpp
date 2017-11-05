@@ -1,0 +1,1 @@
+fprintf(stdout, "%s\n", ce->name);

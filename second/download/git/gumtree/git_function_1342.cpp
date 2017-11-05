@@ -1,43 +1,25 @@
-static int update_branch(struct branch *b)
+void add_index_objects_to_pending(struct rev_info *revs, unsigned flags)
 {
-	static const char *msg = "fast-import";
-	struct ref_transaction *transaction;
-	unsigned char old_sha1[20];
-	struct strbuf err = STRBUF_INIT;
+	int i;
 
-	if (is_null_sha1(b->sha1)) {
-		if (b->delete)
-			delete_ref(NULL, b->name, NULL, 0);
-		return 0;
-	}
-	if (read_ref(b->name, old_sha1))
-		hashclr(old_sha1);
-	if (!force_update && !is_null_sha1(old_sha1)) {
-		struct commit *old_cmit, *new_cmit;
+	read_cache();
+	for (i = 0; i < active_nr; i++) {
+		struct cache_entry *ce = active_cache[i];
+		struct blob *blob;
 
-		old_cmit = lookup_commit_reference_gently(old_sha1, 0);
-		new_cmit = lookup_commit_reference_gently(b->sha1, 0);
-		if (!old_cmit || !new_cmit)
-			return error("Branch %s is missing commits.", b->name);
+		if (S_ISGITLINK(ce->ce_mode))
+			continue;
 
-		if (!in_merge_bases(old_cmit, new_cmit)) {
-			warning("Not updating %s"
-				" (new tip %s does not contain %s)",
-				b->name, sha1_to_hex(b->sha1), sha1_to_hex(old_sha1));
-			return -1;
-		}
+		blob = lookup_blob(ce->sha1);
+		if (!blob)
+			die("unable to add index blob to traversal");
+		add_pending_object_with_path(revs, &blob->object, "",
+					     ce->ce_mode, ce->name);
 	}
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_update(transaction, b->name, b->sha1, old_sha1,
-				   0, msg, &err) ||
-	    ref_transaction_commit(transaction, &err)) {
-		ref_transaction_free(transaction);
-		error("%s", err.buf);
-		strbuf_release(&err);
-		return -1;
+
+	if (active_cache_tree) {
+		struct strbuf path = STRBUF_INIT;
+		add_cache_tree(active_cache_tree, revs, &path);
+		strbuf_release(&path);
 	}
-	ref_transaction_free(transaction);
-	strbuf_release(&err);
-	return 0;
 }

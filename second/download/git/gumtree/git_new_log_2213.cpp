@@ -1,1 +1,1 @@
-die_errno(_("Could not write to %s"), git_path_todo_file());
+fputs(env_hint, stderr);

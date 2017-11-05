@@ -1,2 +1,2 @@
-packet_write(1, "%s %s%c%s\n",
-			     sha1_to_hex(sha1), path, 0, cap.buf);
+die("git show-ref: bad ref %s (%s)", refname,
+		    oid_to_hex(oid));

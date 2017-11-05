@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         "ThreadsPerChild of %d exceeds ThreadLimit "
-                         "of %d, decreasing to match",
-                         ap_threads_per_child, thread_limit);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02939) "h2_stream(%ld-%d): submit_response: %s",
+                      session->id, response->stream_id, nghttp2_strerror(rv));

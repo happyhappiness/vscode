@@ -1,1 +1,4 @@
-ap_rvputs(r, "> <br/> Off <input name='", name, "' id='", name, "' value='0' type=radio", NULL);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, conn, APLOGNO(02038)
+                          "cannot perform OCSP validation for cert "
+                          "if issuer has not been verified "
+                          "(optional_no_ca configured)");

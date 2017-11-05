@@ -1,1 +1,1 @@
-die("Object not in bitmap: %s\n", sha1_to_hex(object->sha1));
+printf("missing %s %s\n", typename(obj->type), oid_to_hex(&obj->oid));

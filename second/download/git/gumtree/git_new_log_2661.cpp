@@ -1,2 +1,1 @@
-die(_("No directory name could be guessed.\n"
-		      "Please specify a directory on the command line"));
+die("malformed build-time PAGER_ENV");

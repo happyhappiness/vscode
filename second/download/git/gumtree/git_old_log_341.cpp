@@ -1,1 +1,0 @@
-die("--cached and --3way cannot be used together.");

@@ -1,1 +1,2 @@
-!string_list_has_string(skip, extra_refname);
+die("unable to read %s",
+				    oid_to_hex(&s->oid));

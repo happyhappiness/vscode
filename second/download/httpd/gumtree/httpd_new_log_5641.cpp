@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, 
-                     APLOGNO(00373) "Failed to open the '%s' service",
-                     mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(03021)
+                         "Parsed host %s", New->name);

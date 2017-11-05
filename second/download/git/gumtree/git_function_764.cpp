@@ -1,43 +1,33 @@
-static int submodule_needs_pushing(const char *path, struct sha1_array *commits)
+struct attr_check *attr_check_initl(const char *one, ...)
 {
-	if (!submodule_has_commits(path, commits))
-		/*
-		 * NOTE: We do consider it safe to return "no" here. The
-		 * correct answer would be "We do not know" instead of
-		 * "No push needed", but it is quite hard to change
-		 * the submodule pointer without having the submodule
-		 * around. If a user did however change the submodules
-		 * without having the submodule around, this indicates
-		 * an expert who knows what they are doing or a
-		 * maintainer integrating work from other people. In
-		 * both cases it should be safe to skip this check.
-		 */
-		return 0;
+	struct attr_check *check;
+	int cnt;
+	va_list params;
+	const char *param;
 
-	if (for_each_remote_ref_submodule(path, has_remote, NULL) > 0) {
-		struct child_process cp = CHILD_PROCESS_INIT;
-		struct strbuf buf = STRBUF_INIT;
-		int needs_pushing = 0;
+	va_start(params, one);
+	for (cnt = 1; (param = va_arg(params, const char *)) != NULL; cnt++)
+		;
+	va_end(params);
 
-		argv_array_push(&cp.args, "rev-list");
-		sha1_array_for_each_unique(commits, append_sha1_to_argv, &cp.args);
-		argv_array_pushl(&cp.args, "--not", "--remotes", "-n", "1" , NULL);
+	check = attr_check_alloc();
+	check->nr = cnt;
+	check->alloc = cnt;
+	check->items = xcalloc(cnt, sizeof(struct attr_check_item));
 
-		prepare_submodule_repo_env(&cp.env_array);
-		cp.git_cmd = 1;
-		cp.no_stdin = 1;
-		cp.out = -1;
-		cp.dir = path;
-		if (start_command(&cp))
-			die("Could not run 'git rev-list <commits> --not --remotes -n 1' command in submodule %s",
-					path);
-		if (strbuf_read(&buf, cp.out, 41))
-			needs_pushing = 1;
-		finish_command(&cp);
-		close(cp.out);
-		strbuf_release(&buf);
-		return needs_pushing;
+	check->items[0].attr = git_attr(one);
+	va_start(params, one);
+	for (cnt = 1; cnt < check->nr; cnt++) {
+		const struct git_attr *attr;
+		param = va_arg(params, const char *);
+		if (!param)
+			die("BUG: counted %d != ended at %d",
+			    check->nr, cnt);
+		attr = git_attr(param);
+		if (!attr)
+			die("BUG: %s: not a valid attribute name", param);
+		check->items[cnt].attr = attr;
 	}
-
-	return 0;
+	va_end(params);
+	return check;
 }

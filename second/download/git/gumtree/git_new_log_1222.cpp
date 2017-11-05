@@ -1,0 +1,1 @@
+die("unable to add recent objects");

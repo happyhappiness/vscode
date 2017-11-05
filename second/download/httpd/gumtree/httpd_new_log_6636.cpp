@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03072)
-                      "h2_stream(%ld-%d): submit %d trailers",
-                      session->id, (int)stream->id,(int) nh->nvlen);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                             "[%s] SSL_X509_match_name: expecting name '%s', "
+                             "%smatched by ID '%s'",
+                             (mySrvConfig(s))->vhost_id, name,
+                             matched == TRUE ? "" : "NOT ", id[i]);

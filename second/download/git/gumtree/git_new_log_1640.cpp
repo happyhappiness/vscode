@@ -1,2 +1,2 @@
-die("unordered stage entries for '%s'",
-				ce->name);
+die(N_("Could not read ref %s"),
+					    (*tail)->name);

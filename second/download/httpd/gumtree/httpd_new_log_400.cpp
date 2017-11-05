@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                     "disk_cache: Storing URL %s",  key);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                                r->server,
+                                "cache_select_url(): Vary header mismatch.");

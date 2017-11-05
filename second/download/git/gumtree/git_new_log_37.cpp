@@ -1,2 +1,2 @@
-die(_("unable to select a comment character that is not used\n"
-		      "in the current commit message"));
+usage_msg_opt("-g needs at least one argument",
+				      git_replace_usage, options);

@@ -1,1 +1,1 @@
-error("Unknown object type for %s", oid_to_hex(&obj->oid));
+die(_("reading bisect refs failed"));

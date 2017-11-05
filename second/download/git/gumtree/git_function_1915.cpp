@@ -1,69 +1,57 @@
-static void combine_diff(const unsigned char *parent, unsigned int mode,
-			 mmfile_t *result_file,
-			 struct sline *sline, unsigned int cnt, int n,
-			 int num_parent, int result_deleted,
-			 struct userdiff_driver *textconv,
-			 const char *path, long flags)
+static int handle_commit_msg(struct strbuf *line)
 {
-	unsigned int p_lno, lno;
-	unsigned long nmask = (1UL << n);
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	mmfile_t parent_file;
-	struct combine_diff_state state;
-	unsigned long sz;
+	static int still_looking = 1;
 
-	if (result_deleted)
-		return; /* result deleted */
+	if (!cmitmsg)
+		return 0;
 
-	parent_file.ptr = grab_blob(parent, mode, &sz, textconv, path);
-	parent_file.size = sz;
-	memset(&xpp, 0, sizeof(xpp));
-	xpp.flags = flags;
-	memset(&xecfg, 0, sizeof(xecfg));
-	memset(&state, 0, sizeof(state));
-	state.nmask = nmask;
-	state.sline = sline;
-	state.lno = 1;
-	state.num_parent = num_parent;
-	state.n = n;
-
-	if (xdi_diff_outf(&parent_file, result_file, consume_line, &state,
-			  &xpp, &xecfg))
-		die("unable to generate combined diff for %s",
-		    sha1_to_hex(parent));
-	free(parent_file.ptr);
-
-	/* Assign line numbers for this parent.
-	 *
-	 * sline[lno].p_lno[n] records the first line number
-	 * (counting from 1) for parent N if the final hunk display
-	 * started by showing sline[lno] (possibly showing the lost
-	 * lines attached to it first).
-	 */
-	for (lno = 0,  p_lno = 1; lno <= cnt; lno++) {
-		struct lline *ll;
-		sline[lno].p_lno[n] = p_lno;
-
-		/* Coalesce new lines */
-		if (sline[lno].plost.lost_head) {
-			struct sline *sl = &sline[lno];
-			sl->lost = coalesce_lines(sl->lost, &sl->lenlost,
-						  sl->plost.lost_head,
-						  sl->plost.len, n, flags);
-			sl->plost.lost_head = sl->plost.lost_tail = NULL;
-			sl->plost.len = 0;
-		}
-
-		/* How many lines would this sline advance the p_lno? */
-		ll = sline[lno].lost;
-		while (ll) {
-			if (ll->parent_map & nmask)
-				p_lno++; /* '-' means parent had it */
-			ll = ll->next;
-		}
-		if (lno < cnt && !(sline[lno].flag & nmask))
-			p_lno++; /* no '+' means parent had it */
+	if (still_looking) {
+		if (!line->len || (line->len == 1 && line->buf[0] == '\n'))
+			return 0;
 	}
-	sline[lno].p_lno[n] = p_lno; /* trailer */
+
+	if (use_inbody_headers && still_looking) {
+		still_looking = check_header(line, s_hdr_data, 0);
+		if (still_looking)
+			return 0;
+	} else
+		/* Only trim the first (blank) line of the commit message
+		 * when ignoring in-body headers.
+		 */
+		still_looking = 0;
+
+	/* normalize the log message to UTF-8. */
+	if (metainfo_charset)
+		convert_to_utf8(line, charset.buf);
+
+	if (use_scissors && is_scissors_line(line)) {
+		int i;
+		if (fseek(cmitmsg, 0L, SEEK_SET))
+			die_errno("Could not rewind output message file");
+		if (ftruncate(fileno(cmitmsg), 0))
+			die_errno("Could not truncate output message file at scissors");
+		still_looking = 1;
+
+		/*
+		 * We may have already read "secondary headers"; purge
+		 * them to give ourselves a clean restart.
+		 */
+		for (i = 0; header[i]; i++) {
+			if (s_hdr_data[i])
+				strbuf_release(s_hdr_data[i]);
+			s_hdr_data[i] = NULL;
+		}
+		return 0;
+	}
+
+	if (patchbreak(line)) {
+		if (message_id)
+			fprintf(cmitmsg, "Message-Id: %s\n", message_id);
+		fclose(cmitmsg);
+		cmitmsg = NULL;
+		return 1;
+	}
+
+	fputs(line->buf, cmitmsg);
+	return 0;
 }

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, ap_server_conf,
-                             "malloc: out of memory");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_task_input(%s): is aborted", 
+                      input->env->id);

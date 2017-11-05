@@ -1,1 +1,1 @@
-die_errno(_("Could not write to %s"), git_path_head_file());
+die(_("could not set '%s' to '%s'"), key, value);

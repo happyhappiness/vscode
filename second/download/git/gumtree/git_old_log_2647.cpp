@@ -1,1 +1,1 @@
-die("git-%s failed", argv[0]);
+die(_("Failed to execute internal merge"));

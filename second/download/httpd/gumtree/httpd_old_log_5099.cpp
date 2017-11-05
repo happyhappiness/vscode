@@ -1,0 +1,1 @@
+fprintf(stderr,"Starting the %s service\n", mpm_display_name);

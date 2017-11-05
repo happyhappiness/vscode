@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c, 
-                      "h2_stream(%ld-%d): wait on input drain", 
-                      stream->session->id, stream->id);
+apr_file_printf(errfile, "%s: only one of -c -n -v -D may be specified" NL,
+            argv[0]);

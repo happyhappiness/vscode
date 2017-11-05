@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "protocol propose: connection requirements not met");
+ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : " align=\"right\">",time_str, NULL);

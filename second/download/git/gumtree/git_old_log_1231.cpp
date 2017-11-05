@@ -1,1 +1,1 @@
-die(_("cannot use --contents with final commit object name"));
+die("'%s' does not appear to be a git repository", dir);

@@ -1,22 +1,79 @@
-int ref_update_reject_duplicates(struct string_list *refnames,
-				 struct strbuf *err)
+int main(int argc, char **argv)
 {
-	size_t i, n = refnames->nr;
+	struct strbuf all_msgs = STRBUF_INIT;
+	struct strbuf msg = STRBUF_INIT;
+	struct imap_store *ctx = NULL;
+	int ofs = 0;
+	int r;
+	int total, n = 0;
+	int nongit_ok;
 
-	assert(err);
+	git_extract_argv0_path(argv[0]);
 
-	for (i = 1; i < n; i++) {
-		int cmp = strcmp(refnames->items[i - 1].string,
-				 refnames->items[i].string);
+	git_setup_gettext();
 
-		if (!cmp) {
-			strbuf_addf(err,
-				    "multiple updates for ref '%s' not allowed.",
-				    refnames->items[i].string);
-			return 1;
-		} else if (cmp > 0) {
-			die("BUG: ref_update_reject_duplicates() received unsorted list");
-		}
+	if (argc != 1)
+		usage(imap_send_usage);
+
+	setup_git_directory_gently(&nongit_ok);
+	git_imap_config();
+
+	if (!server.port)
+		server.port = server.use_ssl ? 993 : 143;
+
+	if (!server.folder) {
+		fprintf(stderr, "no imap store specified\n");
+		return 1;
 	}
+	if (!server.host) {
+		if (!server.tunnel) {
+			fprintf(stderr, "no imap host specified\n");
+			return 1;
+		}
+		server.host = "tunnel";
+	}
+
+	/* read the messages */
+	if (read_message(stdin, &all_msgs)) {
+		fprintf(stderr, "error reading input\n");
+		return 1;
+	}
+
+	if (all_msgs.len == 0) {
+		fprintf(stderr, "nothing to send\n");
+		return 1;
+	}
+
+	total = count_messages(&all_msgs);
+	if (!total) {
+		fprintf(stderr, "no messages to send\n");
+		return 1;
+	}
+
+	/* write it to the imap server */
+	ctx = imap_open_store(&server, server.folder);
+	if (!ctx) {
+		fprintf(stderr, "failed to open store\n");
+		return 1;
+	}
+
+	fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");
+	while (1) {
+		unsigned percent = n * 100 / total;
+
+		fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);
+		if (!split_msg(&all_msgs, &msg, &ofs))
+			break;
+		if (server.use_html)
+			wrap_in_html(&msg);
+		r = imap_store_msg(ctx, &msg);
+		if (r != DRV_OK)
+			break;
+		n++;
+	}
+	fprintf(stderr, "\n");
+
+	imap_close_store(ctx);
+
 	return 0;
 }

@@ -1,1 +1,1 @@
-error("remote-curl: error reading command stream from git");
+die("strange pathname '%s' blocked", path);

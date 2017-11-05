@@ -1,1 +1,1 @@
-printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
+die(_("unable to parse '%s' from command-line config"), key);

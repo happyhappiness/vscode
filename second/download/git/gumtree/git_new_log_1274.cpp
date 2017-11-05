@@ -1,1 +1,2 @@
-printf("%.*s%s", p_len - GIT_SHA1_HEXSZ, p_start, name);
+error("copy-fd: write returned %s",
+				     strerror(errno));

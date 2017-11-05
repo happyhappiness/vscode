@@ -1,2 +1,2 @@
 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "No AuthDBDUserPWQuery has been specified");
+                          "%s", lookup.err.desc);

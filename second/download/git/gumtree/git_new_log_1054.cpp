@@ -1,1 +1,2 @@
-die("Invalid proxy URL '%s'", curl_http_proxy);
+fprintf(pack_edges, " %s",
+							oid_to_hex(&b->oid));

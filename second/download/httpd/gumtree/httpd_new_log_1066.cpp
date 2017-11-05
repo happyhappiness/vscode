@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
-                "Could not resolve host name %s -- ignoring!", host);
+ap_log_perror(APLOG_MARK, APLOG_ERR, rv, pool,
+                      "DBD[%s] Error: %s", svr->name, errmsg );

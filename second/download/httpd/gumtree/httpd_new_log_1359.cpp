@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "Cache lock obtained for stale cached URL, "
-                     "revalidating entry: %s",
-                     r->unparsed_uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Encountered extra data after compressed data");

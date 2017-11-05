@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00746) "distributed scache 'remove' HIT");
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00644)
+                           "Error evaluating log condition: %s", err);

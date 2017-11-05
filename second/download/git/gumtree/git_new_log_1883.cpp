@@ -1,1 +1,2 @@
-die_errno(_("could not open '%s' for reading"), filename);
+(fprintf(f, ":%"PRIu32" %s\n", mark,
+				oid_to_hex(&deco->base->oid));

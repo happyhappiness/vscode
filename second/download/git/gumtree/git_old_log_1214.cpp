@@ -1,1 +1,1 @@
-die("no such path '%s' in HEAD", path);
+fprintf(stderr, "corrupt mailbox\n");

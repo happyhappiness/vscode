@@ -1,1 +1,1 @@
-die_want_option("--stat-count");
+error("%s", err.buf);

@@ -1,2 +1,2 @@
-die("option %s needs an argument (check|on-demand)",
-				opt->long_name);
+error("cannot stat '%s': %s", path,
+					strerror(errno));

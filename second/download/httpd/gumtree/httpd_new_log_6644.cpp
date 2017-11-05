@@ -1,2 +1,3 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                      "h2_session(%ld): input gone", session->id);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00565)
+                              "request failed: client's request-line exceeds LimitRequestLine (longer than %d)",
+                              r->server->limit_req_line);

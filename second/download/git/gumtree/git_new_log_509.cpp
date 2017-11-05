@@ -1,1 +1,2 @@
-error("initialization for external filter '%s' failed", cmd);
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "stale info", porcelain, summary_width);

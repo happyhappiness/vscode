@@ -1,1 +1,1 @@
-warning(_("--dissociate given, but there is no --reference"));
+die(_("-b, -B, and --detach are mutually exclusive"));

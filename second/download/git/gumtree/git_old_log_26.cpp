@@ -1,0 +1,1 @@
+die(_("Malformed ident string: '%s'"), string);

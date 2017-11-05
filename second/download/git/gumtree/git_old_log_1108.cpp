@@ -1,2 +1,2 @@
-error("internal error: %s is not a valid packed reference!",
-		      entry->name);
+die(_("parse_object_buffer failed on %s for %s"),
+		    sha1_to_hex(tagged), ref->refname);

@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-            "ldap authorize: Creating LDAP req structure");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rr->status, r,
+                      "mod_include: The tested "
+                      "subrequest -A \"%s\" returned an error code.",
+                      current->right->token.value);

@@ -1,1 +1,2 @@
-die("git-cvsserver only handles server: %s", arg);
+printf("M %06o %s ", spec->mode,
+				       sha1_to_hex(spec->sha1));

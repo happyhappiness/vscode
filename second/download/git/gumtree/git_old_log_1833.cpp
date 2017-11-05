@@ -1,1 +1,2 @@
-die("git upload-pack: cannot find object %s:", sha1_to_hex(sha1));
+die ("Expected git repo version <= %d, found %d",
+			     GIT_REPO_VERSION, repository_format_version);

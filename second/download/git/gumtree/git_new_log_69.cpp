@@ -1,1 +1,1 @@
-die(_("Not a valid object name: '%s'"), old_ref);
+die("Unable to write new index file");

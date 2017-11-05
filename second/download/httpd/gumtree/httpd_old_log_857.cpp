@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, c->base_server,
-                     "No acceptable peer certificate available");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -n name           : set screen name");

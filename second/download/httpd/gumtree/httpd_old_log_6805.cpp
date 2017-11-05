@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                                  "h2_mplx(%ld-%d): on_resume", 
-                                  m->id, stream->id);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, pServ, APLOGNO(02200)
+                     "Loading certificate & private key of SSL-aware server '%s'",
+                     cpVHostID);

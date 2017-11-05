@@ -1,1 +1,2 @@
-die("helper %s does not support 'push-option'", name);
+warning("ignoring git dir '%s': %s",
+			gitdir->buf + gitdir_offset, err.buf);

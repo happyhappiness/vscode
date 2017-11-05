@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                     "changing ThreadLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     thread_limit, retained->first_thread_limit);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
+                     "%sWatchdog (%s) running",
+                     w->singleton ? "Singleton" : "", w->name);

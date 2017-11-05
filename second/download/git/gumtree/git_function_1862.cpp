@@ -1,106 +1,73 @@
-static int cat_one_file(int opt, const char *exp_type, const char *obj_name,
-			int unknown_type)
+static int print_ref_list(int kinds, int detached, int verbose, int abbrev, struct commit_list *with_commit, const char **pattern)
 {
-	unsigned char sha1[20];
-	enum object_type type;
-	char *buf;
-	unsigned long size;
-	struct object_context obj_context;
-	struct object_info oi = {NULL};
-	struct strbuf sb = STRBUF_INIT;
-	unsigned flags = LOOKUP_REPLACE_OBJECT;
+	int i;
+	struct append_ref_cb cb;
+	struct ref_list ref_list;
 
-	if (unknown_type)
-		flags |= LOOKUP_UNKNOWN_OBJECT;
+	memset(&ref_list, 0, sizeof(ref_list));
+	ref_list.kinds = kinds;
+	ref_list.verbose = verbose;
+	ref_list.abbrev = abbrev;
+	ref_list.with_commit = with_commit;
+	if (merge_filter != NO_FILTER)
+		init_revisions(&ref_list.revs, NULL);
+	cb.ref_list = &ref_list;
+	cb.pattern = pattern;
+	cb.ret = 0;
+	for_each_rawref(append_ref, &cb);
+	if (merge_filter != NO_FILTER) {
+		struct commit *filter;
+		filter = lookup_commit_reference_gently(merge_filter_ref, 0);
+		if (!filter)
+			die(_("object '%s' does not point to a commit"),
+			    sha1_to_hex(merge_filter_ref));
 
-	if (get_sha1_with_context(obj_name, 0, sha1, &obj_context))
-		die("Not a valid object name %s", obj_name);
+		filter->object.flags |= UNINTERESTING;
+		add_pending_object(&ref_list.revs,
+				   (struct object *) filter, "");
+		ref_list.revs.limited = 1;
 
-	buf = NULL;
-	switch (opt) {
-	case 't':
-		oi.typename = &sb;
-		if (sha1_object_info_extended(sha1, &oi, flags) < 0)
-			die("git cat-file: could not get object info");
-		if (sb.len) {
-			printf("%s\n", sb.buf);
-			strbuf_release(&sb);
-			return 0;
-		}
-		break;
+		if (prepare_revision_walk(&ref_list.revs))
+			die(_("revision walk setup failed"));
 
-	case 's':
-		oi.sizep = &size;
-		if (sha1_object_info_extended(sha1, &oi, flags) < 0)
-			die("git cat-file: could not get object info");
-		printf("%lu\n", size);
-		return 0;
-
-	case 'e':
-		return !has_sha1_file(sha1);
-
-	case 'c':
-		if (!obj_context.path[0])
-			die("git cat-file --textconv %s: <object> must be <sha1:path>",
-			    obj_name);
-
-		if (textconv_object(obj_context.path, obj_context.mode, sha1, 1, &buf, &size))
-			break;
-
-	case 'p':
-		type = sha1_object_info(sha1, NULL);
-		if (type < 0)
-			die("Not a valid object name %s", obj_name);
-
-		/* custom pretty-print here */
-		if (type == OBJ_TREE) {
-			const char *ls_args[3] = { NULL };
-			ls_args[0] =  "ls-tree";
-			ls_args[1] =  obj_name;
-			return cmd_ls_tree(2, ls_args, NULL);
+		for (i = 0; i < ref_list.index; i++) {
+			struct ref_item *item = &ref_list.list[i];
+			struct commit *commit = item->commit;
+			int is_merged = !!(commit->object.flags & UNINTERESTING);
+			item->ignore = is_merged != (merge_filter == SHOW_MERGED);
 		}
 
-		if (type == OBJ_BLOB)
-			return stream_blob_to_fd(1, sha1, NULL, 0);
-		buf = read_sha1_file(sha1, &type, &size);
-		if (!buf)
-			die("Cannot read object %s", obj_name);
-
-		/* otherwise just spit out the data */
-		break;
-
-	case 0:
-		if (type_from_string(exp_type) == OBJ_BLOB) {
-			unsigned char blob_sha1[20];
-			if (sha1_object_info(sha1, NULL) == OBJ_TAG) {
-				char *buffer = read_sha1_file(sha1, &type, &size);
-				const char *target;
-				if (!skip_prefix(buffer, "object ", &target) ||
-				    get_sha1_hex(target, blob_sha1))
-					die("%s not a valid tag", sha1_to_hex(sha1));
-				free(buffer);
-			} else
-				hashcpy(blob_sha1, sha1);
-
-			if (sha1_object_info(blob_sha1, NULL) == OBJ_BLOB)
-				return stream_blob_to_fd(1, blob_sha1, NULL, 0);
-			/*
-			 * we attempted to dereference a tag to a blob
-			 * and failed; there may be new dereference
-			 * mechanisms this code is not aware of.
-			 * fall-back to the usual case.
-			 */
+		for (i = 0; i < ref_list.index; i++) {
+			struct ref_item *item = &ref_list.list[i];
+			clear_commit_marks(item->commit, ALL_REV_FLAGS);
 		}
-		buf = read_object_with_reference(sha1, exp_type, &size, NULL);
-		break;
+		clear_commit_marks(filter, ALL_REV_FLAGS);
 
-	default:
-		die("git cat-file: unknown option: %s", exp_type);
+		if (verbose)
+			ref_list.maxwidth = calc_maxwidth(&ref_list);
 	}
 
-	if (!buf)
-		die("git cat-file %s: bad file", obj_name);
+	qsort(ref_list.list, ref_list.index, sizeof(struct ref_item), ref_cmp);
 
-	write_or_die(1, buf, size);
-	return 0;
+	detached = (detached && (kinds & REF_LOCAL_BRANCH));
+	if (detached && match_patterns(pattern, "HEAD"))
+		show_detached(&ref_list);
+
+	for (i = 0; i < ref_list.index; i++) {
+		int current = !detached &&
+			(ref_list.list[i].kind == REF_LOCAL_BRANCH) &&
+			!strcmp(ref_list.list[i].name, head);
+		char *prefix = (kinds != REF_REMOTE_BRANCH &&
+				ref_list.list[i].kind == REF_REMOTE_BRANCH)
+				? "remotes/" : "";
+		print_ref_item(&ref_list.list[i], ref_list.maxwidth, verbose,
+			       abbrev, current, prefix);
+	}
+
+	free_ref_list(&ref_list);
+
+	if (cb.ret)
+		error(_("some refs could not be read"));
+
+	return cb.ret;
 }

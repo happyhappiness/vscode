@@ -1,30 +1,26 @@
-static void dump_marks(void)
+static char *get_default_remote(void)
 {
-	static struct lock_file mark_lock;
-	FILE *f;
+	char *dest = NULL, *ret;
+	unsigned char sha1[20];
+	struct strbuf sb = STRBUF_INIT;
+	const char *refname = resolve_ref_unsafe("HEAD", 0, sha1, NULL);
 
-	if (!export_marks_file)
-		return;
+	if (!refname)
+		die(_("No such ref: %s"), "HEAD");
 
-	if (hold_lock_file_for_update(&mark_lock, export_marks_file, 0) < 0) {
-		failure |= error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(errno));
-		return;
-	}
+	/* detached HEAD */
+	if (!strcmp(refname, "HEAD"))
+		return xstrdup("origin");
 
-	f = fdopen_lock_file(&mark_lock, "w");
-	if (!f) {
-		int saved_errno = errno;
-		rollback_lock_file(&mark_lock);
-		failure |= error("Unable to write marks file %s: %s",
-			export_marks_file, strerror(saved_errno));
-		return;
-	}
+	if (!skip_prefix(refname, "refs/heads/", &refname))
+		die(_("Expecting a full ref name, got %s"), refname);
 
-	dump_marks_helper(f, 0, marks);
-	if (commit_lock_file(&mark_lock)) {
-		failure |= error("Unable to commit marks file %s: %s",
-			export_marks_file, strerror(errno));
-		return;
-	}
+	strbuf_addf(&sb, "branch.%s.remote", refname);
+	if (git_config_get_string(sb.buf, &dest))
+		ret = xstrdup("origin");
+	else
+		ret = dest;
+
+	strbuf_release(&sb);
+	return ret;
 }

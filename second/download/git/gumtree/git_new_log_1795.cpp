@@ -1,1 +1,1 @@
-error("couldn't set %s", lock->ref_name);
+set_common_push_options(transport, data->name, flags);

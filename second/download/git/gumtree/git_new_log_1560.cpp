@@ -1,1 +1,1 @@
-error(_("bad config file line %d in %s"), cf->linenr, cf->name);
+printf("\n%s\n", _(common_cmd_groups[common_cmds[i].group]));

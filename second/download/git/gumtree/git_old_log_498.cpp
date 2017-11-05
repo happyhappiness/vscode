@@ -1,1 +1,1 @@
-warning("LF will be replaced by CRLF in %s.\nThe file will have its original line endings in your working directory.", path);
+fprintf(stderr, " %c %-*s ", flag, TRANSPORT_SUMMARY_WIDTH, summary);

@@ -1,9 +1,6 @@
-static void send_git_request(int stdin_fd, const char *serv, const char *repo,
-	const char *vhost)
+static int error_short_read(struct line_buffer *input)
 {
-	if (!vhost)
-		packet_write(stdin_fd, "%s %s%c", serv, repo, 0);
-	else
-		packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
-			     vhost, 0);
+	if (buffer_ferror(input))
+		return error("error reading delta: %s", strerror(errno));
+	return error("invalid delta: unexpected end of file");
 }

@@ -1,2 +1,4 @@
-die("Object %s is a %s but a blob was expected.",
-		    oid_to_hex(oid), typename(type));
+packet_buf_write(&req_buf,
+					 "%s %s %s%c%s",
+					 old_hex, new_hex, ref->name, 0,
+					 cap_buf.buf);

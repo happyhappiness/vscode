@@ -1,1 +1,1 @@
-die("protocol error: expected shallow sha-1, got '%s'", arg);
+die("remote-curl: fetch attempted without a local repo");

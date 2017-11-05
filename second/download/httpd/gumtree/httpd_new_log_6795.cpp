@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, m->c, APLOGNO(10021)
-                          "h2_mplx(%ld): register at workers", m->id);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02286)
+                     "Failed to open ticket key file %s: (%d) %pm",
+                     path, rv, &rv);

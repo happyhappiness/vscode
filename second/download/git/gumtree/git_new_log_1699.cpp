@@ -1,1 +1,1 @@
-die_errno(_("unable to get current working directory"));
+warning("Skipping unknown msg id '%s'", var);

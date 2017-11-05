@@ -1,1 +1,1 @@
-printf("%s %s\n", oid_to_hex(note_oid), oid_to_hex(object_oid));
+die_errno("unable to point stderr to /dev/null");

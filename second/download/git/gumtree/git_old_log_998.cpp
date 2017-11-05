@@ -1,2 +1,1 @@
-error("%s: object corrupt or missing: %s",
-		      sha1_to_hex(sha1), path);
+printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);

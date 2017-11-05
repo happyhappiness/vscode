@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03074)
-                      "h2_stream(%ld-%d): RST_STREAM, err=%d",
-                      session->id, stream->id, err);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00917)
+                                 "connect to remote machine %s blocked: "
+                                 "IP %s matched", uri_addr->hostname, conf_ip);

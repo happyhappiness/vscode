@@ -1,1 +1,1 @@
-decl_die(access_status, "check user", r);
+ap_rputs("OK", r);

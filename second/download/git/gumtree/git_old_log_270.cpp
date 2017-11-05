@@ -1,2 +1,1 @@
-error(_("binary patch does not apply to '%s'"),
-				     name);
+die(_("Failed to resolve '%s' as a valid ref."), object_ref);

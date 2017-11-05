@@ -1,88 +1,30 @@
-static int delete_branches(int argc, const char **argv, int force, int kinds,
-			   int quiet)
+static void find_copy_in_blob(struct scoreboard *sb,
+			      struct blame_entry *ent,
+			      struct origin *parent,
+			      struct blame_entry *split,
+			      mmfile_t *file_p)
 {
-	struct commit *head_rev = NULL;
-	unsigned char sha1[20];
-	char *name = NULL;
-	const char *fmt;
-	int i;
-	int ret = 0;
-	int remote_branch = 0;
-	struct strbuf bname = STRBUF_INIT;
+	const char *cp;
+	mmfile_t file_o;
+	struct handle_split_cb_data d;
 
-	switch (kinds) {
-	case REF_REMOTE_BRANCH:
-		fmt = "refs/remotes/%s";
-		/* For subsequent UI messages */
-		remote_branch = 1;
+	memset(&d, 0, sizeof(d));
+	d.sb = sb; d.ent = ent; d.parent = parent; d.split = split;
+	/*
+	 * Prepare mmfile that contains only the lines in ent.
+	 */
+	cp = nth_line(sb, ent->lno);
+	file_o.ptr = (char *) cp;
+	file_o.size = nth_line(sb, ent->lno + ent->num_lines) - cp;
 
-		force = 1;
-		break;
-	case REF_LOCAL_BRANCH:
-		fmt = "refs/heads/%s";
-		break;
-	default:
-		die(_("cannot use -a with -d"));
-	}
-
-	if (!force) {
-		head_rev = lookup_commit_reference(head_sha1);
-		if (!head_rev)
-			die(_("Couldn't look up commit object for HEAD"));
-	}
-	for (i = 0; i < argc; i++, strbuf_release(&bname)) {
-		const char *target;
-		int flags = 0;
-
-		strbuf_branchname(&bname, argv[i]);
-		if (kinds == REF_LOCAL_BRANCH && !strcmp(head, bname.buf)) {
-			error(_("Cannot delete the branch '%s' "
-			      "which you are currently on."), bname.buf);
-			ret = 1;
-			continue;
-		}
-
-		free(name);
-
-		name = mkpathdup(fmt, bname.buf);
-		target = resolve_ref_unsafe(name, sha1, 0, &flags);
-		if (!target ||
-		    (!(flags & REF_ISSYMREF) && is_null_sha1(sha1))) {
-			error(remote_branch
-			      ? _("remote branch '%s' not found.")
-			      : _("branch '%s' not found."), bname.buf);
-			ret = 1;
-			continue;
-		}
-
-		if (!(flags & REF_ISSYMREF) &&
-		    check_branch_commit(bname.buf, name, sha1, head_rev, kinds,
-					force)) {
-			ret = 1;
-			continue;
-		}
-
-		if (delete_ref(name, sha1, REF_NODEREF)) {
-			error(remote_branch
-			      ? _("Error deleting remote branch '%s'")
-			      : _("Error deleting branch '%s'"),
-			      bname.buf);
-			ret = 1;
-			continue;
-		}
-		if (!quiet) {
-			printf(remote_branch
-			       ? _("Deleted remote branch %s (was %s).\n")
-			       : _("Deleted branch %s (was %s).\n"),
-			       bname.buf,
-			       (flags & REF_ISSYMREF)
-			       ? target
-			       : find_unique_abbrev(sha1, DEFAULT_ABBREV));
-		}
-		delete_branch_config(bname.buf);
-	}
-
-	free(name);
-
-	return(ret);
+	/*
+	 * file_o is a part of final image we are annotating.
+	 * file_p partially may match that image.
+	 */
+	memset(split, 0, sizeof(struct blame_entry [3]));
+	if (diff_hunks(file_p, &file_o, 1, handle_split_cb, &d))
+		die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));
+	/* remainder, if any, all match the preimage */
+	handle_split(sb, ent, d.tlno, d.plno, ent->num_lines, parent, split);
 }

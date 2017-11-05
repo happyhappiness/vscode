@@ -1,4 +1,2 @@
-apr_file_printf(errfile, "total size was %d.%d%c, total size now "
-                              "%d.%d%c" APR_EOL_STR,
-                     (int)(total), (int)(tfrag), ttype, (int)(sum),
-                     (int)(sfrag), stype);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+            "access to %s failed, reason: no authenticated user", r->uri);

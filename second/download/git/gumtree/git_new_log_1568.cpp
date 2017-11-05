@@ -1,1 +1,2 @@
-die(_("unable to parse command-line config"));
+error_buf(err, _("no such branch: '%s'"),
+					 branch->name);

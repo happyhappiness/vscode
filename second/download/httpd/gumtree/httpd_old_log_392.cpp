@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                                 r->server,
-                                 "cache: nonconditional - fudge conditional "
-                                 "by etag");
+printf("Total:      " CONF_FMT_STRING,
+		   mintot, (int) (total + 0.5), sdtot, meantot, maxtot);

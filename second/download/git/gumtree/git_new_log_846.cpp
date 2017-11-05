@@ -1,1 +1,1 @@
-fprintf(stderr, "Executing: %s\n", command_line);
+die("unable to create lazy_dir_thread");

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf, APLOGNO(00396)
-                     "Parent: Unable to retrieve the start mutex for the child");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
+                                  "h2_from_h1(%d): trailers filter, saving trailers",
+                                  from_h1->stream_id);

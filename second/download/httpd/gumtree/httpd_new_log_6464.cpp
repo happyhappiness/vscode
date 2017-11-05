@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                      APLOGNO(02942) 
-                      "h2_task, unsupported READ mode %d", mode);
+ap_rvputs(r, "      <httpd:lbmethod>", balancer->lbmethod->name,
+                      "</httpd:lbmethod>\n", NULL);

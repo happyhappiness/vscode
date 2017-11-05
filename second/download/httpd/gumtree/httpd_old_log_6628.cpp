@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn, APLOGNO()
-                      "h2_request(%d): access_status=%d, request_create failed",
-                      req->id, access_status);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01857)
+                      "query execution error updating session '%s' "
+                      "using database query '%s': %s", key, conf->updatelabel,
+                      apr_dbd_error(dbd->driver, dbd->handle, rv));

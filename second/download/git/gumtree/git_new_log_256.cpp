@@ -1,0 +1,1 @@
+die(_("please supply the note contents using either -m or -F option"));

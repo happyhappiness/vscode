@@ -1,45 +1,32 @@
-static void suggest_reattach(struct commit *commit, struct rev_info *revs)
+static int write_ref_to_lockfile(struct ref_lock *lock,
+				 const unsigned char *sha1)
 {
-	struct commit *c, *last = NULL;
-	struct strbuf sb = STRBUF_INIT;
-	int lost = 0;
-	while ((c = get_revision(revs)) != NULL) {
-		if (lost < ORPHAN_CUTOFF)
-			describe_one_orphan(&sb, c);
-		last = c;
-		lost++;
-	}
-	if (ORPHAN_CUTOFF < lost) {
-		int more = lost - ORPHAN_CUTOFF;
-		if (more == 1)
-			describe_one_orphan(&sb, last);
-		else
-			strbuf_addf(&sb, _(" ... and %d more.\n"), more);
-	}
+	static char term = '\n';
+	struct object *o;
 
-	fprintf(stderr,
-		Q_(
-		/* The singular version */
-		"Warning: you are leaving %d commit behind, "
-		"not connected to\n"
-		"any of your branches:\n\n"
-		"%s\n",
-		/* The plural version */
-		"Warning: you are leaving %d commits behind, "
-		"not connected to\n"
-		"any of your branches:\n\n"
-		"%s\n",
-		/* Give ngettext() the count */
-		lost),
-		lost,
-		sb.buf);
-	strbuf_release(&sb);
-
-	if (advice_detached_head)
-		fprintf(stderr,
-			_(
-			"If you want to keep them by creating a new branch, "
-			"this may be a good time\nto do so with:\n\n"
-			" git branch new_branch_name %s\n\n"),
-			find_unique_abbrev(commit->object.sha1, DEFAULT_ABBREV));
+	o = parse_object(sha1);
+	if (!o) {
+		error("Trying to write ref %s with nonexistent object %s",
+			lock->ref_name, sha1_to_hex(sha1));
+		unlock_ref(lock);
+		errno = EINVAL;
+		return -1;
+	}
+	if (o->type != OBJ_COMMIT && is_branch(lock->ref_name)) {
+		error("Trying to write non-commit object %s to branch %s",
+			sha1_to_hex(sha1), lock->ref_name);
+		unlock_ref(lock);
+		errno = EINVAL;
+		return -1;
+	}
+	if (write_in_full(lock->lk->fd, sha1_to_hex(sha1), 40) != 40 ||
+	    write_in_full(lock->lk->fd, &term, 1) != 1 ||
+	    close_ref(lock) < 0) {
+		int save_errno = errno;
+		error("Couldn't write %s", lock->lk->filename.buf);
+		unlock_ref(lock);
+		errno = save_errno;
+		return -1;
+	}
+	return 0;
 }

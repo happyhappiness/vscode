@@ -1,26 +1,15 @@
-static APR_INLINE int re_check(include_ctx_t *ctx, const char *string,
-                               const char *rexp)
-{
-    ap_regex_t *compiled;
-    backref_t *re = ctx->intern->re;
-
-    compiled = ap_pregcomp(ctx->dpool, rexp, AP_REG_EXTENDED);
-    if (!compiled) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, "unable to "
-                      "compile pattern \"%s\"", rexp);
-        return -1;
+static void cleanup_zombies(h2_workers *workers, int lock) {
+    if (lock) {
+        apr_thread_mutex_lock(workers->lock);
     }
-
-    if (!re) {
-        re = ctx->intern->re = apr_palloc(ctx->pool, sizeof(*re));
+    while (!H2_WORKER_LIST_EMPTY(&workers->zombies)) {
+        h2_worker *zombie = H2_WORKER_LIST_FIRST(&workers->zombies);
+        H2_WORKER_REMOVE(zombie);
+        ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                      "h2_workers: cleanup zombie %d", zombie->id);
+        h2_worker_destroy(zombie);
     }
-
-    re->source = apr_pstrdup(ctx->pool, string);
-    re->rexp = apr_pstrdup(ctx->pool, rexp);
-    re->nsub = compiled->re_nsub;
-    re->have_match = !ap_regexec(compiled, string, AP_MAX_REG_MATCH,
-                                 re->match, 0);
-
-    ap_pregfree(ctx->dpool, compiled);
-    return re->have_match;
+    if (lock) {
+        apr_thread_mutex_unlock(workers->lock);
+    }
 }

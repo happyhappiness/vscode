@@ -1,1 +1,1 @@
-fprintf(stderr, "Too many boundaries to handle\n");
+fputs(pp->children[i].err.buf, stderr);

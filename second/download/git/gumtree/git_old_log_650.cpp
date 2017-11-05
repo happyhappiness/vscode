@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+error(_("no commits parsed."));

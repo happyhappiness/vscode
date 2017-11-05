@@ -1,1 +1,0 @@
-die("Option '--stat-count' requires a value");

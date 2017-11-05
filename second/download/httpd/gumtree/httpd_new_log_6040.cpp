@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
-                      "h2_push_diary_digest_get: golomb compressed hashes, %d bytes",
-                      (int)encoder.offset + 1);
+ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
+                      task->id, len? buffer : line);

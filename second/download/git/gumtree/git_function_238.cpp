@@ -1,29 +1,15 @@
-static void gitdiff_verify_name(struct apply_state *state,
-				const char *line,
-				int isnull,
-				char **name,
-				int side)
+static void use(int bytes)
 {
-	if (!*name && !isnull) {
-		*name = find_name(state, line, NULL, state->p_value, TERM_TAB);
-		return;
-	}
+	if (bytes > input_len)
+		die(_("used more bytes than were available"));
+	input_crc32 = crc32(input_crc32, input_buffer + input_offset, bytes);
+	input_len -= bytes;
+	input_offset += bytes;
 
-	if (*name) {
-		int len = strlen(*name);
-		char *another;
-		if (isnull)
-			die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"),
-			    *name, state->linenr);
-		another = find_name(state, line, NULL, state->p_value, TERM_TAB);
-		if (!another || memcmp(another, *name, len + 1))
-			die((side == DIFF_NEW_NAME) ?
-			    _("git apply: bad git-diff - inconsistent new filename on line %d") :
-			    _("git apply: bad git-diff - inconsistent old filename on line %d"), state->linenr);
-		free(another);
-	} else {
-		/* expect "/dev/null" */
-		if (memcmp("/dev/null", line, 9) || line[9] != '\n')
-			die(_("git apply: bad git-diff - expected /dev/null on line %d"), state->linenr);
-	}
+	/* make sure off_t is sufficiently large not to wrap */
+	if (signed_add_overflows(consumed_bytes, bytes))
+		die(_("pack too large for current definition of off_t"));
+	consumed_bytes += bytes;
+	if (max_input_size && consumed_bytes > max_input_size)
+		die(_("pack exceeds maximum allowed size"));
 }

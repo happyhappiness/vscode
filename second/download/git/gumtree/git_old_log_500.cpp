@@ -1,1 +1,4 @@
-error("cannot fork to run external filter %s", params->cmd);
+print_ref_status('*',
+			(starts_with(ref->name, "refs/tags/") ? "[new tag]" :
+			"[new branch]"),
+			ref, ref->peer_ref, NULL, porcelain);

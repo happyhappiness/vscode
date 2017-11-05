@@ -1,2 +1,1 @@
-die ("Could not find author in commit %s",
-		     sha1_to_hex(commit->object.sha1));
+warning("accept failed: %s", strerror(errno));

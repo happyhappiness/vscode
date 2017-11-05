@@ -1,51 +1,35 @@
-const char *read_gitfile(const char *path)
+int set_worktree_head_symref(const char *gitdir, const char *target)
 {
-	char *buf;
-	char *dir;
-	const char *slash;
-	struct stat st;
-	int fd;
-	ssize_t len;
+	static struct lock_file head_lock;
+	struct ref_lock *lock;
+	struct strbuf head_path = STRBUF_INIT;
+	const char *head_rel;
+	int ret;
 
-	if (stat(path, &st))
-		return NULL;
-	if (!S_ISREG(st.st_mode))
-		return NULL;
-	fd = open(path, O_RDONLY);
-	if (fd < 0)
-		die_errno("Error opening '%s'", path);
-	buf = xmalloc(st.st_size + 1);
-	len = read_in_full(fd, buf, st.st_size);
-	close(fd);
-	if (len != st.st_size)
-		die("Error reading %s", path);
-	buf[len] = '\0';
-	if (!starts_with(buf, "gitdir: "))
-		die("Invalid gitfile format: %s", path);
-	while (buf[len - 1] == '\n' || buf[len - 1] == '\r')
-		len--;
-	if (len < 9)
-		die("No path in gitfile: %s", path);
-	buf[len] = '\0';
-	dir = buf + 8;
-
-	if (!is_absolute_path(dir) && (slash = strrchr(path, '/'))) {
-		size_t pathlen = slash+1 - path;
-		size_t dirlen = pathlen + len - 8;
-		dir = xmalloc(dirlen + 1);
-		strncpy(dir, path, pathlen);
-		strncpy(dir + pathlen, buf + 8, len - 8);
-		dir[dirlen] = '\0';
-		free(buf);
-		buf = dir;
+	strbuf_addf(&head_path, "%s/HEAD", absolute_path(gitdir));
+	if (hold_lock_file_for_update(&head_lock, head_path.buf,
+				      LOCK_NO_DEREF) < 0) {
+		struct strbuf err = STRBUF_INIT;
+		unable_to_lock_message(head_path.buf, errno, &err);
+		error("%s", err.buf);
+		strbuf_release(&err);
+		strbuf_release(&head_path);
+		return -1;
 	}
 
-	if (!is_git_directory(dir))
-		die("Not a git repository: %s", dir);
+	/* head_rel will be "HEAD" for the main tree, "worktrees/wt/HEAD" for
+	   linked trees */
+	head_rel = remove_leading_path(head_path.buf,
+				       absolute_path(get_git_common_dir()));
+	/* to make use of create_symref_locked(), initialize ref_lock */
+	lock = xcalloc(1, sizeof(struct ref_lock));
+	lock->lk = &head_lock;
+	lock->ref_name = xstrdup(head_rel);
+	lock->orig_ref_name = xstrdup(head_rel);
 
-	update_linked_gitdir(path, dir);
-	path = real_path(dir);
+	ret = create_symref_locked(lock, head_rel, target, NULL);
 
-	free(buf);
-	return path;
+	unlock_ref(lock); /* will free lock */
+	strbuf_release(&head_path);
+	return ret;
 }

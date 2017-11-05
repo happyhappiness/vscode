@@ -1,2 +1,3 @@
-fprintf(stderr, _("Can not do reflog for '%s'\n"),
-					    opts->new_orphan_branch);
+error("Unable to determine requirements "
+		     "of type %s for %s",
+		     typename(obj->type), sha1_to_hex(obj->sha1));

@@ -1,15 +1,8 @@
-static void prepare_revs(struct replay_opts *opts)
+void relocate_gitdir(const char *path, const char *old_git_dir, const char *new_git_dir)
 {
-	/*
-	 * picking (but not reverting) ranges (but not individual revisions)
-	 * should be done in reverse
-	 */
-	if (opts->action == REPLAY_PICK && !opts->revs->no_walk)
-		opts->revs->reverse ^= 1;
+	if (rename(old_git_dir, new_git_dir) < 0)
+		die_errno(_("could not migrate git directory from '%s' to '%s'"),
+			old_git_dir, new_git_dir);
 
-	if (prepare_revision_walk(opts->revs))
-		die(_("revision walk setup failed"));
-
-	if (!opts->revs->commits)
-		die(_("empty commit set passed"));
+	connect_work_tree_and_git_dir(path, new_git_dir);
 }

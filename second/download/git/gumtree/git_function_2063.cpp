@@ -1,31 +1,23 @@
-static void check_good_are_ancestors_of_bad(const char *prefix, int no_checkout)
+static int parse_push_recurse(const char *opt, const char *arg,
+			       int die_on_error)
 {
-	char *filename = git_pathdup("BISECT_ANCESTORS_OK");
-	struct stat st;
-	int fd;
-
-	if (!current_bad_oid)
-		die("a bad revision is needed");
-
-	/* Check if file BISECT_ANCESTORS_OK exists. */
-	if (!stat(filename, &st) && S_ISREG(st.st_mode))
-		goto done;
-
-	/* Bisecting with no good rev is ok. */
-	if (good_revs.nr == 0)
-		goto done;
-
-	/* Check if all good revs are ancestor of the bad rev. */
-	if (check_ancestors(prefix))
-		check_merge_bases(no_checkout);
-
-	/* Create file BISECT_ANCESTORS_OK. */
-	fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0600);
-	if (fd < 0)
-		warning("could not create file '%s': %s",
-			filename, strerror(errno));
-	else
-		close(fd);
- done:
-	free(filename);
+	switch (git_config_maybe_bool(opt, arg)) {
+	case 1:
+		/* There's no simple "on" value when pushing */
+		if (die_on_error)
+			die("bad %s argument: %s", opt, arg);
+		else
+			return RECURSE_SUBMODULES_ERROR;
+	case 0:
+		return RECURSE_SUBMODULES_OFF;
+	default:
+		if (!strcmp(arg, "on-demand"))
+			return RECURSE_SUBMODULES_ON_DEMAND;
+		else if (!strcmp(arg, "check"))
+			return RECURSE_SUBMODULES_CHECK;
+		else if (die_on_error)
+			die("bad %s argument: %s", opt, arg);
+		else
+			return RECURSE_SUBMODULES_ERROR;
+	}
 }

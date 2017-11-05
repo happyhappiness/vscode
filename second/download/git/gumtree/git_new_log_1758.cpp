@@ -1,0 +1,1 @@
+die("Could not create directory %s", git_path_rr_cache());

@@ -1,3 +1,1 @@
-die("cannot simplify commit %s (invalid %s)",
-					    oid_to_hex(&commit->object.oid),
-					    oid_to_hex(&p->object.oid));
+not_found(hdr, "Cannot open '%s': %s", p, strerror(errno));

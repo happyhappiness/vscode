@@ -1,2 +1,2 @@
-error(_("git %s: failed to read the index"),
-			_(action_name(opts)));
+die(_("Pathspec '%s' is in submodule '%.*s'"),
+			    item->original, ce_len, ce->name);

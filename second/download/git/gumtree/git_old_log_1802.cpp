@@ -1,1 +1,4 @@
-error("reading from trailer command '%s' failed", cp->argv[0]);
+status_printf_ln(s, color,
+					 _("You are currently rebasing branch '%s' on '%s'."),
+					 state->branch,
+					 state->onto);

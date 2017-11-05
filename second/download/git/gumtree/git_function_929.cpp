@@ -1,64 +1,44 @@
-static int git_config_parse_key_1(const char *key, char **store_key, int *baselen_, int quiet)
+static void get_commit_info(struct am_state *state, struct commit *commit)
 {
-	int i, dot, baselen;
-	const char *last_dot = strrchr(key, '.');
+	const char *buffer, *ident_line, *author_date, *msg;
+	size_t ident_len;
+	struct ident_split ident_split;
+	struct strbuf sb = STRBUF_INIT;
 
-	/*
-	 * Since "key" actually contains the section name and the real
-	 * key name separated by a dot, we have to know where the dot is.
-	 */
+	buffer = logmsg_reencode(commit, NULL, get_commit_output_encoding());
 
-	if (last_dot == NULL || last_dot == key) {
-		if (!quiet)
-			error("key does not contain a section: %s", key);
-		return -CONFIG_NO_SECTION_OR_NAME;
+	ident_line = find_commit_header(buffer, "author", &ident_len);
+
+	if (split_ident_line(&ident_split, ident_line, ident_len) < 0) {
+		strbuf_add(&sb, ident_line, ident_len);
+		die(_("invalid ident line: %s"), sb.buf);
 	}
 
-	if (!last_dot[1]) {
-		if (!quiet)
-			error("key does not contain variable name: %s", key);
-		return -CONFIG_NO_SECTION_OR_NAME;
-	}
+	assert(!state->author_name);
+	if (ident_split.name_begin) {
+		strbuf_add(&sb, ident_split.name_begin,
+			ident_split.name_end - ident_split.name_begin);
+		state->author_name = strbuf_detach(&sb, NULL);
+	} else
+		state->author_name = xstrdup("");
 
-	baselen = last_dot - key;
-	if (baselen_)
-		*baselen_ = baselen;
+	assert(!state->author_email);
+	if (ident_split.mail_begin) {
+		strbuf_add(&sb, ident_split.mail_begin,
+			ident_split.mail_end - ident_split.mail_begin);
+		state->author_email = strbuf_detach(&sb, NULL);
+	} else
+		state->author_email = xstrdup("");
 
-	/*
-	 * Validate the key and while at it, lower case it for matching.
-	 */
-	if (store_key)
-		*store_key = xmallocz(strlen(key));
+	author_date = show_ident_date(&ident_split, DATE_MODE(NORMAL));
+	strbuf_addstr(&sb, author_date);
+	assert(!state->author_date);
+	state->author_date = strbuf_detach(&sb, NULL);
 
-	dot = 0;
-	for (i = 0; key[i]; i++) {
-		unsigned char c = key[i];
-		if (c == '.')
-			dot = 1;
-		/* Leave the extended basename untouched.. */
-		if (!dot || i > baselen) {
-			if (!iskeychar(c) ||
-			    (i == baselen + 1 && !isalpha(c))) {
-				if (!quiet)
-					error("invalid key: %s", key);
-				goto out_free_ret_1;
-			}
-			c = tolower(c);
-		} else if (c == '\n') {
-			if (!quiet)
-				error("invalid key (newline): %s", key);
-			goto out_free_ret_1;
-		}
-		if (store_key)
-			(*store_key)[i] = c;
-	}
-
-	return 0;
-
-out_free_ret_1:
-	if (store_key) {
-		free(*store_key);
-		*store_key = NULL;
-	}
-	return -CONFIG_INVALID_KEY;
+	assert(!state->msg);
+	msg = strstr(buffer, "\n\n");
+	if (!msg)
+		die(_("unable to parse commit %s"), oid_to_hex(&commit->object.oid));
+	state->msg = xstrdup(msg + 2);
+	state->msg_len = strlen(state->msg);
 }

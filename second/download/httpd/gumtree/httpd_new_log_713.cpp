@@ -1,1 +1,2 @@
-ap_rputs(" -D APR_USE_FCNTL_SERIALIZE\n", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, err, r->server,
+                         "proxy: lock");

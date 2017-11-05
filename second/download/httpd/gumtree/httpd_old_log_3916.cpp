@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r,
-                          "util_ldap: Failed to create memory pool");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "proxy: FTP: an error occurred creating a new connection to %pI (%s)",
+                     connect_addr, connectname);

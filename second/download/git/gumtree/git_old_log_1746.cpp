@@ -1,2 +1,2 @@
-die("unable to generate diff (%s)",
-		    sha1_to_hex(parent->commit->object.sha1));
+error("Trying to write ref %s with nonexistent object %s",
+			lock->ref_name, sha1_to_hex(sha1));

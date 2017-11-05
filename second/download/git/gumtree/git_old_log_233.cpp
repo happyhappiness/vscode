@@ -1,2 +1,2 @@
-warning(_("Cannot prepare timestamp regexp %s"),
-				stamp_regexp);
+error("cannot overwrite multiple values with a single value\n"
+			"       Use a regexp, --add or --replace-all to change %s.", argv[0]);

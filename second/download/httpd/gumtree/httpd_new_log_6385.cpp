@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, m->c,
-                  "h2_mplx(%s): close", task->id);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, APLOGNO(01576)
+                 "loaded file %s", used_file);

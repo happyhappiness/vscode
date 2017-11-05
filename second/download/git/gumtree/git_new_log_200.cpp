@@ -1,1 +1,1 @@
-fprintf(file, "\nbase-commit: %s\n", oid_to_hex(&bases->base_commit));
+die("no such commit %s", oid_to_hex(oid));

@@ -1,1 +1,2 @@
-die(_("positive value expected contents:lines=%s"), valp);
+printf(" (%s) in %s\n", tag->tag,
+				describe_object(&tag->object));

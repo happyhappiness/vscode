@@ -1,1 +1,3 @@
-die(_("'%s' is already checked out at '%s'"), new->name, gitdir.buf);
+die(_("No tags can describe '%s'.\n"
+			    "Try --always, or create some tags."),
+			    oid_to_hex(oid));

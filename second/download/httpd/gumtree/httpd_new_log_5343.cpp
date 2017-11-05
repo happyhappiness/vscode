@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, level, rv, ap_server_conf, APLOGNO(00272)
-                     "apr_proc_mutex_%s failed "
-                     "before this child process served any requests.",
-                     func);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
+                          "h2_h2, processing request directly");

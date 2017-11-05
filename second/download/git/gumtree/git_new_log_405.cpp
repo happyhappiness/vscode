@@ -1,1 +1,1 @@
-die (_("--subject-prefix/--rfc and -k are mutually exclusive."));
+warning(_("Delegation control is not supported with cURL < 7.22.0"));

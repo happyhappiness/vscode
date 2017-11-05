@@ -1,1 +1,2 @@
-die("unexpected character after quoted argument: %s", orig);
+error("chmod on %s failed: %s",
+				lock->filename, strerror(errno));

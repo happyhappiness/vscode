@@ -1,42 +1,31 @@
-static apr_status_t read_chunked_trailers(http_ctx_t *ctx, ap_filter_t *f,
-                                          apr_bucket_brigade *b, int merge)
+apr_status_t h2_workers_register(h2_workers *workers, struct h2_mplx *m)
 {
-    int rv;
-    apr_bucket *e;
-    request_rec *r = f->r;
-    apr_table_t *saved_headers_in = r->headers_in;
-    int saved_status = r->status;
-
-    r->status = HTTP_OK;
-    r->headers_in = r->trailers_in;
-    apr_table_clear(r->headers_in);
-    ctx->state = BODY_NONE;
-    ap_get_mime_headers(r);
-
-    if(r->status == HTTP_OK) {
-        r->status = saved_status;
-        e = apr_bucket_eos_create(f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(b, e);
-        ctx->eos_sent = 1;
-        rv = APR_SUCCESS;
+    apr_status_t status = apr_thread_mutex_lock(workers->lock);
+    if (status == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_TRACE2, status, workers->s,
+                     "h2_workers: register mplx(%ld)", m->id);
+        if (in_list(workers, m)) {
+            status = APR_EAGAIN;
+        }
+        else {
+            H2_MPLX_LIST_INSERT_TAIL(&workers->mplxs, m);
+            status = APR_SUCCESS;
+        }
+        
+        if (workers->idle_worker_count > 0) { 
+            apr_thread_cond_signal(workers->mplx_added);
+        }
+        else if (workers->worker_count < workers->max_size) {
+            ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                         "h2_workers: got %d worker, adding 1", 
+                         workers->worker_count);
+            add_worker(workers);
+        }
+        
+        /* cleanup any zombie workers that may have accumulated */
+        cleanup_zombies(workers, 0);
+        
+        apr_thread_mutex_unlock(workers->lock);
     }
-    else {
-        const char *error_notes = apr_table_get(r->notes,
-                                                "error-notes");
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, 
-                      "Error while reading HTTP trailer: %i%s%s",
-                      r->status, error_notes ? ": " : "",
-                      error_notes ? error_notes : "");
-        rv = APR_EINVAL;
-    }
-
-    if(!merge) {
-        r->headers_in = saved_headers_in;
-    }
-    else {
-        r->headers_in = apr_table_overlay(r->pool, saved_headers_in,
-                r->trailers_in);
-    }
-
-    return rv;
+    return status;
 }

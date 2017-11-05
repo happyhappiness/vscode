@@ -1,8 +1,8 @@
-void *xmmap(void *start, size_t length,
-	int prot, int flags, int fd, off_t offset)
+static char *pack_bitmap_filename(struct packed_git *p)
 {
-	void *ret = xmmap_gently(start, length, prot, flags, fd, offset);
-	if (ret == MAP_FAILED)
-		die_errno("mmap failed");
-	return ret;
+	size_t len;
+
+	if (!strip_suffix(p->pack_name, ".pack", &len))
+		die("BUG: pack_name does not end in .pack");
+	return xstrfmt("%.*s.bitmap", (int)len, p->pack_name);
 }

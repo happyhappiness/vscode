@@ -1,1 +1,1 @@
-die(_("object %s not found"), oid_to_hex(&ref->new_oid));
+error_errno(_("failed writing detached signature to '%s'"), path);

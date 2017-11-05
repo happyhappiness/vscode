@@ -1,9 +1,13 @@
-int git_config_get_pathname(const char *key, const char **dest)
+static const char *tracking_for_push_dest(struct remote *remote,
+					  const char *refname,
+					  struct strbuf *err)
 {
-	int ret;
-	git_config_check_init();
-	ret = git_configset_get_pathname(&the_config_set, key, dest);
-	if (ret < 0)
-		git_die_config(key, NULL);
+	char *ret;
+
+	ret = apply_refspecs(remote->fetch, remote->fetch_refspec_nr, refname);
+	if (!ret)
+		return error_buf(err,
+				 _("push destination '%s' on remote '%s' has no local tracking branch"),
+				 refname, remote->name);
 	return ret;
 }

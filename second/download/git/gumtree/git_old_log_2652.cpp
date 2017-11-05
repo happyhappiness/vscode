@@ -1,2 +1,1 @@
-die(_("Could not set core.worktree in %s"),
-		    file_name.buf);
+error(_("cannot read object %s"), sha1_to_hex(sha1));

@@ -1,2 +1,2 @@
-error(_("no note found for object %s."),
-			       oid_to_hex(&object));
+error("Unable to commit marks file %s: %s",
+			export_marks_file, strerror(errno));

@@ -1,1 +1,4 @@
-report_invalid_attr(name, namelen, src, lineno);
+fprintf_ln(stderr,
+				   _("Continuing under the assumption that "
+				     "you meant '%s'."),
+				   assumed);

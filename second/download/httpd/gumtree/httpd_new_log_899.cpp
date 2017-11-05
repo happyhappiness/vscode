@@ -1,2 +1,2 @@
-printf("%sdebug: state %d, reading %d (%s)\n",
-                    YYPREFIX, ssl_expr_yystate, ssl_expr_yychar, ssl_expr_yys);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf,
+           "caught " AP_SIG_GRACEFUL_STOP_STRING ", shutting down gracefully");

@@ -1,1 +1,1 @@
-printf_ln(_("Patch is empty."));
+die("HEAD does not match the named branch in the superproject");

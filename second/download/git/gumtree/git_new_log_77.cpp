@@ -1,2 +1,2 @@
-warning(_("unsupported sort specification '%s' in variable '%s'"),
-				var, arg);
+warning("%s %s: missing <newvalue>, treating as zero",
+				command, refname);

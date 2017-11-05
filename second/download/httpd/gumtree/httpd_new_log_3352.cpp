@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL, APLOGNO(02166)
-                         "Can't chroot to %s", ap_unixd_config.chroot_dir);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01272)
+                              "execution failure for parameter \"%s\" "
+                              "to tag exec in file %s", tag, r->filename);

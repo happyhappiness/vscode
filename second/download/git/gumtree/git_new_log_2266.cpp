@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", one->path);
+die(_("base commit shouldn't be in revision list"));

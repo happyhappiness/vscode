@@ -1,50 +1,50 @@
-int ssl_stapling_init_cert(server_rec *s, modssl_ctx_t *mctx, X509 *x)
+static int lua_websocket_ping(lua_State *L) 
 {
-    certinfo *cinf;
-    X509 *issuer = NULL;
-    STACK_OF(OPENSSL_STRING) *aia = NULL;
-
-    if (x == NULL)
-        return 0;
-    cinf  = X509_get_ex_data(x, stapling_ex_idx);
-    if (cinf) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02215)
-                     "ssl_stapling_init_cert: certificate already initialized!");
-        return 0;
+    apr_socket_t *sock;
+    apr_size_t plen;
+    char prelude[2];
+    apr_status_t rv;
+    request_rec *r = ap_lua_check_request_rec(L, 1);
+    sock = ap_get_conn_socket(r->connection);
+    
+    /* Send a header that says: PING. */
+    prelude[0] = 0x89; /* ping  opcode */
+    prelude[1] = 0;
+    plen = 2;
+    apr_socket_send(sock, prelude, &plen);
+    
+    
+    /* Get opcode and FIN bit from pong */
+    plen = 2;
+    rv = apr_socket_recv(sock, prelude, &plen);
+    if (rv == APR_SUCCESS) {
+        unsigned char opcode = prelude[0];
+        unsigned char len = prelude[1];
+        unsigned char mask = len >> 7;
+        if (mask) len -= 128;
+        plen = len;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                        "Websocket: Got PONG opcode: %x", opcode);
+        if (opcode == 0x8A) {
+            lua_pushboolean(L, 1);
+        }
+        else {
+            lua_pushboolean(L, 0);
+        }
+        if (plen > 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                        "Websocket: Reading %" APR_SIZE_T_FMT " bytes of PONG", plen);
+            return 1;
+        }
+        if (mask) {
+            plen = 2;
+            apr_socket_recv(sock, prelude, &plen);
+            plen = 2;
+            apr_socket_recv(sock, prelude, &plen);
+        }
     }
-    cinf = OPENSSL_malloc(sizeof(certinfo));
-    if (!cinf) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02216)
-                     "ssl_stapling_init_cert: error allocating memory!");
-        return 0;
-    }
-    cinf->cid = NULL;
-    cinf->uri = NULL;
-    X509_set_ex_data(x, stapling_ex_idx, cinf);
-
-    issuer = stapling_get_issuer(mctx, x);
-
-    if (issuer == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02217)
-                     "ssl_stapling_init_cert: Can't retrieve issuer certificate!");
-        return 0;
-    }
-
-    cinf->cid = OCSP_cert_to_id(NULL, x, issuer);
-    X509_free(issuer);
-    if (!cinf->cid)
-        return 0;
-    X509_digest(x, EVP_sha1(), cinf->idx, NULL);
-
-    aia = X509_get1_ocsp(x);
-    if (aia) {
-        cinf->uri = sk_OPENSSL_STRING_pop(aia);
-        X509_email_free(aia);
-    }
-    if (!cinf->uri && !mctx->stapling_force_url) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02218)
-                     "ssl_stapling_init_cert: no responder URL");
-        return 0;
+    else {
+        lua_pushboolean(L, 0);
     }
     return 1;
 }

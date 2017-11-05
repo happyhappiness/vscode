@@ -1,1 +1,2 @@
-die("bad tree object %s", sha1_to_hex(obj->sha1));
+error(_("corrupt binary patch at line %d: %.*s"),
+	      linenr-1, llen-1, buffer);

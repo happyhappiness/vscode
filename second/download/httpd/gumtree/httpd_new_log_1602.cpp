@@ -1,3 +1,1 @@
-ap_rvputs(r, "<li><a href=\"", anchor, "\"> ",
-                      ap_escape_html(scratch, t2),
-                      "</a></li>\n", NULL);
+ap_rvputs(r, "  <h1 id=\"indextitle\">Index of ", title, "</h1>\n", NULL);

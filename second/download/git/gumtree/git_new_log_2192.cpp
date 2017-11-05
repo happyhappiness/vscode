@@ -1,1 +1,1 @@
-die("BUG: commit called for transaction that is not open");
+die("--resolve-git-dir requires an argument");

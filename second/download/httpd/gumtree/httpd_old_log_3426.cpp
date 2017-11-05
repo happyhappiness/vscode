@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
-                        "Adding CACHE_REMOVE_URL filter for %s",
-                        r->uri);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "LDAP: Unable to add rebind cross reference entry. Out of memory?");

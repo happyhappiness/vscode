@@ -1,1 +1,1 @@
-die (_("BUG: returned path string doesn't match cwd?"));
+die("strange port '%s' blocked", port);

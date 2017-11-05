@@ -1,1 +1,4 @@
-fprintf(f, "%3d-", i-8);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                    "ajp_marshal_into_msgb: "
+                    "Error appending attribute %s=%s",
+                    key, val);

@@ -1,29 +1,27 @@
-int expand_ref(const char *str, int len, unsigned char *sha1, char **ref)
+void ref_transaction_free(struct ref_transaction *transaction)
 {
-	const char **p, *r;
-	int refs_found = 0;
+	size_t i;
 
-	*ref = NULL;
-	for (p = ref_rev_parse_rules; *p; p++) {
-		char fullref[PATH_MAX];
-		unsigned char sha1_from_ref[20];
-		unsigned char *this_result;
-		int flag;
+	if (!transaction)
+		return;
 
-		this_result = refs_found ? sha1_from_ref : sha1;
-		mksnpath(fullref, sizeof(fullref), *p, len, str);
-		r = resolve_ref_unsafe(fullref, RESOLVE_REF_READING,
-				       this_result, &flag);
-		if (r) {
-			if (!refs_found++)
-				*ref = xstrdup(r);
-			if (!warn_ambiguous_refs)
-				break;
-		} else if ((flag & REF_ISSYMREF) && strcmp(fullref, "HEAD")) {
-			warning("ignoring dangling symref %s.", fullref);
-		} else if ((flag & REF_ISBROKEN) && strchr(fullref, '/')) {
-			warning("ignoring broken ref %s.", fullref);
-		}
+	switch (transaction->state) {
+	case REF_TRANSACTION_OPEN:
+	case REF_TRANSACTION_CLOSED:
+		/* OK */
+		break;
+	case REF_TRANSACTION_PREPARED:
+		die("BUG: free called on a prepared reference transaction");
+		break;
+	default:
+		die("BUG: unexpected reference transaction state");
+		break;
 	}
-	return refs_found;
+
+	for (i = 0; i < transaction->nr; i++) {
+		free(transaction->updates[i]->msg);
+		free(transaction->updates[i]);
+	}
+	free(transaction->updates);
+	free(transaction);
 }

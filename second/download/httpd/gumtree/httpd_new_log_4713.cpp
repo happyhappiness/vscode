@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(02005)
-                              "SSL Proxy: Peer certificate CN mismatch:"
-                              " Certificate CN: %s Requested hostname: %s",
-                              hostname, hostname_note);
+ap_log_error(APLOG_MARK, APLOG_EMERG, apr_get_os_error(), ap_server_conf, APLOGNO(00383)
+                     "SetEvent on %s event", signal_name);

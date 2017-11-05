@@ -1,1 +1,1 @@
-packet_write_fmt(1, "ERR %s: %s", msg, dir);
+warning("%s unexpectedly said: '%s'", data->name, buf->buf);

@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn, APLOGNO(02037)
-                      "Certificate Verification: Verifiable Issuer is "
-                      "configured as optional, therefore we're accepting "
-                      "the certificate");
+ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00430)
+                             "Parent: Child process exited successfully.");

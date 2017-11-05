@@ -1,1 +1,0 @@
-die("Can't load object %s", sha1_to_hex(sha1));

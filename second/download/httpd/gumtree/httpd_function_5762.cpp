@@ -1,63 +1,64 @@
-static int prefork_open_logs(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp, server_rec *s)
+static authz_status
+forward_dns_check_authorization(request_rec *r,
+                                const char *require_line,
+                                const void *parsed_require_line)
 {
-    int startup = 0;
-    int level_flags = 0;
-    ap_listen_rec **listen_buckets;
-    apr_status_t rv;
-    char id[16];
-    int i;
+    const char *err = NULL;
+    const ap_expr_info_t *expr = parsed_require_line;
+    const char *require, *t;
+    char *w;
 
-    pconf = p;
-
-    /* the reverse of pre_config, we want this only the first time around */
-    if (retained->module_loads == 1) {
-        startup = 1;
-        level_flags |= APLOG_STARTUP;
+    /* the require line is an expression, which is evaluated now. */
+    require = ap_expr_str_exec(r, expr, &err);
+    if (err) {
+      ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03354)
+                    "Can't evaluate require expression: %s", err);
+      return AUTHZ_DENIED;
     }
 
-    if ((num_listensocks = ap_setup_listeners(ap_server_conf)) < 1) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT | level_flags, 0,
-                     (startup ? NULL : s),
-                     "no listening sockets available, shutting down");
-        return DONE;
-    }
+    /* tokenize expected list of names */
+    t = require;
+    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
 
-    if (one_process) {
-        num_buckets = 1;
-    }
-    else if (!retained->is_graceful) { /* Preserve the number of buckets
-                                          on graceful restarts. */
-        num_buckets = 0;
-    }
-    if ((rv = ap_duplicate_listeners(pconf, ap_server_conf,
-                                     &listen_buckets, &num_buckets))) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                     (startup ? NULL : s),
-                     "could not duplicate listeners");
-        return DONE;
-    }
-    all_buckets = apr_pcalloc(pconf, num_buckets *
-                                     sizeof(prefork_child_bucket));
-    for (i = 0; i < num_buckets; i++) {
-        if (!one_process && /* no POD in one_process mode */
-                (rv = ap_mpm_pod_open(pconf, &all_buckets[i].pod))) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                         (startup ? NULL : s),
-                         "could not open pipe-of-death");
-            return DONE;
+        apr_sockaddr_t *sa;
+        apr_status_t rv;
+        char *hash_ptr;
+
+        /* stop on apache configuration file comments */
+        if ((hash_ptr = ap_strchr(w, '#'))) {
+            if (hash_ptr == w) {
+                break;
+            }
+            *hash_ptr = '\0';
         }
-        /* Initialize cross-process accept lock (safe accept needed only) */
-        if ((rv = SAFE_ACCEPT((apr_snprintf(id, sizeof id, "%i", i),
-                               ap_proc_mutex_create(&all_buckets[i].mutex,
-                                                    NULL, AP_ACCEPT_MUTEX_TYPE,
-                                                    id, s, pconf, 0))))) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                         (startup ? NULL : s),
-                         "could not create accept mutex");
-            return DONE;
+
+        /* does the client ip match one of the names? */
+        rv = apr_sockaddr_info_get(&sa, w, APR_UNSPEC, 0, 0, r->pool);
+        if (rv == APR_SUCCESS) {
+
+            while (sa) {
+                int match = apr_sockaddr_equal(sa, r->useragent_addr);
+
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03355)
+                              "access check for %s as '%s': %s",
+                              r->useragent_ip, w, match? "yes": "no");
+                if (match) {
+                    return AUTHZ_GRANTED;
+                }
+
+                sa = sa->next;
+            }
         }
-        all_buckets[i].listeners = listen_buckets[i];
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(03356)
+                          "No sockaddr info for \"%s\"", w);
+        }
+
+        /* stop processing, we are in a comment */
+        if (hash_ptr) {
+            break;
+        }
     }
 
-    return OK;
+    return AUTHZ_DENIED;
 }

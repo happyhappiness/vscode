@@ -1,1 +1,1 @@
-error("unknown hint type for '%s': %s", var, value);
+fprintf(stderr, "Executing: %s\n", command_line);

@@ -1,1 +1,1 @@
-die("BUG: error while iterating over references");
+die("BUG: ref_update_reject_duplicates() received unsorted list");

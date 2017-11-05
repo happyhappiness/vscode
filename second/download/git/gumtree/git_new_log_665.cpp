@@ -1,1 +1,4 @@
-packet_write_fmt(fd, "shallow %s\n", oid_to_hex(&graft->oid));
+printf(_("Applying autostash resulted in conflicts.\n"
+				"Your changes are safe in the stash.\n"
+				"You can run \"git stash pop\" or"
+				" \"git stash drop\" at any time.\n"));

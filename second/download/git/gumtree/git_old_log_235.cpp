@@ -1,1 +1,0 @@
-die(_("unable to find filename in patch at line %d"), state->linenr);

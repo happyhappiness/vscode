@@ -1,6 +1,6 @@
-ap_log_error( APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03090)
-                 "mod_http2 (v%s, feats=%s%s%s, nghttp2 %s), initializing...",
-                 MOD_HTTP2_VERSION, 
-                 myfeats.change_prio? "CHPRIO" : "", sep, 
-                 myfeats.sha256?      "SHA256" : "",
-                 ngh2?                ngh2->version_str : "unknown");
+ap_rvputs(r, "<tr>\n<td><a href=\"",
+                          ap_escape_uri(r->pool, r->uri), "?b=",
+                          balancer->s->name + sizeof(BALANCER_PREFIX) - 1, "&w=",
+                          ap_escape_uri(r->pool, worker->s->name),
+                          "&nonce=", balancer->s->nonce,
+                          "\">", NULL);

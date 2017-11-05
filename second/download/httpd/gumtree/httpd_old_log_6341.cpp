@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00116)
-                             "Discarding unrecognized directive `%s' in AllowOverrideList.",
-                             argv[i]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03265)
+                 "watchdog callback registered (%s)", HCHECK_WATHCHDOG_NAME);

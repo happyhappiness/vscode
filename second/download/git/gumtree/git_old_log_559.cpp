@@ -1,1 +1,0 @@
-fprintf(stderr, "Server supports side-band-64k\n");

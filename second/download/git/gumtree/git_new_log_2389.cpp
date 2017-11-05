@@ -1,1 +1,1 @@
-printf("%s\n", oid_to_hex(&bases->item->object.oid));
+die(_("invalid value for %s"), var);

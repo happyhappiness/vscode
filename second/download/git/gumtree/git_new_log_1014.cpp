@@ -1,1 +1,2 @@
-die("unable to get object type for %s", oid_to_hex(&old));
+die("unable to read %s",
+		    oid_to_hex(&entry->delta->idx.oid));

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, r->server,
-			 "proxy: No HTTP headers "
-			 "returned by %s (%s)", r->uri, r->method);
+ap_log_error(APLOG_MARK, APLOG_INFO, outctx->rc, c->base_server,
+                         "SSL library error %d writing data", ssl_err);

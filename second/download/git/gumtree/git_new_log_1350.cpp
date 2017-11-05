@@ -1,1 +1,1 @@
-die("Can't load object %s", oid_to_hex(oid));
+error("%s", err.buf);

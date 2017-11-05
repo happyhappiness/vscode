@@ -1,1 +1,0 @@
-strbuf_addstr(err, _("empty filename in tree entry"));

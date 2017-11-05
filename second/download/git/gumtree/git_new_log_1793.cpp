@@ -1,2 +1,1 @@
-error("couldn't write %s",
-					lock->lk->filename.buf);
+die("helper %s does not support --signed=if-asked", name);

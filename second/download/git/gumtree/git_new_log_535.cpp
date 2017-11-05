@@ -1,1 +1,1 @@
-die(_("object not found: %s"), line);
+argv_array_pushf(&av, "--max-age=%lu", deepen_since);

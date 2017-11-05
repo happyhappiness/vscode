@@ -1,3 +1,2 @@
-printf("%s%s %s%s", c_reset,
-						    c_context, c_reset,
-						    c_func);
+fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit),
+		      stdout);

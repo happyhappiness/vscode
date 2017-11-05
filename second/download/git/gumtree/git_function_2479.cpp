@@ -1,315 +1,168 @@
-int main(int argc, char **argv)
+int cmd_apply(int argc, const char **argv, const char *prefix_)
 {
-	struct transfer_request *request;
-	struct transfer_request *next_request;
-	int nr_refspec = 0;
-	char **refspec = NULL;
-	struct remote_lock *ref_lock = NULL;
-	struct remote_lock *info_ref_lock = NULL;
-	struct rev_info revs;
-	int delete_branch = 0;
-	int force_delete = 0;
-	int objects_to_send;
-	int rc = 0;
 	int i;
-	int new_refs;
-	struct ref *ref, *local_refs;
+	int errs = 0;
+	int is_not_gitdir = !startup_info->have_repository;
+	int force_apply = 0;
 
-	git_setup_gettext();
+	const char *whitespace_option = NULL;
 
-	git_extract_argv0_path(argv[0]);
+	struct option builtin_apply_options[] = {
+		{ OPTION_CALLBACK, 0, "exclude", NULL, N_("path"),
+			N_("don't apply changes matching the given path"),
+			0, option_parse_exclude },
+		{ OPTION_CALLBACK, 0, "include", NULL, N_("path"),
+			N_("apply changes matching the given path"),
+			0, option_parse_include },
+		{ OPTION_CALLBACK, 'p', NULL, NULL, N_("num"),
+			N_("remove <num> leading slashes from traditional diff paths"),
+			0, option_parse_p },
+		OPT_BOOL(0, "no-add", &no_add,
+			N_("ignore additions made by the patch")),
+		OPT_BOOL(0, "stat", &diffstat,
+			N_("instead of applying the patch, output diffstat for the input")),
+		OPT_NOOP_NOARG(0, "allow-binary-replacement"),
+		OPT_NOOP_NOARG(0, "binary"),
+		OPT_BOOL(0, "numstat", &numstat,
+			N_("show number of added and deleted lines in decimal notation")),
+		OPT_BOOL(0, "summary", &summary,
+			N_("instead of applying the patch, output a summary for the input")),
+		OPT_BOOL(0, "check", &check,
+			N_("instead of applying the patch, see if the patch is applicable")),
+		OPT_BOOL(0, "index", &check_index,
+			N_("make sure the patch is applicable to the current index")),
+		OPT_BOOL(0, "cached", &cached,
+			N_("apply a patch without touching the working tree")),
+		OPT_BOOL(0, "unsafe-paths", &unsafe_paths,
+			N_("accept a patch that touches outside the working area")),
+		OPT_BOOL(0, "apply", &force_apply,
+			N_("also apply the patch (use with --stat/--summary/--check)")),
+		OPT_BOOL('3', "3way", &threeway,
+			 N_( "attempt three-way merge if a patch does not apply")),
+		OPT_FILENAME(0, "build-fake-ancestor", &fake_ancestor,
+			N_("build a temporary index based on embedded index information")),
+		/* Think twice before adding "--nul" synonym to this */
+		OPT_SET_INT('z', NULL, &line_termination,
+			N_("paths are separated with NUL character"), '\0'),
+		OPT_INTEGER('C', NULL, &p_context,
+				N_("ensure at least <n> lines of context match")),
+		{ OPTION_CALLBACK, 0, "whitespace", &whitespace_option, N_("action"),
+			N_("detect new or modified lines that have whitespace errors"),
+			0, option_parse_whitespace },
+		{ OPTION_CALLBACK, 0, "ignore-space-change", NULL, NULL,
+			N_("ignore changes in whitespace when finding context"),
+			PARSE_OPT_NOARG, option_parse_space_change },
+		{ OPTION_CALLBACK, 0, "ignore-whitespace", NULL, NULL,
+			N_("ignore changes in whitespace when finding context"),
+			PARSE_OPT_NOARG, option_parse_space_change },
+		OPT_BOOL('R', "reverse", &apply_in_reverse,
+			N_("apply the patch in reverse")),
+		OPT_BOOL(0, "unidiff-zero", &unidiff_zero,
+			N_("don't expect at least one line of context")),
+		OPT_BOOL(0, "reject", &apply_with_reject,
+			N_("leave the rejected hunks in corresponding *.rej files")),
+		OPT_BOOL(0, "allow-overlap", &allow_overlap,
+			N_("allow overlapping hunks")),
+		OPT__VERBOSE(&apply_verbosely, N_("be verbose")),
+		OPT_BIT(0, "inaccurate-eof", &options,
+			N_("tolerate incorrectly detected missing new-line at the end of file"),
+			INACCURATE_EOF),
+		OPT_BIT(0, "recount", &options,
+			N_("do not trust the line counts in the hunk headers"),
+			RECOUNT),
+		{ OPTION_CALLBACK, 0, "directory", NULL, N_("root"),
+			N_("prepend <root> to all filenames"),
+			0, option_parse_directory },
+		OPT_END()
+	};
 
-	repo = xcalloc(1, sizeof(*repo));
+	prefix = prefix_;
+	prefix_length = prefix ? strlen(prefix) : 0;
+	git_apply_config();
+	if (apply_default_whitespace)
+		parse_whitespace_option(apply_default_whitespace);
+	if (apply_default_ignorewhitespace)
+		parse_ignorewhitespace_option(apply_default_ignorewhitespace);
 
-	argv++;
-	for (i = 1; i < argc; i++, argv++) {
-		char *arg = *argv;
+	argc = parse_options(argc, argv, prefix, builtin_apply_options,
+			apply_usage, 0);
 
-		if (*arg == '-') {
-			if (!strcmp(arg, "--all")) {
-				push_all = MATCH_REFS_ALL;
-				continue;
-			}
-			if (!strcmp(arg, "--force")) {
-				force_all = 1;
-				continue;
-			}
-			if (!strcmp(arg, "--dry-run")) {
-				dry_run = 1;
-				continue;
-			}
-			if (!strcmp(arg, "--helper-status")) {
-				helper_status = 1;
-				continue;
-			}
-			if (!strcmp(arg, "--verbose")) {
-				push_verbosely = 1;
-				http_is_verbose = 1;
-				continue;
-			}
-			if (!strcmp(arg, "-d")) {
-				delete_branch = 1;
-				continue;
-			}
-			if (!strcmp(arg, "-D")) {
-				delete_branch = 1;
-				force_delete = 1;
-				continue;
-			}
-			if (!strcmp(arg, "-h"))
-				usage(http_push_usage);
-		}
-		if (!repo->url) {
-			char *path = strstr(arg, "//");
-			str_end_url_with_slash(arg, &repo->url);
-			repo->path_len = strlen(repo->url);
-			if (path) {
-				repo->path = strchr(path+2, '/');
-				if (repo->path)
-					repo->path_len = strlen(repo->path);
-			}
+	if (apply_with_reject && threeway)
+		die("--reject and --3way cannot be used together.");
+	if (cached && threeway)
+		die("--cached and --3way cannot be used together.");
+	if (threeway) {
+		if (is_not_gitdir)
+			die(_("--3way outside a repository"));
+		check_index = 1;
+	}
+	if (apply_with_reject)
+		apply = apply_verbosely = 1;
+	if (!force_apply && (diffstat || numstat || summary || check || fake_ancestor))
+		apply = 0;
+	if (check_index && is_not_gitdir)
+		die(_("--index outside a repository"));
+	if (cached) {
+		if (is_not_gitdir)
+			die(_("--cached outside a repository"));
+		check_index = 1;
+	}
+	if (check_index)
+		unsafe_paths = 0;
+
+	for (i = 0; i < argc; i++) {
+		const char *arg = argv[i];
+		int fd;
+
+		if (!strcmp(arg, "-")) {
+			errs |= apply_patch(0, "<stdin>", options);
+			read_stdin = 0;
 			continue;
+		} else if (0 < prefix_length)
+			arg = prefix_filename(prefix, prefix_length, arg);
+
+		fd = open(arg, O_RDONLY);
+		if (fd < 0)
+			die_errno(_("can't open patch '%s'"), arg);
+		read_stdin = 0;
+		set_default_whitespace_mode(whitespace_option);
+		errs |= apply_patch(fd, arg, options);
+		close(fd);
+	}
+	set_default_whitespace_mode(whitespace_option);
+	if (read_stdin)
+		errs |= apply_patch(0, "<stdin>", options);
+	if (whitespace_error) {
+		if (squelch_whitespace_errors &&
+		    squelch_whitespace_errors < whitespace_error) {
+			int squelched =
+				whitespace_error - squelch_whitespace_errors;
+			warning(Q_("squelched %d whitespace error",
+				   "squelched %d whitespace errors",
+				   squelched),
+				squelched);
 		}
-		refspec = argv;
-		nr_refspec = argc - i;
-		break;
+		if (ws_error_action == die_on_ws_error)
+			die(Q_("%d line adds whitespace errors.",
+			       "%d lines add whitespace errors.",
+			       whitespace_error),
+			    whitespace_error);
+		if (applied_after_fixing_ws && apply)
+			warning("%d line%s applied after"
+				" fixing whitespace errors.",
+				applied_after_fixing_ws,
+				applied_after_fixing_ws == 1 ? "" : "s");
+		else if (whitespace_error)
+			warning(Q_("%d line adds whitespace errors.",
+				   "%d lines add whitespace errors.",
+				   whitespace_error),
+				whitespace_error);
 	}
 
-#ifndef USE_CURL_MULTI
-	die("git-push is not available for http/https repository when not compiled with USE_CURL_MULTI");
-#endif
-
-	if (!repo->url)
-		usage(http_push_usage);
-
-	if (delete_branch && nr_refspec != 1)
-		die("You must specify only one branch name when deleting a remote branch");
-
-	setup_git_directory();
-
-	memset(remote_dir_exists, -1, 256);
-
-	http_init(NULL, repo->url, 1);
-
-#ifdef USE_CURL_MULTI
-	is_running_queue = 0;
-#endif
-
-	/* Verify DAV compliance/lock support */
-	if (!locking_available()) {
-		rc = 1;
-		goto cleanup;
+	if (update_index) {
+		if (write_locked_index(&the_index, &lock_file, COMMIT_LOCK))
+			die(_("Unable to write new index file"));
 	}
 
-	sigchain_push_common(remove_locks_on_signal);
-
-	/* Check whether the remote has server info files */
-	repo->can_update_info_refs = 0;
-	repo->has_info_refs = remote_exists("info/refs");
-	repo->has_info_packs = remote_exists("objects/info/packs");
-	if (repo->has_info_refs) {
-		info_ref_lock = lock_remote("info/refs", LOCK_TIME);
-		if (info_ref_lock)
-			repo->can_update_info_refs = 1;
-		else {
-			error("cannot lock existing info/refs");
-			rc = 1;
-			goto cleanup;
-		}
-	}
-	if (repo->has_info_packs)
-		fetch_indices();
-
-	/* Get a list of all local and remote heads to validate refspecs */
-	local_refs = get_local_heads();
-	fprintf(stderr, "Fetching remote heads...\n");
-	get_dav_remote_heads();
-	run_request_queue();
-
-	/* Remove a remote branch if -d or -D was specified */
-	if (delete_branch) {
-		if (delete_remote_branch(refspec[0], force_delete) == -1) {
-			fprintf(stderr, "Unable to delete remote branch %s\n",
-				refspec[0]);
-			if (helper_status)
-				printf("error %s cannot remove\n", refspec[0]);
-		}
-		goto cleanup;
-	}
-
-	/* match them up */
-	if (match_push_refs(local_refs, &remote_refs,
-			    nr_refspec, (const char **) refspec, push_all)) {
-		rc = -1;
-		goto cleanup;
-	}
-	if (!remote_refs) {
-		fprintf(stderr, "No refs in common and none specified; doing nothing.\n");
-		if (helper_status)
-			printf("error null no match\n");
-		rc = 0;
-		goto cleanup;
-	}
-
-	new_refs = 0;
-	for (ref = remote_refs; ref; ref = ref->next) {
-		char old_hex[60], *new_hex;
-		const char *commit_argv[5];
-		int commit_argc;
-		char *new_sha1_hex, *old_sha1_hex;
-
-		if (!ref->peer_ref)
-			continue;
-
-		if (is_null_sha1(ref->peer_ref->new_sha1)) {
-			if (delete_remote_branch(ref->name, 1) == -1) {
-				error("Could not remove %s", ref->name);
-				if (helper_status)
-					printf("error %s cannot remove\n", ref->name);
-				rc = -4;
-			}
-			else if (helper_status)
-				printf("ok %s\n", ref->name);
-			new_refs++;
-			continue;
-		}
-
-		if (!hashcmp(ref->old_sha1, ref->peer_ref->new_sha1)) {
-			if (push_verbosely)
-				fprintf(stderr, "'%s': up-to-date\n", ref->name);
-			if (helper_status)
-				printf("ok %s up to date\n", ref->name);
-			continue;
-		}
-
-		if (!force_all &&
-		    !is_null_sha1(ref->old_sha1) &&
-		    !ref->force) {
-			if (!has_sha1_file(ref->old_sha1) ||
-			    !ref_newer(ref->peer_ref->new_sha1,
-				       ref->old_sha1)) {
-				/*
-				 * We do not have the remote ref, or
-				 * we know that the remote ref is not
-				 * an ancestor of what we are trying to
-				 * push.  Either way this can be losing
-				 * commits at the remote end and likely
-				 * we were not up to date to begin with.
-				 */
-				error("remote '%s' is not an ancestor of\n"
-				      "local '%s'.\n"
-				      "Maybe you are not up-to-date and "
-				      "need to pull first?",
-				      ref->name,
-				      ref->peer_ref->name);
-				if (helper_status)
-					printf("error %s non-fast forward\n", ref->name);
-				rc = -2;
-				continue;
-			}
-		}
-		hashcpy(ref->new_sha1, ref->peer_ref->new_sha1);
-		new_refs++;
-		strcpy(old_hex, sha1_to_hex(ref->old_sha1));
-		new_hex = sha1_to_hex(ref->new_sha1);
-
-		fprintf(stderr, "updating '%s'", ref->name);
-		if (strcmp(ref->name, ref->peer_ref->name))
-			fprintf(stderr, " using '%s'", ref->peer_ref->name);
-		fprintf(stderr, "\n  from %s\n  to   %s\n", old_hex, new_hex);
-		if (dry_run) {
-			if (helper_status)
-				printf("ok %s\n", ref->name);
-			continue;
-		}
-
-		/* Lock remote branch ref */
-		ref_lock = lock_remote(ref->name, LOCK_TIME);
-		if (ref_lock == NULL) {
-			fprintf(stderr, "Unable to lock remote branch %s\n",
-				ref->name);
-			if (helper_status)
-				printf("error %s lock error\n", ref->name);
-			rc = 1;
-			continue;
-		}
-
-		/* Set up revision info for this refspec */
-		commit_argc = 3;
-		new_sha1_hex = xstrdup(sha1_to_hex(ref->new_sha1));
-		old_sha1_hex = NULL;
-		commit_argv[1] = "--objects";
-		commit_argv[2] = new_sha1_hex;
-		if (!push_all && !is_null_sha1(ref->old_sha1)) {
-			old_sha1_hex = xmalloc(42);
-			sprintf(old_sha1_hex, "^%s",
-				sha1_to_hex(ref->old_sha1));
-			commit_argv[3] = old_sha1_hex;
-			commit_argc++;
-		}
-		commit_argv[commit_argc] = NULL;
-		init_revisions(&revs, setup_git_directory());
-		setup_revisions(commit_argc, commit_argv, &revs, NULL);
-		revs.edge_hint = 0; /* just in case */
-		free(new_sha1_hex);
-		if (old_sha1_hex) {
-			free(old_sha1_hex);
-			commit_argv[1] = NULL;
-		}
-
-		/* Generate a list of objects that need to be pushed */
-		pushing = 0;
-		if (prepare_revision_walk(&revs))
-			die("revision walk setup failed");
-		mark_edges_uninteresting(&revs, NULL);
-		objects_to_send = get_delta(&revs, ref_lock);
-		finish_all_active_slots();
-
-		/* Push missing objects to remote, this would be a
-		   convenient time to pack them first if appropriate. */
-		pushing = 1;
-		if (objects_to_send)
-			fprintf(stderr, "    sending %d objects\n",
-				objects_to_send);
-
-		run_request_queue();
-
-		/* Update the remote branch if all went well */
-		if (aborted || !update_remote(ref->new_sha1, ref_lock))
-			rc = 1;
-
-		if (!rc)
-			fprintf(stderr, "    done\n");
-		if (helper_status)
-			printf("%s %s\n", !rc ? "ok" : "error", ref->name);
-		unlock_remote(ref_lock);
-		check_locks();
-	}
-
-	/* Update remote server info if appropriate */
-	if (repo->has_info_refs && new_refs) {
-		if (info_ref_lock && repo->can_update_info_refs) {
-			fprintf(stderr, "Updating remote server info\n");
-			if (!dry_run)
-				update_remote_info_refs(info_ref_lock);
-		} else {
-			fprintf(stderr, "Unable to update server info\n");
-		}
-	}
-
- cleanup:
-	if (info_ref_lock)
-		unlock_remote(info_ref_lock);
-	free(repo);
-
-	http_cleanup();
-
-	request = request_queue_head;
-	while (request != NULL) {
-		next_request = request->next;
-		release_request(request);
-		request = next_request;
-	}
-
-	return rc;
+	return !!errs;
 }

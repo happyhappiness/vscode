@@ -1,86 +1,93 @@
-static int stapling_cb(SSL *ssl, void *arg)
+static int winnt_check_config(apr_pool_t *pconf, apr_pool_t *plog,
+                              apr_pool_t *ptemp, server_rec* s)
 {
-    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
-    server_rec *s       = mySrvFromConn(conn);
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-    SSLConnRec *sslconn = myConnConfig(conn);
-    modssl_ctx_t *mctx  = myCtxConfig(sslconn, sc);
-    certinfo *cinf = NULL;
-    OCSP_RESPONSE *rsp = NULL;
-    int rv;
+    int is_parent;
+    int startup = 0;
 
-    if (sc->server->stapling_enabled != TRUE) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01950)
-                     "stapling_cb: OCSP Stapling disabled");
-        return SSL_TLSEXT_ERR_NOACK;
+    /* We want this only in the parent and only the first time around */
+    is_parent = (parent_pid == my_pid);
+    if (is_parent &&
+        ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG) {
+        startup = 1;
     }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01951)
-                 "stapling_cb: OCSP Stapling callback called");
-
-    cinf = stapling_get_certinfo(s, mctx, ssl);
-    if (cinf == NULL) {
-        return SSL_TLSEXT_ERR_NOACK;
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01952)
-                 "stapling_cb: retrieved cached certificate data");
-
-    rv = get_and_check_cached_response(s, mctx, &rsp, cinf, conn->pool);
-    if (rv != 0) {
-        return rv;
-    }
-
-    if (rsp == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01954)
-                     "stapling_cb: renewing cached response");
-        stapling_refresh_mutex_on(s);
-        /* Maybe another request refreshed the OCSP response while this
-         * thread waited for the mutex.  Check again.
-         */
-        rv = get_and_check_cached_response(s, mctx, &rsp, cinf, conn->pool);
-        if (rv != 0) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "stapling_cb: error checking for cached response "
-                         "after obtaining refresh mutex");
-            stapling_refresh_mutex_off(s);
-            return rv;
+    if (thread_limit > MAX_THREAD_LIMIT) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00439)
+                         "WARNING: ThreadLimit of %d exceeds compile-time "
+                         "limit of", thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00440)
+                         "ThreadLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         thread_limit, MAX_THREAD_LIMIT);
         }
-        else if (rsp) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "stapling_cb: don't need to refresh cached response "
-                         "after obtaining refresh mutex");
-            stapling_refresh_mutex_off(s);
+        thread_limit = MAX_THREAD_LIMIT;
+    }
+    else if (thread_limit < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00441)
+                         "WARNING: ThreadLimit of %d not allowed, "
+                         "increasing to 1.", thread_limit);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00442)
+                         "ThreadLimit of %d not allowed, increasing to 1",
+                         thread_limit);
         }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "stapling_cb: still must refresh cached response "
-                         "after obtaining refresh mutex");
-            rv = stapling_renew_response(s, mctx, ssl, cinf, &rsp, conn->pool);
-            stapling_refresh_mutex_off(s);
-
-            if (rv == TRUE) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                             "stapling_cb: success renewing response");
-            }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01955)
-                             "stapling_cb: fatal error renewing response");
-                return SSL_TLSEXT_ERR_ALERT_FATAL;
-            }
-        }
+        thread_limit = 1;
     }
 
-    if (rsp) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01956)
-                     "stapling_cb: setting response");
-        if (!stapling_set_response(ssl, rsp))
-            return SSL_TLSEXT_ERR_ALERT_FATAL;
-        return SSL_TLSEXT_ERR_OK;
+    /* You cannot change ThreadLimit across a restart; ignore
+     * any such attempts.
+     */
+    if (!first_thread_limit) {
+        first_thread_limit = thread_limit;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01957)
-                 "stapling_cb: no response available");
+    else if (thread_limit != first_thread_limit) {
+        /* Don't need a startup console version here */
+        if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00443)
+                         "changing ThreadLimit to %d from original value "
+                         "of %d not allowed during restart",
+                         thread_limit, first_thread_limit);
+        }
+        thread_limit = first_thread_limit;
+    }
 
-    return SSL_TLSEXT_ERR_NOACK;
+    if (ap_threads_per_child > thread_limit) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00444)
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of", ap_threads_per_child);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " %d threads, decreasing to %d.",
+                         thread_limit, thread_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " To increase, please see the ThreadLimit "
+                         "directive.");
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00445)
+                         "ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of %d, decreasing to match",
+                         ap_threads_per_child, thread_limit);
+        }
+        ap_threads_per_child = thread_limit;
+    }
+    else if (ap_threads_per_child < 1) {
+        if (startup) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00446)
+                         "WARNING: ThreadsPerChild of %d not allowed, "
+                         "increasing to 1.", ap_threads_per_child);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00447)
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         ap_threads_per_child);
+        }
+        ap_threads_per_child = 1;
+    }
 
+    return OK;
 }

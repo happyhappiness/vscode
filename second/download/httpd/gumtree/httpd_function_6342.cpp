@@ -1,53 +1,55 @@
-static const char *set_override_list(cmd_parms *cmd, void *d_, int argc, char *const argv[])
+static int hc_post_config(apr_pool_t *p, apr_pool_t *plog,
+                       apr_pool_t *ptemp, server_rec *main_s)
 {
-    core_dir_config *d = d_;
-    int i;
-    const char *err;
+    apr_status_t rv;
+    server_rec *s = main_s;
 
-    /* Throw a warning if we're in <Location> or <Files> */
-    if (ap_check_cmd_context(cmd, NOT_IN_LOCATION | NOT_IN_FILES)) {
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00115)
-                     "Useless use of AllowOverrideList at %s:%d",
-                     cmd->directive->filename, cmd->directive->line_num);
+    APR_OPTIONAL_FN_TYPE(ap_watchdog_get_instance) *hc_watchdog_get_instance;
+    APR_OPTIONAL_FN_TYPE(ap_watchdog_register_callback) *hc_watchdog_register_callback;
+
+    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG) {
+        return OK;
     }
-    if ((err = ap_check_cmd_context(cmd, NOT_IN_HTACCESS)) != NULL)
-        return err;
-
-    d->override_list = apr_table_make(cmd->pool, argc);
-
-    for (i=0;i<argc;i++){
-        if (!strcasecmp(argv[i], "None")) {
-            if (argc != 1) {
-                return "'None' not allowed with other directives in "
-                       "AllowOverrideList";
-            }
-            return NULL;
-        }
-        else {
-            const command_rec *result = NULL;
-            module *mod = ap_top_module;
-            result = ap_find_command_in_modules(argv[i], &mod);
-            if (result == NULL) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                             APLOGNO(00116) "Discarding unrecognized "
-                             "directive `%s' in AllowOverrideList at %s:%d",
-                             argv[i], cmd->directive->filename,
-                             cmd->directive->line_num);
-                continue;
-            }
-            else if ((result->req_override & (OR_ALL|ACCESS_CONF)) == 0) {
-                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                             APLOGNO(02304) "Discarding directive `%s' not "
-                             "allowed in AllowOverrideList at %s:%d",
-                             argv[i], cmd->directive->filename,
-                             cmd->directive->line_num);
-                continue;
-            }
-            else {
-                apr_table_set(d->override_list, argv[i], "1");
-            }
-        }
+    hc_watchdog_get_instance = APR_RETRIEVE_OPTIONAL_FN(ap_watchdog_get_instance);
+    hc_watchdog_register_callback = APR_RETRIEVE_OPTIONAL_FN(ap_watchdog_register_callback);
+    if (!hc_watchdog_get_instance || !hc_watchdog_register_callback) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(03262)
+                     "mod_watchdog is required");
+        return !OK;
     }
+    rv = hc_watchdog_get_instance(&watchdog,
+                                  HCHECK_WATHCHDOG_NAME,
+                                  0, 1, p);
+    if (rv) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(03263)
+                     "Failed to create watchdog instance (%s)",
+                     HCHECK_WATHCHDOG_NAME);
+        return !OK;
+    }
+    while (s) {
+        sctx_t *ctx = ap_get_module_config(s->module_config,
+                                           &proxy_hcheck_module);
 
-    return NULL;
+        if (s != ctx->s) {
+            ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, s, APLOGNO(10019)
+                         "Missing unique per-server context: %s (%pp:%pp) (no hchecks)",
+                         s->server_hostname, s, ctx->s);
+            s = s->next;
+            continue;
+        }
+        rv = hc_watchdog_register_callback(watchdog,
+                apr_time_from_sec(HCHECK_WATHCHDOG_INTERVAL),
+                ctx,
+                hc_watchdog_callback);
+        if (rv) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(03264)
+                         "Failed to register watchdog callback (%s)",
+                         HCHECK_WATHCHDOG_NAME);
+            return !OK;
+        }
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03265)
+                     "watchdog callback registered (%s for %s)", HCHECK_WATHCHDOG_NAME, s->server_hostname);
+        s = s->next;
+    }
+    return OK;
 }

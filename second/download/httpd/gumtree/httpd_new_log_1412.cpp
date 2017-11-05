@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %*s [-v] [-V] [-h] [-l] [-L] [-t] [-T] [-S]",
-                 pad_len, " ");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r,
+                      "Response header name '%s' contains invalid "
+                      "characters, aborting request",
+                      name);

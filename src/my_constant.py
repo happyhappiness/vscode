@@ -6,7 +6,7 @@
 """
 repository
 """
-REPOS = 'rsync'
+REPOS = 'git'
 """
 stroed file name prefix
 """

@@ -1,1 +1,1 @@
-die("BUG: interned attributes shouldn't be deleted");
+fprintf(stdout, "%s", item->string);

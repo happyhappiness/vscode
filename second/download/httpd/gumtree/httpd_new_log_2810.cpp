@@ -1,2 +1,2 @@
-printf("Connect:    " CONF_FMT_STRING,
-                   mincon, meancon, sdcon, mediancon, maxcon);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01668)
+                        "No group file was specified in the configuration");

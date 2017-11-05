@@ -1,1 +1,3 @@
-warning("Duplicated ref: %s", ref1->name);
+printf("\n--%s%s--\n\n\n",
+				       mime_boundary_leader,
+				       rev.mime_boundary);

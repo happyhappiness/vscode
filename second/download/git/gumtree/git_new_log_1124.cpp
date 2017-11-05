@@ -1,1 +1,1 @@
-error(_("could not stat '%s'"), todo_file);
+die("BUG: unexpected reference transaction state");

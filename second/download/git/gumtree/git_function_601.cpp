@@ -1,13 +1,40 @@
-struct ref_store *ref_store_init(const char *submodule)
+static int mark_object(struct object *obj, int type, void *data, struct fsck_options *options)
 {
-	const char *be_name = "files";
-	struct ref_storage_be *be = find_ref_storage_backend(be_name);
+	struct object *parent = data;
 
-	if (!be)
-		die("BUG: reference backend %s is unknown", be_name);
+	/*
+	 * The only case data is NULL or type is OBJ_ANY is when
+	 * mark_object_reachable() calls us.  All the callers of
+	 * that function has non-NULL obj hence ...
+	 */
+	if (!obj) {
+		/* ... these references to parent->fld are safe here */
+		printf("broken link from %7s %s\n",
+			   typename(parent->type), describe_object(parent));
+		printf("broken link from %7s %s\n",
+			   (type == OBJ_ANY ? "unknown" : typename(type)), "unknown");
+		errors_found |= ERROR_REACHABLE;
+		return 1;
+	}
 
-	if (!submodule || !*submodule)
-		return be->init(NULL);
-	else
-		return be->init(submodule);
+	if (type != OBJ_ANY && obj->type != type)
+		/* ... and the reference to parent is safe here */
+		objerror(parent, "wrong object type in link");
+
+	if (obj->flags & REACHABLE)
+		return 0;
+	obj->flags |= REACHABLE;
+	if (!(obj->flags & HAS_OBJ)) {
+		if (parent && !has_object_file(&obj->oid)) {
+			printf("broken link from %7s %s\n",
+				 typename(parent->type), describe_object(parent));
+			printf("              to %7s %s\n",
+				 typename(obj->type), describe_object(obj));
+			errors_found |= ERROR_REACHABLE;
+		}
+		return 1;
+	}
+
+	add_object_array(obj, NULL, &pending);
+	return 0;
 }

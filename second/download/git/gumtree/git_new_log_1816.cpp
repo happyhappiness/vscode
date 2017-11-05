@@ -1,3 +1,2 @@
-warning("skipping rename detection, detected"
-					" duplicate destination '%s'",
-					p->two->path);
+die("unable to generate combined diff for %s",
+		    oid_to_hex(parent));

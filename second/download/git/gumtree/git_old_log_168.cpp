@@ -1,1 +1,0 @@
-error(str, updates[i]->ref_name);

@@ -1,1 +1,1 @@
-rp_error("%s", _(refuse_unconfigured_deny_msg));
+rollback_lock_file(&index_lock);

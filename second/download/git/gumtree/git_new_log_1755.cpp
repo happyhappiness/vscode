@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+die("BUG: initial ref transaction with old_sha1 set");

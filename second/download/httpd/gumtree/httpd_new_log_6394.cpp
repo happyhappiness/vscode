@@ -1,2 +1,6 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c, APLOGNO(03394)
-                  "h2_ngn_shed(%ld): abort", shed->c->id);
+ap_rputs("<a href=\"#modules\">Loaded Modules</a>, "
+                     "<a href=\"#server\">Server Settings</a>, "
+                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
+                     "<a href=\"#request_hooks\">Request Hooks</a>, "
+                     "<a href=\"#other_hooks\">Other Hooks</a>, "
+                     "<a href=\"#providers\">Providers</a>", r);

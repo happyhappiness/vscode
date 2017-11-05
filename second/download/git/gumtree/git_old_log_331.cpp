@@ -1,2 +1,1 @@
-warning(_("truncating .rej filename to %.*s.rej"),
-			cnt - 1, patch->new_name);
+die("LF would be replaced by CRLF in %s", path);

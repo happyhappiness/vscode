@@ -1,2 +1,1 @@
-error("cannot fix permission bits on %s",
-			      lk->filename);
+error("cannot lock ref '%s'", refname);

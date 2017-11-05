@@ -1,2 +1,1 @@
-printf(" rewrite %s (%d%%)\n",
-					       p->new_name, p->score);
+die("The remote end hung up upon initial contact");

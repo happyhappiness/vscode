@@ -1,1 +1,0 @@
-printf("-- \n%s\n\n", signature);

@@ -1,17 +1,26 @@
-static int run_gpg_verify(const unsigned char *sha1, const char *buf, unsigned long size, int verbose)
+void shortlog_add_commit(struct shortlog *log, struct commit *commit)
 {
-	struct signature_check signature_check;
+	struct strbuf author = STRBUF_INIT;
+	struct strbuf oneline = STRBUF_INIT;
+	struct pretty_print_context ctx = {0};
 
-	memset(&signature_check, 0, sizeof(signature_check));
+	ctx.fmt = CMIT_FMT_USERFORMAT;
+	ctx.abbrev = log->abbrev;
+	ctx.subject = "";
+	ctx.after_subject = "";
+	ctx.date_mode.type = DATE_NORMAL;
+	ctx.output_encoding = get_log_output_encoding();
 
-	check_commit_signature(lookup_commit(sha1), &signature_check);
+	format_commit_message(commit, "%an <%ae>", &author, &ctx);
+	if (!log->summary) {
+		if (log->user_format)
+			pretty_print_commit(&ctx, commit, &oneline);
+		else
+			format_commit_message(commit, "%s", &oneline, &ctx);
+	}
 
-	if (verbose && signature_check.payload)
-		fputs(signature_check.payload, stdout);
+	insert_one_record(log, author.buf, oneline.len ? oneline.buf : "<none>");
 
-	if (signature_check.gpg_output)
-		fputs(signature_check.gpg_output, stderr);
-
-	signature_check_clear(&signature_check);
-	return signature_check.result != 'G';
+	strbuf_release(&author);
+	strbuf_release(&oneline);
 }

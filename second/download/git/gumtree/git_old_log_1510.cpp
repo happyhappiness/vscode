@@ -1,1 +1,1 @@
-die("invalid --decorate option: %s", arg);
+fprintf(stderr, "Invalid key pattern: %s\n", key_);

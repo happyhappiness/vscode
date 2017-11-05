@@ -1,2 +1,2 @@
-error("BUG: connectivity check has not been run on ref %s",
-			      cmd->ref_name);
+warning("Log for ref %s has gap after %s.",
+					cb->refname, show_date(cb->date, cb->tz, DATE_MODE(RFC2822)));

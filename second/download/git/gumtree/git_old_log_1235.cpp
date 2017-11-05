@@ -1,1 +1,1 @@
-die(_("--reverse --first-parent together require range along first-parent chain"));
+die("%s: cannot lock the ref", ref);

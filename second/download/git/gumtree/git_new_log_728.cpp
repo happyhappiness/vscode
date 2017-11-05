@@ -1,1 +1,1 @@
-die("BUG: unhandled unmerged status %x", d->stagemask);
+die(_("could not unset '%s'"), buf.buf);

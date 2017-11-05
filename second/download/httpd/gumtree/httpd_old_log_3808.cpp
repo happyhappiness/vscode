@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, stat,
-                         main_server,
-                         "Error reading request on cgid socket");
+ap_rvputs(r, "<input type=hidden name=\"nonce\" value=\"", 
+                      balancer_nonce, "\">\n", NULL);

@@ -1,2 +1,1 @@
-!DuplicateHandle(hproc, hnd, hproc, &hresult, 0, TRUE,
-			DUPLICATE_SAME_ACCESS);
+strbuf_addf(err, str, updates[i]->refname);

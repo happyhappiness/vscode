@@ -1,2 +1,1 @@
-printf("%s missing\n",
-		       obj_name ? obj_name : oid_to_hex(&data->oid));
+print_verbose(args, "have %s", sha1_to_hex(sha1));

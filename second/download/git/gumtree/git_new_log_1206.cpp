@@ -1,0 +1,1 @@
+die("BUG: couldn't parse 'reset' as a color");

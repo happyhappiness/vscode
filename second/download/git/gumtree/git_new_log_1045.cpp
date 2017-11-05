@@ -1,1 +1,1 @@
-die(_("could not create directories for %s"), gitfile_sb.buf);
+die("Timestamp before Unix epoch: %"PRItime" %04d", time, tz);

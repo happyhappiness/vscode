@@ -1,121 +1,153 @@
-static const char *mod_auth_ldap_parse_url(cmd_parms *cmd,
-                                    void *config,
-                                    const char *url,
-                                    const char *mode)
+static int master_main(server_rec *s, HANDLE shutdown_event, HANDLE restart_event)
 {
-    int rc;
-    apr_ldap_url_desc_t *urld;
-    apr_ldap_err_t *result;
+    int rv, cld;
+    int restart_pending;
+    int shutdown_pending;
+    HANDLE child_exit_event;
+    HANDLE event_handles[NUM_WAIT_HANDLES];
+    DWORD child_pid;
 
-    authn_ldap_config_t *sec = config;
+    restart_pending = shutdown_pending = 0;
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: `%s'", getpid(), url);
+    event_handles[SHUTDOWN_HANDLE] = shutdown_event;
+    event_handles[RESTART_HANDLE] = restart_event;
 
-    rc = apr_ldap_url_parse(cmd->pool, url, &(urld), &(result));
-    if (rc != APR_SUCCESS) {
-        return result->reason;
+    /* Create a single child process */
+    rv = create_process(pconf, &event_handles[CHILD_HANDLE],
+                        &child_exit_event, &child_pid);
+    if (rv < 0)
+    {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: create child process failed. Exiting.");
+        shutdown_pending = 1;
+        goto die_now;
     }
-    sec->url = apr_pstrdup(cmd->pool, url);
+    if (!strcasecmp(signal_arg, "runservice")) {
+        mpm_service_started();
+    }
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: Host: %s", getpid(), urld->lud_host);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: Port: %d", getpid(), urld->lud_port);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: DN: %s", getpid(), urld->lud_dn);
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: attrib: %s", getpid(), urld->lud_attrs? urld->lud_attrs[0] : "(null)");
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: scope: %s", getpid(),
-                 (urld->lud_scope == LDAP_SCOPE_SUBTREE? "subtree" :
-                  urld->lud_scope == LDAP_SCOPE_BASE? "base" :
-                  urld->lud_scope == LDAP_SCOPE_ONELEVEL? "onelevel" : "unknown"));
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                 cmd->server, "[%" APR_PID_T_FMT "] auth_ldap url parse: filter: %s", getpid(), urld->lud_filter);
+    /* Update the scoreboard. Note that there is only a single active
+     * child at once.
+     */
+    ap_scoreboard_image->parent[0].quiescing = 0;
+    ap_scoreboard_image->parent[0].pid = child_pid;
 
-    /* Set all the values, or at least some sane defaults */
-    if (sec->host) {
-        char *p = apr_palloc(cmd->pool, strlen(sec->host) + strlen(urld->lud_host) + 2);
-        strcpy(p, urld->lud_host);
-        strcat(p, " ");
-        strcat(p, sec->host);
-        sec->host = p;
+    /* Wait for shutdown or restart events or for child death */
+    winnt_mpm_state = AP_MPMQ_RUNNING;
+    rv = WaitForMultipleObjects(NUM_WAIT_HANDLES, (HANDLE *) event_handles, FALSE, INFINITE);
+    cld = rv - WAIT_OBJECT_0;
+    if (rv == WAIT_FAILED) {
+        /* Something serious is wrong */
+        ap_log_error(APLOG_MARK,APLOG_CRIT, apr_get_os_error(), ap_server_conf,
+                     "master_main: WaitForMultipeObjects WAIT_FAILED -- doing server shutdown");
+        shutdown_pending = 1;
+    }
+    else if (rv == WAIT_TIMEOUT) {
+        /* Hey, this cannot happen */
+        ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                     "master_main: WaitForMultipeObjects with INFINITE wait exited with WAIT_TIMEOUT");
+        shutdown_pending = 1;
+    }
+    else if (cld == SHUTDOWN_HANDLE) {
+        /* shutdown_event signalled */
+        shutdown_pending = 1;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, s,
+                     "Parent: Received shutdown signal -- Shutting down the server.");
+        if (ResetEvent(shutdown_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "ResetEvent(shutdown_event)");
+        }
+    }
+    else if (cld == RESTART_HANDLE) {
+        /* Received a restart event. Prepare the restart_event to be reused
+         * then signal the child process to exit.
+         */
+        restart_pending = 1;
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s,
+                     "Parent: Received restart signal -- Restarting the server.");
+        if (ResetEvent(restart_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: ResetEvent(restart_event) failed.");
+        }
+        if (SetEvent(child_exit_event) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), s,
+                         "Parent: SetEvent for child process %d failed.",
+                         event_handles[CHILD_HANDLE]);
+        }
+        /* Don't wait to verify that the child process really exits,
+         * just move on with the restart.
+         */
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;
     }
     else {
-        sec->host = urld->lud_host? apr_pstrdup(cmd->pool, urld->lud_host) : "localhost";
-    }
-    sec->basedn = urld->lud_dn? apr_pstrdup(cmd->pool, urld->lud_dn) : "";
-    if (urld->lud_attrs && urld->lud_attrs[0]) {
-        int i = 1;
-        while (urld->lud_attrs[i]) {
-            i++;
+        /* The child process exited prematurely due to a fatal error. */
+        DWORD exitcode;
+        if (!GetExitCodeProcess(event_handles[CHILD_HANDLE], &exitcode)) {
+            /* HUH? We did exit, didn't we? */
+            exitcode = APEXIT_CHILDFATAL;
         }
-        sec->attributes = apr_pcalloc(cmd->pool, sizeof(char *) * (i+1));
-        i = 0;
-        while (urld->lud_attrs[i]) {
-            sec->attributes[i] = apr_pstrdup(cmd->pool, urld->lud_attrs[i]);
-            i++;
-        }
-        sec->attribute = sec->attributes[0];
-    }
-    else {
-        sec->attribute = "uid";
-    }
-
-    sec->scope = urld->lud_scope == LDAP_SCOPE_ONELEVEL ?
-        LDAP_SCOPE_ONELEVEL : LDAP_SCOPE_SUBTREE;
-
-    if (urld->lud_filter) {
-        if (urld->lud_filter[0] == '(') {
-            /*
-             * Get rid of the surrounding parens; later on when generating the
-             * filter, they'll be put back.
-             */
-            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter+1);
-            sec->filter[strlen(sec->filter)-1] = '\0';
+        if (   exitcode == APEXIT_CHILDFATAL
+            || exitcode == APEXIT_CHILDINIT
+            || exitcode == APEXIT_INIT) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf,
+                         "Parent: child process exited with status %u -- Aborting.", exitcode);
+            shutdown_pending = 1;
         }
         else {
-            sec->filter = apr_pstrdup(cmd->pool, urld->lud_filter);
+            int i;
+            restart_pending = 1;
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Parent: child process exited with status %u -- Restarting.", exitcode);
+            for (i = 0; i < ap_threads_per_child; i++) {
+                ap_update_child_status_from_indexes(0, i, SERVER_DEAD, NULL);
+            }
         }
+        CloseHandle(event_handles[CHILD_HANDLE]);
+        event_handles[CHILD_HANDLE] = NULL;
     }
-    else {
-        sec->filter = "objectclass=*";
+    if (restart_pending) {
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
     }
-
-    if (mode) {
-        if (0 == strcasecmp("NONE", mode)) {
-            sec->secure = APR_LDAP_NONE;
-        }
-        else if (0 == strcasecmp("SSL", mode)) {
-            sec->secure = APR_LDAP_SSL;
-        }
-        else if (0 == strcasecmp("TLS", mode) || 0 == strcasecmp("STARTTLS", mode)) {
-            sec->secure = APR_LDAP_STARTTLS;
-        }
-        else {
-            return "Invalid LDAP connection mode setting: must be one of NONE, "
-                   "SSL, or TLS/STARTTLS";
-        }
-    }
-
-      /* "ldaps" indicates secure ldap connections desired
-      */
-    if (strncasecmp(url, "ldaps", 5) == 0)
+die_now:
+    if (shutdown_pending)
     {
-        sec->secure = APR_LDAP_SSL;
-        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                     "LDAP: auth_ldap using SSL connections");
-    }
-    else
-    {
-        sec->port = urld->lud_port? urld->lud_port : LDAP_PORT;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
-                     "LDAP: auth_ldap not using SSL connections");
-    }
+        int timeout = 30000;  /* Timeout is milliseconds */
+        winnt_mpm_state = AP_MPMQ_STOPPING;
 
-    sec->have_ldap_url = 1;
-
-    return NULL;
+        /* This shutdown is only marginally graceful. We will give the
+         * child a bit of time to exit gracefully. If the time expires,
+         * the child will be wacked.
+         */
+        if (!strcasecmp(signal_arg, "runservice")) {
+            mpm_service_stopping();
+        }
+        /* Signal the child processes to exit */
+        if (SetEvent(child_exit_event) == 0) {
+                ap_log_error(APLOG_MARK,APLOG_ERR, apr_get_os_error(), ap_server_conf,
+                             "Parent: SetEvent for child process %d failed", event_handles[CHILD_HANDLE]);
+        }
+        if (event_handles[CHILD_HANDLE]) {
+            rv = WaitForSingleObject(event_handles[CHILD_HANDLE], timeout);
+            if (rv == WAIT_OBJECT_0) {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Child process exited successfully.");
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
+            }
+            else {
+                ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                             "Parent: Forcing termination of child process %d ", event_handles[CHILD_HANDLE]);
+                TerminateProcess(event_handles[CHILD_HANDLE], 1);
+                CloseHandle(event_handles[CHILD_HANDLE]);
+                event_handles[CHILD_HANDLE] = NULL;
+            }
+        }
+        CloseHandle(child_exit_event);
+        return 0;  /* Tell the caller we do not want to restart */
+    }
+    winnt_mpm_state = AP_MPMQ_STARTING;
+    CloseHandle(child_exit_event);
+    return 1;      /* Tell the caller we want a restart */
 }

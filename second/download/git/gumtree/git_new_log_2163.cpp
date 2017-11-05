@@ -1,0 +1,1 @@
+warning(_("ignoring broken ref %s"), refname);

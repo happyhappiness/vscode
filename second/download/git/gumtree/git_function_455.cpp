@@ -1,24 +1,13 @@
-static void show_ref(const char *path, const unsigned char *sha1)
+static void read_and_refresh_cache(struct replay_opts *opts)
 {
-	if (sent_capabilities) {
-		packet_write(1, "%s %s\n", sha1_to_hex(sha1), path);
-	} else {
-		struct strbuf cap = STRBUF_INIT;
-
-		strbuf_addstr(&cap,
-			      "report-status delete-refs side-band-64k quiet");
-		if (advertise_atomic_push)
-			strbuf_addstr(&cap, " atomic");
-		if (prefer_ofs_delta)
-			strbuf_addstr(&cap, " ofs-delta");
-		if (push_cert_nonce)
-			strbuf_addf(&cap, " push-cert=%s", push_cert_nonce);
-		if (advertise_push_options)
-			strbuf_addstr(&cap, " push-options");
-		strbuf_addf(&cap, " agent=%s", git_user_agent_sanitized());
-		packet_write(1, "%s %s%c%s\n",
-			     sha1_to_hex(sha1), path, 0, cap.buf);
-		strbuf_release(&cap);
-		sent_capabilities = 1;
+	static struct lock_file index_lock;
+	int index_fd = hold_locked_index(&index_lock, 0);
+	if (read_index_preload(&the_index, NULL) < 0)
+		die(_("git %s: failed to read the index"), action_name(opts));
+	refresh_index(&the_index, REFRESH_QUIET|REFRESH_UNMERGED, NULL, NULL, NULL);
+	if (the_index.cache_changed && index_fd >= 0) {
+		if (write_locked_index(&the_index, &index_lock, COMMIT_LOCK))
+			die(_("git %s: failed to refresh the index"), action_name(opts));
 	}
+	rollback_lock_file(&index_lock);
 }

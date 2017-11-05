@@ -1,1 +1,1 @@
-die("deleting '%s' is not allowed", argv[0]);
+die("No commit to dig up from?");

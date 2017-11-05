@@ -1,3 +1,2 @@
-warning(_("core.splitIndex is set to false; "
-				  "remove or change it, if you really want to "
-				  "enable split index"));
+error("failed to read delta-pack base object %s",
+		      oid_to_hex(&base_oid));

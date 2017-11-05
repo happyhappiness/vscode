@@ -1,0 +1,1 @@
+fputs(sha1_to_hex(sha1), fh);

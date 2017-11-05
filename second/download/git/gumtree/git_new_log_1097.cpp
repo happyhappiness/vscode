@@ -1,1 +1,1 @@
-opterror(opt, "is incompatible with --merged", 0);
+error("sha1 mismatch %s", oid_to_hex(oid));

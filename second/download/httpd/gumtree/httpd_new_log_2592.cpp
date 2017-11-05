@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                                  "Zlib: %d bytes of garbage at the end of "
-                                  "compressed stream.",
-                                  ctx->stream.avail_in - VALIDATION_SIZE);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                         "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
+                         elts[i].key, elts[i].val, worker->name);

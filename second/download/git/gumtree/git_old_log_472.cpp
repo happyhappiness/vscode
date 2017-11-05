@@ -1,1 +1,1 @@
-printf("%06o %s %d\t", ce->ce_mode, sha1_to_hex(ce->sha1), ce_stage(ce));
+die(_("Error wrapping up %s."), git_path_head_file());

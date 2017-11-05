@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "LDAP: Setting referrals to %s.",
-                 ((ldc->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) ? "On" : "Off"));
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, r->server,
+                     "proxy:>FTP: %s", message);

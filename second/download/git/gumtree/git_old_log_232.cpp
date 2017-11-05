@@ -1,1 +1,1 @@
-die_errno("git apply: failed to read");
+printf("%s\n", sha1_to_hex(commit_sha1));

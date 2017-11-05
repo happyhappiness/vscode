@@ -1,1 +1,1 @@
-warning("ignoring alternate with unknown protocol: %s", url);
+error("new object is the same as the old one: '%s'", oid_to_hex(&old));

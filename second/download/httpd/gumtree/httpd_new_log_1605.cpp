@@ -1,1 +1,1 @@
-printf("Copyright 2006 The Apache Software Foundation, http://www.apache.org/\n");
+ap_rvputs(r, "</th><th", (d->style_sheet != NULL) ? " class=\"indexcolsize\">" : ">", NULL);

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                  "proxy: grabbed scoreboard slot %d in child %" APR_PID_T_FMT " for worker %s",
-                  worker->id, getpid(), worker->name);
+ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %lu: Failure releasing the start mutex", my_pid);

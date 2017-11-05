@@ -1,66 +1,23 @@
-h2_workers *h2_workers_create(server_rec *s, apr_pool_t *server_pool,
-                              int min_workers, int max_workers,
-                              apr_size_t max_tx_handles)
-{
-    apr_status_t status;
-    h2_workers *workers;
-    apr_pool_t *pool;
-
-    AP_DEBUG_ASSERT(s);
-    AP_DEBUG_ASSERT(server_pool);
-
-    /* let's have our own pool that will be parent to all h2_worker
-     * instances we create. This happens in various threads, but always
-     * guarded by our lock. Without this pool, all subpool creations would
-     * happen on the pool handed to us, which we do not guard.
-     */
-    apr_pool_create(&pool, server_pool);
-    apr_pool_tag(pool, "h2_workers");
-    workers = apr_pcalloc(pool, sizeof(h2_workers));
-    if (workers) {
-        workers->s = s;
-        workers->pool = pool;
-        workers->min_workers = min_workers;
-        workers->max_workers = max_workers;
-        workers->max_idle_secs = 10;
-        
-        workers->max_tx_handles = max_tx_handles;
-        workers->spare_tx_handles = workers->max_tx_handles;
-        
-        apr_threadattr_create(&workers->thread_attr, workers->pool);
-        if (ap_thread_stacksize != 0) {
-            apr_threadattr_stacksize_set(workers->thread_attr,
-                                         ap_thread_stacksize);
-            ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
-                         "h2_workers: using stacksize=%ld", 
-                         (long)ap_thread_stacksize);
-        }
-        
-        APR_RING_INIT(&workers->workers, h2_worker, link);
-        APR_RING_INIT(&workers->zombies, h2_worker, link);
-        APR_RING_INIT(&workers->mplxs, h2_mplx, link);
-        
-        status = apr_thread_mutex_create(&workers->lock,
-                                         APR_THREAD_MUTEX_DEFAULT,
-                                         workers->pool);
-        if (status == APR_SUCCESS) {
-            status = apr_thread_cond_create(&workers->mplx_added, workers->pool);
-        }
-        
-        if (status == APR_SUCCESS) {
-            status = apr_thread_mutex_create(&workers->tx_lock,
-                                             APR_THREAD_MUTEX_DEFAULT,
-                                             workers->pool);
-        }
-        
-        if (status == APR_SUCCESS) {
-            status = h2_workers_start(workers);
-        }
-        
-        if (status != APR_SUCCESS) {
-            h2_workers_destroy(workers);
-            workers = NULL;
-        }
+static int report_stream_iter(void *ctx, void *val) {
+    h2_mplx *m = ctx;
+    h2_stream *stream = val;
+    h2_task *task = stream->task;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                  H2_STRM_MSG(stream, "started=%d, scheduled=%d, ready=%d, "
+                              "out_buffer=%ld"), 
+                  !!stream->task, stream->scheduled, h2_stream_is_ready(stream),
+                  (long)h2_beam_get_buffered(stream->output));
+    if (task) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
+                      H2_STRM_MSG(stream, "->03198: %s %s %s"
+                      "[started=%d/done=%d/frozen=%d]"), 
+                      task->request->method, task->request->authority, 
+                      task->request->path, task->worker_started, 
+                      task->worker_done, task->frozen);
     }
-    return workers;
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
+                      H2_STRM_MSG(stream, "->03198: no task"));
+    }
+    return 1;
 }

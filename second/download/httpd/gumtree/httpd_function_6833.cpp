@@ -1,18 +1,59 @@
-static int on_invalid_header_cb(nghttp2_session *ngh2, 
-                                const nghttp2_frame *frame, 
-                                const uint8_t *name, size_t namelen, 
-                                const uint8_t *value, size_t valuelen, 
-                                uint8_t flags, void *user_data)
+static apr_status_t remove_directory(apr_pool_t *pool, const char *dir)
 {
-    h2_session *session = user_data;
-    if (APLOGcdebug(session->c)) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03456)
-                      "h2_session(%ld-%d): denying stream with invalid header "
-                      "'%s: %s'", session->id, (int)frame->hd.stream_id,
-                      apr_pstrndup(session->pool, (const char *)name, namelen),
-                      apr_pstrndup(session->pool, (const char *)value, valuelen));
+    apr_status_t rv;
+    apr_dir_t *dirp;
+    apr_finfo_t dirent;
+
+    rv = apr_dir_open(&dirp, dir, pool);
+    if (APR_STATUS_IS_ENOENT(rv)) {
+        return rv;
     }
-    return nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                     frame->hd.stream_id, 
-                                     NGHTTP2_PROTOCOL_ERROR);
+    if (rv != APR_SUCCESS) {
+        char errmsg[120];
+        apr_file_printf(errfile, "Could not open directory %s: %s" APR_EOL_STR,
+                dir, apr_strerror(rv, errmsg, sizeof errmsg));
+        return rv;
+    }
+
+    while (apr_dir_read(&dirent, APR_FINFO_DIRENT | APR_FINFO_TYPE, dirp)
+            == APR_SUCCESS) {
+        if (dirent.filetype == APR_DIR) {
+            if (strcmp(dirent.name, ".") && strcmp(dirent.name, "..")) {
+                rv = remove_directory(pool, apr_pstrcat(pool, dir, "/",
+                        dirent.name, NULL));
+                /* tolerate the directory not being empty, the cache may have
+                 * attempted to recreate the directory in the mean time.
+                 */
+                if (APR_SUCCESS != rv && APR_ENOTEMPTY != rv) {
+                    break;
+                }
+            }
+        } else {
+            const char *file = apr_pstrcat(pool, dir, "/", dirent.name, NULL);
+            rv = apr_file_remove(file, pool);
+            if (APR_SUCCESS != rv) {
+                char errmsg[120];
+                apr_file_printf(errfile,
+                        "Could not remove file '%s': %s" APR_EOL_STR, file,
+                        apr_strerror(rv, errmsg, sizeof errmsg));
+                break;
+            }
+        }
+    }
+
+    apr_dir_close(dirp);
+
+    if (rv == APR_SUCCESS) {
+        rv = apr_dir_remove(dir, pool);
+        if (APR_ENOTEMPTY == rv) {
+            rv = APR_SUCCESS;
+        }
+        if (rv != APR_SUCCESS) {
+            char errmsg[120];
+            apr_file_printf(errfile, "Could not remove directory %s: %s" APR_EOL_STR,
+                    dir, apr_strerror(rv, errmsg, sizeof errmsg));
+        }
+    }
+
+    return rv;
 }

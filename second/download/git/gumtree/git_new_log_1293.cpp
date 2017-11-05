@@ -1,2 +1,4 @@
-error("delta base offset overflow in pack for %s",
-					      oid_to_hex(&entry->idx.oid));
+fprintf(stderr, "IMAP command '%s' returned response (%s) - %s\n",
+					!starts_with(cmdp->cmd, "LOGIN") ?
+							cmdp->cmd : "LOGIN <user> <pass>",
+							arg, cmd ? cmd : "");

@@ -1,1 +1,1 @@
-die("unable to spawn mktree");
+die(_("Not a valid object name: '%s'"), argv[i]);

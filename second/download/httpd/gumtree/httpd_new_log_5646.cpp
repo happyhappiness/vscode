@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
-                     apr_get_os_error(), NULL,
-                     APLOGNO(00373) "Failed to open the '%s' service",
-                     mpm_display_name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(03307)
+                              "ap_proxy_transfer_between_connections: "
+                              "error on %s - ap_pass_brigade",
+                              name);

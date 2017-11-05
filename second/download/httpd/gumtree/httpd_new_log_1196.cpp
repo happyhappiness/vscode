@@ -1,2 +1,3 @@
-apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout." NL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL,
+                 "cache: Key for entity %s?%s is %s", r->uri,
+                 r->parsed_uri.query, *key);

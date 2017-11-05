@@ -1,1 +1,1 @@
-fprintf(f, "\n  ");
+ap_rputs(d->head_insert, r);

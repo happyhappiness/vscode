@@ -1,1 +1,1 @@
-die("could not read ref '%s'", pseudoref);
+fputs(pp->children[i].err.buf, stderr);

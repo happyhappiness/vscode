@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, loglvl, 0, session->c, APLOGNO(03078)
-                      "h2_session(%ld): transit [%s] -- %s --> [%s]", session->id,
-                      state_name(session->state), action, state_name(nstate));
+ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01478)
+                                  "lua: Unable to find function %s in %s",
+                                  hook_spec->function_name,
+                                  hook_spec->file_name);

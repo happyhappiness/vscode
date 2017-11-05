@@ -1,1 +1,1 @@
-die(_("pack exceeds maximum allowed size"));
+die(_("git fetch-pack: fetch failed."));

@@ -1,1 +1,1 @@
-error("invalid key (newline): %s", key);
+die(_("invalid ident line: %s"), sb.buf);

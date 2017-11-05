@@ -1,2 +1,1 @@
-error(_("cannot open %s: %s"), filename,
-						strerror(errno));
+error("Missing value for '%s'", var);

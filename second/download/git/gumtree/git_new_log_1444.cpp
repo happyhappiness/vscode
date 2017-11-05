@@ -1,1 +1,1 @@
-die(_("unable to parse format string"));
+error("couldn't set %s", lock->ref_name);

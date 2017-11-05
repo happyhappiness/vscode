@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                     "cgi: apr_pollset_add(); check system or user limits");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Loop: %s",
+                      SSL_LIBRARY_NAME, SSL_state_string_long(ssl));

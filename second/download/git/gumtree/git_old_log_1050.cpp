@@ -1,1 +1,1 @@
-die("impossibly large object header");
+fprintf(rpt, "  tip commit  : %s\n", sha1_to_hex(b->sha1));

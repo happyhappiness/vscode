@@ -1,2 +1,3 @@
-printf("  %d%%  %5" APR_TIME_T_FMT "\n", percs[i],
-                           ap_round_ms(stats[(int) (done * percs[i] / 100)].time));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01636)
+                      "Authorization of user %s to access %s failed, reason: %s",
+                      r->user, r->uri, reason ? reason : "unknown");

@@ -1,1 +1,1 @@
-error("cannot lock ref '%s'", ref);
+die(_("Unusable instruction sheet: %s"), todo_file);

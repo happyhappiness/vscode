@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "disk_cache: URL %s failed the size check "
-                     "(%" APR_OFF_T_FMT " < %" APR_OFF_T_FMT ")",
-                     key, len, conf->minfs);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                              "proxy: *: found forward proxy worker for %s",
+                              *url);

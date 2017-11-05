@@ -1,20 +1,20 @@
-static int cache_ref_iterator_peel(struct ref_iterator *ref_iterator,
-				   struct object_id *peeled)
+static void die_inside_submodule_path(struct pathspec_item *item)
 {
-	struct cache_ref_iterator *iter =
-		(struct cache_ref_iterator *)ref_iterator;
-	struct cache_ref_iterator_level *level;
-	struct ref_entry *entry;
+	int i;
 
-	level = &iter->levels[iter->levels_nr - 1];
+	for (i = 0; i < active_nr; i++) {
+		struct cache_entry *ce = active_cache[i];
+		int ce_len = ce_namelen(ce);
 
-	if (level->index == -1)
-		die("BUG: peel called before advance for cache iterator");
+		if (!S_ISGITLINK(ce->ce_mode))
+			continue;
 
-	entry = level->dir->entries[level->index];
+		if (item->len < ce_len ||
+		    !(item->match[ce_len] == '/' || item->match[ce_len] == '\0') ||
+		    memcmp(ce->name, item->match, ce_len))
+			continue;
 
-	if (peel_entry(entry, 0))
-		return -1;
-	oidcpy(peeled, &entry->u.value.peeled);
-	return 0;
+		die(_("Pathspec '%s' is in submodule '%.*s'"),
+		    item->original, ce_len, ce->name);
+	}
 }

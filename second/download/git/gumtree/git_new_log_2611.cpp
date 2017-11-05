@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt, arg);
+fputs(sb.buf, opt->diffopt.file);

@@ -1,67 +1,33 @@
-unsigned is_submodule_modified(const char *path, int ignore_untracked)
+static int got_sha1(const char *hex, unsigned char *sha1)
 {
-	ssize_t len;
-	struct child_process cp = CHILD_PROCESS_INIT;
-	const char *argv[] = {
-		"status",
-		"--porcelain",
-		NULL,
-		NULL,
-	};
-	struct strbuf buf = STRBUF_INIT;
-	unsigned dirty_submodule = 0;
-	const char *line, *next_line;
-	const char *git_dir;
+	struct object *o;
+	int we_knew_they_have = 0;
 
-	strbuf_addf(&buf, "%s/.git", path);
-	git_dir = read_gitfile(buf.buf);
-	if (!git_dir)
-		git_dir = buf.buf;
-	if (!is_directory(git_dir)) {
-		strbuf_release(&buf);
-		/* The submodule is not checked out, so it is not modified */
-		return 0;
+	if (get_sha1_hex(hex, sha1))
+		die("git upload-pack: expected SHA1 object, got '%s'", hex);
+	if (!has_sha1_file(sha1))
+		return -1;
 
+	o = parse_object(sha1);
+	if (!o)
+		die("oops (%s)", sha1_to_hex(sha1));
+	if (o->type == OBJ_COMMIT) {
+		struct commit_list *parents;
+		struct commit *commit = (struct commit *)o;
+		if (o->flags & THEY_HAVE)
+			we_knew_they_have = 1;
+		else
+			o->flags |= THEY_HAVE;
+		if (!oldest_have || (commit->date < oldest_have))
+			oldest_have = commit->date;
+		for (parents = commit->parents;
+		     parents;
+		     parents = parents->next)
+			parents->item->object.flags |= THEY_HAVE;
 	}
-	strbuf_reset(&buf);
-
-	if (ignore_untracked)
-		argv[2] = "-uno";
-
-	cp.argv = argv;
-	prepare_submodule_repo_env(&cp.env_array);
-	cp.git_cmd = 1;
-	cp.no_stdin = 1;
-	cp.out = -1;
-	cp.dir = path;
-	if (start_command(&cp))
-		die("Could not run 'git status --porcelain' in submodule %s", path);
-
-	len = strbuf_read(&buf, cp.out, 1024);
-	line = buf.buf;
-	while (len > 2) {
-		if ((line[0] == '?') && (line[1] == '?')) {
-			dirty_submodule |= DIRTY_SUBMODULE_UNTRACKED;
-			if (dirty_submodule & DIRTY_SUBMODULE_MODIFIED)
-				break;
-		} else {
-			dirty_submodule |= DIRTY_SUBMODULE_MODIFIED;
-			if (ignore_untracked ||
-			    (dirty_submodule & DIRTY_SUBMODULE_UNTRACKED))
-				break;
-		}
-		next_line = strchr(line, '\n');
-		if (!next_line)
-			break;
-		next_line++;
-		len -= (next_line - line);
-		line = next_line;
+	if (!we_knew_they_have) {
+		add_object_array(o, NULL, &have_obj);
+		return 1;
 	}
-	close(cp.out);
-
-	if (finish_command(&cp))
-		die("'git status --porcelain' failed in submodule %s", path);
-
-	strbuf_release(&buf);
-	return dirty_submodule;
+	return 0;
 }

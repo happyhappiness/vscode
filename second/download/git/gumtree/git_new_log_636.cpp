@@ -1,1 +1,1 @@
-error(_("cannot cherry-pick during a revert."));
+fputs(o.obuf.buf, stdout);

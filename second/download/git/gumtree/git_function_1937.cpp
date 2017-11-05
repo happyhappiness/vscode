@@ -1,26 +1,117 @@
-void list_common_cmds_help(void)
+static void show_commit(struct commit *commit, void *data)
 {
-	int i, longest = 0;
-	int current_grp = -1;
+	struct rev_list_info *info = data;
+	struct rev_info *revs = info->revs;
 
-	for (i = 0; i < ARRAY_SIZE(common_cmds); i++) {
-		if (longest < strlen(common_cmds[i].name))
-			longest = strlen(common_cmds[i].name);
+	if (info->flags & REV_LIST_QUIET) {
+		finish_commit(commit, data);
+		return;
 	}
 
-	qsort(common_cmds, ARRAY_SIZE(common_cmds),
-		sizeof(common_cmds[0]), cmd_group_cmp);
+	graph_show_commit(revs->graph);
 
-	puts(_("These are common Git commands used in various situations:"));
+	if (revs->count) {
+		if (commit->object.flags & PATCHSAME)
+			revs->count_same++;
+		else if (commit->object.flags & SYMMETRIC_LEFT)
+			revs->count_left++;
+		else
+			revs->count_right++;
+		finish_commit(commit, data);
+		return;
+	}
 
-	for (i = 0; i < ARRAY_SIZE(common_cmds); i++) {
-		if (common_cmds[i].group != current_grp) {
-			printf("\n%s\n", _(common_cmd_groups[common_cmds[i].group]));
-			current_grp = common_cmds[i].group;
+	if (info->show_timestamp)
+		printf("%lu ", commit->date);
+	if (info->header_prefix)
+		fputs(info->header_prefix, stdout);
+
+	if (!revs->graph)
+		fputs(get_revision_mark(revs, commit), stdout);
+	if (revs->abbrev_commit && revs->abbrev)
+		fputs(find_unique_abbrev(commit->object.sha1, revs->abbrev),
+		      stdout);
+	else
+		fputs(sha1_to_hex(commit->object.sha1), stdout);
+	if (revs->print_parents) {
+		struct commit_list *parents = commit->parents;
+		while (parents) {
+			printf(" %s", sha1_to_hex(parents->item->object.sha1));
+			parents = parents->next;
 		}
-
-		printf("   %s   ", common_cmds[i].name);
-		mput_char(' ', longest - strlen(common_cmds[i].name));
-		puts(_(common_cmds[i].help));
 	}
+	if (revs->children.name) {
+		struct commit_list *children;
+
+		children = lookup_decoration(&revs->children, &commit->object);
+		while (children) {
+			printf(" %s", sha1_to_hex(children->item->object.sha1));
+			children = children->next;
+		}
+	}
+	show_decorations(revs, commit);
+	if (revs->commit_format == CMIT_FMT_ONELINE)
+		putchar(' ');
+	else
+		putchar('\n');
+
+	if (revs->verbose_header && get_cached_commit_buffer(commit, NULL)) {
+		struct strbuf buf = STRBUF_INIT;
+		struct pretty_print_context ctx = {0};
+		ctx.abbrev = revs->abbrev;
+		ctx.date_mode = revs->date_mode;
+		ctx.date_mode_explicit = revs->date_mode_explicit;
+		ctx.fmt = revs->commit_format;
+		ctx.output_encoding = get_log_output_encoding();
+		pretty_print_commit(&ctx, commit, &buf);
+		if (revs->graph) {
+			if (buf.len) {
+				if (revs->commit_format != CMIT_FMT_ONELINE)
+					graph_show_oneline(revs->graph);
+
+				graph_show_commit_msg(revs->graph, &buf);
+
+				/*
+				 * Add a newline after the commit message.
+				 *
+				 * Usually, this newline produces a blank
+				 * padding line between entries, in which case
+				 * we need to add graph padding on this line.
+				 *
+				 * However, the commit message may not end in a
+				 * newline.  In this case the newline simply
+				 * ends the last line of the commit message,
+				 * and we don't need any graph output.  (This
+				 * always happens with CMIT_FMT_ONELINE, and it
+				 * happens with CMIT_FMT_USERFORMAT when the
+				 * format doesn't explicitly end in a newline.)
+				 */
+				if (buf.len && buf.buf[buf.len - 1] == '\n')
+					graph_show_padding(revs->graph);
+				putchar('\n');
+			} else {
+				/*
+				 * If the message buffer is empty, just show
+				 * the rest of the graph output for this
+				 * commit.
+				 */
+				if (graph_show_remainder(revs->graph))
+					putchar('\n');
+				if (revs->commit_format == CMIT_FMT_ONELINE)
+					putchar('\n');
+			}
+		} else {
+			if (revs->commit_format != CMIT_FMT_USERFORMAT ||
+			    buf.len) {
+				fwrite(buf.buf, 1, buf.len, stdout);
+				putchar(info->hdr_termination);
+			}
+		}
+		strbuf_release(&buf);
+	} else {
+		if (graph_show_remainder(revs->graph))
+			putchar('\n');
+	}
+	maybe_flush_or_die(stdout, "stdout");
+	finish_commit(commit, data);
 }

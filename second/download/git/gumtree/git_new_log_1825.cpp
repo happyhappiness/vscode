@@ -1,0 +1,1 @@
+die("combining --first-parent and --reverse is not supported");

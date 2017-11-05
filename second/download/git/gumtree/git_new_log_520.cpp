@@ -1,1 +1,1 @@
-die_want_option("--stat-graph-width");
+die("%s", err.buf);

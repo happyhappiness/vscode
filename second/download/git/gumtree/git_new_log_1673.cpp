@@ -1,1 +1,2 @@
-error("%s", err.buf);
+die("could not read file '%s': %s", filename,
+				strerror(errno));

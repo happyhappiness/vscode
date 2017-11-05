@@ -1,3 +1,4 @@
-ap_log_perror(file, line, APLOG_MODULE_INDEX, APLOG_ERR, rv, l->pool,
-                      APLOGNO(02192) "Failed to destroy mutex for dynamic "
-                      "lock %s:%d", l->file, l->line);
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00301)
+                         "ServerLimit of %d exceeds compile-time limit "
+                         "of %d, decreasing to match",
+                         server_limit, MAX_SERVER_LIMIT);

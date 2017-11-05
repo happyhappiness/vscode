@@ -1,1 +1,2 @@
-apr_bucket_split(b, remain);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "Configuring Trusted OCSP certificates");

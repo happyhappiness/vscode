@@ -1,2 +1,1 @@
-error(_("No note found for object %s."),
-			       sha1_to_hex(object));
+die_errno(_("Could not write to %s"), filename);

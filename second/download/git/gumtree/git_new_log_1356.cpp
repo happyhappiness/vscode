@@ -1,1 +1,1 @@
-die("Couldn't allocate PCRE JIT stack");
+die_errno("Cannot change to '%s/..'", cwd.buf);

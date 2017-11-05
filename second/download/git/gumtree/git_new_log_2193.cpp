@@ -1,1 +1,1 @@
-die("BUG: initial ref transaction called with existing refs");
+die("not a gitdir '%s'", argv[i]);

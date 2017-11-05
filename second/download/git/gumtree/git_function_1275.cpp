@@ -1,7 +1,21 @@
-static int list_each_note(const unsigned char *object_sha1,
-		const unsigned char *note_sha1, char *note_path,
-		void *cb_data)
+static void serve_cache(const char *socket_path, int debug)
 {
-	printf("%s %s\n", sha1_to_hex(note_sha1), sha1_to_hex(object_sha1));
-	return 0;
+	int fd;
+
+	fd = unix_stream_listen(socket_path);
+	if (fd < 0)
+		die_errno("unable to bind to '%s'", socket_path);
+
+	printf("ok\n");
+	fclose(stdout);
+	if (!debug) {
+		if (!freopen("/dev/null", "w", stderr))
+			die_errno("unable to point stderr to /dev/null");
+	}
+
+	while (serve_cache_loop(fd))
+		; /* nothing */
+
+	close(fd);
+	unlink(socket_path);
 }

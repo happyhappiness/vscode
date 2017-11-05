@@ -1,30 +1,14 @@
-static void pass_blame_to_parent(struct scoreboard *sb,
-				 struct origin *target,
-				 struct origin *parent)
+int cmd_submodule__helper(int argc, const char **argv, const char *prefix)
 {
-	mmfile_t file_p, file_o;
-	struct blame_chunk_cb_data d;
-	struct blame_entry *newdest = NULL;
+	int i;
+	if (argc < 2)
+		die(_("fatal: submodule--helper subcommand must be "
+		      "called with a subcommand"));
 
-	if (!target->suspects)
-		return; /* nothing remains for this target */
+	for (i = 0; i < ARRAY_SIZE(commands); i++)
+		if (!strcmp(argv[1], commands[i].cmd))
+			return commands[i].fn(argc - 1, argv + 1, prefix);
 
-	d.parent = parent;
-	d.offset = 0;
-	d.dstq = &newdest; d.srcq = &target->suspects;
-
-	fill_origin_blob(&sb->revs->diffopt, parent, &file_p);
-	fill_origin_blob(&sb->revs->diffopt, target, &file_o);
-	num_get_patch++;
-
-	if (diff_hunks(&file_p, &file_o, 0, blame_chunk_cb, &d))
-		die("unable to generate diff (%s -> %s)",
-		    sha1_to_hex(parent->commit->object.sha1),
-		    sha1_to_hex(target->commit->object.sha1));
-	/* The rest are the same as the parent */
-	blame_chunk(&d.dstq, &d.srcq, INT_MAX, d.offset, INT_MAX, parent);
-	*d.dstq = NULL;
-	queue_blames(sb, parent, newdest);
-
-	return;
+	die(_("fatal: '%s' is not a valid submodule--helper "
+	      "subcommand"), argv[1]);
 }

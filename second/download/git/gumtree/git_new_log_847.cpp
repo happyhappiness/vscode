@@ -1,1 +1,1 @@
-error(_("could not read index"));
+die("unable to join lazy_dir_thread");

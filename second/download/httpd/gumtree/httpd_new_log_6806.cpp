@@ -1,5 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c, 
-                      "h2_ngn_shed(%ld): push task(%s) hosting engine %s " 
-                      "already with %d tasks", 
-                      shed->c->id, task->id, task->engine->id,
-                      task->engine->no_assigned);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02573)
+                      "Init: No private key specified for %s", key_id);

@@ -1,1 +1,1 @@
-die("'%s' does not appear to be a git repository", service_dir);
+die_errno(_("failed to stat %s"), mtime_dir.buf);

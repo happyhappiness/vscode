@@ -1,1 +1,1 @@
-die("BUG: unexpected reference transaction state");
+error("%s", err.buf);

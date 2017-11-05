@@ -1,1 +1,1 @@
-fprintf(f, "%d\n", todo_list->total_nr);
+die("Invalid proxy URL '%s'", curl_http_proxy);

@@ -1,1 +1,1 @@
-die("remote error: %s", buffer + 4);
+fprintf(stderr, "Unexpected end of command stream\n");

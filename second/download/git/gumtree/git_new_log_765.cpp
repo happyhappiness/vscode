@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+die("BUG: %s: not a valid attribute name", param);

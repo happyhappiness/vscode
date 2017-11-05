@@ -1,1 +1,1 @@
-error("Directory not empty: %s", newrefname);
+printf("%s (%d):\n", item->string, onelines->nr);

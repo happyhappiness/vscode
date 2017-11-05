@@ -1,25 +1,25 @@
-void prune_shallow(int show_only)
+static void write_remote_refs(const struct ref *local_refs)
 {
-	static struct lock_file shallow_lock;
-	struct strbuf sb = STRBUF_INIT;
-	int fd;
+	const struct ref *r;
 
-	if (show_only) {
-		write_shallow_commits_1(&sb, 0, NULL, SEEN_ONLY | VERBOSE);
-		strbuf_release(&sb);
-		return;
+	struct ref_transaction *t;
+	struct strbuf err = STRBUF_INIT;
+
+	t = ref_transaction_begin(&err);
+	if (!t)
+		die("%s", err.buf);
+
+	for (r = local_refs; r; r = r->next) {
+		if (!r->peer_ref)
+			continue;
+		if (ref_transaction_create(t, r->peer_ref->name, r->old_sha1,
+					   0, NULL, &err))
+			die("%s", err.buf);
 	}
-	fd = hold_lock_file_for_update(&shallow_lock, git_path("shallow"),
-				       LOCK_DIE_ON_ERROR);
-	check_shallow_file_for_update();
-	if (write_shallow_commits_1(&sb, 0, NULL, SEEN_ONLY)) {
-		if (write_in_full(fd, sb.buf, sb.len) != sb.len)
-			die_errno("failed to write to %s",
-				  shallow_lock.filename);
-		commit_lock_file(&shallow_lock);
-	} else {
-		unlink(git_path("shallow"));
-		rollback_lock_file(&shallow_lock);
-	}
-	strbuf_release(&sb);
+
+	if (initial_ref_transaction_commit(t, &err))
+		die("%s", err.buf);
+
+	strbuf_release(&err);
+	ref_transaction_free(t);
 }

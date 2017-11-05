@@ -1,2 +1,1 @@
-error("the patch applies to an empty "
-				     "'%s' but it is not empty", name);
+die(_("Failed to resolve '%s' as a valid ref."), object_ref);

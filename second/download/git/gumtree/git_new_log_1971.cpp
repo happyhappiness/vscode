@@ -1,1 +1,2 @@
-packet_write(fd, "shallow %s\n", oid_to_hex(&graft->oid));
+error("Could not read %s",
+			     oid_to_hex(&item->object.oid));

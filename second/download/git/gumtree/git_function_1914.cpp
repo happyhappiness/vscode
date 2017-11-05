@@ -1,27 +1,106 @@
-char *grab_blob(const unsigned char *sha1, unsigned int mode,
-		       unsigned long *size, struct userdiff_driver *textconv,
-		       const char *path)
+int cmd_ls_remote(int argc, const char **argv, const char *prefix)
 {
-	char *blob;
-	enum object_type type;
+	int i;
+	const char *dest = NULL;
+	unsigned flags = 0;
+	int get_url = 0;
+	int quiet = 0;
+	int status = 0;
+	const char *uploadpack = NULL;
+	const char **pattern = NULL;
 
-	if (S_ISGITLINK(mode)) {
-		blob = xmalloc(100);
-		*size = snprintf(blob, 100,
-				 "Subproject commit %s\n", sha1_to_hex(sha1));
-	} else if (is_null_sha1(sha1)) {
-		/* deleted blob */
-		*size = 0;
-		return xcalloc(1, 1);
-	} else if (textconv) {
-		struct diff_filespec *df = alloc_filespec(path);
-		fill_filespec(df, sha1, 1, mode);
-		*size = fill_textconv(textconv, df, &blob);
-		free_filespec(df);
-	} else {
-		blob = read_sha1_file(sha1, &type, size);
-		if (type != OBJ_BLOB)
-			die("object '%s' is not a blob!", sha1_to_hex(sha1));
+	struct remote *remote;
+	struct transport *transport;
+	const struct ref *ref;
+
+	if (argc == 2 && !strcmp("-h", argv[1]))
+		usage(ls_remote_usage);
+
+	for (i = 1; i < argc; i++) {
+		const char *arg = argv[i];
+
+		if (*arg == '-') {
+			if (starts_with(arg, "--upload-pack=")) {
+				uploadpack = arg + 14;
+				continue;
+			}
+			if (starts_with(arg, "--exec=")) {
+				uploadpack = arg + 7;
+				continue;
+			}
+			if (!strcmp("--tags", arg) || !strcmp("-t", arg)) {
+				flags |= REF_TAGS;
+				continue;
+			}
+			if (!strcmp("--heads", arg) || !strcmp("-h", arg)) {
+				flags |= REF_HEADS;
+				continue;
+			}
+			if (!strcmp("--refs", arg)) {
+				flags |= REF_NORMAL;
+				continue;
+			}
+			if (!strcmp("--quiet", arg) || !strcmp("-q", arg)) {
+				quiet = 1;
+				continue;
+			}
+			if (!strcmp("--get-url", arg)) {
+				get_url = 1;
+				continue;
+			}
+			if (!strcmp("--exit-code", arg)) {
+				/* return this code if no refs are reported */
+				status = 2;
+				continue;
+			}
+			usage(ls_remote_usage);
+		}
+		dest = arg;
+		i++;
+		break;
 	}
-	return blob;
+
+	if (argv[i]) {
+		int j;
+		pattern = xcalloc(argc - i + 1, sizeof(const char *));
+		for (j = i; j < argc; j++) {
+			int len = strlen(argv[j]);
+			char *p = xmalloc(len + 3);
+			sprintf(p, "*/%s", argv[j]);
+			pattern[j - i] = p;
+		}
+	}
+	remote = remote_get(dest);
+	if (!remote) {
+		if (dest)
+			die("bad repository '%s'", dest);
+		die("No remote configured to list refs from.");
+	}
+	if (!remote->url_nr)
+		die("remote %s has no configured URL", dest);
+
+	if (get_url) {
+		printf("%s\n", *remote->url);
+		return 0;
+	}
+
+	transport = transport_get(remote, NULL);
+	if (uploadpack != NULL)
+		transport_set_option(transport, TRANS_OPT_UPLOADPACK, uploadpack);
+
+	ref = transport_get_remote_refs(transport);
+	if (transport_disconnect(transport))
+		return 1;
+
+	if (!dest && !quiet)
+		fprintf(stderr, "From %s\n", *remote->url);
+	for ( ; ref; ref = ref->next) {
+		if (!check_ref_type(ref, flags))
+			continue;
+		if (!tail_match(pattern, ref->name))
+			continue;
+		printf("%s	%s\n", sha1_to_hex(ref->old_sha1), ref->name);
+		status = 0; /* we found something */
+	}
+	return status;
 }

@@ -1,2 +1,1 @@
-printf("One merge base found (%.7s)\n",
-			       oid_to_hex(base_oid));
+error("Data too large to fit into virtual memory space.");

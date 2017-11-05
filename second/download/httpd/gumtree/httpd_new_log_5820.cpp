@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool,
-                      "h2_request(%d): pseudo header in trailer",
-                      req->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                      "h2_stream(%ld-%d): writing frame header",
+                      session->id, (int)stream_id);

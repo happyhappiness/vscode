@@ -1,1 +1,2 @@
-die(_("Failed to resolve '%s' as a valid ref."), arg);
+printf("Using local notes for %s\n",
+						sha1_to_hex(p->obj));

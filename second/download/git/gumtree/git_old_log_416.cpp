@@ -1,1 +1,1 @@
-die("Could not resolve ref '%s'", o.branch2);
+printf("Auto-merging notes for %s\n", sha1_to_hex(p->obj));

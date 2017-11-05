@@ -1,1 +1,3 @@
-die_errno("Could not truncate output message file at scissors");
+die("packfile %s cannot be mapped: %s",
+					p->pack_name,
+					strerror(errno));

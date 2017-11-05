@@ -1,3 +1,2 @@
-die("More than one commit to dig up from, %s and %s?",
-			    revs->pending.objects[i].name,
-			    final_commit_name);
+fprintf(opt->file, "%s ",
+			diff_aligned_abbrev(&p->two->oid, opt->abbrev));

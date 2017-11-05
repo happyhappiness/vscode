@@ -1,3 +1,2 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                                          "h2_session(%ld): keepalive, %f sec left",
-                                          session->id, (session->idle_until - now) / 1000000.0f);
+apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+            " (8 chars max, insecure)." NL);

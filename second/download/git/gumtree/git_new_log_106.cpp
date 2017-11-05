@@ -1,2 +1,1 @@
-die("%s %s: expected NUL but got: %s",
-			    command, refname, *next);
+die("protocol error: expected shallow sha-1, got '%s'", arg);

@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv2, s,
-                     "DBD: Failed to release thread mutex");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                        MODNAME ": match line=%d cont=%d type=%d %s",
+                        m->lineno, m->cont_level, m->type,
+                        (m->type == STRING) ? m->value.s : "");

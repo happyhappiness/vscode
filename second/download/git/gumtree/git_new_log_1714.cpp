@@ -1,1 +1,1 @@
-die_errno(_("could not create file '%s'"), d->edit_path);
+die("Unknown mark: %s", command_buf.buf);

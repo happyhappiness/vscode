@@ -1,2 +1,4 @@
-fprintf(stderr, "%s: Cannot use concurrency level greater than "
-                "total number of requests\n", argv[0]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                      "proxy: error processing body.%s",
+                                      r->connection->aborted ?
+                                      " Client aborted connection." : "");

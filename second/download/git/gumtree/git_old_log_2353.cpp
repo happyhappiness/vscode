@@ -1,1 +1,2 @@
-printf("tagged %s %s", typename(tag->tagged->type), sha1_to_hex(tag->tagged->sha1));
+error("Failed to flush %s: %s",
+				      path, strerror(errno));

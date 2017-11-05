@@ -1,1 +1,1 @@
-die("--contents and --children do not blend well.");
+error("cannot open mbox %s", file);

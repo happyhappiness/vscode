@@ -1,2 +1,1 @@
-fprintf(rej, "diff a/%s b/%s\t(rejected hunks)\n",
-		patch->new_name, patch->new_name);
+error("cannot feed the input to external filter %s", params->cmd);

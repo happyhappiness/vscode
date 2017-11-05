@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, errno, s, APLOGNO(00481)
-                     "fork: Unable to fork new process");
+log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(02811),
+                               "script not found or unable to stat");

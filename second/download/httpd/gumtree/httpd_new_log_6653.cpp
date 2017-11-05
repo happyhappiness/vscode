@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, stream->session->c,
-                  "h2_stream(%ld-%d): beam_received",
-                  stream->session->id, stream->id);
+apr_file_printf(errfile, "Password for user %s correct." NL, user);

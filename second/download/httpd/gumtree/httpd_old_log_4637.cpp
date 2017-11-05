@@ -1,2 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c,
-                      "Unable to set session id context to '%s'", vhost_md5);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, "sigaction(SIGHUP)");

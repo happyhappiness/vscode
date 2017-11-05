@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+err(o, _("merge returned no commit"));

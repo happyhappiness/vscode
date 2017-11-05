@@ -1,2 +1,2 @@
-die(_("reference repository '%s' is not a local repository."),
-		    item->string);
+die("fetch-pack: unable to fork off sideband"
+			    " demultiplexer");

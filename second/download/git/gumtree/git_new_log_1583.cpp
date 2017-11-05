@@ -1,1 +1,2 @@
-usage_with_options(usage, options);
+error("unable to parse %s header with --allow-unknown-type",
+				       sha1_to_hex(sha1));

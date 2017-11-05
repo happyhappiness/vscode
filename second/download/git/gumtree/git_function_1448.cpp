@@ -1,48 +1,21 @@
-int async_query_available_blobs(const char *cmd, struct string_list *available_paths)
+static int atomic_push_failure(struct send_pack_args *args,
+			       struct ref *remote_refs,
+			       struct ref *failing_ref)
 {
-	int err;
-	char *line;
-	struct cmd2process *entry;
-	struct child_process *process;
-	struct strbuf filter_status = STRBUF_INIT;
+	struct ref *ref;
+	/* Mark other refs as failed */
+	for (ref = remote_refs; ref; ref = ref->next) {
+		if (!ref->peer_ref && !args->send_mirror)
+			continue;
 
-	assert(subprocess_map_initialized);
-	entry = (struct cmd2process *)subprocess_find_entry(&subprocess_map, cmd);
-	if (!entry) {
-		error("external filter '%s' is not available anymore although "
-		      "not all paths have been filtered", cmd);
-		return 0;
+		switch (ref->status) {
+		case REF_STATUS_EXPECTING_REPORT:
+			ref->status = REF_STATUS_ATOMIC_PUSH_FAILED;
+			continue;
+		default:
+			break; /* do nothing */
+		}
 	}
-	process = &entry->subprocess.process;
-	sigchain_push(SIGPIPE, SIG_IGN);
-
-	err = packet_write_fmt_gently(
-		process->in, "command=list_available_blobs\n");
-	if (err)
-		goto done;
-
-	err = packet_flush_gently(process->in);
-	if (err)
-		goto done;
-
-	while ((line = packet_read_line(process->out, NULL))) {
-		const char *path;
-		if (skip_prefix(line, "pathname=", &path))
-			string_list_insert(available_paths, xstrdup(path));
-		else
-			; /* ignore unknown keys */
-	}
-
-	err = subprocess_read_status(process->out, &filter_status);
-	if (err)
-		goto done;
-
-	err = strcmp(filter_status.buf, "success");
-
-done:
-	sigchain_pop(SIGPIPE);
-
-	if (err)
-		handle_filter_error(&filter_status, entry, 0);
-	return !err;
+	return error("atomic push failed for ref %s. status: %d\n",
+		     failing_ref->name, failing_ref->status);
 }

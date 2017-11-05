@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03193)
-                      "brigade: [%d] %s", i, e->type->name);
+fprintf(stderr, "    -q              Do not show progress when doing more than 150 requests\n");

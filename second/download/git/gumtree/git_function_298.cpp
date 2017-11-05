@@ -1,32 +1,23 @@
-static int check_to_create(struct apply_state *state,
-			   const char *new_name,
-			   int ok_if_exists)
+static void append_one_rev(const char *av)
 {
-	struct stat nst;
-
-	if (state->check_index &&
-	    cache_name_pos(new_name, strlen(new_name)) >= 0 &&
-	    !ok_if_exists)
-		return EXISTS_IN_INDEX;
-	if (state->cached)
-		return 0;
-
-	if (!lstat(new_name, &nst)) {
-		if (S_ISDIR(nst.st_mode) || ok_if_exists)
-			return 0;
-		/*
-		 * A leading component of new_name might be a symlink
-		 * that is going to be removed with this patch, but
-		 * still pointing at somewhere that has the path.
-		 * In such a case, path "new_name" does not exist as
-		 * far as git is concerned.
-		 */
-		if (has_symlink_leading_path(new_name, strlen(new_name)))
-			return 0;
-
-		return EXISTS_IN_WORKTREE;
-	} else if ((errno != ENOENT) && (errno != ENOTDIR)) {
-		return error("%s: %s", new_name, strerror(errno));
+	struct object_id revkey;
+	if (!get_sha1(av, revkey.hash)) {
+		append_ref(av, &revkey, 0);
+		return;
 	}
-	return 0;
+	if (strchr(av, '*') || strchr(av, '?') || strchr(av, '[')) {
+		/* glob style match */
+		int saved_matches = ref_name_cnt;
+
+		match_ref_pattern = av;
+		match_ref_slash = count_slash(av);
+		for_each_ref(append_matching_ref, NULL);
+		if (saved_matches == ref_name_cnt &&
+		    ref_name_cnt < MAX_REVS)
+			error("no matching refs with %s", av);
+		if (saved_matches + 1 < ref_name_cnt)
+			sort_ref_range(saved_matches, ref_name_cnt);
+		return;
+	}
+	die("bad sha1 reference %s", av);
 }

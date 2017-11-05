@@ -1,1 +1,2 @@
-die("BUG: we don't know how to pass the flags down?");
+error(_("could not copy '%s' to '%s'"),
+			     rebase_path_message(), git_path_merge_msg());

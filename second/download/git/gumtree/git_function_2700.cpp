@@ -1,7 +1,5 @@
-static void color_atom_parser(struct used_atom *atom, const char *color_value)
+void walker_say(struct walker *walker, const char *fmt, const char *hex)
 {
-	if (!color_value)
-		die(_("expected format: %%(color:<color>)"));
-	if (color_parse(color_value, atom->u.color) < 0)
-		die(_("unrecognized color: %%(color:%s)"), color_value);
+	if (walker->get_verbosely)
+		fprintf(stderr, fmt, hex);
 }

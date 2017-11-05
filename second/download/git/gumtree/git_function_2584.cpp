@@ -1,73 +1,30 @@
-static int do_plain_rerere(struct string_list *rr, int fd)
+static int fsck_walk_tree(struct tree *tree, void *data, struct fsck_options *options)
 {
-	struct string_list conflict = STRING_LIST_INIT_DUP;
-	struct string_list update = STRING_LIST_INIT_DUP;
-	int i;
+	struct tree_desc desc;
+	struct name_entry entry;
+	int res = 0;
 
-	find_conflict(&conflict);
+	if (parse_tree(tree))
+		return -1;
 
-	/*
-	 * MERGE_RR records paths with conflicts immediately after merge
-	 * failed.  Some of the conflicted paths might have been hand resolved
-	 * in the working tree since then, but the initial run would catch all
-	 * and register their preimages.
-	 */
+	init_tree_desc(&desc, tree->buffer, tree->size);
+	while (tree_entry(&desc, &entry)) {
+		int result;
 
-	for (i = 0; i < conflict.nr; i++) {
-		const char *path = conflict.items[i].string;
-		if (!string_list_has_string(rr, path)) {
-			unsigned char sha1[20];
-			char *hex;
-			int ret;
-			ret = handle_file(path, sha1, NULL);
-			if (ret < 1)
-				continue;
-			hex = xstrdup(sha1_to_hex(sha1));
-			string_list_insert(rr, path)->util = hex;
-			if (mkdir_in_gitdir(git_path("rr-cache/%s", hex)))
-				continue;
-			handle_file(path, NULL, rerere_path(hex, "preimage"));
-			fprintf(stderr, "Recorded preimage for '%s'\n", path);
-		}
-	}
-
-	/*
-	 * Now some of the paths that had conflicts earlier might have been
-	 * hand resolved.  Others may be similar to a conflict already that
-	 * was resolved before.
-	 */
-
-	for (i = 0; i < rr->nr; i++) {
-		int ret;
-		const char *path = rr->items[i].string;
-		const char *name = (const char *)rr->items[i].util;
-
-		if (has_rerere_resolution(name)) {
-			if (!merge(name, path)) {
-				const char *msg;
-				if (rerere_autoupdate) {
-					string_list_insert(&update, path);
-					msg = "Staged '%s' using previous resolution.\n";
-				} else
-					msg = "Resolved '%s' using previous resolution.\n";
-				fprintf(stderr, msg, path);
-				goto mark_resolved;
-			}
-		}
-
-		/* Let's see if we have resolved it. */
-		ret = handle_file(path, NULL, NULL);
-		if (ret)
+		if (S_ISGITLINK(entry.mode))
 			continue;
-
-		fprintf(stderr, "Recorded resolution for '%s'.\n", path);
-		copy_file(rerere_path(name, "postimage"), path, 0666);
-	mark_resolved:
-		rr->items[i].util = NULL;
+		if (S_ISDIR(entry.mode))
+			result = options->walk(&lookup_tree(entry.oid->hash)->object, OBJ_TREE, data, options);
+		else if (S_ISREG(entry.mode) || S_ISLNK(entry.mode))
+			result = options->walk(&lookup_blob(entry.oid->hash)->object, OBJ_BLOB, data, options);
+		else {
+			result = error("in tree %s: entry %s has bad mode %.6o",
+					oid_to_hex(&tree->object.oid), entry.path, entry.mode);
+		}
+		if (result < 0)
+			return result;
+		if (!res)
+			res = result;
 	}
-
-	if (update.nr)
-		update_paths(&update);
-
-	return write_rr(rr, fd);
+	return res;
 }

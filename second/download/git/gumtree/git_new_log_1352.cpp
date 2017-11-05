@@ -1,1 +1,2 @@
-packet_buf_write(&req_buf, "deepen-since %"PRItime, max_age);
+(fprintf(fp, "%s	%s^{}\n",
+				sha1_to_hex(o->sha1), path);

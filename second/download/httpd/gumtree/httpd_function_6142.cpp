@@ -1,25 +1,52 @@
-static int h2_task_process_conn(conn_rec* c)
+static apr_status_t pass_output(h2_conn_io *io, int flush,
+                                h2_session *session_eoc)
 {
-    h2_ctx *ctx;
+    conn_rec *c = io->c;
+    apr_bucket_brigade *bb = io->output;
+    apr_bucket *b;
+    apr_off_t bblen;
+    apr_status_t status;
     
-    if (!c->master) {
-        return DECLINED;
+    append_scratch(io);
+    if (flush) {
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
     }
     
-    ctx = h2_ctx_get(c, 0);
-    if (h2_ctx_is_task(ctx)) {
-        if (!ctx->task->ser_headers) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, 
-                          "h2_h2, processing request directly");
-            h2_task_process_request(ctx->task, c);
-            return DONE;
+    if (APR_BRIGADE_EMPTY(bb)) {
+        return APR_SUCCESS;
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, c, "h2_conn_io: pass_output");
+    ap_update_child_status(c->sbh, SERVER_BUSY_WRITE, NULL);
+    apr_brigade_length(bb, 0, &bblen);
+    
+    h2_conn_io_bb_log(c, 0, APLOG_TRACE2, "master conn pass", bb);
+    status = ap_pass_brigade(c->output_filters, bb);
+    if (status == APR_SUCCESS) {
+        io->bytes_written += (apr_size_t)bblen;
+        io->last_write = apr_time_now();
+    }
+    apr_brigade_cleanup(bb);
+
+    if (session_eoc) {
+        apr_status_t tmp;
+        b = h2_bucket_eoc_create(c->bucket_alloc, session_eoc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        h2_conn_io_bb_log(c, 0, APLOG_TRACE2, "master conn pass", bb);
+        tmp = ap_pass_brigade(c->output_filters, bb);
+        if (status == APR_SUCCESS) {
+            status = tmp;
         }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, 
-                      "h2_task(%s), serialized handling", ctx->task->id);
+        /* careful with access to io after this, we have flushed an EOC bucket
+         * that de-allocated us all. */
+        apr_brigade_cleanup(bb);
     }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, 
-                      "slave_conn(%ld): has no task", c->id);
+    
+    if (status != APR_SUCCESS) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03044)
+                      "h2_conn_io(%ld): pass_out brigade %ld bytes",
+                      c->id, (long)bblen);
     }
-    return DECLINED;
+    return status;
 }

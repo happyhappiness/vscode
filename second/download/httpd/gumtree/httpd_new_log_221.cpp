@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
-                             "cgid daemon process died, restarting");
+ap_log_error(file, line, level, 0, s,
+                         "SSL Library Error: %lu %s",
+                         e, err);

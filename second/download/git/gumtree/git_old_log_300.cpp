@@ -1,1 +1,1 @@
-die(_("invalid path '%s'"), new_name);
+die("no branches given, and HEAD is not valid");

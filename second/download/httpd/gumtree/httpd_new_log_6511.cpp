@@ -1,1 +1,2 @@
-ap_rputs("<tr><td colspan='2'><input type=submit value='Submit'></td></tr>\n", r);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02310)
+                         "Unable to load SRP verifier file [error %d]", err);

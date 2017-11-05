@@ -1,2 +1,1 @@
-fprintf(pipe_fd, "%s\n",
-			oid_to_hex(&want_obj.objects[i].item->oid));
+fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit), opt->diffopt.file);

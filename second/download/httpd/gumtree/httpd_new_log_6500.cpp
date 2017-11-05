@@ -1,2 +1,3 @@
-ap_rvputs(r, "value='", ap_escape_html(r->pool, wsel->s->route),
-                      NULL);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02338)
+                 "%s shm[%d] (0x%pp) for worker: %s", action, i, (void *)shm,
+                 worker->s->name);

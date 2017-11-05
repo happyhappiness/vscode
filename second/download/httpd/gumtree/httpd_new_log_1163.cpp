@@ -1,1 +1,1 @@
-printf("%2d: %.*s\n", i, substring_length, substring_start);
+apr_file_printf(errfile, "%s error: %s\n", shortname, error);

@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+die("BUG in unpack_entry: left loop at a valid delta");

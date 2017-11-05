@@ -1,1 +1,1 @@
-die("failed to prepare '%s' for appending", path);
+printf(" %s", oid_to_hex(&children->item->object.oid));

@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ss, APLOGNO(01605)
-                             "Cannot get media parameter.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01153)
+                          "Unable to find configured flush provider '%s'",
+                          flush_method);

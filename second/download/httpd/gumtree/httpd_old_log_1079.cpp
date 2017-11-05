@@ -1,1 +1,1 @@
-printf("\n  ");
+apr_file_puts(buf, fptr);

@@ -1,1 +1,1 @@
-error("key does not contain variable name: %s", key);
+die(_("ls-tree returned unexpected return code %d"), code);

@@ -1,2 +1,1 @@
-die("BUG: unknown get_sha1_with_context result %d\n",
-			       result);
+die(_("no tag exactly matches '%s'"), oid_to_hex(&cmit->object.oid));

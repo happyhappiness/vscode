@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv,
-                                         c->base_server, "core_output_filter:"
-                                         " Error reading from bucket.");
+ap_log_error(APLOG_MARK, APLOG_STARTUP |APLOG_ERR,
+                     0, NULL, "Unable to open logs\n");

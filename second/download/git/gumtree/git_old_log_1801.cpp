@@ -1,1 +1,0 @@
-error("running trailer command '%s' failed", cp->argv[0]);

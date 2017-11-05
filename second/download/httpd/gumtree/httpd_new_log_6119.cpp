@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, msos->m->c,
-                      "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
-                      msos->m->id, sos->stream->id, (long)*plen, *peos);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02417)
+                          "Replacing host header '%s' with host '%s' given "
+                          "in the request uri", host_header, repl);

@@ -1,2 +1,1 @@
-warning(_("You seem to have moved HEAD. "
-			  "Not rewinding, check your HEAD!"));
+report_invalid_attr(cp, len, src, lineno);

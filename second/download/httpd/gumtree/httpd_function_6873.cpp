@@ -1,27 +1,85 @@
-static void transit(h2_session *session, const char *action, h2_session_state nstate)
+static int lua_request_rec_hook_harness(request_rec *r, const char *name, int apr_hook_when)
 {
-    if (session->state != nstate) {
-        int loglvl = APLOG_DEBUG;
-        if ((session->state == H2_SESSION_ST_BUSY && nstate == H2_SESSION_ST_WAIT)
-            || (session->state == H2_SESSION_ST_WAIT && nstate == H2_SESSION_ST_BUSY)){
-            loglvl = APLOG_TRACE1;
-        }
-        ap_log_cerror(APLOG_MARK, loglvl, 0, session->c, APLOGNO(03078)
-                      "h2_session(%ld): transit [%s] -- %s --> [%s]", session->id,
-                      state_name(session->state), action, state_name(nstate));
-        session->state = nstate;
-        switch (session->state) {
-            case H2_SESSION_ST_IDLE:
-                update_child_status(session, (session->open_streams == 0? 
-                                              SERVER_BUSY_KEEPALIVE
-                                              : SERVER_BUSY_READ), "idle");
-                break;
-            case H2_SESSION_ST_DONE:
-                update_child_status(session, SERVER_CLOSING, "done");
-                break;
-            default:
-                /* nop */
-                break;
+    int rc;
+    apr_pool_t *pool;
+    lua_State *L;
+    ap_lua_vm_spec *spec;
+    ap_lua_server_cfg *server_cfg = ap_get_module_config(r->server->module_config,
+                                                         &lua_module);
+    const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
+                                                     &lua_module);
+    const char *key = apr_psprintf(r->pool, "%s_%d", name, apr_hook_when);
+    apr_array_header_t *hook_specs = apr_hash_get(cfg->hooks, key,
+                                                  APR_HASH_KEY_STRING);
+    if (hook_specs) {
+        int i;
+        for (i = 0; i < hook_specs->nelts; i++) {
+            ap_lua_mapped_handler_spec *hook_spec =
+                ((ap_lua_mapped_handler_spec **) hook_specs->elts)[i];
+
+            if (hook_spec == NULL) {
+                continue;
+            }
+            spec = create_vm_spec(&pool, r, cfg, server_cfg,
+                                  hook_spec->file_name,
+                                  hook_spec->bytecode,
+                                  hook_spec->bytecode_len,
+                                  hook_spec->function_name,
+                                  "request hook");
+
+            L = ap_lua_get_lua_state(pool, spec, r);
+
+            if (!L) {
+                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01477)
+                              "lua: Failed to obtain lua interpreter for %s %s",
+                              hook_spec->function_name, hook_spec->file_name);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+
+            if (hook_spec->function_name != NULL) {
+                lua_getglobal(L, hook_spec->function_name);
+                if (!lua_isfunction(L, -1)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01478)
+                                  "lua: Unable to find function %s in %s",
+                                  hook_spec->function_name,
+                                  hook_spec->file_name);
+                    ap_lua_release_state(L, spec, r);
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+
+                ap_lua_run_lua_request(L, r);
+            }
+            else {
+                int t;
+                ap_lua_run_lua_request(L, r);
+
+                t = lua_gettop(L);
+                lua_setglobal(L, "r");
+                lua_settop(L, t);
+            }
+
+            if (lua_pcall(L, 1, 1, 0)) {
+                report_lua_error(L, r);
+                ap_lua_release_state(L, spec, r);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            rc = DECLINED;
+            if (lua_isnumber(L, -1)) {
+                rc = lua_tointeger(L, -1);
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r, "Lua hook %s:%s for phase %s returned %d", 
+                              hook_spec->file_name, hook_spec->function_name, name, rc);
+            }
+            else { 
+                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, "Lua hook %s:%s for phase %s did not return a numeric value", 
+                              hook_spec->file_name, hook_spec->function_name, name);
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            if (rc != DECLINED) {
+                ap_lua_release_state(L, spec, r);
+                return rc;
+            }
+            ap_lua_release_state(L, spec, r);
         }
     }
+    return DECLINED;
 }

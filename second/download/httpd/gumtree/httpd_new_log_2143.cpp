@@ -1,1 +1,1 @@
-printf("Server loaded:  APR %s\n", apr_version_string());
+fprintf(stderr, "Rotation file forced open:   %12s\n", config->force_open ? "yes" : "no");

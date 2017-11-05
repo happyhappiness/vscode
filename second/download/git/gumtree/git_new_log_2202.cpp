@@ -1,1 +1,2 @@
-die_errno(_("Could not open %s"), git_path_todo_file());
+fprintf_or_die(submodule_dot_git, "gitdir: %s\n",
+		       relative_path(sm_gitdir, path, &rel_path));

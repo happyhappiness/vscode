@@ -1,1 +1,1 @@
-die("packed refname is dangerous: %s", refname);
+printf("-%s\n", oid_to_hex(&commit->object.oid));

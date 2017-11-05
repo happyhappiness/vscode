@@ -1,1 +1,0 @@
-printf("yes (variable thread count)\n");

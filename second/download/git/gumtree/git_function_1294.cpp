@@ -1,128 +1,223 @@
-static void check_object(struct object_entry *entry)
+static struct imap_store *imap_open_store(struct imap_server_conf *srvc)
 {
-	if (entry->in_pack) {
-		struct packed_git *p = entry->in_pack;
-		struct pack_window *w_curs = NULL;
-		const unsigned char *base_ref = NULL;
-		struct object_entry *base_entry;
-		unsigned long used, used_0;
-		unsigned long avail;
-		off_t ofs;
-		unsigned char *buf, c;
+	struct credential cred = CREDENTIAL_INIT;
+	struct imap_store *ctx;
+	struct imap *imap;
+	char *arg, *rsp;
+	int s = -1, preauth;
 
-		buf = use_pack(p, &w_curs, entry->in_pack_offset, &avail);
+	ctx = xcalloc(1, sizeof(*ctx));
 
-		/*
-		 * We want in_pack_type even if we do not reuse delta
-		 * since non-delta representations could still be reused.
-		 */
-		used = unpack_object_header_buffer(buf, avail,
-						   &entry->in_pack_type,
-						   &entry->size);
-		if (used == 0)
-			goto give_up;
+	ctx->imap = imap = xcalloc(sizeof(*imap), 1);
+	imap->buf.sock.fd[0] = imap->buf.sock.fd[1] = -1;
+	imap->in_progress_append = &imap->in_progress;
 
-		/*
-		 * Determine if this is a delta and if so whether we can
-		 * reuse it or not.  Otherwise let's find out as cheaply as
-		 * possible what the actual type and size for this object is.
-		 */
-		switch (entry->in_pack_type) {
-		default:
-			/* Not a delta hence we've already got all we need. */
-			entry->type = entry->in_pack_type;
-			entry->in_pack_header_size = used;
-			if (entry->type < OBJ_COMMIT || entry->type > OBJ_BLOB)
-				goto give_up;
-			unuse_pack(&w_curs);
-			return;
-		case OBJ_REF_DELTA:
-			if (reuse_delta && !entry->preferred_base)
-				base_ref = use_pack(p, &w_curs,
-						entry->in_pack_offset + used, NULL);
-			entry->in_pack_header_size = used + 20;
-			break;
-		case OBJ_OFS_DELTA:
-			buf = use_pack(p, &w_curs,
-				       entry->in_pack_offset + used, NULL);
-			used_0 = 0;
-			c = buf[used_0++];
-			ofs = c & 127;
-			while (c & 128) {
-				ofs += 1;
-				if (!ofs || MSB(ofs, 7)) {
-					error("delta base offset overflow in pack for %s",
-					      sha1_to_hex(entry->idx.sha1));
-					goto give_up;
-				}
-				c = buf[used_0++];
-				ofs = (ofs << 7) + (c & 127);
+	/* open connection to IMAP server */
+
+	if (srvc->tunnel) {
+		const char *argv[] = { srvc->tunnel, NULL };
+		struct child_process tunnel = {NULL};
+
+		imap_info("Starting tunnel '%s'... ", srvc->tunnel);
+
+		tunnel.argv = argv;
+		tunnel.use_shell = 1;
+		tunnel.in = -1;
+		tunnel.out = -1;
+		if (start_command(&tunnel))
+			die("cannot start proxy %s", argv[0]);
+
+		imap->buf.sock.fd[0] = tunnel.out;
+		imap->buf.sock.fd[1] = tunnel.in;
+
+		imap_info("ok\n");
+	} else {
+#ifndef NO_IPV6
+		struct addrinfo hints, *ai0, *ai;
+		int gai;
+		char portstr[6];
+
+		snprintf(portstr, sizeof(portstr), "%d", srvc->port);
+
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_socktype = SOCK_STREAM;
+		hints.ai_protocol = IPPROTO_TCP;
+
+		imap_info("Resolving %s... ", srvc->host);
+		gai = getaddrinfo(srvc->host, portstr, &hints, &ai);
+		if (gai) {
+			fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(gai));
+			goto bail;
+		}
+		imap_info("ok\n");
+
+		for (ai0 = ai; ai; ai = ai->ai_next) {
+			char addr[NI_MAXHOST];
+
+			s = socket(ai->ai_family, ai->ai_socktype,
+				   ai->ai_protocol);
+			if (s < 0)
+				continue;
+
+			getnameinfo(ai->ai_addr, ai->ai_addrlen, addr,
+				    sizeof(addr), NULL, 0, NI_NUMERICHOST);
+			imap_info("Connecting to [%s]:%s... ", addr, portstr);
+
+			if (connect(s, ai->ai_addr, ai->ai_addrlen) < 0) {
+				close(s);
+				s = -1;
+				perror("connect");
+				continue;
 			}
-			ofs = entry->in_pack_offset - ofs;
-			if (ofs <= 0 || ofs >= entry->in_pack_offset) {
-				error("delta base offset out of bound for %s",
-				      sha1_to_hex(entry->idx.sha1));
-				goto give_up;
-			}
-			if (reuse_delta && !entry->preferred_base) {
-				struct revindex_entry *revidx;
-				revidx = find_pack_revindex(p, ofs);
-				if (!revidx)
-					goto give_up;
-				base_ref = nth_packed_object_sha1(p, revidx->nr);
-			}
-			entry->in_pack_header_size = used + used_0;
+
 			break;
 		}
+		freeaddrinfo(ai0);
+#else /* NO_IPV6 */
+		struct hostent *he;
+		struct sockaddr_in addr;
 
-		if (base_ref && (base_entry = packlist_find(&to_pack, base_ref, NULL))) {
-			/*
-			 * If base_ref was set above that means we wish to
-			 * reuse delta data, and we even found that base
-			 * in the list of objects we want to pack. Goodie!
-			 *
-			 * Depth value does not matter - find_deltas() will
-			 * never consider reused delta as the base object to
-			 * deltify other objects against, in order to avoid
-			 * circular deltas.
-			 */
-			entry->type = entry->in_pack_type;
-			entry->delta = base_entry;
-			entry->delta_size = entry->size;
-			entry->delta_sibling = base_entry->delta_child;
-			base_entry->delta_child = entry;
-			unuse_pack(&w_curs);
-			return;
+		memset(&addr, 0, sizeof(addr));
+		addr.sin_port = htons(srvc->port);
+		addr.sin_family = AF_INET;
+
+		imap_info("Resolving %s... ", srvc->host);
+		he = gethostbyname(srvc->host);
+		if (!he) {
+			perror("gethostbyname");
+			goto bail;
+		}
+		imap_info("ok\n");
+
+		addr.sin_addr.s_addr = *((int *) he->h_addr_list[0]);
+
+		s = socket(PF_INET, SOCK_STREAM, 0);
+
+		imap_info("Connecting to %s:%hu... ", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+		if (connect(s, (struct sockaddr *)&addr, sizeof(addr))) {
+			close(s);
+			s = -1;
+			perror("connect");
+		}
+#endif
+		if (s < 0) {
+			fputs("Error: unable to connect to server.\n", stderr);
+			goto bail;
 		}
 
-		if (entry->type) {
-			/*
-			 * This must be a delta and we already know what the
-			 * final object type is.  Let's extract the actual
-			 * object size from the delta header.
-			 */
-			entry->size = get_size_from_delta(p, &w_curs,
-					entry->in_pack_offset + entry->in_pack_header_size);
-			if (entry->size == 0)
-				goto give_up;
-			unuse_pack(&w_curs);
-			return;
-		}
+		imap->buf.sock.fd[0] = s;
+		imap->buf.sock.fd[1] = dup(s);
 
-		/*
-		 * No choice but to fall back to the recursive delta walk
-		 * with sha1_object_info() to find about the object type
-		 * at this point...
-		 */
-		give_up:
-		unuse_pack(&w_curs);
+		if (srvc->use_ssl &&
+		    ssl_socket_connect(&imap->buf.sock, 0, srvc->ssl_verify)) {
+			close(s);
+			goto bail;
+		}
+		imap_info("ok\n");
 	}
 
-	entry->type = sha1_object_info(entry->idx.sha1, &entry->size);
-	/*
-	 * The error condition is checked in prepare_pack().  This is
-	 * to permit a missing preferred base object to be ignored
-	 * as a preferred base.  Doing so can result in a larger
-	 * pack file, but the transfer will still take place.
-	 */
+	/* read the greeting string */
+	if (buffer_gets(&imap->buf, &rsp)) {
+		fprintf(stderr, "IMAP error: no greeting response\n");
+		goto bail;
+	}
+	arg = next_arg(&rsp);
+	if (!arg || *arg != '*' || (arg = next_arg(&rsp)) == NULL) {
+		fprintf(stderr, "IMAP error: invalid greeting response\n");
+		goto bail;
+	}
+	preauth = 0;
+	if (!strcmp("PREAUTH", arg))
+		preauth = 1;
+	else if (strcmp("OK", arg) != 0) {
+		fprintf(stderr, "IMAP error: unknown greeting response\n");
+		goto bail;
+	}
+	parse_response_code(ctx, NULL, rsp);
+	if (!imap->caps && imap_exec(ctx, NULL, "CAPABILITY") != RESP_OK)
+		goto bail;
+
+	if (!preauth) {
+#ifndef NO_OPENSSL
+		if (!srvc->use_ssl && CAP(STARTTLS)) {
+			if (imap_exec(ctx, NULL, "STARTTLS") != RESP_OK)
+				goto bail;
+			if (ssl_socket_connect(&imap->buf.sock, 1,
+					       srvc->ssl_verify))
+				goto bail;
+			/* capabilities may have changed, so get the new capabilities */
+			if (imap_exec(ctx, NULL, "CAPABILITY") != RESP_OK)
+				goto bail;
+		}
+#endif
+		imap_info("Logging in...\n");
+		if (!srvc->user || !srvc->pass) {
+			cred.protocol = xstrdup(srvc->use_ssl ? "imaps" : "imap");
+			cred.host = xstrdup(srvc->host);
+
+			if (srvc->user)
+				cred.username = xstrdup(srvc->user);
+			if (srvc->pass)
+				cred.password = xstrdup(srvc->pass);
+
+			credential_fill(&cred);
+
+			if (!srvc->user)
+				srvc->user = xstrdup(cred.username);
+			if (!srvc->pass)
+				srvc->pass = xstrdup(cred.password);
+		}
+
+		if (CAP(NOLOGIN)) {
+			fprintf(stderr, "Skipping account %s@%s, server forbids LOGIN\n", srvc->user, srvc->host);
+			goto bail;
+		}
+
+		if (srvc->auth_method) {
+			struct imap_cmd_cb cb;
+
+			if (!strcmp(srvc->auth_method, "CRAM-MD5")) {
+				if (!CAP(AUTH_CRAM_MD5)) {
+					fprintf(stderr, "You specified"
+						"CRAM-MD5 as authentication method, "
+						"but %s doesn't support it.\n", srvc->host);
+					goto bail;
+				}
+				/* CRAM-MD5 */
+
+				memset(&cb, 0, sizeof(cb));
+				cb.cont = auth_cram_md5;
+				if (imap_exec(ctx, &cb, "AUTHENTICATE CRAM-MD5") != RESP_OK) {
+					fprintf(stderr, "IMAP error: AUTHENTICATE CRAM-MD5 failed\n");
+					goto bail;
+				}
+			} else {
+				fprintf(stderr, "Unknown authentication method:%s\n", srvc->host);
+				goto bail;
+			}
+		} else {
+			if (!imap->buf.sock.ssl)
+				imap_warn("*** IMAP Warning *** Password is being "
+					  "sent in the clear\n");
+			if (imap_exec(ctx, NULL, "LOGIN \"%s\" \"%s\"", srvc->user, srvc->pass) != RESP_OK) {
+				fprintf(stderr, "IMAP error: LOGIN failed\n");
+				goto bail;
+			}
+		}
+	} /* !preauth */
+
+	if (cred.username)
+		credential_approve(&cred);
+	credential_clear(&cred);
+
+	ctx->prefix = "";
+	return ctx;
+
+bail:
+	if (cred.username)
+		credential_reject(&cred);
+	credential_clear(&cred);
+
+	imap_close_store(ctx);
+	return NULL;
 }

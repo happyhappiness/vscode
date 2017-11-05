@@ -1,30 +1,37 @@
-static void pass_blame_to_parent(struct scoreboard *sb,
-				 struct origin *target,
-				 struct origin *parent)
+static int log_ref_write_1(const char *refname, const unsigned char *old_sha1,
+			   const unsigned char *new_sha1, const char *msg,
+			   struct strbuf *sb_log_file)
 {
-	mmfile_t file_p, file_o;
-	struct blame_chunk_cb_data d;
-	struct blame_entry *newdest = NULL;
+	int logfd, result, oflags = O_APPEND | O_WRONLY;
+	char *log_file;
 
-	if (!target->suspects)
-		return; /* nothing remains for this target */
+	if (log_all_ref_updates < 0)
+		log_all_ref_updates = !is_bare_repository();
 
-	d.parent = parent;
-	d.offset = 0;
-	d.dstq = &newdest; d.srcq = &target->suspects;
+	result = log_ref_setup(refname, sb_log_file);
+	if (result)
+		return result;
+	log_file = sb_log_file->buf;
+	/* make sure the rest of the function can't change "log_file" */
+	sb_log_file = NULL;
 
-	fill_origin_blob(&sb->revs->diffopt, parent, &file_p);
-	fill_origin_blob(&sb->revs->diffopt, target, &file_o);
-	num_get_patch++;
-
-	if (diff_hunks(&file_p, &file_o, 0, blame_chunk_cb, &d))
-		die("unable to generate diff (%s -> %s)",
-		    sha1_to_hex(parent->commit->object.sha1),
-		    sha1_to_hex(target->commit->object.sha1));
-	/* The rest are the same as the parent */
-	blame_chunk(&d.dstq, &d.srcq, INT_MAX, d.offset, INT_MAX, parent);
-	*d.dstq = NULL;
-	queue_blames(sb, parent, newdest);
-
-	return;
+	logfd = open(log_file, oflags);
+	if (logfd < 0)
+		return 0;
+	result = log_ref_write_fd(logfd, old_sha1, new_sha1,
+				  git_committer_info(0), msg);
+	if (result) {
+		int save_errno = errno;
+		close(logfd);
+		error("Unable to append to %s", log_file);
+		errno = save_errno;
+		return -1;
+	}
+	if (close(logfd)) {
+		int save_errno = errno;
+		error("Unable to append to %s", log_file);
+		errno = save_errno;
+		return -1;
+	}
+	return 0;
 }

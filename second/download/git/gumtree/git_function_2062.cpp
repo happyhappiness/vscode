@@ -1,25 +1,23 @@
-static void handle_bad_merge_base(void)
+static int parse_push_recurse(const char *opt, const char *arg,
+			       int die_on_error)
 {
-	if (is_expected_rev(current_bad_oid)) {
-		char *bad_hex = oid_to_hex(current_bad_oid);
-		char *good_hex = join_sha1_array_hex(&good_revs, ' ');
-		if (!strcmp(term_bad, "bad") && !strcmp(term_good, "good")) {
-			fprintf(stderr, "The merge base %s is bad.\n"
-				"This means the bug has been fixed "
-				"between %s and [%s].\n",
-				bad_hex, bad_hex, good_hex);
-		} else {
-			fprintf(stderr, "The merge base %s is %s.\n"
-				"This means the first '%s' commit is "
-				"between %s and [%s].\n",
-				bad_hex, term_bad, term_good, bad_hex, good_hex);
-		}
-		exit(3);
+	switch (git_config_maybe_bool(opt, arg)) {
+	case 1:
+		/* There's no simple "on" value when pushing */
+		if (die_on_error)
+			die("bad %s argument: %s", opt, arg);
+		else
+			return RECURSE_SUBMODULES_ERROR;
+	case 0:
+		return RECURSE_SUBMODULES_OFF;
+	default:
+		if (!strcmp(arg, "on-demand"))
+			return RECURSE_SUBMODULES_ON_DEMAND;
+		else if (!strcmp(arg, "check"))
+			return RECURSE_SUBMODULES_CHECK;
+		else if (die_on_error)
+			die("bad %s argument: %s", opt, arg);
+		else
+			return RECURSE_SUBMODULES_ERROR;
 	}
-
-	fprintf(stderr, "Some %s revs are not ancestor of the %s rev.\n"
-		"git bisect cannot work properly in this case.\n"
-		"Maybe you mistook %s and %s revs?\n",
-		term_good, term_bad, term_good, term_bad);
-	exit(1);
 }

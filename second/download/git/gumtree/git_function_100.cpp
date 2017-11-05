@@ -1,22 +1,22 @@
-static void parse_cmd_verify(const char *next)
+static int init_sizeof_ioinfo()
 {
-	struct strbuf ref = STRBUF_INIT;
-	struct strbuf value = STRBUF_INIT;
-	struct ref_update *update;
+	int istty, wastty;
+	/* don't init twice */
+	if (sizeof_ioinfo)
+		return sizeof_ioinfo >= 256;
 
-	update = update_alloc();
-
-	if ((next = parse_first_arg(next, &ref)) != NULL && ref.buf[0])
-		update_store_ref_name(update, ref.buf);
-	else
-		die("verify line missing <ref>");
-
-	if ((next = parse_next_arg(next, &value)) != NULL) {
-		update_store_old_sha1(update, value.buf);
-		update_store_new_sha1(update, value.buf);
-	} else if(!line_termination)
-		die("verify %s missing [<oldvalue>] NUL", ref.buf);
-
-	if (next && *next)
-		die("verify %s has extra input: %s", ref.buf, next);
+	sizeof_ioinfo = sizeof(ioinfo);
+	wastty = isatty(1);
+	while (sizeof_ioinfo < 256) {
+		/* toggle FDEV flag, check isatty, then toggle back */
+		_pioinfo(1)->osflags ^= FDEV;
+		istty = isatty(1);
+		_pioinfo(1)->osflags ^= FDEV;
+		/* return if we found the correct size */
+		if (istty != wastty)
+			return 0;
+		sizeof_ioinfo += sizeof(void*);
+	}
+	error("Tweaking file descriptors doesn't work with this MSVCRT.dll");
+	return 1;
 }

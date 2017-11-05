@@ -1,2 +1,1 @@
-(fprintf(f, ":%"PRIu32" %s\n", mark,
-				oid_to_hex(&deco->base->oid));
+error_errno(_("could not create temporary file '%s'"), path);

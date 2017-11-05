@@ -1,2 +1,1 @@
-die("unknown repository extension: %s",
-			    unknown_extensions.items[0].string);
+warning_errno("failed to stat %s", pack_tmp_name);

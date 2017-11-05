@@ -1,1 +1,1 @@
-die(_("cannot delete packs in a precious-objects repo"));
+error_errno("failed to redirect stderr to /dev/null");

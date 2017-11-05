@@ -1,1 +1,1 @@
-die("BUG: Added a new grep pattern type without updating switch statement");
+write_or_die(bundle_fd, bundle_signature, strlen(bundle_signature));

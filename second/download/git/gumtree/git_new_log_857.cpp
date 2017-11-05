@@ -1,1 +1,0 @@
-error(_("cannot read HEAD"));

@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c,
-                              "h2_task(%s): read response line: %s", 
-                              task->id, line);
+fprintf(stderr, "%s:%s:%s\n", h->username, h->ctx.passwd,
+                    h->comment);

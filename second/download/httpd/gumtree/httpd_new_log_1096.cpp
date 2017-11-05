@@ -1,1 +1,0 @@
-fprintf(f, " */\n\n/* End of chartables.c */\n");

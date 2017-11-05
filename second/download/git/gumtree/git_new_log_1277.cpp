@@ -1,2 +1,1 @@
-die(_("failed to finish 'show' for object '%s'"),
-		    oid_to_hex(object));
+fprintf(o->file, "%s", header.buf);

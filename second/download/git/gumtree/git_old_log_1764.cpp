@@ -1,2 +1,1 @@
-error("%s: %s", strerror(errno),
-					newlog_path);
+die(_("Malformed options sheet: %s"), opts_file);

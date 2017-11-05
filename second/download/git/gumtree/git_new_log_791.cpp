@@ -1,1 +1,1 @@
-error("%s: object missing", sha1_to_hex(sha1));
+die("Could not read blob %s", oid_to_hex(oid));

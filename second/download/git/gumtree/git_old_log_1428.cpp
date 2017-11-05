@@ -1,1 +1,0 @@
-printf("committer %s <%s@%s> %lu +0000\n", author, author, "local", timestamp);

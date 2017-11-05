@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf, APLOGNO(00430)
-                             "Parent: Child process exited successfully.");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                      APLOGNO(02923) 
+                      "h2_session: stream(%ld-%d): error handling frame",
+                      session->id, (int)frame->hd.stream_id);

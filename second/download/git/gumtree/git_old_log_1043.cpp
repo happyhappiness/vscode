@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+die("strange hostname '%s' blocked", ssh_host);

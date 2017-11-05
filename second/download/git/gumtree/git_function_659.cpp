@@ -1,27 +1,39 @@
-int set_disambiguate_hint_config(const char *var, const char *value)
+static int do_exec(const char *command_line)
 {
-	static const struct {
-		const char *name;
-		disambiguate_hint_fn fn;
-	} hints[] = {
-		{ "none", NULL },
-		{ "commit", disambiguate_commit_only },
-		{ "committish", disambiguate_committish_only },
-		{ "tree", disambiguate_tree_only },
-		{ "treeish", disambiguate_treeish_only },
-		{ "blob", disambiguate_blob_only }
-	};
-	int i;
+	const char *child_argv[] = { NULL, NULL };
+	int dirty, status;
 
-	if (!value)
-		return config_error_nonbool(var);
+	fprintf(stderr, "Executing: %s\n", command_line);
+	child_argv[0] = command_line;
+	status = run_command_v_opt(child_argv, RUN_USING_SHELL);
 
-	for (i = 0; i < ARRAY_SIZE(hints); i++) {
-		if (!strcasecmp(value, hints[i].name)) {
-			default_disambiguate_hint = hints[i].fn;
-			return 0;
-		}
+	/* force re-reading of the cache */
+	if (discard_cache() < 0 || read_cache() < 0)
+		return error(_("could not read index"));
+
+	dirty = require_clean_work_tree("rebase", NULL, 1, 1);
+
+	if (status) {
+		warning(_("execution failed: %s\n%s"
+			  "You can fix the problem, and then run\n"
+			  "\n"
+			  "  git rebase --continue\n"
+			  "\n"),
+			command_line,
+			dirty ? N_("and made changes to the index and/or the "
+				"working tree\n") : "");
+		if (status == 127)
+			/* command not found */
+			status = 1;
+	} else if (dirty) {
+		warning(_("execution succeeded: %s\nbut "
+			  "left changes to the index and/or the working tree\n"
+			  "Commit or stash your changes, and then run\n"
+			  "\n"
+			  "  git rebase --continue\n"
+			  "\n"), command_line);
+		status = 1;
 	}
 
-	return error("unknown hint type for '%s': %s", var, value);
+	return status;
 }

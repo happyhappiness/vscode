@@ -1,66 +1,71 @@
-static void builtin_diffstat(const char *name_a, const char *name_b,
-			     struct diff_filespec *one,
-			     struct diff_filespec *two,
-			     struct diffstat_t *diffstat,
-			     struct diff_options *o,
-			     struct diff_filepair *p)
+static int handle_alias(int *argcp, const char ***argv)
 {
-	mmfile_t mf1, mf2;
-	struct diffstat_file *data;
-	int same_contents;
-	int complete_rewrite = 0;
+	int envchanged = 0, ret = 0, saved_errno = errno;
+	const char *subdir;
+	int count, option_count;
+	const char **new_argv;
+	const char *alias_command;
+	char *alias_string;
+	int unused_nongit;
 
-	if (!DIFF_PAIR_UNMERGED(p)) {
-		if (p->status == DIFF_STATUS_MODIFIED && p->score)
-			complete_rewrite = 1;
-	}
+	subdir = setup_git_directory_gently(&unused_nongit);
 
-	data = diffstat_add(diffstat, name_a, name_b);
-	data->is_interesting = p->status != DIFF_STATUS_UNKNOWN;
+	alias_command = (*argv)[0];
+	alias_string = alias_lookup(alias_command);
+	if (alias_string) {
+		if (alias_string[0] == '!') {
+			struct child_process child = CHILD_PROCESS_INIT;
 
-	if (!one || !two) {
-		data->is_unmerged = 1;
-		return;
-	}
+			commit_pager_choice();
 
-	same_contents = !hashcmp(one->sha1, two->sha1);
+			child.use_shell = 1;
+			argv_array_push(&child.args, alias_string + 1);
+			argv_array_pushv(&child.args, (*argv) + 1);
 
-	if (diff_filespec_is_binary(one) || diff_filespec_is_binary(two)) {
-		data->is_binary = 1;
-		if (same_contents) {
-			data->added = 0;
-			data->deleted = 0;
-		} else {
-			data->added = diff_filespec_size(two);
-			data->deleted = diff_filespec_size(one);
+			ret = run_command(&child);
+			if (ret >= 0)   /* normal exit */
+				exit(ret);
+
+			die_errno("While expanding alias '%s': '%s'",
+			    alias_command, alias_string + 1);
 		}
+		count = split_cmdline(alias_string, &new_argv);
+		if (count < 0)
+			die("Bad alias.%s string: %s", alias_command,
+			    split_cmdline_strerror(count));
+		option_count = handle_options(&new_argv, &count, &envchanged);
+		if (envchanged)
+			die("alias '%s' changes environment variables\n"
+				 "You can use '!git' in the alias to do this.",
+				 alias_command);
+		memmove(new_argv - option_count, new_argv,
+				count * sizeof(char *));
+		new_argv -= option_count;
+
+		if (count < 1)
+			die("empty alias for %s", alias_command);
+
+		if (!strcmp(alias_command, new_argv[0]))
+			die("recursive alias: %s", alias_command);
+
+		trace_argv_printf(new_argv,
+				  "trace: alias expansion: %s =>",
+				  alias_command);
+
+		REALLOC_ARRAY(new_argv, count + *argcp);
+		/* insert after command name */
+		memcpy(new_argv + count, *argv + 1, sizeof(char *) * *argcp);
+
+		*argv = new_argv;
+		*argcp += count - 1;
+
+		ret = 1;
 	}
 
-	else if (complete_rewrite) {
-		diff_populate_filespec(one, 0);
-		diff_populate_filespec(two, 0);
-		data->deleted = count_lines(one->data, one->size);
-		data->added = count_lines(two->data, two->size);
-	}
+	if (subdir && chdir(subdir))
+		die_errno("Cannot change to '%s'", subdir);
 
-	else if (!same_contents) {
-		/* Crazy xdl interfaces.. */
-		xpparam_t xpp;
-		xdemitconf_t xecfg;
+	errno = saved_errno;
 
-		if (fill_mmfile(&mf1, one) < 0 || fill_mmfile(&mf2, two) < 0)
-			die("unable to read files to diff");
-
-		memset(&xpp, 0, sizeof(xpp));
-		memset(&xecfg, 0, sizeof(xecfg));
-		xpp.flags = o->xdl_opts;
-		xecfg.ctxlen = o->context;
-		xecfg.interhunkctxlen = o->interhunkcontext;
-		if (xdi_diff_outf(&mf1, &mf2, diffstat_consume, diffstat,
-				  &xpp, &xecfg))
-			die("unable to generate diffstat for %s", one->path);
-	}
-
-	diff_free_filespec_data(one);
-	diff_free_filespec_data(two);
+	return ret;
 }

@@ -1,1 +1,1 @@
-die("cannot describe '%s'", oid_to_hex(oid));
+error_errno("%s process failed to wait", name);

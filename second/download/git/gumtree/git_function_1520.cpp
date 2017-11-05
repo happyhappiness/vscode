@@ -1,22 +1,53 @@
-static int index_range_of_same_dir(const char *src, int length,
-				   int *first_p, int *last_p)
+static void handle_fetch_head(struct commit_list **remotes, struct strbuf *merge_names)
 {
-	const char *src_w_slash = add_slash(src);
-	int first, last, len_w_slash = length + 1;
+	const char *filename;
+	int fd, pos, npos;
+	struct strbuf fetch_head_file = STRBUF_INIT;
 
-	first = cache_name_pos(src_w_slash, len_w_slash);
-	if (first >= 0)
-		die(_("%.*s is in index"), len_w_slash, src_w_slash);
+	if (!merge_names)
+		merge_names = &fetch_head_file;
 
-	first = -1 - first;
-	for (last = first; last < active_nr; last++) {
-		const char *path = active_cache[last]->name;
-		if (strncmp(path, src_w_slash, len_w_slash))
-			break;
+	filename = git_path("FETCH_HEAD");
+	fd = open(filename, O_RDONLY);
+	if (fd < 0)
+		die_errno(_("could not open '%s' for reading"), filename);
+
+	if (strbuf_read(merge_names, fd, 0) < 0)
+		die_errno(_("could not read '%s'"), filename);
+	if (close(fd) < 0)
+		die_errno(_("could not close '%s'"), filename);
+
+	for (pos = 0; pos < merge_names->len; pos = npos) {
+		unsigned char sha1[20];
+		char *ptr;
+		struct commit *commit;
+
+		ptr = strchr(merge_names->buf + pos, '\n');
+		if (ptr)
+			npos = ptr - merge_names->buf + 1;
+		else
+			npos = merge_names->len;
+
+		if (npos - pos < 40 + 2 ||
+		    get_sha1_hex(merge_names->buf + pos, sha1))
+			commit = NULL; /* bad */
+		else if (memcmp(merge_names->buf + pos + 40, "\t\t", 2))
+			continue; /* not-for-merge */
+		else {
+			char saved = merge_names->buf[pos + 40];
+			merge_names->buf[pos + 40] = '\0';
+			commit = get_merge_parent(merge_names->buf + pos);
+			merge_names->buf[pos + 40] = saved;
+		}
+		if (!commit) {
+			if (ptr)
+				*ptr = '\0';
+			die("not something we can merge in %s: %s",
+			    filename, merge_names->buf + pos);
+		}
+		remotes = &commit_list_insert(commit, remotes)->next;
 	}
-	if (src_w_slash != src)
-		free((char *)src_w_slash);
-	*first_p = first;
-	*last_p = last;
-	return last - first;
+
+	if (merge_names == &fetch_head_file)
+		strbuf_release(&fetch_head_file);
 }

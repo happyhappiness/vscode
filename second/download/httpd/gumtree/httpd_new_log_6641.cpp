@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03466)
-                          "h2_stream(%ld-%d): no response, RST_STREAM, err=%d",
-                          session->id, stream->id, err);
+ap_log_error(APLOG_MARK, APLOG_STARTUP, rv, NULL, APLOGNO(00107)
+                             "piped_log_maintenance: unable to respawn '%s'",
+                             pl->program);

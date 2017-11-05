@@ -1,30 +1,18 @@
-static const char *apply_command(const char *command, const char *arg)
+static void read_rebase_todolist(const char *fname, struct string_list *lines)
 {
-	struct strbuf cmd = STRBUF_INIT;
-	struct strbuf buf = STRBUF_INIT;
-	struct child_process cp = CHILD_PROCESS_INIT;
-	const char *argv[] = {NULL, NULL};
-	const char *result;
+	struct strbuf line = STRBUF_INIT;
+	FILE *f = fopen(git_path("%s", fname), "r");
 
-	strbuf_addstr(&cmd, command);
-	if (arg)
-		strbuf_replace(&cmd, TRAILER_ARG_STRING, arg);
-
-	argv[0] = cmd.buf;
-	cp.argv = argv;
-	cp.env = local_repo_env;
-	cp.no_stdin = 1;
-	cp.use_shell = 1;
-
-	if (capture_command(&cp, &buf, 1024)) {
-		error("running trailer command '%s' failed", cmd.buf);
-		strbuf_release(&buf);
-		result = xstrdup("");
-	} else {
-		strbuf_trim(&buf);
-		result = strbuf_detach(&buf, NULL);
+	if (!f)
+		die_errno("Could not open file %s for reading",
+			  git_path("%s", fname));
+	while (!strbuf_getline(&line, f, '\n')) {
+		if (line.len && line.buf[0] == comment_line_char)
+			continue;
+		strbuf_trim(&line);
+		if (!line.len)
+			continue;
+		abbrev_sha1_in_line(&line);
+		string_list_append(lines, line.buf);
 	}
-
-	strbuf_release(&cmd);
-	return result;
 }

@@ -1,14 +1,9 @@
-void fprintf_or_die(FILE *f, const char *fmt, ...)
+static int parse_expire_cfg_value(const char *var, const char *value, unsigned long *expire)
 {
-	va_list ap;
-	int ret;
-
-	va_start(ap, fmt);
-	ret = vfprintf(f, fmt, ap);
-	va_end(ap);
-
-	if (ret < 0) {
-		check_pipe(errno);
-		die_errno("write error");
-	}
+	if (!value)
+		return config_error_nonbool(var);
+	if (parse_expiry_date(value, expire))
+		return error(_("%s' for '%s' is not a valid timestamp"),
+			     value, var);
+	return 0;
 }

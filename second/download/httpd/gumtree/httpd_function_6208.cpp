@@ -1,40 +1,19 @@
-static char *try_redirect(request_rec *r, int *status)
+static apr_status_t h2_session_shutdown_notice(h2_session *session)
 {
-    alias_dir_conf *dirconf =
-            (alias_dir_conf *) ap_get_module_config(r->per_dir_config, &alias_module);
-
-    if (dirconf->redirect_set) {
-        apr_uri_t uri;
-        const char *err = NULL;
-        char *found = "";
-
-        if (dirconf->redirect) {
-
-            found = apr_pstrdup(r->pool,
-                    ap_expr_str_exec(r, dirconf->redirect, &err));
-            if (err) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02826)
-                              "Can't evaluate redirect expression: %s", err);
-                return PREGSUB_ERROR;
-            }
-
-            apr_uri_parse(r->pool, found, &uri);
-            /* Do not escape the query string or fragment. */
-            found = apr_uri_unparse(r->pool, &uri, APR_URI_UNP_OMITQUERY);
-            found = ap_escape_uri(r->pool, found);
-            if (uri.query) {
-                found = apr_pstrcat(r->pool, found, "?", uri.query, NULL);
-            }
-            if (uri.fragment) {
-                found = apr_pstrcat(r->pool, found, "#", uri.fragment, NULL);
-            }
-
-        }
-
-        *status = dirconf->redirect_status;
-        return found;
-
+    apr_status_t status;
+    
+    ap_assert(session);
+    if (!session->local.accepting) {
+        return APR_SUCCESS;
     }
-
-    return NULL;
+    
+    nghttp2_submit_shutdown_notice(session->ngh2);
+    session->local.accepting = 0;
+    status = nghttp2_session_send(session->ngh2);
+    if (status == APR_SUCCESS) {
+        status = h2_conn_io_flush(&session->io);
+    }
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03457)
+                  "session(%ld): sent shutdown notice", session->id);
+    return status;
 }

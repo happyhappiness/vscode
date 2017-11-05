@@ -1,2 +1,1 @@
-ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcolsize\">" : " align=\"right\">",
-                          apr_strfsize(ar[x]->size, buf), NULL);
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s, "%s", buff);

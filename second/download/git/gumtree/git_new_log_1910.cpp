@@ -1,2 +1,1 @@
-fprintf_ln(stderr, _("directory stat info does not "
-				     "change after deleting a file"));
+die("BUG: invalid value for shared_repository");

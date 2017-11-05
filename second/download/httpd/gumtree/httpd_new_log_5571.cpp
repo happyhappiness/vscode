@@ -1,5 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING,
-                                 0, NULL, APLOGNO(02793)
-                                 "bad (negative) nesting on line %d of %s",
-                                 config_file->line_number - line_number_start,
-                                 where);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                          "h2_task_input(%s): serialize request %s %s", 
+                          task->id, task->request->method, task->request->path);

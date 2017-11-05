@@ -1,1 +1,1 @@
-rp_error("%s", refuse_unconfigured_deny_msg[i]);
+die(_("git %s: failed to refresh the index"), action_name(opts));

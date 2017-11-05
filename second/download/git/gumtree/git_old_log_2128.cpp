@@ -1,2 +1,1 @@
-error("chmod on %s failed: %s",
-				lock->filename.buf, strerror(errno));
+die("strange hostname '%s' blocked", ssh_host);

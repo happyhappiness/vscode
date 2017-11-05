@@ -1,1 +1,1 @@
-die("BUG: reverse reflog parser had leftover data");
+print_signature_buffer(&signature_check, flags);

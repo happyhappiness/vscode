@@ -1,1 +1,2 @@
-die("strange hostname '%s' blocked", ssh_host);
+error(_("inconsistent header lines %d and %d"),
+			     patch->extension_linenr, state->linenr);

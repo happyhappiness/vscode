@@ -1,3 +1,1 @@
-fprintf(stderr,
-				_("info: Could not add alternate for '%s': %s\n"),
-				item->string, err.buf);
+die(_("fetch-pack: unable to fork off %s"), cmd_name);

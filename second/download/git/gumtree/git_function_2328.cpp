@@ -1,93 +1,41 @@
-static void handle_commit(struct commit *commit, struct rev_info *rev)
+static int serve_cache_loop(int fd)
 {
-	int saved_output_format = rev->diffopt.output_format;
-	const char *commit_buffer;
-	const char *author, *author_end, *committer, *committer_end;
-	const char *encoding, *message;
-	char *reencoded = NULL;
-	struct commit_list *p;
-	const char *refname;
-	int i;
+	struct pollfd pfd;
+	unsigned long wakeup;
 
-	rev->diffopt.output_format = DIFF_FORMAT_CALLBACK;
+	wakeup = check_expirations();
+	if (!wakeup)
+		return 0;
 
-	parse_commit_or_die(commit);
-	commit_buffer = get_commit_buffer(commit, NULL);
-	author = strstr(commit_buffer, "\nauthor ");
-	if (!author)
-		die ("Could not find author in commit %s",
-		     sha1_to_hex(commit->object.sha1));
-	author++;
-	author_end = strchrnul(author, '\n');
-	committer = strstr(author_end, "\ncommitter ");
-	if (!committer)
-		die ("Could not find committer in commit %s",
-		     sha1_to_hex(commit->object.sha1));
-	committer++;
-	committer_end = strchrnul(committer, '\n');
-	message = strstr(committer_end, "\n\n");
-	encoding = find_encoding(committer_end, message);
-	if (message)
-		message += 2;
-
-	if (commit->parents &&
-	    get_object_mark(&commit->parents->item->object) != 0 &&
-	    !full_tree) {
-		parse_commit_or_die(commit->parents->item);
-		diff_tree_sha1(commit->parents->item->tree->object.sha1,
-			       commit->tree->object.sha1, "", &rev->diffopt);
-	}
-	else
-		diff_root_tree_sha1(commit->tree->object.sha1,
-				    "", &rev->diffopt);
-
-	/* Export the referenced blobs, and remember the marks. */
-	for (i = 0; i < diff_queued_diff.nr; i++)
-		if (!S_ISGITLINK(diff_queued_diff.queue[i]->two->mode))
-			export_blob(diff_queued_diff.queue[i]->two->sha1);
-
-	refname = commit->util;
-	if (anonymize) {
-		refname = anonymize_refname(refname);
-		anonymize_ident_line(&committer, &committer_end);
-		anonymize_ident_line(&author, &author_end);
+	pfd.fd = fd;
+	pfd.events = POLLIN;
+	if (poll(&pfd, 1, 1000 * wakeup) < 0) {
+		if (errno != EINTR)
+			die_errno("poll failed");
+		return 1;
 	}
 
-	mark_next_object(&commit->object);
-	if (anonymize)
-		reencoded = anonymize_commit_message(message);
-	else if (!is_encoding_utf8(encoding))
-		reencoded = reencode_string(message, "UTF-8", encoding);
-	if (!commit->parents)
-		printf("reset %s\n", refname);
-	printf("commit %s\nmark :%"PRIu32"\n%.*s\n%.*s\ndata %u\n%s",
-	       refname, last_idnum,
-	       (int)(author_end - author), author,
-	       (int)(committer_end - committer), committer,
-	       (unsigned)(reencoded
-			  ? strlen(reencoded) : message
-			  ? strlen(message) : 0),
-	       reencoded ? reencoded : message ? message : "");
-	free(reencoded);
-	unuse_commit_buffer(commit, commit_buffer);
+	if (pfd.revents & POLLIN) {
+		int client, client2;
+		FILE *in, *out;
 
-	for (i = 0, p = commit->parents; p; p = p->next) {
-		int mark = get_object_mark(&p->item->object);
-		if (!mark)
-			continue;
-		if (i == 0)
-			printf("from :%d\n", mark);
-		else
-			printf("merge :%d\n", mark);
-		i++;
+		client = accept(fd, NULL, NULL);
+		if (client < 0) {
+			warning("accept failed: %s", strerror(errno));
+			return 1;
+		}
+		client2 = dup(client);
+		if (client2 < 0) {
+			warning("dup failed: %s", strerror(errno));
+			close(client);
+			return 1;
+		}
+
+		in = xfdopen(client, "r");
+		out = xfdopen(client2, "w");
+		serve_one_client(in, out);
+		fclose(in);
+		fclose(out);
 	}
-
-	if (full_tree)
-		printf("deleteall\n");
-	log_tree_diff_flush(rev);
-	rev->diffopt.output_format = saved_output_format;
-
-	printf("\n");
-
-	show_progress();
+	return 1;
 }

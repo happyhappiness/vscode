@@ -1,65 +1,43 @@
-static int handle_change_delete(struct merge_options *o,
-				 const char *path, const char *old_path,
-				 const struct object_id *o_oid, int o_mode,
-				 const struct object_id *changed_oid,
-				 int changed_mode,
-				 const char *change_branch,
-				 const char *delete_branch,
-				 const char *change, const char *change_past)
+static int update_branch(struct branch *b)
 {
-	char *alt_path = NULL;
-	const char *update_path = path;
-	int ret = 0;
+	static const char *msg = "fast-import";
+	struct ref_transaction *transaction;
+	unsigned char old_sha1[20];
+	struct strbuf err = STRBUF_INIT;
 
-	if (dir_in_way(path, !o->call_depth, 0)) {
-		update_path = alt_path = unique_path(o, path, change_branch);
+	if (is_null_sha1(b->sha1)) {
+		if (b->delete)
+			delete_ref(NULL, b->name, NULL, 0);
+		return 0;
 	}
+	if (read_ref(b->name, old_sha1))
+		hashclr(old_sha1);
+	if (!force_update && !is_null_sha1(old_sha1)) {
+		struct commit *old_cmit, *new_cmit;
 
-	if (o->call_depth) {
-		/*
-		 * We cannot arbitrarily accept either a_sha or b_sha as
-		 * correct; since there is no true "middle point" between
-		 * them, simply reuse the base version for virtual merge base.
-		 */
-		ret = remove_file_from_cache(path);
-		if (!ret)
-			ret = update_file(o, 0, o_oid, o_mode, update_path);
-	} else {
-		if (!alt_path) {
-			if (!old_path) {
-				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
-				       "and %s in %s. Version %s of %s left in tree."),
-				       change, path, delete_branch, change_past,
-				       change_branch, change_branch, path);
-			} else {
-				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
-				       "and %s to %s in %s. Version %s of %s left in tree."),
-				       change, old_path, delete_branch, change_past, path,
-				       change_branch, change_branch, path);
-			}
-		} else {
-			if (!old_path) {
-				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
-				       "and %s in %s. Version %s of %s left in tree at %s."),
-				       change, path, delete_branch, change_past,
-				       change_branch, change_branch, path, alt_path);
-			} else {
-				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
-				       "and %s to %s in %s. Version %s of %s left in tree at %s."),
-				       change, old_path, delete_branch, change_past, path,
-				       change_branch, change_branch, path, alt_path);
-			}
+		old_cmit = lookup_commit_reference_gently(old_sha1, 0);
+		new_cmit = lookup_commit_reference_gently(b->sha1, 0);
+		if (!old_cmit || !new_cmit)
+			return error("Branch %s is missing commits.", b->name);
+
+		if (!in_merge_bases(old_cmit, new_cmit)) {
+			warning("Not updating %s"
+				" (new tip %s does not contain %s)",
+				b->name, sha1_to_hex(b->sha1), sha1_to_hex(old_sha1));
+			return -1;
 		}
-		/*
-		 * No need to call update_file() on path when change_branch ==
-		 * o->branch1 && !alt_path, since that would needlessly touch
-		 * path.  We could call update_file_flags() with update_cache=0
-		 * and update_wd=0, but that's a no-op.
-		 */
-		if (change_branch != o->branch1 || alt_path)
-			ret = update_file(o, 0, changed_oid, changed_mode, update_path);
 	}
-	free(alt_path);
-
-	return ret;
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_update(transaction, b->name, b->sha1, old_sha1,
+				   0, msg, &err) ||
+	    ref_transaction_commit(transaction, &err)) {
+		ref_transaction_free(transaction);
+		error("%s", err.buf);
+		strbuf_release(&err);
+		return -1;
+	}
+	ref_transaction_free(transaction);
+	strbuf_release(&err);
+	return 0;
 }

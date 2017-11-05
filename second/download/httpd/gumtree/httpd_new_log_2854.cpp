@@ -1,1 +1,1 @@
-fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02142) "In child!");

@@ -1,2 +1,1 @@
-error(_("empty trailer token in trailer '%.*s'"),
-			      (int) sb.len, sb.buf);
+error(_("could not read orig-head"));

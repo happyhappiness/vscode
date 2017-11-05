@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-            "can not create connection pool");
+ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                     "Couldn't create pollset in thread;"
+                     " check system or user limits");

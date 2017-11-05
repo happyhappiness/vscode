@@ -1,1 +1,1 @@
-die_errno(_("can't open patch '%s'"), arg);
+packet_write(1, "ERR %s: %s", msg, dir);

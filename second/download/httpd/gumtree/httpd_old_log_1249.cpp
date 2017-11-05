@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-              "proxy: ap_get_scoreboard_lb(%d) failed for worker %s",
-              worker->id, worker->name);
+ap_log_error(APLOG_MARK, APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                         "Child %d: Exit event signaled. Child process is ending.", my_pid);

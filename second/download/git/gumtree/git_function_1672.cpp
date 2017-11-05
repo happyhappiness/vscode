@@ -1,21 +1,31 @@
-static int fast_forward_to(const unsigned char *to, const unsigned char *from,
-			int unborn, struct replay_opts *opts)
+static void check_good_are_ancestors_of_bad(const char *prefix, int no_checkout)
 {
-	struct ref_lock *ref_lock;
-	struct strbuf sb = STRBUF_INIT;
-	int ret;
+	char *filename = git_pathdup("BISECT_ANCESTORS_OK");
+	struct stat st;
+	int fd;
 
-	read_cache();
-	if (checkout_fast_forward(from, to, 1))
-		exit(128); /* the callee should have complained already */
-	ref_lock = lock_any_ref_for_update("HEAD", unborn ? null_sha1 : from,
-					   0, NULL);
-	if (!ref_lock)
-		return error(_("Failed to lock HEAD during fast_forward_to"));
+	if (!current_bad_oid)
+		die("a bad revision is needed");
 
-	strbuf_addf(&sb, "%s: fast-forward", action_name(opts));
-	ret = write_ref_sha1(ref_lock, to, sb.buf);
+	/* Check if file BISECT_ANCESTORS_OK exists. */
+	if (!stat(filename, &st) && S_ISREG(st.st_mode))
+		goto done;
 
-	strbuf_release(&sb);
-	return ret;
+	/* Bisecting with no good rev is ok. */
+	if (good_revs.nr == 0)
+		goto done;
+
+	/* Check if all good revs are ancestor of the bad rev. */
+	if (check_ancestors(prefix))
+		check_merge_bases(no_checkout);
+
+	/* Create file BISECT_ANCESTORS_OK. */
+	fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+	if (fd < 0)
+		warning("could not create file '%s': %s",
+			filename, strerror(errno));
+	else
+		close(fd);
+ done:
+	free(filename);
 }

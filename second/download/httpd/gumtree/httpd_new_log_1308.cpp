@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                         "Reconfigured cipher suite will force renegotiation");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "%i: %s", j, ca_dn);

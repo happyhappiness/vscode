@@ -1,1 +1,0 @@
-error("short SHA1 %.*s is ambiguous.", len, hex_pfx);

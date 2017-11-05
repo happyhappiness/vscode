@@ -1,4 +1,1 @@
-ap_register_output_filter("CACHE_IN", 
-                                  cache_in_filter, 
-                                  NULL,
-                                  AP_FTYPE_CONTENT_SET-1);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "gcing a cache entry");

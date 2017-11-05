@@ -1,0 +1,1 @@
+die("No commit to dig down to?");

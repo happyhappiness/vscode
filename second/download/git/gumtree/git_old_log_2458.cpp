@@ -1,2 +1,1 @@
-fprintf(stderr, "Marking %s as complete\n",
-				sha1_to_hex(complete->item->object.sha1));
+die("a %s revision is needed", term_bad);

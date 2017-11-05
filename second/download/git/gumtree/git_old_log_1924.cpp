@@ -1,1 +1,1 @@
-die_errno("failed to write pid file '%s'", path);
+printf("  %-6s %o %s %s\n", desc[entry->stage], entry->mode, sha1_to_hex(entry->blob->object.sha1), entry->path);

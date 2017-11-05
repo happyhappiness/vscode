@@ -1,1 +1,1 @@
-error("Could not write flush packet");
+die("helper %s does not support --signed", data->name);

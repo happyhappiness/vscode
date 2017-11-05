@@ -1,6 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00165)
-                "Accept mutex: %s (default: %s)",
-                (all_buckets[0].mutex)
-                    ? apr_proc_mutex_name(all_buckets[0].mutex)
-                    : "none",
-                apr_proc_mutex_defname());
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00035)
+                              "access to %s denied (filesystem path '%s') "
+                              "because search permissions are missing on a "
+                              "component of the path", r->uri, r->filename);

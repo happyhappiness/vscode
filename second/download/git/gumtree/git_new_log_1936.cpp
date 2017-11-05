@@ -1,0 +1,1 @@
+die("unable to generate diff for %s", rerere_path(id, NULL));

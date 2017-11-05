@@ -1,1 +1,2 @@
-die("BUG: commit called on a closed reference transaction");
+error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));

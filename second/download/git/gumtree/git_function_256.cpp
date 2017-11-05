@@ -1,46 +1,36 @@
-static void show_stats(struct apply_state *state, struct patch *patch)
+static void prepare_note_data(const unsigned char *object, struct note_data *d,
+		const unsigned char *old_note)
 {
-	struct strbuf qname = STRBUF_INIT;
-	char *cp = patch->new_name ? patch->new_name : patch->old_name;
-	int max, add, del;
+	if (d->use_editor || !d->given) {
+		int fd;
+		struct strbuf buf = STRBUF_INIT;
 
-	quote_c_style(cp, &qname, NULL, 0);
+		/* write the template message before editing: */
+		d->edit_path = git_pathdup("NOTES_EDITMSG");
+		fd = open(d->edit_path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+		if (fd < 0)
+			die_errno(_("could not create file '%s'"), d->edit_path);
 
-	/*
-	 * "scale" the filename
-	 */
-	max = state->max_len;
-	if (max > 50)
-		max = 50;
+		if (d->given)
+			write_or_die(fd, d->buf.buf, d->buf.len);
+		else if (old_note)
+			copy_obj_to_fd(fd, old_note);
 
-	if (qname.len > max) {
-		cp = strchr(qname.buf + qname.len + 3 - max, '/');
-		if (!cp)
-			cp = qname.buf + qname.len + 3 - max;
-		strbuf_splice(&qname, 0, cp - qname.buf, "...", 3);
+		strbuf_addch(&buf, '\n');
+		strbuf_add_commented_lines(&buf, "\n", strlen("\n"));
+		strbuf_add_commented_lines(&buf, _(note_template), strlen(_(note_template)));
+		strbuf_addch(&buf, '\n');
+		write_or_die(fd, buf.buf, buf.len);
+
+		write_commented_object(fd, object);
+
+		close(fd);
+		strbuf_release(&buf);
+		strbuf_reset(&d->buf);
+
+		if (launch_editor(d->edit_path, &d->buf, NULL)) {
+			die(_("Please supply the note contents using either -m or -F option"));
+		}
+		strbuf_stripspace(&d->buf, 1);
 	}
-
-	if (patch->is_binary) {
-		printf(" %-*s |  Bin\n", max, qname.buf);
-		strbuf_release(&qname);
-		return;
-	}
-
-	printf(" %-*s |", max, qname.buf);
-	strbuf_release(&qname);
-
-	/*
-	 * scale the add/delete
-	 */
-	max = max + state->max_change > 70 ? 70 - max : state->max_change;
-	add = patch->lines_added;
-	del = patch->lines_deleted;
-
-	if (state->max_change > 0) {
-		int total = ((add + del) * max + state->max_change / 2) / state->max_change;
-		add = (add * max + state->max_change / 2) / state->max_change;
-		del = total - add;
-	}
-	printf("%5d %.*s%.*s\n", patch->lines_added + patch->lines_deleted,
-		add, pluses, del, minuses);
 }

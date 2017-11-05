@@ -1,2 +1,2 @@
-die("git show-ref: bad ref %s (%s)", refname,
-		    oid_to_hex(oid));
+fprintf(stderr, "Checking reflog %s->%s\n",
+			oid_to_hex(ooid), oid_to_hex(noid));

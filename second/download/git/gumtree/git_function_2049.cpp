@@ -1,54 +1,19 @@
-static int process_diff_filepair(struct rev_info *rev,
-				 struct diff_filepair *pair,
-				 struct line_log_data *range,
-				 struct diff_ranges **diff_out)
+static int is_original_commit_empty(struct commit *commit)
 {
-	struct line_log_data *rg = range;
-	struct range_set tmp;
-	struct diff_ranges diff;
-	mmfile_t file_parent, file_target;
+	const unsigned char *ptree_sha1;
 
-	assert(pair->two->path);
-	while (rg) {
-		assert(rg->path);
-		if (!strcmp(rg->path, pair->two->path))
-			break;
-		rg = rg->next;
-	}
-
-	if (!rg)
-		return 0;
-	if (rg->ranges.nr == 0)
-		return 0;
-
-	assert(pair->two->sha1_valid);
-	diff_populate_filespec(pair->two, 0);
-	file_target.ptr = pair->two->data;
-	file_target.size = pair->two->size;
-
-	if (pair->one->sha1_valid) {
-		diff_populate_filespec(pair->one, 0);
-		file_parent.ptr = pair->one->data;
-		file_parent.size = pair->one->size;
+	if (parse_commit(commit))
+		return error(_("Could not parse commit %s\n"),
+			     sha1_to_hex(commit->object.sha1));
+	if (commit->parents) {
+		struct commit *parent = commit->parents->item;
+		if (parse_commit(parent))
+			return error(_("Could not parse parent commit %s\n"),
+				sha1_to_hex(parent->object.sha1));
+		ptree_sha1 = parent->tree->object.sha1;
 	} else {
-		file_parent.ptr = "";
-		file_parent.size = 0;
+		ptree_sha1 = EMPTY_TREE_SHA1_BIN; /* commit is root */
 	}
 
-	diff_ranges_init(&diff);
-	if (collect_diff(&file_parent, &file_target, &diff))
-		die("unable to generate diff for %s", pair->one->path);
-
-	/* NEEDSWORK should apply some heuristics to prevent mismatches */
-	free(rg->path);
-	rg->path = xstrdup(pair->one->path);
-
-	range_set_init(&tmp, 0);
-	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
-	range_set_release(&rg->ranges);
-	range_set_move(&rg->ranges, &tmp);
-
-	diff_ranges_release(&diff);
-
-	return ((*diff_out)->parent.nr > 0);
+	return !hashcmp(ptree_sha1, commit->tree->object.sha1);
 }

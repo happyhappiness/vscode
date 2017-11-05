@@ -1,2 +1,2 @@
-error("cannot read the current contents of '%s'",
-				     patch->new_name);
+die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), wt->path);

@@ -1,2 +1,2 @@
-die(_("ref '%s' does not have %ld components to :strip"),
-			    refname, nr);
+printf("Finalized notes merge commit: %s\n",
+			sha1_to_hex(result_sha1));

@@ -1,2 +1,2 @@
-die(_("missing object %s for %s"),
-		    sha1_to_hex(ref->objectname), ref->refname);
+die(_("Please supply the note contents using either -m" \
+			    " or -F option"));

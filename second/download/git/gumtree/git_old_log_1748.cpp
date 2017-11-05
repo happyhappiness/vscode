@@ -1,1 +1,1 @@
-printf(_("remove %s? "), qname);
+error("Couldn't write %s", lock->lk->filename.buf);

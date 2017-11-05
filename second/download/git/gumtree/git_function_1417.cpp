@@ -1,39 +1,45 @@
-static int handle_file(const char *path, unsigned char *sha1, const char *output)
+static void suggest_reattach(struct commit *commit, struct rev_info *revs)
 {
-	int hunk_no = 0;
-	struct rerere_io_file io;
-	int marker_size = ll_merge_marker_size(path);
-
-	memset(&io, 0, sizeof(io));
-	io.io.getline = rerere_file_getline;
-	io.input = fopen(path, "r");
-	io.io.wrerror = 0;
-	if (!io.input)
-		return error("Could not open %s", path);
-
-	if (output) {
-		io.io.output = fopen(output, "w");
-		if (!io.io.output) {
-			fclose(io.input);
-			return error("Could not write %s", output);
-		}
+	struct commit *c, *last = NULL;
+	struct strbuf sb = STRBUF_INIT;
+	int lost = 0;
+	while ((c = get_revision(revs)) != NULL) {
+		if (lost < ORPHAN_CUTOFF)
+			describe_one_orphan(&sb, c);
+		last = c;
+		lost++;
+	}
+	if (ORPHAN_CUTOFF < lost) {
+		int more = lost - ORPHAN_CUTOFF;
+		if (more == 1)
+			describe_one_orphan(&sb, last);
+		else
+			strbuf_addf(&sb, _(" ... and %d more.\n"), more);
 	}
 
-	hunk_no = handle_path(sha1, (struct rerere_io *)&io, marker_size);
+	fprintf(stderr,
+		Q_(
+		/* The singular version */
+		"Warning: you are leaving %d commit behind, "
+		"not connected to\n"
+		"any of your branches:\n\n"
+		"%s\n",
+		/* The plural version */
+		"Warning: you are leaving %d commits behind, "
+		"not connected to\n"
+		"any of your branches:\n\n"
+		"%s\n",
+		/* Give ngettext() the count */
+		lost),
+		lost,
+		sb.buf);
+	strbuf_release(&sb);
 
-	fclose(io.input);
-	if (io.io.wrerror)
-		error("There were errors while writing %s (%s)",
-		      path, strerror(io.io.wrerror));
-	if (io.io.output && fclose(io.io.output))
-		io.io.wrerror = error_errno("Failed to flush %s", path);
-
-	if (hunk_no < 0) {
-		if (output)
-			unlink_or_warn(output);
-		return error("Could not parse conflict hunks in %s", path);
-	}
-	if (io.io.wrerror)
-		return -1;
-	return hunk_no;
+	if (advice_detached_head)
+		fprintf(stderr,
+			_(
+			"If you want to keep them by creating a new branch, "
+			"this may be a good time\nto do so with:\n\n"
+			" git branch new_branch_name %s\n\n"),
+			find_unique_abbrev(commit->object.sha1, DEFAULT_ABBREV));
 }

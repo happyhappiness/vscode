@@ -1,1 +1,0 @@
-die_errno("cannot read '%s'", input_file);

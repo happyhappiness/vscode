@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
-                         "process_socket: apr_pollset_add failure");
+ap_log_cerror( APLOG_MARK, APLOG_TRACE1, status, c,
+                                      "h2_session(%ld): input gone", session->id);

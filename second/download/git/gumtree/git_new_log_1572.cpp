@@ -1,1 +1,1 @@
-die(_("unable to parse '%s' from command-line config"), key);
+error_buf(err, _("HEAD does not point to a branch"));

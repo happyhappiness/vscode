@@ -1,23 +1,22 @@
-void read_gitfile_error_die(int error_code, const char *path, const char *dir)
+static const char *strip_ref_components(const char *refname, const char *nr_arg)
 {
-	switch (error_code) {
-	case READ_GITFILE_ERR_STAT_FAILED:
-	case READ_GITFILE_ERR_NOT_A_FILE:
-		/* non-fatal; follow return path */
-		break;
-	case READ_GITFILE_ERR_OPEN_FAILED:
-		die_errno("Error opening '%s'", path);
-	case READ_GITFILE_ERR_TOO_LARGE:
-		die("Too large to be a .git file: '%s'", path);
-	case READ_GITFILE_ERR_READ_FAILED:
-		die("Error reading %s", path);
-	case READ_GITFILE_ERR_INVALID_FORMAT:
-		die("Invalid gitfile format: %s", path);
-	case READ_GITFILE_ERR_NO_PATH:
-		die("No path in gitfile: %s", path);
-	case READ_GITFILE_ERR_NOT_A_REPO:
-		die("Not a git repository: %s", dir);
-	default:
-		die("BUG: unknown error code");
+	char *end;
+	long nr = strtol(nr_arg, &end, 10);
+	long remaining = nr;
+	const char *start = refname;
+
+	if (nr < 1 || *end != '\0')
+		die(_(":strip= requires a positive integer argument"));
+
+	while (remaining) {
+		switch (*start++) {
+		case '\0':
+			die(_("ref '%s' does not have %ld components to :strip"),
+			    refname, nr);
+		case '/':
+			remaining--;
+			break;
+		}
 	}
+	return start;
 }

@@ -1,1 +1,1 @@
-die_errno("Could not get current working directory");
+printf("%s\n", out.buf);

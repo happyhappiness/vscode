@@ -1,20 +1,34 @@
-static int suggest_conflicts(void)
+int copy_fd(int ifd, int ofd)
 {
-	const char *filename;
-	FILE *fp;
-	struct strbuf msgbuf = STRBUF_INIT;
-
-	filename = git_path_merge_msg();
-	fp = fopen(filename, "a");
-	if (!fp)
-		die_errno(_("Could not open '%s' for writing"), filename);
-
-	append_conflicts_hint(&msgbuf);
-	fputs(msgbuf.buf, fp);
-	strbuf_release(&msgbuf);
-	fclose(fp);
-	rerere(allow_rerere_auto);
-	printf(_("Automatic merge failed; "
-			"fix conflicts and then commit the result.\n"));
-	return 1;
+	while (1) {
+		char buffer[8192];
+		char *buf = buffer;
+		ssize_t len = xread(ifd, buffer, sizeof(buffer));
+		if (!len)
+			break;
+		if (len < 0) {
+			int read_error = errno;
+			close(ifd);
+			return error("copy-fd: read returned %s",
+				     strerror(read_error));
+		}
+		while (len) {
+			int written = xwrite(ofd, buf, len);
+			if (written > 0) {
+				buf += written;
+				len -= written;
+			}
+			else if (!written) {
+				close(ifd);
+				return error("copy-fd: write returned 0");
+			} else {
+				int write_error = errno;
+				close(ifd);
+				return error("copy-fd: write returned %s",
+					     strerror(write_error));
+			}
+		}
+	}
+	close(ifd);
+	return 0;
 }

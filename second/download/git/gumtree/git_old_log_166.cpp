@@ -1,1 +1,1 @@
-die("Log %s is corrupt.", logfile);
+printf("  %s\n", needs_pushing->items[i].string);

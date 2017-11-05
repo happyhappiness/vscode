@@ -1,1 +1,1 @@
-fprintf(stderr, "Applied patch to '%s' cleanly.\n", patch->new_name);
+packet_write(1, "%s %s\n", sha1_to_hex(sha1), path);

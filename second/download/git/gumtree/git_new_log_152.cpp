@@ -1,1 +1,1 @@
-die_errno("%s: index file open failed", path);
+status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");

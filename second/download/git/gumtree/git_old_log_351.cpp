@@ -1,1 +1,1 @@
-die(_("Unable to write new index file"));
+die("Option '--stat-name-width' requires a value");

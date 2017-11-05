@@ -1,1 +1,1 @@
-error(_("no commits parsed."));
+warning(_("negative value for http.postbuffer; defaulting to %d"), LARGE_PACKET_MAX);

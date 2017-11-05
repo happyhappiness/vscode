@@ -1,54 +1,95 @@
-static int process_diff_filepair(struct rev_info *rev,
-				 struct diff_filepair *pair,
-				 struct line_log_data *range,
-				 struct diff_ranges **diff_out)
+const char *read_gitfile_gently(const char *path, int *return_error_code)
 {
-	struct line_log_data *rg = range;
-	struct range_set tmp;
-	struct diff_ranges diff;
-	mmfile_t file_parent, file_target;
+	const int max_file_size = 1 << 20;  /* 1MB */
+	int error_code = 0;
+	char *buf = NULL;
+	char *dir = NULL;
+	const char *slash;
+	struct stat st;
+	int fd;
+	ssize_t len;
 
-	assert(pair->two->path);
-	while (rg) {
-		assert(rg->path);
-		if (!strcmp(rg->path, pair->two->path))
+	if (stat(path, &st)) {
+		error_code = READ_GITFILE_ERR_STAT_FAILED;
+		goto cleanup_return;
+	}
+	if (!S_ISREG(st.st_mode)) {
+		error_code = READ_GITFILE_ERR_NOT_A_FILE;
+		goto cleanup_return;
+	}
+	if (st.st_size > max_file_size) {
+		error_code = READ_GITFILE_ERR_TOO_LARGE;
+		goto cleanup_return;
+	}
+	fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		error_code = READ_GITFILE_ERR_OPEN_FAILED;
+		goto cleanup_return;
+	}
+	buf = xmalloc(st.st_size + 1);
+	len = read_in_full(fd, buf, st.st_size);
+	close(fd);
+	if (len != st.st_size) {
+		error_code = READ_GITFILE_ERR_READ_FAILED;
+		goto cleanup_return;
+	}
+	buf[len] = '\0';
+	if (!starts_with(buf, "gitdir: ")) {
+		error_code = READ_GITFILE_ERR_INVALID_FORMAT;
+		goto cleanup_return;
+	}
+	while (buf[len - 1] == '\n' || buf[len - 1] == '\r')
+		len--;
+	if (len < 9) {
+		error_code = READ_GITFILE_ERR_NO_PATH;
+		goto cleanup_return;
+	}
+	buf[len] = '\0';
+	dir = buf + 8;
+
+	if (!is_absolute_path(dir) && (slash = strrchr(path, '/'))) {
+		size_t pathlen = slash+1 - path;
+		size_t dirlen = pathlen + len - 8;
+		dir = xmalloc(dirlen + 1);
+		strncpy(dir, path, pathlen);
+		strncpy(dir + pathlen, buf + 8, len - 8);
+		dir[dirlen] = '\0';
+		free(buf);
+		buf = dir;
+	}
+	if (!is_git_directory(dir)) {
+		error_code = READ_GITFILE_ERR_NOT_A_REPO;
+		goto cleanup_return;
+	}
+	update_linked_gitdir(path, dir);
+	path = real_path(dir);
+
+cleanup_return:
+	if (return_error_code)
+		*return_error_code = error_code;
+	else if (error_code) {
+		switch (error_code) {
+		case READ_GITFILE_ERR_STAT_FAILED:
+		case READ_GITFILE_ERR_NOT_A_FILE:
+			/* non-fatal; follow return path */
 			break;
-		rg = rg->next;
+		case READ_GITFILE_ERR_OPEN_FAILED:
+			die_errno("Error opening '%s'", path);
+		case READ_GITFILE_ERR_TOO_LARGE:
+			die("Too large to be a .git file: '%s'", path);
+		case READ_GITFILE_ERR_READ_FAILED:
+			die("Error reading %s", path);
+		case READ_GITFILE_ERR_INVALID_FORMAT:
+			die("Invalid gitfile format: %s", path);
+		case READ_GITFILE_ERR_NO_PATH:
+			die("No path in gitfile: %s", path);
+		case READ_GITFILE_ERR_NOT_A_REPO:
+			die("Not a git repository: %s", dir);
+		default:
+			assert(0);
+		}
 	}
 
-	if (!rg)
-		return 0;
-	if (rg->ranges.nr == 0)
-		return 0;
-
-	assert(pair->two->sha1_valid);
-	diff_populate_filespec(pair->two, 0);
-	file_target.ptr = pair->two->data;
-	file_target.size = pair->two->size;
-
-	if (pair->one->sha1_valid) {
-		diff_populate_filespec(pair->one, 0);
-		file_parent.ptr = pair->one->data;
-		file_parent.size = pair->one->size;
-	} else {
-		file_parent.ptr = "";
-		file_parent.size = 0;
-	}
-
-	diff_ranges_init(&diff);
-	if (collect_diff(&file_parent, &file_target, &diff))
-		die("unable to generate diff for %s", pair->one->path);
-
-	/* NEEDSWORK should apply some heuristics to prevent mismatches */
-	free(rg->path);
-	rg->path = xstrdup(pair->one->path);
-
-	range_set_init(&tmp, 0);
-	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
-	range_set_release(&rg->ranges);
-	range_set_move(&rg->ranges, &tmp);
-
-	diff_ranges_release(&diff);
-
-	return ((*diff_out)->parent.nr > 0);
+	free(buf);
+	return error_code ? NULL : path;
 }

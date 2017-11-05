@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00326)
-                                 "Server ran out of threads to serve "
-                                 "requests. Consider raising the "
-                                 "ThreadsPerChild setting");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Loop: %s",
+                      MODSSL_LIBRARY_NAME, SSL_state_string_long(ssl));

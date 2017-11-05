@@ -1,1 +1,1 @@
-error("sha1 mismatch %s", oid_to_hex(oid));
+die(_("cannot repack to clean up"));

@@ -1,54 +1,24 @@
-static int start_lingering_close_common(event_conn_state_t *cs, int in_worker)
+static apr_status_t h2_session_receive(void *ctx, const char *data, 
+                                       apr_size_t len, apr_size_t *readlen)
 {
-    apr_status_t rv;
-    struct timeout_queue *q;
-    apr_socket_t *csd = cs->pfd.desc.s;
-#ifdef AP_DEBUG
-    {
-        rv = apr_socket_timeout_set(csd, 0);
-        AP_DEBUG_ASSERT(rv == APR_SUCCESS);
+    h2_session *session = ctx;
+    ssize_t n;
+    
+    if (len > 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                      "h2_session(%ld): feeding %ld bytes to nghttp2",
+                      session->id, (long)len);
+        n = nghttp2_session_mem_recv(session->ngh2, (const uint8_t *)data, len);
+        if (n < 0) {
+            if (nghttp2_is_fatal((int)n)) {
+                dispatch_event(session, H2_SESSION_EV_PROTO_ERROR, (int)n, nghttp2_strerror((int)n));
+                return APR_EGENERAL;
+            }
+        }
+        else {
+            *readlen = n;
+            session->io.bytes_read += n;
+        }
     }
-#else
-    apr_socket_timeout_set(csd, 0);
-#endif
-    cs->queue_timestamp = apr_time_now();
-    /*
-     * If some module requested a shortened waiting period, only wait for
-     * 2s (SECONDS_TO_LINGER). This is useful for mitigating certain
-     * DoS attacks.
-     */
-    if (apr_table_get(cs->c->notes, "short-lingering-close")) {
-        q = short_linger_q;
-        cs->pub.state = CONN_STATE_LINGER_SHORT;
-    }
-    else {
-        q = linger_q;
-        cs->pub.state = CONN_STATE_LINGER_NORMAL;
-    }
-    apr_atomic_inc32(&lingering_count);
-    if (in_worker) { 
-        notify_suspend(cs);
-    }
-    else {
-        cs->c->sbh = NULL;
-    }
-    apr_thread_mutex_lock(timeout_mutex);
-    TO_QUEUE_APPEND(q, cs);
-    cs->pfd.reqevents = (
-            cs->pub.sense == CONN_SENSE_WANT_WRITE ? APR_POLLOUT :
-                    APR_POLLIN) | APR_POLLHUP | APR_POLLERR;
-    cs->pub.sense = CONN_SENSE_DEFAULT;
-    rv = apr_pollset_add(event_pollset, &cs->pfd);
-    apr_thread_mutex_unlock(timeout_mutex);
-    if (rv != APR_SUCCESS && !APR_STATUS_IS_EEXIST(rv)) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "start_lingering_close: apr_pollset_add failure");
-        apr_thread_mutex_lock(timeout_mutex);
-        TO_QUEUE_REMOVE(q, cs);
-        apr_thread_mutex_unlock(timeout_mutex);
-        apr_socket_close(cs->pfd.desc.s);
-        ap_push_pool(worker_queue_info, cs->p);
-        return 0;
-    }
-    return 1;
+    return APR_SUCCESS;
 }

@@ -1,2 +1,2 @@
-error("unable to move logfile "TMP_RENAMED_LOG" to logs/%s: %s",
-				newrefname, strerror(errno));
+printf("    %-*s %s %s\n", show_info->width, "", also,
+		       merge->items[i].string);

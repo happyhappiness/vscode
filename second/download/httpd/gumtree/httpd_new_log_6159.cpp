@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                      "h2_workers: cleanup zombie %d", zombie->id);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                  H2_STRM_MSG(stream, "unexpected, started=%d, scheduled=%d, ready=%d"), 
+                  !!stream->task, stream->scheduled, h2_stream_is_ready(stream));

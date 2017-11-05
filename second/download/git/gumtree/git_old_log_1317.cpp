@@ -1,1 +1,1 @@
-die(_("unknown error occurred while reading the configuration files"));
+die("unknown pending object %s (%s)", sha1_to_hex(obj->sha1), name);

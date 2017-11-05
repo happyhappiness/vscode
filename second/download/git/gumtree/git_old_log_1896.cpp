@@ -1,2 +1,2 @@
-die("git show-ref: bad ref %s (%s)", refname,
-		    sha1_to_hex(sha1));
+fprintf(stderr, "Checking %s %s\n",
+			typename(obj->type), sha1_to_hex(obj->sha1));

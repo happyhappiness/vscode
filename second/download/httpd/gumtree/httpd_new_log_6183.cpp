@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03006)
-                              "%d:  %s", i,
-                              lua_toboolean(L, i) ? "true" : "false");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          H2_SSSN_LOG(APLOGNO(03057), session,
+                          "push diary set from Cache-Digest: %s"), cache_digest);

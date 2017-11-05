@@ -1,2 +1,1 @@
-warning("unknown repository extension: %s",
-				unknown_extensions.items[i].string);
+warning_errno("failed utime() on %s", pack_tmp_name);

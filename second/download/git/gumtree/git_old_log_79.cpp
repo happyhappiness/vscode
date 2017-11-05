@@ -1,1 +1,0 @@
-die("Unable to write new index file");

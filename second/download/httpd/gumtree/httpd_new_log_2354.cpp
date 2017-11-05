@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT | level_flags, rv,
-                         (startup ? NULL : s),
-                         "could not open pipe-of-death");
+printf("   (Connect: %d, Receive: %d, Length: %d, Exceptions: %d)\n",
+            err_conn, err_recv, err_length, err_except);

@@ -1,2 +1,2 @@
-fprintf_ln(stderr, _("directory stat info changes after "
-				     "adding a file inside subdirectory"));
+die_errno(_("cannot symlink '%s' '%s'"),
+					  lnk.buf, path->buf);

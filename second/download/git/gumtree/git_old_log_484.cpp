@@ -1,1 +1,0 @@
-printf(" %s ", diff_unique_abbrev(p->oid.hash, opt->abbrev));

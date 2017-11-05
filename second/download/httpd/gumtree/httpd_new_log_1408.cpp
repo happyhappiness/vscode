@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                 "       %*s [-w] [-k start|restart|stop|shutdown]", pad_len, " ");
+printf("Copyright 2006 The Apache Software Foundation, http://www.apache.org/\n");

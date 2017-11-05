@@ -1,51 +1,20 @@
-static int reset_index(const unsigned char *sha1, int reset_type, int quiet)
+static int read_and_refresh_cache(struct replay_opts *opts)
 {
-	int nr = 1;
-	struct tree_desc desc[2];
-	struct tree *tree;
-	struct unpack_trees_options opts;
-
-	memset(&opts, 0, sizeof(opts));
-	opts.head_idx = 1;
-	opts.src_index = &the_index;
-	opts.dst_index = &the_index;
-	opts.fn = oneway_merge;
-	opts.merge = 1;
-	if (!quiet)
-		opts.verbose_update = 1;
-	switch (reset_type) {
-	case KEEP:
-	case MERGE:
-		opts.update = 1;
-		break;
-	case HARD:
-		opts.update = 1;
-		/* fallthrough */
-	default:
-		opts.reset = 1;
+	static struct lock_file index_lock;
+	int index_fd = hold_locked_index(&index_lock, 0);
+	if (read_index_preload(&the_index, NULL) < 0) {
+		rollback_lock_file(&index_lock);
+		return error(_("git %s: failed to read the index"),
+			_(action_name(opts)));
 	}
-
-	read_cache_unmerged();
-
-	if (reset_type == KEEP) {
-		unsigned char head_sha1[20];
-		if (get_sha1("HEAD", head_sha1))
-			return error(_("You do not have a valid HEAD."));
-		if (!fill_tree_descriptor(desc, head_sha1))
-			return error(_("Failed to find tree of HEAD."));
-		nr++;
-		opts.fn = twoway_merge;
+	refresh_index(&the_index, REFRESH_QUIET|REFRESH_UNMERGED, NULL, NULL, NULL);
+	if (the_index.cache_changed && index_fd >= 0) {
+		if (write_locked_index(&the_index, &index_lock, COMMIT_LOCK)) {
+			rollback_lock_file(&index_lock);
+			return error(_("git %s: failed to refresh the index"),
+				_(action_name(opts)));
+		}
 	}
-
-	if (!fill_tree_descriptor(desc + nr - 1, sha1))
-		return error(_("Failed to find tree of %s."), sha1_to_hex(sha1));
-	if (unpack_trees(nr, desc, &opts))
-		return -1;
-
-	if (reset_type == MIXED || reset_type == HARD) {
-		tree = parse_tree_indirect(sha1);
-		prime_cache_tree(&the_index, tree);
-	}
-
+	rollback_lock_file(&index_lock);
 	return 0;
 }

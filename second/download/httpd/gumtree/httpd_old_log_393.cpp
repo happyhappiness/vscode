@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
-                                 r->server,
-                                 "cache: nonconditional - fudge conditional "
-                                 "by lastmod");
+printf("Connect:    " CONF_FMT_STRING, 
+                   mincon, totalcon / requests, maxcon);

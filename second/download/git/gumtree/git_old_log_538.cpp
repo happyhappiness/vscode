@@ -1,1 +1,1 @@
-die("expected shallow/unshallow, got %s", line);
+packet_write(1, "%s %s\n", oid_to_hex(oid), refname_nons);

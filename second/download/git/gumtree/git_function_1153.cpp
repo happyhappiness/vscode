@@ -1,52 +1,74 @@
-static int setup_named_sock(char *listen_addr, int listen_port, struct socketlist *socklist)
+static int push_check(int argc, const char **argv, const char *prefix)
 {
-	struct sockaddr_in sin;
-	int sockfd;
-	long flags;
+	struct remote *remote;
+	const char *superproject_head;
+	char *head;
+	int detached_head = 0;
+	struct object_id head_oid;
 
-	memset(&sin, 0, sizeof sin);
-	sin.sin_family = AF_INET;
-	sin.sin_port = htons(listen_port);
+	if (argc < 3)
+		die("submodule--helper push-check requires at least 2 arguments");
 
-	if (listen_addr) {
-		/* Well, host better be an IP address here. */
-		if (inet_pton(AF_INET, listen_addr, &sin.sin_addr.s_addr) <= 0)
-			return 0;
-	} else {
-		sin.sin_addr.s_addr = htonl(INADDR_ANY);
+	/*
+	 * superproject's resolved head ref.
+	 * if HEAD then the superproject is in a detached head state, otherwise
+	 * it will be the resolved head ref.
+	 */
+	superproject_head = argv[1];
+	argv++;
+	argc--;
+	/* Get the submodule's head ref and determine if it is detached */
+	head = resolve_refdup("HEAD", 0, head_oid.hash, NULL);
+	if (!head)
+		die(_("Failed to resolve HEAD as a valid ref."));
+	if (!strcmp(head, "HEAD"))
+		detached_head = 1;
+
+	/*
+	 * The remote must be configured.
+	 * This is to avoid pushing to the exact same URL as the parent.
+	 */
+	remote = pushremote_get(argv[1]);
+	if (!remote || remote->origin == REMOTE_UNCONFIGURED)
+		die("remote '%s' not configured", argv[1]);
+
+	/* Check the refspec */
+	if (argc > 2) {
+		int i, refspec_nr = argc - 2;
+		struct ref *local_refs = get_local_heads();
+		struct refspec *refspec = parse_push_refspec(refspec_nr,
+							     argv + 2);
+
+		for (i = 0; i < refspec_nr; i++) {
+			struct refspec *rs = refspec + i;
+
+			if (rs->pattern || rs->matching)
+				continue;
+
+			/* LHS must match a single ref */
+			switch (count_refspec_match(rs->src, local_refs, NULL)) {
+			case 1:
+				break;
+			case 0:
+				/*
+				 * If LHS matches 'HEAD' then we need to ensure
+				 * that it matches the same named branch
+				 * checked out in the superproject.
+				 */
+				if (!strcmp(rs->src, "HEAD")) {
+					if (!detached_head &&
+					    !strcmp(head, superproject_head))
+						break;
+					die("HEAD does not match the named branch in the superproject");
+				}
+			default:
+				die("src refspec '%s' must name a ref",
+				    rs->src);
+			}
+		}
+		free_refspec(refspec_nr, refspec);
 	}
+	free(head);
 
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd < 0)
-		return 0;
-
-	if (set_reuse_addr(sockfd)) {
-		logerror("Could not set SO_REUSEADDR: %s", strerror(errno));
-		close(sockfd);
-		return 0;
-	}
-
-	if ( bind(sockfd, (struct sockaddr *)&sin, sizeof sin) < 0 ) {
-		logerror("Could not listen to %s: %s",
-			 ip2str(AF_INET, (struct sockaddr *)&sin, sizeof(sin)),
-			 strerror(errno));
-		close(sockfd);
-		return 0;
-	}
-
-	if (listen(sockfd, 5) < 0) {
-		logerror("Could not listen to %s: %s",
-			 ip2str(AF_INET, (struct sockaddr *)&sin, sizeof(sin)),
-			 strerror(errno));
-		close(sockfd);
-		return 0;
-	}
-
-	flags = fcntl(sockfd, F_GETFD, 0);
-	if (flags >= 0)
-		fcntl(sockfd, F_SETFD, flags | FD_CLOEXEC);
-
-	ALLOC_GROW(socklist->list, socklist->nr + 1, socklist->alloc);
-	socklist->list[socklist->nr++] = sockfd;
-	return 1;
+	return 0;
 }

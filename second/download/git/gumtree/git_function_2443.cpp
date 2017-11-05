@@ -1,76 +1,92 @@
-int verify_bundle(struct bundle_header *header, int verbose)
+static int parse_archive_args(int argc, const char **argv,
+		const struct archiver **ar, struct archiver_args *args,
+		const char *name_hint, int is_remote)
 {
-	/*
-	 * Do fast check, then if any prereqs are missing then go line by line
-	 * to be verbose about the errors
-	 */
-	struct ref_list *p = &header->prerequisites;
-	struct rev_info revs;
-	const char *argv[] = {NULL, "--all", NULL};
-	struct object_array refs;
-	struct commit *commit;
-	int i, ret = 0, req_nr;
-	const char *message = _("Repository lacks these prerequisite commits:");
+	const char *format = NULL;
+	const char *base = NULL;
+	const char *remote = NULL;
+	const char *exec = NULL;
+	const char *output = NULL;
+	int compression_level = -1;
+	int verbose = 0;
+	int i;
+	int list = 0;
+	int worktree_attributes = 0;
+	struct option opts[] = {
+		OPT_GROUP(""),
+		OPT_STRING(0, "format", &format, N_("fmt"), N_("archive format")),
+		OPT_STRING(0, "prefix", &base, N_("prefix"),
+			N_("prepend prefix to each pathname in the archive")),
+		OPT_STRING('o', "output", &output, N_("file"),
+			N_("write the archive to this file")),
+		OPT_BOOL(0, "worktree-attributes", &worktree_attributes,
+			N_("read .gitattributes in working directory")),
+		OPT__VERBOSE(&verbose, N_("report archived files on stderr")),
+		OPT__COMPR('0', &compression_level, N_("store only"), 0),
+		OPT__COMPR('1', &compression_level, N_("compress faster"), 1),
+		OPT__COMPR_HIDDEN('2', &compression_level, 2),
+		OPT__COMPR_HIDDEN('3', &compression_level, 3),
+		OPT__COMPR_HIDDEN('4', &compression_level, 4),
+		OPT__COMPR_HIDDEN('5', &compression_level, 5),
+		OPT__COMPR_HIDDEN('6', &compression_level, 6),
+		OPT__COMPR_HIDDEN('7', &compression_level, 7),
+		OPT__COMPR_HIDDEN('8', &compression_level, 8),
+		OPT__COMPR('9', &compression_level, N_("compress better"), 9),
+		OPT_GROUP(""),
+		OPT_BOOL('l', "list", &list,
+			N_("list supported archive formats")),
+		OPT_GROUP(""),
+		OPT_STRING(0, "remote", &remote, N_("repo"),
+			N_("retrieve the archive from remote repository <repo>")),
+		OPT_STRING(0, "exec", &exec, N_("command"),
+			N_("path to the remote git-upload-archive command")),
+		OPT_END()
+	};
 
-	init_revisions(&revs, NULL);
-	for (i = 0; i < p->nr; i++) {
-		struct ref_list_entry *e = p->list + i;
-		struct object *o = parse_object(e->sha1);
-		if (o) {
-			o->flags |= PREREQ_MARK;
-			add_pending_object(&revs, o, e->name);
-			continue;
-		}
-		if (++ret == 1)
-			error("%s", message);
-		error("%s %s", sha1_to_hex(e->sha1), e->name);
+	argc = parse_options(argc, argv, NULL, opts, archive_usage, 0);
+
+	if (remote)
+		die("Unexpected option --remote");
+	if (exec)
+		die("Option --exec can only be used together with --remote");
+	if (output)
+		die("Unexpected option --output");
+
+	if (!base)
+		base = "";
+
+	if (list) {
+		for (i = 0; i < nr_archivers; i++)
+			if (!is_remote || archivers[i]->flags & ARCHIVER_REMOTE)
+				printf("%s\n", archivers[i]->name);
+		exit(0);
 	}
-	if (revs.pending.nr != p->nr)
-		return ret;
-	req_nr = revs.pending.nr;
-	setup_revisions(2, argv, &revs, NULL);
 
-	refs = revs.pending;
-	revs.leak_pending = 1;
+	if (!format && name_hint)
+		format = archive_format_from_filename(name_hint);
+	if (!format)
+		format = "tar";
 
-	if (prepare_revision_walk(&revs))
-		die(_("revision walk setup failed"));
+	/* We need at least one parameter -- tree-ish */
+	if (argc < 1)
+		usage_with_options(archive_usage, opts);
+	*ar = lookup_archiver(format);
+	if (!*ar || (is_remote && !((*ar)->flags & ARCHIVER_REMOTE)))
+		die("Unknown archive format '%s'", format);
 
-	i = req_nr;
-	while (i && (commit = get_revision(&revs)))
-		if (commit->object.flags & PREREQ_MARK)
-			i--;
-
-	for (i = 0; i < req_nr; i++)
-		if (!(refs.objects[i].item->flags & SHOWN)) {
-			if (++ret == 1)
-				error("%s", message);
-			error("%s %s", sha1_to_hex(refs.objects[i].item->sha1),
-				refs.objects[i].name);
-		}
-
-	clear_commit_marks_for_object_array(&refs, ALL_REV_FLAGS);
-	free(refs.objects);
-
-	if (verbose) {
-		struct ref_list *r;
-
-		r = &header->references;
-		printf_ln(Q_("The bundle contains this ref:",
-			     "The bundle contains these %d refs:",
-			     r->nr),
-			  r->nr);
-		list_refs(r, 0, NULL);
-		r = &header->prerequisites;
-		if (!r->nr) {
-			printf_ln(_("The bundle records a complete history."));
-		} else {
-			printf_ln(Q_("The bundle requires this ref:",
-				     "The bundle requires these %d refs:",
-				     r->nr),
-				  r->nr);
-			list_refs(r, 0, NULL);
+	args->compression_level = Z_DEFAULT_COMPRESSION;
+	if (compression_level != -1) {
+		if ((*ar)->flags & ARCHIVER_WANT_COMPRESSION_LEVELS)
+			args->compression_level = compression_level;
+		else {
+			die("Argument not supported for format '%s': -%d",
+					format, compression_level);
 		}
 	}
-	return ret;
+	args->verbose = verbose;
+	args->base = base;
+	args->baselen = strlen(base);
+	args->worktree_attributes = worktree_attributes;
+
+	return argc;
 }

@@ -1,27 +1,29 @@
-static void submodule_push_check(const char *path, const struct remote *remote,
-				 const char **refspec, int refspec_nr)
+void die_path_inside_submodule(const struct index_state *istate,
+			       const struct pathspec *ps)
 {
-	struct child_process cp = CHILD_PROCESS_INIT;
-	int i;
+	int i, j;
 
-	argv_array_push(&cp.args, "submodule--helper");
-	argv_array_push(&cp.args, "push-check");
-	argv_array_push(&cp.args, remote->name);
+	for (i = 0; i < istate->cache_nr; i++) {
+		struct cache_entry *ce = istate->cache[i];
+		int ce_len = ce_namelen(ce);
 
-	for (i = 0; i < refspec_nr; i++)
-		argv_array_push(&cp.args, refspec[i]);
+		if (!S_ISGITLINK(ce->ce_mode))
+			continue;
 
-	prepare_submodule_repo_env(&cp.env_array);
-	cp.git_cmd = 1;
-	cp.no_stdin = 1;
-	cp.no_stdout = 1;
-	cp.dir = path;
+		for (j = 0; j < ps->nr ; j++) {
+			const struct pathspec_item *item = &ps->items[j];
 
-	/*
-	 * Simply indicate if 'submodule--helper push-check' failed.
-	 * More detailed error information will be provided by the
-	 * child process.
-	 */
-	if (run_command(&cp))
-		die("process for submodule '%s' failed", path);
+			if (item->len <= ce_len)
+				continue;
+			if (item->match[ce_len] != '/')
+				continue;
+			if (strncmp(ce->name, item->match, ce_len))
+				continue;
+			if (item->len == ce_len + 1)
+				continue;
+
+			die(_("Pathspec '%s' is in submodule '%.*s'"),
+			    item->original, ce_len, ce->name);
+		}
+	}
 }

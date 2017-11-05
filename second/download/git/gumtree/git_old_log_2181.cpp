@@ -1,2 +1,1 @@
-error("There are still logs under '%s'",
-				      logfile);
+printf("%s", lines[i]->buf);

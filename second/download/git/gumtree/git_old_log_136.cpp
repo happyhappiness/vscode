@@ -1,1 +1,1 @@
-die("protocol error: expected shallow sha-1, got '%s'", buffer + 8);
+die("Fetch attempted without a local repo");

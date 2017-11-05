@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(03307)
-                              "ap_proxy_transfer_between_connections: "
-                              "error on %s - ap_pass_brigade",
-                              name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                      H2_STRM_LOG(APLOGNO(03077), stream, 
+                      "failed to create stream obj %d"), nid);

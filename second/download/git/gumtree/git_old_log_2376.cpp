@@ -1,2 +1,2 @@
-fprintf(stderr, "Detected mismatched boundaries, "
-					"can't recover\n");
+error(_("cannot open %s: %s"), git_path_head_file(),
+						strerror(errno));

@@ -1,1 +1,2 @@
-git_die_config(key, _("Invalid %s: '%s'"), key, *output);
+die ("Could not find committer in commit %s",
+		     oid_to_hex(&commit->object.oid));

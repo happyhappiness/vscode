@@ -1,1 +1,1 @@
-usage(usage_msg);
+die("BUG: fdopen_lock_file() called for unlocked object");

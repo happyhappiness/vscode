@@ -1,1 +1,2 @@
-error("%s: invalid sha1 pointer %s", refname, sha1_to_hex(sha1));
+die ("Could not find author in commit %s",
+		     sha1_to_hex(commit->object.sha1));

@@ -1,20 +1,28 @@
-int read_mmfile(mmfile_t *ptr, const char *filename)
+static int expire_reflog_ent(unsigned char *osha1, unsigned char *nsha1,
+			     const char *email, unsigned long timestamp, int tz,
+			     const char *message, void *cb_data)
 {
-	struct stat st;
-	FILE *f;
-	size_t sz;
+	struct expire_reflog_cb *cb = cb_data;
+	struct expire_reflog_policy_cb *policy_cb = cb->policy_cb;
 
-	if (stat(filename, &st))
-		return error("Could not stat %s", filename);
-	if ((f = fopen(filename, "rb")) == NULL)
-		return error("Could not open %s", filename);
-	sz = xsize_t(st.st_size);
-	ptr->ptr = xmalloc(sz ? sz : 1);
-	if (sz && fread(ptr->ptr, sz, 1, f) != 1) {
-		fclose(f);
-		return error("Could not read %s", filename);
+	if (cb->flags & EXPIRE_REFLOGS_REWRITE)
+		osha1 = cb->last_kept_sha1;
+
+	if ((*cb->should_prune_fn)(osha1, nsha1, email, timestamp, tz,
+				   message, policy_cb)) {
+		if (!cb->newlog)
+			printf("would prune %s", message);
+		else if (cb->flags & EXPIRE_REFLOGS_VERBOSE)
+			printf("prune %s", message);
+	} else {
+		if (cb->newlog) {
+			fprintf(cb->newlog, "%s %s %s %lu %+05d\t%s",
+				sha1_to_hex(osha1), sha1_to_hex(nsha1),
+				email, timestamp, tz, message);
+			hashcpy(cb->last_kept_sha1, nsha1);
+		}
+		if (cb->flags & EXPIRE_REFLOGS_VERBOSE)
+			printf("keep %s", message);
 	}
-	fclose(f);
-	ptr->size = sz;
 	return 0;
 }

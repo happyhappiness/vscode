@@ -1,0 +1,1 @@
+apr_file_printf(errfile, "Cleaned %s. Statistics:" APR_EOL_STR, path);

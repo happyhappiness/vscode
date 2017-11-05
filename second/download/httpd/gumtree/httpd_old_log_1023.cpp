@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, NULL, msg);
+apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it.\n");

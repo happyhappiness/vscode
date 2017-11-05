@@ -1,46 +1,71 @@
-size_t fill_textconv(struct userdiff_driver *driver,
-		     struct diff_filespec *df,
-		     char **outbuf)
+static void update_file_flags(struct merge_options *o,
+			      const unsigned char *sha,
+			      unsigned mode,
+			      const char *path,
+			      int update_cache,
+			      int update_wd)
 {
-	size_t size;
+	if (o->call_depth)
+		update_wd = 0;
 
-	if (!driver) {
-		if (!DIFF_FILE_VALID(df)) {
-			*outbuf = "";
-			return 0;
+	if (update_wd) {
+		enum object_type type;
+		void *buf;
+		unsigned long size;
+
+		if (S_ISGITLINK(mode)) {
+			/*
+			 * We may later decide to recursively descend into
+			 * the submodule directory and update its index
+			 * and/or work tree, but we do not do that now.
+			 */
+			update_wd = 0;
+			goto update_index;
 		}
-		if (diff_populate_filespec(df, 0))
-			die("unable to read files to diff");
-		*outbuf = df->data;
-		return df->size;
+
+		buf = read_sha1_file(sha, &type, &size);
+		if (!buf)
+			die(_("cannot read object %s '%s'"), sha1_to_hex(sha), path);
+		if (type != OBJ_BLOB)
+			die(_("blob expected for %s '%s'"), sha1_to_hex(sha), path);
+		if (S_ISREG(mode)) {
+			struct strbuf strbuf = STRBUF_INIT;
+			if (convert_to_working_tree(path, buf, size, &strbuf)) {
+				free(buf);
+				size = strbuf.len;
+				buf = strbuf_detach(&strbuf, NULL);
+			}
+		}
+
+		if (make_room_for_path(o, path) < 0) {
+			update_wd = 0;
+			free(buf);
+			goto update_index;
+		}
+		if (S_ISREG(mode) || (!has_symlinks && S_ISLNK(mode))) {
+			int fd;
+			if (mode & 0100)
+				mode = 0777;
+			else
+				mode = 0666;
+			fd = open(path, O_WRONLY | O_TRUNC | O_CREAT, mode);
+			if (fd < 0)
+				die_errno(_("failed to open '%s'"), path);
+			write_in_full(fd, buf, size);
+			close(fd);
+		} else if (S_ISLNK(mode)) {
+			char *lnk = xmemdupz(buf, size);
+			safe_create_leading_directories_const(path);
+			unlink(path);
+			if (symlink(lnk, path))
+				die_errno(_("failed to symlink '%s'"), path);
+			free(lnk);
+		} else
+			die(_("do not know what to do with %06o %s '%s'"),
+			    mode, sha1_to_hex(sha), path);
+		free(buf);
 	}
-
-	if (!driver->textconv)
-		die("BUG: fill_textconv called with non-textconv driver");
-
-	if (driver->textconv_cache && df->sha1_valid) {
-		*outbuf = notes_cache_get(driver->textconv_cache, df->sha1,
-					  &size);
-		if (*outbuf)
-			return size;
-	}
-
-	*outbuf = run_textconv(driver->textconv, df, &size);
-	if (!*outbuf)
-		die("unable to read files to diff");
-
-	if (driver->textconv_cache && df->sha1_valid) {
-		/* ignore errors, as we might be in a readonly repository */
-		notes_cache_put(driver->textconv_cache, df->sha1, *outbuf,
-				size);
-		/*
-		 * we could save up changes and flush them all at the end,
-		 * but we would need an extra call after all diffing is done.
-		 * Since generating a cache entry is the slow path anyway,
-		 * this extra overhead probably isn't a big deal.
-		 */
-		notes_cache_write(driver->textconv_cache);
-	}
-
-	return size;
+ update_index:
+	if (update_cache)
+		add_cacheinfo(mode, sha, path, 0, update_wd, ADD_CACHE_OK_TO_ADD);
 }

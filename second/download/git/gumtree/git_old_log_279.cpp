@@ -1,1 +1,1 @@
-die("BUG: patch to %s is not a creation", patch->old_name);
+die("Could not find commit from NOTES_MERGE_PARTIAL.");

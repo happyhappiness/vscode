@@ -1,1 +1,2 @@
-error(_("unable to read symlink %s"), path);
+error(_("The note contents have been left in %s"),
+				d->edit_path);

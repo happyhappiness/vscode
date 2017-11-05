@@ -1,1 +1,1 @@
-print_verbose(args, _("done"));
+fprintf(s->fp, "# branch.head %s%c", "(unknown)", eol);

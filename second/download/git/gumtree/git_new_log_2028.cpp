@@ -1,2 +1,1 @@
-die(N_("Could not read ref %s"),
-					    (*tail)->name);
+opterror(opt, "must point to a commit", 0);

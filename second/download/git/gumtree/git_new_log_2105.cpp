@@ -1,1 +1,1 @@
-git_die_config(key, "unknown notes merge strategy %s", value);
+die(_("unable to update %s"), head_ref.buf);

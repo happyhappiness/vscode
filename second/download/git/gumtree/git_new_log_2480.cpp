@@ -1,2 +1,4 @@
-fprintf(stderr, "\n  from %s\n  to   %s\n",
-			oid_to_hex(&ref->old_oid), oid_to_hex(&ref->new_oid));
+warning("%d line%s applied after"
+				" fixing whitespace errors.",
+				state->applied_after_fixing_ws,
+				state->applied_after_fixing_ws == 1 ? "" : "s");

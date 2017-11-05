@@ -1,1 +1,2 @@
-error("invalid key (newline): %s", key);
+warning("invalid line while parsing alternate refs: %s",
+				line.buf);

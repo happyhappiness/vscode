@@ -1,1 +1,1 @@
-fprintf(stderr, _("Testing mtime in '%s' "), xgetcwd());
+die_errno(_("Cannot come back to cwd"));

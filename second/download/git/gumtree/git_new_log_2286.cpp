@@ -1,2 +1,1 @@
-error("could not write config file %s: %s", config_filename,
-		      strerror(errno));
+usage_msg_opt(_("Too many arguments."), receive_pack_usage, options);

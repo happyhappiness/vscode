@@ -1,41 +1,36 @@
-static int fsck_obj(struct object *obj)
+static void read_rr(struct string_list *rr)
 {
-	if (obj->flags & SEEN)
-		return 0;
-	obj->flags |= SEEN;
+	struct strbuf buf = STRBUF_INIT;
+	FILE *in = fopen(git_path_merge_rr(), "r");
 
-	if (verbose)
-		fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), sha1_to_hex(obj->sha1));
+	if (!in)
+		return;
+	while (!strbuf_getwholeline(&buf, in, '\0')) {
+		char *path;
+		unsigned char sha1[20];
+		struct rerere_id *id;
+		int variant;
 
-	if (fsck_walk(obj, NULL, &fsck_obj_options))
-		objerror(obj, "broken links");
-	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
-		return -1;
+		/* There has to be the hash, tab, path and then NUL */
+		if (buf.len < 42 || get_sha1_hex(buf.buf, sha1))
+			die("corrupt MERGE_RR");
 
-	if (obj->type == OBJ_TREE) {
-		struct tree *item = (struct tree *) obj;
-
-		free_tree_buffer(item);
-	}
-
-	if (obj->type == OBJ_COMMIT) {
-		struct commit *commit = (struct commit *) obj;
-
-		free_commit_buffer(commit);
-
-		if (!commit->parents && show_root)
-			printf("root %s\n", sha1_to_hex(commit->object.sha1));
-	}
-
-	if (obj->type == OBJ_TAG) {
-		struct tag *tag = (struct tag *) obj;
-
-		if (show_tags && tag->tagged) {
-			printf("tagged %s %s", typename(tag->tagged->type), sha1_to_hex(tag->tagged->sha1));
-			printf(" (%s) in %s\n", tag->tag, sha1_to_hex(tag->object.sha1));
+		if (buf.buf[40] != '.') {
+			variant = 0;
+			path = buf.buf + 40;
+		} else {
+			errno = 0;
+			variant = strtol(buf.buf + 41, &path, 10);
+			if (errno)
+				die("corrupt MERGE_RR");
 		}
+		if (*(path++) != '\t')
+			die("corrupt MERGE_RR");
+		buf.buf[40] = '\0';
+		id = new_rerere_id_hex(buf.buf);
+		id->variant = variant;
+		string_list_insert(rr, path)->util = id;
 	}
-
-	return 0;
+	strbuf_release(&buf);
+	fclose(in);
 }

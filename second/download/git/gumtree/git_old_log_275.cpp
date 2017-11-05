@@ -1,1 +1,1 @@
-error(_("reading from '%s' beyond a symbolic link"), name);
+error("Failed to delete ref NOTES_MERGE_PARTIAL");

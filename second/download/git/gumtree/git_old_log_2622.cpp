@@ -1,2 +1,1 @@
-packet_write(1, "unshallow %s",
-					sha1_to_hex(object->sha1));
+fputs(diff_get_color_opt(&opt->diffopt, DIFF_RESET), stdout);

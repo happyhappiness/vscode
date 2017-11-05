@@ -1,1 +1,1 @@
-printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
+warning("%s has multiple values", key);

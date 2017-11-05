@@ -1,1 +1,2 @@
-error(_("Could not parse line %d."), i);
+die(_("Invalid pathspec magic '%.*s' in '%s'"),
+				    (int) len, copyfrom, elt);

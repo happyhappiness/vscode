@@ -1,1 +1,1 @@
-printf("Diag: port=%s\n", port ? port : "NONE");
+die("unable to generate checkdiff for %s", one->path);

@@ -1,2 +1,2 @@
-status_printf_ln(s, color,
-					_("  (see more in file %s)"), git_path("rebase-merge/done"));
+die(_("unable to read tree (%s)"),
+				    oid_to_hex(entry.oid));

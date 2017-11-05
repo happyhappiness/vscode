@@ -1,1 +1,1 @@
-fprintf(stdout, "%s\n", ce->name);
+die(_("unable to write index file"));

@@ -1,1 +1,2 @@
-die(_("invalid path '%s'"), old_name);
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

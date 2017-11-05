@@ -1,2 +1,1 @@
-warning("Invalid parameter '%s' for config option "
-					"'submodule.%s.ignore'", value, name.buf);
+printf(_("Applied autostash.\n"));

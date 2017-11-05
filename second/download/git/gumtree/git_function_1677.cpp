@@ -1,23 +1,10 @@
-static int update_info_packs(int force)
+void die_if_checked_out(const char *branch)
 {
-	char infofile[PATH_MAX];
-	char name[PATH_MAX];
-	int namelen;
-	FILE *fp;
+	char *existing;
 
-	namelen = sprintf(infofile, "%s/info/packs", get_object_directory());
-	strcpy(name, infofile);
-	strcpy(name + namelen, "+");
-
-	init_pack_info(infofile, force);
-
-	safe_create_leading_directories(name);
-	fp = fopen(name, "w");
-	if (!fp)
-		return error("cannot open %s", name);
-	write_pack_info_file(fp);
-	fclose(fp);
-	adjust_shared_perm(name);
-	rename(name, infofile);
-	return 0;
+	existing = find_shared_symref("HEAD", branch);
+	if (existing) {
+		skip_prefix(branch, "refs/heads/", &branch);
+		die(_("'%s' is already checked out at '%s'"), branch, existing);
+	}
 }

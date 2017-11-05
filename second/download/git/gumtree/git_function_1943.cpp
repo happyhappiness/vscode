@@ -1,86 +1,42 @@
-static void read_loose_refs(const char *dirname, struct ref_dir *dir)
+void shortlog_add_commit(struct shortlog *log, struct commit *commit)
 {
-	struct ref_cache *refs = dir->ref_cache;
-	DIR *d;
-	const char *path;
-	struct dirent *de;
-	int dirnamelen = strlen(dirname);
-	struct strbuf refname;
+	const char *author = NULL, *buffer;
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf ufbuf = STRBUF_INIT;
 
-	if (*refs->name)
-		path = git_path_submodule(refs->name, "%s", dirname);
-	else
-		path = git_path("%s", dirname);
+	pp_commit_easy(CMIT_FMT_RAW, commit, &buf);
+	buffer = buf.buf;
+	while (*buffer && *buffer != '\n') {
+		const char *eol = strchr(buffer, '\n');
 
-	d = opendir(path);
-	if (!d)
-		return;
+		if (eol == NULL)
+			eol = buffer + strlen(buffer);
+		else
+			eol++;
 
-	strbuf_init(&refname, dirnamelen + 257);
-	strbuf_add(&refname, dirname, dirnamelen);
-
-	while ((de = readdir(d)) != NULL) {
-		unsigned char sha1[20];
-		struct stat st;
-		int flag;
-		const char *refdir;
-
-		if (de->d_name[0] == '.')
-			continue;
-		if (ends_with(de->d_name, ".lock"))
-			continue;
-		strbuf_addstr(&refname, de->d_name);
-		refdir = *refs->name
-			? git_path_submodule(refs->name, "%s", refname.buf)
-			: git_path("%s", refname.buf);
-		if (stat(refdir, &st) < 0) {
-			; /* silently ignore */
-		} else if (S_ISDIR(st.st_mode)) {
-			strbuf_addch(&refname, '/');
-			add_entry_to_dir(dir,
-					 create_dir_entry(refs, refname.buf,
-							  refname.len, 1));
-		} else {
-			int read_ok;
-
-			if (*refs->name) {
-				hashclr(sha1);
-				flag = 0;
-				read_ok = !resolve_gitlink_ref(refs->name,
-							       refname.buf, sha1);
-			} else {
-				read_ok = !read_ref_full(refname.buf,
-							 RESOLVE_REF_READING,
-							 sha1, &flag);
-			}
-
-			if (!read_ok) {
-				hashclr(sha1);
-				flag |= REF_ISBROKEN;
-			} else if (is_null_sha1(sha1)) {
-				/*
-				 * It is so astronomically unlikely
-				 * that NULL_SHA1 is the SHA-1 of an
-				 * actual object that we consider its
-				 * appearance in a loose reference
-				 * file to be repo corruption
-				 * (probably due to a software bug).
-				 */
-				flag |= REF_ISBROKEN;
-			}
-
-			if (check_refname_format(refname.buf,
-						 REFNAME_ALLOW_ONELEVEL)) {
-				if (!refname_is_safe(refname.buf))
-					die("loose refname is dangerous: %s", refname.buf);
-				hashclr(sha1);
-				flag |= REF_BAD_NAME | REF_ISBROKEN;
-			}
-			add_entry_to_dir(dir,
-					 create_ref_entry(refname.buf, sha1, flag, 0));
-		}
-		strbuf_setlen(&refname, dirnamelen);
+		if (starts_with(buffer, "author "))
+			author = buffer + 7;
+		buffer = eol;
 	}
-	strbuf_release(&refname);
-	closedir(d);
+	if (!author) {
+		warning(_("Missing author: %s"),
+		    sha1_to_hex(commit->object.sha1));
+		return;
+	}
+	if (log->user_format) {
+		struct pretty_print_context ctx = {0};
+		ctx.fmt = CMIT_FMT_USERFORMAT;
+		ctx.abbrev = log->abbrev;
+		ctx.subject = "";
+		ctx.after_subject = "";
+		ctx.date_mode.type = DATE_NORMAL;
+		ctx.output_encoding = get_log_output_encoding();
+		pretty_print_commit(&ctx, commit, &ufbuf);
+		buffer = ufbuf.buf;
+	} else if (*buffer) {
+		buffer++;
+	}
+	insert_one_record(log, author, !*buffer ? "<none>" : buffer);
+	strbuf_release(&ufbuf);
+	strbuf_release(&buf);
 }

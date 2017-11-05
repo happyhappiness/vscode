@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, s,
-                     "Cannot open socache DBM file `%s' for reading "
-                     "(fetch)",
-                     ctx->data_file);
+ap_log_error(APLOG_MARK, APLOG_ERR, result, s,
+                         "LDAP cache: could not create shared memory segment");

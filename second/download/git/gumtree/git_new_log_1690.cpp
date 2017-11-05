@@ -1,1 +1,1 @@
-die("helper %s does not support dry-run", data->name);
+error("--name-only is only applicable to --list or --get-regexp");

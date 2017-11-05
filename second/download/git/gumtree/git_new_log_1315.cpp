@@ -1,3 +1,1 @@
-fprintf(stderr, "cache-tree <%s> (%d ent, %d subtree) %s\n",
-			*buffer, it->entry_count, subtree_nr,
-			oid_to_hex(&it->oid));
+die("unable to get object info for %s", sha1_to_hex(sha1));

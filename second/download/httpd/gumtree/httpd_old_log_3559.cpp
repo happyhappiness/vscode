@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s,
-                             "Heartmonitor: %s listener started.",
-                             HM_WATHCHDOG_NAME);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, srv,
+                     "rfc1413: Error binding query socket to local port");

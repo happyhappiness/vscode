@@ -1,2 +1,4 @@
 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "Sum of ranges not smaller than file, ignoring.");
+                              "[%" APR_PID_T_FMT "] auth_ldap authorise: require group: "
+                              "testing for %s: %s (%s)", getpid(),
+                              ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);

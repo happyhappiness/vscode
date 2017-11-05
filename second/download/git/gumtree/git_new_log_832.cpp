@@ -1,2 +1,2 @@
-error(_("could not read commit message of %s"),
-			     oid_to_hex(&commit->object.oid));
+error(_("splitIndex.maxPercentChange value '%d' "
+			       "should be between 0 and 100"), val);

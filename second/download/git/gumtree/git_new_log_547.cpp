@@ -1,2 +1,1 @@
-print_verbose(args, _("Marking %s as complete"),
-			      oid_to_hex(&complete->item->object.oid));
+fprintf(s->fp, "# branch.head %s%c", branch_name, eol);

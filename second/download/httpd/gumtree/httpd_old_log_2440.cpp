@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, s, "sigaction(SIGABRT)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "leaving shmcb_init_memory()");

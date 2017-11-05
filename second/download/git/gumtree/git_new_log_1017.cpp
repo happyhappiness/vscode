@@ -1,1 +1,2 @@
-opterror(opt, "expects a number greater than zero", 0);
+error("corrupt packed object for %s",
+		      oid_to_hex(&entry->idx.oid));

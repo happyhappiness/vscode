@@ -1,1 +1,3 @@
-fprintf(output, "    - Not found : %d\n", errors[HOST_NOT_FOUND]);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize dn: authorization denied for user %s to %s",
+                  getpid(), r->user, r->uri);

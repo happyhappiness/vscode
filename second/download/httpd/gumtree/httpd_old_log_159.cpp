@@ -1,1 +1,1 @@
-ap_rputs("<D:responsedescription>", r);
+ap_rputs(util_ald_cache_display(r->pool), r);

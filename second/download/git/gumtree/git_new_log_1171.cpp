@@ -1,1 +1,1 @@
-vreportf("fatal: ", err, params);
+error("Could not write flush packet");

@@ -1,1 +1,1 @@
-die(_("invalid number of threads specified (%d)"), num_threads);
+error("bad ref for %s", diter->path.buf);

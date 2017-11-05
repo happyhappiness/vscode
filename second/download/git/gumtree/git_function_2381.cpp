@@ -1,16 +1,6 @@
-static void output_header_lines(FILE *fout, const char *hdr, const struct strbuf *data)
+static int write_buffer(int fd, const void *buf, size_t len)
 {
-	const char *sp = data->buf;
-	while (1) {
-		char *ep = strchr(sp, '\n');
-		int len;
-		if (!ep)
-			len = strlen(sp);
-		else
-			len = ep - sp;
-		fprintf(fout, "%s: %.*s\n", hdr, len, sp);
-		if (!ep)
-			break;
-		sp = ep + 1;
-	}
+	if (write_in_full(fd, buf, len) < 0)
+		return error("file write error (%s)", strerror(errno));
+	return 0;
 }

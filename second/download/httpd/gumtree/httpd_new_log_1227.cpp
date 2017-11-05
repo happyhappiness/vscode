@@ -1,1 +1,2 @@
-fprintf(stderr, "suexec failure: could not open log file\n");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                "  -T                 : start without DocumentRoot(s) check");

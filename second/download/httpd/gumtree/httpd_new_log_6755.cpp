@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
-                      APLOGNO(02913) "h2_session(%ld-%d): create slave",
-                      master->id, slave_id);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01149)
+                     "Sharing worker '%s' instead of creating new worker '%s'",
+                     ap_proxy_worker_name(cmd->pool, worker), name);

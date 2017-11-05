@@ -1,5 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
-                     "Initialisation of global mutex %s in child process %"
-                     APR_PID_T_FMT
-                     " successful.",
-                     st->lock_file, getpid());
+ap_log_perror(APLOG_MARK, APLOG_WARNING, stat, p,
+                          "make_sock: failed to set ReceiveBufferSize for "
+                          "address %pI, using default",
+                          server->bind_addr);

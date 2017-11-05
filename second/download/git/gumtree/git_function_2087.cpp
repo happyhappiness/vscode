@@ -1,20 +1,7 @@
-static int verify_format(const char *format)
+static inline size_t st_add(size_t a, size_t b)
 {
-	const char *cp, *sp;
-
-	need_color_reset_at_eol = 0;
-	for (cp = format; *cp && (sp = find_next(cp)); ) {
-		const char *color, *ep = strchr(sp, ')');
-		int at;
-
-		if (!ep)
-			return error("malformed format string %s", sp);
-		/* sp points at "%(" and ep points at the closing ")" */
-		at = parse_atom(sp + 2, ep);
-		cp = ep + 1;
-
-		if (skip_prefix(used_atom[at], "color:", &color))
-			need_color_reset_at_eol = !!strcmp(color, "reset");
-	}
-	return 0;
+	if (unsigned_add_overflows(a, b))
+		die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);
+	return a + b;
 }

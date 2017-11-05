@@ -1,1 +1,1 @@
-die("invalid object type");
+printf("\n");

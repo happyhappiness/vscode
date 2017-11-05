@@ -1,1 +1,2 @@
-error(_("unable to update cache tree\n"));
+die("process for submodule '%s' failed with exit code: %d",
+		    gs->name, status);

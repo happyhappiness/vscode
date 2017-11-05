@@ -1,37 +1,36 @@
-int delete_refs(struct string_list *refnames)
+int fetch_populated_submodules(const struct argv_array *options,
+			       const char *prefix, int command_line_option,
+			       int quiet, int max_parallel_jobs)
 {
-	struct strbuf err = STRBUF_INIT;
-	int i, result = 0;
+	int i;
+	struct submodule_parallel_fetch spf = SPF_INIT;
 
-	if (!refnames->nr)
-		return 0;
+	spf.work_tree = get_git_work_tree();
+	spf.command_line_option = command_line_option;
+	spf.quiet = quiet;
+	spf.prefix = prefix;
 
-	result = repack_without_refs(refnames, &err);
-	if (result) {
-		/*
-		 * If we failed to rewrite the packed-refs file, then
-		 * it is unsafe to try to remove loose refs, because
-		 * doing so might expose an obsolete packed value for
-		 * a reference that might even point at an object that
-		 * has been garbage collected.
-		 */
-		if (refnames->nr == 1)
-			error(_("could not delete reference %s: %s"),
-			      refnames->items[0].string, err.buf);
-		else
-			error(_("could not delete references: %s"), err.buf);
-
+	if (!spf.work_tree)
 		goto out;
-	}
 
-	for (i = 0; i < refnames->nr; i++) {
-		const char *refname = refnames->items[i].string;
+	if (read_cache() < 0)
+		die("index file corrupt");
 
-		if (delete_ref(refname, NULL, 0))
-			result |= error(_("could not remove reference %s"), refname);
-	}
+	argv_array_push(&spf.args, "fetch");
+	for (i = 0; i < options->argc; i++)
+		argv_array_push(&spf.args, options->argv[i]);
+	argv_array_push(&spf.args, "--recurse-submodules-default");
+	/* default value, "--submodule-prefix" and its value are added later */
 
+	calculate_changed_submodule_paths();
+	run_processes_parallel(max_parallel_jobs,
+			       get_next_submodule,
+			       fetch_start_failure,
+			       fetch_finish,
+			       &spf);
+
+	argv_array_clear(&spf.args);
 out:
-	strbuf_release(&err);
-	return result;
+	string_list_clear(&changed_submodule_paths, 1);
+	return spf.result;
 }

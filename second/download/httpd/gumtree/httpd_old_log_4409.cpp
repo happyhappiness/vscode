@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, r->server,
-                 "proxy: FTP: serving URL %s", url);
+ap_log_error(APLOG_MARK, APLOG_STARTUP|APLOG_CRIT,
+                     APR_EBADPATH, NULL, "Invalid config file path %s",
+                     filename);

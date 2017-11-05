@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(02282)
-                     "No slotmem from mod_heartmonitor");
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02288)
+                 "TLS session ticket key for %s successfully loaded from %s",
+                 (mySrvConfig(s))->vhost_id, path);

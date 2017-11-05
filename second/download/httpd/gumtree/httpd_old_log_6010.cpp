@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,
-                  "h2_mplx(%ld): destroy, refs=%d", 
-                  m->id, m->refs);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
+                          APLOGNO(02954) 
+                          "h2_request(%d): ignoring unknown pseudo header %s",
+                          req->id, buffer);

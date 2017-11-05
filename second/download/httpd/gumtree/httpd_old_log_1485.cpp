@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, NULL,
-                      "Status is %d - not sending interim response", r->status);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                                      0, r, "[%" APR_PID_T_FMT "] auth_ldap authorise: "
+                                      "require attribute: authorisation "
+                                      "successful", getpid());

@@ -1,1 +1,1 @@
-printf("%s\n", sha1_to_hex(result->item->object.sha1));
+error("unable to open %s: %s", path->buf, strerror(errno));

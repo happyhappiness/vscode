@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01300)
-                 "ldap cache: Setting search cache size to %ld entries.",
-                 st->search_cache_size);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01051)
+                          "error binding to ftp data socket %pI", local_addr);

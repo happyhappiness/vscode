@@ -1,1 +1,1 @@
-printf("num read blob: %d\n", num_read_blob);
+die_errno("unable to get current working directory");

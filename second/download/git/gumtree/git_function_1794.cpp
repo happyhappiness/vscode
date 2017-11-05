@@ -1,100 +1,82 @@
-int reflog_expire(const char *refname, const unsigned char *sha1,
-		 unsigned int flags,
-		 reflog_expiry_prepare_fn prepare_fn,
-		 reflog_expiry_should_prune_fn should_prune_fn,
-		 reflog_expiry_cleanup_fn cleanup_fn,
-		 void *policy_cb_data)
+static int push_refs_with_push(struct transport *transport,
+			       struct ref *remote_refs, int flags)
 {
-	static struct lock_file reflog_lock;
-	struct expire_reflog_cb cb;
-	struct ref_lock *lock;
-	char *log_file;
-	int status = 0;
-	int type;
+	int force_all = flags & TRANSPORT_PUSH_FORCE;
+	int mirror = flags & TRANSPORT_PUSH_MIRROR;
+	struct helper_data *data = transport->data;
+	struct strbuf buf = STRBUF_INIT;
+	struct ref *ref;
+	struct string_list cas_options = STRING_LIST_INIT_DUP;
+	struct string_list_item *cas_option;
 
-	memset(&cb, 0, sizeof(cb));
-	cb.flags = flags;
-	cb.policy_cb = policy_cb_data;
-	cb.should_prune_fn = should_prune_fn;
+	get_helper(transport);
+	if (!data->push)
+		return 1;
 
-	/*
-	 * The reflog file is locked by holding the lock on the
-	 * reference itself, plus we might need to update the
-	 * reference if --updateref was specified:
-	 */
-	lock = lock_ref_sha1_basic(refname, sha1, NULL, 0, &type);
-	if (!lock)
-		return error("cannot lock ref '%s'", refname);
-	if (!reflog_exists(refname)) {
-		unlock_ref(lock);
+	for (ref = remote_refs; ref; ref = ref->next) {
+		if (!ref->peer_ref && !mirror)
+			continue;
+
+		/* Check for statuses set by set_ref_status_for_push() */
+		switch (ref->status) {
+		case REF_STATUS_REJECT_NONFASTFORWARD:
+		case REF_STATUS_REJECT_STALE:
+		case REF_STATUS_REJECT_ALREADY_EXISTS:
+		case REF_STATUS_UPTODATE:
+			continue;
+		default:
+			; /* do nothing */
+		}
+
+		if (force_all)
+			ref->force = 1;
+
+		strbuf_addstr(&buf, "push ");
+		if (!ref->deletion) {
+			if (ref->force)
+				strbuf_addch(&buf, '+');
+			if (ref->peer_ref)
+				strbuf_addstr(&buf, ref->peer_ref->name);
+			else
+				strbuf_addstr(&buf, sha1_to_hex(ref->new_sha1));
+		}
+		strbuf_addch(&buf, ':');
+		strbuf_addstr(&buf, ref->name);
+		strbuf_addch(&buf, '\n');
+
+		/*
+		 * The "--force-with-lease" options without explicit
+		 * values to expect have already been expanded into
+		 * the ref->old_sha1_expect[] field; we can ignore
+		 * transport->smart_options->cas altogether and instead
+		 * can enumerate them from the refs.
+		 */
+		if (ref->expect_old_sha1) {
+			struct strbuf cas = STRBUF_INIT;
+			strbuf_addf(&cas, "%s:%s",
+				    ref->name, sha1_to_hex(ref->old_sha1_expect));
+			string_list_append(&cas_options, strbuf_detach(&cas, NULL));
+		}
+	}
+	if (buf.len == 0) {
+		string_list_clear(&cas_options, 0);
 		return 0;
 	}
 
-	log_file = git_pathdup("logs/%s", refname);
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * Even though holding $GIT_DIR/logs/$reflog.lock has
-		 * no locking implications, we use the lock_file
-		 * machinery here anyway because it does a lot of the
-		 * work we need, including cleaning up if the program
-		 * exits unexpectedly.
-		 */
-		if (hold_lock_file_for_update(&reflog_lock, log_file, 0) < 0) {
-			struct strbuf err = STRBUF_INIT;
-			unable_to_lock_message(log_file, errno, &err);
-			error("%s", err.buf);
-			strbuf_release(&err);
-			goto failure;
-		}
-		cb.newlog = fdopen_lock_file(&reflog_lock, "w");
-		if (!cb.newlog) {
-			error("cannot fdopen %s (%s)",
-			      reflog_lock.filename.buf, strerror(errno));
-			goto failure;
-		}
+	for_each_string_list_item(cas_option, &cas_options)
+		set_helper_option(transport, "cas", cas_option->string);
+
+	if (flags & TRANSPORT_PUSH_DRY_RUN) {
+		if (set_helper_option(transport, "dry-run", "true") != 0)
+			die("helper %s does not support dry-run", data->name);
+	} else if (flags & TRANSPORT_PUSH_CERT) {
+		if (set_helper_option(transport, TRANS_OPT_PUSH_CERT, "true") != 0)
+			die("helper %s does not support --signed", data->name);
 	}
 
-	(*prepare_fn)(refname, sha1, cb.policy_cb);
-	for_each_reflog_ent(refname, expire_reflog_ent, &cb);
-	(*cleanup_fn)(cb.policy_cb);
+	strbuf_addch(&buf, '\n');
+	sendline(data, &buf);
+	strbuf_release(&buf);
 
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * It doesn't make sense to adjust a reference pointed
-		 * to by a symbolic ref based on expiring entries in
-		 * the symbolic reference's reflog. Nor can we update
-		 * a reference if there are no remaining reflog
-		 * entries.
-		 */
-		int update = (flags & EXPIRE_REFLOGS_UPDATE_REF) &&
-			!(type & REF_ISSYMREF) &&
-			!is_null_sha1(cb.last_kept_sha1);
-
-		if (close_lock_file(&reflog_lock)) {
-			status |= error("couldn't write %s: %s", log_file,
-					strerror(errno));
-		} else if (update &&
-			(write_in_full(lock->lock_fd,
-				sha1_to_hex(cb.last_kept_sha1), 40) != 40 ||
-			 write_str_in_full(lock->lock_fd, "\n") != 1 ||
-			 close_ref(lock) < 0)) {
-			status |= error("couldn't write %s",
-					lock->lk->filename.buf);
-			rollback_lock_file(&reflog_lock);
-		} else if (commit_lock_file(&reflog_lock)) {
-			status |= error("unable to commit reflog '%s' (%s)",
-					log_file, strerror(errno));
-		} else if (update && commit_ref(lock)) {
-			status |= error("couldn't set %s", lock->ref_name);
-		}
-	}
-	free(log_file);
-	unlock_ref(lock);
-	return status;
-
- failure:
-	rollback_lock_file(&reflog_lock);
-	free(log_file);
-	unlock_ref(lock);
-	return -1;
+	return push_update_refs_status(data, remote_refs, flags);
 }

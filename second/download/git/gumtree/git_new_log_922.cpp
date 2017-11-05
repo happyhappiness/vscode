@@ -1,1 +1,1 @@
-error("key does not contain a section: %s", key);
+die (_("BUG: returned path string doesn't match cwd?"));

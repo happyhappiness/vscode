@@ -1,1 +1,1 @@
-error("duplicate parent %s ignored", oid_to_hex(oid));
+error_errno("could not write config file %s", config_filename);

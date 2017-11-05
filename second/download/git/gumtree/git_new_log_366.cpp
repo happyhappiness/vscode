@@ -1,1 +1,1 @@
-die("%s not a valid tag", oid_to_hex(&oid));
+die(_("invalid unshallow line: %s"), line);

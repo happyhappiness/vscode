@@ -1,2 +1,2 @@
-die(_("a notes merge into %s is already in-progress at %s"),
-			    default_notes_ref(), wt->path);
+error(_("commit %s is a merge but no -m option was given."),
+				oid_to_hex(&commit->object.oid));

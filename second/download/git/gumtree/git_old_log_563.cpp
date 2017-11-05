@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports ofs-delta\n");
+error("Unable to update %s", ref_name);

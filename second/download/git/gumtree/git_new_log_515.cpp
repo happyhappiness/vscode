@@ -1,1 +1,1 @@
-die(_("option '%s' requires a value"), option_name);
+strbuf_addstr(err, _("too-short tree object"));

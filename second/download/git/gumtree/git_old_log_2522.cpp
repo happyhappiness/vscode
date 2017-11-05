@@ -1,1 +1,2 @@
-die("loose refname is dangerous: %s", refname.buf);
+help_unknown_ref(argv[i], "merge",
+						 "not something we can merge");

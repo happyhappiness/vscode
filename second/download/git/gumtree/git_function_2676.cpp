@@ -1,42 +1,49 @@
-void shortlog_add_commit(struct shortlog *log, struct commit *commit)
+static struct commit *parse_insn_line(char *bol, char *eol, struct replay_opts *opts)
 {
-	const char *author = NULL, *buffer;
-	struct strbuf buf = STRBUF_INIT;
-	struct strbuf ufbuf = STRBUF_INIT;
+	unsigned char commit_sha1[20];
+	enum replay_action action;
+	char *end_of_object_name;
+	int saved, status, padding;
 
-	pp_commit_easy(CMIT_FMT_RAW, commit, &buf);
-	buffer = buf.buf;
-	while (*buffer && *buffer != '\n') {
-		const char *eol = strchr(buffer, '\n');
+	if (starts_with(bol, "pick")) {
+		action = REPLAY_PICK;
+		bol += strlen("pick");
+	} else if (starts_with(bol, "revert")) {
+		action = REPLAY_REVERT;
+		bol += strlen("revert");
+	} else
+		return NULL;
 
-		if (eol == NULL)
-			eol = buffer + strlen(buffer);
+	/* Eat up extra spaces/ tabs before object name */
+	padding = strspn(bol, " \t");
+	if (!padding)
+		return NULL;
+	bol += padding;
+
+	end_of_object_name = bol + strcspn(bol, " \t\n");
+	saved = *end_of_object_name;
+	*end_of_object_name = '\0';
+	status = get_sha1(bol, commit_sha1);
+	*end_of_object_name = saved;
+
+	/*
+	 * Verify that the action matches up with the one in
+	 * opts; we don't support arbitrary instructions
+	 */
+	if (action != opts->action) {
+		if (action == REPLAY_REVERT)
+		      error((opts->action == REPLAY_REVERT)
+			    ? _("Cannot revert during another revert.")
+			    : _("Cannot revert during a cherry-pick."));
 		else
-			eol++;
+		      error((opts->action == REPLAY_REVERT)
+			    ? _("Cannot cherry-pick during a revert.")
+			    : _("Cannot cherry-pick during another cherry-pick."));
+		return NULL;
+	}
 
-		if (starts_with(buffer, "author "))
-			author = buffer + 7;
-		buffer = eol;
-	}
-	if (!author) {
-		warning(_("Missing author: %s"),
-		    oid_to_hex(&commit->object.oid));
-		return;
-	}
-	if (log->user_format) {
-		struct pretty_print_context ctx = {0};
-		ctx.fmt = CMIT_FMT_USERFORMAT;
-		ctx.abbrev = log->abbrev;
-		ctx.subject = "";
-		ctx.after_subject = "";
-		ctx.date_mode.type = DATE_NORMAL;
-		ctx.output_encoding = get_log_output_encoding();
-		pretty_print_commit(&ctx, commit, &ufbuf);
-		buffer = ufbuf.buf;
-	} else if (*buffer) {
-		buffer++;
-	}
-	insert_one_record(log, author, !*buffer ? "<none>" : buffer);
-	strbuf_release(&ufbuf);
-	strbuf_release(&buf);
+	if (status < 0)
+		return NULL;
+
+	return lookup_commit_reference(commit_sha1);
 }

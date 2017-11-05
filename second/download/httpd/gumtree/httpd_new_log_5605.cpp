@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                    "*: rewrite of url due to UDS(%s): %s (%s)",
-                    sockpath, *url, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03003)
+                              "%d:  lightuserdata", i);

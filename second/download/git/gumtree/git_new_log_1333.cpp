@@ -1,2 +1,1 @@
-fprintf(rpt, "  old tree    : %s\n",
-		oid_to_hex(&b->branch_tree.versions[0].oid));
+die("BUG: update called for transaction that is not open");

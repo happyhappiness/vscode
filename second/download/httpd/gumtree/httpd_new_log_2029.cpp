@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                 "Init: Generating temporary DH parameters (512/1024 bits)");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                "Accept mutex: %s (default: %s)",
+                apr_proc_mutex_name(accept_mutex),
+                apr_proc_mutex_defname());

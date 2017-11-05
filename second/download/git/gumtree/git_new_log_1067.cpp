@@ -1,1 +1,1 @@
-die("object size is too enormous to format");
+die("object not found: %s", oid_to_hex(oid));

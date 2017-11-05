@@ -1,1 +1,2 @@
-die(_("failed to resolve NOTES_MERGE_REF"));
+error(_("could not parse commit %s\n"),
+			     oid_to_hex(&commit->object.oid));

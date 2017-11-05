@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03065)
-                      "h2_stream(%ld-%d): closing with err=%d %s", 
-                      session->id, (int)stream->id, (int)error_code,
-                      h2_h2_err_description(error_code));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServ, APLOGNO(02249)
+                             "unencrypted %s private key - pass phrase not "
+                             "required", an);

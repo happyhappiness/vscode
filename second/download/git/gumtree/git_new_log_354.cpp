@@ -1,3 +1,2 @@
-die("Cannot read blob %s for path %s",
-			    oid_to_hex(&o->blob_oid),
-			    o->path);
+error("unknown value after ws-error-highlight=%.*s",
+		      -1 - val, arg);

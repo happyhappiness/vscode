@@ -1,2 +1,1 @@
-die(_("could not run 'git status in submodule '%s'"),
-				path);
+printf("committer %s <%s@%s> %lu +0000\n", author, author, "local", timestamp);

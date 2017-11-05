@@ -1,31 +1,22 @@
-static int setup_tracking(const char *new_ref, const char *orig_ref,
-			  enum branch_track track, int quiet)
+static void output_commit_title(struct merge_options *o, struct commit *commit)
 {
-	struct tracking tracking;
-	int config_flags = quiet ? 0 : BRANCH_CONFIG_VERBOSE;
-
-	memset(&tracking, 0, sizeof(tracking));
-	tracking.spec.dst = (char *)orig_ref;
-	if (for_each_remote(find_tracked_branch, &tracking))
-		return 1;
-
-	if (!tracking.matches)
-		switch (track) {
-		case BRANCH_TRACK_ALWAYS:
-		case BRANCH_TRACK_EXPLICIT:
-		case BRANCH_TRACK_OVERRIDE:
-			break;
-		default:
-			return 1;
+	int i;
+	flush_output(o);
+	for (i = o->call_depth; i--;)
+		fputs("  ", stdout);
+	if (commit->util)
+		printf("virtual %s\n", merge_remote_util(commit)->name);
+	else {
+		printf("%s ", find_unique_abbrev(commit->object.oid.hash, DEFAULT_ABBREV));
+		if (parse_commit(commit) != 0)
+			printf(_("(bad commit)\n"));
+		else {
+			const char *title;
+			const char *msg = get_commit_buffer(commit, NULL);
+			int len = find_commit_subject(msg, &title);
+			if (len)
+				printf("%.*s\n", len, title);
+			unuse_commit_buffer(commit, msg);
 		}
-
-	if (tracking.matches > 1)
-		return error(_("Not tracking: ambiguous information for ref %s"),
-				orig_ref);
-
-	install_branch_config(config_flags, new_ref, tracking.remote,
-			      tracking.src ? tracking.src : orig_ref);
-
-	free(tracking.src);
-	return 0;
+	}
 }

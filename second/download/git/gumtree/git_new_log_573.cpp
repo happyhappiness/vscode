@@ -1,1 +1,4 @@
-warning(_("Delegation control is not supported with cURL < 7.22.0"));
+die(_("unable to update url base from redirection:\n"
+		      "  asked for: %s\n"
+		      "   redirect: %s"),
+		    asked, got->buf);

@@ -1,1 +1,1 @@
-fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);
+packet_buf_write(&preamble, "%s\n", specs[i]);

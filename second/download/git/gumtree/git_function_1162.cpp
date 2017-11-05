@@ -1,43 +1,48 @@
-int mailinfo(struct mailinfo *mi, const char *msg, const char *patch)
+int push_unpushed_submodules(struct oid_array *commits,
+			     const struct remote *remote,
+			     const char **refspec, int refspec_nr,
+			     const struct string_list *push_options,
+			     int dry_run)
 {
-	FILE *cmitmsg;
-	int peek;
-	struct strbuf line = STRBUF_INIT;
+	int i, ret = 1;
+	struct string_list needs_pushing = STRING_LIST_INIT_DUP;
 
-	cmitmsg = fopen(msg, "w");
-	if (!cmitmsg) {
-		perror(msg);
-		return -1;
+	if (!find_unpushed_submodules(commits, remote->name, &needs_pushing))
+		return 1;
+
+	/*
+	 * Verify that the remote and refspec can be propagated to all
+	 * submodules.  This check can be skipped if the remote and refspec
+	 * won't be propagated due to the remote being unconfigured (e.g. a URL
+	 * instead of a remote name).
+	 */
+	if (remote->origin != REMOTE_UNCONFIGURED) {
+		char *head;
+		struct object_id head_oid;
+
+		head = resolve_refdup("HEAD", 0, head_oid.hash, NULL);
+		if (!head)
+			die(_("Failed to resolve HEAD as a valid ref."));
+
+		for (i = 0; i < needs_pushing.nr; i++)
+			submodule_push_check(needs_pushing.items[i].string,
+					     head, remote,
+					     refspec, refspec_nr);
+		free(head);
 	}
-	mi->patchfile = fopen(patch, "w");
-	if (!mi->patchfile) {
-		perror(patch);
-		fclose(cmitmsg);
-		return -1;
-	}
 
-	mi->p_hdr_data = xcalloc(MAX_HDR_PARSED, sizeof(*(mi->p_hdr_data)));
-	mi->s_hdr_data = xcalloc(MAX_HDR_PARSED, sizeof(*(mi->s_hdr_data)));
-
-	do {
-		peek = fgetc(mi->input);
-		if (peek == EOF) {
-			fclose(cmitmsg);
-			return error("empty patch: '%s'", patch);
+	/* Actually push the submodules */
+	for (i = 0; i < needs_pushing.nr; i++) {
+		const char *path = needs_pushing.items[i].string;
+		fprintf(stderr, "Pushing submodule '%s'\n", path);
+		if (!push_submodule(path, remote, refspec, refspec_nr,
+				    push_options, dry_run)) {
+			fprintf(stderr, "Unable to push submodule '%s'\n", path);
+			ret = 0;
 		}
-	} while (isspace(peek));
-	ungetc(peek, mi->input);
+	}
 
-	/* process the email header */
-	while (read_one_header_line(&line, mi->input))
-		check_header(mi, &line, mi->p_hdr_data, 1);
+	string_list_clear(&needs_pushing, 0);
 
-	handle_body(mi, &line);
-	fwrite(mi->log_message.buf, 1, mi->log_message.len, cmitmsg);
-	fclose(cmitmsg);
-	fclose(mi->patchfile);
-
-	handle_info(mi);
-	strbuf_release(&line);
-	return mi->input_error;
+	return ret;
 }

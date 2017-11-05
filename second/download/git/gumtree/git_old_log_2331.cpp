@@ -1,1 +1,2 @@
-die ("Could not read tag %s", sha1_to_hex(tag->object.sha1));
+error("could not read file '%s': %s",
+				path, strerror(errno));

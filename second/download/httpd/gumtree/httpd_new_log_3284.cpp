@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01667)
-                    "Authorization of user %s to access %s failed, reason: "
-                    "user is not part of the 'require'ed group(s).",
-                    r->user, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01454) "rl: conn aborted");

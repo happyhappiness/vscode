@@ -1,1 +1,1 @@
-opendir(git_path("objects/17"));
+printf("%.*s%s", p_len - GIT_SHA1_HEXSZ, p_start, name);

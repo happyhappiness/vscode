@@ -1,69 +1,56 @@
-static void combine_diff(const unsigned char *parent, unsigned int mode,
-			 mmfile_t *result_file,
-			 struct sline *sline, unsigned int cnt, int n,
-			 int num_parent, int result_deleted,
-			 struct userdiff_driver *textconv,
-			 const char *path, long flags)
+const char *fmt_ident(const char *name, const char *email,
+		      const char *date_str, int flag)
 {
-	unsigned int p_lno, lno;
-	unsigned long nmask = (1UL << n);
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	mmfile_t parent_file;
-	struct combine_diff_state state;
-	unsigned long sz;
+	static struct strbuf ident = STRBUF_INIT;
+	int strict = (flag & IDENT_STRICT);
+	int want_date = !(flag & IDENT_NO_DATE);
+	int want_name = !(flag & IDENT_NO_NAME);
 
-	if (result_deleted)
-		return; /* result deleted */
+	if (want_name && !name)
+		name = ident_default_name();
+	if (!email)
+		email = ident_default_email();
 
-	parent_file.ptr = grab_blob(parent, mode, &sz, textconv, path);
-	parent_file.size = sz;
-	memset(&xpp, 0, sizeof(xpp));
-	xpp.flags = flags;
-	memset(&xecfg, 0, sizeof(xecfg));
-	memset(&state, 0, sizeof(state));
-	state.nmask = nmask;
-	state.sline = sline;
-	state.lno = 1;
-	state.num_parent = num_parent;
-	state.n = n;
+	if (want_name && !*name) {
+		struct passwd *pw;
 
-	if (xdi_diff_outf(&parent_file, result_file, consume_line, &state,
-			  &xpp, &xecfg))
-		die("unable to generate combined diff for %s",
-		    sha1_to_hex(parent));
-	free(parent_file.ptr);
-
-	/* Assign line numbers for this parent.
-	 *
-	 * sline[lno].p_lno[n] records the first line number
-	 * (counting from 1) for parent N if the final hunk display
-	 * started by showing sline[lno] (possibly showing the lost
-	 * lines attached to it first).
-	 */
-	for (lno = 0,  p_lno = 1; lno <= cnt; lno++) {
-		struct lline *ll;
-		sline[lno].p_lno[n] = p_lno;
-
-		/* Coalesce new lines */
-		if (sline[lno].plost.lost_head) {
-			struct sline *sl = &sline[lno];
-			sl->lost = coalesce_lines(sl->lost, &sl->lenlost,
-						  sl->plost.lost_head,
-						  sl->plost.len, n, flags);
-			sl->plost.lost_head = sl->plost.lost_tail = NULL;
-			sl->plost.len = 0;
+		if (strict) {
+			if (name == git_default_name.buf)
+				fputs(env_hint, stderr);
+			die("empty ident name (for <%s>) not allowed", email);
 		}
-
-		/* How many lines would this sline advance the p_lno? */
-		ll = sline[lno].lost;
-		while (ll) {
-			if (ll->parent_map & nmask)
-				p_lno++; /* '-' means parent had it */
-			ll = ll->next;
-		}
-		if (lno < cnt && !(sline[lno].flag & nmask))
-			p_lno++; /* no '+' means parent had it */
+		pw = xgetpwuid_self(NULL);
+		name = pw->pw_name;
 	}
-	sline[lno].p_lno[n] = p_lno; /* trailer */
+
+	if (want_name && strict &&
+	    name == git_default_name.buf && default_name_is_bogus) {
+		fputs(env_hint, stderr);
+		die("unable to auto-detect name (got '%s')", name);
+	}
+
+	if (strict && email == git_default_email.buf && default_email_is_bogus) {
+		fputs(env_hint, stderr);
+		die("unable to auto-detect email address (got '%s')", email);
+	}
+
+	strbuf_reset(&ident);
+	if (want_name) {
+		strbuf_addstr_without_crud(&ident, name);
+		strbuf_addstr(&ident, " <");
+	}
+	strbuf_addstr_without_crud(&ident, email);
+	if (want_name)
+			strbuf_addch(&ident, '>');
+	if (want_date) {
+		strbuf_addch(&ident, ' ');
+		if (date_str && date_str[0]) {
+			if (parse_date(date_str, &ident) < 0)
+				die("invalid date format: %s", date_str);
+		}
+		else
+			strbuf_addstr(&ident, ident_default_date());
+	}
+
+	return ident.buf;
 }

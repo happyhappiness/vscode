@@ -1,256 +1,151 @@
-request_rec *ap_read_request(conn_rec *conn)
+static authz_status ldapfilter_check_authorization(request_rec *r,
+                                                   const char *require_args,
+                                                   const void *parsed_require_args)
 {
-    request_rec *r;
-    apr_pool_t *p;
-    const char *expect;
-    int access_status = HTTP_OK;
-    apr_bucket_brigade *tmp_bb;
-    apr_socket_t *csd;
-    apr_interval_time_t cur_timeout;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
+    util_ldap_connection_t *ldc = NULL;
 
-    apr_pool_create(&p, conn->pool);
-    apr_pool_tag(p, "request");
-    r = apr_pcalloc(p, sizeof(request_rec));
-    AP_READ_REQUEST_ENTRY((intptr_t)r, (uintptr_t)conn);
-    r->pool            = p;
-    r->connection      = conn;
-    r->server          = conn->base_server;
+    const char *err = NULL;
+    const ap_expr_info_t *expr = parsed_require_args;
+    const char *require;
 
-    r->user            = NULL;
-    r->ap_auth_type    = NULL;
+    const char *t;
 
-    r->allowed_methods = ap_make_method_list(p, 2);
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
 
-    r->headers_in      = apr_table_make(r->pool, 25);
-    r->trailers_in     = apr_table_make(r->pool, 5);
-    r->subprocess_env  = apr_table_make(r->pool, 25);
-    r->headers_out     = apr_table_make(r->pool, 12);
-    r->err_headers_out = apr_table_make(r->pool, 5);
-    r->trailers_out    = apr_table_make(r->pool, 5);
-    r->notes           = apr_table_make(r->pool, 5);
-
-    r->request_config  = ap_create_request_config(r->pool);
-    /* Must be set before we run create request hook */
-
-    r->proto_output_filters = conn->output_filters;
-    r->output_filters  = r->proto_output_filters;
-    r->proto_input_filters = conn->input_filters;
-    r->input_filters   = r->proto_input_filters;
-    ap_run_create_request(r);
-    r->per_dir_config  = r->server->lookup_defaults;
-
-    r->sent_bodyct     = 0;                      /* bytect isn't for body */
-
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
-
-    r->status          = HTTP_OK;  /* Until further notice */
-    r->the_request     = NULL;
-
-    /* Begin by presuming any module can make its own path_info assumptions,
-     * until some module interjects and changes the value.
-     */
-    r->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
-
-    r->useragent_addr = conn->client_addr;
-    r->useragent_ip = conn->client_ip;
-
-    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-
-    ap_run_pre_read_request(r, conn);
-
-    /* Get the request... */
-    if (!read_request_line(r, tmp_bb)) {
-        if (r->status == HTTP_REQUEST_URI_TOO_LARGE
-            || r->status == HTTP_BAD_REQUEST) {
-            if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00565)
-                              "request failed: client's request-line exceeds LimitRequestLine (longer than %d)",
-                              r->server->limit_req_line);
-            }
-            else if (r->method == NULL) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00566)
-                              "request failed: invalid characters in URI");
-            }
-            access_status = r->status;
-            r->status = HTTP_OK;
-            ap_die(access_status, r);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            r = NULL;
-            apr_brigade_destroy(tmp_bb);
-            goto traceout;
-        }
-        else if (r->status == HTTP_REQUEST_TIME_OUT) {
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, NULL);
-            if (!r->connection->keepalives) {
-                ap_run_log_transaction(r);
-            }
-            apr_brigade_destroy(tmp_bb);
-            goto traceout;
-        }
-
-        apr_brigade_destroy(tmp_bb);
-        r = NULL;
-        goto traceout;
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
     }
 
-    /* We may have been in keep_alive_timeout mode, so toggle back
-     * to the normal timeout mode as we fetch the header lines,
-     * as necessary.
-     */
-    csd = ap_get_conn_socket(conn);
-    apr_socket_timeout_get(csd, &cur_timeout);
-    if (cur_timeout != conn->base_server->timeout) {
-        apr_socket_timeout_set(csd, conn->base_server->timeout);
-        cur_timeout = conn->base_server->timeout;
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
     }
 
-    if (!r->assbackwards) {
-        const char *tenc;
-
-        ap_get_mime_headers_core(r, tmp_bb);
-        if (r->status != HTTP_OK) {
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00567)
-                          "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            goto traceout;
-        }
-
-        tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
-        if (tenc) {
-            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
-             * Section 3.3.3.3: "If a Transfer-Encoding header field is
-             * present in a request and the chunked transfer coding is not
-             * the final encoding ...; the server MUST respond with the 400
-             * (Bad Request) status code and then close the connection".
-             */
-            if (!(strcasecmp(tenc, "chunked") == 0 /* fast path */
-                    || ap_find_last_token(r->pool, tenc, "chunked"))) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02539)
-                              "client sent unknown Transfer-Encoding "
-                              "(%s): %s", tenc, r->uri);
-                r->status = HTTP_BAD_REQUEST;
-                conn->keepalive = AP_CONN_CLOSE;
-                ap_send_error_response(r, 0);
-                ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-                ap_run_log_transaction(r);
-                apr_brigade_destroy(tmp_bb);
-                goto traceout;
-            }
-
-            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
-             * Section 3.3.3.3: "If a message is received with both a
-             * Transfer-Encoding and a Content-Length header field, the
-             * Transfer-Encoding overrides the Content-Length. ... A sender
-             * MUST remove the received Content-Length field".
-             */
-            apr_table_unset(r->headers_in, "Content-Length");
-        }
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_SEARCH);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
     }
     else {
-        if (r->header_only) {
-            /*
-             * Client asked for headers only with HTTP/0.9, which doesn't send
-             * headers! Have to dink things just to make sure the error message
-             * comes through...
-             */
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00568)
-                          "client sent invalid HTTP/0.9 request: HEAD %s",
-                          r->uri);
-            r->header_only = 0;
-            r->status = HTTP_BAD_REQUEST;
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            goto traceout;
-        }
-    }
-
-    apr_brigade_destroy(tmp_bb);
-
-    /* update what we think the virtual host is based on the headers we've
-     * now read. may update status.
-     */
-    ap_update_vhost_from_headers(r);
-
-    /* Toggle to the Host:-based vhost's timeout mode to fetch the
-     * request body and send the response body, if needed.
-     */
-    if (cur_timeout != r->server->timeout) {
-        apr_socket_timeout_set(csd, r->server->timeout);
-        cur_timeout = r->server->timeout;
-    }
-
-    /* we may have switched to another server */
-    r->per_dir_config = r->server->lookup_defaults;
-
-    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
-        || ((r->proto_num == HTTP_VERSION(1, 1))
-            && !apr_table_get(r->headers_in, "Host"))) {
-        /*
-         * Client sent us an HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-         * a Host: header, and the server MUST respond with 400 if it doesn't.
-         */
-        access_status = HTTP_BAD_REQUEST;
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00569)
-                      "client sent HTTP/1.1 request without hostname "
-                      "(see RFC2616 section 14.23): %s", r->uri);
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01738)
+                      "auth_ldap authorize: no sec->host - weird...?");
+        return AUTHZ_DENIED;
     }
 
     /*
-     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
-     * called by ap_die and by ap_send_error_response works correctly on
-     * status codes that do not cause the connection to be dropped and
-     * in situations where the connection should be kept alive.
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
      */
 
-    ap_add_input_filter_handle(ap_http_input_filter_handle,
-                               NULL, r, r->connection);
-
-    if (access_status != HTTP_OK
-        || (access_status = ap_run_post_read_request(r))) {
-        ap_die(access_status, r);
-        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-        ap_run_log_transaction(r);
-        r = NULL;
-        goto traceout;
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01739)
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
     }
 
-    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
-        && (expect[0] != '\0')) {
-        /*
-         * The Expect header field was added to HTTP/1.1 after RFC 2068
-         * as a means to signal when a 100 response is desired and,
-         * unfortunately, to signal a poor man's mandatory extension that
-         * the server must understand or return 417 Expectation Failed.
-         */
-        if (strcasecmp(expect, "100-continue") == 0) {
-            r->expecting_100 = 1;
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01740)
+            "ldap authorize: Creating LDAP req structure");
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01741)
+                "auth_ldap authorise: User DN not found with filter %s: %s", filtbuf, ldc->reason);
+            return AUTHZ_DENIED;
         }
-        else {
-            r->status = HTTP_EXPECTATION_FAILED;
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00570)
-                          "client sent an unrecognized expectation value of "
-                          "Expect: %s", expect);
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            goto traceout;
+
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
+
+    if (req->dn == NULL || strlen(req->dn) == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01742)
+                      "auth_ldap authorize: require ldap-filter: user's DN "
+                      "has not been defined; failing authorization");
+        return AUTHZ_DENIED;
+    }
+
+    require = ap_expr_str_exec(r, expr, &err);
+    if (err) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02589)
+                      "auth_ldap authorize: require ldap-filter: Can't "
+                      "evaluate require expression: %s", err);
+        return AUTHZ_DENIED;
+    }
+
+    t = require;
+
+    if (t[0]) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01743)
+                      "auth_ldap authorize: checking filter %s", t);
+
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, req->user, t, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Make sure that the filtered search returned the correct user dn */
+        if (result == LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01744)
+                          "auth_ldap authorize: checking dn match %s", dn);
+            if (sec->compare_as_user) {
+                /* ldap-filter is the only authz that requires a search and a compare */
+                apr_pool_cleanup_kill(r->pool, ldc, authnz_ldap_cleanup_connection_close);
+                authnz_ldap_cleanup_connection_close(ldc);
+                ldc = get_connection_for_authz(r, LDAP_COMPARE);
+            }
+            result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, dn,
+                                               sec->compare_dn_on_server);
+        }
+
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01745)
+                              "auth_ldap authorize: require ldap-filter: "
+                              "authorization successful");
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
+            }
+            case LDAP_FILTER_ERROR: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01746)
+                              "auth_ldap authorize: require ldap-filter: "
+                              "%s authorization failed [%s][%s]",
+                              filtbuf, ldc->reason, ldap_err2string(result));
+                break;
+            }
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01747)
+                              "auth_ldap authorize: require ldap-filter: "
+                              "authorization failed [%s][%s]",
+                              ldc->reason, ldap_err2string(result));
+            }
         }
     }
 
-    AP_READ_REQUEST_SUCCESS((uintptr_t)r, (char *)r->method, (char *)r->uri, (char *)r->server->defn_name, r->status);
-    return r;
-    traceout:
-    AP_READ_REQUEST_FAILURE((uintptr_t)r);
-    return r;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01748)
+                  "auth_ldap authorize filter: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

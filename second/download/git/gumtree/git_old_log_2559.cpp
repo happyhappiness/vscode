@@ -1,1 +1,1 @@
-error("%s", err.buf);
+printf(format, oid_to_hex(&list->item->object.oid));

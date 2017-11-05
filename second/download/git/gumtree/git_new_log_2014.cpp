@@ -1,2 +1,1 @@
-die("unable to generate diff (%s)",
-		    sha1_to_hex(parent->commit->object.sha1));
+die("Commit %s doesn't have an indexed bitmap", oid_to_hex(&root->oid));

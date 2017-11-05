@@ -1,4 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
-                          APLOGNO(02954) 
-                          "h2_request: ignoring unknown pseudo header %s",
-                          buffer);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02480)
+                "failed to register %s mutex", proxy_id);

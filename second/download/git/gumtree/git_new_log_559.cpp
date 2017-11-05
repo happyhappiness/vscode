@@ -1,1 +1,2 @@
-print_verbose(args, _("Server supports side-band-64k"));
+error(_("cannot %s: Your index contains uncommitted changes."),
+			      _(action));

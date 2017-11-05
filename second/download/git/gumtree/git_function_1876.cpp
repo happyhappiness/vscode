@@ -1,112 +1,126 @@
-int cmd_gc(int argc, const char **argv, const char *prefix)
+static void handle_tag(const char *name, struct tag *tag)
 {
-	int aggressive = 0;
-	int auto_gc = 0;
-	int quiet = 0;
-	int force = 0;
-	const char *name;
-	pid_t pid;
+	unsigned long size;
+	enum object_type type;
+	char *buf;
+	const char *tagger, *tagger_end, *message;
+	size_t message_size = 0;
+	struct object *tagged;
+	int tagged_mark;
+	struct commit *p;
 
-	struct option builtin_gc_options[] = {
-		OPT__QUIET(&quiet, N_("suppress progress reporting")),
-		{ OPTION_STRING, 0, "prune", &prune_expire, N_("date"),
-			N_("prune unreferenced objects"),
-			PARSE_OPT_OPTARG, NULL, (intptr_t)prune_expire },
-		OPT_BOOL(0, "aggressive", &aggressive, N_("be more thorough (increased runtime)")),
-		OPT_BOOL(0, "auto", &auto_gc, N_("enable auto-gc mode")),
-		OPT_BOOL(0, "force", &force, N_("force running gc even if there may be another gc running")),
-		OPT_END()
-	};
-
-	if (argc == 2 && !strcmp(argv[1], "-h"))
-		usage_with_options(builtin_gc_usage, builtin_gc_options);
-
-	argv_array_pushl(&pack_refs_cmd, "pack-refs", "--all", "--prune", NULL);
-	argv_array_pushl(&reflog, "reflog", "expire", "--all", NULL);
-	argv_array_pushl(&repack, "repack", "-d", "-l", NULL);
-	argv_array_pushl(&prune, "prune", "--expire", NULL);
-	argv_array_pushl(&prune_worktrees, "worktree", "prune", "--expire", NULL);
-	argv_array_pushl(&rerere, "rerere", "gc", NULL);
-
-	gc_config();
-
-	if (pack_refs < 0)
-		pack_refs = !is_bare_repository();
-
-	argc = parse_options(argc, argv, prefix, builtin_gc_options,
-			     builtin_gc_usage, 0);
-	if (argc > 0)
-		usage_with_options(builtin_gc_usage, builtin_gc_options);
-
-	if (aggressive) {
-		argv_array_push(&repack, "-f");
-		if (aggressive_depth > 0)
-			argv_array_pushf(&repack, "--depth=%d", aggressive_depth);
-		if (aggressive_window > 0)
-			argv_array_pushf(&repack, "--window=%d", aggressive_window);
+	/* Trees have no identifier in fast-export output, thus we have no way
+	 * to output tags of trees, tags of tags of trees, etc.  Simply omit
+	 * such tags.
+	 */
+	tagged = tag->tagged;
+	while (tagged->type == OBJ_TAG) {
+		tagged = ((struct tag *)tagged)->tagged;
 	}
-	if (quiet)
-		argv_array_push(&repack, "-q");
+	if (tagged->type == OBJ_TREE) {
+		warning("Omitting tag %s,\nsince tags of trees (or tags of tags of trees, etc.) are not supported.",
+			sha1_to_hex(tag->object.sha1));
+		return;
+	}
 
-	if (auto_gc) {
-		/*
-		 * Auto-gc should be least intrusive as possible.
-		 */
-		if (!need_to_gc())
-			return 0;
-		if (!quiet) {
-			if (detach_auto)
-				fprintf(stderr, _("Auto packing the repository in background for optimum performance.\n"));
-			else
-				fprintf(stderr, _("Auto packing the repository for optimum performance.\n"));
-			fprintf(stderr, _("See \"git help gc\" for manual housekeeping.\n"));
+	buf = read_sha1_file(tag->object.sha1, &type, &size);
+	if (!buf)
+		die ("Could not read tag %s", sha1_to_hex(tag->object.sha1));
+	message = memmem(buf, size, "\n\n", 2);
+	if (message) {
+		message += 2;
+		message_size = strlen(message);
+	}
+	tagger = memmem(buf, message ? message - buf : size, "\ntagger ", 8);
+	if (!tagger) {
+		if (fake_missing_tagger)
+			tagger = "tagger Unspecified Tagger "
+				"<unspecified-tagger> 0 +0000";
+		else
+			tagger = "";
+		tagger_end = tagger + strlen(tagger);
+	} else {
+		tagger++;
+		tagger_end = strchrnul(tagger, '\n');
+		if (anonymize)
+			anonymize_ident_line(&tagger, &tagger_end);
+	}
+
+	if (anonymize) {
+		name = anonymize_refname(name);
+		if (message) {
+			static struct hashmap tags;
+			message = anonymize_mem(&tags, anonymize_tag,
+						message, &message_size);
 		}
-		if (detach_auto) {
-			if (gc_before_repack())
-				return -1;
-			/*
-			 * failure to daemonize is ok, we'll continue
-			 * in foreground
-			 */
-			daemonize();
+	}
+
+	/* handle signed tags */
+	if (message) {
+		const char *signature = strstr(message,
+					       "\n-----BEGIN PGP SIGNATURE-----\n");
+		if (signature)
+			switch(signed_tag_mode) {
+			case ABORT:
+				die ("Encountered signed tag %s; use "
+				     "--signed-tags=<mode> to handle it.",
+				     sha1_to_hex(tag->object.sha1));
+			case WARN:
+				warning ("Exporting signed tag %s",
+					 sha1_to_hex(tag->object.sha1));
+				/* fallthru */
+			case VERBATIM:
+				break;
+			case WARN_STRIP:
+				warning ("Stripping signature from tag %s",
+					 sha1_to_hex(tag->object.sha1));
+				/* fallthru */
+			case STRIP:
+				message_size = signature + 1 - message;
+				break;
+			}
+	}
+
+	/* handle tag->tagged having been filtered out due to paths specified */
+	tagged = tag->tagged;
+	tagged_mark = get_object_mark(tagged);
+	if (!tagged_mark) {
+		switch(tag_of_filtered_mode) {
+		case ABORT:
+			die ("Tag %s tags unexported object; use "
+			     "--tag-of-filtered-object=<mode> to handle it.",
+			     sha1_to_hex(tag->object.sha1));
+		case DROP:
+			/* Ignore this tag altogether */
+			return;
+		case REWRITE:
+			if (tagged->type != OBJ_COMMIT) {
+				die ("Tag %s tags unexported %s!",
+				     sha1_to_hex(tag->object.sha1),
+				     typename(tagged->type));
+			}
+			p = (struct commit *)tagged;
+			for (;;) {
+				if (p->parents && p->parents->next)
+					break;
+				if (p->object.flags & UNINTERESTING)
+					break;
+				if (!(p->object.flags & TREESAME))
+					break;
+				if (!p->parents)
+					die ("Can't find replacement commit for tag %s\n",
+					     sha1_to_hex(tag->object.sha1));
+				p = p->parents->item;
+			}
+			tagged_mark = get_object_mark(&p->object);
 		}
-	} else
-		add_repack_all_option();
-
-	name = lock_repo_for_gc(force, &pid);
-	if (name) {
-		if (auto_gc)
-			return 0; /* be quiet on --auto */
-		die(_("gc is already running on machine '%s' pid %"PRIuMAX" (use --force if not)"),
-		    name, (uintmax_t)pid);
 	}
 
-	if (gc_before_repack())
-		return -1;
-
-	if (run_command_v_opt(repack.argv, RUN_GIT_CMD))
-		return error(FAILED_RUN, repack.argv[0]);
-
-	if (prune_expire) {
-		argv_array_push(&prune, prune_expire);
-		if (quiet)
-			argv_array_push(&prune, "--no-progress");
-		if (run_command_v_opt(prune.argv, RUN_GIT_CMD))
-			return error(FAILED_RUN, prune.argv[0]);
-	}
-
-	if (prune_worktrees_expire) {
-		argv_array_push(&prune_worktrees, prune_worktrees_expire);
-		if (run_command_v_opt(prune_worktrees.argv, RUN_GIT_CMD))
-			return error(FAILED_RUN, prune_worktrees.argv[0]);
-	}
-
-	if (run_command_v_opt(rerere.argv, RUN_GIT_CMD))
-		return error(FAILED_RUN, rerere.argv[0]);
-
-	if (auto_gc && too_many_loose_objects())
-		warning(_("There are too many unreachable loose objects; "
-			"run 'git prune' to remove them."));
-
-	return 0;
+	if (starts_with(name, "refs/tags/"))
+		name += 10;
+	printf("tag %s\nfrom :%d\n%.*s%sdata %d\n%.*s\n",
+	       name, tagged_mark,
+	       (int)(tagger_end - tagger), tagger,
+	       tagger == tagger_end ? "" : "\n",
+	       (int)message_size, (int)message_size, message ? message : "");
 }

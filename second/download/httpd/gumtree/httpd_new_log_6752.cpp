@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
-                 "h2_workers: min=%d max=%d, mthrpchild=%d, idle_secs=%d", 
-                 minw, maxw, max_threads_per_child, idle_secs);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01145)
+                         "Sharing worker '%s' instead of creating new worker '%s'",
+                         ap_proxy_worker_name(cmd->pool, worker), new->real);

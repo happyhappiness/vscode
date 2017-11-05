@@ -1,1 +1,1 @@
-error("remote-curl: unknown command '%s' from git", buf.buf);
+die("BUG: init_apply_state() failed");

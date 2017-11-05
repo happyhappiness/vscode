@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02417)
-                          "Replacing host header '%s' with host '%s' given "
-                          "in the request uri", host_header, repl);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02594)
+                      "authz_user authorize: require user: Can't "
+                      "evaluate require expression: %s", err);

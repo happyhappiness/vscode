@@ -1,0 +1,1 @@
+die("BUG: current_config_origin_type called outside config callback");

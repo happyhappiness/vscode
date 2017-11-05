@@ -1,21 +1,14 @@
-static int files_pack_refs(struct ref_store *ref_store, unsigned int flags)
+static void add_packed_ref(struct files_ref_store *refs,
+			   const char *refname, const struct object_id *oid)
 {
-	struct files_ref_store *refs =
-		files_downcast(ref_store, 0, "pack_refs");
-	struct pack_refs_cb_data cbdata;
+	struct packed_ref_cache *packed_ref_cache = get_packed_ref_cache(refs);
 
-	memset(&cbdata, 0, sizeof(cbdata));
-	cbdata.flags = flags;
+	if (!is_lock_file_locked(&refs->packed_refs_lock))
+		die("BUG: packed refs not locked");
 
-	lock_packed_refs(refs, LOCK_DIE_ON_ERROR);
-	cbdata.packed_refs = get_packed_refs(refs);
+	if (check_refname_format(refname, REFNAME_ALLOW_ONELEVEL))
+		die("Reference has invalid format: '%s'", refname);
 
-	do_for_each_entry_in_dir(get_loose_refs(refs), 0,
-				 pack_if_possible_fn, &cbdata);
-
-	if (commit_packed_refs(refs))
-		die_errno("unable to overwrite old ref-pack file");
-
-	prune_refs(cbdata.ref_to_prune);
-	return 0;
+	add_ref_entry(get_packed_ref_dir(packed_ref_cache),
+		      create_ref_entry(refname, oid, REF_ISPACKED));
 }

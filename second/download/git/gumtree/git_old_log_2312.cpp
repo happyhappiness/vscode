@@ -1,1 +1,1 @@
-error(_("branch '%s' does not point at a commit"), refname);
+warning("vsnprintf failed: '%s'", strerror(errno));

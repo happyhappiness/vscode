@@ -1,48 +1,70 @@
-static void wt_status_print_other(struct wt_status *s,
-				  struct string_list *l,
-				  const char *what,
-				  const char *how)
+static int write_out_one_reject(struct apply_state *state, struct patch *patch)
 {
-	int i;
-	struct strbuf buf = STRBUF_INIT;
-	static struct string_list output = STRING_LIST_INIT_DUP;
-	struct column_options copts;
+	FILE *rej;
+	char namebuf[PATH_MAX];
+	struct fragment *frag;
+	int cnt = 0;
+	struct strbuf sb = STRBUF_INIT;
 
-	if (!l->nr)
-		return;
-
-	wt_status_print_other_header(s, what, how);
-
-	for (i = 0; i < l->nr; i++) {
-		struct string_list_item *it;
-		const char *path;
-		it = &(l->items[i]);
-		path = quote_path(it->string, s->prefix, &buf);
-		if (column_active(s->colopts)) {
-			string_list_append(&output, path);
+	for (cnt = 0, frag = patch->fragments; frag; frag = frag->next) {
+		if (!frag->rejected)
 			continue;
-		}
-		status_printf(s, color(WT_STATUS_HEADER, s), "\t");
-		status_printf_more(s, color(WT_STATUS_UNTRACKED, s),
-				   "%s\n", path);
+		cnt++;
 	}
 
-	strbuf_release(&buf);
-	if (!column_active(s->colopts))
-		goto conclude;
+	if (!cnt) {
+		if (state->apply_verbosely)
+			say_patch_name(stderr,
+				       _("Applied patch %s cleanly."), patch);
+		return 0;
+	}
 
-	strbuf_addf(&buf, "%s%s\t%s",
-		    color(WT_STATUS_HEADER, s),
-		    s->display_comment_prefix ? "#" : "",
-		    color(WT_STATUS_UNTRACKED, s));
-	memset(&copts, 0, sizeof(copts));
-	copts.padding = 1;
-	copts.indent = buf.buf;
-	if (want_color(s->use_color))
-		copts.nl = GIT_COLOR_RESET "\n";
-	print_columns(&output, s->colopts, &copts);
-	string_list_clear(&output, 0);
-	strbuf_release(&buf);
-conclude:
-	status_printf_ln(s, GIT_COLOR_NORMAL, "");
+	/* This should not happen, because a removal patch that leaves
+	 * contents are marked "rejected" at the patch level.
+	 */
+	if (!patch->new_name)
+		die(_("internal error"));
+
+	/* Say this even without --verbose */
+	strbuf_addf(&sb, Q_("Applying patch %%s with %d reject...",
+			    "Applying patch %%s with %d rejects...",
+			    cnt),
+		    cnt);
+	say_patch_name(stderr, sb.buf, patch);
+	strbuf_release(&sb);
+
+	cnt = strlen(patch->new_name);
+	if (ARRAY_SIZE(namebuf) <= cnt + 5) {
+		cnt = ARRAY_SIZE(namebuf) - 5;
+		warning(_("truncating .rej filename to %.*s.rej"),
+			cnt - 1, patch->new_name);
+	}
+	memcpy(namebuf, patch->new_name, cnt);
+	memcpy(namebuf + cnt, ".rej", 5);
+
+	rej = fopen(namebuf, "w");
+	if (!rej)
+		return error(_("cannot open %s: %s"), namebuf, strerror(errno));
+
+	/* Normal git tools never deal with .rej, so do not pretend
+	 * this is a git patch by saying --git or giving extended
+	 * headers.  While at it, maybe please "kompare" that wants
+	 * the trailing TAB and some garbage at the end of line ;-).
+	 */
+	fprintf(rej, "diff a/%s b/%s\t(rejected hunks)\n",
+		patch->new_name, patch->new_name);
+	for (cnt = 1, frag = patch->fragments;
+	     frag;
+	     cnt++, frag = frag->next) {
+		if (!frag->rejected) {
+			fprintf_ln(stderr, _("Hunk #%d applied cleanly."), cnt);
+			continue;
+		}
+		fprintf_ln(stderr, _("Rejected hunk #%d."), cnt);
+		fprintf(rej, "%.*s", frag->size, frag->patch);
+		if (frag->patch[frag->size-1] != '\n')
+			fputc('\n', rej);
+	}
+	fclose(rej);
+	return -1;
 }

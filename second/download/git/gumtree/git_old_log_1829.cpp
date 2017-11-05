@@ -1,1 +1,0 @@
-error("%s is broken!", entry->name);

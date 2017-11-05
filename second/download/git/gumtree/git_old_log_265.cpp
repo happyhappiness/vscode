@@ -1,4 +1,2 @@
-error("cannot reverse-apply a binary patch "
-				     "without the reverse hunk to '%s'",
-				     patch->new_name
-				     ? patch->new_name : patch->old_name);
+die("Refusing to %s notes in %s (outside of refs/notes/)",
+		    subcommand, ref);

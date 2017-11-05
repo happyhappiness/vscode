@@ -1,1 +1,1 @@
-die_errno("cannot getcwd");
+hashcpy(p->parent[i].sha1, sha1_i ? sha1_i : null_sha1);

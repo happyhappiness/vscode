@@ -1,2 +1,2 @@
-die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
-		    path);
+die("unknown %.*s format %s",
+				    (int)(formatp - name), name, formatp);

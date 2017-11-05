@@ -1,1 +1,2 @@
-fprintf(fp, "--shallow %s\n", oid_to_hex(&graft->oid));
+fprintf(stderr, "Marking %s as complete\n",
+				oid_to_hex(&complete->item->object.oid));

@@ -1,3 +1,1 @@
-warning("failed utime() on %s: %s",
-			rerere_path(id, "postimage"),
-			strerror(errno));
+die_errno("Failed seeking to start of '%s'", p->pack_name);

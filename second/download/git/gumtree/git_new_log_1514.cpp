@@ -1,1 +1,1 @@
-fprintf(stderr, "corrupt mailbox\n");
+git_config_date_string("gc.pruneworktreesexpire", &prune_worktrees_expire);

@@ -1,1 +1,1 @@
-warning(_(msg_warn_remove_failed), quoted.buf);
+error("%s: object corrupt or missing", sha1_to_hex(sha1));

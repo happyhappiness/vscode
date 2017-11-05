@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(03463)
-                              "proxying is explicitly disabled for URI path "
-                              "'%s'; declining", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  APLOGNO(02537) "Error occurred reading padding");

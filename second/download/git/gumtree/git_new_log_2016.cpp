@@ -1,1 +1,1 @@
-die("unable to generate diff for %s", name);
+error(_("malformed object name '%s'"), arg);

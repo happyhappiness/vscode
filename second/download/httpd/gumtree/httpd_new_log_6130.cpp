@@ -1,1 +1,3 @@
-ap_add_output_filter("H1_TO_H2", NULL, NULL, c);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                 "h2_workers: min=%d max=%d, mthrpchild=%d, idle_secs=%d", 
+                 minw, maxw, max_threads_per_child, idle_secs);

@@ -1,0 +1,1 @@
+die(_("Value '%s' for submodule.alternateErrorStrategy is not recognized"), error_strategy);

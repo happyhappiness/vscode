@@ -1,1 +1,1 @@
-printf(" %s", find_unique_abbrev(parent->object.sha1, abbrev));
+error(_("corrupt index file"));

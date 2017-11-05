@@ -1,1 +1,1 @@
-die("git-cvsserver only handles server: %s", arg);
+printf(_("Remove %s [y/N]? "), qname);

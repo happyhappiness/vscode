@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                 "proxy: Entering bybusyness for BALANCER (%s)",
-                 balancer->name);
+ap_log_perror(APLOG_MARK, APLOG_CRIT, errno, ptemp, APLOGNO(02152)
+                      "priv_addset");

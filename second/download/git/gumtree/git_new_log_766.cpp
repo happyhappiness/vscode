@@ -1,1 +1,1 @@
-die("strange port '%s' blocked", port);
+die("BUG: non-INDEX attr direction in a bare repo");

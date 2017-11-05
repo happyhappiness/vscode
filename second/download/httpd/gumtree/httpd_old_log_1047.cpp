@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, ret, (const server_rec *)
-                                 ap_server_conf, "apr_poll: (listen)");
+apr_file_printf(errfile, "password for user %s\n", user);

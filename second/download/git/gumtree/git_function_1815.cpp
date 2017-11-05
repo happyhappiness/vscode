@@ -1,104 +1,66 @@
-static int check_patch(struct patch *patch)
+int cmd_rerere(int argc, const char **argv, const char *prefix)
 {
-	struct stat st;
-	const char *old_name = patch->old_name;
-	const char *new_name = patch->new_name;
-	const char *name = old_name ? old_name : new_name;
-	struct cache_entry *ce = NULL;
-	struct patch *tpatch;
-	int ok_if_exists;
-	int status;
+	struct string_list merge_rr = STRING_LIST_INIT_DUP;
+	int i, autoupdate = -1, flags = 0;
 
-	patch->rejected = 1; /* we will drop this after we succeed */
+	struct option options[] = {
+		OPT_SET_INT(0, "rerere-autoupdate", &autoupdate,
+			N_("register clean resolutions in index"), 1),
+		OPT_END(),
+	};
 
-	status = check_preimage(patch, &ce, &st);
-	if (status)
-		return status;
-	old_name = patch->old_name;
+	argc = parse_options(argc, argv, prefix, options, rerere_usage, 0);
 
-	/*
-	 * A type-change diff is always split into a patch to delete
-	 * old, immediately followed by a patch to create new (see
-	 * diff.c::run_diff()); in such a case it is Ok that the entry
-	 * to be deleted by the previous patch is still in the working
-	 * tree and in the index.
-	 *
-	 * A patch to swap-rename between A and B would first rename A
-	 * to B and then rename B to A.  While applying the first one,
-	 * the presence of B should not stop A from getting renamed to
-	 * B; ask to_be_deleted() about the later rename.  Removal of
-	 * B and rename from A to B is handled the same way by asking
-	 * was_deleted().
-	 */
-	if ((tpatch = in_fn_table(new_name)) &&
-	    (was_deleted(tpatch) || to_be_deleted(tpatch)))
-		ok_if_exists = 1;
-	else
-		ok_if_exists = 0;
+	git_config(git_xmerge_config, NULL);
 
-	if (new_name &&
-	    ((0 < patch->is_new) || patch->is_rename || patch->is_copy)) {
-		int err = check_to_create(new_name, ok_if_exists);
+	if (autoupdate == 1)
+		flags = RERERE_AUTOUPDATE;
+	if (autoupdate == 0)
+		flags = RERERE_NOAUTOUPDATE;
 
-		if (err && threeway) {
-			patch->direct_to_threeway = 1;
-		} else switch (err) {
-		case 0:
-			break; /* happy */
-		case EXISTS_IN_INDEX:
-			return error(_("%s: already exists in index"), new_name);
-			break;
-		case EXISTS_IN_WORKTREE:
-			return error(_("%s: already exists in working directory"),
-				     new_name);
-		default:
-			return err;
-		}
+	if (argc < 1)
+		return rerere(flags);
 
-		if (!patch->new_mode) {
-			if (0 < patch->is_new)
-				patch->new_mode = S_IFREG | 0644;
-			else
-				patch->new_mode = patch->old_mode;
-		}
+	if (!strcmp(argv[0], "forget")) {
+		struct pathspec pathspec;
+		if (argc < 2)
+			warning("'git rerere forget' without paths is deprecated");
+		parse_pathspec(&pathspec, 0, PATHSPEC_PREFER_CWD,
+			       prefix, argv + 1);
+		return rerere_forget(&pathspec);
 	}
 
-	if (new_name && old_name) {
-		int same = !strcmp(old_name, new_name);
-		if (!patch->new_mode)
-			patch->new_mode = patch->old_mode;
-		if ((patch->old_mode ^ patch->new_mode) & S_IFMT) {
-			if (same)
-				return error(_("new mode (%o) of %s does not "
-					       "match old mode (%o)"),
-					patch->new_mode, new_name,
-					patch->old_mode);
+	if (!strcmp(argv[0], "clear")) {
+		rerere_clear(&merge_rr);
+	} else if (!strcmp(argv[0], "gc"))
+		rerere_gc(&merge_rr);
+	else if (!strcmp(argv[0], "status")) {
+		if (setup_rerere(&merge_rr, flags | RERERE_READONLY) < 0)
+			return 0;
+		for (i = 0; i < merge_rr.nr; i++)
+			printf("%s\n", merge_rr.items[i].string);
+	} else if (!strcmp(argv[0], "remaining")) {
+		rerere_remaining(&merge_rr);
+		for (i = 0; i < merge_rr.nr; i++) {
+			if (merge_rr.items[i].util != RERERE_RESOLVED)
+				printf("%s\n", merge_rr.items[i].string);
 			else
-				return error(_("new mode (%o) of %s does not "
-					       "match old mode (%o) of %s"),
-					patch->new_mode, new_name,
-					patch->old_mode, old_name);
+				/* prepare for later call to
+				 * string_list_clear() */
+				merge_rr.items[i].util = NULL;
 		}
-	}
+	} else if (!strcmp(argv[0], "diff")) {
+		if (setup_rerere(&merge_rr, flags | RERERE_READONLY) < 0)
+			return 0;
+		for (i = 0; i < merge_rr.nr; i++) {
+			const char *path = merge_rr.items[i].string;
+			const char *name = (const char *)merge_rr.items[i].util;
+			if (diff_two(rerere_path(name, "preimage"), path, path, path))
+				die("unable to generate diff for %s", name);
+		}
+	} else
+		usage_with_options(rerere_usage, options);
 
-	if (!unsafe_paths)
-		die_on_unsafe_path(patch);
-
-	/*
-	 * An attempt to read from or delete a path that is beyond a
-	 * symbolic link will be prevented by load_patch_target() that
-	 * is called at the beginning of apply_data() so we do not
-	 * have to worry about a patch marked with "is_delete" bit
-	 * here.  We however need to make sure that the patch result
-	 * is not deposited to a path that is beyond a symbolic link
-	 * here.
-	 */
-	if (!patch->is_delete && path_is_beyond_symlink(patch->new_name))
-		return error(_("affected file '%s' is beyond a symbolic link"),
-			     patch->new_name);
-
-	if (apply_data(patch, &st, ce) < 0)
-		return error(_("%s: patch does not apply"), name);
-	patch->rejected = 0;
+	string_list_clear(&merge_rr, 1);
 	return 0;
 }

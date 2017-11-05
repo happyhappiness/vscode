@@ -1,1 +1,3 @@
-fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL2, SSL3, TLS1, or ALL)\n");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "xlate output filter not added implicitly because "
+                          "CharsetOptions included 'NoImplicitAdd'");

@@ -1,32 +1,60 @@
-static void show_rename_copy(struct patch *p)
+int commit_tree_extended(const char *msg, size_t msg_len,
+			 const unsigned char *tree,
+			 struct commit_list *parents, unsigned char *ret,
+			 const char *author, const char *sign_commit,
+			 struct commit_extra_header *extra)
 {
-	const char *renamecopy = p->is_rename ? "rename" : "copy";
-	const char *old, *new;
+	int result;
+	int encoding_is_utf8;
+	struct strbuf buffer;
 
-	/* Find common prefix */
-	old = p->old_name;
-	new = p->new_name;
-	while (1) {
-		const char *slash_old, *slash_new;
-		slash_old = strchr(old, '/');
-		slash_new = strchr(new, '/');
-		if (!slash_old ||
-		    !slash_new ||
-		    slash_old - old != slash_new - new ||
-		    memcmp(old, new, slash_new - new))
-			break;
-		old = slash_old + 1;
-		new = slash_new + 1;
-	}
-	/* p->old_name thru old is the common prefix, and old and new
-	 * through the end of names are renames
+	assert_sha1_type(tree, OBJ_TREE);
+
+	if (memchr(msg, '\0', msg_len))
+		return error("a NUL byte in commit log message not allowed.");
+
+	/* Not having i18n.commitencoding is the same as having utf-8 */
+	encoding_is_utf8 = is_encoding_utf8(git_commit_encoding);
+
+	strbuf_init(&buffer, 8192); /* should avoid reallocs for the headers */
+	strbuf_addf(&buffer, "tree %s\n", sha1_to_hex(tree));
+
+	/*
+	 * NOTE! This ordering means that the same exact tree merged with a
+	 * different order of parents will be a _different_ changeset even
+	 * if everything else stays the same.
 	 */
-	if (old != p->old_name)
-		printf(" %s %.*s{%s => %s} (%d%%)\n", renamecopy,
-		       (int)(old - p->old_name), p->old_name,
-		       old, new, p->score);
-	else
-		printf(" %s %s => %s (%d%%)\n", renamecopy,
-		       p->old_name, p->new_name, p->score);
-	show_mode_change(p, 0);
+	while (parents) {
+		struct commit *parent = pop_commit(&parents);
+		strbuf_addf(&buffer, "parent %s\n",
+			    oid_to_hex(&parent->object.oid));
+	}
+
+	/* Person/date information */
+	if (!author)
+		author = git_author_info(IDENT_STRICT);
+	strbuf_addf(&buffer, "author %s\n", author);
+	strbuf_addf(&buffer, "committer %s\n", git_committer_info(IDENT_STRICT));
+	if (!encoding_is_utf8)
+		strbuf_addf(&buffer, "encoding %s\n", git_commit_encoding);
+
+	while (extra) {
+		add_extra_header(&buffer, extra);
+		extra = extra->next;
+	}
+	strbuf_addch(&buffer, '\n');
+
+	/* And add the comment */
+	strbuf_add(&buffer, msg, msg_len);
+
+	/* And check the encoding */
+	if (encoding_is_utf8 && !verify_utf8(&buffer))
+		fprintf(stderr, commit_utf8_warn);
+
+	if (sign_commit && do_sign_commit(&buffer, sign_commit))
+		return -1;
+
+	result = write_sha1_file(buffer.buf, buffer.len, commit_type, ret);
+	strbuf_release(&buffer);
+	return result;
 }

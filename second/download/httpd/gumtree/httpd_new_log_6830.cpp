@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                      H2_STRM_MSG(stream, "send_data_cb, wanted %ld bytes, "
-                      "got %ld from stream"), (long)length, (long)len);
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1554214 $");

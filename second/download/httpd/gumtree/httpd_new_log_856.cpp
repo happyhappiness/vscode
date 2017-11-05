@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c,
-                         "SSL client authentication failed: %s",
-                         error ? error : "unknown");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                 "  -C \"directive\"     : process directive before reading "
+                 "config files");

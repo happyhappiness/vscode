@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                      "h2-stream(%ld-%d): on_header, reset stream",
-                      session->id, stream->id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01860)
+                  "the session insert query did not cause any rows to be added "
+                  "to the database for session '%s', session not inserted", newkey);

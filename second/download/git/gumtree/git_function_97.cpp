@@ -1,23 +1,33 @@
-static void parse_cmd_delete(const char *next)
+static int ansi_emulate(const char *str, FILE *stream)
 {
-	struct strbuf ref = STRBUF_INIT;
-	struct strbuf oldvalue = STRBUF_INIT;
-	struct ref_update *update;
+	int rv = 0;
+	const char *pos = str;
 
-	update = update_alloc();
+	while (*pos) {
+		pos = strstr(str, "\033[");
+		if (pos) {
+			size_t len = pos - str;
 
-	if ((next = parse_first_arg(next, &ref)) != NULL && ref.buf[0])
-		update_store_ref_name(update, ref.buf);
-	else
-		die("delete line missing <ref>");
+			if (len) {
+				size_t out_len = fwrite(str, 1, len, stream);
+				rv += out_len;
+				if (out_len < len)
+					return rv;
+			}
 
-	if ((next = parse_next_arg(next, &oldvalue)) != NULL)
-		update_store_old_sha1(update, oldvalue.buf);
-	else if(!line_termination)
-		die("delete %s missing [<oldvalue>] NUL", ref.buf);
-	if (update->have_old && is_null_sha1(update->old_sha1))
-		die("delete %s given zero old value", ref.buf);
+			str = pos + 2;
+			rv += 2;
 
-	if (next && *next)
-		die("delete %s has extra input: %s", ref.buf, next);
+			fflush(stream);
+
+			pos = set_attr(str);
+			rv += pos - str;
+			str = pos;
+		} else {
+			rv += strlen(str);
+			fputs(str, stream);
+			return rv;
+		}
+	}
+	return rv;
 }

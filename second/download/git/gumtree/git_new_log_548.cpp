@@ -1,2 +1,1 @@
-print_verbose(args, "want %s (%s)", sha1_to_hex(remote),
-				      ref->name);
+fprintf(s->fp, "# branch.upstream %s%c", base, eol);

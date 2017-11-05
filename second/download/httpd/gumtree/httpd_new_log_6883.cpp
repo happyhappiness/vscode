@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c,
-                                      H2_SSSN_LOG(APLOGNO(03403), session, 
-                                      "no data, error"));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
+                                  "Got error '%s'", iobuf);

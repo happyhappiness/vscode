@@ -1,2 +1,1 @@
-die("-L argument '%s' not of the form start,end:file",
-			    item->string);
+die(_("unable to parse commit %s"), sha1_to_hex(commit->object.sha1));

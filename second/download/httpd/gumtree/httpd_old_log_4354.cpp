@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
-                              "proxy: CONNECT: error on %s - ap_pass_brigade",
-                              name);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                 "stapling_get_cert_info: stapling not supported for certificate");

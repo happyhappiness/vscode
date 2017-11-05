@@ -1,1 +1,0 @@
-error(_("Could not remove config section '%s'"), buf.buf);

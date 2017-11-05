@@ -1,43 +1,44 @@
-static int mpmt_os2_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                 apr_pool_t *ptemp, server_rec *s)
+static apr_status_t transit(h2_stream *stream, int new_state)
 {
-    static int restart_num = 0;
-    int startup = 0;
-
-    /* we want this only the first time around */
-    if (restart_num++ == 0) {
-        startup = 1;
+    if (new_state == stream->state) {
+        return APR_SUCCESS;
     }
-
-    if (ap_daemons_to_start < 0) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00213)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00214)
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
+    else if (new_state < 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c, 
+                      H2_STRM_LOG(APLOGNO(03081), stream, "invalid transition"));
+        on_state_invalid(stream);
+        return APR_EINVAL;
     }
-
-    if (ap_min_spare_threads < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00215)
-                         "WARNING: MinSpareThreads of %d not allowed, "
-                         "increasing to 1", ap_min_spare_threads);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00216)
-                         "MinSpareThreads of %d not allowed, increasing to 1",
-                         ap_min_spare_threads);
-        }
-        ap_min_spare_threads = 1;
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
+                  H2_STRM_MSG(stream, "transit to [%s]"), h2_ss_str(new_state));
+    stream->state = new_state;
+    switch (new_state) {
+        case H2_SS_IDLE:
+            break;
+        case H2_SS_RSVD_L:
+            close_input(stream);
+            break;
+        case H2_SS_RSVD_R:
+            break;
+        case H2_SS_OPEN:
+            break;
+        case H2_SS_CLOSED_L:
+            close_output(stream);
+            break;
+        case H2_SS_CLOSED_R:
+            close_input(stream);
+            break;
+        case H2_SS_CLOSED:
+            close_input(stream);
+            close_output(stream);
+            if (stream->out_buffer) {
+                apr_brigade_cleanup(stream->out_buffer);
+            }
+            break;
+        case H2_SS_CLEANUP:
+            break;
     }
-
-    return OK;
+    on_state_enter(stream);
+    return APR_SUCCESS;
 }

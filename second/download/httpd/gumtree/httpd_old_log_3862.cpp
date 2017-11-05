@@ -1,1 +1,3 @@
-ap_rputs("\"<b><code>I</code></b>\" Idle cleanup of worker, \n", r);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "proxy: CONNECT: connecting %s to %s:%d", url, uri.hostname,
+                 uri.port);

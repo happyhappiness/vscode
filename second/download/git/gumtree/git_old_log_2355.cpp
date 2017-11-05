@@ -1,1 +1,2 @@
-fprintf(stderr, "Checking directory %s\n", path);
+error("Could not open %s: %s", path,
+			     strerror(errno));

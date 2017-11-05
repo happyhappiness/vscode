@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                      "auth_ldap authorize: checking filter %s", t);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00742) "distributed scache 'retrieve' MISS");

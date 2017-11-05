@@ -1,1 +1,1 @@
-ref_transaction_free(transaction);
+die("transport '%s' not allowed", type);

@@ -1,1 +1,1 @@
-die("BUG: should have same number of entries");
+die("Couldn't allocate PCRE JIT stack");

@@ -1,33 +1,49 @@
-static int fill_pack_entry(const unsigned char *sha1,
-			   struct pack_entry *e,
-			   struct packed_git *p)
+void traverse_commit_list(struct rev_info *revs,
+			  show_commit_fn show_commit,
+			  show_object_fn show_object,
+			  void *data)
 {
-	off_t offset;
+	int i;
+	struct commit *commit;
+	struct strbuf base;
 
-	if (p->num_bad_objects) {
-		unsigned i;
-		for (i = 0; i < p->num_bad_objects; i++)
-			if (!hashcmp(sha1, p->bad_object_sha1 + 20 * i))
-				return 0;
+	strbuf_init(&base, PATH_MAX);
+	while ((commit = get_revision(revs)) != NULL) {
+		/*
+		 * an uninteresting boundary commit may not have its tree
+		 * parsed yet, but we are not going to show them anyway
+		 */
+		if (commit->tree)
+			add_pending_tree(revs, commit->tree);
+		show_commit(commit, data);
 	}
-
-	offset = find_pack_entry_one(sha1, p);
-	if (!offset)
-		return 0;
-
-	/*
-	 * We are about to tell the caller where they can locate the
-	 * requested object.  We better make sure the packfile is
-	 * still here and can be accessed before supplying that
-	 * answer, as it may have been deleted since the index was
-	 * loaded!
-	 */
-	if (!is_pack_valid(p)) {
-		warning("packfile %s cannot be accessed", p->pack_name);
-		return 0;
+	for (i = 0; i < revs->pending.nr; i++) {
+		struct object_array_entry *pending = revs->pending.objects + i;
+		struct object *obj = pending->item;
+		const char *name = pending->name;
+		const char *path = pending->path;
+		if (obj->flags & (UNINTERESTING | SEEN))
+			continue;
+		if (obj->type == OBJ_TAG) {
+			obj->flags |= SEEN;
+			show_object(obj, name, data);
+			continue;
+		}
+		if (!path)
+			path = "";
+		if (obj->type == OBJ_TREE) {
+			process_tree(revs, (struct tree *)obj, show_object,
+				     &base, path, data);
+			continue;
+		}
+		if (obj->type == OBJ_BLOB) {
+			process_blob(revs, (struct blob *)obj, show_object,
+				     &base, path, data);
+			continue;
+		}
+		die("unknown pending object %s (%s)",
+		    sha1_to_hex(obj->sha1), name);
 	}
-	e->offset = offset;
-	e->p = p;
-	hashcpy(e->sha1, sha1);
-	return 1;
+	object_array_clear(&revs->pending);
+	strbuf_release(&base);
 }

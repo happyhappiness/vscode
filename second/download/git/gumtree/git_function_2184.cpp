@@ -1,37 +1,28 @@
-static int log_ref_write_1(const char *refname, const unsigned char *old_sha1,
-			   const unsigned char *new_sha1, const char *msg,
-			   struct strbuf *sb_log_file)
+static FILE *create_in_place_tempfile(const char *file)
 {
-	int logfd, result, oflags = O_APPEND | O_WRONLY;
-	char *log_file;
+	struct stat st;
+	struct strbuf template = STRBUF_INIT;
+	const char *tail;
+	FILE *outfile;
 
-	if (log_all_ref_updates < 0)
-		log_all_ref_updates = !is_bare_repository();
+	if (stat(file, &st))
+		die_errno(_("could not stat %s"), file);
+	if (!S_ISREG(st.st_mode))
+		die(_("file %s is not a regular file"), file);
+	if (!(st.st_mode & S_IWUSR))
+		die(_("file %s is not writable by user"), file);
 
-	result = log_ref_setup(refname, sb_log_file);
-	if (result)
-		return result;
-	log_file = sb_log_file->buf;
-	/* make sure the rest of the function can't change "log_file" */
-	sb_log_file = NULL;
+	/* Create temporary file in the same directory as the original */
+	tail = strrchr(file, '/');
+	if (tail != NULL)
+		strbuf_add(&template, file, tail - file + 1);
+	strbuf_addstr(&template, "git-interpret-trailers-XXXXXX");
 
-	logfd = open(log_file, oflags);
-	if (logfd < 0)
-		return 0;
-	result = log_ref_write_fd(logfd, old_sha1, new_sha1,
-				  git_committer_info(0), msg);
-	if (result) {
-		int save_errno = errno;
-		close(logfd);
-		error("Unable to append to %s", log_file);
-		errno = save_errno;
-		return -1;
-	}
-	if (close(logfd)) {
-		int save_errno = errno;
-		error("Unable to append to %s", log_file);
-		errno = save_errno;
-		return -1;
-	}
-	return 0;
+	xmks_tempfile_m(&trailers_tempfile, template.buf, st.st_mode);
+	strbuf_release(&template);
+	outfile = fdopen_tempfile(&trailers_tempfile, "w");
+	if (!outfile)
+		die_errno(_("could not open temporary file"));
+
+	return outfile;
 }

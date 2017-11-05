@@ -1,1 +1,2 @@
-optbug(opts, "short name already used");
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

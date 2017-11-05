@@ -1,1 +1,1 @@
-die("curl_global_init failed");
+strbuf_addstr(&filename, path);

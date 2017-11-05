@@ -1,1 +1,1 @@
-die("unable to generate checkdiff for %s", one->path);
+die("%s can only be used once.", opt->long_name);

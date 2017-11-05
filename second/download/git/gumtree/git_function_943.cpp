@@ -1,22 +1,4 @@
-int report_unmatched_refs(struct ref **sought, int nr_sought)
+static void fake_fatal(const char *err, va_list params)
 {
-	int i, ret = 0;
-
-	for (i = 0; i < nr_sought; i++) {
-		if (!sought[i])
-			continue;
-		switch (sought[i]->match_status) {
-		case REF_MATCHED:
-			continue;
-		case REF_NOT_MATCHED:
-			error(_("no such remote ref %s"), sought[i]->name);
-			break;
-		case REF_UNADVERTISED_NOT_ALLOWED:
-			error(_("Server does not allow request for unadvertised object %s"),
-			      sought[i]->name);
-			break;
-		}
-		ret = 1;
-	}
-	return ret;
+	vreportf("fatal: ", err, params);
 }

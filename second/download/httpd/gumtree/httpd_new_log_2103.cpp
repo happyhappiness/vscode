@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s,
-                                 "Init: Unable to read server certificate from"
-                                 " file %s", szPath);
+apr_file_printf(errfile, "total entries was %d, total entries now %d"
+                              APR_EOL_STR, (int)(s->etotal),
+                              (int)(s->entries));

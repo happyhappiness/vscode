@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
-                         "Limiting the subrequest depth to a very low level may"
-                         " cause normal requests to fail.");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                         "the listener thread didn't exit");

@@ -1,1 +1,0 @@
-error(_("Failed to find tree of %s."), sha1_to_hex(sha1));

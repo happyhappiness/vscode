@@ -1,1 +1,1 @@
-fprintf(cmitmsg, "Message-Id: %s\n", message_id);
+die("BUG: cannot create anonymous strftime date_mode struct");

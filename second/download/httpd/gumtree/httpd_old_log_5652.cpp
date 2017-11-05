@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(2404)
-                     "write pipe_of_death");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01974)
+                      "could not connect to OCSP responder '%s'",
+                      uri->hostinfo);

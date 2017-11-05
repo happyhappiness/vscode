@@ -1,64 +1,43 @@
-static void ssl_io_data_dump(server_rec *srvr,
-                             const char *s,
-                             long len)
+static int lua_websocket_greet(lua_State *L)
 {
-    char buf[256];
-    char tmp[64];
-    int i, j, rows, trunc;
-    unsigned char ch;
-
-    trunc = 0;
-    for(; (len > 0) && ((s[len-1] == ' ') || (s[len-1] == '\0')); len--)
-        trunc++;
-    rows = (len / DUMP_WIDTH);
-    if ((rows * DUMP_WIDTH) < len)
-        rows++;
-    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
-            "+-------------------------------------------------------------------------+");
-    for(i = 0 ; i< rows; i++) {
-#if APR_CHARSET_EBCDIC
-        char ebcdic_text[DUMP_WIDTH];
-        j = DUMP_WIDTH;
-        if ((i * DUMP_WIDTH + j) > len)
-            j = len % DUMP_WIDTH;
-        if (j == 0)
-            j = DUMP_WIDTH;
-        memcpy(ebcdic_text,(char *)(s) + i * DUMP_WIDTH, j);
-        ap_xlate_proto_from_ascii(ebcdic_text, j);
-#endif /* APR_CHARSET_EBCDIC */
-        apr_snprintf(tmp, sizeof(tmp), "| %04x: ", i * DUMP_WIDTH);
-        apr_cpystrn(buf, tmp, sizeof(buf));
-        for (j = 0; j < DUMP_WIDTH; j++) {
-            if (((i * DUMP_WIDTH) + j) >= len)
-                apr_cpystrn(buf+strlen(buf), "   ", sizeof(buf)-strlen(buf));
-            else {
-                ch = ((unsigned char)*((char *)(s) + i * DUMP_WIDTH + j)) & 0xff;
-                apr_snprintf(tmp, sizeof(tmp), "%02x%c", ch , j==7 ? '-' : ' ');
-                apr_cpystrn(buf+strlen(buf), tmp, sizeof(buf)-strlen(buf));
-            }
+    const char *key = NULL;
+    unsigned char digest[APR_SHA1_DIGESTSIZE];
+    apr_sha1_ctx_t sha1;
+    char           *encoded;
+    int encoded_len;
+    request_rec *r = ap_lua_check_request_rec(L, 1);
+    key = apr_table_get(r->headers_in, "Sec-WebSocket-Key");
+    if (key != NULL) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                    "Websocket: Got websocket key: %s", key);
+        key = apr_pstrcat(r->pool, key, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", 
+                NULL);
+        apr_sha1_init(&sha1);
+        apr_sha1_update(&sha1, key, strlen(key));
+        apr_sha1_final(digest, &sha1);
+        encoded_len = apr_base64_encode_len(APR_SHA1_DIGESTSIZE);
+        if (encoded_len) {
+            encoded = apr_palloc(r->pool, encoded_len);
+            encoded_len = apr_base64_encode(encoded, (char*) digest, APR_SHA1_DIGESTSIZE);
+            r->status = 101;
+            apr_table_set(r->headers_out, "Upgrade", "websocket");
+            apr_table_set(r->headers_out, "Connection", "Upgrade");
+            apr_table_set(r->headers_out, "Sec-WebSocket-Accept", encoded);
+            
+            /* Trick httpd into NOT using the chunked filter, IMPORTANT!!!111*/
+            apr_table_set(r->headers_out, "Transfer-Encoding", "chunked");
+            
+            r->clength = 0;
+            r->bytes_sent = 0;
+            r->read_chunked = 0;
+            ap_rflush(r);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                          "Websocket: Upgraded from HTTP to Websocket");
+            lua_pushboolean(L, 1);
+            return 1;
         }
-        apr_cpystrn(buf+strlen(buf), " ", sizeof(buf)-strlen(buf));
-        for (j = 0; j < DUMP_WIDTH; j++) {
-            if (((i * DUMP_WIDTH) + j) >= len)
-                apr_cpystrn(buf+strlen(buf), " ", sizeof(buf)-strlen(buf));
-            else {
-                ch = ((unsigned char)*((char *)(s) + i * DUMP_WIDTH + j)) & 0xff;
-#if APR_CHARSET_EBCDIC
-                apr_snprintf(tmp, sizeof(tmp), "%c", (ch >= 0x20 && ch <= 0x7F) ? ebcdic_text[j] : '.');
-#else /* APR_CHARSET_EBCDIC */
-                apr_snprintf(tmp, sizeof(tmp), "%c", ((ch >= ' ') && (ch <= '~')) ? ch : '.');
-#endif /* APR_CHARSET_EBCDIC */
-                apr_cpystrn(buf+strlen(buf), tmp, sizeof(buf)-strlen(buf));
-            }
-        }
-        apr_cpystrn(buf+strlen(buf), " |", sizeof(buf)-strlen(buf));
-        ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
-                     "%s", buf);
     }
-    if (trunc > 0)
-        ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
-                "| %04ld - <SPACES/NULS>", len + trunc);
-    ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, srvr,
-            "+-------------------------------------------------------------------------+");
-    return;
+    ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02666)
+                  "Websocket: Upgrade from HTTP to Websocket failed");
+    return 0;
 }

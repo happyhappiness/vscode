@@ -1,1 +1,0 @@
-die("invalid shallow object %s", sha1_to_hex(sha1));

@@ -1,1 +1,1 @@
-warning(_("--local is ignored"));
+status_printf_ln(s, GIT_COLOR_NORMAL, "");

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
-                             "ajp_marshal_into_msgb: "
-                             "Error appending the SSL session");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, LOG_PREFIX
+                          "error retrieving results while saving '%s' "
+                          "in database using query '%s': %s", key, conf->selectlabel,
+                           apr_dbd_error(dbd->driver, dbd->handle, rv));

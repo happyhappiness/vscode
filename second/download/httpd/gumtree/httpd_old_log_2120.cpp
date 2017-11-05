@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                         "Cannot chroot when not started as root");
+fprintf(output, "Cache size      : %d\n", cachesize);

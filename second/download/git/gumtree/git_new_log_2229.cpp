@@ -1,2 +1,1 @@
-die_errno("failed to write to %s",
-				  get_lock_file_path(shallow_lock));
+fprintf_ln(stderr, _("If you wish to set tracking information for this branch you can do so with:"));

@@ -1,1 +1,0 @@
-fprintf(stderr, commit_utf8_warn);

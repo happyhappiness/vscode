@@ -1,70 +1,44 @@
-BOOL SSL_X509_match_name(apr_pool_t *p, X509 *x509, const char *name,
-                         BOOL allow_wildcard, server_rec *s)
+static int proxy_balancer_post_request(proxy_worker *worker,
+                                       proxy_balancer *balancer,
+                                       request_rec *r,
+                                       proxy_server_conf *conf)
 {
-    BOOL matched = FALSE;
-    apr_array_header_t *ids;
 
-    /*
-     * At some day in the future, this might be replaced with X509_check_host()
-     * (available in OpenSSL 1.0.2 and later), but two points should be noted:
-     * 1) wildcard matching in X509_check_host() might yield different
-     *    results (by default, it supports a broader set of patterns, e.g.
-     *    wildcards in non-initial positions);
-     * 2) we lose the option of logging each DNS- and CN-ID (until a match
-     *    is found).
-     */
+    apr_status_t rv;
 
-    if (SSL_X509_getIDs(p, x509, &ids)) {
-        const char *cp;
+    if ((rv = PROXY_THREAD_LOCK(balancer)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01173)
+                      "%s: Lock failed for post_request",
+                      balancer->s->name);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    if (!apr_is_empty_array(balancer->errstatuses)) {
         int i;
-        char **id = (char **)ids->elts;
-        BOOL is_wildcard;
-
-        for (i = 0; i < ids->nelts; i++) {
-            if (!id[i])
-                continue;
-
-            /*
-             * Determine if it is a wildcard ID - we're restrictive
-             * in the sense that we require the wildcard character to be
-             * THE left-most label (i.e., the ID must start with "*.")
-             */
-            is_wildcard = (*id[i] == '*' && *(id[i]+1) == '.') ? TRUE : FALSE;
-
-            /*
-             * If the ID includes a wildcard character (and the caller is
-             * allowing wildcards), check if it matches for the left-most
-             * DNS label - i.e., the wildcard character is not allowed
-             * to match a dot. Otherwise, try a simple string compare.
-             */
-            if ((allow_wildcard == TRUE && is_wildcard == TRUE &&
-                 (cp = ap_strchr_c(name, '.')) && !strcasecmp(id[i]+1, cp)) ||
-                !strcasecmp(id[i], name)) {
-                matched = TRUE;
-            }
-
-            if (s) {
-                ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
-                             "[%s] SSL_X509_match_name: expecting name '%s', "
-                             "%smatched by ID '%s'",
-                             (mySrvConfig(s))->vhost_id, name,
-                             matched == TRUE ? "" : "NOT ", id[i]);
-            }
-
-            if (matched == TRUE) {
+        for (i = 0; i < balancer->errstatuses->nelts; i++) {
+            int val = ((int *)balancer->errstatuses->elts)[i];
+            if (r->status == val) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01174)
+                              "%s:  Forcing recovery for worker (%s), "
+                              "failonstatus %d",
+                              balancer->s->name, worker->s->name, val);
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
                 break;
             }
         }
-
     }
 
-    if (s) {
-        ssl_log_xerror(SSLLOG_MARK, APLOG_DEBUG, 0, p, s, x509,
-                       APLOGNO(02412) "[%s] Cert %s for name '%s'",
-                       (mySrvConfig(s))->vhost_id,
-                       matched == TRUE ? "matches" : "does not match",
-                       name);
+    if ((rv = PROXY_THREAD_UNLOCK(balancer)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01175)
+                      "%s: Unlock failed for post_request", balancer->s->name);
     }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01176)
+                  "proxy_balancer_post_request for (%s)", balancer->s->name);
 
-    return matched;
+    if (worker && worker->s->busy)
+        worker->s->busy--;
+
+    return OK;
+
 }

@@ -1,1 +1,1 @@
-error(_("unable to write new index file"));
+die_errno(_("could not read '%s'"), git_path_abort_safety_file());

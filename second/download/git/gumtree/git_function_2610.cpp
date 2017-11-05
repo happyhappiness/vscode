@@ -1,23 +1,12 @@
-static int parse_push_recurse(const char *opt, const char *arg,
-			       int die_on_error)
+void show_decorations(struct rev_info *opt, struct commit *commit)
 {
-	switch (git_config_maybe_bool(opt, arg)) {
-	case 1:
-		/* There's no simple "on" value when pushing */
-		if (die_on_error)
-			die("bad %s argument: %s", opt, arg);
-		else
-			return RECURSE_SUBMODULES_ERROR;
-	case 0:
-		return RECURSE_SUBMODULES_OFF;
-	default:
-		if (!strcmp(arg, "on-demand"))
-			return RECURSE_SUBMODULES_ON_DEMAND;
-		else if (!strcmp(arg, "check"))
-			return RECURSE_SUBMODULES_CHECK;
-		else if (die_on_error)
-			die("bad %s argument: %s", opt, arg);
-		else
-			return RECURSE_SUBMODULES_ERROR;
-	}
+	struct strbuf sb = STRBUF_INIT;
+
+	if (opt->show_source && commit->util)
+		printf("\t%s", (char *) commit->util);
+	if (!opt->show_decorations)
+		return;
+	format_decorations(&sb, commit, opt->diffopt.use_color);
+	fputs(sb.buf, stdout);
+	strbuf_release(&sb);
 }

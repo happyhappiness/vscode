@@ -1,2 +1,1 @@
-error("Object %s is a %s, not a commit or tree",
-	      sha1_to_hex(sha1), typename(obj->type));
+die(_("cannot read existing object %s"), sha1_to_hex(sha1));

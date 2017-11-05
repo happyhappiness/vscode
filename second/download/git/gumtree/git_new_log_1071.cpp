@@ -1,1 +1,1 @@
-die(_("attr spec must not be empty"));
+die(_("invalid commit %s"), oid_to_hex(result_oid));

@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+die("object %s changed size!?", oid_to_hex(oid));

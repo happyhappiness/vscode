@@ -1,173 +1,152 @@
-static int do_pick_commit(struct commit *commit, struct replay_opts *opts)
+struct child_process *git_connect(int fd[2], const char *url,
+				  const char *prog, int flags)
 {
-	unsigned char head[20];
-	struct commit *base, *next, *parent;
-	const char *base_label, *next_label;
-	struct commit_message msg = { NULL, NULL, NULL, NULL };
-	struct strbuf msgbuf = STRBUF_INIT;
-	int res, unborn = 0, allow;
+	char *hostandport, *path;
+	struct child_process *conn = &no_fork;
+	enum protocol protocol;
+	struct strbuf cmd = STRBUF_INIT;
 
-	if (opts->no_commit) {
-		/*
-		 * We do not intend to commit immediately.  We just want to
-		 * merge the differences in, so let's compute the tree
-		 * that represents the "current" state for merge-recursive
-		 * to work on.
-		 */
-		if (write_cache_as_tree(head, 0, NULL))
-			die (_("Your index file is unmerged."));
-	} else {
-		unborn = get_sha1("HEAD", head);
-		if (unborn)
-			hashcpy(head, EMPTY_TREE_SHA1_BIN);
-		if (index_differs_from(unborn ? EMPTY_TREE_SHA1_HEX : "HEAD", 0))
-			return error_dirty_index(opts);
-	}
-	discard_cache();
-
-	if (!commit->parents) {
-		parent = NULL;
-	}
-	else if (commit->parents->next) {
-		/* Reverting or cherry-picking a merge commit */
-		int cnt;
-		struct commit_list *p;
-
-		if (!opts->mainline)
-			return error(_("Commit %s is a merge but no -m option was given."),
-				oid_to_hex(&commit->object.oid));
-
-		for (cnt = 1, p = commit->parents;
-		     cnt != opts->mainline && p;
-		     cnt++)
-			p = p->next;
-		if (cnt != opts->mainline || !p)
-			return error(_("Commit %s does not have parent %d"),
-				oid_to_hex(&commit->object.oid), opts->mainline);
-		parent = p->item;
-	} else if (0 < opts->mainline)
-		return error(_("Mainline was specified but commit %s is not a merge."),
-			oid_to_hex(&commit->object.oid));
-	else
-		parent = commit->parents->item;
-
-	if (opts->allow_ff &&
-	    ((parent && !hashcmp(parent->object.oid.hash, head)) ||
-	     (!parent && unborn)))
-		return fast_forward_to(commit->object.oid.hash, head, unborn, opts);
-
-	if (parent && parse_commit(parent) < 0)
-		/* TRANSLATORS: The first %s will be "revert" or
-		   "cherry-pick", the second %s a SHA1 */
-		return error(_("%s: cannot parse parent commit %s"),
-			action_name(opts), oid_to_hex(&parent->object.oid));
-
-	if (get_message(commit, &msg) != 0)
-		return error(_("Cannot get commit message for %s"),
-			oid_to_hex(&commit->object.oid));
-
-	/*
-	 * "commit" is an existing commit.  We would want to apply
-	 * the difference it introduces since its first parent "prev"
-	 * on top of the current HEAD if we are cherry-pick.  Or the
-	 * reverse of it if we are revert.
+	/* Without this we cannot rely on waitpid() to tell
+	 * what happened to our children.
 	 */
+	signal(SIGCHLD, SIG_DFL);
 
-	if (opts->action == REPLAY_REVERT) {
-		base = commit;
-		base_label = msg.label;
-		next = parent;
-		next_label = msg.parent_label;
-		strbuf_addstr(&msgbuf, "Revert \"");
-		strbuf_addstr(&msgbuf, msg.subject);
-		strbuf_addstr(&msgbuf, "\"\n\nThis reverts commit ");
-		strbuf_addstr(&msgbuf, oid_to_hex(&commit->object.oid));
-
-		if (commit->parents && commit->parents->next) {
-			strbuf_addstr(&msgbuf, ", reversing\nchanges made to ");
-			strbuf_addstr(&msgbuf, oid_to_hex(&parent->object.oid));
-		}
-		strbuf_addstr(&msgbuf, ".\n");
-	} else {
-		const char *p;
-
-		base = parent;
-		base_label = msg.parent_label;
-		next = commit;
-		next_label = msg.label;
-
+	protocol = parse_connect_url(url, &hostandport, &path);
+	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
+		printf("Diag: url=%s\n", url ? url : "NULL");
+		printf("Diag: protocol=%s\n", prot_name(protocol));
+		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
+		printf("Diag: path=%s\n", path ? path : "NULL");
+		conn = NULL;
+	} else if (protocol == PROTO_GIT) {
 		/*
-		 * Append the commit log message to msgbuf; it starts
-		 * after the tree, parent, author, committer
-		 * information followed by "\n\n".
+		 * Set up virtual host information based on where we will
+		 * connect, unless the user has overridden us in
+		 * the environment.
 		 */
-		p = strstr(msg.message, "\n\n");
-		if (p)
-			strbuf_addstr(&msgbuf, skip_blank_lines(p + 2));
+		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
+		if (target_host)
+			target_host = xstrdup(target_host);
+		else
+			target_host = xstrdup(hostandport);
 
-		if (opts->record_origin) {
-			if (!has_conforming_footer(&msgbuf, NULL, 0))
-				strbuf_addch(&msgbuf, '\n');
-			strbuf_addstr(&msgbuf, cherry_picked_prefix);
-			strbuf_addstr(&msgbuf, oid_to_hex(&commit->object.oid));
-			strbuf_addstr(&msgbuf, ")\n");
-		}
-	}
+		transport_check_allowed("git");
 
-	if (!opts->strategy || !strcmp(opts->strategy, "recursive") || opts->action == REPLAY_REVERT) {
-		res = do_recursive_merge(base, next, base_label, next_label,
-					 head, &msgbuf, opts);
-		if (res < 0)
-			return res;
-		write_message(&msgbuf, git_path_merge_msg());
+		/* These underlying connection commands die() if they
+		 * cannot connect.
+		 */
+		if (git_use_proxy(hostandport))
+			conn = git_proxy_connect(fd, hostandport);
+		else
+			git_tcp_connect(fd, hostandport, flags);
+		/*
+		 * Separate original protocol components prog and path
+		 * from extended host header with a NUL byte.
+		 *
+		 * Note: Do not add any other headers here!  Doing so
+		 * will cause older git-daemon servers to crash.
+		 */
+		packet_write_fmt(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);
+		free(target_host);
 	} else {
-		struct commit_list *common = NULL;
-		struct commit_list *remotes = NULL;
+		conn = xmalloc(sizeof(*conn));
+		child_process_init(conn);
 
-		write_message(&msgbuf, git_path_merge_msg());
+		if (looks_like_command_line_option(path))
+			die("strange pathname '%s' blocked", path);
 
-		commit_list_insert(base, &common);
-		commit_list_insert(next, &remotes);
-		res = try_merge_command(opts->strategy, opts->xopts_nr, opts->xopts,
-					common, sha1_to_hex(head), remotes);
-		free_commit_list(common);
-		free_commit_list(remotes);
+		strbuf_addstr(&cmd, prog);
+		strbuf_addch(&cmd, ' ');
+		sq_quote_buf(&cmd, path);
+
+		/* remove repo-local variables from the environment */
+		conn->env = local_repo_env;
+		conn->use_shell = 1;
+		conn->in = conn->out = -1;
+		if (protocol == PROTO_SSH) {
+			const char *ssh;
+			int putty = 0, tortoiseplink = 0;
+			char *ssh_host = hostandport;
+			const char *port = NULL;
+			transport_check_allowed("ssh");
+			get_host_and_port(&ssh_host, &port);
+
+			if (!port)
+				port = get_port(ssh_host);
+
+			if (flags & CONNECT_DIAG_URL) {
+				printf("Diag: url=%s\n", url ? url : "NULL");
+				printf("Diag: protocol=%s\n", prot_name(protocol));
+				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+				printf("Diag: port=%s\n", port ? port : "NONE");
+				printf("Diag: path=%s\n", path ? path : "NULL");
+
+				free(hostandport);
+				free(path);
+				free(conn);
+				return NULL;
+			}
+
+			if (looks_like_command_line_option(ssh_host))
+				die("strange hostname '%s' blocked", ssh_host);
+
+			ssh = get_ssh_command();
+			if (!ssh) {
+				const char *base;
+				char *ssh_dup;
+
+				/*
+				 * GIT_SSH is the no-shell version of
+				 * GIT_SSH_COMMAND (and must remain so for
+				 * historical compatibility).
+				 */
+				conn->use_shell = 0;
+
+				ssh = getenv("GIT_SSH");
+				if (!ssh)
+					ssh = "ssh";
+
+				ssh_dup = xstrdup(ssh);
+				base = basename(ssh_dup);
+
+				tortoiseplink = !strcasecmp(base, "tortoiseplink") ||
+					!strcasecmp(base, "tortoiseplink.exe");
+				putty = tortoiseplink ||
+					!strcasecmp(base, "plink") ||
+					!strcasecmp(base, "plink.exe");
+
+				free(ssh_dup);
+			}
+
+			argv_array_push(&conn->args, ssh);
+			if (flags & CONNECT_IPV4)
+				argv_array_push(&conn->args, "-4");
+			else if (flags & CONNECT_IPV6)
+				argv_array_push(&conn->args, "-6");
+			if (tortoiseplink)
+				argv_array_push(&conn->args, "-batch");
+			if (port) {
+				/* P is for PuTTY, p is for OpenSSH */
+				argv_array_push(&conn->args, putty ? "-P" : "-p");
+				argv_array_push(&conn->args, port);
+			}
+			argv_array_push(&conn->args, ssh_host);
+		} else {
+			transport_check_allowed("file");
+		}
+		argv_array_push(&conn->args, cmd.buf);
+
+		if (start_command(conn))
+			die("unable to fork");
+
+		fd[0] = conn->out; /* read from child's stdout */
+		fd[1] = conn->in;  /* write to child's stdin */
+		strbuf_release(&cmd);
 	}
-
-	/*
-	 * If the merge was clean or if it failed due to conflict, we write
-	 * CHERRY_PICK_HEAD for the subsequent invocation of commit to use.
-	 * However, if the merge did not even start, then we don't want to
-	 * write it at all.
-	 */
-	if (opts->action == REPLAY_PICK && !opts->no_commit && (res == 0 || res == 1))
-		update_ref(NULL, "CHERRY_PICK_HEAD", commit->object.oid.hash, NULL,
-			   REF_NODEREF, UPDATE_REFS_DIE_ON_ERR);
-	if (opts->action == REPLAY_REVERT && ((opts->no_commit && res == 0) || res == 1))
-		update_ref(NULL, "REVERT_HEAD", commit->object.oid.hash, NULL,
-			   REF_NODEREF, UPDATE_REFS_DIE_ON_ERR);
-
-	if (res) {
-		error(opts->action == REPLAY_REVERT
-		      ? _("could not revert %s... %s")
-		      : _("could not apply %s... %s"),
-		      find_unique_abbrev(commit->object.oid.hash, DEFAULT_ABBREV),
-		      msg.subject);
-		print_advice(res == 1, opts);
-		rerere(opts->allow_rerere_auto);
-		goto leave;
-	}
-
-	allow = allow_empty(opts, commit);
-	if (allow < 0) {
-		res = allow;
-		goto leave;
-	}
-	if (!opts->no_commit)
-		res = run_git_commit(git_path_merge_msg(), opts, allow);
-
-leave:
-	free_message(commit, &msg);
-
-	return res;
+	free(hostandport);
+	free(path);
+	return conn;
 }

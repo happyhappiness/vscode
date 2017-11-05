@@ -1,39 +1,59 @@
-static void anonymize_ident_line(const char **beg, const char **end)
+int bisect_next_all(const char *prefix, int no_checkout)
 {
-	static struct strbuf buffers[] = { STRBUF_INIT, STRBUF_INIT };
-	static unsigned which_buffer;
+	struct rev_info revs;
+	struct commit_list *tried;
+	int reaches = 0, all = 0, nr, steps;
+	const unsigned char *bisect_rev;
+	char bisect_rev_hex[41];
 
-	struct strbuf *out;
-	struct ident_split split;
-	const char *end_of_header;
+	if (read_bisect_refs())
+		die("reading bisect refs failed");
 
-	out = &buffers[which_buffer++];
-	which_buffer %= ARRAY_SIZE(buffers);
-	strbuf_reset(out);
+	check_good_are_ancestors_of_bad(prefix, no_checkout);
 
-	/* skip "committer", "author", "tagger", etc */
-	end_of_header = strchr(*beg, ' ');
-	if (!end_of_header)
-		die("BUG: malformed line fed to anonymize_ident_line: %.*s",
-		    (int)(*end - *beg), *beg);
-	end_of_header++;
-	strbuf_add(out, *beg, end_of_header - *beg);
+	bisect_rev_setup(&revs, prefix, "%s", "^%s", 1);
+	revs.limited = 1;
 
-	if (!split_ident_line(&split, end_of_header, *end - end_of_header) &&
-	    split.date_begin) {
-		const char *ident;
-		size_t len;
+	bisect_common(&revs);
 
-		len = split.mail_end - split.name_begin;
-		ident = anonymize_mem(&idents, anonymize_ident,
-				      split.name_begin, &len);
-		strbuf_add(out, ident, len);
-		strbuf_addch(out, ' ');
-		strbuf_add(out, split.date_begin, split.tz_end - split.date_begin);
-	} else {
-		strbuf_addstr(out, "Malformed Ident <malformed@example.com> 0 -0000");
+	revs.commits = find_bisection(revs.commits, &reaches, &all,
+				       !!skipped_revs.nr);
+	revs.commits = managed_skipped(revs.commits, &tried);
+
+	if (!revs.commits) {
+		/*
+		 * We should exit here only if the "bad"
+		 * commit is also a "skip" commit.
+		 */
+		exit_if_skipped_commits(tried, NULL);
+
+		printf("%s was both good and bad\n",
+		       sha1_to_hex(current_bad_sha1));
+		exit(1);
 	}
 
-	*beg = out->buf;
-	*end = out->buf + out->len;
+	if (!all) {
+		fprintf(stderr, "No testable commit found.\n"
+			"Maybe you started with bad path parameters?\n");
+		exit(4);
+	}
+
+	bisect_rev = revs.commits->item->object.sha1;
+	memcpy(bisect_rev_hex, sha1_to_hex(bisect_rev), 41);
+
+	if (!hashcmp(bisect_rev, current_bad_sha1)) {
+		exit_if_skipped_commits(tried, current_bad_sha1);
+		printf("%s is the first bad commit\n", bisect_rev_hex);
+		show_diff_tree(prefix, revs.commits->item);
+		/* This means the bisection process succeeded. */
+		exit(10);
+	}
+
+	nr = all - reaches - 1;
+	steps = estimate_bisect_steps(all);
+	printf("Bisecting: %d revision%s left to test after this "
+	       "(roughly %d step%s)\n", nr, (nr == 1 ? "" : "s"),
+	       steps, (steps == 1 ? "" : "s"));
+
+	return bisect_checkout(bisect_rev_hex, no_checkout);
 }

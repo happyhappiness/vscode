@@ -1,12 +1,43 @@
-static void write_message(struct strbuf *msgbuf, const char *filename)
+static int fsck_obj(struct object *obj)
 {
-	static struct lock_file msg_file;
+	if (obj->flags & SEEN)
+		return 0;
+	obj->flags |= SEEN;
 
-	int msg_fd = hold_lock_file_for_update(&msg_file, filename,
-					       LOCK_DIE_ON_ERROR);
-	if (write_in_full(msg_fd, msgbuf->buf, msgbuf->len) < 0)
-		die_errno(_("Could not write to %s"), filename);
-	strbuf_release(msgbuf);
-	if (commit_lock_file(&msg_file) < 0)
-		die(_("Error wrapping up %s."), filename);
+	if (verbose)
+		fprintf(stderr, "Checking %s %s\n",
+			typename(obj->type), describe_object(obj));
+
+	if (fsck_walk(obj, NULL, &fsck_obj_options))
+		objerror(obj, "broken links");
+	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
+		return -1;
+
+	if (obj->type == OBJ_TREE) {
+		struct tree *item = (struct tree *) obj;
+
+		free_tree_buffer(item);
+	}
+
+	if (obj->type == OBJ_COMMIT) {
+		struct commit *commit = (struct commit *) obj;
+
+		free_commit_buffer(commit);
+
+		if (!commit->parents && show_root)
+			printf("root %s\n", describe_object(&commit->object));
+	}
+
+	if (obj->type == OBJ_TAG) {
+		struct tag *tag = (struct tag *) obj;
+
+		if (show_tags && tag->tagged) {
+			printf("tagged %s %s", typename(tag->tagged->type),
+				describe_object(tag->tagged));
+			printf(" (%s) in %s\n", tag->tag,
+				describe_object(&tag->object));
+		}
+	}
+
+	return 0;
 }

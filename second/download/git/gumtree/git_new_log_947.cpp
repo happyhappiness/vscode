@@ -1,1 +1,1 @@
-die(_("unable to auto-detect name (got '%s')"), name);
+die_errno("sigprocmask");

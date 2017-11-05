@@ -1,1 +1,2 @@
-die(_("Failed to resolve HEAD as a valid ref."));
+error("couldn't write %s",
+					lock->lk->filename.buf);

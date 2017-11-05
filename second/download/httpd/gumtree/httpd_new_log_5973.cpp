@@ -1,1 +1,1 @@
-h2_session_pre_close(h2_ctx_session_get(ctx), async_mpm);
+ap_add_output_filter("H2_TRAILERS_OUT", task, r, r->connection);

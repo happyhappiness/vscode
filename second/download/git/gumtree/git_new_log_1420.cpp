@@ -1,2 +1,2 @@
-die(_("Pathspec '%s' is in submodule '%.*s'"),
-			    item->original, ce_len, ce->name);
+error("BUG: connectivity check has not been run on ref %s",
+			      cmd->ref_name);

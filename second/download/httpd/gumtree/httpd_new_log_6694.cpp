@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(03462)
-                              "proxying is explicitly disabled for URI path "
-                              "'%s'; declining", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01067)
+                              "Failed to read FastCGI header");

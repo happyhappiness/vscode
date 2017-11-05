@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
-                  "h2_ngn_shed(%ld): pull task for engine %s, shutdown=%d", 
-                  shed->c->id, ngn->id, want_shutdown);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(01479) "FOO!");

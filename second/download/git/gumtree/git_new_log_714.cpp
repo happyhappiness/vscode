@@ -1,1 +1,1 @@
-packet_write_fmt(1, "%s %s\n", oid_to_hex(oid), refname_nons);
+die("helper %s does not support 'push-option'", name);

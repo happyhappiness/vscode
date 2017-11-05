@@ -1,1 +1,1 @@
-printf_ln("%s", *url);
+error_errno("ftell error");

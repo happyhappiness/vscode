@@ -1,1 +1,1 @@
-die("unable to join lazy_name_thread");
+die("Can't read object %s", oid_to_hex(oid));

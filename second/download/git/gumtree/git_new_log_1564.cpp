@@ -1,1 +1,1 @@
-die(_("bad zlib compression level %d"), level);
+strbuf_addf(err, "can't verify ref %s", lock->ref_name);

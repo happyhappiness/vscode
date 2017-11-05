@@ -1,1 +1,2 @@
-apr_file_printf(f, "%16s wild alias %s\n", "", name[i]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, APLOGNO(01576)
+                 "loaded file %s", filename);

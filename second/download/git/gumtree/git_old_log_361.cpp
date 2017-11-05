@@ -1,1 +1,1 @@
-die("--reverse and --first-parent together require specified latest commit");
+die("git fetch-pack: expected shallow list");

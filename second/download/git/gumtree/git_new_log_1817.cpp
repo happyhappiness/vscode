@@ -1,1 +1,1 @@
-printf("Diag: url=%s\n", url ? url : "NULL");
+die("unable to generate word diff");

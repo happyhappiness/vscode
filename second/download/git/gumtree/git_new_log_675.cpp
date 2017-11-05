@@ -1,2 +1,2 @@
-print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg,
-				 porcelain, summary_width);
+fprintf(stderr, "Successfully rebased and updated %s.\n",
+			head_ref.buf);

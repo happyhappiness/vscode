@@ -1,1 +1,1 @@
-die("Invalid gitfile format: %s", path);
+strbuf_addstr(err, _("unknown repository extensions found:"));

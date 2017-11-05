@@ -1,89 +1,42 @@
-static void read_loose_refs(const char *dirname, struct ref_dir *dir)
+static struct commit_list *collect_parents(struct commit *head_commit,
+					   int *head_subsumed,
+					   int argc, const char **argv,
+					   struct strbuf *merge_msg)
 {
-	struct ref_cache *refs = dir->ref_cache;
-	DIR *d;
-	struct dirent *de;
-	int dirnamelen = strlen(dirname);
-	struct strbuf refname;
-	struct strbuf path = STRBUF_INIT;
-	size_t path_baselen;
+	int i;
+	struct commit_list *remoteheads = NULL;
+	struct commit_list **remotes = &remoteheads;
+	struct strbuf merge_names = STRBUF_INIT, *autogen = NULL;
 
-	if (*refs->name)
-		strbuf_git_path_submodule(&path, refs->name, "%s", dirname);
-	else
-		strbuf_git_path(&path, "%s", dirname);
-	path_baselen = path.len;
+	if (merge_msg && (!have_message || shortlog_len))
+		autogen = &merge_names;
 
-	d = opendir(path.buf);
-	if (!d) {
-		strbuf_release(&path);
-		return;
-	}
+	if (head_commit)
+		remotes = &commit_list_insert(head_commit, remotes)->next;
 
-	strbuf_init(&refname, dirnamelen + 257);
-	strbuf_add(&refname, dirname, dirnamelen);
-
-	while ((de = readdir(d)) != NULL) {
-		unsigned char sha1[20];
-		struct stat st;
-		int flag;
-
-		if (de->d_name[0] == '.')
-			continue;
-		if (ends_with(de->d_name, ".lock"))
-			continue;
-		strbuf_addstr(&refname, de->d_name);
-		strbuf_addstr(&path, de->d_name);
-		if (stat(path.buf, &st) < 0) {
-			; /* silently ignore */
-		} else if (S_ISDIR(st.st_mode)) {
-			strbuf_addch(&refname, '/');
-			add_entry_to_dir(dir,
-					 create_dir_entry(refs, refname.buf,
-							  refname.len, 1));
-		} else {
-			int read_ok;
-
-			if (*refs->name) {
-				hashclr(sha1);
-				flag = 0;
-				read_ok = !resolve_gitlink_ref(refs->name,
-							       refname.buf, sha1);
-			} else {
-				read_ok = !read_ref_full(refname.buf,
-							 RESOLVE_REF_READING,
-							 sha1, &flag);
-			}
-
-			if (!read_ok) {
-				hashclr(sha1);
-				flag |= REF_ISBROKEN;
-			} else if (is_null_sha1(sha1)) {
-				/*
-				 * It is so astronomically unlikely
-				 * that NULL_SHA1 is the SHA-1 of an
-				 * actual object that we consider its
-				 * appearance in a loose reference
-				 * file to be repo corruption
-				 * (probably due to a software bug).
-				 */
-				flag |= REF_ISBROKEN;
-			}
-
-			if (check_refname_format(refname.buf,
-						 REFNAME_ALLOW_ONELEVEL)) {
-				if (!refname_is_safe(refname.buf))
-					die("loose refname is dangerous: %s", refname.buf);
-				hashclr(sha1);
-				flag |= REF_BAD_NAME | REF_ISBROKEN;
-			}
-			add_entry_to_dir(dir,
-					 create_ref_entry(refname.buf, sha1, flag, 0));
+	if (argc == 1 && !strcmp(argv[0], "FETCH_HEAD")) {
+		handle_fetch_head(remotes, autogen);
+		remoteheads = reduce_parents(head_commit, head_subsumed, remoteheads);
+	} else {
+		for (i = 0; i < argc; i++) {
+			struct commit *commit = get_merge_parent(argv[i]);
+			if (!commit)
+				help_unknown_ref(argv[i], "merge",
+						 "not something we can merge");
+			remotes = &commit_list_insert(commit, remotes)->next;
 		}
-		strbuf_setlen(&refname, dirnamelen);
-		strbuf_setlen(&path, path_baselen);
+		remoteheads = reduce_parents(head_commit, head_subsumed, remoteheads);
+		if (autogen) {
+			struct commit_list *p;
+			for (p = remoteheads; p; p = p->next)
+				merge_name(merge_remote_util(p->item)->name, autogen);
+		}
 	}
-	strbuf_release(&refname);
-	strbuf_release(&path);
-	closedir(d);
+
+	if (autogen) {
+		prepare_merge_message(autogen, merge_msg);
+		strbuf_release(autogen);
+	}
+
+	return remoteheads;
 }

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
-                         "Can't chroot to %s", ap_unixd_config.chroot_dir);
+log_scripterror(r, conf, HTTP_FORBIDDEN, 0,
+                               "attempt to invoke directory as script");

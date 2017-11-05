@@ -1,4 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn,
-                      "Certificate Verification: Verifiable Issuer is "
-                      "configured as optional, therefore we're accepting "
-                      "the certificate");
+ap_rvputs(r, ap_escape_uri(r->pool, r->uri), "\">\n<dl>", NULL);

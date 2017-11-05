@@ -1,1 +1,2 @@
-die("BUG: free called on a prepared reference transaction");
+fprintf(stderr, "curl_easy_perform() failed: %s\n",
+					curl_easy_strerror(res));

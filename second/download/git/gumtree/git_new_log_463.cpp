@@ -1,1 +1,2 @@
-error(_("no matching refs with %s"), av);
+error(_("invalid line %d: %.*s"),
+				i, (int)(eol - p), p);

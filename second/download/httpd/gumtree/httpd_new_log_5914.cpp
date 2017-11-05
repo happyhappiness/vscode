@@ -1,1 +1,1 @@
-cleanup_zombies(workers, 0);
+apr_file_printf(out, "  ");

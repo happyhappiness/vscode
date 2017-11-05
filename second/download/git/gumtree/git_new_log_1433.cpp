@@ -1,1 +1,1 @@
-error_errno("Could not stat %s", filename);
+die("BUG: verify called with old_sha1 set to NULL");

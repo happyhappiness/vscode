@@ -1,1 +1,1 @@
-printf(" %-*s |", max, qname.buf);
+printf("Merging %s with %s\n", o.branch1, o.branch2);

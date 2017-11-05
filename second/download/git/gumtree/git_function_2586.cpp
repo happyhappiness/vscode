@@ -1,9 +1,9 @@
-void show_object_with_name(FILE *out, struct object *obj, const char *name)
+int fsck_error_function(struct object *obj, int msg_type, const char *message)
 {
-	const char *p;
-
-	fprintf(out, "%s ", sha1_to_hex(obj->sha1));
-	for (p = name; *p && *p != '\n'; p++)
-		fputc(*p, out);
-	fputc('\n', out);
+	if (msg_type == FSCK_WARN) {
+		warning("object %s: %s", oid_to_hex(&obj->oid), message);
+		return 0;
+	}
+	error("object %s: %s", oid_to_hex(&obj->oid), message);
+	return 1;
 }

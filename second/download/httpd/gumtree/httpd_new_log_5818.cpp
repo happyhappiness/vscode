@@ -1,4 +1,4 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, pool,
-                          APLOGNO(02959) 
-                          "h2_request(%d): content-length value not parsed: %s",
-                          req->id, s);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02920) 
+                      "h2_session:  stream(%ld-%d): on_header unknown stream",
+                      session->id, (int)frame->hd.stream_id);

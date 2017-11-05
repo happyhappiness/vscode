@@ -1,1 +1,2 @@
-ap_rputs(util_ald_cache_display(r->pool, st), r);
+ap_log_error(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, s, 
+                     "INIT global mutex %s in child %d ", st->lock_file, getpid());

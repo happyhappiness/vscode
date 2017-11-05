@@ -1,1 +1,1 @@
-die_errno("unable to read object %s", sha1_to_hex(sha1));
+printf("root %s\n", sha1_to_hex(commit->object.sha1));

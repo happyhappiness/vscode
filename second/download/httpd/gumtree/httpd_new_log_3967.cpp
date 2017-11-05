@@ -1,2 +1,1 @@
-ap_log_error(dbg.source, dbg.currentline, APLOG_MODULE_INDEX, level, 0,
-                 cmd->server, "%s", msg);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01103) "read timeout");

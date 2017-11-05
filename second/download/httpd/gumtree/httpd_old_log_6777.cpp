@@ -1,6 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, 
-                  APLOGNO(03385) "h2_task(%s): destroy "
-                  "output beam empty=%d, holds proxies=%d", 
-                  task->id,
-                  h2_beam_empty(task->output.beam),
-                  h2_beam_holds_proxies(task->output.beam));
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02402)
+                             "re-grabbing shm[%d] (0x%pp) for worker: %s", i, (void *)shm,
+                             worker->s->name);

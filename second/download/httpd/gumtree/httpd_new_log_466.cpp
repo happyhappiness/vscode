@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         "disk_cache: Discarding body for URL %s "
-                         "because connection has been aborted.",
-                         h->cache_obj->key);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                          "default_handler: ap_pass_brigade returned %i",
+                          status);

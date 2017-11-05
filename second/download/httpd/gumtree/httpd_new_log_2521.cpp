@@ -1,1 +1,3 @@
-apr_file_printf(output, "    With name   : %d" NL, withname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "auth_ldap authorize: "
+                          "require dn: authorization successful");

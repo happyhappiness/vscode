@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c, 
-                      "proxy_session(%s): pool cleanup, state=%d, streams=%d",
-                      session->id, session->state, 
-                      (int)h2_proxy_ihash_count(session->streams));
+ap_register_output_filter("CACHE_INVALIDATE",
+                                  cache_invalidate_filter,
+                                  NULL,
+                                  AP_FTYPE_PROTOCOL);

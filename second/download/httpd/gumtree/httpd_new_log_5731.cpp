@@ -1,3 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02963)
-                      "rewritemap: No db handle available! "
-                      "Check your database access");
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00316)
+                         "WARNING: MaxRequestWorkers of %d is not an integer "
+                         "multiple of ThreadsPerChild of %d, decreasing to nearest "
+                         "multiple %d, for a maximum of %d servers.",
+                         max_workers, threads_per_child, tmp_max_workers,
+                         ap_daemons_limit);

@@ -1,2 +1,1 @@
-print_verbose(args, _("already have %s (%s)"), sha1_to_hex(remote),
-			      ref->name);
+fprintf(s->fp, "# branch.ab +%d -%d%c", nr_ahead, nr_behind, eol);

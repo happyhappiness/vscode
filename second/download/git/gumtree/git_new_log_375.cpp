@@ -1,2 +1,1 @@
-die("could not convert '%s' %s",
-					    oid_to_hex(oid), data->rest);
+die(_("invalid commit %s"), sha1_to_hex(result_sha1));

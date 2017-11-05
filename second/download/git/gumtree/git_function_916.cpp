@@ -1,17 +1,17 @@
-static int report_last_gc_error(void)
+static int submodule_has_dirty_index(const struct submodule *sub)
 {
-	struct strbuf sb = STRBUF_INIT;
-	int ret;
+	struct child_process cp = CHILD_PROCESS_INIT;
 
-	ret = strbuf_read_file(&sb, git_path("gc.log"), 0);
-	if (ret > 0)
-		return error(_("The last gc run reported the following. "
-			       "Please correct the root cause\n"
-			       "and remove %s.\n"
-			       "Automatic cleanup will not be performed "
-			       "until the file is removed.\n\n"
-			       "%s"),
-			     git_path("gc.log"), sb.buf);
-	strbuf_release(&sb);
-	return 0;
+	prepare_submodule_repo_env_no_git_dir(&cp.env_array);
+
+	cp.git_cmd = 1;
+	argv_array_pushl(&cp.args, "diff-index", "--quiet",
+				   "--cached", "HEAD", NULL);
+	cp.no_stdin = 1;
+	cp.no_stdout = 1;
+	cp.dir = sub->path;
+	if (start_command(&cp))
+		die("could not recurse into submodule '%s'", sub->path);
+
+	return finish_command(&cp);
 }

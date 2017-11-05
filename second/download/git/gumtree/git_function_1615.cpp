@@ -1,9 +1,11 @@
-int unable_to_lock_error(const char *path, int err)
+static void copy_request(const char *prog_name, int out)
 {
-	struct strbuf buf = STRBUF_INIT;
-
-	unable_to_lock_message(path, err, &buf);
-	error("%s", buf.buf);
-	strbuf_release(&buf);
-	return -1;
+	unsigned char *buf;
+	ssize_t n = read_request(0, &buf);
+	if (n < 0)
+		die_errno("error reading request body");
+	if (write_in_full(out, buf, n) != n)
+		die("%s aborted reading request", prog_name);
+	close(out);
+	free(buf);
 }

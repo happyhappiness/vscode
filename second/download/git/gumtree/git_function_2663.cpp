@@ -1,28 +1,14 @@
-static void update_head(const struct ref *our, const struct ref *remote,
-			const char *msg)
+static int patch_id_cmp(struct patch_id *a,
+			struct patch_id *b,
+			struct diff_options *opt)
 {
-	const char *head;
-	if (our && skip_prefix(our->name, "refs/heads/", &head)) {
-		/* Local default branch link */
-		if (create_symref("HEAD", our->name, NULL) < 0)
-			die(_("unable to update HEAD"));
-		if (!option_bare) {
-			update_ref(msg, "HEAD", our->old_oid.hash, NULL, 0,
-				   UPDATE_REFS_DIE_ON_ERR);
-			install_branch_config(0, head, option_origin, our->name);
-		}
-	} else if (our) {
-		struct commit *c = lookup_commit_reference(our->old_oid.hash);
-		/* --branch specifies a non-branch (i.e. tags), detach HEAD */
-		update_ref(msg, "HEAD", c->object.oid.hash,
-			   NULL, REF_NODEREF, UPDATE_REFS_DIE_ON_ERR);
-	} else if (remote) {
-		/*
-		 * We know remote HEAD points to a non-branch, or
-		 * HEAD points to a branch but we don't know which one.
-		 * Detach HEAD in all these cases.
-		 */
-		update_ref(msg, "HEAD", remote->old_oid.hash,
-			   NULL, REF_NODEREF, UPDATE_REFS_DIE_ON_ERR);
-	}
+	if (is_null_sha1(a->patch_id) &&
+	    commit_patch_id(a->commit, opt, a->patch_id, 0))
+		return error("Could not get patch ID for %s",
+			oid_to_hex(&a->commit->object.oid));
+	if (is_null_sha1(b->patch_id) &&
+	    commit_patch_id(b->commit, opt, b->patch_id, 0))
+		return error("Could not get patch ID for %s",
+			oid_to_hex(&b->commit->object.oid));
+	return hashcmp(a->patch_id, b->patch_id);
 }

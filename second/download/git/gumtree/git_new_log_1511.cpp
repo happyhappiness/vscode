@@ -1,1 +1,1 @@
-die(_("unrecognized argument: %s"), argv[1]);
+error("invalid pattern: %s", regex_);

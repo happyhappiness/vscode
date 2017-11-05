@@ -1,1 +1,0 @@
-die("Corrupt mode in %s", sha1_to_hex(sha1));

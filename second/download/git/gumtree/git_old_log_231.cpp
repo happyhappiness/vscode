@@ -1,1 +1,0 @@
-fprintf(output, fmt, sb.buf);

@@ -1,2 +1,1 @@
-die("Refusing to %s notes in %s (outside of refs/notes/)",
-		    subcommand, ref);
+die(_("the receiving end does not support push options"));

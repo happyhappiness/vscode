@@ -1,1 +1,2 @@
-packet_buf_write(&preamble, "%s\n", specs[i]);
+die(_("could not start 'git status' in submodule '%s'"),
+				path);

@@ -1,1 +1,1 @@
-die(_("invalid blob object %s"), oid_to_hex(oid));
+die(_("bad zlib compression level %d"), level);

@@ -1,1 +1,2 @@
-die(_("object %s not found"), sha1_to_hex(ref->new_sha1));
+error(_("failed writing detached signature to '%s': %s"),
+			     path, strerror(errno));

@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, APLOGNO(00188)
-                     "MaxClients is deprecated, use MaxRequestWorkers "
-                     "instead.");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, c,
+                      "%s: Handshake: done", MODSSL_LIBRARY_NAME);

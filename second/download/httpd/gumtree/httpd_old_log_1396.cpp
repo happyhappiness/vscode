@@ -1,4 +1,2 @@
-decl_die(access_status, ap_auth_type(r)
-                                  ? "check access.  No groups file?"
-                                  : "perform authentication. AuthType not set!",
-                                   r);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                  "handing out temporary %d bit RSA key", keylen);

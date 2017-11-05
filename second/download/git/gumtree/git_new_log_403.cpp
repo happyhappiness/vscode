@@ -1,1 +1,1 @@
-die(_("%s already exists"), real_git_dir);
+die("%s doesn't support --super-prefix", argv[0]);

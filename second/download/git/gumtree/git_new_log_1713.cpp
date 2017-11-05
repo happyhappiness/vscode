@@ -1,1 +1,1 @@
-fputs(msgbuf.buf, fp);
+die("Not a mark: %s", p);

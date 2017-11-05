@@ -1,1 +1,2 @@
-error("BUG: expected exactly one commit from walk");
+error(_("please fix this using "
+				       "'git rebase --edit-todo'."));

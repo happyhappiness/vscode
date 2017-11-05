@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01793)
-                          "invalid qop `%s' received: %s",
-                          resp->message_qop, r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00607)
+                      "Depth must be zero for UPDATE with a version");

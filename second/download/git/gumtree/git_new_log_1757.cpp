@@ -1,1 +1,2 @@
-execute_commands_non_atomic(commands, si);
+error("couldn't write %s",
+					get_lock_file_path(lock->lk));

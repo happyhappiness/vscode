@@ -1,1 +1,1 @@
-die("BUG: attempt to commit unlocked object to \"%s\"", path);
+warning("core.bare and core.worktree do not make sense");

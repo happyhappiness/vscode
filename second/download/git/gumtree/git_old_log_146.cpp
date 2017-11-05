@@ -1,0 +1,1 @@
+die("git diff-tree: internal error");

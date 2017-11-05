@@ -1,1 +1,1 @@
-packet_write_fmt(1, "NAK\n");
+die(_("could not lookup name for submodule '%s'"), path);

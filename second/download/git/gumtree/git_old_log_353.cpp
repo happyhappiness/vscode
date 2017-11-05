@@ -1,1 +1,1 @@
-packet_write(fd[1], "argument %s\n", argv[i]);
+die("Option '--stat-count' requires a value");

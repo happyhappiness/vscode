@@ -1,3 +1,2 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                      "h2_session(%ld): [%s] process returns", 
-                      session->id, state_name(session->state));
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02343)
+                          "Can't evaluate logout expression: %s", err);

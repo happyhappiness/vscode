@@ -1,94 +1,125 @@
-static const char *setup_explicit_git_dir(const char *gitdirenv,
-					  struct strbuf *cwd,
-					  int *nongit_ok)
+int notes_merge(struct notes_merge_options *o,
+		struct notes_tree *local_tree,
+		unsigned char *result_sha1)
 {
-	const char *work_tree_env = getenv(GIT_WORK_TREE_ENVIRONMENT);
-	const char *worktree;
-	char *gitfile;
-	int offset;
+	unsigned char local_sha1[20], remote_sha1[20];
+	struct commit *local, *remote;
+	struct commit_list *bases = NULL;
+	const unsigned char *base_sha1, *base_tree_sha1;
+	int result = 0;
 
-	if (PATH_MAX - 40 < strlen(gitdirenv))
-		die("'$%s' too big", GIT_DIR_ENVIRONMENT);
+	assert(o->local_ref && o->remote_ref);
+	assert(!strcmp(o->local_ref, local_tree->ref));
+	hashclr(result_sha1);
 
-	gitfile = (char*)read_gitfile(gitdirenv);
-	if (gitfile) {
-		gitfile = xstrdup(gitfile);
-		gitdirenv = gitfile;
-	}
+	trace_printf("notes_merge(o->local_ref = %s, o->remote_ref = %s)\n",
+	       o->local_ref, o->remote_ref);
 
-	if (!is_git_directory(gitdirenv)) {
-		if (nongit_ok) {
-			*nongit_ok = 1;
-			free(gitfile);
-			return NULL;
+	/* Dereference o->local_ref into local_sha1 */
+	if (read_ref_full(o->local_ref, 0, local_sha1, NULL))
+		die("Failed to resolve local notes ref '%s'", o->local_ref);
+	else if (!check_refname_format(o->local_ref, 0) &&
+		is_null_sha1(local_sha1))
+		local = NULL; /* local_sha1 == null_sha1 indicates unborn ref */
+	else if (!(local = lookup_commit_reference(local_sha1)))
+		die("Could not parse local commit %s (%s)",
+		    sha1_to_hex(local_sha1), o->local_ref);
+	trace_printf("\tlocal commit: %.7s\n", sha1_to_hex(local_sha1));
+
+	/* Dereference o->remote_ref into remote_sha1 */
+	if (get_sha1(o->remote_ref, remote_sha1)) {
+		/*
+		 * Failed to get remote_sha1. If o->remote_ref looks like an
+		 * unborn ref, perform the merge using an empty notes tree.
+		 */
+		if (!check_refname_format(o->remote_ref, 0)) {
+			hashclr(remote_sha1);
+			remote = NULL;
+		} else {
+			die("Failed to resolve remote notes ref '%s'",
+			    o->remote_ref);
 		}
-		die("Not a git repository: '%s'", gitdirenv);
+	} else if (!(remote = lookup_commit_reference(remote_sha1))) {
+		die("Could not parse remote commit %s (%s)",
+		    sha1_to_hex(remote_sha1), o->remote_ref);
+	}
+	trace_printf("\tremote commit: %.7s\n", sha1_to_hex(remote_sha1));
+
+	if (!local && !remote)
+		die("Cannot merge empty notes ref (%s) into empty notes ref "
+		    "(%s)", o->remote_ref, o->local_ref);
+	if (!local) {
+		/* result == remote commit */
+		hashcpy(result_sha1, remote_sha1);
+		goto found_result;
+	}
+	if (!remote) {
+		/* result == local commit */
+		hashcpy(result_sha1, local_sha1);
+		goto found_result;
+	}
+	assert(local && remote);
+
+	/* Find merge bases */
+	bases = get_merge_bases(local, remote);
+	if (!bases) {
+		base_sha1 = null_sha1;
+		base_tree_sha1 = EMPTY_TREE_SHA1_BIN;
+		if (o->verbosity >= 4)
+			printf("No merge base found; doing history-less merge\n");
+	} else if (!bases->next) {
+		base_sha1 = bases->item->object.sha1;
+		base_tree_sha1 = bases->item->tree->object.sha1;
+		if (o->verbosity >= 4)
+			printf("One merge base found (%.7s)\n",
+				sha1_to_hex(base_sha1));
+	} else {
+		/* TODO: How to handle multiple merge-bases? */
+		base_sha1 = bases->item->object.sha1;
+		base_tree_sha1 = bases->item->tree->object.sha1;
+		if (o->verbosity >= 3)
+			printf("Multiple merge bases found. Using the first "
+				"(%.7s)\n", sha1_to_hex(base_sha1));
 	}
 
-	if (check_repository_format_gently(gitdirenv, nongit_ok)) {
-		free(gitfile);
-		return NULL;
+	if (o->verbosity >= 4)
+		printf("Merging remote commit %.7s into local commit %.7s with "
+			"merge-base %.7s\n", sha1_to_hex(remote->object.sha1),
+			sha1_to_hex(local->object.sha1),
+			sha1_to_hex(base_sha1));
+
+	if (!hashcmp(remote->object.sha1, base_sha1)) {
+		/* Already merged; result == local commit */
+		if (o->verbosity >= 2)
+			printf("Already up-to-date!\n");
+		hashcpy(result_sha1, local->object.sha1);
+		goto found_result;
+	}
+	if (!hashcmp(local->object.sha1, base_sha1)) {
+		/* Fast-forward; result == remote commit */
+		if (o->verbosity >= 2)
+			printf("Fast-forward\n");
+		hashcpy(result_sha1, remote->object.sha1);
+		goto found_result;
 	}
 
-	/* #3, #7, #11, #15, #19, #23, #27, #31 (see t1510) */
-	if (work_tree_env)
-		set_git_work_tree(work_tree_env);
-	else if (is_bare_repository_cfg > 0) {
-		if (git_work_tree_cfg) /* #22.2, #30 */
-			die("core.bare and core.worktree do not make sense");
+	result = merge_from_diffs(o, base_tree_sha1, local->tree->object.sha1,
+				  remote->tree->object.sha1, local_tree);
 
-		/* #18, #26 */
-		set_git_dir(gitdirenv);
-		free(gitfile);
-		return NULL;
-	}
-	else if (git_work_tree_cfg) { /* #6, #14 */
-		if (is_absolute_path(git_work_tree_cfg))
-			set_git_work_tree(git_work_tree_cfg);
-		else {
-			char *core_worktree;
-			if (chdir(gitdirenv))
-				die_errno("Could not chdir to '%s'", gitdirenv);
-			if (chdir(git_work_tree_cfg))
-				die_errno("Could not chdir to '%s'", git_work_tree_cfg);
-			core_worktree = xgetcwd();
-			if (chdir(cwd->buf))
-				die_errno("Could not come back to cwd");
-			set_git_work_tree(core_worktree);
-			free(core_worktree);
-		}
-	}
-	else if (!git_env_bool(GIT_IMPLICIT_WORK_TREE_ENVIRONMENT, 1)) {
-		/* #16d */
-		set_git_dir(gitdirenv);
-		free(gitfile);
-		return NULL;
-	}
-	else /* #2, #10 */
-		set_git_work_tree(".");
-
-	/* set_git_work_tree() must have been called by now */
-	worktree = get_git_work_tree();
-
-	/* both get_git_work_tree() and cwd are already normalized */
-	if (!strcmp(cwd->buf, worktree)) { /* cwd == worktree */
-		set_git_dir(gitdirenv);
-		free(gitfile);
-		return NULL;
+	if (result != 0) { /* non-trivial merge (with or without conflicts) */
+		/* Commit (partial) result */
+		struct commit_list *parents = NULL;
+		commit_list_insert(remote, &parents); /* LIFO order */
+		commit_list_insert(local, &parents);
+		create_notes_commit(local_tree, parents,
+				    o->commit_msg.buf, o->commit_msg.len,
+				    result_sha1);
 	}
 
-	offset = dir_inside_of(cwd->buf, worktree);
-	if (offset >= 0) {	/* cwd inside worktree? */
-		set_git_dir(real_path(gitdirenv));
-		if (chdir(worktree))
-			die_errno("Could not chdir to '%s'", worktree);
-		strbuf_addch(cwd, '/');
-		free(gitfile);
-		return cwd->buf + offset;
-	}
-
-	/* cwd outside worktree */
-	set_git_dir(gitdirenv);
-	free(gitfile);
-	return NULL;
+found_result:
+	free_commit_list(bases);
+	strbuf_release(&(o->commit_msg));
+	trace_printf("notes_merge(): result = %i, result_sha1 = %.7s\n",
+	       result, sha1_to_hex(result_sha1));
+	return result;
 }

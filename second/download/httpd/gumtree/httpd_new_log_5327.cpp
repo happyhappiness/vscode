@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00376)
-                     "%s: Failed to open the service.", mpm_display_name);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, stream->session->mplx->c,
+                          "h2_stream(%ld-%d): flushing input data",
+                          stream->session->id, stream->id);

@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                      "h2_task(%s): get more data from mplx, block=%d, "
-                      "readbytes=%ld, queued=%ld",
-                      task->id, block, (long)readbytes, (long)bblen);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01184) "Doing workers create: %s (%s), %d, %d [%u]",
+                         balancer->s->name, balancer->s->sname,
+                         (int)ALIGNED_PROXY_WORKER_SHARED_SIZE,
+                         (int)balancer->max_workers, i);

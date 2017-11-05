@@ -1,1 +1,1 @@
-die(_("invalid shallow line: %s"), line);
+die("Invalid deepen-since: %s", line);

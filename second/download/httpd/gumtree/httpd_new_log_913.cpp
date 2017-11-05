@@ -1,1 +1,2 @@
-ap_rputs("<tr><td bgcolor=\"#ffffff\">\n", r);
+ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                     "sigaction(" AP_SIG_GRACEFUL_STOP_STRING ")");

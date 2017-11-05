@@ -1,2 +1,1 @@
-error("Object %s not a tag",
-			     sha1_to_hex(item->object.sha1));
+printf("Message-Id: <%s>\n", opt->message_id);

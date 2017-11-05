@@ -1,1 +1,1 @@
-error(_("remote unpack failed: %s"), line);
+error("empty patch: '%s'", patch);

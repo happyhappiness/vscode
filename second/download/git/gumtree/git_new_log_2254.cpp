@@ -1,1 +1,1 @@
-status_printf_ln(s, color, "   %s", have_done.items[i].string);
+error_errno(_("cannot open %s"), filename);

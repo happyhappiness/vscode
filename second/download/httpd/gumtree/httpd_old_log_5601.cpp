@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(01026)
-                                       "err/hup on backconn");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         "post_config: mpm type unknown");

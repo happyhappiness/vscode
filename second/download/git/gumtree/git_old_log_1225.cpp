@@ -1,1 +1,1 @@
-die("Non commit %s?", revs->pending.objects[i].name);
+printf("rm -f %s\n", pathname->buf);

@@ -1,51 +1,84 @@
-static int rename_tmp_log(const char *newrefname)
+int cmd_push(int argc, const char **argv, const char *prefix)
 {
-	int attempts_remaining = 4;
-	struct strbuf path = STRBUF_INIT;
-	int ret = -1;
+	int flags = 0;
+	int tags = 0;
+	int push_cert = -1;
+	int rc;
+	const char *repo = NULL;	/* default repository */
+	static struct string_list push_options = STRING_LIST_INIT_DUP;
+	static struct string_list_item *item;
 
- retry:
-	strbuf_reset(&path);
-	strbuf_git_path(&path, "logs/%s", newrefname);
-	switch (safe_create_leading_directories_const(path.buf)) {
-	case SCLD_OK:
-		break; /* success */
-	case SCLD_VANISHED:
-		if (--attempts_remaining > 0)
-			goto retry;
-		/* fall through */
-	default:
-		error("unable to create directory for %s", newrefname);
-		goto out;
+	struct option options[] = {
+		OPT__VERBOSITY(&verbosity),
+		OPT_STRING( 0 , "repo", &repo, N_("repository"), N_("repository")),
+		OPT_BIT( 0 , "all", &flags, N_("push all refs"), TRANSPORT_PUSH_ALL),
+		OPT_BIT( 0 , "mirror", &flags, N_("mirror all refs"),
+			    (TRANSPORT_PUSH_MIRROR|TRANSPORT_PUSH_FORCE)),
+		OPT_BOOL('d', "delete", &deleterefs, N_("delete refs")),
+		OPT_BOOL( 0 , "tags", &tags, N_("push tags (can't be used with --all or --mirror)")),
+		OPT_BIT('n' , "dry-run", &flags, N_("dry run"), TRANSPORT_PUSH_DRY_RUN),
+		OPT_BIT( 0,  "porcelain", &flags, N_("machine-readable output"), TRANSPORT_PUSH_PORCELAIN),
+		OPT_BIT('f', "force", &flags, N_("force updates"), TRANSPORT_PUSH_FORCE),
+		{ OPTION_CALLBACK,
+		  0, CAS_OPT_NAME, &cas, N_("refname>:<expect"),
+		  N_("require old value of ref to be at this value"),
+		  PARSE_OPT_OPTARG, parseopt_push_cas_option },
+		{ OPTION_CALLBACK, 0, "recurse-submodules", &recurse_submodules, "check|on-demand|no",
+			N_("control recursive pushing of submodules"),
+			PARSE_OPT_OPTARG, option_parse_recurse_submodules },
+		OPT_BOOL( 0 , "thin", &thin, N_("use thin pack")),
+		OPT_STRING( 0 , "receive-pack", &receivepack, "receive-pack", N_("receive pack program")),
+		OPT_STRING( 0 , "exec", &receivepack, "receive-pack", N_("receive pack program")),
+		OPT_BIT('u', "set-upstream", &flags, N_("set upstream for git pull/status"),
+			TRANSPORT_PUSH_SET_UPSTREAM),
+		OPT_BOOL(0, "progress", &progress, N_("force progress reporting")),
+		OPT_BIT(0, "prune", &flags, N_("prune locally removed refs"),
+			TRANSPORT_PUSH_PRUNE),
+		OPT_BIT(0, "no-verify", &flags, N_("bypass pre-push hook"), TRANSPORT_PUSH_NO_HOOK),
+		OPT_BIT(0, "follow-tags", &flags, N_("push missing but relevant tags"),
+			TRANSPORT_PUSH_FOLLOW_TAGS),
+		{ OPTION_CALLBACK,
+		  0, "signed", &push_cert, "yes|no|if-asked", N_("GPG sign the push"),
+		  PARSE_OPT_OPTARG, option_parse_push_signed },
+		OPT_BIT(0, "atomic", &flags, N_("request atomic transaction on remote side"), TRANSPORT_PUSH_ATOMIC),
+		OPT_STRING_LIST('o', "push-option", &push_options, N_("server-specific"), N_("option to transmit")),
+		OPT_SET_INT('4', "ipv4", &family, N_("use IPv4 addresses only"),
+				TRANSPORT_FAMILY_IPV4),
+		OPT_SET_INT('6', "ipv6", &family, N_("use IPv6 addresses only"),
+				TRANSPORT_FAMILY_IPV6),
+		OPT_END()
+	};
+
+	packet_trace_identity("push");
+	git_config(git_push_config, &flags);
+	argc = parse_options(argc, argv, prefix, options, push_usage, 0);
+	set_push_cert_flags(&flags, push_cert);
+
+	if (deleterefs && (tags || (flags & (TRANSPORT_PUSH_ALL | TRANSPORT_PUSH_MIRROR))))
+		die(_("--delete is incompatible with --all, --mirror and --tags"));
+	if (deleterefs && argc < 2)
+		die(_("--delete doesn't make sense without any refs"));
+
+	if (recurse_submodules == RECURSE_SUBMODULES_CHECK)
+		flags |= TRANSPORT_RECURSE_SUBMODULES_CHECK;
+	else if (recurse_submodules == RECURSE_SUBMODULES_ON_DEMAND)
+		flags |= TRANSPORT_RECURSE_SUBMODULES_ON_DEMAND;
+
+	if (tags)
+		add_refspec("refs/tags/*");
+
+	if (argc > 0) {
+		repo = argv[0];
+		set_refspecs(argv + 1, argc - 1, repo);
 	}
 
-	if (rename(git_path(TMP_RENAMED_LOG), path.buf)) {
-		if ((errno==EISDIR || errno==ENOTDIR) && --attempts_remaining > 0) {
-			/*
-			 * rename(a, b) when b is an existing
-			 * directory ought to result in ISDIR, but
-			 * Solaris 5.8 gives ENOTDIR.  Sheesh.
-			 */
-			if (remove_empty_directories(&path)) {
-				error("Directory not empty: logs/%s", newrefname);
-				goto out;
-			}
-			goto retry;
-		} else if (errno == ENOENT && --attempts_remaining > 0) {
-			/*
-			 * Maybe another process just deleted one of
-			 * the directories in the path to newrefname.
-			 * Try again from the beginning.
-			 */
-			goto retry;
-		} else {
-			error("unable to move logfile "TMP_RENAMED_LOG" to logs/%s: %s",
-				newrefname, strerror(errno));
-			goto out;
-		}
-	}
-	ret = 0;
-out:
-	strbuf_release(&path);
-	return ret;
+	for_each_string_list_item(item, &push_options)
+		if (strchr(item->string, '\n'))
+			die(_("push options must not have new line characters"));
+
+	rc = do_push(repo, flags, &push_options);
+	if (rc == -1)
+		usage_with_options(push_usage, options);
+	else
+		return rc;
 }

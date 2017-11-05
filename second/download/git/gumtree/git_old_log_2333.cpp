@@ -1,2 +1,2 @@
-warning ("Exporting signed tag %s",
-					 sha1_to_hex(tag->object.sha1));
+error("unable to create file %s (%s)",
+				path, strerror(errno));

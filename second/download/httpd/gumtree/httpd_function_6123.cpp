@@ -1,7 +1,23 @@
-apr_status_t h2_switch_init(apr_pool_t *pool, server_rec *s)
+static apr_status_t initialize_secret(server_rec *s)
 {
-    (void)pool;
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "h2_switch init");
+    apr_status_t status;
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01757)
+                 "generating secret for digest authentication ...");
+
+#if APR_HAS_RANDOM
+    status = apr_generate_random_bytes(secret, sizeof(secret));
+#else
+#error APR random number support is missing; you probably need to install the truerand library.
+#endif
+
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, status, s, APLOGNO(01758)
+                     "error generating secret");
+        return status;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01759) "done");
 
     return APR_SUCCESS;
 }

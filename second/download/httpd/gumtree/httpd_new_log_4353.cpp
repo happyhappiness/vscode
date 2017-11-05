@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01016)
-                          "read %" APR_OFF_T_FMT
-                          " bytes from %s", len, name);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02218)
+                     "ssl_stapling_init_cert: no responder URL");

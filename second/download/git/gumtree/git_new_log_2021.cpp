@@ -1,1 +1,1 @@
-die("unable to generate checkdiff for %s", one->path);
+die(_("expected format: %%(align:<width>,<position>)"));

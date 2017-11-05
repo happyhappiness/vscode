@@ -1,1 +1,1 @@
-error("Could not write flush packet");
+printf("Diag: url=%s\n", url ? url : "NULL");

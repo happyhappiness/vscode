@@ -1,1 +1,2 @@
-printf("%d}", (code[1] << 8) + code[2]);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "Reconfigured cipher suite will force renegotiation");

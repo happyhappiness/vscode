@@ -1,1 +1,1 @@
-error("%s: invalid reflog entry %s", refname, sha1_to_hex(sha1));
+die("Object not in bitmap: %s\n", oid_to_hex(&object->oid));

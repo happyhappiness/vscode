@@ -1,2 +1,2 @@
-error("Could not read %s",
-			     sha1_to_hex(item->object.sha1));
+printf("%s<%s>\n", (i > 0 ? "\t" : "References: "),
+			       opt->ref_message_ids->items[i].string);

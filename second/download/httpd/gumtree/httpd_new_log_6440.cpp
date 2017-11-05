@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c, 
-                          "h2_stream(%ld-%d): wait on input shutdown", 
-                          stream->session->id, stream->id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, error_fmt, tag_val,
+                    r->filename, status ? status : rr ? rr->status : 0);

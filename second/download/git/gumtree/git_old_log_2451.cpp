@@ -1,2 +1,1 @@
-error("Object %s not a commit",
-			     sha1_to_hex(item->object.sha1));
+die("Not a valid commit name %s", sha1_to_hex(sha1));

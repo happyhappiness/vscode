@@ -1,2 +1,3 @@
-error(_("corrupt binary patch at line %d: %.*s"),
-	      state->linenr-1, llen-1, buffer);
+warning("Cannot handle more than %d bases. "
+				"Ignoring %s.",
+				(int)ARRAY_SIZE(bases)-1, argv[i]);

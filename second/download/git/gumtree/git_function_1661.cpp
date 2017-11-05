@@ -1,32 +1,54 @@
-int update_ref(const char *action, const char *refname,
-	       const unsigned char *sha1, const unsigned char *oldval,
-	       int flags, enum action_on_err onerr)
+static int process_diff_filepair(struct rev_info *rev,
+				 struct diff_filepair *pair,
+				 struct line_log_data *range,
+				 struct diff_ranges **diff_out)
 {
-	struct ref_transaction *t;
-	struct strbuf err = STRBUF_INIT;
+	struct line_log_data *rg = range;
+	struct range_set tmp;
+	struct diff_ranges diff;
+	mmfile_t file_parent, file_target;
 
-	t = ref_transaction_begin(&err);
-	if (!t ||
-	    ref_transaction_update(t, refname, sha1, oldval, flags,
-				   !!oldval, action, &err) ||
-	    ref_transaction_commit(t, &err)) {
-		const char *str = "update_ref failed for ref '%s': %s";
-
-		ref_transaction_free(t);
-		switch (onerr) {
-		case UPDATE_REFS_MSG_ON_ERR:
-			error(str, refname, err.buf);
+	assert(pair->two->path);
+	while (rg) {
+		assert(rg->path);
+		if (!strcmp(rg->path, pair->two->path))
 			break;
-		case UPDATE_REFS_DIE_ON_ERR:
-			die(str, refname, err.buf);
-			break;
-		case UPDATE_REFS_QUIET_ON_ERR:
-			break;
-		}
-		strbuf_release(&err);
-		return 1;
+		rg = rg->next;
 	}
-	strbuf_release(&err);
-	ref_transaction_free(t);
-	return 0;
+
+	if (!rg)
+		return 0;
+	if (rg->ranges.nr == 0)
+		return 0;
+
+	assert(pair->two->sha1_valid);
+	diff_populate_filespec(pair->two, 0);
+	file_target.ptr = pair->two->data;
+	file_target.size = pair->two->size;
+
+	if (pair->one->sha1_valid) {
+		diff_populate_filespec(pair->one, 0);
+		file_parent.ptr = pair->one->data;
+		file_parent.size = pair->one->size;
+	} else {
+		file_parent.ptr = "";
+		file_parent.size = 0;
+	}
+
+	diff_ranges_init(&diff);
+	if (collect_diff(&file_parent, &file_target, &diff))
+		die("unable to generate diff for %s", pair->one->path);
+
+	/* NEEDSWORK should apply some heuristics to prevent mismatches */
+	free(rg->path);
+	rg->path = xstrdup(pair->one->path);
+
+	range_set_init(&tmp, 0);
+	range_set_map_across_diff(&tmp, &rg->ranges, &diff, diff_out);
+	range_set_release(&rg->ranges);
+	range_set_move(&rg->ranges, &tmp);
+
+	diff_ranges_release(&diff);
+
+	return ((*diff_out)->parent.nr > 0);
 }

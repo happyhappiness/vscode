@@ -1,1 +1,1 @@
-warning("ignoring ref with broken name %s", refname);
+die("Invalid search pattern: %s", prefix);

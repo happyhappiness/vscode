@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, ctx->r, 
-                      "reverse_map[%s] %s --> %s", ctx->p_server_uri, buffer, mapped);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
+                      "%s: Forcing worker (%s) into error state "
+                      "due to timeout and 'failonstatus' parameter being set",
+                       balancer->s->name, worker->s->name);

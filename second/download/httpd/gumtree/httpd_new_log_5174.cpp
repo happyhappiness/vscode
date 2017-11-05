@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00168) "killpg SIGTERM");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             "stapling_cb: success renewing response");

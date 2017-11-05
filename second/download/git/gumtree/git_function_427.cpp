@@ -1,14 +1,17 @@
-static struct notes_tree *init_notes_check(const char *subcommand,
-					   int flags)
+static int packet_write_fmt_1(int fd, int gently,
+			      const char *fmt, va_list args)
 {
-	struct notes_tree *t;
-	const char *ref;
-	init_notes(NULL, NULL, NULL, flags);
-	t = &default_notes_tree;
+	struct strbuf buf = STRBUF_INIT;
+	ssize_t count;
 
-	ref = (flags & NOTES_INIT_WRITABLE) ? t->update_ref : t->ref;
-	if (!starts_with(ref, "refs/notes/"))
-		die("Refusing to %s notes in %s (outside of refs/notes/)",
-		    subcommand, ref);
-	return t;
+	format_packet(&buf, fmt, args);
+	count = write_in_full(fd, buf.buf, buf.len);
+	if (count == buf.len)
+		return 0;
+
+	if (!gently) {
+		check_pipe(errno);
+		die_errno("packet write with format failed");
+	}
+	return error("packet write with format failed");
 }

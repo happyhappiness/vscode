@@ -1,1 +1,2 @@
-die(_("'%s' is not a valid ref."), ref_name[num_rev]);
+error_errno(_("could not create sequencer directory '%s'"),
+				   git_path_seq_dir());

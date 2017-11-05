@@ -1,1 +1,0 @@
-die("Eh?  Object of type %d?", obj->type);

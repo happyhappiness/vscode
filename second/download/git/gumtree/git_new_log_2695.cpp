@@ -1,2 +1,2 @@
-warning("unsupported proxy authentication method %s: using anyauth",
-					http_proxy_authmethod);
+die("BUG: taking over transport requires non-NULL "
+		    "smart_options field.");

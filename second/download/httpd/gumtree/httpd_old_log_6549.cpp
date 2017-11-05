@@ -1,0 +1,1 @@
+fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");

@@ -1,1 +1,2 @@
-die_errno("Could not make temporary directory");
+die(_("did not receive expected object %s"),
+			      oid_to_hex(&obj->oid));

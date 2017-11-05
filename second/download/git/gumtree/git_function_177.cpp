@@ -1,85 +1,58 @@
-int main(int argc, const char **argv)
+static int run_apply(const struct am_state *state, const char *index_file)
 {
-	struct strbuf buf = STRBUF_INIT;
-	int nongit;
+	struct argv_array apply_paths = ARGV_ARRAY_INIT;
+	struct argv_array apply_opts = ARGV_ARRAY_INIT;
+	struct apply_state apply_state;
+	int res, opts_left;
+	static struct lock_file lock_file;
+	int force_apply = 0;
+	int options = 0;
 
-	git_extract_argv0_path(argv[0]);
-	setup_git_directory_gently(&nongit);
-	if (argc < 2) {
-		fprintf(stderr, "Remote needed\n");
-		return 1;
+	if (init_apply_state(&apply_state, NULL, &lock_file))
+		die("BUG: init_apply_state() failed");
+
+	argv_array_push(&apply_opts, "apply");
+	argv_array_pushv(&apply_opts, state->git_apply_opts.argv);
+
+	opts_left = apply_parse_options(apply_opts.argc, apply_opts.argv,
+					&apply_state, &force_apply, &options,
+					NULL);
+
+	if (opts_left != 0)
+		die("unknown option passed through to git apply");
+
+	if (index_file) {
+		apply_state.index_file = index_file;
+		apply_state.cached = 1;
+	} else
+		apply_state.check_index = 1;
+
+	/*
+	 * If we are allowed to fall back on 3-way merge, don't give false
+	 * errors during the initial attempt.
+	 */
+	if (state->threeway && !index_file)
+		apply_state.apply_verbosity = verbosity_silent;
+
+	if (check_apply_state(&apply_state, force_apply))
+		die("BUG: check_apply_state() failed");
+
+	argv_array_push(&apply_paths, am_path(state, "patch"));
+
+	res = apply_all_patches(&apply_state, apply_paths.argc, apply_paths.argv, options);
+
+	argv_array_clear(&apply_paths);
+	argv_array_clear(&apply_opts);
+	clear_apply_state(&apply_state);
+
+	if (res)
+		return res;
+
+	if (index_file) {
+		/* Reload index as apply_all_patches() will have modified it. */
+		discard_cache();
+		read_cache_from(index_file);
 	}
-
-	options.verbosity = 1;
-	options.progress = !!isatty(2);
-	options.thin = 1;
-
-	remote = remote_get(argv[1]);
-
-	if (argc > 2) {
-		end_url_with_slash(&url, argv[2]);
-	} else {
-		end_url_with_slash(&url, remote->url[0]);
-	}
-
-	http_init(remote, url.buf, 0);
-
-	do {
-		if (strbuf_getline(&buf, stdin, '\n') == EOF) {
-			if (ferror(stdin))
-				fprintf(stderr, "Error reading command stream\n");
-			else
-				fprintf(stderr, "Unexpected end of command stream\n");
-			return 1;
-		}
-		if (buf.len == 0)
-			break;
-		if (starts_with(buf.buf, "fetch ")) {
-			if (nongit)
-				die("Fetch attempted without a local repo");
-			parse_fetch(&buf);
-
-		} else if (!strcmp(buf.buf, "list") || starts_with(buf.buf, "list ")) {
-			int for_push = !!strstr(buf.buf + 4, "for-push");
-			output_refs(get_refs(for_push));
-
-		} else if (starts_with(buf.buf, "push ")) {
-			parse_push(&buf);
-
-		} else if (starts_with(buf.buf, "option ")) {
-			char *name = buf.buf + strlen("option ");
-			char *value = strchr(name, ' ');
-			int result;
-
-			if (value)
-				*value++ = '\0';
-			else
-				value = "true";
-
-			result = set_option(name, value);
-			if (!result)
-				printf("ok\n");
-			else if (result < 0)
-				printf("error invalid value\n");
-			else
-				printf("unsupported\n");
-			fflush(stdout);
-
-		} else if (!strcmp(buf.buf, "capabilities")) {
-			printf("fetch\n");
-			printf("option\n");
-			printf("push\n");
-			printf("check-connectivity\n");
-			printf("\n");
-			fflush(stdout);
-		} else {
-			fprintf(stderr, "Unknown command '%s'\n", buf.buf);
-			return 1;
-		}
-		strbuf_reset(&buf);
-	} while (1);
-
-	http_cleanup();
 
 	return 0;
 }

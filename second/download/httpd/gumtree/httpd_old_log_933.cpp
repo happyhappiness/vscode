@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "Ouch!  Out of memory in ap_setup_prelinked_modules()!");
+fprintf(stderr,
+                "apr_hash_overlay: overlay's pool is not an ancestor of p\n");

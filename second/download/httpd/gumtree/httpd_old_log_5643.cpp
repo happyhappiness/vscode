@@ -1,1 +1,1 @@
-fprintf(stderr,"The %s service is running.\n", mpm_display_name);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, rv, r, "wstunnel_transfer complete");

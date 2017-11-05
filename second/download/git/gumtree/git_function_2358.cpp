@@ -1,35 +1,71 @@
-static int grep_object(struct grep_opt *opt, const struct pathspec *pathspec,
-		       struct object *obj, const char *name, const char *path)
+static void do_rerere_one_path(struct string_list_item *rr_item,
+			       struct string_list *update)
 {
-	if (obj->type == OBJ_BLOB)
-		return grep_sha1(opt, obj->sha1, name, 0, path);
-	if (obj->type == OBJ_COMMIT || obj->type == OBJ_TREE) {
-		struct tree_desc tree;
-		void *data;
-		unsigned long size;
-		struct strbuf base;
-		int hit, len;
+	const char *path = rr_item->string;
+	struct rerere_id *id = rr_item->util;
+	struct rerere_dir *rr_dir = id->collection;
+	int variant;
 
-		grep_read_lock();
-		data = read_object_with_reference(obj->sha1, tree_type,
-						  &size, NULL);
-		grep_read_unlock();
+	variant = id->variant;
 
-		if (!data)
-			die(_("unable to read tree (%s)"), sha1_to_hex(obj->sha1));
-
-		len = name ? strlen(name) : 0;
-		strbuf_init(&base, PATH_MAX + len + 1);
-		if (len) {
-			strbuf_add(&base, name, len);
-			strbuf_addch(&base, ':');
+	/* Has the user resolved it already? */
+	if (variant >= 0) {
+		if (!handle_file(path, NULL, NULL)) {
+			copy_file(rerere_path(id, "postimage"), path, 0666);
+			id->collection->status[variant] |= RR_HAS_POSTIMAGE;
+			fprintf(stderr, "Recorded resolution for '%s'.\n", path);
+			free_rerere_id(rr_item);
+			rr_item->util = NULL;
+			return;
 		}
-		init_tree_desc(&tree, data, size);
-		hit = grep_tree(opt, pathspec, &tree, &base, base.len,
-				obj->type == OBJ_COMMIT);
-		strbuf_release(&base);
-		free(data);
-		return hit;
+		/*
+		 * There may be other variants that can cleanly
+		 * replay.  Try them and update the variant number for
+		 * this one.
+		 */
 	}
-	die(_("unable to grep from object of type %s"), typename(obj->type));
+
+	/* Does any existing resolution apply cleanly? */
+	for (variant = 0; variant < rr_dir->status_nr; variant++) {
+		const int both = RR_HAS_PREIMAGE | RR_HAS_POSTIMAGE;
+		struct rerere_id vid = *id;
+
+		if ((rr_dir->status[variant] & both) != both)
+			continue;
+
+		vid.variant = variant;
+		if (merge(&vid, path))
+			continue; /* failed to replay */
+
+		/*
+		 * If there already is a different variant that applies
+		 * cleanly, there is no point maintaining our own variant.
+		 */
+		if (0 <= id->variant && id->variant != variant)
+			remove_variant(id);
+
+		if (rerere_autoupdate)
+			string_list_insert(update, path);
+		else
+			fprintf(stderr,
+				"Resolved '%s' using previous resolution.\n",
+				path);
+		free_rerere_id(rr_item);
+		rr_item->util = NULL;
+		return;
+	}
+
+	/* None of the existing one applies; we need a new variant */
+	assign_variant(id);
+
+	variant = id->variant;
+	handle_file(path, NULL, rerere_path(id, "preimage"));
+	if (id->collection->status[variant] & RR_HAS_POSTIMAGE) {
+		const char *path = rerere_path(id, "postimage");
+		if (unlink(path))
+			die_errno("cannot unlink stray '%s'", path);
+		id->collection->status[variant] &= ~RR_HAS_POSTIMAGE;
+	}
+	id->collection->status[variant] |= RR_HAS_PREIMAGE;
+	fprintf(stderr, "Recorded preimage for '%s'\n", path);
 }

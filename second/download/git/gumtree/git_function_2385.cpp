@@ -1,32 +1,35 @@
-static void handle_info(void)
+int index_path(unsigned char *sha1, const char *path, struct stat *st, unsigned flags)
 {
-	struct strbuf *hdr;
-	int i;
+	int fd;
+	struct strbuf sb = STRBUF_INIT;
 
-	for (i = 0; header[i]; i++) {
-		/* only print inbody headers if we output a patch file */
-		if (patch_lines && s_hdr_data[i])
-			hdr = s_hdr_data[i];
-		else if (p_hdr_data[i])
-			hdr = p_hdr_data[i];
-		else
-			continue;
-
-		if (!strcmp(header[i], "Subject")) {
-			if (!keep_subject) {
-				cleanup_subject(hdr);
-				cleanup_space(hdr);
-			}
-			output_header_lines(fout, "Subject", hdr);
-		} else if (!strcmp(header[i], "From")) {
-			cleanup_space(hdr);
-			handle_from(hdr);
-			fprintf(fout, "Author: %s\n", name.buf);
-			fprintf(fout, "Email: %s\n", email.buf);
-		} else {
-			cleanup_space(hdr);
-			fprintf(fout, "%s: %s\n", header[i], hdr->buf);
+	switch (st->st_mode & S_IFMT) {
+	case S_IFREG:
+		fd = open(path, O_RDONLY);
+		if (fd < 0)
+			return error("open(\"%s\"): %s", path,
+				     strerror(errno));
+		if (index_fd(sha1, fd, st, OBJ_BLOB, path, flags) < 0)
+			return error("%s: failed to insert into database",
+				     path);
+		break;
+	case S_IFLNK:
+		if (strbuf_readlink(&sb, path, st->st_size)) {
+			char *errstr = strerror(errno);
+			return error("readlink(\"%s\"): %s", path,
+			             errstr);
 		}
+		if (!(flags & HASH_WRITE_OBJECT))
+			hash_sha1_file(sb.buf, sb.len, blob_type, sha1);
+		else if (write_sha1_file(sb.buf, sb.len, blob_type, sha1))
+			return error("%s: failed to insert into database",
+				     path);
+		strbuf_release(&sb);
+		break;
+	case S_IFDIR:
+		return resolve_gitlink_ref(path, "HEAD", sha1);
+	default:
+		return error("%s: unsupported file type", path);
 	}
-	fprintf(fout, "\n");
+	return 0;
 }

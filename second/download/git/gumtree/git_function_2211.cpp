@@ -1,41 +1,68 @@
-static int sequencer_rollback(struct replay_opts *opts)
+const char *fmt_ident(const char *name, const char *email,
+		      const char *date_str, int flag)
 {
-	const char *filename;
-	FILE *f;
-	unsigned char sha1[20];
-	struct strbuf buf = STRBUF_INIT;
+	static struct strbuf ident = STRBUF_INIT;
+	int strict = (flag & IDENT_STRICT);
+	int want_date = !(flag & IDENT_NO_DATE);
+	int want_name = !(flag & IDENT_NO_NAME);
 
-	filename = git_path(SEQ_HEAD_FILE);
-	f = fopen(filename, "r");
-	if (!f && errno == ENOENT) {
-		/*
-		 * There is no multiple-cherry-pick in progress.
-		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
-		 * a single-cherry-pick in progress, abort that.
-		 */
-		return rollback_single_pick();
+	if (want_name) {
+		int using_default = 0;
+		if (!name) {
+			if (strict && ident_use_config_only
+			    && !(ident_config_given & IDENT_NAME_GIVEN)) {
+				fputs(env_hint, stderr);
+				die("no name was given and auto-detection is disabled");
+			}
+			name = ident_default_name();
+			using_default = 1;
+			if (strict && default_name_is_bogus) {
+				fputs(env_hint, stderr);
+				die("unable to auto-detect name (got '%s')", name);
+			}
+		}
+		if (!*name) {
+			struct passwd *pw;
+			if (strict) {
+				if (using_default)
+					fputs(env_hint, stderr);
+				die("empty ident name (for <%s>) not allowed", email);
+			}
+			pw = xgetpwuid_self(NULL);
+			name = pw->pw_name;
+		}
 	}
-	if (!f)
-		return error(_("cannot open %s: %s"), filename,
-						strerror(errno));
-	if (strbuf_getline(&buf, f, '\n')) {
-		error(_("cannot read %s: %s"), filename, ferror(f) ?
-			strerror(errno) : _("unexpected end of file"));
-		fclose(f);
-		goto fail;
+
+	if (!email) {
+		if (strict && ident_use_config_only
+		    && !(ident_config_given & IDENT_MAIL_GIVEN)) {
+			fputs(env_hint, stderr);
+			die("no email was given and auto-detection is disabled");
+		}
+		email = ident_default_email();
+		if (strict && default_email_is_bogus) {
+			fputs(env_hint, stderr);
+			die("unable to auto-detect email address (got '%s')", email);
+		}
 	}
-	fclose(f);
-	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
-		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
-			filename);
-		goto fail;
+
+	strbuf_reset(&ident);
+	if (want_name) {
+		strbuf_addstr_without_crud(&ident, name);
+		strbuf_addstr(&ident, " <");
 	}
-	if (reset_for_rollback(sha1))
-		goto fail;
-	remove_sequencer_state();
-	strbuf_release(&buf);
-	return 0;
-fail:
-	strbuf_release(&buf);
-	return -1;
+	strbuf_addstr_without_crud(&ident, email);
+	if (want_name)
+			strbuf_addch(&ident, '>');
+	if (want_date) {
+		strbuf_addch(&ident, ' ');
+		if (date_str && date_str[0]) {
+			if (parse_date(date_str, &ident) < 0)
+				die("invalid date format: %s", date_str);
+		}
+		else
+			strbuf_addstr(&ident, ident_default_date());
+	}
+
+	return ident.buf;
 }

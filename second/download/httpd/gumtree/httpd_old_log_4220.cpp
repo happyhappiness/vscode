@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                         "proxy: BALANCER: Found value %s for "
-                         "stickysession %s", *route, balancer->sticky);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, f->c,
+                          "could not split line from buffered SSL brigade");

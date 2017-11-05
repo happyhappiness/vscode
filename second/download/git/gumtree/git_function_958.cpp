@@ -1,41 +1,82 @@
-static void all_attrs_init(struct attr_hashmap *map, struct attr_check *check)
+static int update_clone(int argc, const char **argv, const char *prefix)
 {
-	int i;
+	const char *update = NULL;
+	int max_jobs = -1;
+	struct string_list_item *item;
+	struct pathspec pathspec;
+	struct submodule_update_clone suc = SUBMODULE_UPDATE_CLONE_INIT;
 
-	hashmap_lock(map);
+	struct option module_update_clone_options[] = {
+		OPT_STRING(0, "prefix", &prefix,
+			   N_("path"),
+			   N_("path into the working tree")),
+		OPT_STRING(0, "recursive-prefix", &suc.recursive_prefix,
+			   N_("path"),
+			   N_("path into the working tree, across nested "
+			      "submodule boundaries")),
+		OPT_STRING(0, "update", &update,
+			   N_("string"),
+			   N_("rebase, merge, checkout or none")),
+		OPT_STRING_LIST(0, "reference", &suc.references, N_("repo"),
+			   N_("reference repository")),
+		OPT_STRING(0, "depth", &suc.depth, "<depth>",
+			   N_("Create a shallow clone truncated to the "
+			      "specified number of revisions")),
+		OPT_INTEGER('j', "jobs", &max_jobs,
+			    N_("parallel jobs")),
+		OPT_BOOL(0, "recommend-shallow", &suc.recommend_shallow,
+			    N_("whether the initial clone should follow the shallow recommendation")),
+		OPT__QUIET(&suc.quiet, N_("don't print cloning progress")),
+		OPT_BOOL(0, "progress", &suc.progress,
+			    N_("force cloning progress")),
+		OPT_END()
+	};
 
-	if (map->map.size < check->all_attrs_nr)
-		die("BUG: interned attributes shouldn't be deleted");
+	const char *const git_submodule_helper_usage[] = {
+		N_("git submodule--helper update_clone [--prefix=<path>] [<path>...]"),
+		NULL
+	};
+	suc.prefix = prefix;
+
+	argc = parse_options(argc, argv, prefix, module_update_clone_options,
+			     git_submodule_helper_usage, 0);
+
+	if (update)
+		if (parse_submodule_update_strategy(update, &suc.update) < 0)
+			die(_("bad value for update parameter"));
+
+	if (module_list_compute(argc, argv, prefix, &pathspec, &suc.list) < 0)
+		return 1;
+
+	if (pathspec.nr)
+		suc.warn_if_uninitialized = 1;
+
+	/* Overlay the parsed .gitmodules file with .git/config */
+	gitmodules_config();
+	git_config(submodule_config, NULL);
+
+	if (max_jobs < 0)
+		max_jobs = parallel_submodules();
+
+	run_processes_parallel(max_jobs,
+			       update_clone_get_next_task,
+			       update_clone_start_failure,
+			       update_clone_task_finished,
+			       &suc);
 
 	/*
-	 * If the number of attributes in the global dictionary has increased
-	 * (or this attr_check instance doesn't have an initialized all_attrs
-	 * field), reallocate the provided attr_check instance's all_attrs
-	 * field and fill each entry with its corresponding git_attr.
+	 * We saved the output and put it out all at once now.
+	 * That means:
+	 * - the listener does not have to interleave their (checkout)
+	 *   work with our fetching.  The writes involved in a
+	 *   checkout involve more straightforward sequential I/O.
+	 * - the listener can avoid doing any work if fetching failed.
 	 */
-	if (map->map.size != check->all_attrs_nr) {
-		struct attr_hash_entry *e;
-		struct hashmap_iter iter;
-		hashmap_iter_init(&map->map, &iter);
+	if (suc.quickstop)
+		return 1;
 
-		REALLOC_ARRAY(check->all_attrs, map->map.size);
-		check->all_attrs_nr = map->map.size;
+	for_each_string_list_item(item, &suc.projectlines)
+		fprintf(stdout, "%s", item->string);
 
-		while ((e = hashmap_iter_next(&iter))) {
-			const struct git_attr *a = e->value;
-			check->all_attrs[a->attr_nr].attr = a;
-		}
-	}
-
-	hashmap_unlock(map);
-
-	/*
-	 * Re-initialize every entry in check->all_attrs.
-	 * This re-initialization can live outside of the locked region since
-	 * the attribute dictionary is no longer being accessed.
-	 */
-	for (i = 0; i < check->all_attrs_nr; i++) {
-		check->all_attrs[i].value = ATTR__UNKNOWN;
-		check->all_attrs[i].macro = NULL;
-	}
+	return 0;
 }

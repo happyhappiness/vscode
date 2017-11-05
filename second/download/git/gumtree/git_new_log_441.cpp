@@ -1,1 +1,1 @@
-die(_("could not find commit from NOTES_MERGE_PARTIAL."));
+error(_("could not resolve HEAD commit\n"));

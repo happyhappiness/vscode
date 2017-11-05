@@ -1,1 +1,1 @@
-die("BUG: your snprintf is broken");
+fprintf(opt->diffopt.file, "\n%s\n", opt->break_bar);

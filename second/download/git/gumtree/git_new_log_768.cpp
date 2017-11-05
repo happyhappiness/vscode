@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", ssh_host);
+die(_("Not a valid commit name %s"), oid_to_hex(oid));

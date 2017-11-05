@@ -1,2 +1,1 @@
-error("Unexpected line '%s', expected version",
-			     line ? line : "<flush packet>");
+die(_("invalid path '%s'"), old_name);

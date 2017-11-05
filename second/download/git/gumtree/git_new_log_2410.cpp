@@ -1,1 +1,1 @@
-printf(" %s", oid_to_hex(&parents->item->object.oid));
+warning_errno(_("unable to access '%s'"), path);

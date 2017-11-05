@@ -1,2 +1,2 @@
-warning(_("empty strings as pathspecs will be made invalid in upcoming releases. "
-				  "please use . instead if you meant to match all paths"));
+die_errno("Invalid symlink '%s'",
+						  resolved->buf);

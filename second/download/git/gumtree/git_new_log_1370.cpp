@@ -1,2 +1,2 @@
-die("blob expected in note %s for object %s",
-		    oid_to_hex(note), oid_to_hex(obj));
+die("attempting to allocate %"PRIuMAX" over limit %"PRIuMAX,
+			    (uintmax_t)size, (uintmax_t)limit);

@@ -1,3 +1,1 @@
-die(
-			_("Upstream branch '%s' not stored as a remote-tracking branch"),
-			upstream->merge[0]->src);
+error("bogus commit object %s", sha1_to_hex(item->object.sha1));

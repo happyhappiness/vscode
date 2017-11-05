@@ -1,2 +1,2 @@
-printf("              to %7s %s\n",
-				 typename(obj->type), sha1_to_hex(obj->sha1));
+warning("cannot open /etc/mailname: %s",
+				strerror(errno));

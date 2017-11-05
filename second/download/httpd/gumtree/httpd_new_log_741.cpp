@@ -1,3 +1,2 @@
-ap_rputs("<a href=\"#server\">Server Settings</a>, "
-                     "<a href=\"#startup_hooks\">Startup Hooks</a>, "
-                     "<a href=\"#request_hooks\">Request Hooks</a>", r);
+ap_log_cerror(APLOG_MARK, APLOG_INFO, outctx->rc, c,
+                          "SSL library error %d writing data", ssl_err);

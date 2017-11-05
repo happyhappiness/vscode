@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,
-                          "h2_mplx(%ld): release_join -> destroy", m->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c,
+                      "h2_ngn_shed(%ld): create engine %s (%s)", 
+                      shed->c->id, newngn->id, newngn->type);

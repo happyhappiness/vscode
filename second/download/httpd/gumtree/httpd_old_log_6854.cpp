@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                          "h2_stream(%ld-%d): scheduling push stream",
-                          session->id, stream->id);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01406)
+                                 "inflate: extra field too big (not "
+                                 "supported)");

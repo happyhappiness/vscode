@@ -1,30 +1,29 @@
-static void setup_git_env(void)
+static int diff_cache(struct rev_info *revs,
+		      const unsigned char *tree_sha1,
+		      const char *tree_name,
+		      int cached)
 {
-	struct strbuf sb = STRBUF_INIT;
-	const char *gitfile;
-	const char *shallow_file;
-	const char *replace_ref_base;
+	struct tree *tree;
+	struct tree_desc t;
+	struct unpack_trees_options opts;
 
-	git_dir = getenv(GIT_DIR_ENVIRONMENT);
-	if (!git_dir) {
-		if (!startup_info->have_repository)
-			die("BUG: setup_git_env called without repository");
-		git_dir = DEFAULT_GIT_DIR_ENVIRONMENT;
-	}
-	gitfile = read_gitfile(git_dir);
-	git_dir = xstrdup(gitfile ? gitfile : git_dir);
-	if (get_common_dir(&sb, git_dir))
-		git_common_dir_env = 1;
-	git_common_dir = strbuf_detach(&sb, NULL);
-	git_object_dir = git_path_from_env(DB_ENVIRONMENT, git_common_dir,
-					   "objects", &git_db_env);
-	git_index_file = git_path_from_env(INDEX_ENVIRONMENT, git_dir,
-					   "index", &git_index_env);
-	git_graft_file = git_path_from_env(GRAFT_ENVIRONMENT, git_common_dir,
-					   "info/grafts", &git_graft_env);
-	if (getenv(NO_REPLACE_OBJECTS_ENVIRONMENT))
-		check_replace_refs = 0;
-	replace_ref_base = getenv(GIT_REPLACE_REF_BASE_ENVIRONMENT);
-	git_replace_ref_base = xstrdup(replace_ref_base ? replace_ref_base
-							  : "refs/replace/");
-	namespace = expand_namespace(getenv(GIT_NAMESPACE_ENVIRONMENT)
+	tree = parse_tree_indirect(tree_sha1);
+	if (!tree)
+		return error("bad tree object %s",
+			     tree_name ? tree_name : sha1_to_hex(tree_sha1));
+	memset(&opts, 0, sizeof(opts));
+	opts.head_idx = 1;
+	opts.index_only = cached;
+	opts.diff_index_cached = (cached &&
+				  !DIFF_OPT_TST(&revs->diffopt, FIND_COPIES_HARDER));
+	opts.merge = 1;
+	opts.fn = oneway_diff;
+	opts.unpack_data = revs;
+	opts.src_index = &the_index;
+	opts.dst_index = NULL;
+	opts.pathspec = &revs->diffopt.pathspec;
+	opts.pathspec->recursive = 1;
+
+	init_tree_desc(&t, tree->buffer, tree->size);
+	return unpack_trees(1, &t, &opts);
+}

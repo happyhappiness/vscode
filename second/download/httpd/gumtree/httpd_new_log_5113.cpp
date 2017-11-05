@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00210) "sigaction(SIGINT)");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, 
+                              "Failed to read request header line %s", field);

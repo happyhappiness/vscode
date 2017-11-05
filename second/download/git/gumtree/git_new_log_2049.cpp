@@ -1,1 +1,2 @@
-die("unable to generate diff for %s", pair->one->path);
+error(_("Could not parse parent commit %s\n"),
+				oid_to_hex(&parent->object.oid));

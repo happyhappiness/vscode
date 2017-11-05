@@ -1,29 +1,53 @@
-static void export_marks(char *file)
+int verify_signed_buffer(const char *payload, size_t payload_size,
+			 const char *signature, size_t signature_size,
+			 struct strbuf *gpg_output, struct strbuf *gpg_status)
 {
-	unsigned int i;
-	uint32_t mark;
-	struct object_decoration *deco = idnums.hash;
-	FILE *f;
-	int e = 0;
+	struct child_process gpg = CHILD_PROCESS_INIT;
+	const char *args_gpg[] = {NULL, "--status-fd=1", "--verify", "FILE", "-", NULL};
+	char path[PATH_MAX];
+	int fd, ret;
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf *pbuf = &buf;
 
-	f = fopen(file, "w");
-	if (!f)
-		die_errno("Unable to open marks file %s for writing.", file);
+	args_gpg[0] = gpg_program;
+	fd = git_mkstemp(path, PATH_MAX, ".git_vtag_tmpXXXXXX");
+	if (fd < 0)
+		return error(_("could not create temporary file '%s': %s"),
+			     path, strerror(errno));
+	if (write_in_full(fd, signature, signature_size) < 0)
+		return error(_("failed writing detached signature to '%s': %s"),
+			     path, strerror(errno));
+	close(fd);
 
-	for (i = 0; i < idnums.size; i++) {
-		if (deco->base && deco->base->type == 1) {
-			mark = ptr_to_mark(deco->decoration);
-			if (fprintf(f, ":%"PRIu32" %s\n", mark,
-				sha1_to_hex(deco->base->sha1)) < 0) {
-			    e = 1;
-			    break;
-			}
-		}
-		deco++;
+	gpg.argv = args_gpg;
+	gpg.in = -1;
+	gpg.out = -1;
+	if (gpg_output)
+		gpg.err = -1;
+	args_gpg[3] = path;
+	if (start_command(&gpg)) {
+		unlink(path);
+		return error(_("could not run gpg."));
 	}
 
-	e |= ferror(f);
-	e |= fclose(f);
-	if (e)
-		error("Unable to write marks file %s.", file);
+	write_in_full(gpg.in, payload, payload_size);
+	close(gpg.in);
+
+	if (gpg_output) {
+		strbuf_read(gpg_output, gpg.err, 0);
+		close(gpg.err);
+	}
+	if (gpg_status)
+		pbuf = gpg_status;
+	strbuf_read(pbuf, gpg.out, 0);
+	close(gpg.out);
+
+	ret = finish_command(&gpg);
+
+	unlink_or_warn(path);
+
+	ret |= !strstr(pbuf->buf, "\n[GNUPG:] GOODSIG ");
+	strbuf_release(&buf); /* no matter it was used or not */
+
+	return ret;
 }

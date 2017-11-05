@@ -1,1 +1,1 @@
-error_errno("Could not open %s", path);
+die(_("--author '%s' is not 'Name <email>' and matches no existing author"), name);

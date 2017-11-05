@@ -1,51 +1,56 @@
-static void diff_words_show(struct diff_words_data *diff_words)
+const char *fmt_ident(const char *name, const char *email,
+		      const char *date_str, int flag)
 {
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	mmfile_t minus, plus;
-	struct diff_words_style *style = diff_words->style;
+	static struct strbuf ident = STRBUF_INIT;
+	int strict = (flag & IDENT_STRICT);
+	int want_date = !(flag & IDENT_NO_DATE);
+	int want_name = !(flag & IDENT_NO_NAME);
 
-	struct diff_options *opt = diff_words->opt;
-	const char *line_prefix;
+	if (want_name && !name)
+		name = ident_default_name();
+	if (!email)
+		email = ident_default_email();
 
-	assert(opt);
-	line_prefix = diff_line_prefix(opt);
+	if (want_name && !*name) {
+		struct passwd *pw;
 
-	/* special case: only removal */
-	if (!diff_words->plus.text.size) {
-		fputs(line_prefix, diff_words->opt->file);
-		fn_out_diff_words_write_helper(diff_words->opt->file,
-			&style->old, style->newline,
-			diff_words->minus.text.size,
-			diff_words->minus.text.ptr, line_prefix);
-		diff_words->minus.text.size = 0;
-		return;
+		if (strict) {
+			if (name == git_default_name.buf)
+				fputs(env_hint, stderr);
+			die("empty ident name (for <%s>) not allowed", email);
+		}
+		pw = xgetpwuid_self(NULL);
+		name = pw->pw_name;
 	}
 
-	diff_words->current_plus = diff_words->plus.text.ptr;
-	diff_words->last_minus = 0;
-
-	memset(&xpp, 0, sizeof(xpp));
-	memset(&xecfg, 0, sizeof(xecfg));
-	diff_words_fill(&diff_words->minus, &minus, diff_words->word_regex);
-	diff_words_fill(&diff_words->plus, &plus, diff_words->word_regex);
-	xpp.flags = 0;
-	/* as only the hunk header will be parsed, we need a 0-context */
-	xecfg.ctxlen = 0;
-	if (xdi_diff_outf(&minus, &plus, fn_out_diff_words_aux, diff_words,
-			  &xpp, &xecfg))
-		die("unable to generate word diff");
-	free(minus.ptr);
-	free(plus.ptr);
-	if (diff_words->current_plus != diff_words->plus.text.ptr +
-			diff_words->plus.text.size) {
-		if (color_words_output_graph_prefix(diff_words))
-			fputs(line_prefix, diff_words->opt->file);
-		fn_out_diff_words_write_helper(diff_words->opt->file,
-			&style->ctx, style->newline,
-			diff_words->plus.text.ptr + diff_words->plus.text.size
-			- diff_words->current_plus, diff_words->current_plus,
-			line_prefix);
+	if (want_name && strict &&
+	    name == git_default_name.buf && default_name_is_bogus) {
+		fputs(env_hint, stderr);
+		die("unable to auto-detect name (got '%s')", name);
 	}
-	diff_words->minus.text.size = diff_words->plus.text.size = 0;
+
+	if (strict && email == git_default_email.buf && default_email_is_bogus) {
+		fputs(env_hint, stderr);
+		die("unable to auto-detect email address (got '%s')", email);
+	}
+
+	strbuf_reset(&ident);
+	if (want_name) {
+		strbuf_addstr_without_crud(&ident, name);
+		strbuf_addstr(&ident, " <");
+	}
+	strbuf_addstr_without_crud(&ident, email);
+	if (want_name)
+			strbuf_addch(&ident, '>');
+	if (want_date) {
+		strbuf_addch(&ident, ' ');
+		if (date_str && date_str[0]) {
+			if (parse_date(date_str, &ident) < 0)
+				die("invalid date format: %s", date_str);
+		}
+		else
+			strbuf_addstr(&ident, ident_default_date());
+	}
+
+	return ident.buf;
 }

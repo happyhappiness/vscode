@@ -1,7 +1,3 @@
-printf(remote_branch
-			       ? _("Deleted remote-tracking branch %s (was %s).\n")
-			       : _("Deleted branch %s (was %s).\n"),
-			       bname.buf,
-			       (flags & REF_ISBROKEN) ? "broken"
-			       : (flags & REF_ISSYMREF) ? target
-			       : find_unique_abbrev(sha1, DEFAULT_ABBREV));
+fprintf(stderr,	"PUT %s failed, aborting (%d/%ld)\n",
+				oid_to_hex(&request->obj->oid),
+				request->curl_result, request->http_code);

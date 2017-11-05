@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-             "LDAP: Built with Novell LDAP SDK" );
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                          "missing closing endif directive in parsed document"
+                          " %s", r->filename);

@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "Adding password for %s in realm %s.\n",
-                    user, realm);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, "Error writing to %s",
+                      cls->fname);

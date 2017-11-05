@@ -1,7 +1,10 @@
-static int write_one_shallow(const struct commit_graft *graft, void *cb_data)
+static void mark_recent_complete_commits(struct fetch_pack_args *args,
+					 unsigned long cutoff)
 {
-	FILE *fp = cb_data;
-	if (graft->nr_parent == -1)
-		fprintf(fp, "--shallow %s\n", sha1_to_hex(graft->sha1));
-	return 0;
+	while (complete && cutoff <= complete->item->date) {
+		if (args->verbose)
+			fprintf(stderr, "Marking %s as complete\n",
+				sha1_to_hex(complete->item->object.sha1));
+		pop_most_recent_commit(&complete, COMPLETE);
+	}
 }

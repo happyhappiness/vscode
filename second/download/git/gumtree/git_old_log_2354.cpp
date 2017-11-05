@@ -1,1 +1,3 @@
-printf(" (%s) in %s\n", tag->tag, sha1_to_hex(tag->object.sha1));
+warning("failed utime() on %s: %s",
+			rerere_path(id, "postimage"),
+			strerror(errno));

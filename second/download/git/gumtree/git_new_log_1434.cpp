@@ -1,1 +1,1 @@
-error_errno("Could not open %s", filename);
+printf("would prune %s", message);

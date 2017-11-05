@@ -1,1 +1,1 @@
-fprintf(stderr, "%s%s\n", prefix, msg);
+fprintf(stderr, msg, path);

@@ -1,2 +1,1 @@
-warning("unsupported ssl version %s: using default",
-				ssl_version);
+error(_("malformed format string %s"), sp);

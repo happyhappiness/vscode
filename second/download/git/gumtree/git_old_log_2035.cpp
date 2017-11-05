@@ -1,1 +1,3 @@
-vwritef(child_err, "error: ", err, params);
+warning("failed utime() on %s: %s",
+					rerere_path(name, "postimage"),
+					strerror(errno));

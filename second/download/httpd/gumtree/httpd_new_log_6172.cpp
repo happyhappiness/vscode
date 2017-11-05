@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, workers->s,
-                     "h2_workers: reserved %d tx handles, %d/%d left", 
-                     (int)count, (int)workers->spare_tx_handles,
-                     (int)workers->max_tx_handles);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                          H2_STRM_MSG(stream, "process, add to readyq"));

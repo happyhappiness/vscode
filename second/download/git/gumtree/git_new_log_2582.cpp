@@ -1,1 +1,1 @@
-strbuf_release(&buf);
+error("unable to read files to diff");

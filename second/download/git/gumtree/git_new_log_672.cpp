@@ -1,1 +1,1 @@
-fprintf(stderr, " %c %-*s ", flag, summary_width, summary);
+error(_("could not read 'onto'"));

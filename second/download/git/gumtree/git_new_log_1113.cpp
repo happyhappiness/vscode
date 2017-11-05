@@ -1,1 +1,1 @@
-die_errno("unable to overwrite old ref-pack file");
+die("BUG: packed-refs not locked");

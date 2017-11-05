@@ -1,1 +1,1 @@
-die("whitespace before command: %s", next);
+die("create %s: missing <newvalue>", refname);

@@ -1,1 +1,1 @@
-fprintf(stderr, "Failed to fall back on three-way merge...\n");
+error(_("Unknown subcommand: %s"), argv[0]);

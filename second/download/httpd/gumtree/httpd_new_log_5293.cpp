@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK,APLOG_WARNING, rv, NULL, APLOGNO(00435)
-                             "No installed ConfigArgs for the service "
-                             "\"%s\", using Apache defaults.", service_name);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                  "h2_stream(%ld-%d): send_data_cb for %ld bytes",
+                  session->id, (int)stream_id, (long)length);

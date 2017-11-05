@@ -1,1 +1,1 @@
-status_printf_ln(s, GIT_COLOR_NORMAL, "");
+packet_write(fd[1], "argument %s\n", argv[i]);

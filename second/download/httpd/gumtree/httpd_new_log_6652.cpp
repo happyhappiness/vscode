@@ -1,1 +1,1 @@
-apr_brigade_create(stream->pool, c->bucket_alloc);
+apr_file_printf(errfile, "User %s not found" NL, user);

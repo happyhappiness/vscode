@@ -1,2 +1,6 @@
-error("unknown value after ws-error-highlight=%.*s",
-		      -1 - val, arg);
+fprintf(o, "%s%06o %s %d\t%s\n",
+			label,
+			ce->ce_mode,
+			oid_to_hex(&ce->oid),
+			ce_stage(ce),
+			ce->name);

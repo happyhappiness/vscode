@@ -1,2 +1,4 @@
-apr_file_printf(errfile, "%s: password too long (> %d)\n",
-                argv[0], MAX_STRING_LEN);
+decl_die(access_status, ap_auth_type(r)
+                                  ? "check user.  No user file?"
+                                  : "perform authentication. AuthType not set!",
+                                  r);

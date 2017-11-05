@@ -1,1 +1,2 @@
-die("unable to generate checkdiff for %s", one->path);
+die("size_t overflow: %"PRIuMAX" * %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

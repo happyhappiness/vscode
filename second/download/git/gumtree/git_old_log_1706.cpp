@@ -1,0 +1,1 @@
+fprintf_ln(stderr, _("Enter %s (identifier %s)"), path, name);

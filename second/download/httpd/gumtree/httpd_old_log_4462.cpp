@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, r->server,
-                             "proxy: could not set 100-Continue timeout");
+ap_log_perror(APLOG_MARK, APLOG_CRIT, status, process->pool,
+                      "alloc_listener: failed to set up sockaddr for %s",
+                      addr);

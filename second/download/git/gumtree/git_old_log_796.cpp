@@ -1,0 +1,1 @@
+error("Object %s already has a mark", sha1_to_hex(sha1));

@@ -1,2 +1,1 @@
-die("cannot find commit %s (%s)",
-			    ref_name[num_rev], oid_to_hex(&revkey));
+die_errno(_("Could not write to %s"), git_path_head_file());

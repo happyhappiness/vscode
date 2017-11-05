@@ -1,2 +1,1 @@
-die(_("unknown %.*s format %s"),
-				    (int)(formatp - name), name, formatp);
+die(_("unable to parse object: %s"), name ? name : sha1_to_hex(sha1));

@@ -1,1 +1,1 @@
-packet_write(1, "%s %s^{}\n", sha1_to_hex(peeled), refname_nons);
+warning("object %s: %s", sha1_to_hex(obj->sha1), message);

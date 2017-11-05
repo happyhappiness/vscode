@@ -1,75 +1,50 @@
-static void post_rotate(apr_pool_t *pool, struct logfile *newlog,
-                        rotate_config_t *config, rotate_status_t *status)
+apr_status_t h2_stream_schedule(h2_stream *stream, int eos,
+                                h2_stream_pri_cmp *cmp, void *ctx)
 {
-    apr_status_t rv;
-    char error[120];
-    apr_procattr_t *pattr;
-    const char *argv[4];
-    apr_proc_t proc;
-
-    /* Handle link file, if configured. */
-    if (config->linkfile) {
-        apr_file_remove(config->linkfile, newlog->pool);
-        if (config->verbose) {
-            fprintf(stderr,"Linking %s to %s\n", newlog->name, config->linkfile);
+    apr_status_t status;
+    AP_DEBUG_ASSERT(stream);
+    AP_DEBUG_ASSERT(stream->session);
+    AP_DEBUG_ASSERT(stream->session->mplx);
+    
+    if (!output_open(stream)) {
+        return APR_ECONNRESET;
+    }
+    if (stream->scheduled) {
+        return APR_EINVAL;
+    }
+    if (eos) {
+        close_input(stream);
+    }
+    
+    /* Seeing the end-of-headers, we have everything we need to 
+     * start processing it.
+     */
+    status = h2_request_end_headers(stream->request, stream->pool, eos);
+    if (status == APR_SUCCESS) {
+        if (!eos) {
+            stream->bbin = apr_brigade_create(stream->pool, 
+                                              stream->session->c->bucket_alloc);
         }
-        rv = apr_file_link(newlog->name, config->linkfile);
-        if (rv != APR_SUCCESS) {
-            char error[120];
-            apr_strerror(rv, error, sizeof error);
-            fprintf(stderr, "Error linking file %s to %s (%s)\n",
-                    newlog->name, config->linkfile, error);
-            exit(2);
-        }
-    }
-
-    if (!config->postrotate_prog) {
-        /* Nothing more to do. */
-        return;
-    }
-
-    /* Collect any zombies from a previous run, but don't wait. */
-    while (apr_proc_wait_all_procs(&proc, NULL, NULL, APR_NOWAIT, pool) == APR_CHILD_DONE)
-        /* noop */;
-
-    if ((rv = apr_procattr_create(&pattr, pool)) != APR_SUCCESS) {
-        fprintf(stderr,
-                "post_rotate: apr_procattr_create failed for '%s': %s\n",
-                config->postrotate_prog,
-                apr_strerror(rv, error, sizeof(error)));
-        return;
-    }
-
-    rv = apr_procattr_error_check_set(pattr, 1);
-    if (rv == APR_SUCCESS)
-        rv = apr_procattr_cmdtype_set(pattr, APR_PROGRAM_ENV);
-
-    if (rv != APR_SUCCESS) {
-        fprintf(stderr,
-                "post_rotate: could not set up process attributes for '%s': %s\n",
-                config->postrotate_prog,
-                apr_strerror(rv, error, sizeof(error)));
-        return;
-    }
-
-    argv[0] = config->postrotate_prog;
-    argv[1] = newlog->name;
-    if (status->current.name) {
-        argv[2] = status->current.name;
-        argv[3] = NULL;
+        stream->input_remaining = stream->request->content_length;
+        
+        status = h2_mplx_process(stream->session->mplx, stream->id, 
+                                 stream->request, eos, cmp, ctx);
+        stream->scheduled = 1;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
+                      "h2_stream(%ld-%d): scheduled %s %s://%s%s",
+                      stream->session->id, stream->id,
+                      stream->request->method, stream->request->scheme,
+                      stream->request->authority, stream->request->path);
     }
     else {
-        argv[2] = NULL;
+        h2_stream_rst(stream, H2_ERR_INTERNAL_ERROR);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
+                      "h2_stream(%ld-%d): RST=2 (internal err) %s %s://%s%s",
+                      stream->session->id, stream->id,
+                      stream->request->method, stream->request->scheme,
+                      stream->request->authority, stream->request->path);
     }
-
-    if (config->verbose)
-        fprintf(stderr, "Calling post-rotate program: %s\n", argv[0]);
-
-    rv = apr_proc_create(&proc, argv[0], argv, NULL, pattr, pool);
-    if (rv != APR_SUCCESS) {
-        fprintf(stderr, "Could not spawn post-rotate process '%s': %s\n",
-                config->postrotate_prog,
-                apr_strerror(rv, error, sizeof(error)));
-        return;
-    }
+    
+    return status;
 }

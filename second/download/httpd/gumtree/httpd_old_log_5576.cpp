@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_NOERRNO | APLOG_WARNING, 0, NULL,
-                     "macro '%s' (%s): empty contents!",
-                     macro->name, macro->location);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_task_output(%s): empty write", output->task->id);

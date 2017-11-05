@@ -1,134 +1,104 @@
-int cmd_rev_list(int argc, const char **argv, const char *prefix)
+int reflog_expire(const char *refname, const unsigned char *sha1,
+		 unsigned int flags,
+		 reflog_expiry_prepare_fn prepare_fn,
+		 reflog_expiry_should_prune_fn should_prune_fn,
+		 reflog_expiry_cleanup_fn cleanup_fn,
+		 void *policy_cb_data)
 {
-	struct rev_info revs;
-	struct rev_list_info info;
-	int i;
-	int bisect_list = 0;
-	int bisect_show_vars = 0;
-	int bisect_find_all = 0;
-	int use_bitmap_index = 0;
+	static struct lock_file reflog_lock;
+	struct expire_reflog_cb cb;
+	struct ref_lock *lock;
+	char *log_file;
+	int status = 0;
+	int type;
+	struct strbuf err = STRBUF_INIT;
 
-	git_config(git_default_config, NULL);
-	init_revisions(&revs, prefix);
-	revs.abbrev = DEFAULT_ABBREV;
-	revs.commit_format = CMIT_FMT_UNSPECIFIED;
-	argc = setup_revisions(argc, argv, &revs, NULL);
+	memset(&cb, 0, sizeof(cb));
+	cb.flags = flags;
+	cb.policy_cb = policy_cb_data;
+	cb.should_prune_fn = should_prune_fn;
 
-	memset(&info, 0, sizeof(info));
-	info.revs = &revs;
-	if (revs.bisect)
-		bisect_list = 1;
-
-	if (DIFF_OPT_TST(&revs.diffopt, QUICK))
-		info.flags |= REV_LIST_QUIET;
-	for (i = 1 ; i < argc; i++) {
-		const char *arg = argv[i];
-
-		if (!strcmp(arg, "--header")) {
-			revs.verbose_header = 1;
-			continue;
-		}
-		if (!strcmp(arg, "--timestamp")) {
-			info.show_timestamp = 1;
-			continue;
-		}
-		if (!strcmp(arg, "--bisect")) {
-			bisect_list = 1;
-			continue;
-		}
-		if (!strcmp(arg, "--bisect-all")) {
-			bisect_list = 1;
-			bisect_find_all = 1;
-			info.flags |= BISECT_SHOW_ALL;
-			revs.show_decorations = 1;
-			continue;
-		}
-		if (!strcmp(arg, "--bisect-vars")) {
-			bisect_list = 1;
-			bisect_show_vars = 1;
-			continue;
-		}
-		if (!strcmp(arg, "--use-bitmap-index")) {
-			use_bitmap_index = 1;
-			continue;
-		}
-		if (!strcmp(arg, "--test-bitmap")) {
-			test_bitmap_walk(&revs);
-			return 0;
-		}
-		usage(rev_list_usage);
-
+	/*
+	 * The reflog file is locked by holding the lock on the
+	 * reference itself, plus we might need to update the
+	 * reference if --updateref was specified:
+	 */
+	lock = lock_ref_sha1_basic(refname, sha1, NULL, NULL, 0, &type, &err);
+	if (!lock) {
+		error("cannot lock ref '%s': %s", refname, err.buf);
+		strbuf_release(&err);
+		return -1;
 	}
-	if (revs.commit_format != CMIT_FMT_UNSPECIFIED) {
-		/* The command line has a --pretty  */
-		info.hdr_termination = '\n';
-		if (revs.commit_format == CMIT_FMT_ONELINE)
-			info.header_prefix = "";
-		else
-			info.header_prefix = "commit ";
+	if (!reflog_exists(refname)) {
+		unlock_ref(lock);
+		return 0;
 	}
-	else if (revs.verbose_header)
-		/* Only --header was specified */
-		revs.commit_format = CMIT_FMT_RAW;
 
-	if ((!revs.commits &&
-	     (!(revs.tag_objects || revs.tree_objects || revs.blob_objects) &&
-	      !revs.pending.nr)) ||
-	    revs.diff)
-		usage(rev_list_usage);
-
-	if (revs.show_notes)
-		die(_("rev-list does not support display of notes"));
-
-	save_commit_buffer = (revs.verbose_header ||
-			      revs.grep_filter.pattern_list ||
-			      revs.grep_filter.header_list);
-	if (bisect_list)
-		revs.limited = 1;
-
-	if (use_bitmap_index && !revs.prune) {
-		if (revs.count && !revs.left_right && !revs.cherry_mark) {
-			uint32_t commit_count;
-			if (!prepare_bitmap_walk(&revs)) {
-				count_bitmap_commit_list(&commit_count, NULL, NULL, NULL);
-				printf("%d\n", commit_count);
-				return 0;
-			}
-		} else if (revs.tag_objects && revs.tree_objects && revs.blob_objects) {
-			if (!prepare_bitmap_walk(&revs)) {
-				traverse_bitmap_commit_list(&show_object_fast);
-				return 0;
-			}
+	log_file = git_pathdup("logs/%s", refname);
+	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
+		/*
+		 * Even though holding $GIT_DIR/logs/$reflog.lock has
+		 * no locking implications, we use the lock_file
+		 * machinery here anyway because it does a lot of the
+		 * work we need, including cleaning up if the program
+		 * exits unexpectedly.
+		 */
+		if (hold_lock_file_for_update(&reflog_lock, log_file, 0) < 0) {
+			struct strbuf err = STRBUF_INIT;
+			unable_to_lock_message(log_file, errno, &err);
+			error("%s", err.buf);
+			strbuf_release(&err);
+			goto failure;
+		}
+		cb.newlog = fdopen_lock_file(&reflog_lock, "w");
+		if (!cb.newlog) {
+			error("cannot fdopen %s (%s)",
+			      get_lock_file_path(&reflog_lock), strerror(errno));
+			goto failure;
 		}
 	}
 
-	if (prepare_revision_walk(&revs))
-		die("revision walk setup failed");
-	if (revs.tree_objects)
-		mark_edges_uninteresting(&revs, show_edge);
+	(*prepare_fn)(refname, sha1, cb.policy_cb);
+	for_each_reflog_ent(refname, expire_reflog_ent, &cb);
+	(*cleanup_fn)(cb.policy_cb);
 
-	if (bisect_list) {
-		int reaches = reaches, all = all;
+	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
+		/*
+		 * It doesn't make sense to adjust a reference pointed
+		 * to by a symbolic ref based on expiring entries in
+		 * the symbolic reference's reflog. Nor can we update
+		 * a reference if there are no remaining reflog
+		 * entries.
+		 */
+		int update = (flags & EXPIRE_REFLOGS_UPDATE_REF) &&
+			!(type & REF_ISSYMREF) &&
+			!is_null_sha1(cb.last_kept_sha1);
 
-		revs.commits = find_bisection(revs.commits, &reaches, &all,
-					      bisect_find_all);
-
-		if (bisect_show_vars)
-			return show_bisect_vars(&info, reaches, all);
+		if (close_lock_file(&reflog_lock)) {
+			status |= error("couldn't write %s: %s", log_file,
+					strerror(errno));
+		} else if (update &&
+			   (write_in_full(get_lock_file_fd(lock->lk),
+				sha1_to_hex(cb.last_kept_sha1), 40) != 40 ||
+			    write_str_in_full(get_lock_file_fd(lock->lk), "\n") != 1 ||
+			    close_ref(lock) < 0)) {
+			status |= error("couldn't write %s",
+					get_lock_file_path(lock->lk));
+			rollback_lock_file(&reflog_lock);
+		} else if (commit_lock_file(&reflog_lock)) {
+			status |= error("unable to write reflog %s: %s",
+					log_file, strerror(errno));
+		} else if (update && commit_ref(lock)) {
+			status |= error("couldn't set %s", lock->ref_name);
+		}
 	}
+	free(log_file);
+	unlock_ref(lock);
+	return status;
 
-	traverse_commit_list(&revs, show_commit, show_object, &info);
-
-	if (revs.count) {
-		if (revs.left_right && revs.cherry_mark)
-			printf("%d\t%d\t%d\n", revs.count_left, revs.count_right, revs.count_same);
-		else if (revs.left_right)
-			printf("%d\t%d\n", revs.count_left, revs.count_right);
-		else if (revs.cherry_mark)
-			printf("%d\t%d\n", revs.count_left + revs.count_right, revs.count_same);
-		else
-			printf("%d\n", revs.count_left + revs.count_right);
-	}
-
-	return 0;
+ failure:
+	rollback_lock_file(&reflog_lock);
+	free(log_file);
+	unlock_ref(lock);
+	return -1;
 }

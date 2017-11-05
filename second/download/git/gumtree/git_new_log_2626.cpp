@@ -1,1 +1,1 @@
-die("BUG: attempt to snprintf into too-small buffer");
+fprintf(opt->diffopt.file, "\n%s\n", opt->break_bar);

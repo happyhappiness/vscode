@@ -1,1 +1,0 @@
-die("delete line missing <ref>");

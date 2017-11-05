@@ -1,2 +1,1 @@
-die("unable to generate diff (%s)",
-		    sha1_to_hex(parent->commit->object.sha1));
+fprintf(out, "%s ", oid_to_hex(&obj->oid));

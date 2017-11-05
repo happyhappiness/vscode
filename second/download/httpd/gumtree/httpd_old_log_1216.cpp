@@ -1,2 +1,2 @@
-apr_file_printf(errfile,"Warning: storing passwords as plain text "
-                        "might just not work on this platform.\n");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                  "proxy: error processing end");

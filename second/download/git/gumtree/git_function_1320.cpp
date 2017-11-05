@@ -1,25 +1,49 @@
-static struct child_process *git_proxy_connect(int fd[2], char *host)
+void mark_reachable_objects(struct rev_info *revs, int mark_reflog,
+			    unsigned long mark_recent,
+			    struct progress *progress)
 {
-	const char *port = STR(DEFAULT_GIT_PORT);
-	struct child_process *proxy;
+	struct connectivity_progress cp;
 
-	get_host_and_port(&host, &port);
+	/*
+	 * Set up revision parsing, and mark us as being interested
+	 * in all object types, not just commits.
+	 */
+	revs->tag_objects = 1;
+	revs->blob_objects = 1;
+	revs->tree_objects = 1;
 
-	if (looks_like_command_line_option(host))
-		die("strange hostname '%s' blocked", host);
-	if (looks_like_command_line_option(port))
-		die("strange port '%s' blocked", port);
+	/* Add all refs from the index file */
+	add_index_objects_to_pending(revs, 0);
 
-	proxy = xmalloc(sizeof(*proxy));
-	child_process_init(proxy);
-	argv_array_push(&proxy->args, git_proxy_command);
-	argv_array_push(&proxy->args, host);
-	argv_array_push(&proxy->args, port);
-	proxy->in = -1;
-	proxy->out = -1;
-	if (start_command(proxy))
-		die("cannot start proxy %s", git_proxy_command);
-	fd[0] = proxy->out; /* read from proxy stdout */
-	fd[1] = proxy->in;  /* write to proxy stdin */
-	return proxy;
+	/* Add all external refs */
+	for_each_ref(add_one_ref, revs);
+
+	/* detached HEAD is not included in the list above */
+	head_ref(add_one_ref, revs);
+
+	/* Add all reflog info */
+	if (mark_reflog)
+		add_reflogs_to_pending(revs, 0);
+
+	cp.progress = progress;
+	cp.count = 0;
+
+	/*
+	 * Set up the revision walk - this will move all commits
+	 * from the pending list to the commit walking list.
+	 */
+	if (prepare_revision_walk(revs))
+		die("revision walk setup failed");
+	traverse_commit_list(revs, mark_commit, mark_object, &cp);
+
+	if (mark_recent) {
+		revs->ignore_missing_links = 1;
+		if (add_unseen_recent_objects_to_traversal(revs, mark_recent))
+			die("unable to mark recent objects");
+		if (prepare_revision_walk(revs))
+			die("revision walk setup failed");
+		traverse_commit_list(revs, mark_commit, mark_object, &cp);
+	}
+
+	display_progress(cp.progress, cp.count);
 }

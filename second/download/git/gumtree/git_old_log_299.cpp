@@ -1,1 +1,2 @@
-die(_("invalid path '%s'"), old_name);
+die("--reflog is incompatible with --all, --remotes, "
+			    "--independent or --merge-base");

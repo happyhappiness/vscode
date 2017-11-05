@@ -1,1 +1,1 @@
-die("cannot use Perl-compatible regexes when not compiled with USE_LIBPCRE");
+die("helper %s does not support --signed", data->name);

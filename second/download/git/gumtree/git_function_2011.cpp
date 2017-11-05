@@ -1,15 +1,13 @@
-static void fsck_handle_reflog_sha1(const char *refname, unsigned char *sha1)
+static void test_show_object(struct object *object, const char *name,
+			     void *data)
 {
-	struct object *obj;
+	struct bitmap_test_data *tdata = data;
+	int bitmap_pos;
 
-	if (!is_null_sha1(sha1)) {
-		obj = lookup_object(sha1);
-		if (obj) {
-			obj->used = 1;
-			mark_object_reachable(obj);
-		} else {
-			error("%s: invalid reflog entry %s", refname, sha1_to_hex(sha1));
-			errors_found |= ERROR_REACHABLE;
-		}
-	}
+	bitmap_pos = bitmap_position(object->sha1);
+	if (bitmap_pos < 0)
+		die("Object not in bitmap: %s\n", sha1_to_hex(object->sha1));
+
+	bitmap_set(tdata->base, bitmap_pos);
+	display_progress(tdata->prg, ++tdata->seen);
 }

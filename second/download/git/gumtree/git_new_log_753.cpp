@@ -1,2 +1,1 @@
-warning("adding alternate object store: %s",
-					target.buf);
+die(_("name consists only of disallowed characters: %s"), name);

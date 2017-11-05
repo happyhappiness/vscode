@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Cannot find certificate storage");
+fprintf(stderr, "crypt() failed: %s\n", 
+                        apr_strerror(errno, errbuf, sizeof errbuf));

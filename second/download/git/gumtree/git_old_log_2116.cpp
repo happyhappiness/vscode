@@ -1,1 +1,1 @@
-error("%s", err.buf);
+warning("%s\n", _(warn_unspecified_push_default_msg));

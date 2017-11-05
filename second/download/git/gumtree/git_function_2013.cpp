@@ -1,30 +1,57 @@
-static void pass_blame_to_parent(struct scoreboard *sb,
-				 struct origin *target,
-				 struct origin *parent)
+void test_bitmap_walk(struct rev_info *revs)
 {
-	mmfile_t file_p, file_o;
-	struct blame_chunk_cb_data d;
-	struct blame_entry *newdest = NULL;
+	struct object *root;
+	struct bitmap *result = NULL;
+	khiter_t pos;
+	size_t result_popcnt;
+	struct bitmap_test_data tdata;
 
-	if (!target->suspects)
-		return; /* nothing remains for this target */
+	if (prepare_bitmap_git())
+		die("failed to load bitmap indexes");
 
-	d.parent = parent;
-	d.offset = 0;
-	d.dstq = &newdest; d.srcq = &target->suspects;
+	if (revs->pending.nr != 1)
+		die("you must specify exactly one commit to test");
 
-	fill_origin_blob(&sb->revs->diffopt, parent, &file_p);
-	fill_origin_blob(&sb->revs->diffopt, target, &file_o);
-	num_get_patch++;
+	fprintf(stderr, "Bitmap v%d test (%d entries loaded)\n",
+		bitmap_git.version, bitmap_git.entry_count);
 
-	if (diff_hunks(&file_p, &file_o, 0, blame_chunk_cb, &d))
-		die("unable to generate diff (%s -> %s)",
-		    sha1_to_hex(parent->commit->object.sha1),
-		    sha1_to_hex(target->commit->object.sha1));
-	/* The rest are the same as the parent */
-	blame_chunk(&d.dstq, &d.srcq, INT_MAX, d.offset, INT_MAX, parent);
-	*d.dstq = NULL;
-	queue_blames(sb, parent, newdest);
+	root = revs->pending.objects[0].item;
+	pos = kh_get_sha1(bitmap_git.bitmaps, root->sha1);
 
-	return;
+	if (pos < kh_end(bitmap_git.bitmaps)) {
+		struct stored_bitmap *st = kh_value(bitmap_git.bitmaps, pos);
+		struct ewah_bitmap *bm = lookup_stored_bitmap(st);
+
+		fprintf(stderr, "Found bitmap for %s. %d bits / %08x checksum\n",
+			sha1_to_hex(root->sha1), (int)bm->bit_size, ewah_checksum(bm));
+
+		result = ewah_to_bitmap(bm);
+	}
+
+	if (result == NULL)
+		die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));
+
+	revs->tag_objects = 1;
+	revs->tree_objects = 1;
+	revs->blob_objects = 1;
+
+	result_popcnt = bitmap_popcount(result);
+
+	if (prepare_revision_walk(revs))
+		die("revision walk setup failed");
+
+	tdata.base = bitmap_new();
+	tdata.prg = start_progress("Verifying bitmap entries", result_popcnt);
+	tdata.seen = 0;
+
+	traverse_commit_list(revs, &test_show_commit, &test_show_object, &tdata);
+
+	stop_progress(&tdata.prg);
+
+	if (bitmap_equals(result, tdata.base))
+		fprintf(stderr, "OK!\n");
+	else
+		fprintf(stderr, "Mismatch!\n");
+
+	bitmap_free(result);
 }
