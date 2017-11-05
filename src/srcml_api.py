@@ -313,13 +313,14 @@ class SrcmlApi:
                     if func_node is not None:
                         self._update_dict(depended_nodes, candi_line, my_constant.VAR_FUNC_RETURN, func_node)
                         continue
+                    self._update_dict(depended_nodes, candi_line, my_constant.VAR_TYPE, type_node)
                 # filter by decl --type ----name ----modifier --name
                 decl_node = candi_node.getparent()
                 if decl_node is not None and self._remove_prefix(decl_node) == 'decl':
                     # mark is pointer or not
                     type_node = self._get_real_type_node(candi_node.getprevious())
                     is_ptr = self._is_pointer(type_node)
-                    self._update_dict(depended_nodes, candi_line, my_constant.VAR_TYPE, decl_node[0])
+                    self._update_dict(depended_nodes, candi_line, my_constant.VAR_TYPE, type_node)
                     continue
             # find use as argument for functions
             else:
@@ -405,7 +406,7 @@ class SrcmlApi:
                 prev_node = decl_node.getprevious()
                 while self._remove_prefix(prev_node) != 'decl':
                     prev_node = prev_node.getprevious()
-                return prev_node[0]
+                node = prev_node[0]
 
     def _get_sub_call_node(self, node):
         """
@@ -534,8 +535,8 @@ if __name__ == "__main__":
     # input function cpp file
     # srcml_api = SrcmlApi('second/download/rsync/gumtree/curl_repos_function_698.cpp', is_function=True)
     # print srcml_api.get_logs_calls_types()
-    srcml_api = SrcmlApi('second/download/mutt/gumtree/mutt_repos_function_1636.cpp')
-    if srcml_api.set_log_loc(26):
+    srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_function_3801.cpp')
+    if srcml_api.set_log_loc(236):
         if srcml_api.set_control_dependence():
             print srcml_api.get_control_info()
             print srcml_api.get_log_info()

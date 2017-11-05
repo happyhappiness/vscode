@@ -160,6 +160,10 @@ if __name__ == "__main__":
     # mutt
     # analyze_repos("mutt-1.7.2")
     # rsync
-    analyze_repos("rsync-1.4.4")
+    # analyze_repos("rsync-1.4.4")
+    # git
+    # analyze_repos('git-2.6.7')
+    # httpd
+    analyze_repos('httpd-2.3.8')
     cluster_repos_log()
     # cluster_repos_log()

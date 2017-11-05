@@ -1,401 +1,70 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.41.0/include/curl/multi.h" pos:tabs="8"><cpp:ifndef pos:line="1" pos:column="1">#<cpp:directive pos:line="1" pos:column="2">ifndef<pos:position pos:line="1" pos:column="8"/></cpp:directive> <name pos:line="1" pos:column="9">__CURL_MULTI_H<pos:position pos:line="1" pos:column="23"/></name></cpp:ifndef>
-<cpp:define pos:line="2" pos:column="1">#<cpp:directive pos:line="2" pos:column="2">define<pos:position pos:line="2" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="2" pos:column="9">__CURL_MULTI_H<pos:position pos:line="2" pos:column="23"/></name></cpp:macro></cpp:define>
-<comment type="block" pos:line="3" pos:column="1">/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ &lt;| |___
- *                             \___|\___/|_| \_\_____|
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.3.8/server/mpm/mpmt_os2/mpm_default.h" pos:tabs="8"><comment type="block" pos:line="1" pos:column="1">/* Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
- * Copyright (C) 1998 - 2013, Daniel Stenberg, &lt;daniel@haxx.se&gt;, et al.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/</comment>
-<comment type="block" pos:line="24" pos:column="1">/*
-  This is an "external" header file. Don't give away any internals here!
-
-  GOALS
-
-  o Enable a "pull" interface. The application that uses libcurl decides where
-    and when to ask libcurl to get/send data.
-
-  o Enable multiple simultaneous transfers in the same thread without making it
-    complicated for the application.
-
-  o Enable the application to select() on its own file descriptors and curl's
-    file descriptors simultaneous easily.
-
-*/</comment>
-
-<comment type="block" pos:line="40" pos:column="1">/*
- * This header file should not really need to include "curl.h" since curl.h
- * itself includes this file and we expect user applications to do #include
- * &lt;curl/curl.h&gt; without the need for especially including multi.h.
- *
- * For some reason we added this include here at one point, and rather than to
- * break existing (wrongly written) libcurl applications, we leave it as-is
- * but with this warning attached.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */</comment>
-<cpp:include pos:line="49" pos:column="1">#<cpp:directive pos:line="49" pos:column="2">include<pos:position pos:line="49" pos:column="9"/></cpp:directive> <cpp:file pos:line="49" pos:column="10">"curl.h"<pos:position pos:line="49" pos:column="18"/></cpp:file></cpp:include>
 
-<cpp:ifdef pos:line="51" pos:column="1">#<cpp:directive pos:line="51" pos:column="2">ifdef<pos:position pos:line="51" pos:column="7"/></cpp:directive>  <name pos:line="51" pos:column="9">__cplusplus<pos:position pos:line="51" pos:column="20"/></name></cpp:ifdef>
-<extern pos:line="52" pos:column="1">extern <literal type="string" pos:line="52" pos:column="8">"C"<pos:position pos:line="52" pos:column="11"/></literal> <block pos:line="52" pos:column="12">{
-<cpp:endif pos:line="53" pos:column="1">#<cpp:directive pos:line="53" pos:column="2">endif<pos:position pos:line="53" pos:column="7"/></cpp:directive></cpp:endif>
-
-<typedef pos:line="55" pos:column="1">typedef <type><name pos:line="55" pos:column="9">void<pos:position pos:line="55" pos:column="13"/></name></type> <name pos:line="55" pos:column="14">CURLM<pos:position pos:line="55" pos:column="19"/></name>;<pos:position pos:line="55" pos:column="20"/></typedef>
-
-<typedef pos:line="57" pos:column="1">typedef <type><enum pos:line="57" pos:column="9">enum <block pos:line="57" pos:column="14">{
-  <decl><name pos:line="58" pos:column="3">CURLM_CALL_MULTI_PERFORM<pos:position pos:line="58" pos:column="27"/></name> <init pos:line="58" pos:column="28">= <expr><operator pos:line="58" pos:column="30">-<pos:position pos:line="58" pos:column="31"/></operator><literal type="number" pos:line="58" pos:column="31">1<pos:position pos:line="58" pos:column="32"/></literal></expr></init></decl>, <comment type="block" pos:line="58" pos:column="34">/* please call curl_multi_perform() or
-                                    curl_multi_socket*() soon */</comment>
-  <decl><name pos:line="60" pos:column="3">CURLM_OK<pos:position pos:line="60" pos:column="11"/></name></decl>,
-  <decl><name pos:line="61" pos:column="3">CURLM_BAD_HANDLE<pos:position pos:line="61" pos:column="19"/></name></decl>,      <comment type="block" pos:line="61" pos:column="26">/* the passed-in handle is not a valid CURLM handle */</comment>
-  <decl><name pos:line="62" pos:column="3">CURLM_BAD_EASY_HANDLE<pos:position pos:line="62" pos:column="24"/></name></decl>, <comment type="block" pos:line="62" pos:column="26">/* an easy handle was not good/valid */</comment>
-  <decl><name pos:line="63" pos:column="3">CURLM_OUT_OF_MEMORY<pos:position pos:line="63" pos:column="22"/></name></decl>,   <comment type="block" pos:line="63" pos:column="26">/* if you ever get this, you're in deep sh*t */</comment>
-  <decl><name pos:line="64" pos:column="3">CURLM_INTERNAL_ERROR<pos:position pos:line="64" pos:column="23"/></name></decl>,  <comment type="block" pos:line="64" pos:column="26">/* this is a libcurl bug */</comment>
-  <decl><name pos:line="65" pos:column="3">CURLM_BAD_SOCKET<pos:position pos:line="65" pos:column="19"/></name></decl>,      <comment type="block" pos:line="65" pos:column="26">/* the passed in socket argument did not match */</comment>
-  <decl><name pos:line="66" pos:column="3">CURLM_UNKNOWN_OPTION<pos:position pos:line="66" pos:column="23"/></name></decl>,  <comment type="block" pos:line="66" pos:column="26">/* curl_multi_setopt() with unsupported option */</comment>
-  <decl><name pos:line="67" pos:column="3">CURLM_ADDED_ALREADY<pos:position pos:line="67" pos:column="22"/></name></decl>,   <comment type="block" pos:line="67" pos:column="26">/* an easy handle already added to a multi handle was
-                            attempted to get added - again */</comment>
-  <decl><name pos:line="69" pos:column="3">CURLM_LAST<pos:position pos:line="69" pos:column="13"/></name></decl>
-}<pos:position pos:line="70" pos:column="2"/></block></enum></type> <name pos:line="70" pos:column="3">CURLMcode<pos:position pos:line="70" pos:column="12"/></name>;<pos:position pos:line="70" pos:column="13"/></typedef>
-
-<comment type="block" pos:line="72" pos:column="1">/* just to make code nicer when using curl_multi_socket() you can now check
-   for CURLM_CALL_MULTI_SOCKET too in the same style it works for
-   curl_multi_perform() and CURLM_CALL_MULTI_PERFORM */</comment>
-<cpp:define pos:line="75" pos:column="1">#<cpp:directive pos:line="75" pos:column="2">define<pos:position pos:line="75" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="75" pos:column="9">CURLM_CALL_MULTI_SOCKET<pos:position pos:line="75" pos:column="32"/></name></cpp:macro> <cpp:value pos:line="75" pos:column="33">CURLM_CALL_MULTI_PERFORM<pos:position pos:line="75" pos:column="57"/></cpp:value></cpp:define>
-
-<typedef pos:line="77" pos:column="1">typedef <type><enum pos:line="77" pos:column="9">enum <block pos:line="77" pos:column="14">{
-  <decl><name pos:line="78" pos:column="3">CURLMSG_NONE<pos:position pos:line="78" pos:column="15"/></name></decl>, <comment type="block" pos:line="78" pos:column="17">/* first, not used */</comment>
-  <decl><name pos:line="79" pos:column="3">CURLMSG_DONE<pos:position pos:line="79" pos:column="15"/></name></decl>, <comment type="block" pos:line="79" pos:column="17">/* This easy handle has completed. 'result' contains
-                   the CURLcode of the transfer */</comment>
-  <decl><name pos:line="81" pos:column="3">CURLMSG_LAST<pos:position pos:line="81" pos:column="15"/></name></decl> <comment type="block" pos:line="81" pos:column="16">/* last, not used */</comment>
-}<pos:position pos:line="82" pos:column="2"/></block></enum></type> <name pos:line="82" pos:column="3">CURLMSG<pos:position pos:line="82" pos:column="10"/></name>;<pos:position pos:line="82" pos:column="11"/></typedef>
-
-<struct pos:line="84" pos:column="1">struct <name pos:line="84" pos:column="8">CURLMsg<pos:position pos:line="84" pos:column="15"/></name> <block pos:line="84" pos:column="16">{
-  <decl_stmt><decl><type><name pos:line="85" pos:column="3">CURLMSG<pos:position pos:line="85" pos:column="10"/></name></type> <name pos:line="85" pos:column="11">msg<pos:position pos:line="85" pos:column="14"/></name></decl>;<pos:position pos:line="85" pos:column="15"/></decl_stmt>       <comment type="block" pos:line="85" pos:column="22">/* what this message means */</comment>
-  <decl_stmt><decl><type><name pos:line="86" pos:column="3">CURL<pos:position pos:line="86" pos:column="7"/></name> <modifier pos:line="86" pos:column="8">*<pos:position pos:line="86" pos:column="9"/></modifier></type><name pos:line="86" pos:column="9">easy_handle<pos:position pos:line="86" pos:column="20"/></name></decl>;<pos:position pos:line="86" pos:column="21"/></decl_stmt> <comment type="block" pos:line="86" pos:column="22">/* the handle it concerns */</comment>
-  <union pos:line="87" pos:column="3">union <block pos:line="87" pos:column="9">{
-    <decl_stmt><decl><type><name pos:line="88" pos:column="5">void<pos:position pos:line="88" pos:column="9"/></name> <modifier pos:line="88" pos:column="10">*<pos:position pos:line="88" pos:column="11"/></modifier></type><name pos:line="88" pos:column="11">whatever<pos:position pos:line="88" pos:column="19"/></name></decl>;<pos:position pos:line="88" pos:column="20"/></decl_stmt>    <comment type="block" pos:line="88" pos:column="24">/* message-specific data */</comment>
-    <decl_stmt><decl><type><name pos:line="89" pos:column="5">CURLcode<pos:position pos:line="89" pos:column="13"/></name></type> <name pos:line="89" pos:column="14">result<pos:position pos:line="89" pos:column="20"/></name></decl>;<pos:position pos:line="89" pos:column="21"/></decl_stmt>   <comment type="block" pos:line="89" pos:column="24">/* return code for transfer */</comment>
-  }<pos:position pos:line="90" pos:column="4"/></block> <decl><name pos:line="90" pos:column="5">data<pos:position pos:line="90" pos:column="9"/></name></decl>;<pos:position pos:line="90" pos:column="10"/></union>
-}<pos:position pos:line="91" pos:column="2"/></block>;<pos:position pos:line="91" pos:column="3"/></struct>
-<typedef pos:line="92" pos:column="1">typedef <type><name><name pos:line="92" pos:column="9">struct<pos:position pos:line="92" pos:column="15"/></name> <name pos:line="92" pos:column="16">CURLMsg<pos:position pos:line="92" pos:column="23"/></name></name></type> <name pos:line="92" pos:column="24">CURLMsg<pos:position pos:line="92" pos:column="31"/></name>;<pos:position pos:line="92" pos:column="32"/></typedef>
-
-<comment type="block" pos:line="94" pos:column="1">/* Based on poll(2) structure and values.
- * We don't use pollfd and POLL* constants explicitly
- * to cover platforms without poll(). */</comment>
-<cpp:define pos:line="97" pos:column="1">#<cpp:directive pos:line="97" pos:column="2">define<pos:position pos:line="97" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="97" pos:column="9">CURL_WAIT_POLLIN<pos:position pos:line="97" pos:column="25"/></name></cpp:macro>    <cpp:value pos:line="97" pos:column="29">0x0001<pos:position pos:line="97" pos:column="35"/></cpp:value></cpp:define>
-<cpp:define pos:line="98" pos:column="1">#<cpp:directive pos:line="98" pos:column="2">define<pos:position pos:line="98" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="98" pos:column="9">CURL_WAIT_POLLPRI<pos:position pos:line="98" pos:column="26"/></name></cpp:macro>   <cpp:value pos:line="98" pos:column="29">0x0002<pos:position pos:line="98" pos:column="35"/></cpp:value></cpp:define>
-<cpp:define pos:line="99" pos:column="1">#<cpp:directive pos:line="99" pos:column="2">define<pos:position pos:line="99" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="99" pos:column="9">CURL_WAIT_POLLOUT<pos:position pos:line="99" pos:column="26"/></name></cpp:macro>   <cpp:value pos:line="99" pos:column="29">0x0004<pos:position pos:line="99" pos:column="35"/></cpp:value></cpp:define>
-
-<struct pos:line="101" pos:column="1">struct <name pos:line="101" pos:column="8">curl_waitfd<pos:position pos:line="101" pos:column="19"/></name> <block pos:line="101" pos:column="20">{
-  <decl_stmt><decl><type><name pos:line="102" pos:column="3">curl_socket_t<pos:position pos:line="102" pos:column="16"/></name></type> <name pos:line="102" pos:column="17">fd<pos:position pos:line="102" pos:column="19"/></name></decl>;<pos:position pos:line="102" pos:column="20"/></decl_stmt>
-  <decl_stmt><decl><type><name pos:line="103" pos:column="3">short<pos:position pos:line="103" pos:column="8"/></name></type> <name pos:line="103" pos:column="9">events<pos:position pos:line="103" pos:column="15"/></name></decl>;<pos:position pos:line="103" pos:column="16"/></decl_stmt>
-  <decl_stmt><decl><type><name pos:line="104" pos:column="3">short<pos:position pos:line="104" pos:column="8"/></name></type> <name pos:line="104" pos:column="9">revents<pos:position pos:line="104" pos:column="16"/></name></decl>;<pos:position pos:line="104" pos:column="17"/></decl_stmt> <comment type="block" pos:line="104" pos:column="18">/* not supported yet */</comment>
-}<pos:position pos:line="105" pos:column="2"/></block>;<pos:position pos:line="105" pos:column="3"/></struct>
-
-<comment type="block" pos:line="107" pos:column="1">/*
- * Name:    curl_multi_init()
- *
- * Desc:    inititalize multi-style curl usage
- *
- * Returns: a new CURLM handle to use in all 'curl_multi' functions.
+<comment type="block" pos:line="17" pos:column="1">/**
+ * @file  mpmt_os2/mpm_default.h
+ * @brief os2 MPM defaults
+ * 
+ * @addtogroup APACHE_MPM_OS2
+ * @{
  */</comment>
-<function_decl><type><name pos:line="114" pos:column="1">CURL_EXTERN<pos:position pos:line="114" pos:column="12"/></name> <name pos:line="114" pos:column="13">CURLM<pos:position pos:line="114" pos:column="18"/></name> <modifier pos:line="114" pos:column="19">*<pos:position pos:line="114" pos:column="20"/></modifier></type><name pos:line="114" pos:column="20">curl_multi_init<pos:position pos:line="114" pos:column="35"/></name><parameter_list pos:line="114" pos:column="35">(<parameter><decl><type><name pos:line="114" pos:column="36">void<pos:position pos:line="114" pos:column="40"/></name></type></decl></parameter>)<pos:position pos:line="114" pos:column="41"/></parameter_list>;<pos:position pos:line="114" pos:column="42"/></function_decl>
 
-<comment type="block" pos:line="116" pos:column="1">/*
- * Name:    curl_multi_add_handle()
- *
- * Desc:    add a standard curl handle to the multi stack
- *
- * Returns: CURLMcode type, general multi error code.
+<cpp:ifndef pos:line="25" pos:column="1">#<cpp:directive pos:line="25" pos:column="2">ifndef<pos:position pos:line="25" pos:column="8"/></cpp:directive> <name pos:line="25" pos:column="9">APACHE_MPM_DEFAULT_H<pos:position pos:line="25" pos:column="29"/></name></cpp:ifndef>
+<cpp:define pos:line="26" pos:column="1">#<cpp:directive pos:line="26" pos:column="2">define<pos:position pos:line="26" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="26" pos:column="9">APACHE_MPM_DEFAULT_H<pos:position pos:line="26" pos:column="29"/></name></cpp:macro></cpp:define>
+
+<comment type="block" pos:line="28" pos:column="1">/* Number of servers processes to spawn off by default
  */</comment>
-<function_decl><type><name pos:line="123" pos:column="1">CURL_EXTERN<pos:position pos:line="123" pos:column="12"/></name> <name pos:line="123" pos:column="13">CURLMcode<pos:position pos:line="123" pos:column="22"/></name></type> <name pos:line="123" pos:column="23">curl_multi_add_handle<pos:position pos:line="123" pos:column="44"/></name><parameter_list pos:line="123" pos:column="44">(<parameter><decl><type><name pos:line="123" pos:column="45">CURLM<pos:position pos:line="123" pos:column="50"/></name> <modifier pos:line="123" pos:column="51">*<pos:position pos:line="123" pos:column="52"/></modifier></type><name pos:line="123" pos:column="52">multi_handle<pos:position pos:line="123" pos:column="64"/></name></decl></parameter>,
-                                            <parameter><decl><type><name pos:line="124" pos:column="45">CURL<pos:position pos:line="124" pos:column="49"/></name> <modifier pos:line="124" pos:column="50">*<pos:position pos:line="124" pos:column="51"/></modifier></type><name pos:line="124" pos:column="51">curl_handle<pos:position pos:line="124" pos:column="62"/></name></decl></parameter>)<pos:position pos:line="124" pos:column="63"/></parameter_list>;<pos:position pos:line="124" pos:column="64"/></function_decl>
+<cpp:ifndef pos:line="30" pos:column="1">#<cpp:directive pos:line="30" pos:column="2">ifndef<pos:position pos:line="30" pos:column="8"/></cpp:directive> <name pos:line="30" pos:column="9">DEFAULT_START_DAEMON<pos:position pos:line="30" pos:column="29"/></name></cpp:ifndef>
+<cpp:define pos:line="31" pos:column="1">#<cpp:directive pos:line="31" pos:column="2">define<pos:position pos:line="31" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="31" pos:column="9">DEFAULT_START_DAEMON<pos:position pos:line="31" pos:column="29"/></name></cpp:macro> <cpp:value pos:line="31" pos:column="30">2<pos:position pos:line="31" pos:column="31"/></cpp:value></cpp:define>
+<cpp:endif pos:line="32" pos:column="1">#<cpp:directive pos:line="32" pos:column="2">endif<pos:position pos:line="32" pos:column="7"/></cpp:directive></cpp:endif>
 
- <comment type="block" pos:line="126" pos:column="2">/*
-  * Name:    curl_multi_remove_handle()
-  *
-  * Desc:    removes a curl handle from the multi stack again
-  *
-  * Returns: CURLMcode type, general multi error code.
-  */</comment>
-<function_decl><type><name pos:line="133" pos:column="1">CURL_EXTERN<pos:position pos:line="133" pos:column="12"/></name> <name pos:line="133" pos:column="13">CURLMcode<pos:position pos:line="133" pos:column="22"/></name></type> <name pos:line="133" pos:column="23">curl_multi_remove_handle<pos:position pos:line="133" pos:column="47"/></name><parameter_list pos:line="133" pos:column="47">(<parameter><decl><type><name pos:line="133" pos:column="48">CURLM<pos:position pos:line="133" pos:column="53"/></name> <modifier pos:line="133" pos:column="54">*<pos:position pos:line="133" pos:column="55"/></modifier></type><name pos:line="133" pos:column="55">multi_handle<pos:position pos:line="133" pos:column="67"/></name></decl></parameter>,
-                                               <parameter><decl><type><name pos:line="134" pos:column="48">CURL<pos:position pos:line="134" pos:column="52"/></name> <modifier pos:line="134" pos:column="53">*<pos:position pos:line="134" pos:column="54"/></modifier></type><name pos:line="134" pos:column="54">curl_handle<pos:position pos:line="134" pos:column="65"/></name></decl></parameter>)<pos:position pos:line="134" pos:column="66"/></parameter_list>;<pos:position pos:line="134" pos:column="67"/></function_decl>
-
- <comment type="block" pos:line="136" pos:column="2">/*
-  * Name:    curl_multi_fdset()
-  *
-  * Desc:    Ask curl for its fd_set sets. The app can use these to select() or
-  *          poll() on. We want curl_multi_perform() called as soon as one of
-  *          them are ready.
-  *
-  * Returns: CURLMcode type, general multi error code.
-  */</comment>
-<function_decl><type><name pos:line="145" pos:column="1">CURL_EXTERN<pos:position pos:line="145" pos:column="12"/></name> <name pos:line="145" pos:column="13">CURLMcode<pos:position pos:line="145" pos:column="22"/></name></type> <name pos:line="145" pos:column="23">curl_multi_fdset<pos:position pos:line="145" pos:column="39"/></name><parameter_list pos:line="145" pos:column="39">(<parameter><decl><type><name pos:line="145" pos:column="40">CURLM<pos:position pos:line="145" pos:column="45"/></name> <modifier pos:line="145" pos:column="46">*<pos:position pos:line="145" pos:column="47"/></modifier></type><name pos:line="145" pos:column="47">multi_handle<pos:position pos:line="145" pos:column="59"/></name></decl></parameter>,
-                                       <parameter><decl><type><name pos:line="146" pos:column="40">fd_set<pos:position pos:line="146" pos:column="46"/></name> <modifier pos:line="146" pos:column="47">*<pos:position pos:line="146" pos:column="48"/></modifier></type><name pos:line="146" pos:column="48">read_fd_set<pos:position pos:line="146" pos:column="59"/></name></decl></parameter>,
-                                       <parameter><decl><type><name pos:line="147" pos:column="40">fd_set<pos:position pos:line="147" pos:column="46"/></name> <modifier pos:line="147" pos:column="47">*<pos:position pos:line="147" pos:column="48"/></modifier></type><name pos:line="147" pos:column="48">write_fd_set<pos:position pos:line="147" pos:column="60"/></name></decl></parameter>,
-                                       <parameter><decl><type><name pos:line="148" pos:column="40">fd_set<pos:position pos:line="148" pos:column="46"/></name> <modifier pos:line="148" pos:column="47">*<pos:position pos:line="148" pos:column="48"/></modifier></type><name pos:line="148" pos:column="48">exc_fd_set<pos:position pos:line="148" pos:column="58"/></name></decl></parameter>,
-                                       <parameter><decl><type><name pos:line="149" pos:column="40">int<pos:position pos:line="149" pos:column="43"/></name> <modifier pos:line="149" pos:column="44">*<pos:position pos:line="149" pos:column="45"/></modifier></type><name pos:line="149" pos:column="45">max_fd<pos:position pos:line="149" pos:column="51"/></name></decl></parameter>)<pos:position pos:line="149" pos:column="52"/></parameter_list>;<pos:position pos:line="149" pos:column="53"/></function_decl>
-
-<comment type="block" pos:line="151" pos:column="1">/*
- * Name:     curl_multi_wait()
- *
- * Desc:     Poll on all fds within a CURLM set as well as any
- *           additional fds passed to the function.
- *
- * Returns:  CURLMcode type, general multi error code.
+<comment type="block" pos:line="34" pos:column="1">/* Maximum number of *free* server threads --- more than this, and
+ * they will die off.
  */</comment>
-<function_decl><type><name pos:line="159" pos:column="1">CURL_EXTERN<pos:position pos:line="159" pos:column="12"/></name> <name pos:line="159" pos:column="13">CURLMcode<pos:position pos:line="159" pos:column="22"/></name></type> <name pos:line="159" pos:column="23">curl_multi_wait<pos:position pos:line="159" pos:column="38"/></name><parameter_list pos:line="159" pos:column="38">(<parameter><decl><type><name pos:line="159" pos:column="39">CURLM<pos:position pos:line="159" pos:column="44"/></name> <modifier pos:line="159" pos:column="45">*<pos:position pos:line="159" pos:column="46"/></modifier></type><name pos:line="159" pos:column="46">multi_handle<pos:position pos:line="159" pos:column="58"/></name></decl></parameter>,
-                                      <parameter><decl><type><name><name pos:line="160" pos:column="39">struct<pos:position pos:line="160" pos:column="45"/></name> <name pos:line="160" pos:column="46">curl_waitfd<pos:position pos:line="160" pos:column="57"/></name></name></type> <name><name pos:line="160" pos:column="58">extra_fds<pos:position pos:line="160" pos:column="67"/></name><index pos:line="160" pos:column="67">[]<pos:position pos:line="160" pos:column="69"/></index></name></decl></parameter>,
-                                      <parameter><decl><type><name pos:line="161" pos:column="39">unsigned<pos:position pos:line="161" pos:column="47"/></name> <name pos:line="161" pos:column="48">int<pos:position pos:line="161" pos:column="51"/></name></type> <name pos:line="161" pos:column="52">extra_nfds<pos:position pos:line="161" pos:column="62"/></name></decl></parameter>,
-                                      <parameter><decl><type><name pos:line="162" pos:column="39">int<pos:position pos:line="162" pos:column="42"/></name></type> <name pos:line="162" pos:column="43">timeout_ms<pos:position pos:line="162" pos:column="53"/></name></decl></parameter>,
-                                      <parameter><decl><type><name pos:line="163" pos:column="39">int<pos:position pos:line="163" pos:column="42"/></name> <modifier pos:line="163" pos:column="43">*<pos:position pos:line="163" pos:column="44"/></modifier></type><name pos:line="163" pos:column="44">ret<pos:position pos:line="163" pos:column="47"/></name></decl></parameter>)<pos:position pos:line="163" pos:column="48"/></parameter_list>;<pos:position pos:line="163" pos:column="49"/></function_decl>
 
- <comment type="block" pos:line="165" pos:column="2">/*
-  * Name:    curl_multi_perform()
-  *
-  * Desc:    When the app thinks there's data available for curl it calls this
-  *          function to read/write whatever there is right now. This returns
-  *          as soon as the reads and writes are done. This function does not
-  *          require that there actually is data available for reading or that
-  *          data can be written, it can be called just in case. It returns
-  *          the number of handles that still transfer data in the second
-  *          argument's integer-pointer.
-  *
-  * Returns: CURLMcode type, general multi error code. *NOTE* that this only
-  *          returns errors etc regarding the whole multi stack. There might
-  *          still have occurred problems on invidual transfers even when this
-  *          returns OK.
-  */</comment>
-<function_decl><type><name pos:line="181" pos:column="1">CURL_EXTERN<pos:position pos:line="181" pos:column="12"/></name> <name pos:line="181" pos:column="13">CURLMcode<pos:position pos:line="181" pos:column="22"/></name></type> <name pos:line="181" pos:column="23">curl_multi_perform<pos:position pos:line="181" pos:column="41"/></name><parameter_list pos:line="181" pos:column="41">(<parameter><decl><type><name pos:line="181" pos:column="42">CURLM<pos:position pos:line="181" pos:column="47"/></name> <modifier pos:line="181" pos:column="48">*<pos:position pos:line="181" pos:column="49"/></modifier></type><name pos:line="181" pos:column="49">multi_handle<pos:position pos:line="181" pos:column="61"/></name></decl></parameter>,
-                                         <parameter><decl><type><name pos:line="182" pos:column="42">int<pos:position pos:line="182" pos:column="45"/></name> <modifier pos:line="182" pos:column="46">*<pos:position pos:line="182" pos:column="47"/></modifier></type><name pos:line="182" pos:column="47">running_handles<pos:position pos:line="182" pos:column="62"/></name></decl></parameter>)<pos:position pos:line="182" pos:column="63"/></parameter_list>;<pos:position pos:line="182" pos:column="64"/></function_decl>
+<cpp:ifndef pos:line="38" pos:column="1">#<cpp:directive pos:line="38" pos:column="2">ifndef<pos:position pos:line="38" pos:column="8"/></cpp:directive> <name pos:line="38" pos:column="9">DEFAULT_MAX_SPARE_THREAD<pos:position pos:line="38" pos:column="33"/></name></cpp:ifndef>
+<cpp:define pos:line="39" pos:column="1">#<cpp:directive pos:line="39" pos:column="2">define<pos:position pos:line="39" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="39" pos:column="9">DEFAULT_MAX_SPARE_THREAD<pos:position pos:line="39" pos:column="33"/></name></cpp:macro> <cpp:value pos:line="39" pos:column="34">10<pos:position pos:line="39" pos:column="36"/></cpp:value></cpp:define>
+<cpp:endif pos:line="40" pos:column="1">#<cpp:directive pos:line="40" pos:column="2">endif<pos:position pos:line="40" pos:column="7"/></cpp:directive></cpp:endif>
 
- <comment type="block" pos:line="184" pos:column="2">/*
-  * Name:    curl_multi_cleanup()
-  *
-  * Desc:    Cleans up and removes a whole multi stack. It does not free or
-  *          touch any individual easy handles in any way. We need to define
-  *          in what state those handles will be if this function is called
-  *          in the middle of a transfer.
-  *
-  * Returns: CURLMcode type, general multi error code.
-  */</comment>
-<function_decl><type><name pos:line="194" pos:column="1">CURL_EXTERN<pos:position pos:line="194" pos:column="12"/></name> <name pos:line="194" pos:column="13">CURLMcode<pos:position pos:line="194" pos:column="22"/></name></type> <name pos:line="194" pos:column="23">curl_multi_cleanup<pos:position pos:line="194" pos:column="41"/></name><parameter_list pos:line="194" pos:column="41">(<parameter><decl><type><name pos:line="194" pos:column="42">CURLM<pos:position pos:line="194" pos:column="47"/></name> <modifier pos:line="194" pos:column="48">*<pos:position pos:line="194" pos:column="49"/></modifier></type><name pos:line="194" pos:column="49">multi_handle<pos:position pos:line="194" pos:column="61"/></name></decl></parameter>)<pos:position pos:line="194" pos:column="62"/></parameter_list>;<pos:position pos:line="194" pos:column="63"/></function_decl>
+<comment type="block" pos:line="42" pos:column="1">/* Minimum --- fewer than this, and more will be created */</comment>
 
-<comment type="block" pos:line="196" pos:column="1">/*
- * Name:    curl_multi_info_read()
- *
- * Desc:    Ask the multi handle if there's any messages/informationals from
- *          the individual transfers. Messages include informationals such as
- *          error code from the transfer or just the fact that a transfer is
- *          completed. More details on these should be written down as well.
- *
- *          Repeated calls to this function will return a new struct each
- *          time, until a special "end of msgs" struct is returned as a signal
- *          that there is no more to get at this point.
- *
- *          The data the returned pointer points to will not survive calling
- *          curl_multi_cleanup().
- *
- *          The 'CURLMsg' struct is meant to be very simple and only contain
- *          very basic informations. If more involved information is wanted,
- *          we will provide the particular "transfer handle" in that struct
- *          and that should/could/would be used in subsequent
- *          curl_easy_getinfo() calls (or similar). The point being that we
- *          must never expose complex structs to applications, as then we'll
- *          undoubtably get backwards compatibility problems in the future.
- *
- * Returns: A pointer to a filled-in struct, or NULL if it failed or ran out
- *          of structs. It also writes the number of messages left in the
- *          queue (after this read) in the integer the second argument points
- *          to.
+<cpp:ifndef pos:line="44" pos:column="1">#<cpp:directive pos:line="44" pos:column="2">ifndef<pos:position pos:line="44" pos:column="8"/></cpp:directive> <name pos:line="44" pos:column="9">DEFAULT_MIN_SPARE_THREAD<pos:position pos:line="44" pos:column="33"/></name></cpp:ifndef>
+<cpp:define pos:line="45" pos:column="1">#<cpp:directive pos:line="45" pos:column="2">define<pos:position pos:line="45" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="45" pos:column="9">DEFAULT_MIN_SPARE_THREAD<pos:position pos:line="45" pos:column="33"/></name></cpp:macro> <cpp:value pos:line="45" pos:column="34">5<pos:position pos:line="45" pos:column="35"/></cpp:value></cpp:define>
+<cpp:endif pos:line="46" pos:column="1">#<cpp:directive pos:line="46" pos:column="2">endif<pos:position pos:line="46" pos:column="7"/></cpp:directive></cpp:endif>
+
+<comment type="block" pos:line="48" pos:column="1">/* Where the main/parent process's pid is logged */</comment>
+<cpp:ifndef pos:line="49" pos:column="1">#<cpp:directive pos:line="49" pos:column="2">ifndef<pos:position pos:line="49" pos:column="8"/></cpp:directive> <name pos:line="49" pos:column="9">DEFAULT_PIDLOG<pos:position pos:line="49" pos:column="23"/></name></cpp:ifndef>
+<cpp:define pos:line="50" pos:column="1">#<cpp:directive pos:line="50" pos:column="2">define<pos:position pos:line="50" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="50" pos:column="9">DEFAULT_PIDLOG<pos:position pos:line="50" pos:column="23"/></name></cpp:macro> <cpp:value pos:line="50" pos:column="24">DEFAULT_REL_RUNTIMEDIR "/httpd.pid"<pos:position pos:line="50" pos:column="59"/></cpp:value></cpp:define>
+<cpp:endif pos:line="51" pos:column="1">#<cpp:directive pos:line="51" pos:column="2">endif<pos:position pos:line="51" pos:column="7"/></cpp:directive></cpp:endif>
+
+<comment type="block" pos:line="53" pos:column="1">/*
+ * Interval, in microseconds, between scoreboard maintenance.
  */</comment>
-<function_decl><type><name pos:line="224" pos:column="1">CURL_EXTERN<pos:position pos:line="224" pos:column="12"/></name> <name pos:line="224" pos:column="13">CURLMsg<pos:position pos:line="224" pos:column="20"/></name> <modifier pos:line="224" pos:column="21">*<pos:position pos:line="224" pos:column="22"/></modifier></type><name pos:line="224" pos:column="22">curl_multi_info_read<pos:position pos:line="224" pos:column="42"/></name><parameter_list pos:line="224" pos:column="42">(<parameter><decl><type><name pos:line="224" pos:column="43">CURLM<pos:position pos:line="224" pos:column="48"/></name> <modifier pos:line="224" pos:column="49">*<pos:position pos:line="224" pos:column="50"/></modifier></type><name pos:line="224" pos:column="50">multi_handle<pos:position pos:line="224" pos:column="62"/></name></decl></parameter>,
-                                          <parameter><decl><type><name pos:line="225" pos:column="43">int<pos:position pos:line="225" pos:column="46"/></name> <modifier pos:line="225" pos:column="47">*<pos:position pos:line="225" pos:column="48"/></modifier></type><name pos:line="225" pos:column="48">msgs_in_queue<pos:position pos:line="225" pos:column="61"/></name></decl></parameter>)<pos:position pos:line="225" pos:column="62"/></parameter_list>;<pos:position pos:line="225" pos:column="63"/></function_decl>
+<cpp:ifndef pos:line="56" pos:column="1">#<cpp:directive pos:line="56" pos:column="2">ifndef<pos:position pos:line="56" pos:column="8"/></cpp:directive> <name pos:line="56" pos:column="9">SCOREBOARD_MAINTENANCE_INTERVAL<pos:position pos:line="56" pos:column="40"/></name></cpp:ifndef>
+<cpp:define pos:line="57" pos:column="1">#<cpp:directive pos:line="57" pos:column="2">define<pos:position pos:line="57" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="57" pos:column="9">SCOREBOARD_MAINTENANCE_INTERVAL<pos:position pos:line="57" pos:column="40"/></name></cpp:macro> <cpp:value pos:line="57" pos:column="41">1000000<pos:position pos:line="57" pos:column="48"/></cpp:value></cpp:define>
+<cpp:endif pos:line="58" pos:column="1">#<cpp:directive pos:line="58" pos:column="2">endif<pos:position pos:line="58" pos:column="7"/></cpp:directive></cpp:endif>
 
-<comment type="block" pos:line="227" pos:column="1">/*
- * Name:    curl_multi_strerror()
- *
- * Desc:    The curl_multi_strerror function may be used to turn a CURLMcode
- *          value into the equivalent human readable error string.  This is
- *          useful for printing meaningful error messages.
- *
- * Returns: A pointer to a zero-terminated error message.
+<comment type="block" pos:line="60" pos:column="1">/* Number of requests to try to handle in a single process.  If &lt;= 0,
+ * the children don't die off.
  */</comment>
-<function_decl><type><name pos:line="236" pos:column="1">CURL_EXTERN<pos:position pos:line="236" pos:column="12"/></name> <specifier pos:line="236" pos:column="13">const<pos:position pos:line="236" pos:column="18"/></specifier> <name pos:line="236" pos:column="19">char<pos:position pos:line="236" pos:column="23"/></name> <modifier pos:line="236" pos:column="24">*<pos:position pos:line="236" pos:column="25"/></modifier></type><name pos:line="236" pos:column="25">curl_multi_strerror<pos:position pos:line="236" pos:column="44"/></name><parameter_list pos:line="236" pos:column="44">(<parameter><decl><type><name pos:line="236" pos:column="45">CURLMcode<pos:position pos:line="236" pos:column="54"/></name></type></decl></parameter>)<pos:position pos:line="236" pos:column="55"/></parameter_list>;<pos:position pos:line="236" pos:column="56"/></function_decl>
+<cpp:ifndef pos:line="63" pos:column="1">#<cpp:directive pos:line="63" pos:column="2">ifndef<pos:position pos:line="63" pos:column="8"/></cpp:directive> <name pos:line="63" pos:column="9">DEFAULT_MAX_REQUESTS_PER_CHILD<pos:position pos:line="63" pos:column="39"/></name></cpp:ifndef>
+<cpp:define pos:line="64" pos:column="1">#<cpp:directive pos:line="64" pos:column="2">define<pos:position pos:line="64" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="64" pos:column="9">DEFAULT_MAX_REQUESTS_PER_CHILD<pos:position pos:line="64" pos:column="39"/></name></cpp:macro> <cpp:value pos:line="64" pos:column="40">10000<pos:position pos:line="64" pos:column="45"/></cpp:value></cpp:define>
+<cpp:endif pos:line="65" pos:column="1">#<cpp:directive pos:line="65" pos:column="2">endif<pos:position pos:line="65" pos:column="7"/></cpp:directive></cpp:endif>
 
-<comment type="block" pos:line="238" pos:column="1">/*
- * Name:    curl_multi_socket() and
- *          curl_multi_socket_all()
- *
- * Desc:    An alternative version of curl_multi_perform() that allows the
- *          application to pass in one of the file descriptors that have been
- *          detected to have "action" on them and let libcurl perform.
- *          See man page for details.
- */</comment>
-<cpp:define pos:line="247" pos:column="1">#<cpp:directive pos:line="247" pos:column="2">define<pos:position pos:line="247" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="247" pos:column="9">CURL_POLL_NONE<pos:position pos:line="247" pos:column="23"/></name></cpp:macro>   <cpp:value pos:line="247" pos:column="26">0<pos:position pos:line="247" pos:column="27"/></cpp:value></cpp:define>
-<cpp:define pos:line="248" pos:column="1">#<cpp:directive pos:line="248" pos:column="2">define<pos:position pos:line="248" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="248" pos:column="9">CURL_POLL_IN<pos:position pos:line="248" pos:column="21"/></name></cpp:macro>     <cpp:value pos:line="248" pos:column="26">1<pos:position pos:line="248" pos:column="27"/></cpp:value></cpp:define>
-<cpp:define pos:line="249" pos:column="1">#<cpp:directive pos:line="249" pos:column="2">define<pos:position pos:line="249" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="249" pos:column="9">CURL_POLL_OUT<pos:position pos:line="249" pos:column="22"/></name></cpp:macro>    <cpp:value pos:line="249" pos:column="26">2<pos:position pos:line="249" pos:column="27"/></cpp:value></cpp:define>
-<cpp:define pos:line="250" pos:column="1">#<cpp:directive pos:line="250" pos:column="2">define<pos:position pos:line="250" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="250" pos:column="9">CURL_POLL_INOUT<pos:position pos:line="250" pos:column="24"/></name></cpp:macro>  <cpp:value pos:line="250" pos:column="26">3<pos:position pos:line="250" pos:column="27"/></cpp:value></cpp:define>
-<cpp:define pos:line="251" pos:column="1">#<cpp:directive pos:line="251" pos:column="2">define<pos:position pos:line="251" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="251" pos:column="9">CURL_POLL_REMOVE<pos:position pos:line="251" pos:column="25"/></name></cpp:macro> <cpp:value pos:line="251" pos:column="26">4<pos:position pos:line="251" pos:column="27"/></cpp:value></cpp:define>
-
-<cpp:define pos:line="253" pos:column="1">#<cpp:directive pos:line="253" pos:column="2">define<pos:position pos:line="253" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="253" pos:column="9">CURL_SOCKET_TIMEOUT<pos:position pos:line="253" pos:column="28"/></name></cpp:macro> <cpp:value pos:line="253" pos:column="29">CURL_SOCKET_BAD<pos:position pos:line="253" pos:column="44"/></cpp:value></cpp:define>
-
-<cpp:define pos:line="255" pos:column="1">#<cpp:directive pos:line="255" pos:column="2">define<pos:position pos:line="255" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="255" pos:column="9">CURL_CSELECT_IN<pos:position pos:line="255" pos:column="24"/></name></cpp:macro>   <cpp:value pos:line="255" pos:column="27">0x01<pos:position pos:line="255" pos:column="31"/></cpp:value></cpp:define>
-<cpp:define pos:line="256" pos:column="1">#<cpp:directive pos:line="256" pos:column="2">define<pos:position pos:line="256" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="256" pos:column="9">CURL_CSELECT_OUT<pos:position pos:line="256" pos:column="25"/></name></cpp:macro>  <cpp:value pos:line="256" pos:column="27">0x02<pos:position pos:line="256" pos:column="31"/></cpp:value></cpp:define>
-<cpp:define pos:line="257" pos:column="1">#<cpp:directive pos:line="257" pos:column="2">define<pos:position pos:line="257" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="257" pos:column="9">CURL_CSELECT_ERR<pos:position pos:line="257" pos:column="25"/></name></cpp:macro>  <cpp:value pos:line="257" pos:column="27">0x04<pos:position pos:line="257" pos:column="31"/></cpp:value></cpp:define>
-
-<typedef pos:line="259" pos:column="1">typedef <function_decl><type><name pos:line="259" pos:column="9">int<pos:position pos:line="259" pos:column="12"/></name></type> (<modifier pos:line="259" pos:column="14">*<pos:position pos:line="259" pos:column="15"/></modifier><name pos:line="259" pos:column="15">curl_socket_callback<pos:position pos:line="259" pos:column="35"/></name>)<parameter_list pos:line="259" pos:column="36">(<parameter><decl><type><name pos:line="259" pos:column="37">CURL<pos:position pos:line="259" pos:column="41"/></name> <modifier pos:line="259" pos:column="42">*<pos:position pos:line="259" pos:column="43"/></modifier></type><name pos:line="259" pos:column="43">easy<pos:position pos:line="259" pos:column="47"/></name></decl></parameter>,      <comment type="block" pos:line="259" pos:column="54">/* easy handle */</comment>
-                                    <parameter><decl><type><name pos:line="260" pos:column="37">curl_socket_t<pos:position pos:line="260" pos:column="50"/></name></type> <name pos:line="260" pos:column="51">s<pos:position pos:line="260" pos:column="52"/></name></decl></parameter>, <comment type="block" pos:line="260" pos:column="54">/* socket */</comment>
-                                    <parameter><decl><type><name pos:line="261" pos:column="37">int<pos:position pos:line="261" pos:column="40"/></name></type> <name pos:line="261" pos:column="41">what<pos:position pos:line="261" pos:column="45"/></name></decl></parameter>,        <comment type="block" pos:line="261" pos:column="54">/* see above */</comment>
-                                    <parameter><decl><type><name pos:line="262" pos:column="37">void<pos:position pos:line="262" pos:column="41"/></name> <modifier pos:line="262" pos:column="42">*<pos:position pos:line="262" pos:column="43"/></modifier></type><name pos:line="262" pos:column="43">userp<pos:position pos:line="262" pos:column="48"/></name></decl></parameter>,     <comment type="block" pos:line="262" pos:column="54">/* private callback
-                                                        pointer */</comment>
-                                    <parameter><decl><type><name pos:line="264" pos:column="37">void<pos:position pos:line="264" pos:column="41"/></name> <modifier pos:line="264" pos:column="42">*<pos:position pos:line="264" pos:column="43"/></modifier></type><name pos:line="264" pos:column="43">socketp<pos:position pos:line="264" pos:column="50"/></name></decl></parameter>)<pos:position pos:line="264" pos:column="51"/></parameter_list>;<pos:position pos:line="264" pos:column="52"/></function_decl></typedef>  <comment type="block" pos:line="264" pos:column="54">/* private socket
-                                                        pointer */</comment>
-<comment type="block" pos:line="266" pos:column="1">/*
- * Name:    curl_multi_timer_callback
- *
- * Desc:    Called by libcurl whenever the library detects a change in the
- *          maximum number of milliseconds the app is allowed to wait before
- *          curl_multi_socket() or curl_multi_perform() must be called
- *          (to allow libcurl's timed events to take place).
- *
- * Returns: The callback should return zero.
- */</comment>
-<typedef pos:line="276" pos:column="1">typedef <function_decl><type><name pos:line="276" pos:column="9">int<pos:position pos:line="276" pos:column="12"/></name></type> (<modifier pos:line="276" pos:column="14">*<pos:position pos:line="276" pos:column="15"/></modifier><name pos:line="276" pos:column="15">curl_multi_timer_callback<pos:position pos:line="276" pos:column="40"/></name>)<parameter_list pos:line="276" pos:column="41">(<parameter><decl><type><name pos:line="276" pos:column="42">CURLM<pos:position pos:line="276" pos:column="47"/></name> <modifier pos:line="276" pos:column="48">*<pos:position pos:line="276" pos:column="49"/></modifier></type><name pos:line="276" pos:column="49">multi<pos:position pos:line="276" pos:column="54"/></name></decl></parameter>,    <comment type="block" pos:line="276" pos:column="59">/* multi handle */</comment>
-                                         <parameter><decl><type><name pos:line="277" pos:column="42">long<pos:position pos:line="277" pos:column="46"/></name></type> <name pos:line="277" pos:column="47">timeout_ms<pos:position pos:line="277" pos:column="57"/></name></decl></parameter>, <comment type="block" pos:line="277" pos:column="59">/* see above */</comment>
-                                         <parameter><decl><type><name pos:line="278" pos:column="42">void<pos:position pos:line="278" pos:column="46"/></name> <modifier pos:line="278" pos:column="47">*<pos:position pos:line="278" pos:column="48"/></modifier></type><name pos:line="278" pos:column="48">userp<pos:position pos:line="278" pos:column="53"/></name></decl></parameter>)<pos:position pos:line="278" pos:column="54"/></parameter_list>;<pos:position pos:line="278" pos:column="55"/></function_decl></typedef>    <comment type="block" pos:line="278" pos:column="59">/* private callback
-                                                             pointer */</comment>
-
-<function_decl><type><name pos:line="281" pos:column="1">CURL_EXTERN<pos:position pos:line="281" pos:column="12"/></name> <name pos:line="281" pos:column="13">CURLMcode<pos:position pos:line="281" pos:column="22"/></name></type> <name pos:line="281" pos:column="23">curl_multi_socket<pos:position pos:line="281" pos:column="40"/></name><parameter_list pos:line="281" pos:column="40">(<parameter><decl><type><name pos:line="281" pos:column="41">CURLM<pos:position pos:line="281" pos:column="46"/></name> <modifier pos:line="281" pos:column="47">*<pos:position pos:line="281" pos:column="48"/></modifier></type><name pos:line="281" pos:column="48">multi_handle<pos:position pos:line="281" pos:column="60"/></name></decl></parameter>, <parameter><decl><type><name pos:line="281" pos:column="62">curl_socket_t<pos:position pos:line="281" pos:column="75"/></name></type> <name pos:line="281" pos:column="76">s<pos:position pos:line="281" pos:column="77"/></name></decl></parameter>,
-                                        <parameter><decl><type><name pos:line="282" pos:column="41">int<pos:position pos:line="282" pos:column="44"/></name> <modifier pos:line="282" pos:column="45">*<pos:position pos:line="282" pos:column="46"/></modifier></type><name pos:line="282" pos:column="46">running_handles<pos:position pos:line="282" pos:column="61"/></name></decl></parameter>)<pos:position pos:line="282" pos:column="62"/></parameter_list>;<pos:position pos:line="282" pos:column="63"/></function_decl>
-
-<function_decl><type><name pos:line="284" pos:column="1">CURL_EXTERN<pos:position pos:line="284" pos:column="12"/></name> <name pos:line="284" pos:column="13">CURLMcode<pos:position pos:line="284" pos:column="22"/></name></type> <name pos:line="284" pos:column="23">curl_multi_socket_action<pos:position pos:line="284" pos:column="47"/></name><parameter_list pos:line="284" pos:column="47">(<parameter><decl><type><name pos:line="284" pos:column="48">CURLM<pos:position pos:line="284" pos:column="53"/></name> <modifier pos:line="284" pos:column="54">*<pos:position pos:line="284" pos:column="55"/></modifier></type><name pos:line="284" pos:column="55">multi_handle<pos:position pos:line="284" pos:column="67"/></name></decl></parameter>,
-                                               <parameter><decl><type><name pos:line="285" pos:column="48">curl_socket_t<pos:position pos:line="285" pos:column="61"/></name></type> <name pos:line="285" pos:column="62">s<pos:position pos:line="285" pos:column="63"/></name></decl></parameter>,
-                                               <parameter><decl><type><name pos:line="286" pos:column="48">int<pos:position pos:line="286" pos:column="51"/></name></type> <name pos:line="286" pos:column="52">ev_bitmask<pos:position pos:line="286" pos:column="62"/></name></decl></parameter>,
-                                               <parameter><decl><type><name pos:line="287" pos:column="48">int<pos:position pos:line="287" pos:column="51"/></name> <modifier pos:line="287" pos:column="52">*<pos:position pos:line="287" pos:column="53"/></modifier></type><name pos:line="287" pos:column="53">running_handles<pos:position pos:line="287" pos:column="68"/></name></decl></parameter>)<pos:position pos:line="287" pos:column="69"/></parameter_list>;<pos:position pos:line="287" pos:column="70"/></function_decl>
-
-<function_decl><type><name pos:line="289" pos:column="1">CURL_EXTERN<pos:position pos:line="289" pos:column="12"/></name> <name pos:line="289" pos:column="13">CURLMcode<pos:position pos:line="289" pos:column="22"/></name></type> <name pos:line="289" pos:column="23">curl_multi_socket_all<pos:position pos:line="289" pos:column="44"/></name><parameter_list pos:line="289" pos:column="44">(<parameter><decl><type><name pos:line="289" pos:column="45">CURLM<pos:position pos:line="289" pos:column="50"/></name> <modifier pos:line="289" pos:column="51">*<pos:position pos:line="289" pos:column="52"/></modifier></type><name pos:line="289" pos:column="52">multi_handle<pos:position pos:line="289" pos:column="64"/></name></decl></parameter>,
-                                            <parameter><decl><type><name pos:line="290" pos:column="45">int<pos:position pos:line="290" pos:column="48"/></name> <modifier pos:line="290" pos:column="49">*<pos:position pos:line="290" pos:column="50"/></modifier></type><name pos:line="290" pos:column="50">running_handles<pos:position pos:line="290" pos:column="65"/></name></decl></parameter>)<pos:position pos:line="290" pos:column="66"/></parameter_list>;<pos:position pos:line="290" pos:column="67"/></function_decl>
-
-<cpp:ifndef pos:line="292" pos:column="1">#<cpp:directive pos:line="292" pos:column="2">ifndef<pos:position pos:line="292" pos:column="8"/></cpp:directive> <name pos:line="292" pos:column="9">CURL_ALLOW_OLD_MULTI_SOCKET<pos:position pos:line="292" pos:column="36"/></name></cpp:ifndef>
-<comment type="block" pos:line="293" pos:column="1">/* This macro below was added in 7.16.3 to push users who recompile to use
-   the new curl_multi_socket_action() instead of the old curl_multi_socket()
-*/</comment>
-<cpp:define pos:line="296" pos:column="1">#<cpp:directive pos:line="296" pos:column="2">define<pos:position pos:line="296" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="296" pos:column="9">curl_multi_socket<pos:position pos:line="296" pos:column="26"/></name><parameter_list pos:line="296" pos:column="26">(<parameter><type><name pos:line="296" pos:column="27">x<pos:position pos:line="296" pos:column="28"/></name></type></parameter>,<parameter><type><name pos:line="296" pos:column="29">y<pos:position pos:line="296" pos:column="30"/></name></type></parameter>,<parameter><type><name pos:line="296" pos:column="31">z<pos:position pos:line="296" pos:column="32"/></name></type></parameter>)<pos:position pos:line="296" pos:column="33"/></parameter_list></cpp:macro> <cpp:value pos:line="296" pos:column="34">curl_multi_socket_action(x,y,0,z)<pos:position pos:line="296" pos:column="67"/></cpp:value></cpp:define>
-<cpp:endif pos:line="297" pos:column="1">#<cpp:directive pos:line="297" pos:column="2">endif<pos:position pos:line="297" pos:column="7"/></cpp:directive></cpp:endif>
-
-<comment type="block" pos:line="299" pos:column="1">/*
- * Name:    curl_multi_timeout()
- *
- * Desc:    Returns the maximum number of milliseconds the app is allowed to
- *          wait before curl_multi_socket() or curl_multi_perform() must be
- *          called (to allow libcurl's timed events to take place).
- *
- * Returns: CURLM error code.
- */</comment>
-<function_decl><type><name pos:line="308" pos:column="1">CURL_EXTERN<pos:position pos:line="308" pos:column="12"/></name> <name pos:line="308" pos:column="13">CURLMcode<pos:position pos:line="308" pos:column="22"/></name></type> <name pos:line="308" pos:column="23">curl_multi_timeout<pos:position pos:line="308" pos:column="41"/></name><parameter_list pos:line="308" pos:column="41">(<parameter><decl><type><name pos:line="308" pos:column="42">CURLM<pos:position pos:line="308" pos:column="47"/></name> <modifier pos:line="308" pos:column="48">*<pos:position pos:line="308" pos:column="49"/></modifier></type><name pos:line="308" pos:column="49">multi_handle<pos:position pos:line="308" pos:column="61"/></name></decl></parameter>,
-                                         <parameter><decl><type><name pos:line="309" pos:column="42">long<pos:position pos:line="309" pos:column="46"/></name> <modifier pos:line="309" pos:column="47">*<pos:position pos:line="309" pos:column="48"/></modifier></type><name pos:line="309" pos:column="48">milliseconds<pos:position pos:line="309" pos:column="60"/></name></decl></parameter>)<pos:position pos:line="309" pos:column="61"/></parameter_list>;<pos:position pos:line="309" pos:column="62"/></function_decl>
-
-<cpp:undef pos:line="311" pos:column="1">#<cpp:directive pos:line="311" pos:column="2">undef<pos:position pos:line="311" pos:column="7"/></cpp:directive> <name pos:line="311" pos:column="8">CINIT<pos:position pos:line="311" pos:column="13"/></name></cpp:undef> <comment type="block" pos:line="311" pos:column="14">/* re-using the same name as in curl.h */</comment>
-
-<cpp:ifdef pos:line="313" pos:column="1">#<cpp:directive pos:line="313" pos:column="2">ifdef<pos:position pos:line="313" pos:column="7"/></cpp:directive> <name pos:line="313" pos:column="8">CURL_ISOCPP<pos:position pos:line="313" pos:column="19"/></name></cpp:ifdef>
-<cpp:define pos:line="314" pos:column="1">#<cpp:directive pos:line="314" pos:column="2">define<pos:position pos:line="314" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="314" pos:column="9">CINIT<pos:position pos:line="314" pos:column="14"/></name><parameter_list pos:line="314" pos:column="14">(<parameter><type><name pos:line="314" pos:column="15">name<pos:position pos:line="314" pos:column="19"/></name></type></parameter>,<parameter><type><name pos:line="314" pos:column="20">type<pos:position pos:line="314" pos:column="24"/></name></type></parameter>,<parameter><type><name pos:line="314" pos:column="25">num<pos:position pos:line="314" pos:column="28"/></name></type></parameter>)<pos:position pos:line="314" pos:column="29"/></parameter_list></cpp:macro> <cpp:value pos:line="314" pos:column="30">CURLMOPT_ ## name = CURLOPTTYPE_ ## type + num<pos:position pos:line="314" pos:column="76"/></cpp:value></cpp:define>
-<cpp:else pos:line="315" pos:column="1">#<cpp:directive pos:line="315" pos:column="2">else<pos:position pos:line="315" pos:column="6"/></cpp:directive></cpp:else>
-<comment type="block" pos:line="316" pos:column="1">/* The macro "##" is ISO C, we assume pre-ISO C doesn't support it. */</comment>
-<cpp:define pos:line="317" pos:column="1">#<cpp:directive pos:line="317" pos:column="2">define<pos:position pos:line="317" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="317" pos:column="9">LONG<pos:position pos:line="317" pos:column="13"/></name></cpp:macro>          <cpp:value pos:line="317" pos:column="23">CURLOPTTYPE_LONG<pos:position pos:line="317" pos:column="39"/></cpp:value></cpp:define>
-<cpp:define pos:line="318" pos:column="1">#<cpp:directive pos:line="318" pos:column="2">define<pos:position pos:line="318" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="318" pos:column="9">OBJECTPOINT<pos:position pos:line="318" pos:column="20"/></name></cpp:macro>   <cpp:value pos:line="318" pos:column="23">CURLOPTTYPE_OBJECTPOINT<pos:position pos:line="318" pos:column="46"/></cpp:value></cpp:define>
-<cpp:define pos:line="319" pos:column="1">#<cpp:directive pos:line="319" pos:column="2">define<pos:position pos:line="319" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="319" pos:column="9">FUNCTIONPOINT<pos:position pos:line="319" pos:column="22"/></name></cpp:macro> <cpp:value pos:line="319" pos:column="23">CURLOPTTYPE_FUNCTIONPOINT<pos:position pos:line="319" pos:column="48"/></cpp:value></cpp:define>
-<cpp:define pos:line="320" pos:column="1">#<cpp:directive pos:line="320" pos:column="2">define<pos:position pos:line="320" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="320" pos:column="9">OFF_T<pos:position pos:line="320" pos:column="14"/></name></cpp:macro>         <cpp:value pos:line="320" pos:column="23">CURLOPTTYPE_OFF_T<pos:position pos:line="320" pos:column="40"/></cpp:value></cpp:define>
-<cpp:define pos:line="321" pos:column="1">#<cpp:directive pos:line="321" pos:column="2">define<pos:position pos:line="321" pos:column="8"/></cpp:directive> <cpp:macro><name pos:line="321" pos:column="9">CINIT<pos:position pos:line="321" pos:column="14"/></name><parameter_list pos:line="321" pos:column="14">(<parameter><type><name pos:line="321" pos:column="15">name<pos:position pos:line="321" pos:column="19"/></name></type></parameter>,<parameter><type><name pos:line="321" pos:column="20">type<pos:position pos:line="321" pos:column="24"/></name></type></parameter>,<parameter><type><name pos:line="321" pos:column="25">number<pos:position pos:line="321" pos:column="31"/></name></type></parameter>)<pos:position pos:line="321" pos:column="32"/></parameter_list></cpp:macro> <cpp:value pos:line="321" pos:column="33">CURLMOPT_<comment type="block" pos:line="321" pos:column="42">/**/</comment>name = type + number<pos:position pos:line="321" pos:column="66"/></cpp:value></cpp:define>
-<cpp:endif pos:line="322" pos:column="1">#<cpp:directive pos:line="322" pos:column="2">endif<pos:position pos:line="322" pos:column="7"/></cpp:directive></cpp:endif>
-
-<typedef pos:line="324" pos:column="1">typedef <type><enum pos:line="324" pos:column="9">enum <block pos:line="324" pos:column="14">{
-  <comment type="block" pos:line="325" pos:column="3">/* This is the socket callback function pointer */</comment>
-  <decl><name pos:line="326" pos:column="3">CINIT<pos:position pos:line="326" pos:column="8"/></name><argument_list pos:line="326" pos:column="8">(<argument><expr><name pos:line="326" pos:column="9">SOCKETFUNCTION<pos:position pos:line="326" pos:column="23"/></name></expr></argument>, <argument><expr><name pos:line="326" pos:column="25">FUNCTIONPOINT<pos:position pos:line="326" pos:column="38"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="326" pos:column="40">1<pos:position pos:line="326" pos:column="41"/></literal></expr></argument>)<pos:position pos:line="326" pos:column="42"/></argument_list></decl>,
-
-  <comment type="block" pos:line="328" pos:column="3">/* This is the argument passed to the socket callback */</comment>
-  <decl><name pos:line="329" pos:column="3">CINIT<pos:position pos:line="329" pos:column="8"/></name><argument_list pos:line="329" pos:column="8">(<argument><expr><name pos:line="329" pos:column="9">SOCKETDATA<pos:position pos:line="329" pos:column="19"/></name></expr></argument>, <argument><expr><name pos:line="329" pos:column="21">OBJECTPOINT<pos:position pos:line="329" pos:column="32"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="329" pos:column="34">2<pos:position pos:line="329" pos:column="35"/></literal></expr></argument>)<pos:position pos:line="329" pos:column="36"/></argument_list></decl>,
-
-    <comment type="block" pos:line="331" pos:column="5">/* set to 1 to enable pipelining for this multi handle */</comment>
-  <decl><name pos:line="332" pos:column="3">CINIT<pos:position pos:line="332" pos:column="8"/></name><argument_list pos:line="332" pos:column="8">(<argument><expr><name pos:line="332" pos:column="9">PIPELINING<pos:position pos:line="332" pos:column="19"/></name></expr></argument>, <argument><expr><name pos:line="332" pos:column="21">LONG<pos:position pos:line="332" pos:column="25"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="332" pos:column="27">3<pos:position pos:line="332" pos:column="28"/></literal></expr></argument>)<pos:position pos:line="332" pos:column="29"/></argument_list></decl>,
-
-   <comment type="block" pos:line="334" pos:column="4">/* This is the timer callback function pointer */</comment>
-  <decl><name pos:line="335" pos:column="3">CINIT<pos:position pos:line="335" pos:column="8"/></name><argument_list pos:line="335" pos:column="8">(<argument><expr><name pos:line="335" pos:column="9">TIMERFUNCTION<pos:position pos:line="335" pos:column="22"/></name></expr></argument>, <argument><expr><name pos:line="335" pos:column="24">FUNCTIONPOINT<pos:position pos:line="335" pos:column="37"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="335" pos:column="39">4<pos:position pos:line="335" pos:column="40"/></literal></expr></argument>)<pos:position pos:line="335" pos:column="41"/></argument_list></decl>,
-
-  <comment type="block" pos:line="337" pos:column="3">/* This is the argument passed to the timer callback */</comment>
-  <decl><name pos:line="338" pos:column="3">CINIT<pos:position pos:line="338" pos:column="8"/></name><argument_list pos:line="338" pos:column="8">(<argument><expr><name pos:line="338" pos:column="9">TIMERDATA<pos:position pos:line="338" pos:column="18"/></name></expr></argument>, <argument><expr><name pos:line="338" pos:column="20">OBJECTPOINT<pos:position pos:line="338" pos:column="31"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="338" pos:column="33">5<pos:position pos:line="338" pos:column="34"/></literal></expr></argument>)<pos:position pos:line="338" pos:column="35"/></argument_list></decl>,
-
-  <comment type="block" pos:line="340" pos:column="3">/* maximum number of entries in the connection cache */</comment>
-  <decl><name pos:line="341" pos:column="3">CINIT<pos:position pos:line="341" pos:column="8"/></name><argument_list pos:line="341" pos:column="8">(<argument><expr><name pos:line="341" pos:column="9">MAXCONNECTS<pos:position pos:line="341" pos:column="20"/></name></expr></argument>, <argument><expr><name pos:line="341" pos:column="22">LONG<pos:position pos:line="341" pos:column="26"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="341" pos:column="28">6<pos:position pos:line="341" pos:column="29"/></literal></expr></argument>)<pos:position pos:line="341" pos:column="30"/></argument_list></decl>,
-
-  <comment type="block" pos:line="343" pos:column="3">/* maximum number of (pipelining) connections to one host */</comment>
-  <decl><name pos:line="344" pos:column="3">CINIT<pos:position pos:line="344" pos:column="8"/></name><argument_list pos:line="344" pos:column="8">(<argument><expr><name pos:line="344" pos:column="9">MAX_HOST_CONNECTIONS<pos:position pos:line="344" pos:column="29"/></name></expr></argument>, <argument><expr><name pos:line="344" pos:column="31">LONG<pos:position pos:line="344" pos:column="35"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="344" pos:column="37">7<pos:position pos:line="344" pos:column="38"/></literal></expr></argument>)<pos:position pos:line="344" pos:column="39"/></argument_list></decl>,
-
-  <comment type="block" pos:line="346" pos:column="3">/* maximum number of requests in a pipeline */</comment>
-  <decl><name pos:line="347" pos:column="3">CINIT<pos:position pos:line="347" pos:column="8"/></name><argument_list pos:line="347" pos:column="8">(<argument><expr><name pos:line="347" pos:column="9">MAX_PIPELINE_LENGTH<pos:position pos:line="347" pos:column="28"/></name></expr></argument>, <argument><expr><name pos:line="347" pos:column="30">LONG<pos:position pos:line="347" pos:column="34"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="347" pos:column="36">8<pos:position pos:line="347" pos:column="37"/></literal></expr></argument>)<pos:position pos:line="347" pos:column="38"/></argument_list></decl>,
-
-  <comment type="block" pos:line="349" pos:column="3">/* a connection with a content-length longer than this
-     will not be considered for pipelining */</comment>
-  <decl><name pos:line="351" pos:column="3">CINIT<pos:position pos:line="351" pos:column="8"/></name><argument_list pos:line="351" pos:column="8">(<argument><expr><name pos:line="351" pos:column="9">CONTENT_LENGTH_PENALTY_SIZE<pos:position pos:line="351" pos:column="36"/></name></expr></argument>, <argument><expr><name pos:line="351" pos:column="38">OFF_T<pos:position pos:line="351" pos:column="43"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="351" pos:column="45">9<pos:position pos:line="351" pos:column="46"/></literal></expr></argument>)<pos:position pos:line="351" pos:column="47"/></argument_list></decl>,
-
-  <comment type="block" pos:line="353" pos:column="3">/* a connection with a chunk length longer than this
-     will not be considered for pipelining */</comment>
-  <decl><name pos:line="355" pos:column="3">CINIT<pos:position pos:line="355" pos:column="8"/></name><argument_list pos:line="355" pos:column="8">(<argument><expr><name pos:line="355" pos:column="9">CHUNK_LENGTH_PENALTY_SIZE<pos:position pos:line="355" pos:column="34"/></name></expr></argument>, <argument><expr><name pos:line="355" pos:column="36">OFF_T<pos:position pos:line="355" pos:column="41"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="355" pos:column="43">10<pos:position pos:line="355" pos:column="45"/></literal></expr></argument>)<pos:position pos:line="355" pos:column="46"/></argument_list></decl>,
-
-  <comment type="block" pos:line="357" pos:column="3">/* a list of site names(+port) that are blacklisted from
-     pipelining */</comment>
-  <decl><name pos:line="359" pos:column="3">CINIT<pos:position pos:line="359" pos:column="8"/></name><argument_list pos:line="359" pos:column="8">(<argument><expr><name pos:line="359" pos:column="9">PIPELINING_SITE_BL<pos:position pos:line="359" pos:column="27"/></name></expr></argument>, <argument><expr><name pos:line="359" pos:column="29">OBJECTPOINT<pos:position pos:line="359" pos:column="40"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="359" pos:column="42">11<pos:position pos:line="359" pos:column="44"/></literal></expr></argument>)<pos:position pos:line="359" pos:column="45"/></argument_list></decl>,
-
-  <comment type="block" pos:line="361" pos:column="3">/* a list of server types that are blacklisted from
-     pipelining */</comment>
-  <decl><name pos:line="363" pos:column="3">CINIT<pos:position pos:line="363" pos:column="8"/></name><argument_list pos:line="363" pos:column="8">(<argument><expr><name pos:line="363" pos:column="9">PIPELINING_SERVER_BL<pos:position pos:line="363" pos:column="29"/></name></expr></argument>, <argument><expr><name pos:line="363" pos:column="31">OBJECTPOINT<pos:position pos:line="363" pos:column="42"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="363" pos:column="44">12<pos:position pos:line="363" pos:column="46"/></literal></expr></argument>)<pos:position pos:line="363" pos:column="47"/></argument_list></decl>,
-
-  <comment type="block" pos:line="365" pos:column="3">/* maximum number of open connections in total */</comment>
-  <decl><name pos:line="366" pos:column="3">CINIT<pos:position pos:line="366" pos:column="8"/></name><argument_list pos:line="366" pos:column="8">(<argument><expr><name pos:line="366" pos:column="9">MAX_TOTAL_CONNECTIONS<pos:position pos:line="366" pos:column="30"/></name></expr></argument>, <argument><expr><name pos:line="366" pos:column="32">LONG<pos:position pos:line="366" pos:column="36"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="366" pos:column="38">13<pos:position pos:line="366" pos:column="40"/></literal></expr></argument>)<pos:position pos:line="366" pos:column="41"/></argument_list></decl>,
-
-  <decl><name pos:line="368" pos:column="3">CURLMOPT_LASTENTRY<pos:position pos:line="368" pos:column="21"/></name></decl> <comment type="block" pos:line="368" pos:column="22">/* the last unused */</comment>
-}<pos:position pos:line="369" pos:column="2"/></block></enum></type> <name pos:line="369" pos:column="3">CURLMoption<pos:position pos:line="369" pos:column="14"/></name>;<pos:position pos:line="369" pos:column="15"/></typedef>
-
-
-<comment type="block" pos:line="372" pos:column="1">/*
- * Name:    curl_multi_setopt()
- *
- * Desc:    Sets options for the multi handle.
- *
- * Returns: CURLM error code.
- */</comment>
-<function_decl><type><name pos:line="379" pos:column="1">CURL_EXTERN<pos:position pos:line="379" pos:column="12"/></name> <name pos:line="379" pos:column="13">CURLMcode<pos:position pos:line="379" pos:column="22"/></name></type> <name pos:line="379" pos:column="23">curl_multi_setopt<pos:position pos:line="379" pos:column="40"/></name><parameter_list pos:line="379" pos:column="40">(<parameter><decl><type><name pos:line="379" pos:column="41">CURLM<pos:position pos:line="379" pos:column="46"/></name> <modifier pos:line="379" pos:column="47">*<pos:position pos:line="379" pos:column="48"/></modifier></type><name pos:line="379" pos:column="48">multi_handle<pos:position pos:line="379" pos:column="60"/></name></decl></parameter>,
-                                        <parameter><decl><type><name pos:line="380" pos:column="41">CURLMoption<pos:position pos:line="380" pos:column="52"/></name></type> <name pos:line="380" pos:column="53">option<pos:position pos:line="380" pos:column="59"/></name></decl></parameter>, <parameter><decl><type><modifier pos:line="380" pos:column="61">...<pos:position pos:line="380" pos:column="64"/></modifier></type></decl></parameter>)<pos:position pos:line="380" pos:column="65"/></parameter_list>;<pos:position pos:line="380" pos:column="66"/></function_decl>
-
-
-<comment type="block" pos:line="383" pos:column="1">/*
- * Name:    curl_multi_assign()
- *
- * Desc:    This function sets an association in the multi handle between the
- *          given socket and a private pointer of the application. This is
- *          (only) useful for curl_multi_socket uses.
- *
- * Returns: CURLM error code.
- */</comment>
-<function_decl><type><name pos:line="392" pos:column="1">CURL_EXTERN<pos:position pos:line="392" pos:column="12"/></name> <name pos:line="392" pos:column="13">CURLMcode<pos:position pos:line="392" pos:column="22"/></name></type> <name pos:line="392" pos:column="23">curl_multi_assign<pos:position pos:line="392" pos:column="40"/></name><parameter_list pos:line="392" pos:column="40">(<parameter><decl><type><name pos:line="392" pos:column="41">CURLM<pos:position pos:line="392" pos:column="46"/></name> <modifier pos:line="392" pos:column="47">*<pos:position pos:line="392" pos:column="48"/></modifier></type><name pos:line="392" pos:column="48">multi_handle<pos:position pos:line="392" pos:column="60"/></name></decl></parameter>,
-                                        <parameter><decl><type><name pos:line="393" pos:column="41">curl_socket_t<pos:position pos:line="393" pos:column="54"/></name></type> <name pos:line="393" pos:column="55">sockfd<pos:position pos:line="393" pos:column="61"/></name></decl></parameter>, <parameter><decl><type><name pos:line="393" pos:column="63">void<pos:position pos:line="393" pos:column="67"/></name> <modifier pos:line="393" pos:column="68">*<pos:position pos:line="393" pos:column="69"/></modifier></type><name pos:line="393" pos:column="69">sockp<pos:position pos:line="393" pos:column="74"/></name></decl></parameter>)<pos:position pos:line="393" pos:column="75"/></parameter_list>;<pos:position pos:line="393" pos:column="76"/></function_decl>
-
-<cpp:ifdef pos:line="395" pos:column="1">#<cpp:directive pos:line="395" pos:column="2">ifdef<pos:position pos:line="395" pos:column="7"/></cpp:directive> <name pos:line="395" pos:column="8">__cplusplus<pos:position pos:line="395" pos:column="19"/></name></cpp:ifdef>
-}<pos:position pos:line="396" pos:column="2"/></block></extern> <comment type="block" pos:line="396" pos:column="3">/* end of extern "C" */</comment>
-<cpp:endif pos:line="397" pos:column="1">#<cpp:directive pos:line="397" pos:column="2">endif<pos:position pos:line="397" pos:column="7"/></cpp:directive></cpp:endif>
-
-<cpp:endif pos:line="399" pos:column="1">#<cpp:directive pos:line="399" pos:column="2">endif<pos:position pos:line="399" pos:column="7"/></cpp:directive></cpp:endif>
+<cpp:endif pos:line="67" pos:column="1">#<cpp:directive pos:line="67" pos:column="2">endif<pos:position pos:line="67" pos:column="7"/></cpp:directive></cpp:endif> <comment type="block" pos:line="67" pos:column="8">/* AP_MPM_DEFAULT_H */</comment>
+<comment type="block" pos:line="68" pos:column="1">/** @} */</comment>
 </unit>
