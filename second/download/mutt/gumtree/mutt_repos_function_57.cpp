@@ -1,24 +1,22 @@
-static void 
-dotlock_expand_link (char *newpath, const char *path, const char *link)
+char *
+mutt_compile_help (char *buf, size_t buflen, int menu, const struct mapping_t *items)
 {
-  const char *lb = NULL;
+  int i;
   size_t len;
-
-  /* link is full path */
-  if (*link == '/')
+  char *pbuf = buf;
+  
+  for (i = 0; items[i].name && buflen > 2; i++)
   {
-    strfcpy (newpath, link, _POSIX_PATH_MAX);
-    return;
+    if (i)
+    {
+      *pbuf++ = ' ';
+      *pbuf++ = ' ';
+      buflen -= 2;
+    }
+    mutt_make_help (pbuf, buflen, _(items[i].name), menu, items[i].value);
+    len = mutt_strlen (pbuf);
+    pbuf += len;
+    buflen -= len;
   }
-
-  if ((lb = strrchr (path, '/')) == NULL)
-  {
-    /* no path in link */
-    strfcpy (newpath, link, _POSIX_PATH_MAX);
-    return;
-  }
-
-  len = lb - path + 1;
-  memcpy (newpath, path, len);
-  strfcpy (newpath + len, link, _POSIX_PATH_MAX - len);
+  return buf;
 }

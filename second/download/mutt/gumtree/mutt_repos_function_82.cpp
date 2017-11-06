@@ -1,23 +1,30 @@
-static void make_from_addr (ENVELOPE *hdr, char *buf, size_t len, int do_lists)
+static int include_reply (CONTEXT *ctx, HEADER *cur, FILE *out)
 {
-  int me;
+  int cmflags = MUTT_CM_PREFIX | MUTT_CM_DECODE | MUTT_CM_CHARCONV | MUTT_CM_REPLYING;
+  int chflags = CH_DECODE;
 
-  me = mutt_addr_is_user (hdr->from);
-
-  if (do_lists || me)
+  if (WithCrypto && (cur->security & ENCRYPT))
   {
-    if (check_for_mailing_list_addr (hdr->to, buf, len))
-      return;
-    if (check_for_mailing_list_addr (hdr->cc, buf, len))
-      return;
+    /* make sure we have the user's passphrase before proceeding... */
+    crypt_valid_passphrase (cur->security);
   }
 
-  if (me && hdr->to)
-    snprintf (buf, len, "%s", hdr->to->mailbox);
-  else if (me && hdr->cc)
-    snprintf (buf, len, "%s", hdr->cc->mailbox);
-  else if (hdr->from)
-    strfcpy (buf, hdr->from->mailbox, len);
-  else
-    *buf = 0;
+  mutt_parse_mime_message (ctx, cur);
+  mutt_message_hook (ctx, cur, MUTT_MESSAGEHOOK);
+  
+  mutt_make_attribution (ctx, cur, out);
+  
+  if (!option (OPTHEADER))
+    cmflags |= MUTT_CM_NOHEADER;
+  if (option (OPTWEED))
+  {
+    chflags |= CH_WEED | CH_REORDER;
+    cmflags |= MUTT_CM_WEED;
+  }
+
+  mutt_copy_message (out, ctx, cur, cmflags, chflags);
+
+  mutt_make_post_indent (ctx, cur, out);
+  
+  return 0;
 }

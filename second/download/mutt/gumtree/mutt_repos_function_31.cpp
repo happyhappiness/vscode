@@ -1,11 +1,7 @@
-int
-#ifdef _LIBC
-weak_function
-#endif
-re_exec (s)
-    const char *s;
+BODY *crypt_pgp_traditional_encryptsign (BODY *a, int flags, char *keylist)
 {
-  const int len = strlen (s);
-  return
-    0 <= re_search (&re_comp_buf, s, len, 0, len, (struct re_registers *) 0);
+  if (CRYPT_MOD_CALL_CHECK (PGP, pgp_traditional_encryptsign))
+    return (CRYPT_MOD_CALL (PGP, pgp_traditional_encryptsign)) (a, flags, keylist);
+
+  return NULL;
 }

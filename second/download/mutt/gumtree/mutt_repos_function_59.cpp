@@ -1,98 +1,33 @@
-static int
-dotlock_lock (const char *realpath)
+static int get_wrapped_width (const char *t, size_t wid)
 {
-  char lockfile[_POSIX_PATH_MAX + LONG_STRING];
-  char nfslockfile[_POSIX_PATH_MAX + LONG_STRING];
-  size_t prev_size = 0;
-  int fd;
-  int count = 0;
-  int hard_count = 0;
-  struct stat sb;
-  time_t t;
-  
-  snprintf (nfslockfile, sizeof (nfslockfile), "%s.%s.%d",
-	   realpath, Hostname, (int) getpid ());
-  snprintf (lockfile, sizeof (lockfile), "%s.lock", realpath);
+  wchar_t wc;
+  size_t k;
+  size_t m, n;
+  size_t len = mutt_strlen (t);
+  const char *s = t;
+  mbstate_t mbstate;
 
-  
-  BEGIN_PRIVILEGED ();
-
-  unlink (nfslockfile);
-
-  while ((fd = open (nfslockfile, O_WRONLY | O_EXCL | O_CREAT, 0)) < 0)
+  memset (&mbstate, 0, sizeof (mbstate));
+  for (m = wid, n = 0;
+       len && (k = mbrtowc (&wc, s, len, &mbstate)) && (n <= wid);
+       s += k, len -= k)
   {
-    END_PRIVILEGED ();
-
-  
-    if (errno != EAGAIN)
+    if (*s == ' ')
+      m = n;
+    if (k == (size_t)(-1) || k == (size_t)(-2))
     {
-      /* perror ("cannot open NFS lock file"); */
-      return DL_EX_ERROR;
+      if (k == (size_t)(-1))
+        memset (&mbstate, 0, sizeof (mbstate));
+      k = (k == (size_t)(-1)) ? 1 : len;
+      wc = replacement_char ();
     }
-
-    
-    BEGIN_PRIVILEGED ();
+    if (!IsWPrint (wc))
+      wc = '?';
+    n += wcwidth (wc);
   }
-
-  END_PRIVILEGED ();
-
-  
-  close (fd);
-  
-  while (hard_count++ < HARDMAXATTEMPTS)
-  {
-
-    BEGIN_PRIVILEGED ();
-    link (nfslockfile, lockfile);
-    END_PRIVILEGED ();
-
-    if (stat (nfslockfile, &sb) != 0)
-    {
-      /* perror ("stat"); */
-      return DL_EX_ERROR;
-    }
-
-    if (sb.st_nlink == 2)
-      break;
-
-    if (count == 0)
-      prev_size = sb.st_size;
-
-    if (prev_size == sb.st_size && ++count > Retry)
-    {
-      if (DotlockFlags & DL_FL_FORCE)
-      {
-	BEGIN_PRIVILEGED ();
-	unlink (lockfile);
-	END_PRIVILEGED ();
-
-	count = 0;
-	continue;
-      }
-      else
-      {
-	BEGIN_PRIVILEGED ();
-	unlink (nfslockfile);
-	END_PRIVILEGED ();
-	return DL_EX_EXIST;
-      }
-    }
-    
-    prev_size = sb.st_size;
-    
-    /* don't trust sleep (3) as it may be interrupted
-     * by users sending signals. 
-     */
-    
-    t = time (NULL);
-    do {
-      sleep (1);
-    } while (time (NULL) == t);
-  }
-
-  BEGIN_PRIVILEGED ();
-  unlink (nfslockfile);
-  END_PRIVILEGED ();
-
-  return DL_EX_OK;
+  if (n > wid)
+    n = m;
+  else
+    n = wid;
+  return n;
 }

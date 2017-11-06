@@ -1,20 +1,7 @@
-void
-regfree (preg)
-    regex_t *preg;
+BODY *crypt_pgp_encrypt_message (BODY *a, char *keylist, int sign)
 {
-  if (preg->buffer != NULL)
-    free (preg->buffer);	/* __MEM_CHECKED__ */
-  preg->buffer = NULL;
+  if (CRYPT_MOD_CALL_CHECK (PGP, pgp_encrypt_message))
+    return (CRYPT_MOD_CALL (PGP, pgp_encrypt_message)) (a, keylist, sign);
 
-  preg->allocated = 0;
-  preg->used = 0;
-
-  if (preg->fastmap != NULL)
-    free (preg->fastmap);	/* __MEM_CHECKED__ */
-  preg->fastmap = NULL;
-  preg->fastmap_accurate = 0;
-
-  if (preg->translate != NULL)
-    free (preg->translate);	/* __MEM_CHECKED__ */
-  preg->translate = NULL;
+  return NULL;
 }

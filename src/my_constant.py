@@ -128,6 +128,11 @@ CLASS_REPOS_LOG_TITLE = ['class', 'check', 'variable']
 CLASS_REPOS_LOG_CHECK = CLASS_REPOS_LOG_TITLE.index('check')
 CLASS_REPOS_LOG_VARIABLE = CLASS_REPOS_LOG_TITLE.index('variable')
 
+"""
+several postfix
+"""
+LAST_REPOS='_last_repos'
+FIRST_REPOS='_first_repos'
 
 """
 analyze clone title

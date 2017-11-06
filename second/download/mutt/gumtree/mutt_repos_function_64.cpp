@@ -1,15 +1,14 @@
-static int mbox_to_udomain (const char *mbx, char **user, char **domain)
+static void dump_unbound (FILE *f,
+			  const struct binding_t *funcs,
+			  struct keymap_t *map,
+			  struct keymap_t *aux)
 {
-  static char *buff = NULL;
-  char *p;
+  int i;
 
-  mutt_str_replace (&buff, mbx);
-
-  p = strchr (buff, '@');
-  if (!p || !p[1])
-    return -1;
-  *p = '\0';
-  *user = buff;
-  *domain  = p + 1;
-  return 0;
+  for (i = 0; funcs[i].name; i++)
+  {
+    if (! is_bound (map, funcs[i].op) &&
+	(!aux || ! is_bound (aux, funcs[i].op)))
+      format_line (f, 0, funcs[i].name, "", _(HelpStrings[funcs[i].op]));
+  }
 }
