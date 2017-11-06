@@ -1,7 +1,13 @@
-int crypt_pgp_verify_one (BODY *sigbdy, STATE *s, const char *tempf)
+static int get_quote_level (const char *line)
 {
-  if (CRYPT_MOD_CALL_CHECK (PGP, verify_one))
-    return (CRYPT_MOD_CALL (PGP, verify_one)) (sigbdy, s, tempf);
+  int quoted = 0;
+  char *p = (char *) line;
 
-  return -1;
+  while (p && *p == '>')
+  {
+    quoted++;
+    p++;
+  }
+
+  return quoted;
 }

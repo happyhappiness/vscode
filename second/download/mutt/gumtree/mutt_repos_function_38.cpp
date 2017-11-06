@@ -1,7 +1,10 @@
-int crypt_pgp_send_menu (HEADER *msg, int *redraw)
+static int space_quotes (STATE *s)
 {
-  if (CRYPT_MOD_CALL_CHECK (PGP, send_menu))
-    return (CRYPT_MOD_CALL (PGP, send_menu)) (msg, redraw);
+  /* Allow quote spacing in the pager even for OPTTEXTFLOWED,
+   * but obviously not when replying.
+   */
+  if (option (OPTTEXTFLOWED) && (s->flags & MUTT_REPLYING))
+    return 0;
 
-  return 0;
+  return option (OPTREFLOWSPACEQUOTES);
 }

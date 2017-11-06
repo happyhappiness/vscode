@@ -1,60 +1,40 @@
-static int print_macro (FILE *f, int maxwidth, const char **macro)
+static int
+dotlock_deference_symlink (char *d, size_t l, const char *path)
 {
-  int n = maxwidth;
-  wchar_t wc;
-  int w;
-  size_t k;
-  size_t len = mutt_strlen (*macro);
-  mbstate_t mbstate1, mbstate2;
-
-  memset (&mbstate1, 0, sizeof (mbstate1));
-  memset (&mbstate2, 0, sizeof (mbstate2));
-  for (; len && (k = mbrtowc (&wc, *macro, len, &mbstate1)); *macro += k, len -= k)
+  struct stat sb;
+  char realpath[_POSIX_PATH_MAX];
+  const char *pathptr = path;
+  int count = 0;
+  
+  while (count++ < MAXLINKS)
   {
-    if (k == (size_t)(-1) || k == (size_t)(-2))
+    if (lstat (pathptr, &sb) == -1)
     {
-      if (k == (size_t)(-1))
-        memset (&mbstate1, 0, sizeof (mbstate1));
-      k = (k == (size_t)(-1)) ? 1 : len;
-      wc = replacement_char ();
+      /* perror (pathptr); */
+      return -1;
     }
-    /* glibc-2.1.3's wcwidth() returns 1 for unprintable chars! */
-    if (IsWPrint (wc) && (w = wcwidth (wc)) >= 0)
+    
+    if (S_ISLNK (sb.st_mode))
     {
-      if (w > n)
-	break;
-      n -= w;
+      char linkfile[_POSIX_PATH_MAX];
+      char linkpath[_POSIX_PATH_MAX];
+      int len;
+
+      if ((len = readlink (pathptr, linkfile, sizeof (linkfile) - 1)) == -1)
       {
-	char buf[MB_LEN_MAX*2];
-	size_t n1, n2;
-	if ((n1 = wcrtomb (buf, wc, &mbstate2)) != (size_t)(-1) &&
-	    (n2 = wcrtomb (buf + n1, 0, &mbstate2)) != (size_t)(-1))
-	  fputs (buf, f);
+	/* perror (pathptr); */
+	return -1;
       }
-    }
-    else if (wc < 0x20 || wc == 0x7f)
-    {
-      if (2 > n)
-	break;
-      n -= 2;
-      if (wc == '\033')
-	fprintf (f, "\\e");
-      else if (wc == '\n')
-	fprintf (f, "\\n");
-      else if (wc == '\r')
-	fprintf (f, "\\r");
-      else if (wc == '\t')
-	fprintf (f, "\\t");
-      else
-	fprintf (f, "^%c", (char)((wc + '@') & 0x7f));
+      
+      linkfile[len] = '\0';
+      dotlock_expand_link (linkpath, pathptr, linkfile);
+      strfcpy (realpath, linkpath, sizeof (realpath));
+      pathptr = realpath;
     }
     else
-    {
-      if (1 > n)
-	break;
-      n -= 1;
-      fprintf (f, "?");
-    }
+      break;
   }
-  return (maxwidth - n);
+
+  strfcpy (d, pathptr, l);
+  return 0;
 }

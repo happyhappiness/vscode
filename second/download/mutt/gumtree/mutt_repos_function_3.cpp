@@ -1,9 +1,27 @@
-static long double abs_val (long double value)
+void
+print_fastmap (fastmap)
+    char *fastmap;
 {
-  long double result = value;
+  unsigned was_a_range = 0;
+  unsigned i = 0;
 
-  if (value < 0)
-    result = -value;
-
-  return result;
+  while (i < (1 << BYTEWIDTH))
+    {
+      if (fastmap[i++])
+	{
+	  was_a_range = 0;
+          putchar (i - 1);
+          while (i < (1 << BYTEWIDTH)  &&  fastmap[i])
+            {
+              was_a_range = 1;
+              i++;
+            }
+	  if (was_a_range)
+            {
+              printf ("-");
+              putchar (i - 1);
+            }
+        }
+    }
+  putchar ('\n');
 }

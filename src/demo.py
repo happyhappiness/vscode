@@ -29,7 +29,7 @@ def analyze_and_cluster(repos_list, repos_name_list):
         analyze_control_clone.seek_clone()
         index += 1
     # close jvm
-    # gumtree_api.close_jvm()
+    gumtree_api.close_jvm()
 
 def do_statistics(repos_list):
     """

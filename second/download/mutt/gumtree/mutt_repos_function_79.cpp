@@ -1,35 +1,14 @@
-static int include_forward (CONTEXT *ctx, HEADER *cur, FILE *out)
+static int
+check_for_mailing_list_addr (ADDRESS *adr, char *buf, int buflen)
 {
-  int chflags = CH_DECODE, cmflags = 0;
-  
-  mutt_parse_mime_message (ctx, cur);
-  mutt_message_hook (ctx, cur, MUTT_MESSAGEHOOK);
-
-  if (WithCrypto && (cur->security & ENCRYPT) && option (OPTFORWDECODE))
+  for (; adr; adr = adr->next)
   {
-    /* make sure we have the user's passphrase before proceeding... */
-    crypt_valid_passphrase (cur->security);
-  }
-
-  mutt_forward_intro (out, cur);
-
-  if (option (OPTFORWDECODE))
-  {
-    cmflags |= MUTT_CM_DECODE | MUTT_CM_CHARCONV;
-    if (option (OPTWEED))
+    if (mutt_is_subscribed_list (adr))
     {
-      chflags |= CH_WEED | CH_REORDER;
-      cmflags |= MUTT_CM_WEED;
+      if (buf && buflen)
+	snprintf (buf, buflen, "%s", adr->mailbox);
+      return 1;
     }
   }
-  if (option (OPTFORWQUOTE))
-    cmflags |= MUTT_CM_PREFIX;
-
-  /* wrapping headers for forwarding is considered a display
-   * rather than send action */
-  chflags |= CH_DISPLAY;
-
-  mutt_copy_message (out, ctx, cur, cmflags, chflags);
-  mutt_forward_trailer (out);
   return 0;
 }

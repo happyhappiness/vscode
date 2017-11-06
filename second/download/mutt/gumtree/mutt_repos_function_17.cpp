@@ -1,4 +1,3 @@
-static int crypt_mod_smime_send_menu (HEADER *msg, int *redraw)
-{
-  return smime_send_menu (msg, redraw);
-}
+static reg_errcode_t
+compile_range (p_ptr, pend, translate, syntax, b)
+    const char **p_ptr, *pend;

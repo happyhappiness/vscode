@@ -1,7 +1,16 @@
-static int is_bound (struct keymap_t *map, int op)
+static int check_idn (char *domain)
 {
-  for (; map; map = map->next)
-    if (map->op == op)
+  if (! domain)
+    return 0;
+
+  if (ascii_strncasecmp (domain, "xn--", 4) == 0)
+    return 1;
+
+  while ((domain = strchr (domain, '.')) != NULL)
+  {
+    if (ascii_strncasecmp (++domain, "xn--", 4) == 0)
       return 1;
+  }
+
   return 0;
 }

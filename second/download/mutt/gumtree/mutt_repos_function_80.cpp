@@ -1,10 +1,12 @@
-void mutt_make_attribution (CONTEXT *ctx, HEADER *cur, FILE *out)
+static int first_mailing_list (char *buf, size_t buflen, ADDRESS *a)
 {
-  char buffer[LONG_STRING];
-  if (Attribution)
+  for (; a; a = a->next)
   {
-    mutt_make_string (buffer, sizeof (buffer), Attribution, ctx, cur);
-    fputs (buffer, out);
-    fputc ('\n', out);
+    if (mutt_is_subscribed_list (a))
+    {
+      mutt_save_path (buf, buflen, a);
+      return 1;
+    }
   }
+  return 0;
 }

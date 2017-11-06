@@ -1,8 +1,7 @@
-static int mutt_addrcmp (ADDRESS *a, ADDRESS *b)
+static void set_local_mailbox (ADDRESS *a, char *local_mailbox)
 {
-  if (!a->mailbox || !b->mailbox)
-    return 0;
-  if (ascii_strcasecmp (a->mailbox, b->mailbox))
-    return 0;
-  return 1;
+  FREE (&a->mailbox);
+  a->mailbox = local_mailbox;
+  a->intl_checked = 1;
+  a->is_intl = 0;
 }

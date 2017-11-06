@@ -1,10 +1,7 @@
-void mutt_forward_intro (FILE *fp, HEADER *cur)
+int mutt_is_subscribed_list (ADDRESS *addr)
 {
-  char buffer[STRING];
-  
-  fputs ("----- Forwarded message from ", fp);
-  buffer[0] = 0;
-  rfc822_write_address (buffer, sizeof (buffer), cur->env->from, 1);
-  fputs (buffer, fp);
-  fputs (" -----\n\n", fp);
+  if (!mutt_match_rx_list (addr->mailbox, UnMailLists)
+      && !mutt_match_rx_list (addr->mailbox, UnSubscribedLists))
+    return mutt_match_rx_list (addr->mailbox, SubscribedLists);
+  return 0;
 }

@@ -1,22 +1,11 @@
-void mutt_fix_reply_recipients (ENVELOPE *env)
+void
+_mutt_make_string (char *dest, size_t destlen, const char *s, CONTEXT *ctx, HEADER *hdr, format_flag flags)
 {
-  if (! option (OPTMETOO))
-  {
-    /* the order is important here.  do the CC: first so that if the
-     * the user is the only recipient, it ends up on the TO: field
-     */
-    env->cc = remove_user (env->cc, (env->to == NULL));
-    env->to = remove_user (env->to, (env->cc == NULL));
-  }
-  
-  /* the CC field can get cluttered, especially with lists */
-  env->to = mutt_remove_duplicates (env->to);
-  env->cc = mutt_remove_duplicates (env->cc);
-  env->cc = mutt_remove_xrefs (env->to, env->cc);
-  
-  if (env->cc && !env->to)
-  {
-    env->to = env->cc;
-    env->cc = NULL;
-  }
+  struct hdr_format_info hfi;
+
+  hfi.hdr = hdr;
+  hfi.ctx = ctx;
+  hfi.pager_progress = 0;
+
+  mutt_FormatString (dest, destlen, 0, MuttIndexWindow->cols, s, hdr_format_str, (unsigned long) &hfi, flags);
 }

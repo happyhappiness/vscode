@@ -1,7 +1,22 @@
-BODY *crypt_smime_build_smime_entity (BODY *a, char *certlist)
+int dotlock_invoke (const char *path, int fd, int flags, int retry)
 {
-  if (CRYPT_MOD_CALL_CHECK (SMIME, smime_build_smime_entity))
-    return (CRYPT_MOD_CALL (SMIME, smime_build_smime_entity)) (a, certlist);
+  int currdir;
+  int r;
 
-  return NULL;
+  DotlockFlags = flags;
+  
+  if ((currdir = open (".", O_RDONLY)) == -1)
+    return DL_EX_ERROR;
+
+  if (!(DotlockFlags & DL_FL_RETRY) || retry)
+    Retry = MAXLOCKATTEMPT;
+  else
+    Retry = 0;
+  
+  r = dotlock_dispatch (path, fd);
+  
+  fchdir (currdir);
+  close (currdir);
+  
+  return r;
 }

@@ -1,7 +1,11 @@
-int crypt_smime_application_smime_handler (BODY *m, STATE *s)
+static void print_fixed_line (const char *line, STATE *s, int ql,
+			      flowed_state_t *fst)
 {
-  if (CRYPT_MOD_CALL_CHECK (SMIME, application_handler))
-    return (CRYPT_MOD_CALL (SMIME, application_handler)) (m, s);
-  
-  return -1;
+  print_indent (ql, s, add_quote_suffix (s, ql));
+  if (line && *line)
+    state_puts (line, s);
+  state_putc ('\n', s);
+
+  fst->width = 0;
+  fst->spaces = 0;
 }
