@@ -235,6 +235,8 @@ class SrcmlApi:
                 depended_node = depended_info[0]
                 depended_type = depended_info[1]                
                 # get children whose tag is name [call --name or type (--specifier) --name]
+                if depended_node is None:
+                    continue
                 depended_sub_nodes = depended_node.getchildren()
                 for depended_sub_node in depended_sub_nodes:
                     if self._remove_prefix(depended_sub_node) == 'name':
@@ -314,6 +316,7 @@ class SrcmlApi:
                         self._update_dict(depended_nodes, candi_line, my_constant.VAR_FUNC_RETURN, func_node)
                         continue
                     self._update_dict(depended_nodes, candi_line, my_constant.VAR_TYPE, type_node)
+                    continue
                 # filter by decl --type ----name ----modifier --name
                 decl_node = candi_node.getparent()
                 if decl_node is not None and self._remove_prefix(decl_node) == 'decl':
@@ -407,6 +410,9 @@ class SrcmlApi:
                 while self._remove_prefix(prev_node) != 'decl':
                     prev_node = prev_node.getprevious()
                 node = prev_node[0]
+        
+        # did not find node(xml analysis fault)
+        return None
 
     def _get_sub_call_node(self, node):
         """
@@ -484,13 +490,26 @@ class SrcmlApi:
         @ involve deal with nested text which name is formed of two or more names\n
         """
         if node.text is not None:
-            return self._remove_blank(node)
+            text = self._remove_blank(node)
+            next_node = node.getnext()
+            while next_node is not None and self._remove_prefix(next_node) == 'name':
+                # add next node text
+                if next_node.text is not None:
+                    text = text + ' ' + next_node.text
+                else:
+                    text = text + ' ' + self._get_text_for_nested_name(next_node)
+                next_node = next_node.getnext()
+            return text
+        # traverse children of name without text
         else:
             text = ''
             name_nodes = node.iterdescendants(tag=self.name_tag)
             for name_node in name_nodes:
+                # add current name node text
                 if name_node.text is not None:
                     text = text + ' ' + self._remove_blank(name_node)
+                else:
+                    text = text + ' ' + self._get_text_for_nested_name(name_node)
             return text
 
     def _get_location_for_nested_node(self, node):
@@ -523,20 +542,20 @@ class SrcmlApi:
         """
         if dictionary.has_key(key):
             old_rank = dictionary[key][1]
-            # rank is lower
-            if rank > old_rank:
+            # old value is not none and current rank is lower
+            if dictionary[key][0] is not None and rank > old_rank:
                 return dictionary
-        # ranker is higher or no key
+        # ranker is higher or no key or old value is none
         dictionary[key] = [value, rank]
-   
+
         return dictionary
 
 if __name__ == "__main__":
     # input function cpp file
-    # srcml_api = SrcmlApi('second/download/rsync/gumtree/curl_repos_function_698.cpp', is_function=True)
-    # print srcml_api.get_logs_calls_types()
-    srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_function_3801.cpp')
-    if srcml_api.set_log_loc(236):
-        if srcml_api.set_control_dependence():
-            print srcml_api.get_control_info()
-            print srcml_api.get_log_info()
+    srcml_api = SrcmlApi('second/download/mutt/gumtree/mutt_repos_function_4.cpp', is_function=True)
+    print srcml_api.get_logs_calls_types()
+    # srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_function_3801.cpp')
+    # if srcml_api.set_log_loc(236):
+    #     if srcml_api.set_control_dependence():
+    #         print srcml_api.get_control_info()
+    #         print srcml_api.get_log_info()

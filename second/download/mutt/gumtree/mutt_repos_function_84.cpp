@@ -1,40 +1,29 @@
-int mutt_fetch_recips (ENVELOPE *out, ENVELOPE *in, int flags)
+int mutt_user_is_recipient (HEADER *h)
 {
-  char prompt[STRING];
-  ADDRESS *tmp;
-  int hmfupto = -1;
+  ENVELOPE *env = h->env;
 
-  if ((flags & (SENDLISTREPLY|SENDGROUPREPLY)) && in->mail_followup_to)
+  if(!h->recip_valid)
   {
-    snprintf (prompt, sizeof (prompt), _("Follow-up to %s%s?"),
-	      in->mail_followup_to->mailbox,
-	      in->mail_followup_to->next ? ",..." : "");
-
-    if ((hmfupto = query_quadoption (OPT_MFUPTO, prompt)) == -1)
-      return -1;
-  }
-
-  if (flags & SENDLISTREPLY)
-  {
-    tmp = find_mailing_lists (in->to, in->cc);
-    rfc822_append (&out->to, tmp, 0);
-    rfc822_free_address (&tmp);
-
-    if (in->mail_followup_to && hmfupto == MUTT_YES &&
-        default_to (&out->cc, in, flags & SENDLISTREPLY, hmfupto) == -1)
-      return (-1); /* abort */
-  }
-  else
-  {
-    if (default_to (&out->to, in, flags & SENDGROUPREPLY, hmfupto) == -1)
-      return (-1); /* abort */
-
-    if ((flags & SENDGROUPREPLY) && (!in->mail_followup_to || hmfupto != MUTT_YES))
+    h->recip_valid = 1;
+    
+    if (mutt_addr_is_user (env->from))
+      h->recipient = 4;
+    else if (user_in_addr (env->to))
     {
-      /* if(!mutt_addr_is_user(in->to)) */
-      rfc822_append (&out->cc, in->to, 1);
-      rfc822_append (&out->cc, in->cc, 1);
+      if (env->to->next || env->cc)
+	h->recipient = 2; /* non-unique recipient */
+      else
+	h->recipient = 1; /* unique recipient */
     }
+    else if (user_in_addr (env->cc))
+      h->recipient = 3;
+    else if (check_for_mailing_list (env->to, NULL, NULL, 0))
+      h->recipient = 5;
+    else if (check_for_mailing_list (env->cc, NULL, NULL, 0))
+      h->recipient = 5;
+    else
+      h->recipient = 0;
   }
-  return 0;
+  
+  return h->recipient;
 }

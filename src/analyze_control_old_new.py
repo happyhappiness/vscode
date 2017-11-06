@@ -79,7 +79,7 @@ def deal_log( log_record, gumtree, writer, total_log):
         edit_types = gumtree.get_log_edited_type()
     log_record[my_constant.FETCH_LOG_OLD_LOG] = old_log
     log_record[my_constant.FETCH_LOG_NEW_LOG] = new_log
-    writer.writerow(log_record + [old_log_file_name, new_log_file_name, function_file_name, function_loc, json.dumps(edit_types), edit_words, json.dumps(edit_feature)])
+    writer.writerow(log_record + [old_log_file_name, new_log_file_name, function_file_name, function_loc, json.dumps(edit_types), json.dumps(edit_words), json.dumps(edit_feature)])
     total_log += 1
 
     return total_log

@@ -1,36 +1,9 @@
-static void fmtstr (char *buffer, size_t *currlen, size_t maxlen,
-		    char *value, int flags, int min, int max)
+static void
+extract_number (dest, source)
+    int *dest;
+    unsigned char *source;
 {
-  int padlen, strln;     /* amount to pad */
-  int cnt = 0;
-  
-  if (!value)
-  {
-    value = "<NULL>";
-  }
-
-  for (strln = 0; value[strln]; ++strln); /* strlen */
-  padlen = min - strln;
-  if (padlen < 0) 
-    padlen = 0;
-  if (flags & DP_F_MINUS) 
-    padlen = -padlen; /* Left Justify */
-
-  while ((padlen > 0) && (max == -1 || cnt < max)) 
-  {
-    dopr_outch (buffer, currlen, maxlen, ' ');
-    --padlen;
-    ++cnt;
-  }
-  while (*value && (max == -1 || cnt < max)) 
-  {
-    dopr_outch (buffer, currlen, maxlen, *value++);
-    ++cnt;
-  }
-  while ((padlen < 0) && (max == -1 || cnt < max)) 
-  {
-    dopr_outch (buffer, currlen, maxlen, ' ');
-    ++padlen;
-    ++cnt;
-  }
+  int temp = SIGN_EXTEND_CHAR (*(source + 1));
+  *dest = *source & 0377;
+  *dest += temp << 8;
 }

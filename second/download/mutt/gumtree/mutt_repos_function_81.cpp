@@ -1,10 +1,25 @@
-void mutt_make_post_indent (CONTEXT *ctx, HEADER *cur, FILE *out)
+static void make_from (ENVELOPE *hdr, char *buf, size_t len, int do_lists)
 {
-  char buffer[STRING];
-  if (PostIndentString)
+  int me;
+
+  me = mutt_addr_is_user (hdr->from);
+
+  if (do_lists || me)
   {
-    mutt_make_string (buffer, sizeof (buffer), PostIndentString, ctx, cur);
-    fputs (buffer, out);
-    fputc ('\n', out);
+    if (check_for_mailing_list (hdr->to, "To ", buf, len))
+      return;
+    if (check_for_mailing_list (hdr->cc, "Cc ", buf, len))
+      return;
   }
+
+  if (me && hdr->to)
+    snprintf (buf, len, "To %s", mutt_get_name (hdr->to));
+  else if (me && hdr->cc)
+    snprintf (buf, len, "Cc %s", mutt_get_name (hdr->cc));
+  else if (me && hdr->bcc)
+    snprintf (buf, len, "Bcc %s", mutt_get_name (hdr->bcc));
+  else if (hdr->from)
+    strfcpy (buf, mutt_get_name (hdr->from), len);
+  else
+    *buf = 0;
 }

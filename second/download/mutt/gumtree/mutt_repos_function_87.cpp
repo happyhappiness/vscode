@@ -1,8 +1,5 @@
-void mutt_make_forward_subject (ENVELOPE *env, CONTEXT *ctx, HEADER *cur)
+void
+mutt_make_string_info (char *dst, size_t dstlen, int cols, const char *s, struct hdr_format_info *hfi, format_flag flags)
 {
-  char buffer[STRING];
-
-  /* set the default subject for the message. */
-  mutt_make_string (buffer, sizeof (buffer), NONULL(ForwFmt), ctx, cur);
-  mutt_str_replace (&env->subject, buffer);
+  mutt_FormatString (dst, dstlen, 0, cols, s, hdr_format_str, (unsigned long) hfi, flags);
 }

@@ -1,135 +1,26 @@
-static void fmtfp (char *buffer, size_t *currlen, size_t maxlen,
-		   long double fvalue, int min, int max, int flags)
+void
+print_double_string (where, string1, size1, string2, size2)
+    const char *where;
+    const char *string1;
+    const char *string2;
+    int size1;
+    int size2;
 {
-  int signvalue = 0;
-  long double ufvalue;
-  char iconvert[20];
-  char fconvert[20];
-  int iplace = 0;
-  int fplace = 0;
-  int padlen = 0; /* amount to pad */
-  int zpadlen = 0; 
-  int caps = 0;
-  long intpart;
-  long fracpart;
-  
-  /* 
-   * AIX manpage says the default is 0, but Solaris says the default
-   * is 6, and sprintf on AIX defaults to 6
-   */
-  if (max < 0)
-    max = 6;
+  int this_char;
 
-  ufvalue = abs_val (fvalue);
-
-  if (fvalue < 0)
-    signvalue = '-';
+  if (where == NULL)
+    printf ("(null)");
   else
-    if (flags & DP_F_PLUS)  /* Do a sign (+/i) */
-      signvalue = '+';
-    else
-      if (flags & DP_F_SPACE)
-	signvalue = ' ';
-
-#if 0
-  if (flags & DP_F_UP) caps = 1; /* Should characters be upper case? */
-#endif
-
-  intpart = ufvalue;
-
-  /* 
-   * Sorry, we only support 9 digits past the decimal because of our 
-   * conversion method
-   */
-  if (max > 9)
-    max = 9;
-
-  /* We "cheat" by converting the fractional part to integer by
-   * multiplying by a factor of 10
-   */
-  fracpart = round ((pow10 (max)) * (ufvalue - intpart));
-
-  if (fracpart >= pow10 (max))
-  {
-    intpart++;
-    fracpart -= pow10 (max);
-  }
-
-#ifdef DEBUG_SNPRINTF
-  dprint (1, (debugfile, "fmtfp: %f =? %d.%d\n", fvalue, intpart, fracpart));
-#endif
-
-  /* Convert integer part */
-  do {
-    iconvert[iplace++] =
-      (caps? "0123456789ABCDEF":"0123456789abcdef")[intpart % 10];
-    intpart = (intpart / 10);
-  } while(intpart && (iplace < 20));
-  if (iplace == 20) iplace--;
-  iconvert[iplace] = 0;
-
-  /* Convert fractional part */
-  do {
-    fconvert[fplace++] =
-      (caps? "0123456789ABCDEF":"0123456789abcdef")[fracpart % 10];
-    fracpart = (fracpart / 10);
-  } while(fracpart && (fplace < 20));
-  if (fplace == 20) fplace--;
-  fconvert[fplace] = 0;
-
-  /* -1 for decimal point, another -1 if we are printing a sign */
-  padlen = min - iplace - max - 1 - ((signvalue) ? 1 : 0); 
-  zpadlen = max - fplace;
-  if (zpadlen < 0)
-    zpadlen = 0;
-  if (padlen < 0) 
-    padlen = 0;
-  if (flags & DP_F_MINUS) 
-    padlen = -padlen; /* Left Justifty */
-
-  if ((flags & DP_F_ZERO) && (padlen > 0)) 
-  {
-    if (signvalue) 
     {
-      dopr_outch (buffer, currlen, maxlen, signvalue);
-      --padlen;
-      signvalue = 0;
+      if (FIRST_STRING_P (where))
+        {
+          for (this_char = where - string1; this_char < size1; this_char++)
+            putchar (string1[this_char]);
+
+          where = string2;
+        }
+
+      for (this_char = where - string2; this_char < size2; this_char++)
+        putchar (string2[this_char]);
     }
-    while (padlen > 0)
-    {
-      dopr_outch (buffer, currlen, maxlen, '0');
-      --padlen;
-    }
-  }
-  while (padlen > 0)
-  {
-    dopr_outch (buffer, currlen, maxlen, ' ');
-    --padlen;
-  }
-  if (signvalue) 
-    dopr_outch (buffer, currlen, maxlen, signvalue);
-
-  while (iplace > 0) 
-    dopr_outch (buffer, currlen, maxlen, iconvert[--iplace]);
-
-  /*
-   * Decimal point.  This should probably use locale to find the correct
-   * char to print out.
-   */
-  dopr_outch (buffer, currlen, maxlen, '.');
-
-  while (fplace > 0) 
-    dopr_outch (buffer, currlen, maxlen, fconvert[--fplace]);
-
-  while (zpadlen > 0)
-  {
-    dopr_outch (buffer, currlen, maxlen, '0');
-    --zpadlen;
-  }
-
-  while (padlen < 0) 
-  {
-    dopr_outch (buffer, currlen, maxlen, ' ');
-    ++padlen;
-  }
 }

@@ -1,7 +1,14 @@
-int crypt_smime_verify_one (BODY *sigbdy, STATE *s, const char *tempf)
+static void
+BEGIN_PRIVILEGED (void)
 {
-  if (CRYPT_MOD_CALL_CHECK (SMIME, verify_one))
-    return (CRYPT_MOD_CALL (SMIME, verify_one)) (sigbdy, s, tempf);
-
-  return -1;
+#ifdef USE_SETGID
+  if (DotlockFlags & DL_FL_USEPRIV)
+  {
+    if (SETEGID (MailGid) != 0)
+    {
+      /* perror ("setegid"); */
+      exit (DL_EX_ERROR);
+    }
+  }
+#endif
 }

@@ -22,7 +22,6 @@ import my_util
 reload(sys);
 sys.setdefaultencoding('utf8')
 
-
 def analyze_file(file_name, function_cnt, srcml):
     """
     @ param file name and function counter and srcml \n
@@ -95,7 +94,7 @@ def analyze_repos(repos_name=None, is_first=True):
     file_cnt = 0
     log_record_cnt = 0
     function_record_cnt = 0
-    for file_name in file_names:
+    for file_name in islice(file_names, 111,None):
         file_cnt += 1
         # analyze functions in file to retieve log records and function records
         log_record_list, function_record_list = analyze_file(file_name, function_record_cnt, srcml)
@@ -158,12 +157,12 @@ if __name__ == "__main__":
     # curl
     # analyze_repos("curl-7.41.0")
     # mutt
-    # analyze_repos("mutt-1.7.2")
+    analyze_repos("mutt-1.7.2")
     # rsync
     # analyze_repos("rsync-1.4.4")
     # git
     # analyze_repos('git-2.6.7')
     # httpd
-    analyze_repos('httpd-2.3.8')
+    # analyze_repos('httpd-2.3.8')
     cluster_repos_log()
     # cluster_repos_log()

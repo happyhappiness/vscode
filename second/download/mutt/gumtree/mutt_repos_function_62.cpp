@@ -1,29 +1,20 @@
-static void dump_menu (FILE *f, int menu)
+static int
+dotlock_try (void)
 {
-  struct keymap_t *map;
-  const struct binding_t *b;
-  char buf[SHORT_STRING];
+#ifdef USE_SETGID
+  struct stat sb;
+#endif
 
-  /* browse through the keymap table */
-  for (map = Keymaps[menu]; map; map = map->next)
+  if (access (".", W_OK) == 0)
+    return DL_EX_OK;
+
+#ifdef USE_SETGID
+  if (stat (".", &sb) == 0)
   {
-    if (map->op != OP_NULL)
-    {
-      km_expand_key (buf, sizeof (buf), map);
-
-      if (map->op == OP_MACRO)
-      {
-	if (map->descr == NULL)
-	  format_line (f, -1, buf, "macro", map->macro);
-        else
-	  format_line (f, 1, buf, map->macro, map->descr);
-      }
-      else
-      {
-	b = help_lookupFunction (map->op, menu);
-	format_line (f, 0, buf, b ? b->name : "UNKNOWN",
-	      b ? _(HelpStrings[b->op]) : _("ERROR: please report this bug"));
-      }
-    }
+    if ((sb.st_mode & S_IWGRP) == S_IWGRP && sb.st_gid == MailGid)
+      return DL_EX_NEED_PRIVS;
   }
+#endif
+
+  return DL_EX_IMPOSSIBLE;
 }
