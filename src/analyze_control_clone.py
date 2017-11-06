@@ -106,26 +106,26 @@ def is_match_for_modify_rule(rule_feature, repos_log_feature):
     """
     return rule_feature == repos_log_feature
 
-def check_repos_info(repos_name, is_rebuild_repos=False, postfix=''):
+def check_repos_info(repos_name, rebuild_repos=False, postfix=''):
     """
     @ param repos name and flag: true if need reanalyze repos database(e.g. srcml_api update), file postfix\n
     @ return nothing\n
     @ involve create repos info for given old repos name if need\n
     """
     # has not create file or need rebuild repos info
-    if is_rebuild_repos or not os.path.isfile(my_constant.CLASS_REPOS_LOG_FILE_NAME + postfix):
+    if rebuild_repos or not os.path.isfile(my_constant.CLASS_REPOS_LOG_FILE_NAME + postfix):
         # analyze repos with given repos name and postfix
         analyze_control_repos.analyze_repos(repos_name, postfix=postfix)
         analyze_control_repos.cluster_repos_log(postfix)
 
-def seek_clone(repos_name, is_rebuild_repos=False, postfix=''):
+def seek_clone(repos_name, rebuild_repos=False, postfix=''):
     """
     @ param postfix: repos info files \n
     @ return nothing \n
     @ involve match rule class against given repos log class and function\n
     """
-    if is_rebuild_repos:
-        check_repos_info(repos_name, is_rebuild_repos, postfix)
+    if rebuild_repos:
+        check_repos_info(repos_name, rebuild_repos, postfix)
     # initiate csv reader file(rule class, repos log class, function class)
     rule_file = file(my_constant.CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME, 'rb')
     rule_records = csv.reader(rule_file)
@@ -188,7 +188,7 @@ def seek_clone(repos_name, is_rebuild_repos=False, postfix=''):
     repos_function_clone_file.close()
     repos_log_clone_file.close()
 
-def seek_clone_for_rule(is_rebuild_repos=False):
+def seek_clone_for_corresponding_repos(rebuild_repos=False):
     """
     @ param true if need reanalyze repos database(e.g. srcml_api update)\n
     @ return nothing \n
@@ -213,7 +213,7 @@ def seek_clone_for_rule(is_rebuild_repos=False):
         print 'now processing rule %d/%d, ' %(rule_counter, rule_size),
         # get repos info files with old repos name
         old_repos_name = my_util.get_old_repos_name(rule_record[0])
-        check_repos_info(old_repos_name, is_rebuild_repos, old_repos_name)
+        check_repos_info(old_repos_name, rebuild_repos, old_repos_name)
         # rule info
         old_loc = rule_record[my_constant.CLASS_OLD_NEW_OLD_LOC]
         check = json.loads(rule_record[my_constant.CLASS_OLD_NEW_CHECK])
@@ -268,20 +268,20 @@ def seek_clone_for_rule(is_rebuild_repos=False):
     repos_function_clone_file.close()
     repos_log_clone_file.close()
 
-def seek_clone_for_last_repos(is_rebuild_repos=False):
+def seek_clone_for_lastest_repos(rebuild_repos=False):
     """
     @ param flag: true if need rebuild repos info\n
     @ return nothing\n
     @ involve match every rule against latest repos\n
     """
-    seek_clone( my_constant.LAST_REPOS, is_rebuild_repos, my_constant.LAST_REPOS)
+    seek_clone( my_constant.LAST_REPOS, rebuild_repos, my_constant.LAST_REPOS)
 
 """
 main function
 """
 if __name__ == "__main__":
 
-    seek_clone_for_last_repos()
+    seek_clone_for_lastest_repos()
     # list_a = [[["!", "struct group_of_users *"]], [["strstr", "char *", "\"group \"", "char *", "=="]]]
     # list_b = [[["!", "struct user *"]], [["strstr", "char *", "\"user \"", "char *", "=="]]]
     # print compute_context_similarity(list_a, list_b, {})
