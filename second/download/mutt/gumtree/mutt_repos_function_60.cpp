@@ -1,18 +1,13 @@
-static int
-dotlock_unlock (const char *realpath)
+static int pad (FILE *f, int col, int i)
 {
-  char lockfile[_POSIX_PATH_MAX + LONG_STRING];
-  int i;
+  char fmt[8];
 
-  snprintf (lockfile, sizeof (lockfile), "%s.lock",
-	   realpath);
-  
-  BEGIN_PRIVILEGED ();
-  i = unlink (lockfile);
-  END_PRIVILEGED ();
-  
-  if (i == -1)
-    return DL_EX_ERROR;
-  
-  return DL_EX_OK;
+  if (col < i)
+  {
+    snprintf (fmt, sizeof(fmt), "%%-%ds", i - col);
+    fprintf (f, fmt, "");
+    return (i);
+  }
+  fputc (' ', f);
+  return (col + 1);
 }

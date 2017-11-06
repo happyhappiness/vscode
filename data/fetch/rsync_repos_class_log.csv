@@ -5,7 +5,7 @@ class,check,variable
 3,[null],"[null, ""get_checksum1_ret"", ""MIN_ret""]"
 4,[null],"[null, ""matched_arg"", null, null, ""MIN_arg"", ""matched_arg"", null]"
 5,[null],"[null, ""MIN_arg"", ""get_checksum1_ret""]"
-6,[null],"[null, ""MIN_arg"", """", ""matched_arg"", ""get_checksum1_ret""]"
+6,[null],"[null, ""MIN_arg"", ""int"", ""matched_arg"", ""get_checksum1_ret""]"
 112,[null],[null]
 7,[null],"[null, null, null, null]"
 8,"[""strdup_ret"", ""realloc_ret"", ""realloc_ret"", ""int""]",[]
@@ -47,7 +47,7 @@ class,check,variable
 38,[null],"[null, ""read_int_ret"", null, ""off_t""]"
 39,"[""read_write_ret"", ""read_int_ret""]","[""strerror_ret"", null, ""char""]"
 40,[null],"[null, ""read_int_ret"", ""write_sparse_arg"", null, ""map_ptr_arg"", null, ""off_t""]"
-41,"[""write_sparse_ret"", ""map_ptr_ret"", """"]","[""strerror_ret"", null, ""char""]"
+41,"[""write_sparse_ret"", ""map_ptr_ret"", ""int""]","[""strerror_ret"", null, ""char""]"
 42,"[""sparse_end_ret"", ""off_t""]","[""strerror_ret"", null, ""char""]"
 43,"[""unlink_ret"", null]","[""strerror_ret"", null, "" struct file_struct"", null]"
 101,[null],"[null, "" struct file_struct"", null]"

@@ -1,6 +1,6 @@
-void
-printchar (c)
-     int c;
+static void dopr_outch (char *buffer, size_t *currlen, size_t maxlen, char c)
 {
-  putc (c, stderr);
+  if (*currlen < maxlen)
+    buffer[*currlen] = c;
+  (*currlen)++;
 }

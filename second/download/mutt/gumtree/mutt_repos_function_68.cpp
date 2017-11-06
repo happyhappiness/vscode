@@ -1,7 +1,9 @@
-static void set_intl_mailbox (ADDRESS *a, char *intl_mailbox)
+static int mutt_addrsrc (ADDRESS *a, ADDRESS *lst)
 {
-  FREE (&a->mailbox);
-  a->mailbox = intl_mailbox;
-  a->intl_checked = 1;
-  a->is_intl = 1;
+  for (; lst; lst = lst->next)
+  {
+    if (mutt_addrcmp (a, lst))
+      return (1);
+  }
+  return (0);
 }

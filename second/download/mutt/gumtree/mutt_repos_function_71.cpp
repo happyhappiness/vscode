@@ -1,31 +1,22 @@
-int mutt_addrlist_to_intl (ADDRESS *a, char **err)
+static ADDRESS *find_mailing_lists (ADDRESS *t, ADDRESS *c)
 {
-  char *user = NULL, *domain = NULL;
-  char *intl_mailbox = NULL;
-  int rv = 0;
+  ADDRESS *top = NULL, *ptr = NULL;
 
-  if (err)
-    *err = NULL;
-
-  for (; a; a = a->next)
+  for (; t || c; t = c, c = NULL)
   {
-    if (!a->mailbox || addr_is_intl (a))
-      continue;
-
-    if (mbox_to_udomain (a->mailbox, &user, &domain) == -1)
-      continue;
-
-    intl_mailbox = local_to_intl (user, domain);
-    if (! intl_mailbox)
+    for (; t; t = t->next)
     {
-      rv = -1;
-      if (err && !*err)
-        *err = safe_strdup (a->mailbox);
-      continue;
+      if (mutt_is_mail_list (t) && !t->group)
+      {
+	if (top)
+	{
+	  ptr->next = rfc822_cpy_adr_real (t);
+	  ptr = ptr->next;
+	}
+	else
+	  ptr = top = rfc822_cpy_adr_real (t);
+      }
     }
-
-    set_intl_mailbox (a, intl_mailbox);
   }
-
-  return rv;
+  return top;
 }

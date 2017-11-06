@@ -1,15 +1,4 @@
-static void
-insert_op1 (op, loc, arg, end)
-    re_opcode_t op;
-    unsigned char *loc;
-    int arg;
-    unsigned char *end;
+static int crypt_mod_smime_decrypt_mime (FILE *a, FILE **b, BODY *c, BODY **d)
 {
-  register unsigned char *pfrom = end;
-  register unsigned char *pto = end + 3;
-
-  while (pfrom != loc)
-    *--pto = *--pfrom;
-
-  store_op1 (op, loc, arg);
+  return smime_decrypt_mime (a, b, c, d);
 }

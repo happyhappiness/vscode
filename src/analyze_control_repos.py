@@ -67,25 +67,32 @@ def fetch_repos_file(repos_name):
                 filenames.append(filename)
     return filenames
 
-def analyze_repos(repos_name=None, is_first=True):
+def analyze_repos(repos_name, postfix=''):
     """
-    @ param repos name to analyze and flag about analyze first or last repos\n
+    @ param repos name(not none) to analyze and postfix of repos info files\n
     @ return nothing \n
     @ involve fetch file from given repos and build two sort of records(log and call)\n
     """
-    if repos_name is None and is_first:
+    # if no given repos name, create info for first or last repos
+    if repos_name == my_constant.FIRST_REPOS:
         versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
         versions = versions.split('\n')
-        repos_name = min(versions,key=my_util.get_version_number)
+        repos_name = min(versions, key=my_util.get_version_number)
+        # if is_first flag is true, then analyze first repos
+    elif repos_name == my_constant.LAST_REPOS:
+        versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
+        versions = versions.split('\n')
+        repos_name = max(versions, key=my_util.get_version_number)
+
     srcml = SrcmlApi()
     # fetch file name
     file_names = fetch_repos_file(repos_name)
 
     # initialize log and call analysis file
-    log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME, 'wb')
+    log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME + postfix, 'wb')
     log_writer = csv.writer(log_file)
     log_writer.writerow(my_constant.ANALYZE_REPOS_LOG_TITLE)
-    function_file = file(my_constant.ANALYZE_REPOS_FUNCTION_FILE_NAME, 'wb')
+    function_file = file(my_constant.ANALYZE_REPOS_FUNCTION_FILE_NAME + postfix, 'wb')
     function_writer = csv.writer(function_file)
     function_writer.writerow(my_constant.ANALYZE_REPOS_FUNCTION_TITLE)
 
@@ -94,7 +101,7 @@ def analyze_repos(repos_name=None, is_first=True):
     file_cnt = 0
     log_record_cnt = 0
     function_record_cnt = 0
-    for file_name in islice(file_names, 111,None):
+    for file_name in file_names:
         file_cnt += 1
         # analyze functions in file to retieve log records and function records
         log_record_list, function_record_list = analyze_file(file_name, function_record_cnt, srcml)
@@ -112,14 +119,14 @@ def analyze_repos(repos_name=None, is_first=True):
     function_file.close()
 
 
-def cluster_repos_log():
+def cluster_repos_log(postfix=''):
     """
-    @ param nothing\n
+    @ param postfix of repos analysis,cluster and class files\n
     @ return nothing \n
     @ involve call cluster api to cluster repos log records and build class file for it\n
     """
     # intiate csv file
-    analyze_repos_log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME, 'rb')
+    analyze_repos_log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME + postfix, 'rb')
     records = csv.reader(analyze_repos_log_file)
     # build feature lists
     feature_lists = []
@@ -131,9 +138,9 @@ def cluster_repos_log():
     # do cluster
     cluster_list = cluster_api.cluster_record_with_equality(feature_lists)
     # initiate cluster file
-    analyze_repos_log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME, 'rb')
+    analyze_repos_log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME + postfix, 'rb')
     records = csv.reader(analyze_repos_log_file)
-    cluster_repos_log_file = file(my_constant.CLUSTER_REPOS_LOG_FILE_NAME, 'wb')
+    cluster_repos_log_file = file(my_constant.CLUSTER_REPOS_LOG_FILE_NAME + postfix, 'wb')
     writer = csv.writer(cluster_repos_log_file)
     writer.writerow(my_constant.CLUSTER_REPOS_LOG_TITLE)
     # store record + cluster
@@ -147,8 +154,8 @@ def cluster_repos_log():
 
     # build class from cluster(min frequence is 1)
     feature_indexes = [my_constant.ANALYZE_REPOS_LOG_CHECK, my_constant.ANALYZE_REPOS_LOG_VARIABLE]
-    cluster_api.generate_class_from_cluster(my_constant.CLUSTER_REPOS_LOG_FILE_NAME,\
-        my_constant.CLASS_REPOS_LOG_FILE_NAME, my_constant.CLASS_REPOS_LOG_TITLE, feature_indexes, 1)
+    cluster_api.generate_class_from_cluster(my_constant.CLUSTER_REPOS_LOG_FILE_NAME + postfix,\
+        my_constant.CLASS_REPOS_LOG_FILE_NAME + postfix, my_constant.CLASS_REPOS_LOG_TITLE, feature_indexes, 1)
 
 """
 main function

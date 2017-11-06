@@ -1,15 +1,4 @@
-static boolean
-group_in_compile_stack (compile_stack, regnum)
-    compile_stack_type compile_stack;
-    regnum_t regnum;
+static int crypt_mod_smime_verify_one (BODY *sigbdy, STATE *s, const char *tempf)
 {
-  int this_element;
-
-  for (this_element = compile_stack.avail - 1;
-       this_element >= 0;
-       this_element--)
-    if (compile_stack.stack[this_element].regnum == regnum)
-      return true;
-
-  return false;
+  return smime_verify_one (sigbdy, s, tempf);
 }

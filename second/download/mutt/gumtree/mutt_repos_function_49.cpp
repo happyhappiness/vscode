@@ -1,16 +1,7 @@
-static int
-dotlock_init_privs (void)
+BODY *crypt_smime_sign_message (BODY *a)
 {
+  if (CRYPT_MOD_CALL_CHECK (SMIME, sign_message))
+    return (CRYPT_MOD_CALL (SMIME, sign_message)) (a);
 
-# ifdef USE_SETGID
-  
-  UserGid = getgid ();
-  MailGid = getegid ();
-
-  if (SETEGID (UserGid) != 0)
-    return -1;
-
-# endif
-
-  return 0;
+  return NULL;
 }

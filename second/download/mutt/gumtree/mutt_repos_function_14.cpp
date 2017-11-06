@@ -1,3 +1,4 @@
-static boolean
-at_begline_loc_p (pattern, p, syntax)
-    const char *pattern, *p;
+static char *crypt_mod_smime_findkeys (ADDRESS *adrlist, int oppenc_mode)
+{
+  return smime_findKeys (adrlist, oppenc_mode);
+}

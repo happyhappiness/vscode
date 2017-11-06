@@ -228,6 +228,14 @@ def get_csv_record_len(records):
     records = list(records)
     return len(records), records
 
+def get_old_repos_name(patch_file_name):
+    """
+    @ param patch file name [old repos name]_diff_[new repos name]\n
+    @ return old repos name\n
+    @ involve split patch file name by _diff_ and return the former part\n
+    """
+    return patch_file_name.split('_diff_')[0]
+
 def get_version_number(version):
     """
     @ param file name\n

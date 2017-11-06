@@ -1,6 +1,19 @@
-int mutt_is_mail_list (ADDRESS *addr)
+LIST *mutt_copy_list (LIST *p)
 {
-  if (!mutt_match_rx_list (addr->mailbox, UnMailLists))
-    return mutt_match_rx_list (addr->mailbox, MailLists);
-  return 0;
+  LIST *t, *r=NULL, *l=NULL;
+
+  for (; p; p = p->next)
+  {
+    t = (LIST *) safe_malloc (sizeof (LIST));
+    t->data = safe_strdup (p->data);
+    t->next = NULL;
+    if (l)
+    {
+      r->next = t;
+      r = r->next;
+    }
+    else
+      l = r = t;
+  }
+  return (l);
 }

@@ -1,10 +1,14 @@
-void mutt_env_to_local (ENVELOPE *e)
+static void process_user_recips (ENVELOPE *env)
 {
-  mutt_addrlist_to_local (e->return_path);
-  mutt_addrlist_to_local (e->from);
-  mutt_addrlist_to_local (e->to);
-  mutt_addrlist_to_local (e->cc);
-  mutt_addrlist_to_local (e->bcc);
-  mutt_addrlist_to_local (e->reply_to);
-  mutt_addrlist_to_local (e->mail_followup_to);
+  LIST *uh = UserHeader;
+
+  for (; uh; uh = uh->next)
+  {
+    if (ascii_strncasecmp ("to:", uh->data, 3) == 0)
+      env->to = rfc822_parse_adrlist (env->to, uh->data + 3);
+    else if (ascii_strncasecmp ("cc:", uh->data, 3) == 0)
+      env->cc = rfc822_parse_adrlist (env->cc, uh->data + 3);
+    else if (ascii_strncasecmp ("bcc:", uh->data, 4) == 0)
+      env->bcc = rfc822_parse_adrlist (env->bcc, uh->data + 4);
+  }
 }

@@ -1,9 +1,5 @@
-static void flush_par (STATE *s, flowed_state_t *fst)
+void crypt_smime_void_passphrase (void)
 {
-  if (fst->width > 0)
-  {
-    state_putc ('\n', s);
-    fst->width = 0;
-  }
-  fst->spaces = 0;
+  if (CRYPT_MOD_CALL_CHECK (SMIME, void_passphrase))
+    (CRYPT_MOD_CALL (SMIME, void_passphrase)) ();
 }

@@ -1,14 +1,7 @@
-static void
-END_PRIVILEGED (void)
+int crypt_smime_send_menu (HEADER *msg, int *redraw)
 {
-#ifdef USE_SETGID
-  if (DotlockFlags & DL_FL_USEPRIV)
-  {
-    if (SETEGID (UserGid) != 0)
-    {
-      /* perror ("setegid"); */
-      exit (DL_EX_ERROR);
-    }
-  }
-#endif
+  if (CRYPT_MOD_CALL_CHECK (SMIME, send_menu))
+    return (CRYPT_MOD_CALL (SMIME, send_menu)) (msg, redraw);
+
+  return 0;
 }
