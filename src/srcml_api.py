@@ -32,9 +32,9 @@ class SrcmlApi:
         # initiate functions
         self.functions = []
 
-    def get_functions(self, index):
+    def get_functions(self, index, postfix):
         """
-        @ param index(counter of functions)\n
+        @ param index(counter of functions) and postfix\n
         @ return functions info[function file name]\n
         @ involve get all functions in source file, store both file and xml file\n
         """
@@ -44,7 +44,7 @@ class SrcmlApi:
             for function_node in function_nodes:
                 # store xml function
                 function = etree.tostring(function_node)
-                function_file_name = my_constant.SAVE_REPOS_FUNCTION + str(index) + '.cpp'
+                function_file_name = my_constant.SAVE_REPOS_FUNCTION + str(index) + postfix + '.cpp'
                 function_xml_name = function_file_name + '.xml'
                 my_util.save_file(function, function_xml_name)
                 # store source function
@@ -552,10 +552,10 @@ class SrcmlApi:
 
 if __name__ == "__main__":
     # input function cpp file
-    srcml_api = SrcmlApi('second/download/mutt/gumtree/mutt_repos_function_4.cpp', is_function=True)
-    print srcml_api.get_logs_calls_types()
-    # srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_function_3801.cpp')
-    # if srcml_api.set_log_loc(236):
-    #     if srcml_api.set_control_dependence():
-    #         print srcml_api.get_control_info()
-    #         print srcml_api.get_log_info()
+    # srcml_api = SrcmlApi('second/download/mutt/gumtree/mutt_repos_function_4.cpp', is_function=True)
+    # print srcml_api.get_logs_calls_types()
+    srcml_api = SrcmlApi('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/gumtree/mutt_repos_function_1140_mutt-1.4.2.3.cpp', True)
+    if srcml_api.set_log_loc(13):
+        if srcml_api.set_control_dependence():
+            print srcml_api.get_control_info()
+            print srcml_api.get_log_info()

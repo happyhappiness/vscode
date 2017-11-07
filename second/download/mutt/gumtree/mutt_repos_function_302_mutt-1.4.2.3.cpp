@@ -1,0 +1,61 @@
+void mutt_format_string (char *dest, size_t destlen,
+			 int min_width, int max_width,
+			 int right_justify, char m_pad_char,
+			 const char *s, size_t n,
+			 int arboreal)
+{
+  char *p;
+  wchar_t wc;
+  int w;
+  size_t k, k2;
+  char scratch[MB_LEN_MAX];
+  mbstate_t mbstate1, mbstate2;
+
+  memset(&mbstate1, 0, sizeof (mbstate1));
+  memset(&mbstate2, 0, sizeof (mbstate2));
+  --destlen;
+  p = dest;
+  for (; n && (k = mbrtowc (&wc, s, n, &mbstate1)); s += k, n -= k)
+  {
+    if (k == (size_t)(-1) || k == (size_t)(-2))
+    {
+      k = (k == (size_t)(-1)) ? 1 : n;
+      wc = replacement_char ();
+    }
+    if (arboreal && wc < M_TREE_MAX)
+      w = 1; /* hack */
+    else
+    {
+      if (!IsWPrint (wc))
+	wc = '?';
+      w = wcwidth (wc);
+    }
+    if (w >= 0)
+    {
+      if (w > max_width || (k2 = wcrtomb (scratch, wc, &mbstate2)) > destlen)
+	break;
+      min_width -= w;
+      max_width -= w;
+      strncpy (p, scratch, k2);
+      p += k2;            
+      destlen -= k2;
+    }
+  }
+  w = (int)destlen < min_width ? destlen : min_width;
+  if (w <= 0)
+    *p = '\0';
+  else if (right_justify)
+  {
+    p[w] = '\0';
+    while (--p >= dest)
+      p[w] = *p;
+    while (--w >= 0)
+      dest[w] = m_pad_char;
+  }
+  else
+  {
+    while (--w >= 0)
+      *p++ = m_pad_char;
+    *p = '\0';
+  }
+}

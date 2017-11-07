@@ -22,9 +22,9 @@ import my_util
 reload(sys);
 sys.setdefaultencoding('utf8')
 
-def analyze_file(file_name, function_cnt, srcml):
+def analyze_file(file_name, function_cnt, postfix, srcml):
     """
-    @ param file name and function counter and srcml \n
+    @ param file name, function counter, postfix for store file and srcml \n
     @ return log record list and function record list \n
     @ involve traverse each function in file to build two sort of records\n
     """
@@ -32,7 +32,7 @@ def analyze_file(file_name, function_cnt, srcml):
     function_record_list = [] #[file, function, calls]
     # handle file to get and store all functions
     srcml.set_source_file(file_name)
-    functions = srcml.get_functions(function_cnt)
+    functions = srcml.get_functions(function_cnt, postfix)
     # traverse function to get calls and filter log info
     for function in functions:
         srcml.set_function_file(function)
@@ -89,10 +89,12 @@ def analyze_repos(repos_name, postfix=''):
     file_names = fetch_repos_file(repos_name)
 
     # initialize log and call analysis file
-    log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME + postfix, 'wb')
+    log_file = file(my_util.concate_file(\
+            my_constant.ANALYZE_REPOS_LOG_FILE_NAME, postfix), 'wb')
     log_writer = csv.writer(log_file)
     log_writer.writerow(my_constant.ANALYZE_REPOS_LOG_TITLE)
-    function_file = file(my_constant.ANALYZE_REPOS_FUNCTION_FILE_NAME + postfix, 'wb')
+    function_file = file(my_util.concate_file(\
+            my_constant.ANALYZE_REPOS_FUNCTION_FILE_NAME, postfix), 'wb')
     function_writer = csv.writer(function_file)
     function_writer.writerow(my_constant.ANALYZE_REPOS_FUNCTION_TITLE)
 
@@ -104,7 +106,8 @@ def analyze_repos(repos_name, postfix=''):
     for file_name in file_names:
         file_cnt += 1
         # analyze functions in file to retieve log records and function records
-        log_record_list, function_record_list = analyze_file(file_name, function_record_cnt, srcml)
+        log_record_list, function_record_list = analyze_file(file_name, \
+                                            function_record_cnt, postfix, srcml)
         for log_record in log_record_list:
             log_writer.writerow(log_record)
         for function_record in function_record_list:
@@ -126,7 +129,8 @@ def cluster_repos_log(postfix=''):
     @ involve call cluster api to cluster repos log records and build class file for it\n
     """
     # intiate csv file
-    analyze_repos_log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME + postfix, 'rb')
+    analyze_repos_log_file = file(my_util.concate_file(\
+            my_constant.ANALYZE_REPOS_LOG_FILE_NAME, postfix), 'rb')
     records = csv.reader(analyze_repos_log_file)
     # build feature lists
     feature_lists = []
@@ -138,9 +142,11 @@ def cluster_repos_log(postfix=''):
     # do cluster
     cluster_list = cluster_api.cluster_record_with_equality(feature_lists)
     # initiate cluster file
-    analyze_repos_log_file = file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME + postfix, 'rb')
+    analyze_repos_log_file = file(my_util.concate_file(\
+                my_constant.ANALYZE_REPOS_LOG_FILE_NAME, postfix), 'rb')
     records = csv.reader(analyze_repos_log_file)
-    cluster_repos_log_file = file(my_constant.CLUSTER_REPOS_LOG_FILE_NAME + postfix, 'wb')
+    cluster_repos_log_file = file(my_util.concate_file(\
+                my_constant.CLUSTER_REPOS_LOG_FILE_NAME, postfix), 'wb')
     writer = csv.writer(cluster_repos_log_file)
     writer.writerow(my_constant.CLUSTER_REPOS_LOG_TITLE)
     # store record + cluster
@@ -154,8 +160,10 @@ def cluster_repos_log(postfix=''):
 
     # build class from cluster(min frequence is 1)
     feature_indexes = [my_constant.ANALYZE_REPOS_LOG_CHECK, my_constant.ANALYZE_REPOS_LOG_VARIABLE]
-    cluster_api.generate_class_from_cluster(my_constant.CLUSTER_REPOS_LOG_FILE_NAME + postfix,\
-        my_constant.CLASS_REPOS_LOG_FILE_NAME + postfix, my_constant.CLASS_REPOS_LOG_TITLE, feature_indexes, 1)
+    cluster_api.generate_class_from_cluster(my_util.concate_file(\
+                    my_constant.CLUSTER_REPOS_LOG_FILE_NAME, postfix),\
+                    my_util.concate_file(my_constant.CLASS_REPOS_LOG_FILE_NAME, postfix),\
+                    my_constant.CLASS_REPOS_LOG_TITLE, feature_indexes, 1)
 
 """
 main function
