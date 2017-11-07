@@ -78,9 +78,6 @@ def seek_clone_for_corresponding_repos(repos_list, reanalyze_srcml=False, reanal
         print 'now analyzing repos %s' %repos
         # update repos value of my constant
         my_constant.reset_repos(repos)
-        # first -> refetch and reanalyze hunk
-        # fetch_hunk.fetch_version_diff(False)
-        # analyze_hunk.fetch_hunk()
         if reanalyze_srcml:
             regenerate_rule(reanalyze_gumtree)
         # seek clone
@@ -106,8 +103,8 @@ if __name__ == "__main__":
     reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync']
     repos_names = ['httpd-2.3.8', 'git-2.6.7', 'mutt-1.7.2', 'curl-7.41.0', 'rsync-1.4.4']
     # seek_clone_for_given_repos(reposes, repos_names)
-    seek_clone_for_corresponding_repos(reposes[0:2], True, True)
-    # seek_clone_for_corresponding_repos(reposes[2:], True, True)
+    # seek_clone_for_corresponding_repos(reposes[0:2], True, True)
+    seek_clone_for_corresponding_repos(reposes[3:], True, True)
 
     # regenerate_hunk(reposes[0:5])
     # do_statistics(reposes)

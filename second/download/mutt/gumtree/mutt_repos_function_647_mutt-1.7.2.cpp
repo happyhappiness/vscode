@@ -172,4 +172,5 @@ int mutt_builtin_editor (const char *path, HEADER *msg, HEADER *cur)
   if (!abort) be_barf_file (path, buf, buflen);
   be_free_memory (buf, buflen);
 
- 
+  return (abort ? -1 : 0);
+}

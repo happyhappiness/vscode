@@ -157,4 +157,40 @@ int mutt_extract_token (BUFFER *dest, BUFFER *tok, int flags)
       int idx;
 
       if (*tok->dptr == '{')
-      
+      {
+	tok->dptr++;
+	if ((pc = strchr (tok->dptr, '}')))
+	{
+	  var = mutt_substrdup (tok->dptr, pc);
+	  tok->dptr = pc + 1;
+	}
+      }
+      else
+      {
+	for (pc = tok->dptr; isalnum ((unsigned char) *pc) || *pc == '_'; pc++)
+	  ;
+	var = mutt_substrdup (tok->dptr, pc);
+	tok->dptr = pc;
+      }
+      if (var)
+      {
+        if ((env = getenv (var)) || (env = myvar_get (var)))
+          mutt_buffer_addstr (dest, env);
+        else if ((idx = mutt_option_index (var)) != -1)
+        {
+          /* expand settable mutt variables */
+          char val[LONG_STRING];
+
+          if (var_to_string (idx, val, sizeof (val)))
+            mutt_buffer_addstr (dest, val);
+        }
+        FREE (&var);
+      }
+    }
+    else
+      mutt_buffer_addch (dest, ch);
+  }
+  mutt_buffer_addch (dest, 0); /* terminate the string */
+  SKIPWS (tok->dptr);
+  return 0;
+}

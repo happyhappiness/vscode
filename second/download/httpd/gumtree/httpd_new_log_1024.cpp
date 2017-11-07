@@ -1,2 +1,1 @@
-apr_file_printf(errfile,
-            "On all other systems, the '-p' flag will probably not work." NL);
+apr_file_printf(errfile, " -D  Delete the specified user." NL);

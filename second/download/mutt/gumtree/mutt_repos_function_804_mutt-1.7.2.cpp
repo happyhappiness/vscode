@@ -142,4 +142,58 @@ folder_format_str (char *dest, size_t destlen, size_t col, int cols, char op, co
       if (!optional)
       {
         if (folder->ff->has_buffy)
-       
+        {
+          snprintf (tmp, sizeof (tmp), "%%%sd", fmt);
+          snprintf (dest, destlen, tmp, folder->ff->msg_unread);
+        }
+        else
+          mutt_format_s (dest, destlen, fmt, "");
+      }
+      else if (!folder->ff->msg_unread)
+        optional = 0;
+      break;
+
+    case 's':
+      if (folder->ff->local)
+      {
+	mutt_pretty_size(fn, sizeof(fn), folder->ff->size);
+	snprintf (tmp, sizeof (tmp), "%%%ss", fmt);
+	snprintf (dest, destlen, tmp, fn);
+      }
+      else
+	mutt_format_s (dest, destlen, fmt, "");
+      break;
+
+    case 't':
+      snprintf (tmp, sizeof (tmp), "%%%sc", fmt);
+      snprintf (dest, destlen, tmp, folder->ff->tagged ? '*' : ' ');
+      break;
+
+    case 'u':
+      if (folder->ff->local)
+      {
+	if ((pw = getpwuid (folder->ff->uid)))
+	  mutt_format_s (dest, destlen, fmt, pw->pw_name);
+	else
+	{
+	  snprintf (tmp, sizeof (tmp), "%%%sld", fmt);
+	  snprintf (dest, destlen, tmp, folder->ff->uid);
+	}
+      }
+      else
+	mutt_format_s (dest, destlen, fmt, "");
+      break;
+
+    default:
+      snprintf (tmp, sizeof (tmp), "%%%sc", fmt);
+      snprintf (dest, destlen, tmp, op);
+      break;
+  }
+
+  if (optional)
+    mutt_FormatString (dest, destlen, col, cols, ifstring, folder_format_str, data, 0);
+  else if (flags & MUTT_FORMAT_OPTIONAL)
+    mutt_FormatString (dest, destlen, col, cols, elsestring, folder_format_str, data, 0);
+
+  return (src);
+}

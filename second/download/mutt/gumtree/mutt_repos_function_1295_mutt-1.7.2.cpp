@@ -154,4 +154,48 @@ const char *mutt_attach_fmt (char *dest,
         l = aptr->content->length;
       
       if(!optional)
- 
+      {
+	mutt_pretty_size (tmp, sizeof(tmp), l);
+	mutt_format_s (dest, destlen, prefix, tmp);
+      }
+      else if (l == 0)
+        optional = 0;
+
+      break;
+    case 't':
+      if(!optional)
+        snprintf (dest, destlen, "%c", aptr->content->tagged ? '*' : ' ');
+      else if(!aptr->content->tagged)
+        optional = 0;
+      break;
+    case 'T':
+      if(!optional)
+	mutt_format_s_tree (dest, destlen, prefix, NONULL (aptr->tree));
+      else if (!aptr->tree)
+        optional = 0;
+      break;
+    case 'u':
+      if(!optional)
+        snprintf (dest, destlen, "%c", aptr->content->unlink ? '-' : ' ');
+      else if (!aptr->content->unlink)
+        optional = 0;
+      break;
+    case 'X':
+      if (optional)
+        optional = (aptr->content->attach_count + aptr->content->attach_qualifies) != 0;
+      else
+      {
+        snprintf (fmt, sizeof (fmt), "%%%sd", prefix);
+        snprintf (dest, destlen, fmt, aptr->content->attach_count + aptr->content->attach_qualifies);
+      }
+      break;
+    default:
+      *dest = 0;
+  }
+  
+  if (optional)
+    mutt_FormatString (dest, destlen, col, cols, ifstring, mutt_attach_fmt, data, 0);
+  else if (flags & MUTT_FORMAT_OPTIONAL)
+    mutt_FormatString (dest, destlen, col, cols, elsestring, mutt_attach_fmt, data, 0);
+  return (src);
+}
