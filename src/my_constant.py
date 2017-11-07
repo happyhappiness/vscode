@@ -96,7 +96,8 @@ ANALYZE_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('variable')
 # cluster and class
 CLUSTER_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
 ANALYZE_CLUSTER = CLUSTER_OLD_NEW_TITLE.index('cluster')
-CLASS_OLD_NEW_TITLE = ['class', 'old_loc', 'old_log', 'new_log', 'function', 'function_loc', 'check', 'variable', 'edit']
+CLASS_OLD_NEW_TITLE = ['class', 'patch_file', 'old_loc', 'old_log', 'new_log', 'function', 'function_loc', 'check', 'variable', 'edit']
+CLASS_OLD_NEW_PATCH_FILE_NAME = CLASS_OLD_NEW_TITLE.index('patch_file')
 CLASS_OLD_NEW_OLD_LOC = CLASS_OLD_NEW_TITLE.index('old_loc')
 CLASS_OLD_NEW_CHECK = CLASS_OLD_NEW_TITLE.index('check')
 CLASS_OLD_NEW_VARIABLE = CLASS_OLD_NEW_TITLE.index('variable')
@@ -137,7 +138,7 @@ FIRST_REPOS='_first_repos'
 """
 analyze clone title
 """
-ANALYZE_CLONE_LOG_TITLE = CLASS_OLD_NEW_TITLE + CLUSTER_REPOS_LOG_TITLE + ['necessity']
+ANALYZE_CLONE_LOG_TITLE = CLASS_OLD_NEW_TITLE + ANALYZE_REPOS_LOG_TITLE + ['necessity']
 ANALYZE_CLONE_FUNCTION_TITLE = CLASS_OLD_NEW_TITLE + ANALYZE_REPOS_FUNCTION_TITLE + ['necessity']
 
 """

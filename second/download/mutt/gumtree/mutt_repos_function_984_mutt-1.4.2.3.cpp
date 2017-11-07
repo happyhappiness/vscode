@@ -1,0 +1,224 @@
+static int
+display_line (FILE *f, long *last_pos, struct line_t **lineInfo, int n, 
+	      int *last, int *max, int flags, struct q_class_t **QuoteList,
+	      int *q_level, int *force_redraw, regex_t *SearchRE)
+{
+  unsigned char buf[LONG_STRING], fmt[LONG_STRING];
+  unsigned char *buf_ptr = buf;
+  int ch, vch, col, cnt, b_read;
+  int buf_ready = 0, change_last = 0;
+  int special;
+  int offset;
+  int def_color;
+  int m;
+  ansi_attr a = {0,0,0,-1};
+  regmatch_t pmatch[1];
+
+  if (n == *last)
+  {
+    (*last)++;
+    change_last = 1;
+  }
+
+  if (*last == *max)
+  {
+    safe_realloc ((void **)lineInfo, sizeof (struct line_t) * (*max += LINES));
+    for (ch = *last; ch < *max ; ch++)
+    {
+      memset (&((*lineInfo)[ch]), 0, sizeof (struct line_t));
+      (*lineInfo)[ch].type = -1;
+      (*lineInfo)[ch].search_cnt = -1;
+      (*lineInfo)[ch].syntax = safe_malloc (sizeof (struct syntax_t));
+      ((*lineInfo)[ch].syntax)[0].first = ((*lineInfo)[ch].syntax)[0].last = -1;
+    }
+  }
+
+  /* only do color hiliting if we are viewing a message */
+  if (flags & (M_SHOWCOLOR | M_TYPES))
+  {
+    if ((*lineInfo)[n].type == -1)
+    {
+      /* determine the line class */
+      if (fill_buffer (f, last_pos, (*lineInfo)[n].offset, buf, fmt, sizeof (buf), &buf_ready) < 0)
+      {
+	if (change_last)
+	  (*last)--;
+	return (-1);
+      }
+
+      resolve_types ((char *) fmt, (char *) buf, *lineInfo, n, *last,
+		      QuoteList, q_level, force_redraw, flags & M_SHOWCOLOR);
+
+      /* avoid race condition for continuation lines when scrolling up */
+      for (m = n + 1; m < *last && (*lineInfo)[m].offset && (*lineInfo)[m].continuation; m++)
+	(*lineInfo)[m].type = (*lineInfo)[n].type;
+    }
+
+    /* this also prevents searching through the hidden lines */
+    if ((flags & M_HIDE) && (*lineInfo)[n].type == MT_COLOR_QUOTED)
+      flags = 0; /* M_NOSHOW */
+  }
+
+  /* At this point, (*lineInfo[n]).quote may still be undefined. We 
+   * don't want to compute it every time M_TYPES is set, since this
+   * would slow down the "bottom" function unacceptably. A compromise
+   * solution is hence to call regexec() again, just to find out the
+   * length of the quote prefix.
+   */
+  if ((flags & M_SHOWCOLOR) && !(*lineInfo)[n].continuation &&
+      (*lineInfo)[n].type == MT_COLOR_QUOTED && (*lineInfo)[n].quote == NULL)
+  {
+    if (fill_buffer (f, last_pos, (*lineInfo)[n].offset, buf, fmt, sizeof (buf), &buf_ready) < 0)
+    {
+      if (change_last)
+	(*last)--;
+      return (-1);
+    }
+    regexec ((regex_t *) QuoteRegexp.rx, (char *) fmt, 1, pmatch, 0);
+    (*lineInfo)[n].quote = classify_quote (QuoteList,
+			    (char *) fmt + pmatch[0].rm_so,
+			    pmatch[0].rm_eo - pmatch[0].rm_so,
+			    force_redraw, q_level);
+  }
+
+  if ((flags & M_SEARCH) && !(*lineInfo)[n].continuation && (*lineInfo)[n].search_cnt == -1) 
+  {
+    if (fill_buffer (f, last_pos, (*lineInfo)[n].offset, buf, fmt, sizeof (buf), &buf_ready) < 0)
+    {
+      if (change_last)
+	(*last)--;
+      return (-1);
+    }
+
+    offset = 0;
+    (*lineInfo)[n].search_cnt = 0;
+    while (regexec (SearchRE, (char *) fmt + offset, 1, pmatch, (offset ? REG_NOTBOL : 0)) == 0)
+    {
+      if (++((*lineInfo)[n].search_cnt) > 1)
+	safe_realloc ((void **) &((*lineInfo)[n].search),
+		      ((*lineInfo)[n].search_cnt) * sizeof (struct syntax_t));
+      else
+	(*lineInfo)[n].search = safe_malloc (sizeof (struct syntax_t));
+      pmatch[0].rm_so += offset;
+      pmatch[0].rm_eo += offset;
+      ((*lineInfo)[n].search)[(*lineInfo)[n].search_cnt - 1].first = pmatch[0].rm_so;
+      ((*lineInfo)[n].search)[(*lineInfo)[n].search_cnt - 1].last = pmatch[0].rm_eo;
+
+      if (pmatch[0].rm_eo == pmatch[0].rm_so)
+	offset++; /* avoid degenerate cases */
+      else
+	offset = pmatch[0].rm_eo;
+      if (!fmt[offset])
+	break;
+    }
+  }
+
+  if (!(flags & M_SHOW) && (*lineInfo)[n+1].offset > 0)
+  {
+    /* we've already scanned this line, so just exit */
+    return (0);
+  }
+  if ((flags & M_SHOWCOLOR) && *force_redraw && (*lineInfo)[n+1].offset > 0)
+  {
+    /* no need to try to display this line... */
+    return (1); /* fake display */
+  }
+
+  if ((b_read = fill_buffer (f, last_pos, (*lineInfo)[n].offset, buf, fmt, 
+			      sizeof (buf), &buf_ready)) < 0)
+  {
+    if (change_last)
+      (*last)--;
+    return (-1);
+  }
+
+  /* now chose a good place to break the line */
+  cnt = format_line (lineInfo, n, buf, flags, 0, b_read, &ch, &vch, &col, &special);
+  buf_ptr = buf + cnt;
+
+  /* move the break point only if smart_wrap is set */
+  if (option (OPTWRAP))
+  {
+    if (cnt < b_read)
+    {
+      if (ch != -1 && buf[cnt] != ' ' && buf[cnt] != '\t' && buf[cnt] != '\n' && buf[cnt] != '\r')
+      {
+	buf_ptr = buf + ch;
+	/* skip trailing blanks */
+	while (ch && (buf[ch] == ' ' || buf[ch] == '\t' || buf[ch] == '\r'))
+	  ch--;
+	cnt = ch + 1;
+      }
+      else
+	buf_ptr = buf + cnt; /* a very long word... */
+    }
+    if (!(flags & M_PAGER_NSKIP))
+      /* skip leading blanks on the next line too */
+      while (*buf_ptr == ' ' || *buf_ptr == '\t') 
+	buf_ptr++;
+  }
+
+  if (*buf_ptr == '\r')
+    buf_ptr++;
+  if (*buf_ptr == '\n')
+    buf_ptr++;
+
+  if ((int) (buf_ptr - buf) < b_read && !(*lineInfo)[n+1].continuation)
+    append_line (*lineInfo, n, (int) (buf_ptr - buf));
+  (*lineInfo)[n+1].offset = (*lineInfo)[n].offset + (long) (buf_ptr - buf);
+
+  /* if we don't need to display the line we are done */
+  if (!(flags & M_SHOW))
+    return 0;
+
+  if (flags & M_SHOWCOLOR)
+  {
+    m = ((*lineInfo)[n].continuation) ? ((*lineInfo)[n].syntax)[0].first : n;
+    if ((*lineInfo)[m].type == MT_COLOR_HEADER)
+      def_color = ((*lineInfo)[m].syntax)[0].color;
+    else
+      def_color = (*lineInfo)[m].type;
+
+    attrset (def_color);
+#ifdef HAVE_BKGDSET
+    bkgdset (def_color | ' ');
+#endif
+    clrtoeol ();
+    SETCOLOR (MT_COLOR_NORMAL);
+    BKGDSET (MT_COLOR_NORMAL);
+    
+  }
+  else
+    clrtoeol ();
+
+  /* display the line */
+  format_line (lineInfo, n, buf, flags, &a, cnt, &ch, &vch, &col, &special);
+
+  /* avoid a bug in ncurses... */
+#ifndef USE_SLANG_CURSES
+  if (col == 0)
+  {
+    SETCOLOR (MT_COLOR_NORMAL);
+    addch (' ');
+  }
+#endif
+
+  /* end the last color pattern (needed by S-Lang) */
+  if (special || (col != COLS && (flags & (M_SHOWCOLOR | M_SEARCH))))
+    resolve_color (*lineInfo, n, vch, flags, 0, &a);
+          
+  /* ncurses always wraps lines when you get to the right side of the
+   * screen, but S-Lang seems to only wrap if the next character is *not*
+   * a newline (grr!).
+   */
+#ifndef USE_SLANG_CURSES
+    if (col < COLS)
+#endif
+      addch ('\n');
+
+  /* build a return code */
+  if (!(flags & M_SHOW))
+    flags = 0;
+
+  return (flags);
+}

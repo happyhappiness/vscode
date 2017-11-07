@@ -228,6 +228,14 @@ def get_csv_record_len(records):
     records = list(records)
     return len(records), records
 
+def concate_file(original_file, postfix, file_format='.csv'):
+    """
+    @ param original file name, file format(with . ), and postfix to insert\n
+    @ return new file name\n
+    @ involve repalce file format with postfix + file format\n
+    """
+    return original_file.replace(file_format, postfix + file_format)
+
 def get_old_repos_name(patch_file_name):
     """
     @ param patch file name [old repos name]_diff_[new repos name]\n

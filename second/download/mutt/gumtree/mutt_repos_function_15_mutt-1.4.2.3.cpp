@@ -1,0 +1,93 @@
+static void format_line (FILE *f, int ismacro,
+			 const char *t1, const char *t2, const char *t3)
+{
+  int col;
+  int col_a, col_b;
+  int split;
+  int n;
+
+  fputs (t1, f);
+
+  /* don't try to press string into one line with less than 40 characters.
+     The double paranthesis avoid a gcc warning, sigh ... */
+  if ((split = COLS < 40))
+  {
+    col_a = col = 0;
+    col_b = LONG_STRING;
+    fputc ('\n', f);
+  }
+  else
+  {
+    col_a = COLS > 83 ? (COLS - 32) >> 2 : 12;
+    col_b = COLS > 49 ? (COLS - 10) >> 1 : 19;
+    col = pad (f, mutt_strlen(t1), col_a);
+  }
+
+  if (ismacro > 0)
+  {
+    if (!mutt_strcmp (Pager, "builtin"))
+      fputs ("_\010", f);
+    fputs ("M ", f);
+    col += 2;
+
+    if (!split)
+    {
+      col += print_macro (f, col_b - col - 4, &t2);
+      if (mutt_strlen (t2) > col_b - col)
+	t2 = "...";
+    }
+  }
+
+  col += print_macro (f, col_b - col - 1, &t2);
+  if (split)
+    fputc ('\n', f);
+  else
+    col = pad (f, col, col_b);
+
+  if (split)
+  {
+    print_macro (f, LONG_STRING, &t3);
+    fputc ('\n', f);
+  }
+  else
+  {
+    while (*t3)
+    {
+      n = COLS - col;
+
+      if (ismacro >= 0)
+      {
+	SKIPWS(t3);
+
+	/* FIXME: this is completely wrong */
+	if ((n = mutt_strlen (t3)) > COLS - col)
+	{
+	  n = COLS - col;
+	  for (col_a = n; col_a > 0 && t3[col_a] != ' '; col_a--) ;
+	  if (col_a)
+	    n = col_a;
+	}
+      }
+
+      print_macro (f, n, &t3);
+
+      if (*t3)
+      {
+        if (mutt_strcmp (Pager, "builtin"))
+	{
+	  fputc ('\n', f);
+	  n = 0;
+	}
+	else
+	{
+	  n += col - COLS;
+	  if (option (OPTMARKERS))
+	    ++n;
+	}
+	col = pad (f, n, col_b);
+      }
+    }
+  }
+
+  fputc ('\n', f);
+}
