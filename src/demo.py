@@ -7,6 +7,21 @@ import analyze_control_clone
 import statistics
 import gumtree_api
 
+def regenerate_hunk(repos_list):
+    """
+    @ param repos list\n
+    @ return nothing \n
+    @ involve re-generate hunk and analyze hunk\n
+    """
+    for repos in repos_list:
+        print 'now analyzing repos %s' %repos
+        # update repos value of my constant
+        my_constant.reset_repos(repos)
+        # first -> refetch and reanalyze hunk
+        fetch_hunk.fetch_version_diff(False)
+        analyze_hunk.fetch_hunk()
+    gumtree_api.close_jvm()
+
 def regenerate_rule(reanalyze_gumtree=False):
     """
     @ param true if gumtree api update\n
@@ -88,10 +103,13 @@ main function
 """
 if __name__ == "__main__":
     # 'httpd', 'git',
-    reposes = ['mutt', 'rsync', 'curl', 'git', 'httpd']
-    repos_names = ['mutt-1.7.2', 'rsync-1.4.4', 'curl-7.41.0', 'git-2.6.7', 'httpd-2.3.8']
+    reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync']
+    repos_names = ['httpd-2.3.8', 'git-2.6.7', 'mutt-1.7.2', 'curl-7.41.0', 'rsync-1.4.4']
     # seek_clone_for_given_repos(reposes, repos_names)
-    seek_clone_for_corresponding_repos(reposes[0:1], True, True)
+    seek_clone_for_corresponding_repos(reposes[0:2], True, True)
+    # seek_clone_for_corresponding_repos(reposes[2:], True, True)
+
+    # regenerate_hunk(reposes[0:5])
     # do_statistics(reposes)
 
 

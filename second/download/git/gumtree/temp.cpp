@@ -1,1759 +1,1672 @@
-#include "cache.h"
-#include "wt-status.h"
-#include "object.h"
-#include "dir.h"
+#include "builtin.h"
+#include "delta.h"
+#include "pack.h"
+#include "csum-file.h"
+#include "blob.h"
 #include "commit.h"
-#include "diff.h"
-#include "revision.h"
-#include "diffcore.h"
-#include "quote.h"
-#include "run-command.h"
-#include "argv-array.h"
-#include "remote.h"
-#include "refs.h"
-#include "submodule.h"
-#include "column.h"
-#include "strbuf.h"
-#include "utf8.h"
-#include "worktree.h"
+#include "tag.h"
+#include "tree.h"
+#include "progress.h"
+#include "fsck.h"
+#include "exec_cmd.h"
+#include "streaming.h"
+#include "thread-utils.h"
 
-static const char cut_line[] =
-"------------------------ >8 ------------------------\n";
+static const char index_pack_usage[] =
+"git index-pack [-v] [-o <index-file>] [--keep | --keep=<msg>] [--verify] [--strict] (<pack-file> | --stdin [--fix-thin] [<pack-file>])";
 
-static char default_wt_status_colors[][COLOR_MAXLEN] = {
-	GIT_COLOR_NORMAL, /* WT_STATUS_HEADER */
-	GIT_COLOR_GREEN,  /* WT_STATUS_UPDATED */
-	GIT_COLOR_RED,    /* WT_STATUS_CHANGED */
-	GIT_COLOR_RED,    /* WT_STATUS_UNTRACKED */
-	GIT_COLOR_RED,    /* WT_STATUS_NOBRANCH */
-	GIT_COLOR_RED,    /* WT_STATUS_UNMERGED */
-	GIT_COLOR_GREEN,  /* WT_STATUS_LOCAL_BRANCH */
-	GIT_COLOR_RED,    /* WT_STATUS_REMOTE_BRANCH */
-	GIT_COLOR_NIL,    /* WT_STATUS_ONBRANCH */
+struct object_entry {
+	struct pack_idx_entry idx;
+	unsigned long size;
+	unsigned int hdr_size;
+	enum object_type type;
+	enum object_type real_type;
+	unsigned delta_depth;
+	int base_object_no;
 };
 
-static const char *color(int slot, struct wt_status *s)
-{
-	const char *c = "";
-	if (want_color(s->use_color))
-		c = s->color_palette[slot];
-	if (slot == WT_STATUS_ONBRANCH && color_is_nil(c))
-		c = s->color_palette[WT_STATUS_HEADER];
-	return c;
-}
-
-static void status_vprintf(struct wt_status *s, int at_bol, const char *color,
-		const char *fmt, va_list ap, const char *trail)
-{
-	struct strbuf sb = STRBUF_INIT;
-	struct strbuf linebuf = STRBUF_INIT;
-	const char *line, *eol;
-
-	strbuf_vaddf(&sb, fmt, ap);
-	if (!sb.len) {
-		if (s->display_comment_prefix) {
-			strbuf_addch(&sb, comment_line_char);
-			if (!trail)
-				strbuf_addch(&sb, ' ');
-		}
-		color_print_strbuf(s->fp, color, &sb);
-		if (trail)
-			fprintf(s->fp, "%s", trail);
-		strbuf_release(&sb);
-		return;
-	}
-	for (line = sb.buf; *line; line = eol + 1) {
-		eol = strchr(line, '\n');
-
-		strbuf_reset(&linebuf);
-		if (at_bol && s->display_comment_prefix) {
-			strbuf_addch(&linebuf, comment_line_char);
-			if (*line != '\n' && *line != '\t')
-				strbuf_addch(&linebuf, ' ');
-		}
-		if (eol)
-			strbuf_add(&linebuf, line, eol - line);
-		else
-			strbuf_addstr(&linebuf, line);
-		color_print_strbuf(s->fp, color, &linebuf);
-		if (eol)
-			fprintf(s->fp, "\n");
-		else
-			break;
-		at_bol = 1;
-	}
-	if (trail)
-		fprintf(s->fp, "%s", trail);
-	strbuf_release(&linebuf);
-	strbuf_release(&sb);
-}
-
-void status_printf_ln(struct wt_status *s, const char *color,
-			const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	status_vprintf(s, 1, color, fmt, ap, "\n");
-	va_end(ap);
-}
-
-void status_printf(struct wt_status *s, const char *color,
-			const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	status_vprintf(s, 1, color, fmt, ap, NULL);
-	va_end(ap);
-}
-
-static void status_printf_more(struct wt_status *s, const char *color,
-			       const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	status_vprintf(s, 0, color, fmt, ap, NULL);
-	va_end(ap);
-}
-
-void wt_status_prepare(struct wt_status *s)
-{
+union delta_base {
 	unsigned char sha1[20];
+	off_t offset;
+};
 
-	memset(s, 0, sizeof(*s));
-	memcpy(s->color_palette, default_wt_status_colors,
-	       sizeof(default_wt_status_colors));
-	s->show_untracked_files = SHOW_NORMAL_UNTRACKED_FILES;
-	s->use_color = -1;
-	s->relative_paths = 1;
-	s->branch = resolve_refdup("HEAD", 0, sha1, NULL);
-	s->reference = "HEAD";
-	s->fp = stdout;
-	s->index_file = get_index_file();
-	s->change.strdup_strings = 1;
-	s->untracked.strdup_strings = 1;
-	s->ignored.strdup_strings = 1;
-	s->show_branch = -1;  /* unspecified */
-	s->display_comment_prefix = 0;
+struct base_data {
+	struct base_data *base;
+	struct base_data *child;
+	struct object_entry *obj;
+	void *data;
+	unsigned long size;
+	int ref_first, ref_last;
+	int ofs_first, ofs_last;
+};
+
+#if !defined(NO_PTHREADS) && defined(NO_THREAD_SAFE_PREAD)
+/* pread() emulation is not thread-safe. Disable threading. */
+#define NO_PTHREADS
+#endif
+
+struct thread_local {
+#ifndef NO_PTHREADS
+	pthread_t thread;
+#endif
+	struct base_data *base_cache;
+	size_t base_cache_used;
+};
+
+/*
+ * Even if sizeof(union delta_base) == 24 on 64-bit archs, we really want
+ * to memcmp() only the first 20 bytes.
+ */
+#define UNION_BASE_SZ	20
+
+#define FLAG_LINK (1u<<20)
+#define FLAG_CHECKED (1u<<21)
+
+struct delta_entry {
+	union delta_base base;
+	int obj_no;
+};
+
+static struct object_entry *objects;
+static struct delta_entry *deltas;
+static struct thread_local nothread_data;
+static int nr_objects;
+static int nr_deltas;
+static int nr_resolved_deltas;
+static int nr_threads;
+
+static int from_stdin;
+static int strict;
+static int do_fsck_object;
+static int verbose;
+static int show_stat;
+static int check_self_contained_and_connected;
+
+static struct progress *progress;
+
+/* We always read in 4kB chunks. */
+static unsigned char input_buffer[4096];
+static unsigned int input_offset, input_len;
+static off_t consumed_bytes;
+static unsigned deepest_delta;
+static git_SHA_CTX input_ctx;
+static uint32_t input_crc32;
+static int input_fd, output_fd, pack_fd;
+
+#ifndef NO_PTHREADS
+
+static struct thread_local *thread_data;
+static int nr_dispatched;
+static int threads_active;
+
+static pthread_mutex_t read_mutex;
+#define read_lock()		lock_mutex(&read_mutex)
+#define read_unlock()		unlock_mutex(&read_mutex)
+
+static pthread_mutex_t counter_mutex;
+#define counter_lock()		lock_mutex(&counter_mutex)
+#define counter_unlock()	unlock_mutex(&counter_mutex)
+
+static pthread_mutex_t work_mutex;
+#define work_lock()		lock_mutex(&work_mutex)
+#define work_unlock()		unlock_mutex(&work_mutex)
+
+static pthread_mutex_t deepest_delta_mutex;
+#define deepest_delta_lock()	lock_mutex(&deepest_delta_mutex)
+#define deepest_delta_unlock()	unlock_mutex(&deepest_delta_mutex)
+
+static pthread_key_t key;
+
+static inline void lock_mutex(pthread_mutex_t *mutex)
+{
+	if (threads_active)
+		pthread_mutex_lock(mutex);
 }
 
-static void wt_status_print_unmerged_header(struct wt_status *s)
+static inline void unlock_mutex(pthread_mutex_t *mutex)
 {
-	int i;
-	int del_mod_conflict = 0;
-	int both_deleted = 0;
-	int not_deleted = 0;
-	const char *c = color(WT_STATUS_HEADER, s);
-
-	status_printf_ln(s, c, _("Unmerged paths:"));
-
-	for (i = 0; i < s->change.nr; i++) {
-		struct string_list_item *it = &(s->change.items[i]);
-		struct wt_status_change_data *d = it->util;
-
-		switch (d->stagemask) {
-		case 0:
-			break;
-		case 1:
-			both_deleted = 1;
-			break;
-		case 3:
-		case 5:
-			del_mod_conflict = 1;
-			break;
-		default:
-			not_deleted = 1;
-			break;
-		}
-	}
-
-	if (!s->hints)
-		return;
-	if (s->whence != FROM_COMMIT)
-		;
-	else if (!s->is_initial)
-		status_printf_ln(s, c, _("  (use \"git reset %s <file>...\" to unstage)"), s->reference);
-	else
-		status_printf_ln(s, c, _("  (use \"git rm --cached <file>...\" to unstage)"));
-
-	if (!both_deleted) {
-		if (!del_mod_conflict)
-			status_printf_ln(s, c, _("  (use \"git add <file>...\" to mark resolution)"));
-		else
-			status_printf_ln(s, c, _("  (use \"git add/rm <file>...\" as appropriate to mark resolution)"));
-	} else if (!del_mod_conflict && !not_deleted) {
-		status_printf_ln(s, c, _("  (use \"git rm <file>...\" to mark resolution)"));
-	} else {
-		status_printf_ln(s, c, _("  (use \"git add/rm <file>...\" as appropriate to mark resolution)"));
-	}
-	status_printf_ln(s, c, "%s", "");
-}
-
-static void wt_status_print_cached_header(struct wt_status *s)
-{
-	const char *c = color(WT_STATUS_HEADER, s);
-
-	status_printf_ln(s, c, _("Changes to be committed:"));
-	if (!s->hints)
-		return;
-	if (s->whence != FROM_COMMIT)
-		; /* NEEDSWORK: use "git reset --unresolve"??? */
-	else if (!s->is_initial)
-		status_printf_ln(s, c, _("  (use \"git reset %s <file>...\" to unstage)"), s->reference);
-	else
-		status_printf_ln(s, c, _("  (use \"git rm --cached <file>...\" to unstage)"));
-	status_printf_ln(s, c, "%s", "");
-}
-
-static void wt_status_print_dirty_header(struct wt_status *s,
-					 int has_deleted,
-					 int has_dirty_submodules)
-{
-	const char *c = color(WT_STATUS_HEADER, s);
-
-	status_printf_ln(s, c, _("Changes not staged for commit:"));
-	if (!s->hints)
-		return;
-	if (!has_deleted)
-		status_printf_ln(s, c, _("  (use \"git add <file>...\" to update what will be committed)"));
-	else
-		status_printf_ln(s, c, _("  (use \"git add/rm <file>...\" to update what will be committed)"));
-	status_printf_ln(s, c, _("  (use \"git checkout -- <file>...\" to discard changes in working directory)"));
-	if (has_dirty_submodules)
-		status_printf_ln(s, c, _("  (commit or discard the untracked or modified content in submodules)"));
-	status_printf_ln(s, c, "%s", "");
-}
-
-static void wt_status_print_other_header(struct wt_status *s,
-					 const char *what,
-					 const char *how)
-{
-	const char *c = color(WT_STATUS_HEADER, s);
-	status_printf_ln(s, c, "%s:", what);
-	if (!s->hints)
-		return;
-	status_printf_ln(s, c, _("  (use \"git %s <file>...\" to include in what will be committed)"), how);
-	status_printf_ln(s, c, "%s", "");
-}
-
-static void wt_status_print_trailer(struct wt_status *s)
-{
-	status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
-}
-
-#define quote_path quote_path_relative
-
-static const char *wt_status_unmerged_status_string(int stagemask)
-{
-	switch (stagemask) {
-	case 1:
-		return _("both deleted:");
-	case 2:
-		return _("added by us:");
-	case 3:
-		return _("deleted by them:");
-	case 4:
-		return _("added by them:");
-	case 5:
-		return _("deleted by us:");
-	case 6:
-		return _("both added:");
-	case 7:
-		return _("both modified:");
-	default:
-		die("BUG: unhandled unmerged status %x", stagemask);
-	}
-}
-
-static const char *wt_status_diff_status_string(int status)
-{
-	switch (status) {
-	case DIFF_STATUS_ADDED:
-		return _("new file:");
-	case DIFF_STATUS_COPIED:
-		return _("copied:");
-	case DIFF_STATUS_DELETED:
-		return _("deleted:");
-	case DIFF_STATUS_MODIFIED:
-		return _("modified:");
-	case DIFF_STATUS_RENAMED:
-		return _("renamed:");
-	case DIFF_STATUS_TYPE_CHANGED:
-		return _("typechange:");
-	case DIFF_STATUS_UNKNOWN:
-		return _("unknown:");
-	case DIFF_STATUS_UNMERGED:
-		return _("unmerged:");
-	default:
-		return NULL;
-	}
-}
-
-static int maxwidth(const char *(*label)(int), int minval, int maxval)
-{
-	int result = 0, i;
-
-	for (i = minval; i <= maxval; i++) {
-		const char *s = label(i);
-		int len = s ? utf8_strwidth(s) : 0;
-		if (len > result)
-			result = len;
-	}
-	return result;
-}
-
-static void wt_status_print_unmerged_data(struct wt_status *s,
-					  struct string_list_item *it)
-{
-	const char *c = color(WT_STATUS_UNMERGED, s);
-	struct wt_status_change_data *d = it->util;
-	struct strbuf onebuf = STRBUF_INIT;
-	static char *padding;
-	static int label_width;
-	const char *one, *how;
-	int len;
-
-	if (!padding) {
-		label_width = maxwidth(wt_status_unmerged_status_string, 1, 7);
-		label_width += strlen(" ");
-		padding = xmallocz(label_width);
-		memset(padding, ' ', label_width);
-	}
-
-	one = quote_path(it->string, s->prefix, &onebuf);
-	status_printf(s, color(WT_STATUS_HEADER, s), "\t");
-
-	how = wt_status_unmerged_status_string(d->stagemask);
-	len = label_width - utf8_strwidth(how);
-	status_printf_more(s, c, "%s%.*s%s\n", how, len, padding, one);
-	strbuf_release(&onebuf);
-}
-
-static void wt_status_print_change_data(struct wt_status *s,
-					int change_type,
-					struct string_list_item *it)
-{
-	struct wt_status_change_data *d = it->util;
-	const char *c = color(change_type, s);
-	int status;
-	char *one_name;
-	char *two_name;
-	const char *one, *two;
-	struct strbuf onebuf = STRBUF_INIT, twobuf = STRBUF_INIT;
-	struct strbuf extra = STRBUF_INIT;
-	static char *padding;
-	static int label_width;
-	const char *what;
-	int len;
-
-	if (!padding) {
-		/* If DIFF_STATUS_* uses outside the range [A..Z], we're in trouble */
-		label_width = maxwidth(wt_status_diff_status_string, 'A', 'Z');
-		label_width += strlen(" ");
-		padding = xmallocz(label_width);
-		memset(padding, ' ', label_width);
-	}
-
-	one_name = two_name = it->string;
-	switch (change_type) {
-	case WT_STATUS_UPDATED:
-		status = d->index_status;
-		if (d->head_path)
-			one_name = d->head_path;
-		break;
-	case WT_STATUS_CHANGED:
-		if (d->new_submodule_commits || d->dirty_submodule) {
-			strbuf_addstr(&extra, " (");
-			if (d->new_submodule_commits)
-				strbuf_addf(&extra, _("new commits, "));
-			if (d->dirty_submodule & DIRTY_SUBMODULE_MODIFIED)
-				strbuf_addf(&extra, _("modified content, "));
-			if (d->dirty_submodule & DIRTY_SUBMODULE_UNTRACKED)
-				strbuf_addf(&extra, _("untracked content, "));
-			strbuf_setlen(&extra, extra.len - 2);
-			strbuf_addch(&extra, ')');
-		}
-		status = d->worktree_status;
-		break;
-	default:
-		die("BUG: unhandled change_type %d in wt_status_print_change_data",
-		    change_type);
-	}
-
-	one = quote_path(one_name, s->prefix, &onebuf);
-	two = quote_path(two_name, s->prefix, &twobuf);
-
-	status_printf(s, color(WT_STATUS_HEADER, s), "\t");
-	what = wt_status_diff_status_string(status);
-	if (!what)
-		die("BUG: unhandled diff status %c", status);
-	len = label_width - utf8_strwidth(what);
-	assert(len >= 0);
-	if (status == DIFF_STATUS_COPIED || status == DIFF_STATUS_RENAMED)
-		status_printf_more(s, c, "%s%.*s%s -> %s",
-				   what, len, padding, one, two);
-	else
-		status_printf_more(s, c, "%s%.*s%s",
-				   what, len, padding, one);
-	if (extra.len) {
-		status_printf_more(s, color(WT_STATUS_HEADER, s), "%s", extra.buf);
-		strbuf_release(&extra);
-	}
-	status_printf_more(s, GIT_COLOR_NORMAL, "\n");
-	strbuf_release(&onebuf);
-	strbuf_release(&twobuf);
-}
-
-static void wt_status_collect_changed_cb(struct diff_queue_struct *q,
-					 struct diff_options *options,
-					 void *data)
-{
-	struct wt_status *s = data;
-	int i;
-
-	if (!q->nr)
-		return;
-	s->workdir_dirty = 1;
-	for (i = 0; i < q->nr; i++) {
-		struct diff_filepair *p;
-		struct string_list_item *it;
-		struct wt_status_change_data *d;
-
-		p = q->queue[i];
-		it = string_list_insert(&s->change, p->one->path);
-		d = it->util;
-		if (!d) {
-			d = xcalloc(1, sizeof(*d));
-			it->util = d;
-		}
-		if (!d->worktree_status)
-			d->worktree_status = p->status;
-		d->dirty_submodule = p->two->dirty_submodule;
-		if (S_ISGITLINK(p->two->mode))
-			d->new_submodule_commits = !!oidcmp(&p->one->oid,
-							    &p->two->oid);
-	}
-}
-
-static int unmerged_mask(const char *path)
-{
-	int pos, mask;
-	const struct cache_entry *ce;
-
-	pos = cache_name_pos(path, strlen(path));
-	if (0 <= pos)
-		return 0;
-
-	mask = 0;
-	pos = -pos-1;
-	while (pos < active_nr) {
-		ce = active_cache[pos++];
-		if (strcmp(ce->name, path) || !ce_stage(ce))
-			break;
-		mask |= (1 << (ce_stage(ce) - 1));
-	}
-	return mask;
-}
-
-static void wt_status_collect_updated_cb(struct diff_queue_struct *q,
-					 struct diff_options *options,
-					 void *data)
-{
-	struct wt_status *s = data;
-	int i;
-
-	for (i = 0; i < q->nr; i++) {
-		struct diff_filepair *p;
-		struct string_list_item *it;
-		struct wt_status_change_data *d;
-
-		p = q->queue[i];
-		it = string_list_insert(&s->change, p->two->path);
-		d = it->util;
-		if (!d) {
-			d = xcalloc(1, sizeof(*d));
-			it->util = d;
-		}
-		if (!d->index_status)
-			d->index_status = p->status;
-		switch (p->status) {
-		case DIFF_STATUS_COPIED:
-		case DIFF_STATUS_RENAMED:
-			d->head_path = xstrdup(p->one->path);
-			break;
-		case DIFF_STATUS_UNMERGED:
-			d->stagemask = unmerged_mask(p->two->path);
-			break;
-		}
-	}
-}
-
-static void wt_status_collect_changes_worktree(struct wt_status *s)
-{
-	struct rev_info rev;
-
-	init_revisions(&rev, NULL);
-	setup_revisions(0, NULL, &rev, NULL);
-	rev.diffopt.output_format |= DIFF_FORMAT_CALLBACK;
-	DIFF_OPT_SET(&rev.diffopt, DIRTY_SUBMODULES);
-	if (!s->show_untracked_files)
-		DIFF_OPT_SET(&rev.diffopt, IGNORE_UNTRACKED_IN_SUBMODULES);
-	if (s->ignore_submodule_arg) {
-		DIFF_OPT_SET(&rev.diffopt, OVERRIDE_SUBMODULE_CONFIG);
-		handle_ignore_submodules_arg(&rev.diffopt, s->ignore_submodule_arg);
-	}
-	rev.diffopt.format_callback = wt_status_collect_changed_cb;
-	rev.diffopt.format_callback_data = s;
-	copy_pathspec(&rev.prune_data, &s->pathspec);
-	run_diff_files(&rev, 0);
-}
-
-static void wt_status_collect_changes_index(struct wt_status *s)
-{
-	struct rev_info rev;
-	struct setup_revision_opt opt;
-
-	init_revisions(&rev, NULL);
-	memset(&opt, 0, sizeof(opt));
-	opt.def = s->is_initial ? EMPTY_TREE_SHA1_HEX : s->reference;
-	setup_revisions(0, NULL, &rev, &opt);
-
-	DIFF_OPT_SET(&rev.diffopt, OVERRIDE_SUBMODULE_CONFIG);
-	if (s->ignore_submodule_arg) {
-		handle_ignore_submodules_arg(&rev.diffopt, s->ignore_submodule_arg);
-	} else {
-		/*
-		 * Unless the user did explicitly request a submodule ignore
-		 * mode by passing a command line option we do not ignore any
-		 * changed submodule SHA-1s when comparing index and HEAD, no
-		 * matter what is configured. Otherwise the user won't be
-		 * shown any submodules she manually added (and which are
-		 * staged to be committed), which would be really confusing.
-		 */
-		handle_ignore_submodules_arg(&rev.diffopt, "dirty");
-	}
-
-	rev.diffopt.output_format |= DIFF_FORMAT_CALLBACK;
-	rev.diffopt.format_callback = wt_status_collect_updated_cb;
-	rev.diffopt.format_callback_data = s;
-	rev.diffopt.detect_rename = 1;
-	rev.diffopt.rename_limit = 200;
-	rev.diffopt.break_opt = 0;
-	copy_pathspec(&rev.prune_data, &s->pathspec);
-	run_diff_index(&rev, 1);
-}
-
-static void wt_status_collect_changes_initial(struct wt_status *s)
-{
-	int i;
-
-	for (i = 0; i < active_nr; i++) {
-		struct string_list_item *it;
-		struct wt_status_change_data *d;
-		const struct cache_entry *ce = active_cache[i];
-
-		if (!ce_path_match(ce, &s->pathspec, NULL))
-			continue;
-		it = string_list_insert(&s->change, ce->name);
-		d = it->util;
-		if (!d) {
-			d = xcalloc(1, sizeof(*d));
-			it->util = d;
-		}
-		if (ce_stage(ce)) {
-			d->index_status = DIFF_STATUS_UNMERGED;
-			d->stagemask |= (1 << (ce_stage(ce) - 1));
-		}
-		else
-			d->index_status = DIFF_STATUS_ADDED;
-	}
-}
-
-static void wt_status_collect_untracked(struct wt_status *s)
-{
-	int i;
-	struct dir_struct dir;
-	uint64_t t_begin = getnanotime();
-
-	if (!s->show_untracked_files)
-		return;
-
-	memset(&dir, 0, sizeof(dir));
-	if (s->show_untracked_files != SHOW_ALL_UNTRACKED_FILES)
-		dir.flags |=
-			DIR_SHOW_OTHER_DIRECTORIES | DIR_HIDE_EMPTY_DIRECTORIES;
-	if (s->show_ignored_files)
-		dir.flags |= DIR_SHOW_IGNORED_TOO;
-	else
-		dir.untracked = the_index.untracked;
-	setup_standard_excludes(&dir);
-
-	fill_directory(&dir, &s->pathspec);
-
-	for (i = 0; i < dir.nr; i++) {
-		struct dir_entry *ent = dir.entries[i];
-		if (cache_name_is_other(ent->name, ent->len) &&
-		    dir_path_match(ent, &s->pathspec, 0, NULL))
-			string_list_insert(&s->untracked, ent->name);
-		free(ent);
-	}
-
-	for (i = 0; i < dir.ignored_nr; i++) {
-		struct dir_entry *ent = dir.ignored[i];
-		if (cache_name_is_other(ent->name, ent->len) &&
-		    dir_path_match(ent, &s->pathspec, 0, NULL))
-			string_list_insert(&s->ignored, ent->name);
-		free(ent);
-	}
-
-	free(dir.entries);
-	free(dir.ignored);
-	clear_directory(&dir);
-
-	if (advice_status_u_option)
-		s->untracked_in_ms = (getnanotime() - t_begin) / 1000000;
-}
-
-void wt_status_collect(struct wt_status *s)
-{
-	wt_status_collect_changes_worktree(s);
-
-	if (s->is_initial)
-		wt_status_collect_changes_initial(s);
-	else
-		wt_status_collect_changes_index(s);
-	wt_status_collect_untracked(s);
-}
-
-static void wt_status_print_unmerged(struct wt_status *s)
-{
-	int shown_header = 0;
-	int i;
-
-	for (i = 0; i < s->change.nr; i++) {
-		struct wt_status_change_data *d;
-		struct string_list_item *it;
-		it = &(s->change.items[i]);
-		d = it->util;
-		if (!d->stagemask)
-			continue;
-		if (!shown_header) {
-			wt_status_print_unmerged_header(s);
-			shown_header = 1;
-		}
-		wt_status_print_unmerged_data(s, it);
-	}
-	if (shown_header)
-		wt_status_print_trailer(s);
-
-}
-
-static void wt_status_print_updated(struct wt_status *s)
-{
-	int shown_header = 0;
-	int i;
-
-	for (i = 0; i < s->change.nr; i++) {
-		struct wt_status_change_data *d;
-		struct string_list_item *it;
-		it = &(s->change.items[i]);
-		d = it->util;
-		if (!d->index_status ||
-		    d->index_status == DIFF_STATUS_UNMERGED)
-			continue;
-		if (!shown_header) {
-			wt_status_print_cached_header(s);
-			s->commitable = 1;
-			shown_header = 1;
-		}
-		wt_status_print_change_data(s, WT_STATUS_UPDATED, it);
-	}
-	if (shown_header)
-		wt_status_print_trailer(s);
+	if (threads_active)
+		pthread_mutex_unlock(mutex);
 }
 
 /*
- * -1 : has delete
- *  0 : no change
- *  1 : some change but no delete
+ * Mutex and conditional variable can't be statically-initialized on Windows.
  */
-static int wt_status_check_worktree_changes(struct wt_status *s,
-					     int *dirty_submodules)
+static void init_thread(void)
 {
-	int i;
-	int changes = 0;
-
-	*dirty_submodules = 0;
-
-	for (i = 0; i < s->change.nr; i++) {
-		struct wt_status_change_data *d;
-		d = s->change.items[i].util;
-		if (!d->worktree_status ||
-		    d->worktree_status == DIFF_STATUS_UNMERGED)
-			continue;
-		if (!changes)
-			changes = 1;
-		if (d->dirty_submodule)
-			*dirty_submodules = 1;
-		if (d->worktree_status == DIFF_STATUS_DELETED)
-			changes = -1;
-	}
-	return changes;
+	init_recursive_mutex(&read_mutex);
+	pthread_mutex_init(&counter_mutex, NULL);
+	pthread_mutex_init(&work_mutex, NULL);
+	if (show_stat)
+		pthread_mutex_init(&deepest_delta_mutex, NULL);
+	pthread_key_create(&key, NULL);
+	thread_data = xcalloc(nr_threads, sizeof(*thread_data));
+	threads_active = 1;
 }
 
-static void wt_status_print_changed(struct wt_status *s)
+static void cleanup_thread(void)
 {
-	int i, dirty_submodules;
-	int worktree_changes = wt_status_check_worktree_changes(s, &dirty_submodules);
-
-	if (!worktree_changes)
+	if (!threads_active)
 		return;
-
-	wt_status_print_dirty_header(s, worktree_changes < 0, dirty_submodules);
-
-	for (i = 0; i < s->change.nr; i++) {
-		struct wt_status_change_data *d;
-		struct string_list_item *it;
-		it = &(s->change.items[i]);
-		d = it->util;
-		if (!d->worktree_status ||
-		    d->worktree_status == DIFF_STATUS_UNMERGED)
-			continue;
-		wt_status_print_change_data(s, WT_STATUS_CHANGED, it);
-	}
-	wt_status_print_trailer(s);
+	threads_active = 0;
+	pthread_mutex_destroy(&read_mutex);
+	pthread_mutex_destroy(&counter_mutex);
+	pthread_mutex_destroy(&work_mutex);
+	if (show_stat)
+		pthread_mutex_destroy(&deepest_delta_mutex);
+	pthread_key_delete(key);
+	free(thread_data);
 }
 
-static void wt_status_print_submodule_summary(struct wt_status *s, int uncommitted)
+#else
+
+#define read_lock()
+#define read_unlock()
+
+#define counter_lock()
+#define counter_unlock()
+
+#define work_lock()
+#define work_unlock()
+
+#define deepest_delta_lock()
+#define deepest_delta_unlock()
+
+#endif
+
+
+static int mark_link(struct object *obj, int type, void *data)
 {
-	struct child_process sm_summary = CHILD_PROCESS_INIT;
-	struct strbuf cmd_stdout = STRBUF_INIT;
-	struct strbuf summary = STRBUF_INIT;
-	char *summary_content;
+	if (!obj)
+		return -1;
 
-	argv_array_pushf(&sm_summary.env_array, "GIT_INDEX_FILE=%s",
-			 s->index_file);
+	if (type != OBJ_ANY && obj->type != type)
+		die(_("object type mismatch at %s"), sha1_to_hex(obj->sha1));
 
-	argv_array_push(&sm_summary.args, "submodule");
-	argv_array_push(&sm_summary.args, "summary");
-	argv_array_push(&sm_summary.args, uncommitted ? "--files" : "--cached");
-	argv_array_push(&sm_summary.args, "--for-status");
-	argv_array_push(&sm_summary.args, "--summary-limit");
-	argv_array_pushf(&sm_summary.args, "%d", s->submodule_summary);
-	if (!uncommitted)
-		argv_array_push(&sm_summary.args, s->amend ? "HEAD^" : "HEAD");
-
-	sm_summary.git_cmd = 1;
-	sm_summary.no_stdin = 1;
-
-	capture_command(&sm_summary, &cmd_stdout, 1024);
-
-	/* prepend header, only if there's an actual output */
-	if (cmd_stdout.len) {
-		if (uncommitted)
-			strbuf_addstr(&summary, _("Submodules changed but not updated:"));
-		else
-			strbuf_addstr(&summary, _("Submodule changes to be committed:"));
-		strbuf_addstr(&summary, "\n\n");
-	}
-	strbuf_addbuf(&summary, &cmd_stdout);
-	strbuf_release(&cmd_stdout);
-
-	if (s->display_comment_prefix) {
-		size_t len;
-		summary_content = strbuf_detach(&summary, &len);
-		strbuf_add_commented_lines(&summary, summary_content, len);
-		free(summary_content);
-	}
-
-	fputs(summary.buf, s->fp);
-	strbuf_release(&summary);
+	obj->flags |= FLAG_LINK;
+	return 0;
 }
 
-static void wt_status_print_other(struct wt_status *s,
-				  struct string_list *l,
-				  const char *what,
-				  const char *how)
+/* The content of each linked object must have been checked
+   or it must be already present in the object database */
+static unsigned check_object(struct object *obj)
 {
-	int i;
-	struct strbuf buf = STRBUF_INIT;
-	static struct string_list output = STRING_LIST_INIT_DUP;
-	struct column_options copts;
+	if (!obj)
+		return 0;
 
-	if (!l->nr)
-		return;
+	if (!(obj->flags & FLAG_LINK))
+		return 0;
 
-	wt_status_print_other_header(s, what, how);
+	if (!(obj->flags & FLAG_CHECKED)) {
+		unsigned long size;
+		int type = sha1_object_info(obj->sha1, &size);
+		if (type != obj->type || type <= 0)
+			die(_("object of unexpected type"));
+		obj->flags |= FLAG_CHECKED;
+		return 1;
+	}
 
-	for (i = 0; i < l->nr; i++) {
-		struct string_list_item *it;
-		const char *path;
-		it = &(l->items[i]);
-		path = quote_path(it->string, s->prefix, &buf);
-		if (column_active(s->colopts)) {
-			string_list_append(&output, path);
-			continue;
+	return 0;
+}
+
+static unsigned check_objects(void)
+{
+	unsigned i, max, foreign_nr = 0;
+
+	max = get_max_object_index();
+	for (i = 0; i < max; i++)
+		foreign_nr += check_object(get_indexed_object(i));
+	return foreign_nr;
+}
+
+
+/* Discard current buffer used content. */
+static void flush(void)
+{
+	if (input_offset) {
+		if (output_fd >= 0)
+			write_or_die(output_fd, input_buffer, input_offset);
+		git_SHA1_Update(&input_ctx, input_buffer, input_offset);
+		memmove(input_buffer, input_buffer + input_offset, input_len);
+		input_offset = 0;
+	}
+}
+
+/*
+ * Make sure at least "min" bytes are available in the buffer, and
+ * return the pointer to the buffer.
+ */
+static void *fill(int min)
+{
+	if (min <= input_len)
+		return input_buffer + input_offset;
+	if (min > sizeof(input_buffer))
+		die(Q_("cannot fill %d byte",
+		       "cannot fill %d bytes",
+		       min),
+		    min);
+	flush();
+	do {
+		ssize_t ret = xread(input_fd, input_buffer + input_len,
+				sizeof(input_buffer) - input_len);
+		if (ret <= 0) {
+			if (!ret)
+				die(_("early EOF"));
+			die_errno(_("read error on input"));
 		}
-		status_printf(s, color(WT_STATUS_HEADER, s), "\t");
-		status_printf_more(s, color(WT_STATUS_UNTRACKED, s),
-				   "%s\n", path);
-	}
-
-	strbuf_release(&buf);
-	if (!column_active(s->colopts))
-		goto conclude;
-
-	strbuf_addf(&buf, "%s%s\t%s",
-		    color(WT_STATUS_HEADER, s),
-		    s->display_comment_prefix ? "#" : "",
-		    color(WT_STATUS_UNTRACKED, s));
-	memset(&copts, 0, sizeof(copts));
-	copts.padding = 1;
-	copts.indent = buf.buf;
-	if (want_color(s->use_color))
-		copts.nl = GIT_COLOR_RESET "\n";
-	print_columns(&output, s->colopts, &copts);
-	string_list_clear(&output, 0);
-	strbuf_release(&buf);
-conclude:
-	status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");
+		input_len += ret;
+		if (from_stdin)
+			display_throughput(progress, consumed_bytes + input_len);
+	} while (input_len < min);
+	return input_buffer;
 }
 
-void wt_status_truncate_message_at_cut_line(struct strbuf *buf)
+static void use(int bytes)
 {
-	const char *p;
-	struct strbuf pattern = STRBUF_INIT;
+	if (bytes > input_len)
+		die(_("used more bytes than were available"));
+	input_crc32 = crc32(input_crc32, input_buffer + input_offset, bytes);
+	input_len -= bytes;
+	input_offset += bytes;
 
-	strbuf_addf(&pattern, "\n%c %s", comment_line_char, cut_line);
-	if (starts_with(buf->buf, pattern.buf + 1))
-		strbuf_setlen(buf, 0);
-	else if ((p = strstr(buf->buf, pattern.buf)))
-		strbuf_setlen(buf, p - buf->buf + 1);
-	strbuf_release(&pattern);
+	/* make sure off_t is sufficiently large not to wrap */
+	if (signed_add_overflows(consumed_bytes, bytes))
+		die(_("pack too large for current definition of off_t"));
+	consumed_bytes += bytes;
 }
 
-void wt_status_add_cut_line(FILE *fp)
+static const char *open_pack_file(const char *pack_name)
 {
-	const char *explanation = _("Do not touch the line above.\nEverything below will be removed.");
-	struct strbuf buf = STRBUF_INIT;
-
-	fprintf(fp, "%c %s", comment_line_char, cut_line);
-	strbuf_add_commented_lines(&buf, explanation, strlen(explanation));
-	fputs(buf.buf, fp);
-	strbuf_release(&buf);
+	if (from_stdin) {
+		input_fd = 0;
+		if (!pack_name) {
+			static char tmp_file[PATH_MAX];
+			output_fd = odb_mkstemp(tmp_file, sizeof(tmp_file),
+						"pack/tmp_pack_XXXXXX");
+			pack_name = xstrdup(tmp_file);
+		} else
+			output_fd = open(pack_name, O_CREAT|O_EXCL|O_RDWR, 0600);
+		if (output_fd < 0)
+			die_errno(_("unable to create '%s'"), pack_name);
+		pack_fd = output_fd;
+	} else {
+		input_fd = open(pack_name, O_RDONLY);
+		if (input_fd < 0)
+			die_errno(_("cannot open packfile '%s'"), pack_name);
+		output_fd = -1;
+		pack_fd = input_fd;
+	}
+	git_SHA1_Init(&input_ctx);
+	return pack_name;
 }
 
-static void wt_status_print_verbose(struct wt_status *s)
+static void parse_pack_header(void)
 {
-	struct rev_info rev;
-	struct setup_revision_opt opt;
-	int dirty_submodules;
-	const char *c = color(WT_STATUS_HEADER, s);
+	struct pack_header *hdr = fill(sizeof(struct pack_header));
 
-	init_revisions(&rev, NULL);
-	DIFF_OPT_SET(&rev.diffopt, ALLOW_TEXTCONV);
+	/* Header consistency check */
+	if (hdr->hdr_signature != htonl(PACK_SIGNATURE))
+		die(_("pack signature mismatch"));
+	if (!pack_version_ok(hdr->hdr_version))
+		die(_("pack version %"PRIu32" unsupported"),
+			ntohl(hdr->hdr_version));
 
-	memset(&opt, 0, sizeof(opt));
-	opt.def = s->is_initial ? EMPTY_TREE_SHA1_HEX : s->reference;
-	setup_revisions(0, NULL, &rev, &opt);
+	nr_objects = ntohl(hdr->hdr_entries);
+	use(sizeof(struct pack_header));
+}
 
-	rev.diffopt.output_format |= DIFF_FORMAT_PATCH;
-	rev.diffopt.detect_rename = 1;
-	rev.diffopt.file = s->fp;
-	rev.diffopt.close_file = 0;
-	/*
-	 * If we're not going to stdout, then we definitely don't
-	 * want color, since we are going to the commit message
-	 * file (and even the "auto" setting won't work, since it
-	 * will have checked isatty on stdout). But we then do want
-	 * to insert the scissor line here to reliably remove the
-	 * diff before committing.
-	 */
-	if (s->fp != stdout) {
-		rev.diffopt.use_color = 0;
-		wt_status_add_cut_line(s->fp);
-	}
-	if (s->verbose > 1 && s->commitable) {
-		/* print_updated() printed a header, so do we */
-		if (s->fp != stdout)
-			wt_status_print_trailer(s);
-		status_printf_ln(s, c, _("Changes to be committed:"));
-		rev.diffopt.a_prefix = "c/";
-		rev.diffopt.b_prefix = "i/";
-	} /* else use prefix as per user config */
-	run_diff_index(&rev, 1);
-	if (s->verbose > 1 &&
-	    wt_status_check_worktree_changes(s, &dirty_submodules)) {
-		status_printf_ln(s, c,
-			"--------------------------------------------------");
-		status_printf_ln(s, c, _("Changes not staged for commit:"));
-		setup_work_tree();
-		rev.diffopt.a_prefix = "i/";
-		rev.diffopt.b_prefix = "w/";
-		run_diff_files(&rev, 0);
+static NORETURN void bad_object(unsigned long offset, const char *format,
+		       ...) __attribute__((format (printf, 2, 3)));
+
+static NORETURN void bad_object(unsigned long offset, const char *format, ...)
+{
+	va_list params;
+	char buf[1024];
+
+	va_start(params, format);
+	vsnprintf(buf, sizeof(buf), format, params);
+	va_end(params);
+	die(_("pack has bad object at offset %lu: %s"), offset, buf);
+}
+
+static inline struct thread_local *get_thread_data(void)
+{
+#ifndef NO_PTHREADS
+	if (threads_active)
+		return pthread_getspecific(key);
+	assert(!threads_active &&
+	       "This should only be reached when all threads are gone");
+#endif
+	return &nothread_data;
+}
+
+#ifndef NO_PTHREADS
+static void set_thread_data(struct thread_local *data)
+{
+	if (threads_active)
+		pthread_setspecific(key, data);
+}
+#endif
+
+static struct base_data *alloc_base_data(void)
+{
+	struct base_data *base = xmalloc(sizeof(struct base_data));
+	memset(base, 0, sizeof(*base));
+	base->ref_last = -1;
+	base->ofs_last = -1;
+	return base;
+}
+
+static void free_base_data(struct base_data *c)
+{
+	if (c->data) {
+		free(c->data);
+		c->data = NULL;
+		get_thread_data()->base_cache_used -= c->size;
 	}
 }
 
-static void wt_status_print_tracking(struct wt_status *s)
+static void prune_base_data(struct base_data *retain)
 {
-	struct strbuf sb = STRBUF_INIT;
-	const char *cp, *ep, *branch_name;
-	struct branch *branch;
-	char comment_line_string[3];
-	int i;
-
-	assert(s->branch && !s->is_initial);
-	if (!skip_prefix(s->branch, "refs/heads/", &branch_name))
-		return;
-	branch = branch_get(branch_name);
-	if (!format_tracking_info(branch, &sb))
-		return;
-
-	i = 0;
-	if (s->display_comment_prefix) {
-		comment_line_string[i++] = comment_line_char;
-		comment_line_string[i++] = ' ';
+	struct base_data *b;
+	struct thread_local *data = get_thread_data();
+	for (b = data->base_cache;
+	     data->base_cache_used > delta_base_cache_limit && b;
+	     b = b->child) {
+		if (b->data && b != retain)
+			free_base_data(b);
 	}
-	comment_line_string[i] = '\0';
+}
 
-	for (cp = sb.buf; (ep = strchr(cp, '\n')) != NULL; cp = ep + 1)
-		color_fprintf_ln(s->fp, color(WT_STATUS_HEADER, s),
-				 "%s%.*s", comment_line_string,
-				 (int)(ep - cp), cp);
-	if (s->display_comment_prefix)
-		color_fprintf_ln(s->fp, color(WT_STATUS_HEADER, s), "%c",
-				 comment_line_char);
+static void link_base_data(struct base_data *base, struct base_data *c)
+{
+	if (base)
+		base->child = c;
 	else
-		fputs("", s->fp);
+		get_thread_data()->base_cache = c;
+
+	c->base = base;
+	c->child = NULL;
+	if (c->data)
+		get_thread_data()->base_cache_used += c->size;
+	prune_base_data(c);
 }
 
-static int has_unmerged(struct wt_status *s)
+static void unlink_base_data(struct base_data *c)
 {
-	int i;
+	struct base_data *base = c->base;
+	if (base)
+		base->child = NULL;
+	else
+		get_thread_data()->base_cache = NULL;
+	free_base_data(c);
+}
 
-	for (i = 0; i < s->change.nr; i++) {
-		struct wt_status_change_data *d;
-		d = s->change.items[i].util;
-		if (d->stagemask)
-			return 1;
+static int is_delta_type(enum object_type type)
+{
+	return (type == OBJ_REF_DELTA || type == OBJ_OFS_DELTA);
+}
+
+static void *unpack_entry_data(unsigned long offset, unsigned long size,
+			       enum object_type type, unsigned char *sha1)
+{
+	static char fixed_buf[8192];
+	int status;
+	git_zstream stream;
+	void *buf;
+	git_SHA_CTX c;
+	char hdr[32];
+	int hdrlen;
+
+	if (!is_delta_type(type)) {
+		hdrlen = sprintf(hdr, "%s %lu", typename(type), size) + 1;
+		git_SHA1_Init(&c);
+		git_SHA1_Update(&c, hdr, hdrlen);
+	} else
+		sha1 = NULL;
+	if (type == OBJ_BLOB && size > big_file_threshold)
+		buf = fixed_buf;
+	else
+		buf = xmalloc(size);
+
+	memset(&stream, 0, sizeof(stream));
+	git_inflate_init(&stream);
+	stream.next_out = buf;
+	stream.avail_out = buf == fixed_buf ? sizeof(fixed_buf) : size;
+
+	do {
+		unsigned char *last_out = stream.next_out;
+		stream.next_in = fill(1);
+		stream.avail_in = input_len;
+		status = git_inflate(&stream, 0);
+		use(input_len - stream.avail_in);
+		if (sha1)
+			git_SHA1_Update(&c, last_out, stream.next_out - last_out);
+		if (buf == fixed_buf) {
+			stream.next_out = buf;
+			stream.avail_out = sizeof(fixed_buf);
+		}
+	} while (status == Z_OK);
+	if (stream.total_out != size || status != Z_STREAM_END)
+		bad_object(offset, _("inflate returned %d"), status);
+	git_inflate_end(&stream);
+	if (sha1)
+		git_SHA1_Final(sha1, &c);
+	return buf == fixed_buf ? NULL : buf;
+}
+
+static void *unpack_raw_entry(struct object_entry *obj,
+			      union delta_base *delta_base,
+			      unsigned char *sha1)
+{
+	unsigned char *p;
+	unsigned long size, c;
+	off_t base_offset;
+	unsigned shift;
+	void *data;
+
+	obj->idx.offset = consumed_bytes;
+	input_crc32 = crc32(0, NULL, 0);
+
+	p = fill(1);
+	c = *p;
+	use(1);
+	obj->type = (c >> 4) & 7;
+	size = (c & 15);
+	shift = 4;
+	while (c & 0x80) {
+		p = fill(1);
+		c = *p;
+		use(1);
+		size += (c & 0x7f) << shift;
+		shift += 7;
+	}
+	obj->size = size;
+
+	switch (obj->type) {
+	case OBJ_REF_DELTA:
+		hashcpy(delta_base->sha1, fill(20));
+		use(20);
+		break;
+	case OBJ_OFS_DELTA:
+		memset(delta_base, 0, sizeof(*delta_base));
+		p = fill(1);
+		c = *p;
+		use(1);
+		base_offset = c & 127;
+		while (c & 128) {
+			base_offset += 1;
+			if (!base_offset || MSB(base_offset, 7))
+				bad_object(obj->idx.offset, _("offset value overflow for delta base object"));
+			p = fill(1);
+			c = *p;
+			use(1);
+			base_offset = (base_offset << 7) + (c & 127);
+		}
+		delta_base->offset = obj->idx.offset - base_offset;
+		if (delta_base->offset <= 0 || delta_base->offset >= obj->idx.offset)
+			bad_object(obj->idx.offset, _("delta base offset is out of bound"));
+		break;
+	case OBJ_COMMIT:
+	case OBJ_TREE:
+	case OBJ_BLOB:
+	case OBJ_TAG:
+		break;
+	default:
+		bad_object(obj->idx.offset, _("unknown object type %d"), obj->type);
+	}
+	obj->hdr_size = consumed_bytes - obj->idx.offset;
+
+	data = unpack_entry_data(obj->idx.offset, obj->size, obj->type, sha1);
+	obj->idx.crc32 = input_crc32;
+	return data;
+}
+
+static void *unpack_data(struct object_entry *obj,
+			 int (*consume)(const unsigned char *, unsigned long, void *),
+			 void *cb_data)
+{
+	off_t from = obj[0].idx.offset + obj[0].hdr_size;
+	unsigned long len = obj[1].idx.offset - from;
+	unsigned char *data, *inbuf;
+	git_zstream stream;
+	int status;
+
+	data = xmalloc(consume ? 64*1024 : obj->size);
+	inbuf = xmalloc((len < 64*1024) ? len : 64*1024);
+
+	memset(&stream, 0, sizeof(stream));
+	git_inflate_init(&stream);
+	stream.next_out = data;
+	stream.avail_out = consume ? 64*1024 : obj->size;
+
+	do {
+		ssize_t n = (len < 64*1024) ? len : 64*1024;
+		n = pread(pack_fd, inbuf, n, from);
+		if (n < 0)
+			die_errno(_("cannot pread pack file"));
+		if (!n)
+			die(Q_("premature end of pack file, %lu byte missing",
+			       "premature end of pack file, %lu bytes missing",
+			       len),
+			    len);
+		from += n;
+		len -= n;
+		stream.next_in = inbuf;
+		stream.avail_in = n;
+		if (!consume)
+			status = git_inflate(&stream, 0);
+		else {
+			do {
+				status = git_inflate(&stream, 0);
+				if (consume(data, stream.next_out - data, cb_data)) {
+					free(inbuf);
+					free(data);
+					return NULL;
+				}
+				stream.next_out = data;
+				stream.avail_out = 64*1024;
+			} while (status == Z_OK && stream.avail_in);
+		}
+	} while (len && status == Z_OK && !stream.avail_in);
+
+	/* This has been inflated OK when first encountered, so... */
+	if (status != Z_STREAM_END || stream.total_out != obj->size)
+		die(_("serious inflate inconsistency"));
+
+	git_inflate_end(&stream);
+	free(inbuf);
+	if (consume) {
+		free(data);
+		data = NULL;
+	}
+	return data;
+}
+
+static void *get_data_from_pack(struct object_entry *obj)
+{
+	return unpack_data(obj, NULL, NULL);
+}
+
+static int compare_delta_bases(const union delta_base *base1,
+			       const union delta_base *base2,
+			       enum object_type type1,
+			       enum object_type type2)
+{
+	int cmp = type1 - type2;
+	if (cmp)
+		return cmp;
+	return memcmp(base1, base2, UNION_BASE_SZ);
+}
+
+static int find_delta(const union delta_base *base, enum object_type type)
+{
+	int first = 0, last = nr_deltas;
+
+        while (first < last) {
+                int next = (first + last) / 2;
+                struct delta_entry *delta = &deltas[next];
+                int cmp;
+
+		cmp = compare_delta_bases(base, &delta->base,
+					  type, objects[delta->obj_no].type);
+                if (!cmp)
+                        return next;
+                if (cmp < 0) {
+                        last = next;
+                        continue;
+                }
+                first = next+1;
+        }
+        return -first-1;
+}
+
+static void find_delta_children(const union delta_base *base,
+				int *first_index, int *last_index,
+				enum object_type type)
+{
+	int first = find_delta(base, type);
+	int last = first;
+	int end = nr_deltas - 1;
+
+	if (first < 0) {
+		*first_index = 0;
+		*last_index = -1;
+		return;
+	}
+	while (first > 0 && !memcmp(&deltas[first - 1].base, base, UNION_BASE_SZ))
+		--first;
+	while (last < end && !memcmp(&deltas[last + 1].base, base, UNION_BASE_SZ))
+		++last;
+	*first_index = first;
+	*last_index = last;
+}
+
+struct compare_data {
+	struct object_entry *entry;
+	struct git_istream *st;
+	unsigned char *buf;
+	unsigned long buf_size;
+};
+
+static int compare_objects(const unsigned char *buf, unsigned long size,
+			   void *cb_data)
+{
+	struct compare_data *data = cb_data;
+
+	if (data->buf_size < size) {
+		free(data->buf);
+		data->buf = xmalloc(size);
+		data->buf_size = size;
+	}
+
+	while (size) {
+		ssize_t len = read_istream(data->st, data->buf, size);
+		if (len == 0)
+			die(_("SHA1 COLLISION FOUND WITH %s !"),
+			    sha1_to_hex(data->entry->idx.sha1));
+		if (len < 0)
+			die(_("unable to read %s"),
+			    sha1_to_hex(data->entry->idx.sha1));
+		if (memcmp(buf, data->buf, len))
+			die(_("SHA1 COLLISION FOUND WITH %s !"),
+			    sha1_to_hex(data->entry->idx.sha1));
+		size -= len;
+		buf += len;
 	}
 	return 0;
 }
 
-static void show_merge_in_progress(struct wt_status *s,
-				struct wt_status_state *state,
-				const char *color)
+static int check_collison(struct object_entry *entry)
 {
-	if (has_unmerged(s)) {
-		status_printf_ln(s, color, _("You have unmerged paths."));
-		if (s->hints) {
-			status_printf_ln(s, color,
-					 _("  (fix conflicts and run \"git commit\")"));
-			status_printf_ln(s, color,
-					 _("  (use \"git merge --abort\" to abort the merge)"));
+	struct compare_data data;
+	enum object_type type;
+	unsigned long size;
+
+	if (entry->size <= big_file_threshold || entry->type != OBJ_BLOB)
+		return -1;
+
+	memset(&data, 0, sizeof(data));
+	data.entry = entry;
+	data.st = open_istream(entry->idx.sha1, &type, &size, NULL);
+	if (!data.st)
+		return -1;
+	if (size != entry->size || type != entry->type)
+		die(_("SHA1 COLLISION FOUND WITH %s !"),
+		    sha1_to_hex(entry->idx.sha1));
+	unpack_data(entry, compare_objects, &data);
+	close_istream(data.st);
+	free(data.buf);
+	return 0;
+}
+
+static void sha1_object(const void *data, struct object_entry *obj_entry,
+			unsigned long size, enum object_type type,
+			const unsigned char *sha1)
+{
+	void *new_data = NULL;
+	int collision_test_needed;
+
+	assert(data || obj_entry);
+
+	read_lock();
+	collision_test_needed = has_sha1_file(sha1);
+	read_unlock();
+
+	if (collision_test_needed && !data) {
+		read_lock();
+		if (!check_collison(obj_entry))
+			collision_test_needed = 0;
+		read_unlock();
+	}
+	if (collision_test_needed) {
+		void *has_data;
+		enum object_type has_type;
+		unsigned long has_size;
+		read_lock();
+		has_type = sha1_object_info(sha1, &has_size);
+		if (has_type != type || has_size != size)
+			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+		has_data = read_sha1_file(sha1, &has_type, &has_size);
+		read_unlock();
+		if (!data)
+			data = new_data = get_data_from_pack(obj_entry);
+		if (!has_data)
+			die(_("cannot read existing object %s"), sha1_to_hex(sha1));
+		if (size != has_size || type != has_type ||
+		    memcmp(data, has_data, size) != 0)
+			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+		free(has_data);
+	}
+
+	if (strict) {
+		read_lock();
+		if (type == OBJ_BLOB) {
+			struct blob *blob = lookup_blob(sha1);
+			if (blob)
+				blob->object.flags |= FLAG_CHECKED;
+			else
+				die(_("invalid blob object %s"), sha1_to_hex(sha1));
+		} else {
+			struct object *obj;
+			int eaten;
+			void *buf = (void *) data;
+
+			assert(data && "data can only be NULL for large _blobs_");
+
+			/*
+			 * we do not need to free the memory here, as the
+			 * buf is deleted by the caller.
+			 */
+			obj = parse_object_buffer(sha1, type, size, buf, &eaten);
+			if (!obj)
+				die(_("invalid %s"), typename(type));
+			if (do_fsck_object &&
+			    fsck_object(obj, 1, fsck_error_function))
+				die(_("Error in object"));
+			if (fsck_walk(obj, mark_link, NULL))
+				die(_("Not all child objects of %s are reachable"), sha1_to_hex(obj->sha1));
+
+			if (obj->type == OBJ_TREE) {
+				struct tree *item = (struct tree *) obj;
+				item->buffer = NULL;
+				obj->parsed = 0;
+			}
+			if (obj->type == OBJ_COMMIT) {
+				struct commit *commit = (struct commit *) obj;
+				commit->buffer = NULL;
+			}
+			obj->flags |= FLAG_CHECKED;
 		}
-	} else {
-		s-> commitable = 1;
-		status_printf_ln(s, color,
-			_("All conflicts fixed but you are still merging."));
-		if (s->hints)
-			status_printf_ln(s, color,
-				_("  (use \"git commit\" to conclude merge)"));
-	}
-	wt_status_print_trailer(s);
-}
-
-static void show_am_in_progress(struct wt_status *s,
-				struct wt_status_state *state,
-				const char *color)
-{
-	status_printf_ln(s, color,
-		_("You are in the middle of an am session."));
-	if (state->am_empty_patch)
-		status_printf_ln(s, color,
-			_("The current patch is empty."));
-	if (s->hints) {
-		if (!state->am_empty_patch)
-			status_printf_ln(s, color,
-				_("  (fix conflicts and then run \"git am --continue\")"));
-		status_printf_ln(s, color,
-			_("  (use \"git am --skip\" to skip this patch)"));
-		status_printf_ln(s, color,
-			_("  (use \"git am --abort\" to restore the original branch)"));
-	}
-	wt_status_print_trailer(s);
-}
-
-static char *read_line_from_git_path(const char *filename)
-{
-	struct strbuf buf = STRBUF_INIT;
-	FILE *fp = fopen(git_path("%s", filename), "r");
-	if (!fp) {
-		strbuf_release(&buf);
-		return NULL;
-	}
-	strbuf_getline_lf(&buf, fp);
-	if (!fclose(fp)) {
-		return strbuf_detach(&buf, NULL);
-	} else {
-		strbuf_release(&buf);
-		return NULL;
-	}
-}
-
-static int split_commit_in_progress(struct wt_status *s)
-{
-	int split_in_progress = 0;
-	char *head = read_line_from_git_path("HEAD");
-	char *orig_head = read_line_from_git_path("ORIG_HEAD");
-	char *rebase_amend = read_line_from_git_path("rebase-merge/amend");
-	char *rebase_orig_head = read_line_from_git_path("rebase-merge/orig-head");
-
-	if (!head || !orig_head || !rebase_amend || !rebase_orig_head ||
-	    !s->branch || strcmp(s->branch, "HEAD"))
-		return split_in_progress;
-
-	if (!strcmp(rebase_amend, rebase_orig_head)) {
-		if (strcmp(head, rebase_amend))
-			split_in_progress = 1;
-	} else if (strcmp(orig_head, rebase_orig_head)) {
-		split_in_progress = 1;
+		read_unlock();
 	}
 
-	if (!s->amend && !s->nowarn && !s->workdir_dirty)
-		split_in_progress = 0;
-
-	free(head);
-	free(orig_head);
-	free(rebase_amend);
-	free(rebase_orig_head);
-	return split_in_progress;
+	free(new_data);
 }
 
 /*
- * Turn
- * "pick d6a2f0303e897ec257dd0e0a39a5ccb709bc2047 some message"
- * into
- * "pick d6a2f03 some message"
+ * This function is part of find_unresolved_deltas(). There are two
+ * walkers going in the opposite ways.
  *
- * The function assumes that the line does not contain useless spaces
- * before or after the command.
+ * The first one in find_unresolved_deltas() traverses down from
+ * parent node to children, deflating nodes along the way. However,
+ * memory for deflated nodes is limited by delta_base_cache_limit, so
+ * at some point parent node's deflated content may be freed.
+ *
+ * The second walker is this function, which goes from current node up
+ * to top parent if necessary to deflate the node. In normal
+ * situation, its parent node would be already deflated, so it just
+ * needs to apply delta.
+ *
+ * In the worst case scenario, parent node is no longer deflated because
+ * we're running out of delta_base_cache_limit; we need to re-deflate
+ * parents, possibly up to the top base.
+ *
+ * All deflated objects here are subject to be freed if we exceed
+ * delta_base_cache_limit, just like in find_unresolved_deltas(), we
+ * just need to make sure the last node is not freed.
  */
-static void abbrev_sha1_in_line(struct strbuf *line)
+static void *get_base_data(struct base_data *c)
 {
-	struct strbuf **split;
-	int i;
+	if (!c->data) {
+		struct object_entry *obj = c->obj;
+		struct base_data **delta = NULL;
+		int delta_nr = 0, delta_alloc = 0;
 
-	if (starts_with(line->buf, "exec ") ||
-	    starts_with(line->buf, "x "))
-		return;
-
-	split = strbuf_split_max(line, ' ', 3);
-	if (split[0] && split[1]) {
-		unsigned char sha1[20];
-		const char *abbrev;
-
-		/*
-		 * strbuf_split_max left a space. Trim it and re-add
-		 * it after abbreviation.
-		 */
-		strbuf_trim(split[1]);
-		if (!get_sha1(split[1]->buf, sha1)) {
-			abbrev = find_unique_abbrev(sha1, DEFAULT_ABBREV);
-			strbuf_reset(split[1]);
-			strbuf_addf(split[1], "%s ", abbrev);
-			strbuf_reset(line);
-			for (i = 0; split[i]; i++)
-				strbuf_addbuf(line, split[i]);
+		while (is_delta_type(c->obj->type) && !c->data) {
+			ALLOC_GROW(delta, delta_nr + 1, delta_alloc);
+			delta[delta_nr++] = c;
+			c = c->base;
 		}
+		if (!delta_nr) {
+			c->data = get_data_from_pack(obj);
+			c->size = obj->size;
+			get_thread_data()->base_cache_used += c->size;
+			prune_base_data(c);
+		}
+		for (; delta_nr > 0; delta_nr--) {
+			void *base, *raw;
+			c = delta[delta_nr - 1];
+			obj = c->obj;
+			base = get_base_data(c->base);
+			raw = get_data_from_pack(obj);
+			c->data = patch_delta(
+				base, c->base->size,
+				raw, obj->size,
+				&c->size);
+			free(raw);
+			if (!c->data)
+				bad_object(obj->idx.offset, _("failed to apply delta"));
+			get_thread_data()->base_cache_used += c->size;
+			prune_base_data(c);
+		}
+		free(delta);
 	}
-	strbuf_list_free(split);
+	return c->data;
 }
 
-static void read_rebase_todolist(const char *fname, struct string_list *lines)
+static void resolve_delta(struct object_entry *delta_obj,
+			  struct base_data *base, struct base_data *result)
 {
-	struct strbuf line = STRBUF_INIT;
-	FILE *f = fopen(git_path("%s", fname), "r");
+	void *base_data, *delta_data;
 
-	if (!f)
-		die_errno("Could not open file %s for reading",
-			  git_path("%s", fname));
-	while (!strbuf_getline_lf(&line, f)) {
-		if (line.len && line.buf[0] == comment_line_char)
-			continue;
-		strbuf_trim(&line);
-		if (!line.len)
-			continue;
-		abbrev_sha1_in_line(&line);
-		string_list_append(lines, line.buf);
+	delta_obj->real_type = base->obj->real_type;
+	if (show_stat) {
+		delta_obj->delta_depth = base->obj->delta_depth + 1;
+		deepest_delta_lock();
+		if (deepest_delta < delta_obj->delta_depth)
+			deepest_delta = delta_obj->delta_depth;
+		deepest_delta_unlock();
 	}
+	delta_obj->base_object_no = base->obj - objects;
+	delta_data = get_data_from_pack(delta_obj);
+	base_data = get_base_data(base);
+	result->obj = delta_obj;
+	result->data = patch_delta(base_data, base->size,
+				   delta_data, delta_obj->size, &result->size);
+	free(delta_data);
+	if (!result->data)
+		bad_object(delta_obj->idx.offset, _("failed to apply delta"));
+	hash_sha1_file(result->data, result->size,
+		       typename(delta_obj->real_type), delta_obj->idx.sha1);
+	sha1_object(result->data, NULL, result->size, delta_obj->real_type,
+		    delta_obj->idx.sha1);
+	counter_lock();
+	nr_resolved_deltas++;
+	counter_unlock();
 }
 
-static void show_rebase_information(struct wt_status *s,
-					struct wt_status_state *state,
-					const char *color)
+static struct base_data *find_unresolved_deltas_1(struct base_data *base,
+						  struct base_data *prev_base)
 {
-	if (state->rebase_interactive_in_progress) {
-		int i;
-		int nr_lines_to_show = 2;
+	if (base->ref_last == -1 && base->ofs_last == -1) {
+		union delta_base base_spec;
 
-		struct string_list have_done = STRING_LIST_INIT_DUP;
-		struct string_list yet_to_do = STRING_LIST_INIT_DUP;
+		hashcpy(base_spec.sha1, base->obj->idx.sha1);
+		find_delta_children(&base_spec,
+				    &base->ref_first, &base->ref_last, OBJ_REF_DELTA);
 
-		read_rebase_todolist("rebase-merge/done", &have_done);
-		read_rebase_todolist("rebase-merge/git-rebase-todo", &yet_to_do);
+		memset(&base_spec, 0, sizeof(base_spec));
+		base_spec.offset = base->obj->idx.offset;
+		find_delta_children(&base_spec,
+				    &base->ofs_first, &base->ofs_last, OBJ_OFS_DELTA);
 
-		if (have_done.nr == 0)
-			status_printf_ln(s, color, _("No commands done."));
-		else {
-			status_printf_ln(s, color,
-				Q_("Last command done (%d command done):",
-					"Last commands done (%d commands done):",
-					have_done.nr),
-				have_done.nr);
-			for (i = (have_done.nr > nr_lines_to_show)
-				? have_done.nr - nr_lines_to_show : 0;
-				i < have_done.nr;
-				i++)
-				status_printf_ln(s, color, "   %s", have_done.items[i].string);
-			if (have_done.nr > nr_lines_to_show && s->hints)
-				status_printf_ln(s, color,
-					_("  (see more in file %s)"), git_path("rebase-merge/done"));
+		if (base->ref_last == -1 && base->ofs_last == -1) {
+			free(base->data);
+			return NULL;
 		}
 
-		if (yet_to_do.nr == 0)
-			status_printf_ln(s, color,
-					 _("No commands remaining."));
-		else {
-			status_printf_ln(s, color,
-				Q_("Next command to do (%d remaining command):",
-					"Next commands to do (%d remaining commands):",
-					yet_to_do.nr),
-				yet_to_do.nr);
-			for (i = 0; i < nr_lines_to_show && i < yet_to_do.nr; i++)
-				status_printf_ln(s, color, "   %s", yet_to_do.items[i].string);
-			if (s->hints)
-				status_printf_ln(s, color,
-					_("  (use \"git rebase --edit-todo\" to view and edit)"));
-		}
-		string_list_clear(&yet_to_do, 0);
-		string_list_clear(&have_done, 0);
+		link_base_data(prev_base, base);
 	}
-}
 
-static void print_rebase_state(struct wt_status *s,
-				struct wt_status_state *state,
-				const char *color)
-{
-	if (state->branch)
-		status_printf_ln(s, color,
-				 _("You are currently rebasing branch '%s' on '%s'."),
-				 state->branch,
-				 state->onto);
-	else
-		status_printf_ln(s, color,
-				 _("You are currently rebasing."));
-}
+	if (base->ref_first <= base->ref_last) {
+		struct object_entry *child = objects + deltas[base->ref_first].obj_no;
+		struct base_data *result = alloc_base_data();
 
-static void show_rebase_in_progress(struct wt_status *s,
-				struct wt_status_state *state,
-				const char *color)
-{
-	struct stat st;
+		assert(child->real_type == OBJ_REF_DELTA);
+		resolve_delta(child, base, result);
+		if (base->ref_first == base->ref_last && base->ofs_last == -1)
+			free_base_data(base);
 
-	show_rebase_information(s, state, color);
-	if (has_unmerged(s)) {
-		print_rebase_state(s, state, color);
-		if (s->hints) {
-			status_printf_ln(s, color,
-				_("  (fix conflicts and then run \"git rebase --continue\")"));
-			status_printf_ln(s, color,
-				_("  (use \"git rebase --skip\" to skip this patch)"));
-			status_printf_ln(s, color,
-				_("  (use \"git rebase --abort\" to check out the original branch)"));
-		}
-	} else if (state->rebase_in_progress || !stat(git_path_merge_msg(), &st)) {
-		print_rebase_state(s, state, color);
-		if (s->hints)
-			status_printf_ln(s, color,
-				_("  (all conflicts fixed: run \"git rebase --continue\")"));
-	} else if (split_commit_in_progress(s)) {
-		if (state->branch)
-			status_printf_ln(s, color,
-					 _("You are currently splitting a commit while rebasing branch '%s' on '%s'."),
-					 state->branch,
-					 state->onto);
-		else
-			status_printf_ln(s, color,
-					 _("You are currently splitting a commit during a rebase."));
-		if (s->hints)
-			status_printf_ln(s, color,
-				_("  (Once your working directory is clean, run \"git rebase --continue\")"));
-	} else {
-		if (state->branch)
-			status_printf_ln(s, color,
-					 _("You are currently editing a commit while rebasing branch '%s' on '%s'."),
-					 state->branch,
-					 state->onto);
-		else
-			status_printf_ln(s, color,
-					 _("You are currently editing a commit during a rebase."));
-		if (s->hints && !s->amend) {
-			status_printf_ln(s, color,
-				_("  (use \"git commit --amend\" to amend the current commit)"));
-			status_printf_ln(s, color,
-				_("  (use \"git rebase --continue\" once you are satisfied with your changes)"));
-		}
+		base->ref_first++;
+		return result;
 	}
-	wt_status_print_trailer(s);
-}
 
-static void show_cherry_pick_in_progress(struct wt_status *s,
-					struct wt_status_state *state,
-					const char *color)
-{
-	status_printf_ln(s, color, _("You are currently cherry-picking commit %s."),
-			find_unique_abbrev(state->cherry_pick_head_sha1, DEFAULT_ABBREV));
-	if (s->hints) {
-		if (has_unmerged(s))
-			status_printf_ln(s, color,
-				_("  (fix conflicts and run \"git cherry-pick --continue\")"));
-		else
-			status_printf_ln(s, color,
-				_("  (all conflicts fixed: run \"git cherry-pick --continue\")"));
-		status_printf_ln(s, color,
-			_("  (use \"git cherry-pick --abort\" to cancel the cherry-pick operation)"));
+	if (base->ofs_first <= base->ofs_last) {
+		struct object_entry *child = objects + deltas[base->ofs_first].obj_no;
+		struct base_data *result = alloc_base_data();
+
+		assert(child->real_type == OBJ_OFS_DELTA);
+		resolve_delta(child, base, result);
+		if (base->ofs_first == base->ofs_last)
+			free_base_data(base);
+
+		base->ofs_first++;
+		return result;
 	}
-	wt_status_print_trailer(s);
-}
 
-static void show_revert_in_progress(struct wt_status *s,
-					struct wt_status_state *state,
-					const char *color)
-{
-	status_printf_ln(s, color, _("You are currently reverting commit %s."),
-			 find_unique_abbrev(state->revert_head_sha1, DEFAULT_ABBREV));
-	if (s->hints) {
-		if (has_unmerged(s))
-			status_printf_ln(s, color,
-				_("  (fix conflicts and run \"git revert --continue\")"));
-		else
-			status_printf_ln(s, color,
-				_("  (all conflicts fixed: run \"git revert --continue\")"));
-		status_printf_ln(s, color,
-			_("  (use \"git revert --abort\" to cancel the revert operation)"));
-	}
-	wt_status_print_trailer(s);
-}
-
-static void show_bisect_in_progress(struct wt_status *s,
-				struct wt_status_state *state,
-				const char *color)
-{
-	if (state->branch)
-		status_printf_ln(s, color,
-				 _("You are currently bisecting, started from branch '%s'."),
-				 state->branch);
-	else
-		status_printf_ln(s, color,
-				 _("You are currently bisecting."));
-	if (s->hints)
-		status_printf_ln(s, color,
-			_("  (use \"git bisect reset\" to get back to the original branch)"));
-	wt_status_print_trailer(s);
-}
-
-/*
- * Extract branch information from rebase/bisect
- */
-static char *get_branch(const struct worktree *wt, const char *path)
-{
-	struct strbuf sb = STRBUF_INIT;
-	unsigned char sha1[20];
-	const char *branch_name;
-
-	if (strbuf_read_file(&sb, worktree_git_path(wt, "%s", path), 0) <= 0)
-		goto got_nothing;
-
-	while (sb.len && sb.buf[sb.len - 1] == '\n')
-		strbuf_setlen(&sb, sb.len - 1);
-	if (!sb.len)
-		goto got_nothing;
-	if (skip_prefix(sb.buf, "refs/heads/", &branch_name))
-		strbuf_remove(&sb, 0, branch_name - sb.buf);
-	else if (starts_with(sb.buf, "refs/"))
-		;
-	else if (!get_sha1_hex(sb.buf, sha1)) {
-		const char *abbrev;
-		abbrev = find_unique_abbrev(sha1, DEFAULT_ABBREV);
-		strbuf_reset(&sb);
-		strbuf_addstr(&sb, abbrev);
-	} else if (!strcmp(sb.buf, "detached HEAD")) /* rebase */
-		goto got_nothing;
-	else			/* bisect */
-		;
-	return strbuf_detach(&sb, NULL);
-
-got_nothing:
-	strbuf_release(&sb);
+	unlink_base_data(base);
 	return NULL;
 }
 
-struct grab_1st_switch_cbdata {
-	struct strbuf buf;
-	unsigned char nsha1[20];
-};
-
-static int grab_1st_switch(unsigned char *osha1, unsigned char *nsha1,
-			   const char *email, unsigned long timestamp, int tz,
-			   const char *message, void *cb_data)
+static void find_unresolved_deltas(struct base_data *base)
 {
-	struct grab_1st_switch_cbdata *cb = cb_data;
-	const char *target = NULL, *end;
+	struct base_data *new_base, *prev_base = NULL;
+	for (;;) {
+		new_base = find_unresolved_deltas_1(base, prev_base);
 
-	if (!skip_prefix(message, "checkout: moving from ", &message))
-		return 0;
-	target = strstr(message, " to ");
-	if (!target)
-		return 0;
-	target += strlen(" to ");
-	strbuf_reset(&cb->buf);
-	hashcpy(cb->nsha1, nsha1);
-	end = strchrnul(target, '\n');
-	strbuf_add(&cb->buf, target, end - target);
-	if (!strcmp(cb->buf.buf, "HEAD")) {
-		/* HEAD is relative. Resolve it to the right reflog entry. */
-		strbuf_reset(&cb->buf);
-		strbuf_addstr(&cb->buf,
-			      find_unique_abbrev(nsha1, DEFAULT_ABBREV));
-	}
-	return 1;
-}
-
-static void wt_status_get_detached_from(struct wt_status_state *state)
-{
-	struct grab_1st_switch_cbdata cb;
-	struct commit *commit;
-	unsigned char sha1[20];
-	char *ref = NULL;
-
-	strbuf_init(&cb.buf, 0);
-	if (for_each_reflog_ent_reverse("HEAD", grab_1st_switch, &cb) <= 0) {
-		strbuf_release(&cb.buf);
-		return;
-	}
-
-	if (dwim_ref(cb.buf.buf, cb.buf.len, sha1, &ref) == 1 &&
-	    /* sha1 is a commit? match without further lookup */
-	    (!hashcmp(cb.nsha1, sha1) ||
-	     /* perhaps sha1 is a tag, try to dereference to a commit */
-	     ((commit = lookup_commit_reference_gently(sha1, 1)) != NULL &&
-	      !hashcmp(cb.nsha1, commit->object.oid.hash)))) {
-		const char *from = ref;
-		if (!skip_prefix(from, "refs/tags/", &from))
-			skip_prefix(from, "refs/remotes/", &from);
-		state->detached_from = xstrdup(from);
-	} else
-		state->detached_from =
-			xstrdup(find_unique_abbrev(cb.nsha1, DEFAULT_ABBREV));
-	hashcpy(state->detached_sha1, cb.nsha1);
-	state->detached_at = !get_sha1("HEAD", sha1) &&
-			     !hashcmp(sha1, state->detached_sha1);
-
-	free(ref);
-	strbuf_release(&cb.buf);
-}
-
-int wt_status_check_rebase(const struct worktree *wt,
-			   struct wt_status_state *state)
-{
-	struct stat st;
-
-	if (!stat(worktree_git_path(wt, "rebase-apply"), &st)) {
-		if (!stat(worktree_git_path(wt, "rebase-apply/applying"), &st)) {
-			state->am_in_progress = 1;
-			if (!stat(worktree_git_path(wt, "rebase-apply/patch"), &st) && !st.st_size)
-				state->am_empty_patch = 1;
+		if (new_base) {
+			prev_base = base;
+			base = new_base;
 		} else {
-			state->rebase_in_progress = 1;
-			state->branch = get_branch(wt, "rebase-apply/head-name");
-			state->onto = get_branch(wt, "rebase-apply/onto");
+			free(base);
+			base = prev_base;
+			if (!base)
+				return;
+			prev_base = base->base;
 		}
-	} else if (!stat(worktree_git_path(wt, "rebase-merge"), &st)) {
-		if (!stat(worktree_git_path(wt, "rebase-merge/interactive"), &st))
-			state->rebase_interactive_in_progress = 1;
-		else
-			state->rebase_in_progress = 1;
-		state->branch = get_branch(wt, "rebase-merge/head-name");
-		state->onto = get_branch(wt, "rebase-merge/onto");
-	} else
-		return 0;
-	return 1;
+	}
 }
 
-int wt_status_check_bisect(const struct worktree *wt,
-			   struct wt_status_state *state)
+static int compare_delta_entry(const void *a, const void *b)
 {
+	const struct delta_entry *delta_a = a;
+	const struct delta_entry *delta_b = b;
+
+	/* group by type (ref vs ofs) and then by value (sha-1 or offset) */
+	return compare_delta_bases(&delta_a->base, &delta_b->base,
+				   objects[delta_a->obj_no].type,
+				   objects[delta_b->obj_no].type);
+}
+
+static void resolve_base(struct object_entry *obj)
+{
+	struct base_data *base_obj = alloc_base_data();
+	base_obj->obj = obj;
+	base_obj->data = NULL;
+	find_unresolved_deltas(base_obj);
+}
+
+#ifndef NO_PTHREADS
+static void *threaded_second_pass(void *data)
+{
+	set_thread_data(data);
+	for (;;) {
+		int i;
+		counter_lock();
+		display_progress(progress, nr_resolved_deltas);
+		counter_unlock();
+		work_lock();
+		while (nr_dispatched < nr_objects &&
+		       is_delta_type(objects[nr_dispatched].type))
+			nr_dispatched++;
+		if (nr_dispatched >= nr_objects) {
+			work_unlock();
+			break;
+		}
+		i = nr_dispatched++;
+		work_unlock();
+
+		resolve_base(&objects[i]);
+	}
+	return NULL;
+}
+#endif
+
+/*
+ * First pass:
+ * - find locations of all objects;
+ * - calculate SHA1 of all non-delta objects;
+ * - remember base (SHA1 or offset) for all deltas.
+ */
+static void parse_pack_objects(unsigned char *sha1)
+{
+	int i, nr_delays = 0;
+	struct delta_entry *delta = deltas;
 	struct stat st;
 
-	if (!stat(worktree_git_path(wt, "BISECT_LOG"), &st)) {
-		state->bisect_in_progress = 1;
-		state->branch = get_branch(wt, "BISECT_START");
-		return 1;
-	}
-	return 0;
-}
-
-void wt_status_get_state(struct wt_status_state *state,
-			 int get_detached_from)
-{
-	struct stat st;
-	unsigned char sha1[20];
-
-	if (!stat(git_path_merge_head(), &st)) {
-		state->merge_in_progress = 1;
-	} else if (wt_status_check_rebase(NULL, state)) {
-		;		/* all set */
-	} else if (!stat(git_path_cherry_pick_head(), &st) &&
-			!get_sha1("CHERRY_PICK_HEAD", sha1)) {
-		state->cherry_pick_in_progress = 1;
-		hashcpy(state->cherry_pick_head_sha1, sha1);
-	}
-	wt_status_check_bisect(NULL, state);
-	if (!stat(git_path_revert_head(), &st) &&
-	    !get_sha1("REVERT_HEAD", sha1)) {
-		state->revert_in_progress = 1;
-		hashcpy(state->revert_head_sha1, sha1);
-	}
-
-	if (get_detached_from)
-		wt_status_get_detached_from(state);
-}
-
-static void wt_status_print_state(struct wt_status *s,
-				  struct wt_status_state *state)
-{
-	const char *state_color = color(WT_STATUS_HEADER, s);
-	if (state->merge_in_progress)
-		show_merge_in_progress(s, state, state_color);
-	else if (state->am_in_progress)
-		show_am_in_progress(s, state, state_color);
-	else if (state->rebase_in_progress || state->rebase_interactive_in_progress)
-		show_rebase_in_progress(s, state, state_color);
-	else if (state->cherry_pick_in_progress)
-		show_cherry_pick_in_progress(s, state, state_color);
-	else if (state->revert_in_progress)
-		show_revert_in_progress(s, state, state_color);
-	if (state->bisect_in_progress)
-		show_bisect_in_progress(s, state, state_color);
-}
-
-void wt_status_print(struct wt_status *s)
-{
-	const char *branch_color = color(WT_STATUS_ONBRANCH, s);
-	const char *branch_status_color = color(WT_STATUS_HEADER, s);
-	struct wt_status_state state;
-
-	memset(&state, 0, sizeof(state));
-	wt_status_get_state(&state,
-			    s->branch && !strcmp(s->branch, "HEAD"));
-
-	if (s->branch) {
-		const char *on_what = _("On branch ");
-		const char *branch_name = s->branch;
-		if (!strcmp(branch_name, "HEAD")) {
-			branch_status_color = color(WT_STATUS_NOBRANCH, s);
-			if (state.rebase_in_progress || state.rebase_interactive_in_progress) {
-				if (state.rebase_interactive_in_progress)
-					on_what = _("interactive rebase in progress; onto ");
-				else
-					on_what = _("rebase in progress; onto ");
-				branch_name = state.onto;
-			} else if (state.detached_from) {
-				branch_name = state.detached_from;
-				if (state.detached_at)
-					on_what = _("HEAD detached at ");
-				else
-					on_what = _("HEAD detached from ");
-			} else {
-				branch_name = "";
-				on_what = _("Not currently on any branch.");
-			}
+	if (verbose)
+		progress = start_progress(
+				from_stdin ? _("Receiving objects") : _("Indexing objects"),
+				nr_objects);
+	for (i = 0; i < nr_objects; i++) {
+		struct object_entry *obj = &objects[i];
+		void *data = unpack_raw_entry(obj, &delta->base, obj->idx.sha1);
+		obj->real_type = obj->type;
+		if (is_delta_type(obj->type)) {
+			nr_deltas++;
+			delta->obj_no = i;
+			delta++;
+		} else if (!data) {
+			/* large blobs, check later */
+			obj->real_type = OBJ_BAD;
+			nr_delays++;
 		} else
-			skip_prefix(branch_name, "refs/heads/", &branch_name);
-		status_printf(s, color(WT_STATUS_HEADER, s), "%s", "");
-		status_printf_more(s, branch_status_color, "%s", on_what);
-		status_printf_more(s, branch_color, "%s\n", branch_name);
-		if (!s->is_initial)
-			wt_status_print_tracking(s);
+			sha1_object(data, NULL, obj->size, obj->type, obj->idx.sha1);
+		free(data);
+		display_progress(progress, i+1);
 	}
+	objects[i].idx.offset = consumed_bytes;
+	stop_progress(&progress);
 
-	wt_status_print_state(s, &state);
-	free(state.branch);
-	free(state.onto);
-	free(state.detached_from);
+	/* Check pack integrity */
+	flush();
+	git_SHA1_Final(sha1, &input_ctx);
+	if (hashcmp(fill(20), sha1))
+		die(_("pack is corrupted (SHA1 mismatch)"));
+	use(20);
 
-	if (s->is_initial) {
-		status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
-		status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));
-		status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");
+	/* If input_fd is a file, we should have reached its end now. */
+	if (fstat(input_fd, &st))
+		die_errno(_("cannot fstat packfile"));
+	if (S_ISREG(st.st_mode) &&
+			lseek(input_fd, 0, SEEK_CUR) - input_len != st.st_size)
+		die(_("pack has junk at the end"));
+
+	for (i = 0; i < nr_objects; i++) {
+		struct object_entry *obj = &objects[i];
+		if (obj->real_type != OBJ_BAD)
+			continue;
+		obj->real_type = obj->type;
+		sha1_object(NULL, obj, obj->size, obj->type, obj->idx.sha1);
+		nr_delays--;
 	}
-
-	wt_status_print_updated(s);
-	wt_status_print_unmerged(s);
-	wt_status_print_changed(s);
-	if (s->submodule_summary &&
-	    (!s->ignore_submodule_arg ||
-	     strcmp(s->ignore_submodule_arg, "all"))) {
-		wt_status_print_submodule_summary(s, 0);  /* staged */
-		wt_status_print_submodule_summary(s, 1);  /* unstaged */
-	}
-	if (s->show_untracked_files) {
-		wt_status_print_other(s, &s->untracked, _("Untracked files"), "add");
-		if (s->show_ignored_files)
-			wt_status_print_other(s, &s->ignored, _("Ignored files"), "add -f");
-		if (advice_status_u_option && 2000 < s->untracked_in_ms) {
-			status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");
-			status_printf_ln(s, GIT_COLOR_NORMAL,
-					 _("It took %.2f seconds to enumerate untracked files. 'status -uno'\n"
-					   "may speed it up, but you have to be careful not to forget to add\n"
-					   "new files yourself (see 'git help status')."),
-					 s->untracked_in_ms / 1000.0);
-		}
-	} else if (s->commitable)
-		status_printf_ln(s, GIT_COLOR_NORMAL, _("Untracked files not listed%s"),
-			s->hints
-			? _(" (use -u option to show untracked files)") : "");
-
-	if (s->verbose)
-		wt_status_print_verbose(s);
-	if (!s->commitable) {
-		if (s->amend)
-			status_printf_ln(s, GIT_COLOR_NORMAL, _("No changes"));
-		else if (s->nowarn)
-			; /* nothing */
-		else if (s->workdir_dirty) {
-			if (s->hints)
-				printf(_("no changes added to commit "
-					 "(use \"git add\" and/or \"git commit -a\")\n"));
-			else
-				printf(_("no changes added to commit\n"));
-		} else if (s->untracked.nr) {
-			if (s->hints)
-				printf(_("nothing added to commit but untracked files "
-					 "present (use \"git add\" to track)\n"));
-			else
-				printf(_("nothing added to commit but untracked files present\n"));
-		} else if (s->is_initial) {
-			if (s->hints)
-				printf(_("nothing to commit (create/copy files "
-					 "and use \"git add\" to track)\n"));
-			else
-				printf(_("nothing to commit\n"));
-		} else if (!s->show_untracked_files) {
-			if (s->hints)
-				printf(_("nothing to commit (use -u to show untracked files)\n"));
-			else
-				printf(_("nothing to commit\n"));
-		} else
-			printf(_("nothing to commit, working tree clean\n"));
-	}
+	if (nr_delays)
+		die(_("confusion beyond insanity in parse_pack_objects()"));
 }
 
-static void wt_shortstatus_unmerged(struct string_list_item *it,
-			   struct wt_status *s)
-{
-	struct wt_status_change_data *d = it->util;
-	const char *how = "??";
-
-	switch (d->stagemask) {
-	case 1: how = "DD"; break; /* both deleted */
-	case 2: how = "AU"; break; /* added by us */
-	case 3: how = "UD"; break; /* deleted by them */
-	case 4: how = "UA"; break; /* added by them */
-	case 5: how = "DU"; break; /* deleted by us */
-	case 6: how = "AA"; break; /* both added */
-	case 7: how = "UU"; break; /* both modified */
-	}
-	color_fprintf(s->fp, color(WT_STATUS_UNMERGED, s), "%s", how);
-	if (s->null_termination) {
-		fprintf(stdout, " %s%c", it->string, 0);
-	} else {
-		struct strbuf onebuf = STRBUF_INIT;
-		const char *one;
-		one = quote_path(it->string, s->prefix, &onebuf);
-		printf(" %s\n", one);
-		strbuf_release(&onebuf);
-	}
-}
-
-static void wt_shortstatus_status(struct string_list_item *it,
-			 struct wt_status *s)
-{
-	struct wt_status_change_data *d = it->util;
-
-	if (d->index_status)
-		color_fprintf(s->fp, color(WT_STATUS_UPDATED, s), "%c", d->index_status);
-	else
-		putchar(' ');
-	if (d->worktree_status)
-		color_fprintf(s->fp, color(WT_STATUS_CHANGED, s), "%c", d->worktree_status);
-	else
-		putchar(' ');
-	putchar(' ');
-	if (s->null_termination) {
-		fprintf(stdout, "%s%c", it->string, 0);
-		if (d->head_path)
-			fprintf(stdout, "%s%c", d->head_path, 0);
-	} else {
-		struct strbuf onebuf = STRBUF_INIT;
-		const char *one;
-		if (d->head_path) {
-			one = quote_path(d->head_path, s->prefix, &onebuf);
-			if (*one != '"' && strchr(one, ' ') != NULL) {
-				putchar('"');
-				strbuf_addch(&onebuf, '"');
-				one = onebuf.buf;
-			}
-			printf("%s -> ", one);
-			strbuf_release(&onebuf);
-		}
-		one = quote_path(it->string, s->prefix, &onebuf);
-		if (*one != '"' && strchr(one, ' ') != NULL) {
-			putchar('"');
-			strbuf_addch(&onebuf, '"');
-			one = onebuf.buf;
-		}
-		printf("%s\n", one);
-		strbuf_release(&onebuf);
-	}
-}
-
-static void wt_shortstatus_other(struct string_list_item *it,
-				 struct wt_status *s, const char *sign)
-{
-	if (s->null_termination) {
-		fprintf(stdout, "%s %s%c", sign, it->string, 0);
-	} else {
-		struct strbuf onebuf = STRBUF_INIT;
-		const char *one;
-		one = quote_path(it->string, s->prefix, &onebuf);
-		color_fprintf(s->fp, color(WT_STATUS_UNTRACKED, s), "%s", sign);
-		printf(" %s\n", one);
-		strbuf_release(&onebuf);
-	}
-}
-
-static void wt_shortstatus_print_tracking(struct wt_status *s)
-{
-	struct branch *branch;
-	const char *header_color = color(WT_STATUS_HEADER, s);
-	const char *branch_color_local = color(WT_STATUS_LOCAL_BRANCH, s);
-	const char *branch_color_remote = color(WT_STATUS_REMOTE_BRANCH, s);
-
-	const char *base;
-	const char *branch_name;
-	int num_ours, num_theirs;
-	int upstream_is_gone = 0;
-
-	color_fprintf(s->fp, color(WT_STATUS_HEADER, s), "## ");
-
-	if (!s->branch)
-		return;
-	branch_name = s->branch;
-
-	if (s->is_initial)
-		color_fprintf(s->fp, header_color, _("Initial commit on "));
-
-	if (!strcmp(s->branch, "HEAD")) {
-		color_fprintf(s->fp, color(WT_STATUS_NOBRANCH, s), "%s",
-			      _("HEAD (no branch)"));
-		goto conclude;
-	}
-
-	skip_prefix(branch_name, "refs/heads/", &branch_name);
-
-	branch = branch_get(branch_name);
-
-	color_fprintf(s->fp, branch_color_local, "%s", branch_name);
-
-	if (stat_tracking_info(branch, &num_ours, &num_theirs, &base) < 0) {
-		if (!base)
-			goto conclude;
-
-		upstream_is_gone = 1;
-	}
-
-	base = shorten_unambiguous_ref(base, 0);
-	color_fprintf(s->fp, header_color, "...");
-	color_fprintf(s->fp, branch_color_remote, "%s", base);
-	free((char *)base);
-
-	if (!upstream_is_gone && !num_ours && !num_theirs)
-		goto conclude;
-
-#define LABEL(string) (s->no_gettext ? (string) : _(string))
-
-	color_fprintf(s->fp, header_color, " [");
-	if (upstream_is_gone) {
-		color_fprintf(s->fp, header_color, LABEL(N_("gone")));
-	} else if (!num_ours) {
-		color_fprintf(s->fp, header_color, LABEL(N_("behind ")));
-		color_fprintf(s->fp, branch_color_remote, "%d", num_theirs);
-	} else if (!num_theirs) {
-		color_fprintf(s->fp, header_color, LABEL(N_("ahead ")));
-		color_fprintf(s->fp, branch_color_local, "%d", num_ours);
-	} else {
-		color_fprintf(s->fp, header_color, LABEL(N_("ahead ")));
-		color_fprintf(s->fp, branch_color_local, "%d", num_ours);
-		color_fprintf(s->fp, header_color, ", %s", LABEL(N_("behind ")));
-		color_fprintf(s->fp, branch_color_remote, "%d", num_theirs);
-	}
-
-	color_fprintf(s->fp, header_color, "]");
- conclude:
-	fputc(s->null_termination ? '\0' : '\n', s->fp);
-}
-
-void wt_shortstatus_print(struct wt_status *s)
+/*
+ * Second pass:
+ * - for all non-delta objects, look if it is used as a base for
+ *   deltas;
+ * - if used as a base, uncompress the object and apply all deltas,
+ *   recursively checking if the resulting object is used as a base
+ *   for some more deltas.
+ */
+static void resolve_deltas(void)
 {
 	int i;
 
-	if (s->show_branch)
-		wt_shortstatus_print_tracking(s);
+	if (!nr_deltas)
+		return;
 
-	for (i = 0; i < s->change.nr; i++) {
-		struct wt_status_change_data *d;
-		struct string_list_item *it;
+	/* Sort deltas by base SHA1/offset for fast searching */
+	qsort(deltas, nr_deltas, sizeof(struct delta_entry),
+	      compare_delta_entry);
 
-		it = &(s->change.items[i]);
-		d = it->util;
-		if (d->stagemask)
-			wt_shortstatus_unmerged(it, s);
-		else
-			wt_shortstatus_status(it, s);
+	if (verbose)
+		progress = start_progress(_("Resolving deltas"), nr_deltas);
+
+#ifndef NO_PTHREADS
+	nr_dispatched = 0;
+	if (nr_threads > 1 || getenv("GIT_FORCE_THREADS")) {
+		init_thread();
+		for (i = 0; i < nr_threads; i++) {
+			int ret = pthread_create(&thread_data[i].thread, NULL,
+						 threaded_second_pass, thread_data + i);
+			if (ret)
+				die(_("unable to create thread: %s"),
+				    strerror(ret));
+		}
+		for (i = 0; i < nr_threads; i++)
+			pthread_join(thread_data[i].thread, NULL);
+		cleanup_thread();
+		return;
 	}
-	for (i = 0; i < s->untracked.nr; i++) {
-		struct string_list_item *it;
+#endif
 
-		it = &(s->untracked.items[i]);
-		wt_shortstatus_other(it, s, "??");
-	}
-	for (i = 0; i < s->ignored.nr; i++) {
-		struct string_list_item *it;
+	for (i = 0; i < nr_objects; i++) {
+		struct object_entry *obj = &objects[i];
 
-		it = &(s->ignored.items[i]);
-		wt_shortstatus_other(it, s, "!!");
+		if (is_delta_type(obj->type))
+			continue;
+		resolve_base(obj);
+		display_progress(progress, nr_resolved_deltas);
 	}
 }
 
-void wt_porcelain_print(struct wt_status *s)
+/*
+ * Third pass:
+ * - append objects to convert thin pack to full pack if required
+ * - write the final 20-byte SHA-1
+ */
+static void fix_unresolved_deltas(struct sha1file *f, int nr_unresolved);
+static void conclude_pack(int fix_thin_pack, const char *curr_pack, unsigned char *pack_sha1)
 {
-	s->use_color = 0;
-	s->relative_paths = 0;
-	s->prefix = NULL;
-	s->no_gettext = 1;
-	wt_shortstatus_print(s);
+	if (nr_deltas == nr_resolved_deltas) {
+		stop_progress(&progress);
+		/* Flush remaining pack final 20-byte SHA1. */
+		flush();
+		return;
+	}
+
+	if (fix_thin_pack) {
+		struct sha1file *f;
+		unsigned char read_sha1[20], tail_sha1[20];
+		struct strbuf msg = STRBUF_INIT;
+		int nr_unresolved = nr_deltas - nr_resolved_deltas;
+		int nr_objects_initial = nr_objects;
+		if (nr_unresolved <= 0)
+			die(_("confusion beyond insanity"));
+		objects = xrealloc(objects,
+				   (nr_objects + nr_unresolved + 1)
+				   * sizeof(*objects));
+		memset(objects + nr_objects + 1, 0,
+		       nr_unresolved * sizeof(*objects));
+		f = sha1fd(output_fd, curr_pack);
+		fix_unresolved_deltas(f, nr_unresolved);
+		strbuf_addf(&msg, _("completed with %d local objects"),
+			    nr_objects - nr_objects_initial);
+		stop_progress_msg(&progress, msg.buf);
+		strbuf_release(&msg);
+		sha1close(f, tail_sha1, 0);
+		hashcpy(read_sha1, pack_sha1);
+		fixup_pack_header_footer(output_fd, pack_sha1,
+					 curr_pack, nr_objects,
+					 read_sha1, consumed_bytes-20);
+		if (hashcmp(read_sha1, tail_sha1) != 0)
+			die(_("Unexpected tail checksum for %s "
+			      "(disk corruption?)"), curr_pack);
+	}
+	if (nr_deltas != nr_resolved_deltas)
+		die(Q_("pack has %d unresolved delta",
+		       "pack has %d unresolved deltas",
+		       nr_deltas - nr_resolved_deltas),
+		    nr_deltas - nr_resolved_deltas);
+}
+
+static int write_compressed(struct sha1file *f, void *in, unsigned int size)
+{
+	git_zstream stream;
+	int status;
+	unsigned char outbuf[4096];
+
+	memset(&stream, 0, sizeof(stream));
+	git_deflate_init(&stream, zlib_compression_level);
+	stream.next_in = in;
+	stream.avail_in = size;
+
+	do {
+		stream.next_out = outbuf;
+		stream.avail_out = sizeof(outbuf);
+		status = git_deflate(&stream, Z_FINISH);
+		sha1write(f, outbuf, sizeof(outbuf) - stream.avail_out);
+	} while (status == Z_OK);
+
+	if (status != Z_STREAM_END)
+		die(_("unable to deflate appended object (%d)"), status);
+	size = stream.total_out;
+	git_deflate_end(&stream);
+	return size;
+}
+
+static struct object_entry *append_obj_to_pack(struct sha1file *f,
+			       const unsigned char *sha1, void *buf,
+			       unsigned long size, enum object_type type)
+{
+	struct object_entry *obj = &objects[nr_objects++];
+	unsigned char header[10];
+	unsigned long s = size;
+	int n = 0;
+	unsigned char c = (type << 4) | (s & 15);
+	s >>= 4;
+	while (s) {
+		header[n++] = c | 0x80;
+		c = s & 0x7f;
+		s >>= 7;
+	}
+	header[n++] = c;
+	crc32_begin(f);
+	sha1write(f, header, n);
+	obj[0].size = size;
+	obj[0].hdr_size = n;
+	obj[0].type = type;
+	obj[0].real_type = type;
+	obj[1].idx.offset = obj[0].idx.offset + n;
+	obj[1].idx.offset += write_compressed(f, buf, size);
+	obj[0].idx.crc32 = crc32_end(f);
+	sha1flush(f);
+	hashcpy(obj->idx.sha1, sha1);
+	return obj;
+}
+
+static int delta_pos_compare(const void *_a, const void *_b)
+{
+	struct delta_entry *a = *(struct delta_entry **)_a;
+	struct delta_entry *b = *(struct delta_entry **)_b;
+	return a->obj_no - b->obj_no;
+}
+
+static void fix_unresolved_deltas(struct sha1file *f, int nr_unresolved)
+{
+	struct delta_entry **sorted_by_pos;
+	int i, n = 0;
+
+	/*
+	 * Since many unresolved deltas may well be themselves base objects
+	 * for more unresolved deltas, we really want to include the
+	 * smallest number of base objects that would cover as much delta
+	 * as possible by picking the
+	 * trunc deltas first, allowing for other deltas to resolve without
+	 * additional base objects.  Since most base objects are to be found
+	 * before deltas depending on them, a good heuristic is to start
+	 * resolving deltas in the same order as their position in the pack.
+	 */
+	sorted_by_pos = xmalloc(nr_unresolved * sizeof(*sorted_by_pos));
+	for (i = 0; i < nr_deltas; i++) {
+		if (objects[deltas[i].obj_no].real_type != OBJ_REF_DELTA)
+			continue;
+		sorted_by_pos[n++] = &deltas[i];
+	}
+	qsort(sorted_by_pos, n, sizeof(*sorted_by_pos), delta_pos_compare);
+
+	for (i = 0; i < n; i++) {
+		struct delta_entry *d = sorted_by_pos[i];
+		enum object_type type;
+		struct base_data *base_obj = alloc_base_data();
+
+		if (objects[d->obj_no].real_type != OBJ_REF_DELTA)
+			continue;
+		base_obj->data = read_sha1_file(d->base.sha1, &type, &base_obj->size);
+		if (!base_obj->data)
+			continue;
+
+		if (check_sha1_signature(d->base.sha1, base_obj->data,
+				base_obj->size, typename(type)))
+			die(_("local object %s is corrupt"), sha1_to_hex(d->base.sha1));
+		base_obj->obj = append_obj_to_pack(f, d->base.sha1,
+					base_obj->data, base_obj->size, type);
+		find_unresolved_deltas(base_obj);
+		display_progress(progress, nr_resolved_deltas);
+	}
+	free(sorted_by_pos);
+}
+
+static void final(const char *final_pack_name, const char *curr_pack_name,
+		  const char *final_index_name, const char *curr_index_name,
+		  const char *keep_name, const char *keep_msg,
+		  unsigned char *sha1)
+{
+	const char *report = "pack";
+	char name[PATH_MAX];
+	int err;
+
+	if (!from_stdin) {
+		close(input_fd);
+	} else {
+		fsync_or_die(output_fd, curr_pack_name);
+		err = close(output_fd);
+		if (err)
+			die_errno(_("error while closing pack file"));
+	}
+
+	if (keep_msg) {
+		int keep_fd, keep_msg_len = strlen(keep_msg);
+
+		if (!keep_name)
+			keep_fd = odb_pack_keep(name, sizeof(name), sha1);
+		else
+			keep_fd = open(keep_name, O_RDWR|O_CREAT|O_EXCL, 0600);
+
+		if (keep_fd < 0) {
+			if (errno != EEXIST)
+				die_errno(_("cannot write keep file '%s'"),
+					  keep_name ? keep_name : name);
+		} else {
+			if (keep_msg_len > 0) {
+				write_or_die(keep_fd, keep_msg, keep_msg_len);
+				write_or_die(keep_fd, "\n", 1);
+			}
+			if (close(keep_fd) != 0)
+				die_errno(_("cannot close written keep file '%s'"),
+					  keep_name ? keep_name : name);
+			report = "keep";
+		}
+	}
+
+	if (final_pack_name != curr_pack_name) {
+		if (!final_pack_name) {
+			snprintf(name, sizeof(name), "%s/pack/pack-%s.pack",
+				 get_object_directory(), sha1_to_hex(sha1));
+			final_pack_name = name;
+		}
+		if (move_temp_to_file(curr_pack_name, final_pack_name))
+			die(_("cannot store pack file"));
+	} else if (from_stdin)
+		chmod(final_pack_name, 0444);
+
+	if (final_index_name != curr_index_name) {
+		if (!final_index_name) {
+			snprintf(name, sizeof(name), "%s/pack/pack-%s.idx",
+				 get_object_directory(), sha1_to_hex(sha1));
+			final_index_name = name;
+		}
+		if (move_temp_to_file(curr_index_name, final_index_name))
+			die(_("cannot store index file"));
+	} else
+		chmod(final_index_name, 0444);
+
+	if (!from_stdin) {
+		printf("%s\n", sha1_to_hex(sha1));
+	} else {
+		char buf[48];
+		int len = snprintf(buf, sizeof(buf), "%s\t%s\n",
+				   report, sha1_to_hex(sha1));
+		write_or_die(1, buf, len);
+
+		/*
+		 * Let's just mimic git-unpack-objects here and write
+		 * the last part of the input buffer to stdout.
+		 */
+		while (input_len) {
+			err = xwrite(1, input_buffer + input_offset, input_len);
+			if (err <= 0)
+				break;
+			input_len -= err;
+			input_offset += err;
+		}
+	}
+}
+
+static int git_index_pack_config(const char *k, const char *v, void *cb)
+{
+	struct pack_idx_option *opts = cb;
+
+	if (!strcmp(k, "pack.indexversion")) {
+		opts->version = git_config_int(k, v);
+		if (opts->version > 2)
+			die(_("bad pack.indexversion=%"PRIu32), opts->version);
+		return 0;
+	}
+	if (!strcmp(k, "pack.threads")) {
+		nr_threads = git_config_int(k, v);
+		if (nr_threads < 0)
+			die(_("invalid number of threads specified (%d)"),
+			    nr_threads);
+#ifdef NO_PTHREADS
+		if (nr_threads != 1)
+			warning(_("no threads support, ignoring %s"), k);
+		nr_threads = 1;
+#endif
+		return 0;
+	}
+	return git_default_config(k, v, cb);
+}
+
+static int cmp_uint32(const void *a_, const void *b_)
+{
+	uint32_t a = *((uint32_t *)a_);
+	uint32_t b = *((uint32_t *)b_);
+
+	return (a < b) ? -1 : (a != b);
+}
+
+static void read_v2_anomalous_offsets(struct packed_git *p,
+				      struct pack_idx_option *opts)
+{
+	const uint32_t *idx1, *idx2;
+	uint32_t i;
+
+	/* The address of the 4-byte offset table */
+	idx1 = (((const uint32_t *)p->index_data)
+		+ 2 /* 8-byte header */
+		+ 256 /* fan out */
+		+ 5 * p->num_objects /* 20-byte SHA-1 table */
+		+ p->num_objects /* CRC32 table */
+		);
+
+	/* The address of the 8-byte offset table */
+	idx2 = idx1 + p->num_objects;
+
+	for (i = 0; i < p->num_objects; i++) {
+		uint32_t off = ntohl(idx1[i]);
+		if (!(off & 0x80000000))
+			continue;
+		off = off & 0x7fffffff;
+		if (idx2[off * 2])
+			continue;
+		/*
+		 * The real offset is ntohl(idx2[off * 2]) in high 4
+		 * octets, and ntohl(idx2[off * 2 + 1]) in low 4
+		 * octets.  But idx2[off * 2] is Zero!!!
+		 */
+		ALLOC_GROW(opts->anomaly, opts->anomaly_nr + 1, opts->anomaly_alloc);
+		opts->anomaly[opts->anomaly_nr++] = ntohl(idx2[off * 2 + 1]);
+	}
+
+	if (1 < opts->anomaly_nr)
+		qsort(opts->anomaly, opts->anomaly_nr, sizeof(uint32_t), cmp_uint32);
+}
+
+static void read_idx_option(struct pack_idx_option *opts, const char *pack_name)
+{
+	struct packed_git *p = add_packed_git(pack_name, strlen(pack_name), 1);
+
+	if (!p)
+		die(_("Cannot open existing pack file '%s'"), pack_name);
+	if (open_pack_index(p))
+		die(_("Cannot open existing pack idx file for '%s'"), pack_name);
+
+	/* Read the attributes from the existing idx file */
+	opts->version = p->index_version;
+
+	if (opts->version == 2)
+		read_v2_anomalous_offsets(p, opts);
+
+	/*
+	 * Get rid of the idx file as we do not need it anymore.
+	 * NEEDSWORK: extract this bit from free_pack_by_name() in
+	 * sha1_file.c, perhaps?  It shouldn't matter very much as we
+	 * know we haven't installed this pack (hence we never have
+	 * read anything from it).
+	 */
+	close_pack_index(p);
+	free(p);
+}
+
+static void show_pack_info(int stat_only)
+{
+	int i, baseobjects = nr_objects - nr_deltas;
+	unsigned long *chain_histogram = NULL;
+
+	if (deepest_delta)
+		chain_histogram = xcalloc(deepest_delta, sizeof(unsigned long));
+
+	for (i = 0; i < nr_objects; i++) {
+		struct object_entry *obj = &objects[i];
+
+		if (is_delta_type(obj->type))
+			chain_histogram[obj->delta_depth - 1]++;
+		if (stat_only)
+			continue;
+		printf("%s %-6s %lu %lu %"PRIuMAX,
+		       sha1_to_hex(obj->idx.sha1),
+		       typename(obj->real_type), obj->size,
+		       (unsigned long)(obj[1].idx.offset - obj->idx.offset),
+		       (uintmax_t)obj->idx.offset);
+		if (is_delta_type(obj->type)) {
+			struct object_entry *bobj = &objects[obj->base_object_no];
+			printf(" %u %s", obj->delta_depth, sha1_to_hex(bobj->idx.sha1));
+		}
+		putchar('\n');
+	}
+
+	if (baseobjects)
+		printf_ln(Q_("non delta: %d object",
+			     "non delta: %d objects",
+			     baseobjects),
+			  baseobjects);
+	for (i = 0; i < deepest_delta; i++) {
+		if (!chain_histogram[i])
+			continue;
+		printf_ln(Q_("chain length = %d: %lu object",
+			     "chain length = %d: %lu objects",
+			     chain_histogram[i]),
+			  i + 1,
+			  chain_histogram[i]);
+	}
+}
+
+int cmd_index_pack(int argc, const char **argv, const char *prefix)
+{
+	int i, fix_thin_pack = 0, verify = 0, stat_only = 0;
+	const char *curr_pack, *curr_index;
+	const char *index_name = NULL, *pack_name = NULL;
+	const char *keep_name = NULL, *keep_msg = NULL;
+	char *index_name_buf = NULL, *keep_name_buf = NULL;
+	struct pack_idx_entry **idx_objects;
+	struct pack_idx_option opts;
+	unsigned char pack_sha1[20];
+	unsigned foreign_nr = 1;	/* zero is a "good" value, assume bad */
+
+	if (argc == 2 && !strcmp(argv[1], "-h"))
+		usage(index_pack_usage);
+
+	check_replace_refs = 0;
+
+	reset_pack_idx_option(&opts);
+	git_config(git_index_pack_config, &opts);
+	if (prefix && chdir(prefix))
+		die(_("Cannot come back to cwd"));
+
+	for (i = 1; i < argc; i++) {
+		const char *arg = argv[i];
+
+		if (*arg == '-') {
+			if (!strcmp(arg, "--stdin")) {
+				from_stdin = 1;
+			} else if (!strcmp(arg, "--fix-thin")) {
+				fix_thin_pack = 1;
+			} else if (!strcmp(arg, "--strict")) {
+				strict = 1;
+				do_fsck_object = 1;
+			} else if (!strcmp(arg, "--check-self-contained-and-connected")) {
+				strict = 1;
+				check_self_contained_and_connected = 1;
+			} else if (!strcmp(arg, "--verify")) {
+				verify = 1;
+			} else if (!strcmp(arg, "--verify-stat")) {
+				verify = 1;
+				show_stat = 1;
+			} else if (!strcmp(arg, "--verify-stat-only")) {
+				verify = 1;
+				show_stat = 1;
+				stat_only = 1;
+			} else if (!strcmp(arg, "--keep")) {
+				keep_msg = "";
+			} else if (starts_with(arg, "--keep=")) {
+				keep_msg = arg + 7;
+			} else if (starts_with(arg, "--threads=")) {
+				char *end;
+				nr_threads = strtoul(arg+10, &end, 0);
+				if (!arg[10] || *end || nr_threads < 0)
+					usage(index_pack_usage);
+#ifdef NO_PTHREADS
+				if (nr_threads != 1)
+					warning(_("no threads support, "
+						  "ignoring %s"), arg);
+				nr_threads = 1;
+#endif
+			} else if (starts_with(arg, "--pack_header=")) {
+				struct pack_header *hdr;
+				char *c;
+
+				hdr = (struct pack_header *)input_buffer;
+				hdr->hdr_signature = htonl(PACK_SIGNATURE);
+				hdr->hdr_version = htonl(strtoul(arg + 14, &c, 10));
+				if (*c != ',')
+					die(_("bad %s"), arg);
+				hdr->hdr_entries = htonl(strtoul(c + 1, &c, 10));
+				if (*c)
+					die(_("bad %s"), arg);
+				input_len = sizeof(*hdr);
+			} else if (!strcmp(arg, "-v")) {
+				verbose = 1;
+			} else if (!strcmp(arg, "-o")) {
+				if (index_name || (i+1) >= argc)
+					usage(index_pack_usage);
+				index_name = argv[++i];
+			} else if (starts_with(arg, "--index-version=")) {
+				char *c;
+				opts.version = strtoul(arg + 16, &c, 10);
+				if (opts.version > 2)
+					die(_("bad %s"), arg);
+				if (*c == ',')
+					opts.off32_limit = strtoul(c+1, &c, 0);
+				if (*c || opts.off32_limit & 0x80000000)
+					die(_("bad %s"), arg);
+			} else
+				usage(index_pack_usage);
+			continue;
+		}
+
+		if (pack_name)
+			usage(index_pack_usage);
+		pack_name = arg;
+	}
+
+	if (!pack_name && !from_stdin)
+		usage(index_pack_usage);
+	if (fix_thin_pack && !from_stdin)
+		die(_("--fix-thin cannot be used without --stdin"));
+	if (!index_name && pack_name) {
+		int len = strlen(pack_name);
+		if (!has_extension(pack_name, ".pack"))
+			die(_("packfile name '%s' does not end with '.pack'"),
+			    pack_name);
+		index_name_buf = xmalloc(len);
+		memcpy(index_name_buf, pack_name, len - 5);
+		strcpy(index_name_buf + len - 5, ".idx");
+		index_name = index_name_buf;
+	}
+	if (keep_msg && !keep_name && pack_name) {
+		int len = strlen(pack_name);
+		if (!has_extension(pack_name, ".pack"))
+			die(_("packfile name '%s' does not end with '.pack'"),
+			    pack_name);
+		keep_name_buf = xmalloc(len);
+		memcpy(keep_name_buf, pack_name, len - 5);
+		strcpy(keep_name_buf + len - 5, ".keep");
+		keep_name = keep_name_buf;
+	}
+	if (verify) {
+		if (!index_name)
+			die(_("--verify with no packfile name given"));
+		read_idx_option(&opts, index_name);
+		opts.flags |= WRITE_IDX_VERIFY | WRITE_IDX_STRICT;
+	}
+	if (strict)
+		opts.flags |= WRITE_IDX_STRICT;
+
+#ifndef NO_PTHREADS
+	if (!nr_threads) {
+		nr_threads = online_cpus();
+		/* An experiment showed that more threads does not mean faster */
+		if (nr_threads > 3)
+			nr_threads = 3;
+	}
+#endif
+
+	curr_pack = open_pack_file(pack_name);
+	parse_pack_header();
+	objects = xcalloc(nr_objects + 1, sizeof(struct object_entry));
+	deltas = xcalloc(nr_objects, sizeof(struct delta_entry));
+	parse_pack_objects(pack_sha1);
+	resolve_deltas();
+	conclude_pack(fix_thin_pack, curr_pack, pack_sha1);
+	free(deltas);
+	if (strict)
+		foreign_nr = check_objects();
+
+	if (show_stat)
+		show_pack_info(stat_only);
+
+	idx_objects = xmalloc((nr_objects) * sizeof(struct pack_idx_entry *));
+	for (i = 0; i < nr_objects; i++)
+		idx_objects[i] = &objects[i].idx;
+	curr_index = write_idx_file(index_name, idx_objects, nr_objects, &opts, pack_sha1);
+	free(idx_objects);
+
+	if (!verify)
+		final(pack_name, curr_pack,
+		      index_name, curr_index,
+		      keep_name, keep_msg,
+		      pack_sha1);
+	else
+		close(input_fd);
+	free(objects);
+	free(index_name_buf);
+	free(keep_name_buf);
+	if (pack_name == NULL)
+		free((void *) curr_pack);
+	if (index_name == NULL)
+		free((void *) curr_index);
+
+	/*
+	 * Let the caller know this pack is not self contained
+	 */
+	if (check_self_contained_and_connected && foreign_nr)
+		return 1;
+
+	return 0;
 }

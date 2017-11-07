@@ -231,8 +231,6 @@ def seek_clone_for_corresponding_repos(rebuild_repos=False):
         variable = json.loads(rule_record[my_constant.CLASS_OLD_NEW_VARIABLE])
         edit_words = json.loads(rule_record[my_constant.CLASS_OLD_NEW_EDIT])
         rule_feature = [check, variable]
-        if old_loc != '-1':
-            continue
         # get repos info files with old repos name
         old_repos_name = my_util.get_old_repos_name(\
                     rule_record[my_constant.CLASS_OLD_NEW_PATCH_FILE_NAME])
