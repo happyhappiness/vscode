@@ -1,1 +1,2 @@
-die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");
+die(_("Pathspec '%s' is in submodule '%.*s'"),
+		    item->original, ce_len, ce->name);

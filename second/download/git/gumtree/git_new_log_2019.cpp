@@ -1,1 +1,1 @@
-die(_("positive value expected contents:lines=%s"), valp);
+die(_("format: %%(end) atom used without corresponding atom"));

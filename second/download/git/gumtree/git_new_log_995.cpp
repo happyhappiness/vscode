@@ -1,1 +1,1 @@
-printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);
+printf("  mtime: %d:%d\n", sd->sd_mtime.sec, sd->sd_mtime.nsec);

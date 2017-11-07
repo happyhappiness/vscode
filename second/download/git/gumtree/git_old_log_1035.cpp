@@ -1,2 +1,2 @@
-printf("%s %s\n", sha1_to_hex(r->list[i].sha1),
-				r->list[i].name);
+error("failed to read delta-pack base object %s",
+		      sha1_to_hex(base_sha1));

@@ -1,1 +1,1 @@
-die(_("could not read symlink %s"), path);
+die(_("--broken is incompatible with commit-ishes"));

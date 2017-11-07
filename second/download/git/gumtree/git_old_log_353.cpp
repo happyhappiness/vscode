@@ -1,1 +1,1 @@
-die("Option '--stat-count' requires a value");
+die("Option '--stat-graph-width' requires a value");

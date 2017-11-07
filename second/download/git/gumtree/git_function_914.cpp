@@ -1,52 +1,78 @@
-int bad_to_remove_submodule(const char *path, unsigned flags)
+unsigned is_submodule_modified(const char *path, int ignore_untracked)
 {
-	ssize_t len;
 	struct child_process cp = CHILD_PROCESS_INIT;
 	struct strbuf buf = STRBUF_INIT;
-	int ret = 0;
+	FILE *fp;
+	unsigned dirty_submodule = 0;
+	const char *git_dir;
+	int ignore_cp_exit_code = 0;
 
-	if (!file_exists(path) || is_empty_dir(path))
+	strbuf_addf(&buf, "%s/.git", path);
+	git_dir = read_gitfile(buf.buf);
+	if (!git_dir)
+		git_dir = buf.buf;
+	if (!is_git_directory(git_dir)) {
+		if (is_directory(git_dir))
+			die(_("'%s' not recognized as a git repository"), git_dir);
+		strbuf_release(&buf);
+		/* The submodule is not checked out, so it is not modified */
 		return 0;
+	}
+	strbuf_reset(&buf);
 
-	if (!submodule_uses_gitfile(path))
-		return 1;
-
-	argv_array_pushl(&cp.args, "status", "--porcelain",
-				   "--ignore-submodules=none", NULL);
-
-	if (flags & SUBMODULE_REMOVAL_IGNORE_UNTRACKED)
+	argv_array_pushl(&cp.args, "status", "--porcelain=2", NULL);
+	if (ignore_untracked)
 		argv_array_push(&cp.args, "-uno");
-	else
-		argv_array_push(&cp.args, "-uall");
-
-	if (!(flags & SUBMODULE_REMOVAL_IGNORE_IGNORED_UNTRACKED))
-		argv_array_push(&cp.args, "--ignored");
 
 	prepare_submodule_repo_env(&cp.env_array);
 	cp.git_cmd = 1;
 	cp.no_stdin = 1;
 	cp.out = -1;
 	cp.dir = path;
-	if (start_command(&cp)) {
-		if (flags & SUBMODULE_REMOVAL_DIE_ON_ERROR)
-			die(_("could not start 'git status in submodule '%s'"),
-				path);
-		ret = -1;
-		goto out;
-	}
+	if (start_command(&cp))
+		die("Could not run 'git status --porcelain=2' in submodule %s", path);
 
-	len = strbuf_read(&buf, cp.out, 1024);
-	if (len > 2)
-		ret = 1;
-	close(cp.out);
+	fp = xfdopen(cp.out, "r");
+	while (strbuf_getwholeline(&buf, fp, '\n') != EOF) {
+		/* regular untracked files */
+		if (buf.buf[0] == '?')
+			dirty_submodule |= DIRTY_SUBMODULE_UNTRACKED;
 
-	if (finish_command(&cp)) {
-		if (flags & SUBMODULE_REMOVAL_DIE_ON_ERROR)
-			die(_("could not run 'git status in submodule '%s'"),
-				path);
-		ret = -1;
+		if (buf.buf[0] == 'u' ||
+		    buf.buf[0] == '1' ||
+		    buf.buf[0] == '2') {
+			/* T = line type, XY = status, SSSS = submodule state */
+			if (buf.len < strlen("T XY SSSS"))
+				die("BUG: invalid status --porcelain=2 line %s",
+				    buf.buf);
+
+			if (buf.buf[5] == 'S' && buf.buf[8] == 'U')
+				/* nested untracked file */
+				dirty_submodule |= DIRTY_SUBMODULE_UNTRACKED;
+
+			if (buf.buf[0] == 'u' ||
+			    buf.buf[0] == '2' ||
+			    memcmp(buf.buf + 5, "S..U", 4))
+				/* other change */
+				dirty_submodule |= DIRTY_SUBMODULE_MODIFIED;
+		}
+
+		if ((dirty_submodule & DIRTY_SUBMODULE_MODIFIED) &&
+		    ((dirty_submodule & DIRTY_SUBMODULE_UNTRACKED) ||
+		     ignore_untracked)) {
+			/*
+			 * We're not interested in any further information from
+			 * the child any more, neither output nor its exit code.
+			 */
+			ignore_cp_exit_code = 1;
+			break;
+		}
 	}
-out:
+	fclose(fp);
+
+	if (finish_command(&cp) && !ignore_cp_exit_code)
+		die("'git status --porcelain=2' failed in submodule %s", path);
+
 	strbuf_release(&buf);
-	return ret;
+	return dirty_submodule;
 }

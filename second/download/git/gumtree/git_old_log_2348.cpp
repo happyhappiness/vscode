@@ -1,2 +1,1 @@
-error("unable to open mailmap at %s: %s",
-			     filename, strerror(errno));
+warning("cannot get host name: %s", strerror(errno));

@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(03463)
-                              "proxying is explicitly disabled for URI path "
-                              "'%s'; declining", r->uri);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, server, APLOGNO(00951)
+                         "%s: backend socket is disconnected.", scheme);

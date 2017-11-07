@@ -1,1 +1,2 @@
-error(_("'%s': %s"), filename, strerror(errno));
+error(_("failed writing detached signature to '%s': %s"),
+			     path, strerror(errno));

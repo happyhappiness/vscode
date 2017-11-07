@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02308)
-                     "Using SRP verifier file [%s]", mctx->srp_vfile);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02310)
+                         "Unable to load SRP verifier file [error %d]", err);

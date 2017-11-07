@@ -1,1 +1,1 @@
-die(_("%s already exists"), git_dir);
+die("failed to set up refs db: %s", err.buf);

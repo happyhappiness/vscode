@@ -1,1 +1,2 @@
-die("Not a tree: %s", oid_to_hex(oid));
+fprintf(pack_edges, " %s",
+						oid_to_hex(&t->oid));

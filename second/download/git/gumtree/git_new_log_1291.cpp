@@ -1,1 +1,1 @@
-die("curl_multi_init failed");
+die("curl_global_init failed");

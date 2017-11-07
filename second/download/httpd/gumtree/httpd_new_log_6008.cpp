@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, 
-                  "link_reverse_map %s --> %s", s, ctx.s);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
+                          APLOGNO(02954) 
+                          "h2_request: ignoring unknown pseudo header %s",
+                          buffer);

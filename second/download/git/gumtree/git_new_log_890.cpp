@@ -1,1 +1,1 @@
-die_errno("unable to overwrite old ref-pack file");
+die("error while iterating over references");

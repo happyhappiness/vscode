@@ -1,42 +1,63 @@
-static int rerere_forget_one_path(const char *path, struct string_list *rr)
+static int do_plain_rerere(struct string_list *rr, int fd)
 {
-	const char *filename;
-	struct rerere_id *id;
-	unsigned char sha1[20];
-	int ret;
-	struct string_list_item *item;
+	struct string_list conflict = STRING_LIST_INIT_DUP;
+	struct string_list update = STRING_LIST_INIT_DUP;
+	int i;
+
+	find_conflict(&conflict);
 
 	/*
-	 * Recreate the original conflict from the stages in the
-	 * index and compute the conflict ID
+	 * MERGE_RR records paths with conflicts immediately after
+	 * merge failed.  Some of the conflicted paths might have been
+	 * hand resolved in the working tree since then, but the
+	 * initial run would catch all and register their preimages.
 	 */
-	ret = handle_cache(path, sha1, NULL);
-	if (ret < 1)
-		return error("Could not parse conflict hunks in '%s'", path);
+	for (i = 0; i < conflict.nr; i++) {
+		struct rerere_id *id;
+		unsigned char sha1[20];
+		const char *path = conflict.items[i].string;
+		int ret;
 
-	/* Nuke the recorded resolution for the conflict */
-	id = new_rerere_id(sha1);
-	filename = rerere_path(id, "postimage");
-	if (unlink(filename))
-		return (errno == ENOENT
-			? error("no remembered resolution for %s", path)
-			: error("cannot unlink %s: %s", filename, strerror(errno)));
+		if (string_list_has_string(rr, path))
+			continue;
 
-	/*
-	 * Update the preimage so that the user can resolve the
-	 * conflict in the working tree, run us again to record
-	 * the postimage.
-	 */
-	handle_cache(path, sha1, rerere_path(id, "preimage"));
-	fprintf(stderr, "Updated preimage for '%s'\n", path);
+		/*
+		 * Ask handle_file() to scan and assign a
+		 * conflict ID.  No need to write anything out
+		 * yet.
+		 */
+		ret = handle_file(path, sha1, NULL);
+		if (ret < 1)
+			continue;
 
-	/*
-	 * And remember that we can record resolution for this
-	 * conflict when the user is done.
-	 */
-	item = string_list_insert(rr, path);
-	free_rerere_id(item);
-	item->util = id;
-	fprintf(stderr, "Forgot resolution for %s\n", path);
-	return 0;
+		id = new_rerere_id(sha1);
+		string_list_insert(rr, path)->util = id;
+
+		/*
+		 * If the directory does not exist, create
+		 * it.  mkdir_in_gitdir() will fail with
+		 * EEXIST if there already is one.
+		 *
+		 * NEEDSWORK: make sure "gc" does not remove
+		 * preimage without removing the directory.
+		 */
+		if (mkdir_in_gitdir(rerere_path(id, NULL)))
+			continue;
+
+		/*
+		 * We are the first to encounter this
+		 * conflict.  Ask handle_file() to write the
+		 * normalized contents to the "preimage" file.
+		 */
+		handle_file(path, NULL, rerere_path(id, "preimage"));
+		fprintf(stderr, "Recorded preimage for '%s'\n", path);
+	}
+
+	for (i = 0; i < rr->nr; i++)
+		do_rerere_one_path(&rr->items[i], &update);
+
+	if (update.nr)
+		update_paths(&update);
+
+	return write_rr(rr, fd);
 }

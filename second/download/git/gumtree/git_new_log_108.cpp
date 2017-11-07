@@ -1,1 +1,1 @@
-die(_("external diff died, stopping at %s"), name);
+die("cannot start proxy %s", git_proxy_command);

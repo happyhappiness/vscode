@@ -1,1 +1,2 @@
-die_errno("cannot exec '%s'", cmd->argv[0]);
+error("cannot run %s: %s", cmd->argv[0],
+					strerror(ENOENT));

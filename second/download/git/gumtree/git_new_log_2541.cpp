@@ -1,2 +1,1 @@
-fprintf(log->file, "%6d\t%s\n",
-				(int)UTIL_TO_INT(item), item->string);
+die(_("--keep-unreachable and -A are incompatible"));

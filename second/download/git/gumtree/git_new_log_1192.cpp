@@ -1,1 +1,1 @@
-printf("[%s%s ", head, initial_commit ? _(" (root-commit)") : "");
+die(_("revision walk setup failed"));

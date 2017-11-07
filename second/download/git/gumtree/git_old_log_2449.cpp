@@ -1,1 +1,2 @@
-printf("We cannot bisect more!\n");
+die("Badly quoted content in file '%s': %s",
+			    filename, str.buf);

@@ -1,1 +1,1 @@
-die("--reflog option needs one branch name");
+die("no branches given, and HEAD is not valid");

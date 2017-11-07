@@ -1,10 +1,9 @@
-FILE *fdopen_lock_file(struct lock_file *lk, const char *mode)
+int unable_to_lock_error(const char *path, int err)
 {
-	if (!lk->active)
-		die("BUG: fdopen_lock_file() called for unlocked object");
-	if (lk->fp)
-		die("BUG: fdopen_lock_file() called twice for file '%s'", lk->filename.buf);
+	struct strbuf buf = STRBUF_INIT;
 
-	lk->fp = fdopen(lk->fd, mode);
-	return lk->fp;
+	unable_to_lock_message(path, err, &buf);
+	error("%s", buf.buf);
+	strbuf_release(&buf);
+	return -1;
 }

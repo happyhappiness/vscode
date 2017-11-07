@@ -1,1 +1,1 @@
-die(_("git fetch-pack: expected ACK/NAK, got EOF"));
+die(_("git fetch-pack: expected shallow list"));

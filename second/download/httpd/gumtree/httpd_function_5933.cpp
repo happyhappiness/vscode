@@ -1,215 +1,326 @@
-static apr_status_t
-rate_limit_filter(ap_filter_t *f, apr_bucket_brigade *input_bb)
+static int cgid_handler(request_rec *r)
 {
-    apr_status_t rv = APR_SUCCESS;
-    rl_ctx_t *ctx = f->ctx;
-    apr_bucket *fb;
-    int do_sleep = 0;
-    apr_bucket_alloc_t *ba = f->r->connection->bucket_alloc;
-    apr_bucket_brigade *bb = input_bb;
+    int retval, nph, dbpos;
+    char *argv0, *dbuf;
+    apr_bucket_brigade *bb;
+    apr_bucket *b;
+    cgid_server_conf *conf;
+    int is_included;
+    int seen_eos, child_stopped_reading;
+    int sd;
+    char **env;
+    apr_file_t *tempsock;
+    struct cleanup_script_info *info;
+    apr_status_t rv;
+    cgid_dirconf *dc;
 
-    if (f->c->aborted) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01454) "rl: conn aborted");
-        apr_brigade_cleanup(bb);
-        return APR_ECONNABORTED;
+    if (strcmp(r->handler, CGI_MAGIC_TYPE) && strcmp(r->handler, "cgi-script")) {
+        return DECLINED;
     }
 
-    /* Set up our rl_ctx_t on first use */
-    if (ctx == NULL) {
+    conf = ap_get_module_config(r->server->module_config, &cgid_module);
+    dc = ap_get_module_config(r->per_dir_config, &cgid_module);
 
-        const char *rl = NULL;
-        int ratelimit;
-        int burst = 0;
+    
+    is_included = !strcmp(r->protocol, "INCLUDED");
 
-        /* no subrequests. */
-        if (f->r->main != NULL) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        /* Configuration: rate limit */
-        rl = apr_table_get(f->r->subprocess_env, "rate-limit");
-
-        if (rl == NULL) {
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-        
-        /* rl is in kilo bytes / second  */
-        ratelimit = atoi(rl) * 1024;
-        if (ratelimit <= 0) {
-            /* remove ourselves */
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
-                          APLOGNO(03488) "rl: disabling: rate-limit = %s (too high?)", rl);
-            ap_remove_output_filter(f);
-            return ap_pass_brigade(f->next, bb);
-        }
-
-        /* Configuration: optional initial burst */
-        rl = apr_table_get(f->r->subprocess_env, "rate-initial-burst");
-        if (rl != NULL) {
-            burst = atoi(rl) * 1024;
-            if (burst <= 0) {
-               ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r,
-                             APLOGNO(03489) "rl: disabling burst: rate-initial-burst = %s (too high?)", rl);
-               burst = 0;
-            }
-        }
-
-        /* Set up our context */
-        ctx = apr_palloc(f->r->pool, sizeof(rl_ctx_t));
-        f->ctx = ctx;
-        ctx->state = RATE_LIMIT;
-        ctx->speed = ratelimit;
-        ctx->burst = burst;
-
-        /* calculate how many bytes / interval we want to send */
-        /* speed is bytes / second, so, how many  (speed / 1000 % interval) */
-        ctx->chunk_size = (ctx->speed / (1000 / RATE_INTERVAL_MS));
-        ctx->tmpbb = apr_brigade_create(f->r->pool, ba);
-        ctx->holdingbb = apr_brigade_create(f->r->pool, ba);
+    if ((argv0 = strrchr(r->filename, '/')) != NULL) {
+        argv0++;
+    }
+    else {
+        argv0 = r->filename;
     }
 
-    while (ctx->state != RATE_ERROR &&
-           (!APR_BRIGADE_EMPTY(bb) || !APR_BRIGADE_EMPTY(ctx->holdingbb))) {
-        apr_bucket *e;
+    nph = !(strncmp(argv0, "nph-", 4));
 
-        if (!APR_BRIGADE_EMPTY(ctx->holdingbb)) {
-            APR_BRIGADE_CONCAT(bb, ctx->holdingbb);
+    argv0 = r->filename;
+
+    if (!(ap_allow_options(r) & OPT_EXECCGI) && !is_scriptaliased(r)) {
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01262)
+                "Options ExecCGI is off in this directory");
+    }
+
+    if (nph && is_included) {
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01263)
+                "attempt to include NPH CGI script");
+    }
+
+#if defined(OS2) || defined(WIN32)
+#error mod_cgid does not work on this platform.  If you teach it to, look
+#error at mod_cgi.c for required code in this path.
+#else
+    if (r->finfo.filetype == APR_NOFILE) {
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(01264)
+                "script not found or unable to stat");
+    }
+#endif
+    if (r->finfo.filetype == APR_DIR) {
+        return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01265)
+                "attempt to invoke directory as script");
+    }
+
+    if ((r->used_path_info == AP_REQ_REJECT_PATH_INFO) &&
+        r->path_info && *r->path_info)
+    {
+        /* default to accept */
+        return log_scripterror(r, conf, HTTP_NOT_FOUND, 0, APLOGNO(01266)
+                               "AcceptPathInfo off disallows user's path");
+    }
+    /*
+    if (!ap_suexec_enabled) {
+        if (!ap_can_exec(&r->finfo))
+            return log_scripterror(r, conf, HTTP_FORBIDDEN, 0, APLOGNO(01267)
+                                   "file permissions deny server execution");
+    }
+    */
+
+    /*
+     * httpd core function used to add common environment variables like
+     * DOCUMENT_ROOT. 
+     */
+    ap_add_common_vars(r);
+    ap_add_cgi_vars(r);
+    env = ap_create_environment(r->pool, r->subprocess_env);
+
+    if ((retval = connect_to_daemon(&sd, r, conf)) != OK) {
+        return retval;
+    }
+
+    rv = send_req(sd, r, argv0, env, CGI_REQ);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01268)
+                     "write to cgi daemon process");
+    }
+
+    info = apr_palloc(r->pool, sizeof(struct cleanup_script_info));
+    info->conf = conf;
+    info->r = r;
+    rv = get_cgi_pid(r, conf, &(info->pid));
+
+    if (APR_SUCCESS == rv){  
+        apr_pool_cleanup_register(r->pool, info,
+                              cleanup_script,
+                              apr_pool_cleanup_null);
+    }
+    else { 
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, "error determining cgi PID");
+    }
+
+    /* We are putting the socket discriptor into an apr_file_t so that we can
+     * use a pipe bucket to send the data to the client.  APR will create
+     * a cleanup for the apr_file_t which will close the socket, so we'll
+     * get rid of the cleanup we registered when we created the socket.
+     */
+
+    apr_os_pipe_put_ex(&tempsock, &sd, 1, r->pool);
+    if (dc->timeout > 0) { 
+        apr_file_pipe_timeout_set(tempsock, dc->timeout);
+    }
+    else { 
+        apr_file_pipe_timeout_set(tempsock, r->server->timeout);
+    }
+    apr_pool_cleanup_kill(r->pool, (void *)((long)sd), close_unix_socket);
+
+    /* Transfer any put/post args, CERN style...
+     * Note that we already ignore SIGPIPE in the core server.
+     */
+    bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    seen_eos = 0;
+    child_stopped_reading = 0;
+    dbuf = NULL;
+    dbpos = 0;
+    if (conf->logname) {
+        dbuf = apr_palloc(r->pool, conf->bufbytes + 1);
+    }
+    do {
+        apr_bucket *bucket;
+
+        rv = ap_get_brigade(r->input_filters, bb, AP_MODE_READBYTES,
+                            APR_BLOCK_READ, HUGE_STRING_LEN);
+
+        if (rv != APR_SUCCESS) {
+            if (APR_STATUS_IS_TIMEUP(rv)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01269)
+                              "Timeout during reading request entity data");
+                return HTTP_REQUEST_TIME_OUT;
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01270)
+                          "Error reading request entity data");
+            return ap_map_http_request_error(rv, HTTP_BAD_REQUEST);
         }
 
-        while (ctx->state == RATE_FULLSPEED && !APR_BRIGADE_EMPTY(bb)) {
-            /* Find where we 'stop' going full speed. */
-            for (e = APR_BRIGADE_FIRST(bb);
-                 e != APR_BRIGADE_SENTINEL(bb); e = APR_BUCKET_NEXT(e)) {
-                if (AP_RL_BUCKET_IS_END(e)) {
-                    apr_bucket *f;
-                    f = APR_RING_LAST(&bb->list);
-                    APR_RING_UNSPLICE(e, f, link);
-                    APR_RING_SPLICE_TAIL(&ctx->holdingbb->list, e, f,
-                                         apr_bucket, link);
-                    ctx->state = RATE_LIMIT;
-                    break;
-                }
-            }
+        for (bucket = APR_BRIGADE_FIRST(bb);
+             bucket != APR_BRIGADE_SENTINEL(bb);
+             bucket = APR_BUCKET_NEXT(bucket))
+        {
+            const char *data;
+            apr_size_t len;
 
-            if (f->c->aborted) {
-                apr_brigade_cleanup(bb);
-                ctx->state = RATE_ERROR;
+            if (APR_BUCKET_IS_EOS(bucket)) {
+                seen_eos = 1;
                 break;
             }
 
-            fb = apr_bucket_flush_create(ba);
-            APR_BRIGADE_INSERT_TAIL(bb, fb);
-            rv = ap_pass_brigade(f->next, bb);
+            /* We can't do much with this. */
+            if (APR_BUCKET_IS_FLUSH(bucket)) {
+                continue;
+            }
+
+            /* If the child stopped, we still must read to EOS. */
+            if (child_stopped_reading) {
+                continue;
+            }
+
+            /* read */
+            apr_bucket_read(bucket, &data, &len, APR_BLOCK_READ);
+
+            if (conf->logname && dbpos < conf->bufbytes) {
+                int cursize;
+
+                if ((dbpos + len) > conf->bufbytes) {
+                    cursize = conf->bufbytes - dbpos;
+                }
+                else {
+                    cursize = len;
+                }
+                memcpy(dbuf + dbpos, data, cursize);
+                dbpos += cursize;
+            }
+
+            /* Keep writing data to the child until done or too much time
+             * elapses with no progress or an error occurs.
+             */
+            rv = apr_file_write_full(tempsock, data, len, NULL);
 
             if (rv != APR_SUCCESS) {
-                ctx->state = RATE_ERROR;
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE1, rv, f->r, APLOGNO(01455)
-                              "rl: full speed brigade pass failed.");
+                /* silly script stopped reading, soak up remaining message */
+                child_stopped_reading = 1;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,  APLOGNO(02651)
+                              "Error writing request body to script %s", 
+                              r->filename);
+
             }
         }
+        apr_brigade_cleanup(bb);
+    }
+    while (!seen_eos);
 
-        while (ctx->state == RATE_LIMIT && !APR_BRIGADE_EMPTY(bb)) {
-            for (e = APR_BRIGADE_FIRST(bb);
-                 e != APR_BRIGADE_SENTINEL(bb); e = APR_BUCKET_NEXT(e)) {
-                if (AP_RL_BUCKET_IS_START(e)) {
-                    apr_bucket *f;
-                    f = APR_RING_LAST(&bb->list);
-                    APR_RING_UNSPLICE(e, f, link);
-                    APR_RING_SPLICE_TAIL(&ctx->holdingbb->list, e, f,
-                                         apr_bucket, link);
-                    ctx->state = RATE_FULLSPEED;
-                    break;
-                }
+    if (conf->logname) {
+        dbuf[dbpos] = '\0';
+    }
+
+    /* we're done writing, or maybe we didn't write at all;
+     * force EOF on child's stdin so that the cgi detects end (or
+     * absence) of data
+     */
+    shutdown(sd, 1);
+
+    /* Handle script return... */
+    if (!nph) {
+        conn_rec *c = r->connection;
+        const char *location;
+        char sbuf[MAX_STRING_LEN];
+        int ret;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_pipe_create(tempsock, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+
+        if ((ret = ap_scan_script_header_err_brigade_ex(r, bb, sbuf,
+                                                        APLOG_MODULE_INDEX)))
+        {
+            ret = log_script(r, conf, ret, dbuf, sbuf, bb, NULL);
+
+            /*
+             * ret could be HTTP_NOT_MODIFIED in the case that the CGI script
+             * does not set an explicit status and ap_meets_conditions, which
+             * is called by ap_scan_script_header_err_brigade, detects that
+             * the conditions of the requests are met and the response is
+             * not modified.
+             * In this case set r->status and return OK in order to prevent
+             * running through the error processing stack as this would
+             * break with mod_cache, if the conditions had been set by
+             * mod_cache itself to validate a stale entity.
+             * BTW: We circumvent the error processing stack anyway if the
+             * CGI script set an explicit status code (whatever it is) and
+             * the only possible values for ret here are:
+             *
+             * HTTP_NOT_MODIFIED          (set by ap_meets_conditions)
+             * HTTP_PRECONDITION_FAILED   (set by ap_meets_conditions)
+             * HTTP_INTERNAL_SERVER_ERROR (if something went wrong during the
+             * processing of the response of the CGI script, e.g broken headers
+             * or a crashed CGI process).
+             */
+            if (ret == HTTP_NOT_MODIFIED) {
+                r->status = ret;
+                return OK;
             }
 
-            while (!APR_BRIGADE_EMPTY(bb)) {
-                apr_bucket *stop_point;
-                apr_off_t len = 0;
+            return ret;
+        }
 
-                if (f->c->aborted) {
-                    apr_brigade_cleanup(bb);
-                    ctx->state = RATE_ERROR;
-                    break;
-                }
+        location = apr_table_get(r->headers_out, "Location");
 
-                if (do_sleep) {
-                    apr_sleep(RATE_INTERVAL_MS * 1000);
-                }
-                else {
-                    do_sleep = 1;
-                }
+        if (location && location[0] == '/' && r->status == 200) {
 
-                apr_brigade_length(bb, 1, &len);
+            /* Soak up all the script output */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            /* This redirect needs to be a GET no matter what the original
+             * method was.
+             */
+            r->method = "GET";
+            r->method_number = M_GET;
 
-                /*
-                 * Pull next chunk of data; the initial amount is our
-                 * burst allotment (if any) plus a chunk.  All subsequent
-                 * iterations are just chunks with whatever remaining
-                 * burst amounts we have left (in case not done in the
-                 * first bucket).
-                 */
-                rv = apr_brigade_partition(bb,
-                    ctx->chunk_size + ctx->burst, &stop_point);
-                if (rv != APR_SUCCESS && rv != APR_INCOMPLETE) {
-                    ctx->state = RATE_ERROR;
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01456)
-                                  "rl: partition failed.");
-                    break;
-                }
+            /* We already read the message body (if any), so don't allow
+             * the redirected request to think it has one. We can ignore
+             * Transfer-Encoding, since we used REQUEST_CHUNKED_ERROR.
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
 
-                if (stop_point != APR_BRIGADE_SENTINEL(bb)) {
-                    apr_bucket *f;
-                    apr_bucket *e = APR_BUCKET_PREV(stop_point);
-                    f = APR_RING_FIRST(&bb->list);
-                    APR_RING_UNSPLICE(f, e, link);
-                    APR_RING_SPLICE_HEAD(&ctx->tmpbb->list, f, e, apr_bucket,
-                                         link);
-                }
-                else {
-                    APR_BRIGADE_CONCAT(ctx->tmpbb, bb);
-                }
+            ap_internal_redirect_handler(location, r);
+            return OK;
+        }
+        else if (location && r->status == 200) {
+            /* XXX: Note that if a script wants to produce its own Redirect
+             * body, it now has to explicitly *say* "Status: 302"
+             */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            return HTTP_MOVED_TEMPORARILY;
+        }
 
-                fb = apr_bucket_flush_create(ba);
-
-                APR_BRIGADE_INSERT_TAIL(ctx->tmpbb, fb);
-
-                /*
-                 * Adjust the burst amount depending on how much
-                 * we've done up to now.
-                 */
-                if (ctx->burst) {
-                    len = ctx->burst;
-                    apr_brigade_length(ctx->tmpbb, 1, &len);
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r,
-                        APLOGNO(03485) "rl: burst %d; len %"APR_OFF_T_FMT, ctx->burst, len);
-                    if (len < ctx->burst) {
-                        ctx->burst -= len;
-                    }
-                    else {
-                        ctx->burst = 0;
-                    }
-                }
-
-#if defined(RLFDEBUG)
-                brigade_dump(f->r, ctx->tmpbb);
-                brigade_dump(f->r, bb);
-#endif /* RLFDEBUG */
-
-                rv = ap_pass_brigade(f->next, ctx->tmpbb);
-                apr_brigade_cleanup(ctx->tmpbb);
-
-                if (rv != APR_SUCCESS) {
-                    /* Most often, user disconnects from stream */
-                    ctx->state = RATE_ERROR;
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, rv, f->r, APLOGNO(01457)
-                                  "rl: brigade pass failed.");
-                    break;
-                }
-            }
+        rv = ap_pass_brigade(r->output_filters, bb);
+        if (rv != APR_SUCCESS) { 
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, rv, r,
+                          "Failed to flush CGI output to client");
         }
     }
 
-    return rv;
+    if (nph) {
+        conn_rec *c = r->connection;
+        struct ap_filter_t *cur;
+
+        /* get rid of all filters up through protocol...  since we
+         * haven't parsed off the headers, there is no way they can
+         * work
+         */
+
+        cur = r->proto_output_filters;
+        while (cur && cur->frec->ftype < AP_FTYPE_CONNECTION) {
+            cur = cur->next;
+        }
+        r->output_filters = r->proto_output_filters = cur;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_pipe_create(tempsock, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        ap_pass_brigade(r->output_filters, bb);
+    }
+
+    return OK; /* NOT r->status, even if it has changed. */
 }

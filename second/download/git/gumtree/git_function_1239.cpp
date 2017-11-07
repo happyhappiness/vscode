@@ -1,171 +1,343 @@
-int cmd_tag(int argc, const char **argv, const char *prefix)
+int cmd_rev_parse(int argc, const char **argv, const char *prefix)
 {
-	struct strbuf buf = STRBUF_INIT;
-	struct strbuf ref = STRBUF_INIT;
-	unsigned char object[20], prev[20];
-	const char *object_ref, *tag;
-	struct ref_lock *lock;
-	struct create_tag_options opt;
-	char *cleanup_arg = NULL;
-	int annotate = 0, force = 0, lines = -1;
-	int cmdmode = 0;
-	const char *msgfile = NULL, *keyid = NULL;
-	struct msg_arg msg = { 0, STRBUF_INIT };
-	struct commit_list *with_commit = NULL;
-	struct option options[] = {
-		OPT_CMDMODE('l', "list", &cmdmode, N_("list tag names"), 'l'),
-		{ OPTION_INTEGER, 'n', NULL, &lines, N_("n"),
-				N_("print <n> lines of each tag message"),
-				PARSE_OPT_OPTARG, NULL, 1 },
-		OPT_CMDMODE('d', "delete", &cmdmode, N_("delete tags"), 'd'),
-		OPT_CMDMODE('v', "verify", &cmdmode, N_("verify tags"), 'v'),
+	int i, as_is = 0, verify = 0, quiet = 0, revs_count = 0, type = 0;
+	int has_dashdash = 0;
+	int output_prefix = 0;
+	unsigned char sha1[20];
+	const char *name = NULL;
 
-		OPT_GROUP(N_("Tag creation options")),
-		OPT_BOOL('a', "annotate", &annotate,
-					N_("annotated tag, needs a message")),
-		OPT_CALLBACK('m', "message", &msg, N_("message"),
-			     N_("tag message"), parse_msg_arg),
-		OPT_FILENAME('F', "file", &msgfile, N_("read message from file")),
-		OPT_BOOL('s', "sign", &opt.sign, N_("annotated and GPG-signed tag")),
-		OPT_STRING(0, "cleanup", &cleanup_arg, N_("mode"),
-			N_("how to strip spaces and #comments from message")),
-		OPT_STRING('u', "local-user", &keyid, N_("key-id"),
-					N_("use another key to sign the tag")),
-		OPT__FORCE(&force, N_("replace the tag if exists")),
-		OPT_COLUMN(0, "column", &colopts, N_("show tag list in columns")),
-		{
-			OPTION_CALLBACK, 0, "sort", &tag_sort, N_("type"), N_("sort tags"),
-			PARSE_OPT_NONEG, parse_opt_sort
-		},
+	if (argc > 1 && !strcmp("--parseopt", argv[1]))
+		return cmd_parseopt(argc - 1, argv + 1, prefix);
 
-		OPT_GROUP(N_("Tag listing options")),
-		{
-			OPTION_CALLBACK, 0, "contains", &with_commit, N_("commit"),
-			N_("print only tags that contain the commit"),
-			PARSE_OPT_LASTARG_DEFAULT,
-			parse_opt_with_commit, (intptr_t)"HEAD",
-		},
-		{
-			OPTION_CALLBACK, 0, "with", &with_commit, N_("commit"),
-			N_("print only tags that contain the commit"),
-			PARSE_OPT_HIDDEN | PARSE_OPT_LASTARG_DEFAULT,
-			parse_opt_with_commit, (intptr_t)"HEAD",
-		},
-		{
-			OPTION_CALLBACK, 0, "points-at", NULL, N_("object"),
-			N_("print only tags of the object"), 0, parse_opt_points_at
-		},
-		OPT_END()
-	};
+	if (argc > 1 && !strcmp("--sq-quote", argv[1]))
+		return cmd_sq_quote(argc - 2, argv + 2);
 
-	git_config(git_tag_config, NULL);
+	if (argc > 1 && !strcmp("-h", argv[1]))
+		usage(builtin_rev_parse_usage);
 
-	memset(&opt, 0, sizeof(opt));
-
-	argc = parse_options(argc, argv, prefix, options, git_tag_usage, 0);
-
-	if (keyid) {
-		opt.sign = 1;
-		set_signing_key(keyid);
-	}
-	if (opt.sign)
-		annotate = 1;
-	if (argc == 0 && !cmdmode)
-		cmdmode = 'l';
-
-	if ((annotate || msg.given || msgfile || force) && (cmdmode != 0))
-		usage_with_options(git_tag_usage, options);
-
-	finalize_colopts(&colopts, -1);
-	if (cmdmode == 'l' && lines != -1) {
-		if (explicitly_enable_column(colopts))
-			die(_("--column and -n are incompatible"));
-		colopts = 0;
-	}
-	if (cmdmode == 'l') {
-		int ret;
-		if (column_active(colopts)) {
-			struct column_options copts;
-			memset(&copts, 0, sizeof(copts));
-			copts.padding = 2;
-			run_column_filter(colopts, &copts);
+	for (i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "--")) {
+			has_dashdash = 1;
+			break;
 		}
-		if (lines != -1 && tag_sort)
-			die(_("--sort and -n are incompatible"));
-		ret = list_tags(argv, lines == -1 ? 0 : lines, with_commit, tag_sort);
-		if (column_active(colopts))
-			stop_column_filter();
-		return ret;
 	}
-	if (lines != -1)
-		die(_("-n option is only allowed with -l."));
-	if (with_commit)
-		die(_("--contains option is only allowed with -l."));
-	if (points_at.nr)
-		die(_("--points-at option is only allowed with -l."));
-	if (cmdmode == 'd')
-		return for_each_tag_name(argv, delete_tag);
-	if (cmdmode == 'v')
-		return for_each_tag_name(argv, verify_tag);
 
-	if (msg.given || msgfile) {
-		if (msg.given && msgfile)
-			die(_("only one -F or -m option is allowed."));
-		annotate = 1;
-		if (msg.given)
-			strbuf_addbuf(&buf, &(msg.buf));
-		else {
-			if (!strcmp(msgfile, "-")) {
-				if (strbuf_read(&buf, 0, 1024) < 0)
-					die_errno(_("cannot read '%s'"), msgfile);
-			} else {
-				if (strbuf_read_file(&buf, msgfile, 1024) < 0)
-					die_errno(_("could not open or read '%s'"),
-						msgfile);
+	prefix = setup_git_directory();
+	git_config(git_default_config, NULL);
+	for (i = 1; i < argc; i++) {
+		const char *arg = argv[i];
+
+		if (as_is) {
+			if (show_file(arg, output_prefix) && as_is < 2)
+				verify_filename(prefix, arg, 0);
+			continue;
+		}
+		if (!strcmp(arg,"-n")) {
+			if (++i >= argc)
+				die("-n requires an argument");
+			if ((filter & DO_FLAGS) && (filter & DO_REVS)) {
+				show(arg);
+				show(argv[i]);
 			}
+			continue;
 		}
+		if (starts_with(arg, "-n")) {
+			if ((filter & DO_FLAGS) && (filter & DO_REVS))
+				show(arg);
+			continue;
+		}
+
+		if (*arg == '-') {
+			if (!strcmp(arg, "--")) {
+				as_is = 2;
+				/* Pass on the "--" if we show anything but files.. */
+				if (filter & (DO_FLAGS | DO_REVS))
+					show_file(arg, 0);
+				continue;
+			}
+			if (!strcmp(arg, "--default")) {
+				def = argv[++i];
+				if (!def)
+					die("--default requires an argument");
+				continue;
+			}
+			if (!strcmp(arg, "--prefix")) {
+				prefix = argv[++i];
+				if (!prefix)
+					die("--prefix requires an argument");
+				startup_info->prefix = prefix;
+				output_prefix = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--revs-only")) {
+				filter &= ~DO_NOREV;
+				continue;
+			}
+			if (!strcmp(arg, "--no-revs")) {
+				filter &= ~DO_REVS;
+				continue;
+			}
+			if (!strcmp(arg, "--flags")) {
+				filter &= ~DO_NONFLAGS;
+				continue;
+			}
+			if (!strcmp(arg, "--no-flags")) {
+				filter &= ~DO_FLAGS;
+				continue;
+			}
+			if (!strcmp(arg, "--verify")) {
+				filter &= ~(DO_FLAGS|DO_NOREV);
+				verify = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--quiet") || !strcmp(arg, "-q")) {
+				quiet = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--short") ||
+			    starts_with(arg, "--short=")) {
+				filter &= ~(DO_FLAGS|DO_NOREV);
+				verify = 1;
+				abbrev = DEFAULT_ABBREV;
+				if (arg[7] == '=')
+					abbrev = strtoul(arg + 8, NULL, 10);
+				if (abbrev < MINIMUM_ABBREV)
+					abbrev = MINIMUM_ABBREV;
+				else if (40 <= abbrev)
+					abbrev = 40;
+				continue;
+			}
+			if (!strcmp(arg, "--sq")) {
+				output_sq = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--not")) {
+				show_type ^= REVERSED;
+				continue;
+			}
+			if (!strcmp(arg, "--symbolic")) {
+				symbolic = SHOW_SYMBOLIC_ASIS;
+				continue;
+			}
+			if (!strcmp(arg, "--symbolic-full-name")) {
+				symbolic = SHOW_SYMBOLIC_FULL;
+				continue;
+			}
+			if (starts_with(arg, "--abbrev-ref") &&
+			    (!arg[12] || arg[12] == '=')) {
+				abbrev_ref = 1;
+				abbrev_ref_strict = warn_ambiguous_refs;
+				if (arg[12] == '=') {
+					if (!strcmp(arg + 13, "strict"))
+						abbrev_ref_strict = 1;
+					else if (!strcmp(arg + 13, "loose"))
+						abbrev_ref_strict = 0;
+					else
+						die("unknown mode for %s", arg);
+				}
+				continue;
+			}
+			if (!strcmp(arg, "--all")) {
+				for_each_ref(show_reference, NULL);
+				continue;
+			}
+			if (starts_with(arg, "--disambiguate=")) {
+				for_each_abbrev(arg + 15, show_abbrev, NULL);
+				continue;
+			}
+			if (!strcmp(arg, "--bisect")) {
+				for_each_ref_in("refs/bisect/bad", show_reference, NULL);
+				for_each_ref_in("refs/bisect/good", anti_reference, NULL);
+				continue;
+			}
+			if (starts_with(arg, "--branches=")) {
+				for_each_glob_ref_in(show_reference, arg + 11,
+					"refs/heads/", NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (!strcmp(arg, "--branches")) {
+				for_each_branch_ref(show_reference, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--tags=")) {
+				for_each_glob_ref_in(show_reference, arg + 7,
+					"refs/tags/", NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (!strcmp(arg, "--tags")) {
+				for_each_tag_ref(show_reference, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--glob=")) {
+				for_each_glob_ref(show_reference, arg + 7, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--remotes=")) {
+				for_each_glob_ref_in(show_reference, arg + 10,
+					"refs/remotes/", NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (!strcmp(arg, "--remotes")) {
+				for_each_remote_ref(show_reference, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--exclude=")) {
+				add_ref_exclusion(&ref_excludes, arg + 10);
+				continue;
+			}
+			if (!strcmp(arg, "--local-env-vars")) {
+				int i;
+				for (i = 0; local_repo_env[i]; i++)
+					printf("%s\n", local_repo_env[i]);
+				continue;
+			}
+			if (!strcmp(arg, "--show-toplevel")) {
+				const char *work_tree = get_git_work_tree();
+				if (work_tree)
+					puts(work_tree);
+				continue;
+			}
+			if (!strcmp(arg, "--show-prefix")) {
+				if (prefix)
+					puts(prefix);
+				else
+					putchar('\n');
+				continue;
+			}
+			if (!strcmp(arg, "--show-cdup")) {
+				const char *pfx = prefix;
+				if (!is_inside_work_tree()) {
+					const char *work_tree =
+						get_git_work_tree();
+					if (work_tree)
+						printf("%s\n", work_tree);
+					continue;
+				}
+				while (pfx) {
+					pfx = strchr(pfx, '/');
+					if (pfx) {
+						pfx++;
+						printf("../");
+					}
+				}
+				putchar('\n');
+				continue;
+			}
+			if (!strcmp(arg, "--git-dir")) {
+				const char *gitdir = getenv(GIT_DIR_ENVIRONMENT);
+				static char cwd[PATH_MAX];
+				int len;
+				if (gitdir) {
+					puts(gitdir);
+					continue;
+				}
+				if (!prefix) {
+					puts(".git");
+					continue;
+				}
+				if (!getcwd(cwd, PATH_MAX))
+					die_errno("unable to get current working directory");
+				len = strlen(cwd);
+				printf("%s%s.git\n", cwd, len && cwd[len-1] != '/' ? "/" : "");
+				continue;
+			}
+			if (!strcmp(arg, "--resolve-git-dir")) {
+				const char *gitdir = argv[++i];
+				if (!gitdir)
+					die("--resolve-git-dir requires an argument");
+				gitdir = resolve_gitdir(gitdir);
+				if (!gitdir)
+					die("not a gitdir '%s'", argv[i]);
+				puts(gitdir);
+				continue;
+			}
+			if (!strcmp(arg, "--is-inside-git-dir")) {
+				printf("%s\n", is_inside_git_dir() ? "true"
+						: "false");
+				continue;
+			}
+			if (!strcmp(arg, "--is-inside-work-tree")) {
+				printf("%s\n", is_inside_work_tree() ? "true"
+						: "false");
+				continue;
+			}
+			if (!strcmp(arg, "--is-bare-repository")) {
+				printf("%s\n", is_bare_repository() ? "true"
+						: "false");
+				continue;
+			}
+			if (!strcmp(arg, "--shared-index-path")) {
+				if (read_cache() < 0)
+					die(_("Could not read the index"));
+				if (the_index.split_index) {
+					const unsigned char *sha1 = the_index.split_index->base_sha1;
+					puts(git_path("sharedindex.%s", sha1_to_hex(sha1)));
+				}
+				continue;
+			}
+			if (starts_with(arg, "--since=")) {
+				show_datestring("--max-age=", arg+8);
+				continue;
+			}
+			if (starts_with(arg, "--after=")) {
+				show_datestring("--max-age=", arg+8);
+				continue;
+			}
+			if (starts_with(arg, "--before=")) {
+				show_datestring("--min-age=", arg+9);
+				continue;
+			}
+			if (starts_with(arg, "--until=")) {
+				show_datestring("--min-age=", arg+8);
+				continue;
+			}
+			if (show_flag(arg) && verify)
+				die_no_single_rev(quiet);
+			continue;
+		}
+
+		/* Not a flag argument */
+		if (try_difference(arg))
+			continue;
+		if (try_parent_shorthands(arg))
+			continue;
+		name = arg;
+		type = NORMAL;
+		if (*arg == '^') {
+			name++;
+			type = REVERSED;
+		}
+		if (!get_sha1(name, sha1)) {
+			if (verify)
+				revs_count++;
+			else
+				show_rev(type, sha1, name);
+			continue;
+		}
+		if (verify)
+			die_no_single_rev(quiet);
+		if (has_dashdash)
+			die("bad revision '%s'", arg);
+		as_is = 1;
+		if (!show_file(arg, output_prefix))
+			continue;
+		verify_filename(prefix, arg, 1);
 	}
-
-	tag = argv[0];
-
-	object_ref = argc == 2 ? argv[1] : "HEAD";
-	if (argc > 2)
-		die(_("too many params"));
-
-	if (get_sha1(object_ref, object))
-		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
-
-	if (strbuf_check_tag_ref(&ref, tag))
-		die(_("'%s' is not a valid tag name."), tag);
-
-	if (read_ref(ref.buf, prev))
-		hashclr(prev);
-	else if (!force)
-		die(_("tag '%s' already exists"), tag);
-
-	opt.message_given = msg.given || msgfile;
-
-	if (!cleanup_arg || !strcmp(cleanup_arg, "strip"))
-		opt.cleanup_mode = CLEANUP_ALL;
-	else if (!strcmp(cleanup_arg, "verbatim"))
-		opt.cleanup_mode = CLEANUP_NONE;
-	else if (!strcmp(cleanup_arg, "whitespace"))
-		opt.cleanup_mode = CLEANUP_SPACE;
-	else
-		die(_("Invalid cleanup mode %s"), cleanup_arg);
-
-	if (annotate)
-		create_tag(object, tag, &buf, &opt, prev, object);
-
-	lock = lock_any_ref_for_update(ref.buf, prev, 0, NULL);
-	if (!lock)
-		die(_("%s: cannot lock the ref"), ref.buf);
-	if (write_ref_sha1(lock, object, NULL) < 0)
-		die(_("%s: cannot update the ref"), ref.buf);
-	if (force && !is_null_sha1(prev) && hashcmp(prev, object))
-		printf(_("Updated tag '%s' (was %s)\n"), tag, find_unique_abbrev(prev, DEFAULT_ABBREV));
-
-	strbuf_release(&buf);
-	strbuf_release(&ref);
+	if (verify) {
+		if (revs_count == 1) {
+			show_rev(type, sha1, name);
+			return 0;
+		} else if (revs_count == 0 && show_default())
+			return 0;
+		die_no_single_rev(quiet);
+	} else
+		show_default();
 	return 0;
 }

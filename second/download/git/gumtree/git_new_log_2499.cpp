@@ -1,1 +1,2 @@
-printf("root %s\n", describe_object(&commit->object));
+fprintf(stderr, "Checking %s %s\n",
+			typename(obj->type), describe_object(obj));

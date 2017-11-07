@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02594)
-                      "authz_user authorize: require user: Can't "
-                      "evaluate require expression: %s", err);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                    "Websocket: SSL Frame contained %" APR_SIZE_T_FMT " bytes, "\
+                            "pushed to Lua stack", 
+                        remaining);

@@ -1,1 +1,1 @@
-die(_("bad config file line %d in %s"), cf->linenr, cf->name);
+fprintf(stderr, _("Testing "));

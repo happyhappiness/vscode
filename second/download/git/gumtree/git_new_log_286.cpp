@@ -1,2 +1,2 @@
-die(_("failed to store link to current notes ref (%s)"),
-			    default_notes_ref());
+die(_("a notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), wt->path);

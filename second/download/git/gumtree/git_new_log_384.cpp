@@ -1,1 +1,1 @@
-die(_("fetch-pack: unable to fork off %s"), cmd_name);
+die(_("protocol error: bad pack header"));

@@ -1,7 +1,2 @@
-error(_("The last gc run reported the following. "
-			       "Please correct the root cause\n"
-			       "and remove %s.\n"
-			       "Automatic cleanup will not be performed "
-			       "until the file is removed.\n\n"
-			       "%s"),
-			     git_path("gc.log"), sb.buf);
+die(_("reference repository '%s' as a linked checkout is not supported yet."),
+			    item->string);

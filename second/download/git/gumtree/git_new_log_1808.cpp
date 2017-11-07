@@ -1,2 +1,2 @@
 status_printf_ln(s, color,
-					 _("No commands remaining."));
+					_("  (see more in file %s)"), git_path("rebase-merge/done"));

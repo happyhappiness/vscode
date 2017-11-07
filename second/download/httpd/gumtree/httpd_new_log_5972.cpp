@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, 
-                          "h2_task(%s): adding request filters", task->id);
+ap_add_input_filter("H2_REQUEST", task, r, r->connection);

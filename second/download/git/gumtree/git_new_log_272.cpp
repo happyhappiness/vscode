@@ -1,1 +1,2 @@
-die(_("failed to resolve '%s' as a valid ref."), object_ref);
+error(_("missing notes on source object %s. Cannot "
+			       "copy."), sha1_to_hex(from_obj));

@@ -1,1 +1,1 @@
-die("BUG: buffer too small. Please report a bug.");
+not_found(&hdr, "Repository not exported: '%s'", dir);

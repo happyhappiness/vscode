@@ -1,2 +1,2 @@
-ap_rvputs(r, "<dt>Server Built: ",
-                  ap_get_server_built(), "</dt>\n", NULL);
+ap_rvputs(r, "<dt>Balancers are ", conf->inherit ? "" : "NOT ",
+                  "inherited from main server.</dt>", NULL);

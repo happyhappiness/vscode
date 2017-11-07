@@ -1,1 +1,1 @@
-die("BUG: have_old is true but old_sha1 is NULL");
+die("BUG: delete called for transaction that is not open");

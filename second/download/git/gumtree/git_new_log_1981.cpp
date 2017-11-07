@@ -1,1 +1,2 @@
-error("Unknown object type for %s", oid_to_hex(&obj->oid));
+error("in tree %s: entry %s has bad mode %.6o",
+					oid_to_hex(&tree->object.oid), entry.path, entry.mode);

@@ -1,75 +1,84 @@
-static void copy_templates_1(char *path, int baselen,
-			     char *template, int template_baselen,
-			     DIR *dir)
+static void sha1_object(const void *data, struct object_entry *obj_entry,
+			unsigned long size, enum object_type type,
+			const unsigned char *sha1)
 {
-	struct dirent *de;
+	void *new_data = NULL;
+	int collision_test_needed;
 
-	/* Note: if ".git/hooks" file exists in the repository being
-	 * re-initialized, /etc/core-git/templates/hooks/update would
-	 * cause "git init" to fail here.  I think this is sane but
-	 * it means that the set of templates we ship by default, along
-	 * with the way the namespace under .git/ is organized, should
-	 * be really carefully chosen.
-	 */
-	safe_create_dir(path, 1);
-	while ((de = readdir(dir)) != NULL) {
-		struct stat st_git, st_template;
-		int namelen;
-		int exists = 0;
+	assert(data || obj_entry);
 
-		if (de->d_name[0] == '.')
-			continue;
-		namelen = strlen(de->d_name);
-		if ((PATH_MAX <= baselen + namelen) ||
-		    (PATH_MAX <= template_baselen + namelen))
-			die(_("insanely long template name %s"), de->d_name);
-		memcpy(path + baselen, de->d_name, namelen+1);
-		memcpy(template + template_baselen, de->d_name, namelen+1);
-		if (lstat(path, &st_git)) {
-			if (errno != ENOENT)
-				die_errno(_("cannot stat '%s'"), path);
-		}
-		else
-			exists = 1;
+	read_lock();
+	collision_test_needed = has_sha1_file_with_flags(sha1, HAS_SHA1_QUICK);
+	read_unlock();
 
-		if (lstat(template, &st_template))
-			die_errno(_("cannot stat template '%s'"), template);
-
-		if (S_ISDIR(st_template.st_mode)) {
-			DIR *subdir = opendir(template);
-			int baselen_sub = baselen + namelen;
-			int template_baselen_sub = template_baselen + namelen;
-			if (!subdir)
-				die_errno(_("cannot opendir '%s'"), template);
-			path[baselen_sub++] =
-				template[template_baselen_sub++] = '/';
-			path[baselen_sub] =
-				template[template_baselen_sub] = 0;
-			copy_templates_1(path, baselen_sub,
-					 template, template_baselen_sub,
-					 subdir);
-			closedir(subdir);
-		}
-		else if (exists)
-			continue;
-		else if (S_ISLNK(st_template.st_mode)) {
-			char lnk[256];
-			int len;
-			len = readlink(template, lnk, sizeof(lnk));
-			if (len < 0)
-				die_errno(_("cannot readlink '%s'"), template);
-			if (sizeof(lnk) <= len)
-				die(_("insanely long symlink %s"), template);
-			lnk[len] = 0;
-			if (symlink(lnk, path))
-				die_errno(_("cannot symlink '%s' '%s'"), lnk, path);
-		}
-		else if (S_ISREG(st_template.st_mode)) {
-			if (copy_file(path, template, st_template.st_mode))
-				die_errno(_("cannot copy '%s' to '%s'"), template,
-					  path);
-		}
-		else
-			error(_("ignoring template %s"), template);
+	if (collision_test_needed && !data) {
+		read_lock();
+		if (!check_collison(obj_entry))
+			collision_test_needed = 0;
+		read_unlock();
 	}
+	if (collision_test_needed) {
+		void *has_data;
+		enum object_type has_type;
+		unsigned long has_size;
+		read_lock();
+		has_type = sha1_object_info(sha1, &has_size);
+		if (has_type != type || has_size != size)
+			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+		has_data = read_sha1_file(sha1, &has_type, &has_size);
+		read_unlock();
+		if (!data)
+			data = new_data = get_data_from_pack(obj_entry);
+		if (!has_data)
+			die(_("cannot read existing object %s"), sha1_to_hex(sha1));
+		if (size != has_size || type != has_type ||
+		    memcmp(data, has_data, size) != 0)
+			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
+		free(has_data);
+	}
+
+	if (strict) {
+		read_lock();
+		if (type == OBJ_BLOB) {
+			struct blob *blob = lookup_blob(sha1);
+			if (blob)
+				blob->object.flags |= FLAG_CHECKED;
+			else
+				die(_("invalid blob object %s"), sha1_to_hex(sha1));
+		} else {
+			struct object *obj;
+			int eaten;
+			void *buf = (void *) data;
+
+			assert(data && "data can only be NULL for large _blobs_");
+
+			/*
+			 * we do not need to free the memory here, as the
+			 * buf is deleted by the caller.
+			 */
+			obj = parse_object_buffer(sha1, type, size, buf, &eaten);
+			if (!obj)
+				die(_("invalid %s"), typename(type));
+			if (do_fsck_object &&
+			    fsck_object(obj, buf, size, &fsck_options))
+				die(_("Error in object"));
+			if (fsck_walk(obj, NULL, &fsck_options))
+				die(_("Not all child objects of %s are reachable"), sha1_to_hex(obj->sha1));
+
+			if (obj->type == OBJ_TREE) {
+				struct tree *item = (struct tree *) obj;
+				item->buffer = NULL;
+				obj->parsed = 0;
+			}
+			if (obj->type == OBJ_COMMIT) {
+				struct commit *commit = (struct commit *) obj;
+				if (detach_commit_buffer(commit, NULL) != data)
+					die("BUG: parse_object_buffer transmogrified our buffer");
+			}
+			obj->flags |= FLAG_CHECKED;
+		}
+		read_unlock();
+	}
+
+	free(new_data);
 }

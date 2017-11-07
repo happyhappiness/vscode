@@ -1,1 +1,2 @@
-die(_("bad numeric config value '%s' for '%s': %s"), value, name, reason);
+die(_("bad numeric config value '%s' for '%s' in %s: %s"),
+		    value, name, cf->name, reason);

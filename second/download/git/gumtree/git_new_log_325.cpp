@@ -1,1 +1,1 @@
-die("protocol error: unexpected ref after capabilities^{}");
+die("protocol error: multiple capabilities^{}");

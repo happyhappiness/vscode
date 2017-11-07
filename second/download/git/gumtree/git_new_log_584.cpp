@@ -1,2 +1,1 @@
-die("Could not run 'git rev-list <commits> --not --remotes -n 1' command in submodule %s",
-					path);
+argv_array_push(argv, sha1_to_hex(sha1));

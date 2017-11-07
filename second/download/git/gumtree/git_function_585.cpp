@@ -1,25 +1,43 @@
-static struct child_process *git_proxy_connect(int fd[2], char *host)
+static int submodule_needs_pushing(const char *path, struct sha1_array *commits)
 {
-	const char *port = STR(DEFAULT_GIT_PORT);
-	struct child_process *proxy;
+	if (!submodule_has_commits(path, commits))
+		/*
+		 * NOTE: We do consider it safe to return "no" here. The
+		 * correct answer would be "We do not know" instead of
+		 * "No push needed", but it is quite hard to change
+		 * the submodule pointer without having the submodule
+		 * around. If a user did however change the submodules
+		 * without having the submodule around, this indicates
+		 * an expert who knows what they are doing or a
+		 * maintainer integrating work from other people. In
+		 * both cases it should be safe to skip this check.
+		 */
+		return 0;
 
-	get_host_and_port(&host, &port);
+	if (for_each_remote_ref_submodule(path, has_remote, NULL) > 0) {
+		struct child_process cp = CHILD_PROCESS_INIT;
+		struct strbuf buf = STRBUF_INIT;
+		int needs_pushing = 0;
 
-	if (looks_like_command_line_option(host))
-		die("strange hostname '%s' blocked", host);
-	if (looks_like_command_line_option(port))
-		die("strange port '%s' blocked", port);
+		argv_array_push(&cp.args, "rev-list");
+		sha1_array_for_each_unique(commits, append_sha1_to_argv, &cp.args);
+		argv_array_pushl(&cp.args, "--not", "--remotes", "-n", "1" , NULL);
 
-	proxy = xmalloc(sizeof(*proxy));
-	child_process_init(proxy);
-	argv_array_push(&proxy->args, git_proxy_command);
-	argv_array_push(&proxy->args, host);
-	argv_array_push(&proxy->args, port);
-	proxy->in = -1;
-	proxy->out = -1;
-	if (start_command(proxy))
-		die("cannot start proxy %s", git_proxy_command);
-	fd[0] = proxy->out; /* read from proxy stdout */
-	fd[1] = proxy->in;  /* write to proxy stdin */
-	return proxy;
+		prepare_submodule_repo_env(&cp.env_array);
+		cp.git_cmd = 1;
+		cp.no_stdin = 1;
+		cp.out = -1;
+		cp.dir = path;
+		if (start_command(&cp))
+			die("Could not run 'git rev-list <commits> --not --remotes -n 1' command in submodule %s",
+					path);
+		if (strbuf_read(&buf, cp.out, 41))
+			needs_pushing = 1;
+		finish_command(&cp);
+		close(cp.out);
+		strbuf_release(&buf);
+		return needs_pushing;
+	}
+
+	return 0;
 }

@@ -1,304 +1,137 @@
-static apr_status_t deflate_in_filter(ap_filter_t *f,
-                                      apr_bucket_brigade *bb,
-                                      ap_input_mode_t mode,
-                                      apr_read_type_e block,
-                                      apr_off_t readbytes)
+static int uldap_cache_comparedn(request_rec *r, util_ldap_connection_t *ldc,
+                                 const char *url, const char *dn,
+                                 const char *reqdn, int compare_dn_on_server)
 {
-    apr_bucket *bkt;
-    request_rec *r = f->r;
-    deflate_ctx *ctx = f->ctx;
-    int zRC;
-    apr_status_t rv;
-    deflate_filter_config *c;
+    int result = 0;
+    util_url_node_t *curl;
+    util_url_node_t curnode;
+    util_dn_compare_node_t *node;
+    util_dn_compare_node_t newnode;
+    int failures = 0;
+    LDAPMessage *res, *entry;
+    char *searchdn;
 
-    /* just get out of the way of things we don't want. */
-    if (mode != AP_MODE_READBYTES) {
-        return ap_get_brigade(f->next, bb, mode, block, readbytes);
+    util_ldap_state_t *st = (util_ldap_state_t *)
+                            ap_get_module_config(r->server->module_config,
+                                                 &ldap_module);
+
+    /* get cache entry (or create one) */
+    LDAP_CACHE_LOCK();
+
+    curnode.url = url;
+    curl = util_ald_cache_fetch(st->util_ldap_cache, &curnode);
+    if (curl == NULL) {
+        curl = util_ald_create_caches(st, url);
     }
+    LDAP_CACHE_UNLOCK();
 
-    c = ap_get_module_config(r->server->module_config, &deflate_module);
-
-    if (!ctx) {
-        char deflate_hdr[10];
-        apr_size_t len;
-
-        /* only work on main request/no subrequests */
-        if (!ap_is_initial_req(r)) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        /* We can't operate on Content-Ranges */
-        if (apr_table_get(r->headers_in, "Content-Range") != NULL) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        /* Check whether request body is gzipped.
-         *
-         * If it is, we're transforming the contents, invalidating
-         * some request headers including Content-Encoding.
-         *
-         * If not, we just remove ourself.
-         */
-        if (check_gzip(r, r->headers_in, NULL) == 0) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
-        ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->proc_bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
-
-        rv = ap_get_brigade(f->next, ctx->bb, AP_MODE_READBYTES, block, 10);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-
-        /* zero length body? step aside */
-        bkt = APR_BRIGADE_FIRST(ctx->bb);
-        if (APR_BUCKET_IS_EOS(bkt)) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        apr_table_unset(r->headers_in, "Content-Length");
-        apr_table_unset(r->headers_in, "Content-MD5");
-
-        len = 10;
-        rv = apr_brigade_flatten(ctx->bb, deflate_hdr, &len);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-
-        /* We didn't get the magic bytes. */
-        if (len != 10 ||
-            deflate_hdr[0] != deflate_magic[0] ||
-            deflate_hdr[1] != deflate_magic[1]) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01387) "Zlib: Invalid header");
-            return APR_EGENERAL;
-        }
-
-        /* We can't handle flags for now. */
-        if (deflate_hdr[3] != 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01388)
-                          "Zlib: Unsupported flags %02x", (int)deflate_hdr[3]);
-            return APR_EGENERAL;
-        }
-
-        zRC = inflateInit2(&ctx->stream, c->windowSize);
-
-        if (zRC != Z_OK) {
-            f->ctx = NULL;
-            inflateEnd(&ctx->stream);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01389)
-                          "unable to init Zlib: "
-                          "inflateInit2 returned %d: URL %s",
-                          zRC, r->uri);
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        /* initialize deflate output buffer */
-        ctx->stream.next_out = ctx->buffer;
-        ctx->stream.avail_out = c->bufferSize;
-
-        apr_brigade_cleanup(ctx->bb);
-    }
-
-    if (APR_BRIGADE_EMPTY(ctx->proc_bb)) {
-        rv = ap_get_brigade(f->next, ctx->bb, mode, block, readbytes);
-
-        if (rv != APR_SUCCESS) {
-            /* What about APR_EAGAIN errors? */
-            inflateEnd(&ctx->stream);
-            return rv;
-        }
-
-        for (bkt = APR_BRIGADE_FIRST(ctx->bb);
-             bkt != APR_BRIGADE_SENTINEL(ctx->bb);
-             bkt = APR_BUCKET_NEXT(bkt))
-        {
-            const char *data;
-            apr_size_t len;
-
-            if (APR_BUCKET_IS_EOS(bkt)) {
-                if (!ctx->done) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02481)
-                                  "Encountered premature end-of-stream while inflating");
-                    return APR_EGENERAL;
-                }
-
-                /* Move everything to the returning brigade. */
-                APR_BUCKET_REMOVE(bkt);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
-                ap_remove_input_filter(f);
-                break;
-            }
-
-            if (APR_BUCKET_IS_FLUSH(bkt)) {
-                apr_bucket *tmp_heap;
-                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
-                if (zRC != Z_OK) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01391)
-                                  "Zlib error %d inflating data (%s)", zRC,
-                                  ctx->stream.msg);
-                    return APR_EGENERAL;
-                }
-
-                ctx->stream.next_out = ctx->buffer;
-                len = c->bufferSize - ctx->stream.avail_out;
-
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                 NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                ctx->stream.avail_out = c->bufferSize;
-
-                /* Move everything to the returning brigade. */
-                APR_BUCKET_REMOVE(bkt);
-                APR_BRIGADE_CONCAT(bb, ctx->bb);
-                break;
-            }
-
-            /* sanity check - data after completed compressed body and before eos? */
-            if (ctx->done) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02482)
-                              "Encountered extra data after compressed data");
-                return APR_EGENERAL;
-            }
-
-            /* read */
-            apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
-
-            /* pass through zlib inflate. */
-            ctx->stream.next_in = (unsigned char *)data;
-            ctx->stream.avail_in = len;
-
-            zRC = Z_OK;
-
-            while (ctx->stream.avail_in != 0) {
-                if (ctx->stream.avail_out == 0) {
-                    apr_bucket *tmp_heap;
-                    ctx->stream.next_out = ctx->buffer;
-                    len = c->bufferSize - ctx->stream.avail_out;
-
-                    ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                    tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                      NULL, f->c->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                    ctx->stream.avail_out = c->bufferSize;
-                }
-
-                zRC = inflate(&ctx->stream, Z_NO_FLUSH);
-
-                if (zRC == Z_STREAM_END) {
-                    break;
-                }
-
-                if (zRC != Z_OK) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01392)
-                                  "Zlib error %d inflating data (%s)", zRC,
-                                  ctx->stream.msg);
-                    return APR_EGENERAL;
-                }
-            }
-            if (zRC == Z_STREAM_END) {
-                apr_bucket *tmp_heap;
-                apr_size_t avail;
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
-                              "Zlib: Inflated %ld to %ld : URL %s",
-                              ctx->stream.total_in, ctx->stream.total_out,
-                              r->uri);
-
-                len = c->bufferSize - ctx->stream.avail_out;
-
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                  NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                ctx->stream.avail_out = c->bufferSize;
-
-                avail = ctx->stream.avail_in;
-
-                /* Is the remaining 8 bytes already in the avail stream? */
-                if (avail >= 8) {
-                    unsigned long compCRC, compLen;
-                    compCRC = getLong(ctx->stream.next_in);
-                    if (ctx->crc != compCRC) {
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01394)
-                                      "Zlib: CRC error inflating data");
-                        return APR_EGENERAL;
-                    }
-                    ctx->stream.next_in += 4;
-                    compLen = getLong(ctx->stream.next_in);
-                    if (ctx->stream.total_out != compLen) {
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01395)
-                                      "Zlib: Length %ld of inflated data does "
-                                      "not match expected value %ld",
-                                      ctx->stream.total_out, compLen);
-                        return APR_EGENERAL;
-                    }
-                }
-                else {
-                    /* FIXME: We need to grab the 8 verification bytes
-                     * from the wire! */
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01396)
-                                  "Verification data not available (bug?)");
-                    return APR_EGENERAL;
-                }
-
-                inflateEnd(&ctx->stream);
-
-                ctx->done = 1;
-
-                /* Did we have trailing data behind the closing 8 bytes? */
-                if (avail > 8) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02485)
-                                  "Encountered extra data after compressed data");
-                    return APR_EGENERAL;
-                }
-            }
-
-        }
-        apr_brigade_cleanup(ctx->bb);
-    }
-
-    /* If we are about to return nothing for a 'blocking' read and we have
-     * some data in our zlib buffer, flush it out so we can return something.
-     */
-    if (block == APR_BLOCK_READ &&
-        APR_BRIGADE_EMPTY(ctx->proc_bb) &&
-        ctx->stream.avail_out < c->bufferSize) {
-        apr_bucket *tmp_heap;
-        apr_size_t len;
-        ctx->stream.next_out = ctx->buffer;
-        len = c->bufferSize - ctx->stream.avail_out;
-
-        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-        tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                          NULL, f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-        ctx->stream.avail_out = c->bufferSize;
-    }
-
-    if (!APR_BRIGADE_EMPTY(ctx->proc_bb)) {
-        if (apr_brigade_partition(ctx->proc_bb, readbytes, &bkt) == APR_INCOMPLETE) {
-            APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
+    /* a simple compare? */
+    if (!compare_dn_on_server) {
+        /* unlock this read lock */
+        if (strcmp(dn, reqdn)) {
+            ldc->reason = "DN Comparison FALSE (direct strcmp())";
+            return LDAP_COMPARE_FALSE;
         }
         else {
-            APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
-            apr_brigade_split_ex(bb, bkt, ctx->proc_bb);
+            ldc->reason = "DN Comparison TRUE (direct strcmp())";
+            return LDAP_COMPARE_TRUE;
         }
     }
 
-    return APR_SUCCESS;
+    if (curl) {
+        /* no - it's a server side compare */
+        LDAP_CACHE_LOCK();
+
+        /* is it in the compare cache? */
+        newnode.reqdn = (char *)reqdn;
+        node = util_ald_cache_fetch(curl->dn_compare_cache, &newnode);
+        if (node != NULL) {
+            /* If it's in the cache, it's good */
+            /* unlock this read lock */
+            LDAP_CACHE_UNLOCK();
+            ldc->reason = "DN Comparison TRUE (cached)";
+            return LDAP_COMPARE_TRUE;
+        }
+
+        /* unlock this read lock */
+        LDAP_CACHE_UNLOCK();
+    }
+
+start_over:
+    if (failures > st->retries) {
+        return result;
+    }
+
+    if (failures > 0 && st->retry_delay > 0) {
+        apr_sleep(st->retry_delay);
+    }
+
+    /* make a server connection */
+    if (LDAP_SUCCESS != (result = uldap_connection_open(r, ldc))) {
+        /* connect to server failed */
+        return result;
+    }
+
+    /* search for reqdn */
+    result = ldap_search_ext_s(ldc->ldap, (char *)reqdn, LDAP_SCOPE_BASE,
+                               "(objectclass=*)", NULL, 1,
+                               NULL, NULL, st->opTimeout, APR_LDAP_SIZELIMIT, &res);
+    if (AP_LDAP_IS_SERVER_DOWN(result))
+    {
+        ldc->reason = "DN Comparison ldap_search_ext_s() "
+                      "failed with server down";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
+    }
+    if (result == LDAP_TIMEOUT && failures == 0) {
+        /*
+         * we are reusing a connection that doesn't seem to be active anymore
+         * (firewall state drop?), let's try a new connection.
+         */
+        ldc->reason = "DN Comparison ldap_search_ext_s() "
+                      "failed with timeout";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
+    }
+    if (result != LDAP_SUCCESS) {
+        /* search for reqdn failed - no match */
+        ldc->reason = "DN Comparison ldap_search_ext_s() failed";
+        return result;
+    }
+
+    entry = ldap_first_entry(ldc->ldap, res);
+    searchdn = ldap_get_dn(ldc->ldap, entry);
+
+    ldap_msgfree(res);
+    if (strcmp(dn, searchdn) != 0) {
+        /* compare unsuccessful */
+        ldc->reason = "DN Comparison FALSE (checked on server)";
+        result = LDAP_COMPARE_FALSE;
+    }
+    else {
+        if (curl) {
+            /* compare successful - add to the compare cache */
+            LDAP_CACHE_LOCK();
+            newnode.reqdn = (char *)reqdn;
+            newnode.dn = (char *)dn;
+
+            node = util_ald_cache_fetch(curl->dn_compare_cache, &newnode);
+            if (   (node == NULL)
+                || (strcmp(reqdn, node->reqdn) != 0)
+                || (strcmp(dn, node->dn) != 0))
+            {
+                util_ald_cache_insert(curl->dn_compare_cache, &newnode);
+            }
+            LDAP_CACHE_UNLOCK();
+        }
+        ldc->reason = "DN Comparison TRUE (checked on server)";
+        result = LDAP_COMPARE_TRUE;
+    }
+    ldap_memfree(searchdn);
+    return result;
+
 }

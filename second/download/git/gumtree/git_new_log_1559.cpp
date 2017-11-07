@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");
+warning(_("Untracked cache is disabled on this system."));

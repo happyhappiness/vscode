@@ -1,114 +1,80 @@
-lua_State *ap_lua_get_lua_state(apr_pool_t *lifecycle_pool,
-                                               ap_lua_vm_spec *spec, request_rec* r)
-{
-    lua_State *L = NULL;
-    ap_lua_finfo *cache_info = NULL;
-    int tryCache = 0;
+static apr_status_t lua_setup_filter_ctx(ap_filter_t* f, request_rec* r, lua_filter_ctx** c) {
+    apr_pool_t *pool;
+    ap_lua_vm_spec *spec;
+    int n, rc;
+    lua_State *L;
+    lua_filter_ctx *ctx;    
+    ap_lua_server_cfg *server_cfg = ap_get_module_config(r->server->module_config,
+                                                        &lua_module);
+    const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
+                                                    &lua_module);
     
-    if (spec->scope == AP_LUA_SCOPE_SERVER) {
-        char *hash;
-        apr_reslist_t* reslist = NULL;
-        ap_lua_server_spec* sspec = NULL;
-        hash = apr_psprintf(r->pool, "reslist:%s", spec->file);
-#if APR_HAS_THREADS
-        apr_thread_mutex_lock(ap_lua_mutex);
-#endif
-        if (apr_pool_userdata_get((void **)&reslist, hash,
-                                  r->server->process->pool) == APR_SUCCESS) {
-            if (reslist != NULL) {
-                if (apr_reslist_acquire(reslist, (void**) &sspec) == APR_SUCCESS) {
-                    L = sspec->L;
-                    cache_info = sspec->finfo;
+    ctx = apr_pcalloc(r->pool, sizeof(lua_filter_ctx));
+    ctx->broken = 0;
+    *c = ctx;
+    /* Find the filter that was called */
+    for (n = 0; n < cfg->mapped_filters->nelts; n++) {
+        ap_lua_filter_handler_spec *hook_spec =
+            ((ap_lua_filter_handler_spec **) cfg->mapped_filters->elts)[n];
+
+        if (hook_spec == NULL) {
+            continue;
+        }
+        if (!strcasecmp(hook_spec->filter_name, f->frec->name)) {
+            spec = create_vm_spec(&pool, r, cfg, server_cfg,
+                                    hook_spec->file_name,
+                                    NULL,
+                                    0,
+                                    hook_spec->function_name,
+                                    "filter");
+            L = ap_lua_get_lua_state(pool, spec, r);
+            if (L) {
+                L = lua_newthread(L);
+            }
+
+            if (!L) {
+                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02328)
+                                "lua: Failed to obtain lua interpreter for %s %s",
+                                hook_spec->function_name, hook_spec->file_name);
+                ap_lua_release_state(L, spec, r);
+                return APR_EGENERAL;
+            }
+            if (hook_spec->function_name != NULL) {
+                lua_getglobal(L, hook_spec->function_name);
+                if (!lua_isfunction(L, -1)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02329)
+                                    "lua: Unable to find function %s in %s",
+                                    hook_spec->function_name,
+                                    hook_spec->file_name);
+                    ap_lua_release_state(L, spec, r);
+                    return APR_EGENERAL;
                 }
+
+                ap_lua_run_lua_request(L, r);
+            }
+            else {
+                int t;
+                ap_lua_run_lua_request(L, r);
+
+                t = lua_gettop(L);
+                lua_setglobal(L, "r");
+                lua_settop(L, t);
+            }
+            ctx->L = L;
+            ctx->spec = spec;
+            
+            /* If a Lua filter is interested in filtering a request, it must first do a yield, 
+             * otherwise we'll assume that it's not interested and pretend we didn't find it.
+             */
+            rc = lua_resume(L, 1);
+            if (rc == LUA_YIELD) {
+                return OK;
+            }
+            else {
+                ap_lua_release_state(L, spec, r);
+                return APR_ENOENT;
             }
         }
-        if (L == NULL) {
-            ap_lua_vm_spec* server_spec = copy_vm_spec(r->server->process->pool, spec);
-            if (
-                    apr_reslist_create(&reslist, spec->vm_min, spec->vm_max, spec->vm_max, 0, 
-                                (apr_reslist_constructor) server_vm_construct, 
-                                (apr_reslist_destructor) server_cleanup_lua, 
-                                server_spec, r->server->process->pool)
-                    == APR_SUCCESS && reslist != NULL) {
-                apr_pool_userdata_set(reslist, hash, NULL,
-                                            r->server->process->pool);
-                if (apr_reslist_acquire(reslist, (void**) &sspec) == APR_SUCCESS) {
-                    L = sspec->L;
-                    cache_info = sspec->finfo;
-                }
-                else {
-                    return NULL;
-                }
-            }
-        }
-#if APR_HAS_THREADS
-        apr_thread_mutex_unlock(ap_lua_mutex);
-#endif
     }
-    else {
-        if (apr_pool_userdata_get((void **)&L, spec->file,
-                              lifecycle_pool) != APR_SUCCESS) {
-            L = NULL;
-        }
-    }
-    if (L == NULL) {
-        ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(01483)
-                        "creating lua_State with file %s", spec->file);
-        /* not available, so create */
-
-        if (!vm_construct(&L, spec, lifecycle_pool)) {
-            AP_DEBUG_ASSERT(L != NULL);
-            apr_pool_userdata_set(L, spec->file, cleanup_lua, lifecycle_pool);
-        }
-    }
-
-    if (spec->codecache == AP_LUA_CACHE_FOREVER || (spec->bytecode && spec->bytecode_len > 0)) {
-        tryCache = 1;
-    }
-    else {
-        char* mkey;
-        if (spec->scope != AP_LUA_SCOPE_SERVER) {
-            mkey = apr_psprintf(r->pool, "ap_lua_modified:%s", spec->file);
-            apr_pool_userdata_get((void **)&cache_info, mkey, lifecycle_pool);
-            if (cache_info == NULL) {
-                cache_info = apr_pcalloc(lifecycle_pool, sizeof(ap_lua_finfo));
-                apr_pool_userdata_set((void*) cache_info, mkey, NULL, lifecycle_pool);
-            }
-        }
-        if (spec->codecache == AP_LUA_CACHE_STAT) {
-            apr_finfo_t lua_finfo;
-            apr_stat(&lua_finfo, spec->file, APR_FINFO_MTIME|APR_FINFO_SIZE, lifecycle_pool);
-
-            /* On first visit, modified will be zero, but that's fine - The file is 
-            loaded in the vm_construct function.
-            */
-            if ((cache_info->modified == lua_finfo.mtime && cache_info->size == lua_finfo.size)
-                    || cache_info->modified == 0) {
-                tryCache = 1;
-            }
-            cache_info->modified = lua_finfo.mtime;
-            cache_info->size = lua_finfo.size;
-        }
-        else if (spec->codecache == AP_LUA_CACHE_NEVER) {
-            if (cache_info->runs == 0)
-                tryCache = 1;
-        }
-        cache_info->runs++;
-    }
-    if (tryCache == 0 && spec->scope != AP_LUA_SCOPE_ONCE) {
-        int rc;
-        ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(02332)
-            "(re)loading lua file %s", spec->file);
-        rc = luaL_loadfile(L, spec->file);
-        if (rc != 0) {
-            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(02333)
-                          "Error loading %s: %s", spec->file,
-                          rc == LUA_ERRMEM ? "memory allocation error"
-                                           : lua_tostring(L, 0));
-            return 0;
-        }
-        lua_pcall(L, 0, LUA_MULTRET, 0);
-    }
-
-    return L;
+    return APR_ENOENT;
 }

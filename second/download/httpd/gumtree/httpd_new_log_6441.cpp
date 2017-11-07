@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01374)
-                      "mod_include: Options +Includes (or IncludesNoExec) "
-                      "wasn't set, INCLUDES filter removed: %s", r->uri);
+ap_rvputs(r, ap_escape_html(r->pool, ap_get_server_name(r)),
+                  " (via ", r->connection->local_ip,
+                  ")</h1>\n\n", NULL);

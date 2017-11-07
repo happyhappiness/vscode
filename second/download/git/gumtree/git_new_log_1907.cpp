@@ -1,1 +1,1 @@
-strbuf_addstr(path, de->d_name);
+die(_("Not all child objects of %s are reachable"), oid_to_hex(&obj->oid));

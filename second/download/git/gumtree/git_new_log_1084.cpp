@@ -1,2 +1,1 @@
-die("Could not read %s for notes-index",
-		     oid_to_hex(&subtree->val_oid));
+error("Remote HEAD resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", oid_to_hex(&head_oid));

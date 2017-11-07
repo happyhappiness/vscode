@@ -1,1 +1,1 @@
-die(_("unrecognized format: %%(%s)"), atom->name);
+die(_("unrecognized color: %%(color:%s)"), color_value);

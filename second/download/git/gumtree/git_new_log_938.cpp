@@ -1,1 +1,0 @@
-die(_("--local can only be used inside a git repository"));

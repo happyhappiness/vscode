@@ -1,64 +1,42 @@
-static int git_parse_source(config_fn_t fn, void *data)
+static int handle_path_include(const char *path, struct config_include_data *inc)
 {
-	int comment = 0;
-	int baselen = 0;
-	struct strbuf *var = &cf->var;
+	int ret = 0;
+	struct strbuf buf = STRBUF_INIT;
+	char *expanded;
 
-	/* U+FEFF Byte Order Mark in UTF8 */
-	const char *bomptr = utf8_bom;
+	if (!path)
+		return config_error_nonbool("include.path");
 
-	for (;;) {
-		int c = get_next_char();
-		if (bomptr && *bomptr) {
-			/* We are at the file beginning; skip UTF8-encoded BOM
-			 * if present. Sane editors won't put this in on their
-			 * own, but e.g. Windows Notepad will do it happily. */
-			if (c == (*bomptr & 0377)) {
-				bomptr++;
-				continue;
-			} else {
-				/* Do not tolerate partial BOM. */
-				if (bomptr != utf8_bom)
-					break;
-				/* No BOM at file beginning. Cool. */
-				bomptr = NULL;
-			}
-		}
-		if (c == '\n') {
-			if (cf->eof)
-				return 0;
-			comment = 0;
-			continue;
-		}
-		if (comment || isspace(c))
-			continue;
-		if (c == '#' || c == ';') {
-			comment = 1;
-			continue;
-		}
-		if (c == '[') {
-			/* Reset prior to determining a new stem */
-			strbuf_reset(var);
-			if (get_base_var(var) < 0 || var->len < 1)
-				break;
-			strbuf_addch(var, '.');
-			baselen = var->len;
-			continue;
-		}
-		if (!isalpha(c))
-			break;
-		/*
-		 * Truncate the var name back to the section header
-		 * stem prior to grabbing the suffix part of the name
-		 * and the value.
-		 */
-		strbuf_setlen(var, baselen);
-		strbuf_addch(var, tolower(c));
-		if (get_value(fn, data, var) < 0)
-			break;
+	expanded = expand_user_path(path);
+	if (!expanded)
+		return error("could not expand include path '%s'", path);
+	path = expanded;
+
+	/*
+	 * Use an absolute path as-is, but interpret relative paths
+	 * based on the including config file.
+	 */
+	if (!is_absolute_path(path)) {
+		char *slash;
+
+		if (!cf || !cf->path)
+			return error("relative config includes must come from files");
+
+		slash = find_last_dir_sep(cf->path);
+		if (slash)
+			strbuf_add(&buf, cf->path, slash - cf->path + 1);
+		strbuf_addstr(&buf, path);
+		path = buf.buf;
 	}
-	if (cf->die_on_error)
-		die(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);
-	else
-		return error(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);
+
+	if (!access_or_die(path, R_OK, 0)) {
+		if (++inc->depth > MAX_INCLUDE_DEPTH)
+			die(include_depth_advice, MAX_INCLUDE_DEPTH, path,
+			    cf && cf->name ? cf->name : "the command line");
+		ret = git_config_from_file(git_config_include, path, inc);
+		inc->depth--;
+	}
+	strbuf_release(&buf);
+	free(expanded);
+	return ret;
 }

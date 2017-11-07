@@ -1,2 +1,1 @@
-ap_rvputs(r, "          <httpd:name>", ap_proxy_worker_name(r->pool, worker),
-                          "</httpd:name>\n", NULL);
+ap_rvputs(r, (*wsel->s->uds_path?"<i>":""), ap_proxy_worker_name(r->pool, wsel), (*wsel->s->uds_path?"</i>":""), "</h3>\n", NULL);

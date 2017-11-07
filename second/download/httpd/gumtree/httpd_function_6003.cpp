@@ -1,14 +1,9 @@
-void h2_proxy_session_cleanup(h2_proxy_session *session, 
-                              h2_proxy_request_done *done)
+static void ping_arrived(h2_proxy_session *session)
 {
-    if (session->streams && !h2_ihash_empty(session->streams)) {
-        cleanup_iter_ctx ctx;
-        ctx.session = session;
-        ctx.done = done;
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03366)
-                      "h2_proxy_session(%s): terminated, %d streams unfinished",
-                      session->id, (int)h2_ihash_count(session->streams));
-        h2_ihash_iter(session->streams, done_iter, &ctx);
-        h2_ihash_clear(session->streams);
+    if (!h2_proxy_ihash_empty(session->streams)) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03470)
+                      "h2_proxy_session(%s): ping arrived, unblocking streams",
+                      session->id);
+        h2_proxy_ihash_iter(session->streams, ping_arrived_iter, &session);
     }
 }

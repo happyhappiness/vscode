@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                                  "connected data socket to %pI", &epsv_addr);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, ap_server_conf, APLOGNO(02432)
+                     "Cannot find LB Method: %s", balancer->s->lbpname);

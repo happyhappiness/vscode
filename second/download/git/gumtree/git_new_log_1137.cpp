@@ -1,2 +1,1 @@
-die("git upload-pack: not our ref %s",
-			    oid_to_hex(&oid_buf));
+die("invalid shallow object %s", oid_to_hex(&oid));

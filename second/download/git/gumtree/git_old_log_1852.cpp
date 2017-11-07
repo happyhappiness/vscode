@@ -1,1 +1,1 @@
-die(_("unable to parse commit %s"), sha1_to_hex(commit->object.sha1));
+die_errno(_("could not read '%s'"), am_path(state, "msg"));

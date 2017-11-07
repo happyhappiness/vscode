@@ -1,2 +1,1 @@
-die("-L argument '%s' not of the form start,end:file",
-			    item->string);
+error("file/directory conflict: %s, %s", name1, name2);

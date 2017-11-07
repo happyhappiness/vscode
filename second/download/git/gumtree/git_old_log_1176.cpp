@@ -1,1 +1,1 @@
-die_errno("Could not switch to '%s'", buf);
+die("Too long path: %.*s", 60, path);

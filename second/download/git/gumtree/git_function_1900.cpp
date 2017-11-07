@@ -1,28 +1,41 @@
-static void fsck_dir(int i, char *path)
+static int fsck_obj(struct object *obj)
 {
-	DIR *dir = opendir(path);
-	struct dirent *de;
-	char name[100];
-
-	if (!dir)
-		return;
+	if (obj->flags & SEEN)
+		return 0;
+	obj->flags |= SEEN;
 
 	if (verbose)
-		fprintf(stderr, "Checking directory %s\n", path);
+		fprintf(stderr, "Checking %s %s\n",
+			typename(obj->type), sha1_to_hex(obj->sha1));
 
-	sprintf(name, "%02x", i);
-	while ((de = readdir(dir)) != NULL) {
-		unsigned char sha1[20];
+	if (fsck_walk(obj, NULL, &fsck_obj_options))
+		objerror(obj, "broken links");
+	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
+		return -1;
 
-		if (is_dot_or_dotdot(de->d_name))
-			continue;
-		if (is_loose_object_file(de, name, sha1)) {
-			add_sha1_list(sha1, DIRENT_SORT_HINT(de));
-			continue;
-		}
-		if (starts_with(de->d_name, "tmp_obj_"))
-			continue;
-		fprintf(stderr, "bad sha1 file: %s/%s\n", path, de->d_name);
+	if (obj->type == OBJ_TREE) {
+		struct tree *item = (struct tree *) obj;
+
+		free_tree_buffer(item);
 	}
-	closedir(dir);
+
+	if (obj->type == OBJ_COMMIT) {
+		struct commit *commit = (struct commit *) obj;
+
+		free_commit_buffer(commit);
+
+		if (!commit->parents && show_root)
+			printf("root %s\n", sha1_to_hex(commit->object.sha1));
+	}
+
+	if (obj->type == OBJ_TAG) {
+		struct tag *tag = (struct tag *) obj;
+
+		if (show_tags && tag->tagged) {
+			printf("tagged %s %s", typename(tag->tagged->type), sha1_to_hex(tag->tagged->sha1));
+			printf(" (%s) in %s\n", tag->tag, sha1_to_hex(tag->object.sha1));
+		}
+	}
+
+	return 0;
 }

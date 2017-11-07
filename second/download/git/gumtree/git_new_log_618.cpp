@@ -1,1 +1,1 @@
-die("BUG: cannot have prefix and superprefix");
+printf("%s %s^{}\n", hex, refname);

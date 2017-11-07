@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, slave,
-                                  H2_STRM_LOG(APLOGNO(02941), stream, 
-                                  "create task"));
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c,   
+                      H2_STRM_LOG(APLOGNO(03517), stream, "already in spurge"));

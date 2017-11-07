@@ -1,1 +1,1 @@
-error(_("Could not parse object '%s'."), oid_to_hex(head));
+fprintf(fp, "%s\n", oid_to_hex(&commit));

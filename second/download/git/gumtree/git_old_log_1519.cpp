@@ -1,1 +1,1 @@
-fprintf(fp, "gitdir: %s\n", git_dir);
+printf(" %u %s", obj->delta_depth, sha1_to_hex(bobj->idx.sha1));

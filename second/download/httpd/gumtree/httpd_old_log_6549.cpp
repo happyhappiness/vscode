@@ -1,1 +1,1 @@
-fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");
+fprintf(stderr, "   -s   Force SHA encryption of the password.\n");

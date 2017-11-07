@@ -1,66 +1,31 @@
-int cmd_main(int argc, const char **argv)
+static void send_local_file(const char *the_type, const char *name)
 {
-	char *method = getenv("REQUEST_METHOD");
-	char *dir;
-	struct service_cmd *cmd = NULL;
-	char *cmd_arg = NULL;
-	int i;
+	char *p = git_pathdup("%s", name);
+	size_t buf_alloc = 8192;
+	char *buf = xmalloc(buf_alloc);
+	int fd;
+	struct stat sb;
 
-	set_die_routine(die_webcgi);
-	set_die_is_recursing_routine(die_webcgi_recursing);
+	fd = open(p, O_RDONLY);
+	if (fd < 0)
+		not_found("Cannot open '%s': %s", p, strerror(errno));
+	if (fstat(fd, &sb) < 0)
+		die_errno("Cannot stat '%s'", p);
 
-	if (!method)
-		die("No REQUEST_METHOD from server");
-	if (!strcmp(method, "HEAD"))
-		method = "GET";
-	dir = getdir();
+	hdr_int(content_length, sb.st_size);
+	hdr_str(content_type, the_type);
+	hdr_date(last_modified, sb.st_mtime);
+	end_headers();
 
-	for (i = 0; i < ARRAY_SIZE(services); i++) {
-		struct service_cmd *c = &services[i];
-		regex_t re;
-		regmatch_t out[1];
-
-		if (regcomp(&re, c->pattern, REG_EXTENDED))
-			die("Bogus regex in service table: %s", c->pattern);
-		if (!regexec(&re, dir, 1, out, 0)) {
-			size_t n;
-
-			if (strcmp(method, c->method)) {
-				const char *proto = getenv("SERVER_PROTOCOL");
-				if (proto && !strcmp(proto, "HTTP/1.1")) {
-					http_status(405, "Method Not Allowed");
-					hdr_str("Allow", !strcmp(c->method, "GET") ?
-						"GET, HEAD" : c->method);
-				} else
-					http_status(400, "Bad Request");
-				hdr_nocache();
-				end_headers();
-				return 0;
-			}
-
-			cmd = c;
-			n = out[0].rm_eo - out[0].rm_so;
-			cmd_arg = xmemdupz(dir + out[0].rm_so + 1, n - 1);
-			dir[out[0].rm_so] = 0;
+	for (;;) {
+		ssize_t n = xread(fd, buf, buf_alloc);
+		if (n < 0)
+			die_errno("Cannot read '%s'", p);
+		if (!n)
 			break;
-		}
-		regfree(&re);
+		write_or_die(1, buf, n);
 	}
-
-	if (!cmd)
-		not_found("Request not supported: '%s'", dir);
-
-	setup_path();
-	if (!enter_repo(dir, 0))
-		not_found("Not a git repository: '%s'", dir);
-	if (!getenv("GIT_HTTP_EXPORT_ALL") &&
-	    access("git-daemon-export-ok", F_OK) )
-		not_found("Repository not exported: '%s'", dir);
-
-	http_config();
-	max_request_buffer = git_env_ulong("GIT_HTTP_MAX_REQUEST_BUFFER",
-					   max_request_buffer);
-
-	cmd->imp(cmd_arg);
-	return 0;
+	close(fd);
+	free(buf);
+	free(p);
 }

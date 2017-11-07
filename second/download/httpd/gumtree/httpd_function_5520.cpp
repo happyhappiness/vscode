@@ -1,7 +1,16 @@
-static void transit(h2_session *session, const char *action, h2_session_state nstate)
+static void h2_session_ev_proto_error(h2_session *session, int arg, const char *msg)
 {
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03078)
-                  "h2_session(%ld): transit [%s] -- %s --> [%s]", session->id,
-                  state_name(session->state), action, state_name(nstate));
-    session->state = nstate;
+    switch (session->state) {
+        case H2_SESSION_ST_DONE:
+        case H2_SESSION_ST_LOCAL_SHUTDOWN:
+            /* just leave */
+            transit(session, "proto error", H2_SESSION_ST_DONE);
+            break;
+        
+        default:
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                          "h2_session(%ld): proto error -> shutdown", session->id);
+            h2_session_shutdown(session, arg, msg, 0);
+            break;
+    }
 }

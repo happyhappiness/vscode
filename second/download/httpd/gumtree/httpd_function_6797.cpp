@@ -1,56 +1,101 @@
-static apr_status_t ssl_init_ticket_key(server_rec *s,
+static apr_status_t ssl_init_server_ctx(server_rec *s,
                                         apr_pool_t *p,
                                         apr_pool_t *ptemp,
-                                        modssl_ctx_t *mctx)
+                                        SSLSrvConfigRec *sc,
+                                        apr_array_header_t *pphrases)
 {
     apr_status_t rv;
-    apr_file_t *fp;
-    apr_size_t len;
-    char buf[TLSEXT_TICKET_KEY_LEN];
-    char *path;
-    modssl_ticket_key_t *ticket_key = mctx->ticket_key;
+#ifdef HAVE_SSL_CONF_CMD
+    ssl_ctx_param_t *param = (ssl_ctx_param_t *)sc->server->ssl_ctx_param->elts;
+    SSL_CONF_CTX *cctx = sc->server->ssl_ctx_config;
+    int i;
+#endif
 
-    if (!ticket_key->file_path) {
-        return APR_SUCCESS;
+    /*
+     *  Check for problematic re-initializations
+     */
+    if (sc->server->ssl_ctx) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02569)
+                     "Illegal attempt to re-initialise SSL for server "
+                     "(SSLEngine On should go in the VirtualHost, not in global scope.)");
+        return APR_EGENERAL;
     }
 
-    path = ap_server_root_relative(p, ticket_key->file_path);
-
-    rv = apr_file_open(&fp, path, APR_READ|APR_BINARY,
-                       APR_OS_DEFAULT, ptemp);
-
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02286)
-                     "Failed to open ticket key file %s: (%d) %pm",
-                     path, rv, &rv);
-        return ssl_die(s);
+    if ((rv = ssl_init_ctx(s, p, ptemp, sc->server)) != APR_SUCCESS) {
+        return rv;
     }
 
-    rv = apr_file_read_full(fp, &buf[0], TLSEXT_TICKET_KEY_LEN, &len);
-
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02287)
-                     "Failed to read %d bytes from %s: (%d) %pm",
-                     TLSEXT_TICKET_KEY_LEN, path, rv, &rv);
-        return ssl_die(s);
+    if ((rv = ssl_init_server_certs(s, p, ptemp, sc->server, pphrases))
+        != APR_SUCCESS) {
+        return rv;
     }
 
-    memcpy(ticket_key->key_name, buf, 16);
-    memcpy(ticket_key->hmac_secret, buf + 16, 16);
-    memcpy(ticket_key->aes_key, buf + 32, 16);
+#ifdef HAVE_SSL_CONF_CMD
+    SSL_CONF_CTX_set_ssl_ctx(cctx, sc->server->ssl_ctx);
+    for (i = 0; i < sc->server->ssl_ctx_param->nelts; i++, param++) {
+        ERR_clear_error();
+        if (SSL_CONF_cmd(cctx, param->name, param->value) <= 0) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02407)
+                         "\"SSLOpenSSLConfCmd %s %s\" failed for %s",
+                         param->name, param->value, sc->vhost_id);
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            return ssl_die(s);
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02556)
+                         "\"SSLOpenSSLConfCmd %s %s\" applied to %s",
+                         param->name, param->value, sc->vhost_id);
+        }
+    }
 
-    if (!SSL_CTX_set_tlsext_ticket_key_cb(mctx->ssl_ctx,
-                                          ssl_callback_SessionTicket)) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01913)
-                     "Unable to initialize TLS session ticket key callback "
-                     "(incompatible OpenSSL version?)");
+    if (SSL_CONF_CTX_finish(cctx) == 0) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02547)
+                         "SSL_CONF_CTX_finish() failed");
+            SSL_CONF_CTX_free(cctx);
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            return ssl_die(s);
+    }
+    SSL_CONF_CTX_free(cctx);
+#endif
+
+    if (SSL_CTX_check_private_key(sc->server->ssl_ctx) != 1) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02572)
+                     "Failed to configure at least one certificate and key "
+                     "for %s", sc->vhost_id);
         ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
         return ssl_die(s);
     }
 
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02288)
-                 "TLS session ticket key for %s successfully loaded from %s",
-                 (mySrvConfig(s))->vhost_id, path);
+#if defined(HAVE_OCSP_STAPLING) && defined(SSL_CTRL_SET_CURRENT_CERT)
+    /*
+     * OpenSSL 1.0.2 and later allows iterating over all SSL_CTX certs
+     * by means of SSL_CTX_set_current_cert. Enabling stapling at this
+     * (late) point makes sure that we catch both certificates loaded
+     * via SSLCertificateFile and SSLOpenSSLConfCmd Certificate.
+     */
+    if (sc->server->stapling_enabled == TRUE) {
+        X509 *cert;
+        int i = 0;
+        int ret = SSL_CTX_set_current_cert(sc->server->ssl_ctx,
+                                           SSL_CERT_SET_FIRST);
+        while (ret) {
+            cert = SSL_CTX_get0_certificate(sc->server->ssl_ctx);
+            if (!cert || !ssl_stapling_init_cert(s, sc->server, cert)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02604)
+                             "Unable to configure certificate %s:%d "
+                             "for stapling", sc->vhost_id, i);
+            }
+            ret = SSL_CTX_set_current_cert(sc->server->ssl_ctx,
+                                           SSL_CERT_SET_NEXT);
+            i++;
+        }
+    }
+#endif
+
+#ifdef HAVE_TLS_SESSION_TICKETS
+    if ((rv = ssl_init_ticket_key(s, p, ptemp, sc->server)) != APR_SUCCESS) {
+        return rv;
+    }
+#endif
 
     return APR_SUCCESS;
 }

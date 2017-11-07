@@ -1,1 +1,2 @@
-err(o, _("Failed to execute internal merge"));
+err(o, _("failed to symlink '%s': %s"),
+					path, strerror(errno));

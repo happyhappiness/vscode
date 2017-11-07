@@ -1,1 +1,1 @@
-die(_("--first-parent is incompatible with --bisect"));
+die("cannot combine --no-walk with --graph");

@@ -1,1 +1,1 @@
-die("submodule %s doesn't exist", argv[1]);
+die(_("Expecting a full ref name, got %s"), refname);

@@ -1,4 +1,4 @@
-status_printf_ln(s, GIT_COLOR_NORMAL,
-				 Q_("Your stash currently has %d entry",
-				    "Your stash currently has %d entries", stash_count),
-				 stash_count);
+printf("committer %s <%s@%s> %"PRItime" +0000\n",
+		   *author ? author : "nobody",
+		   *author ? author : "nobody",
+		   *uuid ? uuid : "local", timestamp);

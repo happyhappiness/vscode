@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));

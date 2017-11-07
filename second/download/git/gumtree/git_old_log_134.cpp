@@ -1,1 +1,1 @@
-fprintf(stderr, "Error reading command stream\n");
+fprintf(stderr, "Remote needed\n");

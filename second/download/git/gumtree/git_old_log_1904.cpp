@@ -1,2 +1,1 @@
-die(_("did not receive expected object %s"),
-			      sha1_to_hex(obj->sha1));
+die(_("object type mismatch at %s"), sha1_to_hex(obj->sha1));

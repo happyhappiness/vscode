@@ -1,70 +1,65 @@
-BOOL SSL_X509_match_name(apr_pool_t *p, X509 *x509, const char *name,
-                         BOOL allow_wildcard, server_rec *s)
+static const char *set_error_document(cmd_parms *cmd, void *conf_,
+                                      const char *errno_str, const char *msg)
 {
-    BOOL matched = FALSE;
-    apr_array_header_t *ids;
+    core_dir_config *conf = conf_;
+    int error_number, index_number, idx500;
+    enum { MSG, LOCAL_PATH, REMOTE_PATH } what = MSG;
 
-    /*
-     * At some day in the future, this might be replaced with X509_check_host()
-     * (available in OpenSSL 1.0.2 and later), but two points should be noted:
-     * 1) wildcard matching in X509_check_host() might yield different
-     *    results (by default, it supports a broader set of patterns, e.g.
-     *    wildcards in non-initial positions);
-     * 2) we lose the option of logging each DNS- and CN-ID (until a match
-     *    is found).
+    /* 1st parameter should be a 3 digit number, which we recognize;
+     * convert it into an array index
      */
+    error_number = atoi(errno_str);
+    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
 
-    if (SSL_X509_getIDs(p, x509, &ids)) {
-        const char *cp;
-        int i;
-        char **id = (char **)ids->elts;
-        BOOL is_wildcard;
+    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
+        index_number = idx500;
+    }
+    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
+        return apr_pstrcat(cmd->pool, "Unsupported HTTP response code ",
+                           errno_str, NULL);
+    }
 
-        for (i = 0; i < ids->nelts; i++) {
-            if (!id[i])
-                continue;
+    /* Heuristic to determine second argument. */
+    if (ap_strchr_c(msg,' '))
+        what = MSG;
+    else if (msg[0] == '/')
+        what = LOCAL_PATH;
+    else if (ap_is_url(msg))
+        what = REMOTE_PATH;
+    else
+        what = MSG;
 
-            /*
-             * Determine if it is a wildcard ID - we're restrictive
-             * in the sense that we require the wildcard character to be
-             * THE left-most label (i.e., the ID must start with "*.")
-             */
-            is_wildcard = (*id[i] == '*' && *(id[i]+1) == '.') ? TRUE : FALSE;
+    /* The entry should be ignored if it is a full URL for a 401 error */
 
-            /*
-             * If the ID includes a wildcard character (and the caller is
-             * allowing wildcards), check if it matches for the left-most
-             * DNS label - i.e., the wildcard character is not allowed
-             * to match a dot. Otherwise, try a simple string compare.
-             */
-            if ((allow_wildcard == TRUE && is_wildcard == TRUE &&
-                 (cp = ap_strchr_c(name, '.')) && !strcasecmp(id[i]+1, cp)) ||
-                !strcasecmp(id[i], name)) {
-                matched = TRUE;
-            }
-
-            if (s) {
-                ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
-                             "[%s] SSL_X509_match_name: expecting name '%s', "
-                             "%smatched by ID '%s'",
-                             (mySrvConfig(s))->vhost_id, name,
-                             matched == TRUE ? "" : "NOT ", id[i]);
-            }
-
-            if (matched == TRUE) {
-                break;
-            }
+    if (error_number == 401 && what == REMOTE_PATH) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(00113)
+                     "cannot use a full URL in a 401 ErrorDocument "
+                     "directive --- ignoring!");
+    }
+    else { /* Store it... */
+        if (conf->response_code_strings == NULL) {
+            conf->response_code_strings =
+                apr_pcalloc(cmd->pool,
+                            sizeof(*conf->response_code_strings) *
+                            RESPONSE_CODES);
         }
 
+        if (strcmp(msg, "default") == 0) {
+            /* special case: ErrorDocument 404 default restores the
+             * canned server error response
+             */
+            conf->response_code_strings[index_number] = &errordocument_default;
+        }
+        else {
+            /* hack. Prefix a " if it is a msg; as that is what
+             * http_protocol.c relies on to distinguish between
+             * a msg and a (local) path.
+             */
+            conf->response_code_strings[index_number] = (what == MSG) ?
+                    apr_pstrcat(cmd->pool, "\"", msg, NULL) :
+                    apr_pstrdup(cmd->pool, msg);
+        }
     }
 
-    if (s) {
-        ssl_log_xerror(SSLLOG_MARK, APLOG_DEBUG, 0, p, s, x509,
-                       APLOGNO(02412) "[%s] Cert %s for name '%s'",
-                       (mySrvConfig(s))->vhost_id,
-                       matched == TRUE ? "matches" : "does not match",
-                       name);
-    }
-
-    return matched;
+    return NULL;
 }

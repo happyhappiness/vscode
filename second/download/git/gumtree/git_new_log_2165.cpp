@@ -1,2 +1,2 @@
-error("unable to write symref for %s: %s", refname,
-			     strerror(errno));
+error("unable to fdopen %s: %s",
+			     lock->lk->tempfile.filename.buf, strerror(errno));

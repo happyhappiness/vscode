@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, level, 0, c, "bb_dump(%ld-%d)-%s: %s", 
-                  c->id, stream_id, tag, line);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                     "h2_worker(%d): done", h2_worker_get_id(worker));

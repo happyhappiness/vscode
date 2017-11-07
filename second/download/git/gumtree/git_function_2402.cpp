@@ -1,9 +1,15 @@
-long buffer_tmpfile_prepare_to_read(struct line_buffer *buf)
+NORETURN die_errno(const char *fmt, ...)
 {
-	long pos = ftell(buf->infile);
-	if (pos < 0)
-		return error("ftell error: %s", strerror(errno));
-	if (fseek(buf->infile, 0, SEEK_SET))
-		return error("seek error: %s", strerror(errno));
-	return pos;
+	char buf[1024];
+	va_list params;
+
+	if (die_is_recursing()) {
+		fputs("fatal: recursion detected in die_errno handler\n",
+			stderr);
+		exit(128);
+	}
+
+	va_start(params, fmt);
+	die_routine(fmt_with_err(buf, sizeof(buf), fmt), params);
+	va_end(params);
 }

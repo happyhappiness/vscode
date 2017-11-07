@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03367)
-                      "h2_request: access_status=%d, request_create failed",
-                      access_status);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
+                      "h2-stream(%ld-%d): on_header, reset stream",
+                      session->id, stream->id);

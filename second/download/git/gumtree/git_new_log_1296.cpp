@@ -1,1 +1,1 @@
-fprintf(stderr, "IMAP error: could not create missing mailbox\n");
+fprintf(stderr, "IMAP error: could not check mailbox\n");

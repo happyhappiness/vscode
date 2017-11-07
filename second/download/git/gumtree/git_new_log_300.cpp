@@ -1,1 +1,2 @@
-die(_("no branches given, and HEAD is not valid"));
+die(_("--reflog is incompatible with --all, --remotes, "
+			      "--independent or --merge-base"));

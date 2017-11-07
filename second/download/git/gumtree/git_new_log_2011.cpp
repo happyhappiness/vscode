@@ -1,1 +1,1 @@
-die("Object not in bitmap: %s\n", oid_to_hex(&object->oid));
+die("BUG: pack_name does not end in .pack");

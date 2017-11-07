@@ -1,2 +1,1 @@
-print_verbose(args, _("got %s %d %s"), "ack",
-						      ack, sha1_to_hex(result_sha1));
+print_verbose(args, "have %s", sha1_to_hex(sha1));

@@ -1,1 +1,1 @@
-die("ren1_dst != ren2_dst");
+die(_("unsupported object type in the tree"));

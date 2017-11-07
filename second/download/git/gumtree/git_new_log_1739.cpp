@@ -1,1 +1,1 @@
-error("unable to write current sha1 into %s: %s", newrefname, err.buf);
+error(_("could not remove reference %s"), refname);

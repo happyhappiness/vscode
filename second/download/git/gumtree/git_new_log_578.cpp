@@ -1,1 +1,1 @@
-warning(_("redirecting to %s"), url.buf);
+error_buf(err, _("HEAD does not point to a branch"));

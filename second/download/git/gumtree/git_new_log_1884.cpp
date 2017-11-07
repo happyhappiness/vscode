@@ -1,1 +1,2 @@
-die(_("object %s not found"), oid_to_hex(&ref->new_oid));
+(fprintf(f, ":%"PRIu32" %s\n", mark,
+				oid_to_hex(&deco->base->oid));

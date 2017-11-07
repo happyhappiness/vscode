@@ -1,1 +1,1 @@
-packet_write(1, "ACK %s ready\n", hex);
+packet_write(1, "ACK %s\n", last_hex);

@@ -1,1 +1,1 @@
-die_errno("write error");
+die_errno(_("unable to get current working directory"));

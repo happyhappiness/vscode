@@ -1,1 +1,1 @@
-strbuf_addf(&refname, "refs/%s", write_ref[i]);
+die("helper %s does not support dry-run", data->name);

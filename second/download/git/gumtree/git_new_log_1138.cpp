@@ -1,1 +1,2 @@
-warning("die() called many times. Recursion error or racy threaded death!");
+die("git upload-pack: not our ref %s",
+			    oid_to_hex(&oid_buf));

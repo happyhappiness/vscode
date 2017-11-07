@@ -1,1 +1,1 @@
-warning(_("unable to access '%s': %s"), path, strerror(errno));
+warning("unable to %s %s: %s", op, file, strerror(errno));

@@ -1,2 +1,1 @@
-fprintf(stderr, "crypt() failed: %s\n", 
-                        apr_strerror(errno, errbuf, sizeof errbuf));
+fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");

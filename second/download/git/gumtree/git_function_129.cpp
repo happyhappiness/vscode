@@ -1,20 +1,27 @@
-static int ref_update_reject_duplicates(struct ref_update **updates, int n,
-					enum action_on_err onerr)
+int read_ref_at(const char *refname, unsigned long at_time, int cnt,
+		unsigned char *sha1, char **msg,
+		unsigned long *cutoff_time, int *cutoff_tz, int *cutoff_cnt)
 {
-	int i;
-	for (i = 1; i < n; i++)
-		if (!strcmp(updates[i - 1]->ref_name, updates[i]->ref_name)) {
-			const char *str =
-				"Multiple updates for ref '%s' not allowed.";
-			switch (onerr) {
-			case MSG_ON_ERR:
-				error(str, updates[i]->ref_name); break;
-			case DIE_ON_ERR:
-				die(str, updates[i]->ref_name); break;
-			case QUIET_ON_ERR:
-				break;
-			}
-			return 1;
-		}
-	return 0;
+	struct read_ref_at_cb cb;
+
+	memset(&cb, 0, sizeof(cb));
+	cb.refname = refname;
+	cb.at_time = at_time;
+	cb.cnt = cnt;
+	cb.msg = msg;
+	cb.cutoff_time = cutoff_time;
+	cb.cutoff_tz = cutoff_tz;
+	cb.cutoff_cnt = cutoff_cnt;
+	cb.sha1 = sha1;
+
+	for_each_reflog_ent_reverse(refname, read_ref_at_ent, &cb);
+
+	if (!cb.reccnt)
+		die("Log for %s is empty.", refname);
+	if (cb.found_it)
+		return 0;
+
+	for_each_reflog_ent(refname, read_ref_at_ent_oldest, &cb);
+
+	return 1;
 }

@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02606)
-                            "unknown event on client conn %d", pollevent);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02338)
+                     "%s shm[%d] (0x%pp) for worker: %s", action, i, (void *)shm,
+                     ap_proxy_worker_name(pool, worker));

@@ -1,2 +1,2 @@
-error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
-			filename);
+error(_("cannot read %s: %s"), filename, ferror(f) ?
+			strerror(errno) : _("unexpected end of file"));

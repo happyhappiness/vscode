@@ -1,1 +1,1 @@
-die(_("%%(trailers) does not take arguments"));
+die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");

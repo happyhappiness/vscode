@@ -1,2 +1,2 @@
-die("expected commit for %s, got %s",
-			    sha1_to_hex(commit->object.sha1), typename(type));
+die("cannot read commit object %s",
+			    sha1_to_hex(commit->object.sha1));

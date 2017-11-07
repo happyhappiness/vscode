@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03470)
-                      "h2_proxy_session(%s): ping arrived, unblocking streams",
-                      session->id);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, ctx->r, 
+                      "reverse_map[%s] %s --> %s", ctx->p_server_uri, buffer, mapped);

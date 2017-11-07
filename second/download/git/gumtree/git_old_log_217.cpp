@@ -1,1 +1,1 @@
-die("object %s changed size!?", sha1_to_hex(sha1));
+die("object %s changed type!?", sha1_to_hex(sha1));

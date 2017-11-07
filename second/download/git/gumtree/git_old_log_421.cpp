@@ -1,2 +1,2 @@
-printf("Using remote notes for %s\n",
+printf("Using local notes for %s\n",
 						sha1_to_hex(p->obj));

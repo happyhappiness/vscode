@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                      APLOGNO(02942) 
-                      "h2_task, unsupported READ mode %d", mode);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, APLOGNO(03348)
+                  "h2_task(%s): open response to %s %s %s",
+                  task->id, task->request->method, 
+                  task->request->authority, 
+                  task->request->path);

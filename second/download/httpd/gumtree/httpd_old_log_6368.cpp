@@ -1,4 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP,
-                     apr_get_os_error(), NULL,
-                     APLOGNO(00373) "Failed to open the '%s' service",
-                     mpm_display_name);
+ap_log_error(APLOG_MARK, APLOG_ERR, err, s, APLOGNO()
+                             "Failed to free auth_digest client allocation");

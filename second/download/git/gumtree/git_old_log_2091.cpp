@@ -1,1 +1,2 @@
-die("git-%s failed", argv[0]);
+error("RPC failed; result=%d, HTTP code = %ld",
+		      results->curl_result, results->http_code);

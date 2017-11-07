@@ -1,1 +1,1 @@
-die(_("invalid path '%s'"), old_name);
+error(_("reading from '%s' beyond a symbolic link"), name);

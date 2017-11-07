@@ -1,1 +1,1 @@
-error_errno("error reading delta");
+error_errno("cannot write delta postimage");

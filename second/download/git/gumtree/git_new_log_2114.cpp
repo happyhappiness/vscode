@@ -1,1 +1,1 @@
-printf("ref: %s\t%s\n", ref->symref, ref->name);
+printf("%s\t%s\n", oid_to_hex(&ref->old_oid), ref->name);

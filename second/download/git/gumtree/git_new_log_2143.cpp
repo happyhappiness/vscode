@@ -1,1 +1,1 @@
-die(_("positive value expected contents:lines=%s"), arg);
+die(_("%%(subject) does not take arguments"));

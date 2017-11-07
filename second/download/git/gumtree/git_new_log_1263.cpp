@@ -1,1 +1,1 @@
-die(_("unknown error occured while reading the configuration files"));
+die(_("unable to parse command-line config"));

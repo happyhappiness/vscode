@@ -1,1 +1,1 @@
-die("bad config file line %d in %s", cf->linenr, cf->name);
+die("bad color value '%.*s' for variable '%s'", value_len, value, var);

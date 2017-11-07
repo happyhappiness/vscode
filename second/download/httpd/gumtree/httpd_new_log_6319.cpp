@@ -1,4 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, ctx->owner, 
-                              "set SNI to %s for (%s)", 
-                              ctx->p_conn->ssl_hostname, 
-                              ctx->p_conn->hostname);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(03016)
+                     "mod_lua: Failed to reopen mutex lua-ivm-shm in child");

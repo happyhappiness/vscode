@@ -1,1 +1,1 @@
-die(_("Only one 'attr:' specification is allowed."));
+die("cannot use '%c' for value matching", *src);

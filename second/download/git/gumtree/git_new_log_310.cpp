@@ -1,1 +1,2 @@
-die(_("Value '%s' for submodule.alternateErrorStrategy is not recognized"), error_strategy);
+fprintf(stderr, _("submodule '%s' cannot add alternate: %s"),
+					sas->submodule_name, err.buf);

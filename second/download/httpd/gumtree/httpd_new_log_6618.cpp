@@ -1,4 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02331)
-                                    "lua: Unable to find function %s in %s",
-                                    function_name,
-                                    filename);
+ap_register_output_filter(filter, lua_output_filter_handle, NULL, AP_FTYPE_RESOURCE);

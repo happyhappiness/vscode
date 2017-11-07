@@ -1,1 +1,1 @@
-error(_("Your local changes would be overwritten by revert."));
+error(_("Your local changes would be overwritten by cherry-pick."));

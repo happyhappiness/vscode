@@ -1,2 +1,1 @@
-fprintf(stderr, _("Can not do reflog for '%s': %s\n"),
-						opts->new_orphan_branch, err.buf);
+printf("%s missing\n", obj_name ? obj_name : sha1_to_hex(data->sha1));

@@ -1,1 +1,1 @@
-die(_("'%s' is not locked"), av[0]);
+die(_("'%s' is not a working tree"), av[0]);

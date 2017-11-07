@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(00113)
-                     "cannot use a full URL in a 401 ErrorDocument "
-                     "directive --- ignoring!");
+ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00104)
+                         "unable to start piped log program '%s': %s",
+                         pl->program, apr_strerror(status, buf, sizeof(buf)));

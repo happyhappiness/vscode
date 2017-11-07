@@ -1,1 +1,1 @@
-die("loose refname is dangerous: %s", refname.buf);
+die("packed refname is dangerous: %s", refname);

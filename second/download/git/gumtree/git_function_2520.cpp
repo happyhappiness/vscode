@@ -1,25 +1,15 @@
-static int default_edit_option(void)
+static void print_commit(char sign, struct commit *commit, int verbose,
+			 int abbrev)
 {
-	static const char name[] = "GIT_MERGE_AUTOEDIT";
-	const char *e = getenv(name);
-	struct stat st_stdin, st_stdout;
-
-	if (have_message)
-		/* an explicit -m msg without --[no-]edit */
-		return 0;
-
-	if (e) {
-		int v = git_config_maybe_bool(name, e);
-		if (v < 0)
-			die("Bad value '%s' in environment '%s'", e, name);
-		return v;
+	if (!verbose) {
+		printf("%c %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev));
+	} else {
+		struct strbuf buf = STRBUF_INIT;
+		pp_commit_easy(CMIT_FMT_ONELINE, commit, &buf);
+		printf("%c %s %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev),
+		       buf.buf);
+		strbuf_release(&buf);
 	}
-
-	/* Use editor if stdin and stdout are the same and is a tty */
-	return (!fstat(0, &st_stdin) &&
-		!fstat(1, &st_stdout) &&
-		isatty(0) && isatty(1) &&
-		st_stdin.st_dev == st_stdout.st_dev &&
-		st_stdin.st_ino == st_stdout.st_ino &&
-		st_stdin.st_mode == st_stdout.st_mode);
 }

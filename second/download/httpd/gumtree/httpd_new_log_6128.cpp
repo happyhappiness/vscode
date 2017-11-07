@@ -1,5 +1,3 @@
-ap_log_cerror(APLOG_MARK, level, 0, c, 
-                      "beam(%ld-%d,%s,closed=%d,aborted=%d,empty=%d,buf=%ld): %s", 
-                      (c->master? c->master->id : c->id), beam->id, beam->tag, 
-                      beam->closed, beam->aborted, h2_beam_empty(beam), 
-                      (long)h2_beam_get_buffered(beam), msg);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                 "h2_workers: min=%d max=%d, mthrpchild=%d, idle_secs=%d", 
+                 minw, maxw, max_threads_per_child, idle_secs);

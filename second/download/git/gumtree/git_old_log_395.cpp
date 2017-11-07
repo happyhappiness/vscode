@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports ofs-delta\n");
+fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");

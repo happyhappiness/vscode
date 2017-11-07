@@ -1,1 +1,2 @@
-diagnose_missing_default(revs->def);
+die(_("your current branch '%s' does not have any commits yet"),
+	    refname);

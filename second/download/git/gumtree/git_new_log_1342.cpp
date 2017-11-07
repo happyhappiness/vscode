@@ -1,1 +1,1 @@
-die("unable to add index blob to traversal");
+die("revision walk setup failed");

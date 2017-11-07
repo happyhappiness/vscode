@@ -1,1 +1,1 @@
-argv_array_pushf(&av, "--max-age=%lu", deepen_since);
+die("git upload-pack: ambiguous deepen-not: %s", line);

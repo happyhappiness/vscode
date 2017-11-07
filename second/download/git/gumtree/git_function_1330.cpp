@@ -1,22 +1,28 @@
-static void prune_ref(struct ref_to_prune *r)
+int commit_packed_refs(void)
 {
-	struct ref_transaction *transaction;
-	struct strbuf err = STRBUF_INIT;
+	struct packed_ref_cache *packed_ref_cache =
+		get_packed_ref_cache(&ref_cache);
+	int error = 0;
+	int save_errno = 0;
+	FILE *out;
 
-	if (check_refname_format(r->name, 0))
-		return;
+	if (!packed_ref_cache->lock)
+		die("internal error: packed-refs not locked");
 
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_delete(transaction, r->name, r->sha1,
-				   REF_ISPRUNING, 1, NULL, &err) ||
-	    ref_transaction_commit(transaction, &err)) {
-		ref_transaction_free(transaction);
-		error("%s", err.buf);
-		strbuf_release(&err);
-		return;
+	out = fdopen_lock_file(packed_ref_cache->lock, "w");
+	if (!out)
+		die_errno("unable to fdopen packed-refs descriptor");
+
+	fprintf_or_die(out, "%s", PACKED_REFS_HEADER);
+	do_for_each_entry_in_dir(get_packed_ref_dir(packed_ref_cache),
+				 0, write_packed_entry_fn, out);
+
+	if (commit_lock_file(packed_ref_cache->lock)) {
+		save_errno = errno;
+		error = -1;
 	}
-	ref_transaction_free(transaction);
-	strbuf_release(&err);
-	try_remove_empty_parents(r->name);
+	packed_ref_cache->lock = NULL;
+	release_packed_ref_cache(packed_ref_cache);
+	errno = save_errno;
+	return error;
 }

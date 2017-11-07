@@ -1,1 +1,1 @@
-fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);
+fprintf(s->fp, "# branch.head %s%c", "(unknown)", eol);

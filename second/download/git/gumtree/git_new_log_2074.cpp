@@ -1,2 +1,2 @@
-packet_write(1, "unshallow %s",
-					oid_to_hex(&object->oid));
+packet_write(1, "shallow %s",
+						oid_to_hex(&object->oid));

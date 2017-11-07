@@ -1,2 +1,1 @@
-die("BUG: unhandled change_type %d in wt_longstatus_print_change_data",
-		    change_type);
+packet_write_fmt(1, "%s %s^{}\n", oid_to_hex(&peeled), refname_nons);

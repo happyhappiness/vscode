@@ -1,1 +1,1 @@
-die("Bug in merge-recursive.c");
+printf("%.*s\n", len, title);

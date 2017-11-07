@@ -1,1 +1,1 @@
-die("bug: a non-header pattern in grep header list.");
+warning("object %s: %s", oid_to_hex(&obj->oid), message);

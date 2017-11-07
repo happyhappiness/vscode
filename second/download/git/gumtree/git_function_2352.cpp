@@ -1,36 +1,25 @@
-static void read_rr(struct string_list *rr)
+static int add_recent_loose(const unsigned char *sha1,
+			    const char *path, void *data)
 {
-	struct strbuf buf = STRBUF_INIT;
-	FILE *in = fopen(git_path_merge_rr(), "r");
+	struct stat st;
+	struct object *obj = lookup_object(sha1);
 
-	if (!in)
-		return;
-	while (!strbuf_getwholeline(&buf, in, '\0')) {
-		char *path;
-		unsigned char sha1[20];
-		struct rerere_id *id;
-		int variant;
+	if (obj && obj->flags & SEEN)
+		return 0;
 
-		/* There has to be the hash, tab, path and then NUL */
-		if (buf.len < 42 || get_sha1_hex(buf.buf, sha1))
-			die("corrupt MERGE_RR");
-
-		if (buf.buf[40] != '.') {
-			variant = 0;
-			path = buf.buf + 40;
-		} else {
-			errno = 0;
-			variant = strtol(buf.buf + 41, &path, 10);
-			if (errno)
-				die("corrupt MERGE_RR");
-		}
-		if (*(path++) != '\t')
-			die("corrupt MERGE_RR");
-		buf.buf[40] = '\0';
-		id = new_rerere_id_hex(buf.buf);
-		id->variant = variant;
-		string_list_insert(rr, path)->util = id;
+	if (stat(path, &st) < 0) {
+		/*
+		 * It's OK if an object went away during our iteration; this
+		 * could be due to a simultaneous repack. But anything else
+		 * we should abort, since we might then fail to mark objects
+		 * which should not be pruned.
+		 */
+		if (errno == ENOENT)
+			return 0;
+		return error("unable to stat %s: %s",
+			     sha1_to_hex(sha1), strerror(errno));
 	}
-	strbuf_release(&buf);
-	fclose(in);
+
+	add_recent_object(sha1, st.st_mtime, data);
+	return 0;
 }

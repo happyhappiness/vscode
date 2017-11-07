@@ -1,1 +1,1 @@
-die_errno("unable to dup file descriptor");
+die(_("-b, -B, and --detach are mutually exclusive"));

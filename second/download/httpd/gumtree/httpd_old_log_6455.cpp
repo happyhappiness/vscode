@@ -1,5 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
-                          r,
-                          ref ? "Fixed spelling: %s to %s from %s"
-                              : "Fixed spelling: %s to %s",
-                          r->uri, nuri, ref);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  req->proxy_ips
+                      ? "Using %s as client's IP by proxies %s"
+                      : "Using %s as client's IP by internal proxies",
+                  req->useragent_ip, req->proxy_ips);

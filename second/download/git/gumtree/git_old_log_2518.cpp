@@ -1,3 +1,3 @@
-printf("%c %s %s\n", sign,
-		       find_unique_abbrev(commit->object.oid.hash, abbrev),
-		       buf.buf);
+printf("\n--%s%s--\n\n\n",
+				       mime_boundary_leader,
+				       rev.mime_boundary);

@@ -1,2 +1,2 @@
-error("pathspec '%s' did not match any file(s) known to git.",
-		      pathspec->items[num].original);
+die_errno(_("could not create work tree dir '%s'."),
+				  work_tree);

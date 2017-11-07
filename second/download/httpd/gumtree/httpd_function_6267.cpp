@@ -1,13 +1,20 @@
-static void H2_STREAM_OUT_LOG(int lvl, h2_stream *s, const char *tag)
+static apr_status_t stream_pool_cleanup(void *ctx)
 {
-    if (APLOG_C_IS_LEVEL(s->session->c, lvl)) {
-        conn_rec *c = s->session->c;
-        char buffer[4 * 1024];
-        const char *line = "(null)";
-        apr_size_t len, bmax = sizeof(buffer)/sizeof(buffer[0]);
-        
-        len = h2_util_bb_print(buffer, bmax, tag, "", s->out_buffer);
-        ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
-                      c->log_id, len? buffer : line);
+    h2_stream *stream = ctx;
+    apr_status_t status;
+    
+    ap_assert(stream->can_be_cleaned);
+    if (stream->files) {
+        apr_file_t *file;
+        int i;
+        for (i = 0; i < stream->files->nelts; ++i) {
+            file = APR_ARRAY_IDX(stream->files, i, apr_file_t*);
+            status = apr_file_close(file);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, stream->session->c, 
+                          "h2_stream(%ld-%d): destroy, closed file %d", 
+                          stream->session->id, stream->id, i);
+        }
+        stream->files = NULL;
     }
+    return APR_SUCCESS;
 }

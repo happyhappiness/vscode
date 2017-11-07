@@ -1,1 +1,1 @@
-error("key does not contain a section: %s", key);
+die(_("could not unset '%s'"), buf.buf);

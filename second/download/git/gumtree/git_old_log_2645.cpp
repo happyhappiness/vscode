@@ -1,1 +1,1 @@
-die_errno(_("failed to symlink '%s'"), path);
+die(_("blob expected for %s '%s'"), sha1_to_hex(sha), path);

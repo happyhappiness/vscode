@@ -1,10 +1,7 @@
-static void *xcalloc(size_t num, size_t size)
+static int abort_on_oom(int retcode)
 {
-    void *ret = calloc(num, size);
-    if (ret == NULL) {
-        fprintf(stderr, "Could not allocate memory (%"
-                APR_SIZE_T_FMT" bytes)\n", size*num);
-        exit(1);
-    }
-    return ret;
+    fprintf(stderr, "Could not allocate memory\n");
+    exit(1);
+    /* not reached */
+    return retcode;
 }

@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_h2, connection, h2 active");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r,
+                      "adding h1_to_h2_resp output filter");

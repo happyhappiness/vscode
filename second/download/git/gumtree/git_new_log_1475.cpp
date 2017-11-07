@@ -1,2 +1,2 @@
-die("the receiving end asked to sign an invalid nonce <%.*s>",
-		    len, nonce);
+error("pathspec '%s' did not match any file(s) known to git.",
+		      pathspec->items[num].original);

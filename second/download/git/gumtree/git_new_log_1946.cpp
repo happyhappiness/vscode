@@ -1,1 +1,1 @@
-memset(&array, 0, sizeof(array));
+die("no branches given, and HEAD is not valid");

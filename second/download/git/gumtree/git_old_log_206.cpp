@@ -1,1 +1,1 @@
-die("--reverse and --first-parent together require specified latest commit");
+die("Cannot use --contents with final commit object name");

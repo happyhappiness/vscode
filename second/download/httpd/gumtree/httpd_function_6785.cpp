@@ -1,27 +1,65 @@
-void ssl_hook_ConfigTest(apr_pool_t *pconf, server_rec *s)
+static void ssl_init_ctx_tls_extensions(server_rec *s,
+                                        apr_pool_t *p,
+                                        apr_pool_t *ptemp,
+                                        modssl_ctx_t *mctx)
 {
-    apr_file_t *out = NULL;
-    if (!ap_exists_config_define("DUMP_CERTS")) {
-        return;
+    /*
+     * Configure TLS extensions support
+     */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01893)
+                 "Configuring TLS extension handling");
+
+    /*
+     * Server name indication (SNI)
+     */
+    if (!SSL_CTX_set_tlsext_servername_callback(mctx->ssl_ctx,
+                          ssl_callback_ServerNameIndication) ||
+        !SSL_CTX_set_tlsext_servername_arg(mctx->ssl_ctx, mctx)) {
+        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01894)
+                     "Unable to initialize TLS servername extension "
+                     "callback (incompatible OpenSSL version?)");
+        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+        ssl_die(s);
     }
-    apr_file_open_stdout(&out, pconf);
-    apr_file_printf(out, "Server certificates:\n");
 
-    /* Dump the filenames of all configured server certificates to
-     * stdout. */
-    while (s) {
-        SSLSrvConfigRec *sc = mySrvConfig(s);
+#ifdef HAVE_OCSP_STAPLING
+    /*
+     * OCSP Stapling support, status_request extension
+     */
+    if ((mctx->pkp == FALSE) && (mctx->stapling_enabled == TRUE)) {
+        modssl_init_stapling(s, p, ptemp, mctx);
+    }
+#endif
 
-        if (sc && sc->server && sc->server->pks) {
-            modssl_pk_server_t *const pks = sc->server->pks;
-            int i;
+#ifdef HAVE_SRP
+    /*
+     * TLS-SRP support
+     */
+    if (mctx->srp_vfile != NULL) {
+        int err;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02308)
+                     "Using SRP verifier file [%s]", mctx->srp_vfile);
 
-            for (i = 0; (i < SSL_AIDX_MAX) && pks->cert_files[i]; i++) {
-                apr_file_printf(out, "  %s\n", pks->cert_files[i]);
-            }
+        if (!(mctx->srp_vbase = SRP_VBASE_new(mctx->srp_unknown_user_seed))) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02309)
+                         "Unable to initialize SRP verifier structure "
+                         "[%s seed]",
+                         mctx->srp_unknown_user_seed ? "with" : "without");
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            ssl_die(s);
         }
 
-        s = s->next;
-    }
+        err = SRP_VBASE_init(mctx->srp_vbase, mctx->srp_vfile);
+        if (err != SRP_NO_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02310)
+                         "Unable to load SRP verifier file [error %d]", err);
+            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
+            ssl_die(s);
+        }
 
+        SSL_CTX_set_srp_username_callback(mctx->ssl_ctx,
+                                          ssl_callback_SRPServerParams);
+        SSL_CTX_set_srp_cb_arg(mctx->ssl_ctx, mctx);
+    }
+#endif
 }

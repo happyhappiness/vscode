@@ -1,1 +1,1 @@
-error("cannot stat %s (%s)", arg, strerror(errno));
+error("cannot open mbox %s", file);

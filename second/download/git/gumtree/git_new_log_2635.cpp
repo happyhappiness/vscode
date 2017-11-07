@@ -1,1 +1,1 @@
-err(o, _("addinfo_cache failed for path '%s'"), path);
+strbuf_addf(&o->obuf, _("(bad commit)\n"));

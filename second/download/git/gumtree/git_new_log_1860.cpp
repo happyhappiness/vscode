@@ -1,1 +1,1 @@
-die("BUG: not unique item in first-parent chain");
+die("--reverse and --first-parent together require specified latest commit");

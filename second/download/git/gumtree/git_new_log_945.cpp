@@ -1,1 +1,1 @@
-die_errno("BUG: %s", msg);
+die("BUG: command is empty");

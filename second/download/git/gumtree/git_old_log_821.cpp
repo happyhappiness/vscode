@@ -1,1 +1,1 @@
-die(_("--contains option is only allowed with -l."));
+die(_("-n option is only allowed with -l."));

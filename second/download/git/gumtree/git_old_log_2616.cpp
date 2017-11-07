@@ -1,2 +1,1 @@
-printf("%s%.*s%s%s", color, (int)(eol - bol), bol, reset,
-		       *eol ? "\n" : "");
+printf("In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);

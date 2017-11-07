@@ -1,46 +1,37 @@
-static apr_status_t out_write(h2_mplx *m, h2_io *io, 
-                              ap_filter_t* f, int blocking,
-                              apr_bucket_brigade *bb,
-                              struct apr_thread_cond_t *iowait)
+apr_status_t h2_mplx_out_write(h2_mplx *m, int stream_id, 
+                               ap_filter_t* f, apr_bucket_brigade *bb,
+                               apr_table_t *trailers,
+                               struct apr_thread_cond_t *iowait)
 {
-    apr_status_t status = APR_SUCCESS;
-    /* We check the memory footprint queued for this stream_id
-     * and block if it exceeds our configured limit.
-     * We will not split buckets to enforce the limit to the last
-     * byte. After all, the bucket is already in memory.
-     */
-    while (status == APR_SUCCESS 
-           && !APR_BRIGADE_EMPTY(bb) 
-           && !is_aborted(m, &status)) {
-        
-        status = h2_io_out_write(io, bb, blocking? m->stream_max_mem : INT_MAX, 
-                                 &m->tx_handles_reserved);
-        io_out_consumed_signal(m, io);
-        
-        /* Wait for data to drain until there is room again or
-         * stream timeout expires */
-        h2_io_signal_init(io, H2_IO_WRITE, m->stream_timeout, iowait);
-        while (status == APR_SUCCESS
-               && !APR_BRIGADE_EMPTY(bb) 
-               && iowait
-               && (m->stream_max_mem <= h2_io_out_length(io))
-               && !is_aborted(m, &status)) {
-            if (!blocking) {
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                              "h2_mplx(%ld-%d): incomplete write", 
-                              m->id, io->id);
-                return APR_INCOMPLETE;
-            }
-            if (f) {
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                              "h2_mplx(%ld-%d): waiting for out drain", 
-                              m->id, io->id);
-            }
-            status = h2_io_signal_wait(m, io);
-        }
-        h2_io_signal_exit(io);
+    apr_status_t status;
+    AP_DEBUG_ASSERT(m);
+    if (m->aborted) {
+        return APR_ECONNABORTED;
     }
-    apr_brigade_cleanup(bb);
-    
+    status = apr_thread_mutex_lock(m->lock);
+    if (APR_SUCCESS == status) {
+        if (!m->aborted) {
+            h2_io *io = h2_io_set_get(m->stream_ios, stream_id);
+            if (io && !io->orphaned) {
+                status = out_write(m, io, f, bb, trailers, iowait);
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c,
+                              "h2_mplx(%ld-%d): write with trailers=%s", 
+                              m->id, io->id, trailers? "yes" : "no");
+                H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_out_write");
+                
+                have_out_data_for(m, stream_id);
+                if (m->aborted) {
+                    return APR_ECONNABORTED;
+                }
+            }
+            else {
+                status = APR_ECONNABORTED;
+            }
+        }
+        
+        if (m->lock) {
+            apr_thread_mutex_unlock(m->lock);
+        }
+    }
     return status;
 }

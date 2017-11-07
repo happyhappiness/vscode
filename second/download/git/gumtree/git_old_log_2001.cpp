@@ -1,1 +1,2 @@
-printf(" %s", find_unique_abbrev(parent->object.sha1, abbrev));
+die("unknown pending object %s (%s)",
+		    sha1_to_hex(obj->sha1), name);

@@ -1,22 +1,13 @@
-static void sanity_check_refcnt(struct scoreboard *sb)
+static void found_guilty_entry(struct blame_entry *ent)
 {
-	int baa = 0;
-	struct blame_entry *ent;
+	if (incremental) {
+		struct origin *suspect = ent->suspect;
 
-	for (ent = sb->ent; ent; ent = ent->next) {
-		/* Nobody should have zero or negative refcnt */
-		if (ent->suspect->refcnt <= 0) {
-			fprintf(stderr, "%s in %s has negative refcnt %d\n",
-				ent->suspect->path,
-				sha1_to_hex(ent->suspect->commit->object.sha1),
-				ent->suspect->refcnt);
-			baa = 1;
-		}
-	}
-	if (baa) {
-		int opt = 0160;
-		find_alignment(sb, &opt);
-		output(sb, opt);
-		die("Baa %d!", baa);
+		printf("%s %d %d %d\n",
+		       sha1_to_hex(suspect->commit->object.sha1),
+		       ent->s_lno + 1, ent->lno + 1, ent->num_lines);
+		emit_one_suspect_detail(suspect, 0);
+		write_filename_info(suspect->path);
+		maybe_flush_or_die(stdout, "stdout");
 	}
 }

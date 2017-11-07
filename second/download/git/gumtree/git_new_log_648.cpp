@@ -1,1 +1,2 @@
-fprintf(out, "%s\n", oid_to_hex(oid));
+fprintf(out, "%.*s %s\n", (int)(eol - bol),
+					bol, sha1_to_hex(newsha1));

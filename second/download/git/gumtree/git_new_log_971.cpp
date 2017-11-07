@@ -1,1 +1,1 @@
-printf("author-time %"PRItime"\n", ci.author_time);
+warning(_("adding embedded git repository: %s"), name.buf);

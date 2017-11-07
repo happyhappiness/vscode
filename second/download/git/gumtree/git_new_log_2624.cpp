@@ -1,1 +1,1 @@
-fprintf(opt->diffopt.file, "---");
+fputs(diff_get_color_opt(&opt->diffopt, DIFF_RESET), opt->diffopt.file);

@@ -1,7 +1,8 @@
-void NORETURN usage_msg_opt(const char *msg,
-		   const char * const *usagestr,
-		   const struct option *options)
+static void flush_inbody_header_accum(struct mailinfo *mi)
 {
-	fprintf(stderr, "%s\n\n", msg);
-	usage_with_options(usagestr, options);
+	if (!mi->inbody_header_accum.len)
+		return;
+	if (!check_header(mi, &mi->inbody_header_accum, mi->s_hdr_data, 0))
+		die("BUG: inbody_header_accum, if not empty, must always contain a valid in-body header");
+	strbuf_reset(&mi->inbody_header_accum);
 }

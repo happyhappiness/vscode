@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, task->c, 
-                      "h2_task(%s): send_out done", task->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c, APLOGNO(03405)
+                          "h2_slave_out(%s): saving brigade", 
+                          task->id);

@@ -1,100 +1,82 @@
-const char *help_unknown_cmd(const char *cmd)
+static int update_clone(int argc, const char **argv, const char *prefix)
 {
-	int i, n, best_similarity = 0;
-	struct cmdnames main_cmds, other_cmds;
+	const char *update = NULL;
+	int max_jobs = -1;
+	struct string_list_item *item;
+	struct pathspec pathspec;
+	struct submodule_update_clone suc = SUBMODULE_UPDATE_CLONE_INIT;
 
-	memset(&main_cmds, 0, sizeof(main_cmds));
-	memset(&other_cmds, 0, sizeof(other_cmds));
-	memset(&aliases, 0, sizeof(aliases));
+	struct option module_update_clone_options[] = {
+		OPT_STRING(0, "prefix", &prefix,
+			   N_("path"),
+			   N_("path into the working tree")),
+		OPT_STRING(0, "recursive-prefix", &suc.recursive_prefix,
+			   N_("path"),
+			   N_("path into the working tree, across nested "
+			      "submodule boundaries")),
+		OPT_STRING(0, "update", &update,
+			   N_("string"),
+			   N_("rebase, merge, checkout or none")),
+		OPT_STRING_LIST(0, "reference", &suc.references, N_("repo"),
+			   N_("reference repository")),
+		OPT_STRING(0, "depth", &suc.depth, "<depth>",
+			   N_("Create a shallow clone truncated to the "
+			      "specified number of revisions")),
+		OPT_INTEGER('j', "jobs", &max_jobs,
+			    N_("parallel jobs")),
+		OPT_BOOL(0, "recommend-shallow", &suc.recommend_shallow,
+			    N_("whether the initial clone should follow the shallow recommendation")),
+		OPT__QUIET(&suc.quiet, N_("don't print cloning progress")),
+		OPT_BOOL(0, "progress", &suc.progress,
+			    N_("force cloning progress")),
+		OPT_END()
+	};
 
-	git_config(git_unknown_cmd_config, NULL);
+	const char *const git_submodule_helper_usage[] = {
+		N_("git submodule--helper update_clone [--prefix=<path>] [<path>...]"),
+		NULL
+	};
+	suc.prefix = prefix;
 
-	load_command_list("git-", &main_cmds, &other_cmds);
+	argc = parse_options(argc, argv, prefix, module_update_clone_options,
+			     git_submodule_helper_usage, 0);
 
-	add_cmd_list(&main_cmds, &aliases);
-	add_cmd_list(&main_cmds, &other_cmds);
-	QSORT(main_cmds.names, main_cmds.cnt, cmdname_compare);
-	uniq(&main_cmds);
+	if (update)
+		if (parse_submodule_update_strategy(update, &suc.update) < 0)
+			die(_("bad value for update parameter"));
 
-	/* This abuses cmdname->len for levenshtein distance */
-	for (i = 0, n = 0; i < main_cmds.cnt; i++) {
-		int cmp = 0; /* avoid compiler stupidity */
-		const char *candidate = main_cmds.names[i]->name;
+	if (module_list_compute(argc, argv, prefix, &pathspec, &suc.list) < 0)
+		return 1;
 
-		/*
-		 * An exact match means we have the command, but
-		 * for some reason exec'ing it gave us ENOENT; probably
-		 * it's a bad interpreter in the #! line.
-		 */
-		if (!strcmp(candidate, cmd))
-			die(_(bad_interpreter_advice), cmd, cmd);
+	if (pathspec.nr)
+		suc.warn_if_uninitialized = 1;
 
-		/* Does the candidate appear in common_cmds list? */
-		while (n < ARRAY_SIZE(common_cmds) &&
-		       (cmp = strcmp(common_cmds[n].name, candidate)) < 0)
-			n++;
-		if ((n < ARRAY_SIZE(common_cmds)) && !cmp) {
-			/* Yes, this is one of the common commands */
-			n++; /* use the entry from common_cmds[] */
-			if (starts_with(candidate, cmd)) {
-				/* Give prefix match a very good score */
-				main_cmds.names[i]->len = 0;
-				continue;
-			}
-		}
+	/* Overlay the parsed .gitmodules file with .git/config */
+	gitmodules_config();
+	git_config(submodule_config, NULL);
 
-		main_cmds.names[i]->len =
-			levenshtein(cmd, candidate, 0, 2, 1, 3) + 1;
-	}
+	if (max_jobs < 0)
+		max_jobs = parallel_submodules();
 
-	QSORT(main_cmds.names, main_cmds.cnt, levenshtein_compare);
+	run_processes_parallel(max_jobs,
+			       update_clone_get_next_task,
+			       update_clone_start_failure,
+			       update_clone_task_finished,
+			       &suc);
 
-	if (!main_cmds.cnt)
-		die(_("Uh oh. Your system reports no Git commands at all."));
+	/*
+	 * We saved the output and put it out all at once now.
+	 * That means:
+	 * - the listener does not have to interleave their (checkout)
+	 *   work with our fetching.  The writes involved in a
+	 *   checkout involve more straightforward sequential I/O.
+	 * - the listener can avoid doing any work if fetching failed.
+	 */
+	if (suc.quickstop)
+		return 1;
 
-	/* skip and count prefix matches */
-	for (n = 0; n < main_cmds.cnt && !main_cmds.names[n]->len; n++)
-		; /* still counting */
+	for_each_string_list_item(item, &suc.projectlines)
+		fprintf(stdout, "%s", item->string);
 
-	if (main_cmds.cnt <= n) {
-		/* prefix matches with everything? that is too ambiguous */
-		best_similarity = SIMILARITY_FLOOR + 1;
-	} else {
-		/* count all the most similar ones */
-		for (best_similarity = main_cmds.names[n++]->len;
-		     (n < main_cmds.cnt &&
-		      best_similarity == main_cmds.names[n]->len);
-		     n++)
-			; /* still counting */
-	}
-	if (autocorrect && n == 1 && SIMILAR_ENOUGH(best_similarity)) {
-		const char *assumed = main_cmds.names[0]->name;
-		main_cmds.names[0] = NULL;
-		clean_cmdnames(&main_cmds);
-		fprintf_ln(stderr,
-			   _("WARNING: You called a Git command named '%s', "
-			     "which does not exist.\n"
-			     "Continuing under the assumption that you meant '%s'"),
-			cmd, assumed);
-		if (autocorrect > 0) {
-			fprintf_ln(stderr, _("in %0.1f seconds automatically..."),
-				(float)autocorrect/10.0);
-			sleep_millisec(autocorrect * 100);
-		}
-		return assumed;
-	}
-
-	fprintf_ln(stderr, _("git: '%s' is not a git command. See 'git --help'."), cmd);
-
-	if (SIMILAR_ENOUGH(best_similarity)) {
-		fprintf_ln(stderr,
-			   Q_("\nThe most similar command is",
-			      "\nThe most similar commands are",
-			   n));
-
-		for (i = 0; i < n; i++)
-			fprintf(stderr, "\t%s\n", main_cmds.names[i]->name);
-	}
-
-	exit(1);
+	return 0;
 }

@@ -1,1 +1,1 @@
-fprintf(stderr, _("Aborting\n"));
+warning("could not mark '%s' as hidden.", filename);

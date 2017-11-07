@@ -1,2 +1,1 @@
-fprintf(stderr, "Also look at %s\n",
-						target.buf);
+die("curl_multi_init failed");

@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00334)
-                 "Child: Accept thread listening on %s:%d using AcceptFilter %s",
-                 lr->bind_addr->hostname ? lr->bind_addr->hostname : "*",
-                 lr->bind_addr->port, accf_name);
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00561)
+                              "Request header exceeds LimitRequestFieldSize: "
+                              "%.*s", field_name_len(field), field);

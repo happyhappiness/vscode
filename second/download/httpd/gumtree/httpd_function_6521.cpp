@@ -1,116 +1,70 @@
-apr_status_t mpm_service_install(apr_pool_t *ptemp, int argc,
-                                 const char * const * argv, int reconfig)
+static void fix_hostname(request_rec *r)
 {
-    char key_name[MAX_PATH];
-    char exe_path[MAX_PATH];
-    char *launch_cmd;
-    ap_regkey_t *key;
+    char *host, *scope_id;
+    char *dst;
+    apr_port_t port;
     apr_status_t rv;
-    SC_HANDLE   schService;
-    SC_HANDLE   schSCManager;
+    const char *c;
 
-    fprintf(stderr,reconfig ? "Reconfiguring the %s service\n"
-                   : "Installing the %s service\n", mpm_display_name);
-
-    /* ###: utf-ize */
-    if (GetModuleFileName(NULL, exe_path, sizeof(exe_path)) == 0)
-    {
-        apr_status_t rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00368)
-                     "GetModuleFileName failed");
-        return rv;
+    /* According to RFC 2616, Host header field CAN be blank. */
+    if (!*r->hostname) {
+        return;
     }
 
-    schSCManager = OpenSCManager(NULL, NULL, /* local, default database */
-                                 SC_MANAGER_CREATE_SERVICE);
-    if (!schSCManager) {
-        rv = apr_get_os_error();
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00369)
-                     "Failed to open the WinNT service manager, perhaps "
-                     "you forgot to log in as Adminstrator?");
-        return (rv);
+    /* apr_parse_addr_port will interpret a bare integer as a port
+     * which is incorrect in this context.  So treat it separately.
+     */
+    for (c = r->hostname; apr_isdigit(*c); ++c);
+    if (!*c) {  /* pure integer */
+        return;
     }
 
-    launch_cmd = apr_psprintf(ptemp, "\"%s\" -k runservice", exe_path);
+    rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
+    if (rv != APR_SUCCESS || scope_id) {
+        goto bad;
+    }
 
-    if (reconfig) {
-        /* ###: utf-ize */
-        schService = OpenService(schSCManager, mpm_service_name,
-                                 SERVICE_CHANGE_CONFIG);
-        if (!schService) {
-            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
-                         apr_get_os_error(), NULL,
-                         "OpenService failed");
-        }
-        /* ###: utf-ize */
-        else if (!ChangeServiceConfig(schService,
-                                      SERVICE_WIN32_OWN_PROCESS,
-                                      SERVICE_AUTO_START,
-                                      SERVICE_ERROR_NORMAL,
-                                      launch_cmd, NULL, NULL,
-                                      "Tcpip\0Afd\0", NULL, NULL,
-                                      mpm_display_name)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR|APLOG_ERR,
-                         apr_get_os_error(), NULL,
-                         "ChangeServiceConfig failed");
+    if (port) {
+        /* Don't throw the Host: header's port number away:
+           save it in parsed_uri -- ap_get_server_port() needs it! */
+        /* @@@ XXX there should be a better way to pass the port.
+         *         Like r->hostname, there should be a r->portno
+         */
+        r->parsed_uri.port = port;
+        r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
+    }
 
-            /* !schService aborts configuration below */
-            CloseServiceHandle(schService);
-            schService = NULL;
+    /* if the hostname is an IPv6 numeric address string, it was validated
+     * already; otherwise, further validation is needed
+     */
+    if (r->hostname[0] != '[') {
+        for (dst = host; *dst; dst++) {
+            if (apr_islower(*dst)) {
+                /* leave char unchanged */
+            }
+            else if (*dst == '.') {
+                if (*(dst + 1) == '.') {
+                    goto bad;
+                }
+            }
+            else if (apr_isupper(*dst)) {
+                *dst = apr_tolower(*dst);
+            }
+            else if (*dst == '/' || *dst == '\\') {
+                goto bad;
             }
         }
-    else {
-        /* RPCSS is the Remote Procedure Call (RPC) Locator required
-         * for DCOM communication pipes.  I am far from convinced we
-         * should add this to the default service dependencies, but
-         * be warned that future apache modules or ISAPI dll's may
-         * depend on it.
-         */
-        /* ###: utf-ize */
-        schService = CreateService(schSCManager,         /* SCManager database */
-                                   mpm_service_name,     /* name of service    */
-                                   mpm_display_name,     /* name to display    */
-                                   SERVICE_ALL_ACCESS,   /* access required    */
-                                   SERVICE_WIN32_OWN_PROCESS,  /* service type */
-                                   SERVICE_AUTO_START,   /* start type         */
-                                   SERVICE_ERROR_NORMAL, /* error control type */
-                                   launch_cmd,           /* service's binary   */
-                                   NULL,                 /* no load svc group  */
-                                   NULL,                 /* no tag identifier  */
-                                   "Tcpip\0Afd\0",       /* dependencies       */
-                                   NULL,                 /* use SYSTEM account */
-                                   NULL);                /* no password        */
-
-        if (!schService)
-        {
-            rv = apr_get_os_error();
-            ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00370)
-                         "Failed to create WinNT Service Profile");
-            CloseServiceHandle(schSCManager);
-            return (rv);
+        /* strip trailing gubbins */
+        if (dst > host && dst[-1] == '.') {
+            dst[-1] = '\0';
         }
     }
+    r->hostname = host;
+    return;
 
-    CloseServiceHandle(schService);
-    CloseServiceHandle(schSCManager);
-
-    set_service_description();
-
-    /* Store the service ConfigArgs in the registry...
-     */
-    apr_snprintf(key_name, sizeof(key_name), SERVICEPARAMS, mpm_service_name);
-    rv = ap_regkey_open(&key, AP_REGKEY_LOCAL_MACHINE, key_name,
-                        APR_READ | APR_WRITE | APR_CREATE, pconf);
-    if (rv == APR_SUCCESS) {
-        rv = ap_regkey_value_array_set(key, "ConfigArgs", argc, argv, pconf);
-        ap_regkey_close(key);
-    }
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL, APLOGNO(00371)
-                     "%s: Failed to store the ConfigArgs in the registry.",
-                     mpm_display_name);
-        return (rv);
-    }
-    fprintf(stderr,"The %s service is successfully installed.\n", mpm_display_name);
-    return APR_SUCCESS;
+bad:
+    r->status = HTTP_BAD_REQUEST;
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00550)
+                  "Client sent malformed Host header");
+    return;
 }

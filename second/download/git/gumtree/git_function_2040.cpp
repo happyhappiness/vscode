@@ -1,32 +1,12 @@
-static void mark_tree_contents_uninteresting(struct tree *tree)
+void show_object_with_name(FILE *out, struct object *obj,
+			   const struct name_path *path, const char *component)
 {
-	struct tree_desc desc;
-	struct name_entry entry;
-	struct object *obj = &tree->object;
+	struct name_path leaf;
+	leaf.up = (struct name_path *)path;
+	leaf.elem = component;
+	leaf.elem_len = strlen(component);
 
-	if (!has_sha1_file(obj->sha1))
-		return;
-	if (parse_tree(tree) < 0)
-		die("bad tree %s", sha1_to_hex(obj->sha1));
-
-	init_tree_desc(&desc, tree->buffer, tree->size);
-	while (tree_entry(&desc, &entry)) {
-		switch (object_type(entry.mode)) {
-		case OBJ_TREE:
-			mark_tree_uninteresting(lookup_tree(entry.sha1));
-			break;
-		case OBJ_BLOB:
-			mark_blob_uninteresting(lookup_blob(entry.sha1));
-			break;
-		default:
-			/* Subproject commit - not in this repository */
-			break;
-		}
-	}
-
-	/*
-	 * We don't care about the tree any more
-	 * after it has been marked uninteresting.
-	 */
-	free_tree_buffer(tree);
+	fprintf(out, "%s ", oid_to_hex(&obj->oid));
+	show_path_truncated(out, &leaf);
+	fputc('\n', out);
 }

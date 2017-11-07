@@ -1,16 +1,28 @@
-static int h2_task_process_conn(conn_rec* c)
+apr_status_t h2_task_do(h2_task *task, apr_thread_cond_t *cond)
 {
-    h2_ctx *ctx = h2_ctx_get(c);
+    apr_status_t status;
     
-    if (h2_ctx_is_task(ctx)) {
-        if (!ctx->task->serialize_headers) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
-                          "h2_h2, processing request directly");
-            h2_task_process_request(ctx->task->request, c);
-            return DONE;
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
-                      "h2_task(%s), serialized handling", ctx->task->id);
+    AP_DEBUG_ASSERT(task);
+    task->io = cond;
+    task->input = h2_task_input_create(task, task->c);
+    task->output = h2_task_output_create(task, task->c);
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                  "h2_task(%s): process connection", task->id);
+    ap_run_process_connection(task->c);
+    
+    if (task->frozen) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                      "h2_task(%s): process_conn returned frozen task", 
+                      task->id);
+        /* cleanup delayed */
+        status = APR_EAGAIN;
     }
-    return DECLINED;
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
+                      "h2_task(%s): processing done", task->id);
+        status = APR_SUCCESS;
+    }
+    
+    return status;
 }

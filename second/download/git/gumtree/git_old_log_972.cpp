@@ -1,1 +1,1 @@
-printf("committer-time %lu\n", ci.committer_time);
+printf("author-time %lu\n", ci.author_time);

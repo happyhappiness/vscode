@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ppcb_arg->s, APLOGNO(01967)
-                         "Init: Requesting pass phrase via piped dialog");
+apr_file_printf(writetty, "Private key %s (%s)\n",
+                            ppcb_arg->key_id, ppcb_arg->pkey_file);

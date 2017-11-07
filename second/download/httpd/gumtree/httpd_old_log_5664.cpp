@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
-                                         ap_server_conf,
-                                         "Failed to create transaction pool");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                             "ap_queue_pop failed");

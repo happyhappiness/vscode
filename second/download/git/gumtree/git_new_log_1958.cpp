@@ -1,1 +1,1 @@
-printf("bare\n");
+printf("worktree %s\n", wt->path);

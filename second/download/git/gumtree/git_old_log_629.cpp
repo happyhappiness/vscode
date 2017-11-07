@@ -1,2 +1,1 @@
-die(_("Unimplemented pathspec magic '%c' in '%s'"),
-				    ch, elt);
+die(_("Missing ')' at the end of pathspec magic in '%s'"), elt);

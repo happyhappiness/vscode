@@ -1,0 +1,1 @@
+printf(_("Applied autostash.\n"));

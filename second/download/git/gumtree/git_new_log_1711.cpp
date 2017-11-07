@@ -1,1 +1,2 @@
-die("BUG: cannot create anonymous strftime date_mode struct");
+error("chmod on %s failed: %s",
+			    get_lock_file_path(lock), strerror(errno));

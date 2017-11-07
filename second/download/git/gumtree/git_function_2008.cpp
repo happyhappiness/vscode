@@ -1,125 +1,73 @@
-int notes_merge(struct notes_merge_options *o,
-		struct notes_tree *local_tree,
-		unsigned char *result_sha1)
+int merge_trees(struct merge_options *o,
+		struct tree *head,
+		struct tree *merge,
+		struct tree *common,
+		struct tree **result)
 {
-	unsigned char local_sha1[20], remote_sha1[20];
-	struct commit *local, *remote;
-	struct commit_list *bases = NULL;
-	const unsigned char *base_sha1, *base_tree_sha1;
-	int result = 0;
+	int code, clean;
 
-	assert(o->local_ref && o->remote_ref);
-	assert(!strcmp(o->local_ref, local_tree->ref));
-	hashclr(result_sha1);
+	if (o->subtree_shift) {
+		merge = shift_tree_object(head, merge, o->subtree_shift);
+		common = shift_tree_object(head, common, o->subtree_shift);
+	}
 
-	trace_printf("notes_merge(o->local_ref = %s, o->remote_ref = %s)\n",
-	       o->local_ref, o->remote_ref);
+	if (sha_eq(common->object.sha1, merge->object.sha1)) {
+		output(o, 0, _("Already up-to-date!"));
+		*result = head;
+		return 1;
+	}
 
-	/* Dereference o->local_ref into local_sha1 */
-	if (read_ref_full(o->local_ref, 0, local_sha1, NULL))
-		die("Failed to resolve local notes ref '%s'", o->local_ref);
-	else if (!check_refname_format(o->local_ref, 0) &&
-		is_null_sha1(local_sha1))
-		local = NULL; /* local_sha1 == null_sha1 indicates unborn ref */
-	else if (!(local = lookup_commit_reference(local_sha1)))
-		die("Could not parse local commit %s (%s)",
-		    sha1_to_hex(local_sha1), o->local_ref);
-	trace_printf("\tlocal commit: %.7s\n", sha1_to_hex(local_sha1));
+	code = git_merge_trees(o->call_depth, common, head, merge);
 
-	/* Dereference o->remote_ref into remote_sha1 */
-	if (get_sha1(o->remote_ref, remote_sha1)) {
-		/*
-		 * Failed to get remote_sha1. If o->remote_ref looks like an
-		 * unborn ref, perform the merge using an empty notes tree.
-		 */
-		if (!check_refname_format(o->remote_ref, 0)) {
-			hashclr(remote_sha1);
-			remote = NULL;
-		} else {
-			die("Failed to resolve remote notes ref '%s'",
-			    o->remote_ref);
+	if (code != 0) {
+		if (show(o, 4) || o->call_depth)
+			die(_("merging of trees %s and %s failed"),
+			    sha1_to_hex(head->object.sha1),
+			    sha1_to_hex(merge->object.sha1));
+		else
+			exit(128);
+	}
+
+	if (unmerged_cache()) {
+		struct string_list *entries, *re_head, *re_merge;
+		int i;
+		string_list_clear(&o->current_file_set, 1);
+		string_list_clear(&o->current_directory_set, 1);
+		get_files_dirs(o, head);
+		get_files_dirs(o, merge);
+
+		entries = get_unmerged();
+		record_df_conflict_files(o, entries);
+		re_head  = get_renames(o, head, common, head, merge, entries);
+		re_merge = get_renames(o, merge, common, head, merge, entries);
+		clean = process_renames(o, re_head, re_merge);
+		for (i = entries->nr-1; 0 <= i; i--) {
+			const char *path = entries->items[i].string;
+			struct stage_data *e = entries->items[i].util;
+			if (!e->processed
+				&& !process_entry(o, path, e))
+				clean = 0;
 		}
-	} else if (!(remote = lookup_commit_reference(remote_sha1))) {
-		die("Could not parse remote commit %s (%s)",
-		    sha1_to_hex(remote_sha1), o->remote_ref);
-	}
-	trace_printf("\tremote commit: %.7s\n", sha1_to_hex(remote_sha1));
+		for (i = 0; i < entries->nr; i++) {
+			struct stage_data *e = entries->items[i].util;
+			if (!e->processed)
+				die(_("Unprocessed path??? %s"),
+				    entries->items[i].string);
+		}
 
-	if (!local && !remote)
-		die("Cannot merge empty notes ref (%s) into empty notes ref "
-		    "(%s)", o->remote_ref, o->local_ref);
-	if (!local) {
-		/* result == remote commit */
-		hashcpy(result_sha1, remote_sha1);
-		goto found_result;
-	}
-	if (!remote) {
-		/* result == local commit */
-		hashcpy(result_sha1, local_sha1);
-		goto found_result;
-	}
-	assert(local && remote);
+		string_list_clear(re_merge, 0);
+		string_list_clear(re_head, 0);
+		string_list_clear(entries, 1);
 
-	/* Find merge bases */
-	bases = get_merge_bases(local, remote);
-	if (!bases) {
-		base_sha1 = null_sha1;
-		base_tree_sha1 = EMPTY_TREE_SHA1_BIN;
-		if (o->verbosity >= 4)
-			printf("No merge base found; doing history-less merge\n");
-	} else if (!bases->next) {
-		base_sha1 = bases->item->object.sha1;
-		base_tree_sha1 = bases->item->tree->object.sha1;
-		if (o->verbosity >= 4)
-			printf("One merge base found (%.7s)\n",
-				sha1_to_hex(base_sha1));
-	} else {
-		/* TODO: How to handle multiple merge-bases? */
-		base_sha1 = bases->item->object.sha1;
-		base_tree_sha1 = bases->item->tree->object.sha1;
-		if (o->verbosity >= 3)
-			printf("Multiple merge bases found. Using the first "
-				"(%.7s)\n", sha1_to_hex(base_sha1));
+		free(re_merge);
+		free(re_head);
+		free(entries);
 	}
+	else
+		clean = 1;
 
-	if (o->verbosity >= 4)
-		printf("Merging remote commit %.7s into local commit %.7s with "
-			"merge-base %.7s\n", sha1_to_hex(remote->object.sha1),
-			sha1_to_hex(local->object.sha1),
-			sha1_to_hex(base_sha1));
+	if (o->call_depth)
+		*result = write_tree_from_memory(o);
 
-	if (!hashcmp(remote->object.sha1, base_sha1)) {
-		/* Already merged; result == local commit */
-		if (o->verbosity >= 2)
-			printf("Already up-to-date!\n");
-		hashcpy(result_sha1, local->object.sha1);
-		goto found_result;
-	}
-	if (!hashcmp(local->object.sha1, base_sha1)) {
-		/* Fast-forward; result == remote commit */
-		if (o->verbosity >= 2)
-			printf("Fast-forward\n");
-		hashcpy(result_sha1, remote->object.sha1);
-		goto found_result;
-	}
-
-	result = merge_from_diffs(o, base_tree_sha1, local->tree->object.sha1,
-				  remote->tree->object.sha1, local_tree);
-
-	if (result != 0) { /* non-trivial merge (with or without conflicts) */
-		/* Commit (partial) result */
-		struct commit_list *parents = NULL;
-		commit_list_insert(remote, &parents); /* LIFO order */
-		commit_list_insert(local, &parents);
-		create_notes_commit(local_tree, parents,
-				    o->commit_msg.buf, o->commit_msg.len,
-				    result_sha1);
-	}
-
-found_result:
-	free_commit_list(bases);
-	strbuf_release(&(o->commit_msg));
-	trace_printf("notes_merge(): result = %i, result_sha1 = %.7s\n",
-	       result, sha1_to_hex(result_sha1));
-	return result;
+	return clean;
 }

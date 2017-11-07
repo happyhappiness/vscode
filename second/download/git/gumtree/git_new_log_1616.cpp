@@ -1,1 +1,1 @@
-die("%s aborted reading request", prog_name);
+die_errno("error reading request body");

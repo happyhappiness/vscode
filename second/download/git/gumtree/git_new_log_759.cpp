@@ -1,1 +1,1 @@
-die("BUG: interned attributes shouldn't be deleted");
+die("strange hostname '%s' blocked", ssh_host);

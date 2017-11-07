@@ -1,1 +1,1 @@
-fputs(o.obuf.buf, stdout);
+die(_("Unknown action: %d"), opts->action);

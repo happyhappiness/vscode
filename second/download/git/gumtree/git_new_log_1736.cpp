@@ -1,2 +1,1 @@
-error(_("could not delete reference %s: %s"),
-			      refnames->items[0].string, err.buf);
+warning("Unexpected sha1 when deleting %s", pseudoref);

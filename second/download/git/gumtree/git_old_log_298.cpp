@@ -1,1 +1,2 @@
-error("no matching refs with %s", av);
+warning("ignoring %s; cannot handle more than %d refs",
+			refname, MAX_REVS);

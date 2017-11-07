@@ -1,1 +1,1 @@
-error("remote-curl: error reading command stream from git");
+error("remote-curl: usage: git remote-curl <remote> [<url>]");

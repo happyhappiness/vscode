@@ -1,1 +1,0 @@
-fprintf(stderr, "Recorded preimage for '%s'\n", path);

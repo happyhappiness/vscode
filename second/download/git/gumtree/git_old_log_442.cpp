@@ -1,1 +1,1 @@
-error(_("Unable to update cache tree\n"));
+error(_("Could not resolve HEAD commit\n"));

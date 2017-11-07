@@ -1,3 +1,2 @@
-error(_("Cannot add notes. Found existing notes "
-				       "for object %s. Use '-f' to overwrite "
-				       "existing notes"), sha1_to_hex(object));
+error(_("The note contents have been left in %s"),
+				      path);

@@ -1,1 +1,1 @@
-execute_commands_non_atomic(commands, si);
+rp_error("%s", err.buf);

@@ -1,1 +1,2 @@
-die("Reference has invalid name: '%s'", refname);
+die("unordered stage entries for '%s'",
+				ce->name);

@@ -1,2 +1,2 @@
-fprintf(stderr, _("Removing note for object %s\n"),
-			sha1_to_hex(object));
+error(_("missing notes on source object %s. Cannot "
+			       "copy."), sha1_to_hex(from_obj));

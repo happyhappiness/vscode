@@ -1,1 +1,2 @@
-die(_("cannot read object %s '%s'"), sha1_to_hex(sha), path);
+error(_("refusing to lose untracked file at '%s'"),
+			     path);

@@ -1,1 +1,1 @@
-error(_("no commits parsed."));
+rollback_lock_file(&index_lock);

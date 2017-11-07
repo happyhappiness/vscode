@@ -1,2 +1,2 @@
-die("object %s cannot be read",
-			    oid_to_hex(&trg_entry->idx.oid));
+error("delta base offset out of bound for %s",
+				      oid_to_hex(&entry->idx.oid));

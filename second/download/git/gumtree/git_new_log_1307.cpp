@@ -1,1 +1,1 @@
-die(_("BUG: reopen a lockfile that has been committed"));
+die(_("BUG: reopen a lockfile that is still open"));

@@ -1,50 +1,46 @@
-apr_status_t h2_stream_schedule(h2_stream *stream, int eos,
-                                h2_stream_pri_cmp *cmp, void *ctx)
+apr_status_t h2_stream_write_data(h2_stream *stream,
+                                  const char *data, size_t len)
 {
-    apr_status_t status;
-    AP_DEBUG_ASSERT(stream);
-    AP_DEBUG_ASSERT(stream->session);
-    AP_DEBUG_ASSERT(stream->session->mplx);
+    apr_status_t status = APR_SUCCESS;
     
-    if (!output_open(stream)) {
-        return APR_ECONNRESET;
-    }
-    if (stream->scheduled) {
+    AP_DEBUG_ASSERT(stream);
+    if (input_closed(stream) || !stream->request->eoh || !stream->bbin) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
+                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d, bbin=%d", 
+                      stream->session->id, stream->id, input_closed(stream),
+                      stream->request->eoh, !!stream->bbin);
         return APR_EINVAL;
     }
-    if (eos) {
-        close_input(stream);
-    }
-    
-    /* Seeing the end-of-headers, we have everything we need to 
-     * start processing it.
-     */
-    status = h2_request_end_headers(stream->request, stream->pool, eos);
-    if (status == APR_SUCCESS) {
-        if (!eos) {
-            stream->bbin = apr_brigade_create(stream->pool, 
-                                              stream->session->c->bucket_alloc);
-        }
-        stream->input_remaining = stream->request->content_length;
-        
-        status = h2_mplx_process(stream->session->mplx, stream->id, 
-                                 stream->request, eos, cmp, ctx);
-        stream->scheduled = 1;
-        
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                      "h2_stream(%ld-%d): scheduled %s %s://%s%s",
-                      stream->session->id, stream->id,
-                      stream->request->method, stream->request->scheme,
-                      stream->request->authority, stream->request->path);
+
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
+                  "h2_stream(%ld-%d): add %ld input bytes", 
+                  stream->session->id, stream->id, (long)len);
+
+    H2_STREAM_IN(APLOG_TRACE2, stream, "write_data_pre");
+    if (stream->request->chunked) {
+        /* if input may have a body and we have not seen any
+         * content-length header, we need to chunk the input data.
+         */
+        status = input_add_data(stream, data, len, 1);
     }
     else {
-        h2_stream_rst(stream, H2_ERR_INTERNAL_ERROR);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                      "h2_stream(%ld-%d): RST=2 (internal err) %s %s://%s%s",
-                      stream->session->id, stream->id,
-                      stream->request->method, stream->request->scheme,
-                      stream->request->authority, stream->request->path);
+        stream->input_remaining -= len;
+        if (stream->input_remaining < 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c,
+                          APLOGNO(02961) 
+                          "h2_stream(%ld-%d): got %ld more content bytes than announced "
+                          "in content-length header: %ld", 
+                          stream->session->id, stream->id,
+                          (long)stream->request->content_length, 
+                          -(long)stream->input_remaining);
+            h2_stream_rst(stream, H2_ERR_PROTOCOL_ERROR);
+            return APR_ECONNABORTED;
+        }
+        status = input_add_data(stream, data, len, 0);
     }
-    
+    if (status == APR_SUCCESS) {
+        status = h2_stream_input_flush(stream);
+    }
+    H2_STREAM_IN(APLOG_TRACE2, stream, "write_data_post");
     return status;
 }

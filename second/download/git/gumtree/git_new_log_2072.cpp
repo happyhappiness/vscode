@@ -1,2 +1,2 @@
-die("git upload-pack: not our ref %s",
-			    oid_to_hex(&o->oid));
+fprintf(pipe_fd, "%s\n",
+			oid_to_hex(&extra_edge_obj.objects[i].item->oid));

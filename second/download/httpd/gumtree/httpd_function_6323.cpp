@@ -1,43 +1,36 @@
-static int lua_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                             apr_pool_t *ptemp, server_rec *s)
+static void fix_cgivars(request_rec *r, fcgi_dirconf_t *dconf)
 {
-    apr_pool_t **pool;
-    const char *tempdir;
-    apr_status_t rs;
+    sei_entry *entries;
+    const char *err, *src;
+    int i = 0, rc = 0;
+    ap_regmatch_t regm[AP_MAX_REG_MATCH];
 
-    lua_ssl_val = APR_RETRIEVE_OPTIONAL_FN(ssl_var_lookup);
-    lua_ssl_is_https = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
-    
-    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG)
-        return OK;
+    entries = (sei_entry *) dconf->env_fixups->elts;
+    for (i = 0; i < dconf->env_fixups->nelts; i++) {
+        sei_entry *entry = &entries[i];
 
-    /* Create ivm mutex */
-    rs = ap_global_mutex_create(&lua_ivm_mutex, NULL, "lua-ivm-shm", NULL,
-                            s, pconf, 0);
-    if (APR_SUCCESS != rs) {
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
+        if (entry->envname[0] == '!') {
+            apr_table_unset(r->subprocess_env, entry->envname+1);
+        }
+        else if (0 < (rc = ap_expr_exec_re(r, entry->cond, AP_MAX_REG_MATCH, regm, &src, &err)))  {
+            const char *val = ap_expr_str_exec_re(r, entry->subst, AP_MAX_REG_MATCH, regm, &src, &err);
+            if (err) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03514)
+                              "Error evaluating expression for replacement of %s: '%s'",
+                               entry->envname, err);
+                continue;
+            }
+            if (APLOGrtrace4(r)) {
+                const char *oldval = apr_table_get(r->subprocess_env, entry->envname);
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                              "fix_cgivars: override %s from '%s' to '%s'",
+                              entry->envname, oldval, val);
 
-    /* Create shared memory space */
-    rs = apr_temp_dir_get(&tempdir, pconf);
-    if (rs != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02664)
-                 "mod_lua IVM: Failed to find temporary directory");
-        return HTTP_INTERNAL_SERVER_ERROR;
+            }
+            apr_table_setn(r->subprocess_env, entry->envname, val);
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, "fix_cgivars: Condition returned %d", rc);
+        }
     }
-    lua_ivm_shmfile = apr_psprintf(pconf, "%s/httpd_lua_shm.%ld", tempdir,
-                           (long int)getpid());
-    rs = apr_shm_create(&lua_ivm_shm, sizeof(apr_pool_t**),
-                    (const char *) lua_ivm_shmfile, pconf);
-    if (rs != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02665)
-            "mod_lua: Failed to create shared memory segment on file %s",
-                     lua_ivm_shmfile);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-    pool = (apr_pool_t **)apr_shm_baseaddr_get(lua_ivm_shm);
-    apr_pool_create(pool, pconf);
-    apr_pool_cleanup_register(pconf, NULL, shm_cleanup_wrapper,
-                          apr_pool_cleanup_null);
-    return OK;
 }

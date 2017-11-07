@@ -1,1 +1,1 @@
-error("key does not contain variable name: %s", key);
+error("key does not contain a section: %s", key);

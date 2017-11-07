@@ -1,11 +1,34 @@
-apr_status_t h2_push_diary_digest64_set(h2_push_diary *diary, const char *authority, 
-                                        const char *data64url, apr_pool_t *pool)
+apr_status_t h2_request_rwrite(h2_request *req, request_rec *r)
 {
-    const char *data;
-    apr_size_t len = h2_util_base64url_decode(&data, data64url, pool);
-    /* Intentional no APLOGNO */
-    ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
-                  "h2_push_diary_digest64_set: digest=%s, dlen=%d", 
-                  data64url, (int)len);
-    return h2_push_diary_digest_set(diary, authority, data, len);
+    apr_status_t status;
+    
+    req->config    = h2_config_rget(r);
+    req->method    = r->method;
+    req->scheme    = (r->parsed_uri.scheme? r->parsed_uri.scheme
+                      : ap_http_scheme(r));
+    req->authority = r->hostname;
+    req->path      = apr_uri_unparse(r->pool, &r->parsed_uri, 
+                                     APR_URI_UNP_OMITSITEPART);
+
+    if (!ap_strchr_c(req->authority, ':') && r->server && r->server->port) {
+        apr_port_t defport = apr_uri_port_of_scheme(req->scheme);
+        if (defport != r->server->port) {
+            /* port info missing and port is not default for scheme: append */
+            req->authority = apr_psprintf(r->pool, "%s:%d", req->authority,
+                                          (int)r->server->port);
+        }
+    }
+    
+    AP_DEBUG_ASSERT(req->scheme);
+    AP_DEBUG_ASSERT(req->authority);
+    AP_DEBUG_ASSERT(req->path);
+    AP_DEBUG_ASSERT(req->method);
+
+    status = add_all_h1_header(req, r->pool, r->headers_in);
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                  "h2_request(%d): rwrite %s host=%s://%s%s",
+                  req->id, req->method, req->scheme, req->authority, req->path);
+                  
+    return status;
 }

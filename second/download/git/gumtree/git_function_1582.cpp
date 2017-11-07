@@ -1,58 +1,58 @@
-static int sha1_loose_object_info(const unsigned char *sha1,
-				  struct object_info *oi,
-				  int flags)
+static int parse_sha1_header_extended(const char *hdr, struct object_info *oi,
+			       unsigned int flags)
 {
-	int status = 0;
-	unsigned long mapsize;
-	void *map;
-	git_zstream stream;
-	char hdr[32];
-	struct strbuf hdrbuf = STRBUF_INIT;
-
-	if (oi->delta_base_sha1)
-		hashclr(oi->delta_base_sha1);
+	const char *type_buf = hdr;
+	unsigned long size;
+	int type, type_len = 0;
 
 	/*
-	 * If we don't care about type or size, then we don't
-	 * need to look inside the object at all. Note that we
-	 * do not optimize out the stat call, even if the
-	 * caller doesn't care about the disk-size, since our
-	 * return value implicitly indicates whether the
-	 * object even exists.
+	 * The type can be of any size but is followed by
+	 * a space.
 	 */
-	if (!oi->typep && !oi->typename && !oi->sizep) {
-		struct stat st;
-		if (stat_sha1_file(sha1, &st) < 0)
-			return -1;
-		if (oi->disk_sizep)
-			*oi->disk_sizep = st.st_size;
-		return 0;
+	for (;;) {
+		char c = *hdr++;
+		if (c == ' ')
+			break;
+		type_len++;
 	}
 
-	map = map_sha1_file(sha1, &mapsize);
-	if (!map)
+	type = type_from_string_gently(type_buf, type_len, 1);
+	if (oi->typename)
+		strbuf_add(oi->typename, type_buf, type_len);
+	/*
+	 * Set type to 0 if its an unknown object and
+	 * we're obtaining the type using '--allow-unkown-type'
+	 * option.
+	 */
+	if ((flags & LOOKUP_UNKNOWN_OBJECT) && (type < 0))
+		type = 0;
+	else if (type < 0)
+		die("invalid object type");
+	if (oi->typep)
+		*oi->typep = type;
+
+	/*
+	 * The length must follow immediately, and be in canonical
+	 * decimal format (ie "010" is not valid).
+	 */
+	size = *hdr++ - '0';
+	if (size > 9)
 		return -1;
-	if (oi->disk_sizep)
-		*oi->disk_sizep = mapsize;
-	if ((flags & LOOKUP_UNKNOWN_OBJECT)) {
-		if (unpack_sha1_header_to_strbuf(&stream, map, mapsize, hdr, sizeof(hdr), &hdrbuf) < 0)
-			status = error("unable to unpack %s header with --allow-unknown-type",
-				       sha1_to_hex(sha1));
-	} else if (unpack_sha1_header(&stream, map, mapsize, hdr, sizeof(hdr)) < 0)
-		status = error("unable to unpack %s header",
-			       sha1_to_hex(sha1));
-	if (status < 0)
-		; /* Do nothing */
-	else if (hdrbuf.len) {
-		if ((status = parse_sha1_header_extended(hdrbuf.buf, oi, flags)) < 0)
-			status = error("unable to parse %s header with --allow-unknown-type",
-				       sha1_to_hex(sha1));
-	} else if ((status = parse_sha1_header_extended(hdr, oi, flags)) < 0)
-		status = error("unable to parse %s header", sha1_to_hex(sha1));
-	git_inflate_end(&stream);
-	munmap(map, mapsize);
-	if (status && oi->typep)
-		*oi->typep = status;
-	strbuf_release(&hdrbuf);
-	return 0;
+	if (size) {
+		for (;;) {
+			unsigned long c = *hdr - '0';
+			if (c > 9)
+				break;
+			hdr++;
+			size = size * 10 + c;
+		}
+	}
+
+	if (oi->sizep)
+		*oi->sizep = size;
+
+	/*
+	 * The length must be followed by a zero byte
+	 */
+	return *hdr ? -1 : type;
 }

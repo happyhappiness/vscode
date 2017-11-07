@@ -1,1 +1,1 @@
-packet_write(fd[1], "argument %s\n", argv[i]);
+packet_write(fd[1], "argument --format=%s\n", format);

@@ -1,1 +1,2 @@
-printf(_("Deleted tag '%s' (was %s)\n"), name, find_unique_abbrev(sha1, DEFAULT_ABBREV));
+die(_("submodule--helper subcommand must be "
+		      "called with a subcommand"));

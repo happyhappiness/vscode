@@ -1,1 +1,2 @@
-printf_ln(_("  HEAD branch: %s"), _("(not queried)"));
+printf(_("%-*s    and with remote %s\n"), width, "",
+		       merge->items[i].string);

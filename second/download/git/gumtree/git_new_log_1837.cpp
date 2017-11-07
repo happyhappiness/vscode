@@ -1,1 +1,2 @@
-die("BUG! Want to close pack marked 'do-not-close'");
+warning("unknown repository extension: %s",
+				unknown_extensions.items[i].string);

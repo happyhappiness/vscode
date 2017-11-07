@@ -1,1 +1,1 @@
-printf(" (%s) in %s\n", tag->tag, sha1_to_hex(tag->object.sha1));
+printf("tagged %s %s", typename(tag->tagged->type), sha1_to_hex(tag->tagged->sha1));

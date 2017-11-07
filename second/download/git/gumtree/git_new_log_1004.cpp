@@ -1,2 +1,2 @@
-error(_("no note found for object %s."),
-				       oid_to_hex(&object));
+die(_("failed to finish 'show' for object '%s'"),
+		    oid_to_hex(object));

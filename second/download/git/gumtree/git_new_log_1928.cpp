@@ -1,1 +1,1 @@
-die("%s missing parameter", opt->long_name);
+die("cannot describe '%s'", oid_to_hex(oid));

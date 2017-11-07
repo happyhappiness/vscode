@@ -1,2 +1,2 @@
-printf("%06o %s %d\t", ce->ce_mode,
-			       oid_to_hex(&ce->oid), ce_stage(ce));
+die(_("cannot find commit %s (%s)"),
+			    ref_name[num_rev], oid_to_hex(&revkey));

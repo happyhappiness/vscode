@@ -1,1 +1,1 @@
-die("BUG: attempt to snprintf into too-small buffer");
+die("BUG: your snprintf is broken");

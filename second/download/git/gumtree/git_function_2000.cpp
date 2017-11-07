@@ -1,49 +1,62 @@
-void traverse_commit_list(struct rev_info *revs,
-			  show_commit_fn show_commit,
-			  show_object_fn show_object,
-			  void *data)
+static void process_tree(struct rev_info *revs,
+			 struct tree *tree,
+			 show_object_fn show,
+			 struct strbuf *base,
+			 const char *name,
+			 void *cb_data)
 {
-	int i;
-	struct commit *commit;
-	struct strbuf base;
+	struct object *obj = &tree->object;
+	struct tree_desc desc;
+	struct name_entry entry;
+	enum interesting match = revs->diffopt.pathspec.nr == 0 ?
+		all_entries_interesting: entry_not_interesting;
+	int baselen = base->len;
 
-	strbuf_init(&base, PATH_MAX);
-	while ((commit = get_revision(revs)) != NULL) {
-		/*
-		 * an uninteresting boundary commit may not have its tree
-		 * parsed yet, but we are not going to show them anyway
-		 */
-		if (commit->tree)
-			add_pending_tree(revs, commit->tree);
-		show_commit(commit, data);
+	if (!revs->tree_objects)
+		return;
+	if (!obj)
+		die("bad tree object");
+	if (obj->flags & (UNINTERESTING | SEEN))
+		return;
+	if (parse_tree_gently(tree, revs->ignore_missing_links) < 0) {
+		if (revs->ignore_missing_links)
+			return;
+		die("bad tree object %s", sha1_to_hex(obj->sha1));
 	}
-	for (i = 0; i < revs->pending.nr; i++) {
-		struct object_array_entry *pending = revs->pending.objects + i;
-		struct object *obj = pending->item;
-		const char *name = pending->name;
-		const char *path = pending->path;
-		if (obj->flags & (UNINTERESTING | SEEN))
-			continue;
-		if (obj->type == OBJ_TAG) {
-			obj->flags |= SEEN;
-			show_object(obj, name, data);
-			continue;
+
+	obj->flags |= SEEN;
+	strbuf_addstr(base, name);
+	show(obj, base->buf, cb_data);
+	if (base->len)
+		strbuf_addch(base, '/');
+
+	init_tree_desc(&desc, tree->buffer, tree->size);
+
+	while (tree_entry(&desc, &entry)) {
+		if (match != all_entries_interesting) {
+			match = tree_entry_interesting(&entry, base, 0,
+						       &revs->diffopt.pathspec);
+			if (match == all_entries_not_interesting)
+				break;
+			if (match == entry_not_interesting)
+				continue;
 		}
-		if (!path)
-			path = "";
-		if (obj->type == OBJ_TREE) {
-			process_tree(revs, (struct tree *)obj, show_object,
-				     &base, path, data);
-			continue;
-		}
-		if (obj->type == OBJ_BLOB) {
-			process_blob(revs, (struct blob *)obj, show_object,
-				     &base, path, data);
-			continue;
-		}
-		die("unknown pending object %s (%s)",
-		    sha1_to_hex(obj->sha1), name);
+
+		if (S_ISDIR(entry.mode))
+			process_tree(revs,
+				     lookup_tree(entry.sha1),
+				     show, base, entry.path,
+				     cb_data);
+		else if (S_ISGITLINK(entry.mode))
+			process_gitlink(revs, entry.sha1,
+					show, base, entry.path,
+					cb_data);
+		else
+			process_blob(revs,
+				     lookup_blob(entry.sha1),
+				     show, base, entry.path,
+				     cb_data);
 	}
-	object_array_clear(&revs->pending);
-	strbuf_release(&base);
+	strbuf_setlen(base, baselen);
+	free_tree_buffer(tree);
 }

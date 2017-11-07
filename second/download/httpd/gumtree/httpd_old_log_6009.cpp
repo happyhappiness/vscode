@@ -1,4 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
-                          APLOGNO(02917) 
-                          "h2_request(%d): pseudo header after request start",
-                          req->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn, APLOGNO()
+                      "h2_request(%d): access_status=%d, request_create failed",
+                      req->id, access_status);

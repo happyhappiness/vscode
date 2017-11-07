@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                        "Websocket: Reading %" APR_SIZE_T_FMT " bytes of PONG", plen);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01158)
+                     "Looking at %s -> %s initialized?", balancer->s->name,
+                     ap_proxy_worker_name(p, worker));

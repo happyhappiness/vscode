@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, r->connection, 
-                  "h2_proxy_session(%s): request done %s, touched=%d",
-                  ctx->engine_id, task_id, touched);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, APLOGNO(10023)
+                      "giving up after %d reconnects, %d requests todo",
+                      reconnects, h2_proxy_fifo_count(ctx->requests));

@@ -1,1 +1,1 @@
-hashmap_init(&submodule_ref_stores, submodule_hash_cmp, 0);
+warning("ignoring broken ref %s.", fullref.buf);

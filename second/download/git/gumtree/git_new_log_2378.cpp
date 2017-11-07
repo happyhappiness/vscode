@@ -1,2 +1,1 @@
-die_errno("packfile %s cannot be mapped",
-					  p->pack_name);
+error_errno("unable to update %s", path);

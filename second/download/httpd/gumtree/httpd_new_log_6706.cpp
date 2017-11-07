@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
-                  "handing out built-in DH parameters for %d-bit authenticated connection", keylen);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
+                          "core_output_filter: writing data to the network");

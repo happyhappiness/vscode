@@ -1,1 +1,1 @@
-die("Unhandled message id: %s", msg_id);
+die("Unknown fsck message type: '%s'", str);

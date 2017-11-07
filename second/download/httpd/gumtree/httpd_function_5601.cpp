@@ -1,45 +1,61 @@
-static int h2_post_config(apr_pool_t *p, apr_pool_t *plog,
-                          apr_pool_t *ptemp, server_rec *s)
+void ap_lua_rstack_dump(lua_State *L, request_rec *r, const char *msg)
 {
-    void *data = NULL;
-    const char *mod_h2_init_key = "mod_h2_init_counter";
-    nghttp2_info *ngh2;
-    apr_status_t status;
-    (void)plog;(void)ptemp;
-    
-    apr_pool_userdata_get(&data, mod_h2_init_key, s->process->pool);
-    if ( data == NULL ) {
-        ap_log_error( APLOG_MARK, APLOG_DEBUG, 0, s,
-                     "initializing post config dry run");
-        apr_pool_userdata_set((const void *)1, mod_h2_init_key,
-                              apr_pool_cleanup_null, s->process->pool);
-        return APR_SUCCESS;
+    int i;
+    int top = lua_gettop(L);
+    ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01484) "Lua Stack Dump: [%s]", msg);
+    for (i = 1; i <= top; i++) {
+        int t = lua_type(L, i);
+        switch (t) {
+        case LUA_TSTRING:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  '%s'", i, lua_tostring(L, i));
+                break;
+            }
+        case LUA_TUSERDATA:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%d:  userdata",
+                              i);
+                break;
+            }
+        case LUA_TLIGHTUSERDATA:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  lightuserdata", i);
+                break;
+            }
+        case LUA_TNIL:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%d:  NIL", i);
+                break;
+            }
+        case LUA_TNONE:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, "%d:  None", i);
+                break;
+            }
+        case LUA_TBOOLEAN:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  %s", i, lua_toboolean(L,
+                                                          i) ? "true" :
+                              "false");
+                break;
+            }
+        case LUA_TNUMBER:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  %g", i, lua_tonumber(L, i));
+                break;
+            }
+        case LUA_TTABLE:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  <table>", i);
+                break;
+            }
+        case LUA_TFUNCTION:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  <function>", i);
+                break;
+            }
+        default:{
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  unknown: -[%s]-", i, lua_typename(L, i));
+                break;
+            }
+        }
     }
-    
-    ngh2 = nghttp2_version(0);
-    ap_log_error( APLOG_MARK, APLOG_INFO, 0, s,
-                 "mod_http2 (v%s, nghttp2 %s), initializing...",
-                 MOD_HTTP2_VERSION, ngh2? ngh2->version_str : "unknown");
-    
-    switch (h2_conn_mpm_type()) {
-        case H2_MPM_EVENT:
-        case H2_MPM_WORKER:
-            /* all fine, we know these ones */
-            break;
-        case H2_MPM_PREFORK:
-            /* ok, we now know how to handle that one */
-            break;
-        case H2_MPM_UNKNOWN:
-            /* ??? */
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "post_config: mpm type unknown");
-            break;
-    }
-    
-    status = h2_h2_init(p, s);
-    if (status == APR_SUCCESS) {
-        status = h2_switch_init(p, s);
-    }
-    
-    return status;
 }

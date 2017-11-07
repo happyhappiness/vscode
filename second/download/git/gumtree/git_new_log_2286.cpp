@@ -1,1 +1,1 @@
-usage_msg_opt(_("Too many arguments."), receive_pack_usage, options);
+die(_("--[no-]autostash option is only valid with --rebase."));

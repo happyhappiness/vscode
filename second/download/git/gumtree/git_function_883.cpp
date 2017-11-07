@@ -1,18 +1,8 @@
-static struct files_ref_store *files_downcast(struct ref_store *ref_store,
-					      unsigned int required_flags,
-					      const char *caller)
+static void files_assert_main_repository(struct files_ref_store *refs,
+					 const char *caller)
 {
-	struct files_ref_store *refs;
+	if (refs->store_flags & REF_STORE_MAIN)
+		return;
 
-	if (ref_store->be != &refs_be_files)
-		die("BUG: ref_store is type \"%s\" not \"files\" in %s",
-		    ref_store->be->name, caller);
-
-	refs = (struct files_ref_store *)ref_store;
-
-	if ((refs->store_flags & required_flags) != required_flags)
-		die("BUG: operation %s requires abilities 0x%x, but only have 0x%x",
-		    caller, required_flags, refs->store_flags);
-
-	return refs;
+	die("BUG: operation %s only allowed for main ref store", caller);
 }

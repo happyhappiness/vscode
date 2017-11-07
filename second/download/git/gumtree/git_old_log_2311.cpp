@@ -1,2 +1,1 @@
-error("readlink(%s): %s", elem->path,
-				      strerror(errno));
+error("lstat(%s): %s", ce->name, strerror(errno));

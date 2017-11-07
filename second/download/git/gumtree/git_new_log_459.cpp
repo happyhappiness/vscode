@@ -1,1 +1,1 @@
-error(_("could not read '%s'."), todo_file);
+error_errno(_("could not open '%s'"), todo_file);

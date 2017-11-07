@@ -1,2 +1,1 @@
-die("BUG: local ref %s is outside of refs/notes/",
-			    o.local_ref);
+git_die_config(key, "unknown notes merge strategy %s", value);

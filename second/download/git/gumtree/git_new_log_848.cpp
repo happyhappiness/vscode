@@ -1,1 +1,1 @@
-die("unable to create lazy_name_thread");
+die("unable to join lazy_dir_thread");

@@ -1,1 +1,1 @@
-die("Can't load object %s", oid_to_hex(oid));
+die("object not found: %s", oid_to_hex(oid));

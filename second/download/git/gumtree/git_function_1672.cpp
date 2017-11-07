@@ -1,31 +1,25 @@
-static void check_good_are_ancestors_of_bad(const char *prefix, int no_checkout)
+static void handle_bad_merge_base(void)
 {
-	char *filename = git_pathdup("BISECT_ANCESTORS_OK");
-	struct stat st;
-	int fd;
+	if (is_expected_rev(current_bad_oid)) {
+		char *bad_hex = oid_to_hex(current_bad_oid);
+		char *good_hex = join_sha1_array_hex(&good_revs, ' ');
+		if (!strcmp(term_bad, "bad") && !strcmp(term_good, "good")) {
+			fprintf(stderr, "The merge base %s is bad.\n"
+				"This means the bug has been fixed "
+				"between %s and [%s].\n",
+				bad_hex, bad_hex, good_hex);
+		} else {
+			fprintf(stderr, "The merge base %s is %s.\n"
+				"This means the first '%s' commit is "
+				"between %s and [%s].\n",
+				bad_hex, term_bad, term_good, bad_hex, good_hex);
+		}
+		exit(3);
+	}
 
-	if (!current_bad_oid)
-		die("a bad revision is needed");
-
-	/* Check if file BISECT_ANCESTORS_OK exists. */
-	if (!stat(filename, &st) && S_ISREG(st.st_mode))
-		goto done;
-
-	/* Bisecting with no good rev is ok. */
-	if (good_revs.nr == 0)
-		goto done;
-
-	/* Check if all good revs are ancestor of the bad rev. */
-	if (check_ancestors(prefix))
-		check_merge_bases(no_checkout);
-
-	/* Create file BISECT_ANCESTORS_OK. */
-	fd = open(filename, O_CREAT | O_TRUNC | O_WRONLY, 0600);
-	if (fd < 0)
-		warning("could not create file '%s': %s",
-			filename, strerror(errno));
-	else
-		close(fd);
- done:
-	free(filename);
+	fprintf(stderr, "Some %s revs are not ancestor of the %s rev.\n"
+		"git bisect cannot work properly in this case.\n"
+		"Maybe you mistook %s and %s revs?\n",
+		term_good, term_bad, term_good, term_bad);
+	exit(1);
 }

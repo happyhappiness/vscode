@@ -1,169 +1,251 @@
-int ssl_pphrase_Handle_CB(char *buf, int bufsize, int verify, void *srv)
+request_rec *ap_read_request(conn_rec *conn)
 {
-    SSLModConfigRec *mc;
-    server_rec *s;
+    request_rec *r;
     apr_pool_t *p;
-    apr_array_header_t *aPassPhrase;
-    SSLSrvConfigRec *sc;
-    int *pnPassPhraseCur;
-    char **cppPassPhraseCur;
-    char *cpVHostID;
-    char *cpAlgoType;
-    int *pnPassPhraseDialog;
-    int *pnPassPhraseDialogCur;
-    BOOL *pbPassPhraseDialogOnce;
-    char *cpp;
-    int len = -1;
+    const char *expect;
+    int access_status = HTTP_OK;
+    apr_bucket_brigade *tmp_bb;
+    apr_socket_t *csd;
+    apr_interval_time_t cur_timeout;
 
-    mc = myModConfig((server_rec *)srv);
 
-    /*
-     * Reconnect to the context of ssl_phrase_Handle()
+    apr_pool_create(&p, conn->pool);
+    apr_pool_tag(p, "request");
+    r = apr_pcalloc(p, sizeof(request_rec));
+    AP_READ_REQUEST_ENTRY((intptr_t)r, (uintptr_t)conn);
+    r->pool            = p;
+    r->connection      = conn;
+    r->server          = conn->base_server;
+
+    r->user            = NULL;
+    r->ap_auth_type    = NULL;
+
+    r->allowed_methods = ap_make_method_list(p, 2);
+
+    r->headers_in      = apr_table_make(r->pool, 25);
+    r->subprocess_env  = apr_table_make(r->pool, 25);
+    r->headers_out     = apr_table_make(r->pool, 12);
+    r->err_headers_out = apr_table_make(r->pool, 5);
+    r->notes           = apr_table_make(r->pool, 5);
+
+    r->request_config  = ap_create_request_config(r->pool);
+    /* Must be set before we run create request hook */
+
+    r->proto_output_filters = conn->output_filters;
+    r->output_filters  = r->proto_output_filters;
+    r->proto_input_filters = conn->input_filters;
+    r->input_filters   = r->proto_input_filters;
+    ap_run_create_request(r);
+    r->per_dir_config  = r->server->lookup_defaults;
+
+    r->sent_bodyct     = 0;                      /* bytect isn't for body */
+
+    r->read_length     = 0;
+    r->read_body       = REQUEST_NO_BODY;
+
+    r->status          = HTTP_OK;  /* Until further notice */
+    r->the_request     = NULL;
+
+    /* Begin by presuming any module can make its own path_info assumptions,
+     * until some module interjects and changes the value.
      */
-    s                      = myCtxVarGet(mc,  1, server_rec *);
-    p                      = myCtxVarGet(mc,  2, apr_pool_t *);
-    aPassPhrase            = myCtxVarGet(mc,  3, apr_array_header_t *);
-    pnPassPhraseCur        = myCtxVarGet(mc,  4, int *);
-    cppPassPhraseCur       = myCtxVarGet(mc,  5, char **);
-    cpVHostID              = myCtxVarGet(mc,  6, char *);
-    cpAlgoType             = myCtxVarGet(mc,  7, char *);
-    pnPassPhraseDialog     = myCtxVarGet(mc,  8, int *);
-    pnPassPhraseDialogCur  = myCtxVarGet(mc,  9, int *);
-    pbPassPhraseDialogOnce = myCtxVarGet(mc, 10, BOOL *);
-    sc                     = mySrvConfig(s);
+    r->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
 
-    (*pnPassPhraseDialog)++;
-    (*pnPassPhraseDialogCur)++;
+    r->useragent_addr = conn->client_addr;
+    r->useragent_ip = conn->client_ip;
 
-    /*
-     * When remembered pass phrases are available use them...
-     */
-    if ((cpp = pphrase_array_get(aPassPhrase, *pnPassPhraseCur)) != NULL) {
-        apr_cpystrn(buf, cpp, bufsize);
-        len = strlen(buf);
-        return len;
+    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+
+    ap_run_pre_read_request(r, conn);
+
+    /* Get the request... */
+    if (!read_request_line(r, tmp_bb)) {
+        if (r->status == HTTP_REQUEST_URI_TOO_LARGE
+            || r->status == HTTP_BAD_REQUEST) {
+            if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00565)
+                              "request failed: client's request-line exceeds LimitRequestLine (longer than %d)",
+                              r->server->limit_req_line);
+            }
+            else if (r->method == NULL) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00566)
+                              "request failed: invalid characters in URI");
+            }
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        }
+        else if (r->status == HTTP_REQUEST_TIME_OUT) {
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            if (!r->connection->keepalives) {
+                ap_run_log_transaction(r);
+            }
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
+        }
+
+        apr_brigade_destroy(tmp_bb);
+        r = NULL;
+        goto traceout;
     }
 
-    /*
-     * Builtin or Pipe dialog
+    /* We may have been in keep_alive_timeout mode, so toggle back
+     * to the normal timeout mode as we fetch the header lines,
+     * as necessary.
      */
-    if (sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN
-          || sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
-        char *prompt;
-        int i;
+    csd = ap_get_conn_socket(conn);
+    apr_socket_timeout_get(csd, &cur_timeout);
+    if (cur_timeout != conn->base_server->timeout) {
+        apr_socket_timeout_set(csd, conn->base_server->timeout);
+        cur_timeout = conn->base_server->timeout;
+    }
 
-        if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
-            if (!readtty) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01965)
-                             "Init: Creating pass phrase dialog pipe child "
-                             "'%s'", sc->server->pphrase_dialog_path);
-                if (ssl_pipe_child_create(p, sc->server->pphrase_dialog_path)
-                        != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01966)
-                                 "Init: Failed to create pass phrase pipe '%s'",
-                                 sc->server->pphrase_dialog_path);
-                    PEMerr(PEM_F_PEM_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
-                    memset(buf, 0, (unsigned int)bufsize);
-                    return (-1);
-                }
-            }
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01967)
-                         "Init: Requesting pass phrase via piped dialog");
+    if (!r->assbackwards) {
+        const char *tenc;
+
+        ap_get_mime_headers_core(r, tmp_bb);
+        if (r->status != HTTP_OK) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00567)
+                          "request failed: error reading the headers");
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
         }
-        else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
-#ifdef WIN32
-            PEMerr(PEM_F_PEM_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
-            memset(buf, 0, (unsigned int)bufsize);
-            return (-1);
-#else
-            /*
-             * stderr has already been redirected to the error_log.
-             * rather than attempting to temporarily rehook it to the terminal,
-             * we print the prompt to stdout before EVP_read_pw_string turns
-             * off tty echo
+
+        tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
+        if (tenc) {
+            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
+             * Section 3.3.3.3: "If a Transfer-Encoding header field is
+             * present in a request and the chunked transfer coding is not
+             * the final encoding ...; the server MUST respond with the 400
+             * (Bad Request) status code and then close the connection".
              */
-            apr_file_open_stdout(&writetty, p);
-
-            ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01968)
-                         "Init: Requesting pass phrase via builtin terminal "
-                         "dialog");
-#endif
-        }
-
-        /*
-         * The first time display a header to inform the user about what
-         * program he actually speaks to, which module is responsible for
-         * this terminal dialog and why to the hell he has to enter
-         * something...
-         */
-        if (*pnPassPhraseDialog == 1) {
-            apr_file_printf(writetty, "%s mod_ssl (Pass Phrase Dialog)\n",
-                            AP_SERVER_BASEVERSION);
-            apr_file_printf(writetty, "Some of your private key files are encrypted for security reasons.\n");
-            apr_file_printf(writetty, "In order to read them you have to provide the pass phrases.\n");
-        }
-        if (*pbPassPhraseDialogOnce) {
-            *pbPassPhraseDialogOnce = FALSE;
-            apr_file_printf(writetty, "\n");
-            apr_file_printf(writetty, "Server %s (%s)\n", cpVHostID, cpAlgoType);
-        }
-
-        /*
-         * Emulate the OpenSSL internal pass phrase dialog
-         * (see crypto/pem/pem_lib.c:def_callback() for details)
-         */
-        prompt = "Enter pass phrase:";
-
-        for (;;) {
-            apr_file_puts(prompt, writetty);
-            if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
-                i = pipe_get_passwd_cb(buf, bufsize, "", FALSE);
+            if (!(strcasecmp(tenc, "chunked") == 0 /* fast path */
+                    || ap_find_last_token(r->pool, tenc, "chunked"))) {
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02539)
+                              "client sent unknown Transfer-Encoding "
+                              "(%s): %s", tenc, r->uri);
+                r->status = HTTP_BAD_REQUEST;
+                conn->keepalive = AP_CONN_CLOSE;
+                ap_send_error_response(r, 0);
+                ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+                ap_run_log_transaction(r);
+                apr_brigade_destroy(tmp_bb);
+                goto traceout;
             }
-            else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
-                i = EVP_read_pw_string(buf, bufsize, "", FALSE);
-            }
-            if (i != 0) {
-                PEMerr(PEM_F_PEM_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
-                memset(buf, 0, (unsigned int)bufsize);
-                return (-1);
-            }
-            len = strlen(buf);
-            if (len < 1)
-                apr_file_printf(writetty, "Apache:mod_ssl:Error: Pass phrase empty (needs to be at least 1 character).\n");
-            else
-                break;
+
+            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
+             * Section 3.3.3.3: "If a message is received with both a
+             * Transfer-Encoding and a Content-Length header field, the
+             * Transfer-Encoding overrides the Content-Length. ... A sender
+             * MUST remove the received Content-Length field".
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
+        }
+    }
+    else {
+        if (r->header_only) {
+            /*
+             * Client asked for headers only with HTTP/0.9, which doesn't send
+             * headers! Have to dink things just to make sure the error message
+             * comes through...
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00568)
+                          "client sent invalid HTTP/0.9 request: HEAD %s",
+                          r->uri);
+            r->header_only = 0;
+            r->status = HTTP_BAD_REQUEST;
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            apr_brigade_destroy(tmp_bb);
+            goto traceout;
         }
     }
 
-    /*
-     * Filter program
+    apr_brigade_destroy(tmp_bb);
+
+    /* update what we think the virtual host is based on the headers we've
+     * now read. may update status.
      */
-    else if (sc->server->pphrase_dialog_type == SSL_PPTYPE_FILTER) {
-        const char *cmd = sc->server->pphrase_dialog_path;
-        const char **argv = apr_palloc(p, sizeof(char *) * 4);
-        char *result;
+    ap_update_vhost_from_headers(r);
 
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01969)
-                     "Init: Requesting pass phrase from dialog filter "
-                     "program (%s)", cmd);
+    /* Toggle to the Host:-based vhost's timeout mode to fetch the
+     * request body and send the response body, if needed.
+     */
+    if (cur_timeout != r->server->timeout) {
+        apr_socket_timeout_set(csd, r->server->timeout);
+        cur_timeout = r->server->timeout;
+    }
 
-        argv[0] = cmd;
-        argv[1] = cpVHostID;
-        argv[2] = cpAlgoType;
-        argv[3] = NULL;
+    /* we may have switched to another server */
+    r->per_dir_config = r->server->lookup_defaults;
 
-        result = ssl_util_readfilter(s, p, cmd, argv);
-        apr_cpystrn(buf, result, bufsize);
-        len = strlen(buf);
+    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
+        || ((r->proto_num == HTTP_VERSION(1, 1))
+            && !apr_table_get(r->headers_in, "Host"))) {
+        /*
+         * Client sent us an HTTP/1.1 or later request without telling us the
+         * hostname, either with a full URL or a Host: header. We therefore
+         * need to (as per the 1.1 spec) send an error.  As a special case,
+         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
+         * a Host: header, and the server MUST respond with 400 if it doesn't.
+         */
+        access_status = HTTP_BAD_REQUEST;
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00569)
+                      "client sent HTTP/1.1 request without hostname "
+                      "(see RFC2616 section 14.23): %s", r->uri);
     }
 
     /*
-     * Ok, we now have the pass phrase, so give it back
+     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
+     * called by ap_die and by ap_send_error_response works correctly on
+     * status codes that do not cause the connection to be dropped and
+     * in situations where the connection should be kept alive.
      */
-    *cppPassPhraseCur = apr_pstrdup(p, buf);
 
-    /*
-     * And return its length to OpenSSL...
-     */
-    return (len);
+    ap_add_input_filter_handle(ap_http_input_filter_handle,
+                               NULL, r, r->connection);
+
+    if (access_status != HTTP_OK
+        || (access_status = ap_run_post_read_request(r))) {
+        ap_die(access_status, r);
+        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+        ap_run_log_transaction(r);
+        r = NULL;
+        goto traceout;
+    }
+
+    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
+        && (expect[0] != '\0')) {
+        /*
+         * The Expect header field was added to HTTP/1.1 after RFC 2068
+         * as a means to signal when a 100 response is desired and,
+         * unfortunately, to signal a poor man's mandatory extension that
+         * the server must understand or return 417 Expectation Failed.
+         */
+        if (strcasecmp(expect, "100-continue") == 0) {
+            r->expecting_100 = 1;
+        }
+        else {
+            r->status = HTTP_EXPECTATION_FAILED;
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00570)
+                          "client sent an unrecognized expectation value of "
+                          "Expect: %s", expect);
+            ap_send_error_response(r, 0);
+            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
+            ap_run_log_transaction(r);
+            goto traceout;
+        }
+    }
+
+    AP_READ_REQUEST_SUCCESS((uintptr_t)r, (char *)r->method, (char *)r->uri, (char *)r->server->defn_name, r->status);
+    return r;
+    traceout:
+    AP_READ_REQUEST_FAILURE((uintptr_t)r);
+    return r;
 }

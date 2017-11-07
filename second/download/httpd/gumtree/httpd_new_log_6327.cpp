@@ -1,1 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, "fix_cgivars: Condition returned %d", rc);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03248)
+                     "Creating hc worker %pp for %s://%s:%d",
+                     worker, worker->s->scheme, worker->s->hostname,
+                     (int)port);

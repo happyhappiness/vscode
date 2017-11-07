@@ -1,67 +1,94 @@
-struct ref **get_remote_heads(int in, char *src_buf, size_t src_len,
-			      struct ref **list, unsigned int flags,
-			      struct sha1_array *extra_have,
-			      struct sha1_array *shallow_points)
+int git_config_rename_section_in_file(const char *config_filename,
+				      const char *old_name, const char *new_name)
 {
-	struct ref **orig_list = list;
-	int got_at_least_one_head = 0;
+	int ret = 0, remove = 0;
+	char *filename_buf = NULL;
+	struct lock_file *lock;
+	int out_fd;
+	char buf[1024];
+	FILE *config_file;
+	struct stat st;
 
-	*list = NULL;
-	for (;;) {
-		struct ref *ref;
-		unsigned char old_sha1[20];
-		char *name;
-		int len, name_len;
-		char *buffer = packet_buffer;
-
-		len = packet_read(in, &src_buf, &src_len,
-				  packet_buffer, sizeof(packet_buffer),
-				  PACKET_READ_GENTLE_ON_EOF |
-				  PACKET_READ_CHOMP_NEWLINE);
-		if (len < 0)
-			die_initial_contact(got_at_least_one_head);
-
-		if (!len)
-			break;
-
-		if (len > 4 && starts_with(buffer, "ERR "))
-			die("remote error: %s", buffer + 4);
-
-		if (len == 48 && starts_with(buffer, "shallow ")) {
-			if (get_sha1_hex(buffer + 8, old_sha1))
-				die("protocol error: expected shallow sha-1, got '%s'", buffer + 8);
-			if (!shallow_points)
-				die("repository on the other end cannot be shallow");
-			sha1_array_append(shallow_points, old_sha1);
-			continue;
-		}
-
-		if (len < 42 || get_sha1_hex(buffer, old_sha1) || buffer[40] != ' ')
-			die("protocol error: expected sha/ref, got '%s'", buffer);
-		name = buffer + 41;
-
-		name_len = strlen(name);
-		if (len != name_len + 41) {
-			free(server_capabilities);
-			server_capabilities = xstrdup(name + name_len + 1);
-		}
-
-		if (extra_have &&
-		    name_len == 5 && !memcmp(".have", name, 5)) {
-			sha1_array_append(extra_have, old_sha1);
-			continue;
-		}
-
-		if (!check_ref(name, name_len, flags))
-			continue;
-		ref = alloc_ref(buffer + 41);
-		hashcpy(ref->old_sha1, old_sha1);
-		*list = ref;
-		list = &ref->next;
-		got_at_least_one_head = 1;
+	if (new_name && !section_name_is_ok(new_name)) {
+		ret = error("invalid section name: %s", new_name);
+		goto out;
 	}
 
-	annotate_refs_with_symref_info(*orig_list);
+	if (!config_filename)
+		config_filename = filename_buf = git_pathdup("config");
 
-	return list;
+	lock = xcalloc(1, sizeof(struct lock_file));
+	out_fd = hold_lock_file_for_update(lock, config_filename, 0);
+	if (out_fd < 0) {
+		ret = error("could not lock config file %s", config_filename);
+		goto out;
+	}
+
+	if (!(config_file = fopen(config_filename, "rb"))) {
+		/* no config file means nothing to rename, no error */
+		goto unlock_and_out;
+	}
+
+	fstat(fileno(config_file), &st);
+
+	if (chmod(lock->filename, st.st_mode & 07777) < 0) {
+		ret = error("chmod on %s failed: %s",
+				lock->filename, strerror(errno));
+		goto out;
+	}
+
+	while (fgets(buf, sizeof(buf), config_file)) {
+		int i;
+		int length;
+		char *output = buf;
+		for (i = 0; buf[i] && isspace(buf[i]); i++)
+			; /* do nothing */
+		if (buf[i] == '[') {
+			/* it's a section */
+			int offset = section_name_match(&buf[i], old_name);
+			if (offset > 0) {
+				ret++;
+				if (new_name == NULL) {
+					remove = 1;
+					continue;
+				}
+				store.baselen = strlen(new_name);
+				if (!store_write_section(out_fd, new_name)) {
+					ret = write_error(lock->filename);
+					goto out;
+				}
+				/*
+				 * We wrote out the new section, with
+				 * a newline, now skip the old
+				 * section's length
+				 */
+				output += offset + i;
+				if (strlen(output) > 0) {
+					/*
+					 * More content means there's
+					 * a declaration to put on the
+					 * next line; indent with a
+					 * tab
+					 */
+					output -= 1;
+					output[0] = '\t';
+				}
+			}
+			remove = 0;
+		}
+		if (remove)
+			continue;
+		length = strlen(output);
+		if (write_in_full(out_fd, output, length) != length) {
+			ret = write_error(lock->filename);
+			goto out;
+		}
+	}
+	fclose(config_file);
+unlock_and_out:
+	if (commit_lock_file(lock) < 0)
+		ret = error("could not commit config file %s", config_filename);
+out:
+	free(filename_buf);
+	return ret;
 }

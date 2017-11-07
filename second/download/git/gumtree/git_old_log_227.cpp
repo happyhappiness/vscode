@@ -1,1 +1,1 @@
-die(_("reference repository '%s' is grafted"), item->string);
+die(_("reference repository '%s' is shallow"), item->string);

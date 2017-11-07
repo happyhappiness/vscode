@@ -1,1 +1,1 @@
-die("BUG: REF_ISPRUNING set without REF_NODEREF");
+die("BUG: ref_iterator_peel() called for reflog_iterator");

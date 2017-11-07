@@ -1,1 +1,1 @@
-fprintf(stderr, "Recorded preimage for '%s'\n", path);
+die_errno("cannot unlink stray '%s'", path);

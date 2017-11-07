@@ -1,227 +1,61 @@
-int git_config_set_multivar_in_file(const char *config_filename,
-				const char *key, const char *value,
-				const char *value_regex, int multi_replace)
+int create_bundle(struct bundle_header *header, const char *path,
+		  int argc, const char **argv)
 {
-	int fd = -1, in_fd = -1;
-	int ret;
-	struct lock_file *lock = NULL;
-	char *filename_buf = NULL;
-	char *contents = NULL;
-	size_t contents_sz;
+	static struct lock_file lock;
+	int bundle_fd = -1;
+	int bundle_to_stdout;
+	int ref_count = 0;
+	struct rev_info revs;
 
-	/* parse-key returns negative; flip the sign to feed exit(3) */
-	ret = 0 - git_config_parse_key(key, &store.key, &store.baselen);
-	if (ret)
-		goto out_free;
-
-	store.multi_replace = multi_replace;
-
-	if (!config_filename)
-		config_filename = filename_buf = git_pathdup("config");
-
-	/*
-	 * The lock serves a purpose in addition to locking: the new
-	 * contents of .git/config will be written into it.
-	 */
-	lock = xcalloc(1, sizeof(struct lock_file));
-	fd = hold_lock_file_for_update(lock, config_filename, 0);
-	if (fd < 0) {
-		error("could not lock config file %s: %s", config_filename, strerror(errno));
-		free(store.key);
-		ret = CONFIG_NO_LOCK;
-		goto out_free;
-	}
-
-	/*
-	 * If .git/config does not exist yet, write a minimal version.
-	 */
-	in_fd = open(config_filename, O_RDONLY);
-	if ( in_fd < 0 ) {
-		free(store.key);
-
-		if ( ENOENT != errno ) {
-			error("opening %s: %s", config_filename,
-			      strerror(errno));
-			ret = CONFIG_INVALID_FILE; /* same as "invalid config file" */
-			goto out_free;
-		}
-		/* if nothing to unset, error out */
-		if (value == NULL) {
-			ret = CONFIG_NOTHING_SET;
-			goto out_free;
-		}
-
-		store.key = (char *)key;
-		if (!store_write_section(fd, key) ||
-		    !store_write_pair(fd, key, value))
-			goto write_err_out;
-	} else {
-		struct stat st;
-		size_t copy_begin, copy_end;
-		int i, new_line = 0;
-
-		if (value_regex == NULL)
-			store.value_regex = NULL;
-		else if (value_regex == CONFIG_REGEX_NONE)
-			store.value_regex = CONFIG_REGEX_NONE;
-		else {
-			if (value_regex[0] == '!') {
-				store.do_not_match = 1;
-				value_regex++;
-			} else
-				store.do_not_match = 0;
-
-			store.value_regex = (regex_t*)xmalloc(sizeof(regex_t));
-			if (regcomp(store.value_regex, value_regex,
-					REG_EXTENDED)) {
-				error("invalid pattern: %s", value_regex);
-				free(store.value_regex);
-				ret = CONFIG_INVALID_PATTERN;
-				goto out_free;
-			}
-		}
-
-		ALLOC_GROW(store.offset, 1, store.offset_alloc);
-		store.offset[0] = 0;
-		store.state = START;
-		store.seen = 0;
+	bundle_to_stdout = !strcmp(path, "-");
+	if (bundle_to_stdout)
+		bundle_fd = 1;
+	else {
+		bundle_fd = hold_lock_file_for_update(&lock, path,
+						      LOCK_DIE_ON_ERROR);
 
 		/*
-		 * After this, store.offset will contain the *end* offset
-		 * of the last match, or remain at 0 if no match was found.
-		 * As a side effect, we make sure to transform only a valid
-		 * existing config file.
+		 * write_pack_data() will close the fd passed to it,
+		 * but commit_lock_file() will also try to close the
+		 * lockfile's fd. So make a copy of the file
+		 * descriptor to avoid trying to close it twice.
 		 */
-		if (git_config_from_file(store_aux, config_filename, NULL)) {
-			error("invalid config file %s", config_filename);
-			free(store.key);
-			if (store.value_regex != NULL &&
-			    store.value_regex != CONFIG_REGEX_NONE) {
-				regfree(store.value_regex);
-				free(store.value_regex);
-			}
-			ret = CONFIG_INVALID_FILE;
-			goto out_free;
-		}
-
-		free(store.key);
-		if (store.value_regex != NULL &&
-		    store.value_regex != CONFIG_REGEX_NONE) {
-			regfree(store.value_regex);
-			free(store.value_regex);
-		}
-
-		/* if nothing to unset, or too many matches, error out */
-		if ((store.seen == 0 && value == NULL) ||
-				(store.seen > 1 && multi_replace == 0)) {
-			ret = CONFIG_NOTHING_SET;
-			goto out_free;
-		}
-
-		fstat(in_fd, &st);
-		contents_sz = xsize_t(st.st_size);
-		contents = xmmap_gently(NULL, contents_sz, PROT_READ,
-					MAP_PRIVATE, in_fd, 0);
-		if (contents == MAP_FAILED) {
-			if (errno == ENODEV && S_ISDIR(st.st_mode))
-				errno = EISDIR;
-			error("unable to mmap '%s': %s",
-			      config_filename, strerror(errno));
-			ret = CONFIG_INVALID_FILE;
-			contents = NULL;
-			goto out_free;
-		}
-		close(in_fd);
-		in_fd = -1;
-
-		if (chmod(lock->filename.buf, st.st_mode & 07777) < 0) {
-			error("chmod on %s failed: %s",
-				lock->filename.buf, strerror(errno));
-			ret = CONFIG_NO_WRITE;
-			goto out_free;
-		}
-
-		if (store.seen == 0)
-			store.seen = 1;
-
-		for (i = 0, copy_begin = 0; i < store.seen; i++) {
-			if (store.offset[i] == 0) {
-				store.offset[i] = copy_end = contents_sz;
-			} else if (store.state != KEY_SEEN) {
-				copy_end = store.offset[i];
-			} else
-				copy_end = find_beginning_of_line(
-					contents, contents_sz,
-					store.offset[i]-2, &new_line);
-
-			if (copy_end > 0 && contents[copy_end-1] != '\n')
-				new_line = 1;
-
-			/* write the first part of the config */
-			if (copy_end > copy_begin) {
-				if (write_in_full(fd, contents + copy_begin,
-						  copy_end - copy_begin) <
-				    copy_end - copy_begin)
-					goto write_err_out;
-				if (new_line &&
-				    write_str_in_full(fd, "\n") != 1)
-					goto write_err_out;
-			}
-			copy_begin = store.offset[i];
-		}
-
-		/* write the pair (value == NULL means unset) */
-		if (value != NULL) {
-			if (store.state == START) {
-				if (!store_write_section(fd, key))
-					goto write_err_out;
-			}
-			if (!store_write_pair(fd, key, value))
-				goto write_err_out;
-		}
-
-		/* write the rest of the config */
-		if (copy_begin < contents_sz)
-			if (write_in_full(fd, contents + copy_begin,
-					  contents_sz - copy_begin) <
-			    contents_sz - copy_begin)
-				goto write_err_out;
-
-		munmap(contents, contents_sz);
-		contents = NULL;
+		bundle_fd = dup(bundle_fd);
+		if (bundle_fd < 0)
+			die_errno("unable to dup file descriptor");
 	}
 
-	if (commit_lock_file(lock) < 0) {
-		error("could not commit config file %s", config_filename);
-		ret = CONFIG_NO_WRITE;
-		lock = NULL;
-		goto out_free;
+	/* write signature */
+	write_or_die(bundle_fd, bundle_signature, strlen(bundle_signature));
+
+	/* init revs to list objects for pack-objects later */
+	save_commit_buffer = 0;
+	init_revisions(&revs, NULL);
+
+	/* write prerequisites */
+	if (compute_and_write_prerequisites(bundle_fd, &revs, argc, argv))
+		return -1;
+
+	argc = setup_revisions(argc, argv, &revs, NULL);
+
+	if (argc > 1)
+		return error(_("unrecognized argument: %s"), argv[1]);
+
+	object_array_remove_duplicates(&revs.pending);
+
+	ref_count = write_bundle_refs(bundle_fd, &revs);
+	if (!ref_count)
+		die(_("Refusing to create empty bundle."));
+	else if (ref_count < 0)
+		return -1;
+
+	/* write pack */
+	if (write_pack_data(bundle_fd, &revs))
+		return -1;
+
+	if (!bundle_to_stdout) {
+		if (commit_lock_file(&lock))
+			die_errno(_("cannot create '%s'"), path);
 	}
-
-	/*
-	 * lock is committed, so don't try to roll it back below.
-	 * NOTE: Since lockfile.c keeps a linked list of all created
-	 * lock_file structures, it isn't safe to free(lock).  It's
-	 * better to just leave it hanging around.
-	 */
-	lock = NULL;
-	ret = 0;
-
-	/* Invalidate the config cache */
-	git_config_clear();
-
-out_free:
-	if (lock)
-		rollback_lock_file(lock);
-	free(filename_buf);
-	if (contents)
-		munmap(contents, contents_sz);
-	if (in_fd >= 0)
-		close(in_fd);
-	return ret;
-
-write_err_out:
-	ret = write_error(lock->filename.buf);
-	goto out_free;
-
+	return 0;
 }

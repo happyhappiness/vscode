@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): found %d push candidates",
-                      stream->session->id, stream->id, pushes->nelts);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, c,
+                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
+                      c->id, stream_id);

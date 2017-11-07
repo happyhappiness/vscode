@@ -1,1 +1,3 @@
-printf_ln(_("Patch is empty. Was it split wrong?"));
+logerror("Could not listen to %s: %s",
+			 ip2str(AF_INET, (struct sockaddr *)&sin, sizeof(sin)),
+			 strerror(errno));

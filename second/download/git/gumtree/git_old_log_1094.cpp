@@ -1,2 +1,2 @@
-printf("Finalized notes merge commit: %s\n",
-			sha1_to_hex(result_sha1));
+printf("Added resolved note for object %s: %s\n",
+				sha1_to_hex(obj_sha1), sha1_to_hex(blob_sha1));

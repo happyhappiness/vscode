@@ -1,23 +1,14 @@
-int git_config_get_untracked_cache(void)
+NORETURN
+static void die_bad_number(const char *name, const char *value)
 {
-	int val = -1;
-	const char *v;
+	const char *reason = errno == ERANGE ?
+			     "out of range" :
+			     "invalid unit";
+	if (!value)
+		value = "";
 
-	/* Hack for test programs like test-dump-untracked-cache */
-	if (ignore_untracked_cache_config)
-		return -1;
-
-	if (!git_config_get_maybe_bool("core.untrackedcache", &val))
-		return val;
-
-	if (!git_config_get_value("core.untrackedcache", &v)) {
-		if (!strcasecmp(v, "keep"))
-			return -1;
-
-		error("unknown core.untrackedCache value '%s'; "
-		      "using 'keep' default value", v);
-		return -1;
-	}
-
-	return -1; /* default value */
+	if (cf && cf->name)
+		die(_("bad numeric config value '%s' for '%s' in %s: %s"),
+		    value, name, cf->name, reason);
+	die(_("bad numeric config value '%s' for '%s': %s"), value, name, reason);
 }

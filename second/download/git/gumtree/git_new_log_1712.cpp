@@ -1,1 +1,1 @@
-fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_MODE(LOCAL)));
+die("BUG: cannot create anonymous strftime date_mode struct");

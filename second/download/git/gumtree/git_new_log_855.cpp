@@ -1,1 +1,1 @@
-die(_("invalid attribute name %s"), attr_name);
+die(_("attr spec must not be empty"));

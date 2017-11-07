@@ -1,1 +1,2 @@
-die("BUG: child->real_type != OBJ_REF_DELTA");
+status_printf_ln(s, color,
+				_("git-rebase-todo is missing."));

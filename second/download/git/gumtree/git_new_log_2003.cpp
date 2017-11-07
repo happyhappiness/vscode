@@ -1,1 +1,1 @@
-fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit), stdout);
+printf(" %s", find_unique_abbrev(p->item->object.oid.hash, abbrev));

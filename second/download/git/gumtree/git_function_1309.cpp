@@ -1,19 +1,19 @@
-int commit_lock_file(struct lock_file *lk)
+int commit_lock_file_to(struct lock_file *lk, const char *path)
 {
-	static struct strbuf result_file = STRBUF_INIT;
-	int err;
-
 	if (!lk->active)
-		die("BUG: attempt to commit unlocked object");
+		die("BUG: attempt to commit unlocked object to \"%s\"", path);
 
-	if (lk->filename.len <= LOCK_SUFFIX_LEN ||
-	    strcmp(lk->filename.buf + lk->filename.len - LOCK_SUFFIX_LEN, LOCK_SUFFIX))
-		die("BUG: lockfile filename corrupt");
+	if (close_lock_file(lk))
+		return -1;
 
-	/* remove ".lock": */
-	strbuf_add(&result_file, lk->filename.buf,
-		   lk->filename.len - LOCK_SUFFIX_LEN);
-	err = commit_lock_file_to(lk, result_file.buf);
-	strbuf_reset(&result_file);
-	return err;
+	if (rename(lk->filename.buf, path)) {
+		int save_errno = errno;
+		rollback_lock_file(lk);
+		errno = save_errno;
+		return -1;
+	}
+
+	lk->active = 0;
+	strbuf_reset(&lk->filename);
+	return 0;
 }

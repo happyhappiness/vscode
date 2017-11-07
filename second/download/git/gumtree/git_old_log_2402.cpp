@@ -1,1 +1,0 @@
-error("ftell error: %s", strerror(errno));

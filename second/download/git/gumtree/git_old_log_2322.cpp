@@ -1,1 +1,2 @@
-die("strange hostname '%s' blocked", ssh_host);
+error("could not write config file %s: %s",
+			    config_filename, strerror(errno));

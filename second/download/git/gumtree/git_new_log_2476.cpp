@@ -1,1 +1,1 @@
-die(_("patch with only garbage at line %d"), state->linenr);
+error(_("unrecognized binary patch at line %d"), state->linenr-1);

@@ -1,2 +1,1 @@
-warning("skipping invalid relative alternate: %s/%s",
-				src_repo, line.buf);
+fprintf(stderr, "  %s\n", needs_pushing->items[i].string);

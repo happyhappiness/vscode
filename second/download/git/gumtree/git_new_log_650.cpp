@@ -1,2 +1,2 @@
-error(_("cannot '%s' without a previous commit"),
-				command_to_string(item->command));
+error(_("could not rename '%s' to '%s'"),
+					     rebase_path_squash_msg(), dest);

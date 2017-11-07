@@ -1,1 +1,1 @@
-die("bad object %s", sha1_to_hex(tag->tagged->sha1));
+die("bad tree %s", sha1_to_hex(obj->sha1));

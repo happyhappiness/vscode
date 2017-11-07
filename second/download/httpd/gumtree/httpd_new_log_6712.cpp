@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02471)
-                 "start_threads: Using %s", apr_pollset_method_name(event_pollset));
+ap_log_error(APLOG_MARK, APLOG_WARNING, 0, ap_server_conf,
+                     APLOGNO(02531) "winnt_accept: Listen protocol '%s' has "
+                     "no known accept filter. Using 'none' instead",
+                     lr->protocol);

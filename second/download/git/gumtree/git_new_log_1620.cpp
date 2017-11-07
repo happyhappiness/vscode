@@ -1,1 +1,2 @@
-die("unable to set up work tree using invalid config");
+error("unable to mmap '%s': %s",
+			      config_filename, strerror(errno));

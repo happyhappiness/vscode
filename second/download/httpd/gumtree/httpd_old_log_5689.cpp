@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00201)
+                         "caught SIGTERM, shutting down");

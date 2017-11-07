@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02465)
-                "cache: CACHE_INVALIDATE enabled unexpectedly: %s", r->uri);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(02467)
+                    "cache: Invalidating all cached entities in response to '%s' request for %s",
+                    r->method, r->uri);

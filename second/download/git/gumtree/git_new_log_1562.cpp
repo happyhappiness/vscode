@@ -1,1 +1,1 @@
-die("packed refname is dangerous: %s", refname);
+die("failed to prepare '%s' for appending", path);

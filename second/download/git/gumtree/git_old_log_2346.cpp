@@ -1,2 +1,2 @@
-warning("cannot read /etc/mailname: %s",
+warning("cannot open /etc/mailname: %s",
 				strerror(errno));

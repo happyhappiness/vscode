@@ -1,2 +1,2 @@
-error("copy-fd: write returned %s",
-					     strerror(write_error));
+error("copy-fd: read returned %s",
+				     strerror(read_error));

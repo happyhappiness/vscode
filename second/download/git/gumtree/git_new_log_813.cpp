@@ -1,1 +1,1 @@
-opterror(opt, "expects a number greater than zero", 0);
+error("new commit is the same as the old one: '%s'", oid_to_hex(&old));

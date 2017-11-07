@@ -1,1 +1,2 @@
-die(_("unknown error occurred while reading the configuration files"));
+warning(_("%s %s is not a commit!"),
+			ref_name, oid_to_hex(oid));

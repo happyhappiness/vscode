@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                  "h2_stream(%ld-%d): data_chunk_recv, written %ld bytes",
-                  session->id, stream_id, (long)len);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03065)
+                      "h2_stream(%ld-%d): closing with err=%d %s", 
+                      session->id, (int)stream->id, (int)error_code,
+                      h2_h2_err_description(error_code));

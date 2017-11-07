@@ -1,1 +1,2 @@
-error("Tweaking file descriptors doesn't work with this MSVCRT.dll");
+!DuplicateHandle(hproc, hnd, hproc, &hresult, 0, TRUE,
+			DUPLICATE_SAME_ACCESS);

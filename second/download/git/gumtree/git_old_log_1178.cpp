@@ -1,1 +1,1 @@
-die("symbolic link too long: %s", buf);
+die_errno("Invalid symlink '%s'", buf);

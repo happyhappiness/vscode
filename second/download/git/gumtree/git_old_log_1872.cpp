@@ -1,2 +1,5 @@
-printf("%s %s\n", sha1_to_hex(tree1->object.sha1),
-			  sha1_to_hex(tree2->object.sha1));
+fprintf(stderr,
+				_("more than %i tags found; listed %i most recent\n"
+				"gave up search at %s\n"),
+				max_candidates, max_candidates,
+				sha1_to_hex(gave_up_on->object.sha1));

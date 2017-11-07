@@ -1,1 +1,1 @@
-error_errno("unable to open %s", path->buf);
+error_errno("readlink(\"%s\")", path);

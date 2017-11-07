@@ -1,1 +1,3 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1706008 $");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EEXIST, r, APLOGNO(00779)
+                "Could not stat a cache lock file: %s",
+                lockname);

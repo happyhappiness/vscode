@@ -1,1 +1,1 @@
-die(_("--no-contains option is only allowed in list mode"));
+die(_("--merged and --no-merged options are only allowed in list mode"));

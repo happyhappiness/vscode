@@ -1,1 +1,1 @@
-die_errno(_("failed to delete directory %s"), path);
+die_errno(_("failed to delete file %s"), path);

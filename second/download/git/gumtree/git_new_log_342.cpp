@@ -1,1 +1,1 @@
-die("unexpected filter type");
+error("initialization for external filter '%s' failed", cmd);

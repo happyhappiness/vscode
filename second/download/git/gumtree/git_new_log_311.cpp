@@ -1,1 +1,1 @@
-die(_("Value '%s' for submodule.alternateLocation is not recognized"), sm_alternate);
+die(_("Value '%s' for submodule.alternateErrorStrategy is not recognized"), error_strategy);

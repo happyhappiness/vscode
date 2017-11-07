@@ -1,1 +1,1 @@
-error("Could not write %s", output);
+error("Could not open %s", path);

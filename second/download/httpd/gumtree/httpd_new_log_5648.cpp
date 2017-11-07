@@ -1,2 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, rv, r,
-                  "ap_proxy_transfer_between_connections complete");
+ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01972)
+                      "could not resolve address of %s %s",
+                      proxy_uri ? "proxy" : "OCSP responder",
+                      next_hop_uri->hostinfo);

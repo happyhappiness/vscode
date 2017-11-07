@@ -1,2 +1,1 @@
-error(_("The note contents have been left in %s"),
-				d->edit_path);
+die(_("Please supply the note contents using either -m or -F option"));

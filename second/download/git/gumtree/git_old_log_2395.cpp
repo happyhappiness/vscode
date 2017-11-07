@@ -1,1 +1,1 @@
-error("%s process failed to wait: %s", name, strerror(errno));
+error("write(%s) failed: %s", t->dest_name, strerror(errno));

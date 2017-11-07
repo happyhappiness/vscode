@@ -1,1 +1,1 @@
-error(_("could not stat '%s'"), todo_file);
+packet_buf_write(&req_buf, "%s", item->string);

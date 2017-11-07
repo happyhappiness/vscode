@@ -1,1 +1,1 @@
-error("pack-objects died of signal %d", rc - 128);
+receive_unpack_status(in);

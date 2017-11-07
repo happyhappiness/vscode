@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, cmd->pool, APLOGNO(01575)
-                 "loaded module %s from %s", modname, module_file);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
+                          "Content-Type '%s' ...", r->content_type);

@@ -1,1 +1,1 @@
-die_errno("sigprocmask");
+die_errno("sigfillset");

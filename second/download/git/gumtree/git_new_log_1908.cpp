@@ -1,1 +1,1 @@
-die_errno(_("cannot stat '%s'"), path->buf);
+strbuf_addstr(path, de->d_name);

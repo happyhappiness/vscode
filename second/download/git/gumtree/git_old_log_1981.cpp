@@ -1,1 +1,2 @@
-error("Unknown object type for %s", sha1_to_hex(obj->sha1));
+error("in tree %s: entry %s has bad mode %.6o",
+					sha1_to_hex(tree->object.sha1), entry.path, entry.mode);

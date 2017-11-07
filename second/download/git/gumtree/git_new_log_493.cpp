@@ -1,1 +1,1 @@
-die("git-cvsserver only handles server: %s", arg);
+packet_write_fmt(fd, "shallow %s\n", oid_to_hex(&graft->oid));

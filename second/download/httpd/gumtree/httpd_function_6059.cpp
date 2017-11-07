@@ -1,28 +1,31 @@
-void h2_task_register_hooks(void)
+h2_task *h2_task_create(conn_rec *c, const h2_request *req, 
+                        h2_bucket_beam *input, h2_mplx *mplx)
 {
-    /* This hook runs on new connections before mod_ssl has a say.
-     * Its purpose is to prevent mod_ssl from touching our pseudo-connections
-     * for streams.
-     */
-    ap_hook_pre_connection(h2_task_pre_conn,
-                           NULL, mod_ssl, APR_HOOK_FIRST);
-    /* When the connection processing actually starts, we might 
-     * take over, if the connection is for a task.
-     */
-    ap_hook_process_connection(h2_task_process_conn, 
-                               NULL, NULL, APR_HOOK_FIRST);
+    apr_pool_t *pool;
+    h2_task *task;
+    
+    apr_pool_create(&pool, c->pool);
+    task = apr_pcalloc(pool, sizeof(h2_task));
+    if (task == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, c,
+                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
+                      c->id, req->id);
+        return NULL;
+    }
+    
+    task->id          = apr_psprintf(pool, "%ld-%d", c->id, req->id);
+    task->stream_id   = req->id;
+    task->c           = c;
+    task->mplx        = mplx;
+    task->c->keepalives = mplx->c->keepalives;
+    task->pool        = pool;
+    task->request     = req;
+    task->ser_headers = req->serialize;
+    task->blocking    = 1;
+    task->input.beam  = input;
+    
+    apr_thread_cond_create(&task->cond, pool);
 
-    ap_register_input_filter("H2_SLAVE_IN", h2_filter_slave_in,
-                             NULL, AP_FTYPE_NETWORK);
-    ap_register_output_filter("H2_SLAVE_OUT", h2_filter_slave_output,
-                              NULL, AP_FTYPE_NETWORK);
-    ap_register_output_filter("H2_PARSE_H1", h2_filter_parse_h1,
-                              NULL, AP_FTYPE_NETWORK);
-
-    ap_register_input_filter("H2_REQUEST", h2_filter_request_in,
-                             NULL, AP_FTYPE_PROTOCOL);
-    ap_register_output_filter("H2_RESPONSE", h2_filter_headers_out,
-                              NULL, AP_FTYPE_PROTOCOL);
-    ap_register_output_filter("H2_TRAILERS_OUT", h2_filter_trailers_out,
-                              NULL, AP_FTYPE_PROTOCOL);
+    h2_ctx_create_for(c, task);
+    return task;
 }

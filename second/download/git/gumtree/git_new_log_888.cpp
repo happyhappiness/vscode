@@ -1,1 +1,1 @@
-strbuf_release(&buf);
+!ref_resolves_to_object(iter->refname, iter->oid, iter->flags);

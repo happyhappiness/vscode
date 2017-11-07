@@ -1,1 +1,1 @@
-warning(_("Failed to update main cache tree"));
+die(_("unable to update temporary index"));

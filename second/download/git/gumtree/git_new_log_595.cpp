@@ -1,2 +1,2 @@
-die("More than %d nested symlinks "
-					    "on path '%s'", MAXSYMLINKS, path);
+die_errno("Invalid path '%s'",
+						  resolved->buf);

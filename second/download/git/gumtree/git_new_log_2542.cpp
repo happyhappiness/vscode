@@ -1,2 +1,1 @@
-fprintf(log->file, "%s (%d):\n",
-				item->string, onelines->nr);
+warning(_("failed to remove '%s'"), fname);

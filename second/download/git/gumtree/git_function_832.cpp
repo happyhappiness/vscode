@@ -1,13 +1,22 @@
-int git_config_get_max_percent_split_change(void)
+int git_config_get_untracked_cache(void)
 {
 	int val = -1;
+	const char *v;
 
-	if (!git_config_get_int("splitindex.maxpercentchange", &val)) {
-		if (0 <= val && val <= 100)
-			return val;
+	/* Hack for test programs like test-dump-untracked-cache */
+	if (ignore_untracked_cache_config)
+		return -1;
 
-		return error(_("splitIndex.maxPercentChange value '%d' "
-			       "should be between 0 and 100"), val);
+	if (!git_config_get_maybe_bool("core.untrackedcache", &val))
+		return val;
+
+	if (!git_config_get_value("core.untrackedcache", &v)) {
+		if (!strcasecmp(v, "keep"))
+			return -1;
+
+		error("unknown core.untrackedCache value '%s'; "
+		      "using 'keep' default value", v);
+		return -1;
 	}
 
 	return -1; /* default value */

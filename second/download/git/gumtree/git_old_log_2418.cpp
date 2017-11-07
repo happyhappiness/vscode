@@ -1,1 +1,1 @@
-die(_("pack has bad object at offset %lu: %s"), offset, buf);
+die_errno(_("could not open '%s'"), git_path(commit_editmsg));

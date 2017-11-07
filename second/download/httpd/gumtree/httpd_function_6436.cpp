@@ -1,68 +1,62 @@
-static int authenticate_form_login_handler(request_rec * r)
+static int convert_secure_socket(conn_rec *c, apr_socket_t *csd)
 {
-    auth_form_config_rec *conf;
-    const char *err;
+        int rcode;
+        struct tlsclientopts sWS2Opts;
+        struct nwtlsopts sNWTLSOpts;
+        struct sslserveropts opts;
+    unsigned long ulFlags;
+    SOCKET sock;
+    unicode_t keyFileName[60];
 
-    const char *sent_user = NULL, *sent_pw = NULL, *sent_loc = NULL;
-    int rv;
+    apr_os_sock_get(&sock, csd);
 
-    if (strcmp(r->handler, FORM_LOGIN_HANDLER)) {
-        return DECLINED;
-    }
+    /* zero out buffers */
+        memset((char *)&sWS2Opts, 0, sizeof(struct tlsclientopts));
+        memset((char *)&sNWTLSOpts, 0, sizeof(struct nwtlsopts));
 
-    if (r->method_number != M_POST) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01811)
-          "the " FORM_LOGIN_HANDLER " only supports the POST method for %s",
-                      r->uri);
-        return HTTP_METHOD_NOT_ALLOWED;
-    }
-
-    conf = ap_get_module_config(r->per_dir_config, &auth_form_module);
-
-    rv = get_form_auth(r, conf->username, conf->password, conf->location,
-                       NULL, NULL, NULL,
-                       &sent_user, &sent_pw, &sent_loc,
-                       NULL, NULL, NULL, conf);
-    if (OK == rv) {
-        rv = check_authn(r, sent_user, sent_pw);
-        if (OK == rv) {
-            set_session_auth(r, sent_user, sent_pw, conf->site);
-            if (sent_loc) {
-                apr_table_set(r->headers_out, "Location", sent_loc);
-                return HTTP_MOVED_TEMPORARILY;
-            }
-            if (conf->loginsuccess) {
-                const char *loginsuccess = ap_expr_str_exec(r,
-                        conf->loginsuccess, &err);
-                if (!err) {
-                    apr_table_set(r->headers_out, "Location", loginsuccess);
-                    return HTTP_MOVED_TEMPORARILY;
-                }
-                else {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02341)
-                                  "Can't evaluate login success expression: %s", err);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-            }
-            return HTTP_OK;
+    /* turn on ssl for the socket */
+        ulFlags = (numcerts ? SO_TLS_ENABLE : SO_TLS_ENABLE | SO_TLS_BLIND_ACCEPT);
+        rcode = WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
+                     NULL, 0, NULL, NULL, NULL);
+        if (SOCKET_ERROR == rcode)
+        {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02124)
+                     "Error: %d with ioctlsocket(flag SO_TLS_ENABLE)", WSAGetLastError());
+                return rcode;
         }
+
+    ulFlags = SO_TLS_UNCLEAN_SHUTDOWN;
+        WSAIoctl(sock, SO_TLS_SET_FLAGS, &ulFlags, sizeof(unsigned long),
+                     NULL, 0, NULL, NULL, NULL);
+
+    /* setup the socket for SSL */
+    memset (&sWS2Opts, 0, sizeof(sWS2Opts));
+    memset (&sNWTLSOpts, 0, sizeof(sNWTLSOpts));
+    sWS2Opts.options = &sNWTLSOpts;
+
+    if (numcerts) {
+        sNWTLSOpts.walletProvider = WAL_PROV_DER;   /* the wallet provider defined in wdefs.h */
+        sNWTLSOpts.TrustedRootList = certarray;     /* array of certs in UNICODE format       */
+        sNWTLSOpts.numElementsInTRList = numcerts;  /* number of certs in TRList              */
+    }
+    else {
+        /* setup the socket for SSL */
+        unicpy(keyFileName, L"SSL CertificateIP");
+        sWS2Opts.wallet = keyFileName;              /* no client certificate */
+        sWS2Opts.walletlen = unilen(keyFileName);
+
+        sNWTLSOpts.walletProvider = WAL_PROV_KMO;   /* the wallet provider defined in wdefs.h */
     }
 
-    /* did we prefer to be redirected to the login page on failure instead? */
-    if (HTTP_UNAUTHORIZED == rv && conf->loginrequired) {
-        const char *loginrequired = ap_expr_str_exec(r,
-                conf->loginrequired, &err);
-        if (!err) {
-            apr_table_set(r->headers_out, "Location", loginrequired);
-            return HTTP_MOVED_TEMPORARILY;
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02342)
-                          "Can't evaluate login required expression: %s", err);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-    }
+    /* make the IOCTL call */
+    rcode = WSAIoctl(sock, SO_TLS_SET_CLIENT, &sWS2Opts,
+                     sizeof(struct tlsclientopts), NULL, 0, NULL,
+                     NULL, NULL);
 
-    return rv;
-
+    /* make sure that it was successful */
+        if(SOCKET_ERROR == rcode ){
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, c->base_server, APLOGNO(02125)
+                     "Error: %d with ioctl (SO_TLS_SET_CLIENT)", WSAGetLastError());
+        }
+        return rcode;
 }

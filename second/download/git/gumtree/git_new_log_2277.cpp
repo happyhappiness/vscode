@@ -1,1 +1,1 @@
-die(_("refusing to merge unrelated histories"));
+error(_("Unable to write index."));

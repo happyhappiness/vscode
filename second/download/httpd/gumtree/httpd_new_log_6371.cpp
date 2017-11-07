@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02558) 
-                      "no AuthLDAPURL");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03453)
+                                  "Request header field name was empty");

@@ -1,1 +1,4 @@
-error("cannot fix permission bits on %s", get_tempfile_path(&temporary_sharedindex));
+fprintf_ln(stderr,
+				   _("Continuing under the assumption that "
+				     "you meant '%s'."),
+				   assumed);

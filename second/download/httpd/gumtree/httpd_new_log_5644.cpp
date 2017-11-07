@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03304)
-                          "Unhandled bucket type of type %s in"
-                          " ap_proxy_buckets_lifetime_transform", e->type->name);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(03307)
+                              "ap_proxy_transfer_between_connections: "
+                              "error on %s - ap_pass_brigade",
+                              name);

@@ -1,4 +1,3 @@
-printf("Merging remote commit %.7s into local commit %.7s with "
-			"merge-base %.7s\n", sha1_to_hex(remote->object.sha1),
-			sha1_to_hex(local->object.sha1),
-			sha1_to_hex(base_sha1));
+die(_("merging of trees %s and %s failed"),
+			    sha1_to_hex(head->object.sha1),
+			    sha1_to_hex(merge->object.sha1));

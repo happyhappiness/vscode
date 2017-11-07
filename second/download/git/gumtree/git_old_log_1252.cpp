@@ -1,1 +1,0 @@
-die("bad color value '%.*s' for variable '%s'", value_len, value, var);

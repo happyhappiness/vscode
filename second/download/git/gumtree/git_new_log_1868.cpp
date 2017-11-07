@@ -1,1 +1,2 @@
-printf("%s", find_unique_abbrev(oid->hash, abbrev));
+fprintf(stderr, _("finished search at %s\n"),
+					oid_to_hex(&c->object.oid));

@@ -1,1 +1,1 @@
-error(_("failed to finalize '%s'."), filename);
+error_errno(_("could not write to '%s'"), filename);

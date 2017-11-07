@@ -1,4 +1,1 @@
-printf(_("Updating %s..%s\n"),
-				hex,
-				find_unique_abbrev(remoteheads->item->object.sha1,
-				DEFAULT_ABBREV));
+printf("%s\n", sha1_to_hex(bases->item->object.sha1));

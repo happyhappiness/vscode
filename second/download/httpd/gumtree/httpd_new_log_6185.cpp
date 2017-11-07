@@ -1,1 +1,0 @@
-dispatch_event(session, ev, err, msg);

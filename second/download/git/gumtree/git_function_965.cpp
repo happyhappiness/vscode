@@ -1,25 +1,42 @@
-static struct child_process *git_proxy_connect(int fd[2], char *host)
+static int apply_autostash(struct replay_opts *opts)
 {
-	const char *port = STR(DEFAULT_GIT_PORT);
-	struct child_process *proxy;
+	struct strbuf stash_sha1 = STRBUF_INIT;
+	struct child_process child = CHILD_PROCESS_INIT;
+	int ret = 0;
 
-	get_host_and_port(&host, &port);
+	if (!read_oneliner(&stash_sha1, rebase_path_autostash(), 1)) {
+		strbuf_release(&stash_sha1);
+		return 0;
+	}
+	strbuf_trim(&stash_sha1);
 
-	if (looks_like_command_line_option(host))
-		die("strange hostname '%s' blocked", host);
-	if (looks_like_command_line_option(port))
-		die("strange port '%s' blocked", port);
+	child.git_cmd = 1;
+	child.no_stdout = 1;
+	child.no_stderr = 1;
+	argv_array_push(&child.args, "stash");
+	argv_array_push(&child.args, "apply");
+	argv_array_push(&child.args, stash_sha1.buf);
+	if (!run_command(&child))
+		printf(_("Applied autostash.\n"));
+	else {
+		struct child_process store = CHILD_PROCESS_INIT;
 
-	proxy = xmalloc(sizeof(*proxy));
-	child_process_init(proxy);
-	argv_array_push(&proxy->args, git_proxy_command);
-	argv_array_push(&proxy->args, host);
-	argv_array_push(&proxy->args, port);
-	proxy->in = -1;
-	proxy->out = -1;
-	if (start_command(proxy))
-		die("cannot start proxy %s", git_proxy_command);
-	fd[0] = proxy->out; /* read from proxy stdout */
-	fd[1] = proxy->in;  /* write to proxy stdin */
-	return proxy;
+		store.git_cmd = 1;
+		argv_array_push(&store.args, "stash");
+		argv_array_push(&store.args, "store");
+		argv_array_push(&store.args, "-m");
+		argv_array_push(&store.args, "autostash");
+		argv_array_push(&store.args, "-q");
+		argv_array_push(&store.args, stash_sha1.buf);
+		if (run_command(&store))
+			ret = error(_("cannot store %s"), stash_sha1.buf);
+		else
+			printf(_("Applying autostash resulted in conflicts.\n"
+				"Your changes are safe in the stash.\n"
+				"You can run \"git stash pop\" or"
+				" \"git stash drop\" at any time.\n"));
+	}
+
+	strbuf_release(&stash_sha1);
+	return ret;
 }

@@ -1,1 +1,1 @@
-die("failed to prepare '%s' for appending", path);
+printf("\n%s\n", _(common_cmd_groups[common_cmds[i].group]));

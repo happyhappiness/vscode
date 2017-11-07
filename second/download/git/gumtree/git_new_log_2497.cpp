@@ -1,1 +1,1 @@
-fprintf(stderr, "Checking %s\n", describe_object(obj));
+fprintf(f, "%s\n", describe_object(obj));

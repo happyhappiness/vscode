@@ -1,2 +1,1 @@
-strbuf_addf(&desc, _("(HEAD detached at %s)"),
-				state.detached_from);
+die(_("format: %%(else) atom used more than once"));

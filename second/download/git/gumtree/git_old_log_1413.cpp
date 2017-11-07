@@ -1,0 +1,1 @@
+die("could not read %s%s", prompt, strerror(errno));

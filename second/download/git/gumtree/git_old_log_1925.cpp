@@ -1,1 +1,1 @@
-printf("%s ", caller_name ? caller_name : sha1_to_hex(sha1));
+printf("  %-6s %o %s %s\n", desc[entry->stage], entry->mode, sha1_to_hex(entry->blob->object.sha1), entry->path);

@@ -1,1 +1,1 @@
-error_errno("Failed to flush %s", path);
+die("corrupt MERGE_RR");

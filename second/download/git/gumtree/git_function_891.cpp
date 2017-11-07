@@ -1,115 +1,74 @@
-static int files_rename_ref(struct ref_store *ref_store,
-			    const char *oldrefname, const char *newrefname,
-			    const char *logmsg)
+static int files_pack_refs(struct ref_store *ref_store, unsigned int flags)
 {
 	struct files_ref_store *refs =
-		files_downcast(ref_store, 0, "rename_ref");
-	unsigned char sha1[20], orig_sha1[20];
-	int flag = 0, logmoved = 0;
-	struct ref_lock *lock;
-	struct stat loginfo;
-	int log = !lstat(git_path("logs/%s", oldrefname), &loginfo);
-	struct strbuf err = STRBUF_INIT;
+		files_downcast(ref_store, REF_STORE_WRITE | REF_STORE_ODB,
+			       "pack_refs");
+	struct ref_iterator *iter;
+	struct ref_dir *packed_refs;
+	int ok;
+	struct ref_to_prune *refs_to_prune = NULL;
 
-	if (log && S_ISLNK(loginfo.st_mode))
-		return error("reflog for %s is a symlink", oldrefname);
+	lock_packed_refs(refs, LOCK_DIE_ON_ERROR);
+	packed_refs = get_packed_refs(refs);
 
-	if (!resolve_ref_unsafe(oldrefname, RESOLVE_REF_READING | RESOLVE_REF_NO_RECURSE,
-				orig_sha1, &flag))
-		return error("refname %s not found", oldrefname);
+	iter = cache_ref_iterator_begin(get_loose_ref_cache(refs), NULL, 0);
+	while ((ok = ref_iterator_advance(iter)) == ITER_OK) {
+		/*
+		 * If the loose reference can be packed, add an entry
+		 * in the packed ref cache. If the reference should be
+		 * pruned, also add it to refs_to_prune.
+		 */
+		struct ref_entry *packed_entry;
+		int is_tag_ref = starts_with(iter->refname, "refs/tags/");
 
-	if (flag & REF_ISSYMREF)
-		return error("refname %s is a symbolic ref, renaming it is not supported",
-			oldrefname);
-	if (!rename_ref_available(oldrefname, newrefname))
-		return 1;
+		/* Do not pack per-worktree refs: */
+		if (ref_type(iter->refname) != REF_TYPE_NORMAL)
+			continue;
 
-	if (log && rename(git_path("logs/%s", oldrefname), git_path(TMP_RENAMED_LOG)))
-		return error("unable to move logfile logs/%s to "TMP_RENAMED_LOG": %s",
-			oldrefname, strerror(errno));
+		/* ALWAYS pack tags */
+		if (!(flags & PACK_REFS_ALL) && !is_tag_ref)
+			continue;
 
-	if (delete_ref(oldrefname, orig_sha1, REF_NODEREF)) {
-		error("unable to delete old %s", oldrefname);
-		goto rollback;
-	}
+		/* Do not pack symbolic or broken refs: */
+		if (iter->flags & REF_ISSYMREF)
+			continue;
 
-	/*
-	 * Since we are doing a shallow lookup, sha1 is not the
-	 * correct value to pass to delete_ref as old_sha1. But that
-	 * doesn't matter, because an old_sha1 check wouldn't add to
-	 * the safety anyway; we want to delete the reference whatever
-	 * its current value.
-	 */
-	if (!read_ref_full(newrefname, RESOLVE_REF_READING | RESOLVE_REF_NO_RECURSE,
-			   sha1, NULL) &&
-	    delete_ref(newrefname, NULL, REF_NODEREF)) {
-		if (errno==EISDIR) {
-			struct strbuf path = STRBUF_INIT;
-			int result;
+		if (!ref_resolves_to_object(iter->refname, iter->oid, iter->flags))
+			continue;
 
-			strbuf_git_path(&path, "%s", newrefname);
-			result = remove_empty_directories(&path);
-			strbuf_release(&path);
-
-			if (result) {
-				error("Directory not empty: %s", newrefname);
-				goto rollback;
-			}
+		/*
+		 * Create an entry in the packed-refs cache equivalent
+		 * to the one from the loose ref cache, except that
+		 * we don't copy the peeled status, because we want it
+		 * to be re-peeled.
+		 */
+		packed_entry = find_ref_entry(packed_refs, iter->refname);
+		if (packed_entry) {
+			/* Overwrite existing packed entry with info from loose entry */
+			packed_entry->flag = REF_ISPACKED;
+			oidcpy(&packed_entry->u.value.oid, iter->oid);
 		} else {
-			error("unable to delete existing %s", newrefname);
-			goto rollback;
+			packed_entry = create_ref_entry(iter->refname, iter->oid->hash,
+							REF_ISPACKED, 0);
+			add_ref_entry(packed_refs, packed_entry);
+		}
+		oidclr(&packed_entry->u.value.peeled);
+
+		/* Schedule the loose reference for pruning if requested. */
+		if ((flags & PACK_REFS_PRUNE)) {
+			struct ref_to_prune *n;
+			FLEX_ALLOC_STR(n, name, iter->refname);
+			hashcpy(n->sha1, iter->oid->hash);
+			n->next = refs_to_prune;
+			refs_to_prune = n;
 		}
 	}
+	if (ok != ITER_DONE)
+		die("error while iterating over references");
 
-	if (log && rename_tmp_log(newrefname))
-		goto rollback;
+	if (commit_packed_refs(refs))
+		die_errno("unable to overwrite old ref-pack file");
 
-	logmoved = log;
-
-	lock = lock_ref_sha1_basic(refs, newrefname, NULL, NULL, NULL,
-				   REF_NODEREF, NULL, &err);
-	if (!lock) {
-		error("unable to rename '%s' to '%s': %s", oldrefname, newrefname, err.buf);
-		strbuf_release(&err);
-		goto rollback;
-	}
-	hashcpy(lock->old_oid.hash, orig_sha1);
-
-	if (write_ref_to_lockfile(lock, orig_sha1, &err) ||
-	    commit_ref_update(refs, lock, orig_sha1, logmsg, &err)) {
-		error("unable to write current sha1 into %s: %s", newrefname, err.buf);
-		strbuf_release(&err);
-		goto rollback;
-	}
-
+	prune_refs(refs, refs_to_prune);
 	return 0;
-
- rollback:
-	lock = lock_ref_sha1_basic(refs, oldrefname, NULL, NULL, NULL,
-				   REF_NODEREF, NULL, &err);
-	if (!lock) {
-		error("unable to lock %s for rollback: %s", oldrefname, err.buf);
-		strbuf_release(&err);
-		goto rollbacklog;
-	}
-
-	flag = log_all_ref_updates;
-	log_all_ref_updates = LOG_REFS_NONE;
-	if (write_ref_to_lockfile(lock, orig_sha1, &err) ||
-	    commit_ref_update(refs, lock, orig_sha1, NULL, &err)) {
-		error("unable to write current sha1 into %s: %s", oldrefname, err.buf);
-		strbuf_release(&err);
-	}
-	log_all_ref_updates = flag;
-
- rollbacklog:
-	if (logmoved && rename(git_path("logs/%s", newrefname), git_path("logs/%s", oldrefname)))
-		error("unable to restore logfile %s from %s: %s",
-			oldrefname, newrefname, strerror(errno));
-	if (!logmoved && log &&
-	    rename(git_path(TMP_RENAMED_LOG), git_path("logs/%s", oldrefname)))
-		error("unable to restore logfile %s from "TMP_RENAMED_LOG": %s",
-			oldrefname, strerror(errno));
-
-	return 1;
 }

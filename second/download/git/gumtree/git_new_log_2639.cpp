@@ -1,1 +1,1 @@
-err(o, msg, path, "");
+err(o, _("error building trees"));

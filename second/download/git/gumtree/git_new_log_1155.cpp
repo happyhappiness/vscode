@@ -1,1 +1,1 @@
-die(_("unable to parse format string"));
+die("HEAD does not match the named branch in the superproject");

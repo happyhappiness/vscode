@@ -1,2 +1,2 @@
-(fprintf(f, ":%"PRIu32" %s\n", mark,
-				sha1_to_hex(deco->base->sha1));
+die ("Can't find replacement commit for tag %s\n",
+					     sha1_to_hex(tag->object.sha1));

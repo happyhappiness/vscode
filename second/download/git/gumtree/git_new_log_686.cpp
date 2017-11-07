@@ -1,1 +1,1 @@
-die("Invalid gitfile format: %s", path);
+die("Error reading %s", path);

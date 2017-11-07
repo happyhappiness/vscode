@@ -1,1 +1,1 @@
-die(str, refname, err.buf);
+error(str, refname, err.buf);

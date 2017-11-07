@@ -1,2 +1,1 @@
-error("unable to open object pack directory: %s: %s",
-			      path.buf, strerror(errno));
+error(_("Failed to lock HEAD during fast_forward_to"));

@@ -1,2 +1,2 @@
-error("copy-fd: write returned %s",
+error("copy-fd: read returned %s",
 				     strerror(errno));

@@ -1,1 +1,0 @@
-fprintf(opt->file, "%s", diff_line_prefix(opt));

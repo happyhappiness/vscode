@@ -1,1 +1,1 @@
-printf("Message-Id: <%s>\n", opt->message_id);
+fputs(sb.buf, stdout);

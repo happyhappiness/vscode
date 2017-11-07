@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                      "h2_task(%s): header_only, cleanup output brigade", 
-                      task->id);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                                  "h2_task(%s): receiving trailers", task->id);

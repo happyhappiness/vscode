@@ -1,1 +1,1 @@
-error("running trailer command '%s' failed", cmd.buf);
+die(_("the receiving end does not support --atomic push"));

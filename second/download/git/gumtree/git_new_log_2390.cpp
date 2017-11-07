@@ -1,1 +1,1 @@
-error("no signature found");
+die(_("invalid value for %s"), var);

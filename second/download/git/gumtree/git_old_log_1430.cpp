@@ -1,1 +1,2 @@
-die("BUG: have_old is true but old_sha1 is NULL");
+die("-L argument not 'start,end:file' or ':funcname:file': %s",
+			    item->string);

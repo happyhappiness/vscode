@@ -1,1 +1,1 @@
-die("resolve-relative-url-test only accepts three arguments: <up_path> <remoteurl> <url>");
+die("resolve-relative-url only accepts one or two arguments");

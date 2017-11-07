@@ -1,1 +1,1 @@
-(format(printf, 2, 3);
+error(_("unrecognized argument: %s"), argv[1]);

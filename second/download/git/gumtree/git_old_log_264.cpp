@@ -1,2 +1,1 @@
-error(_("Failed to copy notes from '%s' to '%s'"),
-			      split[0]->buf, split[1]->buf);
+die(_("Failed to resolve '%s' as a valid ref."), split[1]->buf);

@@ -1,1 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "LDC %pp used for authn, must be rebound", ldc);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(02613)
+                          "Error loading %s: %s", spec->file,
+                            lua_tostring(L, -1));

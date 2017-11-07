@@ -1,42 +1,54 @@
-apr_status_t h2_conn_io_init(h2_conn_io *io, conn_rec *c, 
-                             const h2_config *cfg, 
-                             apr_pool_t *pool)
+apr_status_t h2_conn_io_read(h2_conn_io *io,
+                             apr_read_type_e block,
+                             h2_conn_io_on_read_cb on_read_cb,
+                             void *puser)
 {
-    io->connection         = c;
-    io->input              = apr_brigade_create(pool, c->bucket_alloc);
-    io->output             = apr_brigade_create(pool, c->bucket_alloc);
-    io->buflen             = 0;
-    io->is_tls             = h2_h2_is_tls(c);
-    io->buffer_output      = io->is_tls;
+    apr_status_t status;
+    int done = 0;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, io->connection,
+                  "h2_conn_io: try read, block=%d", block);
     
-    if (io->buffer_output) {
-        io->bufsize = WRITE_BUFFER_SIZE;
-        io->buffer = apr_pcalloc(pool, io->bufsize);
-    }
-    else {
-        io->bufsize = 0;
-    }
-    
-    if (io->is_tls) {
-        /* That is where we start with, 
-         * see https://issues.apache.org/jira/browse/TS-2503 */
-        io->warmup_size    = h2_config_geti64(cfg, H2_CONF_TLS_WARMUP_SIZE);
-        io->cooldown_usecs = (h2_config_geti(cfg, H2_CONF_TLS_COOLDOWN_SECS) 
-                              * APR_USEC_PER_SEC);
-        io->write_size     = WRITE_SIZE_INITIAL; 
-    }
-    else {
-        io->warmup_size    = 0;
-        io->cooldown_usecs = 0;
-        io->write_size     = io->bufsize;
+    if (!APR_BRIGADE_EMPTY(io->input)) {
+        /* Seems something is left from a previous read, lets
+         * satisfy our caller with the data we already have. */
+        status = h2_conn_io_bucket_read(io, block, on_read_cb, puser, &done);
+        apr_brigade_cleanup(io->input);
+        if (status != APR_SUCCESS || done) {
+            return status;
+        }
     }
 
-    if (APLOGctrace1(c)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
-                      "h2_conn_io(%ld): init, buffering=%d, warmup_size=%ld, cd_secs=%f",
-                      io->connection->id, io->buffer_output, (long)io->warmup_size,
-                      ((float)io->cooldown_usecs/APR_USEC_PER_SEC));
+    /* We only do a blocking read when we have no streams to process. So,
+     * in httpd scoreboard lingo, we are in a KEEPALIVE connection state.
+     * When reading non-blocking, we do have streams to process and update
+     * child with NULL request. That way, any current request information
+     * in the scoreboard is preserved.
+     */
+    if (block == APR_BLOCK_READ) {
+        ap_update_child_status_from_conn(io->connection->sbh, 
+                                         SERVER_BUSY_KEEPALIVE, 
+                                         io->connection);
+    }
+    else {
+        ap_update_child_status(io->connection->sbh, SERVER_BUSY_READ, NULL);
     }
 
-    return APR_SUCCESS;
+    /* TODO: replace this with a connection filter itself, so that we
+     * no longer need to transfer incoming buckets to our own brigade. 
+     */
+    status = ap_get_brigade(io->connection->input_filters,
+                            io->input, AP_MODE_READBYTES,
+                            block, 64 * 4096);
+    switch (status) {
+        case APR_SUCCESS:
+            return h2_conn_io_bucket_read(io, block, on_read_cb, puser, &done);
+        case APR_EOF:
+        case APR_EAGAIN:
+            break;
+        default:
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, io->connection,
+                          "h2_conn_io: error reading");
+            break;
+    }
+    return status;
 }

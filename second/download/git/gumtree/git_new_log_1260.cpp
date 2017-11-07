@@ -1,1 +1,1 @@
-die(_("invalid mode for object creation: %s"), value);
+die(_("bad zlib compression level %d"), level);

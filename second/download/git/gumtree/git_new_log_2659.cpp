@@ -1,1 +1,1 @@
-err(o, _("Unable to write index."));
+err(o, _("merge returned no commit"));

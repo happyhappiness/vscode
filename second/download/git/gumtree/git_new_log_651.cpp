@@ -1,2 +1,2 @@
-error(_("please fix this using "
-				       "'git rebase --edit-todo'."));
+error(_("cannot '%s' without a previous commit"),
+				command_to_string(item->command));

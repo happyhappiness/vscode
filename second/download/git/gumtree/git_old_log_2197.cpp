@@ -1,4 +1,2 @@
-warning(_("not copying templates of "
-			"a wrong format version %d from '%s'"),
-			repository_format_version,
-			template_dir);
+error(_("Cannot delete the branch '%s' "
+			      "which you are currently on."), bname.buf);

@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                      "h2_mplx(%ld): dispatch events", m->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03366)
+                      "h2_proxy_session(%s): terminated, %d streams unfinished",
+                      session->id, (int)h2_proxy_ihash_count(session->streams));

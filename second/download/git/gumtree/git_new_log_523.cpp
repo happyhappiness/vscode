@@ -1,1 +1,6 @@
-packet_write_fmt(1, "ACK %s ready\n", last_hex);
+fprintf(o, "%s%06o %s %d\t%s\n",
+			label,
+			ce->ce_mode,
+			oid_to_hex(&ce->oid),
+			ce_stage(ce),
+			ce->name);

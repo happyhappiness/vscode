@@ -1,4 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                         s, APLOGNO(02584)
-                         "encrypted %s private key - pass phrase"
-                         " reused", key_id);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, ppcb_arg->s,
+                             APLOGNO(01965)
+                             "Init: Creating pass phrase dialog pipe child "
+                             "'%s'", sc->server->pphrase_dialog_path);

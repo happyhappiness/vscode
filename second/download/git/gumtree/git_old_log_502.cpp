@@ -1,1 +1,1 @@
-print_ref_status('X', "[no match]", ref, NULL, NULL, porcelain);
+print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg, porcelain);

@@ -1,1 +1,1 @@
-fprintf(s->fp, "# branch.upstream %s%c", base, eol);
+fprintf(s->fp, "# branch.head %s%c", branch_name, eol);

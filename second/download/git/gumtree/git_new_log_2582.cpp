@@ -1,1 +1,2 @@
-error("unable to read files to diff");
+fprintf(opt->file, "%s ",
+			diff_unique_abbrev(p->two->oid.hash, opt->abbrev));

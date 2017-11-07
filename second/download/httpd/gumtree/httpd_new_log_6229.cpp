@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                      H2_STRM_MSG(stream, "prepared no_copy, len=%ld, eos=%d"),
-                      (long)nread, eos);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                      ""H2_STRM_LOG(APLOGNO(03203), stream, 
+                      "PUSH %s, weight=%d, depends=%d, returned=%d"),
+                      ptype, ps.weight, ps.stream_id, rv);

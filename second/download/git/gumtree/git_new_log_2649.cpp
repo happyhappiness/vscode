@@ -1,1 +1,1 @@
-die("BUG: unsupported object type in the tree");
+err(o, _("Failed to execute internal merge"));

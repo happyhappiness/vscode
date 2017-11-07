@@ -1,1 +1,1 @@
-die("BUG: %s called for a submodule", caller);
+die("BUG: reference backend %s is unknown", be_name);

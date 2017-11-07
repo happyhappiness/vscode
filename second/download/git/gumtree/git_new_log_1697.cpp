@@ -1,2 +1,2 @@
-die(_("A notes merge into %s is already in-progress at %s"),
-			    default_notes_ref(), existing);
+die("BUG: local ref %s is outside of refs/notes/",
+			    o.local_ref);

@@ -1,2 +1,1 @@
-error(_("cannot read object %s '%s'"),
-			     oid_to_hex(oid), path);
+die("%s not a valid tag", oid_to_hex(&oid));

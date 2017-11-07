@@ -1,1 +1,1 @@
-error_errno("Could not open %s", filename);
+error_errno("Could not stat %s", filename);

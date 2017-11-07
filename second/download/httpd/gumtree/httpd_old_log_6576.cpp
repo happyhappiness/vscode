@@ -1,1 +1,3 @@
-apr_file_printf(errfile, " -D  Delete the specified user." NL);
+apr_file_printf(errfile,
+            "The SHA algorithm does not use a salt and is less secure than "
+            "the MD5 algorithm." NL);

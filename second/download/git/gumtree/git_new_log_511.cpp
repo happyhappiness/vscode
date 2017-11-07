@@ -1,3 +1,3 @@
-print_ref_status('!', "[remote rejected]", ref,
-				 ref->deletion ? NULL : ref->peer_ref,
-				 ref->remote_status, porcelain, summary_width);
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "new shallow roots not allowed",
+				 porcelain, summary_width);

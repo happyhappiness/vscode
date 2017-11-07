@@ -1,1 +1,2 @@
-warning("object %s has unknown type id %d", oid_to_hex(oid), type);
+printf("Finalized notes merge commit: %s\n",
+			oid_to_hex(result_oid));

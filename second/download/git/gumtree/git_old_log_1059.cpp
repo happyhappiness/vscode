@@ -1,1 +1,1 @@
-die("Corrupt mode in %s", sha1_to_hex(sha1));
+die("Can't load tree %s", sha1_to_hex(sha1));

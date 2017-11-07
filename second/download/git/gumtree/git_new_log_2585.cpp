@@ -1,1 +1,1 @@
-error("Unknown object type for %s", describe_object(options, obj));
+die_errno("Failed seeking to start of '%s'", p->pack_name);

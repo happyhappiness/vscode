@@ -1,34 +1,36 @@
-static int populate_opts_cb(const char *key, const char *value, void *data)
+static int read_populate_todo(struct todo_list *todo_list,
+			struct replay_opts *opts)
 {
-	struct replay_opts *opts = data;
-	int error_flag = 1;
+	const char *todo_file = get_todo_path(opts);
+	int fd, res;
 
-	if (!value)
-		error_flag = 0;
-	else if (!strcmp(key, "options.no-commit"))
-		opts->no_commit = git_config_bool_or_int(key, value, &error_flag);
-	else if (!strcmp(key, "options.edit"))
-		opts->edit = git_config_bool_or_int(key, value, &error_flag);
-	else if (!strcmp(key, "options.signoff"))
-		opts->signoff = git_config_bool_or_int(key, value, &error_flag);
-	else if (!strcmp(key, "options.record-origin"))
-		opts->record_origin = git_config_bool_or_int(key, value, &error_flag);
-	else if (!strcmp(key, "options.allow-ff"))
-		opts->allow_ff = git_config_bool_or_int(key, value, &error_flag);
-	else if (!strcmp(key, "options.mainline"))
-		opts->mainline = git_config_int(key, value);
-	else if (!strcmp(key, "options.strategy"))
-		git_config_string(&opts->strategy, key, value);
-	else if (!strcmp(key, "options.gpg-sign"))
-		git_config_string(&opts->gpg_sign, key, value);
-	else if (!strcmp(key, "options.strategy-option")) {
-		ALLOC_GROW(opts->xopts, opts->xopts_nr + 1, opts->xopts_alloc);
-		opts->xopts[opts->xopts_nr++] = xstrdup(value);
-	} else
-		return error(_("Invalid key: %s"), key);
+	strbuf_reset(&todo_list->buf);
+	fd = open(todo_file, O_RDONLY);
+	if (fd < 0)
+		return error_errno(_("could not open '%s'"), todo_file);
+	if (strbuf_read(&todo_list->buf, fd, 0) < 0) {
+		close(fd);
+		return error(_("could not read '%s'."), todo_file);
+	}
+	close(fd);
 
-	if (!error_flag)
-		return error(_("Invalid value for %s: %s"), key, value);
+	res = parse_insn_buffer(todo_list->buf.buf, todo_list);
+	if (res)
+		return error(_("unusable instruction sheet: '%s'"), todo_file);
+
+	if (!is_rebase_i(opts)) {
+		enum todo_command valid =
+			opts->action == REPLAY_PICK ? TODO_PICK : TODO_REVERT;
+		int i;
+
+		for (i = 0; i < todo_list->nr; i++)
+			if (valid == todo_list->items[i].command)
+				continue;
+			else if (valid == TODO_PICK)
+				return error(_("cannot cherry-pick during a revert."));
+			else
+				return error(_("cannot revert during a cherry-pick."));
+	}
 
 	return 0;
 }

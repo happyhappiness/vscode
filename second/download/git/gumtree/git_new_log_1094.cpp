@@ -1,2 +1,2 @@
-printf("Finalized notes merge commit: %s\n",
-			oid_to_hex(result_oid));
+printf("Added resolved note for object %s: %s\n",
+				oid_to_hex(&obj_oid), oid_to_hex(&blob_oid));

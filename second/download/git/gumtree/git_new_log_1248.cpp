@@ -1,1 +1,1 @@
-write_or_die(bundle_fd, bundle_signature, strlen(bundle_signature));
+error(_("pack-objects died"));

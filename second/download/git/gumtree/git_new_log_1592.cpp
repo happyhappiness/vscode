@@ -1,1 +1,2 @@
-fprintf(fp, "--shallow %s\n", oid_to_hex(&graft->oid));
+error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));

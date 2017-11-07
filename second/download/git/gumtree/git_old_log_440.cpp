@@ -1,1 +1,1 @@
-die(_("%s: Unable to write new index file"), action_name(opts));
+error(_("Your local changes would be overwritten by revert."));

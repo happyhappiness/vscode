@@ -1,13 +1,16 @@
-static void if_atom_parser(struct used_atom *atom, const char *arg)
+static void objectname_atom_parser(struct used_atom *atom, const char *arg)
 {
-	if (!arg) {
-		atom->u.if_then_else.cmp_status = COMPARE_NONE;
-		return;
-	} else if (skip_prefix(arg, "equals=", &atom->u.if_then_else.str)) {
-		atom->u.if_then_else.cmp_status = COMPARE_EQUAL;
-	} else if (skip_prefix(arg, "notequals=", &atom->u.if_then_else.str)) {
-		atom->u.if_then_else.cmp_status = COMPARE_UNEQUAL;
-	} else {
-		die(_("unrecognized %%(if) argument: %s"), arg);
-	}
+	if (!arg)
+		atom->u.objectname.option = O_FULL;
+	else if (!strcmp(arg, "short"))
+		atom->u.objectname.option = O_SHORT;
+	else if (skip_prefix(arg, "short=", &arg)) {
+		atom->u.objectname.option = O_LENGTH;
+		if (strtoul_ui(arg, 10, &atom->u.objectname.length) ||
+		    atom->u.objectname.length == 0)
+			die(_("positive value expected objectname:short=%s"), arg);
+		if (atom->u.objectname.length < MINIMUM_ABBREV)
+			atom->u.objectname.length = MINIMUM_ABBREV;
+	} else
+		die(_("unrecognized %%(objectname) argument: %s"), arg);
 }

@@ -1,1 +1,1 @@
-error("cannot create thread: %s", strerror(err));
+error("fork (async) failed: %s", strerror(errno));

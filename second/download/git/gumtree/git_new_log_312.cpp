@@ -1,1 +1,1 @@
-die(_("pack exceeds maximum allowed size"));
+die(_("Value '%s' for submodule.alternateLocation is not recognized"), sm_alternate);

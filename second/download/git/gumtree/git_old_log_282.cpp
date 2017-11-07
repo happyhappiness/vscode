@@ -1,1 +1,1 @@
-die("Failed to finalize notes merge");
+die("Failed to resolve NOTES_MERGE_REF");

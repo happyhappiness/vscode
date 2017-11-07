@@ -1,1 +1,1 @@
-error("cannot read mail %s (%s)", file, strerror(errno));
+error("cannot open mail %s (%s)", file, strerror(errno));

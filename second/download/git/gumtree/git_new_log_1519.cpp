@@ -1,0 +1,1 @@
+printf(" %u %s", obj_stat[i].delta_depth, sha1_to_hex(bobj->idx.sha1));

@@ -1,11 +1,26 @@
-apr_status_t h2_session_stream_done(h2_session *session, h2_stream *stream)
+static apr_status_t stream_release(h2_session *session, 
+                                   h2_stream *stream,
+                                   uint32_t error_code) 
 {
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                  "h2_stream(%ld-%d): EOS bucket cleanup -> done", 
-                  session->id, stream->id);
-    h2_ihash_remove(session->streams, stream->id);
-    h2_mplx_stream_done(session->mplx, stream);
+    if (!error_code) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      "h2_stream(%ld-%d): handled, closing", 
+                      session->id, (int)stream->id);
+        if (H2_STREAM_CLIENT_INITIATED(stream->id)) {
+            if (stream->id > session->local.completed_max) {
+                session->local.completed_max = stream->id;
+            }
+        }
+    }
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03065)
+                      "h2_stream(%ld-%d): closing with err=%d %s", 
+                      session->id, (int)stream->id, (int)error_code,
+                      h2_h2_err_description(error_code));
+        h2_stream_rst(stream, error_code);
+    }
     
-    dispatch_event(session, H2_SESSION_EV_STREAM_DONE, 0, NULL);
-    return APR_SUCCESS;
+    return h2_conn_io_writeb(&session->io,
+                             h2_bucket_eos_create(session->c->bucket_alloc, 
+                                                  stream));
 }

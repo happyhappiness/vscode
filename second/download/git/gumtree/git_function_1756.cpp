@@ -1,104 +1,83 @@
-int reflog_expire(const char *refname, const unsigned char *sha1,
-		 unsigned int flags,
-		 reflog_expiry_prepare_fn prepare_fn,
-		 reflog_expiry_should_prune_fn should_prune_fn,
-		 reflog_expiry_cleanup_fn cleanup_fn,
-		 void *policy_cb_data)
+int initial_ref_transaction_commit(struct ref_transaction *transaction,
+				   struct strbuf *err)
 {
-	static struct lock_file reflog_lock;
-	struct expire_reflog_cb cb;
-	struct ref_lock *lock;
-	char *log_file;
-	int status = 0;
-	int type;
-	struct strbuf err = STRBUF_INIT;
+	struct ref_dir *loose_refs = get_loose_refs(&ref_cache);
+	struct ref_dir *packed_refs = get_packed_refs(&ref_cache);
+	int ret = 0, i;
+	int n = transaction->nr;
+	struct ref_update **updates = transaction->updates;
+	struct string_list affected_refnames = STRING_LIST_INIT_NODUP;
 
-	memset(&cb, 0, sizeof(cb));
-	cb.flags = flags;
-	cb.policy_cb = policy_cb_data;
-	cb.should_prune_fn = should_prune_fn;
+	assert(err);
+
+	if (transaction->state != REF_TRANSACTION_OPEN)
+		die("BUG: commit called for transaction that is not open");
+
+	/* Fail if a refname appears more than once in the transaction: */
+	for (i = 0; i < n; i++)
+		string_list_append(&affected_refnames, updates[i]->refname);
+	string_list_sort(&affected_refnames);
+	if (ref_update_reject_duplicates(&affected_refnames, err)) {
+		ret = TRANSACTION_GENERIC_ERROR;
+		goto cleanup;
+	}
 
 	/*
-	 * The reflog file is locked by holding the lock on the
-	 * reference itself, plus we might need to update the
-	 * reference if --updateref was specified:
+	 * It's really undefined to call this function in an active
+	 * repository or when there are existing references: we are
+	 * only locking and changing packed-refs, so (1) any
+	 * simultaneous processes might try to change a reference at
+	 * the same time we do, and (2) any existing loose versions of
+	 * the references that we are setting would have precedence
+	 * over our values. But some remote helpers create the remote
+	 * "HEAD" and "master" branches before calling this function,
+	 * so here we really only check that none of the references
+	 * that we are creating already exists.
 	 */
-	lock = lock_ref_sha1_basic(refname, sha1, NULL, NULL, 0, &type, &err);
-	if (!lock) {
-		error("cannot lock ref '%s': %s", refname, err.buf);
-		strbuf_release(&err);
-		return -1;
-	}
-	if (!reflog_exists(refname)) {
-		unlock_ref(lock);
-		return 0;
-	}
+	if (for_each_rawref(ref_present, &affected_refnames))
+		die("BUG: initial ref transaction called with existing refs");
 
-	log_file = git_pathdup("logs/%s", refname);
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * Even though holding $GIT_DIR/logs/$reflog.lock has
-		 * no locking implications, we use the lock_file
-		 * machinery here anyway because it does a lot of the
-		 * work we need, including cleaning up if the program
-		 * exits unexpectedly.
-		 */
-		if (hold_lock_file_for_update(&reflog_lock, log_file, 0) < 0) {
-			struct strbuf err = STRBUF_INIT;
-			unable_to_lock_message(log_file, errno, &err);
-			error("%s", err.buf);
-			strbuf_release(&err);
-			goto failure;
-		}
-		cb.newlog = fdopen_lock_file(&reflog_lock, "w");
-		if (!cb.newlog) {
-			error("cannot fdopen %s (%s)",
-			      reflog_lock.filename.buf, strerror(errno));
-			goto failure;
+	for (i = 0; i < n; i++) {
+		struct ref_update *update = updates[i];
+
+		if ((update->flags & REF_HAVE_OLD) &&
+		    !is_null_sha1(update->old_sha1))
+			die("BUG: initial ref transaction with old_sha1 set");
+		if (verify_refname_available(update->refname,
+					     &affected_refnames, NULL,
+					     loose_refs, err) ||
+		    verify_refname_available(update->refname,
+					     &affected_refnames, NULL,
+					     packed_refs, err)) {
+			ret = TRANSACTION_NAME_CONFLICT;
+			goto cleanup;
 		}
 	}
 
-	(*prepare_fn)(refname, sha1, cb.policy_cb);
-	for_each_reflog_ent(refname, expire_reflog_ent, &cb);
-	(*cleanup_fn)(cb.policy_cb);
-
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * It doesn't make sense to adjust a reference pointed
-		 * to by a symbolic ref based on expiring entries in
-		 * the symbolic reference's reflog. Nor can we update
-		 * a reference if there are no remaining reflog
-		 * entries.
-		 */
-		int update = (flags & EXPIRE_REFLOGS_UPDATE_REF) &&
-			!(type & REF_ISSYMREF) &&
-			!is_null_sha1(cb.last_kept_sha1);
-
-		if (close_lock_file(&reflog_lock)) {
-			status |= error("couldn't write %s: %s", log_file,
-					strerror(errno));
-		} else if (update &&
-			   (write_in_full(lock->lk->fd,
-				sha1_to_hex(cb.last_kept_sha1), 40) != 40 ||
-			 write_str_in_full(lock->lk->fd, "\n") != 1 ||
-			 close_ref(lock) < 0)) {
-			status |= error("couldn't write %s",
-					lock->lk->filename.buf);
-			rollback_lock_file(&reflog_lock);
-		} else if (commit_lock_file(&reflog_lock)) {
-			status |= error("unable to commit reflog '%s' (%s)",
-					log_file, strerror(errno));
-		} else if (update && commit_ref(lock)) {
-			status |= error("couldn't set %s", lock->ref_name);
-		}
+	if (lock_packed_refs(0)) {
+		strbuf_addf(err, "unable to lock packed-refs file: %s",
+			    strerror(errno));
+		ret = TRANSACTION_GENERIC_ERROR;
+		goto cleanup;
 	}
-	free(log_file);
-	unlock_ref(lock);
-	return status;
 
- failure:
-	rollback_lock_file(&reflog_lock);
-	free(log_file);
-	unlock_ref(lock);
-	return -1;
+	for (i = 0; i < n; i++) {
+		struct ref_update *update = updates[i];
+
+		if ((update->flags & REF_HAVE_NEW) &&
+		    !is_null_sha1(update->new_sha1))
+			add_packed_ref(update->refname, update->new_sha1);
+	}
+
+	if (commit_packed_refs()) {
+		strbuf_addf(err, "unable to commit packed-refs file: %s",
+			    strerror(errno));
+		ret = TRANSACTION_GENERIC_ERROR;
+		goto cleanup;
+	}
+
+cleanup:
+	transaction->state = REF_TRANSACTION_CLOSED;
+	string_list_clear(&affected_refnames, 0);
+	return ret;
 }

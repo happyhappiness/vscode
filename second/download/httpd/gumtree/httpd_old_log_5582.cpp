@@ -1,6 +1,3 @@
-ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p,
-                              "h2_util_move: %s, passed setaside bucket %ld-%ld "
-                              "from=%lx(p=%lx) to=%lx(p=%lx)",
-                              msg, (long)b->start, (long)b->length, 
-                              (long)from, (long)from->p, 
-                              (long)to, (long)to->p);
+ap_log_perror(APLOG_MARK, APLOG_ERR, status, worker->pool,
+                      APLOGNO(02948) "h2_worker(%d): alloc socket", 
+                      worker->id);

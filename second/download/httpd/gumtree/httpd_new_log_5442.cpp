@@ -1,1 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "adding task output filter");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, "h2_h2, task, declined");

@@ -1,1 +1,2 @@
-printf_ln(_("  HEAD branch: %s"), "(not queried)");
+printf("    %-*s %s %s\n", show_info->width, "", also,
+		       merge->items[i].string);

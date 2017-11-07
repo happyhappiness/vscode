@@ -1,1 +1,1 @@
-die(_("unable to update HEAD"));
+die("--progress can't be used with --incremental or porcelain formats");

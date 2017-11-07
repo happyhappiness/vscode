@@ -1,11 +1,8 @@
-static int check_header_line(struct apply_state *state, struct patch *patch)
+static int parse_mode_line(const char *line, int linenr, unsigned int *mode)
 {
-	int extensions = (patch->is_delete == 1) + (patch->is_new == 1) +
-			 (patch->is_rename == 1) + (patch->is_copy == 1);
-	if (extensions > 1)
-		return error(_("inconsistent header lines %d and %d"),
-			     patch->extension_linenr, state->linenr);
-	if (extensions && !patch->extension_linenr)
-		patch->extension_linenr = state->linenr;
+	char *end;
+	*mode = strtoul(line, &end, 8);
+	if (end == line || !isspace(*end))
+		return error(_("invalid mode on line %d: %s"), linenr, line);
 	return 0;
 }

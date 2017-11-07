@@ -1,1 +1,1 @@
-die("BUG: unknown error code");
+die("Not a git repository: %s", dir);

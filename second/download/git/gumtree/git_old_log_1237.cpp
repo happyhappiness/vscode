@@ -1,0 +1,1 @@
+die("%s: cannot update the ref", ref);

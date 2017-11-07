@@ -1,1 +1,1 @@
-die(_("unable to parse default color value"));
+die("%s", err.buf);

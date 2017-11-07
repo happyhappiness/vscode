@@ -1,1 +1,1 @@
-rp_error("%s", err.buf);
+printf(_("Remove %s [y/N]? "), qname);

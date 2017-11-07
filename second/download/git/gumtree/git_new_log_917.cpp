@@ -1,1 +1,1 @@
-die("could not reset submodule index");
+die("could not recurse into submodule '%s'", sub->path);

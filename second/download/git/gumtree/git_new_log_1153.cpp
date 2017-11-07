@@ -1,1 +1,1 @@
-die(_("Failed to resolve HEAD as a valid ref."));
+die("submodule--helper push-check requires at least 2 arguments");

@@ -1,3 +1,2 @@
-warning(_("stopped at %s... %.*s"),
-						short_commit_name(commit),
-						item->arg_len, item->arg);
+error(_("could not copy '%s' to '%s'"),
+			     rebase_path_message(), git_path("MERGE_MSG"));

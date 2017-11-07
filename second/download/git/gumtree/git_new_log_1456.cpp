@@ -1,1 +1,1 @@
-die("BUG: config_buf can only ungetc the same character");
+status_printf_ln(s, c, _("Changes not staged for commit:"));

@@ -1,2 +1,4 @@
-warning("adding alternate object store: %s",
-					target.buf);
+die(_("unable to update url base from redirection:\n"
+		      "  asked for: %s\n"
+		      "   redirect: %s"),
+		    asked, got->buf);

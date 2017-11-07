@@ -1,1 +1,1 @@
-die("git upload-pack: deepen and deepen-since (or deepen-not) cannot be used together");
+argv_array_pushf(&av, "--max-age=%lu", deepen_since);

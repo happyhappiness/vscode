@@ -1,20 +1,14 @@
-static int cache_ref_iterator_peel(struct ref_iterator *ref_iterator,
-				   struct object_id *peeled)
+static int patch_id_cmp(struct patch_id *a,
+			struct patch_id *b,
+			struct diff_options *opt)
 {
-	struct cache_ref_iterator *iter =
-		(struct cache_ref_iterator *)ref_iterator;
-	struct cache_ref_iterator_level *level;
-	struct ref_entry *entry;
-
-	level = &iter->levels[iter->levels_nr - 1];
-
-	if (level->index == -1)
-		die("BUG: peel called before advance for cache iterator");
-
-	entry = level->dir->entries[level->index];
-
-	if (peel_entry(entry, 0))
-		return -1;
-	hashcpy(peeled->hash, entry->u.value.peeled.hash);
-	return 0;
+	if (is_null_sha1(a->patch_id) &&
+	    commit_patch_id(a->commit, opt, a->patch_id, 0))
+		return error("Could not get patch ID for %s",
+			oid_to_hex(&a->commit->object.oid));
+	if (is_null_sha1(b->patch_id) &&
+	    commit_patch_id(b->commit, opt, b->patch_id, 0))
+		return error("Could not get patch ID for %s",
+			oid_to_hex(&b->commit->object.oid));
+	return hashcmp(a->patch_id, b->patch_id);
 }

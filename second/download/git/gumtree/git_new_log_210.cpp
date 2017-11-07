@@ -1,3 +1,3 @@
-die(Q_("file %s has only %lu line",
-			       "file %s has only %lu lines",
-			       lno), path, lno);
+die(_("cannot read blob %s for path %s"),
+			    oid_to_hex(&o->blob_oid),
+			    path);

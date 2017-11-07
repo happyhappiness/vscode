@@ -1,1 +1,1 @@
-die("BUG: attempt to commit unlocked object");
+die("BUG: attempt to commit unlocked object to \"%s\"", path);

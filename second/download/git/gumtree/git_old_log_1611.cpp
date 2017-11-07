@@ -1,1 +1,1 @@
-error("unable to lock %s for rollback", oldrefname);
+error("unable to lock %s for update", newrefname);

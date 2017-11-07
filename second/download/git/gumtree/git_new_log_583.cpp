@@ -1,1 +1,2 @@
-argv_array_push(argv, sha1_to_hex(sha1));
+die("BUG: pool size too small for %d in paint_alloc()",
+			    size);

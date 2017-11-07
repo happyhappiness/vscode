@@ -1,51 +1,71 @@
-static int authn_cache_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                                   apr_pool_t *ptmp, server_rec *s)
+static int cache_save_store(ap_filter_t *f, apr_bucket_brigade *in,
+        cache_server_conf *conf, cache_request_rec *cache)
 {
-    apr_status_t rv;
-    static struct ap_socache_hints authn_cache_hints = {64, 32, 60000000};
-    const char *errmsg;
+    int rv = APR_SUCCESS;
+    apr_bucket *e;
 
-    if (!configured) {
-        return OK;    /* don't waste the overhead of creating mutex & cache */
-    }
-    if (socache_provider == NULL) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(01674)
-                      "Please select a socache provider with AuthnCacheSOCache "
-                      "(no default found on this platform). Maybe you need to "
-                      "load mod_socache_shmcb or another socache module first");
-        return 500; /* An HTTP status would be a misnomer! */
-    }
+    /* pass the brigade in into the cache provider, which is then
+     * expected to move cached buckets to the out brigade, for us
+     * to pass up the filter stack. repeat until in is empty, or
+     * we fail.
+     */
+    while (APR_SUCCESS == rv && !APR_BRIGADE_EMPTY(in)) {
 
-    /* We have socache_provider, but do not have socache_instance. This should
-     * happen only when using "default" socache_provider, so create default
-     * socache_instance in this case. */
-    if (socache_instance == NULL) {
-        errmsg = socache_provider->create(&socache_instance, NULL,
-                                          ptmp, pconf);
-        if (errmsg) {
-            ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(02612)
-                        "failed to create mod_socache_shmcb socache "
-                        "instance: %s", errmsg);
-            return 500;
+        rv = cache->provider->store_body(cache->handle, f->r, in, cache->out);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, f->r, APLOGNO(00765)
+                    "cache: Cache provider's store_body failed!");
+            ap_remove_output_filter(f);
+
+            /* give someone else the chance to cache the file */
+            cache_remove_lock(conf, cache, f->r, NULL);
+
+            /* give up trying to cache, just step out the way */
+            APR_BRIGADE_PREPEND(in, cache->out);
+            return ap_pass_brigade(f->next, in);
+
         }
+
+        /* does the out brigade contain eos? if so, we're done, commit! */
+        for (e = APR_BRIGADE_FIRST(cache->out);
+             e != APR_BRIGADE_SENTINEL(cache->out);
+             e = APR_BUCKET_NEXT(e))
+        {
+            if (APR_BUCKET_IS_EOS(e)) {
+                rv = cache->provider->commit_entity(cache->handle, f->r);
+                break;
+            }
+        }
+
+        /* conditionally remove the lock as soon as we see the eos bucket */
+        cache_remove_lock(conf, cache, f->r, cache->out);
+
+        if (APR_BRIGADE_EMPTY(cache->out)) {
+            if (APR_BRIGADE_EMPTY(in)) {
+                /* cache provider wants more data before passing the brigade
+                 * upstream, oblige the provider by leaving to fetch more.
+                 */
+                break;
+            }
+            else {
+                /* oops, no data out, but not all data read in either, be
+                 * safe and stand down to prevent a spin.
+                 */
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, f->r, APLOGNO(00766)
+                        "cache: Cache provider's store_body returned an "
+                        "empty brigade, but didn't consume all of the "
+                        "input brigade, standing down to prevent a spin");
+                ap_remove_output_filter(f);
+
+                /* give someone else the chance to cache the file */
+                cache_remove_lock(conf, cache, f->r, NULL);
+
+                return ap_pass_brigade(f->next, in);
+            }
+        }
+
+        rv = ap_pass_brigade(f->next, cache->out);
     }
 
-    rv = ap_global_mutex_create(&authn_cache_mutex, NULL,
-                                authn_cache_id, NULL, s, pconf, 0);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01675)
-                      "failed to create %s mutex", authn_cache_id);
-        return 500; /* An HTTP status would be a misnomer! */
-    }
-    apr_pool_cleanup_register(pconf, NULL, remove_lock, apr_pool_cleanup_null);
-
-    rv = socache_provider->init(socache_instance, authn_cache_id,
-                                &authn_cache_hints, s, pconf);
-    if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(01677)
-                      "failed to initialise %s cache", authn_cache_id);
-        return 500; /* An HTTP status would be a misnomer! */
-    }
-    apr_pool_cleanup_register(pconf, (void*)s, destroy_cache, apr_pool_cleanup_null);
-    return OK;
+    return rv;
 }

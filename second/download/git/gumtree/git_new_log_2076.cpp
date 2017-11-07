@@ -1,3 +1,3 @@
-error("Unable to determine requirements "
-		     "of type %s for %s",
-		     typename(obj->type), oid_to_hex(&obj->oid));
+fprintf(stderr, "Cannot obtain needed %s %s\n",
+		obj->type ? typename(obj->type): "object",
+		oid_to_hex(&obj->oid));

@@ -1,1 +1,1 @@
-error("problems writing temporary file %s", buf->buf);
+fprintf(f, "%s\n", sha1_to_hex(sha1));

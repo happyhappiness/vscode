@@ -1,43 +1,122 @@
-static int write_pseudoref(const char *pseudoref, const unsigned char *sha1,
-			   const unsigned char *old_sha1, struct strbuf *err)
+static int get_value(struct parse_opt_ctx_t *p,
+		     const struct option *opt,
+		     const struct option *all_opts,
+		     int flags)
 {
-	const char *filename;
-	int fd;
-	static struct lock_file lock;
-	struct strbuf buf = STRBUF_INIT;
-	int ret = -1;
+	const char *s, *arg;
+	const int unset = flags & OPT_UNSET;
+	int err;
 
-	strbuf_addf(&buf, "%s\n", sha1_to_hex(sha1));
+	if (unset && p->opt)
+		return opterror(opt, "takes no value", flags);
+	if (unset && (opt->flags & PARSE_OPT_NONEG))
+		return opterror(opt, "isn't available", flags);
+	if (!(flags & OPT_SHORT) && p->opt && (opt->flags & PARSE_OPT_NOARG))
+		return opterror(opt, "takes no value", flags);
 
-	filename = git_path("%s", pseudoref);
-	fd = hold_lock_file_for_update(&lock, filename, LOCK_DIE_ON_ERROR);
-	if (fd < 0) {
-		strbuf_addf(err, "Could not open '%s' for writing: %s",
-			    filename, strerror(errno));
-		return -1;
-	}
+	switch (opt->type) {
+	case OPTION_LOWLEVEL_CALLBACK:
+		return (*(parse_opt_ll_cb *)opt->callback)(p, opt, unset);
 
-	if (old_sha1) {
-		unsigned char actual_old_sha1[20];
+	case OPTION_BIT:
+		if (unset)
+			*(int *)opt->value &= ~opt->defval;
+		else
+			*(int *)opt->value |= opt->defval;
+		return 0;
 
-		if (read_ref(pseudoref, actual_old_sha1))
-			die("could not read ref '%s'", pseudoref);
-		if (hashcmp(actual_old_sha1, old_sha1)) {
-			strbuf_addf(err, "Unexpected sha1 when writing %s", pseudoref);
-			rollback_lock_file(&lock);
-			goto done;
+	case OPTION_NEGBIT:
+		if (unset)
+			*(int *)opt->value |= opt->defval;
+		else
+			*(int *)opt->value &= ~opt->defval;
+		return 0;
+
+	case OPTION_COUNTUP:
+		*(int *)opt->value = unset ? 0 : *(int *)opt->value + 1;
+		return 0;
+
+	case OPTION_SET_INT:
+		*(int *)opt->value = unset ? 0 : opt->defval;
+		return 0;
+
+	case OPTION_CMDMODE:
+		/*
+		 * Giving the same mode option twice, although is unnecessary,
+		 * is not a grave error, so let it pass.
+		 */
+		if (*(int *)opt->value && *(int *)opt->value != opt->defval)
+			return opt_command_mode_error(opt, all_opts, flags);
+		*(int *)opt->value = opt->defval;
+		return 0;
+
+	case OPTION_STRING:
+		if (unset)
+			*(const char **)opt->value = NULL;
+		else if (opt->flags & PARSE_OPT_OPTARG && !p->opt)
+			*(const char **)opt->value = (const char *)opt->defval;
+		else
+			return get_arg(p, opt, flags, (const char **)opt->value);
+		return 0;
+
+	case OPTION_FILENAME:
+		err = 0;
+		if (unset)
+			*(const char **)opt->value = NULL;
+		else if (opt->flags & PARSE_OPT_OPTARG && !p->opt)
+			*(const char **)opt->value = (const char *)opt->defval;
+		else
+			err = get_arg(p, opt, flags, (const char **)opt->value);
+
+		if (!err)
+			fix_filename(p->prefix, (const char **)opt->value);
+		return err;
+
+	case OPTION_CALLBACK:
+		if (unset)
+			return (*opt->callback)(opt, NULL, 1) ? (-1) : 0;
+		if (opt->flags & PARSE_OPT_NOARG)
+			return (*opt->callback)(opt, NULL, 0) ? (-1) : 0;
+		if (opt->flags & PARSE_OPT_OPTARG && !p->opt)
+			return (*opt->callback)(opt, NULL, 0) ? (-1) : 0;
+		if (get_arg(p, opt, flags, &arg))
+			return -1;
+		return (*opt->callback)(opt, arg, 0) ? (-1) : 0;
+
+	case OPTION_INTEGER:
+		if (unset) {
+			*(int *)opt->value = 0;
+			return 0;
 		}
-	}
+		if (opt->flags & PARSE_OPT_OPTARG && !p->opt) {
+			*(int *)opt->value = opt->defval;
+			return 0;
+		}
+		if (get_arg(p, opt, flags, &arg))
+			return -1;
+		*(int *)opt->value = strtol(arg, (char **)&s, 10);
+		if (*s)
+			return opterror(opt, "expects a numerical value", flags);
+		return 0;
 
-	if (write_in_full(fd, buf.buf, buf.len) != buf.len) {
-		strbuf_addf(err, "Could not write to '%s'", filename);
-		rollback_lock_file(&lock);
-		goto done;
-	}
+	case OPTION_MAGNITUDE:
+		if (unset) {
+			*(unsigned long *)opt->value = 0;
+			return 0;
+		}
+		if (opt->flags & PARSE_OPT_OPTARG && !p->opt) {
+			*(unsigned long *)opt->value = opt->defval;
+			return 0;
+		}
+		if (get_arg(p, opt, flags, &arg))
+			return -1;
+		if (!git_parse_ulong(arg, opt->value))
+			return opterror(opt,
+				"expects a non-negative integer value with an optional k/m/g suffix",
+				flags);
+		return 0;
 
-	commit_lock_file(&lock);
-	ret = 0;
-done:
-	strbuf_release(&buf);
-	return ret;
+	default:
+		die("should not happen, someone must be hit on the forehead");
+	}
 }

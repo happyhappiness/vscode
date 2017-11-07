@@ -1,11 +1,9 @@
-void print_signature_buffer(const struct signature_check *sigc, unsigned flags)
+int fsck_error_function(struct object *obj, int msg_type, const char *message)
 {
-	const char *output = flags & GPG_VERIFY_RAW ?
-		sigc->gpg_status : sigc->gpg_output;
-
-	if (flags & GPG_VERIFY_VERBOSE && sigc->payload)
-		fputs(sigc->payload, stdout);
-
-	if (output)
-		fputs(output, stderr);
+	if (msg_type == FSCK_WARN) {
+		warning("object %s: %s", sha1_to_hex(obj->sha1), message);
+		return 0;
+	}
+	error("object %s: %s", sha1_to_hex(obj->sha1), message);
+	return 1;
 }

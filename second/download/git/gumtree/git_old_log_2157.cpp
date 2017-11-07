@@ -1,2 +1,2 @@
-die("unknown %.*s format %s",
-				    (int)(formatp - name), name, formatp);
+die("ref '%s' does not have %ld components to :strip",
+			    refname, nr);

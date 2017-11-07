@@ -1,4 +1,2 @@
 ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                                 "h2_worker(%d): waiting signal, "
-                                 "worker_count=%d", worker->id, 
-                                 (int)workers->worker_count);
+                     "h2_worker(%d): done", h2_worker_get_id(worker));

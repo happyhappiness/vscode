@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, task->c->master, 
-                  "status_event(%s): %d", task->id, event);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                          "status_handler(%s): seeing incoming trailers", 
+                          task->id);

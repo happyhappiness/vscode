@@ -1,1 +1,1 @@
-die (_("--subject-prefix and -k are mutually exclusive."));
+error(_("Could not read object %s"), sha1_to_hex(sha1));

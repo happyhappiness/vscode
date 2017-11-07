@@ -1,1 +1,1 @@
-die("cannot start proxy %s", argv[0]);
+die("protocol error: expected shallow sha-1, got '%s'", buffer + 8);

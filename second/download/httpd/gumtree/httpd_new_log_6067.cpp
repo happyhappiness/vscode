@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, r->connection, 
-                          APLOGNO(03471) "h2_proxy_session(%s): request %s -> %s "
-                          "not complete, was touched",
-                          ctx->engine_id, task_id, uri);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, APLOGNO(03352)
+                      "H2: failed to make connection to backend: %s",
+                      ctx->p_conn->hostname);

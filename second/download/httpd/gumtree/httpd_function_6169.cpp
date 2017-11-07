@@ -1,23 +1,13 @@
-static int report_stream_iter(void *ctx, void *val) {
-    h2_mplx *m = ctx;
-    h2_stream *stream = val;
-    h2_task *task = stream->task;
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                  H2_STRM_MSG(stream, "started=%d, scheduled=%d, ready=%d, "
-                              "out_buffer=%ld"), 
-                  !!stream->task, stream->scheduled, h2_stream_is_ready(stream),
-                  (long)h2_beam_get_buffered(stream->output));
-    if (task) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
-                      H2_STRM_MSG(stream, "->03198: %s %s %s"
-                      "[started=%d/done=%d/frozen=%d]"), 
-                      task->request->method, task->request->authority, 
-                      task->request->path, task->worker_started, 
-                      task->worker_done, task->frozen);
+static void register_if_needed(h2_mplx *m) 
+{
+    if (!m->is_registered && !h2_iq_empty(m->q)) {
+        apr_status_t status = h2_workers_register(m->workers, m); 
+        if (status == APR_SUCCESS) {
+            m->is_registered = 1;
+        }
+        else {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, m->c, APLOGNO(10021)
+                          "h2_mplx(%ld): register at workers", m->id);
+        }
     }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
-                      H2_STRM_MSG(stream, "->03198: no task"));
-    }
-    return 1;
 }

@@ -1,1 +1,1 @@
-error("object %s: %s", oid_to_hex(&obj->oid), message);
+warning("object %s: %s", oid_to_hex(&obj->oid), message);

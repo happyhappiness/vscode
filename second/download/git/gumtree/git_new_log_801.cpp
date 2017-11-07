@@ -1,1 +1,1 @@
-opt->output(opt, child_output.buf, child_output.len);
+opendir(git_path("objects/17"));

@@ -1,1 +1,1 @@
-maybe_flush_or_die(opt->diffopt.file, "stdout");
+fprintf(opt->diffopt.file, "\n%s\n", opt->break_bar);

@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(02409) "worker slotmem_fgrab failed");
+ap_rvputs(r, "      <httpd:lbmethod>", balancer->lbmethod->name,
+                      "</httpd:lbmethod>\n", NULL);

@@ -1,1 +1,1 @@
-warning("core.bare and core.worktree do not make sense");
+die("unable to set up work tree using invalid config");

@@ -1,46 +1,68 @@
-static int read_ref_at_ent(unsigned char *osha1, unsigned char *nsha1,
-		const char *email, unsigned long timestamp, int tz,
-		const char *message, void *cb_data)
+int create_symref(const char *ref_target, const char *refs_heads_master,
+		  const char *logmsg)
 {
-	struct read_ref_at_cb *cb = cb_data;
+	char *lockpath = NULL;
+	char ref[1000];
+	int fd, len, written;
+	char *git_HEAD = git_pathdup("%s", ref_target);
+	unsigned char old_sha1[20], new_sha1[20];
+	struct strbuf err = STRBUF_INIT;
 
-	cb->reccnt++;
-	cb->tz = tz;
-	cb->date = timestamp;
+	if (logmsg && read_ref(ref_target, old_sha1))
+		hashclr(old_sha1);
 
-	if (timestamp <= cb->at_time || cb->cnt == 0) {
-		if (cb->msg)
-			*cb->msg = xstrdup(message);
-		if (cb->cutoff_time)
-			*cb->cutoff_time = timestamp;
-		if (cb->cutoff_tz)
-			*cb->cutoff_tz = tz;
-		if (cb->cutoff_cnt)
-			*cb->cutoff_cnt = cb->reccnt - 1;
-		/*
-		 * we have not yet updated cb->[n|o]sha1 so they still
-		 * hold the values for the previous record.
-		 */
-		if (!is_null_sha1(cb->osha1)) {
-			hashcpy(cb->sha1, nsha1);
-			if (hashcmp(cb->osha1, nsha1))
-				warning("Log for ref %s has gap after %s.",
-					cb->refname, show_date(cb->date, cb->tz, DATE_RFC2822));
-		}
-		else if (cb->date == cb->at_time)
-			hashcpy(cb->sha1, nsha1);
-		else if (hashcmp(nsha1, cb->sha1))
-			warning("Log for ref %s unexpectedly ended on %s.",
-				cb->refname, show_date(cb->date, cb->tz,
-						   DATE_RFC2822));
-		hashcpy(cb->osha1, osha1);
-		hashcpy(cb->nsha1, nsha1);
-		cb->found_it = 1;
-		return 1;
+	if (safe_create_leading_directories(git_HEAD) < 0)
+		return error("unable to create directory for %s", git_HEAD);
+
+#ifndef NO_SYMLINK_HEAD
+	if (prefer_symlink_refs) {
+		unlink(git_HEAD);
+		if (!symlink(refs_heads_master, git_HEAD))
+			goto done;
+		fprintf(stderr, "no symlink - falling back to symbolic ref\n");
 	}
-	hashcpy(cb->osha1, osha1);
-	hashcpy(cb->nsha1, nsha1);
-	if (cb->cnt > 0)
-		cb->cnt--;
+#endif
+
+	len = snprintf(ref, sizeof(ref), "ref: %s\n", refs_heads_master);
+	if (sizeof(ref) <= len) {
+		error("refname too long: %s", refs_heads_master);
+		goto error_free_return;
+	}
+	lockpath = mkpathdup("%s.lock", git_HEAD);
+	fd = open(lockpath, O_CREAT | O_EXCL | O_WRONLY, 0666);
+	if (fd < 0) {
+		error("Unable to open %s for writing", lockpath);
+		goto error_free_return;
+	}
+	written = write_in_full(fd, ref, len);
+	if (close(fd) != 0 || written != len) {
+		error("Unable to write to %s", lockpath);
+		goto error_unlink_return;
+	}
+	if (rename(lockpath, git_HEAD) < 0) {
+		error("Unable to create %s", git_HEAD);
+		goto error_unlink_return;
+	}
+	if (adjust_shared_perm(git_HEAD)) {
+		error("Unable to fix permissions on %s", lockpath);
+	error_unlink_return:
+		unlink_or_warn(lockpath);
+	error_free_return:
+		free(lockpath);
+		free(git_HEAD);
+		return -1;
+	}
+	free(lockpath);
+
+#ifndef NO_SYMLINK_HEAD
+	done:
+#endif
+	if (logmsg && !read_ref(refs_heads_master, new_sha1) &&
+		log_ref_write(ref_target, old_sha1, new_sha1, logmsg, 0, &err)) {
+		error("%s", err.buf);
+		strbuf_release(&err);
+	}
+
+	free(git_HEAD);
 	return 0;
 }

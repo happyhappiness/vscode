@@ -1,1 +1,0 @@
-die ("Invalid search pattern: %s", prefix);

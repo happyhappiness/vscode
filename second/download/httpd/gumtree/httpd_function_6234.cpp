@@ -7,35 +7,38 @@ static apr_status_t on_stream_headers(h2_session *session, h2_stream *stream,
 
     ap_assert(session);
     ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                  "h2_stream(%ld-%d): on_headers", session->id, stream->id);
+                  H2_STRM_MSG(stream, "on_headers"));
     if (headers->status < 100) {
-        int err = H2_STREAM_RST(stream, headers->status);
-        rv = nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                       stream->id, err);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
-                  "h2_stream(%ld-%d): unpexected header status %d, stream rst", 
-                  session->id, stream->id, headers->status);
+        h2_stream_rst(stream, headers->status);
         goto leave;
     }
     else if (stream->has_response) {
         h2_ngheader *nh;
         
-        nh = h2_util_ngheader_make(stream->pool, headers->headers);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03072)
-                      "h2_stream(%ld-%d): submit %d trailers",
-                      session->id, (int)stream->id,(int) nh->nvlen);
-        rv = nghttp2_submit_trailer(session->ngh2, stream->id, nh->nv, nh->nvlen);
+        status = h2_res_create_ngtrailer(&nh, stream->pool, headers);
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, 
+                      H2_STRM_LOG(APLOGNO(03072), stream, "submit %d trailers"), 
+                      (int)nh->nvlen);
+        if (status == APR_SUCCESS) {
+            rv = nghttp2_submit_trailer(session->ngh2, stream->id, 
+                                        nh->nv, nh->nvlen);
+        }
+        else {
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          H2_STRM_LOG(APLOGNO(10024), stream, "invalid trailers"));
+            h2_stream_rst(stream, NGHTTP2_PROTOCOL_ERROR);
+        }
         goto leave;
     }
     else {
         nghttp2_data_provider provider, *pprovider = NULL;
         h2_ngheader *ngh;
-        apr_table_t *hout;
         const char *note;
         
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03073)
-                      "h2_stream(%ld-%d): submit response %d, REMOTE_WINDOW_SIZE=%u",
-                      session->id, stream->id, headers->status,
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                      H2_STRM_LOG(APLOGNO(03073), stream, "submit response %d, REMOTE_WINDOW_SIZE=%u"),
+                      headers->status,
                       (unsigned int)nghttp2_session_get_stream_remote_window_size(session->ngh2, stream->id));
         
         if (!eos || len > 0) {
@@ -76,17 +79,16 @@ static apr_status_t on_stream_headers(h2_session *session, h2_stream *stream,
         }
         h2_session_set_prio(session, stream, stream->pref_priority);
         
-        hout = headers->headers;
         note = apr_table_get(headers->notes, H2_FILTER_DEBUG_NOTE);
         if (note && !strcmp("on", note)) {
             int32_t connFlowIn, connFlowOut;
 
             connFlowIn = nghttp2_session_get_effective_local_window_size(session->ngh2); 
             connFlowOut = nghttp2_session_get_remote_window_size(session->ngh2);
-            hout = apr_table_clone(stream->pool, hout);
-            apr_table_setn(hout, "conn-flow-in", 
+            headers = h2_headers_copy(stream->pool, headers);
+            apr_table_setn(headers->headers, "conn-flow-in", 
                            apr_itoa(stream->pool, connFlowIn));
-            apr_table_setn(hout, "conn-flow-out", 
+            apr_table_setn(headers->headers, "conn-flow-out", 
                            apr_itoa(stream->pool, connFlowOut));
         }
         
@@ -98,17 +100,24 @@ static apr_status_t on_stream_headers(h2_session *session, h2_stream *stream,
             goto leave;
         }
         
-        ngh = h2_util_ngheader_make_res(stream->pool, headers->status, hout);
-        rv = nghttp2_submit_response(session->ngh2, stream->id,
-                                     ngh->nv, ngh->nvlen, pprovider);
-        stream->has_response = h2_headers_are_response(headers);
-        session->have_written = 1;
-        
-        if (stream->initiated_on) {
-            ++session->pushes_submitted;
+        status = h2_res_create_ngheader(&ngh, stream->pool, headers);
+        if (status == APR_SUCCESS) {
+            rv = nghttp2_submit_response(session->ngh2, stream->id,
+                                         ngh->nv, ngh->nvlen, pprovider);
+            stream->has_response = h2_headers_are_response(headers);
+            session->have_written = 1;
+            
+            if (stream->initiated_on) {
+                ++session->pushes_submitted;
+            }
+            else {
+                ++session->responses_submitted;
+            }
         }
         else {
-            ++session->responses_submitted;
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                          H2_STRM_LOG(APLOGNO(10025), stream, "invalid response"));
+            h2_stream_rst(stream, NGHTTP2_PROTOCOL_ERROR);
         }
     }
     

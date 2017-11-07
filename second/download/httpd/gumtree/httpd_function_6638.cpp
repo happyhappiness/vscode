@@ -1,65 +1,56 @@
-static const char *set_error_document(cmd_parms *cmd, void *conf_,
-                                      const char *errno_str, const char *msg)
+static apr_status_t piped_log_spawn(piped_log *pl)
 {
-    core_dir_config *conf = conf_;
-    int error_number, index_number, idx500;
-    enum { MSG, LOCAL_PATH, REMOTE_PATH } what = MSG;
+    apr_procattr_t *procattr;
+    apr_proc_t *procnew = NULL;
+    apr_status_t status;
 
-    /* 1st parameter should be a 3 digit number, which we recognize;
-     * convert it into an array index
-     */
-    error_number = atoi(errno_str);
-    idx500 = ap_index_of_response(HTTP_INTERNAL_SERVER_ERROR);
-
-    if (error_number == HTTP_INTERNAL_SERVER_ERROR) {
-        index_number = idx500;
+    if (((status = apr_procattr_create(&procattr, pl->p)) != APR_SUCCESS) ||
+        ((status = apr_procattr_dir_set(procattr, ap_server_root))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_cmdtype_set(procattr, pl->cmdtype))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_child_in_set(procattr,
+                                             pl->read_fd,
+                                             pl->write_fd))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_child_errfn_set(procattr, log_child_errfn))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
+        char buf[120];
+        /* Something bad happened, give up and go away. */
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00103)
+                     "piped_log_spawn: unable to setup child process '%s': %s",
+                     pl->program, apr_strerror(status, buf, sizeof(buf)));
     }
-    else if ((index_number = ap_index_of_response(error_number)) == idx500) {
-        return apr_pstrcat(cmd->pool, "Unsupported HTTP response code ",
-                           errno_str, NULL);
-    }
+    else {
+        char **args;
+        const char *pname;
 
-    /* Heuristic to determine second argument. */
-    if (ap_strchr_c(msg,' '))
-        what = MSG;
-    else if (msg[0] == '/')
-        what = LOCAL_PATH;
-    else if (ap_is_url(msg))
-        what = REMOTE_PATH;
-    else
-        what = MSG;
+        apr_tokenize_to_argv(pl->program, &args, pl->p);
+        pname = apr_pstrdup(pl->p, args[0]);
+        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
+        status = apr_proc_create(procnew, pname, (const char * const *) args,
+                                 NULL, procattr, pl->p);
 
-    /* The entry should be ignored if it is a full URL for a 401 error */
-
-    if (error_number == 401 && what == REMOTE_PATH) {
-        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, cmd->server, APLOGNO(00113)
-                     "cannot use a full URL in a 401 ErrorDocument "
-                     "directive --- ignoring!");
-    }
-    else { /* Store it... */
-        if (conf->response_code_strings == NULL) {
-            conf->response_code_strings =
-                apr_pcalloc(cmd->pool,
-                            sizeof(*conf->response_code_strings) *
-                            RESPONSE_CODES);
-        }
-
-        if (strcmp(msg, "default") == 0) {
-            /* special case: ErrorDocument 404 default restores the
-             * canned server error response
-             */
-            conf->response_code_strings[index_number] = &errordocument_default;
+        if (status == APR_SUCCESS) {
+            pl->pid = procnew;
+            /* procnew->in was dup2'd from pl->write_fd;
+             * since the original fd is still valid, close the copy to
+             * avoid a leak. */
+            apr_file_close(procnew->in);
+            procnew->in = NULL;
+            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
+                                          pl->write_fd, pl->p);
+            close_handle_in_child(pl->p, pl->read_fd);
         }
         else {
-            /* hack. Prefix a " if it is a msg; as that is what
-             * http_protocol.c relies on to distinguish between
-             * a msg and a (local) path.
-             */
-            conf->response_code_strings[index_number] = (what == MSG) ?
-                    apr_pstrcat(cmd->pool, "\"", msg, NULL) :
-                    apr_pstrdup(cmd->pool, msg);
+            char buf[120];
+            /* Something bad happened, give up and go away. */
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00104)
+                         "unable to start piped log program '%s': %s",
+                         pl->program, apr_strerror(status, buf, sizeof(buf)));
         }
     }
 
-    return NULL;
+    return status;
 }

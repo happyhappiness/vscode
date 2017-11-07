@@ -1,2 +1,1 @@
-die("unable to read %s",
-		    oid_to_hex(&entry->delta->idx.oid));
+die("unable to read %s", oid_to_hex(&entry->idx.oid));

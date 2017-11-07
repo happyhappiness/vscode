@@ -1,20 +1,22 @@
-static char *attr_value_unescape(const char *value)
+int encode_in_pack_object_header(unsigned char *hdr, int hdr_len,
+				 enum object_type type, uintmax_t size)
 {
-	const char *src;
-	char *dst, *ret;
+	int n = 1;
+	unsigned char c;
 
-	ret = xmallocz(strlen(value));
-	for (src = value, dst = ret; *src; src++, dst++) {
-		if (*src == '\\') {
-			if (!src[1])
-				die(_("Escape character '\\' not allowed as "
-				      "last character in attr value"));
-			src++;
-		}
-		if (invalid_value_char(*src))
-			die("cannot use '%c' for value matching", *src);
-		*dst = *src;
+	if (type < OBJ_COMMIT || type > OBJ_REF_DELTA)
+		die("bad type %d", type);
+
+	c = (type << 4) | (size & 15);
+	size >>= 4;
+	while (size) {
+		if (n == hdr_len)
+			die("object size is too enormous to format");
+		*hdr++ = c | 0x80;
+		c = size & 0x7f;
+		size >>= 7;
+		n++;
 	}
-	*dst = '\0';
-	return ret;
+	*hdr = c;
+	return n;
 }

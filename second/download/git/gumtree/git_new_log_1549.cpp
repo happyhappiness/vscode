@@ -1,1 +1,1 @@
-die("object '%s' is not a blob!", oid_to_hex(oid));
+fprintf_ln(stderr, _(" OK"));

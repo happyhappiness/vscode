@@ -1,2 +1,2 @@
-ap_rvputs(r, "<dt>Balancer changes will ", conf->bal_persist ? "" : "NOT ",
-                  "be persisted on restart.</dt>", NULL);
+ap_rvputs(r, "<dt>ProxyPass settings are ", conf->ppinherit ? "" : "NOT ",
+                  "inherited from main server.</dt>", NULL);

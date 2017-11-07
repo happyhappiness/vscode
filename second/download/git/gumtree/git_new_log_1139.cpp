@@ -1,1 +1,1 @@
-printf("committer %s <%s@%s> %"PRItime" +0000\n", author, author, "local", timestamp);
+warning("die() called many times. Recursion error or racy threaded death!");

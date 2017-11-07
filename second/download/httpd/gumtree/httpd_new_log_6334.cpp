@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, r->server, APLOGNO(03300)
-                          "Error reading response body");
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, ctx->s,
+                     "Response status %i for %s (%s): failed", r->status,
+                     hc->s->name, worker->s->name);

@@ -1,1 +1,1 @@
-error("file write error (%s)", strerror(errno));
+error("unable to write sha1 filename %s: %s", filename, strerror(ret));

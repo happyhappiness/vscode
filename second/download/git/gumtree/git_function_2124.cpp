@@ -1,64 +1,97 @@
-static int git_parse_source(config_fn_t fn, void *data)
+static int test_if_untracked_cache_is_supported(void)
 {
-	int comment = 0;
-	int baselen = 0;
-	struct strbuf *var = &cf->var;
+	struct stat st;
+	struct stat_data base;
+	int fd, ret = 0;
 
-	/* U+FEFF Byte Order Mark in UTF8 */
-	const char *bomptr = utf8_bom;
+	strbuf_addstr(&mtime_dir, "mtime-test-XXXXXX");
+	if (!mkdtemp(mtime_dir.buf))
+		die_errno("Could not make temporary directory");
 
-	for (;;) {
-		int c = get_next_char();
-		if (bomptr && *bomptr) {
-			/* We are at the file beginning; skip UTF8-encoded BOM
-			 * if present. Sane editors won't put this in on their
-			 * own, but e.g. Windows Notepad will do it happily. */
-			if (c == (*bomptr & 0377)) {
-				bomptr++;
-				continue;
-			} else {
-				/* Do not tolerate partial BOM. */
-				if (bomptr != utf8_bom)
-					break;
-				/* No BOM at file beginning. Cool. */
-				bomptr = NULL;
-			}
-		}
-		if (c == '\n') {
-			if (cf->eof)
-				return 0;
-			comment = 0;
-			continue;
-		}
-		if (comment || isspace(c))
-			continue;
-		if (c == '#' || c == ';') {
-			comment = 1;
-			continue;
-		}
-		if (c == '[') {
-			/* Reset prior to determining a new stem */
-			strbuf_reset(var);
-			if (get_base_var(var) < 0 || var->len < 1)
-				break;
-			strbuf_addch(var, '.');
-			baselen = var->len;
-			continue;
-		}
-		if (!isalpha(c))
-			break;
-		/*
-		 * Truncate the var name back to the section header
-		 * stem prior to grabbing the suffix part of the name
-		 * and the value.
-		 */
-		strbuf_setlen(var, baselen);
-		strbuf_addch(var, tolower(c));
-		if (get_value(fn, data, var) < 0)
-			break;
+	fprintf(stderr, _("Testing "));
+	atexit(remove_test_directory);
+	xstat_mtime_dir(&st);
+	fill_stat_data(&base, &st);
+	fputc('.', stderr);
+
+	avoid_racy();
+	fd = create_file("newfile");
+	xstat_mtime_dir(&st);
+	if (!match_stat_data(&base, &st)) {
+		close(fd);
+		fputc('\n', stderr);
+		fprintf_ln(stderr,_("directory stat info does not "
+				    "change after adding a new file"));
+		goto done;
 	}
-	if (cf->die_on_error)
-		die(_("bad config file line %d in %s"), cf->linenr, cf->name);
-	else
-		return error(_("bad config file line %d in %s"), cf->linenr, cf->name);
+	fill_stat_data(&base, &st);
+	fputc('.', stderr);
+
+	avoid_racy();
+	xmkdir("new-dir");
+	xstat_mtime_dir(&st);
+	if (!match_stat_data(&base, &st)) {
+		close(fd);
+		fputc('\n', stderr);
+		fprintf_ln(stderr, _("directory stat info does not change "
+				     "after adding a new directory"));
+		goto done;
+	}
+	fill_stat_data(&base, &st);
+	fputc('.', stderr);
+
+	avoid_racy();
+	write_or_die(fd, "data", 4);
+	close(fd);
+	xstat_mtime_dir(&st);
+	if (match_stat_data(&base, &st)) {
+		fputc('\n', stderr);
+		fprintf_ln(stderr, _("directory stat info changes "
+				     "after updating a file"));
+		goto done;
+	}
+	fputc('.', stderr);
+
+	avoid_racy();
+	close(create_file("new-dir/new"));
+	xstat_mtime_dir(&st);
+	if (match_stat_data(&base, &st)) {
+		fputc('\n', stderr);
+		fprintf_ln(stderr, _("directory stat info changes after "
+				     "adding a file inside subdirectory"));
+		goto done;
+	}
+	fputc('.', stderr);
+
+	avoid_racy();
+	xunlink("newfile");
+	xstat_mtime_dir(&st);
+	if (!match_stat_data(&base, &st)) {
+		fputc('\n', stderr);
+		fprintf_ln(stderr, _("directory stat info does not "
+				     "change after deleting a file"));
+		goto done;
+	}
+	fill_stat_data(&base, &st);
+	fputc('.', stderr);
+
+	avoid_racy();
+	xunlink("new-dir/new");
+	xrmdir("new-dir");
+	xstat_mtime_dir(&st);
+	if (!match_stat_data(&base, &st)) {
+		fputc('\n', stderr);
+		fprintf_ln(stderr, _("directory stat info does not "
+				     "change after deleting a directory"));
+		goto done;
+	}
+
+	if (rmdir(mtime_dir.buf))
+		die_errno(_("failed to delete directory %s"), mtime_dir.buf);
+	fprintf_ln(stderr, _(" OK"));
+	ret = 1;
+
+done:
+	strbuf_release(&mtime_dir);
+	return ret;
 }

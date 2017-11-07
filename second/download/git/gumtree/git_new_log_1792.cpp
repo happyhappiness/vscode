@@ -1,1 +1,1 @@
-die("helper %s does not support --signed", name);
+die("helper %s does not support dry-run", name);

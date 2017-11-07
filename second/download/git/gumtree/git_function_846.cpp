@@ -1,67 +1,53 @@
-static void threaded_lazy_init_name_hash(
-	struct index_state *istate)
+static int handle_range_dir(
+	struct index_state *istate,
+	int k_start,
+	int k_end,
+	struct dir_entry *parent,
+	struct strbuf *prefix,
+	struct lazy_entry *lazy_entries,
+	struct dir_entry **dir_new_out)
 {
-	int nr_each;
-	int k_start;
-	int t;
-	struct lazy_entry *lazy_entries;
-	struct lazy_dir_thread_data *td_dir;
-	struct lazy_name_thread_data *td_name;
+	int rc, k;
+	int input_prefix_len = prefix->len;
+	struct dir_entry *dir_new;
 
-	k_start = 0;
-	nr_each = DIV_ROUND_UP(istate->cache_nr, lazy_nr_dir_threads);
+	dir_new = hash_dir_entry_with_parent_and_prefix(istate, parent, prefix);
 
-	lazy_entries = xcalloc(istate->cache_nr, sizeof(struct lazy_entry));
-	td_dir = xcalloc(lazy_nr_dir_threads, sizeof(struct lazy_dir_thread_data));
-	td_name = xcalloc(1, sizeof(struct lazy_name_thread_data));
-
-	init_dir_mutex();
+	strbuf_addch(prefix, '/');
 
 	/*
-	 * Phase 1:
-	 * Build "istate->dir_hash" using n "dir" threads (and a read-only index).
+	 * Scan forward in the index array for index entries having the same
+	 * path prefix (that are also in this directory).
 	 */
-	for (t = 0; t < lazy_nr_dir_threads; t++) {
-		struct lazy_dir_thread_data *td_dir_t = td_dir + t;
-		td_dir_t->istate = istate;
-		td_dir_t->lazy_entries = lazy_entries;
-		td_dir_t->k_start = k_start;
-		k_start += nr_each;
-		if (k_start > istate->cache_nr)
-			k_start = istate->cache_nr;
-		td_dir_t->k_end = k_start;
-		if (pthread_create(&td_dir_t->pthread, NULL, lazy_dir_thread_proc, td_dir_t))
-			die("unable to create lazy_dir_thread");
-	}
-	for (t = 0; t < lazy_nr_dir_threads; t++) {
-		struct lazy_dir_thread_data *td_dir_t = td_dir + t;
-		if (pthread_join(td_dir_t->pthread, NULL))
-			die("unable to join lazy_dir_thread");
+	if (k_start + 1 >= k_end)
+		k = k_end;
+	else if (strncmp(istate->cache[k_start + 1]->name, prefix->buf, prefix->len) > 0)
+		k = k_start + 1;
+	else if (strncmp(istate->cache[k_end - 1]->name, prefix->buf, prefix->len) == 0)
+		k = k_end;
+	else {
+		int begin = k_start;
+		int end = k_end;
+		while (begin < end) {
+			int mid = (begin + end) >> 1;
+			int cmp = strncmp(istate->cache[mid]->name, prefix->buf, prefix->len);
+			if (cmp == 0) /* mid has same prefix; look in second part */
+				begin = mid + 1;
+			else if (cmp > 0) /* mid is past group; look in first part */
+				end = mid;
+			else
+				die("cache entry out of order");
+		}
+		k = begin;
 	}
 
 	/*
-	 * Phase 2:
-	 * Iterate over all index entries and add them to the "istate->name_hash"
-	 * using a single "name" background thread.
-	 * (Testing showed it wasn't worth running more than 1 thread for this.)
-	 *
-	 * Meanwhile, finish updating the parent directory ref-counts for each
-	 * index entry using the current thread.  (This step is very fast and
-	 * doesn't need threading.)
+	 * Recurse and process what we can of this subset [k_start, k).
 	 */
-	td_name->istate = istate;
-	td_name->lazy_entries = lazy_entries;
-	if (pthread_create(&td_name->pthread, NULL, lazy_name_thread_proc, td_name))
-		die("unable to create lazy_name_thread");
+	rc = handle_range_1(istate, k_start, k, dir_new, prefix, lazy_entries);
 
-	lazy_update_dir_ref_counts(istate, lazy_entries);
+	strbuf_setlen(prefix, input_prefix_len);
 
-	if (pthread_join(td_name->pthread, NULL))
-		die("unable to join lazy_name_thread");
-
-	cleanup_dir_mutex();
-
-	free(td_name);
-	free(td_dir);
-	free(lazy_entries);
+	*dir_new_out = dir_new;
+	return rc;
 }

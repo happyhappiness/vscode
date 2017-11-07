@@ -1,1 +1,1 @@
-die("combining --first-parent and --reverse is not supported");
+die("transport '%s' not allowed", type);

@@ -1,3 +1,3 @@
-die(_("ambiguous argument '%s': unknown revision or path not in the working tree.\n"
-	      "Use '--' to separate paths from revisions, like this:\n"
-	      "'git <command> [<revision>...] -- [<file>...]'"), arg);
+error((opts->action == REPLAY_REVERT)
+			    ? _("Cannot revert during another revert.")
+			    : _("Cannot revert during a cherry-pick."));

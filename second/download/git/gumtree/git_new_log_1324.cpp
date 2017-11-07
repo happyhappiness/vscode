@@ -1,2 +1,2 @@
-die("unordered stage entries for '%s'",
+die("multiple stage entries for merged file '%s'",
 				ce->name);

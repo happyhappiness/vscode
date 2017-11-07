@@ -1,1 +1,1 @@
-printf("num read blob: %d\n", num_read_blob);
+printf("committer-time %lu\n", ci.committer_time);

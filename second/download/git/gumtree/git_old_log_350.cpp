@@ -1,1 +1,1 @@
-die("Option '--stat-width' requires a value");
+die("--name-only, --name-status, --check and -s are mutually exclusive");

@@ -1,1 +1,1 @@
-error("cannot fork to run external filter '%s'", params->cmd);
+die(_("LF would be replaced by CRLF in %s"), path);

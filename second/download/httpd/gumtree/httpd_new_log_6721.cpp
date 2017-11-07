@@ -1,2 +1,1 @@
-printf("                        %.2f kb/s total\n",
-               (double) (totalread + totalposted) / 1024 / timetaken);
+printf("Processing: " CONF_FMT_STRING, mind, meand, maxd);

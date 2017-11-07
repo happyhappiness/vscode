@@ -1,50 +1,68 @@
-int checkout_fast_forward(const unsigned char *head,
-			  const unsigned char *remote,
-			  int overwrite_ignore)
+const char *fmt_ident(const char *name, const char *email,
+		      const char *date_str, int flag)
 {
-	struct tree *trees[MAX_UNPACK_TREES];
-	struct unpack_trees_options opts;
-	struct tree_desc t[MAX_UNPACK_TREES];
-	int i, nr_trees = 0;
-	struct dir_struct dir;
-	struct lock_file *lock_file = xcalloc(1, sizeof(struct lock_file));
+	static struct strbuf ident = STRBUF_INIT;
+	int strict = (flag & IDENT_STRICT);
+	int want_date = !(flag & IDENT_NO_DATE);
+	int want_name = !(flag & IDENT_NO_NAME);
 
-	refresh_cache(REFRESH_QUIET);
-
-	hold_locked_index(lock_file, 1);
-
-	memset(&trees, 0, sizeof(trees));
-	memset(&opts, 0, sizeof(opts));
-	memset(&t, 0, sizeof(t));
-	if (overwrite_ignore) {
-		memset(&dir, 0, sizeof(dir));
-		dir.flags |= DIR_SHOW_IGNORED;
-		setup_standard_excludes(&dir);
-		opts.dir = &dir;
+	if (want_name) {
+		int using_default = 0;
+		if (!name) {
+			if (strict && ident_use_config_only
+			    && !(ident_config_given & IDENT_NAME_GIVEN)) {
+				fputs(env_hint, stderr);
+				die("no name was given and auto-detection is disabled");
+			}
+			name = ident_default_name();
+			using_default = 1;
+			if (strict && default_name_is_bogus) {
+				fputs(env_hint, stderr);
+				die("unable to auto-detect name (got '%s')", name);
+			}
+		}
+		if (!*name) {
+			struct passwd *pw;
+			if (strict) {
+				if (using_default)
+					fputs(env_hint, stderr);
+				die("empty ident name (for <%s>) not allowed", email);
+			}
+			pw = xgetpwuid_self(NULL);
+			name = pw->pw_name;
+		}
 	}
 
-	opts.head_idx = 1;
-	opts.src_index = &the_index;
-	opts.dst_index = &the_index;
-	opts.update = 1;
-	opts.verbose_update = 1;
-	opts.merge = 1;
-	opts.fn = twoway_merge;
-	setup_unpack_trees_porcelain(&opts, "merge");
-
-	trees[nr_trees] = parse_tree_indirect(head);
-	if (!trees[nr_trees++])
-		return -1;
-	trees[nr_trees] = parse_tree_indirect(remote);
-	if (!trees[nr_trees++])
-		return -1;
-	for (i = 0; i < nr_trees; i++) {
-		parse_tree(trees[i]);
-		init_tree_desc(t+i, trees[i]->buffer, trees[i]->size);
+	if (!email) {
+		if (strict && ident_use_config_only
+		    && !(ident_config_given & IDENT_MAIL_GIVEN)) {
+			fputs(env_hint, stderr);
+			die("no email was given and auto-detection is disabled");
+		}
+		email = ident_default_email();
+		if (strict && default_email_is_bogus) {
+			fputs(env_hint, stderr);
+			die("unable to auto-detect email address (got '%s')", email);
+		}
 	}
-	if (unpack_trees(nr_trees, t, &opts))
-		return -1;
-	if (write_locked_index(&the_index, lock_file, COMMIT_LOCK))
-		die(_("unable to write new index file"));
-	return 0;
+
+	strbuf_reset(&ident);
+	if (want_name) {
+		strbuf_addstr_without_crud(&ident, name);
+		strbuf_addstr(&ident, " <");
+	}
+	strbuf_addstr_without_crud(&ident, email);
+	if (want_name)
+			strbuf_addch(&ident, '>');
+	if (want_date) {
+		strbuf_addch(&ident, ' ');
+		if (date_str && date_str[0]) {
+			if (parse_date(date_str, &ident) < 0)
+				die("invalid date format: %s", date_str);
+		}
+		else
+			strbuf_addstr(&ident, ident_default_date());
+	}
+
+	return ident.buf;
 }

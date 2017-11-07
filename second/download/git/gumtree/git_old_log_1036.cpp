@@ -1,1 +1,2 @@
-error("%s %s", sha1_to_hex(e->sha1), e->name);
+printf("%s %s\n", sha1_to_hex(r->list[i].sha1),
+				r->list[i].name);

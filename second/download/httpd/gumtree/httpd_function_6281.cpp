@@ -1,49 +1,22 @@
-apr_status_t h2_stream_recv_frame(h2_stream *stream, int ftype, int flags)
+void h2_stream_cleanup(h2_stream *stream)
 {
-    apr_status_t status = APR_SUCCESS;
-    int new_state, eos = 0;
-
-    new_state = on_frame_recv(stream->state, ftype);
-    if (new_state < 0) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c, 
-                      H2_STRM_MSG(stream, "invalid frame %d recv"), ftype);
-        AP_DEBUG_ASSERT(new_state > S_XXX);
-        return transit(stream, new_state);
-    }
+    apr_status_t status;
     
-    switch (ftype) {
-        case NGHTTP2_DATA:
-            eos = (flags & NGHTTP2_FLAG_END_STREAM);
-            break;
-            
-        case NGHTTP2_HEADERS:
-            eos = (flags & NGHTTP2_FLAG_END_STREAM);
-            if (stream->state == H2_SS_OPEN) {
-                /* trailer HEADER */
-                if (!eos) {
-                    h2_stream_rst(stream, H2_ERR_PROTOCOL_ERROR);
-                }
-            }
-            else {
-                /* request HEADER */
-                ap_assert(stream->request == NULL);
-                ap_assert(stream->rtmp != NULL);
-                status = h2_request_end_headers(stream->rtmp, stream->pool, eos);
-                if (status != APR_SUCCESS) {
-                    return status;
-                }
-                set_policy_for(stream, stream->rtmp);
-                stream->request = stream->rtmp;
-                stream->rtmp = NULL;
-            }
-            break;
-            
-        default:
-            break;
+    ap_assert(stream);
+    if (stream->out_buffer) {
+        /* remove any left over output buckets that may still have
+         * references into request pools */
+        apr_brigade_cleanup(stream->out_buffer);
     }
-    status = transit(stream, new_state);
-    if (status == APR_SUCCESS && eos) {
-        status = transit(stream, on_event(stream, H2_SEV_CLOSED_R));
+    h2_beam_abort(stream->input);
+    status = h2_beam_wait_empty(stream->input, APR_NONBLOCK_READ);
+    if (status == APR_EAGAIN) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c, 
+                      "h2_stream(%ld-%d): wait on input drain", 
+                      stream->session->id, stream->id);
+        status = h2_beam_wait_empty(stream->input, APR_BLOCK_READ);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, stream->session->c, 
+                      "h2_stream(%ld-%d): input drain returned", 
+                      stream->session->id, stream->id);
     }
-    return status;
 }

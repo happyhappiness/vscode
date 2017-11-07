@@ -1,2 +1,2 @@
-die_errno("Invalid symlink '%s'",
+die_errno("Could not switch to '%s'",
 						  sb.buf);

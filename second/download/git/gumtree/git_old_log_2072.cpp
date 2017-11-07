@@ -1,2 +1,2 @@
-die("git upload-pack: not our ref %s",
-			    sha1_to_hex(o->sha1));
+fprintf(pipe_fd, "%s\n",
+			sha1_to_hex(extra_edge_obj.objects[i].item->sha1));

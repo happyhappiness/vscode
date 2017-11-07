@@ -1,1 +1,1 @@
-error("Unable to open %s for writing", lockpath);
+warning("ignoring broken ref %s", refname);

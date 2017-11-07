@@ -1,31 +1,47 @@
-static void send_local_file(const char *the_type, const char *name)
+static struct grep_expr *prep_header_patterns(struct grep_opt *opt)
 {
-	char *p = git_pathdup("%s", name);
-	size_t buf_alloc = 8192;
-	char *buf = xmalloc(buf_alloc);
-	int fd;
-	struct stat sb;
+	struct grep_pat *p;
+	struct grep_expr *header_expr;
+	struct grep_expr *(header_group[GREP_HEADER_FIELD_MAX]);
+	enum grep_header_field fld;
 
-	fd = open(p, O_RDONLY);
-	if (fd < 0)
-		not_found("Cannot open '%s': %s", p, strerror(errno));
-	if (fstat(fd, &sb) < 0)
-		die_errno("Cannot stat '%s'", p);
+	if (!opt->header_list)
+		return NULL;
 
-	hdr_int(content_length, sb.st_size);
-	hdr_str(content_type, the_type);
-	hdr_date(last_modified, sb.st_mtime);
-	end_headers();
-
-	for (;;) {
-		ssize_t n = xread(fd, buf, buf_alloc);
-		if (n < 0)
-			die_errno("Cannot read '%s'", p);
-		if (!n)
-			break;
-		write_or_die(1, buf, n);
+	for (p = opt->header_list; p; p = p->next) {
+		if (p->token != GREP_PATTERN_HEAD)
+			die("bug: a non-header pattern in grep header list.");
+		if (p->field < GREP_HEADER_FIELD_MIN ||
+		    GREP_HEADER_FIELD_MAX <= p->field)
+			die("bug: unknown header field %d", p->field);
+		compile_regexp(p, opt);
 	}
-	close(fd);
-	free(buf);
-	free(p);
+
+	for (fld = 0; fld < GREP_HEADER_FIELD_MAX; fld++)
+		header_group[fld] = NULL;
+
+	for (p = opt->header_list; p; p = p->next) {
+		struct grep_expr *h;
+		struct grep_pat *pp = p;
+
+		h = compile_pattern_atom(&pp);
+		if (!h || pp != p->next)
+			die("bug: malformed header expr");
+		if (!header_group[p->field]) {
+			header_group[p->field] = h;
+			continue;
+		}
+		header_group[p->field] = grep_or_expr(h, header_group[p->field]);
+	}
+
+	header_expr = NULL;
+
+	for (fld = 0; fld < GREP_HEADER_FIELD_MAX; fld++) {
+		if (!header_group[fld])
+			continue;
+		if (!header_expr)
+			header_expr = grep_true_expr();
+		header_expr = grep_or_expr(header_group[fld], header_expr);
+	}
+	return header_expr;
 }

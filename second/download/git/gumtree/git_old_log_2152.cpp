@@ -1,1 +1,1 @@
-die("unknown field name: %.*s", (int)(ep-atom), atom);
+die("malformed field name: %.*s", (int)(ep-atom), atom);

@@ -1,1 +1,1 @@
-die_errno(_("Could not write to %s"), filename);
+die("dumb http transport does not support --depth");

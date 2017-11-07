@@ -1,1 +1,2 @@
-die("invalid ref format: %s", argv[start]);
+error(_("'%s' for '%s' is not a valid timestamp"),
+			     value, var);

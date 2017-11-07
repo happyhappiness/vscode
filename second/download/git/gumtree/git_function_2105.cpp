@@ -1,37 +1,104 @@
-static void update_remote_refs(const struct ref *refs,
-			       const struct ref *mapped_refs,
-			       const struct ref *remote_head_points_at,
-			       const char *branch_top,
-			       const char *msg,
-			       struct transport *transport,
-			       int check_connectivity)
+static char *guess_dir_name(const char *repo, int is_bundle, int is_bare)
 {
-	const struct ref *rm = mapped_refs;
+	const char *end = repo + strlen(repo), *start, *ptr;
+	size_t len;
+	char *dir;
 
-	if (check_connectivity) {
-		if (transport->progress)
-			fprintf(stderr, _("Checking connectivity... "));
-		if (check_everything_connected_with_transport(iterate_ref_map,
-							      0, &rm, transport))
-			die(_("remote did not send all necessary objects"));
-		if (transport->progress)
-			fprintf(stderr, _("done.\n"));
+	/*
+	 * Skip scheme.
+	 */
+	start = strstr(repo, "://");
+	if (start == NULL)
+		start = repo;
+	else
+		start += 3;
+
+	/*
+	 * Skip authentication data. The stripping does happen
+	 * greedily, such that we strip up to the last '@' inside
+	 * the host part.
+	 */
+	for (ptr = start; ptr < end && !is_dir_sep(*ptr); ptr++) {
+		if (*ptr == '@')
+			start = ptr + 1;
 	}
 
-	if (refs) {
-		write_remote_refs(mapped_refs);
-		if (option_single_branch)
-			write_followtags(refs, msg);
+	/*
+	 * Strip trailing spaces, slashes and /.git
+	 */
+	while (start < end && (is_dir_sep(end[-1]) || isspace(end[-1])))
+		end--;
+	if (end - start > 5 && is_dir_sep(end[-5]) &&
+	    !strncmp(end - 4, ".git", 4)) {
+		end -= 5;
+		while (start < end && is_dir_sep(end[-1]))
+			end--;
 	}
 
-	if (remote_head_points_at && !option_bare) {
-		struct strbuf head_ref = STRBUF_INIT;
-		strbuf_addstr(&head_ref, branch_top);
-		strbuf_addstr(&head_ref, "HEAD");
-		if (create_symref(head_ref.buf,
-				  remote_head_points_at->peer_ref->name,
-				  msg) < 0)
-			die(_("unable to update %s"), head_ref.buf);
-		strbuf_release(&head_ref);
+	/*
+	 * Strip trailing port number if we've got only a
+	 * hostname (that is, there is no dir separator but a
+	 * colon). This check is required such that we do not
+	 * strip URI's like '/foo/bar:2222.git', which should
+	 * result in a dir '2222' being guessed due to backwards
+	 * compatibility.
+	 */
+	if (memchr(start, '/', end - start) == NULL
+	    && memchr(start, ':', end - start) != NULL) {
+		ptr = end;
+		while (start < ptr && isdigit(ptr[-1]) && ptr[-1] != ':')
+			ptr--;
+		if (start < ptr && ptr[-1] == ':')
+			end = ptr - 1;
 	}
+
+	/*
+	 * Find last component. To remain backwards compatible we
+	 * also regard colons as path separators, such that
+	 * cloning a repository 'foo:bar.git' would result in a
+	 * directory 'bar' being guessed.
+	 */
+	ptr = end;
+	while (start < ptr && !is_dir_sep(ptr[-1]) && ptr[-1] != ':')
+		ptr--;
+	start = ptr;
+
+	/*
+	 * Strip .{bundle,git}.
+	 */
+	len = end - start;
+	strip_suffix_mem(start, &len, is_bundle ? ".bundle" : ".git");
+
+	if (!len || (len == 1 && *start == '/'))
+	    die("No directory name could be guessed.\n"
+		"Please specify a directory on the command line");
+
+	if (is_bare)
+		dir = xstrfmt("%.*s.git", (int)len, start);
+	else
+		dir = xstrndup(start, len);
+	/*
+	 * Replace sequences of 'control' characters and whitespace
+	 * with one ascii space, remove leading and trailing spaces.
+	 */
+	if (*dir) {
+		char *out = dir;
+		int prev_space = 1 /* strip leading whitespace */;
+		for (end = dir; *end; ++end) {
+			char ch = *end;
+			if ((unsigned char)ch < '\x20')
+				ch = '\x20';
+			if (isspace(ch)) {
+				if (prev_space)
+					continue;
+				prev_space = 1;
+			} else
+				prev_space = 0;
+			*out++ = ch;
+		}
+		*out = '\0';
+		if (out > dir && prev_space)
+			out[-1] = '\0';
+	}
+	return dir;
 }

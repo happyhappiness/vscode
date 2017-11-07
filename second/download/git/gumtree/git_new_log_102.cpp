@@ -1,1 +1,1 @@
-error("core.commentChar should only be one character");
+die_errno("atexit(winansi_exit) failed");

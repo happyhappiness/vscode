@@ -1,1 +1,1 @@
-die("--progress can't be used with --incremental or porcelain formats");
+die("strange hostname '%s' blocked", ssh_host);

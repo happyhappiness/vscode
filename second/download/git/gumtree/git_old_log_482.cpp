@@ -1,1 +1,1 @@
-die("insanely long object directory %s", objdir);
+error(_("Can't revert as initial commit"));

@@ -1,1 +1,1 @@
-die("Invalid SHA-1: %s", buffer);
+die_errno("Could not read '%s'", path);

@@ -1,1 +1,1 @@
-die("BUG: cannot normalize type %d", types);
+error("duplicate parent %s ignored", oid_to_hex(oid));

@@ -1,1 +1,1 @@
-die("cannot combine --no-walk with --graph");
+error("couldn't set %s", lock->ref_name);

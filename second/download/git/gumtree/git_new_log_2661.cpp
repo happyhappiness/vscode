@@ -1,1 +1,1 @@
-die("malformed build-time PAGER_ENV");
+err(o, _("Unable to write index."));

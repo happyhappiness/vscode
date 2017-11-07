@@ -1,4 +1,4 @@
 fprintf_ln(stderr,
-				   _("Continuing under the assumption that "
-				     "you meant '%s'."),
-				   assumed);
+				   _("Continuing in %0.1f seconds, "
+				     "assuming that you meant '%s'."),
+				   (float)autocorrect/10.0, assumed);

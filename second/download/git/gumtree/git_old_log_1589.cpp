@@ -1,1 +1,2 @@
-fprintf(f, "%s\n", sha1_to_hex(sha1));
+fprintf(fp, "gitdir: %s\n", relative_path(git_dir, real_work_tree,
+						  &rel_path));

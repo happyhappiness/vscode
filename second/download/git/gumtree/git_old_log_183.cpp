@@ -1,1 +1,1 @@
-error(_("Could not parse object '%s'."), sha1_to_hex(remote));
+error(_("Could not parse object '%s'."), sha1_to_hex(head));

@@ -1,3 +1,3 @@
 strbuf_addf(err,
-			    "Trying to write non-commit object %s to branch %s",
-			    sha1_to_hex(sha1), lock->ref_name);
+			    "Trying to write ref %s with nonexistent object %s",
+			    lock->ref_name, sha1_to_hex(sha1));

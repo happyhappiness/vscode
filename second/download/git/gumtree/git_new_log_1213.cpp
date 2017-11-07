@@ -1,1 +1,1 @@
-fprintf(stderr, "corrupt mailbox\n");
+die(_("git show %s: bad file"), obj_name);

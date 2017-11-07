@@ -1,2 +1,2 @@
-fprintf(pipe_fd, "%s\n",
-			oid_to_hex(&want_obj.objects[i].item->oid));
+error("Object %s not a tree",
+			     oid_to_hex(&item->object.oid));

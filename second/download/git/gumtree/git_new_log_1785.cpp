@@ -1,1 +1,1 @@
-die_errno("unable to move new alternates file into place");
+die_errno("unable to fdopen alternates lockfile");

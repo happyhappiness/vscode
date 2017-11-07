@@ -1,1 +1,1 @@
-die("BUG: finalize_deferred_config() should have been called");
+fprintf(s->fp, "%c %s%c", prefix, path, eol_char);

@@ -1,1 +1,1 @@
-die("missing blob object '%s'", oid_to_hex(&obj->oid));
+printf(" %s", oid_to_hex(&children->item->object.oid));

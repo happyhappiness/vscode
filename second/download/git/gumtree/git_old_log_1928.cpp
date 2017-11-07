@@ -1,1 +1,1 @@
-die("%s can only be used once.", opt->long_name);
+die("cannot describe '%s'", sha1_to_hex(sha1));

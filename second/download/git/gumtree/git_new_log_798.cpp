@@ -1,2 +1,1 @@
-fprintf(stderr, "Checking reflog %s->%s\n",
-			oid_to_hex(ooid), oid_to_hex(noid));
+error("%s: invalid reflog entry %s", refname, oid_to_hex(oid));

@@ -1,1 +1,1 @@
-die("failed to write object %s", sha1_to_hex(obj->sha1));
+die("object %s tried to add buffer twice!", sha1_to_hex(object->sha1));

@@ -1,29 +1,26 @@
-static int diff_cache(struct rev_info *revs,
-		      const unsigned char *tree_sha1,
-		      const char *tree_name,
-		      int cached)
+static int local_tzoffset(timestamp_t time)
 {
-	struct tree *tree;
-	struct tree_desc t;
-	struct unpack_trees_options opts;
+	time_t t, t_local;
+	struct tm tm;
+	int offset, eastwest;
 
-	tree = parse_tree_indirect(tree_sha1);
-	if (!tree)
-		return error("bad tree object %s",
-			     tree_name ? tree_name : sha1_to_hex(tree_sha1));
-	memset(&opts, 0, sizeof(opts));
-	opts.head_idx = 1;
-	opts.index_only = cached;
-	opts.diff_index_cached = (cached &&
-				  !DIFF_OPT_TST(&revs->diffopt, FIND_COPIES_HARDER));
-	opts.merge = 1;
-	opts.fn = oneway_diff;
-	opts.unpack_data = revs;
-	opts.src_index = &the_index;
-	opts.dst_index = NULL;
-	opts.pathspec = &revs->diffopt.pathspec;
-	opts.pathspec->recursive = 1;
+	if (date_overflows(time))
+		die("Timestamp too large for this system: %"PRItime, time);
 
-	init_tree_desc(&t, tree->buffer, tree->size);
-	return unpack_trees(1, &t, &opts);
+	t = (time_t)time;
+	localtime_r(&t, &tm);
+	t_local = tm_to_time_t(&tm);
+
+	if (t_local == -1)
+		return 0; /* error; just use +0000 */
+	if (t_local < t) {
+		eastwest = -1;
+		offset = t - t_local;
+	} else {
+		eastwest = 1;
+		offset = t_local - t;
+	}
+	offset /= 60; /* in minutes */
+	offset = (offset % 60) + ((offset / 60) * 100);
+	return offset * eastwest;
 }

@@ -1,2 +1,1 @@
-printf(_("%-*s    and with remote %s\n"), width, "",
-		       merge->items[i].string);
+die(_("push options must not have new line characters"));

@@ -1,2 +1,4 @@
-printf("%s %s\n",
-		       sha1_to_hex(ref->old_sha1), ref->name);
+fprintf(fp, "%s\t%s\t%s",
+					sha1_to_hex(rm->old_sha1),
+					merge_status_marker,
+					note.buf);

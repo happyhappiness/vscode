@@ -1,36 +1,58 @@
-static void fix_cgivars(request_rec *r, fcgi_dirconf_t *dconf)
+static proxy_worker *hc_get_hcworker(sctx_t *ctx, proxy_worker *worker,
+                                     apr_pool_t *p)
 {
-    sei_entry *entries;
-    const char *err, *src;
-    int i = 0, rc = 0;
-    ap_regmatch_t regm[AP_MAX_REG_MATCH];
+    proxy_worker *hc = NULL;
+    const char* wptr;
+    apr_port_t port;
 
-    entries = (sei_entry *) dconf->env_fixups->elts;
-    for (i = 0; i < dconf->env_fixups->nelts; i++) {
-        sei_entry *entry = &entries[i];
+    wptr = apr_psprintf(ctx->p, "%pp", worker);
+    hc = (proxy_worker *)apr_hash_get(ctx->hcworkers, wptr, APR_HASH_KEY_STRING);
+    port = (worker->s->port ? worker->s->port : ap_proxy_port_of_scheme(worker->s->scheme));
+    if (!hc) {
+        apr_uri_t uri;
+        apr_status_t rv;
+        const char *url = worker->s->name;
+        wctx_t *wctx = apr_pcalloc(ctx->p, sizeof(wctx_t));
 
-        if (entry->envname[0] == '!') {
-            apr_table_unset(r->subprocess_env, entry->envname+1);
-        }
-        else if (0 < (rc = ap_expr_exec_re(r, entry->cond, AP_MAX_REG_MATCH, regm, &src, &err)))  {
-            const char *val = ap_expr_str_exec_re(r, entry->subst, AP_MAX_REG_MATCH, regm, &src, &err);
-            if (err) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(03514)
-                              "Error evaluating expression for replacement of %s: '%s'",
-                               entry->envname, err);
-                continue;
-            }
-            if (APLOGrtrace4(r)) {
-                const char *oldval = apr_table_get(r->subprocess_env, entry->envname);
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE4, 0, r,
-                              "fix_cgivars: override %s from '%s' to '%s'",
-                              entry->envname, oldval, val);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03248)
+                     "Creating hc worker %s for %s://%s:%d",
+                     wptr, worker->s->scheme, worker->s->hostname,
+                     (int)port);
 
-            }
-            apr_table_setn(r->subprocess_env, entry->envname, val);
+        ap_proxy_define_worker(ctx->p, &hc, NULL, NULL, worker->s->name, 0);
+        PROXY_STRNCPY(hc->s->name,     wptr);
+        PROXY_STRNCPY(hc->s->hostname, worker->s->hostname);
+        PROXY_STRNCPY(hc->s->scheme,   worker->s->scheme);
+        PROXY_STRNCPY(hc->s->hcuri,    worker->s->hcuri);
+        PROXY_STRNCPY(hc->s->hcexpr,   worker->s->hcexpr);
+        hc->hash.def = hc->s->hash.def = ap_proxy_hashfunc(hc->s->name, PROXY_HASHFUNC_DEFAULT);
+        hc->hash.fnv = hc->s->hash.fnv = ap_proxy_hashfunc(hc->s->name, PROXY_HASHFUNC_FNV);
+        hc->s->port = port;
+        /* Do not disable worker in case of errors */
+        hc->s->status |= PROXY_WORKER_IGNORE_ERRORS;
+        /* Mark as the "generic" worker */
+        hc->s->status |= PROXY_WORKER_GENERIC;
+        ap_proxy_initialize_worker(hc, ctx->s, ctx->p);
+        hc->s->is_address_reusable = worker->s->is_address_reusable;
+        hc->s->disablereuse = worker->s->disablereuse;
+        hc->s->method = worker->s->method;
+        rv = apr_uri_parse(p, url, &uri);
+        if (rv == APR_SUCCESS) {
+            wctx->path = apr_pstrdup(ctx->p, uri.path);
         }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, "fix_cgivars: Condition returned %d", rc);
-        }
+        wctx->w = worker;
+        hc->context = wctx;
+        apr_hash_set(ctx->hcworkers, wptr, APR_HASH_KEY_STRING, hc);
     }
+    /* This *could* have changed via the Balancer Manager */
+    /* TODO */
+    if (hc->s->method != worker->s->method) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03311)
+                     "Updating hc worker %s for %s://%s:%d",
+                     wptr, worker->s->scheme, worker->s->hostname,
+                     (int)port);
+        hc->s->method = worker->s->method;
+        apr_hash_set(ctx->hcworkers, wptr, APR_HASH_KEY_STRING, hc);
+    }
+    return hc;
 }

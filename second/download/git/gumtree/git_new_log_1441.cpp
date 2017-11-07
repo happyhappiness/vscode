@@ -1,2 +1,2 @@
-error("couldn't write %s: %s", log_file,
-					strerror(errno));
+error("cannot fdopen %s (%s)",
+			      reflog_lock.filename.buf, strerror(errno));

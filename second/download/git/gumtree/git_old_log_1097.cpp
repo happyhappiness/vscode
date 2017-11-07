@@ -1,1 +1,1 @@
-error("sha1 mismatch %s", sha1_to_hex(repl));
+die(_("unable to parse object: %s"), name ? name : sha1_to_hex(sha1));

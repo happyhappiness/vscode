@@ -1,1 +1,1 @@
-die(_("unable to parse --pretty format"));
+optbug(opts, "short name already used");

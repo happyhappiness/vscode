@@ -1,1 +1,1 @@
-printf(_("nothing to commit, working tree clean\n"));
+error(_("cannot abort from a branch yet to be born"));

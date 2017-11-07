@@ -1,2 +1,3 @@
-die(_("clone --recursive is not compatible with "
-			      "both --reference and --reference-if-able"));
+fprintf(stderr,
+				_("info: Could not add alternate for '%s': %s\n"),
+				item->string, err.buf);

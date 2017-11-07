@@ -1,1 +1,1 @@
-die("BUG: commit called on a closed reference transaction");
+die("BUG: unexpected reference transaction state");

@@ -1,1 +1,1 @@
-die("replace ref '%s' already exists", ref);
+die("'%s' is not a valid ref name.", ref);

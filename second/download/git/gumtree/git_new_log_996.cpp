@@ -1,1 +1,1 @@
-printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);
+printf("  dev: %d\tino: %d\n", sd->sd_dev, sd->sd_ino);

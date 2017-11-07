@@ -1,1 +1,1 @@
-noindex_filespec(NULL, 0);
+die("transport '%s' not allowed", type);

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02575)
-                         "Reusing existing private key from %s on restart",
-                         ppcb_arg.pkey_file);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02582)
+                     "unencrypted %s private key - pass phrase not "
+                     "required", key_id);

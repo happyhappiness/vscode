@@ -1,1 +1,1 @@
-error_errno(_("failed to stat '%s'"), filename);
+error_errno(_("failed writing detached signature to '%s'"), path);

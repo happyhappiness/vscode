@@ -1,2 +1,2 @@
-error("delta base offset overflow in pack for %s",
-					      sha1_to_hex(entry->idx.sha1));
+warning("recursive delta detected for object %s",
+			sha1_to_hex(e->idx.sha1));

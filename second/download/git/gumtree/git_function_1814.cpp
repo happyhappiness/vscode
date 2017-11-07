@@ -1,27 +1,30 @@
-static void show_diff(struct merge_list *entry)
+static void find_copy_in_blob(struct scoreboard *sb,
+			      struct blame_entry *ent,
+			      struct origin *parent,
+			      struct blame_entry *split,
+			      mmfile_t *file_p)
 {
-	unsigned long size;
-	mmfile_t src, dst;
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	xdemitcb_t ecb;
+	const char *cp;
+	mmfile_t file_o;
+	struct handle_split_cb_data d;
 
-	xpp.flags = 0;
-	memset(&xecfg, 0, sizeof(xecfg));
-	xecfg.ctxlen = 3;
-	ecb.outf = show_outf;
-	ecb.priv = NULL;
+	memset(&d, 0, sizeof(d));
+	d.sb = sb; d.ent = ent; d.parent = parent; d.split = split;
+	/*
+	 * Prepare mmfile that contains only the lines in ent.
+	 */
+	cp = nth_line(sb, ent->lno);
+	file_o.ptr = (char *) cp;
+	file_o.size = nth_line(sb, ent->lno + ent->num_lines) - cp;
 
-	src.ptr = origin(entry, &size);
-	if (!src.ptr)
-		size = 0;
-	src.size = size;
-	dst.ptr = result(entry, &size);
-	if (!dst.ptr)
-		size = 0;
-	dst.size = size;
-	if (xdi_diff(&src, &dst, &xpp, &xecfg, &ecb))
-		die("unable to generate diff");
-	free(src.ptr);
-	free(dst.ptr);
+	/*
+	 * file_o is a part of final image we are annotating.
+	 * file_p partially may match that image.
+	 */
+	memset(split, 0, sizeof(struct blame_entry [3]));
+	if (diff_hunks(file_p, &file_o, 1, handle_split_cb, &d))
+		die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));
+	/* remainder, if any, all match the preimage */
+	handle_split(sb, ent, d.tlno, d.plno, ent->num_lines, parent, split);
 }

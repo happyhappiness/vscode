@@ -1,1 +1,1 @@
-die("BUG: couldn't parse 'reset' as a color");
+warning("ignoring ref with broken name %s", refname);

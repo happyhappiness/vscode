@@ -1,2 +1,4 @@
-die("cannot read note %s for object %s",
-		    oid_to_hex(note), oid_to_hex(obj));
+die("Failed to load %s %s into notes tree "
+				    "from %s",
+				    type == PTR_TYPE_NOTE ? "note" : "subtree",
+				    oid_to_hex(&l->key_oid), t->ref);

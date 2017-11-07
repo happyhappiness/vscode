@@ -1,1 +1,1 @@
-die("cannot describe '%s'", sha1_to_hex(sha1));
+printf("%s\n", find_unique_abbrev(sha1, DEFAULT_ABBREV));

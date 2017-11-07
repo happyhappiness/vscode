@@ -1,1 +1,1 @@
-die_errno(_("cannot unlink temporary alternates file"));
+die(_("cannot repack to clean up"));

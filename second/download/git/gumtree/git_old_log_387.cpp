@@ -1,1 +1,1 @@
-die("Server does not support shallow clients");
+die("error in sideband demultiplexer");

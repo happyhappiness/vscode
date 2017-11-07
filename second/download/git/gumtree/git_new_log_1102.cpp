@@ -1,2 +1,2 @@
-die("The same object %s appears twice in the pack",
-			    oid_to_hex(&obj->oid));
+error("packed %s from %s is corrupt",
+				    oid_to_hex(entries[i].oid.oid), p->pack_name);

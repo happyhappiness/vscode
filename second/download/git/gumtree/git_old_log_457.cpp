@@ -1,1 +1,1 @@
-error(_("No commits parsed."));
+die(_("git %s: failed to refresh the index"), action_name(opts));

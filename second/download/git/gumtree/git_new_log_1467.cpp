@@ -1,1 +1,1 @@
-printf("Diag: path=%s\n", path ? path : "NULL");
+printf("Diag: port=%s\n", port ? port : "NONE");

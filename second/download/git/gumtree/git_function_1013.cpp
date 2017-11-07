@@ -1,20 +1,37 @@
-static void *get_delta(struct object_entry *entry)
+static int show(int argc, const char **argv, const char *prefix)
 {
-	unsigned long size, base_size, delta_size;
-	void *buf, *base_buf, *delta_buf;
-	enum object_type type;
+	const char *object_ref;
+	struct notes_tree *t;
+	unsigned char object[20];
+	const unsigned char *note;
+	int retval;
+	struct option options[] = {
+		OPT_END()
+	};
 
-	buf = read_sha1_file(entry->idx.sha1, &type, &size);
-	if (!buf)
-		die("unable to read %s", sha1_to_hex(entry->idx.sha1));
-	base_buf = read_sha1_file(entry->delta->idx.sha1, &type, &base_size);
-	if (!base_buf)
-		die("unable to read %s", sha1_to_hex(entry->delta->idx.sha1));
-	delta_buf = diff_delta(base_buf, base_size,
-			       buf, size, &delta_size, 0);
-	if (!delta_buf || delta_size != entry->delta_size)
-		die("delta size changed");
-	free(buf);
-	free(base_buf);
-	return delta_buf;
+	argc = parse_options(argc, argv, prefix, options, git_notes_show_usage,
+			     0);
+
+	if (1 < argc) {
+		error(_("too many parameters"));
+		usage_with_options(git_notes_show_usage, options);
+	}
+
+	object_ref = argc ? argv[0] : "HEAD";
+
+	if (get_sha1(object_ref, object))
+		die(_("failed to resolve '%s' as a valid ref."), object_ref);
+
+	t = init_notes_check("show", 0);
+	note = get_note(t, object);
+
+	if (!note)
+		retval = error(_("no note found for object %s."),
+			       sha1_to_hex(object));
+	else {
+		const char *show_args[3] = {"show", sha1_to_hex(note), NULL};
+		retval = execv_git_cmd(show_args);
+	}
+	free_notes(t);
+	return retval;
 }

@@ -1,1 +1,2 @@
-die("object not found: %s", oid_to_hex(&oid));
+fprintf(f, ":%" PRIuMAX " %s\n", base + k,
+					oid_to_hex(&m->data.marked[k]->idx.oid));

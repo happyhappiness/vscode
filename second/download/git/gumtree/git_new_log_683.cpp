@@ -1,1 +1,1 @@
-die_errno("Error opening '%s'", path);
+error(_("could not commit staged changes."));

@@ -1,20 +1,50 @@
-int verify_ref_format(const char *format)
+int parse_ref_filter_atom(const char *atom, const char *ep)
 {
-	const char *cp, *sp;
+	const char *sp;
+	int i, at;
 
-	need_color_reset_at_eol = 0;
-	for (cp = format; *cp && (sp = find_next(cp)); ) {
-		const char *color, *ep = strchr(sp, ')');
-		int at;
+	sp = atom;
+	if (*sp == '*' && sp < ep)
+		sp++; /* deref */
+	if (ep <= sp)
+		die("malformed field name: %.*s", (int)(ep-atom), atom);
 
-		if (!ep)
-			return error("malformed format string %s", sp);
-		/* sp points at "%(" and ep points at the closing ")" */
-		at = parse_ref_filter_atom(sp + 2, ep);
-		cp = ep + 1;
-
-		if (skip_prefix(used_atom[at], "color:", &color))
-			need_color_reset_at_eol = !!strcmp(color, "reset");
+	/* Do we have the atom already used elsewhere? */
+	for (i = 0; i < used_atom_cnt; i++) {
+		int len = strlen(used_atom[i]);
+		if (len == ep - atom && !memcmp(used_atom[i], atom, len))
+			return i;
 	}
-	return 0;
+
+	/* Is the atom a valid one? */
+	for (i = 0; i < ARRAY_SIZE(valid_atom); i++) {
+		int len = strlen(valid_atom[i].name);
+		/*
+		 * If the atom name has a colon, strip it and everything after
+		 * it off - it specifies the format for this entry, and
+		 * shouldn't be used for checking against the valid_atom
+		 * table.
+		 */
+		const char *formatp = strchr(sp, ':');
+		if (!formatp || ep < formatp)
+			formatp = ep;
+		if (len == formatp - sp && !memcmp(valid_atom[i].name, sp, len))
+			break;
+	}
+
+	if (ARRAY_SIZE(valid_atom) <= i)
+		die("unknown field name: %.*s", (int)(ep-atom), atom);
+
+	/* Add it in, including the deref prefix */
+	at = used_atom_cnt;
+	used_atom_cnt++;
+	REALLOC_ARRAY(used_atom, used_atom_cnt);
+	REALLOC_ARRAY(used_atom_type, used_atom_cnt);
+	used_atom[at] = xmemdupz(atom, ep - atom);
+	used_atom_type[at] = valid_atom[i].cmp_type;
+	if (*atom == '*')
+		need_tagged = 1;
+	if (!strcmp(used_atom[at], "symref"))
+		need_symref = 1;
+	return at;
 }

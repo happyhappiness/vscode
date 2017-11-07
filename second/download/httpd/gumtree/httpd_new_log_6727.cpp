@@ -1,4 +1,1 @@
-printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
-               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
-               trstring, tdstring, tdstring,
-               (double) (totalread + totalposted) / 1024 / timetaken);
+fprintf(stderr, "    -l              Accept variable document length (use this for dynamic pages)\n");

@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                          H2_STRM_LOG(APLOGNO(10024), stream, "invalid trailers"));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  H2_STRM_MSG(stream, "on_resume"));

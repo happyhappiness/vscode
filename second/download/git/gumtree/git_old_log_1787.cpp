@@ -1,2 +1,3 @@
-die_errno("failed to write to %s",
-				  temporary_shallow.buf);
+warning("Log for '%.*s' only goes "
+						"back to %s.", len, str,
+						show_date(co_time, co_tz, DATE_RFC2822));

@@ -1,1 +1,1 @@
-die(_("positive width expected with the %%(align) atom"));
+die(_("unrecognized %%(align) argument: %s"), s);

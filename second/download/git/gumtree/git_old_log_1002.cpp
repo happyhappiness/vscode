@@ -1,2 +1,1 @@
-die(_("unable to start 'show' for object '%s'"),
-		    sha1_to_hex(object));
+printf("%s %s\n", sha1_to_hex(note_sha1), sha1_to_hex(object_sha1));

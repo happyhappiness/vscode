@@ -1,2 +1,4 @@
-apr_file_printf(errfile, "Could not remove file %s: %pm" APR_EOL_STR,
-                        remove, &status);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                  "from notes: user: %s, pw: %s, method: %s, mimetype: %s",
+                  user ? *user : "<null>", pw ? *pw : "<null>",
+                  method ? *method : "<null>", mimetype ? *mimetype : "<null>");

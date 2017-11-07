@@ -1,1 +1,1 @@
-error("%s", buf.buf);
+warning("ignoring alternate with restricted protocol: %s", url);

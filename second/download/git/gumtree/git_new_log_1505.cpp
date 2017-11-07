@@ -1,2 +1,2 @@
-die("BUG: unknown get_sha1_with_context result %d\n",
-			       result);
+printf("notdir %"PRIuMAX"\n%s\n",
+			       (uintmax_t)strlen(obj_name), obj_name);

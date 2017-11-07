@@ -1,1 +1,1 @@
-warning("could not freshen shared index '%s'", shared_index);
+die("unable to lookup %s", oid_to_hex(oid));

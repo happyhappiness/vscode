@@ -1,2 +1,2 @@
-die(_("not something we can merge in %s: %s"),
-			    filename, merge_names->buf + pos);
+die("BUG: killed-file %.*s not found",
+						ent->len, ent->name);

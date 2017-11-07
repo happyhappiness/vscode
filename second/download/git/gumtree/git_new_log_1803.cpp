@@ -1,2 +1,1 @@
-die_errno("Could not open file %s for reading",
-			  git_path("%s", fname));
+print_rebase_state(s, state, color);

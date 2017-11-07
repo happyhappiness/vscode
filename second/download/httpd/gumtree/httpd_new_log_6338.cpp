@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(03313)
-                                 "apr_thread_pool_create() with %d threads succeeded",
-                                 tpsize);
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                                         "Checking %s worker: %s  [%d] (%pp)", balancer->s->name,
+                                         worker->s->name, worker->s->method, worker);

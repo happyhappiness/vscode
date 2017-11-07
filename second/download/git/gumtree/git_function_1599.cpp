@@ -1,49 +1,30 @@
-static int edit_patch(int argc, const char **argv, const char *prefix)
+int write_file(const char *path, int fatal, const char *fmt, ...)
 {
-	char *file = git_pathdup("ADD_EDIT.patch");
-	const char *apply_argv[] = { "apply", "--recount", "--cached",
-		NULL, NULL };
-	struct child_process child = CHILD_PROCESS_INIT;
-	struct rev_info rev;
-	int out;
-	struct stat st;
-
-	apply_argv[3] = file;
-
-	git_config(git_diff_basic_config, NULL); /* no "diff" UI options */
-
-	if (read_cache() < 0)
-		die(_("Could not read the index"));
-
-	init_revisions(&rev, prefix);
-	rev.diffopt.context = 7;
-
-	argc = setup_revisions(argc, argv, &rev, NULL);
-	rev.diffopt.output_format = DIFF_FORMAT_PATCH;
-	rev.diffopt.use_color = 0;
-	DIFF_OPT_SET(&rev.diffopt, IGNORE_DIRTY_SUBMODULES);
-	out = open(file, O_CREAT | O_WRONLY, 0666);
-	if (out < 0)
-		die(_("Could not open '%s' for writing."), file);
-	rev.diffopt.file = xfdopen(out, "w");
-	rev.diffopt.close_file = 1;
-	if (run_diff_files(&rev, 0))
-		die(_("Could not write patch"));
-
-	if (launch_editor(file, NULL, NULL))
-		die(_("editing patch failed"));
-
-	if (stat(file, &st))
-		die_errno(_("Could not stat '%s'"), file);
-	if (!st.st_size)
-		die(_("Empty patch. Aborted."));
-
-	child.git_cmd = 1;
-	child.argv = apply_argv;
-	if (run_command(&child))
-		die(_("Could not apply '%s'"), file);
-
-	unlink(file);
-	free(file);
+	struct strbuf sb = STRBUF_INIT;
+	va_list params;
+	int fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0666);
+	if (fd < 0) {
+		if (fatal)
+			die_errno(_("could not open %s for writing"), path);
+		return -1;
+	}
+	va_start(params, fmt);
+	strbuf_vaddf(&sb, fmt, params);
+	va_end(params);
+	if (write_in_full(fd, sb.buf, sb.len) != sb.len) {
+		int err = errno;
+		close(fd);
+		strbuf_release(&sb);
+		errno = err;
+		if (fatal)
+			die_errno(_("could not write to %s"), path);
+		return -1;
+	}
+	strbuf_release(&sb);
+	if (close(fd)) {
+		if (fatal)
+			die_errno(_("could not close %s"), path);
+		return -1;
+	}
 	return 0;
 }

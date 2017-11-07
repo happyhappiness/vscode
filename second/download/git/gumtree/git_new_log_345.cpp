@@ -1,1 +1,1 @@
-die(_(permissions_advice), dir);
+error("external filter '%s' failed", cmd);

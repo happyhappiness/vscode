@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");
+fprintf(stderr, "Server supports allow-tip-sha1-in-want\n");

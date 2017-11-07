@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                    "Websocket: Frame contained %lu bytes, pushed to Lua stack", 
-                        at);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                        "Websocket: Writing framed message to client");

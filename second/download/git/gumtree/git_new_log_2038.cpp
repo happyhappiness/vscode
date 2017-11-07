@@ -1,1 +1,2 @@
-memcpy(m, name, nlen + 1);
+fprintf(stderr, "Staged '%s' using previous resolution.\n",
+			item->string);

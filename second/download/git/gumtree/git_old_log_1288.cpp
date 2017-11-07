@@ -1,2 +1,1 @@
-die("bad pack.indexversion=%"PRIu32,
-			    pack_idx_opts.version);
+die("bad pack compression level %d", level);

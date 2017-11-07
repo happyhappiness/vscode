@@ -1,1 +1,1 @@
-print_rebase_state(s, state, color);
+die_errno(_("could not open '%s' for reading"), path);

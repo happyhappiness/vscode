@@ -1,71 +1,84 @@
-static int handle_alias(int *argcp, const char ***argv)
+static struct untracked_cache_dir *validate_untracked_cache(struct dir_struct *dir,
+						      int base_len,
+						      const struct pathspec *pathspec)
 {
-	int envchanged = 0, ret = 0, saved_errno = errno;
-	const char *subdir;
-	int count, option_count;
-	const char **new_argv;
-	const char *alias_command;
-	char *alias_string;
-	int unused_nongit;
+	struct untracked_cache_dir *root;
 
-	subdir = setup_git_directory_gently(&unused_nongit);
+	if (!dir->untracked || getenv("GIT_DISABLE_UNTRACKED_CACHE"))
+		return NULL;
 
-	alias_command = (*argv)[0];
-	alias_string = alias_lookup(alias_command);
-	if (alias_string) {
-		if (alias_string[0] == '!') {
-			struct child_process child = CHILD_PROCESS_INIT;
+	/*
+	 * We only support $GIT_DIR/info/exclude and core.excludesfile
+	 * as the global ignore rule files. Any other additions
+	 * (e.g. from command line) invalidate the cache. This
+	 * condition also catches running setup_standard_excludes()
+	 * before setting dir->untracked!
+	 */
+	if (dir->unmanaged_exclude_files)
+		return NULL;
 
-			commit_pager_choice();
+	/*
+	 * Optimize for the main use case only: whole-tree git
+	 * status. More work involved in treat_leading_path() if we
+	 * use cache on just a subset of the worktree. pathspec
+	 * support could make the matter even worse.
+	 */
+	if (base_len || (pathspec && pathspec->nr))
+		return NULL;
 
-			child.use_shell = 1;
-			argv_array_push(&child.args, alias_string + 1);
-			argv_array_pushv(&child.args, (*argv) + 1);
+	/* Different set of flags may produce different results */
+	if (dir->flags != dir->untracked->dir_flags ||
+	    /*
+	     * See treat_directory(), case index_nonexistent. Without
+	     * this flag, we may need to also cache .git file content
+	     * for the resolve_gitlink_ref() call, which we don't.
+	     */
+	    !(dir->flags & DIR_SHOW_OTHER_DIRECTORIES) ||
+	    /* We don't support collecting ignore files */
+	    (dir->flags & (DIR_SHOW_IGNORED | DIR_SHOW_IGNORED_TOO |
+			   DIR_COLLECT_IGNORED)))
+		return NULL;
 
-			ret = run_command(&child);
-			if (ret >= 0)   /* normal exit */
-				exit(ret);
+	/*
+	 * If we use .gitignore in the cache and now you change it to
+	 * .gitexclude, everything will go wrong.
+	 */
+	if (dir->exclude_per_dir != dir->untracked->exclude_per_dir &&
+	    strcmp(dir->exclude_per_dir, dir->untracked->exclude_per_dir))
+		return NULL;
 
-			die_errno("While expanding alias '%s': '%s'",
-			    alias_command, alias_string + 1);
-		}
-		count = split_cmdline(alias_string, &new_argv);
-		if (count < 0)
-			die("Bad alias.%s string: %s", alias_command,
-			    split_cmdline_strerror(count));
-		option_count = handle_options(&new_argv, &count, &envchanged);
-		if (envchanged)
-			die("alias '%s' changes environment variables\n"
-				 "You can use '!git' in the alias to do this.",
-				 alias_command);
-		memmove(new_argv - option_count, new_argv,
-				count * sizeof(char *));
-		new_argv -= option_count;
+	/*
+	 * EXC_CMDL is not considered in the cache. If people set it,
+	 * skip the cache.
+	 */
+	if (dir->exclude_list_group[EXC_CMDL].nr)
+		return NULL;
 
-		if (count < 1)
-			die("empty alias for %s", alias_command);
-
-		if (!strcmp(alias_command, new_argv[0]))
-			die("recursive alias: %s", alias_command);
-
-		trace_argv_printf(new_argv,
-				  "trace: alias expansion: %s =>",
-				  alias_command);
-
-		REALLOC_ARRAY(new_argv, count + *argcp);
-		/* insert after command name */
-		memcpy(new_argv + count, *argv + 1, sizeof(char *) * *argcp);
-
-		*argv = new_argv;
-		*argcp += count - 1;
-
-		ret = 1;
+	if (!ident_in_untracked(dir->untracked)) {
+		warning(_("Untracked cache is disabled on this system."));
+		return NULL;
 	}
 
-	if (subdir && chdir(subdir))
-		die_errno("Cannot change to '%s'", subdir);
+	if (!dir->untracked->root) {
+		const int len = sizeof(*dir->untracked->root);
+		dir->untracked->root = xmalloc(len);
+		memset(dir->untracked->root, 0, len);
+	}
 
-	errno = saved_errno;
+	/* Validate $GIT_DIR/info/exclude and core.excludesfile */
+	root = dir->untracked->root;
+	if (hashcmp(dir->ss_info_exclude.sha1,
+		    dir->untracked->ss_info_exclude.sha1)) {
+		invalidate_gitignore(dir->untracked, root);
+		dir->untracked->ss_info_exclude = dir->ss_info_exclude;
+	}
+	if (hashcmp(dir->ss_excludes_file.sha1,
+		    dir->untracked->ss_excludes_file.sha1)) {
+		invalidate_gitignore(dir->untracked, root);
+		dir->untracked->ss_excludes_file = dir->ss_excludes_file;
+	}
 
-	return ret;
+	/* Make sure this directory is not dropped out at saving phase */
+	root->recurse = 1;
+	return root;
 }

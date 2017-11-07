@@ -1,1 +1,1 @@
-die("delete %s: zero <oldvalue>", refname);
+die("delete: missing <ref>");

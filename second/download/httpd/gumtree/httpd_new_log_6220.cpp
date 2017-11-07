@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
-                      H2_SSSN_LOG(APLOGNO(02935), session, 
-                      "nghttp2_submit_settings: %s"), nghttp2_strerror(*rv));
+ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
+                      APLOGNO(02937) 
+                      "h2_stream(%ld-%d): data_cb, stream not found",
+                      session->id, (int)stream_id);

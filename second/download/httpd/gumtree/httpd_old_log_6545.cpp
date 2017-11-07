@@ -1,2 +1,1 @@
-fprintf(stderr, "   -b   Use the password from the command line rather "
-                    "than prompting for it.\n");
+fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");

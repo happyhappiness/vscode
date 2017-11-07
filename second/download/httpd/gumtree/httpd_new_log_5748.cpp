@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00968)
-               "ajp_marshal_into_msgb: "
-               "Error appending the message beginning");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02300)
+                 "create %s: %"APR_SIZE_T_FMT"/%u", fname, item_size,
+                 item_num);

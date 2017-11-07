@@ -1,181 +1,151 @@
-int cmd_fetch_pack(int argc, const char **argv, const char *prefix)
+static int store_updated_refs(const char *raw_url, const char *remote_name,
+		struct ref *ref_map)
 {
-	int i, ret;
-	struct ref *ref = NULL;
-	const char *dest = NULL;
-	struct ref **sought = NULL;
-	int nr_sought = 0, alloc_sought = 0;
-	int fd[2];
-	char *pack_lockfile = NULL;
-	char **pack_lockfile_ptr = NULL;
-	struct child_process *conn;
-	struct fetch_pack_args args;
-	struct sha1_array shallow = SHA1_ARRAY_INIT;
+	FILE *fp;
+	struct commit *commit;
+	int url_len, i, rc = 0;
+	struct strbuf note = STRBUF_INIT;
+	const char *what, *kind;
+	struct ref *rm;
+	char *url;
+	const char *filename = dry_run ? "/dev/null" : git_path_fetch_head();
+	int want_status;
 
-	packet_trace_identity("fetch-pack");
+	fp = fopen(filename, "a");
+	if (!fp)
+		return error(_("cannot open %s: %s\n"), filename, strerror(errno));
 
-	memset(&args, 0, sizeof(args));
-	args.uploadpack = "git-upload-pack";
+	if (raw_url)
+		url = transport_anonymize_url(raw_url);
+	else
+		url = xstrdup("foreign");
 
-	for (i = 1; i < argc && *argv[i] == '-'; i++) {
-		const char *arg = argv[i];
-
-		if (starts_with(arg, "--upload-pack=")) {
-			args.uploadpack = arg + 14;
-			continue;
-		}
-		if (starts_with(arg, "--exec=")) {
-			args.uploadpack = arg + 7;
-			continue;
-		}
-		if (!strcmp("--quiet", arg) || !strcmp("-q", arg)) {
-			args.quiet = 1;
-			continue;
-		}
-		if (!strcmp("--keep", arg) || !strcmp("-k", arg)) {
-			args.lock_pack = args.keep_pack;
-			args.keep_pack = 1;
-			continue;
-		}
-		if (!strcmp("--thin", arg)) {
-			args.use_thin_pack = 1;
-			continue;
-		}
-		if (!strcmp("--include-tag", arg)) {
-			args.include_tag = 1;
-			continue;
-		}
-		if (!strcmp("--all", arg)) {
-			args.fetch_all = 1;
-			continue;
-		}
-		if (!strcmp("--stdin", arg)) {
-			args.stdin_refs = 1;
-			continue;
-		}
-		if (!strcmp("--diag-url", arg)) {
-			args.diag_url = 1;
-			continue;
-		}
-		if (!strcmp("-v", arg)) {
-			args.verbose = 1;
-			continue;
-		}
-		if (starts_with(arg, "--depth=")) {
-			args.depth = strtol(arg + 8, NULL, 0);
-			continue;
-		}
-		if (!strcmp("--no-progress", arg)) {
-			args.no_progress = 1;
-			continue;
-		}
-		if (!strcmp("--stateless-rpc", arg)) {
-			args.stateless_rpc = 1;
-			continue;
-		}
-		if (!strcmp("--lock-pack", arg)) {
-			args.lock_pack = 1;
-			pack_lockfile_ptr = &pack_lockfile;
-			continue;
-		}
-		if (!strcmp("--check-self-contained-and-connected", arg)) {
-			args.check_self_contained_and_connected = 1;
-			continue;
-		}
-		if (!strcmp("--cloning", arg)) {
-			args.cloning = 1;
-			continue;
-		}
-		if (!strcmp("--update-shallow", arg)) {
-			args.update_shallow = 1;
-			continue;
-		}
-		usage(fetch_pack_usage);
+	rm = ref_map;
+	if (check_everything_connected(iterate_ref_map, 0, &rm)) {
+		rc = error(_("%s did not send all necessary objects\n"), url);
+		goto abort;
 	}
 
-	if (i < argc)
-		dest = argv[i++];
-	else
-		usage(fetch_pack_usage);
-
 	/*
-	 * Copy refs from cmdline to growable list, then append any
-	 * refs from the standard input:
+	 * We do a pass for each fetch_head_status type in their enum order, so
+	 * merged entries are written before not-for-merge. That lets readers
+	 * use FETCH_HEAD as a refname to refer to the ref to be merged.
 	 */
-	for (; i < argc; i++)
-		add_sought_entry(&sought, &nr_sought, &alloc_sought, argv[i]);
-	if (args.stdin_refs) {
-		if (args.stateless_rpc) {
-			/* in stateless RPC mode we use pkt-line to read
-			 * from stdin, until we get a flush packet
-			 */
-			for (;;) {
-				char *line = packet_read_line(0, NULL);
-				if (!line)
-					break;
-				add_sought_entry(&sought, &nr_sought,  &alloc_sought, line);
+	for (want_status = FETCH_HEAD_MERGE;
+	     want_status <= FETCH_HEAD_IGNORE;
+	     want_status++) {
+		for (rm = ref_map; rm; rm = rm->next) {
+			struct ref *ref = NULL;
+			const char *merge_status_marker = "";
+
+			if (rm->status == REF_STATUS_REJECT_SHALLOW) {
+				if (want_status == FETCH_HEAD_MERGE)
+					warning(_("reject %s because shallow roots are not allowed to be updated"),
+						rm->peer_ref ? rm->peer_ref->name : rm->name);
+				continue;
+			}
+
+			commit = lookup_commit_reference_gently(rm->old_sha1, 1);
+			if (!commit)
+				rm->fetch_head_status = FETCH_HEAD_NOT_FOR_MERGE;
+
+			if (rm->fetch_head_status != want_status)
+				continue;
+
+			if (rm->peer_ref) {
+				ref = xcalloc(1, sizeof(*ref) + strlen(rm->peer_ref->name) + 1);
+				strcpy(ref->name, rm->peer_ref->name);
+				hashcpy(ref->old_sha1, rm->peer_ref->old_sha1);
+				hashcpy(ref->new_sha1, rm->old_sha1);
+				ref->force = rm->peer_ref->force;
+			}
+
+
+			if (!strcmp(rm->name, "HEAD")) {
+				kind = "";
+				what = "";
+			}
+			else if (starts_with(rm->name, "refs/heads/")) {
+				kind = "branch";
+				what = rm->name + 11;
+			}
+			else if (starts_with(rm->name, "refs/tags/")) {
+				kind = "tag";
+				what = rm->name + 10;
+			}
+			else if (starts_with(rm->name, "refs/remotes/")) {
+				kind = "remote-tracking branch";
+				what = rm->name + 13;
+			}
+			else {
+				kind = "";
+				what = rm->name;
+			}
+
+			url_len = strlen(url);
+			for (i = url_len - 1; url[i] == '/' && 0 <= i; i--)
+				;
+			url_len = i + 1;
+			if (4 < i && !strncmp(".git", url + i - 3, 4))
+				url_len = i - 3;
+
+			strbuf_reset(&note);
+			if (*what) {
+				if (*kind)
+					strbuf_addf(&note, "%s ", kind);
+				strbuf_addf(&note, "'%s' of ", what);
+			}
+			switch (rm->fetch_head_status) {
+			case FETCH_HEAD_NOT_FOR_MERGE:
+				merge_status_marker = "not-for-merge";
+				/* fall-through */
+			case FETCH_HEAD_MERGE:
+				fprintf(fp, "%s\t%s\t%s",
+					sha1_to_hex(rm->old_sha1),
+					merge_status_marker,
+					note.buf);
+				for (i = 0; i < url_len; ++i)
+					if ('\n' == url[i])
+						fputs("\\n", fp);
+					else
+						fputc(url[i], fp);
+				fputc('\n', fp);
+				break;
+			default:
+				/* do not write anything to FETCH_HEAD */
+				break;
+			}
+
+			strbuf_reset(&note);
+			if (ref) {
+				rc |= update_local_ref(ref, what, rm, &note);
+				free(ref);
+			} else
+				strbuf_addf(&note, "* %-*s %-*s -> FETCH_HEAD",
+					    TRANSPORT_SUMMARY_WIDTH,
+					    *kind ? kind : "branch",
+					    REFCOL_WIDTH,
+					    *what ? what : "HEAD");
+			if (note.len) {
+				if (verbosity >= 0 && !shown_url) {
+					fprintf(stderr, _("From %.*s\n"),
+							url_len, url);
+					shown_url = 1;
+				}
+				if (verbosity >= 0)
+					fprintf(stderr, " %s\n", note.buf);
 			}
 		}
-		else {
-			/* read from stdin one ref per line, until EOF */
-			struct strbuf line = STRBUF_INIT;
-			while (strbuf_getline(&line, stdin, '\n') != EOF)
-				add_sought_entry(&sought, &nr_sought, &alloc_sought, line.buf);
-			strbuf_release(&line);
-		}
 	}
 
-	if (args.stateless_rpc) {
-		conn = NULL;
-		fd[0] = 0;
-		fd[1] = 1;
-	} else {
-		int flags = args.verbose ? CONNECT_VERBOSE : 0;
-		if (args.diag_url)
-			flags |= CONNECT_DIAG_URL;
-		conn = git_connect(fd, dest, args.uploadpack,
-				   flags);
-		if (!conn)
-			return args.diag_url ? 0 : 1;
-	}
-	get_remote_heads(fd[0], NULL, 0, &ref, 0, NULL, &shallow);
+	if (rc & STORE_REF_ERROR_DF_CONFLICT)
+		error(_("some local refs could not be updated; try running\n"
+		      " 'git remote prune %s' to remove any old, conflicting "
+		      "branches"), remote_name);
 
-	ref = fetch_pack(&args, fd, conn, ref, dest, sought, nr_sought,
-			 &shallow, pack_lockfile_ptr);
-	if (pack_lockfile) {
-		printf("lock %s\n", pack_lockfile);
-		fflush(stdout);
-	}
-	if (args.check_self_contained_and_connected &&
-	    args.self_contained_and_connected) {
-		printf("connectivity-ok\n");
-		fflush(stdout);
-	}
-	close(fd[0]);
-	close(fd[1]);
-	if (finish_connect(conn))
-		return 1;
-
-	ret = !ref;
-
-	/*
-	 * If the heads to pull were given, we should have consumed
-	 * all of them by matching the remote.  Otherwise, 'git fetch
-	 * remote no-such-ref' would silently succeed without issuing
-	 * an error.
-	 */
-	for (i = 0; i < nr_sought; i++) {
-		if (!sought[i] || sought[i]->matched)
-			continue;
-		error("no such remote ref %s", sought[i]->name);
-		ret = 1;
-	}
-
-	while (ref) {
-		printf("%s %s\n",
-		       sha1_to_hex(ref->old_sha1), ref->name);
-		ref = ref->next;
-	}
-
-	return ret;
+ abort:
+	strbuf_release(&note);
+	free(url);
+	fclose(fp);
+	return rc;
 }

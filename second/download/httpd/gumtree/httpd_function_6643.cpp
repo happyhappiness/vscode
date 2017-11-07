@@ -1,164 +1,111 @@
-static void child_main(int child_num_arg)
+int main(int argc, const char * const argv[])
 {
-    apr_thread_t **threads;
+    apr_file_t *f;
     apr_status_t rv;
-    thread_starter *ts;
-    apr_threadattr_t *thread_attr;
-    apr_thread_t *start_thread_id;
+    char tn[] = "htdigest.tmp.XXXXXX";
+    char *dirname;
+    char user[MAX_STRING_LEN];
+    char realm[MAX_STRING_LEN];
+    char line[3 * MAX_STRING_LEN];
+    char l[3 * MAX_STRING_LEN];
+    char w[MAX_STRING_LEN];
+    char x[MAX_STRING_LEN];
+    int found;
 
-    mpm_state = AP_MPMQ_STARTING; /* for benefit of any hooks that run as this
-                                   * child initializes
-                                   */
-    ap_my_pid = getpid();
-    ap_fatal_signal_child_setup(ap_server_conf);
-    apr_pool_create(&pchild, pconf);
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(terminate);
+    apr_pool_create(&cntxt, NULL);
+    apr_file_open_stderr(&errfile, cntxt);
 
-    /*stuff to do before we switch id's, so we have permissions.*/
-    ap_reopen_scoreboard(pchild, NULL, 0);
+#if APR_CHARSET_EBCDIC
+    rv = apr_xlate_open(&to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, cntxt);
+    if (rv) {
+        apr_file_printf(errfile, "apr_xlate_open(): %s (%d)\n",
+                apr_strerror(rv, line, sizeof(line)), rv);
+        exit(1);
+    }
+#endif
 
-    rv = SAFE_ACCEPT(apr_proc_mutex_child_init(&accept_mutex,
-                                               apr_proc_mutex_lockfile(accept_mutex),
-                                               pchild));
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00280)
-                     "Couldn't initialize cross-process lock in child");
-        clean_child_exit(APEXIT_CHILDFATAL);
+    apr_signal(SIGINT, (void (*)(int)) interrupted);
+    if (argc == 5) {
+        if (strcmp(argv[1], "-c"))
+            usage();
+        rv = apr_file_open(&f, argv[2], APR_WRITE | APR_CREATE,
+                           APR_OS_DEFAULT, cntxt);
+        if (rv != APR_SUCCESS) {
+            char errmsg[120];
+
+            apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
+                    argv[2],
+                    apr_strerror(rv, errmsg, sizeof errmsg));
+            exit(1);
+        }
+        apr_cpystrn(user, argv[4], sizeof(user));
+        apr_cpystrn(realm, argv[3], sizeof(realm));
+        apr_file_printf(errfile, "Adding password for %s in realm %s.\n",
+                    user, realm);
+        add_password(user, realm, f);
+        apr_file_close(f);
+        exit(0);
+    }
+    else if (argc != 4)
+        usage();
+
+    if (apr_temp_dir_get((const char**)&dirname, cntxt) != APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: could not determine temp dir\n",
+                        argv[0]);
+        exit(1);
+    }
+    dirname = apr_psprintf(cntxt, "%s/%s", dirname, tn);
+
+    if (apr_file_mktemp(&tfp, dirname, 0, cntxt) != APR_SUCCESS) {
+        apr_file_printf(errfile, "Could not open temp file %s.\n", dirname);
+        exit(1);
     }
 
-    if (ap_run_drop_privileges(pchild, ap_server_conf)) {
-        clean_child_exit(APEXIT_CHILDFATAL);
+    if (apr_file_open(&f, argv[1], APR_READ, APR_OS_DEFAULT, cntxt) != APR_SUCCESS) {
+        apr_file_printf(errfile,
+                "Could not open passwd file %s for reading.\n", argv[1]);
+        apr_file_printf(errfile, "Use -c option to create new one.\n");
+        cleanup_tempfile_and_exit(1);
     }
+    apr_cpystrn(user, argv[3], sizeof(user));
+    apr_cpystrn(realm, argv[2], sizeof(realm));
 
-    ap_run_child_init(pchild, ap_server_conf);
-
-    /* done with init critical section */
-
-    /* Just use the standard apr_setup_signal_thread to block all signals
-     * from being received.  The child processes no longer use signals for
-     * any communication with the parent process.
-     */
-    rv = apr_setup_signal_thread();
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf, APLOGNO(00281)
-                     "Couldn't initialize signal thread");
-        clean_child_exit(APEXIT_CHILDFATAL);
-    }
-
-    if (ap_max_requests_per_child) {
-        requests_this_child = ap_max_requests_per_child;
-    }
-    else {
-        /* coding a value of zero means infinity */
-        requests_this_child = INT_MAX;
-    }
-
-    /* Setup worker threads */
-
-    /* clear the storage; we may not create all our threads immediately,
-     * and we want a 0 entry to indicate a thread which was not created
-     */
-    threads = (apr_thread_t **)ap_calloc(1,
-                                  sizeof(apr_thread_t *) * threads_per_child);
-    ts = (thread_starter *)apr_palloc(pchild, sizeof(*ts));
-
-    apr_threadattr_create(&thread_attr, pchild);
-    /* 0 means PTHREAD_CREATE_JOINABLE */
-    apr_threadattr_detach_set(thread_attr, 0);
-
-    if (ap_thread_stacksize != 0) {
-        rv = apr_threadattr_stacksize_set(thread_attr, ap_thread_stacksize);
-        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(02435)
-                         "WARNING: ThreadStackSize of %" APR_SIZE_T_FMT " is "
-                         "inappropriate, using default", 
-                         ap_thread_stacksize);
+    found = 0;
+    while (!(get_line(line, sizeof(line), f))) {
+        if (found || (line[0] == '#') || (!line[0])) {
+            putline(tfp, line);
+            continue;
+        }
+        strcpy(l, line);
+        getword(w, l, ':');
+        getword(x, l, ':');
+        if (strcmp(user, w) || strcmp(realm, x)) {
+            putline(tfp, line);
+            continue;
+        }
+        else {
+            apr_file_printf(errfile, "Changing password for user %s in realm %s\n",
+                    user, realm);
+            add_password(user, realm, tfp);
+            found = 1;
         }
     }
-
-    ts->threads = threads;
-    ts->listener = NULL;
-    ts->child_num_arg = child_num_arg;
-    ts->threadattr = thread_attr;
-
-    rv = apr_thread_create(&start_thread_id, thread_attr, start_threads,
-                           ts, pchild);
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf, APLOGNO(00282)
-                     "apr_thread_create: unable to create worker thread");
-        /* let the parent decide how bad this really is */
-        clean_child_exit(APEXIT_CHILDSICK);
+    if (!found) {
+        apr_file_printf(errfile, "Adding user %s in realm %s\n", user, realm);
+        add_password(user, realm, tfp);
     }
+    apr_file_close(f);
 
-    mpm_state = AP_MPMQ_RUNNING;
-
-    /* If we are only running in one_process mode, we will want to
-     * still handle signals. */
-    if (one_process) {
-        /* Block until we get a terminating signal. */
-        apr_signal_thread(check_signal);
-        /* make sure the start thread has finished; signal_threads()
-         * and join_workers() depend on that
-         */
-        /* XXX join_start_thread() won't be awakened if one of our
-         *     threads encounters a critical error and attempts to
-         *     shutdown this child
-         */
-        join_start_thread(start_thread_id);
-        signal_threads(ST_UNGRACEFUL); /* helps us terminate a little more
-                           * quickly than the dispatch of the signal thread
-                           * beats the Pipe of Death and the browsers
-                           */
-        /* A terminating signal was received. Now join each of the
-         * workers to clean them up.
-         *   If the worker already exited, then the join frees
-         *   their resources and returns.
-         *   If the worker hasn't exited, then this blocks until
-         *   they have (then cleans up).
-         */
-        join_workers(ts->listener, threads);
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(dirname, argv[1], APR_FILE_SOURCE_PERMS, cntxt) !=
+                APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to update file %s\n",
+                        argv[0], argv[1]);
     }
-    else { /* !one_process */
-        /* remove SIGTERM from the set of blocked signals...  if one of
-         * the other threads in the process needs to take us down
-         * (e.g., for MaxConnectionsPerChild) it will send us SIGTERM
-         */
-        unblock_signal(SIGTERM);
-        apr_signal(SIGTERM, dummy_signal_handler);
-        /* Watch for any messages from the parent over the POD */
-        while (1) {
-            rv = ap_worker_pod_check(pod);
-            if (rv == AP_NORESTART) {
-                /* see if termination was triggered while we slept */
-                switch(terminate_mode) {
-                case ST_GRACEFUL:
-                    rv = AP_GRACEFUL;
-                    break;
-                case ST_UNGRACEFUL:
-                    rv = AP_RESTART;
-                    break;
-                }
-            }
-            if (rv == AP_GRACEFUL || rv == AP_RESTART) {
-                /* make sure the start thread has finished;
-                 * signal_threads() and join_workers depend on that
-                 */
-                join_start_thread(start_thread_id);
-                signal_threads(rv == AP_GRACEFUL ? ST_GRACEFUL : ST_UNGRACEFUL);
-                break;
-            }
-        }
+    apr_file_close(tfp);
 
-        /* A terminating signal was received. Now join each of the
-         * workers to clean them up.
-         *   If the worker already exited, then the join frees
-         *   their resources and returns.
-         *   If the worker hasn't exited, then this blocks until
-         *   they have (then cleans up).
-         */
-        join_workers(ts->listener, threads);
-    }
-
-    free(threads);
-
-    clean_child_exit(resource_shortage ? APEXIT_CHILDSICK : 0);
+    return 0;
 }

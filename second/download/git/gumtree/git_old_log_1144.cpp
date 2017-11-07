@@ -1,1 +1,1 @@
-error("Could not stat %s", filename);
+status_printf_ln(s, color(WT_STATUS_HEADER, s), _("Initial commit"));

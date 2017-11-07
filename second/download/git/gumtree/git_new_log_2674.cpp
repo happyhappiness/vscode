@@ -1,1 +1,1 @@
-die(_("Error wrapping up %s."), filename);
+die(_("the receiving end does not support push options"));

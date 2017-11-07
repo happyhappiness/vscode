@@ -1,1 +1,2 @@
-die_errno("Could not get current working directory");
+die_errno("Could not switch to '%s'",
+						  sb.buf);

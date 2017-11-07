@@ -1,1 +1,1 @@
-die("unordered stage entries in index");
+die("revision walk setup failed");

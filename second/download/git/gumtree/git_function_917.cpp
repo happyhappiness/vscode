@@ -1,18 +1,17 @@
-static void submodule_reset_index(const char *path)
+static int submodule_has_dirty_index(const struct submodule *sub)
 {
 	struct child_process cp = CHILD_PROCESS_INIT;
+
 	prepare_submodule_repo_env_no_git_dir(&cp.env_array);
 
 	cp.git_cmd = 1;
+	argv_array_pushl(&cp.args, "diff-index", "--quiet",
+				   "--cached", "HEAD", NULL);
 	cp.no_stdin = 1;
-	cp.dir = path;
+	cp.no_stdout = 1;
+	cp.dir = sub->path;
+	if (start_command(&cp))
+		die("could not recurse into submodule '%s'", sub->path);
 
-	argv_array_pushf(&cp.args, "--super-prefix=%s%s/",
-				   get_super_prefix_or_empty(), path);
-	argv_array_pushl(&cp.args, "read-tree", "-u", "--reset", NULL);
-
-	argv_array_push(&cp.args, EMPTY_TREE_SHA1_HEX);
-
-	if (run_command(&cp))
-		die("could not reset submodule index");
+	return finish_command(&cp);
 }

@@ -1,1 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "adding task output filter");
+ap_add_output_filter("H2_TRAILERS", task, r, r->connection);

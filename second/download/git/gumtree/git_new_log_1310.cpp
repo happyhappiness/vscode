@@ -1,1 +1,1 @@
-die("BUG: lockfile filename corrupt");
+die("BUG: attempt to commit unlocked object");

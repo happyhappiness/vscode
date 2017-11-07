@@ -1,1 +1,1 @@
-fprintf_ln(stderr, _(" OK"));
+die_errno(_("failed to delete directory %s"), mtime_dir.buf);

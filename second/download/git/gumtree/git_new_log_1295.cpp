@@ -1,1 +1,1 @@
-fprintf(stderr, "IMAP error: could not check mailbox\n");
+die("cannot start proxy %s", srvc->tunnel);

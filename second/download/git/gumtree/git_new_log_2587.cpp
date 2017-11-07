@@ -1,1 +1,1 @@
-error("object %s: %s", describe_object(o, obj), message);
+error("Unknown object type for %s", describe_object(options, obj));

@@ -1,1 +1,2 @@
-printf("root %s\n", oid_to_hex(&commit->object.oid));
+fprintf(stderr, "Checking %s %s\n",
+			typename(obj->type), oid_to_hex(&obj->oid));

@@ -1,1 +1,1 @@
-strbuf_addf(err, str, updates[i]->refname);
+die("Log for %s is empty.", refname);

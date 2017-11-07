@@ -1,1 +1,1 @@
-die(_("insanely long template name %s"), de->d_name);
+die(_("Not all child objects of %s are reachable"), sha1_to_hex(obj->sha1));

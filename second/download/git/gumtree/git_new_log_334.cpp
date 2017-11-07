@@ -1,1 +1,1 @@
-error("external filter '%s' failed %d", params->cmd, status);
+error("cannot feed the input to external filter '%s'", params->cmd);

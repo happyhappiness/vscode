@@ -1,3 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02545)
-                         "%s: has determined UDS as %s",
-                         proxy_function, (*conn)->uds_path);
+ap_log_error(APLOG_MARK, loglevel, rv, s, APLOGNO(00952)
+                             "%s: error creating fam %d socket for "
+                             "target %s",
+                             proxy_function,
+                             backend_addr->family,
+                             worker->s->hostname);

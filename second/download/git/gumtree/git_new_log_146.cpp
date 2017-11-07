@@ -1,1 +1,1 @@
-xalloca_free(tptree);
+hashcpy(p->parent[i].sha1, sha1_i ? sha1_i : null_sha1);

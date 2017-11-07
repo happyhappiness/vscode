@@ -79,6 +79,8 @@ class SrcmlApi:
         @ return flag about whether find log or not\n
         @ involve find call in given loc and set log node and log info\n
         """
+        if self.tree is None:
+            return False
         log_location = log_location + 1 # from 1
         # iterates all call
         call_nodes = self.tree.findall('//default:call', namespaces=self.namespace_map)
@@ -162,6 +164,8 @@ class SrcmlApi:
         @ return all logs, calls and types in function\n
         @ involve get all log info[loc, log, check, variable], call info[call name], type info[type name]\n
         """
+        if self.tree is None:
+            return [], [], []
         # get all call node
         call_nodes = self.tree.findall('//default:call', namespaces=self.namespace_map)
         for call_node in call_nodes:
@@ -203,7 +207,11 @@ class SrcmlApi:
         @ return nothing\n
         @ involve parse given xml file build namespace, tag info\n
         """
-        self.tree = etree.parse(xml_file)
+        try:
+            self.tree = etree.parse(xml_file)
+        except etree.XMLSyntaxError:
+            print 'can not process file:%s' %(xml_file)
+            return False
         self.root = self.tree.getroot()
         self.namespace_map = self.root.nsmap
         self.namespace_map['default'] = self.namespace_map[None]

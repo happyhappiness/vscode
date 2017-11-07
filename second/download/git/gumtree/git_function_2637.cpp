@@ -1,27 +1,20 @@
-struct tree *write_tree_from_memory(struct merge_options *o)
+static int add_cacheinfo(unsigned int mode, const unsigned char *sha1,
+		const char *path, int stage, int refresh, int options)
 {
-	struct tree *result = NULL;
+	struct cache_entry *ce;
+	int ret;
 
-	if (unmerged_cache()) {
-		int i;
-		fprintf(stderr, "BUG: There are unmerged index entries:\n");
-		for (i = 0; i < active_nr; i++) {
-			const struct cache_entry *ce = active_cache[i];
-			if (ce_stage(ce))
-				fprintf(stderr, "BUG: %d %.*s\n", ce_stage(ce),
-					(int)ce_namelen(ce), ce->name);
-		}
-		die("Bug in merge-recursive.c");
+	ce = make_cache_entry(mode, sha1 ? sha1 : null_sha1, path, stage, 0);
+	if (!ce)
+		return error(_("addinfo_cache failed for path '%s'"), path);
+
+	ret = add_cache_entry(ce, options);
+	if (refresh) {
+		struct cache_entry *nce;
+
+		nce = refresh_cache_entry(ce, CE_MATCH_REFRESH | CE_MATCH_IGNORE_MISSING);
+		if (nce != ce)
+			ret = add_cache_entry(nce, options);
 	}
-
-	if (!active_cache_tree)
-		active_cache_tree = cache_tree();
-
-	if (!cache_tree_fully_valid(active_cache_tree) &&
-	    cache_tree_update(&the_index, 0) < 0)
-		die(_("error building trees"));
-
-	result = lookup_tree(active_cache_tree->sha1);
-
-	return result;
+	return ret;
 }

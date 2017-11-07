@@ -1,28 +1,46 @@
-apr_status_t h2_stream_set_response(h2_stream *stream, h2_response *response,
-                                    apr_bucket_brigade *bb)
+apr_status_t h2_stream_write_data(h2_stream *stream,
+                                  const char *data, size_t len)
 {
     apr_status_t status = APR_SUCCESS;
-    if (!output_open(stream)) {
+    
+    AP_DEBUG_ASSERT(stream);
+    if (input_closed(stream) || !stream->request->eoh || !stream->bbin) {
         ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
-                      "h2_stream(%ld-%d): output closed", 
-                      stream->session->id, stream->id);
-        return APR_ECONNRESET;
+                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d, bbin=%d", 
+                      stream->session->id, stream->id, input_closed(stream),
+                      stream->request->eoh, !!stream->bbin);
+        return APR_EINVAL;
     }
-    
-    stream->response = response;
-    if (bb && !APR_BRIGADE_EMPTY(bb)) {
-        int move_all = INT_MAX;
-        /* we can move file handles from h2_mplx into this h2_stream as many
-         * as we want, since the lifetimes are the same and we are not freeing
-         * the ones in h2_mplx->io before this stream is done. */
-        H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream set_response_pre");
-        status = h2_util_move(stream->bbout, bb, 16 * 1024, &move_all,  
-                              "h2_stream_set_response");
-        H2_STREAM_OUT(APLOG_TRACE2, stream, "h2_stream set_response_post");
+
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
+                  "h2_stream(%ld-%d): add %ld input bytes", 
+                  stream->session->id, stream->id, (long)len);
+
+    H2_STREAM_IN(APLOG_TRACE2, stream, "write_data_pre");
+    if (stream->request->chunked) {
+        /* if input may have a body and we have not seen any
+         * content-length header, we need to chunk the input data.
+         */
+        status = input_add_data(stream, data, len, 1);
     }
-    
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, stream->session->c,
-                  "h2_stream(%ld-%d): set_response(%d)", 
-                  stream->session->id, stream->id, response->http_status);
+    else {
+        stream->input_remaining -= len;
+        if (stream->input_remaining < 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c,
+                          APLOGNO(02961) 
+                          "h2_stream(%ld-%d): got %ld more content bytes than announced "
+                          "in content-length header: %ld", 
+                          stream->session->id, stream->id,
+                          (long)stream->request->content_length, 
+                          -(long)stream->input_remaining);
+            h2_stream_rst(stream, H2_ERR_PROTOCOL_ERROR);
+            return APR_ECONNABORTED;
+        }
+        status = input_add_data(stream, data, len, 0);
+    }
+    if (status == APR_SUCCESS) {
+        status = h2_stream_input_flush(stream);
+    }
+    H2_STREAM_IN(APLOG_TRACE2, stream, "write_data_post");
     return status;
 }

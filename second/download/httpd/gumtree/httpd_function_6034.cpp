@@ -1,18 +1,27 @@
-apr_status_t h2_stream_set_request_rec(h2_stream *stream, request_rec *r)
+apr_status_t h2_stream_set_response(h2_stream *stream, h2_response *response,
+                                    h2_bucket_beam *output)
 {
-    h2_request *req;
-    apr_status_t status;
-
-    ap_assert(stream->request == NULL);
-    ap_assert(stream->rtmp == NULL);
-    if (stream->rst_error) {
+    apr_status_t status = APR_SUCCESS;
+    conn_rec *c = stream->session->c;
+    
+    if (!output_open(stream)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                      "h2_stream(%ld-%d): output closed", 
+                      stream->session->id, stream->id);
         return APR_ECONNRESET;
     }
-    status = h2_request_rcreate(&req, stream->pool, r);
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
-                  "h2_request(%d): set_request_rec %s host=%s://%s%s",
-                  stream->id, req->method, req->scheme, req->authority, 
-                  req->path);
-    stream->rtmp = req;
+    
+    stream->response = response;
+    stream->output = output;
+    stream->buffer = apr_brigade_create(stream->pool, c->bucket_alloc);
+    
+    h2_stream_filter(stream);
+    if (stream->output) {
+        status = fill_buffer(stream, 0);
+    }
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
+                  "h2_stream(%ld-%d): set_response(%d)", 
+                  stream->session->id, stream->id, 
+                  stream->response->http_status);
     return status;
 }

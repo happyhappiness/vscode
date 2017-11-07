@@ -1,1 +1,2 @@
-die(_("--author '%s' is not 'Name <email>' and matches no existing author"), name);
+die("BUG: caller miscounted postlen: asked %d, orig = %d, used = %d",
+		    (int)postlen, (int) postimage->len, (int)(new - postimage->buf));

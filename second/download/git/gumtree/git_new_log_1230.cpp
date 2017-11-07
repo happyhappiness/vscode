@@ -1,1 +1,1 @@
-die("malformed push certificate %.*s", 100, push_cert->buf);
+die("protocol error: got both push certificate and unsigned commands");

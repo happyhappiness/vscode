@@ -1,1 +1,1 @@
-die(_("Failed to resolve '%s' as a valid ref."), argv[0]);
+die(_("Failed to resolve '%s' as a valid ref."), object_ref);

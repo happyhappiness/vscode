@@ -1,16 +1,16 @@
-void fast_export_copy(uint32_t revision, const char *src, const char *dst)
+const char *fast_export_read_path(const char *path, uint32_t *mode_out)
 {
 	int err;
-	uint32_t mode;
-	static struct strbuf data = STRBUF_INIT;
+	static struct strbuf buf = STRBUF_INIT;
 
-	strbuf_reset(&data);
-	err = fast_export_ls_rev(revision, src, &mode, &data);
+	strbuf_reset(&buf);
+	err = fast_export_ls(path, mode_out, &buf);
 	if (err) {
 		if (errno != ENOENT)
-			die_errno("BUG: unexpected fast_export_ls_rev error");
-		fast_export_delete(dst);
-		return;
+			die_errno("BUG: unexpected fast_export_ls error");
+		/* Treat missing paths as directories. */
+		*mode_out = S_IFDIR;
+		return NULL;
 	}
-	fast_export_modify(dst, mode, data.buf);
+	return buf.buf;
 }

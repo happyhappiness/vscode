@@ -1,1 +1,1 @@
-fputs(reset, stdout);
+fputs(prefix, stdout);

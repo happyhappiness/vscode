@@ -1,1 +1,0 @@
-error("object file %s is empty", path);

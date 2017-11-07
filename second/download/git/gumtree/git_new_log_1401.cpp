@@ -1,1 +1,1 @@
-die("curl_global_init failed");
+fprintf(stderr, "\n");

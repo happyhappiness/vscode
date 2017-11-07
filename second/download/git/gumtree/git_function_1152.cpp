@@ -1,43 +1,49 @@
-static int push_check(int argc, const char **argv, const char *prefix)
+static void print_ref_list(struct ref_filter *filter, struct ref_sorting *sorting, struct ref_format *format)
 {
-	struct remote *remote;
-
-	if (argc < 2)
-		die("submodule--helper push-check requires at least 1 argument");
+	int i;
+	struct ref_array array;
+	int maxwidth = 0;
+	const char *remote_prefix = "";
+	struct strbuf out = STRBUF_INIT;
+	char *to_free = NULL;
 
 	/*
-	 * The remote must be configured.
-	 * This is to avoid pushing to the exact same URL as the parent.
+	 * If we are listing more than just remote branches,
+	 * then remote branches will have a "remotes/" prefix.
+	 * We need to account for this in the width.
 	 */
-	remote = pushremote_get(argv[1]);
-	if (!remote || remote->origin == REMOTE_UNCONFIGURED)
-		die("remote '%s' not configured", argv[1]);
+	if (filter->kind != FILTER_REFS_REMOTES)
+		remote_prefix = "remotes/";
 
-	/* Check the refspec */
-	if (argc > 2) {
-		int i, refspec_nr = argc - 2;
-		struct ref *local_refs = get_local_heads();
-		struct refspec *refspec = parse_push_refspec(refspec_nr,
-							     argv + 2);
+	memset(&array, 0, sizeof(array));
 
-		for (i = 0; i < refspec_nr; i++) {
-			struct refspec *rs = refspec + i;
+	filter_refs(&array, filter, filter->kind | FILTER_REFS_INCLUDE_BROKEN);
 
-			if (rs->pattern || rs->matching)
-				continue;
+	if (filter->verbose)
+		maxwidth = calc_maxwidth(&array, strlen(remote_prefix));
 
-			/*
-			 * LHS must match a single ref
-			 * NEEDSWORK: add logic to special case 'HEAD' once
-			 * working with submodules in a detached head state
-			 * ceases to be the norm.
-			 */
-			if (count_refspec_match(rs->src, local_refs, NULL) != 1)
-				die("src refspec '%s' must name a ref",
-				    rs->src);
+	if (!format->format)
+		format->format = to_free = build_format(filter, maxwidth, remote_prefix);
+	format->use_color = branch_use_color;
+
+	if (verify_ref_format(format))
+		die(_("unable to parse format string"));
+
+	ref_array_sort(sorting, &array);
+
+	for (i = 0; i < array.nr; i++) {
+		format_ref_array_item(array.items[i], format, &out);
+		if (column_active(colopts)) {
+			assert(!filter->verbose && "--column and --verbose are incompatible");
+			 /* format to a string_list to let print_columns() do its job */
+			string_list_append(&output, out.buf);
+		} else {
+			fwrite(out.buf, 1, out.len, stdout);
+			putchar('\n');
 		}
-		free_refspec(refspec_nr, refspec);
+		strbuf_release(&out);
 	}
 
-	return 0;
+	ref_array_clear(&array);
+	free(to_free);
 }

@@ -1,2 +1,2 @@
-die("unable to normalize object directory: %s",
-		    objdirbuf.buf);
+error("unable to normalize alternate object path: %s",
+		      pathbuf.buf);

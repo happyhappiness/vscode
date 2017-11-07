@@ -1,1 +1,1 @@
-not_found("Request not supported: '%s'", dir);
+die("bug: unknown binary handling mode");

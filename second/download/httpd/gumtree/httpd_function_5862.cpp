@@ -1,18 +1,15 @@
-apr_status_t h2_stream_read_to(h2_stream *stream, apr_bucket_brigade *bb, 
-                               apr_off_t *plen, int *peos)
+static apr_status_t h2_sos_mplx_readx(h2_sos *sos, h2_io_data_cb *cb, void *ctx,
+                                      apr_off_t *plen, int *peos)
 {
-    conn_rec *c = stream->session->c;
+    h2_sos_mplx *msos = sos->ctx;
     apr_status_t status = APR_SUCCESS;
-
-    if (stream->rst_error) {
-        return APR_ECONNRESET;
-    }
-    status = h2_append_brigade(bb, stream->buffer, plen, peos);
+    
+    status = h2_util_bb_readx(msos->bb, cb, ctx, plen, peos);
     if (status == APR_SUCCESS && !*peos && !*plen) {
         status = APR_EAGAIN;
     }
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
-                  "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
-                  c->id, stream->id, (long)*plen, *peos);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, msos->m->c,
+                  "h2_stream(%ld-%d): readx, len=%ld eos=%d",
+                  msos->m->id, sos->stream->id, (long)*plen, *peos);
     return status;
 }

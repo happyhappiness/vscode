@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c, APLOGNO(03400)
-                  "h2_ngn_shed(%ld): task %s %s by %s", 
-                  shed->c->id, task->id, aborted? "aborted":"done", ngn->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                  "h2_stream(%ld-%d): EOS bucket cleanup -> done", 
+                  session->id, stream->id);

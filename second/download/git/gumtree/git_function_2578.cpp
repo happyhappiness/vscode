@@ -1,101 +1,152 @@
-int diff_populate_filespec(struct diff_filespec *s, unsigned int flags)
+struct child_process *git_connect(int fd[2], const char *url,
+				  const char *prog, int flags)
 {
-	int size_only = flags & CHECK_SIZE_ONLY;
-	int err = 0;
-	/*
-	 * demote FAIL to WARN to allow inspecting the situation
-	 * instead of refusing.
+	char *hostandport, *path;
+	struct child_process *conn = &no_fork;
+	enum protocol protocol;
+	struct strbuf cmd = STRBUF_INIT;
+
+	/* Without this we cannot rely on waitpid() to tell
+	 * what happened to our children.
 	 */
-	enum safe_crlf crlf_warn = (safe_crlf == SAFE_CRLF_FAIL
-				    ? SAFE_CRLF_WARN
-				    : safe_crlf);
+	signal(SIGCHLD, SIG_DFL);
 
-	if (!DIFF_FILE_VALID(s))
-		die("internal error: asking to populate invalid file.");
-	if (S_ISDIR(s->mode))
-		return -1;
-
-	if (s->data)
-		return 0;
-
-	if (size_only && 0 < s->size)
-		return 0;
-
-	if (S_ISGITLINK(s->mode))
-		return diff_populate_gitlink(s, size_only);
-
-	if (!s->sha1_valid ||
-	    reuse_worktree_file(s->path, s->sha1, 0)) {
-		struct strbuf buf = STRBUF_INIT;
-		struct stat st;
-		int fd;
-
-		if (lstat(s->path, &st) < 0) {
-			if (errno == ENOENT) {
-			err_empty:
-				err = -1;
-			empty:
-				s->data = (char *)"";
-				s->size = 0;
-				return err;
-			}
-		}
-		s->size = xsize_t(st.st_size);
-		if (!s->size)
-			goto empty;
-		if (S_ISLNK(st.st_mode)) {
-			struct strbuf sb = STRBUF_INIT;
-
-			if (strbuf_readlink(&sb, s->path, s->size))
-				goto err_empty;
-			s->size = sb.len;
-			s->data = strbuf_detach(&sb, NULL);
-			s->should_free = 1;
-			return 0;
-		}
-		if (size_only)
-			return 0;
-		if ((flags & CHECK_BINARY) &&
-		    s->size > big_file_threshold && s->is_binary == -1) {
-			s->is_binary = 1;
-			return 0;
-		}
-		fd = open(s->path, O_RDONLY);
-		if (fd < 0)
-			goto err_empty;
-		s->data = xmmap(NULL, s->size, PROT_READ, MAP_PRIVATE, fd, 0);
-		close(fd);
-		s->should_munmap = 1;
-
+	protocol = parse_connect_url(url, &hostandport, &path);
+	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
+		printf("Diag: url=%s\n", url ? url : "NULL");
+		printf("Diag: protocol=%s\n", prot_name(protocol));
+		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
+		printf("Diag: path=%s\n", path ? path : "NULL");
+		conn = NULL;
+	} else if (protocol == PROTO_GIT) {
 		/*
-		 * Convert from working tree format to canonical git format
+		 * Set up virtual host information based on where we will
+		 * connect, unless the user has overridden us in
+		 * the environment.
 		 */
-		if (convert_to_git(s->path, s->data, s->size, &buf, crlf_warn)) {
-			size_t size = 0;
-			munmap(s->data, s->size);
-			s->should_munmap = 0;
-			s->data = strbuf_detach(&buf, &size);
-			s->size = size;
-			s->should_free = 1;
-		}
-	}
-	else {
-		enum object_type type;
-		if (size_only || (flags & CHECK_BINARY)) {
-			type = sha1_object_info(s->sha1, &s->size);
-			if (type < 0)
-				die("unable to read %s", sha1_to_hex(s->sha1));
-			if (size_only)
-				return 0;
-			if (s->size > big_file_threshold && s->is_binary == -1) {
-				s->is_binary = 1;
-				return 0;
+		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
+		if (target_host)
+			target_host = xstrdup(target_host);
+		else
+			target_host = xstrdup(hostandport);
+
+		transport_check_allowed("git");
+
+		/* These underlying connection commands die() if they
+		 * cannot connect.
+		 */
+		if (git_use_proxy(hostandport))
+			conn = git_proxy_connect(fd, hostandport);
+		else
+			git_tcp_connect(fd, hostandport, flags);
+		/*
+		 * Separate original protocol components prog and path
+		 * from extended host header with a NUL byte.
+		 *
+		 * Note: Do not add any other headers here!  Doing so
+		 * will cause older git-daemon servers to crash.
+		 */
+		packet_write(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);
+		free(target_host);
+	} else {
+		conn = xmalloc(sizeof(*conn));
+		child_process_init(conn);
+
+		if (looks_like_command_line_option(path))
+			die("strange pathname '%s' blocked", path);
+
+		strbuf_addstr(&cmd, prog);
+		strbuf_addch(&cmd, ' ');
+		sq_quote_buf(&cmd, path);
+
+		/* remove repo-local variables from the environment */
+		conn->env = local_repo_env;
+		conn->use_shell = 1;
+		conn->in = conn->out = -1;
+		if (protocol == PROTO_SSH) {
+			const char *ssh;
+			int putty = 0, tortoiseplink = 0;
+			char *ssh_host = hostandport;
+			const char *port = NULL;
+			transport_check_allowed("ssh");
+			get_host_and_port(&ssh_host, &port);
+
+			if (!port)
+				port = get_port(ssh_host);
+
+			if (flags & CONNECT_DIAG_URL) {
+				printf("Diag: url=%s\n", url ? url : "NULL");
+				printf("Diag: protocol=%s\n", prot_name(protocol));
+				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+				printf("Diag: port=%s\n", port ? port : "NONE");
+				printf("Diag: path=%s\n", path ? path : "NULL");
+
+				free(hostandport);
+				free(path);
+				free(conn);
+				return NULL;
 			}
+
+			if (looks_like_command_line_option(ssh_host))
+				die("strange hostname '%s' blocked", ssh_host);
+
+			ssh = getenv("GIT_SSH_COMMAND");
+			if (!ssh) {
+				const char *base;
+				char *ssh_dup;
+
+				/*
+				 * GIT_SSH is the no-shell version of
+				 * GIT_SSH_COMMAND (and must remain so for
+				 * historical compatibility).
+				 */
+				conn->use_shell = 0;
+
+				ssh = getenv("GIT_SSH");
+				if (!ssh)
+					ssh = "ssh";
+
+				ssh_dup = xstrdup(ssh);
+				base = basename(ssh_dup);
+
+				tortoiseplink = !strcasecmp(base, "tortoiseplink") ||
+					!strcasecmp(base, "tortoiseplink.exe");
+				putty = tortoiseplink ||
+					!strcasecmp(base, "plink") ||
+					!strcasecmp(base, "plink.exe");
+
+				free(ssh_dup);
+			}
+
+			argv_array_push(&conn->args, ssh);
+			if (flags & CONNECT_IPV4)
+				argv_array_push(&conn->args, "-4");
+			else if (flags & CONNECT_IPV6)
+				argv_array_push(&conn->args, "-6");
+			if (tortoiseplink)
+				argv_array_push(&conn->args, "-batch");
+			if (port) {
+				/* P is for PuTTY, p is for OpenSSH */
+				argv_array_push(&conn->args, putty ? "-P" : "-p");
+				argv_array_push(&conn->args, port);
+			}
+			argv_array_push(&conn->args, ssh_host);
+		} else {
+			transport_check_allowed("file");
 		}
-		s->data = read_sha1_file(s->sha1, &type, &s->size);
-		if (!s->data)
-			die("unable to read %s", sha1_to_hex(s->sha1));
-		s->should_free = 1;
+		argv_array_push(&conn->args, cmd.buf);
+
+		if (start_command(conn))
+			die("unable to fork");
+
+		fd[0] = conn->out; /* read from child's stdout */
+		fd[1] = conn->in;  /* write to child's stdin */
+		strbuf_release(&cmd);
 	}
-	return 0;
+	free(hostandport);
+	free(path);
+	return conn;
 }

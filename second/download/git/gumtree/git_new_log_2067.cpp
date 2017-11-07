@@ -1,2 +1,1 @@
-error("Could not read %s",
-			     oid_to_hex(&item->object.oid));
+print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg, porcelain);

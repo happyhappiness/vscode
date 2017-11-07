@@ -1,3 +1,2 @@
-die("%s failed with error code %d: %s",
-		    (p->pcre2_jit_on ? "pcre2_jit_match" : "pcre2_match"), ret,
-		    errbuf);
+die("BUG: The pcre2_jit_on variable should be 0 or 1, not %d",
+		    p->pcre1_jit_on);

@@ -1,1 +1,2 @@
-die(_("unable to update %s"), head_ref.buf);
+die(_("No directory name could be guessed.\n"
+		      "Please specify a directory on the command line"));

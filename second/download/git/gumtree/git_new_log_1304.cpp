@@ -1,1 +1,1 @@
-die("BUG: get_locked_file_path() called for unlocked object");
+die("BUG: fdopen_lock_file() called for unlocked object");

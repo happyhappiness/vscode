@@ -1,1 +1,1 @@
-die(_("could not stat file '%s'"), ce->name);
+die(_("could not create directories for %s"), cfg_sb.buf);

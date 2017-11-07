@@ -1,1 +1,1 @@
-die("Timestamp too large for this system: %"PRItime, time);
+die("Timestamp before Unix epoch: %"PRItime" %04d", time, tz);

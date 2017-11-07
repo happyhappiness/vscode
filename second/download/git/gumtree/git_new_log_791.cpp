@@ -1,1 +1,1 @@
-die("Could not read blob %s", oid_to_hex(oid));
+die("sha1 mismatch in blob %s", oid_to_hex(oid));

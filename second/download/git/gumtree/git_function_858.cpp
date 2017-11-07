@@ -1,42 +1,85 @@
-static void add_recent_object(const unsigned char *sha1,
-			      unsigned long mtime,
-			      struct recent_data *data)
+void parse_pathspec(struct pathspec *pathspec,
+		    unsigned magic_mask, unsigned flags,
+		    const char *prefix, const char **argv)
 {
-	struct object *obj;
-	enum object_type type;
+	struct pathspec_item *item;
+	const char *entry = argv ? *argv : NULL;
+	int i, n, prefixlen, warn_empty_string, nr_exclude = 0;
 
-	if (mtime <= data->timestamp)
+	memset(pathspec, 0, sizeof(*pathspec));
+
+	if (flags & PATHSPEC_MAXDEPTH_VALID)
+		pathspec->magic |= PATHSPEC_MAXDEPTH;
+
+	/* No arguments, no prefix -> no pathspec */
+	if (!entry && !prefix)
 		return;
 
-	/*
-	 * We do not want to call parse_object here, because
-	 * inflating blobs and trees could be very expensive.
-	 * However, we do need to know the correct type for
-	 * later processing, and the revision machinery expects
-	 * commits and tags to have been parsed.
-	 */
-	type = sha1_object_info(sha1, NULL);
-	if (type < 0)
-		die("unable to get object info for %s", sha1_to_hex(sha1));
+	if ((flags & PATHSPEC_PREFER_CWD) &&
+	    (flags & PATHSPEC_PREFER_FULL))
+		die("BUG: PATHSPEC_PREFER_CWD and PATHSPEC_PREFER_FULL are incompatible");
 
-	switch (type) {
-	case OBJ_TAG:
-	case OBJ_COMMIT:
-		obj = parse_object_or_die(sha1, NULL);
-		break;
-	case OBJ_TREE:
-		obj = (struct object *)lookup_tree(sha1);
-		break;
-	case OBJ_BLOB:
-		obj = (struct object *)lookup_blob(sha1);
-		break;
-	default:
-		die("unknown object type for %s: %s",
-		    sha1_to_hex(sha1), typename(type));
+	/* No arguments with prefix -> prefix pathspec */
+	if (!entry) {
+		if (flags & PATHSPEC_PREFER_FULL)
+			return;
+
+		if (!(flags & PATHSPEC_PREFER_CWD))
+			die("BUG: PATHSPEC_PREFER_CWD requires arguments");
+
+		pathspec->items = item = xcalloc(1, sizeof(*item));
+		item->match = xstrdup(prefix);
+		item->original = xstrdup(prefix);
+		item->nowildcard_len = item->len = strlen(prefix);
+		item->prefix = item->len;
+		pathspec->nr = 1;
+		return;
 	}
 
-	if (!obj)
-		die("unable to lookup %s", sha1_to_hex(sha1));
+	n = 0;
+	warn_empty_string = 1;
+	while (argv[n]) {
+		if (*argv[n] == '\0' && warn_empty_string) {
+			warning(_("empty strings as pathspecs will be made invalid in upcoming releases. "
+				  "please use . instead if you meant to match all paths"));
+			warn_empty_string = 0;
+		}
+		n++;
+	}
 
-	add_pending_object(data->revs, obj, "");
+	pathspec->nr = n;
+	ALLOC_ARRAY(pathspec->items, n);
+	item = pathspec->items;
+	prefixlen = prefix ? strlen(prefix) : 0;
+
+	for (i = 0; i < n; i++) {
+		entry = argv[i];
+
+		init_pathspec_item(item + i, flags, prefix, prefixlen, entry);
+
+		if (item[i].magic & PATHSPEC_EXCLUDE)
+			nr_exclude++;
+		if (item[i].magic & magic_mask)
+			unsupported_magic(entry, item[i].magic & magic_mask);
+
+		if ((flags & PATHSPEC_SYMLINK_LEADING_PATH) &&
+		    has_symlink_leading_path(item[i].match, item[i].len)) {
+			die(_("pathspec '%s' is beyond a symbolic link"), entry);
+		}
+
+		if (item[i].nowildcard_len < item[i].len)
+			pathspec->has_wildcard = 1;
+		pathspec->magic |= item[i].magic;
+	}
+
+	if (nr_exclude == n)
+		die(_("There is nothing to exclude from by :(exclude) patterns.\n"
+		      "Perhaps you forgot to add either ':/' or '.' ?"));
+
+
+	if (pathspec->magic & PATHSPEC_MAXDEPTH) {
+		if (flags & PATHSPEC_KEEP_ORDER)
+			die("BUG: PATHSPEC_MAXDEPTH_VALID and PATHSPEC_KEEP_ORDER are incompatible");
+		QSORT(pathspec->items, pathspec->nr, pathspec_item_cmp);
+	}
 }

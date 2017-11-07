@@ -1,1 +1,1 @@
-error_errno(_("failed to remove '%s'"), path.buf);
+!error("tag '%s' not found.", name);

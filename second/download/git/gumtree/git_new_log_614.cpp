@@ -1,1 +1,2 @@
-die(_("There is no merge in progress (MERGE_HEAD missing)."));
+usage_msg_opt(_("--continue expects no arguments"),
+			      builtin_merge_usage, builtin_merge_options);

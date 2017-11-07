@@ -1,1 +1,1 @@
-die("BUG: free called on a prepared reference transaction");
+die("BUG: attempt to trim too many characters");

@@ -1,1 +1,1 @@
-die("BUG: initial ref transaction with old_sha1 set");
+die("BUG: initial ref transaction called with existing refs");

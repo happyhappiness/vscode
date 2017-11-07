@@ -1,1 +1,3 @@
-printf("Waiting:    " CONF_FMT_STRING, minwait, meanwait, maxwait);
+printf("<tr %s><th colspan=2 %s>Document Length:</th>"
+            "<td colspan=2 %s>Variable</td></tr>\n",
+            trstring, tdstring, tdstring);

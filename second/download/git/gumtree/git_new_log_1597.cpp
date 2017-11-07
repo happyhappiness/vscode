@@ -1,1 +1,1 @@
-die_errno(_("could not write to %s"), path);
+die_errno(_("could not open %s for writing"), path);

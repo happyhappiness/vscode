@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%ld-%d): %s", 
-                      c->id, s->id, len? buffer : line);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c, 
+                          "h2_stream(%ld-%d): wait on input shutdown", 
+                          stream->session->id, stream->id);

@@ -1,1 +1,1 @@
-die("Invalid search pattern: %s", prefix);
+die ("Invalid search pattern: %s", prefix);

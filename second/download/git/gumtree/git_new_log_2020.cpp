@@ -1,1 +1,1 @@
-die(_("expected format: %%(color:<color>)"));
+die(_("positive value expected contents:lines=%s"), valp);

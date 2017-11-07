@@ -1,1 +1,2 @@
-error(_("no commits parsed."));
+error(_("please fix this using "
+				       "'git rebase --edit-todo'."));

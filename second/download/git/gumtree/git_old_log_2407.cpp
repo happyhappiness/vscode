@@ -1,1 +1,1 @@
-error("cannot open %s: %s", filename ? filename : "NULL", strerror(errno));
+error("error reading delta: %s", strerror(errno));

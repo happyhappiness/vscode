@@ -1,1 +1,1 @@
-die_errno("Could not change back to '%s'", cwd);
+die("symbolic link too long: %s", buf);

@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                                      "*: rewrite of url due to UDS(%s): %s (%s)",
-                                      sockpath, *url, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02546)
+                         "%s: cannot determine UDS (%s)",
+                         uri->scheme, uds_path);

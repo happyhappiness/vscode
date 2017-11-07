@@ -1,2 +1,1 @@
-warning("unable to set SO_KEEPALIVE on socket %s",
-			strerror(errno));
+error(_("'%s': short read %s"), filename, strerror(errno));

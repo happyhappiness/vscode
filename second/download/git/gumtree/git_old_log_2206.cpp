@@ -1,1 +1,1 @@
-die(_("Could not set '%s' to '%s'"), key, value);
+error("Malformed value for %s: %s", var, value);

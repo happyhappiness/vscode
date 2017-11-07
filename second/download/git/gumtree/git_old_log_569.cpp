@@ -1,1 +1,0 @@
-error("Tweaking file descriptors doesn't work with this MSVCRT.dll");

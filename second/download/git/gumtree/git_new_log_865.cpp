@@ -1,1 +1,1 @@
-die(_("Integer value expected refname:rstrip=%s"), arg);
+die(_("Integer value expected refname:lstrip=%s"), arg);

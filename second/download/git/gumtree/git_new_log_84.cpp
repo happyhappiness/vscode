@@ -1,1 +1,1 @@
-die("create: missing <ref>");
+die("%s", err.buf);

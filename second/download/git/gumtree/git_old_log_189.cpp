@@ -1,2 +1,2 @@
-error(_("corrupt binary patch at line %d: %.*s"),
-	      state->linenr-1, llen-1, buffer);
+fprintf(stderr, "%s:%d: %s.\n%.*s\n",
+		state->patch_input_file, linenr, err, len, line);

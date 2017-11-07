@@ -1,1 +1,2 @@
-fprintf(stderr, "Falling back to three-way merge...\n");
+printf("%5d %.*s%.*s\n", patch->lines_added + patch->lines_deleted,
+		add, pluses, del, minuses);

@@ -1,1 +1,2 @@
-die("BUG: inbody_header_accum, if not empty, must always contain a valid in-body header");
+warning("adding alternate object store: %s",
+					target.buf);

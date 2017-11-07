@@ -1,1 +1,1 @@
-ap_rputs("<h2><a name=\"providers\">Providers</a></h2>\n<dl>", r);
+ap_rputs("\n</dt>\n", r);

@@ -1,1 +1,1 @@
-warning(_("--dissociate given, but there is no --reference"));
+die_errno(_("cannot unlink temporary alternates file"));

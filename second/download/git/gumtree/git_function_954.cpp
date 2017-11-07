@@ -1,13 +1,13 @@
-static NORETURN void BUG_vfl(const char *file, int line, const char *fmt, va_list params)
+void vreportf(const char *prefix, const char *err, va_list params)
 {
-	char prefix[256];
+	char msg[4096];
+	FILE *fh = error_handle ? error_handle : stderr;
+	char *p;
 
-	/* truncation via snprintf is OK here */
-	if (file)
-		snprintf(prefix, sizeof(prefix), "BUG: %s:%d: ", file, line);
-	else
-		snprintf(prefix, sizeof(prefix), "BUG: ");
-
-	vreportf(prefix, fmt, params);
-	abort();
+	vsnprintf(msg, sizeof(msg), err, params);
+	for (p = msg; *p; p++) {
+		if (iscntrl(*p) && *p != '\t' && *p != '\n')
+			*p = '?';
+	}
+	fprintf(fh, "%s%s\n", prefix, msg);
 }

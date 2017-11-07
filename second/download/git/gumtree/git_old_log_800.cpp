@@ -1,1 +1,2 @@
-warning(_("insanely long object directory %.*s"), 50, objdir);
+error("%s: object corrupt or missing: %s",
+		      sha1_to_hex(sha1), path);

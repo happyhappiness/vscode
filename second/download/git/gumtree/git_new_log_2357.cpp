@@ -1,1 +1,1 @@
-error_errno("Writing %s failed", path);
+error_errno("Could not write %s", path);

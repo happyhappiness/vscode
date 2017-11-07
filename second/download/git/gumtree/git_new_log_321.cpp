@@ -1,1 +1,1 @@
-die(_("The remote end hung up upon initial contact"));
+fprintf(stderr, _(commit_utf8_warn));

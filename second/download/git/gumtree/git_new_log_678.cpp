@@ -1,1 +1,1 @@
-error(_("cannot amend non-existing commit"));
+error(_("could not remove CHERRY_PICK_HEAD"));

@@ -1,2 +1,1 @@
-warning("could not open '%s' for tracing: %s",
-				trace, strerror(errno));
+die("BUG: want to close pack marked 'do-not-close'");

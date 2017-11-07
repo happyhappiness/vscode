@@ -1,1 +1,1 @@
-die(_("format: %%(end) atom used without corresponding atom"));
+die(_("Could not make %s writable by group"), dir);

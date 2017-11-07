@@ -1,3 +1,2 @@
-printf("[%s] ",
-			       find_unique_abbrev(commit->object.sha1,
-						  DEFAULT_ABBREV));
+warning(_("Missing author: %s"),
+		    sha1_to_hex(commit->object.sha1));

@@ -1,1 +1,1 @@
-die(_("--merged and --no-merged option are only allowed with -l"));
+free(to_free);

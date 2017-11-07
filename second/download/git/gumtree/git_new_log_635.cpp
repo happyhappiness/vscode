@@ -1,1 +1,1 @@
-die(_("Unknown action: %d"), opts->action);
+die(_("%%(trailers) does not take arguments"));

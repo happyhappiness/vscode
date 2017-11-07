@@ -1,26 +1,20 @@
-static int parse_insn_buffer(char *buf, struct todo_list *todo_list)
+static int read_and_refresh_cache(struct replay_opts *opts)
 {
-	struct todo_item *item;
-	char *p = buf, *next_p;
-	int i, res = 0;
-
-	for (i = 1; *p; i++, p = next_p) {
-		char *eol = strchrnul(p, '\n');
-
-		next_p = *eol ? eol + 1 /* skip LF */ : eol;
-
-		if (p != eol && eol[-1] == '\r')
-			eol--; /* strip Carriage Return */
-
-		item = append_new_todo(todo_list);
-		item->offset_in_buf = p - todo_list->buf.buf;
-		if (parse_insn_line(item, p, eol)) {
-			res = error(_("invalid line %d: %.*s"),
-				i, (int)(eol - p), p);
-			item->command = -1;
+	static struct lock_file index_lock;
+	int index_fd = hold_locked_index(&index_lock, 0);
+	if (read_index_preload(&the_index, NULL) < 0) {
+		rollback_lock_file(&index_lock);
+		return error(_("git %s: failed to read the index"),
+			_(action_name(opts)));
+	}
+	refresh_index(&the_index, REFRESH_QUIET|REFRESH_UNMERGED, NULL, NULL, NULL);
+	if (the_index.cache_changed && index_fd >= 0) {
+		if (write_locked_index(&the_index, &index_lock, COMMIT_LOCK)) {
+			rollback_lock_file(&index_lock);
+			return error(_("git %s: failed to refresh the index"),
+				_(action_name(opts)));
 		}
 	}
-	if (!todo_list->nr)
-		return error(_("no commits parsed."));
-	return res;
+	rollback_lock_file(&index_lock);
+	return 0;
 }

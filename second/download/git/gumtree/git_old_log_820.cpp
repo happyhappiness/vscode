@@ -1,1 +1,1 @@
-die(_("-n option is only allowed with -l."));
+error(_("tag name too long: %.*s..."), 50, *p);

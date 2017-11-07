@@ -1,1 +1,1 @@
-die(_("--contents and --reverse do not blend well."));
+die(_("--progress can't be used with --incremental or porcelain formats"));

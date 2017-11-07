@@ -1,99 +1,97 @@
-static int expire_reflog(const char *ref, const unsigned char *sha1, int unused, void *cb_data)
+int cmd_receive_pack(int argc, const char **argv, const char *prefix)
 {
-	struct cmd_reflog_expire_cb *cmd = cb_data;
-	struct expire_reflog_cb cb;
-	struct ref_lock *lock;
-	char *log_file, *newlog_path = NULL;
-	struct commit *tip_commit;
-	struct commit_list *tips;
-	int status = 0;
+	int advertise_refs = 0;
+	int stateless_rpc = 0;
+	int i;
+	const char *dir = NULL;
+	struct command *commands;
+	struct sha1_array shallow = SHA1_ARRAY_INIT;
+	struct sha1_array ref = SHA1_ARRAY_INIT;
+	struct shallow_info si;
 
-	memset(&cb, 0, sizeof(cb));
+	packet_trace_identity("receive-pack");
 
-	/*
-	 * we take the lock for the ref itself to prevent it from
-	 * getting updated.
-	 */
-	lock = lock_any_ref_for_update(ref, sha1, 0, NULL);
-	if (!lock)
-		return error("cannot lock ref '%s'", ref);
-	log_file = git_pathdup("logs/%s", ref);
-	if (!reflog_exists(ref))
-		goto finish;
-	if (!cmd->dry_run) {
-		newlog_path = git_pathdup("logs/%s.lock", ref);
-		cb.newlog = fopen(newlog_path, "w");
-	}
+	argv++;
+	for (i = 1; i < argc; i++) {
+		const char *arg = *argv++;
 
-	cb.cmd = cmd;
+		if (*arg == '-') {
+			if (!strcmp(arg, "--quiet")) {
+				quiet = 1;
+				continue;
+			}
 
-	if (!cmd->expire_unreachable || !strcmp(ref, "HEAD")) {
-		tip_commit = NULL;
-		cb.unreachable_expire_kind = UE_HEAD;
-	} else {
-		tip_commit = lookup_commit_reference_gently(sha1, 1);
-		if (!tip_commit)
-			cb.unreachable_expire_kind = UE_ALWAYS;
-		else
-			cb.unreachable_expire_kind = UE_NORMAL;
-	}
+			if (!strcmp(arg, "--advertise-refs")) {
+				advertise_refs = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--stateless-rpc")) {
+				stateless_rpc = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--reject-thin-pack-for-testing")) {
+				fix_thin = 0;
+				continue;
+			}
 
-	if (cmd->expire_unreachable <= cmd->expire_total)
-		cb.unreachable_expire_kind = UE_ALWAYS;
-
-	cb.mark_list = NULL;
-	tips = NULL;
-	if (cb.unreachable_expire_kind != UE_ALWAYS) {
-		if (cb.unreachable_expire_kind == UE_HEAD) {
-			struct commit_list *elem;
-			for_each_ref(push_tip_to_list, &tips);
-			for (elem = tips; elem; elem = elem->next)
-				commit_list_insert(elem->item, &cb.mark_list);
-		} else {
-			commit_list_insert(tip_commit, &cb.mark_list);
+			usage(receive_pack_usage);
 		}
-		cb.mark_limit = cmd->expire_total;
-		mark_reachable(&cb);
+		if (dir)
+			usage(receive_pack_usage);
+		dir = arg;
 	}
+	if (!dir)
+		usage(receive_pack_usage);
 
-	for_each_reflog_ent(ref, expire_reflog_ent, &cb);
+	setup_path();
 
-	if (cb.unreachable_expire_kind != UE_ALWAYS) {
-		if (cb.unreachable_expire_kind == UE_HEAD) {
-			struct commit_list *elem;
-			for (elem = tips; elem; elem = elem->next)
-				clear_commit_marks(elem->item, REACHABLE);
-			free_commit_list(tips);
-		} else {
-			clear_commit_marks(tip_commit, REACHABLE);
-		}
+	if (!enter_repo(dir, 0))
+		die("'%s' does not appear to be a git repository", dir);
+
+	git_config(receive_pack_config, NULL);
+
+	if (0 <= transfer_unpack_limit)
+		unpack_limit = transfer_unpack_limit;
+	else if (0 <= receive_unpack_limit)
+		unpack_limit = receive_unpack_limit;
+
+	if (advertise_refs || !stateless_rpc) {
+		write_head_info();
 	}
- finish:
-	if (cb.newlog) {
-		if (fclose(cb.newlog)) {
-			status |= error("%s: %s", strerror(errno),
-					newlog_path);
-			unlink(newlog_path);
-		} else if (cmd->updateref &&
-			(write_in_full(lock->lock_fd,
-				sha1_to_hex(cb.last_kept_sha1), 40) != 40 ||
-			 write_str_in_full(lock->lock_fd, "\n") != 1 ||
-			 close_ref(lock) < 0)) {
-			status |= error("Couldn't write %s",
-				lock->lk->filename);
-			unlink(newlog_path);
-		} else if (rename(newlog_path, log_file)) {
-			status |= error("cannot rename %s to %s",
-					newlog_path, log_file);
-			unlink(newlog_path);
-		} else if (cmd->updateref && commit_ref(lock)) {
-			status |= error("Couldn't set %s", lock->ref_name);
-		} else {
-			adjust_shared_perm(log_file);
+	if (advertise_refs)
+		return 0;
+
+	if ((commands = read_head_info(&shallow)) != NULL) {
+		const char *unpack_status = NULL;
+
+		prepare_shallow_info(&si, &shallow);
+		if (!si.nr_ours && !si.nr_theirs)
+			shallow_update = 0;
+		if (!delete_only(commands)) {
+			unpack_status = unpack_with_sideband(&si);
+			update_shallow_info(commands, &si, &ref);
 		}
+		execute_commands(commands, unpack_status, &si);
+		if (pack_lockfile)
+			unlink_or_warn(pack_lockfile);
+		if (report_status)
+			report(commands, unpack_status);
+		run_receive_hook(commands, "post-receive", 1);
+		run_update_post_hook(commands);
+		if (auto_gc) {
+			const char *argv_gc_auto[] = {
+				"gc", "--auto", "--quiet", NULL,
+			};
+			int opt = RUN_GIT_CMD | RUN_COMMAND_STDOUT_TO_STDERR;
+			run_command_v_opt(argv_gc_auto, opt);
+		}
+		if (auto_update_server_info)
+			update_server_info(0);
+		clear_shallow_info(&si);
 	}
-	free(newlog_path);
-	free(log_file);
-	unlock_ref(lock);
-	return status;
+	if (use_sideband)
+		packet_flush(1);
+	sha1_array_clear(&shallow);
+	sha1_array_clear(&ref);
+	return 0;
 }

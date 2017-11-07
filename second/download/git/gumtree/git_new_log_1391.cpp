@@ -1,2 +1,2 @@
-fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
+error(_("The note contents have been left in %s"),
+				d->edit_path);

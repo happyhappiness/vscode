@@ -1,1 +1,2 @@
-fprintf(fp, "--shallow %s\n", sha1_to_hex(graft->sha1));
+error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));

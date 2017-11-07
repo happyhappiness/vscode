@@ -1,61 +1,71 @@
-static struct ref *get_refs_list(struct transport *transport, int for_push)
+static int fetch_with_import(struct transport *transport,
+			     int nr_heads, struct ref **to_fetch)
 {
+	struct child_process fastimport;
 	struct helper_data *data = transport->data;
-	struct child_process *helper;
-	struct ref *ret = NULL;
-	struct ref **tail = &ret;
+	int i;
 	struct ref *posn;
 	struct strbuf buf = STRBUF_INIT;
 
-	helper = get_helper(transport);
+	get_helper(transport);
 
-	if (process_connect(transport, for_push)) {
-		do_take_over(transport);
-		return transport->get_refs_list(transport, for_push);
+	if (get_importer(transport, &fastimport))
+		die("Couldn't run fast-import");
+
+	for (i = 0; i < nr_heads; i++) {
+		posn = to_fetch[i];
+		if (posn->status & REF_STATUS_UPTODATE)
+			continue;
+
+		strbuf_addf(&buf, "import %s\n",
+			    posn->symref ? posn->symref : posn->name);
+		sendline(data, &buf);
+		strbuf_reset(&buf);
 	}
 
-	if (data->push && for_push)
-		write_str_in_full(helper->in, "list for-push\n");
-	else
-		write_str_in_full(helper->in, "list\n");
+	write_constant(data->helper->in, "\n");
+	/*
+	 * remote-helpers that advertise the bidi-import capability are required to
+	 * buffer the complete batch of import commands until this newline before
+	 * sending data to fast-import.
+	 * These helpers read back data from fast-import on their stdin, which could
+	 * be mixed with import commands, otherwise.
+	 */
 
-	while (1) {
-		char *eov, *eon;
-		if (recvline(data, &buf))
-			exit(128);
+	if (finish_command(&fastimport))
+		die("Error while running fast-import");
 
-		if (!*buf.buf)
-			break;
-
-		eov = strchr(buf.buf, ' ');
-		if (!eov)
-			die("Malformed response in ref list: %s", buf.buf);
-		eon = strchr(eov + 1, ' ');
-		*eov = '\0';
-		if (eon)
-			*eon = '\0';
-		*tail = alloc_ref(eov + 1);
-		if (buf.buf[0] == '@')
-			(*tail)->symref = xstrdup(buf.buf + 1);
-		else if (buf.buf[0] != '?')
-			get_sha1_hex(buf.buf, (*tail)->old_sha1);
-		if (eon) {
-			if (has_attribute(eon + 1, "unchanged")) {
-				(*tail)->status |= REF_STATUS_UPTODATE;
-				if (read_ref((*tail)->name,
-					     (*tail)->old_sha1) < 0)
-					die(N_("Could not read ref %s"),
-					    (*tail)->name);
-			}
+	/*
+	 * The fast-import stream of a remote helper that advertises
+	 * the "refspec" capability writes to the refs named after the
+	 * right hand side of the first refspec matching each ref we
+	 * were fetching.
+	 *
+	 * (If no "refspec" capability was specified, for historical
+	 * reasons we default to the equivalent of *:*.)
+	 *
+	 * Store the result in to_fetch[i].old_sha1.  Callers such
+	 * as "git fetch" can use the value to write feedback to the
+	 * terminal, populate FETCH_HEAD, and determine what new value
+	 * should be written to peer_ref if the update is a
+	 * fast-forward or this is a forced update.
+	 */
+	for (i = 0; i < nr_heads; i++) {
+		char *private, *name;
+		posn = to_fetch[i];
+		if (posn->status & REF_STATUS_UPTODATE)
+			continue;
+		name = posn->symref ? posn->symref : posn->name;
+		if (data->refspecs)
+			private = apply_refspecs(data->refspecs, data->refspec_nr, name);
+		else
+			private = xstrdup(name);
+		if (private) {
+			if (read_ref(private, posn->old_sha1) < 0)
+				die("Could not read ref %s", private);
+			free(private);
 		}
-		tail = &((*tail)->next);
 	}
-	if (debug)
-		fprintf(stderr, "Debug: Read ref listing.\n");
 	strbuf_release(&buf);
-
-	for (posn = ret; posn; posn = posn->next)
-		resolve_remote_symref(posn, ret);
-
-	return ret;
+	return 0;
 }

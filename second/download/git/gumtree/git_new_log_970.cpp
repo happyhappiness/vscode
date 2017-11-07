@@ -1,1 +1,2 @@
-warning(_("adding embedded git repository: %s"), name.buf);
+die("timestamp too large for this system: %"PRItime,
+		    *timestamp);

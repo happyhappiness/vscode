@@ -1,1 +1,1 @@
-die(_("Could not read %s."), todo_file);
+die_errno(_("Could not open %s"), todo_file);

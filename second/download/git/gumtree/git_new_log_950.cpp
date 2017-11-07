@@ -1,1 +1,1 @@
-child_die(CHILD_ERR_SILENT);
+child_die(CHILD_ERR_CHDIR);

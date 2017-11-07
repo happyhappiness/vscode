@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die(_("too-short tree file"));

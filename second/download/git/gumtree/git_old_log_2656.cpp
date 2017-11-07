@@ -1,2 +1,1 @@
-die(_("Unprocessed path??? %s"),
-				    entries->items[i].string);
+die(_("Fatal merge failure, shouldn't happen."));

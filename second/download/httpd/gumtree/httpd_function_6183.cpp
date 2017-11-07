@@ -1,22 +1,10 @@
-apr_array_header_t *h2_push_collect_update(h2_stream *stream, 
-                                           const struct h2_request *req, 
-                                           const struct h2_headers *res)
+apr_status_t h2_session_stream_done(h2_session *session, h2_stream *stream)
 {
-    h2_session *session = stream->session;
-    const char *cache_digest = apr_table_get(req->headers, "Cache-Digest");
-    apr_array_header_t *pushes;
-    apr_status_t status;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                  "h2_stream(%ld-%d): EOS bucket cleanup -> done", 
+                  session->id, stream->id);
+    h2_mplx_stream_done(session->mplx, stream);
     
-    if (cache_digest && session->push_diary) {
-        status = h2_push_diary_digest64_set(session->push_diary, req->authority, 
-                                            cache_digest, stream->pool);
-        if (status != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                          APLOGNO(03057)
-                          "h2_session(%ld): push diary set from Cache-Digest: %s", 
-                          session->id, cache_digest);
-        }
-    }
-    pushes = h2_push_collect(stream->pool, req, stream->push_policy, res);
-    return h2_push_diary_update(stream->session, pushes);
+    dispatch_event(session, H2_SESSION_EV_STREAM_DONE, 0, NULL);
+    return APR_SUCCESS;
 }

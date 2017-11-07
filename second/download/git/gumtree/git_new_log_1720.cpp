@@ -1,1 +1,1 @@
-die("Cannot demote %s to %s", msg_id, msg_type);
+die("Unhandled message id: %s", msg_id);

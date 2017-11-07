@@ -1,1 +1,1 @@
-die(_("your current branch appears to be broken"));
+die(_("rev-list does not support display of notes"));

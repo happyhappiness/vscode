@@ -1,1 +1,1 @@
-error("Couldn't set %s", lock->ref_name);
+error("%s does not point to a valid object!", entry->name);

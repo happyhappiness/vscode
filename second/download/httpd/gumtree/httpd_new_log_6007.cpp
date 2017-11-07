@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, ctx->r, 
-                      "reverse_map[%s] %s --> %s", ctx->p_server_uri, buffer, mapped);
+ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                          APLOGNO(02917) 
+                          "h2_request: pseudo header after request start");

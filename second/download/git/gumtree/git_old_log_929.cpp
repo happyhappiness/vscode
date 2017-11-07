@@ -1,1 +1,1 @@
-die(_("invalid ident line: %s"), sb.buf);
+printf_ln(_("Patch is empty. Was it split wrong?"));

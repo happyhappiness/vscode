@@ -1,1 +1,1 @@
-die("submodule--helper relative_path takes exactly 2 arguments, got %d", argc);
+printf("%s (%d):\n", item->string, onelines->nr);

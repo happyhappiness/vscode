@@ -1,1 +1,1 @@
-die(_("file %s is not a regular file"), file);
+die_errno(_("could not stat %s"), file);

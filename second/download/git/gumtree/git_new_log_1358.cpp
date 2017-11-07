@@ -1,1 +1,2 @@
-error("unable to open %s: %s", path->buf, strerror(errno));
+die("attempting to mmap %"PRIuMAX" over limit %"PRIuMAX,
+		    (uintmax_t)length, (uintmax_t)limit);

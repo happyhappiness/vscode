@@ -1,1 +1,1 @@
-die(_("error in sideband demultiplexer"));
+die(_("%s failed"), cmd_name);

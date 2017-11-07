@@ -1,1 +1,1 @@
-die("cannot describe '%s'", oid_to_hex(oid));
+printf("%s\n", find_unique_abbrev(oid->hash, DEFAULT_ABBREV));

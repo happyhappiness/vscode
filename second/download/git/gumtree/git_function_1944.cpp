@@ -1,32 +1,42 @@
-static void show_one_commit(struct commit *commit, int no_name)
+void shortlog_add_commit(struct shortlog *log, struct commit *commit)
 {
-	struct strbuf pretty = STRBUF_INIT;
-	const char *pretty_str = "(unavailable)";
-	struct commit_name *name = commit->util;
+	const char *author = NULL, *buffer;
+	struct strbuf buf = STRBUF_INIT;
+	struct strbuf ufbuf = STRBUF_INIT;
 
-	if (commit->object.parsed) {
-		pp_commit_easy(CMIT_FMT_ONELINE, commit, &pretty);
-		pretty_str = pretty.buf;
-	}
-	if (starts_with(pretty_str, "[PATCH] "))
-		pretty_str += 8;
+	pp_commit_easy(CMIT_FMT_RAW, commit, &buf);
+	buffer = buf.buf;
+	while (*buffer && *buffer != '\n') {
+		const char *eol = strchr(buffer, '\n');
 
-	if (!no_name) {
-		if (name && name->head_name) {
-			printf("[%s", name->head_name);
-			if (name->generation) {
-				if (name->generation == 1)
-					printf("^");
-				else
-					printf("~%d", name->generation);
-			}
-			printf("] ");
-		}
+		if (eol == NULL)
+			eol = buffer + strlen(buffer);
 		else
-			printf("[%s] ",
-			       find_unique_abbrev(commit->object.sha1,
-						  DEFAULT_ABBREV));
+			eol++;
+
+		if (starts_with(buffer, "author "))
+			author = buffer + 7;
+		buffer = eol;
 	}
-	puts(pretty_str);
-	strbuf_release(&pretty);
+	if (!author) {
+		warning(_("Missing author: %s"),
+		    sha1_to_hex(commit->object.sha1));
+		return;
+	}
+	if (log->user_format) {
+		struct pretty_print_context ctx = {0};
+		ctx.fmt = CMIT_FMT_USERFORMAT;
+		ctx.abbrev = log->abbrev;
+		ctx.subject = "";
+		ctx.after_subject = "";
+		ctx.date_mode.type = DATE_NORMAL;
+		ctx.output_encoding = get_log_output_encoding();
+		pretty_print_commit(&ctx, commit, &ufbuf);
+		buffer = ufbuf.buf;
+	} else if (*buffer) {
+		buffer++;
+	}
+	insert_one_record(log, author, !*buffer ? "<none>" : buffer);
+	strbuf_release(&ufbuf);
+	strbuf_release(&buf);
 }

@@ -1,1 +1,1 @@
-error(_("unable to parse remote unpack status: %s"), line);
+error("pack-objects died of signal %d", rc - 128);

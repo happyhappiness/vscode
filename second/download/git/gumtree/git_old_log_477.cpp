@@ -1,1 +1,1 @@
-die(_("%s: can't cherry-pick a %s"), name, typename(type));
+die(_("Error wrapping up %s."), git_path_todo_file());

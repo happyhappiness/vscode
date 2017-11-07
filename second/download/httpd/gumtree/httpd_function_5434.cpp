@@ -1,33 +1,17 @@
-apr_status_t h2_response_trailers_filter(ap_filter_t *f, apr_bucket_brigade *bb)
+apr_status_t h2_h2_init(apr_pool_t *pool, server_rec *s)
 {
-    h2_task *task = f->ctx;
-    h2_from_h1 *from_h1 = task->output? task->output->from_h1 : NULL;
-    request_rec *r = f->r;
-    apr_bucket *b;
- 
-    if (from_h1 && from_h1->response) {
-        /* Detect the EOR bucket and forward any trailers that may have
-         * been set to our h2_response.
-         */
-        for (b = APR_BRIGADE_FIRST(bb);
-             b != APR_BRIGADE_SENTINEL(bb);
-             b = APR_BUCKET_NEXT(b))
-        {
-            if (AP_BUCKET_IS_EOR(b)) {
-                /* FIXME: need a better test case than this.
-                apr_table_setn(r->trailers_out, "X", "1"); */
-                if (r->trailers_out && !apr_is_empty_table(r->trailers_out)) {
-                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c,
-                                  "h2_from_h1(%d): trailers filter, saving trailers",
-                                  from_h1->stream_id);
-                    h2_response_set_trailers(from_h1->response,
-                                             apr_table_clone(from_h1->pool, 
-                                                             r->trailers_out));
-                }
-                break;
-            }
-        }     
+    (void)pool;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "h2_h2, child_init");
+    opt_ssl_engine_disable = APR_RETRIEVE_OPTIONAL_FN(ssl_engine_disable);
+    opt_ssl_is_https = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
+    opt_ssl_var_lookup = APR_RETRIEVE_OPTIONAL_FN(ssl_var_lookup);
+    
+    if (!opt_ssl_is_https || !opt_ssl_var_lookup) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
+                     APLOGNO(02951) "mod_ssl does not seem to be enabled");
     }
-     
-    return ap_pass_brigade(f->next, bb);
+    
+    cipher_init(pool);
+    
+    return APR_SUCCESS;
 }

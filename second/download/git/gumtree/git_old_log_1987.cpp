@@ -1,1 +1,1 @@
-fprintf(stderr, " which contains %s\n", sha1_to_hex(request->obj->sha1));
+fprintf(stderr, "Unable to fetch %s, will not be able to update server info refs\n", sha1_to_hex(request->obj->sha1));

@@ -1,1 +1,1 @@
-die("BUG: oid abbreviation out of range: %d", abbrev);
+die(_("option '%s' requires a value"), option_name);

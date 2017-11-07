@@ -1,1 +1,1 @@
-error(FAILED_RUN, prune_worktrees.argv[0]);
+git_config_date_string("gc.pruneworktreesexpire", &prune_worktrees_expire);

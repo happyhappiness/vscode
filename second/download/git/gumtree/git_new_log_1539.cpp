@@ -1,1 +1,1 @@
-die_errno("Could not make temporary directory");
+die_errno(_("failed to delete directory %s"), path);

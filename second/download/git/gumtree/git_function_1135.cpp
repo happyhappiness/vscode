@@ -1,33 +1,23 @@
-static int got_sha1(const char *hex, unsigned char *sha1)
+static void collect_changed_submodules(struct string_list *changed,
+				       struct argv_array *argv)
 {
-	struct object *o;
-	int we_knew_they_have = 0;
+	struct rev_info rev;
+	const struct commit *commit;
 
-	if (get_sha1_hex(hex, sha1))
-		die("git upload-pack: expected SHA1 object, got '%s'", hex);
-	if (!has_sha1_file(sha1))
-		return -1;
+	init_revisions(&rev, NULL);
+	setup_revisions(argv->argc, argv->argv, &rev, NULL);
+	if (prepare_revision_walk(&rev))
+		die("revision walk setup failed");
 
-	o = parse_object(sha1);
-	if (!o)
-		die("oops (%s)", sha1_to_hex(sha1));
-	if (o->type == OBJ_COMMIT) {
-		struct commit_list *parents;
-		struct commit *commit = (struct commit *)o;
-		if (o->flags & THEY_HAVE)
-			we_knew_they_have = 1;
-		else
-			o->flags |= THEY_HAVE;
-		if (!oldest_have || (commit->date < oldest_have))
-			oldest_have = commit->date;
-		for (parents = commit->parents;
-		     parents;
-		     parents = parents->next)
-			parents->item->object.flags |= THEY_HAVE;
+	while ((commit = get_revision(&rev))) {
+		struct rev_info diff_rev;
+
+		init_revisions(&diff_rev, NULL);
+		diff_rev.diffopt.output_format |= DIFF_FORMAT_CALLBACK;
+		diff_rev.diffopt.format_callback = collect_changed_submodules_cb;
+		diff_rev.diffopt.format_callback_data = changed;
+		diff_tree_combined_merge(commit, 1, &diff_rev);
 	}
-	if (!we_knew_they_have) {
-		add_object_array(o, NULL, &have_obj);
-		return 1;
-	}
-	return 0;
+
+	reset_revision_walk();
 }

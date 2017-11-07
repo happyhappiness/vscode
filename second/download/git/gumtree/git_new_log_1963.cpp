@@ -1,1 +1,1 @@
-printf("%s\n", sb.buf);
+printf("\n");

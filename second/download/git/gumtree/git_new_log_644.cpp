@@ -1,2 +1,1 @@
-error(_("cannot write '%s'"),
-				     rebase_path_fixup_msg());
+error(_("could not read HEAD's commit message"));

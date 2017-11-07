@@ -1,1 +1,1 @@
-add_recent_object(sha1, st.st_mtime, data);
+die("unable to lookup %s", sha1_to_hex(sha1));

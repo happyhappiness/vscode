@@ -1,1 +1,1 @@
-fprintf(output, fmt, sb.buf);
+die(_("unrecognized whitespace ignore option '%s'"), option);

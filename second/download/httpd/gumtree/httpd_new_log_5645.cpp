@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03306)
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(03308)
                           "ap_proxy_transfer_between_connections: "
-                          "read %" APR_OFF_T_FMT
-                          " bytes from %s", len, name);
+                          "error on %s - ap_get_brigade",
+                          name);

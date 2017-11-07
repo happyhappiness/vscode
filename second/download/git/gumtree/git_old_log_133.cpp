@@ -1,1 +1,1 @@
-fprintf(stderr, "Remote needed\n");
+error("Fetch failed.");

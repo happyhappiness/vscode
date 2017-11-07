@@ -1,3 +1,1 @@
-fprintf(s->fp, "# branch.oid %s%c",
-			(s->is_initial ? "(initial)" : sha1_to_hex(s->sha1_commit)),
-			eol);
+wt_longstatus_print_other(s, &s->ignored, _("Ignored files"), "add -f");

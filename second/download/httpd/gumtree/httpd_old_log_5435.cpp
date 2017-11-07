@@ -1,1 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "h2_h2, child_init");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                          "h2_h2(%ld): tls protocol not suitable: %s", 
+                          (long)c->id, val);

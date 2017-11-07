@@ -1,1 +1,2 @@
-die(_("Missing ')' at the end of pathspec magic in '%s'"), elt);
+die(_("Invalid pathspec magic '%.*s' in '%s'"),
+				    (int) len, copyfrom, elt);

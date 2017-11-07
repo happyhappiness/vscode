@@ -1,2 +1,1 @@
-die(_("Missing ')' at the end of pathspec magic in '%s'"),
-		    elem);
+error("%s", buf.buf);

@@ -1,1 +1,1 @@
-fprintf(outfile, "%s\n", val);
+fprintf(f, "(diff failed)\n");

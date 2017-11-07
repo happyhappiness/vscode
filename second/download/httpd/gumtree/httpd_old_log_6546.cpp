@@ -1,1 +1,1 @@
-fprintf(stderr, "   -c   Create a new database.\n");
+fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");

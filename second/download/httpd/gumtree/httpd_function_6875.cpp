@@ -1,92 +1,43 @@
-static int lua_map_handler(request_rec *r)
+static int lua_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+                             apr_pool_t *ptemp, server_rec *s)
 {
-    int rc, n = 0;
-    apr_pool_t *pool;
-    lua_State *L;
-    const char *filename, *function_name;
-    const char *values[10];
-    ap_lua_vm_spec *spec;
-    ap_regmatch_t match[10];
-    ap_lua_server_cfg *server_cfg = ap_get_module_config(r->server->module_config,
-                                                         &lua_module);
-    const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
-                                                     &lua_module);
-    for (n = 0; n < cfg->mapped_handlers->nelts; n++) {
-        ap_lua_mapped_handler_spec *hook_spec =
-            ((ap_lua_mapped_handler_spec **) cfg->mapped_handlers->elts)[n];
+    apr_pool_t **pool;
+    const char *tempdir;
+    apr_status_t rs;
 
-        if (hook_spec == NULL) {
-            continue;
-        }
-        if (!ap_regexec(hook_spec->uri_pattern, r->uri, 10, match, 0)) {
-            int i;
-            for (i=0 ; i < 10; i++) {
-                if (match[i].rm_eo >= 0) {
-                    values[i] = apr_pstrndup(r->pool, r->uri+match[i].rm_so, match[i].rm_eo - match[i].rm_so);
-                }
-                else values[i] = "";
-            }
-            filename = ap_lua_interpolate_string(r->pool, hook_spec->file_name, values);
-            function_name = ap_lua_interpolate_string(r->pool, hook_spec->function_name, values);
-            spec = create_vm_spec(&pool, r, cfg, server_cfg,
-                                    filename,
-                                    hook_spec->bytecode,
-                                    hook_spec->bytecode_len,
-                                    function_name,
-                                    "mapped handler");
-            L = ap_lua_get_lua_state(pool, spec, r);
+    lua_ssl_val = APR_RETRIEVE_OPTIONAL_FN(ssl_var_lookup);
+    lua_ssl_is_https = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
+    
+    if (ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG)
+        return OK;
 
-            if (!L) {
-                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02330)
-                                "lua: Failed to obtain lua interpreter for %s %s",
-                                function_name, filename);
-                ap_lua_release_state(L, spec, r);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-
-            if (function_name != NULL) {
-                lua_getglobal(L, function_name);
-                if (!lua_isfunction(L, -1)) {
-                    ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02331)
-                                    "lua: Unable to find function %s in %s",
-                                    function_name,
-                                    filename);
-                    ap_lua_release_state(L, spec, r);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-
-                ap_lua_run_lua_request(L, r);
-            }
-            else {
-                int t;
-                ap_lua_run_lua_request(L, r);
-
-                t = lua_gettop(L);
-                lua_setglobal(L, "r");
-                lua_settop(L, t);
-            }
-
-            if (lua_pcall(L, 1, 1, 0)) {
-                report_lua_error(L, r);
-                ap_lua_release_state(L, spec, r);
-                return HTTP_INTERNAL_SERVER_ERROR;
-            }
-            rc = DECLINED;
-            if (lua_isnumber(L, -1)) {
-                rc = lua_tointeger(L, -1);
-            }
-            else { 
-                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02483)
-                              "lua: Lua handler %s in %s did not return a value, assuming apache2.OK",
-                              function_name,
-                              filename);
-                rc = OK;
-            }
-            ap_lua_release_state(L, spec, r);
-            if (rc != DECLINED) {
-                return rc;
-            }
-        }
+    /* Create ivm mutex */
+    rs = ap_global_mutex_create(&lua_ivm_mutex, NULL, "lua-ivm-shm", NULL,
+                            s, pconf, 0);
+    if (APR_SUCCESS != rs) {
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    return DECLINED;
+
+    /* Create shared memory space */
+    rs = apr_temp_dir_get(&tempdir, pconf);
+    if (rs != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+                 "mod_lua IVM: Failed to find temporary directory");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    lua_ivm_shmfile = apr_psprintf(pconf, "%s/httpd_lua_shm.%ld", tempdir,
+                           (long int)getpid());
+    rs = apr_shm_create(&lua_ivm_shm, sizeof(apr_pool_t**),
+                    (const char *) lua_ivm_shmfile, pconf);
+    if (rs != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+            "mod_lua: Failed to create shared memory segment on file %s",
+                     lua_ivm_shmfile);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    pool = (apr_pool_t **)apr_shm_baseaddr_get(lua_ivm_shm);
+    apr_pool_create(pool, pconf);
+    apr_pool_cleanup_register(pconf, NULL, shm_cleanup_wrapper,
+                          apr_pool_cleanup_null);
+    return OK;
 }

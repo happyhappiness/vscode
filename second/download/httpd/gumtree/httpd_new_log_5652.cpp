@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(01974)
-                      "could not connect to %s '%s'",
-                      proxy_uri ? "proxy" : "OCSP responder",
-                      next_hop_uri->hostinfo);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03237)
+                         "stapling_cb: don't need to refresh cached response "
+                         "after obtaining refresh mutex");

@@ -1,2 +1,1 @@
-printf("dangling %"PRIuMAX"\n%s\n",
-			       (uintmax_t)strlen(obj_name), obj_name);
+die("git cat-file: could not get object info");

@@ -1,1 +1,1 @@
-die("Error in object");
+die(_("%s: cannot update the ref"), ref.buf);

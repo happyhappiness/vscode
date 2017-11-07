@@ -1,15 +1,31 @@
-static int add_info_ref(const char *path, const unsigned char *sha1, int flag, void *cb_data)
+static int fast_forward_to(const unsigned char *to, const unsigned char *from,
+			int unborn, struct replay_opts *opts)
 {
-	struct object *o = parse_object(sha1);
-	if (!o)
-		return -1;
+	struct ref_transaction *transaction;
+	struct strbuf sb = STRBUF_INIT;
+	struct strbuf err = STRBUF_INIT;
 
-	fprintf(info_ref_fp, "%s	%s\n", sha1_to_hex(sha1), path);
-	if (o->type == OBJ_TAG) {
-		o = deref_tag(o, path, 0);
-		if (o)
-			fprintf(info_ref_fp, "%s	%s^{}\n",
-				sha1_to_hex(o->sha1), path);
+	read_cache();
+	if (checkout_fast_forward(from, to, 1))
+		exit(128); /* the callee should have complained already */
+
+	strbuf_addf(&sb, "%s: fast-forward", action_name(opts));
+
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_update(transaction, "HEAD",
+				   to, unborn ? null_sha1 : from,
+				   0, 1, sb.buf, &err) ||
+	    ref_transaction_commit(transaction, &err)) {
+		ref_transaction_free(transaction);
+		error("%s", err.buf);
+		strbuf_release(&sb);
+		strbuf_release(&err);
+		return -1;
 	}
+
+	strbuf_release(&sb);
+	strbuf_release(&err);
+	ref_transaction_free(transaction);
 	return 0;
 }

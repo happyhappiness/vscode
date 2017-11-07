@@ -1,2 +1,2 @@
-error("Unable to append to %s: %s", logfile,
-			      strerror(errno));
+error("There are still logs under '%s'",
+				      logfile);

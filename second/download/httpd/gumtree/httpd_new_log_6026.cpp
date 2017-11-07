@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, lvl, 0, c, "bb_dump(%s): %s", 
-                      c->log_id, len? buffer : line);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, stream->session->c, 
+                      "h2_stream(%ld-%d): input drain returned", 
+                      stream->session->id, stream->id);

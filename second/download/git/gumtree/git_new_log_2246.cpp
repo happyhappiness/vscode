@@ -1,2 +1,2 @@
-error_errno(_("could not open '%s' for reading"),
-					   *paths);
+die(_("'%s' is already checked out at '%s'"),
+	    branch, wt->path);

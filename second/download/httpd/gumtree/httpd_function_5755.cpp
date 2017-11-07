@@ -1,27 +1,36 @@
-static int ssl_tmp_key_init_ec(server_rec *s,
-                               int bits, int idx)
+static const char *set_override_list(cmd_parms *cmd, void *d_, int argc, char *const argv[])
 {
-    SSLModConfigRec *mc = myModConfig(s);
-    EC_KEY *ecdh = NULL;
+    core_dir_config *d = d_;
+    int i;
+    const char *err;
 
-    /* XXX: Are there any FIPS constraints we should enforce? */
+    /* Throw a warning if we're in <Location> or <Files> */
+    if (ap_check_cmd_context(cmd, NOT_IN_LOCATION | NOT_IN_FILES)) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00115)
+                     "Useless use of AllowOverrideList in line %d of %s.",
+                     cmd->directive->line_num, cmd->directive->filename);
+    }
+    if ((err = ap_check_cmd_context(cmd, NOT_IN_HTACCESS)) != NULL)
+        return err;
 
-    if (bits != 256) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02298)
-                     "Init: Failed to generate temporary "
-                     "%d bit EC parameters, only 256 bits supported", bits);
-        return !OK;
+    d->override_list = apr_table_make(cmd->pool, 1);
+
+    for (i=0;i<argc;i++){
+        if (!strcasecmp(argv[i], "None")) {
+            return NULL;
+        }
+        else {
+            const command_rec *result = NULL;
+            module *mod = ap_top_module;
+            result = ap_find_command_in_modules(argv[i], &mod);
+            if (result)
+                apr_table_set(d->override_list, argv[i], "1");
+            else
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00116)
+                             "Discarding unrecognized directive `%s' in AllowOverrideList.",
+                             argv[i]);
+        }
     }
 
-    if ((ecdh = EC_KEY_new()) == NULL ||
-        EC_KEY_set_group(ecdh, EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1)) != 1)
-    {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02299)
-                     "Init: Failed to generate temporary "
-                     "%d bit EC parameters", bits);
-        return !OK;
-    }
-
-    mc->pTmpKeys[idx] = ecdh;
-    return OK;
+    return NULL;
 }

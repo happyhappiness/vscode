@@ -1,1 +1,1 @@
-write_name(fullname);
+printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);

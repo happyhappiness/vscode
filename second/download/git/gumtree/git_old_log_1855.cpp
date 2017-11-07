@@ -1,1 +1,2 @@
-printf("previous %s ", sha1_to_hex(prev->commit->object.sha1));
+die("unable to generate diff (%s)",
+		    sha1_to_hex(parent->commit->object.sha1));

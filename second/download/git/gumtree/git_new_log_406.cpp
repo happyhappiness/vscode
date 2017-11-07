@@ -1,2 +1,1 @@
-warning("Unknown delegation method '%s': using default",
-				curl_deleg);
+warning(_("Delegation control is not supported with cURL < 7.22.0"));

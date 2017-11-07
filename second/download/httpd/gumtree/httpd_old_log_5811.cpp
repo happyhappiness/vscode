@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
-                      "h2_ngn_shed(%ld): pull task, nothing, first task %s", 
-                      shed->c->id, entry->task->id);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
+                  "h2_request(%d): rwrite %s host=%s://%s%s",
+                  req->id, req->method, req->scheme, req->authority, req->path);

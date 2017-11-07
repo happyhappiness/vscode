@@ -11,7 +11,7 @@ static apr_status_t get_mplx_next(h2_worker *worker, h2_mplx **pm,
     if (*pm && ptask != NULL) {
         /* We have a h2_mplx instance and the worker wants the next task. 
          * Try to get one from the given mplx. */
-        *ptask = h2_mplx_pop_task(*pm, &has_more);
+        *ptask = h2_mplx_pop_task(*pm, worker, &has_more);
         if (*ptask) {
             return APR_SUCCESS;
         }
@@ -56,7 +56,7 @@ static apr_status_t get_mplx_next(h2_worker *worker, h2_mplx **pm,
                 m = H2_MPLX_LIST_FIRST(&workers->mplxs);
                 H2_MPLX_REMOVE(m);
                 
-                task = h2_mplx_pop_task(m, &has_more);
+                task = h2_mplx_pop_task(m, worker, &has_more);
                 if (task) {
                     if (has_more) {
                         H2_MPLX_LIST_INSERT_TAIL(&workers->mplxs, m);
@@ -71,23 +71,12 @@ static apr_status_t get_mplx_next(h2_worker *worker, h2_mplx **pm,
             if (!task) {
                 /* Need to wait for either a new mplx to arrive.
                  */
+                cleanup_zombies(workers, 0);
+                
                 if (workers->worker_count > workers->min_size) {
                     apr_time_t now = apr_time_now();
                     if (now >= (start_wait + max_wait)) {
                         /* waited long enough without getting a task. */
-                        status = APR_TIMEUP;
-                    }
-                    else {
-                        ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                                     "h2_worker(%d): waiting signal, "
-                                     "worker_count=%d", worker->id, 
-                                     (int)workers->worker_count);
-                        status = apr_thread_cond_timedwait(workers->mplx_added,
-                                                           workers->lock, max_wait);
-                    }
-                    
-                    if (status == APR_TIMEUP) {
-                        /* waited long enough */
                         if (workers->worker_count > workers->min_size) {
                             ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, 
                                          workers->s,
@@ -96,6 +85,12 @@ static apr_status_t get_mplx_next(h2_worker *worker, h2_mplx **pm,
                             break;
                         }
                     }
+                    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                                 "h2_worker(%d): waiting signal, "
+                                 "worker_count=%d", worker->id, 
+                                 (int)workers->worker_count);
+                    apr_thread_cond_timedwait(workers->mplx_added,
+                                              workers->lock, max_wait);
                 }
                 else {
                     ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
@@ -111,7 +106,7 @@ static apr_status_t get_mplx_next(h2_worker *worker, h2_mplx **pm,
          * needed to give up with more than enough workers.
          */
         if (task) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, workers->s,
+            ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
                          "h2_worker(%d): start task(%s)",
                          h2_worker_get_id(worker), task->id);
             /* Since we hand out a reference to the worker, we increase

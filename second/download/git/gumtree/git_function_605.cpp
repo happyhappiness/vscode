@@ -1,43 +1,69 @@
-static int fsck_obj(struct object *obj)
+static void check_unreachable_object(struct object *obj)
 {
-	if (obj->flags & SEEN)
-		return 0;
-	obj->flags |= SEEN;
+	/*
+	 * Missing unreachable object? Ignore it. It's not like
+	 * we miss it (since it can't be reached), nor do we want
+	 * to complain about it being unreachable (since it does
+	 * not exist).
+	 */
+	if (!obj->parsed)
+		return;
 
-	if (verbose)
-		fprintf(stderr, "Checking %s %s\n",
-			typename(obj->type), describe_object(obj));
-
-	if (fsck_walk(obj, NULL, &fsck_obj_options))
-		objerror(obj, "broken links");
-	if (fsck_object(obj, NULL, 0, &fsck_obj_options))
-		return -1;
-
-	if (obj->type == OBJ_TREE) {
-		struct tree *item = (struct tree *) obj;
-
-		free_tree_buffer(item);
+	/*
+	 * Unreachable object that exists? Show it if asked to,
+	 * since this is something that is prunable.
+	 */
+	if (show_unreachable) {
+		printf("unreachable %s %s\n", typename(obj->type),
+			describe_object(obj));
+		return;
 	}
 
-	if (obj->type == OBJ_COMMIT) {
-		struct commit *commit = (struct commit *) obj;
+	/*
+	 * "!used" means that nothing at all points to it, including
+	 * other unreachable objects. In other words, it's the "tip"
+	 * of some set of unreachable objects, usually a commit that
+	 * got dropped.
+	 *
+	 * Such starting points are more interesting than some random
+	 * set of unreachable objects, so we show them even if the user
+	 * hasn't asked for _all_ unreachable objects. If you have
+	 * deleted a branch by mistake, this is a prime candidate to
+	 * start looking at, for example.
+	 */
+	if (!obj->used) {
+		if (show_dangling)
+			printf("dangling %s %s\n", typename(obj->type),
+			       describe_object(obj));
+		if (write_lost_and_found) {
+			char *filename = git_pathdup("lost-found/%s/%s",
+				obj->type == OBJ_COMMIT ? "commit" : "other",
+				describe_object(obj));
+			FILE *f;
 
-		free_commit_buffer(commit);
-
-		if (!commit->parents && show_root)
-			printf("root %s\n", describe_object(&commit->object));
-	}
-
-	if (obj->type == OBJ_TAG) {
-		struct tag *tag = (struct tag *) obj;
-
-		if (show_tags && tag->tagged) {
-			printf("tagged %s %s", typename(tag->tagged->type),
-				describe_object(tag->tagged));
-			printf(" (%s) in %s\n", tag->tag,
-				describe_object(&tag->object));
+			if (safe_create_leading_directories_const(filename)) {
+				error("Could not create lost-found");
+				free(filename);
+				return;
+			}
+			if (!(f = fopen(filename, "w")))
+				die_errno("Could not open '%s'", filename);
+			if (obj->type == OBJ_BLOB) {
+				if (stream_blob_to_fd(fileno(f), &obj->oid, NULL, 1))
+					die_errno("Could not write '%s'", filename);
+			} else
+				fprintf(f, "%s\n", describe_object(obj));
+			if (fclose(f))
+				die_errno("Could not finish '%s'",
+					  filename);
+			free(filename);
 		}
+		return;
 	}
 
-	return 0;
+	/*
+	 * Otherwise? It's there, it's unreachable, and some other unreachable
+	 * object points to it. Ignore it - it's not interesting, and we showed
+	 * all the interesting cases above.
+	 */
 }

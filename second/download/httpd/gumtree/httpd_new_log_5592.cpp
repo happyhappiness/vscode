@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                 "h2_workers: adding worker(%d)", h2_worker_get_id(w));
+ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
+                         "h2_workers: using stacksize=%ld", 
+                         (long)ap_thread_stacksize);

@@ -1,1 +1,1 @@
-die(_("failed to read ref NOTES_MERGE_PARTIAL"));
+error(_("failed to remove 'git notes merge' worktree"));

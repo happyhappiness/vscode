@@ -1,4 +1,10 @@
-void warn_on_inaccessible(const char *path)
+static int warn_if_unremovable(const char *op, const char *file, int rc)
 {
-	warning(_("unable to access '%s': %s"), path, strerror(errno));
+	int err;
+	if (!rc || errno == ENOENT)
+		return 0;
+	err = errno;
+	warning("unable to %s %s: %s", op, file, strerror(errno));
+	errno = err;
+	return rc;
 }

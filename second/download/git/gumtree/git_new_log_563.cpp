@@ -1,1 +1,1 @@
-error("Unable to update %s", ref_name.buf);
+die("unable to read blob object %s", oid_to_hex(oid));

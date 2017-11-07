@@ -1,3 +1,3 @@
-die ("Tag %s tags unexported %s!",
-				     oid_to_hex(&tag->object.oid),
-				     typename(tagged->type));
+die ("Tag %s tags unexported object; use "
+			     "--tag-of-filtered-object=<mode> to handle it.",
+			     oid_to_hex(&tag->object.oid));

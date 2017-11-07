@@ -1,2 +1,1 @@
-error("Couldn't write %s",
-					lock->lk->filename.buf);
+die("'%s' does not appear to be a git repository", service_dir);

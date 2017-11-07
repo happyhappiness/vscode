@@ -1,1 +1,1 @@
-die("BUG: could not get submodule information for '%s'", path);
+die("could not reset submodule index");

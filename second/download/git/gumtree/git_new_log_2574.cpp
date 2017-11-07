@@ -1,1 +1,1 @@
-die("BUG: unknown config origin type");
+die("BUG: configset_add_value has no source");

@@ -1,1 +1,1 @@
-not_found("Not a git repository: '%s'", dir);
+not_found("Cannot open '%s': %s", p, strerror(errno));

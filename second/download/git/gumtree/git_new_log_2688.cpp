@@ -1,1 +1,3 @@
-die("BUG: unpack_entry: left loop at a valid delta");
+die(_("Problem with core.sharedRepository filemode value "
+		    "(0%.3o).\nThe owner of files must always have "
+		    "read and write permissions."), i);

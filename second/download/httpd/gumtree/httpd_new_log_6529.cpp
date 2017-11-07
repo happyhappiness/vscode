@@ -1,1 +1,1 @@
-fprintf(stderr, "    -s timeout      Seconds to max. wait for each response\n");
+fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");

@@ -1,2 +1,1 @@
-error("Could not read %s",
-			     oid_to_hex(&item->object.oid));
+die("bad %s argument: %s", opt, arg);

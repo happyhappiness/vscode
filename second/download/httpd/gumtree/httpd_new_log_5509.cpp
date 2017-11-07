@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, session->c,
-                          "h2_stream(%ld-%d): scheduling push stream",
-                          session->id, stream->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03077)
+                      "h2_stream(%ld-%d): failed to create stream obj %d",
+                      session->id, is->id, nid);

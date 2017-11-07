@@ -1,1 +1,1 @@
-die_errno("Could not read '%s'", path);
+die("Could not open skip list: %s", path);

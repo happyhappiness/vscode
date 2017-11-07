@@ -1,1 +1,1 @@
-printf("sizeof-long: %d\n", (int)sizeof(long));
+printf(_("nothing to commit, working tree clean\n"));

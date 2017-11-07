@@ -1,2 +1,2 @@
-error(_("cannot read %s: %s"), git_path_head_file(),
-		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));
+error(_("cannot open %s: %s"), git_path_head_file(),
+						strerror(errno));

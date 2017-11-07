@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+error_errno("Could not open %s", filename);

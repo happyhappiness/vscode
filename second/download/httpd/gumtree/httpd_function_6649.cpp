@@ -1,7 +1,6 @@
 int main(int argc, const char * const argv[])
 {
     apr_file_t *fpw = NULL;
-    const char *errstr = NULL;
     char line[MAX_STRING_LEN];
     char *pwfilename = NULL;
     char *user = NULL;
@@ -10,7 +9,7 @@ int main(int argc, const char * const argv[])
     char *scratch, cp[MAX_STRING_LEN];
     int found = 0;
     int i;
-    int mask = 0;
+    unsigned mask = 0;
     apr_pool_t *pool;
     int existing_file = 0;
     struct passwd_ctx ctx = { 0 };
@@ -22,6 +21,7 @@ int main(int argc, const char * const argv[])
     apr_app_initialize(&argc, &argv, NULL);
     atexit(terminate);
     apr_pool_create(&pool, NULL);
+    apr_pool_abort_set(abort_on_oom, pool);
     apr_file_open_stderr(&errfile, pool);
     ctx.pool = pool;
     ctx.alg = ALG_APMD5;
@@ -89,10 +89,10 @@ int main(int argc, const char * const argv[])
      * Any error message text is returned in the record buffer, since
      * the mkrecord() routine doesn't have access to argv[].
      */
-    if (!(mask & APHTP_DELUSER)) {
+    if ((mask & (APHTP_DELUSER|APHTP_VERIFY)) == 0) {
         i = mkrecord(&ctx, user);
         if (i != 0) {
-            apr_file_printf(errfile, "%s: %s" NL, argv[0], errstr);
+            apr_file_printf(errfile, "%s: %s" NL, argv[0], ctx.errstr);
             exit(i);
         }
         if (mask & APHTP_NOFILE) {
@@ -101,21 +101,23 @@ int main(int argc, const char * const argv[])
         }
     }
 
-    /*
-     * We can access the files the right way, and we have a record
-     * to add or update.  Let's do it..
-     */
-    if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: could not determine temp dir" NL,
-                        argv[0]);
-        exit(ERR_FILEPERM);
-    }
-    dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
+    if ((mask & APHTP_VERIFY) == 0) {
+        /*
+         * We can access the files the right way, and we have a record
+         * to add or update.  Let's do it..
+         */
+        if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
+            apr_file_printf(errfile, "%s: could not determine temp dir" NL,
+                            argv[0]);
+            exit(ERR_FILEPERM);
+        }
+        dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
 
-    if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
-        apr_file_printf(errfile, "%s: unable to create temporary file %s" NL,
-                        argv[0], dirname);
-        exit(ERR_FILEPERM);
+        if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
+            apr_file_printf(errfile, "%s: unable to create temporary file %s" NL,
+                            argv[0], dirname);
+            exit(ERR_FILEPERM);
+        }
     }
 
     /*
@@ -166,33 +168,59 @@ int main(int argc, const char * const argv[])
                 continue;
             }
             else {
-                if (!(mask & APHTP_DELUSER)) {
-                    /* We found the user we were looking for.
-                     * Add him to the file.
-                    */
-                    apr_file_printf(errfile, "Updating ");
-                    putline(ftemp, ctx.out);
-                    found++;
+                /* We found the user we were looking for */
+                found++;
+                if ((mask & APHTP_DELUSER)) {
+                    /* Delete entry from the file */
+                    apr_file_printf(errfile, "Deleting ");
+                }
+                else if ((mask & APHTP_VERIFY)) {
+                    /* Verify */
+                    char *hash = colon + 1;
+                    size_t len;
+
+                    len = strcspn(hash, "\r\n");
+                    if (len == 0) {
+                        apr_file_printf(errfile, "Empty hash for user %s" NL,
+                                        user);
+                        exit(ERR_INVALID);
+                    }
+                    hash[len] = '\0';
+
+                    i = verify(&ctx, hash);
+                    if (i != 0) {
+                        apr_file_printf(errfile, "%s" NL, ctx.errstr);
+                        exit(i);
+                    }
                 }
                 else {
-                    /* We found the user we were looking for.
-                     * Delete them from the file.
-                     */
-                    apr_file_printf(errfile, "Deleting ");
-                    found++;
+                    /* Update entry */
+                    apr_file_printf(errfile, "Updating ");
+                    putline(ftemp, ctx.out);
                 }
             }
         }
         apr_file_close(fpw);
     }
-    if (!found && !(mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "Adding ");
-        putline(ftemp, ctx.out);
+    if (!found) {
+        if (mask & APHTP_DELUSER) {
+            apr_file_printf(errfile, "User %s not found" NL, user);
+            exit(0);
+        }
+        else if (mask & APHTP_VERIFY) {
+            apr_file_printf(errfile, "User %s not found" NL, user);
+            exit(ERR_BADUSER);
+        }
+        else {
+            apr_file_printf(errfile, "Adding ");
+            putline(ftemp, ctx.out);
+        }
     }
-    else if (!found && (mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "User %s not found" NL, user);
+    if (mask & APHTP_VERIFY) {
+        apr_file_printf(errfile, "Password for user %s correct." NL, user);
         exit(0);
     }
+
     apr_file_printf(errfile, "password for user %s" NL, user);
 
     /* The temporary file has all the data, just copy it to the new location.

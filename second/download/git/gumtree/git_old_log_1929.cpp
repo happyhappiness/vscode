@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt->long_name, arg);
+die("%s can only be used once.", opt->long_name);

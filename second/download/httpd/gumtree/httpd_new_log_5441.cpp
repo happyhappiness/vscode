@@ -1,1 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c, "process_conn");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "adding task output filter");

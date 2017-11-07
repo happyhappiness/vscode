@@ -1,1 +1,2 @@
-die(_("Could not format %s."), git_path_todo_file());
+error(_("cannot read %s: %s"), git_path_head_file(),
+		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));

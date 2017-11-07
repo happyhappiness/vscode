@@ -1,1 +1,1 @@
-fprintf(fp, "%s\n", oid_to_hex(&commit));
+fprintf(fp, "%s ", oid_to_hex(&state->orig_commit));

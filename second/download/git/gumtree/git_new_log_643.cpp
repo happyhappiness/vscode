@@ -1,1 +1,1 @@
-error(_("could not read HEAD's commit message"));
+error(_("could not read HEAD"));

@@ -1,2 +1,2 @@
-packet_write(1, "unshallow %s",
-					sha1_to_hex(object->sha1));
+packet_write(1, "shallow %s",
+						sha1_to_hex(object->sha1));

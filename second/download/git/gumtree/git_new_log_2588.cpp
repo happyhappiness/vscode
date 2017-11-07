@@ -1,1 +1,1 @@
-die("BUG: a non-header pattern in grep header list.");
+warning("object %s: %s", describe_object(o, obj), message);

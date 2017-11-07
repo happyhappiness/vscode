@@ -1,1 +1,1 @@
-error(_("index file corrupt"));
+die("BUG: state->lock_file should not be NULL");

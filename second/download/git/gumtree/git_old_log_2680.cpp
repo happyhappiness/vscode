@@ -1,1 +1,3 @@
-die("Not a git repository (or any of the parent directories): %s", DEFAULT_GIT_DIR_ENVIRONMENT);
+die("ambiguous argument '%s': unknown revision or path not in the working tree.\n"
+	    "Use '--' to separate paths from revisions, like this:\n"
+	    "'git <command> [<revision>...] -- [<file>...]'", arg);

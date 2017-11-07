@@ -1,33 +1,38 @@
-static int show_reference(const char *refname, const struct object_id *oid,
-			  int flag, void *cb_data)
+static void show_tag_lines(const struct object_id *oid, int lines)
 {
-	struct tag_filter *filter = cb_data;
+	int i;
+	unsigned long size;
+	enum object_type type;
+	char *buf, *sp, *eol;
+	size_t len;
 
-	if (match_pattern(filter->patterns, refname)) {
-		if (filter->with_commit) {
-			struct commit *commit;
+	buf = read_sha1_file(oid->hash, &type, &size);
+	if (!buf)
+		die_errno("unable to read object %s", oid_to_hex(oid));
+	if (type != OBJ_COMMIT && type != OBJ_TAG)
+		goto free_return;
+	if (!size)
+		die("an empty %s object %s?",
+		    typename(type), oid_to_hex(oid));
 
-			commit = lookup_commit_reference_gently(oid->hash, 1);
-			if (!commit)
-				return 0;
-			if (!contains(commit, filter->with_commit))
-				return 0;
-		}
+	/* skip header */
+	sp = strstr(buf, "\n\n");
+	if (!sp)
+		goto free_return;
 
-		if (points_at.nr && !match_points_at(refname, oid->hash))
-			return 0;
-
-		if (!filter->lines) {
-			if (filter->sort)
-				string_list_append(&filter->tags, refname);
-			else
-				printf("%s\n", refname);
-			return 0;
-		}
-		printf("%-15s ", refname);
-		show_tag_lines(oid, filter->lines);
-		putchar('\n');
+	/* only take up to "lines" lines, and strip the signature from a tag */
+	if (type == OBJ_TAG)
+		size = parse_signature(buf, size);
+	for (i = 0, sp += 2; i < lines && sp < buf + size; i++) {
+		if (i)
+			printf("\n    ");
+		eol = memchr(sp, '\n', size - (sp - buf));
+		len = eol ? eol - sp : size - (sp - buf);
+		fwrite(sp, len, 1, stdout);
+		if (!eol)
+			break;
+		sp = eol + 1;
 	}
-
-	return 0;
+free_return:
+	free(buf);
 }

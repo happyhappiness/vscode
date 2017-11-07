@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, m->c,
-                              "h2_mplx(%ld-%d): process, body=%d", 
-                              m->c->id, stream->id, stream->request->body);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, m->c,
+                          "h2_mplx(%s): task_done, stream still open", 
+                          task->id);

@@ -1,2 +1,1 @@
-fprintf(pack_edges, " %s",
-							oid_to_hex(&b->oid));
+fputs(oid_to_hex(&tg->oid), rpt);

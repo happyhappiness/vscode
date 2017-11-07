@@ -1,14 +1,26 @@
-static int patch_id_cmp(struct patch_id *a,
-			struct patch_id *b,
-			struct diff_options *opt)
+static void setup_pager_env(struct argv_array *env)
 {
-	if (is_null_sha1(a->patch_id) &&
-	    commit_patch_id(a->commit, opt, a->patch_id, 0))
-		return error("Could not get patch ID for %s",
-			oid_to_hex(&a->commit->object.oid));
-	if (is_null_sha1(b->patch_id) &&
-	    commit_patch_id(b->commit, opt, b->patch_id, 0))
-		return error("Could not get patch ID for %s",
-			oid_to_hex(&b->commit->object.oid));
-	return hashcmp(a->patch_id, b->patch_id);
+	const char **argv;
+	int i;
+	char *pager_env = xstrdup(PAGER_ENV);
+	int n = split_cmdline(pager_env, &argv);
+
+	if (n < 0)
+		die("malformed build-time PAGER_ENV: %s",
+			split_cmdline_strerror(n));
+
+	for (i = 0; i < n; i++) {
+		char *cp = strchr(argv[i], '=');
+
+		if (!cp)
+			die("malformed build-time PAGER_ENV");
+
+		*cp = '\0';
+		if (!getenv(argv[i])) {
+			*cp = '=';
+			argv_array_push(env, argv[i]);
+		}
+	}
+	free(pager_env);
+	free(argv);
 }

@@ -1,45 +1,48 @@
-static int curl_append_msgs_to_imap(struct imap_server_conf *server,
-				    struct strbuf* all_msgs, int total) {
-	int ofs = 0;
-	int n = 0;
-	struct buffer msgbuf = { STRBUF_INIT, 0 };
+static CURL *setup_curl(struct imap_server_conf *srvc)
+{
 	CURL *curl;
-	CURLcode res = CURLE_OK;
+	struct strbuf path = STRBUF_INIT;
 
-	curl = setup_curl(server);
-	curl_easy_setopt(curl, CURLOPT_READDATA, &msgbuf);
+	if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK)
+		die("curl_global_init failed");
 
-	fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");
-	while (1) {
-		unsigned percent = n * 100 / total;
-		int prev_len;
+	curl = curl_easy_init();
 
-		fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);
+	if (!curl)
+		die("curl_easy_init failed");
 
-		prev_len = msgbuf.buf.len;
-		if (!split_msg(all_msgs, &msgbuf.buf, &ofs))
-			break;
-		if (server->use_html)
-			wrap_in_html(&msgbuf.buf);
-		lf_to_crlf(&msgbuf.buf);
+	curl_easy_setopt(curl, CURLOPT_USERNAME, server.user);
+	curl_easy_setopt(curl, CURLOPT_PASSWORD, server.pass);
 
-		curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
-				 (curl_off_t)(msgbuf.buf.len-prev_len));
+	strbuf_addstr(&path, server.host);
+	if (!path.len || path.buf[path.len - 1] != '/')
+		strbuf_addch(&path, '/');
+	strbuf_addstr(&path, server.folder);
 
-		res = curl_easy_perform(curl);
+	curl_easy_setopt(curl, CURLOPT_URL, path.buf);
+	strbuf_release(&path);
+	curl_easy_setopt(curl, CURLOPT_PORT, server.port);
 
-		if(res != CURLE_OK) {
-			fprintf(stderr, "curl_easy_perform() failed: %s\n",
-					curl_easy_strerror(res));
-			break;
-		}
-
-		n++;
+	if (server.auth_method) {
+		struct strbuf auth = STRBUF_INIT;
+		strbuf_addstr(&auth, "AUTH=");
+		strbuf_addstr(&auth, server.auth_method);
+		curl_easy_setopt(curl, CURLOPT_LOGIN_OPTIONS, auth.buf);
+		strbuf_release(&auth);
 	}
-	fprintf(stderr, "\n");
 
-	curl_easy_cleanup(curl);
-	curl_global_cleanup();
+	if (!server.use_ssl)
+		curl_easy_setopt(curl, CURLOPT_USE_SSL, (long)CURLUSESSL_TRY);
 
-	return 0;
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, server.ssl_verify);
+	curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, server.ssl_verify);
+
+	curl_easy_setopt(curl, CURLOPT_READFUNCTION, fread_buffer);
+
+	curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+
+	if (0 < verbosity || getenv("GIT_CURL_VERBOSE"))
+		curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+	return curl;
 }

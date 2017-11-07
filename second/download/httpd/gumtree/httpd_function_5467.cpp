@@ -1,51 +1,41 @@
-apr_status_t h2_mplx_idle(h2_mplx *m)
-{
-    apr_status_t status = APR_SUCCESS;
-    apr_time_t now;            
+apr_status_t h2_mplx_req_engine_pull(h2_req_engine *ngn, 
+                                     apr_read_type_e block, 
+                                     apr_uint32_t capacity, 
+                                     request_rec **pr)
+{   
+    h2_ngn_shed *shed = h2_ngn_shed_get_shed(ngn);
+    h2_mplx *m = h2_ngn_shed_get_ctx(shed);
+    apr_status_t status;
+    h2_task *task = NULL;
     int acquired;
     
-    if (enter_mutex(m, &acquired) == APR_SUCCESS) {
-        apr_size_t scount = h2_io_set_size(m->stream_ios);
-        if (scount > 0 && m->workers_busy) {
-            /* If we have streams in connection state 'IDLE', meaning
-             * all streams are ready to sent data out, but lack
-             * WINDOW_UPDATEs. 
-             * 
-             * This is ok, unless we have streams that still occupy
-             * h2 workers. As worker threads are a scarce resource, 
-             * we need to take measures that we do not get DoSed.
-             * 
-             * This is what we call an 'idle block'. Limit the amount 
-             * of busy workers we allow for this connection until it
-             * well behaves.
+    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
+        int want_shutdown = (block == APR_BLOCK_READ);
+
+        /* Take this opportunity to update output consummation 
+         * for this engine */
+        ngn_out_update_windows(m, ngn);
+        
+        if (want_shutdown && !h2_iq_empty(m->q)) {
+            /* For a blocking read, check first if requests are to be
+             * had and, if not, wait a short while before doing the
+             * blocking, and if unsuccessful, terminating read.
              */
-            now = apr_time_now();
-            m->last_idle_block = now;
-            if (m->workers_limit > 2 
-                && now - m->last_limit_change >= m->limit_change_interval) {
-                if (m->workers_limit > 16) {
-                    m->workers_limit = 16;
-                }
-                else if (m->workers_limit > 8) {
-                    m->workers_limit = 8;
-                }
-                else if (m->workers_limit > 4) {
-                    m->workers_limit = 4;
-                }
-                else if (m->workers_limit > 2) {
-                    m->workers_limit = 2;
-                }
-                m->last_limit_change = now;
+            status = h2_ngn_shed_pull_task(shed, ngn, capacity, 1, &task);
+            if (APR_STATUS_IS_EAGAIN(status)) {
                 ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                              "h2_mplx(%ld): decrease worker limit to %d",
-                              m->id, m->workers_limit);
+                              "h2_mplx(%ld): start block engine pull", m->id);
+                apr_thread_cond_timedwait(m->task_thawed, m->lock, 
+                                          apr_time_from_msec(20));
+                status = h2_ngn_shed_pull_task(shed, ngn, capacity, 1, &task);
             }
-            
-            if (m->workers_busy > m->workers_limit) {
-                status = unschedule_slow_ios(m);
-            }
+        }
+        else {
+            status = h2_ngn_shed_pull_task(shed, ngn, capacity,
+                                           want_shutdown, &task);
         }
         leave_mutex(m, acquired);
     }
+    *pr = task? task->r : NULL;
     return status;
 }

@@ -1,1 +1,1 @@
-error("%s", o->obuf.buf);
+maybe_flush_or_die(opt->diffopt.file, "stdout");

@@ -1,2 +1,1 @@
-error_buf(err, _("no such branch: '%s'"),
-					 branch->name);
+error_buf(err, _("HEAD does not point to a branch"));

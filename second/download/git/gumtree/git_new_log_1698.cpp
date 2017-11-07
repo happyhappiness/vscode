@@ -1,1 +1,2 @@
-error("Invalid value for '%s'", k);
+die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), existing);

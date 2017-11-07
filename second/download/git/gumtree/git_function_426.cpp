@@ -1,17 +1,7 @@
-static int packet_write_fmt_1(int fd, int gently,
-			      const char *fmt, va_list args)
+int packet_flush_gently(int fd)
 {
-	struct strbuf buf = STRBUF_INIT;
-	ssize_t count;
-
-	format_packet(&buf, fmt, args);
-	count = write_in_full(fd, buf.buf, buf.len);
-	if (count == buf.len)
+	packet_trace("0000", 4, 1);
+	if (write_in_full(fd, "0000", 4) == 4)
 		return 0;
-
-	if (!gently) {
-		check_pipe(errno);
-		die_errno("packet write with format failed");
-	}
-	return error("packet write with format failed");
+	return error("flush packet write failed");
 }

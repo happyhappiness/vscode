@@ -1,4 +1,4 @@
-static struct imap_store *imap_open_store(struct imap_server_conf *srvc, char *folder)
+static struct imap_store *imap_open_store(struct imap_server_conf *srvc)
 {
 	struct credential cred = CREDENTIAL_INIT;
 	struct imap_store *ctx;
@@ -8,23 +8,24 @@ static struct imap_store *imap_open_store(struct imap_server_conf *srvc, char *f
 
 	ctx = xcalloc(1, sizeof(*ctx));
 
-	ctx->imap = imap = xcalloc(1, sizeof(*imap));
+	ctx->imap = imap = xcalloc(sizeof(*imap), 1);
 	imap->buf.sock.fd[0] = imap->buf.sock.fd[1] = -1;
 	imap->in_progress_append = &imap->in_progress;
 
 	/* open connection to IMAP server */
 
 	if (srvc->tunnel) {
-		struct child_process tunnel = CHILD_PROCESS_INIT;
+		const char *argv[] = { srvc->tunnel, NULL };
+		struct child_process tunnel = {NULL};
 
 		imap_info("Starting tunnel '%s'... ", srvc->tunnel);
 
-		argv_array_push(&tunnel.args, srvc->tunnel);
+		tunnel.argv = argv;
 		tunnel.use_shell = 1;
 		tunnel.in = -1;
 		tunnel.out = -1;
 		if (start_command(&tunnel))
-			die("cannot start proxy %s", srvc->tunnel);
+			die("cannot start proxy %s", argv[0]);
 
 		imap->buf.sock.fd[0] = tunnel.out;
 		imap->buf.sock.fd[1] = tunnel.in;
@@ -209,25 +210,6 @@ static struct imap_store *imap_open_store(struct imap_server_conf *srvc, char *f
 		credential_approve(&cred);
 	credential_clear(&cred);
 
-	/* check the target mailbox exists */
-	ctx->name = folder;
-	switch (imap_exec(ctx, NULL, "EXAMINE \"%s\"", ctx->name)) {
-	case RESP_OK:
-		/* ok */
-		break;
-	case RESP_BAD:
-		fprintf(stderr, "IMAP error: could not check mailbox\n");
-		goto out;
-	case RESP_NO:
-		if (imap_exec(ctx, NULL, "CREATE \"%s\"", ctx->name) == RESP_OK) {
-			imap_info("Created missing mailbox\n");
-		} else {
-			fprintf(stderr, "IMAP error: could not create missing mailbox\n");
-			goto out;
-		}
-		break;
-	}
-
 	ctx->prefix = "";
 	return ctx;
 
@@ -236,7 +218,6 @@ bail:
 		credential_reject(&cred);
 	credential_clear(&cred);
 
- out:
 	imap_close_store(ctx);
 	return NULL;
 }

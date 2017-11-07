@@ -1,1 +1,1 @@
-warning("LF will be replaced by CRLF in %s.\nThe file will have its original line endings in your working directory.", path);
+die("CRLF would be replaced by LF in %s.", path);

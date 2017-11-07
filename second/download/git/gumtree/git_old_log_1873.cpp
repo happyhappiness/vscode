@@ -1,2 +1,2 @@
-die ("Could not find author in commit %s",
-		     sha1_to_hex(commit->object.sha1));
+printf("%s %s\n", sha1_to_hex(tree1->object.sha1),
+			  sha1_to_hex(tree2->object.sha1));

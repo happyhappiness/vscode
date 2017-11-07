@@ -1,1 +1,1 @@
-fprintf(rej, "%.*s", frag->size, frag->patch);
+fprintf_ln(stderr, _("Rejected hunk #%d."), cnt);

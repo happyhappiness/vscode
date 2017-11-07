@@ -1,18 +1,19 @@
-static int on_invalid_header_cb(nghttp2_session *ngh2, 
-                                const nghttp2_frame *frame, 
-                                const uint8_t *name, size_t namelen, 
-                                const uint8_t *value, size_t valuelen, 
-                                uint8_t flags, void *user_data)
+static apr_status_t on_stream_resume(void *ctx, int stream_id)
 {
-    h2_session *session = user_data;
-    if (APLOGcdebug(session->c)) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03456)
-                      "h2_session(%ld-%d): denying stream with invalid header "
-                      "'%s: %s'", session->id, (int)frame->hd.stream_id,
-                      apr_pstrndup(session->pool, (const char *)name, namelen),
-                      apr_pstrndup(session->pool, (const char *)value, valuelen));
+    h2_session *session = ctx;
+    h2_stream *stream = get_stream(session, stream_id);
+    apr_status_t status = APR_SUCCESS;
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_resume", session->id, stream_id);
+    if (stream) {
+        int rv = nghttp2_session_resume_data(session->ngh2, stream_id);
+        session->have_written = 1;
+        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
+                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
+                      APLOGNO(02936) 
+                      "h2_stream(%ld-%d): resuming %s",
+                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
     }
-    return nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                     frame->hd.stream_id, 
-                                     NGHTTP2_PROTOCOL_ERROR);
+    return status;
 }

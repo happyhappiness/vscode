@@ -1,1 +1,1 @@
-fprintf(stderr, "    -t timelimit    Seconds to max. to spend on benchmarking\n");
+fprintf(stderr, "                    This implies -n 50000\n");

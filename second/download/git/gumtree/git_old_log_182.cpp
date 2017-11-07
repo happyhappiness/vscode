@@ -1,1 +1,1 @@
-error(_("Could not parse object '%s'."), sha1_to_hex(head));
+fprintf(fp, "%s\n", sha1_to_hex(commit));

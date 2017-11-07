@@ -1,1 +1,1 @@
-die(_("git fetch-pack: expected ACK/NAK, got '%s'"), line);
+die(_("git fetch-pack: expected ACK/NAK, got EOF"));

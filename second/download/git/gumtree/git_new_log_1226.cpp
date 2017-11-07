@@ -1,1 +1,1 @@
-printf("rm -f %s\n", path);
+rmdir(path);

@@ -1,2 +1,1 @@
-error(_("could not update %s"),
-					head_ref.buf);
+error(_("could not read 'onto'"));

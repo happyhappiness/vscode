@@ -1,132 +1,114 @@
-const char *write_idx_file(const char *index_name, struct pack_idx_entry **objects,
-			   int nr_objects, const struct pack_idx_option *opts,
-			   const unsigned char *sha1)
+static int verify_packfile(struct packed_git *p,
+			   struct pack_window **w_curs,
+			   verify_fn fn,
+			   struct progress *progress, uint32_t base_count)
+
 {
-	struct sha1file *f;
-	struct pack_idx_entry **sorted_by_sha, **list, **last;
-	off_t last_obj_offset = 0;
-	uint32_t array[256];
-	int i, fd;
-	uint32_t index_version;
+	off_t index_size = p->index_size;
+	const unsigned char *index_base = p->index_data;
+	git_SHA_CTX ctx;
+	unsigned char sha1[20], *pack_sig;
+	off_t offset = 0, pack_sig_ofs = 0;
+	uint32_t nr_objects, i;
+	int err = 0;
+	struct idx_entry *entries;
 
-	if (nr_objects) {
-		sorted_by_sha = objects;
-		list = sorted_by_sha;
-		last = sorted_by_sha + nr_objects;
-		for (i = 0; i < nr_objects; ++i) {
-			if (objects[i]->offset > last_obj_offset)
-				last_obj_offset = objects[i]->offset;
-		}
-		QSORT(sorted_by_sha, nr_objects, sha1_compare);
-	}
-	else
-		sorted_by_sha = list = last = NULL;
+	if (!is_pack_valid(p))
+		return error("packfile %s cannot be accessed", p->pack_name);
 
-	if (opts->flags & WRITE_IDX_VERIFY) {
-		assert(index_name);
-		f = sha1fd_check(index_name);
-	} else {
-		if (!index_name) {
-			struct strbuf tmp_file = STRBUF_INIT;
-			fd = odb_mkstemp(&tmp_file, "pack/tmp_idx_XXXXXX");
-			index_name = strbuf_detach(&tmp_file, NULL);
-		} else {
-			unlink(index_name);
-			fd = open(index_name, O_CREAT|O_EXCL|O_WRONLY, 0600);
-			if (fd < 0)
-				die_errno("unable to create '%s'", index_name);
-		}
-		f = sha1fd(fd, index_name);
-	}
+	git_SHA1_Init(&ctx);
+	do {
+		unsigned long remaining;
+		unsigned char *in = use_pack(p, w_curs, offset, &remaining);
+		offset += remaining;
+		if (!pack_sig_ofs)
+			pack_sig_ofs = p->pack_size - 20;
+		if (offset > pack_sig_ofs)
+			remaining -= (unsigned int)(offset - pack_sig_ofs);
+		git_SHA1_Update(&ctx, in, remaining);
+	} while (offset < pack_sig_ofs);
+	git_SHA1_Final(sha1, &ctx);
+	pack_sig = use_pack(p, w_curs, pack_sig_ofs, NULL);
+	if (hashcmp(sha1, pack_sig))
+		err = error("%s SHA1 checksum mismatch",
+			    p->pack_name);
+	if (hashcmp(index_base + index_size - 40, pack_sig))
+		err = error("%s SHA1 does not match its index",
+			    p->pack_name);
+	unuse_pack(w_curs);
 
-	/* if last object's offset is >= 2^31 we should use index V2 */
-	index_version = need_large_offset(last_obj_offset, opts) ? 2 : opts->version;
-
-	/* index versions 2 and above need a header */
-	if (index_version >= 2) {
-		struct pack_idx_header hdr;
-		hdr.idx_signature = htonl(PACK_IDX_SIGNATURE);
-		hdr.idx_version = htonl(index_version);
-		sha1write(f, &hdr, sizeof(hdr));
-	}
-
-	/*
-	 * Write the first-level table (the list is sorted,
-	 * but we use a 256-entry lookup to be able to avoid
-	 * having to do eight extra binary search iterations).
+	/* Make sure everything reachable from idx is valid.  Since we
+	 * have verified that nr_objects matches between idx and pack,
+	 * we do not do scan-streaming check on the pack file.
 	 */
-	for (i = 0; i < 256; i++) {
-		struct pack_idx_entry **next = list;
-		while (next < last) {
-			struct pack_idx_entry *obj = *next;
-			if (obj->sha1[0] != i)
-				break;
-			next++;
-		}
-		array[i] = htonl(next - sorted_by_sha);
-		list = next;
-	}
-	sha1write(f, array, 256 * 4);
-
-	/*
-	 * Write the actual SHA1 entries..
-	 */
-	list = sorted_by_sha;
+	nr_objects = p->num_objects;
+	ALLOC_ARRAY(entries, nr_objects + 1);
+	entries[nr_objects].offset = pack_sig_ofs;
+	/* first sort entries by pack offset, since unpacking them is more efficient that way */
 	for (i = 0; i < nr_objects; i++) {
-		struct pack_idx_entry *obj = *list++;
-		if (index_version < 2) {
-			uint32_t offset = htonl(obj->offset);
-			sha1write(f, &offset, 4);
-		}
-		sha1write(f, obj->sha1, 20);
-		if ((opts->flags & WRITE_IDX_STRICT) &&
-		    (i && !hashcmp(list[-2]->sha1, obj->sha1)))
-			die("The same object %s appears twice in the pack",
-			    sha1_to_hex(obj->sha1));
+		entries[i].sha1 = nth_packed_object_sha1(p, i);
+		if (!entries[i].sha1)
+			die("internal error pack-check nth-packed-object");
+		entries[i].offset = nth_packed_object_offset(p, i);
+		entries[i].nr = i;
 	}
+	QSORT(entries, nr_objects, compare_entries);
 
-	if (index_version >= 2) {
-		unsigned int nr_large_offset = 0;
+	for (i = 0; i < nr_objects; i++) {
+		void *data;
+		enum object_type type;
+		unsigned long size;
+		off_t curpos;
+		int data_valid;
 
-		/* write the crc32 table */
-		list = sorted_by_sha;
-		for (i = 0; i < nr_objects; i++) {
-			struct pack_idx_entry *obj = *list++;
-			uint32_t crc32_val = htonl(obj->crc32);
-			sha1write(f, &crc32_val, 4);
+		if (p->index_version > 1) {
+			off_t offset = entries[i].offset;
+			off_t len = entries[i+1].offset - offset;
+			unsigned int nr = entries[i].nr;
+			if (check_pack_crc(p, w_curs, offset, len, nr))
+				err = error("index CRC mismatch for object %s "
+					    "from %s at offset %"PRIuMAX"",
+					    sha1_to_hex(entries[i].sha1),
+					    p->pack_name, (uintmax_t)offset);
 		}
 
-		/* write the 32-bit offset table */
-		list = sorted_by_sha;
-		for (i = 0; i < nr_objects; i++) {
-			struct pack_idx_entry *obj = *list++;
-			uint32_t offset;
+		curpos = entries[i].offset;
+		type = unpack_object_header(p, w_curs, &curpos, &size);
+		unuse_pack(w_curs);
 
-			offset = (need_large_offset(obj->offset, opts)
-				  ? (0x80000000 | nr_large_offset++)
-				  : obj->offset);
-			offset = htonl(offset);
-			sha1write(f, &offset, 4);
+		if (type == OBJ_BLOB && big_file_threshold <= size) {
+			/*
+			 * Let check_sha1_signature() check it with
+			 * the streaming interface; no point slurping
+			 * the data in-core only to discard.
+			 */
+			data = NULL;
+			data_valid = 0;
+		} else {
+			data = unpack_entry(p, entries[i].offset, &type, &size);
+			data_valid = 1;
 		}
 
-		/* write the large offset table */
-		list = sorted_by_sha;
-		while (nr_large_offset) {
-			struct pack_idx_entry *obj = *list++;
-			uint64_t offset = obj->offset;
-			uint32_t split[2];
-
-			if (!need_large_offset(offset, opts))
-				continue;
-			split[0] = htonl(offset >> 32);
-			split[1] = htonl(offset & 0xffffffff);
-			sha1write(f, split, 8);
-			nr_large_offset--;
+		if (data_valid && !data)
+			err = error("cannot unpack %s from %s at offset %"PRIuMAX"",
+				    sha1_to_hex(entries[i].sha1), p->pack_name,
+				    (uintmax_t)entries[i].offset);
+		else if (check_sha1_signature(entries[i].sha1, data, size, typename(type)))
+			err = error("packed %s from %s is corrupt",
+				    sha1_to_hex(entries[i].sha1), p->pack_name);
+		else if (fn) {
+			int eaten = 0;
+			err |= fn(entries[i].sha1, type, size, data, &eaten);
+			if (eaten)
+				data = NULL;
 		}
+		if (((base_count + i) & 1023) == 0)
+			display_progress(progress, base_count + i);
+		free(data);
+
 	}
+	display_progress(progress, base_count + i);
+	free(entries);
 
-	sha1write(f, sha1, 20);
-	sha1close(f, NULL, ((opts->flags & WRITE_IDX_VERIFY)
-			    ? CSUM_CLOSE : CSUM_FSYNC));
-	return index_name;
+	return err;
 }

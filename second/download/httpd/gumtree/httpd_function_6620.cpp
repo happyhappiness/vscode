@@ -1,27 +1,20 @@
-static const char *register_filter_function_hook(const char *filter,
-                                                     cmd_parms *cmd,
-                                                     void *_cfg,
-                                                     const char *file,
-                                                     const char *function,
-                                                     int direction)
+static int proxy_post_config(apr_pool_t *pconf, apr_pool_t *plog,
+                             apr_pool_t *ptemp, server_rec *s)
 {
-    ap_lua_filter_handler_spec *spec;
-    ap_lua_dir_cfg *cfg = (ap_lua_dir_cfg *) _cfg;
-   
-    spec = apr_pcalloc(cmd->pool, sizeof(ap_lua_filter_handler_spec));
-    spec->file_name = apr_pstrdup(cmd->pool, file);
-    spec->function_name = apr_pstrdup(cmd->pool, function);
-    spec->filter_name = filter;
+    apr_status_t rv = ap_global_mutex_create(&proxy_mutex, NULL,
+            proxy_id, NULL, s, pconf, 0);
+    if (rv != APR_SUCCESS) {
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02478)
+        "failed to create %s mutex", proxy_id);
+        return rv;
+    }
 
-    *(ap_lua_filter_handler_spec **) apr_array_push(cfg->mapped_filters) = spec;
-    /* TODO: Make it work on other types than just AP_FTYPE_RESOURCE? */
-    if (direction == AP_LUA_FILTER_OUTPUT) {
-        spec->direction = AP_LUA_FILTER_OUTPUT;
-        ap_register_output_filter(filter, lua_output_filter_handle, NULL, AP_FTYPE_RESOURCE);
-    }
-    else {
-        spec->direction = AP_LUA_FILTER_INPUT;
-        ap_register_input_filter(filter, lua_input_filter_handle, NULL, AP_FTYPE_RESOURCE);
-    }
-    return NULL;
+    proxy_ssl_enable = APR_RETRIEVE_OPTIONAL_FN(ssl_proxy_enable);
+    proxy_ssl_disable = APR_RETRIEVE_OPTIONAL_FN(ssl_engine_disable);
+    proxy_is_https = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
+    proxy_ssl_val = APR_RETRIEVE_OPTIONAL_FN(ssl_var_lookup);
+    ap_proxy_strmatch_path = apr_strmatch_precompile(pconf, "path=", 0);
+    ap_proxy_strmatch_domain = apr_strmatch_precompile(pconf, "domain=", 0);
+
+    return OK;
 }

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL, APLOGNO(02818)
-                     "MPM run failed, exiting");
+ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf, APLOGNO(03093)
+                         "process_socket: apr_pollset_add failure");

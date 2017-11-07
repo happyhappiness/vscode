@@ -1,22 +1,17 @@
-static int read_mailmap_file(struct string_list *map, const char *filename,
-			     char **repo_abbrev)
+static void add_domainname(struct strbuf *out, int *is_bogus)
 {
-	char buffer[1024];
-	FILE *f;
+	char buf[1024];
 
-	if (!filename)
-		return 0;
-
-	f = fopen(filename, "r");
-	if (!f) {
-		if (errno == ENOENT)
-			return 0;
-		return error("unable to open mailmap at %s: %s",
-			     filename, strerror(errno));
+	if (gethostname(buf, sizeof(buf))) {
+		warning("cannot get host name: %s", strerror(errno));
+		strbuf_addstr(out, "(none)");
+		*is_bogus = 1;
+		return;
 	}
-
-	while (fgets(buffer, sizeof(buffer), f) != NULL)
-		read_mailmap_line(map, buffer, repo_abbrev);
-	fclose(f);
-	return 0;
+	if (strchr(buf, '.'))
+		strbuf_addstr(out, buf);
+	else if (canonical_name(buf, out) < 0) {
+		strbuf_addf(out, "%s.(none)", buf);
+		*is_bogus = 1;
+	}
 }

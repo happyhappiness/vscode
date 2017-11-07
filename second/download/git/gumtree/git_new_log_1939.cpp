@@ -1,1 +1,1 @@
-printf(" %s", oid_to_hex(&parents->item->object.oid));
+fputs(oid_to_hex(&commit->object.oid), stdout);

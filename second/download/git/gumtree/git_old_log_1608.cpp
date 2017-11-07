@@ -1,1 +1,1 @@
-error("%s", err.buf);
+error("unable to create directory for %s", ref_file);

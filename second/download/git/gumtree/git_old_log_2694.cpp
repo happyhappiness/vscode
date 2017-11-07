@@ -1,1 +1,1 @@
-die("transport: invalid depth option '%s'", value);
+die("internal bug in trailer.c");

@@ -1,1 +1,1 @@
-die(_("destination '%s' is not a directory"), dest_path[0]);
+die(_("%.*s is in index"), len_w_slash, src_w_slash);

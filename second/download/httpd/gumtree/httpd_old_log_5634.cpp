@@ -1,6 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, APR_SUCCESS,
-                          r,
-                          ref ? "Fixed spelling: %s to %s from %s"
-                              : "Fixed spelling: %s to %s%s",
-                          r->uri, nuri,
-                          (ref ? ref : ""));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                 "%s(): BufferOverflowException %" APR_SIZE_T_FMT
+                 " %" APR_SIZE_T_FMT,
+                 context, msg->pos, msg->len);

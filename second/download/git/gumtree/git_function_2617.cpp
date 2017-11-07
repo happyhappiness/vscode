@@ -1,192 +1,88 @@
-void show_log(struct rev_info *opt)
+void log_write_email_headers(struct rev_info *opt, struct commit *commit,
+			     const char **subject_p,
+			     const char **extra_headers_p,
+			     int *need_8bit_cte_p)
 {
-	struct strbuf msgbuf = STRBUF_INIT;
-	struct log_info *log = opt->loginfo;
-	struct commit *commit = log->commit, *parent = log->parent;
-	int abbrev_commit = opt->abbrev_commit ? opt->abbrev : 40;
+	const char *subject = NULL;
 	const char *extra_headers = opt->extra_headers;
-	struct pretty_print_context ctx = {0};
+	const char *name = oid_to_hex(opt->zero_commit ?
+				      &null_oid : &commit->object.oid);
 
-	opt->loginfo = NULL;
-	if (!opt->verbose_header) {
-		graph_show_commit(opt->graph);
-
-		if (!opt->graph)
-			put_revision_mark(opt, commit);
-		fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit), stdout);
-		if (opt->print_parents)
-			show_parents(commit, abbrev_commit);
-		if (opt->children.name)
-			show_children(opt, commit, abbrev_commit);
-		show_decorations(opt, commit);
-		if (opt->graph && !graph_is_commit_finished(opt->graph)) {
-			putchar('\n');
-			graph_show_remainder(opt->graph);
-		}
-		putchar(opt->diffopt.line_termination);
-		return;
+	*need_8bit_cte_p = 0; /* unknown */
+	if (opt->total > 0) {
+		static char buffer[64];
+		snprintf(buffer, sizeof(buffer),
+			 "Subject: [%s%s%0*d/%d] ",
+			 opt->subject_prefix,
+			 *opt->subject_prefix ? " " : "",
+			 digits_in_number(opt->total),
+			 opt->nr, opt->total);
+		subject = buffer;
+	} else if (opt->total == 0 && opt->subject_prefix && *opt->subject_prefix) {
+		static char buffer[256];
+		snprintf(buffer, sizeof(buffer),
+			 "Subject: [%s] ",
+			 opt->subject_prefix);
+		subject = buffer;
+	} else {
+		subject = "Subject: ";
 	}
 
-	/*
-	 * If use_terminator is set, we already handled any record termination
-	 * at the end of the last record.
-	 * Otherwise, add a diffopt.line_termination character before all
-	 * entries but the first.  (IOW, as a separator between entries)
-	 */
-	if (opt->shown_one && !opt->use_terminator) {
-		/*
-		 * If entries are separated by a newline, the output
-		 * should look human-readable.  If the last entry ended
-		 * with a newline, print the graph output before this
-		 * newline.  Otherwise it will end up as a completely blank
-		 * line and will look like a gap in the graph.
-		 *
-		 * If the entry separator is not a newline, the output is
-		 * primarily intended for programmatic consumption, and we
-		 * never want the extra graph output before the entry
-		 * separator.
-		 */
-		if (opt->diffopt.line_termination == '\n' &&
-		    !opt->missing_newline)
-			graph_show_padding(opt->graph);
-		putchar(opt->diffopt.line_termination);
-	}
-	opt->shown_one = 1;
-
-	/*
-	 * If the history graph was requested,
-	 * print the graph, up to this commit's line
-	 */
-	graph_show_commit(opt->graph);
-
-	/*
-	 * Print header line of header..
-	 */
-
-	if (opt->commit_format == CMIT_FMT_EMAIL) {
-		log_write_email_headers(opt, commit, &ctx.subject, &extra_headers,
-					&ctx.need_8bit_cte);
-	} else if (opt->commit_format != CMIT_FMT_USERFORMAT) {
-		fputs(diff_get_color_opt(&opt->diffopt, DIFF_COMMIT), stdout);
-		if (opt->commit_format != CMIT_FMT_ONELINE)
-			fputs("commit ", stdout);
-
-		if (!opt->graph)
-			put_revision_mark(opt, commit);
-		fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit),
-		      stdout);
-		if (opt->print_parents)
-			show_parents(commit, abbrev_commit);
-		if (opt->children.name)
-			show_children(opt, commit, abbrev_commit);
-		if (parent)
-			printf(" (from %s)",
-			       find_unique_abbrev(parent->object.oid.hash,
-						  abbrev_commit));
-		fputs(diff_get_color_opt(&opt->diffopt, DIFF_RESET), stdout);
-		show_decorations(opt, commit);
-		if (opt->commit_format == CMIT_FMT_ONELINE) {
-			putchar(' ');
-		} else {
-			putchar('\n');
-			graph_show_oneline(opt->graph);
-		}
-		if (opt->reflog_info) {
-			/*
-			 * setup_revisions() ensures that opt->reflog_info
-			 * and opt->graph cannot both be set,
-			 * so we don't need to worry about printing the
-			 * graph info here.
-			 */
-			show_reflog_message(opt->reflog_info,
-					    opt->commit_format == CMIT_FMT_ONELINE,
-					    &opt->date_mode,
-					    opt->date_mode_explicit);
-			if (opt->commit_format == CMIT_FMT_ONELINE)
-				return;
-		}
-	}
-
-	if (opt->show_signature) {
-		show_signature(opt, commit);
-		show_mergetag(opt, commit);
-	}
-
-	if (!get_cached_commit_buffer(commit, NULL))
-		return;
-
-	if (opt->show_notes) {
-		int raw;
-		struct strbuf notebuf = STRBUF_INIT;
-
-		raw = (opt->commit_format == CMIT_FMT_USERFORMAT);
-		format_display_notes(commit->object.oid.hash, &notebuf,
-				     get_log_output_encoding(), raw);
-		ctx.notes_message = notebuf.len
-			? strbuf_detach(&notebuf, NULL)
-			: xcalloc(1, 1);
-	}
-
-	/*
-	 * And then the pretty-printed message itself
-	 */
-	if (ctx.need_8bit_cte >= 0 && opt->add_signoff)
-		ctx.need_8bit_cte =
-			has_non_ascii(fmt_name(getenv("GIT_COMMITTER_NAME"),
-					       getenv("GIT_COMMITTER_EMAIL")));
-	ctx.date_mode = opt->date_mode;
-	ctx.date_mode_explicit = opt->date_mode_explicit;
-	ctx.abbrev = opt->diffopt.abbrev;
-	ctx.after_subject = extra_headers;
-	ctx.preserve_subject = opt->preserve_subject;
-	ctx.reflog_info = opt->reflog_info;
-	ctx.fmt = opt->commit_format;
-	ctx.mailmap = opt->mailmap;
-	ctx.color = opt->diffopt.use_color;
-	ctx.expand_tabs_in_log = opt->expand_tabs_in_log;
-	ctx.output_encoding = get_log_output_encoding();
-	if (opt->from_ident.mail_begin && opt->from_ident.name_begin)
-		ctx.from_ident = &opt->from_ident;
-	if (opt->graph)
-		ctx.graph_width = graph_width(opt->graph);
-	pretty_print_commit(&ctx, commit, &msgbuf);
-
-	if (opt->add_signoff)
-		append_signoff(&msgbuf, 0, APPEND_SIGNOFF_DEDUP);
-
-	if ((ctx.fmt != CMIT_FMT_USERFORMAT) &&
-	    ctx.notes_message && *ctx.notes_message) {
-		if (ctx.fmt == CMIT_FMT_EMAIL) {
-			strbuf_addstr(&msgbuf, "---\n");
-			opt->shown_dashes = 1;
-		}
-		strbuf_addstr(&msgbuf, ctx.notes_message);
-	}
-
-	if (opt->show_log_size) {
-		printf("log size %i\n", (int)msgbuf.len);
+	printf("From %s Mon Sep 17 00:00:00 2001\n", name);
+	graph_show_oneline(opt->graph);
+	if (opt->message_id) {
+		printf("Message-Id: <%s>\n", opt->message_id);
 		graph_show_oneline(opt->graph);
 	}
-
-	/*
-	 * Set opt->missing_newline if msgbuf doesn't
-	 * end in a newline (including if it is empty)
-	 */
-	if (!msgbuf.len || msgbuf.buf[msgbuf.len - 1] != '\n')
-		opt->missing_newline = 1;
-	else
-		opt->missing_newline = 0;
-
-	if (opt->graph)
-		graph_show_commit_msg(opt->graph, &msgbuf);
-	else
-		fwrite(msgbuf.buf, sizeof(char), msgbuf.len, stdout);
-	if (opt->use_terminator && !commit_format_is_empty(opt->commit_format)) {
-		if (!opt->missing_newline)
-			graph_show_padding(opt->graph);
-		putchar(opt->diffopt.line_termination);
+	if (opt->ref_message_ids && opt->ref_message_ids->nr > 0) {
+		int i, n;
+		n = opt->ref_message_ids->nr;
+		printf("In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);
+		for (i = 0; i < n; i++)
+			printf("%s<%s>\n", (i > 0 ? "\t" : "References: "),
+			       opt->ref_message_ids->items[i].string);
+		graph_show_oneline(opt->graph);
 	}
+	if (opt->mime_boundary) {
+		static char subject_buffer[1024];
+		static char buffer[1024];
+		struct strbuf filename =  STRBUF_INIT;
+		*need_8bit_cte_p = -1; /* NEVER */
+		snprintf(subject_buffer, sizeof(subject_buffer) - 1,
+			 "%s"
+			 "MIME-Version: 1.0\n"
+			 "Content-Type: multipart/mixed;"
+			 " boundary=\"%s%s\"\n"
+			 "\n"
+			 "This is a multi-part message in MIME "
+			 "format.\n"
+			 "--%s%s\n"
+			 "Content-Type: text/plain; "
+			 "charset=UTF-8; format=fixed\n"
+			 "Content-Transfer-Encoding: 8bit\n\n",
+			 extra_headers ? extra_headers : "",
+			 mime_boundary_leader, opt->mime_boundary,
+			 mime_boundary_leader, opt->mime_boundary);
+		extra_headers = subject_buffer;
 
-	strbuf_release(&msgbuf);
-	free(ctx.notes_message);
+		if (opt->numbered_files)
+			strbuf_addf(&filename, "%d", opt->nr);
+		else
+			fmt_output_commit(&filename, commit, opt);
+		snprintf(buffer, sizeof(buffer) - 1,
+			 "\n--%s%s\n"
+			 "Content-Type: text/x-patch;"
+			 " name=\"%s\"\n"
+			 "Content-Transfer-Encoding: 8bit\n"
+			 "Content-Disposition: %s;"
+			 " filename=\"%s\"\n\n",
+			 mime_boundary_leader, opt->mime_boundary,
+			 filename.buf,
+			 opt->no_inline ? "attachment" : "inline",
+			 filename.buf);
+		opt->diffopt.stat_sep = buffer;
+		strbuf_release(&filename);
+	}
+	*subject_p = subject;
+	*extra_headers_p = extra_headers;
 }

@@ -1,1 +1,1 @@
-die("bad tree %s", oid_to_hex(&obj->oid));
+fprintf(out, "%s ", oid_to_hex(&obj->oid));

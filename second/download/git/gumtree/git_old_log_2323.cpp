@@ -1,2 +1,1 @@
-error(_("failed write to rev-list: %s"),
-				      strerror(errno));
+die("strange hostname '%s' blocked", ssh_host);

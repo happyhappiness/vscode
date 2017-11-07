@@ -1,1 +1,1 @@
-warning("ignoring ref with broken name %s", refname);
+die(_("unable to parse format"));

@@ -1,1 +1,2 @@
-error("unknown hint type for '%s': %s", var, value);
+die("unable to normalize object directory: %s",
+		    objdirbuf.buf);

@@ -1,3 +1,2 @@
-warning("skipping rename detection, detected"
-					" duplicate destination '%s'",
-					p->two->path);
+error(_("affected file '%s' is beyond a symbolic link"),
+			     patch->new_name);

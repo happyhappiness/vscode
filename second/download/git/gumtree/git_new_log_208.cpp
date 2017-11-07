@@ -1,1 +1,1 @@
-die(_("no such path %s in %s"), path, final_commit_name);
+die(_("--reverse --first-parent together require range along first-parent chain"));

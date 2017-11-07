@@ -1,2 +1,4 @@
-die("internal error peeling reference %s (%s)",
-		    entry->name, oid_to_hex(&entry->u.value.oid));
+strbuf_addf(err, "ref %s is at %s but expected %s",
+			    lock->ref_name,
+			    sha1_to_hex(lock->old_oid.hash),
+			    sha1_to_hex(old_sha1));

@@ -1,65 +1,55 @@
-static int run_git_commit(const char *defmsg, struct replay_opts *opts,
-			  int allow_empty, int edit, int amend,
-			  int cleanup_commit_message)
+static int do_recursive_merge(struct commit *base, struct commit *next,
+			      const char *base_label, const char *next_label,
+			      unsigned char *head, struct strbuf *msgbuf,
+			      struct replay_opts *opts)
 {
-	struct child_process cmd = CHILD_PROCESS_INIT;
-	const char *value;
+	struct merge_options o;
+	struct tree *result, *next_tree, *base_tree, *head_tree;
+	int clean;
+	char **xopt;
+	static struct lock_file index_lock;
 
-	cmd.git_cmd = 1;
+	hold_locked_index(&index_lock, LOCK_DIE_ON_ERROR);
 
-	if (is_rebase_i(opts)) {
-		if (!edit) {
-			cmd.stdout_to_stderr = 1;
-			cmd.err = -1;
-		}
+	read_cache();
 
-		if (read_env_script(&cmd.env_array)) {
-			const char *gpg_opt = gpg_sign_opt_quoted(opts);
+	init_merge_options(&o);
+	o.ancestor = base ? base_label : "(empty tree)";
+	o.branch1 = "HEAD";
+	o.branch2 = next ? next_label : "(empty tree)";
+	if (is_rebase_i(opts))
+		o.buffer_output = 2;
 
-			return error(_(staged_changes_advice),
-				     gpg_opt, gpg_opt);
-		}
-	}
+	head_tree = parse_tree_indirect(head);
+	next_tree = next ? next->tree : empty_tree();
+	base_tree = base ? base->tree : empty_tree();
 
-	argv_array_push(&cmd.args, "commit");
-	argv_array_push(&cmd.args, "-n");
+	for (xopt = opts->xopts; xopt != opts->xopts + opts->xopts_nr; xopt++)
+		parse_merge_opt(&o, *xopt);
 
-	if (amend)
-		argv_array_push(&cmd.args, "--amend");
-	if (opts->gpg_sign)
-		argv_array_pushf(&cmd.args, "-S%s", opts->gpg_sign);
+	clean = merge_trees(&o,
+			    head_tree,
+			    next_tree, base_tree, &result);
+	if (is_rebase_i(opts) && clean <= 0)
+		fputs(o.obuf.buf, stdout);
+	strbuf_release(&o.obuf);
+	if (clean < 0)
+		return clean;
+
+	if (active_cache_changed &&
+	    write_locked_index(&the_index, &index_lock, COMMIT_LOCK))
+		/* TRANSLATORS: %s will be "revert", "cherry-pick" or
+		 * "rebase -i".
+		 */
+		return error(_("%s: Unable to write new index file"),
+			_(action_name(opts)));
+	rollback_lock_file(&index_lock);
+
 	if (opts->signoff)
-		argv_array_push(&cmd.args, "-s");
-	if (defmsg)
-		argv_array_pushl(&cmd.args, "-F", defmsg, NULL);
-	if (cleanup_commit_message)
-		argv_array_push(&cmd.args, "--cleanup=strip");
-	if (edit)
-		argv_array_push(&cmd.args, "-e");
-	else if (!cleanup_commit_message &&
-		 !opts->signoff && !opts->record_origin &&
-		 git_config_get_value("commit.cleanup", &value))
-		argv_array_push(&cmd.args, "--cleanup=verbatim");
+		append_signoff(msgbuf, 0, 0);
 
-	if (allow_empty)
-		argv_array_push(&cmd.args, "--allow-empty");
+	if (!clean)
+		append_conflicts_hint(msgbuf);
 
-	if (opts->allow_empty_message)
-		argv_array_push(&cmd.args, "--allow-empty-message");
-
-	if (cmd.err == -1) {
-		/* hide stderr on success */
-		struct strbuf buf = STRBUF_INIT;
-		int rc = pipe_command(&cmd,
-				      NULL, 0,
-				      /* stdout is already redirected */
-				      NULL, 0,
-				      &buf, 0);
-		if (rc)
-			fputs(buf.buf, stderr);
-		strbuf_release(&buf);
-		return rc;
-	}
-
-	return run_command(&cmd);
+	return !clean;
 }

@@ -1,2 +1,1 @@
-die(_("cannot strip one component off url '%s'"),
-			*remoteurl);
+die(_("Expecting a full ref name, got %s"), refname);

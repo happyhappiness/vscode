@@ -1,1 +1,1 @@
-die("object size is too enormous to format");
+die("unable to join lazy_name_thread");

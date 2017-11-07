@@ -1,1 +1,1 @@
-die(_("failed to resolve NOTES_MERGE_REF"));
+die(_("could not parse commit from NOTES_MERGE_PARTIAL."));

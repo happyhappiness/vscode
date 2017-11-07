@@ -1,1 +1,1 @@
-error("there are still refs under '%s'", orig_refname);
+error("'%s' exists; cannot create '%s'", entry->name, refname);

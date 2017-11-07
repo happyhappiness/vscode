@@ -1,88 +1,54 @@
-int cmd_cat_file(int argc, const char **argv, const char *prefix)
+static void print_object_or_die(struct batch_options *opt, struct expand_data *data)
 {
-	int opt = 0;
-	const char *exp_type = NULL, *obj_name = NULL;
-	struct batch_options batch = {0};
-	int unknown_type = 0;
+	const struct object_id *oid = &data->oid;
 
-	const struct option options[] = {
-		OPT_GROUP(N_("<type> can be one of: blob, tree, commit, tag")),
-		OPT_CMDMODE('t', NULL, &opt, N_("show object type"), 't'),
-		OPT_CMDMODE('s', NULL, &opt, N_("show object size"), 's'),
-		OPT_CMDMODE('e', NULL, &opt,
-			    N_("exit with zero when there's no error"), 'e'),
-		OPT_CMDMODE('p', NULL, &opt, N_("pretty-print object's content"), 'p'),
-		OPT_CMDMODE(0, "textconv", &opt,
-			    N_("for blob objects, run textconv on object's content"), 'c'),
-		OPT_CMDMODE(0, "filters", &opt,
-			    N_("for blob objects, run filters on object's content"), 'w'),
-		OPT_STRING(0, "path", &force_path, N_("blob"),
-			   N_("use a specific path for --textconv/--filters")),
-		OPT_BOOL(0, "allow-unknown-type", &unknown_type,
-			  N_("allow -s and -t to work with broken/corrupt objects")),
-		OPT_BOOL(0, "buffer", &batch.buffer_output, N_("buffer --batch output")),
-		{ OPTION_CALLBACK, 0, "batch", &batch, "format",
-			N_("show info and content of objects fed from the standard input"),
-			PARSE_OPT_OPTARG, batch_option_callback },
-		{ OPTION_CALLBACK, 0, "batch-check", &batch, "format",
-			N_("show info about objects fed from the standard input"),
-			PARSE_OPT_OPTARG, batch_option_callback },
-		OPT_BOOL(0, "follow-symlinks", &batch.follow_symlinks,
-			 N_("follow in-tree symlinks (used with --batch or --batch-check)")),
-		OPT_BOOL(0, "batch-all-objects", &batch.all_objects,
-			 N_("show all objects with --batch or --batch-check")),
-		OPT_END()
-	};
+	assert(data->info.typep);
 
-	git_config(git_cat_file_config, NULL);
+	if (data->type == OBJ_BLOB) {
+		if (opt->buffer_output)
+			fflush(stdout);
+		if (opt->cmdmode) {
+			char *contents;
+			unsigned long size;
 
-	batch.buffer_output = -1;
-	argc = parse_options(argc, argv, prefix, options, cat_file_usage, 0);
+			if (!data->rest)
+				die("missing path for '%s'", oid_to_hex(oid));
 
-	if (opt) {
-		if (batch.enabled && (opt == 'c' || opt == 'w'))
-			batch.cmdmode = opt;
-		else if (argc == 1)
-			obj_name = argv[0];
-		else
-			usage_with_options(cat_file_usage, options);
+			if (opt->cmdmode == 'w') {
+				if (filter_object(data->rest, 0100644, oid,
+						  &contents, &size))
+					die("could not convert '%s' %s",
+					    oid_to_hex(oid), data->rest);
+			} else if (opt->cmdmode == 'c') {
+				enum object_type type;
+				if (!textconv_object(data->rest, 0100644, oid,
+						     1, &contents, &size))
+					contents = read_sha1_file(oid->hash, &type,
+								  &size);
+				if (!contents)
+					die("could not convert '%s' %s",
+					    oid_to_hex(oid), data->rest);
+			} else
+				die("BUG: invalid cmdmode: %c", opt->cmdmode);
+			batch_write(opt, contents, size);
+			free(contents);
+		} else if (stream_blob_to_fd(1, oid, NULL, 0) < 0)
+			die("unable to stream %s to stdout", oid_to_hex(oid));
 	}
-	if (!opt && !batch.enabled) {
-		if (argc == 2) {
-			exp_type = argv[0];
-			obj_name = argv[1];
-		} else
-			usage_with_options(cat_file_usage, options);
+	else {
+		enum object_type type;
+		unsigned long size;
+		void *contents;
+
+		contents = read_sha1_file(oid->hash, &type, &size);
+		if (!contents)
+			die("object %s disappeared", oid_to_hex(oid));
+		if (type != data->type)
+			die("object %s changed type!?", oid_to_hex(oid));
+		if (data->info.sizep && size != data->size)
+			die("object %s changed size!?", oid_to_hex(oid));
+
+		batch_write(opt, contents, size);
+		free(contents);
 	}
-	if (batch.enabled) {
-		if (batch.cmdmode != opt || argc)
-			usage_with_options(cat_file_usage, options);
-		if (batch.cmdmode && batch.all_objects)
-			die("--batch-all-objects cannot be combined with "
-			    "--textconv nor with --filters");
-	}
-
-	if ((batch.follow_symlinks || batch.all_objects) && !batch.enabled) {
-		usage_with_options(cat_file_usage, options);
-	}
-
-	if (force_path && opt != 'c' && opt != 'w') {
-		error("--path=<path> needs --textconv or --filters");
-		usage_with_options(cat_file_usage, options);
-	}
-
-	if (force_path && batch.enabled) {
-		error("--path=<path> incompatible with --batch");
-		usage_with_options(cat_file_usage, options);
-	}
-
-	if (batch.buffer_output < 0)
-		batch.buffer_output = batch.all_objects;
-
-	if (batch.enabled)
-		return batch_objects(&batch);
-
-	if (unknown_type && opt != 't' && opt != 's')
-		die("git cat-file --allow-unknown-type: use with -s or -t");
-	return cat_one_file(opt, exp_type, obj_name, unknown_type);
 }

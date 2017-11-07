@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+strbuf_release(&err);

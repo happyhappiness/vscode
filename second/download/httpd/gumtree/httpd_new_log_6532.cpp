@@ -1,1 +1,1 @@
-fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n");
+fprintf(stderr, "Error: %s\n", htdbm->ctx.errstr);

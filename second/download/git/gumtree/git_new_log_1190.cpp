@@ -1,1 +1,1 @@
-die(_("commit '%s' has malformed author line"), author_message);
+die(_("commit '%s' lacks author header"), author_message);

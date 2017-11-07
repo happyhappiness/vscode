@@ -1,2 +1,1 @@
-die("BUG: ref_store for submodule '%s' initialized twice",
-			    submodule);
+die("BUG: main_ref_store initialized twice");

@@ -1,32 +1,32 @@
-static void update_refs_stdin(void)
+static const char *parse_cmd_verify(struct strbuf *input, const char *next)
 {
-	struct strbuf input = STRBUF_INIT;
-	const char *next;
+	char *refname;
+	unsigned char new_sha1[20];
+	unsigned char old_sha1[20];
+	int have_old;
 
-	if (strbuf_read(&input, 0, 1000) < 0)
-		die_errno("could not read from stdin");
-	next = input.buf;
-	/* Read each line dispatch its command */
-	while (next < input.buf + input.len) {
-		if (*next == line_termination)
-			die("empty command in input");
-		else if (isspace(*next))
-			die("whitespace before command: %s", next);
-		else if (starts_with(next, "update "))
-			next = parse_cmd_update(&input, next + 7);
-		else if (starts_with(next, "create "))
-			next = parse_cmd_create(&input, next + 7);
-		else if (starts_with(next, "delete "))
-			next = parse_cmd_delete(&input, next + 7);
-		else if (starts_with(next, "verify "))
-			next = parse_cmd_verify(&input, next + 7);
-		else if (starts_with(next, "option "))
-			next = parse_cmd_option(&input, next + 7);
-		else
-			die("unknown command: %s", next);
+	refname = parse_refname(input, &next);
+	if (!refname)
+		die("verify: missing <ref>");
 
-		next++;
+	if (parse_next_sha1(input, &next, old_sha1, "verify", refname,
+			    PARSE_SHA1_OLD)) {
+		hashclr(new_sha1);
+		have_old = 0;
+	} else {
+		hashcpy(new_sha1, old_sha1);
+		have_old = 1;
 	}
 
-	strbuf_release(&input);
+	if (*next != line_termination)
+		die("verify %s: extra input: %s", refname, next);
+
+	if (ref_transaction_update(transaction, refname, new_sha1, old_sha1,
+				   update_flags, have_old, &err))
+		die("%s", err.buf);
+
+	update_flags = 0;
+	free(refname);
+
+	return next;
 }

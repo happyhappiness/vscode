@@ -1,1 +1,3 @@
-printf("log size %i\n", (int)msgbuf.len);
+printf(" (from %s)",
+			       find_unique_abbrev(parent->object.oid.hash,
+						  abbrev_commit));

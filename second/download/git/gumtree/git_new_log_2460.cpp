@@ -1,1 +1,1 @@
-die(_("reading bisect refs failed"));
+die_errno(_("could not read file '%s'"), filename);

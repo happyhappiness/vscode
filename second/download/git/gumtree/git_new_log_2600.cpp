@@ -1,1 +1,1 @@
-fputs(color, file);
+die("Cannot read blob %s", oid_to_hex(&spec->oid));

@@ -1,2 +1,4 @@
-fprintf(f, ":%" PRIuMAX " %s\n", base + k,
-					oid_to_hex(&m->data.marked[k]->idx.oid));
+warning("Not updating %s"
+				" (new tip %s does not contain %s)",
+				b->name, oid_to_hex(&b->oid),
+				oid_to_hex(&old_oid));

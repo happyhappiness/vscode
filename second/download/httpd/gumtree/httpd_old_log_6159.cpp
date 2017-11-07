@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                  "h2_mplx(%ld-%d): exists, started=%d, scheduled=%d, ready=%d", 
-                  m->id, stream->id, stream->started, stream->scheduled,
-                  h2_stream_is_ready(stream));
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c,  APLOGNO(03056)
+                          "h2_mplx(%ld): 3. release_join with %d tasks",
+                          m->id, (int)h2_ihash_count(m->tasks));

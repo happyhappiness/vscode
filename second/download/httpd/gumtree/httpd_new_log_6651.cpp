@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "%s" NL, ctx.errstr);
+apr_file_printf(errfile, "Password for user %s correct." NL, user);

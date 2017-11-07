@@ -1,1 +1,1 @@
-die("index file corrupt");
+write_name(fullname);

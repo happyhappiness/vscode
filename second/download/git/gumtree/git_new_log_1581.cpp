@@ -1,1 +1,1 @@
-die("invalid object type");
+die_errno(_("failed to read %s"), path.buf);

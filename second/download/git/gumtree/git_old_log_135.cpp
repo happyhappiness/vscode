@@ -1,1 +1,1 @@
-fprintf(stderr, "Unexpected end of command stream\n");
+fprintf(stderr, "Error reading command stream\n");

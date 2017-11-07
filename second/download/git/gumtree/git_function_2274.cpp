@@ -1,41 +1,47 @@
-static int split_mbox(const char *file, const char *dir, int allow_bare,
-		      int nr_prec, int skip)
+static int split_maildir(const char *maildir, const char *dir,
+	int nr_prec, int skip)
 {
+	char *file = NULL;
+	FILE *f = NULL;
 	int ret = -1;
-	int peek;
+	int i;
+	struct string_list list = STRING_LIST_INIT_DUP;
 
-	FILE *f = !strcmp(file, "-") ? stdin : fopen(file, "r");
-	int file_done = 0;
+	list.cmp = maildir_filename_cmp;
 
-	if (!f) {
-		error("cannot open mbox %s", file);
+	if (populate_maildir_list(&list, maildir) < 0)
 		goto out;
-	}
 
-	do {
-		peek = fgetc(f);
-	} while (isspace(peek));
-	ungetc(peek, f);
+	for (i = 0; i < list.nr; i++) {
+		char *name;
 
-	if (strbuf_getwholeline(&buf, f, '\n')) {
-		/* empty stdin is OK */
-		if (f != stdin) {
-			error("cannot read mbox %s", file);
+		free(file);
+		file = xstrfmt("%s/%s", maildir, list.items[i].string);
+
+		f = fopen(file, "r");
+		if (!f) {
+			error("cannot open mail %s (%s)", file, strerror(errno));
 			goto out;
 		}
-		file_done = 1;
-	}
 
-	while (!file_done) {
-		char *name = xstrfmt("%s/%0*d", dir, nr_prec, ++skip);
-		file_done = split_one(f, name, allow_bare);
+		if (strbuf_getwholeline(&buf, f, '\n')) {
+			error("cannot read mail %s (%s)", file, strerror(errno));
+			goto out;
+		}
+
+		name = xstrfmt("%s/%0*d", dir, nr_prec, ++skip);
+		split_one(f, name, 1);
 		free(name);
-	}
 
-	if (f != stdin)
 		fclose(f);
+		f = NULL;
+	}
 
 	ret = skip;
 out:
+	if (f)
+		fclose(f);
+	free(file);
+	string_list_clear(&list, 1);
 	return ret;
 }

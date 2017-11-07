@@ -1,12 +1,11 @@
-static apr_status_t ngn_done_task(h2_ngn_shed *shed, h2_req_engine *ngn, 
-                                  h2_task *task, int waslive, int aborted)
+apr_status_t h2_session_stream_done(h2_session *session, h2_stream *stream)
 {
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
-                  "h2_ngn_shed(%ld): task %s %s by %s", 
-                  shed->c->id, task->id, aborted? "aborted":"done", ngn->id);
-    ngn->no_finished++;
-    if (waslive) ngn->no_live--;
-    ngn->no_assigned--;
-
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                  "h2_stream(%ld-%d): EOS bucket cleanup -> done", 
+                  session->id, stream->id);
+    h2_ihash_remove(session->streams, stream->id);
+    h2_mplx_stream_done(session->mplx, stream);
+    
+    dispatch_event(session, H2_SESSION_EV_STREAM_DONE, 0, NULL);
     return APR_SUCCESS;
 }

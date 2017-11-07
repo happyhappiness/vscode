@@ -1,4 +1,3 @@
-print_ref_status('!', "[remote failure]", ref,
+print_ref_status('!', "[remote rejected]", ref,
 				 ref->deletion ? NULL : ref->peer_ref,
-				 "remote failed to report status",
-				 porcelain, summary_width);
+				 ref->remote_status, porcelain, summary_width);

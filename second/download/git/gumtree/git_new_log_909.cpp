@@ -1,1 +1,1 @@
-die("process for submodule '%s' failed", path);
+die("git-cvsserver only handles server: %s", arg);

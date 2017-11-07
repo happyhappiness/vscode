@@ -1,1 +1,1 @@
-git_die_config(key, "unknown notes merge strategy %s", value);
+objreport(obj, (type == FSCK_WARN) ? "warning" : "error", message);

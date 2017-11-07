@@ -1,1 +1,1 @@
-printf_ln(_("rebases onto remote %s"), merge->items[0].string);
+warning("%s\n", _(warn_unspecified_push_default_msg));

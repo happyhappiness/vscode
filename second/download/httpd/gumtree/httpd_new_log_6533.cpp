@@ -1,1 +1,0 @@
-fprintf(stderr, "    -q              Do not show progress when doing more than 150 requests\n");

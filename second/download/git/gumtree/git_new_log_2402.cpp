@@ -1,1 +1,2 @@
-error_errno("ftell error");
+fputs("fatal: recursion detected in die_errno handler\n",
+			stderr);

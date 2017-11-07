@@ -1,1 +1,0 @@
-die ("BUG: error initializing pathspec_item");

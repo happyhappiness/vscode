@@ -1,72 +1,221 @@
-static void create_note(const unsigned char *object, struct msg_arg *msg,
-			int append_only, const unsigned char *prev,
-			unsigned char *result)
+int cmd_mv(int argc, const char **argv, const char *prefix)
 {
-	char *path = NULL;
+	int i, gitmodules_modified = 0;
+	int verbose = 0, show_only = 0, force = 0, ignore_errors = 0;
+	struct option builtin_mv_options[] = {
+		OPT__VERBOSE(&verbose, N_("be verbose")),
+		OPT__DRY_RUN(&show_only, N_("dry run")),
+		OPT__FORCE(&force, N_("force move/rename even if target exists")),
+		OPT_BOOL('k', NULL, &ignore_errors, N_("skip move/rename errors")),
+		OPT_END(),
+	};
+	const char **source, **destination, **dest_path, **submodule_gitfile;
+	enum update_mode { BOTH = 0, WORKING_DIRECTORY, INDEX } *modes;
+	struct stat st;
+	struct string_list src_for_dst = STRING_LIST_INIT_NODUP;
 
-	if (msg->use_editor || !msg->given) {
-		int fd;
-		struct strbuf buf = STRBUF_INIT;
+	gitmodules_config();
+	git_config(git_default_config, NULL);
 
-		/* write the template message before editing: */
-		path = git_pathdup("NOTES_EDITMSG");
-		fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
-		if (fd < 0)
-			die_errno(_("could not create file '%s'"), path);
+	argc = parse_options(argc, argv, prefix, builtin_mv_options,
+			     builtin_mv_usage, 0);
+	if (--argc < 1)
+		usage_with_options(builtin_mv_usage, builtin_mv_options);
 
-		if (msg->given)
-			write_or_die(fd, msg->buf.buf, msg->buf.len);
-		else if (prev && !append_only)
-			write_note_data(fd, prev);
+	hold_locked_index(&lock_file, 1);
+	if (read_cache() < 0)
+		die(_("index file corrupt"));
 
-		strbuf_addch(&buf, '\n');
-		strbuf_add_commented_lines(&buf, note_template, strlen(note_template));
-		strbuf_addch(&buf, '\n');
-		write_or_die(fd, buf.buf, buf.len);
+	source = internal_copy_pathspec(prefix, argv, argc, 0);
+	modes = xcalloc(argc, sizeof(enum update_mode));
+	/*
+	 * Keep trailing slash, needed to let
+	 * "git mv file no-such-dir/" error out.
+	 */
+	dest_path = internal_copy_pathspec(prefix, argv + argc, 1,
+					   KEEP_TRAILING_SLASH);
+	submodule_gitfile = xcalloc(argc, sizeof(char *));
 
-		write_commented_object(fd, object);
-
-		close(fd);
-		strbuf_release(&buf);
-		strbuf_reset(&(msg->buf));
-
-		if (launch_editor(path, &(msg->buf), NULL)) {
-			die(_("Please supply the note contents using either -m" \
-			    " or -F option"));
-		}
-		stripspace(&(msg->buf), 1);
-	}
-
-	if (prev && append_only) {
-		/* Append buf to previous note contents */
-		unsigned long size;
-		enum object_type type;
-		char *prev_buf = read_sha1_file(prev, &type, &size);
-
-		strbuf_grow(&(msg->buf), size + 1);
-		if (msg->buf.len && prev_buf && size)
-			strbuf_insert(&(msg->buf), 0, "\n", 1);
-		if (prev_buf && size)
-			strbuf_insert(&(msg->buf), 0, prev_buf, size);
-		free(prev_buf);
-	}
-
-	if (!msg->buf.len) {
-		fprintf(stderr, _("Removing note for object %s\n"),
-			sha1_to_hex(object));
-		hashclr(result);
+	if (dest_path[0][0] == '\0')
+		/* special case: "." was normalized to "" */
+		destination = internal_copy_pathspec(dest_path[0], argv, argc, DUP_BASENAME);
+	else if (!lstat(dest_path[0], &st) &&
+			S_ISDIR(st.st_mode)) {
+		dest_path[0] = add_slash(dest_path[0]);
+		destination = internal_copy_pathspec(dest_path[0], argv, argc, DUP_BASENAME);
 	} else {
-		if (write_sha1_file(msg->buf.buf, msg->buf.len, blob_type, result)) {
-			error(_("unable to write note object"));
-			if (path)
-				error(_("The note contents has been left in %s"),
-				      path);
-			exit(128);
+		if (argc != 1)
+			die("destination '%s' is not a directory", dest_path[0]);
+		destination = dest_path;
+	}
+
+	/* Checking */
+	for (i = 0; i < argc; i++) {
+		const char *src = source[i], *dst = destination[i];
+		int length, src_is_dir;
+		const char *bad = NULL;
+
+		if (show_only)
+			printf(_("Checking rename of '%s' to '%s'\n"), src, dst);
+
+		length = strlen(src);
+		if (lstat(src, &st) < 0)
+			bad = _("bad source");
+		else if (!strncmp(src, dst, length) &&
+				(dst[length] == 0 || dst[length] == '/')) {
+			bad = _("can not move directory into itself");
+		} else if ((src_is_dir = S_ISDIR(st.st_mode))
+				&& lstat(dst, &st) == 0)
+			bad = _("cannot move directory over file");
+		else if (src_is_dir) {
+			int first = cache_name_pos(src, length);
+			if (first >= 0) {
+				struct strbuf submodule_dotgit = STRBUF_INIT;
+				if (!S_ISGITLINK(active_cache[first]->ce_mode))
+					die (_("Huh? Directory %s is in index and no submodule?"), src);
+				if (!is_staging_gitmodules_ok())
+					die (_("Please, stage your changes to .gitmodules or stash them to proceed"));
+				strbuf_addf(&submodule_dotgit, "%s/.git", src);
+				submodule_gitfile[i] = read_gitfile(submodule_dotgit.buf);
+				if (submodule_gitfile[i])
+					submodule_gitfile[i] = xstrdup(submodule_gitfile[i]);
+				else
+					submodule_gitfile[i] = SUBMODULE_WITH_GITDIR;
+				strbuf_release(&submodule_dotgit);
+			} else {
+				const char *src_w_slash = add_slash(src);
+				int last, len_w_slash = length + 1;
+
+				modes[i] = WORKING_DIRECTORY;
+
+				first = cache_name_pos(src_w_slash, len_w_slash);
+				if (first >= 0)
+					die (_("Huh? %.*s is in index?"),
+							len_w_slash, src_w_slash);
+
+				first = -1 - first;
+				for (last = first; last < active_nr; last++) {
+					const char *path = active_cache[last]->name;
+					if (strncmp(path, src_w_slash, len_w_slash))
+						break;
+				}
+				if (src_w_slash != src)
+					free((char *)src_w_slash);
+
+				if (last - first < 1)
+					bad = _("source directory is empty");
+				else {
+					int j, dst_len;
+
+					if (last - first > 0) {
+						source = xrealloc(source,
+								(argc + last - first)
+								* sizeof(char *));
+						destination = xrealloc(destination,
+								(argc + last - first)
+								* sizeof(char *));
+						modes = xrealloc(modes,
+								(argc + last - first)
+								* sizeof(enum update_mode));
+						submodule_gitfile = xrealloc(submodule_gitfile,
+								(argc + last - first)
+								* sizeof(char *));
+					}
+
+					dst = add_slash(dst);
+					dst_len = strlen(dst);
+
+					for (j = 0; j < last - first; j++) {
+						const char *path =
+							active_cache[first + j]->name;
+						source[argc + j] = path;
+						destination[argc + j] =
+							prefix_path(dst, dst_len,
+								path + length + 1);
+						modes[argc + j] = INDEX;
+						submodule_gitfile[argc + j] = NULL;
+					}
+					argc += last - first;
+				}
+			}
+		} else if (cache_name_pos(src, length) < 0)
+			bad = _("not under version control");
+		else if (lstat(dst, &st) == 0 &&
+			 (!ignore_case || strcasecmp(src, dst))) {
+			bad = _("destination exists");
+			if (force) {
+				/*
+				 * only files can overwrite each other:
+				 * check both source and destination
+				 */
+				if (S_ISREG(st.st_mode) || S_ISLNK(st.st_mode)) {
+					if (verbose)
+						warning(_("overwriting '%s'"), dst);
+					bad = NULL;
+				} else
+					bad = _("Cannot overwrite");
+			}
+		} else if (string_list_has_string(&src_for_dst, dst))
+			bad = _("multiple sources for the same target");
+		else if (is_dir_sep(dst[strlen(dst) - 1]))
+			bad = _("destination directory does not exist");
+		else
+			string_list_insert(&src_for_dst, dst);
+
+		if (bad) {
+			if (ignore_errors) {
+				if (--argc > 0) {
+					memmove(source + i, source + i + 1,
+						(argc - i) * sizeof(char *));
+					memmove(destination + i,
+						destination + i + 1,
+						(argc - i) * sizeof(char *));
+					memmove(modes + i, modes + i + 1,
+						(argc - i) * sizeof(enum update_mode));
+					memmove(submodule_gitfile + i,
+						submodule_gitfile + i + 1,
+						(argc - i) * sizeof(char *));
+					i--;
+				}
+			} else
+				die (_("%s, source=%s, destination=%s"),
+				     bad, src, dst);
 		}
 	}
 
-	if (path) {
-		unlink_or_warn(path);
-		free(path);
+	for (i = 0; i < argc; i++) {
+		const char *src = source[i], *dst = destination[i];
+		enum update_mode mode = modes[i];
+		int pos;
+		if (show_only || verbose)
+			printf(_("Renaming %s to %s\n"), src, dst);
+		if (!show_only && mode != INDEX) {
+			if (rename(src, dst) < 0 && !ignore_errors)
+				die_errno (_("renaming '%s' failed"), src);
+			if (submodule_gitfile[i]) {
+				if (submodule_gitfile[i] != SUBMODULE_WITH_GITDIR)
+					connect_work_tree_and_git_dir(dst, submodule_gitfile[i]);
+				if (!update_path_in_gitmodules(src, dst))
+					gitmodules_modified = 1;
+			}
+		}
+
+		if (mode == WORKING_DIRECTORY)
+			continue;
+
+		pos = cache_name_pos(src, strlen(src));
+		assert(pos >= 0);
+		if (!show_only)
+			rename_cache_entry_at(pos, dst);
 	}
+
+	if (gitmodules_modified)
+		stage_updated_gitmodules();
+
+	if (active_cache_changed) {
+		if (write_locked_index(&the_index, &lock_file, COMMIT_LOCK))
+			die(_("Unable to write new index file"));
+	}
+
+	return 0;
 }

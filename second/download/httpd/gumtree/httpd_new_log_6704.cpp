@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02541)
-                     "ECDH curve %s for %s specified in %s",
-                     OBJ_nid2sn(nid), vhost_id, mctx->pks->cert_files[0]);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c,
+                  "handing out built-in DH parameters for %d-bit authenticated connection", keylen);

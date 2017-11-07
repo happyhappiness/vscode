@@ -1,1 +1,1 @@
-die("bad %s argument: %s", opt->long_name, arg);
+die("Could not create directory %s", git_path_rr_cache());

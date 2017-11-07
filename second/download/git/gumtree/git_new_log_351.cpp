@@ -1,1 +1,1 @@
-die_want_option("--stat-name-width");
+die_want_option("--stat-width");

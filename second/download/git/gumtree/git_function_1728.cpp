@@ -1,57 +1,103 @@
-static int lock_file(struct lock_file *lk, const char *path, int flags)
+static CURL *get_curl_handle(void)
 {
-	size_t pathlen = strlen(path);
+	CURL *result = curl_easy_init();
 
-	if (!lock_file_list) {
-		/* One-time initialization */
-		sigchain_push_common(remove_lock_files_on_signal);
-		atexit(remove_lock_files_on_exit);
-	}
+	if (!result)
+		die("curl_easy_init failed");
 
-	if (lk->active)
-		die("BUG: cannot lock_file(\"%s\") using active struct lock_file",
-		    path);
-	if (!lk->on_list) {
-		/* Initialize *lk and add it to lock_file_list: */
-		lk->fd = -1;
-		lk->fp = NULL;
-		lk->active = 0;
-		lk->owner = 0;
-		strbuf_init(&lk->filename, pathlen + LOCK_SUFFIX_LEN);
-		lk->next = lock_file_list;
-		lock_file_list = lk;
-		lk->on_list = 1;
-	} else if (lk->filename.len) {
-		/* This shouldn't happen, but better safe than sorry. */
-		die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
-		    path);
-	}
-
-	if (flags & LOCK_NO_DEREF) {
-		strbuf_add_absolute_path(&lk->filename, path);
+	if (!curl_ssl_verify) {
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 0);
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 0);
 	} else {
-		struct strbuf resolved_path = STRBUF_INIT;
-
-		strbuf_add(&resolved_path, path, pathlen);
-		resolve_symlink(&resolved_path);
-		strbuf_add_absolute_path(&lk->filename, resolved_path.buf);
-		strbuf_release(&resolved_path);
+		/* Verify authenticity of the peer's certificate */
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYPEER, 1);
+		/* The name in the cert must match whom we tried to connect */
+		curl_easy_setopt(result, CURLOPT_SSL_VERIFYHOST, 2);
 	}
 
-	strbuf_addstr(&lk->filename, LOCK_SUFFIX);
-	lk->fd = open(lk->filename.buf, O_RDWR | O_CREAT | O_EXCL, 0666);
-	if (lk->fd < 0) {
-		strbuf_reset(&lk->filename);
-		return -1;
+#if LIBCURL_VERSION_NUM >= 0x070907
+	curl_easy_setopt(result, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
+#endif
+#ifdef LIBCURL_CAN_HANDLE_AUTH_ANY
+	curl_easy_setopt(result, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+#endif
+
+	if (http_proactive_auth)
+		init_curl_http_auth(result);
+
+	if (getenv("GIT_SSL_VERSION"))
+		ssl_version = getenv("GIT_SSL_VERSION");
+	if (ssl_version && *ssl_version) {
+		int i;
+		for (i = 0; i < ARRAY_SIZE(sslversions); i++) {
+			if (!strcmp(ssl_version, sslversions[i].name)) {
+				curl_easy_setopt(result, CURLOPT_SSLVERSION,
+						 sslversions[i].ssl_version);
+				break;
+			}
+		}
+		if (i == ARRAY_SIZE(sslversions))
+			warning("unsupported ssl version %s: using default",
+				ssl_version);
 	}
-	lk->owner = getpid();
-	lk->active = 1;
-	if (adjust_shared_perm(lk->filename.buf)) {
-		int save_errno = errno;
-		error("cannot fix permission bits on %s", lk->filename.buf);
-		rollback_lock_file(lk);
-		errno = save_errno;
-		return -1;
+
+	if (getenv("GIT_SSL_CIPHER_LIST"))
+		ssl_cipherlist = getenv("GIT_SSL_CIPHER_LIST");
+	if (ssl_cipherlist != NULL && *ssl_cipherlist)
+		curl_easy_setopt(result, CURLOPT_SSL_CIPHER_LIST,
+				ssl_cipherlist);
+
+	if (ssl_cert != NULL)
+		curl_easy_setopt(result, CURLOPT_SSLCERT, ssl_cert);
+	if (has_cert_password())
+		curl_easy_setopt(result, CURLOPT_KEYPASSWD, cert_auth.password);
+#if LIBCURL_VERSION_NUM >= 0x070903
+	if (ssl_key != NULL)
+		curl_easy_setopt(result, CURLOPT_SSLKEY, ssl_key);
+#endif
+#if LIBCURL_VERSION_NUM >= 0x070908
+	if (ssl_capath != NULL)
+		curl_easy_setopt(result, CURLOPT_CAPATH, ssl_capath);
+#endif
+	if (ssl_cainfo != NULL)
+		curl_easy_setopt(result, CURLOPT_CAINFO, ssl_cainfo);
+
+	if (curl_low_speed_limit > 0 && curl_low_speed_time > 0) {
+		curl_easy_setopt(result, CURLOPT_LOW_SPEED_LIMIT,
+				 curl_low_speed_limit);
+		curl_easy_setopt(result, CURLOPT_LOW_SPEED_TIME,
+				 curl_low_speed_time);
 	}
-	return lk->fd;
+
+	curl_easy_setopt(result, CURLOPT_FOLLOWLOCATION, 1);
+#if LIBCURL_VERSION_NUM >= 0x071301
+	curl_easy_setopt(result, CURLOPT_POSTREDIR, CURL_REDIR_POST_ALL);
+#elif LIBCURL_VERSION_NUM >= 0x071101
+	curl_easy_setopt(result, CURLOPT_POST301, 1);
+#endif
+
+	if (getenv("GIT_CURL_VERBOSE"))
+		curl_easy_setopt(result, CURLOPT_VERBOSE, 1);
+
+	curl_easy_setopt(result, CURLOPT_USERAGENT,
+		user_agent ? user_agent : git_user_agent());
+
+	if (curl_ftp_no_epsv)
+		curl_easy_setopt(result, CURLOPT_FTP_USE_EPSV, 0);
+
+#ifdef CURLOPT_USE_SSL
+	if (curl_ssl_try)
+		curl_easy_setopt(result, CURLOPT_USE_SSL, CURLUSESSL_TRY);
+#endif
+
+	if (curl_http_proxy) {
+		curl_easy_setopt(result, CURLOPT_PROXY, curl_http_proxy);
+	}
+#if LIBCURL_VERSION_NUM >= 0x070a07
+	curl_easy_setopt(result, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+#endif
+
+	set_curl_keepalive(result);
+
+	return result;
 }

@@ -1,1 +1,1 @@
-die("no shallow found: %s", line);
+die("error in object: %s", line);

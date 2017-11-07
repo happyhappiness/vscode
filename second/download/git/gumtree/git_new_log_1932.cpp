@@ -1,1 +1,1 @@
-printf_ln("%s", url[i]);
+die(_("no URLs configured for remote '%s'"), remotename);

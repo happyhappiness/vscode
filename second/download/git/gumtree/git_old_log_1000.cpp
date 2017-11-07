@@ -1,1 +1,0 @@
-printf("%.*s%s", p_len - 40, p_start, name);

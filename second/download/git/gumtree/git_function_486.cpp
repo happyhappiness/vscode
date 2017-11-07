@@ -1,27 +1,31 @@
-int set_disambiguate_hint_config(const char *var, const char *value)
+static void link_alt_odb_entries(const char *alt, int len, int sep,
+				 const char *relative_base, int depth)
 {
-	static const struct {
-		const char *name;
-		disambiguate_hint_fn fn;
-	} hints[] = {
-		{ "none", NULL },
-		{ "commit", disambiguate_commit_only },
-		{ "committish", disambiguate_committish_only },
-		{ "tree", disambiguate_tree_only },
-		{ "treeish", disambiguate_treeish_only },
-		{ "blob", disambiguate_blob_only }
-	};
+	struct string_list entries = STRING_LIST_INIT_NODUP;
+	char *alt_copy;
 	int i;
+	struct strbuf objdirbuf = STRBUF_INIT;
 
-	if (!value)
-		return config_error_nonbool(var);
-
-	for (i = 0; i < ARRAY_SIZE(hints); i++) {
-		if (!strcasecmp(value, hints[i].name)) {
-			default_disambiguate_hint = hints[i].fn;
-			return 0;
-		}
+	if (depth > 5) {
+		error("%s: ignoring alternate object stores, nesting too deep.",
+				relative_base);
+		return;
 	}
 
-	return error("unknown hint type for '%s': %s", var, value);
+	strbuf_add_absolute_path(&objdirbuf, get_object_directory());
+	if (strbuf_normalize_path(&objdirbuf) < 0)
+		die("unable to normalize object directory: %s",
+		    objdirbuf.buf);
+
+	alt_copy = xmemdupz(alt, len);
+	string_list_split_in_place(&entries, alt_copy, sep, -1);
+	for (i = 0; i < entries.nr; i++) {
+		const char *entry = entries.items[i].string;
+		if (entry[0] == '\0' || entry[0] == '#')
+			continue;
+		link_alt_odb_entry(entry, relative_base, depth, objdirbuf.buf);
+	}
+	string_list_clear(&entries, 0);
+	free(alt_copy);
+	strbuf_release(&objdirbuf);
 }

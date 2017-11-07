@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, pServ, APLOGNO(02200)
-                     "Loading certificate & private key of SSL-aware server '%s'",
-                     cpVHostID);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02242)
+                             "Init: Multiple %s server certificates not "
+                             "allowed", an);

@@ -1,0 +1,1 @@
+die(_("invalid commit: %s"), author_message);

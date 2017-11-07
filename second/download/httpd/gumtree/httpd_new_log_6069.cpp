@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, ctx->owner, APLOGNO(03352)
-                      "H2: failed to make connection to backend: %s",
-                      ctx->p_conn->hostname);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, APLOGNO(03461)
+                  "attempting to match URI path '%s' against %s '%s' for "
+                  "proxying", r->uri, (ent->regex ? "pattern" : "prefix"),
+                  fake);

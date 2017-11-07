@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "Error writing temp file: %s" NL, errstr);
+apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username" NL);

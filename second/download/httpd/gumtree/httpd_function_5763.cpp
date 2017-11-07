@@ -1,27 +1,50 @@
-static apr_status_t pass_out(apr_bucket_brigade *bb, void *ctx) 
+static apr_status_t read_to_scratch(h2_conn_io *io, apr_bucket *b)
 {
-    pass_out_ctx *pctx = ctx;
-    conn_rec *c = pctx->c;
     apr_status_t status;
-    apr_off_t bblen;
+    const char *data;
+    apr_size_t len;
     
-    if (APR_BRIGADE_EMPTY(bb)) {
+    if (!b->length) {
         return APR_SUCCESS;
     }
     
-    ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_WRITE, c);
-    apr_brigade_length(bb, 0, &bblen);
-    h2_conn_io_bb_log(c, 0, APLOG_TRACE2, "master conn pass", bb);
-    status = ap_pass_brigade(c->output_filters, bb);
-    if (status == APR_SUCCESS && pctx->io) {
-        pctx->io->bytes_written += (apr_size_t)bblen;
-        pctx->io->last_write = apr_time_now();
+    AP_DEBUG_ASSERT(b->length <= (io->ssize - io->slen));
+    if (APR_BUCKET_IS_FILE(b)) {
+        apr_bucket_file *f = (apr_bucket_file *)b->data;
+        apr_file_t *fd = f->fd;
+        apr_off_t offset = b->start;
+        apr_size_t len = b->length;
+        
+        /* file buckets will either mmap (which we do not want) or
+         * read 8000 byte chunks and split themself. However, we do
+         * know *exactly* how many bytes we need where.
+         */
+        status = apr_file_seek(fd, APR_SET, &offset);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+        status = apr_file_read(fd, io->scratch + io->slen, &len);
+#if LOG_SCRATCH
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, io->c, APLOGNO(03387)
+                      "h2_conn_io(%ld): FILE_to_scratch(%ld)", 
+                      io->c->id, (long)len); 
+#endif
+        if (status != APR_SUCCESS && status != APR_EOF) {
+            return status;
+        }
+        io->slen += len;
     }
-    if (status != APR_SUCCESS) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03044)
-                      "h2_conn_io(%ld): pass_out brigade %ld bytes",
-                      c->id, (long)bblen);
+    else {
+        status = apr_bucket_read(b, &data, &len, APR_BLOCK_READ);
+        if (status == APR_SUCCESS) {
+#if LOG_SCRATCH
+            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03388)
+                          "h2_conn_io(%ld): read_to_scratch(%ld)", 
+                          io->c->id, (long)b->length); 
+#endif
+            memcpy(io->scratch+io->slen, data, len);
+            io->slen += len;
+        }
     }
-    apr_brigade_cleanup(bb);
     return status;
 }

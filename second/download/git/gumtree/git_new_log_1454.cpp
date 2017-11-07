@@ -1,2 +1,1 @@
-status_printf_ln(s, c,
-			"--------------------------------------------------");
+status_printf_ln(s, c, _("Changes to be committed:"));

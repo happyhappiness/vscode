@@ -1,2 +1,2 @@
-printf("Using local notes for %s\n",
-						sha1_to_hex(p->obj));
+printf("CONFLICT (%s): Merge conflict in notes for "
+				"object %s\n", reason, sha1_to_hex(p->obj));

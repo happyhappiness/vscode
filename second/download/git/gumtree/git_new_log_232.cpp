@@ -1,1 +1,1 @@
-printf("%s\n", oid_to_hex(&commit_oid));
+die("unsupported porcelain version '%s'", arg);

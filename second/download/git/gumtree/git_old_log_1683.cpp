@@ -1,1 +1,2 @@
-die(_("'%s' is already checked out at '%s'"), new->name, gitdir.buf);
+fprintf(stderr, _("Can not do reflog for '%s'\n"),
+					    opts->new_orphan_branch);

@@ -1,1 +1,1 @@
-opterror(opt, "is incompatible with --merged", 0);
+die("BUG: unhandled RR_* enum");

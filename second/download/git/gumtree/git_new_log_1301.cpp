@@ -1,2 +1,2 @@
-die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
+die("BUG: cannot lock_file(\"%s\") using active struct lock_file",
 		    path);

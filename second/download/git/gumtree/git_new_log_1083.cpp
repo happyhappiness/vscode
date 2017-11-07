@@ -1,1 +1,3 @@
-error("Remote HEAD resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", oid_to_hex(&head_oid));
+error(_("'%s': unable to read %s"),
+			     gs->name,
+			     oid_to_hex(gs->identifier));

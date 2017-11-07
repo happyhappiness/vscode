@@ -1,4 +1,1 @@
-fprintf(stderr,
-				"Could not open '%s' for tracing: %s\n"
-				"Defaulting to tracing on stderr...\n",
-				trace, strerror(errno));
+die("BUG! Want to close pack marked 'do-not-close'");

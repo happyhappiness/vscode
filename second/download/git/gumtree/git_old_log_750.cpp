@@ -1,1 +1,1 @@
-die("empty ident name (for <%s>) not allowed", email);
+die("unable to auto-detect name (got '%s')", name);

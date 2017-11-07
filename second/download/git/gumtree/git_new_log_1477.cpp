@@ -1,1 +1,2 @@
-noindex_filespec(NULL, 0);
+die("the receiving end asked to sign an invalid nonce <%.*s>",
+		    len, nonce);

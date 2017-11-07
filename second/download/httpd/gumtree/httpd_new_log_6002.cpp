@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, session->c, 
-                              APLOGNO(03365)
-                              "h2_proxy_session(%s): WAIT read, timeout=%fms", 
-                              session->id, (float)session->wait_timeout/1000.0);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03366)
+                      "h2_proxy_session(%s): cancel  %d streams",
+                      session->id, (int)h2_proxy_ihash_count(session->streams));

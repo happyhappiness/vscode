@@ -1,3 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02402)
-                             "re-grabbing shm[%d] (0x%pp) for worker: %s", i, (void *)shm,
-                             worker->s->name);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(01845)
+                    "The crypto library '%s' could not be loaded: %s (%s: %d)", conf->library, err->msg, err->reason, err->rc);

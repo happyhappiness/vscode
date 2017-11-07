@@ -1,1 +1,0 @@
-die("dumb http transport does not support --depth");

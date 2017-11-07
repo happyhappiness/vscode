@@ -1,1 +1,1 @@
-fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");
+fprintf(stderr, "                -n[m"CRYPT_OPTION"pst]   username\n");

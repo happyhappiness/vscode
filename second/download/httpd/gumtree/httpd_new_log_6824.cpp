@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
-                         "atomics not working as expected - add32 of negative number");
+fprintf(stderr, "Could not allocate memory (%"
+                APR_SIZE_T_FMT" bytes)\n", size);

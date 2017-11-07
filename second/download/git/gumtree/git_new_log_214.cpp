@@ -1,1 +1,2 @@
-die("unable to stream %s to stdout", oid_to_hex(oid));
+die("git cat-file --filters %s: <object> must be "
+			    "<sha1:path>", obj_name);

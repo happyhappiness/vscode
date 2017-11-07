@@ -1,2 +1,2 @@
-die("unable to parse commit %s",
-		    item ? oid_to_hex(&item->object.oid) : "(null)");
+error("Object %s not a commit",
+			     oid_to_hex(&item->object.oid));

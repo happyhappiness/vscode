@@ -1,1 +1,1 @@
-error("Unable to lock %s", b->name);
+die_errno("can't find the current directory");

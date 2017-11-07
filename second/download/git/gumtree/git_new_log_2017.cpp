@@ -1,1 +1,1 @@
-die(_("Could not make %s writable by group"), dir);
+error(_("malformed object name '%s'"), arg);

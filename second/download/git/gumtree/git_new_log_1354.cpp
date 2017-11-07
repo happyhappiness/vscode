@@ -1,1 +1,1 @@
-xgetcwd();
+error("unable to update %s: %s", path, strerror(errno));

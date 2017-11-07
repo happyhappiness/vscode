@@ -1,0 +1,1 @@
+die("BUG: packed-refs not locked");

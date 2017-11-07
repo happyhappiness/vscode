@@ -1,28 +1,29 @@
-static int parse_ws_error_highlight(struct diff_options *opt, const char *arg)
+int copy_file(const char *dst, const char *src, int mode)
 {
-	const char *orig_arg = arg;
-	unsigned val = 0;
-	while (*arg) {
-		if (parse_one_token(&arg, "none"))
-			val = 0;
-		else if (parse_one_token(&arg, "default"))
-			val = WSEH_NEW;
-		else if (parse_one_token(&arg, "all"))
-			val = WSEH_NEW | WSEH_OLD | WSEH_CONTEXT;
-		else if (parse_one_token(&arg, "new"))
-			val |= WSEH_NEW;
-		else if (parse_one_token(&arg, "old"))
-			val |= WSEH_OLD;
-		else if (parse_one_token(&arg, "context"))
-			val |= WSEH_CONTEXT;
-		else {
-			error("unknown value after ws-error-highlight=%.*s",
-			      (int)(arg - orig_arg), orig_arg);
-			return 0;
-		}
-		if (*arg)
-			arg++;
+	int fdi, fdo, status;
+
+	mode = (mode & 0111) ? 0777 : 0666;
+	if ((fdi = open(src, O_RDONLY)) < 0)
+		return fdi;
+	if ((fdo = open(dst, O_WRONLY | O_CREAT | O_EXCL, mode)) < 0) {
+		close(fdi);
+		return fdo;
 	}
-	opt->ws_error_highlight = val;
-	return 1;
+	status = copy_fd(fdi, fdo);
+	switch (status) {
+	case COPY_READ_ERROR:
+		error("copy-fd: read returned %s", strerror(errno));
+		break;
+	case COPY_WRITE_ERROR:
+		error("copy-fd: write returned %s", strerror(errno));
+		break;
+	}
+	close(fdi);
+	if (close(fdo) != 0)
+		return error("%s: close error: %s", dst, strerror(errno));
+
+	if (!status && adjust_shared_perm(dst))
+		return -1;
+
+	return status;
 }

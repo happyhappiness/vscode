@@ -1,1 +1,1 @@
-die("BUG: initial ref transaction called with existing refs");
+die("BUG: commit called for transaction that is not open");

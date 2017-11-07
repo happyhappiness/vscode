@@ -1,11 +1,27 @@
-static void register_submodule_ref_store(struct ref_store *refs,
-					 const char *submodule)
+void ref_transaction_free(struct ref_transaction *transaction)
 {
-	if (!submodule_ref_stores.tablesize)
-		hashmap_init(&submodule_ref_stores, submodule_hash_cmp, 0);
+	size_t i;
 
-	if (hashmap_put(&submodule_ref_stores,
-			alloc_submodule_hash_entry(submodule, refs)))
-		die("BUG: ref_store for submodule '%s' initialized twice",
-		    submodule);
+	if (!transaction)
+		return;
+
+	switch (transaction->state) {
+	case REF_TRANSACTION_OPEN:
+	case REF_TRANSACTION_CLOSED:
+		/* OK */
+		break;
+	case REF_TRANSACTION_PREPARED:
+		die("BUG: free called on a prepared reference transaction");
+		break;
+	default:
+		die("BUG: unexpected reference transaction state");
+		break;
+	}
+
+	for (i = 0; i < transaction->nr; i++) {
+		free(transaction->updates[i]->msg);
+		free(transaction->updates[i]);
+	}
+	free(transaction->updates);
+	free(transaction);
 }

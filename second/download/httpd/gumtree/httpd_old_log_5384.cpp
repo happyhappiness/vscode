@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,
-                         "%s on line %d of %s: %s",
-                         what, cfg->line_number, cfg->name, ptr);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, wd_server_conf->s,
+                     "%sWatchdog (%s) running",
+                     w->singleton ? "Singleton" : "", w->name);

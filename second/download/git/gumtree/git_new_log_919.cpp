@@ -1,1 +1,1 @@
-error(_("submodule '%s' has dirty index"), path);
+die("BUG: could not get submodule information for '%s'", path);

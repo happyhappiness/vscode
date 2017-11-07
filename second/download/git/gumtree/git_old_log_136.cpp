@@ -1,1 +1,1 @@
-die("Fetch attempted without a local repo");
+fprintf(stderr, "Unexpected end of command stream\n");

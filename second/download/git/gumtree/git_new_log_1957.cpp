@@ -1,1 +1,1 @@
-printf("worktree %s\n", wt->path);
+die("sent error to the client: %s", buf.buf);

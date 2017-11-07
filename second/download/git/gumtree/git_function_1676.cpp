@@ -4,8 +4,8 @@ int bisect_next_all(const char *prefix, int no_checkout)
 	struct commit_list *tried;
 	int reaches = 0, all = 0, nr, steps;
 	const unsigned char *bisect_rev;
+	char bisect_rev_hex[GIT_SHA1_HEXSZ + 1];
 
-	read_bisect_terms(&term_bad, &term_good);
 	if (read_bisect_refs())
 		die("reading bisect refs failed");
 
@@ -27,10 +27,8 @@ int bisect_next_all(const char *prefix, int no_checkout)
 		 */
 		exit_if_skipped_commits(tried, NULL);
 
-		printf("%s was both %s and %s\n",
-		       oid_to_hex(current_bad_oid),
-		       term_good,
-		       term_bad);
+		printf("%s was both good and bad\n",
+		       oid_to_hex(current_bad_oid));
 		exit(1);
 	}
 
@@ -41,11 +39,11 @@ int bisect_next_all(const char *prefix, int no_checkout)
 	}
 
 	bisect_rev = revs.commits->item->object.sha1;
+	memcpy(bisect_rev_hex, sha1_to_hex(bisect_rev), GIT_SHA1_HEXSZ + 1);
 
 	if (!hashcmp(bisect_rev, current_bad_oid->hash)) {
 		exit_if_skipped_commits(tried, current_bad_oid);
-		printf("%s is the first %s commit\n", sha1_to_hex(bisect_rev),
-			term_bad);
+		printf("%s is the first bad commit\n", bisect_rev_hex);
 		show_diff_tree(prefix, revs.commits->item);
 		/* This means the bisection process succeeded. */
 		exit(10);
@@ -57,5 +55,5 @@ int bisect_next_all(const char *prefix, int no_checkout)
 	       "(roughly %d step%s)\n", nr, (nr == 1 ? "" : "s"),
 	       steps, (steps == 1 ? "" : "s"));
 
-	return bisect_checkout(bisect_rev, no_checkout);
+	return bisect_checkout(bisect_rev_hex, no_checkout);
 }

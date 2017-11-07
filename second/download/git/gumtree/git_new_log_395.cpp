@@ -1,1 +1,1 @@
-die(_("Server does not support --deepen"));
+die(_("Server does not support --shallow-exclude"));

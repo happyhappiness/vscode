@@ -1,1 +1,3 @@
-error_buf(err, _("push has no destination (push.default is 'nothing')"));
+error_buf(err,
+					 _("push refspecs for '%s' do not include '%s'"),
+					 remote->name, branch->name);

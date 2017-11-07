@@ -1,96 +1,51 @@
-static int uldap_cache_compare(request_rec *r, util_ldap_connection_t *ldc,
-                               const char *url, const char *dn,
-                               const char *attrib, const char *value)
+static util_compare_subgroup_t* uldap_get_subgroups(request_rec *r,
+                                                    util_ldap_connection_t *ldc,
+                                                    const char *url,
+                                                    const char *dn,
+                                                    char **subgroupAttrs,
+                                                    apr_array_header_t *subgroupclasses)
 {
-    int result = 0;
-    util_url_node_t *curl;
-    util_url_node_t curnode;
-    util_compare_node_t *compare_nodep;
-    util_compare_node_t the_compare_node;
-    apr_time_t curtime = 0; /* silence gcc -Wall */
     int failures = 0;
-
+    int result = LDAP_COMPARE_FALSE;
+    util_compare_subgroup_t *res = NULL;
+    LDAPMessage *sga_res, *entry;
+    struct mod_auth_ldap_groupattr_entry_t *sgc_ents;
+    apr_array_header_t *subgroups = apr_array_make(r->pool, 20, sizeof(char *));
     util_ldap_state_t *st = (util_ldap_state_t *)
                             ap_get_module_config(r->server->module_config,
                                                  &ldap_module);
 
-    /* get cache entry (or create one) */
-    LDAP_CACHE_LOCK();
-    curnode.url = url;
-    curl = util_ald_cache_fetch(st->util_ldap_cache, &curnode);
-    if (curl == NULL) {
-        curl = util_ald_create_caches(st, url);
-    }
-    LDAP_CACHE_UNLOCK();
+    sgc_ents = (struct mod_auth_ldap_groupattr_entry_t *) subgroupclasses->elts;
 
-    if (curl) {
-        /* make a comparison to the cache */
-        LDAP_CACHE_LOCK();
-        curtime = apr_time_now();
-
-        the_compare_node.dn = (char *)dn;
-        the_compare_node.attrib = (char *)attrib;
-        the_compare_node.value = (char *)value;
-        the_compare_node.result = 0;
-        the_compare_node.sgl_processed = 0;
-        the_compare_node.subgroupList = NULL;
-
-        compare_nodep = util_ald_cache_fetch(curl->compare_cache,
-                                             &the_compare_node);
-
-        if (compare_nodep != NULL) {
-            /* found it... */
-            if (curtime - compare_nodep->lastcompare > st->compare_cache_ttl) {
-                /* ...but it is too old */
-                util_ald_cache_remove(curl->compare_cache, compare_nodep);
-            }
-            else {
-                /* ...and it is good */
-                if (LDAP_COMPARE_TRUE == compare_nodep->result) {
-                    ldc->reason = "Comparison true (cached)";
-                }
-                else if (LDAP_COMPARE_FALSE == compare_nodep->result) {
-                    ldc->reason = "Comparison false (cached)";
-                }
-                else if (LDAP_NO_SUCH_ATTRIBUTE == compare_nodep->result) {
-                    ldc->reason = "Comparison no such attribute (cached)";
-                }
-                else {
-                    ldc->reason = "Comparison undefined (cached)";
-                }
-
-                /* record the result code to return with the reason... */
-                result = compare_nodep->result;
-                /* and unlock this read lock */
-                LDAP_CACHE_UNLOCK();
-                return result;
-            }
-        }
-        /* unlock this read lock */
-        LDAP_CACHE_UNLOCK();
+    if (!subgroupAttrs) {
+        return res;
     }
 
 start_over:
+    /*
+     * 3.B. The cache didn't have any subgrouplist yet. Go check for subgroups.
+     */
     if (failures > st->retries) {
-        return result;
+        return res;
     }
 
     if (failures > 0 && st->retry_delay > 0) {
         apr_sleep(st->retry_delay);
     }
 
+
     if (LDAP_SUCCESS != (result = uldap_connection_open(r, ldc))) {
         /* connect failed */
-        return result;
+        return res;
     }
 
-    result = ldap_compare_s(ldc->ldap,
-                            (char *)dn,
-                            (char *)attrib,
-                            (char *)value);
+    /* try to do the search */
+    result = ldap_search_ext_s(ldc->ldap, (char *)dn, LDAP_SCOPE_BASE,
+                               NULL, subgroupAttrs, 0,
+                               NULL, NULL, NULL, APR_LDAP_SIZELIMIT, &sga_res);
     if (AP_LDAP_IS_SERVER_DOWN(result)) {
-        /* connection failed - try again */
-        ldc->reason = "ldap_compare_s() failed with server down";
+        ldc->reason = "ldap_search_ext_s() for subgroups failed with server"
+                      " down";
         uldap_connection_unbind(ldc);
         failures++;
         ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
@@ -101,62 +56,84 @@ start_over:
          * we are reusing a connection that doesn't seem to be active anymore
          * (firewall state drop?), let's try a new connection.
          */
-        ldc->reason = "ldap_compare_s() failed with timeout";
+        ldc->reason = "ldap_search_ext_s() for subgroups failed with timeout";
         uldap_connection_unbind(ldc);
         failures++;
         ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
         goto start_over;
     }
 
-    ldc->reason = "Comparison complete";
-    if ((LDAP_COMPARE_TRUE == result) ||
-        (LDAP_COMPARE_FALSE == result) ||
-        (LDAP_NO_SUCH_ATTRIBUTE == result)) {
-        if (curl) {
-            /* compare completed; caching result */
-            LDAP_CACHE_LOCK();
-            the_compare_node.lastcompare = curtime;
-            the_compare_node.result = result;
-            the_compare_node.sgl_processed = 0;
-            the_compare_node.subgroupList = NULL;
+    /* if there is an error (including LDAP_NO_SUCH_OBJECT) return now */
+    if (result != LDAP_SUCCESS) {
+        ldc->reason = "ldap_search_ext_s() for subgroups failed";
+        return res;
+    }
 
-            /* If the node doesn't exist then insert it, otherwise just update
-             * it with the last results
-             */
-            compare_nodep = util_ald_cache_fetch(curl->compare_cache,
-                                                 &the_compare_node);
-            if (   (compare_nodep == NULL)
-                || (strcmp(the_compare_node.dn, compare_nodep->dn) != 0)
-                || (strcmp(the_compare_node.attrib,compare_nodep->attrib) != 0)
-                || (strcmp(the_compare_node.value, compare_nodep->value) != 0))
-            {
-                void *junk;
+    entry = ldap_first_entry(ldc->ldap, sga_res);
 
-                junk = util_ald_cache_insert(curl->compare_cache,
-                                             &the_compare_node);
-                if (junk == NULL) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01287)
-                                  "cache_compare: Cache insertion failure.");
+    /*
+     * Get values for the provided sub-group attributes.
+     */
+    if (subgroupAttrs) {
+        int indx = 0, tmp_sgcIndex;
+
+        while (subgroupAttrs[indx]) {
+            char **values;
+            int val_index = 0;
+
+            /* Get *all* matching "member" values from this group. */
+            values = ldap_get_values(ldc->ldap, entry, subgroupAttrs[indx]);
+
+            if (values) {
+                val_index = 0;
+                /*
+                 * Now we are going to pare the subgroup members of this group
+                 * to *just* the subgroups, add them to the compare_nodep, and
+                 * then proceed to check the new level of subgroups.
+                 */
+                while (values[val_index]) {
+                    /* Check if this entry really is a group. */
+                    tmp_sgcIndex = 0;
+                    result = LDAP_COMPARE_FALSE;
+                    while ((tmp_sgcIndex < subgroupclasses->nelts)
+                           && (result != LDAP_COMPARE_TRUE)) {
+                        result = uldap_cache_compare(r, ldc, url,
+                                                     values[val_index],
+                                                     "objectClass",
+                                                     sgc_ents[tmp_sgcIndex].name
+                                                     );
+
+                        if (result != LDAP_COMPARE_TRUE) {
+                            tmp_sgcIndex++;
+                        }
+                    }
+                    /* It's a group, so add it to the array.  */
+                    if (result == LDAP_COMPARE_TRUE) {
+                        char **newgrp = (char **) apr_array_push(subgroups);
+                        *newgrp = apr_pstrdup(r->pool, values[val_index]);
+                    }
+                    val_index++;
                 }
+                ldap_value_free(values);
             }
-            else {
-                compare_nodep->lastcompare = curtime;
-                compare_nodep->result = result;
-            }
-            LDAP_CACHE_UNLOCK();
-        }
-        if (LDAP_COMPARE_TRUE == result) {
-            ldc->reason = "Comparison true (adding to cache)";
-            return LDAP_COMPARE_TRUE;
-        }
-        else if (LDAP_COMPARE_FALSE == result) {
-            ldc->reason = "Comparison false (adding to cache)";
-            return LDAP_COMPARE_FALSE;
-        }
-        else {
-            ldc->reason = "Comparison no such attribute (adding to cache)";
-            return LDAP_NO_SUCH_ATTRIBUTE;
+            indx++;
         }
     }
-    return result;
+
+    ldap_msgfree(sga_res);
+
+    if (subgroups->nelts > 0) {
+        /* We need to fill in tmp_local_subgroups using the data from LDAP */
+        int sgindex;
+        char **group;
+        res = apr_pcalloc(r->pool, sizeof(util_compare_subgroup_t));
+        res->subgroupDNs  = apr_palloc(r->pool,
+                                       sizeof(char *) * (subgroups->nelts));
+        for (sgindex = 0; (group = apr_array_pop(subgroups)); sgindex++) {
+            res->subgroupDNs[sgindex] = apr_pstrdup(r->pool, *group);
+        }
+        res->len = sgindex;
+    }
+
+    return res;
 }

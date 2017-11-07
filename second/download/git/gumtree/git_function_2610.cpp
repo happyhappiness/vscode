@@ -1,12 +1,8 @@
-void show_decorations(struct rev_info *opt, struct commit *commit)
+static void show_parents(struct commit *commit, int abbrev)
 {
-	struct strbuf sb = STRBUF_INIT;
-
-	if (opt->show_source && commit->util)
-		printf("\t%s", (char *) commit->util);
-	if (!opt->show_decorations)
-		return;
-	format_decorations(&sb, commit, opt->diffopt.use_color);
-	fputs(sb.buf, stdout);
-	strbuf_release(&sb);
+	struct commit_list *p;
+	for (p = commit->parents; p ; p = p->next) {
+		struct commit *parent = p->item;
+		printf(" %s", find_unique_abbrev(parent->object.oid.hash, abbrev));
+	}
 }

@@ -1,1 +1,1 @@
-packet_buf_write(&req_buf, "have %s\n", oid_to_hex(oid));
+packet_buf_write(&req_buf, "deepen-since %"PRItime, max_age);

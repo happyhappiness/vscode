@@ -1,98 +1,83 @@
-static ssize_t stream_data_cb(nghttp2_session *ng2s,
-                              int32_t stream_id,
-                              uint8_t *buf,
-                              size_t length,
-                              uint32_t *data_flags,
-                              nghttp2_data_source *source,
-                              void *puser)
+static apr_status_t submit_response(h2_session *session, h2_stream *stream)
 {
-    h2_session *session = (h2_session *)puser;
-    apr_off_t nread = length;
-    int eos = 0;
-    apr_status_t status;
-    h2_stream *stream;
+    apr_status_t status = APR_SUCCESS;
+    int rv = 0;
     AP_DEBUG_ASSERT(session);
+    AP_DEBUG_ASSERT(stream);
+    AP_DEBUG_ASSERT(stream->response || stream->rst_error);
     
-    /* The session wants to send more DATA for the stream. We need
-     * to find out how much of the requested length we can send without
-     * blocking.
-     * Indicate EOS when we encounter it or DEFERRED if the stream
-     * should be suspended.
-     * TODO: for handling of TRAILERS,  the EOF indication needs
-     * to be aware of that.
-     */
- 
-    (void)ng2s;
-    (void)buf;
-    (void)source;
-    stream = h2_session_get_stream(session, stream_id);
-    if (!stream) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
-                      APLOGNO(02937) 
-                      "h2_stream(%ld-%d): data requested but stream not found",
-                      session->id, (int)stream_id);
-        return NGHTTP2_ERR_CALLBACK_FAILURE;
+    if (stream->submitted) {
+        rv = NGHTTP2_PROTOCOL_ERROR;
     }
-    
-    AP_DEBUG_ASSERT(!h2_stream_is_suspended(stream));
-    
-    status = h2_stream_prep_read(stream, &nread, &eos);
-    if (nread) {
-        *data_flags |=  NGHTTP2_DATA_FLAG_NO_COPY;
-    }
-    
-    switch (status) {
-        case APR_SUCCESS:
-            break;
+    else if (stream->response && stream->response->headers) {
+        nghttp2_data_provider provider;
+        h2_response *response = stream->response;
+        h2_ngheader *ngh;
+        const h2_priority *prio;
+        
+        memset(&provider, 0, sizeof(provider));
+        provider.source.fd = stream->id;
+        provider.read_callback = stream_data_cb;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): submit response %d",
+                      session->id, stream->id, response->http_status);
+        
+        /* If this stream is not a pushed one itself,
+         * and HTTP/2 server push is enabled here,
+         * and the response is in the range 200-299 *),
+         * and the remote side has pushing enabled,
+         * -> find and perform any pushes on this stream
+         *    *before* we submit the stream response itself.
+         *    This helps clients avoid opening new streams on Link
+         *    headers that get pushed right afterwards.
+         * 
+         * *) the response code is relevant, as we do not want to 
+         *    make pushes on 401 or 403 codes, neiterh on 301/302
+         *    and friends. And if we see a 304, we do not push either
+         *    as the client, having this resource in its cache, might
+         *    also have the pushed ones as well.
+         */
+        if (!stream->initiated_on
+            && h2_config_geti(session->config, H2_CONF_PUSH)
+            && H2_HTTP_2XX(response->http_status)
+            && h2_session_push_enabled(session)) {
             
-        case APR_ECONNRESET:
-            return nghttp2_submit_rst_stream(ng2s, NGHTTP2_FLAG_NONE,
-                stream->id, stream->rst_error);
-            
-        case APR_EAGAIN:
-            /* If there is no data available, our session will automatically
-             * suspend this stream and not ask for more data until we resume
-             * it. Remember at our h2_stream that we need to do this.
-             */
-            nread = 0;
-            h2_stream_set_suspended(stream, 1);
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                          "h2_stream(%ld-%d): suspending stream",
-                          session->id, (int)stream_id);
-            return NGHTTP2_ERR_DEFERRED;
-            
-        case APR_EOF:
-            nread = 0;
-            eos = 1;
-            break;
-            
-        default:
-            nread = 0;
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
-                          APLOGNO(02938) "h2_stream(%ld-%d): reading data",
-                          session->id, (int)stream_id);
-            return NGHTTP2_ERR_CALLBACK_FAILURE;
-    }
-    
-    if (eos) {
-        apr_table_t *trailers = h2_stream_get_trailers(stream);
-        if (trailers && !apr_is_empty_table(trailers)) {
-            h2_ngheader *nh;
-            int rv;
-            
-            nh = h2_util_ngheader_make(stream->pool, trailers);
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                          "h2_stream(%ld-%d): submit %d trailers",
-                          session->id, (int)stream_id,(int) nh->nvlen);
-            rv = nghttp2_submit_trailer(ng2s, stream->id, nh->nv, nh->nvlen);
-            if (rv < 0) {
-                nread = rv;
-            }
-            *data_flags |= NGHTTP2_DATA_FLAG_NO_END_STREAM;
+            h2_stream_submit_pushes(stream);
         }
         
-        *data_flags |= NGHTTP2_DATA_FLAG_EOF;
+        prio = h2_stream_get_priority(stream);
+        if (prio) {
+            h2_session_set_prio(session, stream, prio);
+            /* no showstopper if that fails for some reason */
+        }
+        
+        ngh = h2_util_ngheader_make_res(stream->pool, response->http_status, 
+                                        response->headers);
+        rv = nghttp2_submit_response(session->ngh2, response->stream_id,
+                                     ngh->nv, ngh->nvlen, &provider);
+        
+    }
+    else {
+        int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                      "h2_stream(%ld-%d): RST_STREAM, err=%d",
+                      session->id, stream->id, err);
+
+        rv = nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                       stream->id, err);
     }
     
-    return (ssize_t)nread;
+    stream->submitted = 1;
+
+    if (nghttp2_is_fatal(rv)) {
+        status = APR_EGENERAL;
+        h2_session_abort_int(session, rv);
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      APLOGNO(02940) "submit_response: %s", 
+                      nghttp2_strerror(rv));
+    }
+    
+    return status;
 }

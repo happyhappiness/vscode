@@ -1,1 +1,1 @@
-die("BUG: update called for transaction that is not open");
+error("Couldn't write %s", lock->lk->filename.buf);

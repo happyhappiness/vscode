@@ -1,1 +1,2 @@
-error_errno(_("could not create temporary file '%s'"), path);
+error_errno("Unable to write file %s",
+				       export_marks_file);

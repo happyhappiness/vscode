@@ -1,3 +1,3 @@
-die("ambiguous argument '%s': both revision and filename\n"
-	    "Use '--' to separate paths from revisions, like this:\n"
-	    "'git <command> [<revision>...] -- [<file>...]'", arg);
+die("%s: no such path in the working tree.\n"
+		    "Use 'git <command> -- <path>...' to specify paths that do not exist locally.",
+		    arg);

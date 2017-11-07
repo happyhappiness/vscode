@@ -1,1 +1,1 @@
-ap_rputs("'></td></tr>\n", r);
+ap_rvputs(r, "</form>\n", NULL);

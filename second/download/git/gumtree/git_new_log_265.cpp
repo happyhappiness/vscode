@@ -1,2 +1,2 @@
-die(_("refusing to %s notes in %s (outside of refs/notes/)"),
-		    subcommand, ref);
+error(_("failed to copy notes from '%s' to '%s'"),
+			      split[0]->buf, split[1]->buf);

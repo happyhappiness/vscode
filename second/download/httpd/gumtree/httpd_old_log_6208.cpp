@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03457)
-                  "session(%ld): sent shutdown notice", session->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                  "session(%ld): pool_cleanup", session->id);

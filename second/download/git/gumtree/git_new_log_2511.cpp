@@ -1,1 +1,1 @@
-fprintf(rev->diffopt.file, "%s\n", sb.buf);
+printf("%s\n", filename.buf + outdir_offset);

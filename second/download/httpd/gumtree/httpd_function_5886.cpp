@@ -1,14 +1,10 @@
-static apr_status_t add_worker(h2_workers *workers)
+static void create_radio(const char *name, unsigned int flag, request_rec *r)
 {
-    h2_worker *w = h2_worker_create(workers->next_worker_id++,
-                                    workers->pool, workers->thread_attr,
-                                    get_mplx_next, worker_done, workers);
-    if (!w) {
-        return APR_ENOMEM;
-    }
-    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                 "h2_workers: adding worker(%d)", h2_worker_get_id(w));
-    ++workers->worker_count;
-    H2_WORKER_LIST_INSERT_TAIL(&workers->workers, w);
-    return APR_SUCCESS;
+    ap_rvputs(r, "<td>On <input name='", name, "' id='", name, "' value='1' type=radio", NULL);
+    if (flag)
+        ap_rputs(" checked", r);
+    ap_rvputs(r, "> <br/> Off <input name='", name, "' id='", name, "' value='0' type=radio", NULL);
+    if (!flag)
+        ap_rputs(" checked", r);
+    ap_rputs("></td>\n", r);
 }

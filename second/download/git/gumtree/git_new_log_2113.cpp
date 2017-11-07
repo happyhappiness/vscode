@@ -1,1 +1,1 @@
-printf("%s\t%s\n", oid_to_hex(&ref->old_oid), ref->name);
+printf("i/%-5s w/%-5s attr/%-17s\t", i_txt, w_txt, a_txt);

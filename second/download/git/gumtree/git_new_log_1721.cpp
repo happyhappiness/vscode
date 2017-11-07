@@ -1,1 +1,1 @@
-die("skiplist requires a path");
+die("Cannot demote %s to %s", msg_id, msg_type);

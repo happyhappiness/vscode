@@ -1,1 +1,4 @@
-ap_rvputs(r, "</td><td", (d->style_sheet != NULL) ? " class=\"indexcollastmod\">" : " align=\"right\">", time_str, "  ", NULL);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02430)
+                              "Response header '%s' value of '%s' contains "
+                              "invalid characters, aborting request",
+                              name, pos);

@@ -1,1 +1,2 @@
-die("BUG: configset_add_value has no source");
+die(_("bad numeric config value '%s' for '%s' in command line %s: %s"),
+		    value, name, cf->name, error_type);

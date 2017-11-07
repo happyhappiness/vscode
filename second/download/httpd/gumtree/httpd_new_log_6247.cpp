@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
-                          H2_SSSN_LOG(APLOGNO(03401), session, 
-                          "conn error -> shutdown"));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                  H2_STRM_MSG(stream, "entered state"));

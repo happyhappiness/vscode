@@ -1,2 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, parms->pool, /* NO LOGNO */
-                  "H2SessionExtraFiles is obsolete and will be ignored");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, 
+                          H2_SSSN_LOG(APLOGNO(03045), session, 
+                          "process, closing conn"));

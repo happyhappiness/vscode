@@ -1,2 +1,2 @@
-error(_("%s: cannot parse parent commit %s"),
-			action_name(opts), oid_to_hex(&parent->object.oid));
+error(_("Mainline was specified but commit %s is not a merge."),
+			oid_to_hex(&commit->object.oid));

@@ -1,1 +1,1 @@
-die("%s", err.buf);
+die_errno("Could not change back to '%s'", cwd.buf);

@@ -1,89 +1,54 @@
-static int stapling_cb(SSL *ssl, void *arg)
+static int core_override_type(request_rec *r)
 {
-    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
-    server_rec *s       = mySrvFromConn(conn);
-    SSLSrvConfigRec *sc = mySrvConfig(s);
-    SSLConnRec *sslconn = myConnConfig(conn);
-    modssl_ctx_t *mctx  = myCtxConfig(sslconn, sc);
-    certinfo *cinf = NULL;
-    OCSP_RESPONSE *rsp = NULL;
-    int rv;
-    BOOL ok = TRUE;
+    core_dir_config *conf =
+        (core_dir_config *)ap_get_core_module_config(r->per_dir_config);
 
-    if (sc->server->stapling_enabled != TRUE) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01950)
-                     "stapling_cb: OCSP Stapling disabled");
-        return SSL_TLSEXT_ERR_NOACK;
-    }
+    /* Check for overrides with ForceType / SetHandler
+     */
+    if (conf->mime_type && strcmp(conf->mime_type, "none"))
+        ap_set_content_type(r, (char*) conf->mime_type);
 
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01951)
-                 "stapling_cb: OCSP Stapling callback called");
-
-    cinf = stapling_get_certinfo(s, mctx, ssl);
-    if (cinf == NULL) {
-        return SSL_TLSEXT_ERR_NOACK;
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01952)
-                 "stapling_cb: retrieved cached certificate data");
-
-    rv = get_and_check_cached_response(s, mctx, &rsp, &ok, cinf, conn->pool);
-    if (rv != 0) {
-        return rv;
-    }
-
-    if (rsp == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01954)
-                     "stapling_cb: renewing cached response");
-        stapling_refresh_mutex_on(s);
-        /* Maybe another request refreshed the OCSP response while this
-         * thread waited for the mutex.  Check again.
-         */
-        rv = get_and_check_cached_response(s, mctx, &rsp, &ok, cinf,
-                                           conn->pool);
-        if (rv != 0) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "stapling_cb: error checking for cached response "
-                         "after obtaining refresh mutex");
-            stapling_refresh_mutex_off(s);
-            return rv;
+    if (conf->expr_handler) { 
+        const char *err;
+        const char *val;
+        val = ap_expr_str_exec(r, conf->expr_handler, &err);
+        if (err) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03154)
+                          "Can't evaluate handler expression: %s", err);
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
-        else if (rsp) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "stapling_cb: don't need to refresh cached response "
-                         "after obtaining refresh mutex");
-            stapling_refresh_mutex_off(s);
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "stapling_cb: still must refresh cached response "
-                         "after obtaining refresh mutex");
-            rv = stapling_renew_response(s, mctx, ssl, cinf, &rsp, &ok,
-                                         conn->pool);
-            stapling_refresh_mutex_off(s);
 
-            if (rv == TRUE) {
-                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                             "stapling_cb: success renewing response");
-            }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01955)
-                             "stapling_cb: fatal error renewing response");
-                return SSL_TLSEXT_ERR_ALERT_FATAL;
-            }
+        if (val != ap_strstr_c(val, "proxy:unix")) { 
+            /* Retained for compatibility --  but not for UDS */
+            char *tmp = apr_pstrdup(r->pool, val);
+            ap_str_tolower(tmp);
+            val = tmp;
+        }
+
+        if (strcmp(val, "none")) { 
+            r->handler = val;
         }
     }
-
-    if (rsp && ((ok == TRUE) || (mctx->stapling_return_errors == TRUE))) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01956)
-                     "stapling_cb: setting response");
-        if (!stapling_set_response(ssl, rsp))
-            return SSL_TLSEXT_ERR_ALERT_FATAL;
-        return SSL_TLSEXT_ERR_OK;
+    else if (conf->handler && strcmp(conf->handler, "none")) { 
+        r->handler = conf->handler;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01957)
-                 "stapling_cb: no suitable response available");
 
-    return SSL_TLSEXT_ERR_NOACK;
+    /* Deal with the poor soul who is trying to force path_info to be
+     * accepted within the core_handler, where they will let the subreq
+     * address its contents.  This is toggled by the user in the very
+     * beginning of the fixup phase (here!), so modules should override the user's
+     * discretion in their own module fixup phase.  It is tristate, if
+     * the user doesn't specify, the result is AP_REQ_DEFAULT_PATH_INFO.
+     * (which the module may interpret to its own customary behavior.)
+     * It won't be touched if the value is no longer AP_ACCEPT_PATHINFO_UNSET,
+     * so any module changing the value prior to the fixup phase
+     * OVERRIDES the user's choice.
+     */
+    if ((r->used_path_info == AP_REQ_DEFAULT_PATH_INFO)
+        && (conf->accept_path_info != AP_ACCEPT_PATHINFO_UNSET)) {
+        /* No module knew better, and the user coded AcceptPathInfo */
+        r->used_path_info = conf->accept_path_info;
+    }
 
+    return OK;
 }

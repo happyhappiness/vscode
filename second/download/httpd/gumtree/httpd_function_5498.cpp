@@ -1,127 +1,104 @@
-static h2_session *h2_session_create_int(conn_rec *c,
-                                         request_rec *r,
-                                         h2_ctx *ctx, 
-                                         h2_workers *workers)
+apr_status_t h2_session_start(h2_session *session, int *rv)
 {
-    nghttp2_session_callbacks *callbacks = NULL;
-    nghttp2_option *options = NULL;
-    uint32_t n;
+    apr_status_t status = APR_SUCCESS;
+    nghttp2_settings_entry settings[3];
+    size_t slen;
+    int win_size;
+    
+    AP_DEBUG_ASSERT(session);
+    /* Start the conversation by submitting our SETTINGS frame */
+    *rv = 0;
+    if (session->r) {
+        const char *s, *cs;
+        apr_size_t dlen; 
+        h2_stream * stream;
 
-    apr_pool_t *pool = NULL;
-    apr_status_t status = apr_pool_create(&pool, c->pool);
-    h2_session *session;
-    if (status != APR_SUCCESS) {
-        return NULL;
-    }
-    apr_pool_tag(pool, "h2_session");
-
-    session = apr_pcalloc(pool, sizeof(h2_session));
-    if (session) {
-        int rv;
-        nghttp2_mem *mem;
+        /* 'h2c' mode: we should have a 'HTTP2-Settings' header with
+         * base64 encoded client settings. */
+        s = apr_table_get(session->r->headers_in, "HTTP2-Settings");
+        if (!s) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EINVAL, session->r,
+                          APLOGNO(02931) 
+                          "HTTP2-Settings header missing in request");
+            return APR_EINVAL;
+        }
+        cs = NULL;
+        dlen = h2_util_base64url_decode(&cs, s, session->pool);
         
-        session->id = c->id;
-        session->c = c;
-        session->r = r;
-        session->s = h2_ctx_server_get(ctx);
-        session->pool = pool;
-        session->config = h2_config_sget(session->s);
-        session->workers = workers;
+        if (APLOGrdebug(session->r)) {
+            char buffer[128];
+            h2_util_hex_dump(buffer, 128, (char*)cs, dlen);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, session->r,
+                          "upgrading h2c session with HTTP2-Settings: %s -> %s (%d)",
+                          s, buffer, (int)dlen);
+        }
         
-        session->state = H2_SESSION_ST_INIT;
-        session->local.accepting = 1;
-        session->remote.accepting = 1;
+        *rv = nghttp2_session_upgrade(session->ngh2, (uint8_t*)cs, dlen, NULL);
+        if (*rv != 0) {
+            status = APR_EINVAL;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
+                          APLOGNO(02932) "nghttp2_session_upgrade: %s", 
+                          nghttp2_strerror(*rv));
+            return status;
+        }
         
-        apr_pool_pre_cleanup_register(pool, session, session_pool_cleanup);
+        /* Now we need to auto-open stream 1 for the request we got. */
+        stream = h2_session_open_stream(session, 1);
+        if (!stream) {
+            status = APR_EGENERAL;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, session->r,
+                          APLOGNO(02933) "open stream 1: %s", 
+                          nghttp2_strerror(*rv));
+            return status;
+        }
         
-        session->max_stream_count = h2_config_geti(session->config, 
-                                                   H2_CONF_MAX_STREAMS);
-        session->max_stream_mem = h2_config_geti(session->config, 
-                                                 H2_CONF_STREAM_MAX_MEM);
-
-        status = apr_thread_cond_create(&session->iowait, session->pool);
+        status = h2_stream_set_request(stream, session->r);
         if (status != APR_SUCCESS) {
-            return NULL;
+            return status;
         }
-        
-        session->streams = h2_ihash_create(session->pool,
-                                           offsetof(h2_stream, id));
-        session->mplx = h2_mplx_create(c, session->pool, session->config, 
-                                       session->s->timeout, workers);
-        
-        h2_mplx_set_consumed_cb(session->mplx, update_window, session);
-        
-        /* Install the connection input filter that feeds the session */
-        session->cin = h2_filter_cin_create(session->pool, 
-                                            h2_session_receive, session);
-        ap_add_input_filter("H2_IN", session->cin, r, c);
-
-        h2_conn_io_init(&session->io, c, session->config, session->pool);
-        session->bbtmp = apr_brigade_create(session->pool, c->bucket_alloc);
-        
-        status = init_callbacks(c, &callbacks);
+        status = stream_schedule(session, stream, 1);
         if (status != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, c, APLOGNO(02927) 
-                          "nghttp2: error in init_callbacks");
-            h2_session_destroy(session);
-            return NULL;
-        }
-        
-        rv = nghttp2_option_new(&options);
-        if (rv != 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
-                          APLOGNO(02928) "nghttp2_option_new: %s", 
-                          nghttp2_strerror(rv));
-            h2_session_destroy(session);
-            return NULL;
-        }
-        nghttp2_option_set_peer_max_concurrent_streams(
-            options, (uint32_t)session->max_stream_count);
-        /* We need to handle window updates ourself, otherwise we
-         * get flooded by nghttp2. */
-        nghttp2_option_set_no_auto_window_update(options, 1);
-        
-        if (APLOGctrace6(c)) {
-            mem = apr_pcalloc(session->pool, sizeof(nghttp2_mem));
-            mem->mem_user_data = session;
-            mem->malloc    = session_malloc;
-            mem->free      = session_free;
-            mem->calloc    = session_calloc;
-            mem->realloc   = session_realloc;
-            
-            rv = nghttp2_session_server_new3(&session->ngh2, callbacks,
-                                             session, options, mem);
-        }
-        else {
-            rv = nghttp2_session_server_new2(&session->ngh2, callbacks,
-                                             session, options);
-        }
-        nghttp2_session_callbacks_del(callbacks);
-        nghttp2_option_del(options);
-        
-        if (rv != 0) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
-                          APLOGNO(02929) "nghttp2_session_server_new: %s",
-                          nghttp2_strerror(rv));
-            h2_session_destroy(session);
-            return NULL;
-        }
-         
-        n = h2_config_geti(session->config, H2_CONF_PUSH_DIARY_SIZE);
-        session->push_diary = h2_push_diary_create(session->pool, n);
-        
-        if (APLOGcdebug(c)) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03200)
-                          "h2_session(%ld) created, max_streams=%d, "
-                          "stream_mem=%d, workers_limit=%d, workers_max=%d, "
-                          "push_diary(type=%d,N=%d)",
-                          session->id, (int)session->max_stream_count, 
-                          (int)session->max_stream_mem,
-                          session->mplx->workers_limit, 
-                          session->mplx->workers_max, 
-                          session->push_diary->dtype, 
-                          (int)session->push_diary->N);
+            return status;
         }
     }
-    return session;
+
+    slen = 0;
+    settings[slen].settings_id = NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS;
+    settings[slen].value = (uint32_t)session->max_stream_count;
+    ++slen;
+    win_size = h2_config_geti(session->config, H2_CONF_WIN_SIZE);
+    if (win_size != H2_INITIAL_WINDOW_SIZE) {
+        settings[slen].settings_id = NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE;
+        settings[slen].value = win_size;
+        ++slen;
+    }
+    
+    *rv = nghttp2_submit_settings(session->ngh2, NGHTTP2_FLAG_NONE,
+                                  settings, slen);
+    if (*rv != 0) {
+        status = APR_EGENERAL;
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      APLOGNO(02935) "nghttp2_submit_settings: %s", 
+                      nghttp2_strerror(*rv));
+    }
+    else {
+        /* use maximum possible value for connection window size. We are only
+         * interested in per stream flow control. which have the initial window
+         * size configured above.
+         * Therefore, for our use, the connection window can only get in the
+         * way. Example: if we allow 100 streams with a 32KB window each, we
+         * buffer up to 3.2 MB of data. Unless we do separate connection window
+         * interim updates, any smaller connection window will lead to blocking
+         * in DATA flow.
+         */
+        *rv = nghttp2_submit_window_update(session->ngh2, NGHTTP2_FLAG_NONE,
+                                           0, NGHTTP2_MAX_WINDOW_SIZE - win_size);
+        if (*rv != 0) {
+            status = APR_EGENERAL;
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                          APLOGNO(02970) "nghttp2_submit_window_update: %s", 
+                          nghttp2_strerror(*rv));        
+        }
+    }
+    return status;
 }

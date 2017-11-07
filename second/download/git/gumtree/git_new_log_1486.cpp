@@ -1,1 +1,1 @@
-die("unable to generate diffstat for %s", one->path);
+die("unable to generate diff for %s", one->path);

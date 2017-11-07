@@ -1,1 +1,1 @@
-packet_write(stdin_fd, "%s %s%c", serv, repo, 0);
+printf_ln("%s", *url);

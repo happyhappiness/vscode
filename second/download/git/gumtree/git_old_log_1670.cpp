@@ -1,6 +1,3 @@
-warning("the merge base between %s and [%s] "
-		"must be skipped.\n"
-		"So we cannot be sure the first bad commit is "
-		"between %s and %s.\n"
-		"We continue anyway.",
-		bad_hex, good_hex, mb_hex, bad_hex);
+fprintf(stderr, "Some good revs are not ancestor of the bad rev.\n"
+		"git bisect cannot work properly in this case.\n"
+		"Maybe you mistake good and bad revs?\n");

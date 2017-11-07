@@ -1,2 +1,1 @@
-find_unique_abbrev_r(to, remoteheads->item->object.oid.hash,
-					      DEFAULT_ABBREV);
+printf("%s\n", oid_to_hex(&bases->item->object.oid));

@@ -1,2 +1,1 @@
-die("Only %d entries can be shown at one time.",
-			    MAX_REVS);
+die("--reflog option needs one branch name");

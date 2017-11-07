@@ -1,15 +1,21 @@
-int main(int argc, const char **argv)
+static void serve_cache(const char *socket_path, int debug)
 {
-	socket_path = argv[1];
+	int fd;
 
-	if (!socket_path)
-		die("usage: git-credential-cache--daemon <socket_path>");
-	check_socket_directory(socket_path);
+	fd = unix_stream_listen(socket_path);
+	if (fd < 0)
+		die_errno("unable to bind to '%s'", socket_path);
 
-	atexit(cleanup_socket);
-	sigchain_push_common(cleanup_socket_on_signal);
+	printf("ok\n");
+	fclose(stdout);
+	if (!debug) {
+		if (!freopen("/dev/null", "w", stderr))
+			die_errno("unable to point stderr to /dev/null");
+	}
 
-	serve_cache(socket_path);
+	while (serve_cache_loop(fd))
+		; /* nothing */
 
-	return 0;
+	close(fd);
+	unlink(socket_path);
 }

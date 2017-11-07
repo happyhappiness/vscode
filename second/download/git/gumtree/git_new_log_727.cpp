@@ -1,1 +1,1 @@
-die(_("unable to resolve revision: %s"), arg);
+die(_("--no-index or --untracked cannot be used with revs"));

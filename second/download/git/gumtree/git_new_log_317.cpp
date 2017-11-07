@@ -1,2 +1,1 @@
-fprintf(stderr, "%s: unmerged (%s)\n",
-				ce->name, oid_to_hex(&ce->oid));
+packet_write_fmt(1, "ACK\n");

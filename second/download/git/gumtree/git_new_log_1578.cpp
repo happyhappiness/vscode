@@ -1,1 +1,1 @@
-packet_buf_write(sb, "shallow %s\n", oid_to_hex(&graft->oid));
+die("BUG: unhandled push situation");

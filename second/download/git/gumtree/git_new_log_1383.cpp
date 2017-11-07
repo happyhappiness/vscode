@@ -1,1 +1,1 @@
-die("BUG: unable to parse our own ident: %s", buf->buf);
+warning(_("--dissociate given, but there is no --reference"));

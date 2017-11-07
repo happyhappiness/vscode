@@ -1,2 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, rv, r,
-                          "Failed to flush CGI output to client");
+ap_log_rerror(APLOG_MARK,
+                      (ctx->flags & SSI_FLAG_PRINTING)
+                          ? APLOG_ERR : APLOG_WARNING,
+                      0, r, APLOGNO(03196)
+                      "missing argument for exec element in %s", r->filename);

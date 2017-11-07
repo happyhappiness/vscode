@@ -1,2 +1,1 @@
-fprintf(stderr,	"  fetch %s for %s\n",
-				sha1_to_hex(ref->old_sha1), refname);
+die("unknown pending object %s (%s)", sha1_to_hex(obj->sha1), name);

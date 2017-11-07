@@ -1,1 +1,2 @@
-error("couldn't set %s", lock->ref_name);
+error("unable to commit reflog '%s' (%s)",
+					log_file, strerror(errno));

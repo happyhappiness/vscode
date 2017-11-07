@@ -1,2 +1,2 @@
-fprintf(stderr, "%s %s... %s\n", msg,
-		find_unique_abbrev(commit->object.sha1, DEFAULT_ABBREV), sb.buf);
+die(_("object '%s' does not point to a commit"),
+			    sha1_to_hex(merge_filter_ref));

@@ -1,1 +1,1 @@
-strip_last_component(resolved);
+!strcmp(next.buf, ".");

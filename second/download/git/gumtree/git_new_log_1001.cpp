@@ -1,1 +1,1 @@
-printf("%s %s\n", oid_to_hex(note_oid), oid_to_hex(object_oid));
+printf("%.*s%s", p_len - GIT_SHA1_HEXSZ, p_start, name);

@@ -1,1 +1,1 @@
-fprintf(fout, "\n");
+fprintf(fout, "%s: %.*s\n", hdr, len, sp);

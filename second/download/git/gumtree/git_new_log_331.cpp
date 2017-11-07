@@ -1,1 +1,3 @@
-die(_("LF would be replaced by CRLF in %s"), path);
+warning(_("LF will be replaced by CRLF in %s.\n"
+				  "The file will have its original line"
+				  " endings in your working directory."), path);

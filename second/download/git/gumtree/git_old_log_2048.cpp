@@ -1,2 +1,2 @@
-error(_("Could not parse commit %s\n"),
-			     sha1_to_hex(commit->object.sha1));
+die("Failed to simplify parents of commit %s",
+			    sha1_to_hex(commit->object.sha1));

@@ -1,1 +1,1 @@
-error_errno("could not lock config file %s", config_filename);
+warning_errno("realloc failed");

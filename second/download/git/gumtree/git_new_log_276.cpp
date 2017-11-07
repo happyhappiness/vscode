@@ -1,1 +1,1 @@
-error(_("failed to delete ref NOTES_MERGE_REF"));
+error(_("failed to delete ref NOTES_MERGE_PARTIAL"));

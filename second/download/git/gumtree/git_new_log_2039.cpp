@@ -1,1 +1,1 @@
-fprintf(out, "%s ", oid_to_hex(&obj->oid));
+memcpy(m, name, nlen + 1);

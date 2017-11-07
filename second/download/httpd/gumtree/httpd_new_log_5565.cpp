@@ -1,2 +1,3 @@
 ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_task(%s): process_request done", task->id);
+                      "h2_task(%s): create request_rec failed, r->status=%d", 
+                      task->id, r->status);

@@ -1,60 +1,29 @@
-apr_status_t h2_stream_add_header(h2_stream *stream,
-                                  const char *name, size_t nlen,
-                                  const char *value, size_t vlen)
+apr_status_t h2_stream_close_input(h2_stream *stream)
 {
-    int error = 0;
-    ap_assert(stream);
-    
-    if (stream->has_response) {
-        return APR_EINVAL;    
-    }
-    ++stream->request_headers_added;
-    if (name[0] == ':') {
-        if ((vlen) > stream->session->s->limit_req_line) {
-            /* pseudo header: approximation of request line size check */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                          "h2_stream(%ld-%d): pseudo header %s too long", 
-                          stream->session->id, stream->id, name);
-            error = HTTP_REQUEST_URI_TOO_LARGE;
-        }
-    }
-    else if ((nlen + 2 + vlen) > stream->session->s->limit_req_fieldsize) {
-        /* header too long */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): header %s too long", 
-                      stream->session->id, stream->id, name);
-        error = HTTP_REQUEST_HEADER_FIELDS_TOO_LARGE;
+    conn_rec *c = stream->session->c;
+    apr_status_t status;
+    apr_bucket_brigade *tmp;
+    apr_bucket *b;
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                  "h2_stream(%ld-%d): closing input",
+                  stream->session->id, stream->id);
+    if (stream->rst_error) {
+        return APR_ECONNRESET;
     }
     
-    if (stream->request_headers_added 
-        > stream->session->s->limit_req_fields + 4) {
-        /* too many header lines, include 4 pseudo headers */
-        if (stream->request_headers_added 
-            > stream->session->s->limit_req_fields + 4 + 100) {
-            /* yeah, right */
-            return APR_ECONNRESET;
-        }
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): too many header lines", 
-                      stream->session->id, stream->id);
-        error = HTTP_REQUEST_HEADER_FIELDS_TOO_LARGE;
+    tmp = apr_brigade_create(stream->pool, c->bucket_alloc);
+    if (stream->trailers && !apr_is_empty_table(stream->trailers)) {
+        h2_headers *r = h2_headers_create(HTTP_OK, stream->trailers, 
+                                          NULL, stream->pool);
+        b = h2_bucket_headers_create(c->bucket_alloc, r);
+        APR_BRIGADE_INSERT_TAIL(tmp, b);
+        stream->trailers = NULL;
     }
     
-    if (h2_stream_is_scheduled(stream)) {
-        return add_trailer(stream, name, nlen, value, vlen);
-    }
-    else if (error) {
-        return h2_stream_set_error(stream, error); 
-    }
-    else {
-        if (!stream->rtmp) {
-            stream->rtmp = h2_req_create(stream->id, stream->pool, 
-                                         NULL, NULL, NULL, NULL, NULL, 0);
-        }
-        if (stream->state != H2_STREAM_ST_OPEN) {
-            return APR_ECONNRESET;
-        }
-        return h2_request_add_header(stream->rtmp, stream->pool,
-                                     name, nlen, value, vlen);
-    }
+    b = apr_bucket_eos_create(c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(tmp, b);
+    status = h2_beam_send(stream->input, tmp, APR_BLOCK_READ);
+    apr_brigade_destroy(tmp);
+    return status;
 }

@@ -1,1 +1,1 @@
-die(_("transport: invalid depth option '%s'"), value);
+die("BUG: trailer.c: unhandled type %d", type);

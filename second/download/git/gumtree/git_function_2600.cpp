@@ -1,22 +1,27 @@
-static void print_line(const char *prefix, char first,
-		       long line, unsigned long *ends, void *data,
-		       const char *color, const char *reset)
+static void fill_line_ends(struct diff_filespec *spec, long *lines,
+			   unsigned long **line_ends)
 {
-	char *begin = get_nth_line(line, ends, data);
-	char *end = get_nth_line(line+1, ends, data);
-	int had_nl = 0;
+	int num = 0, size = 50;
+	long cur = 0;
+	unsigned long *ends = NULL;
+	char *data = NULL;
 
-	if (end > begin && end[-1] == '\n') {
-		end--;
-		had_nl = 1;
+	if (diff_populate_filespec(spec, 0))
+		die("Cannot read blob %s", sha1_to_hex(spec->sha1));
+
+	ALLOC_ARRAY(ends, size);
+	ends[cur++] = 0;
+	data = spec->data;
+	while (num < spec->size) {
+		if (data[num] == '\n' || num == spec->size - 1) {
+			ALLOC_GROW(ends, (cur + 1), size);
+			ends[cur++] = num;
+		}
+		num++;
 	}
 
-	fputs(prefix, stdout);
-	fputs(color, stdout);
-	putchar(first);
-	fwrite(begin, 1, end-begin, stdout);
-	fputs(reset, stdout);
-	putchar('\n');
-	if (!had_nl)
-		fputs("\\ No newline at end of file\n", stdout);
+	/* shrink the array to fit the elements */
+	REALLOC_ARRAY(ends, cur);
+	*lines = cur-1;
+	*line_ends = ends;
 }

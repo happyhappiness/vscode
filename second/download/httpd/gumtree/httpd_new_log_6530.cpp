@@ -1,1 +1,1 @@
-fprintf(stderr, "    -T content-type Content-type header to use for POST/PUT data, eg.\n");
+fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n");

@@ -1,1 +1,1 @@
-usage(usage_msg);
+die(_("cannot rebase with locally recorded submodule modifications"));

@@ -1,1 +1,2 @@
-fprintf(f, "%s\n", describe_object(obj));
+printf("dangling %s %s\n", typename(obj->type),
+			       describe_object(obj));

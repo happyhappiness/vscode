@@ -1,1 +1,1 @@
-die(_("unrecognized %%(%s) argument: %s"), name, arg);
+die(_("Integer value expected refname:rstrip=%s"), arg);

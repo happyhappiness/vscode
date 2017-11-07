@@ -1,2 +1,1 @@
-error("unable to fdopen %s: %s",
-			     lock->lk->tempfile.filename.buf, strerror(errno));
+warning(_("ignoring broken ref %s"), refname);

@@ -1,13 +1,24 @@
-static int error_failed_squash(struct commit *commit,
-	struct replay_opts *opts, int subject_len, const char *subject)
+static int error_with_patch(struct commit *commit,
+	const char *subject, int subject_len,
+	struct replay_opts *opts, int exit_code, int to_amend)
 {
-	if (rename(rebase_path_squash_msg(), rebase_path_message()))
-		return error(_("could not rename '%s' to '%s'"),
-			rebase_path_squash_msg(), rebase_path_message());
-	unlink(rebase_path_fixup_msg());
-	unlink(git_path("MERGE_MSG"));
-	if (copy_file(git_path("MERGE_MSG"), rebase_path_message(), 0666))
-		return error(_("could not copy '%s' to '%s'"),
-			     rebase_path_message(), git_path("MERGE_MSG"));
-	return error_with_patch(commit, subject, subject_len, opts, 1, 0);
+	if (make_patch(commit, opts))
+		return -1;
+
+	if (to_amend) {
+		if (intend_to_amend())
+			return -1;
+
+		fprintf(stderr, "You can amend the commit now, with\n"
+			"\n"
+			"  git commit --amend %s\n"
+			"\n"
+			"Once you are satisfied with your changes, run\n"
+			"\n"
+			"  git rebase --continue\n", gpg_sign_opt_quoted(opts));
+	} else if (exit_code)
+		fprintf(stderr, "Could not apply %s... %.*s\n",
+			short_commit_name(commit), subject_len, subject);
+
+	return exit_code;
 }

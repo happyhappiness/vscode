@@ -1,4 +1,1 @@
-ap_rputs("<a href=\"?config\">Configuration Files</a>, "
-                     "<a href=\"?server\">Server Settings</a>, "
-                     "<a href=\"?list\">Module List</a>,  "
-                     "<a href=\"?hooks\">Active Hooks</a>", r);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, cmd->server, APLOGNO(01479) "FOO!");

@@ -1,1 +1,1 @@
-die_errno(_("unable to get current working directory"));
+error("Data too large to fit into virtual memory space.");

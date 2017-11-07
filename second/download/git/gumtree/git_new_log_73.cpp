@@ -1,1 +1,1 @@
-die("unexpected character after quoted argument: %s", orig);
+(check_refname_format(ref.buf, REFNAME_ALLOW_ONELEVEL);

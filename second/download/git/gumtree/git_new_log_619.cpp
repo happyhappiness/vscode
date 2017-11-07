@@ -1,2 +1,1 @@
-die(_("%s doesn't support --super-prefix"),
-				    commands[i].cmd);
+die("BUG: cannot have prefix and superprefix");

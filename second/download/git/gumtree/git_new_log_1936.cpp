@@ -1,1 +1,2 @@
-die("unable to generate diff for %s", rerere_path(id, NULL));
+packet_write(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
+			     vhost, 0);

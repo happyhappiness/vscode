@@ -1,1 +1,1 @@
-die(_("object type mismatch at %s"), oid_to_hex(&obj->oid));
+die(_("unable to read tree (%s)"), oid_to_hex(&obj->oid));

@@ -1,26 +1,19 @@
-static int local_tzoffset(timestamp_t time)
+static time_t gm_time_t(timestamp_t time, int tz)
 {
-	time_t t, t_local;
-	struct tm tm;
-	int offset, eastwest;
+	int minutes;
 
+	minutes = tz < 0 ? -tz : tz;
+	minutes = (minutes / 100)*60 + (minutes % 100);
+	minutes = tz < 0 ? -minutes : minutes;
+
+	if (minutes > 0) {
+		if (unsigned_add_overflows(time, minutes * 60))
+			die("Timestamp+tz too large: %"PRItime" +%04d",
+			    time, tz);
+	} else if (time < -minutes * 60)
+		die("Timestamp before Unix epoch: %"PRItime" %04d", time, tz);
+	time += minutes * 60;
 	if (date_overflows(time))
 		die("Timestamp too large for this system: %"PRItime, time);
-
-	t = (time_t)time;
-	localtime_r(&t, &tm);
-	t_local = tm_to_time_t(&tm);
-
-	if (t_local == -1)
-		return 0; /* error; just use +0000 */
-	if (t_local < t) {
-		eastwest = -1;
-		offset = t - t_local;
-	} else {
-		eastwest = 1;
-		offset = t_local - t;
-	}
-	offset /= 60; /* in minutes */
-	offset = (offset % 60) + ((offset / 60) * 100);
-	return offset * eastwest;
+	return (time_t)time;
 }

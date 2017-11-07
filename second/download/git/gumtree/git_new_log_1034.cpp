@@ -1,2 +1,1 @@
-error("failed to read delta-pack base object %s",
-		      oid_to_hex(&base_oid));
+printf(_("Updated tag '%s' (was %s)\n"), tag, find_unique_abbrev(prev.hash, DEFAULT_ABBREV));

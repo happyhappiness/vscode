@@ -1,30 +1,91 @@
-static void usage(void)
+static void check_args(int argc, const char *const argv[],
+                       struct passwd_ctx *ctx, int *mask, char **user,
+                       char **pwfilename)
 {
-    apr_file_printf(errfile, "Usage:" NL);
-    apr_file_printf(errfile, "\thtpasswd [-cmdpsD] passwordfile username" NL);
-    apr_file_printf(errfile, "\thtpasswd -b[cmdpsD] passwordfile username "
-                    "password" NL NL);
-    apr_file_printf(errfile, "\thtpasswd -n[mdps] username" NL);
-    apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
-    apr_file_printf(errfile, " -c  Create a new file." NL);
-    apr_file_printf(errfile, " -n  Don't update file; display results on "
-                    "stdout." NL);
-    apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-        " (default)"
-        "." NL);
-    apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
-            " (8 chars max, insecure)." NL);
-    apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
-    apr_file_printf(errfile, " -s  Force SHA encryption of the password"
-            " (insecure)." NL);
-    apr_file_printf(errfile, " -b  Use the password from the command line "
-            "rather than prompting for it." NL);
-    apr_file_printf(errfile, " -D  Delete the specified user." NL);
-    apr_file_printf(errfile,
-            "On other systems than Windows and NetWare the '-p' flag will "
-            "probably not work." NL);
-    apr_file_printf(errfile,
-            "The SHA algorithm does not use a salt and is less secure than "
-            "the MD5 algorithm." NL);
-    exit(ERR_SYNTAX);
+    const char *arg;
+    int args_left = 2;
+    int i, ret;
+    apr_getopt_t *state;
+    apr_status_t rv;
+    char opt;
+    const char *opt_arg;
+    apr_pool_t *pool = ctx->pool;
+
+    rv = apr_getopt_init(&state, pool, argc, argv);
+    if (rv != APR_SUCCESS)
+        exit(ERR_SYNTAX);
+
+    while ((rv = apr_getopt(state, "cnmspdBbDiC:", &opt, &opt_arg)) == APR_SUCCESS) {
+        switch (opt) {
+        case 'c':
+            *mask |= APHTP_NEWFILE;
+            break;
+        case 'n':
+            args_left--;
+            *mask |= APHTP_NOFILE;
+            break;
+        case 'D':
+            *mask |= APHTP_DELUSER;
+            break;
+        default:
+            ret = parse_common_options(ctx, opt, opt_arg);
+            if (ret) {
+                apr_file_printf(errfile, "%s: %s" NL, argv[0], ctx->errstr);
+                exit(ret);
+            }
+        }
+    }
+    if (ctx->passwd_src == PW_ARG)
+        args_left++;
+    if (rv != APR_EOF)
+        usage();
+
+    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
+        apr_file_printf(errfile, "%s: -c and -n options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "%s: -c and -D options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    if ((*mask & APHTP_NOFILE) && (*mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "%s: -n and -D options conflict" NL, argv[0]);
+        exit(ERR_SYNTAX);
+    }
+    /*
+     * Make sure we still have exactly the right number of arguments left
+     * (the filename, the username, and possibly the password if -b was
+     * specified).
+     */
+    i = state->ind;
+    if ((argc - i) != args_left) {
+        usage();
+    }
+
+    if (!(*mask & APHTP_NOFILE)) {
+        if (strlen(argv[i]) > (APR_PATH_MAX - 1)) {
+            apr_file_printf(errfile, "%s: filename too long" NL, argv[0]);
+            exit(ERR_OVERFLOW);
+        }
+        *pwfilename = apr_pstrdup(pool, argv[i++]);
+    }
+    if (strlen(argv[i]) > (MAX_STRING_LEN - 1)) {
+        apr_file_printf(errfile, "%s: username too long (> %d)" NL,
+                        argv[0], MAX_STRING_LEN - 1);
+        exit(ERR_OVERFLOW);
+    }
+    *user = apr_pstrdup(pool, argv[i++]);
+    if ((arg = strchr(*user, ':')) != NULL) {
+        apr_file_printf(errfile, "%s: username contains illegal "
+                        "character '%c'" NL, argv[0], *arg);
+        exit(ERR_BADUSER);
+    }
+    if (ctx->passwd_src == PW_ARG) {
+        if (strlen(argv[i]) > (MAX_STRING_LEN - 1)) {
+            apr_file_printf(errfile, "%s: password too long (> %d)" NL,
+                argv[0], MAX_STRING_LEN);
+            exit(ERR_OVERFLOW);
+        }
+        ctx->passwd = apr_pstrdup(pool, argv[i]);
+    }
 }

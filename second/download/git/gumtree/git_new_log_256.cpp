@@ -1,1 +1,1 @@
-die(_("please supply the note contents using either -m or -F option"));
+printf(_("Merging %s with %s\n"), o.branch1, o.branch2);

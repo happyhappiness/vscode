@@ -1,1 +1,1 @@
-print_verbose(args, _("giving up"));
+die(_("invalid commit %s"), sha1_to_hex(result_sha1));

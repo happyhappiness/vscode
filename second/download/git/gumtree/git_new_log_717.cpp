@@ -1,3 +1,1 @@
-error(ERRORMSG(o, ERROR_BIND_OVERLAP),
-			      super_prefixed(a->name),
-			      super_prefixed(old->name));
+error(ERRORMSG(o, e), super_prefixed(path.buf));

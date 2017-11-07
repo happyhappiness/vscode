@@ -1,1 +1,2 @@
-error(_("unrecognized binary patch at line %d"), state->linenr-1);
+error(_("corrupt binary patch at line %d: %.*s"),
+	      state->linenr-1, llen-1, buffer);

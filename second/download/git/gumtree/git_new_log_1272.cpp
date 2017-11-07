@@ -1,1 +1,2 @@
-die("%s: clean filter '%s' failed", path, ca.drv->name);
+error("chmod on %s failed: %s",
+				lock->filename.buf, strerror(errno));

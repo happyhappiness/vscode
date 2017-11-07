@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_WARNING, status, c,
-                                  "h2_session(%ld): waiting on conditional",
-                                  session->id);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, c,
+                              APLOGNO(03080)
+                              "h2_session(%ld): unknown state %d", session->id, session->state);

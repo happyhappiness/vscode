@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports no-done\n");
+fprintf(stderr, "Server supports multi_ack_detailed\n");

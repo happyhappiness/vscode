@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_task(%s): output_filter called", task->id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, task->c,
+                  "h2_task(%s): added chunk %ld, total %ld", 
+                  task->id, (long)chunk_len, (long)task->input.chunked_total);

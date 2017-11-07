@@ -1,1 +1,1 @@
-die(_("%%(body) does not take arguments"));
+die(_("unrecognized format: %%(%s)"), atom->name);

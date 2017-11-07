@@ -1,2 +1,1 @@
-warning("invalid line while parsing alternate refs: %s",
-				line.buf);
+die("bad %s argument: %s", opt, arg);

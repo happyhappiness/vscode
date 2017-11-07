@@ -1,1 +1,1 @@
-error("remote-curl: unknown command '%s' from git", buf.buf);
+die("remote-curl: fetch attempted without a local repo");

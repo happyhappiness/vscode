@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf, APLOGNO(00271)
-                         "sigaction(" AP_SIG_GRACEFUL_STRING ")");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, 
+                     apr_get_os_error(), NULL, 
+                     APLOGNO(10008) "Failure registering service handler");

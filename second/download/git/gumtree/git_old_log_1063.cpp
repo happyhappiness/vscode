@@ -1,1 +1,1 @@
-die("Not a valid commit: %s", sha1_to_hex(b->sha1));
+die("object not found: %s", sha1_to_hex(sha1));

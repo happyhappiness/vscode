@@ -1,0 +1,1 @@
+error("unable to write current sha1 into %s: %s", oldrefname, err.buf);

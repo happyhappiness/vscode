@@ -1,1 +1,1 @@
-fprintf(stderr, "%s:%s\n", h->username, h->userpass);
+apr_file_puts(l, f);

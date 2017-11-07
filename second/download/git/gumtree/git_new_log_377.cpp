@@ -1,1 +1,1 @@
-print_verbose(args, _("done"));
+print_verbose(args, _("giving up"));

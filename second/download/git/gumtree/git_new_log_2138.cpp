@@ -1,1 +1,1 @@
-die(_("expected format: %%(color:<color>)"));
+die("Cannot use notes ref %s", notes_ref);

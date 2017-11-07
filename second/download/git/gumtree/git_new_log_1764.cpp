@@ -1,1 +1,1 @@
-die(_("Malformed options sheet: %s"), git_path_opts_file());
+die(_("Unusable instruction sheet: %s"), git_path_todo_file());

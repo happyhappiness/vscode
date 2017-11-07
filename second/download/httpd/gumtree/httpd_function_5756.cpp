@@ -1,29 +1,36 @@
-static int ssl_tmp_keys_init(server_rec *s)
+static const char *set_override_list(cmd_parms *cmd, void *d_, int argc, char *const argv[])
 {
-    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                 "Init: Generating temporary RSA private keys (512/1024 bits)");
+    core_dir_config *d = d_;
+    int i;
+    const char *err;
 
-    if (MODSSL_TMP_KEY_INIT_RSA(s, 512) ||
-        MODSSL_TMP_KEY_INIT_RSA(s, 1024)) {
-        return !OK;
+    /* Throw a warning if we're in <Location> or <Files> */
+    if (ap_check_cmd_context(cmd, NOT_IN_LOCATION | NOT_IN_FILES)) {
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00115)
+                     "Useless use of AllowOverrideList in line %d of %s.",
+                     cmd->directive->line_num, cmd->directive->filename);
+    }
+    if ((err = ap_check_cmd_context(cmd, NOT_IN_HTACCESS)) != NULL)
+        return err;
+
+    d->override_list = apr_table_make(cmd->pool, 1);
+
+    for (i=0;i<argc;i++){
+        if (!strcasecmp(argv[i], "None")) {
+            return NULL;
+        }
+        else {
+            const command_rec *result = NULL;
+            module *mod = ap_top_module;
+            result = ap_find_command_in_modules(argv[i], &mod);
+            if (result)
+                apr_table_set(d->override_list, argv[i], "1");
+            else
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00116)
+                             "Discarding unrecognized directive `%s' in AllowOverrideList.",
+                             argv[i]);
+        }
     }
 
-    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                 "Init: Generating temporary DH parameters (512/1024 bits)");
-
-    if (MODSSL_TMP_KEY_INIT_DH(s, 512) ||
-        MODSSL_TMP_KEY_INIT_DH(s, 1024)) {
-        return !OK;
-    }
-
-#ifndef OPENSSL_NO_EC
-    ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, s,
-                 "Init: Generating temporary EC parameters (256 bits)");
-
-    if (MODSSL_TMP_KEY_INIT_EC(s, 256)) {
-        return !OK;
-    }
-#endif
-
-    return OK;
+    return NULL;
 }

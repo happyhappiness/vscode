@@ -1,1 +1,1 @@
-error("invalid key: %s", key);
+error("key does not contain variable name: %s", key);

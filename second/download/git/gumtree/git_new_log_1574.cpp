@@ -1,3 +1,3 @@
 error_buf(err,
-					 _("push refspecs for '%s' do not include '%s'"),
-					 remote->name, branch->name);
+				 _("branch '%s' has no remote for pushing"),
+				 branch->name);

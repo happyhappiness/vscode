@@ -1,1 +1,2 @@
-die_errno(_("Could not open file '%s'"), filename);
+die(_("Argument not supported for format '%s': -%d"),
+					format, compression_level);

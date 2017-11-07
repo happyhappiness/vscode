@@ -1,1 +1,1 @@
-error(_("can't revert as initial commit"));
+error("BUG: expected exactly one commit from walk");

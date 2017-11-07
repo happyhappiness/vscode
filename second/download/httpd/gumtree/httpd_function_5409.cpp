@@ -1,78 +1,58 @@
-static apr_status_t handle_exec(include_ctx_t *ctx, ap_filter_t *f,
-                                apr_bucket_brigade *bb)
+static int h2_alt_svc_handler(request_rec *r)
 {
-    char *tag     = NULL;
-    char *tag_val = NULL;
-    request_rec *r = f->r;
-    char *file = r->filename;
-    char parsed_string[MAX_STRING_LEN];
-
-    if (!ctx->argc) {
-        ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "missing argument for exec element in %s",
-                      r->filename);
+    h2_ctx *ctx;
+    const h2_config *cfg;
+    int i;
+    
+    if (r->connection->keepalives > 0) {
+        /* Only announce Alt-Svc on the first response */
+        return DECLINED;
     }
-
-    if (!(ctx->flags & SSI_FLAG_PRINTING)) {
-        return APR_SUCCESS;
+    
+    ctx = h2_ctx_rget(r);
+    if (h2_ctx_is_active(ctx) || h2_ctx_is_task(ctx)) {
+        return DECLINED;
     }
-
-    if (!ctx->argc) {
-        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-        return APR_SUCCESS;
-    }
-
-    if (ctx->flags & SSI_FLAG_NO_EXEC) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01271) "exec used but not allowed "
-                      "in %s", r->filename);
-        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-        return APR_SUCCESS;
-    }
-
-    while (1) {
-        cgid_pfn_gtv(ctx, &tag, &tag_val, SSI_VALUE_DECODED);
-        if (!tag || !tag_val) {
-            break;
-        }
-
-        if (!strcmp(tag, "cmd")) {
-            apr_status_t rv;
-
-            cgid_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
-                        SSI_EXPAND_LEAVE_NAME);
-
-            rv = include_cmd(ctx, f, bb, parsed_string);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01272)
-                              "execution failure for parameter \"%s\" "
-                              "to tag exec in file %s", tag, r->filename);
-                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-                break;
+    
+    cfg = h2_config_rget(r);
+    if (r->hostname && cfg && cfg->alt_svcs && cfg->alt_svcs->nelts > 0) {
+        const char *alt_svc_used = apr_table_get(r->headers_in, "Alt-Svc-Used");
+        if (!alt_svc_used) {
+            /* We have alt-svcs defined and client is not already using
+             * one, announce the services that were configured and match. 
+             * The security of this connection determines if we allow
+             * other host names or ports only.
+             */
+            const char *alt_svc = "";
+            const char *svc_ma = "";
+            int secure = h2_h2_is_tls(r->connection);
+            int ma = h2_config_geti(cfg, H2_CONF_ALT_SVC_MAX_AGE);
+            if (ma >= 0) {
+                svc_ma = apr_psprintf(r->pool, "; ma=%d", ma);
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "h2_alt_svc: announce %s for %s:%d", 
+                          (secure? "secure" : "insecure"), 
+                          r->hostname, (int)r->server->port);
+            for (i = 0; i < cfg->alt_svcs->nelts; ++i) {
+                h2_alt_svc *as = h2_alt_svc_IDX(cfg->alt_svcs, i);
+                const char *ahost = as->host;
+                if (ahost && !apr_strnatcasecmp(ahost, r->hostname)) {
+                    ahost = NULL;
+                }
+                if (secure || !ahost) {
+                    alt_svc = apr_psprintf(r->pool, "%s%s%s=\"%s:%d\"%s", 
+                                           alt_svc,
+                                           (*alt_svc? ", " : ""), as->alpn,
+                                           ahost? ahost : "", as->port,
+                                           svc_ma);
+                }
+            }
+            if (*alt_svc) {
+                apr_table_set(r->headers_out, "Alt-Svc", alt_svc);
             }
         }
-        else if (!strcmp(tag, "cgi")) {
-            apr_status_t rv;
-
-            cgid_pfn_ps(ctx, tag_val, parsed_string, sizeof(parsed_string),
-                        SSI_EXPAND_DROP_NAME);
-
-            rv = include_cgi(ctx, f, bb, parsed_string);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01273) "invalid CGI ref "
-                              "\"%s\" in %s", tag_val, file);
-                SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-                break;
-            }
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01274) "unknown parameter "
-                          "\"%s\" to tag exec in %s", tag, file);
-            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-            break;
-        }
     }
-
-    return APR_SUCCESS;
+    
+    return DECLINED;
 }

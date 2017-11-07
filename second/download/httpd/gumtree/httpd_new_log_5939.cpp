@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, ctx->r, APLOGNO(02429)
-                      "Response header name '%s' contains invalid "
-                      "characters, aborting request",
-                      name);
+ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, beam->send_pool, 
+                              APLOGNO(03384) "h2_beam(%d-%s): emitted bucket not "
+                              "in hold, n=%d", beam->id, beam->tag, 
+                              (int)proxy->n);

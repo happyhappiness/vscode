@@ -1,2 +1,1 @@
-die_errno("Invalid symlink '%s'",
-						  resolved->buf);
+strip_last_component(resolved);

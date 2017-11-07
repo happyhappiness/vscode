@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf,
-                     APLOGNO(03458) "winnt_accept: 'data' accept filter is no "
-                     "longer supported. Using 'connect' instead");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03445)
+                          "HTTP Request Line; Invalid method token: '%.*s'",
+                          field_name_len(r->method), r->method);

@@ -1,1 +1,1 @@
-error_errno("Could not write %s", output);
+error_errno("Could not open %s", path);

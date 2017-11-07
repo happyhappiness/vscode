@@ -1,1 +1,1 @@
-printf_ln(_("Bye."));
+printf_ln(_("Huh (%s)?"), (*ptr)->buf);

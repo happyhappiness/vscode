@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
-                     "creation of the timeout mutex failed.");
+ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                             "apr_thread_create: unable to create worker thread");

@@ -1,1 +1,1 @@
-error(_("reading from '%s' beyond a symbolic link"), name);
+die("helper %s does not support --signed", data->name);

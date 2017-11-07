@@ -1,1 +1,1 @@
-die("%s doesn't support --super-prefix", p->cmd);
+fprintf(stderr, "No prefix given for --super-prefix.\n" );

@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00513)
-                         "WARNING: MaxRequestWorkers of %d is not an integer "
-                         "multiple of", max_workers);
+ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
+                         " for a maximum of %d servers.",
+                         ap_daemons_limit);

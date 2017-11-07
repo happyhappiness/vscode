@@ -1,1 +1,1 @@
-die_errno("unable to fdopen alternates lockfile");
+die_errno("unable to read alternates file");

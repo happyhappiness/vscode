@@ -1,1 +1,1 @@
-error("%s", err.buf);
+die("could not read %s%s", prompt, err);

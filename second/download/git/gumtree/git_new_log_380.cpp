@@ -1,2 +1,2 @@
-print_verbose(args, "want %s (%s)", sha1_to_hex(remote),
-				      ref->name);
+print_verbose(args, _("Marking %s as complete"),
+			      oid_to_hex(&complete->item->object.oid));

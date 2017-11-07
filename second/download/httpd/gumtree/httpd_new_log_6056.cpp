@@ -1,2 +1,2 @@
-ap_register_output_filter("H2_PARSE_H1", h2_filter_parse_h1,
-                              NULL, AP_FTYPE_NETWORK);
+ap_register_output_filter("H2_TRAILERS_OUT", h2_filter_trailers_out,
+                              NULL, AP_FTYPE_PROTOCOL);

@@ -1,1 +1,2 @@
-fputs(diff_get_color_opt(&opt->diffopt, DIFF_RESET), opt->diffopt.file);
+fputs(find_unique_abbrev(commit->object.oid.hash, abbrev_commit),
+		      opt->diffopt.file);

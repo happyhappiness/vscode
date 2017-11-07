@@ -1,1 +1,1 @@
-die("BUG: bookkeeping is hard");
+fputs(pp->buffered_output.buf, stderr);

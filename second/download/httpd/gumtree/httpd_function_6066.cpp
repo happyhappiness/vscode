@@ -1,43 +1,19 @@
-static void request_done(h2_proxy_session *session, request_rec *r,
-                         int complete, int touched)
-{   
-    h2_proxy_ctx *ctx = session->user_data;
-    const char *task_id = apr_table_get(r->connection->notes, H2_TASK_ID_NOTE);
-    
-    if (!complete && !touched) {
-        /* untouched request, need rescheduling */
-        if (req_engine_push && is_h2 && is_h2(ctx->owner)) {
-            if (req_engine_push(ctx->engine_type, r, NULL) == APR_SUCCESS) {
-                /* push to engine */
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection, 
-                              APLOGNO(03369)
-                              "h2_proxy_session(%s): rescheduled request %s",
-                              ctx->engine_id, task_id);
-                return;
-            }
-        }
+static apr_status_t next_request(h2_proxy_ctx *ctx, int before_leave)
+{
+    if (ctx->next) {
+        return APR_SUCCESS;
     }
-    
-    if (r == ctx->rbase && complete) {
-        ctx->r_status = APR_SUCCESS;
+    else if (req_engine_pull && ctx->engine) {
+        apr_status_t status;
+        status = req_engine_pull(ctx->engine, before_leave? 
+                                 APR_BLOCK_READ: APR_NONBLOCK_READ, 
+                                 ctx->capacity, &ctx->next);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, ctx->owner, 
+                      "h2_proxy_engine(%s): pulled request (%s) %s", 
+                      ctx->engine_id, 
+                      before_leave? "before leave" : "regular", 
+                      (ctx->next? ctx->next->the_request : "NULL"));
+        return APR_STATUS_IS_EAGAIN(status)? APR_SUCCESS : status;
     }
-    
-    if (complete) {
-        if (req_engine_done && ctx->engine) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection, 
-                          APLOGNO(03370)
-                          "h2_proxy_session(%s): finished request %s",
-                          ctx->engine_id, task_id);
-            req_engine_done(ctx->engine, r->connection);
-        }
-    }
-    else {
-        if (req_engine_done && ctx->engine) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection, 
-                          APLOGNO(03371)
-                          "h2_proxy_session(%s): failed request %s",
-                          ctx->engine_id, task_id);
-            req_engine_done(ctx->engine, r->connection);
-        }
-    }
+    return APR_EOF;
 }

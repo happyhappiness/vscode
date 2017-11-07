@@ -1,1 +1,1 @@
-die("git upload-pack: ambiguous deepen-not: %s", line);
+die("Invalid deepen-since: %s", line);

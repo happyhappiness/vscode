@@ -1,1 +1,1 @@
-printf("From %s Mon Sep 17 00:00:00 2001\n", name);
+printf("\t%s", (char *) commit->util);

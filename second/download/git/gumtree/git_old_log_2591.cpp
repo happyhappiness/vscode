@@ -1,1 +1,1 @@
-die("bug: unknown binary handling mode");
+die("bug: unknown header field %d", p->field);

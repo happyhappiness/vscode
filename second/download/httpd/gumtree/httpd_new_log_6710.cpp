@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
-                          "core_output_filter: writing data to the network");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02471)
+                 "start_threads: Using %s", apr_pollset_method_name(event_pollset));

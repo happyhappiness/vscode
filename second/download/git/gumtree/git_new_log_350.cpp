@@ -1,1 +1,1 @@
-die_want_option("--stat-width");
+die(_("--name-only, --name-status, --check and -s are mutually exclusive"));

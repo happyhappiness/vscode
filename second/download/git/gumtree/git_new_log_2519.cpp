@@ -1,2 +1,2 @@
-die("BUG: killed-file %.*s not found",
-						ent->len, ent->name);
+fprintf(file, "%c %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev));

@@ -1,1 +1,1 @@
-die(_("unrecognized %%(if) argument: %s"), arg);
+die(_("positive value expected objectname:short=%s"), arg);

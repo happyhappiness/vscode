@@ -1,1 +1,2 @@
-fputs(diff_get_color_opt(&opt->diffopt, DIFF_COMMIT), stdout);
+printf("%s%.*s%s%s", color, (int)(eol - bol), bol, reset,
+		       *eol ? "\n" : "");

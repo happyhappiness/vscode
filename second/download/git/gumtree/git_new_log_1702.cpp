@@ -1,1 +1,1 @@
-error("Invalid value for '%s'", k);
+die("invalid ref format: %s", argv[start]);

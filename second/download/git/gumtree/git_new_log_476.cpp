@@ -1,1 +1,1 @@
-error(_("failed to finalize '%s'."), todo_path);
+error_errno(_("could not write to '%s'"), todo_path);

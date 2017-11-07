@@ -1,1 +1,1 @@
-die(_("unable to read tree (%s)"), oid_to_hex(&obj->oid));
+fprintf(stderr, "bad sha1 file: %s\n", path);

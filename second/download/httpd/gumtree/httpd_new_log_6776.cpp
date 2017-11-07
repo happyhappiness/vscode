@@ -1,6 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(02454)
-                             "%s: attempt to connect to Unix domain socket "
-                             "%s (%s) failed",
-                             proxy_function,
-                             conn->uds_path,
-                             worker->s->hostname);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02603)
+                                 "create found %s in global list", fname);

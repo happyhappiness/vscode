@@ -1,1 +1,2 @@
-error(_("failed to close rev-list's stdin: %s"), strerror(errno));
+error(_("failed write to rev-list: %s"),
+				      strerror(errno));

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                         "post_config: mpm type unknown");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                              "%d:  '%s'", i, lua_tostring(L, i));

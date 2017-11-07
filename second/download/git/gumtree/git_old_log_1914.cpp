@@ -1,1 +1,3 @@
-printf("%s	%s\n", sha1_to_hex(ref->old_sha1), ref->name);;
+printf("%c %s %s\n", sign,
+		       find_unique_abbrev(commit->object.sha1, abbrev),
+		       buf.buf);

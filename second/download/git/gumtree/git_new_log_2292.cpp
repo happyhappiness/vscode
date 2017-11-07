@@ -1,1 +1,2 @@
-die("resolve-relative-url only accepts one or two arguments");
+die(_("cannot strip one component off url '%s'"),
+			*remoteurl);

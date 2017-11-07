@@ -1,64 +1,55 @@
-static apr_status_t vm_construct(lua_State **vm, void *params, apr_pool_t *lifecycle_pool)
+static int lua_handler(request_rec *r)
 {
-    lua_State* L;
-
-    ap_lua_vm_spec *spec = params;
-
-    L = luaL_newstate();
-#ifdef AP_ENABLE_LUAJIT
-    luaopen_jit(L);
-#endif
-    luaL_openlibs(L);
-    if (spec->package_paths) {
-        munge_path(L, 
-                   "path", "?.lua", "./?.lua", 
-                   lifecycle_pool,
-                   spec->package_paths, 
-                   spec->file);
+    int rc = OK;
+    if (strcmp(r->handler, "lua-script")) {
+        return DECLINED;
     }
-    if (spec->package_cpaths) {
-        munge_path(L,
-                   "cpath", "?" AP_LUA_MODULE_EXT, "./?" AP_LUA_MODULE_EXT,
-                   lifecycle_pool,
-                   spec->package_cpaths,
-                   spec->file);
+    /* Decline the request if the script does not exist (or is a directory),
+     * rather than just returning internal server error */
+    if (
+            (r->finfo.filetype == APR_NOFILE)
+            || (r->finfo.filetype & APR_DIR)
+        ) {
+        return DECLINED;
     }
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(01472)
+                  "handling [%s] in mod_lua", r->filename);
 
-    if (spec->cb) {
-        spec->cb(L, lifecycle_pool, spec->cb_arg);
-    }
+    /* XXX: This seems wrong because it may generate wrong headers for HEAD requests */
+    if (!r->header_only) {
+        lua_State *L;
+        apr_pool_t *pool;
+        const ap_lua_dir_cfg *cfg = ap_get_module_config(r->per_dir_config,
+                                                         &lua_module);
+        ap_lua_vm_spec *spec = create_vm_spec(&pool, r, cfg, NULL, NULL, NULL,
+                                              0, "handle", "request handler");
 
-
-    if (spec->bytecode && spec->bytecode_len > 0) {
-        luaL_loadbuffer(L, spec->bytecode, spec->bytecode_len, spec->file);
-        lua_pcall(L, 0, LUA_MULTRET, 0);
-    }
-    else {
-        int rc;
-        ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(01481)
-            "loading lua file %s", spec->file);
-        rc = luaL_loadfile(L, spec->file);
-        if (rc != 0) {
-            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(01482)
-                          "Error loading %s: %s", spec->file,
-                          rc == LUA_ERRMEM ? "memory allocation error"
-                                           : lua_tostring(L, 0));
-            return APR_EBADF;
+        L = ap_lua_get_lua_state(pool, spec, r);
+        if (!L) {
+            /* TODO annotate spec with failure reason */
+            r->status = HTTP_INTERNAL_SERVER_ERROR;
+            ap_rputs("Unable to compile VM, see logs", r);
+            ap_lua_release_state(L, spec, r);
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
-        if ( lua_pcall(L, 0, LUA_MULTRET, 0) == LUA_ERRRUN ) {
-            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(02613)
-                          "Error loading %s: %s", spec->file,
-                            lua_tostring(L, -1));
-            return APR_EBADF;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, APLOGNO(01474) "got a vm!");
+        lua_getglobal(L, "handle");
+        if (!lua_isfunction(L, -1)) {
+            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01475)
+                          "lua: Unable to find function %s in %s",
+                          "handle",
+                          spec->file);
+            ap_lua_release_state(L, spec, r);
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
+        ap_lua_run_lua_request(L, r);
+        if (lua_pcall(L, 1, 1, 0)) {
+            report_lua_error(L, r);
+        }
+        if (lua_isnumber(L, -1)) {
+            rc = lua_tointeger(L, -1);
+        }
+        ap_lua_release_state(L, spec, r);
     }
-
-#ifdef AP_ENABLE_LUAJIT
-    loadjitmodule(L, lifecycle_pool);
-#endif
-    lua_pushlightuserdata(L, lifecycle_pool);
-    lua_setfield(L, LUA_REGISTRYINDEX, "Apache2.Wombat.pool");
-    *vm = L;
-
-    return APR_SUCCESS;
+    return rc;
 }

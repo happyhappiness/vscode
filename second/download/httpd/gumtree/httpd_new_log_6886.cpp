@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02447)
-                            "error on backconn");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                                      "*: rewrite of url due to UDS(%s): %s (%s)",
+                                      sockpath, *url, r->filename);

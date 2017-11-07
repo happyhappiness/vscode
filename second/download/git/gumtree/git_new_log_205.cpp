@@ -1,1 +1,1 @@
-die(_("cannot use --contents with final commit object name"));
+die(_("--contents and --reverse do not blend well."));

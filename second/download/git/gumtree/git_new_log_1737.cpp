@@ -1,1 +1,2 @@
-error(_("could not delete references: %s"), err.buf);
+error(_("could not delete reference %s: %s"),
+			      refnames->items[0].string, err.buf);

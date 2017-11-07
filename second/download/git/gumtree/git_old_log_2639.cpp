@@ -1,1 +1,1 @@
-die(msg, path, "");
+die(_("error building trees"));

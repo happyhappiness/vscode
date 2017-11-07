@@ -1,4 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, stream->r, APLOGNO(03359)
-                  "h2_proxy_session(%s): stream=%d, response DATA %ld, %ld"
-                  " total", session->id, stream_id, (long)len,
-                  (long)stream->data_received);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03469)
+                      "h2_proxy_session(%s-%d): denying stream with invalid header "
+                      "'%s: %s'", session->id, (int)frame->hd.stream_id,
+                      apr_pstrndup(session->pool, (const char *)name, namelen),
+                      apr_pstrndup(session->pool, (const char *)value, valuelen));

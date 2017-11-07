@@ -1,2 +1,2 @@
-(fprintf(f, ":%"PRIu32" %s\n", mark,
-				oid_to_hex(&deco->base->oid));
+die ("Can't find replacement commit for tag %s\n",
+					     oid_to_hex(&tag->object.oid));

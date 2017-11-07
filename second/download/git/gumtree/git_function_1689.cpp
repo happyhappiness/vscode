@@ -1,239 +1,307 @@
-int cmd_commit(int argc, const char **argv, const char *prefix)
+static int prepare_to_commit(const char *index_file, const char *prefix,
+			     struct commit *current_head,
+			     struct wt_status *s,
+			     struct strbuf *author_ident)
 {
-	static struct wt_status s;
-	static struct option builtin_commit_options[] = {
-		OPT__QUIET(&quiet, N_("suppress summary after successful commit")),
-		OPT__VERBOSE(&verbose, N_("show diff in commit message template")),
-
-		OPT_GROUP(N_("Commit message options")),
-		OPT_FILENAME('F', "file", &logfile, N_("read message from file")),
-		OPT_STRING(0, "author", &force_author, N_("author"), N_("override author for commit")),
-		OPT_STRING(0, "date", &force_date, N_("date"), N_("override date for commit")),
-		OPT_CALLBACK('m', "message", &message, N_("message"), N_("commit message"), opt_parse_m),
-		OPT_STRING('c', "reedit-message", &edit_message, N_("commit"), N_("reuse and edit message from specified commit")),
-		OPT_STRING('C', "reuse-message", &use_message, N_("commit"), N_("reuse message from specified commit")),
-		OPT_STRING(0, "fixup", &fixup_message, N_("commit"), N_("use autosquash formatted message to fixup specified commit")),
-		OPT_STRING(0, "squash", &squash_message, N_("commit"), N_("use autosquash formatted message to squash specified commit")),
-		OPT_BOOL(0, "reset-author", &renew_authorship, N_("the commit is authored by me now (used with -C/-c/--amend)")),
-		OPT_BOOL('s', "signoff", &signoff, N_("add Signed-off-by:")),
-		OPT_FILENAME('t', "template", &template_file, N_("use specified template file")),
-		OPT_BOOL('e', "edit", &edit_flag, N_("force edit of commit")),
-		OPT_STRING(0, "cleanup", &cleanup_arg, N_("default"), N_("how to strip spaces and #comments from message")),
-		OPT_BOOL(0, "status", &include_status, N_("include status in commit message template")),
-		{ OPTION_STRING, 'S', "gpg-sign", &sign_commit, N_("key-id"),
-		  N_("GPG sign commit"), PARSE_OPT_OPTARG, NULL, (intptr_t) "" },
-		/* end commit message options */
-
-		OPT_GROUP(N_("Commit contents options")),
-		OPT_BOOL('a', "all", &all, N_("commit all changed files")),
-		OPT_BOOL('i', "include", &also, N_("add specified files to index for commit")),
-		OPT_BOOL(0, "interactive", &interactive, N_("interactively add files")),
-		OPT_BOOL('p', "patch", &patch_interactive, N_("interactively add changes")),
-		OPT_BOOL('o', "only", &only, N_("commit only specified files")),
-		OPT_BOOL('n', "no-verify", &no_verify, N_("bypass pre-commit hook")),
-		OPT_BOOL(0, "dry-run", &dry_run, N_("show what would be committed")),
-		OPT_SET_INT(0, "short", &status_format, N_("show status concisely"),
-			    STATUS_FORMAT_SHORT),
-		OPT_BOOL(0, "branch", &s.show_branch, N_("show branch information")),
-		OPT_SET_INT(0, "porcelain", &status_format,
-			    N_("machine-readable output"), STATUS_FORMAT_PORCELAIN),
-		OPT_SET_INT(0, "long", &status_format,
-			    N_("show status in long format (default)"),
-			    STATUS_FORMAT_LONG),
-		OPT_BOOL('z', "null", &s.null_termination,
-			 N_("terminate entries with NUL")),
-		OPT_BOOL(0, "amend", &amend, N_("amend previous commit")),
-		OPT_BOOL(0, "no-post-rewrite", &no_post_rewrite, N_("bypass post-rewrite hook")),
-		{ OPTION_STRING, 'u', "untracked-files", &untracked_files_arg, N_("mode"), N_("show untracked files, optional modes: all, normal, no. (Default: all)"), PARSE_OPT_OPTARG, NULL, (intptr_t)"all" },
-		/* end commit contents options */
-
-		OPT_HIDDEN_BOOL(0, "allow-empty", &allow_empty,
-				N_("ok to record an empty change")),
-		OPT_HIDDEN_BOOL(0, "allow-empty-message", &allow_empty_message,
-				N_("ok to record a change with an empty message")),
-
-		OPT_END()
-	};
-
-	struct strbuf sb = STRBUF_INIT;
-	struct strbuf author_ident = STRBUF_INIT;
-	const char *index_file, *reflog_msg;
-	char *nl;
-	unsigned char sha1[20];
-	struct commit_list *parents = NULL, **pptr = &parents;
 	struct stat statbuf;
-	struct commit *current_head = NULL;
-	struct commit_extra_header *extra = NULL;
-	struct ref_transaction *transaction;
-	struct strbuf err = STRBUF_INIT;
+	struct strbuf committer_ident = STRBUF_INIT;
+	int commitable;
+	struct strbuf sb = STRBUF_INIT;
+	const char *hook_arg1 = NULL;
+	const char *hook_arg2 = NULL;
+	int clean_message_contents = (cleanup_mode != CLEANUP_NONE);
+	int old_display_comment_prefix;
 
-	if (argc == 2 && !strcmp(argv[1], "-h"))
-		usage_with_options(builtin_commit_usage, builtin_commit_options);
+	/* This checks and barfs if author is badly specified */
+	determine_author_info(author_ident);
 
-	status_init_config(&s, git_commit_config);
-	status_format = STATUS_FORMAT_NONE; /* Ignore status.short */
-	s.colopts = 0;
+	if (!no_verify && run_commit_hook(use_editor, index_file, "pre-commit", NULL))
+		return 0;
 
-	if (get_sha1("HEAD", sha1))
-		current_head = NULL;
-	else {
-		current_head = lookup_commit_or_die(sha1, "HEAD");
-		if (parse_commit(current_head))
-			die(_("could not parse HEAD commit"));
-	}
-	argc = parse_and_validate_options(argc, argv, builtin_commit_options,
-					  builtin_commit_usage,
-					  prefix, current_head, &s);
-	if (dry_run)
-		return dry_run_commit(argc, argv, prefix, current_head, &s);
-	index_file = prepare_index(argc, argv, prefix, current_head, 0);
-
-	/* Set up everything for writing the commit object.  This includes
-	   running hooks, writing the trees, and interacting with the user.  */
-	if (!prepare_to_commit(index_file, prefix,
-			       current_head, &s, &author_ident)) {
-		rollback_index_files();
-		return 1;
-	}
-
-	/* Determine parents */
-	reflog_msg = getenv("GIT_REFLOG_ACTION");
-	if (!current_head) {
-		if (!reflog_msg)
-			reflog_msg = "commit (initial)";
-	} else if (amend) {
-		struct commit_list *c;
-
-		if (!reflog_msg)
-			reflog_msg = "commit (amend)";
-		for (c = current_head->parents; c; c = c->next)
-			pptr = &commit_list_insert(c->item, pptr)->next;
-	} else if (whence == FROM_MERGE) {
-		struct strbuf m = STRBUF_INIT;
-		FILE *fp;
-		int allow_fast_forward = 1;
-
-		if (!reflog_msg)
-			reflog_msg = "commit (merge)";
-		pptr = &commit_list_insert(current_head, pptr)->next;
-		fp = fopen(git_path("MERGE_HEAD"), "r");
-		if (fp == NULL)
-			die_errno(_("could not open '%s' for reading"),
-				  git_path("MERGE_HEAD"));
-		while (strbuf_getline(&m, fp, '\n') != EOF) {
-			struct commit *parent;
-
-			parent = get_merge_parent(m.buf);
-			if (!parent)
-				die(_("Corrupt MERGE_HEAD file (%s)"), m.buf);
-			pptr = &commit_list_insert(parent, pptr)->next;
+	if (squash_message) {
+		/*
+		 * Insert the proper subject line before other commit
+		 * message options add their content.
+		 */
+		if (use_message && !strcmp(use_message, squash_message))
+			strbuf_addstr(&sb, "squash! ");
+		else {
+			struct pretty_print_context ctx = {0};
+			struct commit *c;
+			c = lookup_commit_reference_by_name(squash_message);
+			if (!c)
+				die(_("could not lookup commit %s"), squash_message);
+			ctx.output_encoding = get_commit_output_encoding();
+			format_commit_message(c, "squash! %s\n\n", &sb,
+					      &ctx);
 		}
-		fclose(fp);
-		strbuf_release(&m);
-		if (!stat(git_path("MERGE_MODE"), &statbuf)) {
-			if (strbuf_read_file(&sb, git_path("MERGE_MODE"), 0) < 0)
-				die_errno(_("could not read MERGE_MODE"));
-			if (!strcmp(sb.buf, "no-ff"))
-				allow_fast_forward = 0;
+	}
+
+	if (message.len) {
+		strbuf_addbuf(&sb, &message);
+		hook_arg1 = "message";
+	} else if (logfile && !strcmp(logfile, "-")) {
+		if (isatty(0))
+			fprintf(stderr, _("(reading log message from standard input)\n"));
+		if (strbuf_read(&sb, 0, 0) < 0)
+			die_errno(_("could not read log from standard input"));
+		hook_arg1 = "message";
+	} else if (logfile) {
+		if (strbuf_read_file(&sb, logfile, 0) < 0)
+			die_errno(_("could not read log file '%s'"),
+				  logfile);
+		hook_arg1 = "message";
+	} else if (use_message) {
+		char *buffer;
+		buffer = strstr(use_message_buffer, "\n\n");
+		if (buffer)
+			strbuf_addstr(&sb, buffer + 2);
+		hook_arg1 = "commit";
+		hook_arg2 = use_message;
+	} else if (fixup_message) {
+		struct pretty_print_context ctx = {0};
+		struct commit *commit;
+		commit = lookup_commit_reference_by_name(fixup_message);
+		if (!commit)
+			die(_("could not lookup commit %s"), fixup_message);
+		ctx.output_encoding = get_commit_output_encoding();
+		format_commit_message(commit, "fixup! %s\n\n",
+				      &sb, &ctx);
+		hook_arg1 = "message";
+	} else if (!stat(git_path("MERGE_MSG"), &statbuf)) {
+		if (strbuf_read_file(&sb, git_path("MERGE_MSG"), 0) < 0)
+			die_errno(_("could not read MERGE_MSG"));
+		hook_arg1 = "merge";
+	} else if (!stat(git_path("SQUASH_MSG"), &statbuf)) {
+		if (strbuf_read_file(&sb, git_path("SQUASH_MSG"), 0) < 0)
+			die_errno(_("could not read SQUASH_MSG"));
+		hook_arg1 = "squash";
+	} else if (template_file) {
+		if (strbuf_read_file(&sb, template_file, 0) < 0)
+			die_errno(_("could not read '%s'"), template_file);
+		hook_arg1 = "template";
+		clean_message_contents = 0;
+	}
+
+	/*
+	 * The remaining cases don't modify the template message, but
+	 * just set the argument(s) to the prepare-commit-msg hook.
+	 */
+	else if (whence == FROM_MERGE)
+		hook_arg1 = "merge";
+	else if (whence == FROM_CHERRY_PICK) {
+		hook_arg1 = "commit";
+		hook_arg2 = "CHERRY_PICK_HEAD";
+	}
+
+	if (squash_message) {
+		/*
+		 * If squash_commit was used for the commit subject,
+		 * then we're possibly hijacking other commit log options.
+		 * Reset the hook args to tell the real story.
+		 */
+		hook_arg1 = "message";
+		hook_arg2 = "";
+	}
+
+	s->fp = fopen(git_path(commit_editmsg), "w");
+	if (s->fp == NULL)
+		die_errno(_("could not open '%s'"), git_path(commit_editmsg));
+
+	/* Ignore status.displayCommentPrefix: we do need comments in COMMIT_EDITMSG. */
+	old_display_comment_prefix = s->display_comment_prefix;
+	s->display_comment_prefix = 1;
+
+	/*
+	 * Most hints are counter-productive when the commit has
+	 * already started.
+	 */
+	s->hints = 0;
+
+	if (clean_message_contents)
+		stripspace(&sb, 0);
+
+	if (signoff)
+		append_signoff(&sb, ignore_non_trailer(&sb), 0);
+
+	if (fwrite(sb.buf, 1, sb.len, s->fp) < sb.len)
+		die_errno(_("could not write commit template"));
+
+	if (auto_comment_line_char)
+		adjust_comment_line_char(&sb);
+	strbuf_release(&sb);
+
+	/* This checks if committer ident is explicitly given */
+	strbuf_addstr(&committer_ident, git_committer_info(IDENT_STRICT));
+	if (use_editor && include_status) {
+		int ident_shown = 0;
+		int saved_color_setting;
+		struct ident_split ci, ai;
+
+		if (whence != FROM_COMMIT) {
+			if (cleanup_mode == CLEANUP_SCISSORS)
+				wt_status_add_cut_line(s->fp);
+			status_printf_ln(s, GIT_COLOR_NORMAL,
+			    whence == FROM_MERGE
+				? _("\n"
+					"It looks like you may be committing a merge.\n"
+					"If this is not correct, please remove the file\n"
+					"	%s\n"
+					"and try again.\n")
+				: _("\n"
+					"It looks like you may be committing a cherry-pick.\n"
+					"If this is not correct, please remove the file\n"
+					"	%s\n"
+					"and try again.\n"),
+				git_path(whence == FROM_MERGE
+					 ? "MERGE_HEAD"
+					 : "CHERRY_PICK_HEAD"));
 		}
-		if (allow_fast_forward)
-			parents = reduce_heads(parents);
+
+		fprintf(s->fp, "\n");
+		if (cleanup_mode == CLEANUP_ALL)
+			status_printf(s, GIT_COLOR_NORMAL,
+				_("Please enter the commit message for your changes."
+				  " Lines starting\nwith '%c' will be ignored, and an empty"
+				  " message aborts the commit.\n"), comment_line_char);
+		else if (cleanup_mode == CLEANUP_SCISSORS && whence == FROM_COMMIT)
+			wt_status_add_cut_line(s->fp);
+		else /* CLEANUP_SPACE, that is. */
+			status_printf(s, GIT_COLOR_NORMAL,
+				_("Please enter the commit message for your changes."
+				  " Lines starting\n"
+				  "with '%c' will be kept; you may remove them"
+				  " yourself if you want to.\n"
+				  "An empty message aborts the commit.\n"), comment_line_char);
+		if (only_include_assumed)
+			status_printf_ln(s, GIT_COLOR_NORMAL,
+					"%s", only_include_assumed);
+
+		/*
+		 * These should never fail because they come from our own
+		 * fmt_ident. They may fail the sane_ident test, but we know
+		 * that the name and mail pointers will at least be valid,
+		 * which is enough for our tests and printing here.
+		 */
+		assert_split_ident(&ai, author_ident);
+		assert_split_ident(&ci, &committer_ident);
+
+		if (ident_cmp(&ai, &ci))
+			status_printf_ln(s, GIT_COLOR_NORMAL,
+				_("%s"
+				"Author:    %.*s <%.*s>"),
+				ident_shown++ ? "" : "\n",
+				(int)(ai.name_end - ai.name_begin), ai.name_begin,
+				(int)(ai.mail_end - ai.mail_begin), ai.mail_begin);
+
+		if (author_date_is_interesting())
+			status_printf_ln(s, GIT_COLOR_NORMAL,
+				_("%s"
+				"Date:      %s"),
+				ident_shown++ ? "" : "\n",
+				show_ident_date(&ai, DATE_NORMAL));
+
+		if (!committer_ident_sufficiently_given())
+			status_printf_ln(s, GIT_COLOR_NORMAL,
+				_("%s"
+				"Committer: %.*s <%.*s>"),
+				ident_shown++ ? "" : "\n",
+				(int)(ci.name_end - ci.name_begin), ci.name_begin,
+				(int)(ci.mail_end - ci.mail_begin), ci.mail_begin);
+
+		if (ident_shown)
+			status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");
+
+		saved_color_setting = s->use_color;
+		s->use_color = 0;
+		commitable = run_status(s->fp, index_file, prefix, 1, s);
+		s->use_color = saved_color_setting;
 	} else {
-		if (!reflog_msg)
-			reflog_msg = (whence == FROM_CHERRY_PICK)
-					? "commit (cherry-pick)"
-					: "commit";
-		pptr = &commit_list_insert(current_head, pptr)->next;
-	}
+		unsigned char sha1[20];
+		const char *parent = "HEAD";
 
-	/* Finally, get the commit message */
-	strbuf_reset(&sb);
-	if (strbuf_read_file(&sb, git_path(commit_editmsg), 0) < 0) {
-		int saved_errno = errno;
-		rollback_index_files();
-		die(_("could not read commit message: %s"), strerror(saved_errno));
-	}
+		if (!active_nr && read_cache() < 0)
+			die(_("Cannot read index"));
 
-	if (verbose || /* Truncate the message just before the diff, if any. */
-	    cleanup_mode == CLEANUP_SCISSORS)
-		wt_status_truncate_message_at_cut_line(&sb);
+		if (amend)
+			parent = "HEAD^1";
 
-	if (cleanup_mode != CLEANUP_NONE)
-		stripspace(&sb, cleanup_mode == CLEANUP_ALL);
-	if (template_untouched(&sb) && !allow_empty_message) {
-		rollback_index_files();
-		fprintf(stderr, _("Aborting commit; you did not edit the message.\n"));
-		exit(1);
-	}
-	if (message_is_empty(&sb) && !allow_empty_message) {
-		rollback_index_files();
-		fprintf(stderr, _("Aborting commit due to empty commit message.\n"));
-		exit(1);
-	}
-
-	if (amend) {
-		const char *exclude_gpgsig[2] = { "gpgsig", NULL };
-		extra = read_commit_extra_headers(current_head, exclude_gpgsig);
-	} else {
-		struct commit_extra_header **tail = &extra;
-		append_merge_tag_headers(parents, &tail);
-	}
-
-	if (commit_tree_extended(sb.buf, sb.len, active_cache_tree->sha1,
-			 parents, sha1, author_ident.buf, sign_commit, extra)) {
-		rollback_index_files();
-		die(_("failed to write commit object"));
-	}
-	strbuf_release(&author_ident);
-	free_commit_extra_headers(extra);
-
-	nl = strchr(sb.buf, '\n');
-	if (nl)
-		strbuf_setlen(&sb, nl + 1 - sb.buf);
-	else
-		strbuf_addch(&sb, '\n');
-	strbuf_insert(&sb, 0, reflog_msg, strlen(reflog_msg));
-	strbuf_insert(&sb, strlen(reflog_msg), ": ", 2);
-
-	transaction = ref_transaction_begin(&err);
-	if (!transaction ||
-	    ref_transaction_update(transaction, "HEAD", sha1,
-				   current_head
-				   ? current_head->object.sha1 : null_sha1,
-				   0, sb.buf, &err) ||
-	    ref_transaction_commit(transaction, &err)) {
-		rollback_index_files();
-		die("%s", err.buf);
-	}
-	ref_transaction_free(transaction);
-
-	unlink(git_path("CHERRY_PICK_HEAD"));
-	unlink(git_path("REVERT_HEAD"));
-	unlink(git_path("MERGE_HEAD"));
-	unlink(git_path("MERGE_MSG"));
-	unlink(git_path("MERGE_MODE"));
-	unlink(git_path("SQUASH_MSG"));
-
-	if (commit_index_files())
-		die (_("Repository has been updated, but unable to write\n"
-		     "new_index file. Check that disk is not full and quota is\n"
-		     "not exceeded, and then \"git reset HEAD\" to recover."));
-
-	rerere(0);
-	run_commit_hook(use_editor, get_index_file(), "post-commit", NULL);
-	if (amend && !no_post_rewrite) {
-		struct notes_rewrite_cfg *cfg;
-		cfg = init_copy_notes_for_rewrite("amend");
-		if (cfg) {
-			/* we are amending, so current_head is not NULL */
-			copy_note_for_rewrite(cfg, current_head->object.sha1, sha1);
-			finish_copy_notes_for_rewrite(cfg, "Notes added by 'git commit --amend'");
+		if (get_sha1(parent, sha1))
+			commitable = !!active_nr;
+		else {
+			/*
+			 * Unless the user did explicitly request a submodule
+			 * ignore mode by passing a command line option we do
+			 * not ignore any changed submodule SHA-1s when
+			 * comparing index and parent, no matter what is
+			 * configured. Otherwise we won't commit any
+			 * submodules which were manually staged, which would
+			 * be really confusing.
+			 */
+			int diff_flags = DIFF_OPT_OVERRIDE_SUBMODULE_CONFIG;
+			if (ignore_submodule_arg &&
+			    !strcmp(ignore_submodule_arg, "all"))
+				diff_flags |= DIFF_OPT_IGNORE_SUBMODULES;
+			commitable = index_differs_from(parent, diff_flags);
 		}
-		run_rewrite_hook(current_head->object.sha1, sha1);
 	}
-	if (!quiet)
-		print_summary(prefix, sha1, !current_head);
+	strbuf_release(&committer_ident);
 
-	strbuf_release(&err);
-	return 0;
+	fclose(s->fp);
+
+	/*
+	 * Reject an attempt to record a non-merge empty commit without
+	 * explicit --allow-empty. In the cherry-pick case, it may be
+	 * empty due to conflict resolution, which the user should okay.
+	 */
+	if (!commitable && whence != FROM_MERGE && !allow_empty &&
+	    !(amend && is_a_merge(current_head))) {
+		s->display_comment_prefix = old_display_comment_prefix;
+		run_status(stdout, index_file, prefix, 0, s);
+		if (amend)
+			fputs(_(empty_amend_advice), stderr);
+		else if (whence == FROM_CHERRY_PICK) {
+			fputs(_(empty_cherry_pick_advice), stderr);
+			if (!sequencer_in_use)
+				fputs(_(empty_cherry_pick_advice_single), stderr);
+			else
+				fputs(_(empty_cherry_pick_advice_multi), stderr);
+		}
+		return 0;
+	}
+
+	/*
+	 * Re-read the index as pre-commit hook could have updated it,
+	 * and write it out as a tree.  We must do this before we invoke
+	 * the editor and after we invoke run_status above.
+	 */
+	discard_cache();
+	read_cache_from(index_file);
+	if (update_main_cache_tree(0)) {
+		error(_("Error building trees"));
+		return 0;
+	}
+
+	if (run_commit_hook(use_editor, index_file, "prepare-commit-msg",
+			    git_path(commit_editmsg), hook_arg1, hook_arg2, NULL))
+		return 0;
+
+	if (use_editor) {
+		char index[PATH_MAX];
+		const char *env[2] = { NULL };
+		env[0] =  index;
+		snprintf(index, sizeof(index), "GIT_INDEX_FILE=%s", index_file);
+		if (launch_editor(git_path(commit_editmsg), NULL, env)) {
+			fprintf(stderr,
+			_("Please supply the message using either -m or -F option.\n"));
+			exit(1);
+		}
+	}
+
+	if (!no_verify &&
+	    run_commit_hook(use_editor, index_file, "commit-msg", git_path(commit_editmsg), NULL)) {
+		return 0;
+	}
+
+	return 1;
 }

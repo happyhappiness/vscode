@@ -1,2 +1,2 @@
-fprintf_ln(stderr, _("directory stat info changes after "
-				     "adding a file inside subdirectory"));
+fprintf_ln(stderr, _("directory stat info changes "
+				     "after updating a file"));

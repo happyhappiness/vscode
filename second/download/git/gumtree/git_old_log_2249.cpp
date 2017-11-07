@@ -1,3 +1,2 @@
-error(_("Cannot delete branch '%s' "
-					"checked out at '%s'"),
-				      bname.buf, worktree);
+error(_("could not open '%s' for reading: %s"), *paths,
+				strerror(errno));

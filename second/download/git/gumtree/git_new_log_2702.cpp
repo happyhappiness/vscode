@@ -1,1 +1,1 @@
-die("BUG: unhandled unmerged status %x", stagemask);
+vfprintf(stderr, fmt, ap);

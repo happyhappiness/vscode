@@ -1,50 +1,28 @@
-static int lua_websocket_ping(lua_State *L) 
+static void init_balancer_members(apr_pool_t *p, server_rec *s,
+                                 proxy_balancer *balancer)
 {
-    apr_socket_t *sock;
-    apr_size_t plen;
-    char prelude[2];
-    apr_status_t rv;
-    request_rec *r = ap_lua_check_request_rec(L, 1);
-    sock = ap_get_conn_socket(r->connection);
-    
-    /* Send a header that says: PING. */
-    prelude[0] = 0x89; /* ping  opcode */
-    prelude[1] = 0;
-    plen = 2;
-    apr_socket_send(sock, prelude, &plen);
-    
-    
-    /* Get opcode and FIN bit from pong */
-    plen = 2;
-    rv = apr_socket_recv(sock, prelude, &plen);
-    if (rv == APR_SUCCESS) {
-        unsigned char opcode = prelude[0];
-        unsigned char len = prelude[1];
-        unsigned char mask = len >> 7;
-        if (mask) len -= 128;
-        plen = len;
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Got PONG opcode: %x", opcode);
-        if (opcode == 0x8A) {
-            lua_pushboolean(L, 1);
+    int i;
+    proxy_worker **workers;
+
+    workers = (proxy_worker **)balancer->workers->elts;
+
+    for (i = 0; i < balancer->workers->nelts; i++) {
+        int worker_is_initialized;
+        proxy_worker *worker = *workers;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01158)
+                     "Looking at %s -> %s initialized?", balancer->s->name, worker->s->name);
+        worker_is_initialized = PROXY_WORKER_IS_INITIALIZED(worker);
+        if (!worker_is_initialized) {
+            ap_proxy_initialize_worker(worker, s, p);
         }
-        else {
-            lua_pushboolean(L, 0);
-        }
-        if (plen > 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
-                        "Websocket: Reading %lu bytes of PONG", plen);
-            return 1;
-        }
-        if (mask) {
-            plen = 2;
-            apr_socket_recv(sock, prelude, &plen);
-            plen = 2;
-            apr_socket_recv(sock, prelude, &plen);
-        }
+        ++workers;
     }
-    else {
-        lua_pushboolean(L, 0);
+
+    /* Set default number of attempts to the number of
+     * workers.
+     */
+    if (!balancer->s->max_attempts_set && balancer->workers->nelts > 1) {
+        balancer->s->max_attempts = balancer->workers->nelts - 1;
+        balancer->s->max_attempts_set = 1;
     }
-    return 1;
 }

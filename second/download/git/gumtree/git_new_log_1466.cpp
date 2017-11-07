@@ -1,1 +1,1 @@
-printf("Diag: port=%s\n", port ? port : "NONE");
+printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");

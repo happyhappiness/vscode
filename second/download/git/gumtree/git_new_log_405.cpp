@@ -1,1 +1,1 @@
-warning(_("Delegation control is not supported with cURL < 7.22.0"));
+packet_write_fmt(1, "# service=git-%s\n", svc->name);

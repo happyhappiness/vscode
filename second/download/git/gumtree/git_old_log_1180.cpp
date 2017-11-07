@@ -1,1 +1,1 @@
-die_errno(_("Failed to lock ref for update"));
+die_errno("Could not change back to '%s'", cwd);

@@ -1,2 +1,1 @@
-error("cannot overwrite multiple values with a single value\n"
-			"       Use a regexp, --add or --replace-all to change %s.", argv[0]);
+printf("%s\n", sha1_to_hex(commit_sha1));

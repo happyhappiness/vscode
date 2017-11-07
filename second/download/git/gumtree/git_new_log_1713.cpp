@@ -1,1 +1,1 @@
-die("Not a mark: %s", p);
+fprintf(rpt, "    at %s\n", show_date(time(NULL), 0, DATE_MODE(LOCAL)));

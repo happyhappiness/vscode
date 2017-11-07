@@ -1,1 +1,1 @@
-die(_("Expecting a full ref name, got %s"), refname);
+die(_("No such ref: %s"), "HEAD");

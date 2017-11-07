@@ -1,1 +1,1 @@
-memset(&array, 0, sizeof(array));
+die("--reverse --first-parent together require range along first-parent chain");

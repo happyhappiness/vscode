@@ -1,2 +1,1 @@
-fprintf(stderr, "%s:%s:%s\n", h->username, h->userpass,
-                    h->comment);
+apr_file_printf(errfile, "Error writing temp file: %s" NL, errstr);

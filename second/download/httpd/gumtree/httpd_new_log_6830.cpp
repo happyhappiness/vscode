@@ -1,1 +1,3 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1554214 $");
+apr_file_printf(errfile,
+                        "Could not remove file '%s': %pm" APR_EOL_STR, file,
+                        &rv);

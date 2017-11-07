@@ -1,96 +1,130 @@
-static const char *add_member(cmd_parms *cmd, void *dummy, const char *arg)
+static int stream_reqbody_chunked(apr_pool_t *p,
+                                           request_rec *r,
+                                           proxy_conn_rec *p_conn,
+                                           conn_rec *origin,
+                                           apr_bucket_brigade *header_brigade,
+                                           apr_bucket_brigade *input_brigade)
 {
-    server_rec *s = cmd->server;
-    proxy_server_conf *conf =
-    ap_get_module_config(s->module_config, &proxy_module);
-    proxy_balancer *balancer;
-    proxy_worker *worker;
-    char *path = cmd->path;
-    char *name = NULL;
-    char *word;
-    apr_table_t *params = apr_table_make(cmd->pool, 5);
-    const apr_array_header_t *arr;
-    const apr_table_entry_t *elts;
-    int reuse = 0;
-    int i;
-    /* XXX: Should this be NOT_IN_DIRECTORY|NOT_IN_FILES? */
-    const char *err = ap_check_cmd_context(cmd, NOT_IN_HTACCESS);
-    if (err)
-        return err;
+    int seen_eos = 0, rv = OK;
+    apr_size_t hdr_len;
+    apr_off_t bytes;
+    apr_status_t status;
+    apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
+    apr_bucket_brigade *bb;
+    apr_bucket *e;
 
-    if (cmd->path)
-        path = apr_pstrdup(cmd->pool, cmd->path);
+    add_te_chunked(p, bucket_alloc, header_brigade);
+    terminate_headers(bucket_alloc, header_brigade);
 
-    while (*arg) {
-        char *val;
-        word = ap_getword_conf(cmd->pool, &arg);
-        val = strchr(word, '=');
+    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
+    {
+        char chunk_hdr[20];  /* must be here due to transient bucket. */
 
-        if (!val) {
-            if (!path)
-                path = word;
-            else if (!name)
-                name = word;
-            else {
-                if (cmd->path)
-                    return "BalancerMember can not have a balancer name when defined in a location";
-                else
-                    return "Invalid BalancerMember parameter. Parameter must "
-                           "be in the form 'key=value'";
+        /* If this brigade contains EOS, either stop or remove it. */
+        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
+            seen_eos = 1;
+
+            /* We can't pass this EOS to the output_filters. */
+            e = APR_BRIGADE_LAST(input_brigade);
+            apr_bucket_delete(e);
+        }
+
+        apr_brigade_length(input_brigade, 1, &bytes);
+
+        hdr_len = apr_snprintf(chunk_hdr, sizeof(chunk_hdr),
+                               "%" APR_UINT64_T_HEX_FMT CRLF,
+                               (apr_uint64_t)bytes);
+
+        ap_xlate_proto_to_ascii(chunk_hdr, hdr_len);
+        e = apr_bucket_transient_create(chunk_hdr, hdr_len,
+                                        bucket_alloc);
+        APR_BRIGADE_INSERT_HEAD(input_brigade, e);
+
+        /*
+         * Append the end-of-chunk CRLF
+         */
+        e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(input_brigade, e);
+
+        if (header_brigade) {
+            /* we never sent the header brigade, so go ahead and
+             * take care of that now
+             */
+            bb = header_brigade;
+
+            /*
+             * Save input_brigade in bb brigade. (At least) in the SSL case
+             * input_brigade contains transient buckets whose data would get
+             * overwritten during the next call of ap_get_brigade in the loop.
+             * ap_save_brigade ensures these buckets to be set aside.
+             * Calling ap_save_brigade with NULL as filter is OK, because
+             * bb brigade already has been created and does not need to get
+             * created by ap_save_brigade.
+             */
+            status = ap_save_brigade(NULL, &bb, &input_brigade, p);
+            if (status != APR_SUCCESS) {
+                return HTTP_INTERNAL_SERVER_ERROR;
             }
-        } else {
-            *val++ = '\0';
-            apr_table_setn(params, word, val);
+
+            header_brigade = NULL;
         }
-    }
-    if (!path)
-        return "BalancerMember must define balancer name when outside <Proxy > section";
-    if (!name)
-        return "BalancerMember must define remote proxy server";
+        else {
+            bb = input_brigade;
+        }
 
-    ap_str_tolower(path);   /* lowercase scheme://hostname */
+        /* The request is flushed below this loop with chunk EOS header */
+        rv = ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, 0);
+        if (rv != OK) {
+            return rv;
+        }
 
-    /* Try to find the balancer */
-    balancer = ap_proxy_get_balancer(cmd->temp_pool, conf, path, 0);
-    if (!balancer) {
-        err = ap_proxy_define_balancer(cmd->pool, &balancer, conf, path, "/", 0);
-        if (err)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-    }
+        if (seen_eos) {
+            break;
+        }
 
-    /* Try to find existing worker */
-    worker = ap_proxy_get_worker(cmd->temp_pool, balancer, conf, name);
-    if (!worker) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01147)
-                     "Defining worker '%s' for balancer '%s'",
-                     name, balancer->s->name);
-        if ((err = ap_proxy_define_worker(cmd->pool, &worker, balancer, conf, name, 0)) != NULL)
-            return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, APLOGNO(01148)
-                     "Defined worker '%s' for balancer '%s'",
-                     worker->s->name, balancer->s->name);
-        PROXY_COPY_CONF_PARAMS(worker, conf);
-    } else {
-        reuse = 1;
-        ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01149)
-                     "Sharing worker '%s' instead of creating new worker '%s'",
-                     worker->s->name, name);
-    }
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                HUGE_STRING_LEN);
 
-    arr = apr_table_elts(params);
-    elts = (const apr_table_entry_t *)arr->elts;
-    for (i = 0; i < arr->nelts; i++) {
-        if (reuse) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(01150)
-                         "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
-                         elts[i].key, elts[i].val, worker->s->name);
-        } else {
-            err = set_worker_param(cmd->pool, worker, elts[i].key,
-                                               elts[i].val);
-            if (err)
-                return apr_pstrcat(cmd->temp_pool, "BalancerMember ", err, NULL);
+        if (status != APR_SUCCESS) {
+            conn_rec *c = r->connection;
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02608)
+                          "read request body failed to %pI (%s)"
+                          " from %s (%s)", p_conn->addr,
+                          p_conn->hostname ? p_conn->hostname: "",
+                          c->client_ip, c->remote_host ? c->remote_host: "");
+            return HTTP_BAD_REQUEST;
         }
     }
 
-    return NULL;
+    if (header_brigade) {
+        /* we never sent the header brigade because there was no request body;
+         * send it now
+         */
+        bb = header_brigade;
+    }
+    else {
+        if (!APR_BRIGADE_EMPTY(input_brigade)) {
+            /* input brigade still has an EOS which we can't pass to the output_filters. */
+            e = APR_BRIGADE_LAST(input_brigade);
+            AP_DEBUG_ASSERT(APR_BUCKET_IS_EOS(e));
+            apr_bucket_delete(e);
+        }
+        bb = input_brigade;
+    }
+
+    e = apr_bucket_immortal_create(ASCII_ZERO ASCII_CRLF
+                                   /* <trailers> */
+                                   ASCII_CRLF,
+                                   5, bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(bb, e);
+
+    if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
+        e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, e);
+    }
+
+    /* Now we have headers-only, or the chunk EOS mark; flush it */
+    rv = ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1);
+    return rv;
 }

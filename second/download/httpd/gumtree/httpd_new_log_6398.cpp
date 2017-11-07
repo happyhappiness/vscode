@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, APLOGNO(01472)
-                  "handling [%s] in mod_lua", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, APLOGNO(01474) "got a vm!");

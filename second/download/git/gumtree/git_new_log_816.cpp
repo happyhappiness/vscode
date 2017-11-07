@@ -1,1 +1,1 @@
-die("remote '%s' not configured", argv[1]);
+die("submodule--helper push-check requires at least 1 argument");

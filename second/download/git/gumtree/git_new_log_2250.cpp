@@ -1,2 +1,3 @@
-die(_("Branch %s is being rebased at %s"),
-			    target, wt->path);
+error(_("Cannot delete branch '%s' "
+					"checked out at '%s'"),
+				      bname.buf, wt->path);

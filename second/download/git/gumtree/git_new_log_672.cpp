@@ -1,1 +1,1 @@
-error(_("could not read 'onto'"));
+error(_("could not read orig-head"));

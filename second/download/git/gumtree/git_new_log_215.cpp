@@ -1,1 +1,1 @@
-die("object %s disappeared", oid_to_hex(oid));
+die("unable to stream %s to stdout", oid_to_hex(oid));

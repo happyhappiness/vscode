@@ -1,1 +1,1 @@
-die(_("unable to parse object: %s"), name ? name : oid_to_hex(oid));
+warning("object %s has unknown type id %d", oid_to_hex(oid), type);

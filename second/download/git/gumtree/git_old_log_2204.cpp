@@ -1,1 +1,1 @@
-error("Malformed value for %s", var);
+error("Could not expand include path '%s'", path);

@@ -1,2 +1,2 @@
-error(_("missing notes on source object %s. Cannot "
-			       "copy."), oid_to_hex(&from_obj));
+fprintf(stderr, _("Overwriting existing notes for object %s\n"),
+			oid_to_hex(&object));

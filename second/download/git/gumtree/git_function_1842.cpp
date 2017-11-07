@@ -1,56 +1,30 @@
-const char *fmt_ident(const char *name, const char *email,
-		      const char *date_str, int flag)
+static void dump_marks(void)
 {
-	static struct strbuf ident = STRBUF_INIT;
-	int strict = (flag & IDENT_STRICT);
-	int want_date = !(flag & IDENT_NO_DATE);
-	int want_name = !(flag & IDENT_NO_NAME);
+	static struct lock_file mark_lock;
+	FILE *f;
 
-	if (want_name && !name)
-		name = ident_default_name();
-	if (!email)
-		email = ident_default_email();
+	if (!export_marks_file)
+		return;
 
-	if (want_name && !*name) {
-		struct passwd *pw;
-
-		if (strict) {
-			if (name == git_default_name.buf)
-				fputs(env_hint, stderr);
-			die("empty ident name (for <%s>) not allowed", email);
-		}
-		pw = xgetpwuid_self(NULL);
-		name = pw->pw_name;
+	if (hold_lock_file_for_update(&mark_lock, export_marks_file, 0) < 0) {
+		failure |= error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(errno));
+		return;
 	}
 
-	if (want_name && strict &&
-	    name == git_default_name.buf && default_name_is_bogus) {
-		fputs(env_hint, stderr);
-		die("unable to auto-detect name (got '%s')", name);
+	f = fdopen_lock_file(&mark_lock, "w");
+	if (!f) {
+		int saved_errno = errno;
+		rollback_lock_file(&mark_lock);
+		failure |= error("Unable to write marks file %s: %s",
+			export_marks_file, strerror(saved_errno));
+		return;
 	}
 
-	if (strict && email == git_default_email.buf && default_email_is_bogus) {
-		fputs(env_hint, stderr);
-		die("unable to auto-detect email address (got '%s')", email);
+	dump_marks_helper(f, 0, marks);
+	if (commit_lock_file(&mark_lock)) {
+		failure |= error("Unable to commit marks file %s: %s",
+			export_marks_file, strerror(errno));
+		return;
 	}
-
-	strbuf_reset(&ident);
-	if (want_name) {
-		strbuf_addstr_without_crud(&ident, name);
-		strbuf_addstr(&ident, " <");
-	}
-	strbuf_addstr_without_crud(&ident, email);
-	if (want_name)
-			strbuf_addch(&ident, '>');
-	if (want_date) {
-		strbuf_addch(&ident, ' ');
-		if (date_str && date_str[0]) {
-			if (parse_date(date_str, &ident) < 0)
-				die("invalid date format: %s", date_str);
-		}
-		else
-			strbuf_addstr(&ident, ident_default_date());
-	}
-
-	return ident.buf;
 }

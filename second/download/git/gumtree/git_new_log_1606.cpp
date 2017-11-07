@@ -1,2 +1,2 @@
-strbuf_addf(err, "unable to resolve reference %s: %s",
-				    orig_refname, strerror(last_errno));
+strbuf_addf(err, "there are still refs under '%s'",
+					    orig_refname);

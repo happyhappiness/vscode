@@ -1,1 +1,1 @@
-error("Failed to update conflicted state in '%s'", path);
+error_errno("cannot unlink %s", filename);

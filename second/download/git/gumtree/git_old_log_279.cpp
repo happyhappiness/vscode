@@ -1,1 +1,1 @@
-die("Could not find commit from NOTES_MERGE_PARTIAL.");
+die("Failed to read ref NOTES_MERGE_PARTIAL");

@@ -1,0 +1,1 @@
+static inline uintmax_t sz_fmt(size_t s) { return s; }

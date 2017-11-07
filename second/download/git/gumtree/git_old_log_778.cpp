@@ -1,1 +1,1 @@
-warning(_(msg_warn_remove_failed), qname);
+warning(_(msg_warn_remove_failed), quoted.buf);

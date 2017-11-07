@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02483)
-                              "lua: Lua handler %s in %s did not return a value, assuming apache2.OK",
-                              function_name,
-                              filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02460)
+                      "%s: Forcing worker (%s) into error state "
+                      "due to timeout and 'failonstatus' parameter being set",
+                       balancer->s->name, worker->s->name);

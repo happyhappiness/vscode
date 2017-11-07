@@ -1,1 +1,1 @@
-die_errno("unable to commit credential store");
+error("could not commit config file %s", config_filename);

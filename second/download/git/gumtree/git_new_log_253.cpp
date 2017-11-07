@@ -1,1 +1,1 @@
-die(_("could not resolve ref '%s'"), o.branch1);
+die(_("not handling anything other than two heads merge."));

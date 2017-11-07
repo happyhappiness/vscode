@@ -1,1 +1,1 @@
-die("BUG: ren1_dst != ren2_dst");
+die("BUG: unsupported object type in the tree");

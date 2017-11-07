@@ -1,1 +1,0 @@
-die("unknown mode for %s", arg);

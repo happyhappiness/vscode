@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00035)
-                              "access to %s denied (filesystem path '%s') "
-                              "because search permissions are missing on a "
-                              "component of the path", r->uri, r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03354)
+                    "authz_host authorize: require forward-dns: "
+                    "Can't evaluate require expression: %s", err);

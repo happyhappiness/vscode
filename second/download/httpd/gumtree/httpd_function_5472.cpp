@@ -1,22 +1,34 @@
-apr_array_header_t *h2_push_collect_update(h2_stream *stream, 
-                                           const struct h2_request *req, 
-                                           const struct h2_response *res)
+static apr_status_t gset_encode_next(gset_encoder *encoder, apr_uint64_t pval)
 {
-    h2_session *session = stream->session;
-    const char *cache_digest = apr_table_get(req->headers, "Cache-Digest");
-    apr_array_header_t *pushes;
-    apr_status_t status;
+    apr_uint64_t delta, flex_bits;
+    apr_status_t status = APR_SUCCESS;
+    int i;
     
-    if (cache_digest && session->push_diary) {
-        status = h2_push_diary_digest64_set(session->push_diary, req->authority, 
-                                            cache_digest, stream->pool);
+    delta = pval - encoder->last;
+    encoder->last = pval;
+    flex_bits = (delta >> encoder->fixed_bits);
+    /* Intentional no APLOGNO */
+    ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, encoder->pool,
+                  "h2_push_diary_enc: val=%"APR_UINT64_T_HEX_FMT", delta=%"
+                  APR_UINT64_T_HEX_FMT" flex_bits=%"APR_UINT64_T_FMT", "
+                  ", fixed_bits=%d, fixed_val=%"APR_UINT64_T_HEX_FMT, 
+                  pval, delta, flex_bits, encoder->fixed_bits, delta&encoder->fixed_mask);
+    for (; flex_bits != 0; --flex_bits) {
+        status = gset_encode_bit(encoder, 1);
         if (status != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
-                          APLOGNO(03057)
-                          "h2_session(%ld): push diary set from Cache-Digest: %s", 
-                          session->id, cache_digest);
+            return status;
         }
     }
-    pushes = h2_push_collect(stream->pool, req, res);
-    return h2_push_diary_update(stream->session, pushes);
+    status = gset_encode_bit(encoder, 0);
+    if (status != APR_SUCCESS) {
+        return status;
+    }
+
+    for (i = encoder->fixed_bits-1; i >= 0; --i) {
+        status = gset_encode_bit(encoder, (delta >> i) & 1);
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+    }
+    return APR_SUCCESS;
 }

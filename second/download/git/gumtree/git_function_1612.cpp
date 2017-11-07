@@ -1,100 +1,87 @@
-int reflog_expire(const char *refname, const unsigned char *sha1,
-		 unsigned int flags,
-		 reflog_expiry_prepare_fn prepare_fn,
-		 reflog_expiry_should_prune_fn should_prune_fn,
-		 reflog_expiry_cleanup_fn cleanup_fn,
-		 void *policy_cb_data)
+int rename_ref(const char *oldrefname, const char *newrefname, const char *logmsg)
 {
-	static struct lock_file reflog_lock;
-	struct expire_reflog_cb cb;
+	unsigned char sha1[20], orig_sha1[20];
+	int flag = 0, logmoved = 0;
 	struct ref_lock *lock;
-	char *log_file;
-	int status = 0;
-	int type;
+	struct stat loginfo;
+	int log = !lstat(git_path("logs/%s", oldrefname), &loginfo);
+	const char *symref = NULL;
 
-	memset(&cb, 0, sizeof(cb));
-	cb.flags = flags;
-	cb.policy_cb = policy_cb_data;
-	cb.should_prune_fn = should_prune_fn;
+	if (log && S_ISLNK(loginfo.st_mode))
+		return error("reflog for %s is a symlink", oldrefname);
 
-	/*
-	 * The reflog file is locked by holding the lock on the
-	 * reference itself, plus we might need to update the
-	 * reference if --updateref was specified:
-	 */
-	lock = lock_ref_sha1_basic(refname, sha1, NULL, 0, &type);
-	if (!lock)
-		return error("cannot lock ref '%s'", refname);
-	if (!reflog_exists(refname)) {
-		unlock_ref(lock);
-		return 0;
+	symref = resolve_ref_unsafe(oldrefname, RESOLVE_REF_READING,
+				    orig_sha1, &flag);
+	if (flag & REF_ISSYMREF)
+		return error("refname %s is a symbolic ref, renaming it is not supported",
+			oldrefname);
+	if (!symref)
+		return error("refname %s not found", oldrefname);
+
+	if (!rename_ref_available(oldrefname, newrefname))
+		return 1;
+
+	if (log && rename(git_path("logs/%s", oldrefname), git_path(TMP_RENAMED_LOG)))
+		return error("unable to move logfile logs/%s to "TMP_RENAMED_LOG": %s",
+			oldrefname, strerror(errno));
+
+	if (delete_ref(oldrefname, orig_sha1, REF_NODEREF)) {
+		error("unable to delete old %s", oldrefname);
+		goto rollback;
 	}
 
-	log_file = git_pathdup("logs/%s", refname);
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * Even though holding $GIT_DIR/logs/$reflog.lock has
-		 * no locking implications, we use the lock_file
-		 * machinery here anyway because it does a lot of the
-		 * work we need, including cleaning up if the program
-		 * exits unexpectedly.
-		 */
-		if (hold_lock_file_for_update(&reflog_lock, log_file, 0) < 0) {
-			struct strbuf err = STRBUF_INIT;
-			unable_to_lock_message(log_file, errno, &err);
-			error("%s", err.buf);
-			strbuf_release(&err);
-			goto failure;
-		}
-		cb.newlog = fdopen_lock_file(&reflog_lock, "w");
-		if (!cb.newlog) {
-			error("cannot fdopen %s (%s)",
-			      reflog_lock.filename.buf, strerror(errno));
-			goto failure;
+	if (!read_ref_full(newrefname, RESOLVE_REF_READING, sha1, NULL) &&
+	    delete_ref(newrefname, sha1, REF_NODEREF)) {
+		if (errno==EISDIR) {
+			if (remove_empty_directories(git_path("%s", newrefname))) {
+				error("Directory not empty: %s", newrefname);
+				goto rollback;
+			}
+		} else {
+			error("unable to delete existing %s", newrefname);
+			goto rollback;
 		}
 	}
 
-	(*prepare_fn)(refname, sha1, cb.policy_cb);
-	for_each_reflog_ent(refname, expire_reflog_ent, &cb);
-	(*cleanup_fn)(cb.policy_cb);
+	if (log && rename_tmp_log(newrefname))
+		goto rollback;
 
-	if (!(flags & EXPIRE_REFLOGS_DRY_RUN)) {
-		/*
-		 * It doesn't make sense to adjust a reference pointed
-		 * to by a symbolic ref based on expiring entries in
-		 * the symbolic reference's reflog. Nor can we update
-		 * a reference if there are no remaining reflog
-		 * entries.
-		 */
-		int update = (flags & EXPIRE_REFLOGS_UPDATE_REF) &&
-			!(type & REF_ISSYMREF) &&
-			!is_null_sha1(cb.last_kept_sha1);
+	logmoved = log;
 
-		if (close_lock_file(&reflog_lock)) {
-			status |= error("couldn't write %s: %s", log_file,
-					strerror(errno));
-		} else if (update &&
-			(write_in_full(lock->lock_fd,
-				sha1_to_hex(cb.last_kept_sha1), 40) != 40 ||
-			 write_str_in_full(lock->lock_fd, "\n") != 1 ||
-			 close_ref(lock) < 0)) {
-			status |= error("couldn't write %s",
-					lock->lk->filename.buf);
-			rollback_lock_file(&reflog_lock);
-		} else if (commit_lock_file(&reflog_lock)) {
-			status |= error("unable to commit reflog '%s' (%s)",
-					log_file, strerror(errno));
-		} else if (update && commit_ref(lock)) {
-			status |= error("couldn't set %s", lock->ref_name);
-		}
+	lock = lock_ref_sha1_basic(newrefname, NULL, NULL, 0, NULL);
+	if (!lock) {
+		error("unable to lock %s for update", newrefname);
+		goto rollback;
 	}
-	free(log_file);
-	unlock_ref(lock);
-	return status;
+	hashcpy(lock->old_sha1, orig_sha1);
+	if (write_ref_sha1(lock, orig_sha1, logmsg)) {
+		error("unable to write current sha1 into %s", newrefname);
+		goto rollback;
+	}
 
- failure:
-	rollback_lock_file(&reflog_lock);
-	free(log_file);
-	unlock_ref(lock);
-	return -1;
+	return 0;
+
+ rollback:
+	lock = lock_ref_sha1_basic(oldrefname, NULL, NULL, 0, NULL);
+	if (!lock) {
+		error("unable to lock %s for rollback", oldrefname);
+		goto rollbacklog;
+	}
+
+	flag = log_all_ref_updates;
+	log_all_ref_updates = 0;
+	if (write_ref_sha1(lock, orig_sha1, NULL))
+		error("unable to write current sha1 into %s", oldrefname);
+	log_all_ref_updates = flag;
+
+ rollbacklog:
+	if (logmoved && rename(git_path("logs/%s", newrefname), git_path("logs/%s", oldrefname)))
+		error("unable to restore logfile %s from %s: %s",
+			oldrefname, newrefname, strerror(errno));
+	if (!logmoved && log &&
+	    rename(git_path(TMP_RENAMED_LOG), git_path("logs/%s", oldrefname)))
+		error("unable to restore logfile %s from "TMP_RENAMED_LOG": %s",
+			oldrefname, strerror(errno));
+
+	return 1;
 }

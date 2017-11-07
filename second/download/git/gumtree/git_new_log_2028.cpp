@@ -1,1 +1,1 @@
-opterror(opt, "must point to a commit", 0);
+die(_("malformed object name %s"), arg);

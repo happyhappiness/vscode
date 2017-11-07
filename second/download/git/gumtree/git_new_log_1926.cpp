@@ -1,1 +1,1 @@
-printf("%s\n", find_unique_abbrev(oid->hash, DEFAULT_ABBREV));
+printf("%s ", caller_name ? caller_name : oid_to_hex(oid));

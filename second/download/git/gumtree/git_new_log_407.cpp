@@ -1,1 +1,2 @@
-fputs(_(env_hint), stderr);
+warning("Unknown delegation method '%s': using default",
+				curl_deleg);

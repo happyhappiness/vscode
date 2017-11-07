@@ -1,1 +1,2 @@
-die("The empty string is not a valid path");
+die_errno("failed to write to %s",
+				  shallow_lock.filename.buf);

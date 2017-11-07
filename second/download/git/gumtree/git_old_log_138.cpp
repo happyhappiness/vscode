@@ -1,0 +1,1 @@
+fprintf(stderr, "Unknown command '%s'\n", buf.buf);

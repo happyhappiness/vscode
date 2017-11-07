@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
-                                 "All workers busy, not accepting new conns "
-                                 "in this process");
+ap_log_error(APLOG_MARK, APLOG_CRIT, apr_get_os_error(),
+                                 ap_server_conf, APLOGNO(02644)
+                                 "Child: Event handle #%d (%pp) is invalid",
+                                 i, child_events[i]);

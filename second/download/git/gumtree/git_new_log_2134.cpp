@@ -1,2 +1,1 @@
-warning("unsupported proxy authentication method %s: using anyauth",
-					http_proxy_authmethod);
+warning(_("Public key pinning not supported with cURL < 7.44.0"));

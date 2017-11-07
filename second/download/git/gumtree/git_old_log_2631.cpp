@@ -1,1 +1,0 @@
-printf("virtual %s\n", merge_remote_util(commit)->name);

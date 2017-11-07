@@ -1,1 +1,1 @@
-die("BUG: unmerged index entries in merge-recursive.c");
+strbuf_addf(&o->obuf, "%.*s\n", len, title);

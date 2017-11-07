@@ -1,1 +1,1 @@
-printf("detached\n");
+printf("HEAD %s\n", sha1_to_hex(wt->head_sha1));

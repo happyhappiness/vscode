@@ -1,1 +1,1 @@
-error(_("cannot %s: You have unstaged changes."), _(action));
+die("BUG: finalize_deferred_config() should have been called");

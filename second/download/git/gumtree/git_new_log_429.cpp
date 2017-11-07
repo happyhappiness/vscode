@@ -1,1 +1,1 @@
-error("packet write failed");
+error("packet write failed - data exceeds max packet size");

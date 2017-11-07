@@ -1,1 +1,1 @@
-die("cannot combine --walk-reflogs with history-limiting options");
+error("'%s' was not filtered properly", path->string);

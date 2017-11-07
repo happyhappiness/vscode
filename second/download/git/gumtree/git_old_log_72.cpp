@@ -1,1 +1,1 @@
-die("update %s has extra input: %s", ref.buf, next);
+die("expected NUL but got: %s", next);

@@ -1,2 +1,1 @@
-fprintf(rej, "diff a/%s b/%s\t(rejected hunks)\n",
-		patch->new_name, patch->new_name);
+die_errno(_("unable to write file '%s' mode %o"), path, mode);

@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02975)
-                    "Watchdog: Looking for parent (%s).", wn[i].provider_name);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, rv, s, APLOGNO(02976)
+                            "Watchdog: Created parent worker thread (%s).", w->name);

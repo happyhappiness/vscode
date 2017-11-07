@@ -1,1 +1,1 @@
-ref_array_clear(&array);
+verify_ref_format(format);

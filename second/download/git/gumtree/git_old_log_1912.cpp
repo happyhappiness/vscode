@@ -1,2 +1,2 @@
-printf("%c %s\n", sign,
-		       find_unique_abbrev(commit->object.sha1, abbrev));
+error(_("Could not read object %s"),
+					    sha1_to_hex(t->tagged->sha1));

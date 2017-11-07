@@ -1,5 +1,6 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00457)
-                 "Accepting new connections again: "
-                 "%u active conns, %u idle workers",
-                 apr_atomic_read32(&connection_count),
-                 ap_queue_info_get_idlers(worker_queue_info));
+ap_log_error(APLOG_MARK, APLOG_TRACE6, 0, ap_server_conf,
+                             "connections: %d (write-completion: %d "
+                             "keep-alive: %d lingering: %d)",
+                             connection_count, write_completion_q.count,
+                             keepalive_q.count,
+                             linger_q.count + short_linger_q.count);

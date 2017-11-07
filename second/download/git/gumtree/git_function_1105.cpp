@@ -1,165 +1,110 @@
-static void populate_value(struct ref_array_item *ref)
+static void init_pathspec_item(struct pathspec_item *item, unsigned flags,
+			       const char *prefix, int prefixlen,
+			       const char *elt)
 {
-	void *buf;
-	struct object *obj;
-	int eaten, i;
-	unsigned long size;
-	const unsigned char *tagged;
+	unsigned magic = 0, element_magic = 0;
+	const char *copyfrom = elt;
+	char *match;
+	int pathspec_prefix = -1;
 
-	ref->value = xcalloc(used_atom_cnt, sizeof(struct atom_value));
+	item->attr_check = NULL;
+	item->attr_match = NULL;
+	item->attr_match_nr = 0;
 
-	if (need_symref && (ref->flag & REF_ISSYMREF) && !ref->symref) {
-		struct object_id unused1;
-		ref->symref = resolve_refdup(ref->refname, RESOLVE_REF_READING,
-					     unused1.hash, NULL);
-		if (!ref->symref)
-			ref->symref = "";
+	/* PATHSPEC_LITERAL_PATH ignores magic */
+	if (flags & PATHSPEC_LITERAL_PATH) {
+		magic = PATHSPEC_LITERAL;
+	} else {
+		copyfrom = parse_element_magic(&element_magic,
+					       &pathspec_prefix,
+					       item,
+					       elt);
+		magic |= element_magic;
+		magic |= get_global_magic(element_magic);
 	}
 
-	/* Fill in specials first */
-	for (i = 0; i < used_atom_cnt; i++) {
-		struct used_atom *atom = &used_atom[i];
-		const char *name = used_atom[i].name;
-		struct atom_value *v = &ref->value[i];
-		int deref = 0;
-		const char *refname;
-		struct branch *branch = NULL;
+	item->magic = magic;
 
-		v->handler = append_atom;
-		v->atom = atom;
+	if (pathspec_prefix >= 0 &&
+	    (prefixlen || (prefix && *prefix)))
+		die("BUG: 'prefix' magic is supposed to be used at worktree's root");
 
-		if (*name == '*') {
-			deref = 1;
-			name++;
-		}
+	if ((magic & PATHSPEC_LITERAL) && (magic & PATHSPEC_GLOB))
+		die(_("%s: 'literal' and 'glob' are incompatible"), elt);
 
-		if (starts_with(name, "refname"))
-			refname = get_refname(atom, ref);
-		else if (starts_with(name, "symref"))
-			refname = get_symref(atom, ref);
-		else if (starts_with(name, "upstream")) {
-			const char *branch_name;
-			/* only local branches may have an upstream */
-			if (!skip_prefix(ref->refname, "refs/heads/",
-					 &branch_name))
-				continue;
-			branch = branch_get(branch_name);
-
-			refname = branch_get_upstream(branch, NULL);
-			if (refname)
-				fill_remote_ref_details(atom, refname, branch, &v->s);
-			continue;
-		} else if (starts_with(name, "push")) {
-			const char *branch_name;
-			if (!skip_prefix(ref->refname, "refs/heads/",
-					 &branch_name))
-				continue;
-			branch = branch_get(branch_name);
-
-			refname = branch_get_push(branch, NULL);
-			if (!refname)
-				continue;
-			fill_remote_ref_details(atom, refname, branch, &v->s);
-			continue;
-		} else if (starts_with(name, "color:")) {
-			v->s = atom->u.color;
-			continue;
-		} else if (!strcmp(name, "flag")) {
-			char buf[256], *cp = buf;
-			if (ref->flag & REF_ISSYMREF)
-				cp = copy_advance(cp, ",symref");
-			if (ref->flag & REF_ISPACKED)
-				cp = copy_advance(cp, ",packed");
-			if (cp == buf)
-				v->s = "";
-			else {
-				*cp = '\0';
-				v->s = xstrdup(buf + 1);
-			}
-			continue;
-		} else if (!deref && grab_objectname(name, ref->objectname, v, atom)) {
-			continue;
-		} else if (!strcmp(name, "HEAD")) {
-			if (atom->u.head && !strcmp(ref->refname, atom->u.head))
-				v->s = "*";
-			else
-				v->s = " ";
-			continue;
-		} else if (starts_with(name, "align")) {
-			v->handler = align_atom_handler;
-			continue;
-		} else if (!strcmp(name, "end")) {
-			v->handler = end_atom_handler;
-			continue;
-		} else if (starts_with(name, "if")) {
-			const char *s;
-
-			if (skip_prefix(name, "if:", &s))
-				v->s = xstrdup(s);
-			v->handler = if_atom_handler;
-			continue;
-		} else if (!strcmp(name, "then")) {
-			v->handler = then_atom_handler;
-			continue;
-		} else if (!strcmp(name, "else")) {
-			v->handler = else_atom_handler;
-			continue;
-		} else
-			continue;
-
-		if (!deref)
-			v->s = refname;
-		else
-			v->s = xstrfmt("%s^{}", refname);
+	/* Create match string which will be used for pathspec matching */
+	if (pathspec_prefix >= 0) {
+		match = xstrdup(copyfrom);
+		prefixlen = pathspec_prefix;
+	} else if (magic & PATHSPEC_FROMTOP) {
+		match = xstrdup(copyfrom);
+		prefixlen = 0;
+	} else {
+		match = prefix_path_gently(prefix, prefixlen,
+					   &prefixlen, copyfrom);
+		if (!match)
+			die(_("%s: '%s' is outside repository"), elt, copyfrom);
 	}
 
-	for (i = 0; i < used_atom_cnt; i++) {
-		struct atom_value *v = &ref->value[i];
-		if (v->s == NULL)
-			goto need_obj;
+	item->match = match;
+	item->len = strlen(item->match);
+	item->prefix = prefixlen;
+
+	/*
+	 * Prefix the pathspec (keep all magic) and assign to
+	 * original. Useful for passing to another command.
+	 */
+	if ((flags & PATHSPEC_PREFIX_ORIGIN) &&
+	    !get_literal_global()) {
+		struct strbuf sb = STRBUF_INIT;
+
+		/* Preserve the actual prefix length of each pattern */
+		prefix_magic(&sb, prefixlen, element_magic);
+
+		strbuf_addstr(&sb, match);
+		item->original = strbuf_detach(&sb, NULL);
+	} else {
+		item->original = xstrdup(elt);
 	}
-	return;
 
- need_obj:
-	buf = get_obj(ref->objectname, &obj, &size, &eaten);
-	if (!buf)
-		die(_("missing object %s for %s"),
-		    sha1_to_hex(ref->objectname), ref->refname);
-	if (!obj)
-		die(_("parse_object_buffer failed on %s for %s"),
-		    sha1_to_hex(ref->objectname), ref->refname);
+	if (flags & PATHSPEC_STRIP_SUBMODULE_SLASH_CHEAP)
+		strip_submodule_slash_cheap(item);
 
-	grab_values(ref->value, 0, obj, buf, size);
-	if (!eaten)
-		free(buf);
+	if (flags & PATHSPEC_STRIP_SUBMODULE_SLASH_EXPENSIVE)
+		strip_submodule_slash_expensive(item);
 
-	/*
-	 * If there is no atom that wants to know about tagged
-	 * object, we are done.
-	 */
-	if (!need_tagged || (obj->type != OBJ_TAG))
-		return;
+	if (magic & PATHSPEC_LITERAL) {
+		item->nowildcard_len = item->len;
+	} else {
+		item->nowildcard_len = simple_length(item->match);
+		if (item->nowildcard_len < prefixlen)
+			item->nowildcard_len = prefixlen;
+	}
 
-	/*
-	 * If it is a tag object, see if we use a value that derefs
-	 * the object, and if we do grab the object it refers to.
-	 */
-	tagged = ((struct tag *)obj)->tagged->oid.hash;
+	item->flags = 0;
+	if (magic & PATHSPEC_GLOB) {
+		/*
+		 * FIXME: should we enable ONESTAR in _GLOB for
+		 * pattern "* * / * . c"?
+		 */
+	} else {
+		if (item->nowildcard_len < item->len &&
+		    item->match[item->nowildcard_len] == '*' &&
+		    no_wildcard(item->match + item->nowildcard_len + 1))
+			item->flags |= PATHSPEC_ONESTAR;
+	}
 
-	/*
-	 * NEEDSWORK: This derefs tag only once, which
-	 * is good to deal with chains of trust, but
-	 * is not consistent with what deref_tag() does
-	 * which peels the onion to the core.
-	 */
-	buf = get_obj(tagged, &obj, &size, &eaten);
-	if (!buf)
-		die(_("missing object %s for %s"),
-		    sha1_to_hex(tagged), ref->refname);
-	if (!obj)
-		die(_("parse_object_buffer failed on %s for %s"),
-		    sha1_to_hex(tagged), ref->refname);
-	grab_values(ref->value, 1, obj, buf, size);
-	if (!eaten)
-		free(buf);
+	/* sanity checks, pathspec matchers assume these are sane */
+	if (item->nowildcard_len > item->len ||
+	    item->prefix         > item->len) {
+		/*
+		 * This case can be triggered by the user pointing us to a
+		 * pathspec inside a submodule, which is an input error.
+		 * Detect that here and complain, but fallback in the
+		 * non-submodule case to a BUG, as we have no idea what
+		 * would trigger that.
+		 */
+		die_inside_submodule_path(item);
+		die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");
+	}
 }

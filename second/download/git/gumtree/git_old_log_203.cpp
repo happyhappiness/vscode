@@ -1,1 +1,1 @@
-die("--progress can't be used with --incremental or porcelain formats");
+die("No commit to dig down to?");

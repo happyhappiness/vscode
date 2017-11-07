@@ -1,2 +1,2 @@
-printf("One merge base found (%.7s)\n",
-				sha1_to_hex(base_sha1));
+die("Could not parse remote commit %s (%s)",
+		    sha1_to_hex(remote_sha1), o->remote_ref);

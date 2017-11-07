@@ -1,1 +1,1 @@
-warning("--curl not supported in this build");
+printf("Diag: path=%s\n", path ? path : "NULL");

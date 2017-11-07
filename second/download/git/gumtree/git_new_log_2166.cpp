@@ -1,1 +1,2 @@
-fprintf(lock->lk->tempfile.fp, "ref: %s\n", target);
+error("unable to write symref for %s: %s", refname,
+			     strerror(errno));

@@ -1,20 +1,28 @@
-static int h2_h2_late_fixups(request_rec *r)
+static int task_print(void *ctx, void *val)
 {
-    /* slave connection? */
-    if (r->connection->master) {
-        h2_ctx *ctx = h2_ctx_rget(r);
-        struct h2_task *task = h2_ctx_get_task(ctx);
-        if (task) {
-            /* check if we copy vs. setaside files in this location */
-            task->output.copy_files = h2_config_geti(h2_config_rget(r), 
-                                                     H2_CONF_COPY_FILES);
-            if (task->output.copy_files) {
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                              "h2_slave_out(%s): copy_files on", task->id);
-                h2_beam_on_file_beam(task->output.beam, h2_beam_no_files, NULL);
-            }
-            check_push(r, "late_fixup");
-        }
+    h2_mplx *m = ctx;
+    h2_task *task = val;
+
+    if (task && task->request) {
+        h2_stream *stream = h2_ihash_get(m->streams, task->stream_id);
+
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%s): %s %s %s -> %s %d"
+                      "[orph=%d/started=%d/done=%d]", 
+                      task->id, task->request->method, 
+                      task->request->authority, task->request->path,
+                      task->response? "http" : (task->rst_error? "reset" : "?"),
+                      task->response? task->response->http_status : task->rst_error,
+                      (stream? 0 : 1), task->worker_started, 
+                      task->worker_done);
     }
-    return DECLINED;
+    else if (task) {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-%d): NULL", m->id, task->stream_id);
+    }
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-NULL): NULL", m->id);
+    }
+    return 1;
 }

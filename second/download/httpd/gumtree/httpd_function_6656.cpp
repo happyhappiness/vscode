@@ -1,141 +1,214 @@
-static int authenticate_basic_user(request_rec *r)
+static authz_status ldapgroup_check_authorization(request_rec *r,
+                                                  const char *require_args,
+                                                  const void *parsed_require_args)
 {
-    auth_basic_config_rec *conf = ap_get_module_config(r->per_dir_config,
-                                                       &auth_basic_module);
-    const char *sent_user, *sent_pw, *current_auth;
-    const char *realm = NULL;
-    const char *digest = NULL;
-    int res;
-    authn_status auth_result;
-    authn_provider_list *current_provider;
+    int result = 0;
+    authn_ldap_request_t *req =
+        (authn_ldap_request_t *)ap_get_module_config(r->request_config, &authnz_ldap_module);
+    authn_ldap_config_t *sec =
+        (authn_ldap_config_t *)ap_get_module_config(r->per_dir_config, &authnz_ldap_module);
 
-    /* Are we configured to be Basic auth? */
-    current_auth = ap_auth_type(r);
-    if (!current_auth || strcasecmp(current_auth, "Basic")) {
-        return DECLINED;
+    util_ldap_connection_t *ldc = NULL;
+
+    const char *t;
+
+    char filtbuf[FILTER_LENGTH];
+    const char *dn = NULL;
+    struct mod_auth_ldap_groupattr_entry_t *ent;
+    int i;
+
+    if (!r->user) {
+        return AUTHZ_DENIED_NO_USER;
     }
 
-    /* We need an authentication realm. */
-    if (!ap_auth_name(r)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR,
-                      0, r, APLOGNO(01615) "need AuthName: %s", r->uri);
-        return HTTP_INTERNAL_SERVER_ERROR;
+    if (!sec->have_ldap_url) {
+        return AUTHZ_DENIED;
     }
 
-    r->ap_auth_type = (char*)current_auth;
-
-    res = get_basic_auth(r, &sent_user, &sent_pw);
-    if (res) {
-        return res;
+    if (sec->host) {
+        ldc = get_connection_for_authz(r, LDAP_COMPARE); /* for the top-level group only */
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+    }
+    else {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01708)
+                      "auth_ldap authorize: no sec->host - weird...?");
+        return AUTHZ_DENIED;
     }
 
-    if (conf->use_digest_algorithm
-        && !strcasecmp(conf->use_digest_algorithm, "MD5")) {
-        realm = ap_auth_name(r);
-        digest = ap_md5(r->pool,
-                        (unsigned char *)apr_pstrcat(r->pool, sent_user, ":",
-                                                     realm, ":",
-                                                     sent_pw, NULL));
+    /*
+     * If there are no elements in the group attribute array, the default should be
+     * member and uniquemember; populate the array now.
+     */
+    if (sec->groupattr->nelts == 0) {
+        struct mod_auth_ldap_groupattr_entry_t *grp;
+#if APR_HAS_THREADS
+        apr_thread_mutex_lock(sec->lock);
+#endif
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "member";
+        grp = apr_array_push(sec->groupattr);
+        grp->name = "uniqueMember";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
     }
 
-    current_provider = conf->providers;
-    do {
-        const authn_provider *provider;
+    /*
+     * If there are no elements in the sub group classes array, the default
+     * should be groupOfNames and groupOfUniqueNames; populate the array now.
+     */
+    if (sec->subgroupclasses->nelts == 0) {
+        struct mod_auth_ldap_groupattr_entry_t *grp;
+#if APR_HAS_THREADS
+        apr_thread_mutex_lock(sec->lock);
+#endif
+        grp = apr_array_push(sec->subgroupclasses);
+        grp->name = "groupOfNames";
+        grp = apr_array_push(sec->subgroupclasses);
+        grp->name = "groupOfUniqueNames";
+#if APR_HAS_THREADS
+        apr_thread_mutex_unlock(sec->lock);
+#endif
+    }
 
-        /* For now, if a provider isn't set, we'll be nice and use the file
-         * provider.
-         */
-        if (!current_provider) {
-            provider = ap_lookup_provider(AUTHN_PROVIDER_GROUP,
-                                          AUTHN_DEFAULT_PROVIDER,
-                                          AUTHN_PROVIDER_VERSION);
+    /*
+     * If we have been authenticated by some other module than mod_auth_ldap,
+     * the req structure needed for authorization needs to be created
+     * and populated with the userid and DN of the account in LDAP
+     */
 
-            if (!provider || !provider->check_password) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01616)
-                              "No Authn provider configured");
-                auth_result = AUTH_GENERAL_ERROR;
-                break;
-            }
-            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, AUTHN_DEFAULT_PROVIDER);
+    if (!strlen(r->user)) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01709)
+            "ldap authorize: Userid is blank, AuthType=%s",
+            r->ap_auth_type);
+    }
+
+    if(!req) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01710)
+            "ldap authorize: Creating LDAP req structure");
+
+        req = (authn_ldap_request_t *)apr_pcalloc(r->pool,
+            sizeof(authn_ldap_request_t));
+        /* Build the username filter */
+        authn_ldap_build_filter(filtbuf, r, r->user, NULL, sec);
+
+        /* Search for the user DN */
+        result = util_ldap_cache_getuserdn(r, ldc, sec->url, sec->basedn,
+             sec->scope, sec->attributes, filtbuf, &dn, &(req->vals));
+
+        /* Search failed, log error and return failure */
+        if(result != LDAP_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01711)
+                "auth_ldap authorise: User DN not found, %s", ldc->reason);
+            return AUTHZ_DENIED;
+        }
+
+        ap_set_module_config(r->request_config, &authnz_ldap_module, req);
+        req->dn = apr_pstrdup(r->pool, dn);
+        req->user = r->user;
+    }
+
+    ent = (struct mod_auth_ldap_groupattr_entry_t *) sec->groupattr->elts;
+
+    if (sec->group_attrib_is_dn) {
+        if (req->dn == NULL || strlen(req->dn) == 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01712)
+                          "auth_ldap authorize: require group: user's DN has "
+                          "not been defined; failing authorization for user %s",
+                          r->user);
+            return AUTHZ_DENIED;
+        }
+    }
+    else {
+        if (req->user == NULL || strlen(req->user) == 0) {
+            /* We weren't called in the authentication phase, so we didn't have a
+             * chance to set the user field. Do so now. */
+            req->user = r->user;
+        }
+    }
+
+    t = require_args;
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01713)
+                  "auth_ldap authorize: require group: testing for group "
+                  "membership in \"%s\"",
+                  t);
+
+    /* PR52464 exhaust attrs in base group before checking subgroups */
+    for (i = 0; i < sec->groupattr->nelts; i++) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01714)
+                      "auth_ldap authorize: require group: testing for %s: "
+                      "%s (%s)",
+                      ent[i].name,
+                      sec->group_attrib_is_dn ? req->dn : req->user, t);
+
+        result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name,
+                             sec->group_attrib_is_dn ? req->dn : req->user);
+        if (result == LDAP_COMPARE_TRUE) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01715)
+                          "auth_ldap authorize: require group: "
+                          "authorization successful (attribute %s) "
+                          "[%s][%d - %s]",
+                          ent[i].name, ldc->reason, result,
+                          ldap_err2string(result));
+            set_request_vars(r, LDAP_AUTHZ);
+            return AUTHZ_GRANTED;
+        }
+        else { 
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01719)
+                              "auth_ldap authorize: require group \"%s\": "
+                              "didn't match with attr %s [%s][%d - %s]",
+                              t, ldc->reason, ent[i].name, result, 
+                              ldap_err2string(result));
+        }
+    }
+    
+    for (i = 0; i < sec->groupattr->nelts; i++) {
+        /* nested groups need searches and compares, so grab a new handle */
+        authnz_ldap_cleanup_connection_close(ldc);
+        apr_pool_cleanup_kill(r->pool, ldc,authnz_ldap_cleanup_connection_close);
+
+        ldc = get_connection_for_authz(r, LDAP_COMPARE_AND_SEARCH);
+        apr_pool_cleanup_register(r->pool, ldc,
+                                  authnz_ldap_cleanup_connection_close,
+                                  apr_pool_cleanup_null);
+
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01716)
+                       "auth_ldap authorise: require group \"%s\": "
+                       "failed [%s][%d - %s], checking sub-groups",
+                       t, ldc->reason, result, ldap_err2string(result));
+
+        result = util_ldap_cache_check_subgroups(r, ldc, sec->url, t, ent[i].name,
+                                                 sec->group_attrib_is_dn ? req->dn : req->user,
+                                                 sec->sgAttributes[0] ? sec->sgAttributes : default_attributes,
+                                                 sec->subgroupclasses,
+                                                 0, sec->maxNestingDepth);
+        if (result == LDAP_COMPARE_TRUE) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01717)
+                          "auth_ldap authorise: require group "
+                          "(sub-group): authorisation successful "
+                          "(attribute %s) [%s][%d - %s]",
+                          ent[i].name, ldc->reason, result,
+                          ldap_err2string(result));
+            set_request_vars(r, LDAP_AUTHZ);
+            return AUTHZ_GRANTED;
         }
         else {
-            provider = current_provider->provider;
-            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, current_provider->provider_name);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01718)
+                          "auth_ldap authorise: require group "
+                          "(sub-group) \"%s\": didn't match with attr %s "
+                          "[%s][%d - %s]",
+                          t, ldc->reason, ent[i].name, result, 
+                          ldap_err2string(result));
         }
-
-        if (digest) {
-            char *password;
-
-            if (!provider->get_realm_hash) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02493)
-                              "Authn provider does not support "
-                              "AuthBasicUseDigestAlgorithm");
-                auth_result = AUTH_GENERAL_ERROR;
-                break;
-            }
-            /* We expect the password to be hash of user:realm:password */
-            auth_result = provider->get_realm_hash(r, sent_user, realm,
-                                                   &password);
-            if (auth_result == AUTH_USER_FOUND) {
-                auth_result = strcmp(digest, password) ? AUTH_DENIED
-                                                       : AUTH_GRANTED;
-            }
-        }
-        else {
-            auth_result = provider->check_password(r, sent_user, sent_pw);
-        }
-
-        apr_table_unset(r->notes, AUTHN_PROVIDER_NAME_NOTE);
-
-        /* Something occured. Stop checking. */
-        if (auth_result != AUTH_USER_NOT_FOUND) {
-            break;
-        }
-
-        /* If we're not really configured for providers, stop now. */
-        if (!conf->providers) {
-            break;
-        }
-
-        current_provider = current_provider->next;
-    } while (current_provider);
-
-    if (auth_result != AUTH_GRANTED) {
-        int return_code;
-
-        /* If we're not authoritative, then any error is ignored. */
-        if (!(conf->authoritative) && auth_result != AUTH_DENIED) {
-            return DECLINED;
-        }
-
-        switch (auth_result) {
-        case AUTH_DENIED:
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01617)
-                      "user %s: authentication failure for \"%s\": "
-                      "Password Mismatch",
-                      sent_user, r->uri);
-            return_code = HTTP_UNAUTHORIZED;
-            break;
-        case AUTH_USER_NOT_FOUND:
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01618)
-                      "user %s not found: %s", sent_user, r->uri);
-            return_code = HTTP_UNAUTHORIZED;
-            break;
-        case AUTH_GENERAL_ERROR:
-        default:
-            /* We'll assume that the module has already said what its error
-             * was in the logs.
-             */
-            return_code = HTTP_INTERNAL_SERVER_ERROR;
-            break;
-        }
-
-        /* If we're returning 403, tell them to try again. */
-        if (return_code == HTTP_UNAUTHORIZED) {
-            note_basic_auth_failure(r);
-        }
-        return return_code;
     }
 
-    return OK;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01720)
+                  "auth_ldap authorize group: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
 }

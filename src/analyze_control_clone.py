@@ -107,20 +107,31 @@ def is_match_for_modify_rule(rule_feature, repos_log_feature):
     """
     return rule_feature == repos_log_feature
 
-def check_repos_info(repos_name, rebuild_repos=False, postfix=''):
+def check_repos_info(repos_name, repos_list=[], rebuild_repos=False, postfix=''):
     """
-    @ param repos name and flag: true if srcml api update), file postfix\n
+    @ param repos name and repos list of analyzed repos and flag: true if srcml api update), file postfix\n
     @ return nothing\n
     @ involve create repos info for given old repos name if need\n
     """
-    # has not create file or need rebuild repos info
-    if rebuild_repos or not os.path.isfile(my_util.concate_file(\
-                    my_constant.ANALYZE_REPOS_LOG_FILE_NAME, postfix)):
-        # analyze repos with given repos name and postfix
-        analyze_control_repos.analyze_repos(repos_name, postfix=postfix)
-        # only cluster log for fix repos
-        if postfix == my_constant.LAST_REPOS or postfix == '':
-            analyze_control_repos.cluster_repos_log(postfix)
+    # has file
+    if os.path.isfile(my_util.concate_file(my_constant.ANALYZE_REPOS_LOG_FILE_NAME, \
+                    postfix)):
+        # need rebuild, then check dict(in dict -> nothing)
+        if rebuild_repos:
+            if repos_name in repos_list:
+                return repos_list
+        # do not need rebuild -> nothing
+        else:
+            return repos_list
+    # has no file or has file and no key -> re analyze repos
+    # analyze repos of given repos name and postfix
+    analyze_control_repos.analyze_repos(repos_name, postfix=postfix)
+    # only cluster log for fix repos
+    if postfix == my_constant.LAST_REPOS or postfix == '':
+        analyze_control_repos.cluster_repos_log(postfix)
+    # add to dict
+    repos_list.append(repos_name)
+    return repos_list
 
 def seek_clone(repos_name, rebuild_repos=False, postfix=''):
     """
@@ -128,6 +139,7 @@ def seek_clone(repos_name, rebuild_repos=False, postfix=''):
     @ return nothing \n
     @ involve match rule class against given repos log class and function\n
     """
+    # check repos according to rebuild repos flag(warn:no repos list)
     check_repos_info(repos_name, rebuild_repos, postfix)
     # initiate csv reader file(rule class, repos log class, function class)
     rule_file = file(my_constant.CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME, 'rb')
@@ -224,58 +236,63 @@ def seek_clone_for_corresponding_repos(rebuild_repos=False):
     # search clone instance for each rule
     for rule_record in islice(rule_records, 1, None):
         rule_counter += 1
-        print 'now processing rule %d/%d, ' %(rule_counter, rule_size),
+        print 'now processing rule %d/%d, ' %(rule_counter, rule_size)
+        # get cluster record from rule class, since one rule may correspond to multi reposes
+        rule_cluster_records = cluster_api.generate_records_for_class(\
+                my_constant.CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME, rule_record[0])
         # rule info
         old_loc = rule_record[my_constant.CLASS_OLD_NEW_OLD_LOC]
         check = json.loads(rule_record[my_constant.CLASS_OLD_NEW_CHECK])
         variable = json.loads(rule_record[my_constant.CLASS_OLD_NEW_VARIABLE])
         edit_words = json.loads(rule_record[my_constant.CLASS_OLD_NEW_EDIT])
         rule_feature = [check, variable]
-        # get repos info files with old repos name
-        old_repos_name = my_util.get_old_repos_name(\
-                    rule_record[my_constant.CLASS_OLD_NEW_PATCH_FILE_NAME])
-        postfix = '_' + old_repos_name
-        check_repos_info(old_repos_name, rebuild_repos, postfix)
-        # clone counter
-        clone_counter_function = 0
-        clone_counter_log = 0
-        # insert rule -> function records
-        if old_loc == '-1':
-            # filter insert rule with information ratio
-            if not filter_insert_rule(rule_feature):
-                continue
-            repos_function_file = file(my_util.concate_file(\
-                    my_constant.ANALYZE_REPOS_FUNCTION_FILE_NAME, postfix))
-            repos_function_records = csv.reader(repos_function_file)
-            for repos_function_record in islice(repos_function_records, 1, None):
-                calls = json.loads(repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_CALLS])
-                types = json.loads(repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_TYPES])
-                # match rule info against function info
-                if is_match_for_insert_rule(rule_feature, [types, calls]):
-                    clone_counter_function += 1
-                    necessity = check_for_insert_rule(rule_feature, \
-                repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_FUNCTION_NAME], postfix)
-                    repos_function_clone_writer.writerow(rule_record + \
-                                                    repos_function_record + [necessity])
-            # close file
-            repos_function_file.close()
-        # modification rule -> log records
-        else:
-            repos_log_file = file(my_util.concate_file(\
-                        my_constant.ANALYZE_REPOS_LOG_FILE_NAME, postfix))
-            repos_log_records = csv.reader(repos_log_file)
-            for repos_log_record in islice(repos_log_records, 1, None):
-                log_check = json.loads(repos_log_record[my_constant.ANALYZE_REPOS_LOG_CHECK])
-                log_variable = json.loads(repos_log_record[my_constant.ANALYZE_REPOS_LOG_VARIABLE])
-                # match rule info against log info
-                if is_match_for_modify_rule(rule_feature, [log_check, log_variable]):
-                    clone_counter_log += 1
-                    necessity = check_for_modify_rule(edit_words, \
-                            repos_log_record[my_constant.ANALYZE_REPOS_LOG_LOG])
-                    repos_log_clone_writer.writerow(rule_record + repos_log_record + [necessity])
+        # deal with each repos for this rule
+        repos_list = []
+        for rule_cluster_record in rule_cluster_records:
+            # get repos info files with old repos name
+            old_repos_name = my_util.get_old_repos_name(rule_cluster_record[0])
+            postfix = '_' + old_repos_name
+            repos_list = check_repos_info(old_repos_name, repos_list, rebuild_repos, postfix)
+            # clone counter
+            clone_counter_function = 0
+            clone_counter_log = 0
+            # insert rule -> function records
+            if old_loc == '-1':
+                # filter insert rule with information ratio
+                if not filter_insert_rule(rule_feature):
+                    continue
+                repos_function_file = file(my_util.concate_file(\
+                        my_constant.ANALYZE_REPOS_FUNCTION_FILE_NAME, postfix))
+                repos_function_records = csv.reader(repos_function_file)
+                for repos_function_record in islice(repos_function_records, 1, None):
+                    calls = json.loads(repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_CALLS])
+                    types = json.loads(repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_TYPES])
+                    # match rule info against function info
+                    if is_match_for_insert_rule(rule_feature, [types, calls]):
+                        clone_counter_function += 1
+                        necessity = check_for_insert_rule(rule_feature, \
+                    repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_FUNCTION_NAME], postfix)
+                        repos_function_clone_writer.writerow(rule_cluster_record + \
+                                                        repos_function_record + [necessity])
+                # close file
+                repos_function_file.close()
+            # modification rule -> log records
+            else:
+                repos_log_file = file(my_util.concate_file(\
+                            my_constant.ANALYZE_REPOS_LOG_FILE_NAME, postfix))
+                repos_log_records = csv.reader(repos_log_file)
+                for repos_log_record in islice(repos_log_records, 1, None):
+                    log_check = json.loads(repos_log_record[my_constant.ANALYZE_REPOS_LOG_CHECK])
+                    log_variable = json.loads(repos_log_record[my_constant.ANALYZE_REPOS_LOG_VARIABLE])
+                    # match rule info against log info
+                    if is_match_for_modify_rule(rule_feature, [log_check, log_variable]):
+                        clone_counter_log += 1
+                        necessity = check_for_modify_rule(edit_words, \
+                                repos_log_record[my_constant.ANALYZE_REPOS_LOG_LOG])
+                        repos_log_clone_writer.writerow(rule_cluster_record + repos_log_record + [necessity])
 
-            # close repos info files
-            repos_log_file.close()
+                # close repos info files
+                repos_log_file.close()
         print 'find clone instances, function: %d, log: %d' \
                         %(clone_counter_function, clone_counter_log)
 

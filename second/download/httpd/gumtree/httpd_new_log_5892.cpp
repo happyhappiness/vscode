@@ -1,5 +1,1 @@
-ap_rputs("\n\n<table><tr>"
-                "<th>Worker URL</th>"
-                "<th>Route</th><th>RouteRedir</th>"
-                "<th>Factor</th><th>Set</th><th>Status</th>"
-                "<th>Elected</th><th>Busy</th><th>Load</th><th>To</th><th>From</th>", r);
+ap_rputs("<th>HC Method</th><th>HC Interval</th><th>Passes</th><th>Fails</th><th>HC uri</th><th>HC Expr</th>", r);

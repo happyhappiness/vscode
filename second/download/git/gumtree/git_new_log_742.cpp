@@ -1,2 +1,2 @@
-die("BUG: confusing delta dfs state in first pass: %d",
-			    cur->dfs_state);
+die_errno(_("cannot close written keep file '%s'"),
+					  keep_name);

@@ -1,294 +1,173 @@
-static apr_status_t deflate_in_filter(ap_filter_t *f,
-                                      apr_bucket_brigade *bb,
-                                      ap_input_mode_t mode,
-                                      apr_read_type_e block,
-                                      apr_off_t readbytes)
+static apr_status_t
+rate_limit_filter(ap_filter_t *f, apr_bucket_brigade *input_bb)
 {
-    apr_bucket *bkt;
-    request_rec *r = f->r;
-    deflate_ctx *ctx = f->ctx;
-    int zRC;
-    apr_status_t rv;
-    deflate_filter_config *c;
+    apr_status_t rv = APR_SUCCESS;
+    rl_ctx_t *ctx = f->ctx;
+    apr_bucket *fb;
+    int do_sleep = 0;
+    apr_bucket_alloc_t *ba = f->r->connection->bucket_alloc;
+    apr_bucket_brigade *bb = input_bb;
 
-    /* just get out of the way of things we don't want. */
-    if (mode != AP_MODE_READBYTES) {
-        return ap_get_brigade(f->next, bb, mode, block, readbytes);
+    if (f->c->aborted) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01454) "rl: conn aborted");
+        apr_brigade_cleanup(bb);
+        return APR_ECONNABORTED;
     }
 
-    c = ap_get_module_config(r->server->module_config, &deflate_module);
+    if (ctx == NULL) {
 
-    if (!ctx) {
-        char deflate_hdr[10];
-        apr_size_t len;
+        const char *rl = NULL;
 
-        /* only work on main request/no subrequests */
-        if (!ap_is_initial_req(r)) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
+        /* no subrequests. */
+        if (f->r->main != NULL) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
         }
 
-        /* We can't operate on Content-Ranges */
-        if (apr_table_get(r->headers_in, "Content-Range") != NULL) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
+        rl = apr_table_get(f->r->subprocess_env, "rate-limit");
+
+        if (rl == NULL) {
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
         }
 
-        /* Check whether request body is gzipped.
-         *
-         * If it is, we're transforming the contents, invalidating
-         * some request headers including Content-Encoding.
-         *
-         * If not, we just remove ourself.
-         */
-        if (check_gzip(r, r->headers_in, NULL) == 0) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
+        /* first run, init stuff */
+        ctx = apr_palloc(f->r->pool, sizeof(rl_ctx_t));
+        f->ctx = ctx;
+        ctx->speed = 0;
+        ctx->state = RATE_LIMIT;
+
+        /* rl is in kilo bytes / second  */
+        ctx->speed = atoi(rl) * 1024;
+
+        if (ctx->speed == 0) {
+            /* remove ourselves */
+            ap_remove_output_filter(f);
+            return ap_pass_brigade(f->next, bb);
         }
 
-        f->ctx = ctx = apr_pcalloc(f->r->pool, sizeof(*ctx));
-        ctx->bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->proc_bb = apr_brigade_create(r->pool, f->c->bucket_alloc);
-        ctx->buffer = apr_palloc(r->pool, c->bufferSize);
-
-        rv = ap_get_brigade(f->next, ctx->bb, AP_MODE_READBYTES, block, 10);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-
-        /* zero length body? step aside */
-        bkt = APR_BRIGADE_FIRST(ctx->bb);
-        if (APR_BUCKET_IS_EOS(bkt)) {
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        apr_table_unset(r->headers_in, "Content-Length");
-        apr_table_unset(r->headers_in, "Content-MD5");
-
-        len = 10;
-        rv = apr_brigade_flatten(ctx->bb, deflate_hdr, &len);
-        if (rv != APR_SUCCESS) {
-            return rv;
-        }
-
-        /* We didn't get the magic bytes. */
-        if (len != 10 ||
-            deflate_hdr[0] != deflate_magic[0] ||
-            deflate_hdr[1] != deflate_magic[1]) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01387) "Zlib: Invalid header");
-            return APR_EGENERAL;
-        }
-
-        /* We can't handle flags for now. */
-        if (deflate_hdr[3] != 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01388)
-                          "Zlib: Unsupported flags %02x", (int)deflate_hdr[3]);
-            return APR_EGENERAL;
-        }
-
-        zRC = inflateInit2(&ctx->stream, c->windowSize);
-
-        if (zRC != Z_OK) {
-            f->ctx = NULL;
-            inflateEnd(&ctx->stream);
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01389)
-                          "unable to init Zlib: "
-                          "inflateInit2 returned %d: URL %s",
-                          zRC, r->uri);
-            ap_remove_input_filter(f);
-            return ap_get_brigade(f->next, bb, mode, block, readbytes);
-        }
-
-        /* initialize deflate output buffer */
-        ctx->stream.next_out = ctx->buffer;
-        ctx->stream.avail_out = c->bufferSize;
-
-        apr_brigade_cleanup(ctx->bb);
+        /* calculate how many bytes / interval we want to send */
+        /* speed is bytes / second, so, how many  (speed / 1000 % interval) */
+        ctx->chunk_size = (ctx->speed / (1000 / RATE_INTERVAL_MS));
+        ctx->tmpbb = apr_brigade_create(f->r->pool, ba);
+        ctx->holdingbb = apr_brigade_create(f->r->pool, ba);
     }
 
-    if (APR_BRIGADE_EMPTY(ctx->proc_bb)) {
-        rv = ap_get_brigade(f->next, ctx->bb, mode, block, readbytes);
+    while (ctx->state != RATE_ERROR &&
+           (!APR_BRIGADE_EMPTY(bb) || !APR_BRIGADE_EMPTY(ctx->holdingbb))) {
+        apr_bucket *e;
 
-        if (rv != APR_SUCCESS) {
-            /* What about APR_EAGAIN errors? */
-            inflateEnd(&ctx->stream);
-            return rv;
+        if (!APR_BRIGADE_EMPTY(ctx->holdingbb)) {
+            APR_BRIGADE_CONCAT(bb, ctx->holdingbb);
+            apr_brigade_cleanup(ctx->holdingbb);
         }
 
-        for (bkt = APR_BRIGADE_FIRST(ctx->bb);
-             bkt != APR_BRIGADE_SENTINEL(ctx->bb);
-             bkt = APR_BUCKET_NEXT(bkt))
-        {
-            const char *data;
-            apr_size_t len;
-
-            if (APR_BUCKET_IS_EOS(bkt)) {
-                if (!ctx->done) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(
-                            APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02481) "Encountered premature end-of-stream while inflating");
-                    return APR_EGENERAL;
+        while (ctx->state == RATE_FULLSPEED && !APR_BRIGADE_EMPTY(bb)) {
+            /* Find where we 'stop' going full speed. */
+            for (e = APR_BRIGADE_FIRST(bb);
+                 e != APR_BRIGADE_SENTINEL(bb); e = APR_BUCKET_NEXT(e)) {
+                if (AP_RL_BUCKET_IS_END(e)) {
+                    apr_bucket *f;
+                    f = APR_RING_LAST(&bb->list);
+                    APR_RING_UNSPLICE(e, f, link);
+                    APR_RING_SPLICE_TAIL(&ctx->holdingbb->list, e, f,
+                                         apr_bucket, link);
+                    ctx->state = RATE_LIMIT;
+                    break;
                 }
+            }
 
-                /* Move everything to the returning brigade. */
-                APR_BUCKET_REMOVE(bkt);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, bkt);
-                ap_remove_input_filter(f);
+            if (f->c->aborted) {
+                apr_brigade_cleanup(bb);
+                ctx->state = RATE_ERROR;
                 break;
             }
 
-            if (APR_BUCKET_IS_FLUSH(bkt)) {
-                apr_bucket *tmp_heap;
-                zRC = inflate(&(ctx->stream), Z_SYNC_FLUSH);
-                if (zRC != Z_OK) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01391)
-                                  "Zlib error %d inflating data (%s)", zRC,
-                                  ctx->stream.msg);
-                    return APR_EGENERAL;
+            fb = apr_bucket_flush_create(ba);
+            APR_BRIGADE_INSERT_TAIL(bb, fb);
+            rv = ap_pass_brigade(f->next, bb);
+
+            if (rv != APR_SUCCESS) {
+                ctx->state = RATE_ERROR;
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01455)
+                              "rl: full speed brigade pass failed.");
+            }
+        }
+
+        while (ctx->state == RATE_LIMIT && !APR_BRIGADE_EMPTY(bb)) {
+            for (e = APR_BRIGADE_FIRST(bb);
+                 e != APR_BRIGADE_SENTINEL(bb); e = APR_BUCKET_NEXT(e)) {
+                if (AP_RL_BUCKET_IS_START(e)) {
+                    apr_bucket *f;
+                    f = APR_RING_LAST(&bb->list);
+                    APR_RING_UNSPLICE(e, f, link);
+                    APR_RING_SPLICE_TAIL(&ctx->holdingbb->list, e, f,
+                                         apr_bucket, link);
+                    ctx->state = RATE_FULLSPEED;
+                    break;
                 }
-
-                ctx->stream.next_out = ctx->buffer;
-                len = c->bufferSize - ctx->stream.avail_out;
-
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                 NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                ctx->stream.avail_out = c->bufferSize;
-
-                /* Move everything to the returning brigade. */
-                APR_BUCKET_REMOVE(bkt);
-                APR_BRIGADE_CONCAT(bb, ctx->bb);
-                break;
             }
 
-            /* sanity check - data after completed compressed body and before eos? */
-            if (ctx->done) {
-                ap_log_rerror(
-                        APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02482) "Encountered extra data after compressed data");
-                return APR_EGENERAL;
-            }
+            while (!APR_BRIGADE_EMPTY(bb)) {
+                apr_bucket *stop_point;
+                apr_off_t len = 0;
 
-            /* read */
-            apr_bucket_read(bkt, &data, &len, APR_BLOCK_READ);
-
-            /* pass through zlib inflate. */
-            ctx->stream.next_in = (unsigned char *)data;
-            ctx->stream.avail_in = len;
-
-            zRC = Z_OK;
-
-            while (ctx->stream.avail_in != 0) {
-                if (ctx->stream.avail_out == 0) {
-                    apr_bucket *tmp_heap;
-                    ctx->stream.next_out = ctx->buffer;
-                    len = c->bufferSize - ctx->stream.avail_out;
-
-                    ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                    tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                      NULL, f->c->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                    ctx->stream.avail_out = c->bufferSize;
-                }
-
-                zRC = inflate(&ctx->stream, Z_NO_FLUSH);
-
-                if (zRC == Z_STREAM_END) {
+                if (f->c->aborted) {
+                    apr_brigade_cleanup(bb);
+                    ctx->state = RATE_ERROR;
                     break;
                 }
 
-                if (zRC != Z_OK) {
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01392)
-                                  "Zlib error %d inflating data (%s)", zRC,
-                                  ctx->stream.msg);
-                    return APR_EGENERAL;
-                }
-            }
-            if (zRC == Z_STREAM_END) {
-                apr_bucket *tmp_heap;
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01393)
-                              "Zlib: Inflated %ld to %ld : URL %s",
-                              ctx->stream.total_in, ctx->stream.total_out,
-                              r->uri);
-
-                len = c->bufferSize - ctx->stream.avail_out;
-
-                ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-                tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                                  NULL, f->c->bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-                ctx->stream.avail_out = c->bufferSize;
-
-                /* Is the remaining 8 bytes already in the avail stream? */
-                if (ctx->stream.avail_in >= 8) {
-                    unsigned long compCRC, compLen;
-                    compCRC = getLong(ctx->stream.next_in);
-                    if (ctx->crc != compCRC) {
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01394)
-                                      "Zlib: CRC error inflating data");
-                        return APR_EGENERAL;
-                    }
-                    ctx->stream.next_in += 4;
-                    compLen = getLong(ctx->stream.next_in);
-                    if (ctx->stream.total_out != compLen) {
-                        inflateEnd(&ctx->stream);
-                        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01395)
-                                      "Zlib: Length %ld of inflated data does "
-                                      "not match expected value %ld",
-                                      ctx->stream.total_out, compLen);
-                        return APR_EGENERAL;
-                    }
+                if (do_sleep) {
+                    apr_sleep(RATE_INTERVAL_MS * 1000);
                 }
                 else {
-                    /* FIXME: We need to grab the 8 verification bytes
-                     * from the wire! */
-                    inflateEnd(&ctx->stream);
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01396)
-                                  "Verification data not available (bug?)");
-                    return APR_EGENERAL;
+                    do_sleep = 1;
                 }
 
-                inflateEnd(&ctx->stream);
+                apr_brigade_length(bb, 1, &len);
 
-                ctx->done = 1;
+                rv = apr_brigade_partition(bb, ctx->chunk_size, &stop_point);
+                if (rv != APR_SUCCESS && rv != APR_INCOMPLETE) {
+                    ctx->state = RATE_ERROR;
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01456)
+                                  "rl: partition failed.");
+                    break;
+                }
+
+                if (stop_point != APR_BRIGADE_SENTINEL(bb)) {
+                    apr_bucket *f;
+                    apr_bucket *e = APR_BUCKET_PREV(stop_point);
+                    f = APR_RING_FIRST(&bb->list);
+                    APR_RING_UNSPLICE(f, e, link);
+                    APR_RING_SPLICE_HEAD(&ctx->tmpbb->list, f, e, apr_bucket,
+                                         link);
+                }
+                else {
+                    APR_BRIGADE_CONCAT(ctx->tmpbb, bb);
+                }
+
+                fb = apr_bucket_flush_create(ba);
+
+                APR_BRIGADE_INSERT_TAIL(ctx->tmpbb, fb);
+
+#if 0
+                brigade_dump(f->r, ctx->tmpbb);
+                brigade_dump(f->r, bb);
+#endif
+
+                rv = ap_pass_brigade(f->next, ctx->tmpbb);
+                apr_brigade_cleanup(ctx->tmpbb);
+
+                if (rv != APR_SUCCESS) {
+                    ctx->state = RATE_ERROR;
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01457)
+                                  "rl: brigade pass failed.");
+                    break;
+                }
             }
-
-        }
-        apr_brigade_cleanup(ctx->bb);
-    }
-
-    /* If we are about to return nothing for a 'blocking' read and we have
-     * some data in our zlib buffer, flush it out so we can return something.
-     */
-    if (block == APR_BLOCK_READ &&
-        APR_BRIGADE_EMPTY(ctx->proc_bb) &&
-        ctx->stream.avail_out < c->bufferSize) {
-        apr_bucket *tmp_heap;
-        apr_size_t len;
-        ctx->stream.next_out = ctx->buffer;
-        len = c->bufferSize - ctx->stream.avail_out;
-
-        ctx->crc = crc32(ctx->crc, (const Bytef *)ctx->buffer, len);
-        tmp_heap = apr_bucket_heap_create((char *)ctx->buffer, len,
-                                          NULL, f->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(ctx->proc_bb, tmp_heap);
-        ctx->stream.avail_out = c->bufferSize;
-    }
-
-    if (!APR_BRIGADE_EMPTY(ctx->proc_bb)) {
-        if (apr_brigade_partition(ctx->proc_bb, readbytes, &bkt) == APR_INCOMPLETE) {
-            APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
-        }
-        else {
-            APR_BRIGADE_CONCAT(bb, ctx->proc_bb);
-            apr_brigade_split_ex(bb, bkt, ctx->proc_bb);
         }
     }
 
-    return APR_SUCCESS;
+    return rv;
 }

@@ -1,18 +1,21 @@
-static void decode_tree_entry(struct tree_desc *desc, const char *buf, unsigned long size)
+static int strbuf_set_helper_option(struct helper_data *data,
+				    struct strbuf *buf)
 {
-	const char *path;
-	unsigned int mode, len;
+	int ret;
 
-	if (size < 24 || buf[size - 21])
-		die("corrupt tree file");
+	sendline(data, buf);
+	if (recvline(data, buf))
+		exit(128);
 
-	path = get_mode(buf, &mode);
-	if (!path || !*path)
-		die("corrupt tree file");
-	len = strlen(path) + 1;
-
-	/* Initialize the descriptor entry */
-	desc->entry.path = path;
-	desc->entry.mode = canon_mode(mode);
-	desc->entry.oid  = (const struct object_id *)(path + len);
+	if (!strcmp(buf->buf, "ok"))
+		ret = 0;
+	else if (starts_with(buf->buf, "error"))
+		ret = -1;
+	else if (!strcmp(buf->buf, "unsupported"))
+		ret = 1;
+	else {
+		warning("%s unexpectedly said: '%s'", data->name, buf->buf);
+		ret = 1;
+	}
+	return ret;
 }

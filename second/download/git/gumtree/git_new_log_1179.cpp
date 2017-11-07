@@ -1,1 +1,1 @@
-die_errno("Could not change back to '%s'", cwd.buf);
+strbuf_swap(&sb, &next_sb);

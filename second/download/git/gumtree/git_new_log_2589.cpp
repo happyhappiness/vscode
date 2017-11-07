@@ -1,1 +1,1 @@
-die("BUG: unknown header field %d", p->field);
+error("object %s: %s", describe_object(o, obj), message);

@@ -1,2 +1,4 @@
-print_ref_status(type, quickref.buf, ref, ref->peer_ref, msg,
-				 porcelain, summary_width);
+print_ref_status('*',
+			(starts_with(ref->name, "refs/tags/") ? "[new tag]" :
+			"[new branch]"),
+			ref, ref->peer_ref, NULL, porcelain, summary_width);

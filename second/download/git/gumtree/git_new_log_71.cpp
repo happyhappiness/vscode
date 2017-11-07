@@ -1,1 +1,1 @@
-die("whitespace before command: %s", next);
+die("unknown command: %s", next);

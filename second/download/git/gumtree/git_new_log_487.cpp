@@ -1,1 +1,1 @@
-for_each_abbrev(ds.hex_pfx, show_ambiguous_object, &ds);
+error("unknown hint type for '%s': %s", var, value);

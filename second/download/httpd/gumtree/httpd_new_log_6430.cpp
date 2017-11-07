@@ -1,2 +1,2 @@
-fprintf(stderr, "crypt() failed: %s\n", 
-                        apr_strerror(errno, errbuf, sizeof errbuf));
+apr_file_printf(errfile, " -s  Force SHA encryption of the password"
+            " (insecure)." NL);

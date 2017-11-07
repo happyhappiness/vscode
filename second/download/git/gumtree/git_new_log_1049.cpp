@@ -1,3 +1,2 @@
-die("internal error: work tree has already been set\n"
-			    "Current worktree: %s\nNew worktree: %s",
-			    the_repository->worktree, new_work_tree);
+error("bad tree object %s",
+			     tree_name ? tree_name : oid_to_hex(tree_oid));

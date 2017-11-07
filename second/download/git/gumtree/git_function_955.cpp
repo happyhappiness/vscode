@@ -1,8 +1,13 @@
-static int parse_mode_line(const char *line, int linenr, unsigned int *mode)
+static NORETURN void BUG_vfl(const char *file, int line, const char *fmt, va_list params)
 {
-	char *end;
-	*mode = strtoul(line, &end, 8);
-	if (end == line || !isspace(*end))
-		return error(_("invalid mode on line %d: %s"), linenr, line);
-	return 0;
+	char prefix[256];
+
+	/* truncation via snprintf is OK here */
+	if (file)
+		snprintf(prefix, sizeof(prefix), "BUG: %s:%d: ", file, line);
+	else
+		snprintf(prefix, sizeof(prefix), "BUG: ");
+
+	vreportf(prefix, fmt, params);
+	abort();
 }

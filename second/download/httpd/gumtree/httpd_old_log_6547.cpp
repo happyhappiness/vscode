@@ -1,1 +1,1 @@
-fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");
+fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");

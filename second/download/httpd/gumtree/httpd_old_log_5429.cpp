@@ -1,2 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, io->connection,
-                      "h2_conn_io: writing %ld bytes to brigade", (long)length);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection,
+                  "h2_from_h1(%d): converted headers, content-length: %d"
+                  ", chunked=%d",
+                  from_h1->stream_id, (int)from_h1->content_length, 
+                  (int)from_h1->chunked);

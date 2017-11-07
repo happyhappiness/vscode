@@ -1,1 +1,1 @@
-fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
+fprintf(stderr, "                -b[cm"CRYPT_OPTION"ptsv] [-TDBTYPE] database username password\n");

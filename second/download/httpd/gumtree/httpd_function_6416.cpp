@@ -1,20 +1,16 @@
-void ssl_die(server_rec *s)
+static void enable_listensocks(int process_slot)
 {
-    if (s != NULL && s->is_virtual && s->error_fname != NULL)
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL, APLOGNO(02311)
-                     "Fatal error initialising mod_ssl, exiting. "
-                     "See %s for more information",
-                     ap_server_root_relative(s->process->pool,
-                                             s->error_fname));
-    else
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL, APLOGNO(02312)
-                     "Fatal error initialising mod_ssl, exiting.");
-
+    int i;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(00457)
+                 "Accepting new connections again: "
+                 "%u active conns, %u idle workers",
+                 apr_atomic_read32(&connection_count),
+                 ap_queue_info_get_idlers(worker_queue_info));
+    for (i = 0; i < num_listensocks; i++)
+        apr_pollset_add(event_pollset, &listener_pollfd[i]);
     /*
-     * This is used for fatal errors and here
-     * it is common module practice to really
-     * exit from the complete program.
-     * XXX: The config hooks should return errors instead of calling exit().
+     * XXX: This is not yet optimal. If many workers suddenly become available,
+     * XXX: the parent may kill some processes off too soon.
      */
-    exit(1);
+    ap_scoreboard_image->parent[process_slot].not_accepting = 0;
 }

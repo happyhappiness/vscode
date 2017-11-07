@@ -1,1 +1,1 @@
-die("filename too long");
+die("corrupt MERGE_RR");

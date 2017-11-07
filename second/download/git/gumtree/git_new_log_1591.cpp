@@ -1,2 +1,2 @@
-error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
+error("problems writing temporary file %s: %s",
+			     buf->buf, strerror(errno));

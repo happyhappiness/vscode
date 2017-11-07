@@ -1,4 +1,4 @@
 ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, c,
                                       H2_SSSN_MSG(session, 
-                                      "nonblock read, %d streams open"), 
+                                      "sync, stutter 1-sec, %d streams open"), 
                                       session->open_streams);

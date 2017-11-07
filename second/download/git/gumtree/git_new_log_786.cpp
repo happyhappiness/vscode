@@ -1,1 +1,1 @@
-die(_("could not read symlink file %s"), path);
+die(_("could not read symlink %s"), path);

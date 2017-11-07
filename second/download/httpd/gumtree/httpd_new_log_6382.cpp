@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02320)
-                      "Error evaluating expression in 'Require expr': %s",
-                      err);
+ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, cmd->pool, APLOGNO(01575)
+                 "loaded module %s from %s", modname, module_file);

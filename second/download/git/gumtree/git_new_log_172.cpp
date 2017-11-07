@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+logerror("base-path too large: %s", rpath);

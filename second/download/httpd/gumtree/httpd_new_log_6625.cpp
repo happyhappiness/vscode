@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02477)
-                         "mod_proxy must be loaded for mod_proxy_http");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01084)
+                      "pass request body failed to %pI (%s)",
+                      p_conn->addr, p_conn->hostname);

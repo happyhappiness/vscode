@@ -1,1 +1,1 @@
-error("unable to lock %s for rollback: %s", oldrefname, err.buf);
+error("unable to rename '%s' to '%s': %s", oldrefname, newrefname, err.buf);

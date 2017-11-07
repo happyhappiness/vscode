@@ -1,2 +1,1 @@
-error("copy-fd: read returned %s",
-				     strerror(errno));
+printf(" %s ", diff_unique_abbrev(p->sha1, opt->abbrev));

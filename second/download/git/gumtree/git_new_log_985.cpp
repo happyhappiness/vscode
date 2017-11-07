@@ -1,1 +1,2 @@
-die(_("cannot read existing object info %s"), oid_to_hex(oid));
+die(_("SHA1 COLLISION FOUND WITH %s !"),
+		    oid_to_hex(&entry->idx.oid));

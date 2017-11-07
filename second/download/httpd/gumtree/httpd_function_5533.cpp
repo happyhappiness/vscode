@@ -1,13 +1,12 @@
-static int set_state(h2_stream *stream, h2_stream_state_t state)
+h2_stream *h2_stream_open(int id, apr_pool_t *pool, h2_session *session)
 {
-    int allowed = state_transition[state][stream->state];
-    if (allowed) {
-        stream->state = state;
-        return 1;
-    }
+    h2_stream *stream = h2_stream_create(id, pool, session);
+    set_state(stream, H2_STREAM_ST_OPEN);
+    stream->request   = h2_request_create(id, pool, session->config);
+    stream->bbout     = apr_brigade_create(stream->pool, 
+                                           stream->session->c->bucket_alloc);
     
-    ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c,
-                  "h2_stream(%ld-%d): invalid state transition from %d to %d", 
-                  stream->session->id, stream->id, stream->state, state);
-    return 0;
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
+                  "h2_stream(%ld-%d): opened", session->id, stream->id);
+    return stream;
 }

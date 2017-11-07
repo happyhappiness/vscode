@@ -1,2 +1,2 @@
-git_die_config("pack.indexversion",
-					"bad pack.indexversion=%"PRIu32, pack_idx_opts.version);
+git_die_config("pack.compression",
+					"bad pack compression level %d", pack_compression_level);

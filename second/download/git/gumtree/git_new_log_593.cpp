@@ -1,1 +1,2 @@
-strbuf_reset(resolved);
+die_errno("Invalid symlink '%s'",
+						  resolved->buf);

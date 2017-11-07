@@ -1,1 +1,1 @@
-die(_("invalid commit %s"), sha1_to_hex(result_sha1));
+packet_buf_write(&req_buf, "have %s\n", sha1_to_hex(sha1));

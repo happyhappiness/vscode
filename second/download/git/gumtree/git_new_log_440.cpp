@@ -1,2 +1,2 @@
-error(_("%s: Unable to write new index file"),
-			_(action_name(opts)));
+error(_("your local changes would be overwritten by %s."),
+		_(action_name(opts)));

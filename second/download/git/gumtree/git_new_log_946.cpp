@@ -1,1 +1,1 @@
-die_errno("sigfillset");
+die_errno("BUG: %s", msg);

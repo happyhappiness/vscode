@@ -1,1 +1,2 @@
-die(_("Failed to resolve '%s' as a valid ref."), arg);
+error(_("The note contents have been left in %s"),
+				d->edit_path);

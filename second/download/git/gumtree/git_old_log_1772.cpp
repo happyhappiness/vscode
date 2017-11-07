@@ -1,1 +1,1 @@
-die_errno(_("Could not write to %s"), todo_file);
+die(_("Could not format %s."), todo_file);

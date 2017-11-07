@@ -1,27 +1,18 @@
-apr_status_t h2_stream_set_response(h2_stream *stream, h2_response *response,
-                                    h2_bucket_beam *output)
+apr_status_t h2_stream_read_to(h2_stream *stream, apr_bucket_brigade *bb, 
+                               apr_off_t *plen, int *peos)
 {
-    apr_status_t status = APR_SUCCESS;
     conn_rec *c = stream->session->c;
-    
-    if (!output_open(stream)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                      "h2_stream(%ld-%d): output closed", 
-                      stream->session->id, stream->id);
+    apr_status_t status = APR_SUCCESS;
+
+    if (stream->rst_error) {
         return APR_ECONNRESET;
     }
-    
-    stream->response = response;
-    stream->output = output;
-    stream->buffer = apr_brigade_create(stream->pool, c->bucket_alloc);
-    
-    h2_stream_filter(stream);
-    if (stream->output) {
-        status = fill_buffer(stream, 0);
+    status = h2_append_brigade(bb, stream->buffer, plen, peos);
+    if (status == APR_SUCCESS && !*peos && !*plen) {
+        status = APR_EAGAIN;
     }
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
-                  "h2_stream(%ld-%d): set_response(%d)", 
-                  stream->session->id, stream->id, 
-                  stream->response->http_status);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
+                  "h2_stream(%ld-%d): read_to, len=%ld eos=%d",
+                  c->id, stream->id, (long)*plen, *peos);
     return status;
 }

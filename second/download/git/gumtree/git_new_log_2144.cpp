@@ -1,1 +1,1 @@
-die(_("unrecognized %%(contents) argument: %s"), arg);
+die(_("positive value expected contents:lines=%s"), arg);

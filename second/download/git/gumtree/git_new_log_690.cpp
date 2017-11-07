@@ -1,1 +1,1 @@
-read_gitfile_error_die(error_code, path, dir);
+die("BUG: unknown error code");

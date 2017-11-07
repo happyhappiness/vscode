@@ -1,1 +1,1 @@
-die(_("remote error: %s"), arg);
+die("BUG: setup_git_env called without repository");

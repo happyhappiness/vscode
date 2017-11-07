@@ -1,1 +1,3 @@
-ap_rvputs(r, worker->s->name, "</a></td>", NULL);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, cmd->server, APLOGNO(01145)
+                         "Sharing worker '%s' instead of creating new worker '%s'",
+                         worker->s->name, new->real);

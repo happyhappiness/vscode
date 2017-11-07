@@ -1,1 +1,2 @@
-fprintf(f, "%s\n", sha1_to_hex(obj->sha1));
+printf("dangling %s %s\n", typename(obj->type),
+			       sha1_to_hex(obj->sha1));

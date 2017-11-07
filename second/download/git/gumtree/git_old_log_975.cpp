@@ -1,1 +1,1 @@
-printf("num commits: %d\n", num_commits);
+printf("num get patch: %d\n", num_get_patch);

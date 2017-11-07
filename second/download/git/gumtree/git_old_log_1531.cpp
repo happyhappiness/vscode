@@ -1,2 +1,2 @@
-die("git show-ref: bad ref %s (%s)", refname,
-		    sha1_to_hex(sha1));
+die("cannot find commit %s (%s)",
+			    ref_name[num_rev], revkey);

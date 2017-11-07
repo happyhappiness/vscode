@@ -1,1 +1,2 @@
-printf("%s\n", local_repo_env[i]);
+die(_("packfile name '%s' does not end with '.pack'"),
+		    pack_name);

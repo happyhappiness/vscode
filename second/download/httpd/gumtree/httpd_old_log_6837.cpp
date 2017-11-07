@@ -1,4 +1,5 @@
-apr_file_printf(errfile,
-                            "Could not write the pid file '%s': %s" APR_EOL_STR,
-                            pidfilename,
-                            apr_strerror(status, errmsg, sizeof errmsg));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                  "from session: " MOD_SESSION_USER ": %s, " MOD_SESSION_PW
+                  ": %s, " MOD_AUTH_FORM_HASH ": %s",
+                  user ? *user : "<null>", pw ? *pw : "<null>",
+                  hash ? *hash : "<null>");

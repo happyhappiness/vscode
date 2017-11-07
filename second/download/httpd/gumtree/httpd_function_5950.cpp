@@ -1,70 +1,78 @@
-apr_status_t h2_from_h1_read_response(h2_from_h1 *from_h1, ap_filter_t* f,
-                                      apr_bucket_brigade* bb)
+apr_status_t h2_response_output_filter(ap_filter_t *f, apr_bucket_brigade *bb)
 {
-    apr_status_t status = APR_SUCCESS;
-    char line[HUGE_STRING_LEN];
-    
-    if ((from_h1->state == H2_RESP_ST_BODY) 
-        || (from_h1->state == H2_RESP_ST_DONE)) {
-        if (from_h1->chunked) {
-            /* The httpd core HTTP_HEADER filter has or will install the 
-             * "CHUNK" output transcode filter, which appears further down 
-             * the filter chain. We do not want it for HTTP/2.
-             * Once we successfully deinstalled it, this filter has no
-             * further function and we remove it.
-             */
-            status = ap_remove_output_filter_byhandle(f->r->output_filters, 
-                                                      "CHUNK");
-            if (status == APR_SUCCESS) {
-                ap_remove_output_filter(f);
-            }
-        }
-        
-        return ap_pass_brigade(f->next, bb);
-    }
+    h2_task *task = f->ctx;
+    h2_from_h1 *from_h1 = task->output.from_h1;
+    request_rec *r = f->r;
+    apr_bucket *b;
+    ap_bucket_error *eb = NULL;
+
+    AP_DEBUG_ASSERT(from_h1 != NULL);
     
     ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_from_h1(%d): read_response", from_h1->stream_id);
+                  "h2_from_h1(%d): output_filter called", from_h1->stream_id);
     
-    while (!APR_BRIGADE_EMPTY(bb) && status == APR_SUCCESS) {
-        
-        switch (from_h1->state) {
-                
-            case H2_RESP_ST_STATUS_LINE:
-            case H2_RESP_ST_HEADERS:
-                status = get_line(from_h1, bb, f, line, sizeof(line));
-                if (status != APR_SUCCESS) {
-                    return status;
-                }
-                if (from_h1->state == H2_RESP_ST_STATUS_LINE) {
-                    /* instead of parsing, just take it directly */
-                    from_h1->http_status = f->r->status;
-                    from_h1->state = H2_RESP_ST_HEADERS;
-                }
-                else if (line[0] == '\0') {
-                    /* end of headers, create the h2_response and
-                     * pass the rest of the brigade down the filter
-                     * chain.
-                     */
-                    status = make_h2_headers(from_h1, f->r);
-                    if (from_h1->bb) {
-                        apr_brigade_destroy(from_h1->bb);
-                        from_h1->bb = NULL;
-                    }
-                    if (!APR_BRIGADE_EMPTY(bb)) {
-                        return ap_pass_brigade(f->next, bb);
-                    }
-                }
-                else {
-                    status = parse_header(from_h1, f, line);
-                }
-                break;
-                
-            default:
-                return ap_pass_brigade(f->next, bb);
-        }
-        
+    if (r->header_only && from_h1->response) {
+        /* throw away any data after we have compiled the response */
+        apr_brigade_cleanup(bb);
+        return OK;
     }
     
-    return status;
+    for (b = APR_BRIGADE_FIRST(bb);
+         b != APR_BRIGADE_SENTINEL(bb);
+         b = APR_BUCKET_NEXT(b))
+    {
+        if (AP_BUCKET_IS_ERROR(b) && !eb) {
+            eb = b->data;
+            continue;
+        }
+        /*
+         * If we see an EOC bucket it is a signal that we should get out
+         * of the way doing nothing.
+         */
+        if (AP_BUCKET_IS_EOC(b)) {
+            ap_remove_output_filter(f);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, f->c,
+                          "h2_from_h1(%d): eoc bucket passed", 
+                          from_h1->stream_id);
+            return ap_pass_brigade(f->next, bb);
+        }
+    }
+    
+    if (eb) {
+        int st = eb->status;
+        apr_brigade_cleanup(bb);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, f->c, APLOGNO(03047)
+                      "h2_from_h1(%d): err bucket status=%d", 
+                      from_h1->stream_id, st);
+        ap_die(st, r);
+        return AP_FILTER_ERROR;
+    }
+    
+    from_h1->response = create_response(from_h1, r);
+    if (from_h1->response == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_NOTICE, 0, f->c, APLOGNO(03048)
+                      "h2_from_h1(%d): unable to create response", 
+                      from_h1->stream_id);
+        return APR_ENOMEM;
+    }
+    
+    if (r->header_only) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_from_h1(%d): header_only, cleanup output brigade", 
+                      from_h1->stream_id);
+        apr_brigade_cleanup(bb);
+        return OK;
+    }
+    
+    r->sent_bodyct = 1;         /* Whatever follows is real body stuff... */
+    
+    ap_remove_output_filter(f);
+    if (APLOGctrace1(f->c)) {
+        apr_off_t len = 0;
+        apr_brigade_length(bb, 0, &len);
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                      "h2_from_h1(%d): removed header filter, passing brigade "
+                      "len=%ld", from_h1->stream_id, (long)len);
+    }
+    return ap_pass_brigade(f->next, bb);
 }

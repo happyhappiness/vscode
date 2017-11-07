@@ -1,1 +1,0 @@
-die(_("could not create directory '%s'"), path);

@@ -1,1 +1,2 @@
-die("submodule--helper relative-path takes exactly 2 arguments, got %d", argc);
+fprintf(log->file, "%s (%d):\n",
+				item->string, onelines->nr);

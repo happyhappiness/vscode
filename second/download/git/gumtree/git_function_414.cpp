@@ -1,31 +1,39 @@
-static void check_notes_merge_worktree(struct notes_merge_options *o)
+void init_notes(struct notes_tree *t, const char *notes_ref,
+		combine_notes_fn combine_notes, int flags)
 {
-	if (!o->has_worktree) {
-		/*
-		 * Must establish NOTES_MERGE_WORKTREE.
-		 * Abort if NOTES_MERGE_WORKTREE already exists
-		 */
-		if (file_exists(git_path(NOTES_MERGE_WORKTREE)) &&
-		    !is_empty_dir(git_path(NOTES_MERGE_WORKTREE))) {
-			if (advice_resolve_conflict)
-				die("You have not concluded your previous "
-				    "notes merge (%s exists).\nPlease, use "
-				    "'git notes merge --commit' or 'git notes "
-				    "merge --abort' to commit/abort the "
-				    "previous merge before you start a new "
-				    "notes merge.", git_path("NOTES_MERGE_*"));
-			else
-				die("You have not concluded your notes merge "
-				    "(%s exists).", git_path("NOTES_MERGE_*"));
-		}
+	unsigned char sha1[20], object_sha1[20];
+	unsigned mode;
+	struct leaf_node root_tree;
 
-		if (safe_create_leading_directories_const(git_path(
-				NOTES_MERGE_WORKTREE "/.test")))
-			die_errno("unable to create directory %s",
-				  git_path(NOTES_MERGE_WORKTREE));
-		o->has_worktree = 1;
-	} else if (!file_exists(git_path(NOTES_MERGE_WORKTREE)))
-		/* NOTES_MERGE_WORKTREE should already be established */
-		die("missing '%s'. This should not happen",
-		    git_path(NOTES_MERGE_WORKTREE));
+	if (!t)
+		t = &default_notes_tree;
+	assert(!t->initialized);
+
+	if (!notes_ref)
+		notes_ref = default_notes_ref();
+
+	if (!combine_notes)
+		combine_notes = combine_notes_concatenate;
+
+	t->root = (struct int_node *) xcalloc(1, sizeof(struct int_node));
+	t->first_non_note = NULL;
+	t->prev_non_note = NULL;
+	t->ref = xstrdup_or_null(notes_ref);
+	t->update_ref = (flags & NOTES_INIT_WRITABLE) ? t->ref : NULL;
+	t->combine_notes = combine_notes;
+	t->initialized = 1;
+	t->dirty = 0;
+
+	if (flags & NOTES_INIT_EMPTY || !notes_ref ||
+	    get_sha1_treeish(notes_ref, object_sha1))
+		return;
+	if (flags & NOTES_INIT_WRITABLE && read_ref(notes_ref, object_sha1))
+		die("Cannot use notes ref %s", notes_ref);
+	if (get_tree_entry(object_sha1, "", sha1, &mode))
+		die("Failed to read notes tree referenced by %s (%s)",
+		    notes_ref, sha1_to_hex(object_sha1));
+
+	hashclr(root_tree.key_sha1);
+	hashcpy(root_tree.val_sha1, sha1);
+	load_subtree(t, &root_tree, t->root, 0);
 }

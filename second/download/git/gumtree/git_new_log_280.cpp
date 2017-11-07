@@ -1,1 +1,1 @@
-die(_("could not parse commit from NOTES_MERGE_PARTIAL."));
+die(_("could not find commit from NOTES_MERGE_PARTIAL."));

@@ -1,2 +1,3 @@
-fprintf(stderr, "Staged '%s' using previous resolution.\n",
-			item->string);
+fprintf(stderr,
+				"Resolved '%s' using previous resolution.\n",
+				path);

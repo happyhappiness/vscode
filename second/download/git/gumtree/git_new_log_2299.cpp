@@ -1,2 +1,3 @@
-fprintf(stderr, _("warning: command update mode suggested for submodule '%s'\n"),
-				sub->name);
+fprintf(stderr,
+				_("Submodule '%s' (%s) registered for path '%s'\n"),
+				sub->name, url, displaypath);

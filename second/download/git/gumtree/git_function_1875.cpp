@@ -1,126 +1,93 @@
-static void handle_tag(const char *name, struct tag *tag)
+static void handle_commit(struct commit *commit, struct rev_info *rev)
 {
-	unsigned long size;
-	enum object_type type;
-	char *buf;
-	const char *tagger, *tagger_end, *message;
-	size_t message_size = 0;
-	struct object *tagged;
-	int tagged_mark;
-	struct commit *p;
+	int saved_output_format = rev->diffopt.output_format;
+	const char *commit_buffer;
+	const char *author, *author_end, *committer, *committer_end;
+	const char *encoding, *message;
+	char *reencoded = NULL;
+	struct commit_list *p;
+	const char *refname;
+	int i;
 
-	/* Trees have no identifier in fast-export output, thus we have no way
-	 * to output tags of trees, tags of tags of trees, etc.  Simply omit
-	 * such tags.
-	 */
-	tagged = tag->tagged;
-	while (tagged->type == OBJ_TAG) {
-		tagged = ((struct tag *)tagged)->tagged;
-	}
-	if (tagged->type == OBJ_TREE) {
-		warning("Omitting tag %s,\nsince tags of trees (or tags of tags of trees, etc.) are not supported.",
-			sha1_to_hex(tag->object.sha1));
-		return;
-	}
+	rev->diffopt.output_format = DIFF_FORMAT_CALLBACK;
 
-	buf = read_sha1_file(tag->object.sha1, &type, &size);
-	if (!buf)
-		die ("Could not read tag %s", sha1_to_hex(tag->object.sha1));
-	message = memmem(buf, size, "\n\n", 2);
-	if (message) {
+	parse_commit_or_die(commit);
+	commit_buffer = get_commit_buffer(commit, NULL);
+	author = strstr(commit_buffer, "\nauthor ");
+	if (!author)
+		die ("Could not find author in commit %s",
+		     sha1_to_hex(commit->object.sha1));
+	author++;
+	author_end = strchrnul(author, '\n');
+	committer = strstr(author_end, "\ncommitter ");
+	if (!committer)
+		die ("Could not find committer in commit %s",
+		     sha1_to_hex(commit->object.sha1));
+	committer++;
+	committer_end = strchrnul(committer, '\n');
+	message = strstr(committer_end, "\n\n");
+	encoding = find_encoding(committer_end, message);
+	if (message)
 		message += 2;
-		message_size = strlen(message);
-	}
-	tagger = memmem(buf, message ? message - buf : size, "\ntagger ", 8);
-	if (!tagger) {
-		if (fake_missing_tagger)
-			tagger = "tagger Unspecified Tagger "
-				"<unspecified-tagger> 0 +0000";
-		else
-			tagger = "";
-		tagger_end = tagger + strlen(tagger);
-	} else {
-		tagger++;
-		tagger_end = strchrnul(tagger, '\n');
-		if (anonymize)
-			anonymize_ident_line(&tagger, &tagger_end);
-	}
 
+	if (commit->parents &&
+	    get_object_mark(&commit->parents->item->object) != 0 &&
+	    !full_tree) {
+		parse_commit_or_die(commit->parents->item);
+		diff_tree_sha1(commit->parents->item->tree->object.sha1,
+			       commit->tree->object.sha1, "", &rev->diffopt);
+	}
+	else
+		diff_root_tree_sha1(commit->tree->object.sha1,
+				    "", &rev->diffopt);
+
+	/* Export the referenced blobs, and remember the marks. */
+	for (i = 0; i < diff_queued_diff.nr; i++)
+		if (!S_ISGITLINK(diff_queued_diff.queue[i]->two->mode))
+			export_blob(diff_queued_diff.queue[i]->two->sha1);
+
+	refname = commit->util;
 	if (anonymize) {
-		name = anonymize_refname(name);
-		if (message) {
-			static struct hashmap tags;
-			message = anonymize_mem(&tags, anonymize_tag,
-						message, &message_size);
-		}
+		refname = anonymize_refname(refname);
+		anonymize_ident_line(&committer, &committer_end);
+		anonymize_ident_line(&author, &author_end);
 	}
 
-	/* handle signed tags */
-	if (message) {
-		const char *signature = strstr(message,
-					       "\n-----BEGIN PGP SIGNATURE-----\n");
-		if (signature)
-			switch(signed_tag_mode) {
-			case ABORT:
-				die ("Encountered signed tag %s; use "
-				     "--signed-tags=<mode> to handle it.",
-				     sha1_to_hex(tag->object.sha1));
-			case WARN:
-				warning ("Exporting signed tag %s",
-					 sha1_to_hex(tag->object.sha1));
-				/* fallthru */
-			case VERBATIM:
-				break;
-			case WARN_STRIP:
-				warning ("Stripping signature from tag %s",
-					 sha1_to_hex(tag->object.sha1));
-				/* fallthru */
-			case STRIP:
-				message_size = signature + 1 - message;
-				break;
-			}
+	mark_next_object(&commit->object);
+	if (anonymize)
+		reencoded = anonymize_commit_message(message);
+	else if (!is_encoding_utf8(encoding))
+		reencoded = reencode_string(message, "UTF-8", encoding);
+	if (!commit->parents)
+		printf("reset %s\n", refname);
+	printf("commit %s\nmark :%"PRIu32"\n%.*s\n%.*s\ndata %u\n%s",
+	       refname, last_idnum,
+	       (int)(author_end - author), author,
+	       (int)(committer_end - committer), committer,
+	       (unsigned)(reencoded
+			  ? strlen(reencoded) : message
+			  ? strlen(message) : 0),
+	       reencoded ? reencoded : message ? message : "");
+	free(reencoded);
+	unuse_commit_buffer(commit, commit_buffer);
+
+	for (i = 0, p = commit->parents; p; p = p->next) {
+		int mark = get_object_mark(&p->item->object);
+		if (!mark)
+			continue;
+		if (i == 0)
+			printf("from :%d\n", mark);
+		else
+			printf("merge :%d\n", mark);
+		i++;
 	}
 
-	/* handle tag->tagged having been filtered out due to paths specified */
-	tagged = tag->tagged;
-	tagged_mark = get_object_mark(tagged);
-	if (!tagged_mark) {
-		switch(tag_of_filtered_mode) {
-		case ABORT:
-			die ("Tag %s tags unexported object; use "
-			     "--tag-of-filtered-object=<mode> to handle it.",
-			     sha1_to_hex(tag->object.sha1));
-		case DROP:
-			/* Ignore this tag altogether */
-			return;
-		case REWRITE:
-			if (tagged->type != OBJ_COMMIT) {
-				die ("Tag %s tags unexported %s!",
-				     sha1_to_hex(tag->object.sha1),
-				     typename(tagged->type));
-			}
-			p = (struct commit *)tagged;
-			for (;;) {
-				if (p->parents && p->parents->next)
-					break;
-				if (p->object.flags & UNINTERESTING)
-					break;
-				if (!(p->object.flags & TREESAME))
-					break;
-				if (!p->parents)
-					die ("Can't find replacement commit for tag %s\n",
-					     sha1_to_hex(tag->object.sha1));
-				p = p->parents->item;
-			}
-			tagged_mark = get_object_mark(&p->object);
-		}
-	}
+	if (full_tree)
+		printf("deleteall\n");
+	log_tree_diff_flush(rev);
+	rev->diffopt.output_format = saved_output_format;
 
-	if (starts_with(name, "refs/tags/"))
-		name += 10;
-	printf("tag %s\nfrom :%d\n%.*s%sdata %d\n%.*s\n",
-	       name, tagged_mark,
-	       (int)(tagger_end - tagger), tagger,
-	       tagger == tagger_end ? "" : "\n",
-	       (int)message_size, (int)message_size, message ? message : "");
+	printf("\n");
+
+	show_progress();
 }

@@ -1,1 +1,1 @@
-die("BUG: stat option does not begin with --stat: %s", arg);
+die(_("external diff died, stopping at %s"), name);

@@ -1,1 +1,1 @@
-git_die_config(key, _("Invalid %s: '%s'"), key, *output);
+die("BUG: how is this possible?");

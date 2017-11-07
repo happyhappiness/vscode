@@ -1,2 +1,2 @@
-die("credential helper '%s' told us to quit",
-			    c->helpers.items[i].string);
+fprintf(stderr, _("Removing note for object %s\n"),
+			sha1_to_hex(object));

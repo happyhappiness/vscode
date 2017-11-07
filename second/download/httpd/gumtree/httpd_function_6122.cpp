@@ -1,77 +1,241 @@
-static void usage(const char *progname)
+static apr_status_t cache_canonicalise_key(request_rec *r, apr_pool_t* p,
+                                           const char *uri, const char *query,
+                                           apr_uri_t *parsed_uri,
+                                           const char **key)
 {
-    fprintf(stderr, "Usage: %s [options] [http"
-#ifdef USE_SSL
-        "[s]"
-#endif
-        "://]hostname[:port]/path\n", progname);
-/* 80 column ruler:  ********************************************************************************
- */
-    fprintf(stderr, "Options are:\n");
-    fprintf(stderr, "    -n requests     Number of requests to perform\n");
-    fprintf(stderr, "    -c concurrency  Number of multiple requests to make at a time\n");
-    fprintf(stderr, "    -t timelimit    Seconds to max. to spend on benchmarking\n");
-    fprintf(stderr, "                    This implies -n 50000\n");
-    fprintf(stderr, "    -s timeout      Seconds to max. wait for each response\n");
-    fprintf(stderr, "                    Default is 30 seconds\n");
-    fprintf(stderr, "    -b windowsize   Size of TCP send/receive buffer, in bytes\n");
-    fprintf(stderr, "    -B address      Address to bind to when making outgoing connections\n");
-    fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");
-    fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");
-    fprintf(stderr, "    -T content-type Content-type header to use for POST/PUT data, eg.\n");
-    fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
-    fprintf(stderr, "                    Default is 'text/plain'\n");
-    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
-    fprintf(stderr, "    -w              Print out results in HTML tables\n");
-    fprintf(stderr, "    -i              Use HEAD instead of GET\n");
-    fprintf(stderr, "    -x attributes   String to insert as table attributes\n");
-    fprintf(stderr, "    -y attributes   String to insert as tr attributes\n");
-    fprintf(stderr, "    -z attributes   String to insert as td or th attributes\n");
-    fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234'. (repeatable)\n");
-    fprintf(stderr, "    -H attribute    Add Arbitrary header line, eg. 'Accept-Encoding: gzip'\n");
-    fprintf(stderr, "                    Inserted after all normal header lines. (repeatable)\n");
-    fprintf(stderr, "    -A attribute    Add Basic WWW Authentication, the attributes\n");
-    fprintf(stderr, "                    are a colon separated username and password.\n");
-    fprintf(stderr, "    -P attribute    Add Basic Proxy Authentication, the attributes\n");
-    fprintf(stderr, "                    are a colon separated username and password.\n");
-    fprintf(stderr, "    -X proxy:port   Proxyserver and port number to use\n");
-    fprintf(stderr, "    -V              Print version number and exit\n");
-    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
-    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
-    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
-    fprintf(stderr, "    -q              Do not show progress when doing more than 150 requests\n");
-    fprintf(stderr, "    -l              Accept variable document length (use this for dynamic pages)\n");
-    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
-    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
-    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
-    fprintf(stderr, "    -m method       Method name\n");
-    fprintf(stderr, "    -h              Display usage information (this message)\n");
-#ifdef USE_SSL
+    cache_server_conf *conf;
+    char *port_str, *hn, *lcs;
+    const char *hostname, *scheme;
+    int i;
+    const char *path;
+    char *querystring;
 
-#ifndef OPENSSL_NO_SSL2
-#define SSL2_HELP_MSG "SSL2, "
-#else
-#define SSL2_HELP_MSG ""
-#endif
+    if (*key) {
+        /*
+         * We have been here before during the processing of this request.
+         */
+        return APR_SUCCESS;
+    }
 
-#ifndef OPENSSL_NO_SSL3
-#define SSL3_HELP_MSG "SSL3, "
-#else
-#define SSL3_HELP_MSG ""
-#endif
+    /*
+     * Get the module configuration. We need this for the CacheIgnoreQueryString
+     * option below.
+     */
+    conf = (cache_server_conf *) ap_get_module_config(r->server->module_config,
+            &cache_module);
 
-#ifdef HAVE_TLSV1_X
-#define TLS1_X_HELP_MSG ", TLS1.1, TLS1.2"
-#else
-#define TLS1_X_HELP_MSG ""
-#endif
+    /*
+     * Use the canonical name to improve cache hit rate, but only if this is
+     * not a proxy request or if this is a reverse proxy request.
+     * We need to handle both cases in the same manner as for the reverse proxy
+     * case we have the following situation:
+     *
+     * If a cached entry is looked up by mod_cache's quick handler r->proxyreq
+     * is still unset in the reverse proxy case as it only gets set in the
+     * translate name hook (either by ProxyPass or mod_rewrite) which is run
+     * after the quick handler hook. This is different to the forward proxy
+     * case where it gets set before the quick handler is run (in the
+     * post_read_request hook).
+     * If a cache entry is created by the CACHE_SAVE filter we always have
+     * r->proxyreq set correctly.
+     * So we must ensure that in the reverse proxy case we use the same code
+     * path and using the canonical name seems to be the right thing to do
+     * in the reverse proxy case.
+     */
+    if (!r->proxyreq || (r->proxyreq == PROXYREQ_REVERSE)) {
+        if (conf->base_uri && conf->base_uri->hostname) {
+            hostname = conf->base_uri->hostname;
+        }
+        else {
+            /* Use _default_ as the hostname if none present, as in mod_vhost */
+            hostname = ap_get_server_name(r);
+            if (!hostname) {
+                hostname = "_default_";
+            }
+        }
+    }
+    else if (parsed_uri->hostname) {
+        /* Copy the parsed uri hostname */
+        hn = apr_pstrdup(p, parsed_uri->hostname);
+        ap_str_tolower(hn);
+        /* const work-around */
+        hostname = hn;
+    }
+    else {
+        /* We are a proxied request, with no hostname. Unlikely
+         * to get very far - but just in case */
+        hostname = "_default_";
+    }
 
-#ifdef HAVE_TLSEXT
-    fprintf(stderr, "    -I              Disable TLS Server Name Indication (SNI) extension\n");
-#endif
-    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
-    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n");
-    fprintf(stderr, "                    (" SSL2_HELP_MSG SSL3_HELP_MSG "TLS1" TLS1_X_HELP_MSG " or ALL)\n");
-#endif
-    exit(EINVAL);
+    /*
+     * Copy the scheme, ensuring that it is lower case. If the parsed uri
+     * contains no string or if this is not a proxy request get the http
+     * scheme for this request. As r->parsed_uri.scheme is not set if this
+     * is a reverse proxy request, it is ensured that the cases
+     * "no proxy request" and "reverse proxy request" are handled in the same
+     * manner (see above why this is needed).
+     */
+    if (r->proxyreq && parsed_uri->scheme) {
+        /* Copy the scheme and lower-case it */
+        lcs = apr_pstrdup(p, parsed_uri->scheme);
+        ap_str_tolower(lcs);
+        /* const work-around */
+        scheme = lcs;
+    }
+    else {
+        if (conf->base_uri && conf->base_uri->scheme) {
+            scheme = conf->base_uri->scheme;
+        }
+        else {
+            scheme = ap_http_scheme(r);
+        }
+    }
+
+    /*
+     * If this is a proxy request, but not a reverse proxy request (see comment
+     * above why these cases must be handled in the same manner), copy the
+     * URI's port-string (which may be a service name). If the URI contains
+     * no port-string, use apr-util's notion of the default port for that
+     * scheme - if available. Otherwise use the port-number of the current
+     * server.
+     */
+    if (r->proxyreq && (r->proxyreq != PROXYREQ_REVERSE)) {
+        if (parsed_uri->port_str) {
+            port_str = apr_pcalloc(p, strlen(parsed_uri->port_str) + 2);
+            port_str[0] = ':';
+            for (i = 0; parsed_uri->port_str[i]; i++) {
+                port_str[i + 1] = apr_tolower(parsed_uri->port_str[i]);
+            }
+        }
+        else if (apr_uri_port_of_scheme(scheme)) {
+            port_str = apr_psprintf(p, ":%u", apr_uri_port_of_scheme(scheme));
+        }
+        else {
+            /* No port string given in the AbsoluteUri, and we have no
+             * idea what the default port for the scheme is. Leave it
+             * blank and live with the inefficiency of some extra cached
+             * entities.
+             */
+            port_str = "";
+        }
+    }
+    else {
+        if (conf->base_uri && conf->base_uri->port_str) {
+            port_str = conf->base_uri->port_str;
+        }
+        else if (conf->base_uri && conf->base_uri->hostname) {
+            port_str = "";
+        }
+        else {
+            /* Use the server port */
+            port_str = apr_psprintf(p, ":%u", ap_get_server_port(r));
+        }
+    }
+
+    /*
+     * Check if we need to ignore session identifiers in the URL and do so
+     * if needed.
+     */
+    path = uri;
+    querystring = apr_pstrdup(p, query ? query : parsed_uri->query);
+    if (conf->ignore_session_id->nelts) {
+        int i;
+        char **identifier;
+
+        identifier = (char **) conf->ignore_session_id->elts;
+        for (i = 0; i < conf->ignore_session_id->nelts; i++, identifier++) {
+            int len;
+            const char *param;
+
+            len = strlen(*identifier);
+            /*
+             * Check that we have a parameter separator in the last segment
+             * of the path and that the parameter matches our identifier
+             */
+            if ((param = ap_strrchr_c(path, ';'))
+                    && !strncmp(param + 1, *identifier, len)
+                    && (*(param + len + 1) == '=')
+                    && !ap_strchr_c(param + len + 2, '/')) {
+                path = apr_pstrmemdup(p, path, param - path);
+                continue;
+            }
+            /*
+             * Check if the identifier is in the querystring and cut it out.
+             */
+            if (querystring && *querystring) {
+                /*
+                 * First check if the identifier is at the beginning of the
+                 * querystring and followed by a '='
+                 */
+                if (!strncmp(querystring, *identifier, len)
+                        && (*(querystring + len) == '=')) {
+                    param = querystring;
+                }
+                else {
+                    char *complete;
+
+                    /*
+                     * In order to avoid subkey matching (PR 48401) prepend
+                     * identifier with a '&' and append a '='
+                     */
+                    complete = apr_pstrcat(p, "&", *identifier, "=", NULL);
+                    param = ap_strstr_c(querystring, complete);
+                    /* If we found something we are sitting on the '&' */
+                    if (param) {
+                        param++;
+                    }
+                }
+                if (param) {
+                    const char *amp;
+
+                    if (querystring != param) {
+                        querystring = apr_pstrndup(p, querystring,
+                                param - querystring);
+                    }
+                    else {
+                        querystring = "";
+                    }
+
+                    if ((amp = ap_strchr_c(param + len + 1, '&'))) {
+                        querystring = apr_pstrcat(p, querystring, amp + 1,
+                                NULL);
+                    }
+                    else {
+                        /*
+                         * If querystring is not "", then we have the case
+                         * that the identifier parameter we removed was the
+                         * last one in the original querystring. Hence we have
+                         * a trailing '&' which needs to be removed.
+                         */
+                        if (*querystring) {
+                            querystring[strlen(querystring) - 1] = '\0';
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /* Key format is a URI, optionally without the query-string */
+    if (conf->ignorequerystring) {
+        *key = apr_pstrcat(p, scheme, "://", hostname, port_str, path, "?",
+                NULL);
+    }
+    else {
+        *key = apr_pstrcat(p, scheme, "://", hostname, port_str, path, "?",
+                querystring, NULL);
+    }
+
+    /*
+     * Store the key in the request_config for the cache as r->parsed_uri
+     * might have changed in the time from our first visit here triggered by the
+     * quick handler and our possible second visit triggered by the CACHE_SAVE
+     * filter (e.g. r->parsed_uri got unescaped). In this case we would save the
+     * resource in the cache under a key where it is never found by the quick
+     * handler during following requests.
+     */
+    ap_log_rerror(
+            APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00698) "cache: Key for entity %s?%s is %s", uri, parsed_uri->query, *key);
+
+    return APR_SUCCESS;
 }

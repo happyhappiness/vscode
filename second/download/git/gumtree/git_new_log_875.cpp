@@ -1,1 +1,1 @@
-die(_("format: %%(else) atom used more than once"));
+die(_("format: %%(else) atom used without a %%(then) atom"));

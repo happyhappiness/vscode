@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                      "h2_session(%ld): feeding %ld bytes to nghttp2",
-                      session->id, (long)len);
+ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
+                                      APLOGNO(02950) 
+                                      "h2_session(%ld): error reading, terminating",
+                                      session->id);

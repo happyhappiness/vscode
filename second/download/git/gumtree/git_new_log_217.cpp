@@ -1,1 +1,1 @@
-die("object %s changed size!?", oid_to_hex(oid));
+die("object %s changed type!?", oid_to_hex(oid));

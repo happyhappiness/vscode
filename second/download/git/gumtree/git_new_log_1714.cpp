@@ -1,1 +1,1 @@
-die("Unknown mark: %s", command_buf.buf);
+die("Not a mark: %s", p);

@@ -1,3 +1,1 @@
-die("More than one commit to dig down to %s and %s?",
-			    revs->pending.objects[i].name,
-			    final_commit_name);
+die("no such commit %s", sha1_to_hex(sha1));

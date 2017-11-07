@@ -1,1 +1,3 @@
-die("No commit to dig up from?");
+die("More than one commit to dig up from, %s and %s?",
+			    revs->pending.objects[i].name,
+			    final_commit_name);

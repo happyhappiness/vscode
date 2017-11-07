@@ -1,1 +1,1 @@
-printf("%s\n", commands[i].cmd);
+die(_("invalid commit %s"), oid_to_hex(result_oid));

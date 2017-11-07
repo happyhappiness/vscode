@@ -1,1 +1,1 @@
-packet_buf_write(&req_buf, "deepen-since %"PRItime, max_age);
+die("Can't load object %s", oid_to_hex(oid));

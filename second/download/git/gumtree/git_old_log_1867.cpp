@@ -1,2 +1,1 @@
-fprintf(stderr, _("finished search at %s\n"),
-					sha1_to_hex(c->object.sha1));
+die(_("no tag exactly matches '%s'"), sha1_to_hex(cmit->object.sha1));

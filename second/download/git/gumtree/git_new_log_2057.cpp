@@ -1,2 +1,1 @@
-warning("failed utime() on %s: %s",
-				tmp_file.buf, strerror(errno));
+die("BUG: pack_name does not end in .pack");

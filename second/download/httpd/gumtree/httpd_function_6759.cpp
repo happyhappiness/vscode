@@ -1,136 +1,137 @@
-static int stream_reqbody_cl(apr_pool_t *p,
-                                      request_rec *r,
-                                      proxy_conn_rec *p_conn,
-                                      conn_rec *origin,
-                                      apr_bucket_brigade *header_brigade,
-                                      apr_bucket_brigade *input_brigade,
-                                      char *old_cl_val)
+static int ap_proxy_wstunnel_request(apr_pool_t *p, request_rec *r,
+                                proxy_conn_rec *conn,
+                                proxy_worker *worker,
+                                proxy_server_conf *conf,
+                                apr_uri_t *uri,
+                                char *url, char *server_portstr)
 {
-    int seen_eos = 0, rv = 0;
-    apr_status_t status = APR_SUCCESS;
-    apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
-    apr_bucket_brigade *bb;
+    apr_status_t rv = APR_SUCCESS;
+    apr_pollset_t *pollset;
+    apr_pollfd_t pollfd;
+    const apr_pollfd_t *signalled;
+    apr_int32_t pollcnt, pi;
+    apr_int16_t pollevent;
+    conn_rec *c = r->connection;
+    apr_socket_t *sock = conn->sock;
+    conn_rec *backconn = conn->connection;
+    int client_error = 0;
+    char *buf;
+    apr_bucket_brigade *header_brigade;
     apr_bucket *e;
-    apr_off_t cl_val = 0;
-    apr_off_t bytes;
-    apr_off_t bytes_streamed = 0;
+    char *old_cl_val = NULL;
+    char *old_te_val = NULL;
+    apr_bucket_brigade *bb = apr_brigade_create(p, c->bucket_alloc);
+    apr_socket_t *client_socket = ap_get_conn_socket(c);
 
-    if (old_cl_val) {
-        char *endstr;
+    header_brigade = apr_brigade_create(p, backconn->bucket_alloc);
 
-        add_cl(p, bucket_alloc, header_brigade, old_cl_val);
-        status = apr_strtoff(&cl_val, old_cl_val, &endstr, 10);
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "sending request");
 
-        if (status || *endstr || endstr == old_cl_val || cl_val < 0) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01085)
-                          "could not parse request Content-Length (%s)",
-                          old_cl_val);
-            return HTTP_BAD_REQUEST;
-        }
+    rv = ap_proxy_create_hdrbrgd(p, header_brigade, r, conn,
+                                 worker, conf, uri, url, server_portstr,
+                                 &old_cl_val, &old_te_val);
+    if (rv != OK) {
+        return rv;
     }
-    terminate_headers(bucket_alloc, header_brigade);
 
-    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
-    {
-        apr_brigade_length(input_brigade, 1, &bytes);
-        bytes_streamed += bytes;
+    buf = apr_pstrcat(p, "Upgrade: WebSocket", CRLF, "Connection: Upgrade", CRLF, CRLF, NULL);
+    ap_xlate_proto_to_ascii(buf, strlen(buf));
+    e = apr_bucket_pool_create(buf, strlen(buf), p, c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(header_brigade, e);
 
-        /* If this brigade contains EOS, either stop or remove it. */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            seen_eos = 1;
+    if ((rv = ap_proxy_pass_brigade(c->bucket_alloc, r, conn, backconn,
+                                    header_brigade, 1)) != OK)
+        return rv;
 
-            /* We can't pass this EOS to the output_filters. */
-            e = APR_BRIGADE_LAST(input_brigade);
-            apr_bucket_delete(e);
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "setting up poll()");
 
-            if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
-                e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
-                APR_BRIGADE_INSERT_TAIL(input_brigade, e);
+    if ((rv = apr_pollset_create(&pollset, 2, p, 0)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02443)
+                      "error apr_pollset_create()");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+#if 0
+    apr_socket_opt_set(sock, APR_SO_NONBLOCK, 1);
+    apr_socket_opt_set(sock, APR_SO_KEEPALIVE, 1);
+    apr_socket_opt_set(client_socket, APR_SO_NONBLOCK, 1);
+    apr_socket_opt_set(client_socket, APR_SO_KEEPALIVE, 1);
+#endif
+
+    pollfd.p = p;
+    pollfd.desc_type = APR_POLL_SOCKET;
+    pollfd.reqevents = APR_POLLIN;
+    pollfd.desc.s = sock;
+    pollfd.client_data = NULL;
+    apr_pollset_add(pollset, &pollfd);
+
+    pollfd.desc.s = client_socket;
+    apr_pollset_add(pollset, &pollfd);
+
+
+    r->output_filters = c->output_filters;
+    r->proto_output_filters = c->output_filters;
+    r->input_filters = c->input_filters;
+    r->proto_input_filters = c->input_filters;
+
+    remove_reqtimeout(r->input_filters);
+
+    while (1) { /* Infinite loop until error (one side closes the connection) */
+        if ((rv = apr_pollset_poll(pollset, -1, &pollcnt, &signalled))
+            != APR_SUCCESS) {
+            if (APR_STATUS_IS_EINTR(rv)) {
+                continue;
             }
-        }
-
-        /* C-L < bytes streamed?!?
-         * We will error out after the body is completely
-         * consumed, but we can't stream more bytes at the
-         * back end since they would in part be interpreted
-         * as another request!  If nothing is sent, then
-         * just send nothing.
-         *
-         * Prevents HTTP Response Splitting.
-         */
-        if (bytes_streamed > cl_val) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01086)
-                          "read more bytes of request body than expected "
-                          "(got %" APR_OFF_T_FMT ", expected %" APR_OFF_T_FMT ")",
-                          bytes_streamed, cl_val);
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02444) "error apr_poll()");
             return HTTP_INTERNAL_SERVER_ERROR;
         }
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02445)
+                      "woke from poll(), i=%d", pollcnt);
 
-        if (header_brigade) {
-            /* we never sent the header brigade, so go ahead and
-             * take care of that now
-             */
-            bb = header_brigade;
+        for (pi = 0; pi < pollcnt; pi++) {
+            const apr_pollfd_t *cur = &signalled[pi];
 
-            /*
-             * Save input_brigade in bb brigade. (At least) in the SSL case
-             * input_brigade contains transient buckets whose data would get
-             * overwritten during the next call of ap_get_brigade in the loop.
-             * ap_save_brigade ensures these buckets to be set aside.
-             * Calling ap_save_brigade with NULL as filter is OK, because
-             * bb brigade already has been created and does not need to get
-             * created by ap_save_brigade.
-             */
-            status = ap_save_brigade(NULL, &bb, &input_brigade, p);
-            if (status != APR_SUCCESS) {
-                return HTTP_INTERNAL_SERVER_ERROR;
+            if (cur->desc.s == sock) {
+                pollevent = cur->rtnevents;
+                if (pollevent & APR_POLLIN) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02446)
+                                  "sock was readable");
+                    rv = proxy_wstunnel_transfer(r, backconn, c, bb, "sock");
+                    }
+                else if ((pollevent & APR_POLLERR)
+                         || (pollevent & APR_POLLHUP)) {
+                         rv = APR_EPIPE;
+                         ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02447)
+                                       "err/hup on backconn");
+                }
+                if (rv != APR_SUCCESS)
+                    client_error = 1;
+            }
+            else if (cur->desc.s == client_socket) {
+                pollevent = cur->rtnevents;
+                if (pollevent & APR_POLLIN) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02448)
+                                  "client was readable");
+                    rv = proxy_wstunnel_transfer(r, c, backconn, bb, "client");
+                }
+            }
+            else {
+                rv = APR_EBADF;
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02449)
+                              "unknown socket in pollset");
             }
 
-            header_brigade = NULL;
         }
-        else {
-            bb = input_brigade;
-        }
-
-        /* Once we hit EOS, we are ready to flush. */
-        rv = ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, seen_eos);
-        if (rv != OK) {
-            return rv ;
-        }
-
-        if (seen_eos) {
+        if (rv != APR_SUCCESS) {
             break;
         }
-
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                HUGE_STRING_LEN);
-
-        if (status != APR_SUCCESS) {
-            conn_rec *c = r->connection;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02609)
-                          "read request body failed to %pI (%s)"
-                          " from %s (%s)", p_conn->addr,
-                          p_conn->hostname ? p_conn->hostname: "",
-                          c->client_ip, c->remote_host ? c->remote_host: "");
-            return HTTP_BAD_REQUEST;
-        }
     }
 
-    if (bytes_streamed != cl_val) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01087)
-                      "client %s given Content-Length did not match"
-                      " number of body bytes read", r->connection->client_ip);
-        return HTTP_BAD_REQUEST;
-    }
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                  "finished with poll() - cleaning up");
 
-    if (header_brigade) {
-        /* we never sent the header brigade since there was no request
-         * body; send it now with the flush flag
-         */
-        bb = header_brigade;
-        return(ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1));
+    if (client_error) {
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-
     return OK;
 }

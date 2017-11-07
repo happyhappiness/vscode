@@ -1,1 +1,1 @@
-die_errno(_("could not create file '%s'"), path);
+fprintf(fp, "\t%s\n", ce->name);

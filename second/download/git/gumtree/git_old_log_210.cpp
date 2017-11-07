@@ -1,1 +1,3 @@
-die("file %s has only %lu lines", path, lno);
+die("Cannot read blob %s for path %s",
+			    sha1_to_hex(o->blob_sha1),
+			    path);

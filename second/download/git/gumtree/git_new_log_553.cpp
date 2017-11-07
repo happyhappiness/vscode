@@ -1,1 +1,1 @@
-die("BUG: observed stagemask 0x%x != expected stagemask 0x%x", sum, d->stagemask);
+die("BUG: unhandled unmerged status %x", d->stagemask);

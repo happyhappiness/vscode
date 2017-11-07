@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
-                  "h2_stream(%ld-%d): set_response(%d)", 
-                  stream->session->id, stream->id, 
-                  stream->response->http_status);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_task(%s): read, mode=%d, block=%d, readbytes=%ld", 
+                  task->id, mode, block, (long)readbytes);

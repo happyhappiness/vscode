@@ -1,1 +1,1 @@
-fputs(reset, file);
+fputs(prefix, file);

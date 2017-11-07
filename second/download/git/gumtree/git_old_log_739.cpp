@@ -1,1 +1,2 @@
-error("no such remote ref %s", sought[i]->name);
+warning("Invalid parameter '%s' for config option "
+					"'submodule.%s.ignore'", value, var);

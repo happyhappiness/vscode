@@ -1,1 +1,3 @@
-printf("%s ", find_unique_abbrev(commit->object.oid.hash, DEFAULT_ABBREV));
+printf(" (from %s)",
+			       find_unique_abbrev(parent->object.oid.hash,
+						  abbrev_commit));

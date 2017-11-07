@@ -1,1 +1,1 @@
-die("BUG: fill_textconv called with non-textconv driver");
+die(_("Could not set '%s' to '%s'"), key, value);

@@ -1,2 +1,2 @@
-error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "atomic push failed", porcelain);

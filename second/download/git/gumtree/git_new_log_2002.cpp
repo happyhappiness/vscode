@@ -1,1 +1,1 @@
-printf(" %s", find_unique_abbrev(p->item->object.oid.hash, abbrev));
+printf(" %s", find_unique_abbrev(parent->object.oid.hash, abbrev));

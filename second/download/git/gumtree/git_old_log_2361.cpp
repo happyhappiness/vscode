@@ -1,1 +1,1 @@
-error("cannot unlink %s: %s", filename, strerror(errno));
+fprintf(stderr, "Recorded preimage for '%s'\n", path);

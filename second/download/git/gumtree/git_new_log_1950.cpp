@@ -1,1 +1,1 @@
-free(to_free);
+ref_array_clear(&array);

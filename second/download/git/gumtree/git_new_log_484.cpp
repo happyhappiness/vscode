@@ -1,2 +1,3 @@
-error("unable to normalize alternate object path: %s",
-		      pathbuf.buf);
+error("object directory %s does not exist; "
+		      "check .git/objects/info/alternates.",
+		      path->buf);

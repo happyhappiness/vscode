@@ -1,19 +1,13 @@
-static void refname_atom_parser_internal(struct refname_atom *atom,
-					 const char *arg, const char *name)
+static void remote_ref_atom_parser(struct used_atom *atom, const char *arg)
 {
 	if (!arg)
-		atom->option = R_NORMAL;
+		atom->u.remote_ref = RR_NORMAL;
 	else if (!strcmp(arg, "short"))
-		atom->option = R_SHORT;
-	else if (skip_prefix(arg, "lstrip=", &arg) ||
-		 skip_prefix(arg, "strip=", &arg)) {
-		atom->option = R_LSTRIP;
-		if (strtol_i(arg, 10, &atom->lstrip))
-			die(_("Integer value expected refname:lstrip=%s"), arg);
-	} else if (skip_prefix(arg, "rstrip=", &arg)) {
-		atom->option = R_RSTRIP;
-		if (strtol_i(arg, 10, &atom->rstrip))
-			die(_("Integer value expected refname:rstrip=%s"), arg);
-	} else
-		die(_("unrecognized %%(%s) argument: %s"), name, arg);
+		atom->u.remote_ref = RR_SHORTEN;
+	else if (!strcmp(arg, "track"))
+		atom->u.remote_ref = RR_TRACK;
+	else if (!strcmp(arg, "trackshort"))
+		atom->u.remote_ref = RR_TRACKSHORT;
+	else
+		die(_("unrecognized format: %%(%s)"), atom->name);
 }

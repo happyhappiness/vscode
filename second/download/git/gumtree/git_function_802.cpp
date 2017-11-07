@@ -1,88 +1,80 @@
-static void sha1_object(const void *data, struct object_entry *obj_entry,
-			unsigned long size, enum object_type type,
-			const unsigned char *sha1)
+static int grep_submodule_launch(struct grep_opt *opt,
+				 const struct grep_source *gs)
 {
-	void *new_data = NULL;
-	int collision_test_needed = 0;
+	struct child_process cp = CHILD_PROCESS_INIT;
+	int status, i;
+	const char *end_of_base;
+	const char *name;
+	struct strbuf child_output = STRBUF_INIT;
 
-	assert(data || obj_entry);
+	end_of_base = strchr(gs->name, ':');
+	if (gs->identifier && end_of_base)
+		name = end_of_base + 1;
+	else
+		name = gs->name;
 
-	if (startup_info->have_repository) {
-		read_lock();
-		collision_test_needed = has_sha1_file_with_flags(sha1, HAS_SHA1_QUICK);
-		read_unlock();
-	}
+	prepare_submodule_repo_env(&cp.env_array);
+	argv_array_push(&cp.env_array, GIT_DIR_ENVIRONMENT);
 
-	if (collision_test_needed && !data) {
-		read_lock();
-		if (!check_collison(obj_entry))
-			collision_test_needed = 0;
-		read_unlock();
-	}
-	if (collision_test_needed) {
-		void *has_data;
-		enum object_type has_type;
-		unsigned long has_size;
-		read_lock();
-		has_type = sha1_object_info(sha1, &has_size);
-		if (has_type < 0)
-			die(_("cannot read existing object info %s"), sha1_to_hex(sha1));
-		if (has_type != type || has_size != size)
-			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
-		has_data = read_sha1_file(sha1, &has_type, &has_size);
-		read_unlock();
-		if (!data)
-			data = new_data = get_data_from_pack(obj_entry);
-		if (!has_data)
-			die(_("cannot read existing object %s"), sha1_to_hex(sha1));
-		if (size != has_size || type != has_type ||
-		    memcmp(data, has_data, size) != 0)
-			die(_("SHA1 COLLISION FOUND WITH %s !"), sha1_to_hex(sha1));
-		free(has_data);
-	}
+	if (opt->relative && opt->prefix_length)
+		argv_array_pushf(&cp.env_array, "%s=%s",
+				 GIT_TOPLEVEL_PREFIX_ENVIRONMENT,
+				 opt->prefix);
 
-	if (strict) {
-		read_lock();
-		if (type == OBJ_BLOB) {
-			struct blob *blob = lookup_blob(sha1);
-			if (blob)
-				blob->object.flags |= FLAG_CHECKED;
-			else
-				die(_("invalid blob object %s"), sha1_to_hex(sha1));
-		} else {
-			struct object *obj;
-			int eaten;
-			void *buf = (void *) data;
+	/* Add super prefix */
+	argv_array_pushf(&cp.args, "--super-prefix=%s%s/",
+			 super_prefix ? super_prefix : "",
+			 name);
+	argv_array_push(&cp.args, "grep");
 
-			assert(data && "data can only be NULL for large _blobs_");
+	/*
+	 * Add basename of parent project
+	 * When performing grep on a tree object the filename is prefixed
+	 * with the object's name: 'tree-name:filename'.  In order to
+	 * provide uniformity of output we want to pass the name of the
+	 * parent project's object name to the submodule so the submodule can
+	 * prefix its output with the parent's name and not its own SHA1.
+	 */
+	if (gs->identifier && end_of_base)
+		argv_array_pushf(&cp.args, "--parent-basename=%.*s",
+				 (int) (end_of_base - gs->name),
+				 gs->name);
 
-			/*
-			 * we do not need to free the memory here, as the
-			 * buf is deleted by the caller.
-			 */
-			obj = parse_object_buffer(sha1, type, size, buf, &eaten);
-			if (!obj)
-				die(_("invalid %s"), typename(type));
-			if (do_fsck_object &&
-			    fsck_object(obj, buf, size, &fsck_options))
-				die(_("Error in object"));
-			if (fsck_walk(obj, NULL, &fsck_options))
-				die(_("Not all child objects of %s are reachable"), oid_to_hex(&obj->oid));
-
-			if (obj->type == OBJ_TREE) {
-				struct tree *item = (struct tree *) obj;
-				item->buffer = NULL;
-				obj->parsed = 0;
-			}
-			if (obj->type == OBJ_COMMIT) {
-				struct commit *commit = (struct commit *) obj;
-				if (detach_commit_buffer(commit, NULL) != data)
-					die("BUG: parse_object_buffer transmogrified our buffer");
-			}
-			obj->flags |= FLAG_CHECKED;
+	/* Add options */
+	for (i = 0; i < submodule_options.argc; i++) {
+		/*
+		 * If there is a tree identifier for the submodule, add the
+		 * rev after adding the submodule options but before the
+		 * pathspecs.  To do this we listen for the '--' and insert the
+		 * sha1 before pushing the '--' onto the child process argv
+		 * array.
+		 */
+		if (gs->identifier &&
+		    !strcmp("--", submodule_options.argv[i])) {
+			argv_array_push(&cp.args, sha1_to_hex(gs->identifier));
 		}
-		read_unlock();
+
+		argv_array_push(&cp.args, submodule_options.argv[i]);
 	}
 
-	free(new_data);
+	cp.git_cmd = 1;
+	cp.dir = gs->path;
+
+	/*
+	 * Capture output to output buffer and check the return code from the
+	 * child process.  A '0' indicates a hit, a '1' indicates no hit and
+	 * anything else is an error.
+	 */
+	status = capture_command(&cp, &child_output, 0);
+	if (status && (status != 1)) {
+		/* flush the buffer */
+		write_or_die(1, child_output.buf, child_output.len);
+		die("process for submodule '%s' failed with exit code: %d",
+		    gs->name, status);
+	}
+
+	opt->output(opt, child_output.buf, child_output.len);
+	strbuf_release(&child_output);
+	/* invert the return code to make a hit equal to 1 */
+	return !status;
 }

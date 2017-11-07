@@ -1,1 +1,1 @@
-warning("Unexpected sha1 when deleting %s", pseudoref);
+die("could not read ref '%s'", pseudoref);

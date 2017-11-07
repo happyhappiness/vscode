@@ -1,99 +1,82 @@
-int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */,
-                 apr_pool_t *ptemp, server_rec *s_main)
+static int event_pre_config(apr_pool_t * pconf, apr_pool_t * plog,
+                            apr_pool_t * ptemp)
 {
-    apr_pool_t *stderr_p;
-    server_rec *virt, *q;
-    int replace_stderr;
+    int no_detach, debug, foreground;
+    apr_status_t rv;
+    const char *userdata_key = "mpm_event_module";
 
+    mpm_state = AP_MPMQ_STARTING;
 
-    /* Register to throw away the read_handles list when we
-     * cleanup plog.  Upon fork() for the apache children,
-     * this read_handles list is closed so only the parent
-     * can relaunch a lost log child.  These read handles
-     * are always closed on exec.
-     * We won't care what happens to our stderr log child
-     * between log phases, so we don't mind losing stderr's
-     * read_handle a little bit early.
-     */
-    apr_pool_cleanup_register(p, &read_handles, ap_pool_cleanup_set_null,
-                              apr_pool_cleanup_null);
+    debug = ap_exists_config_define("DEBUG");
 
-    /* HERE we need a stdout log that outlives plog.
-     * We *presume* the parent of plog is a process
-     * or global pool which spans server restarts.
-     * Create our stderr_pool as a child of the plog's
-     * parent pool.
-     */
-    apr_pool_create(&stderr_p, apr_pool_parent_get(p));
-    apr_pool_tag(stderr_p, "stderr_pool");
-
-    if (open_error_log(s_main, 1, stderr_p) != OK) {
-        return DONE;
+    if (debug) {
+        foreground = one_process = 1;
+        no_detach = 0;
+    }
+    else {
+        one_process = ap_exists_config_define("ONE_PROCESS");
+        no_detach = ap_exists_config_define("NO_DETACH");
+        foreground = ap_exists_config_define("FOREGROUND");
     }
 
-    replace_stderr = 1;
-    if (s_main->error_log) {
-        apr_status_t rv;
+    /* sigh, want this only the second time around */
+    retained = ap_retained_data_get(userdata_key);
+    if (!retained) {
+        retained = ap_retained_data_create(userdata_key, sizeof(*retained));
+        retained->max_daemons_limit = -1;
+        retained->idle_spawn_rate = 1;
+    }
+    ++retained->module_loads;
+    if (retained->module_loads == 2) {
+        int i;
+        static apr_uint32_t foo = 0;
 
-        /* Replace existing stderr with new log. */
-        apr_file_flush(s_main->error_log);
-        rv = apr_file_dup2(stderr_log, s_main->error_log, stderr_p);
+        apr_atomic_inc32(&foo);
+        apr_atomic_dec32(&foo);
+        apr_atomic_dec32(&foo);
+        i = apr_atomic_dec32(&foo);
+        if (i >= 0) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
+                         "atomics not working as expected");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+        rv = apr_pollset_create(&event_pollset, 1, plog,
+                                APR_POLLSET_THREADSAFE | APR_POLLSET_NOCOPY);
         if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main, APLOGNO(00092)
-                         "unable to replace stderr with error_log");
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00495)
+                         "Couldn't create a Thread Safe Pollset. "
+                         "Is it supported on your platform?"
+                         "Also check system or user limits!");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
-        else {
-            /* We are done with stderr_pool, close it, killing
-             * the previous generation's stderr logger
-             */
-            if (stderr_pool)
-                apr_pool_destroy(stderr_pool);
-            stderr_pool = stderr_p;
-            replace_stderr = 0;
-            /*
-             * Now that we have dup'ed s_main->error_log to stderr_log
-             * close it and set s_main->error_log to stderr_log. This avoids
-             * this fd being inherited by the next piped logger who would
-             * keep open the writing end of the pipe that this one uses
-             * as stdin. This in turn would prevent the piped logger from
-             * exiting.
-             */
-             apr_file_close(s_main->error_log);
-             s_main->error_log = stderr_log;
+        apr_pollset_destroy(event_pollset);
+
+        if (!one_process && !foreground) {
+            /* before we detach, setup crash handlers to log to errorlog */
+            ap_fatal_signal_setup(ap_server_conf, pconf);
+            rv = apr_proc_detach(no_detach ? APR_PROC_DETACH_FOREGROUND
+                                 : APR_PROC_DETACH_DAEMONIZE);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL, APLOGNO(00496)
+                             "apr_proc_detach failed");
+                return HTTP_INTERNAL_SERVER_ERROR;
+            }
         }
-    }
-    /* note that stderr may still need to be replaced with something
-     * because it points to the old error log, or back to the tty
-     * of the submitter.
-     * XXX: This is BS - /dev/null is non-portable
-     *      errno-as-apr_status_t is also non-portable
-     */
-    if (replace_stderr && freopen("/dev/null", "w", stderr) == NULL) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main, APLOGNO(00093)
-                     "unable to replace stderr with /dev/null");
     }
 
-    for (virt = s_main->next; virt; virt = virt->next) {
-        if (virt->error_fname) {
-            for (q=s_main; q != virt; q = q->next) {
-                if (q->error_fname != NULL
-                    && strcmp(q->error_fname, virt->error_fname) == 0) {
-                    break;
-                }
-            }
+    parent_pid = ap_my_pid = getpid();
 
-            if (q == virt) {
-                if (open_error_log(virt, 0, p) != OK) {
-                    return DONE;
-                }
-            }
-            else {
-                virt->error_log = q->error_log;
-            }
-        }
-        else {
-            virt->error_log = s_main->error_log;
-        }
-    }
+    ap_listen_pre_config();
+    ap_daemons_to_start = DEFAULT_START_DAEMON;
+    min_spare_threads = DEFAULT_MIN_FREE_DAEMON * DEFAULT_THREADS_PER_CHILD;
+    max_spare_threads = DEFAULT_MAX_FREE_DAEMON * DEFAULT_THREADS_PER_CHILD;
+    server_limit = DEFAULT_SERVER_LIMIT;
+    thread_limit = DEFAULT_THREAD_LIMIT;
+    ap_daemons_limit = server_limit;
+    threads_per_child = DEFAULT_THREADS_PER_CHILD;
+    max_workers = ap_daemons_limit * threads_per_child;
+    had_healthy_child = 0;
+    ap_extended_status = 0;
+
     return OK;
 }

@@ -1,15 +1,19 @@
-static void use(int bytes)
+static const char *check_git_cmd(const char* cmd)
 {
-	if (bytes > input_len)
-		die(_("used more bytes than were available"));
-	input_crc32 = crc32(input_crc32, input_buffer + input_offset, bytes);
-	input_len -= bytes;
-	input_offset += bytes;
+	char *alias;
 
-	/* make sure off_t is sufficiently large not to wrap */
-	if (signed_add_overflows(consumed_bytes, bytes))
-		die(_("pack too large for current definition of off_t"));
-	consumed_bytes += bytes;
-	if (max_input_size && consumed_bytes > max_input_size)
-		die(_("pack exceeds maximum allowed size"));
+	if (is_git_command(cmd))
+		return cmd;
+
+	alias = alias_lookup(cmd);
+	if (alias) {
+		printf_ln(_("`git %s' is aliased to `%s'"), cmd, alias);
+		free(alias);
+		exit(0);
+	}
+
+	if (exclude_guides)
+		return help_unknown_cmd(cmd);
+
+	return cmd;
 }

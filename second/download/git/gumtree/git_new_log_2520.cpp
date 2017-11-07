@@ -1,1 +1,3 @@
-die(_("Bad value '%s' in environment '%s'"), e, name);
+fprintf(file, "%c %s %s\n", sign,
+		       find_unique_abbrev(commit->object.oid.hash, abbrev),
+		       buf.buf);

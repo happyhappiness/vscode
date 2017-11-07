@@ -1,1 +1,2 @@
-die("No such ref %s", *av);
+die("Only %d entries can be shown at one time.",
+			    MAX_REVS);

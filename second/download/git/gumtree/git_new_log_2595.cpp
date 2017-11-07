@@ -1,1 +1,1 @@
-not_found(&hdr, "Repository not exported: '%s'", dir);
+not_found(&hdr, "Request not supported: '%s'", dir);

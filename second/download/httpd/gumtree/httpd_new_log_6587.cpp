@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, status, s, APLOGNO(01758)
-                     "error generating secret");
+ap_log_rerror(
+                            APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00695) "Cached response for %s isn't fresh. Adding "
+                            "conditional request headers.", r->uri);
