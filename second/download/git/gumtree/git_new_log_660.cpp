@@ -1,1 +1,1 @@
-error(_("could not read index"));
+fprintf(stderr, "Executing: %s\n", command_line);

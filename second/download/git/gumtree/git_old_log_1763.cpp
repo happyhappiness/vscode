@@ -1,1 +1,1 @@
-die(_("Unusable instruction sheet: %s"), todo_file);
+die(_("Could not read %s."), todo_file);

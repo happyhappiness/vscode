@@ -1,2 +1,1 @@
-error("could not write config file %s: %s", config_filename,
-		      strerror(errno));
+die("BUG! Want to close pack marked 'do-not-close'");

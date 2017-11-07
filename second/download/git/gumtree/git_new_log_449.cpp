@@ -1,2 +1,2 @@
-error(_("mainline was specified but commit %s is not a merge."),
-			oid_to_hex(&commit->object.oid));
+error(_("commit %s does not have parent %d"),
+				oid_to_hex(&commit->object.oid), opts->mainline);

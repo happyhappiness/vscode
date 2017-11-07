@@ -1,1 +1,1 @@
-die("%s doesn't support --super-prefix", argv[0]);
+die("can't use --super-prefix from a subdirectory");

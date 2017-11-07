@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports multi_ack_detailed\n");
+die("Server does not support shallow clients");

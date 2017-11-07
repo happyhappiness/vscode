@@ -1,1 +1,1 @@
-strbuf_addf(&buf, "%s:%s", name, ref->name);
+close(key->fd);

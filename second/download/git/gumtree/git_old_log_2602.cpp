@@ -1,1 +1,1 @@
-fputs("\\ No newline at end of file\n", stdout);
+fputs(color, stdout);

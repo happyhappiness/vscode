@@ -1,2 +1,1 @@
-logerror("interpolated path too large: %s",
-				 interp_path);
+logerror("user-path too large: %s", rpath);

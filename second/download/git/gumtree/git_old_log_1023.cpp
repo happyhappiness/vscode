@@ -1,2 +1,2 @@
-warning("object %s cannot be read",
-						sha1_to_hex(src_entry->idx.sha1));
+die("object %s inconsistent object length (%lu vs %lu)",
+			    sha1_to_hex(trg_entry->idx.sha1), sz, trg_size);

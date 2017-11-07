@@ -1,13 +1,4 @@
-printf(singleton ?
-		  _("Prompt help:\n"
-		    "1          - select a numbered item\n"
-		    "foo        - select item based on unique prefix\n"
-		    "           - (empty) select nothing\n") :
-		  _("Prompt help:\n"
-		    "1          - select a single item\n"
-		    "3-5        - select a range of items\n"
-		    "2-3,6-9    - select multiple ranges\n"
-		    "foo        - select item based on unique prefix\n"
-		    "-...       - unselect specified items\n"
-		    "*          - choose all items\n"
-		    "           - (empty) finish selecting\n"));
+fprintf(stderr, _("Some %s revs are not ancestors of the %s rev.\n"
+		"git bisect cannot work properly in this case.\n"
+		"Maybe you mistook %s and %s revs?\n"),
+		term_good, term_bad, term_good, term_bad);

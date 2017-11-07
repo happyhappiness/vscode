@@ -1,7 +1,5 @@
-static inline size_t st_add(size_t a, size_t b)
+void transport_check_allowed(const char *type)
 {
-	if (unsigned_add_overflows(a, b))
-		die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
-	return a + b;
+	if (!is_transport_allowed(type))
+		die("transport '%s' not allowed", type);
 }

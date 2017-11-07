@@ -1,2 +1,2 @@
-error(_("could not rename '%s' to '%s'"),
-			rebase_path_squash_msg(), rebase_path_message());
+fprintf(stderr, "Could not apply %s... %.*s\n",
+			short_commit_name(commit), subject_len, subject);

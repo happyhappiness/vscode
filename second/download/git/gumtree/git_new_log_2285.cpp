@@ -1,1 +1,1 @@
-die(_("--[no-]autostash option is only valid with --rebase."));
+warning_errno("failed utime() on %s", pack_tmp_name);

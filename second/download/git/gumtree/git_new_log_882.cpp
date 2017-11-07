@@ -1,1 +1,0 @@
-die("BUG: operation %s only allowed for main ref store", caller);

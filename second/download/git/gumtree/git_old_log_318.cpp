@@ -1,2 +1,2 @@
-printf(" %s", diff_unique_abbrev(p->parent[i].oid.hash,
-							 opt->abbrev));
+fprintf(stderr, "%s: unmerged (%s)\n",
+				ce->name, sha1_to_hex(ce->sha1));

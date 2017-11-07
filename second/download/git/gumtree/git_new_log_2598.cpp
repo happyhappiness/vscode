@@ -1,1 +1,2 @@
-die("Cannot read blob %s", oid_to_hex(&spec->oid));
+die("BUG: curl_easy_getinfo for HTTP code failed: %s",
+				curl_easy_strerror(c));

@@ -1,2 +1,2 @@
-warning("cannot open /etc/mailname: %s",
-				strerror(errno));
+error("Couldn't truncate temporary file %s: %s",
+					  freq->tmpfile, strerror(errno));

@@ -1,1 +1,1 @@
-die(_("--name-only, --name-status, --check and -s are mutually exclusive"));
+die("BUG: oid abbreviation out of range: %d", abbrev);

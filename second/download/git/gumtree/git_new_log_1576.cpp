@@ -1,2 +1,1 @@
-error_buf(err,
-						 _("cannot resolve 'simple' push to a single destination"));
+error_buf(err, _("push has no destination (push.default is 'nothing')"));

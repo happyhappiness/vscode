@@ -1,1 +1,1 @@
-die(_("invalid unshallow line: %s"), line);
+die(_("invalid shallow line: %s"), line);

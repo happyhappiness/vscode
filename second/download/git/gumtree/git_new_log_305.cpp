@@ -1,1 +1,3 @@
-die(_("'%s' is not a valid ref."), ref_name[num_rev]);
+die(Q_("cannot handle more than %d rev.",
+			       "cannot handle more than %d revs.",
+			       MAX_REVS), MAX_REVS);

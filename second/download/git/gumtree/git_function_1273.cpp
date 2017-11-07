@@ -1,34 +1,16 @@
-int copy_fd(int ifd, int ofd)
+void convert_to_git_filter_fd(const char *path, int fd, struct strbuf *dst,
+			      enum safe_crlf checksafe)
 {
-	while (1) {
-		char buffer[8192];
-		char *buf = buffer;
-		ssize_t len = xread(ifd, buffer, sizeof(buffer));
-		if (!len)
-			break;
-		if (len < 0) {
-			int read_error = errno;
-			close(ifd);
-			return error("copy-fd: read returned %s",
-				     strerror(read_error));
-		}
-		while (len) {
-			int written = xwrite(ofd, buf, len);
-			if (written > 0) {
-				buf += written;
-				len -= written;
-			}
-			else if (!written) {
-				close(ifd);
-				return error("copy-fd: write returned 0");
-			} else {
-				int write_error = errno;
-				close(ifd);
-				return error("copy-fd: write returned %s",
-					     strerror(write_error));
-			}
-		}
-	}
-	close(ifd);
-	return 0;
+	struct conv_attrs ca;
+	convert_attrs(&ca, path);
+
+	assert(ca.drv);
+	assert(ca.drv->clean);
+
+	if (!apply_filter(path, NULL, 0, fd, dst, ca.drv->clean))
+		die("%s: clean filter '%s' failed", path, ca.drv->name);
+
+	ca.crlf_action = input_crlf_action(ca.crlf_action, ca.eol_attr);
+	crlf_to_git(path, dst->buf, dst->len, dst, ca.crlf_action, checksafe);
+	ident_to_git(path, dst->buf, dst->len, dst, ca.ident);
 }

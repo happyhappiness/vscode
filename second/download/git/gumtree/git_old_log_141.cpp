@@ -1,1 +1,2 @@
-fprintf(stderr, "What does '%s' for %s mean?\n", trace, key);
+fprintf(log_file, "%s %"PRIuMAX"\n",
+		p->pack_name, (uintmax_t)obj_offset);

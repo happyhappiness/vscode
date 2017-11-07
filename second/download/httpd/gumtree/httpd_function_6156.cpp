@@ -1,15 +1,22 @@
-static int report_consumption_iter(void *ctx, void *val)
+static int task_print(void *ctx, void *val)
 {
-    h2_stream *stream = val;
     h2_mplx *m = ctx;
-    
-    input_consumed_signal(m, stream);
-    if (stream->state == H2_SS_CLOSED_L
-        && (!stream->task || stream->task->worker_done)) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, 
-                      H2_STRM_LOG(APLOGNO(10026), stream, "remote close missing")); 
-        nghttp2_submit_rst_stream(stream->session->ngh2, NGHTTP2_FLAG_NONE, 
-                                  stream->id, NGHTTP2_NO_ERROR);
+    h2_task *task = val;
+
+    if (task) {
+        h2_stream *stream = h2_ihash_get(m->streams, task->stream_id);
+
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%s): %s %s %s"
+                      "[orph=%d/started=%d/done=%d/frozen=%d]", 
+                      task->id, task->request->method, 
+                      task->request->authority, task->request->path,
+                      (stream? 0 : 1), task->worker_started, 
+                      task->worker_done, task->frozen);
+    }
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%ld-NULL): NULL", m->id);
     }
     return 1;
 }

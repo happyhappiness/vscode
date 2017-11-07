@@ -1,1 +1,1 @@
-printf("%"PRItime" ", commit->date);
+usage(usage_msg);

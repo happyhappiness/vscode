@@ -1,1 +1,1 @@
-die(_("cannot read existing object info %s"), sha1_to_hex(sha1));
+opt->output(opt, child_output.buf, child_output.len);

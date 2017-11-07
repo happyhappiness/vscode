@@ -1,28 +1,33 @@
-static int list_tags(const char **patterns, int lines,
-		     struct commit_list *with_commit, int sort)
+static int show_reference(const char *refname, const struct object_id *oid,
+			  int flag, void *cb_data)
 {
-	struct tag_filter filter;
+	struct tag_filter *filter = cb_data;
 
-	filter.patterns = patterns;
-	filter.lines = lines;
-	filter.sort = sort;
-	filter.with_commit = with_commit;
-	memset(&filter.tags, 0, sizeof(filter.tags));
-	filter.tags.strdup_strings = 1;
+	if (match_pattern(filter->patterns, refname)) {
+		if (filter->with_commit) {
+			struct commit *commit;
 
-	for_each_tag_ref(show_reference, (void *)&filter);
-	if (sort) {
-		int i;
-		if ((sort & SORT_MASK) == VERCMP_SORT)
-			qsort(filter.tags.items, filter.tags.nr,
-			      sizeof(struct string_list_item), sort_by_version);
-		if (sort & REVERSE_SORT)
-			for (i = filter.tags.nr - 1; i >= 0; i--)
-				printf("%s\n", filter.tags.items[i].string);
-		else
-			for (i = 0; i < filter.tags.nr; i++)
-				printf("%s\n", filter.tags.items[i].string);
-		string_list_clear(&filter.tags, 0);
+			commit = lookup_commit_reference_gently(oid->hash, 1);
+			if (!commit)
+				return 0;
+			if (!contains(commit, filter->with_commit))
+				return 0;
+		}
+
+		if (points_at.nr && !match_points_at(refname, oid->hash))
+			return 0;
+
+		if (!filter->lines) {
+			if (filter->sort)
+				string_list_append(&filter->tags, refname);
+			else
+				printf("%s\n", refname);
+			return 0;
+		}
+		printf("%-15s ", refname);
+		show_tag_lines(oid, filter->lines);
+		putchar('\n');
 	}
+
 	return 0;
 }

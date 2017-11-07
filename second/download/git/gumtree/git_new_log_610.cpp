@@ -1,2 +1,1 @@
-die("process for submodule '%s' failed with exit code: %d",
-		    gs->name, status);
+error("%s: object missing", sha1_to_hex(sha1));

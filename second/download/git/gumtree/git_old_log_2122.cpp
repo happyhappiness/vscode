@@ -1,1 +1,1 @@
-printf("%s (%d):\n", log->list.items[i].string, onelines->nr);
+printf("%6d\t%s\n", onelines->nr, log->list.items[i].string);

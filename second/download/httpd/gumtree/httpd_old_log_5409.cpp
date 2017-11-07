@@ -1,5 +1,4 @@
-ap_log_rerror(APLOG_MARK,
-                      (ctx->flags & SSI_FLAG_PRINTING)
-                          ? APLOG_ERR : APLOG_WARNING,
-                      0, r, "missing argument for exec element in %s",
-                      r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "h2_alt_svc: announce %s for %s:%d", 
+                          (secure? "secure" : "insecure"), 
+                          r->hostname, (int)r->server->port);

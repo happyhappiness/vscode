@@ -1,39 +1,28 @@
-static int gc_config(const char *var, const char *value, void *cb)
+static void show_ref(struct refinfo *info, const char *format, int quote_style)
 {
-	if (!strcmp(var, "gc.packrefs")) {
-		if (value && !strcmp(value, "notbare"))
-			pack_refs = -1;
-		else
-			pack_refs = git_config_bool(var, value);
-		return 0;
+	const char *cp, *sp, *ep;
+
+	for (cp = format; *cp && (sp = find_next(cp)); cp = ep + 1) {
+		struct atom_value *atomv;
+
+		ep = strchr(sp, ')');
+		if (cp < sp)
+			emit(cp, sp);
+		get_value(info, parse_atom(sp + 2, ep), &atomv);
+		print_value(atomv, quote_style);
 	}
-	if (!strcmp(var, "gc.aggressivewindow")) {
-		aggressive_window = git_config_int(var, value);
-		return 0;
+	if (*cp) {
+		sp = cp + strlen(cp);
+		emit(cp, sp);
 	}
-	if (!strcmp(var, "gc.aggressivedepth")) {
-		aggressive_depth = git_config_int(var, value);
-		return 0;
+	if (need_color_reset_at_eol) {
+		struct atom_value resetv;
+		char color[COLOR_MAXLEN] = "";
+
+		if (color_parse("reset", color) < 0)
+			die("BUG: couldn't parse 'reset' as a color");
+		resetv.s = color;
+		print_value(&resetv, quote_style);
 	}
-	if (!strcmp(var, "gc.auto")) {
-		gc_auto_threshold = git_config_int(var, value);
-		return 0;
-	}
-	if (!strcmp(var, "gc.autopacklimit")) {
-		gc_auto_pack_limit = git_config_int(var, value);
-		return 0;
-	}
-	if (!strcmp(var, "gc.autodetach")) {
-		detach_auto = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp(var, "gc.pruneexpire")) {
-		if (value && strcmp(value, "now")) {
-			unsigned long now = approxidate("now");
-			if (approxidate(value) >= now)
-				return error(_("Invalid %s: '%s'"), var, value);
-		}
-		return git_config_string(&prune_expire, var, value);
-	}
-	return git_default_config(var, value, cb);
+	putchar('\n');
 }

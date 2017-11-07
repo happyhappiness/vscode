@@ -1,2 +1,2 @@
-die(_("submodule '%s' cannot add alternate: %s"),
-				    sas->submodule_name, err.buf);
+printf("%06o %s %d\t", ce->ce_mode,
+			       oid_to_hex(&ce->oid), ce_stage(ce));

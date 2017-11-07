@@ -1,1 +1,1 @@
-git_config_date_string("gc.pruneworktreesexpire", &prune_worktrees_expire);
+git_die_config(key, _("Invalid %s: '%s'"), key, *output);

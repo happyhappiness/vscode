@@ -1,1 +1,1 @@
-die(_("bad zlib compression level %d"), level);
+die(_("failed to expand user dir in: '%s'"), value);

@@ -1,1 +1,2 @@
-warning("%s unexpectedly said: '%s'", data->name, buf->buf);
+print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+				 "atomic push failed", porcelain, summary_width);

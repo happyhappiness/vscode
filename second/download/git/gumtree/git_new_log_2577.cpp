@@ -1,2 +1,1 @@
-die("unable to read %s",
-				    oid_to_hex(&s->oid));
+die("BUG: current_config_name called outside config callback");

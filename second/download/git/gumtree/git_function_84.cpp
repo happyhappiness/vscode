@@ -1,22 +1,27 @@
-static const char *parse_cmd_create(struct strbuf *input, const char *next)
+static const char *parse_cmd_update(struct strbuf *input, const char *next)
 {
 	char *refname;
 	unsigned char new_sha1[20];
+	unsigned char old_sha1[20];
+	int have_old;
 
 	refname = parse_refname(input, &next);
 	if (!refname)
-		die("create: missing <ref>");
+		die("update: missing <ref>");
 
-	if (parse_next_sha1(input, &next, new_sha1, "create", refname, 0))
-		die("create %s: missing <newvalue>", refname);
+	if (parse_next_sha1(input, &next, new_sha1, "update", refname,
+			    PARSE_SHA1_ALLOW_EMPTY))
+		die("update %s: missing <newvalue>", refname);
 
-	if (is_null_sha1(new_sha1))
-		die("create %s: zero <newvalue>", refname);
+	have_old = !parse_next_sha1(input, &next, old_sha1, "update", refname,
+				    PARSE_SHA1_OLD);
 
 	if (*next != line_termination)
-		die("create %s: extra input: %s", refname, next);
+		die("update %s: extra input: %s", refname, next);
 
-	ref_transaction_create(transaction, refname, new_sha1, update_flags);
+	if (ref_transaction_update(transaction, refname, new_sha1, old_sha1,
+				   update_flags, have_old, &err))
+		die("%s", err.buf);
 
 	update_flags = 0;
 	free(refname);

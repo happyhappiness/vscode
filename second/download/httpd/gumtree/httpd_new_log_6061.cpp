@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, c,
-                      APLOGNO(02941) "h2_task(%ld-%d): create stream task", 
-                      c->id, stream_id);
+ap_add_output_filter("H2_SLAVE_OUT", NULL, NULL, c);

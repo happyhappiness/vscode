@@ -1,1 +1,3 @@
-ap_add_output_filter("H2_TRAILERS_OUT", task, r, r->connection);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                      "%s, early announcing %d resources for push",
+                      tag, conf->push_list->nelts);

@@ -1,1 +1,1 @@
-error("%s", err.buf);
+strbuf_addf(&refname, "refs/%s", write_ref[i]);

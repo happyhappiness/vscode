@@ -1,1 +1,1 @@
-printf("-%d-g%s", depth, find_unique_abbrev(oid->hash, abbrev));
+warning_errno(_(msg_warn_remove_failed), qname);

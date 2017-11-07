@@ -1,1 +1,1 @@
-print_verbose(args, _("Server supports ofs-delta"));
+print_verbose(args, _("Server supports side-band-64k"));

@@ -1,1 +1,1 @@
-die(_("git fetch-pack: fetch failed."));
+warning(_("no common commits"));

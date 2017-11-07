@@ -1,16 +1,23 @@
-static void copyright(void)
+static apr_status_t initialize_secret(server_rec *s)
 {
-    if (!use_html) {
-        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1748469 $>");
-        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
-        printf("\n");
+    apr_status_t status;
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, APLOGNO(01757)
+                 "generating secret for digest authentication ...");
+
+#if APR_HAS_RANDOM
+    status = apr_generate_random_bytes(secret, sizeof(secret));
+#else
+#error APR random number support is missing; you probably need to install the truerand library.
+#endif
+
+    if (status != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, status, s, APLOGNO(01758)
+                     "error generating secret");
+        return status;
     }
-    else {
-        printf("<p>\n");
-        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1748469 $");
-        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
-        printf("</p>\n<p>\n");
-    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01759) "done");
+
+    return APR_SUCCESS;
 }

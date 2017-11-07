@@ -1,1 +1,1 @@
-fprintf(fout, "%s: %.*s\n", hdr, len, sp);
+fputs(line->buf, cmitmsg);

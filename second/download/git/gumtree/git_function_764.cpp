@@ -1,33 +1,22 @@
-struct attr_check *attr_check_initl(const char *one, ...)
+static void check_vector_remove(struct attr_check *check)
 {
-	struct attr_check *check;
-	int cnt;
-	va_list params;
-	const char *param;
+	int i;
 
-	va_start(params, one);
-	for (cnt = 1; (param = va_arg(params, const char *)) != NULL; cnt++)
-		;
-	va_end(params);
+	vector_lock();
 
-	check = attr_check_alloc();
-	check->nr = cnt;
-	check->alloc = cnt;
-	check->items = xcalloc(cnt, sizeof(struct attr_check_item));
+	/* Find entry */
+	for (i = 0; i < check_vector.nr; i++)
+		if (check_vector.checks[i] == check)
+			break;
 
-	check->items[0].attr = git_attr(one);
-	va_start(params, one);
-	for (cnt = 1; cnt < check->nr; cnt++) {
-		const struct git_attr *attr;
-		param = va_arg(params, const char *);
-		if (!param)
-			die("BUG: counted %d != ended at %d",
-			    check->nr, cnt);
-		attr = git_attr(param);
-		if (!attr)
-			die("BUG: %s: not a valid attribute name", param);
-		check->items[cnt].attr = attr;
-	}
-	va_end(params);
-	return check;
+	if (i >= check_vector.nr)
+		die("BUG: no entry found");
+
+	/* shift entries over */
+	for (; i < check_vector.nr - 1; i++)
+		check_vector.checks[i] = check_vector.checks[i + 1];
+
+	check_vector.nr--;
+
+	vector_unlock();
 }

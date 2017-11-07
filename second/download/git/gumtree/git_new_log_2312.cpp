@@ -1,1 +1,1 @@
-warning_errno("vsnprintf failed");
+error_errno("readlink(%s)", elem->path);

@@ -1,1 +1,0 @@
-die("Cannot read blob %s", sha1_to_hex(spec->sha1));

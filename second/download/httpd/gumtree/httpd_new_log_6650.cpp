@@ -1,2 +1,1 @@
-apr_file_printf(errfile, "Empty hash for user %s" NL,
-                                        user);
+apr_file_printf(errfile, "User %s not found" NL, user);

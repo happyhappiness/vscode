@@ -1,1 +1,2 @@
-die_errno("BUG: unexpected fast_export_ls error");
+warning("subprocess '%s' requested unsupported capability '%s'",
+				process->argv[0], p);

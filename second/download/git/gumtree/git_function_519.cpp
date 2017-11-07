@@ -1,16 +1,9 @@
-void update_tree_entry(struct tree_desc *desc)
+int init_tree_desc_gently(struct tree_desc *desc, const void *buffer, unsigned long size)
 {
-	const void *buf = desc->buffer;
-	const unsigned char *end = desc->entry.oid->hash + 20;
-	unsigned long size = desc->size;
-	unsigned long len = end - (const unsigned char *)buf;
-
-	if (size < len)
-		die("corrupt tree file");
-	buf = end;
-	size -= len;
-	desc->buffer = buf;
-	desc->size = size;
-	if (size)
-		decode_tree_entry(desc, buf, size);
+	struct strbuf err = STRBUF_INIT;
+	int result = init_tree_desc_internal(desc, buffer, size, &err);
+	if (result)
+		error("%s", err.buf);
+	strbuf_release(&err);
+	return result;
 }

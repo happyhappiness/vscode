@@ -1,1 +1,4 @@
-error("external filter '%s' failed", cmd);
+warning(
+				"external filter '%s' requested unsupported filter capability '%s'",
+				cmd, cap_name
+			);

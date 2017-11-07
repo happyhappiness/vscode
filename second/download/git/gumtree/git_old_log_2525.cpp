@@ -1,1 +1,1 @@
-error("Must specify a notes ref to merge");
+git_die_config(key, "unknown notes merge strategy %s", value);

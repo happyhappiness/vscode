@@ -1,1 +1,1 @@
-die("BUG: update called for transaction that is not open");
+error("bad ref for %s", diter->path.buf);

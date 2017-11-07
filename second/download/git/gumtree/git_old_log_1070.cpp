@@ -1,1 +1,1 @@
-packet_buf_write(&req_buf, "have %s\n", sha1_to_hex(sha1));
+packet_buf_write(&req_buf, "deepen-since %lu", max_age);

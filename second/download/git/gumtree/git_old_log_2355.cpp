@@ -1,2 +1,3 @@
-error("Could not open %s: %s", path,
-			     strerror(errno));
+warning("failed utime() on %s: %s",
+			rerere_path(id, "postimage"),
+			strerror(errno));

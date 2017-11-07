@@ -1,1 +1,1 @@
-die(_("the receiving end does not support --signed push"));
+packet_buf_write(req_buf, "push-cert-end\n");

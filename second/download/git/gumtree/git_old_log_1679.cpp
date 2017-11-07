@@ -1,1 +1,1 @@
-die("unknown line in '%s': %s", merge_head_file, line.buf);
+die("cannot open '%s' for reading", merge_head_file);

@@ -1,14 +1,14 @@
-static void worker_done(h2_worker *worker, void *ctx)
+static apr_status_t add_worker(h2_workers *workers)
 {
-    h2_workers *workers = (h2_workers *)ctx;
-    apr_status_t status = apr_thread_mutex_lock(workers->lock);
-    if (status == APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, workers->s,
-                     "h2_worker(%d): done", h2_worker_get_id(worker));
-        H2_WORKER_REMOVE(worker);
-        --workers->worker_count;
-        h2_worker_destroy(worker);
-        
-        apr_thread_mutex_unlock(workers->lock);
+    h2_worker *w = h2_worker_create(workers->next_worker_id++,
+                                    workers->pool, workers->thread_attr,
+                                    get_mplx_next, worker_done, workers);
+    if (!w) {
+        return APR_ENOMEM;
     }
+    ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, workers->s,
+                 "h2_workers: adding worker(%d)", h2_worker_get_id(w));
+    ++workers->worker_count;
+    H2_WORKER_LIST_INSERT_TAIL(&workers->workers, w);
+    return APR_SUCCESS;
 }

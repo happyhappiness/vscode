@@ -1,1 +1,1 @@
-fprintf(stderr, "                    Default is 30 seconds\n");
+fprintf(stderr, "    -s timeout      Seconds to max. wait for each response\n");

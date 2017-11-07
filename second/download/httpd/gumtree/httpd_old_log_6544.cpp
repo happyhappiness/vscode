@@ -1,1 +1,1 @@
-fprintf(stderr, "Options:\n");
+fprintf(stderr, "   -c   Create a new database.\n");

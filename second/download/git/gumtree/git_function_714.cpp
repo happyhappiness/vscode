@@ -1,21 +1,19 @@
-static void set_common_push_options(struct transport *transport,
-				   const char *name, int flags)
+int is_transport_allowed(const char *type, int from_user)
 {
-	if (flags & TRANSPORT_PUSH_DRY_RUN) {
-		if (set_helper_option(transport, "dry-run", "true") != 0)
-			die("helper %s does not support dry-run", name);
-	} else if (flags & TRANSPORT_PUSH_CERT_ALWAYS) {
-		if (set_helper_option(transport, TRANS_OPT_PUSH_CERT, "true") != 0)
-			die("helper %s does not support --signed", name);
-	} else if (flags & TRANSPORT_PUSH_CERT_IF_ASKED) {
-		if (set_helper_option(transport, TRANS_OPT_PUSH_CERT, "if-asked") != 0)
-			die("helper %s does not support --signed=if-asked", name);
+	const struct string_list *whitelist = protocol_whitelist();
+	if (whitelist)
+		return string_list_has_string(whitelist, type);
+
+	switch (get_protocol_config(type)) {
+	case PROTOCOL_ALLOW_ALWAYS:
+		return 1;
+	case PROTOCOL_ALLOW_NEVER:
+		return 0;
+	case PROTOCOL_ALLOW_USER_ONLY:
+		if (from_user < 0)
+			from_user = git_env_bool("GIT_PROTOCOL_FROM_USER", 1);
+		return from_user;
 	}
 
-	if (flags & TRANSPORT_PUSH_OPTIONS) {
-		struct string_list_item *item;
-		for_each_string_list_item(item, transport->push_options)
-			if (set_helper_option(transport, "push-option", item->string) != 0)
-				die("helper %s does not support 'push-option'", name);
-	}
+	die("BUG: invalid protocol_allow_config type");
 }

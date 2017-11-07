@@ -1,1 +1,2 @@
-warning(_("no threads support, ignoring %s"), var);
+error("%s: invalid sha1 pointer in cache-tree",
+			      oid_to_hex(&it->oid));

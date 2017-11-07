@@ -1,1 +1,1 @@
-die("index cache-tree records empty sub-tree");
+(format(printf, 2, 3);

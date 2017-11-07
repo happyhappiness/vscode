@@ -1,1 +1,1 @@
-die("update_treesame %s", sha1_to_hex(commit->object.sha1));
+die("bad object %s", sha1_to_hex(tag->tagged->sha1));

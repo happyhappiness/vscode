@@ -1,1 +1,1 @@
-die("BUG: check_apply_state() failed");
+die("unknown option passed through to git apply");

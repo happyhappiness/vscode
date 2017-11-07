@@ -1,44 +1,26 @@
-void h2_ngn_shed_done_ngn(h2_ngn_shed *shed, struct h2_req_engine *ngn)
+static int proxy_pass_brigade(apr_bucket_alloc_t *bucket_alloc,
+                              proxy_conn_rec *p_conn,
+                              conn_rec *origin, apr_bucket_brigade *bb,
+                              int flush)
 {
-    if (ngn->done) {
-        return;
+    apr_status_t status;
+    apr_off_t transferred;
+
+    if (flush) {
+        apr_bucket *e = apr_bucket_flush_create(bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, e);
     }
-    
-    if (!shed->aborted && !H2_REQ_ENTRIES_EMPTY(&ngn->entries)) {
-        h2_ngn_entry *entry;
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
-                      "h2_ngn_shed(%ld): exit engine %s (%s), "
-                      "has still requests queued, shutdown=%d,"
-                      "assigned=%ld, live=%ld, finished=%ld", 
-                      shed->c->id, ngn->id, ngn->type,
-                      ngn->shutdown, 
-                      (long)ngn->no_assigned, (long)ngn->no_live,
-                      (long)ngn->no_finished);
-        for (entry = H2_REQ_ENTRIES_FIRST(&ngn->entries);
-             entry != H2_REQ_ENTRIES_SENTINEL(&ngn->entries);
-             entry = H2_NGN_ENTRY_NEXT(entry)) {
-            h2_task *task = entry->task;
-            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
-                          "h2_ngn_shed(%ld): engine %s has queued task %s, "
-                          "frozen=%d, aborting",
-                          shed->c->id, ngn->id, task->id, task->frozen);
-            ngn_done_task(shed, ngn, task, 0, 1);
-        }
+    apr_brigade_length(bb, 0, &transferred);
+    if (transferred != -1)
+        p_conn->worker->s->transferred += transferred;
+    status = ap_pass_brigade(origin->output_filters, bb);
+    /* Cleanup the brigade now to avoid buckets lifetime
+     * issues in case of error returned below. */
+    apr_brigade_cleanup(bb);
+    if (status != APR_SUCCESS) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, origin, APLOGNO(03357)
+                      "pass output failed to %pI (%s)",
+                      p_conn->addr, p_conn->hostname);
     }
-    if (!shed->aborted && (ngn->no_assigned > 1 || ngn->no_live > 1)) {
-        ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, shed->c,
-                      "h2_ngn_shed(%ld): exit engine %s (%s), "
-                      "assigned=%ld, live=%ld, finished=%ld", 
-                      shed->c->id, ngn->id, ngn->type,
-                      (long)ngn->no_assigned, (long)ngn->no_live,
-                      (long)ngn->no_finished);
-    }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
-                      "h2_ngn_shed(%ld): exit engine %s", 
-                      shed->c->id, ngn->id);
-    }
-    
-    apr_hash_set(shed->ngns, ngn->type, APR_HASH_KEY_STRING, NULL);
-    ngn->done = 1;
+    return status;
 }

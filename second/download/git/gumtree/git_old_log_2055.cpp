@@ -1,2 +1,2 @@
-(fprintf(fp, "%s	%s^{}\n",
-				sha1_to_hex(o->sha1), path);
+error(_("Cannot get commit message for %s"),
+			sha1_to_hex(commit->object.sha1));

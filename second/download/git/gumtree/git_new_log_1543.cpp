@@ -1,2 +1,2 @@
-fprintf_ln(stderr, _("directory stat info changes "
-				     "after updating a file"));
+fprintf_ln(stderr, _("directory stat info does not change "
+				     "after adding a new directory"));

@@ -1,1 +1,1 @@
-child_die(CHILD_ERR_CHDIR);
+die_errno("sigprocmask");

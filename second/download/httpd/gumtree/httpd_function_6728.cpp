@@ -1,16 +1,14 @@
-static void copyright(void)
+static void truncate_and_write_error(rotate_status_t *status)
 {
-    if (!use_html) {
-        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1430300 $>");
-        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
-        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
-        printf("\n");
+    apr_size_t buflen = strlen(status->errbuf);
+
+    if (apr_file_trunc(status->current.fd, 0) != APR_SUCCESS) {
+        fprintf(stderr, "Error truncating the file %s\n", status->current.name);
+        exit(2);
     }
-    else {
-        printf("<p>\n");
-        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1430300 $");
-        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
-        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
-        printf("</p>\n<p>\n");
+    if (apr_file_write_full(status->current.fd, status->errbuf, buflen, NULL) != APR_SUCCESS) {
+        fprintf(stderr, "Error writing error (%s) to the file %s\n", 
+                status->errbuf, status->current.name);
+        exit(2);
     }
 }

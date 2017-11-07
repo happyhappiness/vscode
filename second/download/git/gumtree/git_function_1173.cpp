@@ -1,16 +1,35 @@
-const char *fast_export_read_path(const char *path, uint32_t *mode_out)
+static int handshake_capabilities(struct child_process *process,
+				  struct subprocess_capability *capabilities,
+				  unsigned int *supported_capabilities)
 {
-	int err;
-	static struct strbuf buf = STRBUF_INIT;
+	int i;
+	char *line;
 
-	strbuf_reset(&buf);
-	err = fast_export_ls(path, mode_out, &buf);
-	if (err) {
-		if (errno != ENOENT)
-			die_errno("BUG: unexpected fast_export_ls error");
-		/* Treat missing paths as directories. */
-		*mode_out = S_IFDIR;
-		return NULL;
+	for (i = 0; capabilities[i].name; i++) {
+		if (packet_write_fmt_gently(process->in, "capability=%s\n",
+					    capabilities[i].name))
+			return error("Could not write requested capability");
 	}
-	return buf.buf;
+	if (packet_flush_gently(process->in))
+		return error("Could not write flush packet");
+
+	while ((line = packet_read_line(process->out, NULL))) {
+		const char *p;
+		if (!skip_prefix(line, "capability=", &p))
+			continue;
+
+		for (i = 0;
+		     capabilities[i].name && strcmp(p, capabilities[i].name);
+		     i++)
+			;
+		if (capabilities[i].name) {
+			if (supported_capabilities)
+				*supported_capabilities |= capabilities[i].flag;
+		} else {
+			warning("subprocess '%s' requested unsupported capability '%s'",
+				process->argv[0], p);
+		}
+	}
+
+	return 0;
 }

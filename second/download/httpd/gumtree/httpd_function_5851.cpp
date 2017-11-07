@@ -1,25 +1,19 @@
-apr_status_t h2_stream_set_response(h2_stream *stream, h2_response *response,
-                                    apr_bucket_brigade *bb)
+apr_status_t h2_stream_set_request(h2_stream *stream, request_rec *r)
 {
-    apr_status_t status = APR_SUCCESS;
-    h2_sos *sos;
-    
-    if (!output_open(stream)) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                      "h2_stream(%ld-%d): output closed", 
-                      stream->session->id, stream->id);
+    apr_status_t status;
+    AP_DEBUG_ASSERT(stream);
+    if (stream->rst_error) {
         return APR_ECONNRESET;
     }
-    
-    sos = h2_sos_mplx_create(stream, response);
-    if (sos->response->sos_filter) {
-        sos = h2_filter_sos_create(sos->response->sos_filter, sos); 
-    }
-    stream->sos = sos;
-    
-    status = stream->sos->buffer(stream->sos, bb);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, stream->session->c,
-                  "h2_stream(%ld-%d): set_response(%d)", 
-                  stream->session->id, stream->id, stream->sos->response->http_status);
+    set_state(stream, H2_STREAM_ST_OPEN);
+    status = h2_request_rwrite(stream->request, stream->pool, r);
+    stream->request->serialize = h2_config_geti(h2_config_rget(r), 
+                                                H2_CONF_SER_HEADERS);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
+                  "h2_request(%d): rwrite %s host=%s://%s%s",
+                  stream->request->id, stream->request->method, 
+                  stream->request->scheme, stream->request->authority, 
+                  stream->request->path);
+
     return status;
 }

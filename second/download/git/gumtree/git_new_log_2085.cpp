@@ -1,1 +1,1 @@
-die(_("Could not set '%s' to '%s'"), key, value);
+die("not in a git directory");

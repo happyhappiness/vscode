@@ -1,1 +1,1 @@
-warning("unable to %s %s: %s", op, file, strerror(errno));
+error("cannot open fd %d: %s", in_fd, strerror(errno));

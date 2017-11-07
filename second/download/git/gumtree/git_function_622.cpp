@@ -1,8 +1,17 @@
-void relocate_gitdir(const char *path, const char *old_git_dir, const char *new_git_dir)
+static void flush_one_pair(struct diff_filepair *p, struct diff_options *opt)
 {
-	if (rename(old_git_dir, new_git_dir) < 0)
-		die_errno(_("could not migrate git directory from '%s' to '%s'"),
-			old_git_dir, new_git_dir);
+	int fmt = opt->output_format;
 
-	connect_work_tree_and_git_dir(path, new_git_dir);
+	if (fmt & DIFF_FORMAT_CHECKDIFF)
+		diff_flush_checkdiff(p, opt);
+	else if (fmt & (DIFF_FORMAT_RAW | DIFF_FORMAT_NAME_STATUS))
+		diff_flush_raw(p, opt);
+	else if (fmt & DIFF_FORMAT_NAME) {
+		const char *name_a, *name_b;
+		name_a = p->two->path;
+		name_b = NULL;
+		strip_prefix(opt->prefix_length, &name_a, &name_b);
+		fprintf(opt->file, "%s", diff_line_prefix(opt));
+		write_name_quoted(name_a, opt->file, opt->line_termination);
+	}
 }

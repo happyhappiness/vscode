@@ -1,1 +1,1 @@
-die("could not open output 'info'");
+die("could not open input");

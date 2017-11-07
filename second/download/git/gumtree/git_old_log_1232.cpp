@@ -1,2 +1,1 @@
-error("Couldn't write %s",
-				lock->lk->filename);
+die("'%s' does not appear to be a git repository", dir);

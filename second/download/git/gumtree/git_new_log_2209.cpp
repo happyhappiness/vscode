@@ -1,1 +1,1 @@
-error("missing value for '%s'", var);
+die(_("could not unset '%s'"), key);

@@ -1,1 +1,1 @@
-die(_("push options must not have new line characters"));
+warning("loose object at %s could not be examined", path);

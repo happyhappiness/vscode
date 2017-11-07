@@ -1,2 +1,1 @@
-die(_("missing object %s for %s"),
-		    sha1_to_hex(ref->objectname), ref->refname);
+die ("BUG: item->nowildcard_len > item->len || item->prefix > item->len)");

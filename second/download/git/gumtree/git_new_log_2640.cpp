@@ -1,2 +1,1 @@
-err(o, _("refusing to lose untracked file at '%s'"),
-			     path);
+err(o, msg, path, _(": perhaps a D/F conflict?"));

@@ -1,65 +1,70 @@
-int h2_filter_h2_status_handler(request_rec *r)
+apr_status_t h2_from_h1_read_response(h2_from_h1 *from_h1, ap_filter_t* f,
+                                      apr_bucket_brigade* bb)
 {
-    h2_ctx *ctx = h2_ctx_rget(r);
-    conn_rec *c = r->connection;
-    h2_task *task;
-    apr_bucket_brigade *bb;
-    apr_bucket *b;
-    apr_status_t status;
+    apr_status_t status = APR_SUCCESS;
+    char line[HUGE_STRING_LEN];
     
-    if (strcmp(r->handler, "http2-status")) {
-        return DECLINED;
-    }
-    if (r->method_number != M_GET && r->method_number != M_POST) {
-        return DECLINED;
-    }
-
-    task = ctx? h2_ctx_get_task(ctx) : NULL;
-    if (task) {
-
-        if ((status = ap_discard_request_body(r)) != OK) {
-            return status;
+    if ((from_h1->state == H2_RESP_ST_BODY) 
+        || (from_h1->state == H2_RESP_ST_DONE)) {
+        if (from_h1->chunked) {
+            /* The httpd core HTTP_HEADER filter has or will install the 
+             * "CHUNK" output transcode filter, which appears further down 
+             * the filter chain. We do not want it for HTTP/2.
+             * Once we successfully deinstalled it, this filter has no
+             * further function and we remove it.
+             */
+            status = ap_remove_output_filter_byhandle(f->r->output_filters, 
+                                                      "CHUNK");
+            if (status == APR_SUCCESS) {
+                ap_remove_output_filter(f);
+            }
         }
         
-        /* We need to handle the actual output on the main thread, as
-         * we need to access h2_session information. */
-        r->status = 200;
-        r->clength = -1;
-        r->chunked = 1;
-        apr_table_unset(r->headers_out, "Content-Length");
-        ap_set_content_type(r, "application/json");
-        apr_table_setn(r->notes, H2_FILTER_DEBUG_NOTE, "on");
-
-        bb = apr_brigade_create(r->pool, c->bucket_alloc);
-        b = h2_bucket_observer_create(c->bucket_alloc, status_event, task);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-        b = apr_bucket_eos_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(bb, b);
-
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                      "status_handler(%s): checking for incoming trailers", 
-                      task->id);
-        if (r->trailers_in && !apr_is_empty_table(r->trailers_in)) {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "status_handler(%s): seeing incoming trailers", 
-                          task->id);
-            apr_table_setn(r->trailers_out, "h2-trailers-in", 
-                           apr_itoa(r->pool, 1));
+        return ap_pass_brigade(f->next, bb);
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "h2_from_h1(%d): read_response", from_h1->stream_id);
+    
+    while (!APR_BRIGADE_EMPTY(bb) && status == APR_SUCCESS) {
+        
+        switch (from_h1->state) {
+                
+            case H2_RESP_ST_STATUS_LINE:
+            case H2_RESP_ST_HEADERS:
+                status = get_line(from_h1, bb, f, line, sizeof(line));
+                if (status != APR_SUCCESS) {
+                    return status;
+                }
+                if (from_h1->state == H2_RESP_ST_STATUS_LINE) {
+                    /* instead of parsing, just take it directly */
+                    from_h1->http_status = f->r->status;
+                    from_h1->state = H2_RESP_ST_HEADERS;
+                }
+                else if (line[0] == '\0') {
+                    /* end of headers, create the h2_response and
+                     * pass the rest of the brigade down the filter
+                     * chain.
+                     */
+                    status = make_h2_headers(from_h1, f->r);
+                    if (from_h1->bb) {
+                        apr_brigade_destroy(from_h1->bb);
+                        from_h1->bb = NULL;
+                    }
+                    if (!APR_BRIGADE_EMPTY(bb)) {
+                        return ap_pass_brigade(f->next, bb);
+                    }
+                }
+                else {
+                    status = parse_header(from_h1, f, line);
+                }
+                break;
+                
+            default:
+                return ap_pass_brigade(f->next, bb);
         }
         
-        status = ap_pass_brigade(r->output_filters, bb);
-        if (status == APR_SUCCESS
-            || r->status != HTTP_OK
-            || c->aborted) {
-            return OK;
-        }
-        else {
-            /* no way to know what type of error occurred */
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, status, r,
-                          "status_handler(%s): ap_pass_brigade failed", 
-                          task->id);
-            return AP_FILTER_ERROR;
-        }
     }
-    return DECLINED;
+    
+    return status;
 }

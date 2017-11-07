@@ -1,4 +1,1 @@
-fprintf(fp, "%s\t%s\t%s",
-					oid_to_hex(&rm->old_oid),
-					merge_status_marker,
-					note.buf);
+die(_("object %s not found"), oid_to_hex(&ref->new_oid));

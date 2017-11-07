@@ -1,1 +1,1 @@
-fprintf(stderr, "   -v   Verify the username/password.\n");
+fprintf(stderr, "Error opening database %s\n", argv[i]);

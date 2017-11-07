@@ -1,2 +1,1 @@
-error("unknown value after ws-error-highlight=%.*s",
-		      -1 - val, arg);
+die_want_option("--stat-count");

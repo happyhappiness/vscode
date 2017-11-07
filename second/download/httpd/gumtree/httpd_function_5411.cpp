@@ -1,53 +1,60 @@
-apr_status_t h2_conn_child_init(apr_pool_t *pool, server_rec *s)
+apr_status_t h2_conn_process(conn_rec *c, request_rec *r, server_rec *s)
 {
-    const h2_config *config = h2_config_sget(s);
-    apr_status_t status = APR_SUCCESS;
-    int minw = h2_config_geti(config, H2_CONF_MIN_WORKERS);
-    int maxw = h2_config_geti(config, H2_CONF_MAX_WORKERS);
+    apr_status_t status;
+    h2_session *session;
+    const h2_config *config;
+    int rv;
     
-    int max_threads_per_child = 0;
-    int threads_limit = 0;
-    int idle_secs = 0;
-    int i;
+    if (!workers) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02911) 
+                      "workers not initialized");
+        return APR_EGENERAL;
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, "h2_conn_process start");
+    
+    if (!s && r) {
+        s = r->server;
+    }
+    
+    config = s? h2_config_sget(s) : h2_config_get(c);
+    if (r) {
+        session = h2_session_rcreate(r, config, workers);
+    }
+    else {
+        session = h2_session_create(c, config, workers);
+    }
+    
+    if (!h2_is_acceptable_connection(c, 1)) {
+        nghttp2_submit_goaway(session->ngh2, NGHTTP2_FLAG_NONE, 0,
+                              NGHTTP2_INADEQUATE_SECURITY, NULL, 0);
+    } 
 
-    h2_config_init(pool);
+    ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_READ, c);
+    status = h2_session_start(session, &rv);
     
-    ap_mpm_query(AP_MPMQ_MAX_THREADS, &max_threads_per_child);
-    ap_mpm_query(AP_MPMQ_HARD_LIMIT_THREADS, &threads_limit);
-    
-    for (i = 0; ap_loaded_modules[i]; ++i) {
-        module *m = ap_loaded_modules[i];
-        if (!strcmp("event.c", m->name)) {
-            mpm_type = H2_MPM_EVENT;
-            mpm_module = m;
-        }
-        else if (!strcmp("worker.c", m->name)) {
-            mpm_type = H2_MPM_WORKER;
-            mpm_module = m;
-        }
-        else if (!strcmp("prefork.c", m->name)) {
-            mpm_type = H2_MPM_PREFORK;
-            mpm_module = m;
-        }
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c,
+                  "h2_session(%ld): starting on %s:%d", session->id,
+                  session->c->base_server->server_hostname,
+                  session->c->local_addr->port);
+    if (status != APR_SUCCESS) {
+        h2_session_abort(session, status, rv);
+        h2_session_eoc_callback(session);
+        return status;
     }
     
-    if (minw <= 0) {
-        minw = max_threads_per_child;
+    status = h2_session_process(session);
+
+    ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, session->c,
+                  "h2_session(%ld): done", session->id);
+    /* Make sure this connection gets closed properly. */
+    ap_update_child_status_from_conn(c->sbh, SERVER_CLOSING, c);
+    c->keepalive = AP_CONN_CLOSE;
+    if (c->cs) {
+        c->cs->state = CONN_STATE_WRITE_COMPLETION;
     }
-    if (maxw <= 0) {
-        maxw = threads_limit;
-        if (maxw < minw) {
-            maxw = minw;
-        }
-    }
-    
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "h2_workers: min=%d max=%d, mthrpchild=%d, thr_limit=%d", 
-                 minw, maxw, max_threads_per_child, threads_limit);
-    
-    workers = h2_workers_create(s, pool, minw, maxw);
-    idle_secs = h2_config_geti(config, H2_CONF_MAX_WORKER_IDLE_SECS);
-    h2_workers_set_max_idle_secs(workers, idle_secs);
-    
+
+    h2_session_close(session);
+    /* hereafter session will be gone */
     return status;
 }

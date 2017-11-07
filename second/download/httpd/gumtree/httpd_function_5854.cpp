@@ -1,51 +1,39 @@
-apr_status_t h2_stream_add_header(h2_stream *stream,
-                                  const char *name, size_t nlen,
-                                  const char *value, size_t vlen)
+apr_status_t h2_stream_write_data(h2_stream *stream,
+                                  const char *data, size_t len, int eos)
 {
+    apr_status_t status = APR_SUCCESS;
+    
     AP_DEBUG_ASSERT(stream);
-    if (!stream->response) {
-        if (name[0] == ':') {
-            if ((vlen) > stream->session->s->limit_req_line) {
-                /* pseudo header: approximation of request line size check */
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                              "h2_stream(%ld-%d): pseudo header %s too long", 
-                              stream->session->id, stream->id, name);
-                return h2_stream_set_error(stream, 
-                                           HTTP_REQUEST_URI_TOO_LARGE);
-            }
-        }
-        else if ((nlen + 2 + vlen) > stream->session->s->limit_req_fieldsize) {
-            /* header too long */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                          "h2_stream(%ld-%d): header %s too long", 
-                          stream->session->id, stream->id, name);
-            return h2_stream_set_error(stream, 
-                                       HTTP_REQUEST_HEADER_FIELDS_TOO_LARGE);
-        }
-        
-        if (name[0] != ':') {
-            ++stream->request_headers_added;
-            if (stream->request_headers_added 
-                > stream->session->s->limit_req_fields) {
-                /* too many header lines */
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                              "h2_stream(%ld-%d): too many header lines", 
-                              stream->session->id, stream->id);
-                return h2_stream_set_error(stream, 
-                                           HTTP_REQUEST_HEADER_FIELDS_TOO_LARGE);
-            }
+    if (input_closed(stream) || !stream->request->eoh) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                      "h2_stream(%ld-%d): writing denied, closed=%d, eoh=%d", 
+                      stream->session->id, stream->id, input_closed(stream),
+                      stream->request->eoh);
+        return APR_EINVAL;
+    }
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                  "h2_stream(%ld-%d): add %ld input bytes", 
+                  stream->session->id, stream->id, (long)len);
+
+    if (!stream->request->chunked) {
+        stream->input_remaining -= len;
+        if (stream->input_remaining < 0) {
+            ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, stream->session->c,
+                          APLOGNO(02961) 
+                          "h2_stream(%ld-%d): got %ld more content bytes than announced "
+                          "in content-length header: %ld", 
+                          stream->session->id, stream->id,
+                          (long)stream->request->content_length, 
+                          -(long)stream->input_remaining);
+            h2_stream_rst(stream, H2_ERR_PROTOCOL_ERROR);
+            return APR_ECONNABORTED;
         }
     }
     
-    if (h2_stream_is_scheduled(stream)) {
-        return h2_request_add_trailer(stream->request, stream->pool,
-                                      name, nlen, value, vlen);
+    status = h2_mplx_in_write(stream->session->mplx, stream->id, data, len, eos);
+    if (eos) {
+        close_input(stream);
     }
-    else {
-        if (!input_open(stream)) {
-            return APR_ECONNRESET;
-        }
-        return h2_request_add_header(stream->request, stream->pool,
-                                     name, nlen, value, vlen);
-    }
+    return status;
 }

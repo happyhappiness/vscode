@@ -1,1 +1,1 @@
-printf("\n%s\n", _(common_cmd_groups[common_cmds[i].group]));
+fprintf(stderr, "Server supports allow-reachable-sha1-in-want\n");

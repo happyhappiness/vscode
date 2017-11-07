@@ -1,1 +1,1 @@
-die("%s", err.buf);
+xgetcwd();

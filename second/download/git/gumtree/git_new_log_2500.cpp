@@ -1,2 +1,1 @@
-printf("tagged %s %s", typename(tag->tagged->type),
-				describe_object(tag->tagged));
+printf("root %s\n", describe_object(&commit->object));

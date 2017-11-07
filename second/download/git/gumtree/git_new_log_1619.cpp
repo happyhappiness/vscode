@@ -1,2 +1,1 @@
-error("unable to mmap '%s': %s",
-			      config_filename, strerror(errno));
+fputs(c_context, stdout);

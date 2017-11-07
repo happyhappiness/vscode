@@ -1,51 +1,69 @@
-static void diff_words_show(struct diff_words_data *diff_words)
+static void combine_diff(const unsigned char *parent, unsigned int mode,
+			 mmfile_t *result_file,
+			 struct sline *sline, unsigned int cnt, int n,
+			 int num_parent, int result_deleted,
+			 struct userdiff_driver *textconv,
+			 const char *path, long flags)
 {
+	unsigned int p_lno, lno;
+	unsigned long nmask = (1UL << n);
 	xpparam_t xpp;
 	xdemitconf_t xecfg;
-	mmfile_t minus, plus;
-	struct diff_words_style *style = diff_words->style;
+	mmfile_t parent_file;
+	struct combine_diff_state state;
+	unsigned long sz;
 
-	struct diff_options *opt = diff_words->opt;
-	const char *line_prefix;
+	if (result_deleted)
+		return; /* result deleted */
 
-	assert(opt);
-	line_prefix = diff_line_prefix(opt);
-
-	/* special case: only removal */
-	if (!diff_words->plus.text.size) {
-		fputs(line_prefix, diff_words->opt->file);
-		fn_out_diff_words_write_helper(diff_words->opt->file,
-			&style->old, style->newline,
-			diff_words->minus.text.size,
-			diff_words->minus.text.ptr, line_prefix);
-		diff_words->minus.text.size = 0;
-		return;
-	}
-
-	diff_words->current_plus = diff_words->plus.text.ptr;
-	diff_words->last_minus = 0;
-
+	parent_file.ptr = grab_blob(parent, mode, &sz, textconv, path);
+	parent_file.size = sz;
 	memset(&xpp, 0, sizeof(xpp));
+	xpp.flags = flags;
 	memset(&xecfg, 0, sizeof(xecfg));
-	diff_words_fill(&diff_words->minus, &minus, diff_words->word_regex);
-	diff_words_fill(&diff_words->plus, &plus, diff_words->word_regex);
-	xpp.flags = 0;
-	/* as only the hunk header will be parsed, we need a 0-context */
-	xecfg.ctxlen = 0;
-	if (xdi_diff_outf(&minus, &plus, fn_out_diff_words_aux, diff_words,
+	memset(&state, 0, sizeof(state));
+	state.nmask = nmask;
+	state.sline = sline;
+	state.lno = 1;
+	state.num_parent = num_parent;
+	state.n = n;
+
+	if (xdi_diff_outf(&parent_file, result_file, consume_line, &state,
 			  &xpp, &xecfg))
-		die("unable to generate word diff");
-	free(minus.ptr);
-	free(plus.ptr);
-	if (diff_words->current_plus != diff_words->plus.text.ptr +
-			diff_words->plus.text.size) {
-		if (color_words_output_graph_prefix(diff_words))
-			fputs(line_prefix, diff_words->opt->file);
-		fn_out_diff_words_write_helper(diff_words->opt->file,
-			&style->ctx, style->newline,
-			diff_words->plus.text.ptr + diff_words->plus.text.size
-			- diff_words->current_plus, diff_words->current_plus,
-			line_prefix);
+		die("unable to generate combined diff for %s",
+		    sha1_to_hex(parent));
+	free(parent_file.ptr);
+
+	/* Assign line numbers for this parent.
+	 *
+	 * sline[lno].p_lno[n] records the first line number
+	 * (counting from 1) for parent N if the final hunk display
+	 * started by showing sline[lno] (possibly showing the lost
+	 * lines attached to it first).
+	 */
+	for (lno = 0,  p_lno = 1; lno <= cnt; lno++) {
+		struct lline *ll;
+		sline[lno].p_lno[n] = p_lno;
+
+		/* Coalesce new lines */
+		if (sline[lno].plost.lost_head) {
+			struct sline *sl = &sline[lno];
+			sl->lost = coalesce_lines(sl->lost, &sl->lenlost,
+						  sl->plost.lost_head,
+						  sl->plost.len, n, flags);
+			sl->plost.lost_head = sl->plost.lost_tail = NULL;
+			sl->plost.len = 0;
+		}
+
+		/* How many lines would this sline advance the p_lno? */
+		ll = sline[lno].lost;
+		while (ll) {
+			if (ll->parent_map & nmask)
+				p_lno++; /* '-' means parent had it */
+			ll = ll->next;
+		}
+		if (lno < cnt && !(sline[lno].flag & nmask))
+			p_lno++; /* no '+' means parent had it */
 	}
-	diff_words->minus.text.size = diff_words->plus.text.size = 0;
+	sline[lno].p_lno[n] = p_lno; /* trailer */
 }

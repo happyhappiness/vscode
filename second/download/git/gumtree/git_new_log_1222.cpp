@@ -1,1 +1,2 @@
-die("unable to add recent objects");
+error(_("The note contents have been left in %s"),
+				      path);

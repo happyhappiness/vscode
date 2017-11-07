@@ -1,1 +1,1 @@
-warning("accept failed: %s", strerror(errno));
+error("%s: close error: %s", dst, strerror(errno));

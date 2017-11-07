@@ -1,1 +1,1 @@
-die("%s failed", cmd_name);
+die("fetch-pack: unable to fork off %s", cmd_name);

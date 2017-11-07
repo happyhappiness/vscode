@@ -1,4 +1,2 @@
-die("Failed to load %s %s into notes tree "
-				    "from %s",
-				    type == PTR_TYPE_NOTE ? "note" : "subtree",
-				    oid_to_hex(&l->key_oid), t->ref);
+die("Could not read %s for notes-index",
+		     oid_to_hex(&subtree->val_oid));

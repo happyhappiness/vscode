@@ -1,1 +1,1 @@
-error("Could not write client identification");
+die(_("Failed to resolve HEAD as a valid ref."));

@@ -1,3 +1,2 @@
-printf("[%s] ",
-			       find_unique_abbrev(commit->object.oid.hash,
-						  DEFAULT_ABBREV));
+warning(_("Missing author: %s"),
+		    oid_to_hex(&commit->object.oid));

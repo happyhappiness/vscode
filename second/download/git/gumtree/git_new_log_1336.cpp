@@ -1,1 +1,1 @@
-die("BUG: delete called for transaction that is not open");
+die("BUG: create ref with null new_sha1");

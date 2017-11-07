@@ -1,1 +1,1 @@
-die("HEAD does not match the named branch in the superproject");
+die(_("Failed to resolve HEAD as a valid ref."));

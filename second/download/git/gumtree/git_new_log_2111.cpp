@@ -1,1 +1,1 @@
-die(_("no input file given for in-place editing"));
+die(_("invalid number of threads specified (%d)"), num_threads);

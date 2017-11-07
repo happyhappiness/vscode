@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "  Server: %s",
-                          server);
+ap_rvputs(r, "<pre>(Default) <a href=\"", ehref, "\">", etext,
+                     "</a></pre>\n", NULL);

@@ -1,1 +1,1 @@
-die("BUG: unexpected reference transaction state");
+die("BUG: free called on a prepared reference transaction");

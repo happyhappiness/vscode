@@ -1,100 +1,138 @@
-apr_status_t h2_session_set_prio(h2_session *session, h2_stream *stream, 
-                                 const h2_priority *prio)
+static apr_status_t on_stream_headers(h2_session *session, h2_stream *stream,  
+                                      h2_headers *headers, apr_off_t len,
+                                      int eos)
 {
     apr_status_t status = APR_SUCCESS;
-#ifdef H2_NG2_CHANGE_PRIO
-    nghttp2_stream *s_grandpa, *s_parent, *s;
-    
-    if (prio == NULL) {
-        /* we treat this as a NOP */
-        return APR_SUCCESS;
+    int rv = 0;
+
+    ap_assert(session);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_headers", session->id, stream->id);
+    if (headers->status < 100) {
+        int err = H2_STREAM_RST(stream, headers->status);
+        rv = nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
+                                       stream->id, err);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, 
+                  "h2_stream(%ld-%d): unpexected header status %d, stream rst", 
+                  session->id, stream->id, headers->status);
+        goto leave;
     }
-    s = nghttp2_session_find_stream(session->ngh2, stream->id);
-    if (!s) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
-                      session->id, stream->id);
-        return APR_EINVAL;
-    }
-    
-    s_parent = nghttp2_stream_get_parent(s);
-    if (s_parent) {
-        nghttp2_priority_spec ps;
-        int id_parent, id_grandpa, w_parent, w;
-        int rv = 0;
-        const char *ptype = "AFTER";
-        h2_dependency dep = prio->dependency;
+    else if (stream->has_response) {
+        h2_ngheader *nh;
         
-        id_parent = nghttp2_stream_get_stream_id(s_parent);
-        s_grandpa = nghttp2_stream_get_parent(s_parent);
-        if (s_grandpa) {
-            id_grandpa = nghttp2_stream_get_stream_id(s_grandpa);
+        nh = h2_util_ngheader_make(stream->pool, headers->headers);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03072)
+                      "h2_stream(%ld-%d): submit %d trailers",
+                      session->id, (int)stream->id,(int) nh->nvlen);
+        rv = nghttp2_submit_trailer(session->ngh2, stream->id, nh->nv, nh->nvlen);
+        goto leave;
+    }
+    else {
+        nghttp2_data_provider provider, *pprovider = NULL;
+        h2_ngheader *ngh;
+        apr_table_t *hout;
+        const char *note;
+        
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03073)
+                      "h2_stream(%ld-%d): submit response %d, REMOTE_WINDOW_SIZE=%u",
+                      session->id, stream->id, headers->status,
+                      (unsigned int)nghttp2_session_get_stream_remote_window_size(session->ngh2, stream->id));
+        
+        if (!eos || len > 0) {
+            memset(&provider, 0, sizeof(provider));
+            provider.source.fd = stream->id;
+            provider.read_callback = stream_data_cb;
+            pprovider = &provider;
+        }
+        
+        /* If this stream is not a pushed one itself,
+         * and HTTP/2 server push is enabled here,
+         * and the response HTTP status is not sth >= 400,
+         * and the remote side has pushing enabled,
+         * -> find and perform any pushes on this stream
+         *    *before* we submit the stream response itself.
+         *    This helps clients avoid opening new streams on Link
+         *    headers that get pushed right afterwards.
+         * 
+         * *) the response code is relevant, as we do not want to 
+         *    make pushes on 401 or 403 codes and friends. 
+         *    And if we see a 304, we do not push either
+         *    as the client, having this resource in its cache, might
+         *    also have the pushed ones as well.
+         */
+        if (!stream->initiated_on
+            && !stream->has_response
+            && stream->request && stream->request->method
+            && !strcmp("GET", stream->request->method)
+            && (headers->status < 400)
+            && (headers->status != 304)
+            && h2_session_push_enabled(session)) {
+            
+            h2_stream_submit_pushes(stream, headers);
+        }
+        
+        if (!stream->pref_priority) {
+            stream->pref_priority = h2_stream_get_priority(stream, headers);
+        }
+        h2_session_set_prio(session, stream, stream->pref_priority);
+        
+        hout = headers->headers;
+        note = apr_table_get(headers->notes, H2_FILTER_DEBUG_NOTE);
+        if (note && !strcmp("on", note)) {
+            int32_t connFlowIn, connFlowOut;
+
+            connFlowIn = nghttp2_session_get_effective_local_window_size(session->ngh2); 
+            connFlowOut = nghttp2_session_get_remote_window_size(session->ngh2);
+            hout = apr_table_clone(stream->pool, hout);
+            apr_table_setn(hout, "conn-flow-in", 
+                           apr_itoa(stream->pool, connFlowIn));
+            apr_table_setn(hout, "conn-flow-out", 
+                           apr_itoa(stream->pool, connFlowOut));
+        }
+        
+        if (headers->status == 103 
+            && !h2_config_geti(session->config, H2_CONF_EARLY_HINTS)) {
+            /* suppress sending this to the client, it might have triggered 
+             * pushes and served its purpose nevertheless */
+            rv = 0;
+            goto leave;
+        }
+        
+        ngh = h2_util_ngheader_make_res(stream->pool, headers->status, hout);
+        rv = nghttp2_submit_response(session->ngh2, stream->id,
+                                     ngh->nv, ngh->nvlen, pprovider);
+        stream->has_response = h2_headers_are_response(headers);
+        session->have_written = 1;
+        
+        if (stream->initiated_on) {
+            ++session->pushes_submitted;
         }
         else {
-            /* parent of parent does not exist, 
-             * only possible if parent == root */
-            dep = H2_DEPENDANT_AFTER;
+            ++session->responses_submitted;
         }
-        
-        switch (dep) {
-            case H2_DEPENDANT_INTERLEAVED:
-                /* PUSHed stream is to be interleaved with initiating stream.
-                 * It is made a sibling of the initiating stream and gets a
-                 * proportional weight [1, MAX_WEIGHT] of the initiaing
-                 * stream weight.
-                 */
-                ptype = "INTERLEAVED";
-                w_parent = nghttp2_stream_get_weight(s_parent);
-                w = valid_weight(w_parent * ((float)prio->weight / NGHTTP2_MAX_WEIGHT));
-                nghttp2_priority_spec_init(&ps, id_grandpa, w, 0);
-                break;
-                
-            case H2_DEPENDANT_BEFORE:
-                /* PUSHed stream os to be sent BEFORE the initiating stream.
-                 * It gets the same weight as the initiating stream, replaces
-                 * that stream in the dependency tree and has the initiating
-                 * stream as child.
-                 */
-                ptype = "BEFORE";
-                w = w_parent = nghttp2_stream_get_weight(s_parent);
-                nghttp2_priority_spec_init(&ps, stream->id, w_parent, 0);
-                id_grandpa = nghttp2_stream_get_stream_id(s_grandpa);
-                rv = nghttp2_session_change_stream_priority(session->ngh2, id_parent, &ps);
-                if (rv < 0) {
-                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03202)
-                                  "h2_stream(%ld-%d): PUSH BEFORE, weight=%d, "
-                                  "depends=%d, returned=%d",
-                                  session->id, id_parent, ps.weight, ps.stream_id, rv);
-                    return APR_EGENERAL;
-                }
-                nghttp2_priority_spec_init(&ps, id_grandpa, w, 0);
-                break;
-                
-            case H2_DEPENDANT_AFTER:
-                /* The PUSHed stream is to be sent after the initiating stream.
-                 * Give if the specified weight and let it depend on the intiating
-                 * stream.
-                 */
-                /* fall through, it's the default */
-            default:
-                nghttp2_priority_spec_init(&ps, id_parent, valid_weight(prio->weight), 0);
-                break;
-        }
-
-
-        rv = nghttp2_session_change_stream_priority(session->ngh2, stream->id, &ps);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03203)
-                      "h2_stream(%ld-%d): PUSH %s, weight=%d, "
-                      "depends=%d, returned=%d",
-                      session->id, stream->id, ptype, 
-                      ps.weight, ps.stream_id, rv);
-        status = (rv < 0)? APR_EGENERAL : APR_SUCCESS;
     }
-#else
-    (void)session;
-    (void)stream;
-    (void)prio;
-    (void)valid_weight;
-#endif
+    
+leave:
+    if (nghttp2_is_fatal(rv)) {
+        status = APR_EGENERAL;
+        dispatch_event(session, H2_SESSION_EV_PROTO_ERROR, rv, nghttp2_strerror(rv));
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c,
+                      APLOGNO(02940) "submit_response: %s", 
+                      nghttp2_strerror(rv));
+    }
+    
+    ++session->unsent_submits;
+    
+    /* Unsent push promises are written immediately, as nghttp2
+     * 1.5.0 realizes internal stream data structures only on 
+     * send and we might need them for other submits. 
+     * Also, to conserve memory, we send at least every 10 submits
+     * so that nghttp2 does not buffer all outbound items too 
+     * long.
+     */
+    if (status == APR_SUCCESS 
+        && (session->unsent_promises || session->unsent_submits > 10)) {
+        status = h2_session_send(session);
+    }
     return status;
 }

@@ -1,1 +1,1 @@
-die("missing blob object '%s'", sha1_to_hex(obj->sha1));
+printf(" %s", sha1_to_hex(children->item->object.sha1));

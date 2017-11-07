@@ -1,0 +1,1 @@
+error("%s: invalid sha1 pointer %s", refname, sha1_to_hex(sha1));

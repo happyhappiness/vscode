@@ -1,1 +1,1 @@
-printf("%s %s\n", sha1_to_hex(note_sha1), sha1_to_hex(object_sha1));
+printf("%.*s%s", p_len - 40, p_start, name);

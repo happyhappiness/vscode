@@ -1,1 +1,1 @@
-fprintf(stderr, _("Testing mtime in '%s' "), xgetcwd());
+printf("%s (%d):\n", item->string, onelines->nr);

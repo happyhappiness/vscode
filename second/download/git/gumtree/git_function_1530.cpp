@@ -1,335 +1,357 @@
-int cmd_show_branch(int ac, const char **av, const char *prefix)
+int cmd_rev_parse(int argc, const char **argv, const char *prefix)
 {
-	struct commit *rev[MAX_REVS], *commit;
-	char *reflog_msg[MAX_REVS];
-	struct commit_list *list = NULL, *seen = NULL;
-	unsigned int rev_mask[MAX_REVS];
-	int num_rev, i, extra = 0;
-	int all_heads = 0, all_remotes = 0;
-	int all_mask, all_revs;
-	enum rev_sort_order sort_order = REV_SORT_IN_GRAPH_ORDER;
-	char head[128];
-	const char *head_p;
-	int head_len;
-	unsigned char head_sha1[20];
-	int merge_base = 0;
-	int independent = 0;
-	int no_name = 0;
-	int sha1_name = 0;
-	int shown_merge_point = 0;
-	int with_current_branch = 0;
-	int head_at = -1;
-	int topics = 0;
-	int dense = 1;
-	const char *reflog_base = NULL;
-	struct option builtin_show_branch_options[] = {
-		OPT_BOOL('a', "all", &all_heads,
-			 N_("show remote-tracking and local branches")),
-		OPT_BOOL('r', "remotes", &all_remotes,
-			 N_("show remote-tracking branches")),
-		OPT__COLOR(&showbranch_use_color,
-			    N_("color '*!+-' corresponding to the branch")),
-		{ OPTION_INTEGER, 0, "more", &extra, N_("n"),
-			    N_("show <n> more commits after the common ancestor"),
-			    PARSE_OPT_OPTARG, NULL, (intptr_t)1 },
-		OPT_SET_INT(0, "list", &extra, N_("synonym to more=-1"), -1),
-		OPT_BOOL(0, "no-name", &no_name, N_("suppress naming strings")),
-		OPT_BOOL(0, "current", &with_current_branch,
-			 N_("include the current branch")),
-		OPT_BOOL(0, "sha1-name", &sha1_name,
-			 N_("name commits with their object names")),
-		OPT_BOOL(0, "merge-base", &merge_base,
-			 N_("show possible merge bases")),
-		OPT_BOOL(0, "independent", &independent,
-			    N_("show refs unreachable from any other ref")),
-		OPT_SET_INT(0, "topo-order", &sort_order,
-			    N_("show commits in topological order"),
-			    REV_SORT_IN_GRAPH_ORDER),
-		OPT_BOOL(0, "topics", &topics,
-			 N_("show only commits not on the first branch")),
-		OPT_SET_INT(0, "sparse", &dense,
-			    N_("show merges reachable from only one tip"), 0),
-		OPT_SET_INT(0, "date-order", &sort_order,
-			    N_("topologically sort, maintaining date order "
-			       "where possible"),
-			    REV_SORT_BY_COMMIT_DATE),
-		{ OPTION_CALLBACK, 'g', "reflog", &reflog_base, N_("<n>[,<base>]"),
-			    N_("show <n> most recent ref-log entries starting at "
-			       "base"),
-			    PARSE_OPT_OPTARG | PARSE_OPT_LITERAL_ARGHELP,
-			    parse_reflog_param },
-		OPT_END()
-	};
+	int i, as_is = 0, verify = 0, quiet = 0, revs_count = 0, type = 0;
+	int has_dashdash = 0;
+	int output_prefix = 0;
+	unsigned char sha1[20];
+	unsigned int flags = 0;
+	const char *name = NULL;
+	struct object_context unused;
 
-	git_config(git_show_branch_config, NULL);
+	if (argc > 1 && !strcmp("--parseopt", argv[1]))
+		return cmd_parseopt(argc - 1, argv + 1, prefix);
 
-	/* If nothing is specified, try the default first */
-	if (ac == 1 && default_num) {
-		ac = default_num;
-		av = default_arg;
-	}
+	if (argc > 1 && !strcmp("--sq-quote", argv[1]))
+		return cmd_sq_quote(argc - 2, argv + 2);
 
-	ac = parse_options(ac, av, prefix, builtin_show_branch_options,
-			   show_branch_usage, PARSE_OPT_STOP_AT_NON_OPTION);
-	if (all_heads)
-		all_remotes = 1;
+	if (argc > 1 && !strcmp("-h", argv[1]))
+		usage(builtin_rev_parse_usage);
 
-	if (extra || reflog) {
-		/* "listing" mode is incompatible with
-		 * independent nor merge-base modes.
-		 */
-		if (independent || merge_base)
-			usage_with_options(show_branch_usage,
-					   builtin_show_branch_options);
-		if (reflog && ((0 < extra) || all_heads || all_remotes))
-			/*
-			 * Asking for --more in reflog mode does not
-			 * make sense.  --list is Ok.
-			 *
-			 * Also --all and --remotes do not make sense either.
-			 */
-			die("--reflog is incompatible with --all, --remotes, "
-			    "--independent or --merge-base");
-	}
-
-	/* If nothing is specified, show all branches by default */
-	if (ac + all_heads + all_remotes == 0)
-		all_heads = 1;
-
-	if (reflog) {
-		unsigned char sha1[20];
-		char *ref;
-		int base = 0;
-		unsigned int flags = 0;
-
-		if (ac == 0) {
-			static const char *fake_av[2];
-
-			fake_av[0] = resolve_refdup("HEAD",
-						    RESOLVE_REF_READING,
-						    sha1, NULL);
-			fake_av[1] = NULL;
-			av = fake_av;
-			ac = 1;
-		}
-		if (ac != 1)
-			die("--reflog option needs one branch name");
-
-		if (MAX_REVS < reflog)
-			die("Only %d entries can be shown at one time.",
-			    MAX_REVS);
-		if (!dwim_ref(*av, strlen(*av), sha1, &ref))
-			die("No such ref %s", *av);
-
-		/* Has the base been specified? */
-		if (reflog_base) {
-			char *ep;
-			base = strtoul(reflog_base, &ep, 10);
-			if (*ep) {
-				/* Ah, that is a date spec... */
-				unsigned long at;
-				at = approxidate(reflog_base);
-				read_ref_at(ref, flags, at, -1, sha1, NULL,
-					    NULL, NULL, &base);
-			}
-		}
-
-		for (i = 0; i < reflog; i++) {
-			char *logmsg;
-			char *nth_desc;
-			const char *msg;
-			unsigned long timestamp;
-			int tz;
-
-			if (read_ref_at(ref, flags, 0, base+i, sha1, &logmsg,
-					&timestamp, &tz, NULL)) {
-				reflog = i;
-				break;
-			}
-			msg = strchr(logmsg, '\t');
-			if (!msg)
-				msg = "(none)";
-			else
-				msg++;
-			reflog_msg[i] = xstrfmt("(%s) %s",
-						show_date(timestamp, tz, 1),
-						msg);
-			free(logmsg);
-
-			nth_desc = xstrfmt("%s@{%d}", *av, base+i);
-			append_ref(nth_desc, sha1, 1);
-			free(nth_desc);
-		}
-		free(ref);
-	}
-	else if (all_heads + all_remotes)
-		snarf_refs(all_heads, all_remotes);
-	else {
-		while (0 < ac) {
-			append_one_rev(*av);
-			ac--; av++;
-		}
-	}
-
-	head_p = resolve_ref_unsafe("HEAD", RESOLVE_REF_READING,
-				    head_sha1, NULL);
-	if (head_p) {
-		head_len = strlen(head_p);
-		memcpy(head, head_p, head_len + 1);
-	}
-	else {
-		head_len = 0;
-		head[0] = 0;
-	}
-
-	if (with_current_branch && head_p) {
-		int has_head = 0;
-		for (i = 0; !has_head && i < ref_name_cnt; i++) {
-			/* We are only interested in adding the branch
-			 * HEAD points at.
-			 */
-			if (rev_is_head(head,
-					head_len,
-					ref_name[i],
-					head_sha1, NULL))
-				has_head++;
-		}
-		if (!has_head) {
-			int offset = starts_with(head, "refs/heads/") ? 11 : 0;
-			append_one_rev(head + offset);
-		}
-	}
-
-	if (!ref_name_cnt) {
-		fprintf(stderr, "No revs to be shown.\n");
-		exit(0);
-	}
-
-	for (num_rev = 0; ref_name[num_rev]; num_rev++) {
-		unsigned char revkey[20];
-		unsigned int flag = 1u << (num_rev + REV_SHIFT);
-
-		if (MAX_REVS <= num_rev)
-			die("cannot handle more than %d revs.", MAX_REVS);
-		if (get_sha1(ref_name[num_rev], revkey))
-			die("'%s' is not a valid ref.", ref_name[num_rev]);
-		commit = lookup_commit_reference(revkey);
-		if (!commit)
-			die("cannot find commit %s (%s)",
-			    ref_name[num_rev], revkey);
-		parse_commit(commit);
-		mark_seen(commit, &seen);
-
-		/* rev#0 uses bit REV_SHIFT, rev#1 uses bit REV_SHIFT+1,
-		 * and so on.  REV_SHIFT bits from bit 0 are used for
-		 * internal bookkeeping.
-		 */
-		commit->object.flags |= flag;
-		if (commit->object.flags == flag)
-			commit_list_insert_by_date(commit, &list);
-		rev[num_rev] = commit;
-	}
-	for (i = 0; i < num_rev; i++)
-		rev_mask[i] = rev[i]->object.flags;
-
-	if (0 <= extra)
-		join_revs(&list, &seen, num_rev, extra);
-
-	commit_list_sort_by_date(&seen);
-
-	if (merge_base)
-		return show_merge_base(seen, num_rev);
-
-	if (independent)
-		return show_independent(rev, num_rev, ref_name, rev_mask);
-
-	/* Show list; --more=-1 means list-only */
-	if (1 < num_rev || extra < 0) {
-		for (i = 0; i < num_rev; i++) {
-			int j;
-			int is_head = rev_is_head(head,
-						  head_len,
-						  ref_name[i],
-						  head_sha1,
-						  rev[i]->object.sha1);
-			if (extra < 0)
-				printf("%c [%s] ",
-				       is_head ? '*' : ' ', ref_name[i]);
-			else {
-				for (j = 0; j < i; j++)
-					putchar(' ');
-				printf("%s%c%s [%s] ",
-				       get_color_code(i),
-				       is_head ? '*' : '!',
-				       get_color_reset_code(), ref_name[i]);
-			}
-
-			if (!reflog) {
-				/* header lines never need name */
-				show_one_commit(rev[i], 1);
-			}
-			else
-				puts(reflog_msg[i]);
-
-			if (is_head)
-				head_at = i;
-		}
-		if (0 <= extra) {
-			for (i = 0; i < num_rev; i++)
-				putchar('-');
-			putchar('\n');
-		}
-	}
-	if (extra < 0)
-		exit(0);
-
-	/* Sort topologically */
-	sort_in_topological_order(&seen, sort_order);
-
-	/* Give names to commits */
-	if (!sha1_name && !no_name)
-		name_commits(seen, rev, ref_name, num_rev);
-
-	all_mask = ((1u << (REV_SHIFT + num_rev)) - 1);
-	all_revs = all_mask & ~((1u << REV_SHIFT) - 1);
-
-	while (seen) {
-		struct commit *commit = pop_one_commit(&seen);
-		int this_flag = commit->object.flags;
-		int is_merge_point = ((this_flag & all_revs) == all_revs);
-
-		shown_merge_point |= is_merge_point;
-
-		if (1 < num_rev) {
-			int is_merge = !!(commit->parents &&
-					  commit->parents->next);
-			if (topics &&
-			    !is_merge_point &&
-			    (this_flag & (1u << REV_SHIFT)))
-				continue;
-			if (dense && is_merge &&
-			    omit_in_dense(commit, rev, num_rev))
-				continue;
-			for (i = 0; i < num_rev; i++) {
-				int mark;
-				if (!(this_flag & (1u << (i + REV_SHIFT))))
-					mark = ' ';
-				else if (is_merge)
-					mark = '-';
-				else if (i == head_at)
-					mark = '*';
-				else
-					mark = '+';
-				printf("%s%c%s",
-				       get_color_code(i),
-				       mark, get_color_reset_code());
-			}
-			putchar(' ');
-		}
-		show_one_commit(commit, no_name);
-
-		if (shown_merge_point && --extra < 0)
+	for (i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "--")) {
+			has_dashdash = 1;
 			break;
+		}
 	}
+
+	prefix = setup_git_directory();
+	git_config(git_default_config, NULL);
+	for (i = 1; i < argc; i++) {
+		const char *arg = argv[i];
+
+		if (!strcmp(arg, "--git-path")) {
+			if (!argv[i + 1])
+				die("--git-path requires an argument");
+			puts(git_path("%s", argv[i + 1]));
+			i++;
+			continue;
+		}
+		if (as_is) {
+			if (show_file(arg, output_prefix) && as_is < 2)
+				verify_filename(prefix, arg, 0);
+			continue;
+		}
+		if (!strcmp(arg,"-n")) {
+			if (++i >= argc)
+				die("-n requires an argument");
+			if ((filter & DO_FLAGS) && (filter & DO_REVS)) {
+				show(arg);
+				show(argv[i]);
+			}
+			continue;
+		}
+		if (starts_with(arg, "-n")) {
+			if ((filter & DO_FLAGS) && (filter & DO_REVS))
+				show(arg);
+			continue;
+		}
+
+		if (*arg == '-') {
+			if (!strcmp(arg, "--")) {
+				as_is = 2;
+				/* Pass on the "--" if we show anything but files.. */
+				if (filter & (DO_FLAGS | DO_REVS))
+					show_file(arg, 0);
+				continue;
+			}
+			if (!strcmp(arg, "--default")) {
+				def = argv[++i];
+				if (!def)
+					die("--default requires an argument");
+				continue;
+			}
+			if (!strcmp(arg, "--prefix")) {
+				prefix = argv[++i];
+				if (!prefix)
+					die("--prefix requires an argument");
+				startup_info->prefix = prefix;
+				output_prefix = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--revs-only")) {
+				filter &= ~DO_NOREV;
+				continue;
+			}
+			if (!strcmp(arg, "--no-revs")) {
+				filter &= ~DO_REVS;
+				continue;
+			}
+			if (!strcmp(arg, "--flags")) {
+				filter &= ~DO_NONFLAGS;
+				continue;
+			}
+			if (!strcmp(arg, "--no-flags")) {
+				filter &= ~DO_FLAGS;
+				continue;
+			}
+			if (!strcmp(arg, "--verify")) {
+				filter &= ~(DO_FLAGS|DO_NOREV);
+				verify = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--quiet") || !strcmp(arg, "-q")) {
+				quiet = 1;
+				flags |= GET_SHA1_QUIETLY;
+				continue;
+			}
+			if (!strcmp(arg, "--short") ||
+			    starts_with(arg, "--short=")) {
+				filter &= ~(DO_FLAGS|DO_NOREV);
+				verify = 1;
+				abbrev = DEFAULT_ABBREV;
+				if (arg[7] == '=')
+					abbrev = strtoul(arg + 8, NULL, 10);
+				if (abbrev < MINIMUM_ABBREV)
+					abbrev = MINIMUM_ABBREV;
+				else if (40 <= abbrev)
+					abbrev = 40;
+				continue;
+			}
+			if (!strcmp(arg, "--sq")) {
+				output_sq = 1;
+				continue;
+			}
+			if (!strcmp(arg, "--not")) {
+				show_type ^= REVERSED;
+				continue;
+			}
+			if (!strcmp(arg, "--symbolic")) {
+				symbolic = SHOW_SYMBOLIC_ASIS;
+				continue;
+			}
+			if (!strcmp(arg, "--symbolic-full-name")) {
+				symbolic = SHOW_SYMBOLIC_FULL;
+				continue;
+			}
+			if (starts_with(arg, "--abbrev-ref") &&
+			    (!arg[12] || arg[12] == '=')) {
+				abbrev_ref = 1;
+				abbrev_ref_strict = warn_ambiguous_refs;
+				if (arg[12] == '=') {
+					if (!strcmp(arg + 13, "strict"))
+						abbrev_ref_strict = 1;
+					else if (!strcmp(arg + 13, "loose"))
+						abbrev_ref_strict = 0;
+					else
+						die("unknown mode for %s", arg);
+				}
+				continue;
+			}
+			if (!strcmp(arg, "--all")) {
+				for_each_ref(show_reference, NULL);
+				continue;
+			}
+			if (starts_with(arg, "--disambiguate=")) {
+				for_each_abbrev(arg + 15, show_abbrev, NULL);
+				continue;
+			}
+			if (!strcmp(arg, "--bisect")) {
+				for_each_ref_in("refs/bisect/bad", show_reference, NULL);
+				for_each_ref_in("refs/bisect/good", anti_reference, NULL);
+				continue;
+			}
+			if (starts_with(arg, "--branches=")) {
+				for_each_glob_ref_in(show_reference, arg + 11,
+					"refs/heads/", NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (!strcmp(arg, "--branches")) {
+				for_each_branch_ref(show_reference, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--tags=")) {
+				for_each_glob_ref_in(show_reference, arg + 7,
+					"refs/tags/", NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (!strcmp(arg, "--tags")) {
+				for_each_tag_ref(show_reference, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--glob=")) {
+				for_each_glob_ref(show_reference, arg + 7, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--remotes=")) {
+				for_each_glob_ref_in(show_reference, arg + 10,
+					"refs/remotes/", NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (!strcmp(arg, "--remotes")) {
+				for_each_remote_ref(show_reference, NULL);
+				clear_ref_exclusion(&ref_excludes);
+				continue;
+			}
+			if (starts_with(arg, "--exclude=")) {
+				add_ref_exclusion(&ref_excludes, arg + 10);
+				continue;
+			}
+			if (!strcmp(arg, "--local-env-vars")) {
+				int i;
+				for (i = 0; local_repo_env[i]; i++)
+					printf("%s\n", local_repo_env[i]);
+				continue;
+			}
+			if (!strcmp(arg, "--show-toplevel")) {
+				const char *work_tree = get_git_work_tree();
+				if (work_tree)
+					puts(work_tree);
+				continue;
+			}
+			if (!strcmp(arg, "--show-prefix")) {
+				if (prefix)
+					puts(prefix);
+				else
+					putchar('\n');
+				continue;
+			}
+			if (!strcmp(arg, "--show-cdup")) {
+				const char *pfx = prefix;
+				if (!is_inside_work_tree()) {
+					const char *work_tree =
+						get_git_work_tree();
+					if (work_tree)
+						printf("%s\n", work_tree);
+					continue;
+				}
+				while (pfx) {
+					pfx = strchr(pfx, '/');
+					if (pfx) {
+						pfx++;
+						printf("../");
+					}
+				}
+				putchar('\n');
+				continue;
+			}
+			if (!strcmp(arg, "--git-dir")) {
+				const char *gitdir = getenv(GIT_DIR_ENVIRONMENT);
+				char *cwd;
+				int len;
+				if (gitdir) {
+					puts(gitdir);
+					continue;
+				}
+				if (!prefix) {
+					puts(".git");
+					continue;
+				}
+				cwd = xgetcwd();
+				len = strlen(cwd);
+				printf("%s%s.git\n", cwd, len && cwd[len-1] != '/' ? "/" : "");
+				free(cwd);
+				continue;
+			}
+			if (!strcmp(arg, "--git-common-dir")) {
+				puts(get_git_common_dir());
+				continue;
+			}
+			if (!strcmp(arg, "--resolve-git-dir")) {
+				const char *gitdir = argv[++i];
+				if (!gitdir)
+					die("--resolve-git-dir requires an argument");
+				gitdir = resolve_gitdir(gitdir);
+				if (!gitdir)
+					die("not a gitdir '%s'", argv[i]);
+				puts(gitdir);
+				continue;
+			}
+			if (!strcmp(arg, "--is-inside-git-dir")) {
+				printf("%s\n", is_inside_git_dir() ? "true"
+						: "false");
+				continue;
+			}
+			if (!strcmp(arg, "--is-inside-work-tree")) {
+				printf("%s\n", is_inside_work_tree() ? "true"
+						: "false");
+				continue;
+			}
+			if (!strcmp(arg, "--is-bare-repository")) {
+				printf("%s\n", is_bare_repository() ? "true"
+						: "false");
+				continue;
+			}
+			if (!strcmp(arg, "--shared-index-path")) {
+				if (read_cache() < 0)
+					die(_("Could not read the index"));
+				if (the_index.split_index) {
+					const unsigned char *sha1 = the_index.split_index->base_sha1;
+					puts(git_path("sharedindex.%s", sha1_to_hex(sha1)));
+				}
+				continue;
+			}
+			if (starts_with(arg, "--since=")) {
+				show_datestring("--max-age=", arg+8);
+				continue;
+			}
+			if (starts_with(arg, "--after=")) {
+				show_datestring("--max-age=", arg+8);
+				continue;
+			}
+			if (starts_with(arg, "--before=")) {
+				show_datestring("--min-age=", arg+9);
+				continue;
+			}
+			if (starts_with(arg, "--until=")) {
+				show_datestring("--min-age=", arg+8);
+				continue;
+			}
+			if (show_flag(arg) && verify)
+				die_no_single_rev(quiet);
+			continue;
+		}
+
+		/* Not a flag argument */
+		if (try_difference(arg))
+			continue;
+		if (try_parent_shorthands(arg))
+			continue;
+		name = arg;
+		type = NORMAL;
+		if (*arg == '^') {
+			name++;
+			type = REVERSED;
+		}
+		if (!get_sha1_with_context(name, flags, sha1, &unused)) {
+			if (verify)
+				revs_count++;
+			else
+				show_rev(type, sha1, name);
+			continue;
+		}
+		if (verify)
+			die_no_single_rev(quiet);
+		if (has_dashdash)
+			die("bad revision '%s'", arg);
+		as_is = 1;
+		if (!show_file(arg, output_prefix))
+			continue;
+		verify_filename(prefix, arg, 1);
+	}
+	if (verify) {
+		if (revs_count == 1) {
+			show_rev(type, sha1, name);
+			return 0;
+		} else if (revs_count == 0 && show_default())
+			return 0;
+		die_no_single_rev(quiet);
+	} else
+		show_default();
 	return 0;
 }

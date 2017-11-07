@@ -1,1 +1,1 @@
-insert_one_record(log, author + 8, oneline);
+printf_ln(_("rebases onto remote %s"), merge->items[0].string);

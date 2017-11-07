@@ -1,1 +1,1 @@
-die(_("Please supply the note contents using either -m or -F option"));
+die_errno(_("could not create file '%s'"), d->edit_path);

@@ -1,1 +1,2 @@
-die_errno(_("failed to delete directory %s"), mtime_dir.buf);
+fprintf_ln(stderr, _("directory stat info does not "
+				     "change after deleting a directory"));

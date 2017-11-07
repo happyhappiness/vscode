@@ -1,1 +1,1 @@
-die("git-http-push failed");
+error("RPC failed; %s", msg.buf);

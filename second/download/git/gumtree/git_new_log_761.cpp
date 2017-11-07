@@ -1,1 +1,1 @@
-report_invalid_attr(cp, len, src, lineno);
+fprintf(stderr, "%s: %s:%d\n", err.buf, src, lineno);

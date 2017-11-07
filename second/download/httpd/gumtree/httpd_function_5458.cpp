@@ -1,51 +1,46 @@
-h2_stream *h2_mplx_next_submit(h2_mplx *m, h2_ihash_t *streams)
+static apr_status_t out_write(h2_mplx *m, h2_io *io, 
+                              ap_filter_t* f, int blocking,
+                              apr_bucket_brigade *bb,
+                              struct apr_thread_cond_t *iowait)
 {
-    apr_status_t status;
-    h2_stream *stream = NULL;
-    int acquired;
-
-    AP_DEBUG_ASSERT(m);
-    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
-        h2_io *io = h2_io_set_shift(m->ready_ios);
-        if (io && !m->aborted) {
-            stream = h2_ihash_get(streams, io->id);
-            if (stream) {
-                io->submitted = 1;
-                if (io->rst_error) {
-                    h2_stream_rst(stream, io->rst_error);
-                }
-                else {
-                    AP_DEBUG_ASSERT(io->response);
-                    H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_next_submit_pre");
-                    h2_stream_set_response(stream, io->response, io->bbout);
-                    H2_MPLX_IO_OUT(APLOG_TRACE2, m, io, "h2_mplx_next_submit_post");
-                }
-            }
-            else {
-                /* We have the io ready, but the stream has gone away, maybe
-                 * reset by the client. Should no longer happen since such
-                 * streams should clear io's from the ready queue.
-                 */
-                ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, APLOGNO(03347)
-                              "h2_mplx(%ld): stream for response %d closed, "
-                              "resetting io to close request processing",
+    apr_status_t status = APR_SUCCESS;
+    /* We check the memory footprint queued for this stream_id
+     * and block if it exceeds our configured limit.
+     * We will not split buckets to enforce the limit to the last
+     * byte. After all, the bucket is already in memory.
+     */
+    while (status == APR_SUCCESS 
+           && !APR_BRIGADE_EMPTY(bb) 
+           && !is_aborted(m, &status)) {
+        
+        status = h2_io_out_write(io, bb, blocking? m->stream_max_mem : INT_MAX, 
+                                 &m->tx_handles_reserved);
+        io_out_consumed_signal(m, io);
+        
+        /* Wait for data to drain until there is room again or
+         * stream timeout expires */
+        h2_io_signal_init(io, H2_IO_WRITE, m->stream_timeout, iowait);
+        while (status == APR_SUCCESS
+               && !APR_BRIGADE_EMPTY(bb) 
+               && iowait
+               && (m->stream_max_mem <= h2_io_out_length(io))
+               && !is_aborted(m, &status)) {
+            if (!blocking) {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                              "h2_mplx(%ld-%d): incomplete write", 
                               m->id, io->id);
-                h2_io_make_orphaned(io, H2_ERR_STREAM_CLOSED);
-                if (!io->worker_started || io->worker_done) {
-                    io_destroy(m, io, 1);
-                }
-                else {
-                    /* hang around until the h2_task is done, but
-                     * shutdown input and send out any events (e.g. window
-                     * updates) asap. */
-                    h2_io_in_shutdown(io);
-                    io_in_consumed_signal(m, io);
-                }
+                return APR_INCOMPLETE;
             }
-            
-            h2_io_signal(io, H2_IO_WRITE);
+            if (f) {
+                ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                              "h2_mplx(%ld-%d): waiting for out drain", 
+                              m->id, io->id);
+            }
+            status = h2_io_signal_wait(m, io);
         }
-        leave_mutex(m, acquired);
+        h2_io_signal_exit(io);
     }
-    return stream;
+    apr_brigade_cleanup(bb);
+    
+    return status;
 }

@@ -1,1 +1,1 @@
-strbuf_addf(&buf, "%s/", get_object_directory());
+error(_("can't revert as initial commit"));

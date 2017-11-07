@@ -1,1 +1,1 @@
-not_found("Cannot open '%s': %s", p, strerror(errno));
+die("bug: malformed header expr");

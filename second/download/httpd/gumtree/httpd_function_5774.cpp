@@ -1,11 +1,15 @@
-static void h2_mplx_destroy(h2_mplx *m)
+static int can_beam_file(void *ctx, h2_bucket_beam *beam,  apr_file_t *file)
 {
-    AP_DEBUG_ASSERT(m);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
-                  "h2_mplx(%ld): destroy, ios=%d", 
-                  m->id, (int)h2_io_set_size(m->stream_ios));
-    check_tx_free(m);
-    if (m->pool) {
-        apr_pool_destroy(m->pool);
+    h2_mplx *m = ctx;
+    if (m->tx_handles_reserved > 0) {
+        --m->tx_handles_reserved;
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c,
+                      "h2_mplx(%ld-%d): beaming file %s, tx_avail %d", 
+                      m->id, beam->id, beam->tag, m->tx_handles_reserved);
+        return 1;
     }
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c,
+                  "h2_mplx(%ld-%d): can_beam_file denied on %s", 
+                  m->id, beam->id, beam->tag);
+    return 0;
 }

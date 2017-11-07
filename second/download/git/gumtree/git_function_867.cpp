@@ -1,16 +1,19 @@
-static void objectname_atom_parser(struct used_atom *atom, const char *arg)
+static void refname_atom_parser_internal(struct refname_atom *atom,
+					 const char *arg, const char *name)
 {
 	if (!arg)
-		atom->u.objectname.option = O_FULL;
+		atom->option = R_NORMAL;
 	else if (!strcmp(arg, "short"))
-		atom->u.objectname.option = O_SHORT;
-	else if (skip_prefix(arg, "short=", &arg)) {
-		atom->u.objectname.option = O_LENGTH;
-		if (strtoul_ui(arg, 10, &atom->u.objectname.length) ||
-		    atom->u.objectname.length == 0)
-			die(_("positive value expected objectname:short=%s"), arg);
-		if (atom->u.objectname.length < MINIMUM_ABBREV)
-			atom->u.objectname.length = MINIMUM_ABBREV;
+		atom->option = R_SHORT;
+	else if (skip_prefix(arg, "lstrip=", &arg) ||
+		 skip_prefix(arg, "strip=", &arg)) {
+		atom->option = R_LSTRIP;
+		if (strtol_i(arg, 10, &atom->lstrip))
+			die(_("Integer value expected refname:lstrip=%s"), arg);
+	} else if (skip_prefix(arg, "rstrip=", &arg)) {
+		atom->option = R_RSTRIP;
+		if (strtol_i(arg, 10, &atom->rstrip))
+			die(_("Integer value expected refname:rstrip=%s"), arg);
 	} else
-		die(_("unrecognized %%(objectname) argument: %s"), arg);
+		die(_("unrecognized %%(%s) argument: %s"), name, arg);
 }

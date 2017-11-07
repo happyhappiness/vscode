@@ -1,1 +1,1 @@
-printf("  size: %d\tflags: %x\n", sd->sd_size, ce->ce_flags);
+printf("  uid: %d\tgid: %d\n", sd->sd_uid, sd->sd_gid);

@@ -1,2 +1,1 @@
-error("unable to resolve reference %s: %s",
-			orig_refname, strerror(errno));
+error("there are still refs under '%s'", orig_refname);

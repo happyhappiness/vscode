@@ -1,1 +1,1 @@
-die("Not a valid object name %s", obj_name);
+die("unrecognized argument: %s", argv[1]);

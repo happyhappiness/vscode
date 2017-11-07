@@ -1,1 +1,1 @@
-die("'git status --porcelain=2' failed in submodule %s", path);
+die("Could not run 'git status --porcelain=2' in submodule %s", path);

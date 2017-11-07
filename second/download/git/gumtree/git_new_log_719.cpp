@@ -1,1 +1,1 @@
-warning("ignoring versionsort.prereleasesuffix because versionsort.suffix is set");
+fprintf(fh, "%s%s\n", prefix, msg);

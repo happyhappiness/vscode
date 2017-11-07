@@ -1,2 +1,2 @@
-ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
-                      H2_SSSN_MSG(session, "process returns"));
+ap_log_cerror(APLOG_MARK, lvl, 0, c, 
+                      H2_STRM_MSG(s, "out-buffer(%s)"), len? buffer : "empty");

@@ -1,1 +1,1 @@
-fprintf(stderr, _(commit_utf8_warn));
+printf(" %s ", diff_aligned_abbrev(&p->oid, opt->abbrev));

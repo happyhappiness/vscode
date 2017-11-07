@@ -1,3 +1,2 @@
-fprintf(stderr,
-				"want %s (%s)\n", sha1_to_hex(remote),
-				ref->name);
+fprintf(stderr, "Marking %s as complete\n",
+				oid_to_hex(&complete->item->object.oid));

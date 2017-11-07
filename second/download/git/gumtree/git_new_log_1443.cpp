@@ -1,2 +1,2 @@
-error("unable to commit reflog '%s' (%s)",
-					log_file, strerror(errno));
+error("couldn't write %s",
+					lock->lk->filename.buf);

@@ -1,1 +1,2 @@
-die_errno("unable to read object %s", sha1_to_hex(sha1));
+die("git show-ref: bad ref %s (%s)", refname,
+		    sha1_to_hex(sha1));

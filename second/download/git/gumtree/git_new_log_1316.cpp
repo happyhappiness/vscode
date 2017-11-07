@@ -1,1 +1,1 @@
-die("unable to lookup %s", sha1_to_hex(sha1));
+die("unable to get object info for %s", sha1_to_hex(sha1));

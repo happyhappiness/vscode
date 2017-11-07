@@ -1,2 +1,1 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, f->r->server, APLOGNO(01502)
-                 "headers: ap_headers_output_filter()");
+ap_rvputs(r, action, "'>\n", NULL);

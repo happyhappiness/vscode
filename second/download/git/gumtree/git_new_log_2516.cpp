@@ -1,3 +1,1 @@
-fprintf(rev.diffopt.file, "\n--%s%s--\n\n\n",
-				       mime_boundary_leader,
-				       rev.mime_boundary);
+fprintf(file, "prerequisite-patch-id: %s\n", oid_to_hex(&bases->patch_id[i]));

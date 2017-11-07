@@ -1,1 +1,1 @@
-die(_("positive value expected contents:lines=%s"), arg);
+die("BUG: unhandled diff status %c", status);

@@ -1,1 +1,0 @@
-!string_list_has_string(skip, extra_refname);

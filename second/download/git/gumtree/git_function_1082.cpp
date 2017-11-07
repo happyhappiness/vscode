@@ -1,14 +1,9 @@
-static int grep_source_load_sha1(struct grep_source *gs)
+static void compile_pcre2_pattern(struct grep_pat *p, const struct grep_opt *opt)
 {
-	enum object_type type;
-
-	grep_read_lock();
-	gs->buf = read_sha1_file(gs->identifier, &type, &gs->size);
-	grep_read_unlock();
-
-	if (!gs->buf)
-		return error(_("'%s': unable to read %s"),
-			     gs->name,
-			     sha1_to_hex(gs->identifier));
-	return 0;
+	/*
+	 * Unreachable until USE_LIBPCRE2 becomes synonymous with
+	 * USE_LIBPCRE. See the sibling comment in
+	 * grep_set_pattern_type_option().
+	 */
+	die("cannot use Perl-compatible regexes when not compiled with USE_LIBPCRE");
 }

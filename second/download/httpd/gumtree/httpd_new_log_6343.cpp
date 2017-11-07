@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02900)
-                          "declining URL %s  (not %s, Upgrade: header is %s)", 
-                          url, upgrade_method, upgrade ? upgrade : "missing");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(10005)
+                "too short to decrypt, aborting");

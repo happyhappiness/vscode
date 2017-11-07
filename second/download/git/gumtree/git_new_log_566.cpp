@@ -1,1 +1,2 @@
-printf("previous %s ", oid_to_hex(&prev->commit->object.oid));
+warning(_("You seem to have moved HEAD since the last 'am' failure.\n"
+		"Not rewinding to ORIG_HEAD"));

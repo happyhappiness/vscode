@@ -1,1 +1,2 @@
-write_file(buf->buf, 0, "%s\n", oid_to_hex(oid));
+write_file(file_name.buf, 1, "gitdir: %s\n",
+		   relative_path(git_dir, real_work_tree, &rel_path));

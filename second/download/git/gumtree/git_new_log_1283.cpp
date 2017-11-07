@@ -1,1 +1,1 @@
-error("%s", err.buf);
+strbuf_release(&err);

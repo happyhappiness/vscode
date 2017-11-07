@@ -1,1 +1,2 @@
-error("unable to unpack header of %s", path);
+error("sha1 mismatch for %s (expected %s)", path,
+		      sha1_to_hex(expected_sha1));

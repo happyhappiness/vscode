@@ -1,34 +1,74 @@
-int ref_transaction_update(struct ref_transaction *transaction,
-			   const char *refname,
-			   const unsigned char *new_sha1,
-			   const unsigned char *old_sha1,
-			   int flags, int have_old, const char *msg,
-			   struct strbuf *err)
+int write_ref_sha1(struct ref_lock *lock,
+	const unsigned char *sha1, const char *logmsg)
 {
-	struct ref_update *update;
+	static char term = '\n';
+	struct object *o;
 
-	assert(err);
-
-	if (transaction->state != REF_TRANSACTION_OPEN)
-		die("BUG: update called for transaction that is not open");
-
-	if (have_old && !old_sha1)
-		die("BUG: have_old is true but old_sha1 is NULL");
-
-	if (!is_null_sha1(new_sha1) &&
-	    check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
-		strbuf_addf(err, "refusing to update ref with bad name %s",
-			    refname);
+	if (!lock) {
+		errno = EINVAL;
 		return -1;
 	}
-
-	update = add_update(transaction, refname);
-	hashcpy(update->new_sha1, new_sha1);
-	update->flags = flags;
-	update->have_old = have_old;
-	if (have_old)
-		hashcpy(update->old_sha1, old_sha1);
-	if (msg)
-		update->msg = xstrdup(msg);
+	if (!lock->force_write && !hashcmp(lock->old_sha1, sha1)) {
+		unlock_ref(lock);
+		return 0;
+	}
+	o = parse_object(sha1);
+	if (!o) {
+		error("Trying to write ref %s with nonexistent object %s",
+			lock->ref_name, sha1_to_hex(sha1));
+		unlock_ref(lock);
+		errno = EINVAL;
+		return -1;
+	}
+	if (o->type != OBJ_COMMIT && is_branch(lock->ref_name)) {
+		error("Trying to write non-commit object %s to branch %s",
+			sha1_to_hex(sha1), lock->ref_name);
+		unlock_ref(lock);
+		errno = EINVAL;
+		return -1;
+	}
+	if (write_in_full(lock->lock_fd, sha1_to_hex(sha1), 40) != 40 ||
+	    write_in_full(lock->lock_fd, &term, 1) != 1 ||
+	    close_ref(lock) < 0) {
+		int save_errno = errno;
+		error("Couldn't write %s", lock->lk->filename);
+		unlock_ref(lock);
+		errno = save_errno;
+		return -1;
+	}
+	clear_loose_ref_cache(&ref_cache);
+	if (log_ref_write(lock->ref_name, lock->old_sha1, sha1, logmsg) < 0 ||
+	    (strcmp(lock->ref_name, lock->orig_ref_name) &&
+	     log_ref_write(lock->orig_ref_name, lock->old_sha1, sha1, logmsg) < 0)) {
+		unlock_ref(lock);
+		return -1;
+	}
+	if (strcmp(lock->orig_ref_name, "HEAD") != 0) {
+		/*
+		 * Special hack: If a branch is updated directly and HEAD
+		 * points to it (may happen on the remote side of a push
+		 * for example) then logically the HEAD reflog should be
+		 * updated too.
+		 * A generic solution implies reverse symref information,
+		 * but finding all symrefs pointing to the given branch
+		 * would be rather costly for this rare event (the direct
+		 * update of a branch) to be worth it.  So let's cheat and
+		 * check with HEAD only which should cover 99% of all usage
+		 * scenarios (even 100% of the default ones).
+		 */
+		unsigned char head_sha1[20];
+		int head_flag;
+		const char *head_ref;
+		head_ref = resolve_ref_unsafe("HEAD", head_sha1, 1, &head_flag);
+		if (head_ref && (head_flag & REF_ISSYMREF) &&
+		    !strcmp(head_ref, lock->ref_name))
+			log_ref_write("HEAD", lock->old_sha1, sha1, logmsg);
+	}
+	if (commit_ref(lock)) {
+		error("Couldn't set %s", lock->ref_name);
+		unlock_ref(lock);
+		return -1;
+	}
+	unlock_ref(lock);
 	return 0;
 }

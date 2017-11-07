@@ -1,36 +1,36 @@
-apr_status_t h2_conn_io_write(h2_conn_io *io, const char *data, size_t length)
+static apr_status_t recv_RAW_DATA(conn_rec *c, h2_filter_cin *cin, 
+                                  apr_bucket *b, apr_read_type_e block)
 {
+    h2_session *session = cin->session;
     apr_status_t status = APR_SUCCESS;
-    apr_size_t remain;
+    apr_size_t len;
+    const char *data;
+    ssize_t n;
     
-    if (io->buffer_output) {
-        while (length > 0) {
-            remain = assure_scratch_space(io);
-            if (remain >= length) {
-#if LOG_SCRATCH
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03389)
-                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
-                              io->c->id, (long)length); 
-#endif
-                memcpy(io->scratch + io->slen, data, length);
-                io->slen += length;
-                length = 0;
-            }
-            else {
-#if LOG_SCRATCH
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03390)
-                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
-                              io->c->id, (long)remain); 
-#endif
-                memcpy(io->scratch + io->slen, data, remain);
-                io->slen += remain;
-                data += remain;
-                length -= remain;
+    status = apr_bucket_read(b, &data, &len, block);
+    
+    while (status == APR_SUCCESS && len > 0) {
+        n = nghttp2_session_mem_recv(session->ngh2, (const uint8_t *)data, len);
+        
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                      H2_SSSN_MSG(session, "fed %ld bytes to nghttp2, %ld read"),
+                      (long)len, (long)n);
+        if (n < 0) {
+            if (nghttp2_is_fatal((int)n)) {
+                h2_session_event(session, H2_SESSION_EV_PROTO_ERROR, 
+                                 (int)n, nghttp2_strerror((int)n));
+                status = APR_EGENERAL;
             }
         }
+        else {
+            session->io.bytes_read += n;
+            if (len <= n) {
+                break;
+            }
+            len -= n;
+            data += n;
+        }
     }
-    else {
-        status = apr_brigade_write(io->output, NULL, NULL, data, length);
-    }
+    
     return status;
 }

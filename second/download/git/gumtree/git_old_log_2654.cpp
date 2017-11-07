@@ -1,1 +1,1 @@
-die(_("Fatal merge failure, shouldn't happen."));
+error(_("cannot read object %s"), sha1_to_hex(sha1));

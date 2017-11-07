@@ -1,1 +1,1 @@
-warning(_("ignoring --verify-signatures for rebase"));
+error(_("too many parameters"));

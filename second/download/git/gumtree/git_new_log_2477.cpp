@@ -1,1 +1,1 @@
-error(_("failed to read %s"), name);
+die(_("patch with only garbage at line %d"), state->linenr);

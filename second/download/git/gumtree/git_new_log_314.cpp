@@ -1,3 +1,3 @@
-warning(_("core.untrackedCache is set to false; "
+warning(_("core.untrackedCache is set to true; "
 				  "remove or change it, if you really want to "
-				  "enable the untracked cache"));
+				  "disable the untracked cache"));

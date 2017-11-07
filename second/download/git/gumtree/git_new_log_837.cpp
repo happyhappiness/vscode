@@ -1,1 +1,1 @@
-die("BUG: setup_git_env called without repository");
+die(_("could not stat file '%s'"), ce->name);

@@ -1,1 +1,1 @@
-die("Unexpected option --remote");
+die("Exiting because of an unresolved conflict.");

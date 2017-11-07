@@ -1,1 +1,1 @@
-error("%s", err.buf);
+ref_transaction_free(transaction);

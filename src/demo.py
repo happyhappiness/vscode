@@ -36,9 +36,9 @@ def regenerate_rule(reanalyze_gumtree=False):
     if reanalyze_gumtree:
         gumtree_api.close_jvm()
 
-def seek_clone_for_given_repos(repos_list, repos_name_list, reanalyze_srcml=False, reanalyze_gumtree=False):
+def seek_clone_for_given_repos(repos_list, repos_name_list, reanalyze_rule=False, reanalyze_repos=False, reanalyze_gumtree=False):
     """
-    @ param repos list, all the reposes you want to deal with, ttrue if srcml api update, true if gumtree api update\n
+    @ param repos list, all the reposes you want to deal with, true if srcml api update, true if gumtree api update\n
     @ return nothing \n
     @ involve call analyze old new and cluster for each repos\n
     """
@@ -47,13 +47,13 @@ def seek_clone_for_given_repos(repos_list, repos_name_list, reanalyze_srcml=Fals
         print 'now analyzing repos %s' %repos
         # update repos value of my constant
         my_constant.reset_repos(repos)
-        if reanalyze_srcml:
+        if reanalyze_rule:
             regenerate_rule(reanalyze_gumtree)
         # seek clone
-        analyze_control_clone.seek_clone(repos_name_list[index], reanalyze_srcml, '')
+        analyze_control_clone.seek_clone(repos_name_list[index], reanalyze_repos, '')
         index += 1
 
-def seek_clone_for_lastest_repos(repos_list, reanalyze_srcml=False, reanalyze_gumtree=False):
+def seek_clone_for_lastest_repos(repos_list, reanalyze_rule=False, reanalyze_repos=False, reanalyze_gumtree=False):
     """
     @ param repos list, true if srcml api update, true if gumtree api update\n
     @ return nothing \n
@@ -63,12 +63,12 @@ def seek_clone_for_lastest_repos(repos_list, reanalyze_srcml=False, reanalyze_gu
         print 'now analyzing repos %s' %repos
         # update repos value of my constant
         my_constant.reset_repos(repos)
-        if reanalyze_srcml:
+        if reanalyze_rule:
             regenerate_rule(reanalyze_gumtree)
         # seek clone
-        analyze_control_clone.seek_clone_for_lastest_repos(reanalyze_srcml)
+        analyze_control_clone.seek_clone_for_lastest_repos(reanalyze_repos)
 
-def seek_clone_for_corresponding_repos(repos_list, reanalyze_srcml=False, reanalyze_gumtree=False):
+def seek_clone_for_corresponding_repos(repos_list, reanalyze_rule=False, reanalyze_repos=False, reanalyze_gumtree=False):
     """
     @ param repos list, true if srcml api update, true if gumtree api update\n
     @ return nothing \n
@@ -78,10 +78,10 @@ def seek_clone_for_corresponding_repos(repos_list, reanalyze_srcml=False, reanal
         print 'now analyzing repos %s' %repos
         # update repos value of my constant
         my_constant.reset_repos(repos)
-        if reanalyze_srcml:
+        if reanalyze_rule:
             regenerate_rule(reanalyze_gumtree)
         # seek clone
-        analyze_control_clone.seek_clone_for_corresponding_repos(reanalyze_srcml)
+        analyze_control_clone.seek_clone_for_corresponding_repos(reanalyze_repos)
 
 def do_statistics(repos_list):
     """
@@ -103,8 +103,10 @@ if __name__ == "__main__":
     reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync']
     repos_names = ['httpd-2.3.8', 'git-2.6.7', 'mutt-1.7.2', 'curl-7.41.0', 'rsync-1.4.4']
     # seek_clone_for_given_repos(reposes, repos_names)
-    # seek_clone_for_corresponding_repos(reposes[0:2], True, True)
-    seek_clone_for_corresponding_repos(reposes[3:], True, True)
+    seek_clone_for_corresponding_repos(reposes[0:1], False, True, False)
+    # seek_clone_for_corresponding_repos(reposes[1:2], False, True, False)
+    # seek_clone_for_corresponding_repos(reposes[3:], True, True)
+    # seek_clone_for_lastest_repos(reposes, False, True, False)
 
     # regenerate_hunk(reposes[0:5])
     # do_statistics(reposes)

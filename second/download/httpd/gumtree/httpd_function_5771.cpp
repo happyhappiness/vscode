@@ -1,36 +1,17 @@
-apr_status_t h2_conn_io_write(h2_conn_io *io, const char *data, size_t length)
+static void h2_beam_log(h2_bucket_beam *beam, int id, const char *msg, 
+                        conn_rec *c, int level)
 {
-    apr_status_t status = APR_SUCCESS;
-    apr_size_t remain;
-    
-    if (io->buffer_output) {
-        while (length > 0) {
-            remain = assure_scratch_space(io);
-            if (remain >= length) {
-#if LOG_SCRATCH
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03389)
-                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
-                              io->c->id, (long)length); 
-#endif
-                memcpy(io->scratch + io->slen, data, length);
-                io->slen += length;
-                length = 0;
-            }
-            else {
-#if LOG_SCRATCH
-                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03390)
-                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
-                              io->c->id, (long)remain); 
-#endif
-                memcpy(io->scratch + io->slen, data, remain);
-                io->slen += remain;
-                data += remain;
-                length -= remain;
-            }
-        }
+    if (beam && APLOG_C_IS_LEVEL(c,level)) {
+        char buffer[2048];
+        apr_size_t off = 0;
+        
+        off += apr_snprintf(buffer+off, H2_ALEN(buffer)-off, "cl=%d, ", beam->closed);
+        off += h2_util_bl_print(buffer+off, H2_ALEN(buffer)-off, "red", ", ", &beam->red);
+        off += h2_util_bb_print(buffer+off, H2_ALEN(buffer)-off, "green", ", ", beam->green);
+        off += h2_util_bl_print(buffer+off, H2_ALEN(buffer)-off, "hold", ", ", &beam->hold);
+        off += h2_util_bl_print(buffer+off, H2_ALEN(buffer)-off, "purge", "", &beam->purge);
+
+        ap_log_cerror(APLOG_MARK, level, 0, c, "beam(%ld-%d): %s %s", 
+                      c->id, id, msg, buffer);
     }
-    else {
-        status = apr_brigade_write(io->output, NULL, NULL, data, length);
-    }
-    return status;
 }

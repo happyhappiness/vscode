@@ -1,1 +1,1 @@
-die_errno("could not read file '%s'", filename);
+die("a %s revision is needed", term_bad);

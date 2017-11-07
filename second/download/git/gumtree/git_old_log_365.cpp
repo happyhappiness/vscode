@@ -1,1 +1,1 @@
-die("invalid shallow line: %s", line);
+die("--stateless-rpc requires multi_ack_detailed");

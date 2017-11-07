@@ -1,1 +1,1 @@
-die("Invalid proxy URL '%s'", curl_http_proxy);
+warning(_("negative value for http.postbuffer; defaulting to %d"), LARGE_PACKET_MAX);

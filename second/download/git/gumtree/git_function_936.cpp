@@ -1,40 +1,43 @@
-static int apply_autostash(struct replay_opts *opts)
+int mailinfo(struct mailinfo *mi, const char *msg, const char *patch)
 {
-	struct strbuf stash_sha1 = STRBUF_INIT;
-	struct child_process child = CHILD_PROCESS_INIT;
-	int ret = 0;
+	FILE *cmitmsg;
+	int peek;
+	struct strbuf line = STRBUF_INIT;
 
-	if (!read_oneliner(&stash_sha1, rebase_path_autostash(), 1)) {
-		strbuf_release(&stash_sha1);
-		return 0;
+	cmitmsg = fopen(msg, "w");
+	if (!cmitmsg) {
+		perror(msg);
+		return -1;
 	}
-	strbuf_trim(&stash_sha1);
-
-	child.git_cmd = 1;
-	argv_array_push(&child.args, "stash");
-	argv_array_push(&child.args, "apply");
-	argv_array_push(&child.args, stash_sha1.buf);
-	if (!run_command(&child))
-		printf(_("Applied autostash."));
-	else {
-		struct child_process store = CHILD_PROCESS_INIT;
-
-		store.git_cmd = 1;
-		argv_array_push(&store.args, "stash");
-		argv_array_push(&store.args, "store");
-		argv_array_push(&store.args, "-m");
-		argv_array_push(&store.args, "autostash");
-		argv_array_push(&store.args, "-q");
-		argv_array_push(&store.args, stash_sha1.buf);
-		if (run_command(&store))
-			ret = error(_("cannot store %s"), stash_sha1.buf);
-		else
-			printf(_("Applying autostash resulted in conflicts.\n"
-				"Your changes are safe in the stash.\n"
-				"You can run \"git stash pop\" or"
-				" \"git stash drop\" at any time.\n"));
+	mi->patchfile = fopen(patch, "w");
+	if (!mi->patchfile) {
+		perror(patch);
+		fclose(cmitmsg);
+		return -1;
 	}
 
-	strbuf_release(&stash_sha1);
-	return ret;
+	mi->p_hdr_data = xcalloc(MAX_HDR_PARSED, sizeof(*(mi->p_hdr_data)));
+	mi->s_hdr_data = xcalloc(MAX_HDR_PARSED, sizeof(*(mi->s_hdr_data)));
+
+	do {
+		peek = fgetc(mi->input);
+		if (peek == EOF) {
+			fclose(cmitmsg);
+			return error("empty patch: '%s'", patch);
+		}
+	} while (isspace(peek));
+	ungetc(peek, mi->input);
+
+	/* process the email header */
+	while (read_one_header_line(&line, mi->input))
+		check_header(mi, &line, mi->p_hdr_data, 1);
+
+	handle_body(mi, &line);
+	fwrite(mi->log_message.buf, 1, mi->log_message.len, cmitmsg);
+	fclose(cmitmsg);
+	fclose(mi->patchfile);
+
+	handle_info(mi);
+	strbuf_release(&line);
+	return mi->input_error;
 }

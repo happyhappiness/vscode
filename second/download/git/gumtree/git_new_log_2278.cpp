@@ -1,1 +1,1 @@
-error_errno("failed to redirect stderr to /dev/null");
+die(_("refusing to merge unrelated histories"));

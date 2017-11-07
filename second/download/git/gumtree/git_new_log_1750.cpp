@@ -1,1 +1,1 @@
-error("%s", err.buf);
+error("%s", log_err.buf);

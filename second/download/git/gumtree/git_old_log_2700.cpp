@@ -1,1 +1,1 @@
-fprintf(stderr, fmt, hex);
+die("Aborting.");

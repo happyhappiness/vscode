@@ -1,2 +1,2 @@
-error("unable to create symlink %s (%s)",
-					     path, strerror(errno));
+error("could not read file '%s': %s",
+				path, strerror(errno));

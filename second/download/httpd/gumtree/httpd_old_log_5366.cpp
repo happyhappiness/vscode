@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, status, workers->s,
-                     "h2_workers: register mplx(%ld)", m->id);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(02032)
+                             "Hostname %s provided via SNI and hostname %s provided"
+                             " via HTTP select a different server",
+                             servername, r->hostname);

@@ -1,58 +1,53 @@
-static int h2_alt_svc_handler(request_rec *r)
+apr_status_t h2_conn_child_init(apr_pool_t *pool, server_rec *s)
 {
-    h2_ctx *ctx;
-    const h2_config *cfg;
+    const h2_config *config = h2_config_sget(s);
+    apr_status_t status = APR_SUCCESS;
+    int minw = h2_config_geti(config, H2_CONF_MIN_WORKERS);
+    int maxw = h2_config_geti(config, H2_CONF_MAX_WORKERS);
+    
+    int max_threads_per_child = 0;
+    int threads_limit = 0;
+    int idle_secs = 0;
     int i;
+
+    h2_config_init(pool);
     
-    if (r->connection->keepalives > 0) {
-        /* Only announce Alt-Svc on the first response */
-        return DECLINED;
-    }
+    ap_mpm_query(AP_MPMQ_MAX_THREADS, &max_threads_per_child);
+    ap_mpm_query(AP_MPMQ_HARD_LIMIT_THREADS, &threads_limit);
     
-    ctx = h2_ctx_rget(r);
-    if (h2_ctx_is_active(ctx) || h2_ctx_is_task(ctx)) {
-        return DECLINED;
-    }
-    
-    cfg = h2_config_rget(r);
-    if (r->hostname && cfg && cfg->alt_svcs && cfg->alt_svcs->nelts > 0) {
-        const char *alt_svc_used = apr_table_get(r->headers_in, "Alt-Svc-Used");
-        if (!alt_svc_used) {
-            /* We have alt-svcs defined and client is not already using
-             * one, announce the services that were configured and match. 
-             * The security of this connection determines if we allow
-             * other host names or ports only.
-             */
-            const char *alt_svc = "";
-            const char *svc_ma = "";
-            int secure = h2_h2_is_tls(r->connection);
-            int ma = h2_config_geti(cfg, H2_CONF_ALT_SVC_MAX_AGE);
-            if (ma >= 0) {
-                svc_ma = apr_psprintf(r->pool, "; ma=%d", ma);
-            }
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "h2_alt_svc: announce %s for %s:%d", 
-                          (secure? "secure" : "insecure"), 
-                          r->hostname, (int)r->server->port);
-            for (i = 0; i < cfg->alt_svcs->nelts; ++i) {
-                h2_alt_svc *as = h2_alt_svc_IDX(cfg->alt_svcs, i);
-                const char *ahost = as->host;
-                if (ahost && !apr_strnatcasecmp(ahost, r->hostname)) {
-                    ahost = NULL;
-                }
-                if (secure || !ahost) {
-                    alt_svc = apr_psprintf(r->pool, "%s%s%s=\"%s:%d\"%s", 
-                                           alt_svc,
-                                           (*alt_svc? ", " : ""), as->alpn,
-                                           ahost? ahost : "", as->port,
-                                           svc_ma);
-                }
-            }
-            if (*alt_svc) {
-                apr_table_set(r->headers_out, "Alt-Svc", alt_svc);
-            }
+    for (i = 0; ap_loaded_modules[i]; ++i) {
+        module *m = ap_loaded_modules[i];
+        if (!strcmp("event.c", m->name)) {
+            mpm_type = H2_MPM_EVENT;
+            mpm_module = m;
+        }
+        else if (!strcmp("worker.c", m->name)) {
+            mpm_type = H2_MPM_WORKER;
+            mpm_module = m;
+        }
+        else if (!strcmp("prefork.c", m->name)) {
+            mpm_type = H2_MPM_PREFORK;
+            mpm_module = m;
         }
     }
     
-    return DECLINED;
+    if (minw <= 0) {
+        minw = max_threads_per_child;
+    }
+    if (maxw <= 0) {
+        maxw = threads_limit;
+        if (maxw < minw) {
+            maxw = minw;
+        }
+    }
+    
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                 "h2_workers: min=%d max=%d, mthrpchild=%d, thr_limit=%d", 
+                 minw, maxw, max_threads_per_child, threads_limit);
+    
+    workers = h2_workers_create(s, pool, minw, maxw);
+    idle_secs = h2_config_geti(config, H2_CONF_MAX_WORKER_IDLE_SECS);
+    h2_workers_set_max_idle_secs(workers, idle_secs);
+    
+    return status;
 }

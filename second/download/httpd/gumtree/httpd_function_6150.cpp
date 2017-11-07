@@ -1,15 +1,17 @@
-static int can_beam_file(void *ctx, h2_bucket_beam *beam,  apr_file_t *file)
+static void h2_mplx_destroy(h2_mplx *m)
 {
-    h2_mplx *m = ctx;
-    if (m->tx_handles_reserved > 0) {
-        --m->tx_handles_reserved;
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c,
-                      "h2_mplx(%ld-%d): beaming file %s, tx_avail %d", 
-                      m->id, beam->id, beam->tag, m->tx_handles_reserved);
-        return 1;
+    conn_rec **pslave;
+    ap_assert(m);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                  "h2_mplx(%ld): destroy, tasks=%d", 
+                  m->id, (int)h2_ihash_count(m->tasks));
+    check_tx_free(m);
+    
+    while (m->spare_slaves->nelts > 0) {
+        pslave = (conn_rec **)apr_array_pop(m->spare_slaves);
+        h2_slave_destroy(*pslave);
     }
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c,
-                  "h2_mplx(%ld-%d): can_beam_file denied on %s", 
-                  m->id, beam->id, beam->tag);
-    return 0;
+    if (m->pool) {
+        apr_pool_destroy(m->pool);
+    }
 }

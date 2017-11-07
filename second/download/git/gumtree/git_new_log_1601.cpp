@@ -1,4 +1,3 @@
 error(remote_branch
-			      ? _("Error deleting remote-tracking branch '%s'")
-			      : _("Error deleting branch '%s'"),
-			      bname.buf);
+			      ? _("remote-tracking branch '%s' not found.")
+			      : _("branch '%s' not found."), bname.buf);

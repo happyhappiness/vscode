@@ -1,1 +1,1 @@
-fputs(output, stderr);
+fputs(sigc->payload, stdout);

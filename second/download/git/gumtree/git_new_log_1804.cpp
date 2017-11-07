@@ -1,1 +1,2 @@
-status_printf_ln(s, color, _("No commands done."));
+die_errno("Could not open file %s for reading",
+			  git_path("%s", fname));

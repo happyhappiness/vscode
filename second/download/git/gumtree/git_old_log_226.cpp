@@ -1,1 +1,0 @@
-die(_("reference repository '%s' is shallow"), item->string);

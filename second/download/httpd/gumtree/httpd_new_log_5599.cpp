@@ -1,2 +1,2 @@
-ap_log_error( APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03089)
-                     "initializing post config dry run");
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03091)
+                         "post_config: mpm type unknown");

@@ -1,1 +1,1 @@
-error(msg, path, _(": perhaps a D/F conflict?"));
+die(msg, path, "");

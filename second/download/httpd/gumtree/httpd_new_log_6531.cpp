@@ -1,1 +1,1 @@
-fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+fprintf(stderr, "    -q              Do not show progress when doing more than 150 requests\n");

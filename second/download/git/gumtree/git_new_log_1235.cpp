@@ -1,1 +1,1 @@
-ref_transaction_begin(&err);
+error("%s", err.buf);

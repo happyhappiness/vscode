@@ -1,2 +1,1 @@
-error(_("Cannot delete the branch '%s' "
-			      "which you are currently on."), bname.buf);
+die(_("git apply: bad git-diff - expected /dev/null, got %s on line %d"), name, linenr);

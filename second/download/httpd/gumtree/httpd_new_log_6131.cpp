@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, 
-                          H2_SSSN_LOG(APLOGNO(03045), session, 
-                          "process, closing conn"));
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
+                      APLOGNO(02913) "h2_session(%ld-%d): create slave",
+                      master->id, slave_id);

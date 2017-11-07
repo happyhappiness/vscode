@@ -1,1 +1,1 @@
-error("unable to unpack contents of %s", path);
+error("unable to parse header of %s", path);

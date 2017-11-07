@@ -1,1 +1,1 @@
-fprintf(opt->diffopt.file, " %s", find_unique_abbrev(p->item->object.oid.hash, abbrev));
+fprintf(rev->diffopt.file, "%s\n", output_prefix(&rev->diffopt));

@@ -1,2 +1,2 @@
-error(_("invalid line %d: %.*s"),
-				i, (int)(eol - p), p);
+error(_("git %s: failed to refresh the index"),
+				_(action_name(opts)));

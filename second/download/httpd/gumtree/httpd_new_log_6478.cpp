@@ -1,1 +1,1 @@
-ap_rputs("Auto", r);
+ap_rputs("        </httpd:worker>\n", r);

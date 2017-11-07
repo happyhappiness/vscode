@@ -1,1 +1,1 @@
-git_die_config(key, NULL);
+die(_("unknown error occured while reading the configuration files"));

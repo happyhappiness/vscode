@@ -1,1 +1,1 @@
-error(_("invalid key: %s"), key);
+error(_("cannot revert during a cherry-pick."));

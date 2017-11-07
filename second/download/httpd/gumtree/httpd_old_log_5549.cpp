@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "h2_switch init");
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
+                      "protocol propose: connection requirements not met");

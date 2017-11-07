@@ -1,1 +1,1 @@
-die("Too large to be a .git file: '%s'", path);
+die_errno("Error opening '%s'", path);

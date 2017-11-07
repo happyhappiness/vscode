@@ -1,84 +1,73 @@
-int merge_recursive(struct merge_options *o,
-		    struct commit *h1,
-		    struct commit *h2,
-		    struct commit_list *ca,
-		    struct commit **result)
+int merge_trees(struct merge_options *o,
+		struct tree *head,
+		struct tree *merge,
+		struct tree *common,
+		struct tree **result)
 {
-	struct commit_list *iter;
-	struct commit *merged_common_ancestors;
-	struct tree *mrtree = mrtree;
-	int clean;
+	int code, clean;
 
-	if (show(o, 4)) {
-		output(o, 4, _("Merging:"));
-		output_commit_title(o, h1);
-		output_commit_title(o, h2);
+	if (o->subtree_shift) {
+		merge = shift_tree_object(head, merge, o->subtree_shift);
+		common = shift_tree_object(head, common, o->subtree_shift);
 	}
 
-	if (!ca) {
-		ca = get_merge_bases(h1, h2);
-		ca = reverse_commit_list(ca);
+	if (sha_eq(common->object.oid.hash, merge->object.oid.hash)) {
+		output(o, 0, _("Already up-to-date!"));
+		*result = head;
+		return 1;
 	}
 
-	if (show(o, 5)) {
-		unsigned cnt = commit_list_count(ca);
+	code = git_merge_trees(o->call_depth, common, head, merge);
 
-		output(o, 5, Q_("found %u common ancestor:",
-				"found %u common ancestors:", cnt), cnt);
-		for (iter = ca; iter; iter = iter->next)
-			output_commit_title(o, iter->item);
+	if (code != 0) {
+		if (show(o, 4) || o->call_depth)
+			die(_("merging of trees %s and %s failed"),
+			    oid_to_hex(&head->object.oid),
+			    oid_to_hex(&merge->object.oid));
+		else
+			exit(128);
 	}
 
-	merged_common_ancestors = pop_commit(&ca);
-	if (merged_common_ancestors == NULL) {
-		/* if there is no common ancestor, use an empty tree */
-		struct tree *tree;
+	if (unmerged_cache()) {
+		struct string_list *entries, *re_head, *re_merge;
+		int i;
+		string_list_clear(&o->current_file_set, 1);
+		string_list_clear(&o->current_directory_set, 1);
+		get_files_dirs(o, head);
+		get_files_dirs(o, merge);
 
-		tree = lookup_tree(EMPTY_TREE_SHA1_BIN);
-		merged_common_ancestors = make_virtual_commit(tree, "ancestor");
+		entries = get_unmerged();
+		record_df_conflict_files(o, entries);
+		re_head  = get_renames(o, head, common, head, merge, entries);
+		re_merge = get_renames(o, merge, common, head, merge, entries);
+		clean = process_renames(o, re_head, re_merge);
+		for (i = entries->nr-1; 0 <= i; i--) {
+			const char *path = entries->items[i].string;
+			struct stage_data *e = entries->items[i].util;
+			if (!e->processed
+				&& !process_entry(o, path, e))
+				clean = 0;
+		}
+		for (i = 0; i < entries->nr; i++) {
+			struct stage_data *e = entries->items[i].util;
+			if (!e->processed)
+				die(_("Unprocessed path??? %s"),
+				    entries->items[i].string);
+		}
+
+		string_list_clear(re_merge, 0);
+		string_list_clear(re_head, 0);
+		string_list_clear(entries, 1);
+
+		free(re_merge);
+		free(re_head);
+		free(entries);
 	}
+	else
+		clean = 1;
 
-	for (iter = ca; iter; iter = iter->next) {
-		const char *saved_b1, *saved_b2;
-		o->call_depth++;
-		/*
-		 * When the merge fails, the result contains files
-		 * with conflict markers. The cleanness flag is
-		 * ignored, it was never actually used, as result of
-		 * merge_trees has always overwritten it: the committed
-		 * "conflicts" were already resolved.
-		 */
-		discard_cache();
-		saved_b1 = o->branch1;
-		saved_b2 = o->branch2;
-		o->branch1 = "Temporary merge branch 1";
-		o->branch2 = "Temporary merge branch 2";
-		merge_recursive(o, merged_common_ancestors, iter->item,
-				NULL, &merged_common_ancestors);
-		o->branch1 = saved_b1;
-		o->branch2 = saved_b2;
-		o->call_depth--;
+	if (o->call_depth)
+		*result = write_tree_from_memory(o);
 
-		if (!merged_common_ancestors)
-			die(_("merge returned no commit"));
-	}
-
-	discard_cache();
-	if (!o->call_depth)
-		read_cache();
-
-	o->ancestor = "merged common ancestors";
-	clean = merge_trees(o, h1->tree, h2->tree, merged_common_ancestors->tree,
-			    &mrtree);
-
-	if (o->call_depth) {
-		*result = make_virtual_commit(mrtree, "merged tree");
-		commit_list_insert(h1, &(*result)->parents);
-		commit_list_insert(h2, &(*result)->parents->next);
-	}
-	flush_output(o);
-	if (show(o, 2))
-		diff_warn_rename_limit("merge.renamelimit",
-				       o->needed_rename_limit, 0);
 	return clean;
 }

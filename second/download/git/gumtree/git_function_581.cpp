@@ -1,47 +1,23 @@
-int sequencer_rollback(struct replay_opts *opts)
+static int rollback_is_safe(void)
 {
-	FILE *f;
-	unsigned char sha1[20];
-	struct strbuf buf = STRBUF_INIT;
+	struct strbuf sb = STRBUF_INIT;
+	struct object_id expected_head, actual_head;
 
-	f = fopen(git_path_head_file(), "r");
-	if (!f && errno == ENOENT) {
-		/*
-		 * There is no multiple-cherry-pick in progress.
-		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
-		 * a single-cherry-pick in progress, abort that.
-		 */
-		return rollback_single_pick();
+	if (strbuf_read_file(&sb, git_path_abort_safety_file(), 0) >= 0) {
+		strbuf_trim(&sb);
+		if (get_oid_hex(sb.buf, &expected_head)) {
+			strbuf_release(&sb);
+			die(_("could not parse %s"), git_path_abort_safety_file());
+		}
+		strbuf_release(&sb);
 	}
-	if (!f)
-		return error_errno(_("cannot open '%s'"), git_path_head_file());
-	if (strbuf_getline_lf(&buf, f)) {
-		error(_("cannot read '%s': %s"), git_path_head_file(),
-		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));
-		fclose(f);
-		goto fail;
-	}
-	fclose(f);
-	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
-		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
-			git_path_head_file());
-		goto fail;
-	}
-	if (is_null_sha1(sha1)) {
-		error(_("cannot abort from a branch yet to be born"));
-		goto fail;
-	}
+	else if (errno == ENOENT)
+		oidclr(&expected_head);
+	else
+		die_errno(_("could not read '%s'"), git_path_abort_safety_file());
 
-	if (!rollback_is_safe()) {
-		/* Do not error, just do not rollback */
-		warning(_("You seem to have moved HEAD. "
-			  "Not rewinding, check your HEAD!"));
-	} else
-	if (reset_for_rollback(sha1))
-		goto fail;
-	strbuf_release(&buf);
-	return sequencer_remove_state(opts);
-fail:
-	strbuf_release(&buf);
-	return -1;
+	if (get_oid("HEAD", &actual_head))
+		oidclr(&actual_head);
+
+	return !oidcmp(&actual_head, &expected_head);
 }

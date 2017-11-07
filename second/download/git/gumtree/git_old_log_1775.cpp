@@ -1,1 +1,1 @@
-die("Error reading %s", path);
+die_errno("Error opening '%s'", path);

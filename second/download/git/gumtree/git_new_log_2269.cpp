@@ -1,1 +1,1 @@
-printf("base-commit: %s\n", oid_to_hex(&bases->base_commit));
+die(_("cannot get patch id"));

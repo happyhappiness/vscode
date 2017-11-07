@@ -1,1 +1,1 @@
-error(_("Failed to lock HEAD during fast_forward_to"));
+error("remote-curl: unknown command '%s' from git", buf.buf);

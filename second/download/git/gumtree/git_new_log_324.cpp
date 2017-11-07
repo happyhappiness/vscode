@@ -1,1 +1,1 @@
-die("protocol error: multiple capabilities^{}");
+die("protocol error: unexpected capabilities^{}");

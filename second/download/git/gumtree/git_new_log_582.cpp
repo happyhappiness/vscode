@@ -1,2 +1,2 @@
-die("BUG: pool size too small for %d in paint_alloc()",
-			    size);
+warning(_("You seem to have moved HEAD. "
+			  "Not rewinding, check your HEAD!"));

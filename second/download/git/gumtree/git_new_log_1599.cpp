@@ -1,1 +1,1 @@
-die(_("editing patch failed"));
+die_errno(_("could not close %s"), path);

@@ -1,1 +1,1 @@
-fprintf(opt->file, "%s ", diff_unique_abbrev(p->two->sha1, opt->abbrev));
+die("unable to read %s", sha1_to_hex(s->sha1));

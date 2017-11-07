@@ -1,1 +1,1 @@
-fprintf(stderr, "Server supports side-band-64k\n");
+fprintf(stderr, "Server supports multi_ack\n");

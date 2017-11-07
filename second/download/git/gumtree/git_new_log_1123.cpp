@@ -1,1 +1,1 @@
-die("BUG: prepare called on a closed reference transaction");
+die("BUG: prepare called twice on reference transaction");

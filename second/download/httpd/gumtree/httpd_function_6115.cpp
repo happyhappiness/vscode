@@ -1,256 +1,71 @@
-request_rec *ap_read_request(conn_rec *conn)
+static void fix_hostname(request_rec *r)
 {
-    request_rec *r;
-    apr_pool_t *p;
-    const char *expect;
-    int access_status = HTTP_OK;
-    apr_bucket_brigade *tmp_bb;
-    apr_socket_t *csd;
-    apr_interval_time_t cur_timeout;
+    char *host, *scope_id;
+    char *dst;
+    apr_port_t port;
+    apr_status_t rv;
+    const char *c;
 
+    /* According to RFC 2616, Host header field CAN be blank. */
+    if (!*r->hostname) {
+        return;
+    }
 
-    apr_pool_create(&p, conn->pool);
-    apr_pool_tag(p, "request");
-    r = apr_pcalloc(p, sizeof(request_rec));
-    AP_READ_REQUEST_ENTRY((intptr_t)r, (uintptr_t)conn);
-    r->pool            = p;
-    r->connection      = conn;
-    r->server          = conn->base_server;
-
-    r->user            = NULL;
-    r->ap_auth_type    = NULL;
-
-    r->allowed_methods = ap_make_method_list(p, 2);
-
-    r->headers_in      = apr_table_make(r->pool, 25);
-    r->trailers_in     = apr_table_make(r->pool, 5);
-    r->subprocess_env  = apr_table_make(r->pool, 25);
-    r->headers_out     = apr_table_make(r->pool, 12);
-    r->err_headers_out = apr_table_make(r->pool, 5);
-    r->trailers_out    = apr_table_make(r->pool, 5);
-    r->notes           = apr_table_make(r->pool, 5);
-
-    r->request_config  = ap_create_request_config(r->pool);
-    /* Must be set before we run create request hook */
-
-    r->proto_output_filters = conn->output_filters;
-    r->output_filters  = r->proto_output_filters;
-    r->proto_input_filters = conn->input_filters;
-    r->input_filters   = r->proto_input_filters;
-    ap_run_create_request(r);
-    r->per_dir_config  = r->server->lookup_defaults;
-
-    r->sent_bodyct     = 0;                      /* bytect isn't for body */
-
-    r->read_length     = 0;
-    r->read_body       = REQUEST_NO_BODY;
-
-    r->status          = HTTP_OK;  /* Until further notice */
-    r->the_request     = NULL;
-
-    /* Begin by presuming any module can make its own path_info assumptions,
-     * until some module interjects and changes the value.
+    /* apr_parse_addr_port will interpret a bare integer as a port
+     * which is incorrect in this context.  So treat it separately.
      */
-    r->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
-
-    r->useragent_addr = conn->client_addr;
-    r->useragent_ip = conn->client_ip;
-
-    tmp_bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-
-    ap_run_pre_read_request(r, conn);
-
-    /* Get the request... */
-    if (!read_request_line(r, tmp_bb)) {
-        if (r->status == HTTP_REQUEST_URI_TOO_LARGE
-            || r->status == HTTP_BAD_REQUEST) {
-            if (r->status == HTTP_REQUEST_URI_TOO_LARGE) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00565)
-                              "request failed: client's request-line exceeds LimitRequestLine (longer than %d)",
-                              r->server->limit_req_line);
-            }
-            else if (r->method == NULL) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00566)
-                              "request failed: invalid characters in URI");
-            }
-            access_status = r->status;
-            r->status = HTTP_OK;
-            ap_die(access_status, r);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            r = NULL;
-            apr_brigade_destroy(tmp_bb);
-            goto traceout;
-        }
-        else if (r->status == HTTP_REQUEST_TIME_OUT) {
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, NULL);
-            if (!r->connection->keepalives) {
-                ap_run_log_transaction(r);
-            }
-            apr_brigade_destroy(tmp_bb);
-            goto traceout;
-        }
-
-        apr_brigade_destroy(tmp_bb);
-        r = NULL;
-        goto traceout;
+    for (c = r->hostname; apr_isdigit(*c); ++c);
+    if (!*c) {  /* pure integer */
+        return;
     }
 
-    /* We may have been in keep_alive_timeout mode, so toggle back
-     * to the normal timeout mode as we fetch the header lines,
-     * as necessary.
-     */
-    csd = ap_get_conn_socket(conn);
-    apr_socket_timeout_get(csd, &cur_timeout);
-    if (cur_timeout != conn->base_server->timeout) {
-        apr_socket_timeout_set(csd, conn->base_server->timeout);
-        cur_timeout = conn->base_server->timeout;
+    rv = apr_parse_addr_port(&host, &scope_id, &port, r->hostname, r->pool);
+    if (rv != APR_SUCCESS || scope_id) {
+        goto bad;
     }
 
-    if (!r->assbackwards) {
-        const char *tenc;
-
-        ap_get_mime_headers_core(r, tmp_bb);
-        if (r->status != HTTP_OK) {
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00567)
-                          "request failed: error reading the headers");
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            goto traceout;
-        }
-
-        tenc = apr_table_get(r->headers_in, "Transfer-Encoding");
-        if (tenc) {
-            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
-             * Section 3.3.3.3: "If a Transfer-Encoding header field is
-             * present in a request and the chunked transfer coding is not
-             * the final encoding ...; the server MUST respond with the 400
-             * (Bad Request) status code and then close the connection".
-             */
-            if (!(strcasecmp(tenc, "chunked") == 0 /* fast path */
-                    || ap_find_last_token(r->pool, tenc, "chunked"))) {
-                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02539)
-                              "client sent unknown Transfer-Encoding "
-                              "(%s): %s", tenc, r->uri);
-                r->status = HTTP_BAD_REQUEST;
-                conn->keepalive = AP_CONN_CLOSE;
-                ap_send_error_response(r, 0);
-                ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-                ap_run_log_transaction(r);
-                apr_brigade_destroy(tmp_bb);
-                goto traceout;
-            }
-
-            /* http://tools.ietf.org/html/draft-ietf-httpbis-p1-messaging-23
-             * Section 3.3.3.3: "If a message is received with both a
-             * Transfer-Encoding and a Content-Length header field, the
-             * Transfer-Encoding overrides the Content-Length. ... A sender
-             * MUST remove the received Content-Length field".
-             */
-            apr_table_unset(r->headers_in, "Content-Length");
-        }
-    }
-    else {
-        if (r->header_only) {
-            /*
-             * Client asked for headers only with HTTP/0.9, which doesn't send
-             * headers! Have to dink things just to make sure the error message
-             * comes through...
-             */
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00568)
-                          "client sent invalid HTTP/0.9 request: HEAD %s",
-                          r->uri);
-            r->header_only = 0;
-            r->status = HTTP_BAD_REQUEST;
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            apr_brigade_destroy(tmp_bb);
-            goto traceout;
-        }
-    }
-
-    apr_brigade_destroy(tmp_bb);
-
-    /* update what we think the virtual host is based on the headers we've
-     * now read. may update status.
-     */
-    ap_update_vhost_from_headers(r);
-
-    /* Toggle to the Host:-based vhost's timeout mode to fetch the
-     * request body and send the response body, if needed.
-     */
-    if (cur_timeout != r->server->timeout) {
-        apr_socket_timeout_set(csd, r->server->timeout);
-        cur_timeout = r->server->timeout;
-    }
-
-    /* we may have switched to another server */
-    r->per_dir_config = r->server->lookup_defaults;
-
-    if ((!r->hostname && (r->proto_num >= HTTP_VERSION(1, 1)))
-        || ((r->proto_num == HTTP_VERSION(1, 1))
-            && !apr_table_get(r->headers_in, "Host"))) {
-        /*
-         * Client sent us an HTTP/1.1 or later request without telling us the
-         * hostname, either with a full URL or a Host: header. We therefore
-         * need to (as per the 1.1 spec) send an error.  As a special case,
-         * HTTP/1.1 mentions twice (S9, S14.23) that a request MUST contain
-         * a Host: header, and the server MUST respond with 400 if it doesn't.
+    if (port) {
+        /* Don't throw the Host: header's port number away:
+           save it in parsed_uri -- ap_get_server_port() needs it! */
+        /* @@@ XXX there should be a better way to pass the port.
+         *         Like r->hostname, there should be a r->portno
          */
-        access_status = HTTP_BAD_REQUEST;
-        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00569)
-                      "client sent HTTP/1.1 request without hostname "
-                      "(see RFC2616 section 14.23): %s", r->uri);
+        r->parsed_uri.port = port;
+        r->parsed_uri.port_str = apr_itoa(r->pool, (int)port);
     }
 
-    /*
-     * Add the HTTP_IN filter here to ensure that ap_discard_request_body
-     * called by ap_die and by ap_send_error_response works correctly on
-     * status codes that do not cause the connection to be dropped and
-     * in situations where the connection should be kept alive.
+    /* if the hostname is an IPv6 numeric address string, it was validated
+     * already; otherwise, further validation is needed
      */
-
-    ap_add_input_filter_handle(ap_http_input_filter_handle,
-                               NULL, r, r->connection);
-
-    if (access_status != HTTP_OK
-        || (access_status = ap_run_post_read_request(r))) {
-        ap_die(access_status, r);
-        ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-        ap_run_log_transaction(r);
-        r = NULL;
-        goto traceout;
-    }
-
-    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
-        && (expect[0] != '\0')) {
-        /*
-         * The Expect header field was added to HTTP/1.1 after RFC 2068
-         * as a means to signal when a 100 response is desired and,
-         * unfortunately, to signal a poor man's mandatory extension that
-         * the server must understand or return 417 Expectation Failed.
-         */
-        if (strcasecmp(expect, "100-continue") == 0) {
-            r->expecting_100 = 1;
+    if (r->hostname[0] != '[') {
+        for (dst = host; *dst; dst++) {
+            if (apr_islower(*dst)) {
+                /* leave char unchanged */
+            }
+            else if (*dst == '.') {
+                if (*(dst + 1) == '.') {
+                    goto bad;
+                }
+            }
+            else if (apr_isupper(*dst)) {
+                *dst = apr_tolower(*dst);
+            }
+            else if (*dst == '/' || *dst == '\\') {
+                goto bad;
+            }
         }
-        else {
-            r->status = HTTP_EXPECTATION_FAILED;
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00570)
-                          "client sent an unrecognized expectation value of "
-                          "Expect: %s", expect);
-            ap_send_error_response(r, 0);
-            ap_update_child_status(conn->sbh, SERVER_BUSY_LOG, r);
-            ap_run_log_transaction(r);
-            goto traceout;
+        /* strip trailing gubbins */
+        if (dst > host && dst[-1] == '.') {
+            dst[-1] = '\0';
         }
     }
+    r->hostname = host;
+    return;
 
-    AP_READ_REQUEST_SUCCESS((uintptr_t)r, (char *)r->method, (char *)r->uri, (char *)r->server->defn_name, r->status);
-    return r;
-    traceout:
-    AP_READ_REQUEST_FAILURE((uintptr_t)r);
-    return r;
+bad:
+    r->status = HTTP_BAD_REQUEST;
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00550)
+                  "Client sent malformed Host header: %s",
+                  r->hostname);
+    return;
 }

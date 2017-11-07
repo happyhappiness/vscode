@@ -1,2 +1,1 @@
-die("BUG: counted %d != ended at %d",
-			    check->nr, cnt);
+die("BUG: no entry found");

@@ -1,1 +1,1 @@
-die("Missing space after tree-ish: %s", command_buf.buf);
+die("bad --word-diff argument: %s", arg);

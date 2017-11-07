@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
-                  "h2_push_diary_digest64_set: digest=%s, dlen=%d", 
-                  data64url, (int)len);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
+                  "h2_request(%d): rwrite %s host=%s://%s%s",
+                  req->id, req->method, req->scheme, req->authority, req->path);

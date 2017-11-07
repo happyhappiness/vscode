@@ -1,1 +1,1 @@
-die("cannot start proxy %s", git_proxy_command);
+die("protocol error: expected shallow sha-1, got '%s'", arg);

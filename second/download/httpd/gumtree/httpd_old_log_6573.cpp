@@ -1,1 +1,2 @@
-apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);
+apr_file_printf(errfile, " -b  Use the password from the command line "
+            "rather than prompting for it." NL);

@@ -1,1 +1,2 @@
-die("remote error: %s", arg);
+error("chmod on %s failed: %s",
+				lock->filename, strerror(errno));

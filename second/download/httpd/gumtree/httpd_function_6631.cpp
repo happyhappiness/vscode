@@ -1,23 +1,28 @@
-static apr_status_t slotmem_fgrab(ap_slotmem_instance_t *slot, unsigned int id)
+static int ssl_tmp_key_init_dh(server_rec *s,
+                               int bits, int idx)
 {
-    char *inuse;
-    
-    if (!slot) {
-        return APR_ENOSHMAVAIL;
+    SSLModConfigRec *mc = myModConfig(s);
+
+#ifdef HAVE_FIPS
+
+    if (FIPS_mode() && bits < 1024) {
+        mc->pTmpKeys[idx] = NULL;
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01880)
+                     "Init: Skipping generating temporary "
+                     "%d bit DH parameters in FIPS mode", bits);
+        return OK;
     }
 
-    if (id >= slot->desc.num) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02236)
-                     "slotmem(%s) fgrab failed. Num %u/num_free %u",
-                     slot->name, slotmem_num_slots(slot),
-                     slotmem_num_free_slots(slot));
-        return APR_EINVAL;
-    }
-    inuse = slot->inuse + id;
+#endif
 
-    if (!*inuse) {
-        *inuse = 1;
-        (*slot->num_free)--;
+    if (!(mc->pTmpKeys[idx] =
+          ssl_dh_GetTmpParam(bits)))
+    {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01881)
+                     "Init: Failed to generate temporary "
+                     "%d bit DH parameters", bits);
+        return !OK;
     }
-    return APR_SUCCESS;
+
+    return OK;
 }

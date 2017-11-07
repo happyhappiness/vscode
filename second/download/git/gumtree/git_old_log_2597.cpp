@@ -1,1 +1,1 @@
-die("Fatal: buffer too small. Please report a bug.");
+not_found("Repository not exported: '%s'", dir);

@@ -1,1 +1,1 @@
-die(_("--merged and --no-merged option are only allowed with -l"));
+die(_("--points-at option is only allowed with -l."));

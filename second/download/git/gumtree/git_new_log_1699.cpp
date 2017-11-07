@@ -1,1 +1,1 @@
-warning("Skipping unknown msg id '%s'", var);
+error("Invalid value for '%s'", k);

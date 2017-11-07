@@ -1,1 +1,1 @@
-die_errno("couldn't read %s", packed_refs_file);
+die("BUG: packed-ref cache cleared while locked");

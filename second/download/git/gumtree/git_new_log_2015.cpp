@@ -1,2 +1,1 @@
-die("Duplicate entry when writing index: %s",
-			    oid_to_hex(&object->oid));
+die("Commit %s doesn't have an indexed bitmap", oid_to_hex(&root->oid));

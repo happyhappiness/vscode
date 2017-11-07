@@ -1,2 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, 
-                    "Websocket: Upgrade from HTTP to Websocket failed");
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                    "Websocket: Frame contained %lu bytes, pushed to Lua stack", 
+                        at);

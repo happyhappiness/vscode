@@ -1,1 +1,1 @@
-warning("packfile %s cannot be accessed", p->pack_name);
+error("cannot lock ref '%s'", refname);

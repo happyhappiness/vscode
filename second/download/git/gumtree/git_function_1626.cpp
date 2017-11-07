@@ -1,30 +1,30 @@
-static void find_copy_in_blob(struct scoreboard *sb,
-			      struct blame_entry *ent,
-			      struct origin *parent,
-			      struct blame_entry *split,
-			      mmfile_t *file_p)
+static void pass_blame_to_parent(struct scoreboard *sb,
+				 struct origin *target,
+				 struct origin *parent)
 {
-	const char *cp;
-	mmfile_t file_o;
-	struct handle_split_cb_data d;
+	mmfile_t file_p, file_o;
+	struct blame_chunk_cb_data d;
+	struct blame_entry *newdest = NULL;
 
-	memset(&d, 0, sizeof(d));
-	d.sb = sb; d.ent = ent; d.parent = parent; d.split = split;
-	/*
-	 * Prepare mmfile that contains only the lines in ent.
-	 */
-	cp = nth_line(sb, ent->lno);
-	file_o.ptr = (char *) cp;
-	file_o.size = nth_line(sb, ent->lno + ent->num_lines) - cp;
+	if (!target->suspects)
+		return; /* nothing remains for this target */
 
-	/*
-	 * file_o is a part of final image we are annotating.
-	 * file_p partially may match that image.
-	 */
-	memset(split, 0, sizeof(struct blame_entry [3]));
-	if (diff_hunks(file_p, &file_o, 1, handle_split_cb, &d))
-		die("unable to generate diff (%s)",
-		    sha1_to_hex(parent->commit->object.sha1));
-	/* remainder, if any, all match the preimage */
-	handle_split(sb, ent, d.tlno, d.plno, ent->num_lines, parent, split);
+	d.parent = parent;
+	d.offset = 0;
+	d.dstq = &newdest; d.srcq = &target->suspects;
+
+	fill_origin_blob(&sb->revs->diffopt, parent, &file_p);
+	fill_origin_blob(&sb->revs->diffopt, target, &file_o);
+	num_get_patch++;
+
+	if (diff_hunks(&file_p, &file_o, 0, blame_chunk_cb, &d))
+		die("unable to generate diff (%s -> %s)",
+		    sha1_to_hex(parent->commit->object.sha1),
+		    sha1_to_hex(target->commit->object.sha1));
+	/* The rest are the same as the parent */
+	blame_chunk(&d.dstq, &d.srcq, INT_MAX, d.offset, INT_MAX, parent);
+	*d.dstq = NULL;
+	queue_blames(sb, parent, newdest);
+
+	return;
 }

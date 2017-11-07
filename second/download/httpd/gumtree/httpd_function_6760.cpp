@@ -1,146 +1,137 @@
-static int spool_reqbody_cl(apr_pool_t *p,
-                                     request_rec *r,
-                                     proxy_conn_rec *p_conn,
-                                     conn_rec *origin,
-                                     apr_bucket_brigade *header_brigade,
-                                     apr_bucket_brigade *input_brigade,
-                                     int force_cl)
+static int ap_proxy_wstunnel_request(apr_pool_t *p, request_rec *r,
+                                proxy_conn_rec *conn,
+                                proxy_worker *worker,
+                                proxy_server_conf *conf,
+                                apr_uri_t *uri,
+                                char *url, char *server_portstr)
 {
-    int seen_eos = 0;
-    apr_status_t status;
-    apr_bucket_alloc_t *bucket_alloc = r->connection->bucket_alloc;
-    apr_bucket_brigade *body_brigade;
+    apr_status_t rv = APR_SUCCESS;
+    apr_pollset_t *pollset;
+    apr_pollfd_t pollfd;
+    const apr_pollfd_t *signalled;
+    apr_int32_t pollcnt, pi;
+    apr_int16_t pollevent;
+    conn_rec *c = r->connection;
+    apr_socket_t *sock = conn->sock;
+    conn_rec *backconn = conn->connection;
+    int client_error = 0;
+    char *buf;
+    apr_bucket_brigade *header_brigade;
     apr_bucket *e;
-    apr_off_t bytes, bytes_spooled = 0, fsize = 0;
-    apr_file_t *tmpfile = NULL;
-    apr_off_t limit;
+    char *old_cl_val = NULL;
+    char *old_te_val = NULL;
+    apr_bucket_brigade *bb = apr_brigade_create(p, c->bucket_alloc);
+    apr_socket_t *client_socket = ap_get_conn_socket(c);
 
-    body_brigade = apr_brigade_create(p, bucket_alloc);
+    header_brigade = apr_brigade_create(p, backconn->bucket_alloc);
 
-    limit = ap_get_limit_req_body(r);
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "sending request");
 
-    while (!APR_BUCKET_IS_EOS(APR_BRIGADE_FIRST(input_brigade)))
-    {
-        /* If this brigade contains EOS, either stop or remove it. */
-        if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(input_brigade))) {
-            seen_eos = 1;
+    rv = ap_proxy_create_hdrbrgd(p, header_brigade, r, conn,
+                                 worker, conf, uri, url, server_portstr,
+                                 &old_cl_val, &old_te_val);
+    if (rv != OK) {
+        return rv;
+    }
 
-            /* We can't pass this EOS to the output_filters. */
-            e = APR_BRIGADE_LAST(input_brigade);
-            apr_bucket_delete(e);
+    buf = apr_pstrcat(p, "Upgrade: WebSocket", CRLF, "Connection: Upgrade", CRLF, CRLF, NULL);
+    ap_xlate_proto_to_ascii(buf, strlen(buf));
+    e = apr_bucket_pool_create(buf, strlen(buf), p, c->bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(header_brigade, e);
+
+    if ((rv = ap_proxy_pass_brigade(c->bucket_alloc, r, conn, backconn,
+                                    header_brigade, 1)) != OK)
+        return rv;
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "setting up poll()");
+
+    if ((rv = apr_pollset_create(&pollset, 2, p, 0)) != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02443)
+                      "error apr_pollset_create()");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+#if 0
+    apr_socket_opt_set(sock, APR_SO_NONBLOCK, 1);
+    apr_socket_opt_set(sock, APR_SO_KEEPALIVE, 1);
+    apr_socket_opt_set(client_socket, APR_SO_NONBLOCK, 1);
+    apr_socket_opt_set(client_socket, APR_SO_KEEPALIVE, 1);
+#endif
+
+    pollfd.p = p;
+    pollfd.desc_type = APR_POLL_SOCKET;
+    pollfd.reqevents = APR_POLLIN;
+    pollfd.desc.s = sock;
+    pollfd.client_data = NULL;
+    apr_pollset_add(pollset, &pollfd);
+
+    pollfd.desc.s = client_socket;
+    apr_pollset_add(pollset, &pollfd);
+
+
+    r->output_filters = c->output_filters;
+    r->proto_output_filters = c->output_filters;
+    r->input_filters = c->input_filters;
+    r->proto_input_filters = c->input_filters;
+
+    remove_reqtimeout(r->input_filters);
+
+    while (1) { /* Infinite loop until error (one side closes the connection) */
+        if ((rv = apr_pollset_poll(pollset, -1, &pollcnt, &signalled))
+            != APR_SUCCESS) {
+            if (APR_STATUS_IS_EINTR(rv)) {
+                continue;
+            }
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02444) "error apr_poll()");
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02445)
+                      "woke from poll(), i=%d", pollcnt);
 
-        apr_brigade_length(input_brigade, 1, &bytes);
+        for (pi = 0; pi < pollcnt; pi++) {
+            const apr_pollfd_t *cur = &signalled[pi];
 
-        if (bytes_spooled + bytes > MAX_MEM_SPOOL) {
-            /*
-             * LimitRequestBody does not affect Proxy requests (Should it?).
-             * Let it take effect if we decide to store the body in a
-             * temporary file on disk.
-             */
-            if (limit && (bytes_spooled + bytes > limit)) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01088)
-                              "Request body is larger than the configured "
-                              "limit of %" APR_OFF_T_FMT, limit);
-                return HTTP_REQUEST_ENTITY_TOO_LARGE;
-            }
-            /* can't spool any more in memory; write latest brigade to disk */
-            if (tmpfile == NULL) {
-                const char *temp_dir;
-                char *template;
-
-                status = apr_temp_dir_get(&temp_dir, p);
-                if (status != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01089)
-                                  "search for temporary directory failed");
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-                apr_filepath_merge(&template, temp_dir,
-                                   "modproxy.tmp.XXXXXX",
-                                   APR_FILEPATH_NATIVE, p);
-                status = apr_file_mktemp(&tmpfile, template, 0, p);
-                if (status != APR_SUCCESS) {
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01090)
-                                  "creation of temporary file in directory "
-                                  "%s failed", temp_dir);
-                    return HTTP_INTERNAL_SERVER_ERROR;
-                }
-            }
-            for (e = APR_BRIGADE_FIRST(input_brigade);
-                 e != APR_BRIGADE_SENTINEL(input_brigade);
-                 e = APR_BUCKET_NEXT(e)) {
-                const char *data;
-                apr_size_t bytes_read, bytes_written;
-
-                apr_bucket_read(e, &data, &bytes_read, APR_BLOCK_READ);
-                status = apr_file_write_full(tmpfile, data, bytes_read, &bytes_written);
-                if (status != APR_SUCCESS) {
-                    const char *tmpfile_name;
-
-                    if (apr_file_name_get(&tmpfile_name, tmpfile) != APR_SUCCESS) {
-                        tmpfile_name = "(unknown)";
+            if (cur->desc.s == sock) {
+                pollevent = cur->rtnevents;
+                if (pollevent & APR_POLLIN) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02446)
+                                  "sock was readable");
+                    rv = proxy_wstunnel_transfer(r, backconn, c, bb, "sock");
                     }
-                    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(01091)
-                                  "write to temporary file %s failed",
-                                  tmpfile_name);
-                    return HTTP_INTERNAL_SERVER_ERROR;
+                else if ((pollevent & APR_POLLERR)
+                         || (pollevent & APR_POLLHUP)) {
+                         rv = APR_EPIPE;
+                         ap_log_rerror(APLOG_MARK, APLOG_NOTICE, 0, r, APLOGNO(02447)
+                                       "err/hup on backconn");
                 }
-                AP_DEBUG_ASSERT(bytes_read == bytes_written);
-                fsize += bytes_written;
+                if (rv != APR_SUCCESS)
+                    client_error = 1;
             }
-            apr_brigade_cleanup(input_brigade);
-        }
-        else {
-
-            /*
-             * Save input_brigade in body_brigade. (At least) in the SSL case
-             * input_brigade contains transient buckets whose data would get
-             * overwritten during the next call of ap_get_brigade in the loop.
-             * ap_save_brigade ensures these buckets to be set aside.
-             * Calling ap_save_brigade with NULL as filter is OK, because
-             * body_brigade already has been created and does not need to get
-             * created by ap_save_brigade.
-             */
-            status = ap_save_brigade(NULL, &body_brigade, &input_brigade, p);
-            if (status != APR_SUCCESS) {
-                return HTTP_INTERNAL_SERVER_ERROR;
+            else if (cur->desc.s == client_socket) {
+                pollevent = cur->rtnevents;
+                if (pollevent & APR_POLLIN) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02448)
+                                  "client was readable");
+                    rv = proxy_wstunnel_transfer(r, c, backconn, bb, "client");
+                }
+            }
+            else {
+                rv = APR_EBADF;
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02449)
+                              "unknown socket in pollset");
             }
 
         }
-
-        bytes_spooled += bytes;
-
-        if (seen_eos) {
+        if (rv != APR_SUCCESS) {
             break;
         }
-
-        status = ap_get_brigade(r->input_filters, input_brigade,
-                                AP_MODE_READBYTES, APR_BLOCK_READ,
-                                HUGE_STRING_LEN);
-
-        if (status != APR_SUCCESS) {
-            conn_rec *c = r->connection;
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02610)
-                          "read request body failed to %pI (%s)"
-                          " from %s (%s)", p_conn->addr,
-                          p_conn->hostname ? p_conn->hostname: "",
-                          c->client_ip, c->remote_host ? c->remote_host: "");
-            return HTTP_BAD_REQUEST;
-        }
     }
 
-    if (bytes_spooled || force_cl) {
-        add_cl(p, bucket_alloc, header_brigade, apr_off_t_toa(p, bytes_spooled));
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
+                  "finished with poll() - cleaning up");
+
+    if (client_error) {
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
-    terminate_headers(bucket_alloc, header_brigade);
-    APR_BRIGADE_CONCAT(header_brigade, body_brigade);
-    if (tmpfile) {
-        apr_brigade_insert_file(header_brigade, tmpfile, 0, fsize, p);
-    }
-    if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
-        e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(header_brigade, e);
-    }
-    /* This is all a single brigade, pass with flush flagged */
-    return(ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, header_brigade, 1));
+    return OK;
 }

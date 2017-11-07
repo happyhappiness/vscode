@@ -1,45 +1,19 @@
-apr_status_t h2_conn_io_write(h2_conn_io *io, 
-                              const char *buf, size_t length)
+static apr_status_t make_h2_headers(h2_from_h1 *from_h1, request_rec *r)
 {
-    apr_status_t status = APR_SUCCESS;
+    from_h1->response = h2_response_create(from_h1->stream_id, 0,
+                                           from_h1->http_status, from_h1->hlines,
+                                           from_h1->pool);
+    from_h1->content_length = from_h1->response->content_length;
+    from_h1->chunked = r->chunked;
     
-    io->unflushed = 1;
-    if (io->bufsize > 0) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
-                      "h2_conn_io: buffering %ld bytes", (long)length);
-                      
-        if (!APR_BRIGADE_EMPTY(io->output)) {
-            status = h2_conn_io_pass(io);
-            io->unflushed = 1;
-        }
-        
-        while (length > 0 && (status == APR_SUCCESS)) {
-            apr_size_t avail = io->bufsize - io->buflen;
-            if (avail <= 0) {
-                bucketeer_buffer(io);
-                status = pass_out(io->output, io);
-                io->buflen = 0;
-            }
-            else if (length > avail) {
-                memcpy(io->buffer + io->buflen, buf, avail);
-                io->buflen += avail;
-                length -= avail;
-                buf += avail;
-            }
-            else {
-                memcpy(io->buffer + io->buflen, buf, length);
-                io->buflen += length;
-                length = 0;
-                break;
-            }
-        }
-        
-    }
-    else {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, io->connection,
-                      "h2_conn_io: writing %ld bytes to brigade", (long)length);
-        status = apr_brigade_write(io->output, pass_out, io, buf, length);
-    }
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, r->connection,
+                  "h2_from_h1(%d): converted headers, content-length: %d"
+                  ", chunked=%d",
+                  from_h1->stream_id, (int)from_h1->content_length, 
+                  (int)from_h1->chunked);
     
-    return status;
+    set_state(from_h1, ((from_h1->chunked || from_h1->content_length > 0)?
+                        H2_RESP_ST_BODY : H2_RESP_ST_DONE));
+    /* We are ready to be sent to the client */
+    return APR_SUCCESS;
 }

@@ -1,47 +1,47 @@
-static int lua_websocket_write(lua_State *L) 
+static int lua_websocket_ping(lua_State *L) 
 {
-    const char *string;
+    apr_socket_t *sock;
+    apr_size_t plen;
+    char prelude[2];
     apr_status_t rv;
-    size_t len;
-    int raw = 0;
-    char prelude;
-    request_rec *r = (request_rec *) lua_unboxpointer(L, 1);
+    request_rec *r = ap_lua_check_request_rec(L, 1);
+    sock = ap_get_conn_socket(r->connection);
     
-    if (lua_isboolean(L, 3)) {
-        raw = lua_toboolean(L, 3);
-    }
-    string = lua_tolstring(L, 2, &len);
+    /* Send a header that says: PING. */
+    prelude[0] = 0x89; /* ping  opcode */
+    prelude[1] = 0;
+    plen = 2;
+    apr_socket_send(sock, prelude, &plen);
     
-    if (raw != 1) {
+    
+    /* Get opcode and FIN bit from pong */
+    plen = 2;
+    rv = apr_socket_recv(sock, prelude, &plen);
+    if (rv == APR_SUCCESS) {
+        unsigned char opcode = prelude[0];
+        unsigned char len = prelude[1];
+        unsigned char mask = len >> 7;
+        if (mask) len -= 128;
+        plen = len;
         ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Writing framed message to client");
-        
-        prelude = 0x81; /* text frame, FIN */
-        ap_rputc(prelude, r);
-        if (len < 126) {
-            ap_rputc(len, r);
-        } 
-        else if (len < 65535) {
-            apr_uint16_t slen = len;
-            ap_rputc(126, r); 
-            slen = htons(slen);
-            ap_rwrite((char*) &slen, 2, r);
+                        "Websocket: Got PONG opcode: %x", opcode);
+        if (opcode == 0x8A) {
+            lua_pushboolean(L, 1);
         }
         else {
-            apr_uint64_t llen = len;
-            ap_rputc(127, r);
-            llen = ap_ntoh64(&llen); /* ntoh doubles as hton */
-            ap_rwrite((char*) &llen, 8, r);
+            lua_pushboolean(L, 0);
         }
-    }
-    else {
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
-                        "Websocket: Writing raw message to client");
-    }
-    ap_rwrite(string, len, r);
-    rv = ap_rflush(r);
-    if (rv == APR_SUCCESS) {
-        lua_pushboolean(L, 1);
+        if (plen > 0) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                        "Websocket: Reading %lu bytes of PONG", plen);
+            return 1;
+        }
+        if (mask) {
+            plen = 2;
+            apr_socket_recv(sock, prelude, &plen);
+            plen = 2;
+            apr_socket_recv(sock, prelude, &plen);
+        }
     }
     else {
         lua_pushboolean(L, 0);

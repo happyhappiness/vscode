@@ -1,2 +1,2 @@
-die("unable to parse commit %s",
-			    oid_to_hex(&c->object.oid));
+printf("Removing %s from .git/shallow\n",
+				       oid_to_hex(&c->object.oid));

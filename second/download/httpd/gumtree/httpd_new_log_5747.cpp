@@ -1,5 +1,5 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                  req->proxy_ips
-                      ? "Using %s as client's IP by proxies %s"
-                      : "Using %s as client's IP by internal proxies",
-                  req->useragent_ip, req->proxy_ips);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01174)
+                              "%s: Forcing worker (%s) into error state " 
+                              "due to status code %d matching 'failonstatus' "
+                              "balancer parameter",
+                              balancer->s->name, worker->s->name, val);

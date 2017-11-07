@@ -1,1 +1,1 @@
-printf("%s (%d):\n", item->string, onelines->nr);
+warning(_("removing '%s' failed"), fname);

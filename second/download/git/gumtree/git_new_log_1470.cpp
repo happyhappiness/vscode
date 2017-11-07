@@ -1,2 +1,1 @@
-die_errno(_("could not create work tree dir '%s'"),
-				  work_tree);
+warning("--no-curl not supported in this build");

@@ -1,1 +1,1 @@
-vwritef(child_err, "error: ", err, params);
+vwritef(child_err, "fatal: ", err, params);

@@ -1,66 +1,42 @@
-conn_rec *h2_slave_create(conn_rec *master, apr_pool_t *parent,
-                          apr_allocator_t *allocator)
+apr_status_t h2_conn_io_init(h2_conn_io *io, conn_rec *c, 
+                             const h2_config *cfg, 
+                             apr_pool_t *pool)
 {
-    apr_pool_t *pool;
-    conn_rec *c;
-    void *cfg;
+    io->connection         = c;
+    io->input              = apr_brigade_create(pool, c->bucket_alloc);
+    io->output             = apr_brigade_create(pool, c->bucket_alloc);
+    io->buflen             = 0;
+    io->is_tls             = h2_h2_is_tls(c);
+    io->buffer_output      = io->is_tls;
     
-    AP_DEBUG_ASSERT(master);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, master,
-                  "h2_conn(%ld): create slave", master->id);
-    
-    /* We create a pool with its own allocator to be used for
-     * processing a request. This is the only way to have the processing
-     * independant of its parent pool in the sense that it can work in
-     * another thread.
-     */
-    if (!allocator) {
-        apr_allocator_create(&allocator);
+    if (io->buffer_output) {
+        io->bufsize = WRITE_BUFFER_SIZE;
+        io->buffer = apr_pcalloc(pool, io->bufsize);
     }
-    apr_pool_create_ex(&pool, parent, NULL, allocator);
-    apr_pool_tag(pool, "h2_slave_conn");
-    apr_allocator_owner_set(allocator, pool);
-
-    c = (conn_rec *) apr_palloc(pool, sizeof(conn_rec));
-    if (c == NULL) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
-                      APLOGNO(02913) "h2_task: creating conn");
-        return NULL;
+    else {
+        io->bufsize = 0;
     }
     
-    memcpy(c, master, sizeof(conn_rec));
-           
-    /* Replace these */
-    c->master                 = master;
-    c->pool                   = pool;   
-    c->conn_config            = ap_create_conn_config(pool);
-    c->notes                  = apr_table_make(pool, 5);
-    c->input_filters          = NULL;
-    c->output_filters         = NULL;
-    c->bucket_alloc           = apr_bucket_alloc_create(pool);
-    c->data_in_input_filters  = 0;
-    c->data_in_output_filters = 0;
-    c->clogging_input_filters = 1;
-    c->log                    = NULL;
-    c->log_id                 = NULL;
-    /* Simulate that we had already a request on this connection. */
-    c->keepalives             = 1;
-    /* We cannot install the master connection socket on the slaves, as
-     * modules mess with timeouts/blocking of the socket, with
-     * unwanted side effects to the master connection processing.
-     * Fortunately, since we never use the slave socket, we can just install
-     * a single, process-wide dummy and everyone is happy.
-     */
-    ap_set_module_config(c->conn_config, &core_module, dummy_socket);
-    /* TODO: these should be unique to this thread */
-    c->sbh                    = master->sbh;
-    /* TODO: not all mpm modules have learned about slave connections yet.
-     * copy their config from master to slave.
-     */
-    if (h2_conn_mpm_module()) {
-        cfg = ap_get_module_config(master->conn_config, h2_conn_mpm_module());
-        ap_set_module_config(c->conn_config, h2_conn_mpm_module(), cfg);
+    if (io->is_tls) {
+        /* That is where we start with, 
+         * see https://issues.apache.org/jira/browse/TS-2503 */
+        io->warmup_size    = h2_config_geti64(cfg, H2_CONF_TLS_WARMUP_SIZE);
+        io->cooldown_usecs = (h2_config_geti(cfg, H2_CONF_TLS_COOLDOWN_SECS) 
+                              * APR_USEC_PER_SEC);
+        io->write_size     = WRITE_SIZE_INITIAL; 
+    }
+    else {
+        io->warmup_size    = 0;
+        io->cooldown_usecs = 0;
+        io->write_size     = io->bufsize;
     }
 
-    return c;
+    if (APLOGctrace1(c)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
+                      "h2_conn_io(%ld): init, buffering=%d, warmup_size=%ld, cd_secs=%f",
+                      io->connection->id, io->buffer_output, (long)io->warmup_size,
+                      ((float)io->cooldown_usecs/APR_USEC_PER_SEC));
+    }
+
+    return APR_SUCCESS;
 }

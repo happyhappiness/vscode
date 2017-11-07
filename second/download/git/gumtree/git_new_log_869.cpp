@@ -1,1 +1,1 @@
-die(_("format: %%(if) atom used without a %%(then) atom"));
+die(_("unrecognized %%(if) argument: %s"), arg);

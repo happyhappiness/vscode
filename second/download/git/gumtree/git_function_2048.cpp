@@ -1,19 +1,44 @@
-static int is_original_commit_empty(struct commit *commit)
+static struct commit *get_revision_1(struct rev_info *revs)
 {
-	const unsigned char *ptree_sha1;
+	if (!revs->commits)
+		return NULL;
 
-	if (parse_commit(commit))
-		return error(_("Could not parse commit %s\n"),
-			     sha1_to_hex(commit->object.sha1));
-	if (commit->parents) {
-		struct commit *parent = commit->parents->item;
-		if (parse_commit(parent))
-			return error(_("Could not parse parent commit %s\n"),
-				sha1_to_hex(parent->object.sha1));
-		ptree_sha1 = parent->tree->object.sha1;
-	} else {
-		ptree_sha1 = EMPTY_TREE_SHA1_BIN; /* commit is root */
-	}
+	do {
+		struct commit *commit = pop_commit(&revs->commits);
 
-	return !hashcmp(ptree_sha1, commit->tree->object.sha1);
+		if (revs->reflog_info) {
+			save_parents(revs, commit);
+			fake_reflog_parent(revs->reflog_info, commit);
+			commit->object.flags &= ~(ADDED | SEEN | SHOWN);
+		}
+
+		/*
+		 * If we haven't done the list limiting, we need to look at
+		 * the parents here. We also need to do the date-based limiting
+		 * that we'd otherwise have done in limit_list().
+		 */
+		if (!revs->limited) {
+			if (revs->max_age != -1 &&
+			    (commit->date < revs->max_age))
+				continue;
+			if (add_parents_to_list(revs, commit, &revs->commits, NULL) < 0) {
+				if (!revs->ignore_missing_links)
+					die("Failed to traverse parents of commit %s",
+						sha1_to_hex(commit->object.sha1));
+			}
+		}
+
+		switch (simplify_commit(revs, commit)) {
+		case commit_ignore:
+			continue;
+		case commit_error:
+			die("Failed to simplify parents of commit %s",
+			    sha1_to_hex(commit->object.sha1));
+		default:
+			if (revs->track_linear)
+				track_linear(revs, commit);
+			return commit;
+		}
+	} while (revs->commits);
+	return NULL;
 }

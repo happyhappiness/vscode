@@ -1,1 +1,1 @@
-packet_buf_write(&req_buf, "deepen-since %lu", max_age);
+die("Can't load object %s", sha1_to_hex(sha1));

@@ -1,1 +1,1 @@
-error(_("pack-objects died"));
+error(_("Could not spawn pack-objects"));

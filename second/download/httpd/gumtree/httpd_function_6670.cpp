@@ -1,8 +1,7 @@
-static int uldap_cache_checkuserid(request_rec *r, util_ldap_connection_t *ldc,
-                                   const char *url, const char *basedn,
-                                   int scope, char **attrs, const char *filter,
-                                   const char *bindpw, const char **binddn,
-                                   const char ***retvals)
+static int uldap_cache_getuserdn(request_rec *r, util_ldap_connection_t *ldc,
+                                 const char *url, const char *basedn,
+                                 int scope, char **attrs, const char *filter,
+                                 const char **binddn, const char ***retvals)
 {
     const char **vals = NULL;
     int numvals = 0;
@@ -42,19 +41,13 @@ static int uldap_cache_checkuserid(request_rec *r, util_ldap_connection_t *ldc,
             curtime = apr_time_now();
 
             /*
-             * Remove this item from the cache if its expired. If the sent
-             * password doesn't match the storepassword, the entry will
-             * be removed and readded later if the credentials pass
-             * authentication.
+             * Remove this item from the cache if its expired.
              */
             if ((curtime - search_nodep->lastbind) > st->search_cache_ttl) {
                 /* ...but entry is too old */
                 util_ald_cache_remove(curl->search_cache, search_nodep);
             }
-            else if (   (search_nodep->bindpw)
-                     && (search_nodep->bindpw[0] != '\0')
-                     && (strcmp(search_nodep->bindpw, bindpw) == 0))
-            {
+            else {
                 /* ...and entry is valid */
                 *binddn = apr_pstrdup(r->pool, search_nodep->dn);
                 if (attrs) {
@@ -65,7 +58,7 @@ static int uldap_cache_checkuserid(request_rec *r, util_ldap_connection_t *ldc,
                     }
                 }
                 LDAP_CACHE_UNLOCK();
-                ldc->reason = "Authentication successful (cached)";
+                ldc->reason = "Search successful (cached)";
                 return LDAP_SUCCESS;
             }
         }
@@ -107,15 +100,6 @@ start_over:
         goto start_over;
     }
 
-    if (result == LDAP_TIMEOUT) {
-        ldc->reason = "ldap_search_ext_s() for user failed with timeout";
-        uldap_connection_unbind(ldc);
-        failures++;
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
-        goto start_over;
-    }
-
-
     /* if there is an error (including LDAP_NO_SUCH_OBJECT) return now */
     if (result != LDAP_SUCCESS) {
         ldc->reason = "ldap_search_ext_s() for user failed";
@@ -144,58 +128,6 @@ start_over:
     dn = ldap_get_dn(ldc->ldap, entry);
     *binddn = apr_pstrdup(r->pool, dn);
     ldap_memfree(dn);
-
-    /*
-     * A bind to the server with an empty password always succeeds, so
-     * we check to ensure that the password is not empty. This implies
-     * that users who actually do have empty passwords will never be
-     * able to authenticate with this module. I don't see this as a big
-     * problem.
-     */
-    if (!bindpw || strlen(bindpw) <= 0) {
-        ldap_msgfree(res);
-        ldc->reason = "Empty password not allowed";
-        return LDAP_INVALID_CREDENTIALS;
-    }
-
-    /*
-     * Attempt to bind with the retrieved dn and the password. If the bind
-     * fails, it means that the password is wrong (the dn obviously
-     * exists, since we just retrieved it)
-     */
-    result = uldap_simple_bind(ldc, (char *)*binddn, (char *)bindpw,
-                               st->opTimeout);
-    if (AP_LDAP_IS_SERVER_DOWN(result) ||
-        (result == LDAP_TIMEOUT && failures == 0)) {
-        if (AP_LDAP_IS_SERVER_DOWN(result))
-            ldc->reason = "ldap_simple_bind() to check user credentials "
-                          "failed with server down";
-        else
-            ldc->reason = "ldap_simple_bind() to check user credentials "
-                          "timed out";
-        ldap_msgfree(res);
-        uldap_connection_unbind(ldc);
-        failures++;
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
-        goto start_over;
-    }
-
-    /* failure? if so - return */
-    if (result != LDAP_SUCCESS) {
-        ldc->reason = "ldap_simple_bind() to check user credentials failed";
-        ldap_msgfree(res);
-        uldap_connection_unbind(ldc);
-        return result;
-    }
-    else {
-        /*
-         * We have just bound the connection to a different user and password
-         * combination, which might be reused unintentionally next time this
-         * connection is used from the connection pool. To ensure no confusion,
-         * we mark the connection as unbound.
-         */
-        ldc->bound = 0;
-    }
 
     /*
      * Get values for the provided attributes.
@@ -231,7 +163,7 @@ start_over:
         LDAP_CACHE_LOCK();
         the_search_node.username = filter;
         the_search_node.dn = *binddn;
-        the_search_node.bindpw = bindpw;
+        the_search_node.bindpw = NULL;
         the_search_node.lastbind = apr_time_now();
         the_search_node.vals = vals;
         the_search_node.numvals = numvals;
@@ -248,21 +180,20 @@ start_over:
             /* Nothing in cache, insert new entry */
             util_ald_cache_insert(curl->search_cache, &the_search_node);
         }
-        else if ((!search_nodep->bindpw) ||
-            (strcmp(bindpw, search_nodep->bindpw) != 0)) {
-
-            /* Entry in cache is invalid, remove it and insert new one */
-            util_ald_cache_remove(curl->search_cache, search_nodep);
-            util_ald_cache_insert(curl->search_cache, &the_search_node);
-        }
-        else {
+        /*
+         * Don't update lastbind on entries with bindpw because
+         * we haven't verified that password. It's OK to update
+         * the entry if there is no password in it.
+         */
+        else if (!search_nodep->bindpw) {
             /* Cache entry is valid, update lastbind */
             search_nodep->lastbind = the_search_node.lastbind;
         }
         LDAP_CACHE_UNLOCK();
     }
+
     ldap_msgfree(res);
 
-    ldc->reason = "Authentication successful";
+    ldc->reason = "Search successful";
     return LDAP_SUCCESS;
 }

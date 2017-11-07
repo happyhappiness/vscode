@@ -1,3 +1,3 @@
-fprintf(stderr,
-				"Resolved '%s' using previous resolution.\n",
-				path);
+warning("failed utime() on %s: %s",
+			rerere_path(id, "postimage"),
+			strerror(errno));

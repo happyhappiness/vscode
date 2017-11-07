@@ -1,25 +1,19 @@
-static int is_alternate_allowed(const char *url)
+static void parse_graph_colors_config(struct argv_array *colors, const char *string)
 {
-	const char *protocols[] = {
-		"http", "https", "ftp", "ftps"
-	};
-	int i;
+	const char *end, *start;
 
-	for (i = 0; i < ARRAY_SIZE(protocols); i++) {
-		const char *end;
-		if (skip_prefix(url, protocols[i], &end) &&
-		    starts_with(end, "://"))
-			break;
-	}
+	start = string;
+	end = string + strlen(string);
+	while (start < end) {
+		const char *comma = strchrnul(start, ',');
+		char color[COLOR_MAXLEN];
 
-	if (i >= ARRAY_SIZE(protocols)) {
-		warning("ignoring alternate with unknown protocol: %s", url);
-		return 0;
+		if (!color_parse_mem(start, comma - start, color))
+			argv_array_push(colors, color);
+		else
+			warning(_("ignore invalid color '%.*s' in log.graphColors"),
+				(int)(comma - start), start);
+		start = comma + 1;
 	}
-	if (!is_transport_allowed(protocols[i], 0)) {
-		warning("ignoring alternate with restricted protocol: %s", url);
-		return 0;
-	}
-
-	return 1;
+	argv_array_push(colors, GIT_COLOR_RESET);
 }

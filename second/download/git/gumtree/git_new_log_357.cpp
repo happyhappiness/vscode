@@ -1,1 +1,2 @@
-warning(_(degrade_cc_to_c_warning));
+fprintf(opt->file, "%s ",
+			diff_aligned_abbrev(&p->two->oid, opt->abbrev));

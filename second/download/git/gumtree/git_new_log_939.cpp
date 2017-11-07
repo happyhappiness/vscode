@@ -1,1 +1,1 @@
-BUG("setup_git_env called without repository");
+die(_("--local can only be used inside a git repository"));

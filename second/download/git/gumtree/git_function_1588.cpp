@@ -1,29 +1,39 @@
-void connect_work_tree_and_git_dir(const char *work_tree, const char *git_dir)
+int strbuf_getwholeline(struct strbuf *sb, FILE *fp, int term)
 {
-	struct strbuf file_name = STRBUF_INIT;
-	struct strbuf rel_path = STRBUF_INIT;
-	const char *real_work_tree = xstrdup(real_path(work_tree));
-	FILE *fp;
+	ssize_t r;
 
-	/* Update gitfile */
-	strbuf_addf(&file_name, "%s/.git", work_tree);
-	fp = fopen(file_name.buf, "w");
-	if (!fp)
-		die(_("Could not create git link %s"), file_name.buf);
-	fprintf(fp, "gitdir: %s\n", relative_path(git_dir, real_work_tree,
-						  &rel_path));
-	fclose(fp);
+	if (feof(fp))
+		return EOF;
 
-	/* Update core.worktree setting */
-	strbuf_reset(&file_name);
-	strbuf_addf(&file_name, "%s/config", git_dir);
-	if (git_config_set_in_file(file_name.buf, "core.worktree",
-				   relative_path(real_work_tree, git_dir,
-						 &rel_path)))
-		die(_("Could not set core.worktree in %s"),
-		    file_name.buf);
+	strbuf_reset(sb);
 
-	strbuf_release(&file_name);
-	strbuf_release(&rel_path);
-	free((void *)real_work_tree);
+	/* Translate slopbuf to NULL, as we cannot call realloc on it */
+	if (!sb->alloc)
+		sb->buf = NULL;
+	r = getdelim(&sb->buf, &sb->alloc, term, fp);
+
+	if (r > 0) {
+		sb->len = r;
+		return 0;
+	}
+	assert(r == -1);
+
+	/*
+	 * Normally we would have called xrealloc, which will try to free
+	 * memory and recover. But we have no way to tell getdelim() to do so.
+	 * Worse, we cannot try to recover ENOMEM ourselves, because we have
+	 * no idea how many bytes were read by getdelim.
+	 *
+	 * Dying here is reasonable. It mirrors what xrealloc would do on
+	 * catastrophic memory failure. We skip the opportunity to free pack
+	 * memory and retry, but that's unlikely to help for a malloc small
+	 * enough to hold a single line of input, anyway.
+	 */
+	if (errno == ENOMEM)
+		die("Out of memory, getdelim failed");
+
+	/* Restore slopbuf that we moved out of the way before */
+	if (!sb->buf)
+		strbuf_init(sb, 0);
+	return EOF;
 }

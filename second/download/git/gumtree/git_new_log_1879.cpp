@@ -1,2 +1,2 @@
-warning ("Stripping signature from tag %s",
+warning ("Exporting signed tag %s",
 					 oid_to_hex(&tag->object.oid));

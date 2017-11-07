@@ -1,64 +1,79 @@
-static int git_config_parse_key_1(const char *key, char **store_key, int *baselen_, int quiet)
+static int rm(int argc, const char **argv)
 {
-	int i, dot, baselen;
-	const char *last_dot = strrchr(key, '.');
+	struct option options[] = {
+		OPT_END()
+	};
+	struct remote *remote;
+	struct strbuf buf = STRBUF_INIT;
+	struct known_remotes known_remotes = { NULL, NULL };
+	struct string_list branches = STRING_LIST_INIT_DUP;
+	struct string_list skipped = STRING_LIST_INIT_DUP;
+	struct branches_for_remote cb_data;
+	int i, result;
 
-	/*
-	 * Since "key" actually contains the section name and the real
-	 * key name separated by a dot, we have to know where the dot is.
-	 */
+	memset(&cb_data, 0, sizeof(cb_data));
+	cb_data.branches = &branches;
+	cb_data.skipped = &skipped;
+	cb_data.keep = &known_remotes;
 
-	if (last_dot == NULL || last_dot == key) {
-		if (!quiet)
-			error("key does not contain a section: %s", key);
-		return -CONFIG_NO_SECTION_OR_NAME;
-	}
+	if (argc != 2)
+		usage_with_options(builtin_remote_rm_usage, options);
 
-	if (!last_dot[1]) {
-		if (!quiet)
-			error("key does not contain variable name: %s", key);
-		return -CONFIG_NO_SECTION_OR_NAME;
-	}
+	remote = remote_get(argv[1]);
+	if (!remote_is_configured(remote, 1))
+		die(_("No such remote: %s"), argv[1]);
 
-	baselen = last_dot - key;
-	if (baselen_)
-		*baselen_ = baselen;
+	known_remotes.to_delete = remote;
+	for_each_remote(add_known_remote, &known_remotes);
 
-	/*
-	 * Validate the key and while at it, lower case it for matching.
-	 */
-	if (store_key)
-		*store_key = xmallocz(strlen(key));
-
-	dot = 0;
-	for (i = 0; key[i]; i++) {
-		unsigned char c = key[i];
-		if (c == '.')
-			dot = 1;
-		/* Leave the extended basename untouched.. */
-		if (!dot || i > baselen) {
-			if (!iskeychar(c) ||
-			    (i == baselen + 1 && !isalpha(c))) {
-				if (!quiet)
-					error("invalid key: %s", key);
-				goto out_free_ret_1;
+	read_branches();
+	for (i = 0; i < branch_list.nr; i++) {
+		struct string_list_item *item = branch_list.items + i;
+		struct branch_info *info = item->util;
+		if (info->remote_name && !strcmp(info->remote_name, remote->name)) {
+			const char *keys[] = { "remote", "merge", NULL }, **k;
+			for (k = keys; *k; k++) {
+				strbuf_reset(&buf);
+				strbuf_addf(&buf, "branch.%s.%s",
+						item->string, *k);
+				result = git_config_set_gently(buf.buf, NULL);
+				if (result && result != CONFIG_NOTHING_SET)
+					die(_("could not unset '%s'"), buf.buf);
 			}
-			c = tolower(c);
-		} else if (c == '\n') {
-			if (!quiet)
-				error("invalid key (newline): %s", key);
-			goto out_free_ret_1;
 		}
-		if (store_key)
-			(*store_key)[i] = c;
 	}
 
-	return 0;
+	/*
+	 * We cannot just pass a function to for_each_ref() which deletes
+	 * the branches one by one, since for_each_ref() relies on cached
+	 * refs, which are invalidated when deleting a branch.
+	 */
+	cb_data.remote = remote;
+	result = for_each_ref(add_branch_for_removal, &cb_data);
+	strbuf_release(&buf);
 
-out_free_ret_1:
-	if (store_key) {
-		free(*store_key);
-		*store_key = NULL;
+	if (!result)
+		result = delete_refs(&branches, REF_NODEREF);
+	string_list_clear(&branches, 0);
+
+	if (skipped.nr) {
+		fprintf_ln(stderr,
+			   Q_("Note: A branch outside the refs/remotes/ hierarchy was not removed;\n"
+			      "to delete it, use:",
+			      "Note: Some branches outside the refs/remotes/ hierarchy were not removed;\n"
+			      "to delete them, use:",
+			      skipped.nr));
+		for (i = 0; i < skipped.nr; i++)
+			fprintf(stderr, "  git branch -d %s\n",
+				skipped.items[i].string);
 	}
-	return -CONFIG_INVALID_KEY;
+	string_list_clear(&skipped, 0);
+
+	if (!result) {
+		strbuf_addf(&buf, "remote.%s", remote->name);
+		if (git_config_rename_section(buf.buf, NULL) < 1)
+			return error(_("Could not remove config section '%s'"), buf.buf);
+	}
+
+	return result;
 }

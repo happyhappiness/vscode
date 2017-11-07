@@ -1,13 +1,16 @@
-static struct files_ref_store *files_downcast(
-		struct ref_store *ref_store, int submodule_allowed,
-		const char *caller)
+static int packet_write_gently(const int fd_out, const char *buf, size_t size)
 {
-	if (ref_store->be != &refs_be_files)
-		die("BUG: ref_store is type \"%s\" not \"files\" in %s",
-		    ref_store->be->name, caller);
+	static char packet_write_buffer[LARGE_PACKET_MAX];
+	size_t packet_size;
 
-	if (!submodule_allowed)
-		assert_main_repository(ref_store, caller);
+	if (size > sizeof(packet_write_buffer) - 4)
+		return error("packet write failed - data exceeds max packet size");
 
-	return (struct files_ref_store *)ref_store;
+	packet_trace(buf, size, 1);
+	packet_size = size + 4;
+	set_packet_header(packet_write_buffer, packet_size);
+	memcpy(packet_write_buffer + 4, buf, size);
+	if (write_in_full(fd_out, packet_write_buffer, packet_size) == packet_size)
+		return 0;
+	return error("packet write failed");
 }

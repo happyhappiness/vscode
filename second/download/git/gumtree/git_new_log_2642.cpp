@@ -1,1 +1,2 @@
-err(o, _("cannot read object %s '%s'"), oid_to_hex(oid), path);
+err(o, _("refusing to lose untracked file at '%s'"),
+			     path);

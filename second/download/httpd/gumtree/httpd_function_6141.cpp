@@ -1,21 +1,36 @@
-static void check_write_size(h2_conn_io *io) 
+apr_status_t h2_conn_io_write(h2_conn_io *io, const char *data, size_t length)
 {
-    if (io->write_size > WRITE_SIZE_INITIAL 
-        && (io->cooldown_usecs > 0)
-        && (apr_time_now() - io->last_write) >= io->cooldown_usecs) {
-        /* long time not written, reset write size */
-        io->write_size = WRITE_SIZE_INITIAL;
-        io->bytes_written = 0;
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, io->c,
-                      "h2_conn_io(%ld): timeout write size reset to %ld", 
-                      (long)io->c->id, (long)io->write_size);
+    apr_status_t status = APR_SUCCESS;
+    apr_size_t remain;
+    
+    if (io->buffer_output) {
+        while (length > 0) {
+            remain = assure_scratch_space(io);
+            if (remain >= length) {
+#if LOG_SCRATCH
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03389)
+                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
+                              io->c->id, (long)length); 
+#endif
+                memcpy(io->scratch + io->slen, data, length);
+                io->slen += length;
+                length = 0;
+            }
+            else {
+#if LOG_SCRATCH
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03390)
+                              "h2_conn_io(%ld): write_to_scratch(%ld)", 
+                              io->c->id, (long)remain); 
+#endif
+                memcpy(io->scratch + io->slen, data, remain);
+                io->slen += remain;
+                data += remain;
+                length -= remain;
+            }
+        }
     }
-    else if (io->write_size < WRITE_SIZE_MAX 
-             && io->bytes_written >= io->warmup_size) {
-        /* connection is hot, use max size */
-        io->write_size = WRITE_SIZE_MAX;
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, io->c,
-                      "h2_conn_io(%ld): threshold reached, write size now %ld", 
-                      (long)io->c->id, (long)io->write_size);
+    else {
+        status = apr_brigade_write(io->output, NULL, NULL, data, length);
     }
+    return status;
 }

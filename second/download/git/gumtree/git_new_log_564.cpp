@@ -1,1 +1,1 @@
-die(_("could not parse %s"), am_path(state, "abort-safety"));
+error("Unable to update %s", ref_name.buf);

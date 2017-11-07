@@ -1,14 +1,13 @@
 static apr_status_t inflate_out_filter(ap_filter_t *f,
                                       apr_bucket_brigade *bb)
 {
-    int zlib_method;
-    int zlib_flags;
     apr_bucket *e;
     request_rec *r = f->r;
     deflate_ctx *ctx = f->ctx;
     int zRC;
     apr_status_t rv;
     deflate_filter_config *c;
+    deflate_dirconf_t *dc;
 
     /* Do nothing if asked to filter nothing. */
     if (APR_BRIGADE_EMPTY(bb)) {
@@ -16,6 +15,7 @@ static apr_status_t inflate_out_filter(ap_filter_t *f,
     }
 
     c = ap_get_module_config(r->server->module_config, &deflate_module);
+    dc = ap_get_module_config(r->per_dir_config, &deflate_module);
 
     if (!ctx) {
 
@@ -83,8 +83,6 @@ static apr_status_t inflate_out_filter(ap_filter_t *f,
         /* initialize inflate output buffer */
         ctx->stream.next_out = ctx->buffer;
         ctx->stream.avail_out = c->bufferSize;
-
-        ctx->inflate_init = 0;
     }
 
     while (!APR_BRIGADE_EMPTY(bb))
@@ -128,7 +126,8 @@ static apr_status_t inflate_out_filter(ap_filter_t *f,
                 }
                 ctx->validation_buffer += VALIDATION_SIZE / 2;
                 compLen = getLong(ctx->validation_buffer);
-                if (ctx->stream.total_out != compLen) {
+                /* gzip stores original size only as 4 byte value */
+                if ((ctx->stream.total_out & 0xFFFFFFFF) != compLen) {
                     ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01400)
                                   "Zlib: Length of inflated stream invalid");
                     return APR_EGENERAL;
@@ -161,7 +160,13 @@ static apr_status_t inflate_out_filter(ap_filter_t *f,
             /* flush the remaining data from the zlib buffers */
             zRC = flush_libz_buffer(ctx, c, f->c->bucket_alloc, inflate,
                                     Z_SYNC_FLUSH, UPDATE_CRC);
-            if (zRC != Z_OK) {
+            if (zRC == Z_STREAM_END) {
+                if (ctx->validation_buffer == NULL) {
+                    ctx->validation_buffer = apr_pcalloc(f->r->pool,
+                                                         VALIDATION_SIZE);
+                }
+            }
+            else if (zRC != Z_OK) {
                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01402)
                               "Zlib error %d flushing inflate buffer (%s)",
                               zRC, ctx->stream.msg);
@@ -190,57 +195,68 @@ static apr_status_t inflate_out_filter(ap_filter_t *f,
 
         /* read */
         apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+        if (!len) {
+            apr_bucket_delete(e);
+            continue;
+        }
+        if (len > INT_MAX) {
+            apr_bucket_split(e, INT_MAX);
+            apr_bucket_read(e, &data, &len, APR_BLOCK_READ);
+        }
 
         /* first bucket contains zlib header */
-        if (!ctx->inflate_init) {
-            ctx->inflate_init = 1;
-            if (len < 10) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01403)
-                              "Insufficient data for inflate");
-                return APR_EGENERAL;
+        if (ctx->header_len < sizeof(ctx->header)) {
+            apr_size_t rem;
+
+            rem = sizeof(ctx->header) - ctx->header_len;
+            if (len < rem) {
+                memcpy(ctx->header + ctx->header_len, data, len);
+                ctx->header_len += len;
+                apr_bucket_delete(e);
+                continue;
             }
-            else  {
-                zlib_method = data[2];
-                zlib_flags = data[3];
+            memcpy(ctx->header + ctx->header_len, data, rem);
+            ctx->header_len += rem;
+            {
+                int zlib_method;
+                zlib_method = ctx->header[2];
                 if (zlib_method != Z_DEFLATED) {
                     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01404)
                                   "inflate: data not deflated!");
                     ap_remove_output_filter(f);
                     return ap_pass_brigade(f->next, bb);
                 }
-                if (data[0] != deflate_magic[0] ||
-                    data[1] != deflate_magic[1] ||
-                    (zlib_flags & RESERVED) != 0) {
+                if (ctx->header[0] != deflate_magic[0] ||
+                    ctx->header[1] != deflate_magic[1]) {
                         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01405)
                                       "inflate: bad header");
                     return APR_EGENERAL ;
                 }
-                data += 10 ;
-                len -= 10 ;
-           }
-           if (zlib_flags & EXTRA_FIELD) {
-               unsigned int bytes = (unsigned int)(data[0]);
-               bytes += ((unsigned int)(data[1])) << 8;
-               bytes += 2;
-               if (len < bytes) {
-                   ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01406)
-                                 "inflate: extra field too big (not "
-                                 "supported)");
-                   return APR_EGENERAL;
-               }
-               data += bytes;
-               len -= bytes;
-           }
-           if (zlib_flags & ORIG_NAME) {
-               while (len-- && *data++);
-           }
-           if (zlib_flags & COMMENT) {
-               while (len-- && *data++);
-           }
-           if (zlib_flags & HEAD_CRC) {
-                len -= 2;
-                data += 2;
-           }
+                ctx->zlib_flags = ctx->header[3];
+                if ((ctx->zlib_flags & RESERVED)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02620)
+                                  "inflate: bad flags %02x",
+                                  ctx->zlib_flags);
+                    return APR_EGENERAL;
+                }
+            }
+            if (len == rem) {
+                apr_bucket_delete(e);
+                continue;
+            }
+            data += rem;
+            len -= rem;
+        }
+
+        if (ctx->zlib_flags) {
+            rv = consume_zlib_flags(ctx, &data, &len);
+            if (rv == APR_SUCCESS) {
+                ctx->zlib_flags = 0;
+            }
+            if (!len) {
+                apr_bucket_delete(e);
+                continue;
+            }
         }
 
         /* pass through zlib inflate. */
@@ -277,6 +293,14 @@ static apr_status_t inflate_out_filter(ap_filter_t *f,
 
         while (ctx->stream.avail_in != 0) {
             if (ctx->stream.avail_out == 0) {
+
+                if (!check_ratio(r, ctx, dc)) {
+                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02650)
+                            "Inflated content ratio is larger than the "
+                            "configured limit %i by %i time(s)",
+                            dc->ratio_limit, dc->ratio_burst);
+                    return APR_EINVAL;
+                }
 
                 ctx->stream.next_out = ctx->buffer;
                 len = c->bufferSize - ctx->stream.avail_out;

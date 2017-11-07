@@ -1,1 +1,2 @@
-fprintf(stderr, " %c %-*s ", flag, summary_width, summary);
+error(_("empty trailer token in trailer '%.*s'"),
+			      (int) sb.len, sb.buf);

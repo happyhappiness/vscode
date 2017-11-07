@@ -1,2 +1,2 @@
-error(_("no note found for object %s."),
-			       oid_to_hex(&object));
+fprintf(stderr, _("Removing note for object %s\n"),
+			oid_to_hex(&object));

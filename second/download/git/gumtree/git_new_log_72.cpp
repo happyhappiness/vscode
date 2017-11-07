@@ -1,1 +1,1 @@
-(check_refname_format(ref.buf, REFNAME_ALLOW_ONELEVEL);
+die("whitespace before command: %s", next);

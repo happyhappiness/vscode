@@ -1,1 +1,1 @@
-ap_rputs("</httpd:flushpackets>\n", r);
+ap_rputs("    </httpd:balancer>\n", r);

@@ -1,1 +1,1 @@
-error(_("revision walk setup failed"));
+error(_("%s: bad revision"), name);

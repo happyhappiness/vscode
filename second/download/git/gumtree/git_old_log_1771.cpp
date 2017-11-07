@@ -1,1 +1,2 @@
-die(_("Could not format %s."), todo_file);
+error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
+			filename);

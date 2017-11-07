@@ -1,2 +1,1 @@
-die("Refusing to %s notes in %s (outside of refs/notes/)",
-		    subcommand, ref);
+printf("ref: %s\t%s\n", ref->symref, ref->name);

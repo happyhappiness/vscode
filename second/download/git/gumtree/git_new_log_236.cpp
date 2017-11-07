@@ -1,1 +1,1 @@
-die(_("--deepen and --depth are mutually exclusive"));
+die(_("Negative depth in --deepen is not supported"));

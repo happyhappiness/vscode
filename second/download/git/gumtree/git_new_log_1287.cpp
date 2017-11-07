@@ -1,2 +1,2 @@
-git_die_config("pack.compression",
-					"bad pack compression level %d", pack_compression_level);
+error("Unable to commit marks file %s: %s",
+			export_marks_file, strerror(errno));

@@ -1,2 +1,1 @@
-die(_("could not start 'git status in submodule '%s'"),
-				path);
+die("git-cvsserver only handles server: %s", arg);

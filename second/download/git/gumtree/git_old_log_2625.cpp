@@ -1,1 +1,1 @@
-printf("\n%s\n", opt->break_bar);
+printf("log size %i\n", (int)msgbuf.len);

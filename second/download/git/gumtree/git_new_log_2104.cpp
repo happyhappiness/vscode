@@ -1,2 +1,1 @@
-die(_("No directory name could be guessed.\n"
-		      "Please specify a directory on the command line"));
+die(_("stage should be between 1 and 3 or all"));

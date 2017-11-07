@@ -1,2 +1,2 @@
 print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-				 "fetch first", porcelain, summary_width);
+				 "already exists", porcelain, summary_width);

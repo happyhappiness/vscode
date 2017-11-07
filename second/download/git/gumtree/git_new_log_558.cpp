@@ -1,1 +1,1 @@
-error(_("additionally, your index contains uncommitted changes."));
+error(_("cannot %s: You have unstaged changes."), _(action));

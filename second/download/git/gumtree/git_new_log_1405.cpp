@@ -1,2 +1,1 @@
-fprintf(stderr, "curl_easy_perform() failed: %s\n",
-					curl_easy_strerror(res));
+fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);

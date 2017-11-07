@@ -1,1 +1,1 @@
-die("BUG: have_old is true but old_sha1 is NULL");
+strbuf_addf(err, str, updates[i]->refname);

@@ -1,1 +1,1 @@
-_(action_name(opts));
+error(_("empty commit set passed"));

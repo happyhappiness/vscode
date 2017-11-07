@@ -1,2 +1,2 @@
-printf(" %s", diff_aligned_abbrev(&p->parent[i].oid,
-							  opt->abbrev));
+fprintf(stderr, "%s: unmerged (%s)\n",
+				ce->name, oid_to_hex(&ce->oid));

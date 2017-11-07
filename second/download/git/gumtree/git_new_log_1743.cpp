@@ -1,2 +1,2 @@
-strbuf_addf(err, "unable to append to %s: %s",
-				    logfile->buf, strerror(errno));
+strbuf_addf(err, "There are still logs under "
+					    "'%s'", logfile->buf);

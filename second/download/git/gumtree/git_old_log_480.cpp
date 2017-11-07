@@ -1,1 +1,1 @@
-die("BUG: expected exactly one commit from walk");
+die(_("revision walk setup failed"));

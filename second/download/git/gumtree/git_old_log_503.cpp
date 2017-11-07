@@ -1,2 +1,1 @@
-print_ref_status('!', "[rejected]", ref, NULL,
-						 "remote does not support deleting refs", porcelain);
+print_ref_status('X', "[no match]", ref, NULL, NULL, porcelain);

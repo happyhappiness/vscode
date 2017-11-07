@@ -1,1 +1,1 @@
-warning(_("Untracked cache is disabled on this system."));
+die_errno(_("failed to get kernel name and information"));

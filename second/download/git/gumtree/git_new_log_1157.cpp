@@ -1,1 +1,1 @@
-)subprocess_find_entry(&subprocess_map, cmd);
+error("external filter '%s' failed", entry->subprocess.cmd);

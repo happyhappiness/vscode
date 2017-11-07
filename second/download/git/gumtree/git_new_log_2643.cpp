@@ -1,1 +1,1 @@
-err(o, _("blob expected for %s '%s'"), oid_to_hex(oid), path);
+err(o, msg, path, _(": perhaps a D/F conflict?"));

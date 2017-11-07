@@ -1,1 +1,1 @@
-die_errno("Cannot change to '%s'", subdir);
+warning(_("Untracked cache is disabled on this system."));

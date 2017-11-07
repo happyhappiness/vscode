@@ -1,1 +1,1 @@
-error("Fetch failed.");
+fprintf(stderr, "Unable to rewind rpc post data - try increasing http.postBuffer\n");

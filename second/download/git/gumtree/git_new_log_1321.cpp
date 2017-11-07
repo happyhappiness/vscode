@@ -1,1 +1,1 @@
-die("revision walk setup failed");
+die("unable to mark recent objects");

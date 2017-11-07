@@ -1,1 +1,2 @@
-error(_("cannot rebase: You have unstaged changes."));
+fprintf(stderr, "Successfully rebased and updated %s.\n",
+			head_ref.buf);

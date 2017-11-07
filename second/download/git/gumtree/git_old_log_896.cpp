@@ -1,1 +1,1 @@
-die("BUG: %s called for a submodule", caller);
+warning("ignoring broken ref %s.", fullref);

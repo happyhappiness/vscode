@@ -1,64 +1,55 @@
-static authz_status
-forward_dns_check_authorization(request_rec *r,
-                                const char *require_line,
-                                const void *parsed_require_line)
+static int APR_THREAD_FUNC regfnWriteClient(isapi_cid    *cid,
+                                            void         *buf_ptr,
+                                            apr_uint32_t *size_arg,
+                                            apr_uint32_t  flags)
 {
-    const char *err = NULL;
-    const ap_expr_info_t *expr = parsed_require_line;
-    const char *require, *t;
-    char *w;
+    request_rec *r = cid->r;
+    conn_rec *c = r->connection;
+    apr_uint32_t buf_size = *size_arg;
+    char *buf_data = (char*)buf_ptr;
+    apr_bucket_brigade *bb;
+    apr_bucket *b;
+    apr_status_t rv = APR_SUCCESS;
 
-    /* the require line is an expression, which is evaluated now. */
-    require = ap_expr_str_exec(r, expr, &err);
-    if (err) {
-      ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03354)
-                    "Can't evaluate require expression: %s", err);
-      return AUTHZ_DENIED;
-    }
-
-    /* tokenize expected list of names */
-    t = require;
-    while ((w = ap_getword_conf(r->pool, &t)) && w[0]) {
-
-        apr_sockaddr_t *sa;
-        apr_status_t rv;
-        char *hash_ptr;
-
-        /* stop on apache configuration file comments */
-        if ((hash_ptr = ap_strchr(w, '#'))) {
-            if (hash_ptr == w) {
-                break;
-            }
-            *hash_ptr = '\0';
+    if (!cid->headers_set) {
+        /* It appears that the foxisapi module and other clients
+         * presume that WriteClient("headers\n\nbody") will work.
+         * Parse them out, or die trying.
+         */
+        apr_ssize_t ate;
+        ate = send_response_header(cid, NULL, buf_data, 0, buf_size);
+        if (ate < 0) {
+            apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+            return 0;
         }
 
-        /* does the client ip match one of the names? */
-        rv = apr_sockaddr_info_get(&sa, w, APR_UNSPEC, 0, 0, r->pool);
+        buf_data += ate;
+        buf_size -= ate;
+    }
+
+    if (buf_size) {
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_transient_create(buf_data, buf_size, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_flush_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        rv = ap_pass_brigade(r->output_filters, bb);
+        cid->response_sent = 1;
+        if (rv != APR_SUCCESS)
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
+                          "WriteClient ap_pass_brigade failed: %s",
+                          r->filename);
+    }
+
+    if ((flags & HSE_IO_ASYNC) && cid->completion) {
         if (rv == APR_SUCCESS) {
-
-            while (sa) {
-                int match = apr_sockaddr_equal(sa, r->useragent_addr);
-
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03355)
-                              "access check for %s as '%s': %s",
-                              r->useragent_ip, w, match? "yes": "no");
-                if (match) {
-                    return AUTHZ_GRANTED;
-                }
-
-                sa = sa->next;
-            }
+            cid->completion(cid->ecb, cid->completion_arg,
+                            *size_arg, ERROR_SUCCESS);
         }
         else {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(03356)
-                          "No sockaddr info for \"%s\"", w);
-        }
-
-        /* stop processing, we are in a comment */
-        if (hash_ptr) {
-            break;
+            cid->completion(cid->ecb, cid->completion_arg,
+                            *size_arg, ERROR_WRITE_FAULT);
         }
     }
-
-    return AUTHZ_DENIED;
+    return (rv == APR_SUCCESS);
 }

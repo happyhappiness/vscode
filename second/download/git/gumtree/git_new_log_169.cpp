@@ -1,1 +1,1 @@
-logerror("user-path too large: %s", rpath);
+error("packfile %s cannot be accessed", p->pack_name);

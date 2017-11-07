@@ -1,1 +1,1 @@
-die("unsupported porcelain version '%s'", arg);
+warning(_("--shallow-exclude is ignored in local clones; use file:// instead."));

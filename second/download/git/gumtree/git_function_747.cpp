@@ -1,30 +1,22 @@
-static int is_alternate_allowed(const char *url)
+int report_unmatched_refs(struct ref **sought, int nr_sought)
 {
-	const char *protocols[] = {
-		"http", "https", "ftp", "ftps"
-	};
-	int i;
+	int i, ret = 0;
 
-	if (http_follow_config != HTTP_FOLLOW_ALWAYS) {
-		warning("alternate disabled by http.followRedirects: %s", url);
-		return 0;
-	}
-
-	for (i = 0; i < ARRAY_SIZE(protocols); i++) {
-		const char *end;
-		if (skip_prefix(url, protocols[i], &end) &&
-		    starts_with(end, "://"))
+	for (i = 0; i < nr_sought; i++) {
+		if (!sought[i])
+			continue;
+		switch (sought[i]->match_status) {
+		case REF_MATCHED:
+			continue;
+		case REF_NOT_MATCHED:
+			error(_("no such remote ref %s"), sought[i]->name);
 			break;
+		case REF_UNADVERTISED_NOT_ALLOWED:
+			error(_("Server does not allow request for unadvertised object %s"),
+			      sought[i]->name);
+			break;
+		}
+		ret = 1;
 	}
-
-	if (i >= ARRAY_SIZE(protocols)) {
-		warning("ignoring alternate with unknown protocol: %s", url);
-		return 0;
-	}
-	if (!is_transport_allowed(protocols[i], 0)) {
-		warning("ignoring alternate with restricted protocol: %s", url);
-		return 0;
-	}
-
-	return 1;
+	return ret;
 }

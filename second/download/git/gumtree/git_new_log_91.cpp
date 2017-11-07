@@ -1,1 +1,1 @@
-die("verify: missing <ref>");
+die("delete %s: extra input: %s", refname, next);

@@ -1,1 +1,1 @@
-error(_("unable to write new index file"));
+fputs(_(env_hint), stderr);

@@ -1,1 +1,0 @@
-hashcpy(cb->sha1, nsha1);

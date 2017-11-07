@@ -1,1 +1,1 @@
-die("bad --word-diff argument: %s", arg);
+die("BUG: stat option does not begin with --stat: %s", arg);

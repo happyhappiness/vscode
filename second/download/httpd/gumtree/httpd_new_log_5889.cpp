@@ -1,1 +1,4 @@
-ap_rvputs(r, "> <br/> <label for='", name, "0'>Off</label> <input name='", name, "' id='", name, "0' value='0' type=radio", NULL);
+ap_rvputs(r, "<a href='", ap_escape_uri(r->pool, r->uri), "?b=",
+                      balancer->s->name + sizeof(BALANCER_PREFIX) - 1,
+                      "&amp;nonce=", balancer->s->nonce,
+                      "'>", NULL);

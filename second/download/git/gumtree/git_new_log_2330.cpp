@@ -1,1 +1,1 @@
-error_errno("error while reading from stdin");
+warning_errno("dup failed");

@@ -1,1 +1,1 @@
-die("BUG: pack tmpfile does not end in .pack.temp?");
+error("object %s: %s", oid_to_hex(&obj->oid), message);

@@ -1,1 +1,1 @@
-error(_("could not read HEAD"));
+error(_("need a HEAD to fixup"));

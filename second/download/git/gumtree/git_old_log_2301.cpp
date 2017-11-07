@@ -1,1 +1,0 @@
-die(_("submodule--helper: unspecified or empty --path"));

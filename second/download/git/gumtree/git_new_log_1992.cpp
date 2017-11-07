@@ -1,1 +1,3 @@
-die("bad tree object %s", oid_to_hex(&obj->oid));
+fprintf(stderr, "MOVE %s failed, aborting (%d/%ld)\n",
+				oid_to_hex(&request->obj->oid),
+				request->curl_result, request->http_code);

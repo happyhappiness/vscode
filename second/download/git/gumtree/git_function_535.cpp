@@ -1,8 +1,11 @@
 static void receive_needs(void)
 {
 	struct object_array shallows = OBJECT_ARRAY_INIT;
+	struct string_list deepen_not = STRING_LIST_INIT_DUP;
 	int depth = 0;
 	int has_non_tip = 0;
+	unsigned long deepen_since = 0;
+	int deepen_rev_list = 0;
 
 	shallow_nr = 0;
 	for (;;) {
@@ -10,14 +13,16 @@ static void receive_needs(void)
 		const char *features;
 		unsigned char sha1_buf[20];
 		char *line = packet_read_line(0, NULL);
+		const char *arg;
+
 		reset_timeout();
 		if (!line)
 			break;
 
-		if (starts_with(line, "shallow ")) {
+		if (skip_prefix(line, "shallow ", &arg)) {
 			unsigned char sha1[20];
 			struct object *object;
-			if (get_sha1_hex(line + 8, sha1))
+			if (get_sha1_hex(arg, sha1))
 				die("invalid shallow line: %s", line);
 			object = parse_object(sha1);
 			if (!object)
@@ -30,20 +35,42 @@ static void receive_needs(void)
 			}
 			continue;
 		}
-		if (starts_with(line, "deepen ")) {
-			char *end;
-			depth = strtol(line + 7, &end, 0);
-			if (end == line + 7 || depth <= 0)
+		if (skip_prefix(line, "deepen ", &arg)) {
+			char *end = NULL;
+			depth = strtol(arg, &end, 0);
+			if (!end || *end || depth <= 0)
 				die("Invalid deepen: %s", line);
 			continue;
 		}
-		if (!starts_with(line, "want ") ||
-		    get_sha1_hex(line+5, sha1_buf))
+		if (skip_prefix(line, "deepen-since ", &arg)) {
+			char *end = NULL;
+			deepen_since = strtoul(arg, &end, 0);
+			if (!end || *end || !deepen_since ||
+			    /* revisions.c's max_age -1 is special */
+			    deepen_since == -1)
+				die("Invalid deepen-since: %s", line);
+			deepen_rev_list = 1;
+			continue;
+		}
+		if (skip_prefix(line, "deepen-not ", &arg)) {
+			char *ref = NULL;
+			unsigned char sha1[20];
+			if (expand_ref(arg, strlen(arg), sha1, &ref) != 1)
+				die("git upload-pack: ambiguous deepen-not: %s", line);
+			string_list_append(&deepen_not, ref);
+			free(ref);
+			deepen_rev_list = 1;
+			continue;
+		}
+		if (!skip_prefix(line, "want ", &arg) ||
+		    get_sha1_hex(arg, sha1_buf))
 			die("git upload-pack: protocol error, "
 			    "expected to get sha, not '%s'", line);
 
-		features = line + 45;
+		features = arg + 40;
 
+		if (parse_feature_request(features, "deepen-relative"))
+			deepen_relative = 1;
 		if (parse_feature_request(features, "multi_ack_detailed"))
 			multi_ack = 2;
 		else if (parse_feature_request(features, "multi_ack"))
@@ -88,55 +115,35 @@ static void receive_needs(void)
 	if (!use_sideband && daemon_mode)
 		no_progress = 1;
 
-	if (depth == 0 && shallows.nr == 0)
+	if (depth == 0 && !deepen_rev_list && shallows.nr == 0)
 		return;
-	if (depth > 0) {
-		struct commit_list *result = NULL, *backup = NULL;
+	if (depth > 0 && deepen_rev_list)
+		die("git upload-pack: deepen and deepen-since (or deepen-not) cannot be used together");
+	if (depth > 0)
+		deepen(depth, deepen_relative, &shallows);
+	else if (deepen_rev_list) {
+		struct argv_array av = ARGV_ARRAY_INIT;
 		int i;
-		if (depth == INFINITE_DEPTH && !is_repository_shallow())
-			for (i = 0; i < shallows.nr; i++) {
-				struct object *object = shallows.objects[i].item;
-				object->flags |= NOT_SHALLOW;
+
+		argv_array_push(&av, "rev-list");
+		if (deepen_since)
+			argv_array_pushf(&av, "--max-age=%lu", deepen_since);
+		if (deepen_not.nr) {
+			argv_array_push(&av, "--not");
+			for (i = 0; i < deepen_not.nr; i++) {
+				struct string_list_item *s = deepen_not.items + i;
+				argv_array_push(&av, s->string);
 			}
-		else
-			backup = result =
-				get_shallow_commits(&want_obj, depth,
-						    SHALLOW, NOT_SHALLOW);
-		while (result) {
-			struct object *object = &result->item->object;
-			if (!(object->flags & (CLIENT_SHALLOW|NOT_SHALLOW))) {
-				packet_write(1, "shallow %s",
-						oid_to_hex(&object->oid));
-				register_shallow(object->oid.hash);
-				shallow_nr++;
-			}
-			result = result->next;
+			argv_array_push(&av, "--not");
 		}
-		free_commit_list(backup);
-		for (i = 0; i < shallows.nr; i++) {
-			struct object *object = shallows.objects[i].item;
-			if (object->flags & NOT_SHALLOW) {
-				struct commit_list *parents;
-				packet_write(1, "unshallow %s",
-					oid_to_hex(&object->oid));
-				object->flags &= ~CLIENT_SHALLOW;
-				/* make sure the real parents are parsed */
-				unregister_shallow(object->oid.hash);
-				object->parsed = 0;
-				parse_commit_or_die((struct commit *)object);
-				parents = ((struct commit *)object)->parents;
-				while (parents) {
-					add_object_array(&parents->item->object,
-							NULL, &want_obj);
-					parents = parents->next;
-				}
-				add_object_array(object, NULL, &extra_edge_obj);
-			}
-			/* make sure commit traversal conforms to client */
-			register_shallow(object->oid.hash);
+		for (i = 0; i < want_obj.nr; i++) {
+			struct object *o = want_obj.objects[i].item;
+			argv_array_push(&av, oid_to_hex(&o->oid));
 		}
-		packet_flush(1);
-	} else
+		deepen_by_rev_list(av.argc, av.argv, &shallows);
+		argv_array_clear(&av);
+	}
+	else
 		if (shallows.nr > 0) {
 			int i;
 			for (i = 0; i < shallows.nr; i++)

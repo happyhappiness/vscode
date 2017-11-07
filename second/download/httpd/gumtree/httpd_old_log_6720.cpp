@@ -1,2 +1,3 @@
-printf("                        %.2f kb/s sent\n",
-               (double) totalposted / timetaken / 1024);
+printf("Processing: " CONF_FMT_STRING, mintot - mincon,
+                                                   meantot - meancon,
+                                                   maxtot - maxcon);

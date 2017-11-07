@@ -1,1 +1,2 @@
-die_errno("Could not change back to '%s'", cwd.buf);
+die_errno("Invalid symlink '%s'",
+						  sb.buf);

@@ -1,1 +1,1 @@
-die(_("Cannot read note data from non-blob object '%s'."), arg);
+die(_("Failed to read object '%s'."), arg);

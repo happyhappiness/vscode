@@ -1,1 +1,1 @@
-die(_("bug: unhandled unmerged status %x"), stagemask);
+fprintf(stderr, fmt, hex);

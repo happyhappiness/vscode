@@ -1,1 +1,1 @@
-error(_("could not close '%s'"), tempfile->filename.buf);
+BUG("setup_git_env called without repository");

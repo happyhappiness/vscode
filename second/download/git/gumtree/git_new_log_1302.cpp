@@ -1,1 +1,2 @@
-die("BUG: fdopen_lock_file() called twice for file '%s'", lk->filename.buf);
+die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
+		    path);

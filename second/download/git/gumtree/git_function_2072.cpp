@@ -1,88 +1,193 @@
-static void check_non_tip(void)
+static void create_pack_file(void)
 {
-	static const char *argv[] = {
-		"rev-list", "--stdin", NULL,
-	};
-	static struct child_process cmd = CHILD_PROCESS_INIT;
-	struct object *o;
-	char namebuf[42]; /* ^ + SHA-1 + LF */
-	int i;
+	struct child_process pack_objects = CHILD_PROCESS_INIT;
+	char data[8193], progress[128];
+	char abort_msg[] = "aborting due to possible repository "
+		"corruption on the remote side.";
+	int buffered = -1;
+	ssize_t sz;
+	const char *argv[13];
+	int i, arg = 0;
+	FILE *pipe_fd;
 
-	/*
-	 * In the normal in-process case without
-	 * uploadpack.allowReachableSHA1InWant,
-	 * non-tip requests can never happen.
-	 */
-	if (!stateless_rpc && !(allow_unadvertised_object_request & ALLOW_REACHABLE_SHA1))
-		goto error;
-
-	cmd.argv = argv;
-	cmd.git_cmd = 1;
-	cmd.no_stderr = 1;
-	cmd.in = -1;
-	cmd.out = -1;
-
-	if (start_command(&cmd))
-		goto error;
-
-	/*
-	 * If rev-list --stdin encounters an unknown commit, it
-	 * terminates, which will cause SIGPIPE in the write loop
-	 * below.
-	 */
-	sigchain_push(SIGPIPE, SIG_IGN);
-
-	namebuf[0] = '^';
-	namebuf[41] = '\n';
-	for (i = get_max_object_index(); 0 < i; ) {
-		o = get_indexed_object(--i);
-		if (!o)
-			continue;
-		if (!is_our_ref(o))
-			continue;
-		memcpy(namebuf + 1, sha1_to_hex(o->sha1), 40);
-		if (write_in_full(cmd.in, namebuf, 42) < 0)
-			goto error;
+	if (shallow_nr) {
+		argv[arg++] = "--shallow-file";
+		argv[arg++] = "";
 	}
-	namebuf[40] = '\n';
-	for (i = 0; i < want_obj.nr; i++) {
-		o = want_obj.objects[i].item;
-		if (is_our_ref(o))
+	argv[arg++] = "pack-objects";
+	argv[arg++] = "--revs";
+	if (use_thin_pack)
+		argv[arg++] = "--thin";
+
+	argv[arg++] = "--stdout";
+	if (shallow_nr)
+		argv[arg++] = "--shallow";
+	if (!no_progress)
+		argv[arg++] = "--progress";
+	if (use_ofs_delta)
+		argv[arg++] = "--delta-base-offset";
+	if (use_include_tag)
+		argv[arg++] = "--include-tag";
+	argv[arg++] = NULL;
+
+	pack_objects.in = -1;
+	pack_objects.out = -1;
+	pack_objects.err = -1;
+	pack_objects.git_cmd = 1;
+	pack_objects.argv = argv;
+
+	if (start_command(&pack_objects))
+		die("git upload-pack: unable to fork git-pack-objects");
+
+	pipe_fd = xfdopen(pack_objects.in, "w");
+
+	if (shallow_nr)
+		for_each_commit_graft(write_one_shallow, pipe_fd);
+
+	for (i = 0; i < want_obj.nr; i++)
+		fprintf(pipe_fd, "%s\n",
+			sha1_to_hex(want_obj.objects[i].item->sha1));
+	fprintf(pipe_fd, "--not\n");
+	for (i = 0; i < have_obj.nr; i++)
+		fprintf(pipe_fd, "%s\n",
+			sha1_to_hex(have_obj.objects[i].item->sha1));
+	for (i = 0; i < extra_edge_obj.nr; i++)
+		fprintf(pipe_fd, "%s\n",
+			sha1_to_hex(extra_edge_obj.objects[i].item->sha1));
+	fprintf(pipe_fd, "\n");
+	fflush(pipe_fd);
+	fclose(pipe_fd);
+
+	/* We read from pack_objects.err to capture stderr output for
+	 * progress bar, and pack_objects.out to capture the pack data.
+	 */
+
+	while (1) {
+		struct pollfd pfd[2];
+		int pe, pu, pollsize;
+		int ret;
+
+		reset_timeout();
+
+		pollsize = 0;
+		pe = pu = -1;
+
+		if (0 <= pack_objects.out) {
+			pfd[pollsize].fd = pack_objects.out;
+			pfd[pollsize].events = POLLIN;
+			pu = pollsize;
+			pollsize++;
+		}
+		if (0 <= pack_objects.err) {
+			pfd[pollsize].fd = pack_objects.err;
+			pfd[pollsize].events = POLLIN;
+			pe = pollsize;
+			pollsize++;
+		}
+
+		if (!pollsize)
+			break;
+
+		ret = poll(pfd, pollsize,
+			keepalive < 0 ? -1 : 1000 * keepalive);
+
+		if (ret < 0) {
+			if (errno != EINTR) {
+				error("poll failed, resuming: %s",
+				      strerror(errno));
+				sleep(1);
+			}
 			continue;
-		memcpy(namebuf, sha1_to_hex(o->sha1), 40);
-		if (write_in_full(cmd.in, namebuf, 41) < 0)
-			goto error;
+		}
+		if (0 <= pe && (pfd[pe].revents & (POLLIN|POLLHUP))) {
+			/* Status ready; we ship that in the side-band
+			 * or dump to the standard error.
+			 */
+			sz = xread(pack_objects.err, progress,
+				  sizeof(progress));
+			if (0 < sz)
+				send_client_data(2, progress, sz);
+			else if (sz == 0) {
+				close(pack_objects.err);
+				pack_objects.err = -1;
+			}
+			else
+				goto fail;
+			/* give priority to status messages */
+			continue;
+		}
+		if (0 <= pu && (pfd[pu].revents & (POLLIN|POLLHUP))) {
+			/* Data ready; we keep the last byte to ourselves
+			 * in case we detect broken rev-list, so that we
+			 * can leave the stream corrupted.  This is
+			 * unfortunate -- unpack-objects would happily
+			 * accept a valid packdata with trailing garbage,
+			 * so appending garbage after we pass all the
+			 * pack data is not good enough to signal
+			 * breakage to downstream.
+			 */
+			char *cp = data;
+			ssize_t outsz = 0;
+			if (0 <= buffered) {
+				*cp++ = buffered;
+				outsz++;
+			}
+			sz = xread(pack_objects.out, cp,
+				  sizeof(data) - outsz);
+			if (0 < sz)
+				;
+			else if (sz == 0) {
+				close(pack_objects.out);
+				pack_objects.out = -1;
+			}
+			else
+				goto fail;
+			sz += outsz;
+			if (1 < sz) {
+				buffered = data[sz-1] & 0xFF;
+				sz--;
+			}
+			else
+				buffered = -1;
+			sz = send_client_data(1, data, sz);
+			if (sz < 0)
+				goto fail;
+		}
+
+		/*
+		 * We hit the keepalive timeout without saying anything; send
+		 * an empty message on the data sideband just to let the other
+		 * side know we're still working on it, but don't have any data
+		 * yet.
+		 *
+		 * If we don't have a sideband channel, there's no room in the
+		 * protocol to say anything, so those clients are just out of
+		 * luck.
+		 */
+		if (!ret && use_sideband) {
+			static const char buf[] = "0005\1";
+			write_or_die(1, buf, 5);
+		}
 	}
-	close(cmd.in);
 
-	sigchain_pop(SIGPIPE);
+	if (finish_command(&pack_objects)) {
+		error("git upload-pack: git-pack-objects died with error.");
+		goto fail;
+	}
 
-	/*
-	 * The commits out of the rev-list are not ancestors of
-	 * our ref.
-	 */
-	i = read_in_full(cmd.out, namebuf, 1);
-	if (i)
-		goto error;
-	close(cmd.out);
-
-	/*
-	 * rev-list may have died by encountering a bad commit
-	 * in the history, in which case we do want to bail out
-	 * even when it showed no commit.
-	 */
-	if (finish_command(&cmd))
-		goto error;
-
-	/* All the non-tip ones are ancestors of what we advertised */
+	/* flush the data */
+	if (0 <= buffered) {
+		data[0] = buffered;
+		sz = send_client_data(1, data, 1);
+		if (sz < 0)
+			goto fail;
+		fprintf(stderr, "flushed.\n");
+	}
+	if (use_sideband)
+		packet_flush(1);
 	return;
 
-error:
-	/* Pick one of them (we know there at least is one) */
-	for (i = 0; i < want_obj.nr; i++) {
-		o = want_obj.objects[i].item;
-		if (!is_our_ref(o))
-			die("git upload-pack: not our ref %s",
-			    sha1_to_hex(o->sha1));
-	}
+ fail:
+	send_client_data(3, abort_msg, sizeof(abort_msg));
+	die("git upload-pack: %s", abort_msg);
 }

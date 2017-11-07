@@ -1,1 +1,1 @@
-fprintf(stderr, "   -t   The last param is username comment.\n");
+fprintf(stderr, "   -x   Remove the username record from database.\n");

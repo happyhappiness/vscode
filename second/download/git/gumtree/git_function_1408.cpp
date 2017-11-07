@@ -1,22 +1,27 @@
 int main(int argc, char **argv)
 {
 	struct strbuf all_msgs = STRBUF_INIT;
-	struct strbuf msg = STRBUF_INIT;
-	struct imap_store *ctx = NULL;
-	int ofs = 0;
-	int r;
-	int total, n = 0;
+	int total;
 	int nongit_ok;
 
 	git_extract_argv0_path(argv[0]);
 
 	git_setup_gettext();
 
-	if (argc != 1)
-		usage(imap_send_usage);
-
 	setup_git_directory_gently(&nongit_ok);
 	git_imap_config();
+
+	argc = parse_options(argc, (const char **)argv, "", imap_send_options, imap_send_usage, 0);
+
+	if (argc)
+		usage_with_options(imap_send_usage, imap_send_options);
+
+#ifndef USE_CURL_FOR_IMAP_SEND
+	if (use_curl) {
+		warning("--use-curl not supported in this build");
+		use_curl = 0;
+	}
+#endif
 
 	if (!server.port)
 		server.port = server.use_ssl ? 993 : 143;
@@ -51,29 +56,14 @@ int main(int argc, char **argv)
 	}
 
 	/* write it to the imap server */
-	ctx = imap_open_store(&server, server.folder);
-	if (!ctx) {
-		fprintf(stderr, "failed to open store\n");
-		return 1;
-	}
 
-	fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");
-	while (1) {
-		unsigned percent = n * 100 / total;
+	if (server.tunnel)
+		return append_msgs_to_imap(&server, &all_msgs, total);
 
-		fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);
-		if (!split_msg(&all_msgs, &msg, &ofs))
-			break;
-		if (server.use_html)
-			wrap_in_html(&msg);
-		r = imap_store_msg(ctx, &msg);
-		if (r != DRV_OK)
-			break;
-		n++;
-	}
-	fprintf(stderr, "\n");
+#ifdef USE_CURL_FOR_IMAP_SEND
+	if (use_curl)
+		return curl_append_msgs_to_imap(&server, &all_msgs, total);
+#endif
 
-	imap_close_store(ctx);
-
-	return 0;
+	return append_msgs_to_imap(&server, &all_msgs, total);
 }

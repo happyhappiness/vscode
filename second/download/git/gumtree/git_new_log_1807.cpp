@@ -1,2 +1,1 @@
-status_printf_ln(s, color,
-					_("  (see more in file %s)"), git_path("rebase-merge/done"));
+status_printf_ln(s, color, "   %s", have_done.items[i].string);

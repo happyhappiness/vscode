@@ -1,1 +1,1 @@
-die("%s is not a tree", oid_to_hex(hash));
+die("unable to read tree (%s)", oid_to_hex(hash));

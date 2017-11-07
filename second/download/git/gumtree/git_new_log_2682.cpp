@@ -1,1 +1,1 @@
-die_errno(_("Unable to read current working directory"));
+die(_("Not a git repository (or any of the parent directories): %s"), DEFAULT_GIT_DIR_ENVIRONMENT);

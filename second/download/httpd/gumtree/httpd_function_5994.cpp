@@ -1,84 +1,92 @@
-static int on_frame_recv(nghttp2_session *ngh2, const nghttp2_frame *frame,
-                         void *user_data) 
+static ssize_t stream_request_data(nghttp2_session *ngh2, int32_t stream_id, 
+                                   uint8_t *buf, size_t length,
+                                   uint32_t *data_flags, 
+                                   nghttp2_data_source *source, void *user_data)
 {
-    h2_proxy_session *session = user_data;
     h2_proxy_stream *stream;
-    request_rec *r;
-    int n;
+    apr_status_t status = APR_SUCCESS;
     
-    if (APLOGcdebug(session->c)) {
-        char buffer[256];
-        
-        h2_proxy_util_frame_print(frame, buffer, sizeof(buffer)/sizeof(buffer[0]));
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03341)
-                      "h2_proxy_session(%s): recv FRAME[%s]",
-                      session->id, buffer);
+    *data_flags = 0;
+    stream = nghttp2_session_get_stream_user_data(ngh2, stream_id);
+    if (!stream) {
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(03361)
+                     "h2_proxy_stream(%s): data_read, stream %d not found", 
+                     stream->session->id, stream_id);
+        return NGHTTP2_ERR_CALLBACK_FAILURE;
+    }
+    
+    if (stream->session->check_ping) {
+        /* suspend until we hear from the other side */
+        stream->waiting_on_ping = 1;
+        status = APR_EAGAIN;
+    }
+    else if (stream->r->expecting_100) {
+        /* suspend until the answer comes */
+        stream->waiting_on_100 = 1;
+        status = APR_EAGAIN;
+    }
+    else if (APR_BRIGADE_EMPTY(stream->input)) {
+        status = ap_get_brigade(stream->r->input_filters, stream->input,
+                                AP_MODE_READBYTES, APR_NONBLOCK_READ,
+                                H2MAX(APR_BUCKET_BUFF_SIZE, length));
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, status, stream->r, 
+                      "h2_proxy_stream(%s-%d): request body read", 
+                      stream->session->id, stream->id);
     }
 
-    session->last_frame_received = apr_time_now();
-    switch (frame->hd.type) {
-        case NGHTTP2_HEADERS:
-            stream = nghttp2_session_get_stream_user_data(ngh2, frame->hd.stream_id);
-            if (!stream) {
-                return NGHTTP2_ERR_CALLBACK_FAILURE;
-            }
-            r = stream->r;
-            if (r->status >= 100 && r->status < 200) {
-                /* By default, we will forward all interim responses when
-                 * we are sitting on a HTTP/2 connection to the client */
-                int forward = session->h2_front;
-                switch(r->status) {
-                    case 100:
-                        if (stream->waiting_on_100) {
-                            stream->waiting_on_100 = 0;
-                            r->status_line = ap_get_status_line(r->status);
-                            forward = 1;
-                        } 
-                        break;
-                    case 103:
-                        /* workaround until we get this into http protocol base
-                         * parts. without this, unknown codes are converted to
-                         * 500... */
-                        r->status_line = "103 Early Hints";
-                        break;
-                    default:
-                        r->status_line = ap_get_status_line(r->status);
-                        break;
+    if (status == APR_SUCCESS) {
+        ssize_t readlen = 0;
+        while (status == APR_SUCCESS 
+               && (readlen < length)
+               && !APR_BRIGADE_EMPTY(stream->input)) {
+            apr_bucket* b = APR_BRIGADE_FIRST(stream->input);
+            if (APR_BUCKET_IS_METADATA(b)) {
+                if (APR_BUCKET_IS_EOS(b)) {
+                    *data_flags |= NGHTTP2_DATA_FLAG_EOF;
                 }
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(03487) 
-                              "h2_proxy_session(%s): got interim HEADERS, "
-                              "status=%d, will forward=%d",
-                              session->id, r->status, forward);
-                if (forward) {
-                    ap_send_interim_response(r, 1);
+                else {
+                    /* we do nothing more regarding any meta here */
                 }
             }
-            stream_resume(stream);
-            break;
-        case NGHTTP2_PING:
-            if (session->check_ping) {
-                session->check_ping = 0;
-                ping_arrived(session);
-            }
-            break;
-        case NGHTTP2_PUSH_PROMISE:
-            break;
-        case NGHTTP2_SETTINGS:
-            if (frame->settings.niv > 0) {
-                n = nghttp2_session_get_remote_settings(ngh2, NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS);
-                if (n > 0) {
-                    session->remote_max_concurrent = n;
+            else {
+                const char *bdata = NULL;
+                apr_size_t blen = 0;
+                status = apr_bucket_read(b, &bdata, &blen, APR_BLOCK_READ);
+                
+                if (status == APR_SUCCESS && blen > 0) {
+                    ssize_t copylen = H2MIN(length - readlen, blen);
+                    memcpy(buf, bdata, copylen);
+                    buf += copylen;
+                    readlen += copylen;
+                    if (copylen < blen) {
+                        /* We have data left in the bucket. Split it. */
+                        status = apr_bucket_split(b, copylen);
+                    }
                 }
             }
-            break;
-        case NGHTTP2_GOAWAY:
-            /* we expect the remote server to tell us the highest stream id
-             * that it has started processing. */
-            session->last_stream_id = frame->goaway.last_stream_id;
-            dispatch_event(session, H2_PROXYS_EV_REMOTE_GOAWAY, 0, NULL);
-            break;
-        default:
-            break;
+            apr_bucket_delete(b);
+        }
+
+        stream->data_sent += readlen;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, stream->r, APLOGNO(03468) 
+                      "h2_proxy_stream(%d): request DATA %ld, %ld"
+                      " total, flags=%d", 
+                      stream->id, (long)readlen, (long)stream->data_sent,
+                      (int)*data_flags);
+        return readlen;
     }
-    return 0;
+    else if (APR_STATUS_IS_EAGAIN(status)) {
+        /* suspended stream, needs to be re-awakened */
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, status, stream->r, 
+                      "h2_proxy_stream(%s-%d): suspending", 
+                      stream->session->id, stream_id);
+        stream->suspended = 1;
+        h2_proxy_iq_add(stream->session->suspended, stream->id, NULL, NULL);
+        return NGHTTP2_ERR_DEFERRED;
+    }
+    else {
+        nghttp2_submit_rst_stream(ngh2, NGHTTP2_FLAG_NONE, 
+                                  stream_id, NGHTTP2_STREAM_CLOSED);
+        return NGHTTP2_ERR_STREAM_CLOSING;
+    }
 }

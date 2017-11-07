@@ -1,1 +1,1 @@
-fprintf(stderr, "Invalid pattern: %s\n", regex_);
+fprintf(stderr, "Invalid key pattern: %s\n", key_);

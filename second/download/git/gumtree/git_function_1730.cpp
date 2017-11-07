@@ -1,19 +1,57 @@
-int commit_lock_file(struct lock_file *lk)
+static int lock_file(struct lock_file *lk, const char *path, int flags)
 {
-	static struct strbuf result_file = STRBUF_INIT;
-	int err;
+	size_t pathlen = strlen(path);
 
-	if (!lk->active)
-		die("BUG: attempt to commit unlocked object");
+	if (!lock_file_list) {
+		/* One-time initialization */
+		sigchain_push_common(remove_lock_files_on_signal);
+		atexit(remove_lock_files_on_exit);
+	}
 
-	if (lk->filename.len <= LOCK_SUFFIX_LEN ||
-	    strcmp(lk->filename.buf + lk->filename.len - LOCK_SUFFIX_LEN, LOCK_SUFFIX))
-		die("BUG: lockfile filename corrupt");
+	if (lk->active)
+		die("BUG: cannot lock_file(\"%s\") using active struct lock_file",
+		    path);
+	if (!lk->on_list) {
+		/* Initialize *lk and add it to lock_file_list: */
+		lk->fd = -1;
+		lk->fp = NULL;
+		lk->active = 0;
+		lk->owner = 0;
+		strbuf_init(&lk->filename, pathlen + LOCK_SUFFIX_LEN);
+		lk->next = lock_file_list;
+		lock_file_list = lk;
+		lk->on_list = 1;
+	} else if (lk->filename.len) {
+		/* This shouldn't happen, but better safe than sorry. */
+		die("BUG: lock_file(\"%s\") called with improperly-reset lock_file object",
+		    path);
+	}
 
-	/* remove ".lock": */
-	strbuf_add(&result_file, lk->filename.buf,
-		   lk->filename.len - LOCK_SUFFIX_LEN);
-	err = commit_lock_file_to(lk, result_file.buf);
-	strbuf_reset(&result_file);
-	return err;
+	if (flags & LOCK_NO_DEREF) {
+		strbuf_add_absolute_path(&lk->filename, path);
+	} else {
+		struct strbuf resolved_path = STRBUF_INIT;
+
+		strbuf_add(&resolved_path, path, pathlen);
+		resolve_symlink(&resolved_path);
+		strbuf_add_absolute_path(&lk->filename, resolved_path.buf);
+		strbuf_release(&resolved_path);
+	}
+
+	strbuf_addstr(&lk->filename, LOCK_SUFFIX);
+	lk->fd = open(lk->filename.buf, O_RDWR | O_CREAT | O_EXCL, 0666);
+	if (lk->fd < 0) {
+		strbuf_reset(&lk->filename);
+		return -1;
+	}
+	lk->owner = getpid();
+	lk->active = 1;
+	if (adjust_shared_perm(lk->filename.buf)) {
+		int save_errno = errno;
+		error("cannot fix permission bits on %s", lk->filename.buf);
+		rollback_lock_file(lk);
+		errno = save_errno;
+		return -1;
+	}
+	return lk->fd;
 }

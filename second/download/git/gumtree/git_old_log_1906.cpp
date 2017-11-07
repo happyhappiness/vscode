@@ -1,1 +1,3 @@
-die(_("Not all child objects of %s are reachable"), sha1_to_hex(obj->sha1));
+die(_("object %s: expected type %s, found %s"),
+			    sha1_to_hex(obj->sha1),
+			    typename(obj->type), typename(type));

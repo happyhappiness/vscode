@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(03308)
-                          "ap_proxy_transfer_between_connections: "
-                          "error on %s - ap_get_brigade",
-                          name);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02254)
+                                  "Reduced client verification depth will "
+                                  "force renegotiation");

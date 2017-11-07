@@ -1,55 +1,53 @@
-static const char *
-    set_proxy_dirconn(cmd_parms *parms, void *dummy, const char *arg)
+static apr_status_t proxy_wstunnel_transfer(request_rec *r, conn_rec *c_i, conn_rec *c_o,
+                                     apr_bucket_brigade *bb, char *name, int *sent)
 {
-    server_rec *s = parms->server;
-    proxy_server_conf *conf =
-    ap_get_module_config(s->module_config, &proxy_module);
-    struct dirconn_entry *New;
-    struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-    int found = 0;
-    int i;
+    apr_status_t rv;
+#ifdef DEBUGGING
+    apr_off_t len;
+#endif
 
-    /* Don't duplicate entries */
-    for (i = 0; i < conf->dirconn->nelts; i++) {
-        if (strcasecmp(arg, list[i].name) == 0) {
-            found = 1;
-            break;
+    do {
+        apr_brigade_cleanup(bb);
+        rv = ap_get_brigade(c_i->input_filters, bb, AP_MODE_READBYTES,
+                            APR_NONBLOCK_READ, AP_IOBUFSIZE);
+        if (rv == APR_SUCCESS) {
+            if (c_o->aborted) {
+                return APR_EPIPE;
+            }
+            if (APR_BRIGADE_EMPTY(bb)) {
+                break;
+            }
+#ifdef DEBUGGING
+            len = -1;
+            apr_brigade_length(bb, 0, &len);
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02440)
+                          "read %" APR_OFF_T_FMT
+                          " bytes from %s", len, name);
+#endif
+            if (sent) {
+                *sent = 1;
+            }
+            rv = ap_pass_brigade(c_o->output_filters, bb);
+            if (rv == APR_SUCCESS) {
+                ap_fflush(c_o->output_filters, bb);
+            }
+            else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(02441)
+                              "error on %s - ap_pass_brigade",
+                              name);
+            }
+        } else if (!APR_STATUS_IS_EAGAIN(rv) && !APR_STATUS_IS_EOF(rv)) {
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(02442)
+                          "error on %s - ap_get_brigade",
+                          name);
         }
+    } while (rv == APR_SUCCESS);
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, rv, r, "wstunnel_transfer complete");
+
+    if (APR_STATUS_IS_EAGAIN(rv)) {
+        rv = APR_SUCCESS;
     }
 
-    if (!found) {
-        New = apr_array_push(conf->dirconn);
-        New->name = apr_pstrdup(parms->pool, arg);
-        New->hostaddr = NULL;
-
-        if (ap_proxy_is_ipaddr(New, parms->pool)) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed addr %s", inet_ntoa(New->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed mask %s", inet_ntoa(New->mask));
-#endif
-        }
-        else if (ap_proxy_is_domainname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed domain %s", New->name);
-#endif
-        }
-        else if (ap_proxy_is_hostname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed host %s", New->name);
-#endif
-        }
-        else {
-            ap_proxy_is_word(New, parms->pool);
-#if DEBUGGING
-            fprintf(stderr, "Parsed word %s\n", New->name);
-#endif
-        }
-    }
-    return NULL;
+    return rv;
 }

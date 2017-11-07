@@ -1,1 +1,1 @@
-die("BUG: run_command with a pipe can cause deadlock");
+die(_("--first-parent is incompatible with --bisect"));

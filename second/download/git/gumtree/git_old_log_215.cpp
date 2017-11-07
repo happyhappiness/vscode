@@ -1,1 +1,1 @@
-die("object %s disappeared", sha1_to_hex(sha1));
+die("unable to stream %s to stdout", sha1_to_hex(sha1));

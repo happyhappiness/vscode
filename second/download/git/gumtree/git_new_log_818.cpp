@@ -1,1 +1,2 @@
-die("submodule--helper is-active takes exactly 1 argument");
+die("src refspec '%s' must name a ref",
+				    rs->src);

@@ -1,2 +1,2 @@
-error_errno(_("could not create sequencer directory '%s'"),
-				   git_path_seq_dir());
+error(_("malformed options sheet: '%s'"),
+			git_path_opts_file());

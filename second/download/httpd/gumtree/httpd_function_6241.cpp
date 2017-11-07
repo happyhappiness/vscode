@@ -1,46 +1,64 @@
-static apr_status_t on_stream_resume(void *ctx, h2_stream *stream)
+static apr_status_t h2_session_read(h2_session *session, int block)
 {
-    h2_session *session = ctx;
-    apr_status_t status = APR_EAGAIN;
-    int rv;
-    apr_off_t len = 0;
-    int eos = 0;
-    h2_headers *headers;
+    apr_status_t status, rstatus = APR_EAGAIN;
+    conn_rec *c = session->c;
+    apr_off_t read_start = session->io.bytes_read;
     
-    ap_assert(stream);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                  "h2_stream(%ld-%d): on_resume", session->id, stream->id);
-        
-send_headers:
-    headers = NULL;
-    status = h2_stream_out_prepare(stream, &len, &eos, &headers);
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
-                  "h2_stream(%ld-%d): prepared len=%ld, eos=%d", 
-                  session->id, stream->id, (long)len, eos);
-    if (headers) {
-        status = on_stream_headers(session, stream, headers, len, eos);
-        if (status != APR_SUCCESS || stream->rst_error) {
-            return status;
+    while (1) {
+        /* H2_IN filter handles all incoming data against the session.
+         * We just pull at the filter chain to make it happen */
+        status = ap_get_brigade(c->input_filters,
+                                session->bbtmp, AP_MODE_READBYTES,
+                                block? APR_BLOCK_READ : APR_NONBLOCK_READ,
+                                APR_BUCKET_BUFF_SIZE);
+        /* get rid of any possible data we do not expect to get */
+        apr_brigade_cleanup(session->bbtmp); 
+
+        switch (status) {
+            case APR_SUCCESS:
+                /* successful read, reset our idle timers */
+                rstatus = APR_SUCCESS;
+                if (block) {
+                    /* successful blocked read, try unblocked to
+                     * get more. */
+                    block = 0;
+                }
+                break;
+            case APR_EAGAIN:
+                return rstatus;
+            case APR_TIMEUP:
+                return status;
+            default:
+                if (session->io.bytes_read == read_start) {
+                    /* first attempt failed */
+                    if (APR_STATUS_IS_ETIMEDOUT(status)
+                        || APR_STATUS_IS_ECONNABORTED(status)
+                        || APR_STATUS_IS_ECONNRESET(status)
+                        || APR_STATUS_IS_EOF(status)
+                        || APR_STATUS_IS_EBADF(status)) {
+                        /* common status for a client that has left */
+                        ap_log_cerror( APLOG_MARK, APLOG_TRACE1, status, c,
+                                      "h2_session(%ld): input gone", session->id);
+                    }
+                    else {
+                        /* uncommon status, log on INFO so that we see this */
+                        ap_log_cerror( APLOG_MARK, APLOG_DEBUG, status, c,
+                                      APLOGNO(02950) 
+                                      "h2_session(%ld): error reading, terminating",
+                                      session->id);
+                    }
+                    return status;
+                }
+                /* subsequent failure after success(es), return initial
+                 * status. */
+                return rstatus;
         }
-        goto send_headers;
+        if ((session->io.bytes_read - read_start) > (64*1024)) {
+            /* read enough in one go, give write a chance */
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, c,
+                          "h2_session(%ld): read 64k, returning", session->id);
+            break;
+        }
     }
-    else if (status != APR_EAGAIN) {
-        if (!stream->has_response) {
-            int err = H2_STREAM_RST(stream, H2_ERR_PROTOCOL_ERROR);
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03466)
-                          "h2_stream(%ld-%d): no response, RST_STREAM, err=%d",
-                          session->id, stream->id, err);
-            nghttp2_submit_rst_stream(session->ngh2, NGHTTP2_FLAG_NONE,
-                                      stream->id, err);
-            return APR_SUCCESS;
-        } 
-        rv = nghttp2_session_resume_data(session->ngh2, stream->id);
-        session->have_written = 1;
-        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
-                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
-                      APLOGNO(02936) 
-                      "h2_stream(%ld-%d): resuming %s",
-                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
-    }
-    return status;
+    return rstatus;
 }

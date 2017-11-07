@@ -1,1 +1,1 @@
-status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");
+status_printf_ln(s, color(WT_STATUS_HEADER, s), "%s", "");

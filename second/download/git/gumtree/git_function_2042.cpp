@@ -1,29 +1,80 @@
-static unsigned update_treesame(struct rev_info *revs, struct commit *commit)
+static struct commit *handle_commit(struct rev_info *revs,
+				    struct object_array_entry *entry)
 {
-	if (commit->parents && commit->parents->next) {
-		unsigned n;
-		struct treesame_state *st;
-		struct commit_list *p;
-		unsigned relevant_parents;
-		unsigned relevant_change, irrelevant_change;
+	struct object *object = entry->item;
+	const char *name = entry->name;
+	const char *path = entry->path;
+	unsigned int mode = entry->mode;
+	unsigned long flags = object->flags;
 
-		st = lookup_decoration(&revs->treesame, &commit->object);
-		if (!st)
-			die("update_treesame %s", sha1_to_hex(commit->object.sha1));
-		relevant_parents = 0;
-		relevant_change = irrelevant_change = 0;
-		for (p = commit->parents, n = 0; p; n++, p = p->next) {
-			if (relevant_commit(p->item)) {
-				relevant_change |= !st->treesame[n];
-				relevant_parents++;
-			} else
-				irrelevant_change |= !st->treesame[n];
+	/*
+	 * Tag object? Look what it points to..
+	 */
+	while (object->type == OBJ_TAG) {
+		struct tag *tag = (struct tag *) object;
+		if (revs->tag_objects && !(flags & UNINTERESTING))
+			add_pending_object(revs, object, tag->tag);
+		if (!tag->tagged)
+			die("bad tag");
+		object = parse_object(tag->tagged->sha1);
+		if (!object) {
+			if (flags & UNINTERESTING)
+				return NULL;
+			die("bad object %s", sha1_to_hex(tag->tagged->sha1));
 		}
-		if (relevant_parents ? relevant_change : irrelevant_change)
-			commit->object.flags &= ~TREESAME;
-		else
-			commit->object.flags |= TREESAME;
+		object->flags |= flags;
+		/*
+		 * We'll handle the tagged object by looping or dropping
+		 * through to the non-tag handlers below. Do not
+		 * propagate path data from the tag's pending entry.
+		 */
+		path = NULL;
+		mode = 0;
 	}
 
-	return commit->object.flags & TREESAME;
+	/*
+	 * Commit object? Just return it, we'll do all the complex
+	 * reachability crud.
+	 */
+	if (object->type == OBJ_COMMIT) {
+		struct commit *commit = (struct commit *)object;
+		if (parse_commit(commit) < 0)
+			die("unable to parse commit %s", name);
+		if (flags & UNINTERESTING) {
+			mark_parents_uninteresting(commit);
+			revs->limited = 1;
+		}
+		if (revs->show_source && !commit->util)
+			commit->util = xstrdup(name);
+		return commit;
+	}
+
+	/*
+	 * Tree object? Either mark it uninteresting, or add it
+	 * to the list of objects to look at later..
+	 */
+	if (object->type == OBJ_TREE) {
+		struct tree *tree = (struct tree *)object;
+		if (!revs->tree_objects)
+			return NULL;
+		if (flags & UNINTERESTING) {
+			mark_tree_contents_uninteresting(tree);
+			return NULL;
+		}
+		add_pending_object_with_path(revs, object, name, mode, path);
+		return NULL;
+	}
+
+	/*
+	 * Blob object? You know the drill by now..
+	 */
+	if (object->type == OBJ_BLOB) {
+		if (!revs->blob_objects)
+			return NULL;
+		if (flags & UNINTERESTING)
+			return NULL;
+		add_pending_object_with_path(revs, object, name, mode, path);
+		return NULL;
+	}
+	die("%s is unknown object", name);
 }

@@ -1,2 +1,1 @@
-warning("ignoring %s; cannot handle more than %d refs",
-			refname, MAX_REVS);
+error(_("Failed to find tree of %s."), sha1_to_hex(sha1));

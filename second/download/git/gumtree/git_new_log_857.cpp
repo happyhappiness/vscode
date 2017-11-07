@@ -1,0 +1,1 @@
+die("BUG: should have same number of entries");

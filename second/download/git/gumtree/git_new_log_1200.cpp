@@ -1,1 +1,2 @@
-anonymize_ident_line(&committer, &committer_end);
+die("BUG: malformed line fed to anonymize_ident_line: %.*s",
+		    (int)(*end - *beg), *beg);

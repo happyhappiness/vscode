@@ -1,1 +1,1 @@
-die(_("--no-index or --untracked cannot be used with revs"));
+die(_("Failed to parse gc.logexpiry value %s"), gc_log_expire);

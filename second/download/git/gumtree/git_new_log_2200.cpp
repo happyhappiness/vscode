@@ -1,1 +1,1 @@
-die(_("submodule--helper: unspecified or empty --path"));
+warning(_(no_split_warning));

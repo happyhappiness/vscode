@@ -1,1 +1,2 @@
-error("cannot mix --commit, --abort or -s/--strategy");
+help_unknown_ref(argv[i], "merge",
+						 "not something we can merge");

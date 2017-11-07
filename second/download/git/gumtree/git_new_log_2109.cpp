@@ -1,2 +1,2 @@
-die(_("invalid number of threads specified (%d) for %s"),
-			    num_threads, var);
+error("--show-origin is only applicable to --get, --get-all, "
+			  "--get-regexp, and --list.");

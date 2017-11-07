@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, 
-                  APLOGNO(03197) "h2_task(%s): passed response %d", 
-                  task->id, response->status);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                                  "h2_task(%s): end of response", task->id);

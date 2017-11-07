@@ -1,1 +1,1 @@
-die(_("error in object: %s"), line);
+die(_("object not found: %s"), line);

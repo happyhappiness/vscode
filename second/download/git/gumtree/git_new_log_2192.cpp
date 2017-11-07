@@ -1,1 +1,1 @@
-die("--resolve-git-dir requires an argument");
+printf("%s\n", local_repo_env[i]);

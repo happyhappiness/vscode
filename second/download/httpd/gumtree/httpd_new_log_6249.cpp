@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                  H2_STRM_MSG(stream, "entered state"));
+ap_log_cerror( APLOG_MARK, APLOG_TRACE3, status, c,
+                      H2_SSSN_MSG(session, "process start, async=%d"), async);

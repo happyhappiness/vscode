@@ -1,1 +1,0 @@
-die("Expected two arguments");

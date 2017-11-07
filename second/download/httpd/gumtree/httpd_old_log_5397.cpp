@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
-                     "Failed to create shared memory segment on file %s",
-                     shmfilename);
+ap_log_error(APLOG_MARK, APLOG_CRIT, rs, s,
+                     "Failed to reopen mutex %s in child",
+                     exipc_mutex_type);

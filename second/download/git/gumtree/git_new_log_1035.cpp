@@ -1,2 +1,2 @@
-printf("%s %s\n", oid_to_hex(&r->list[i].oid),
-				r->list[i].name);
+error("failed to read delta-pack base object %s",
+		      oid_to_hex(&base_oid));

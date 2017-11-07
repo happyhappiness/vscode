@@ -1,55 +1,65 @@
-static int hc_read_headers(sctx_t *ctx, request_rec *r)
+static void * APR_THREAD_FUNC hc_check(apr_thread_t *thread, void *b)
 {
-    char buffer[HUGE_STRING_LEN];
-    int len;
+    baton_t *baton = (baton_t *)b;
+    sctx_t *ctx = baton->ctx;
+    apr_time_t now = baton->now;
+    proxy_worker *worker = baton->worker;
+    apr_pool_t *ptemp = baton->ptemp;
+    server_rec *s = ctx->s;
+    apr_status_t rv;
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03256)
+                 "%sHealth checking %s", (thread ? "Threaded " : ""), worker->s->name);
 
-    len = ap_getline(buffer, sizeof(buffer), r, 1);
-    if (len <= 0) {
-        return !OK;
+    switch (worker->s->method) {
+        case TCP:
+            rv = hc_check_tcp(ctx, ptemp, worker);
+            break;
+
+        case OPTIONS:
+        case HEAD:
+        case GET:
+             rv = hc_check_http(ctx, ptemp, worker);
+             break;
+
+        default:
+            rv = APR_ENOTIMPL;
+            break;
     }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03254)
-            "%s", buffer);
-    /* for the below, see ap_proxy_http_process_response() */
-    if (apr_date_checkmask(buffer, "HTTP/#.# ###*")) {
-        int major;
-        char keepchar;
-        int proxy_status = OK;
-        const char *proxy_status_line = NULL;
+    if (rv == APR_ENOTIMPL) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(03257)
+                         "Somehow tried to use unimplemented hcheck method: %d",
+                         (int)worker->s->method);
+        apr_pool_destroy(ptemp);
+        return NULL;
+    }
+    /* what state are we in ? */
+    if (PROXY_WORKER_IS_HCFAILED(worker)) {
+        if (rv == APR_SUCCESS) {
+            worker->s->pcount += 1;
+            if (worker->s->pcount >= worker->s->passes) {
+                ap_proxy_set_wstatus(PROXY_WORKER_HC_FAIL_FLAG, 0, worker);
+                ap_proxy_set_wstatus(PROXY_WORKER_IN_ERROR_FLAG, 0, worker);
+                worker->s->pcount = 0;
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03302)
+                             "%sHealth check ENABLING %s", (thread ? "Threaded " : ""),
+                             worker->s->name);
 
-        major = buffer[5] - '0';
-        if ((major != 1) || (len >= sizeof(buffer)-1)) {
-            return !OK;
+            }
         }
-
-        keepchar = buffer[12];
-        buffer[12] = '\0';
-        proxy_status = atoi(&buffer[9]);
-        if (keepchar != '\0') {
-            buffer[12] = keepchar;
-        } else {
-            buffer[12] = ' ';
-            buffer[13] = '\0';
-        }
-        proxy_status_line = apr_pstrdup(r->pool, &buffer[9]);
-        r->status = proxy_status;
-        r->status_line = proxy_status_line;
     } else {
-        return !OK;
-    }
-    /* OK, 1st line is OK... scarf in the headers */
-    while ((len = ap_getline(buffer, sizeof(buffer), r, 1)) > 0) {
-        char *value, *end;
-        if (!(value = strchr(buffer, ':'))) {
-            return !OK;
+        if (rv != APR_SUCCESS) {
+            worker->s->error_time = now;
+            worker->s->fcount += 1;
+            if (worker->s->fcount >= worker->s->fails) {
+                ap_proxy_set_wstatus(PROXY_WORKER_HC_FAIL_FLAG, 1, worker);
+                worker->s->fcount = 0;
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(03303)
+                             "%sHealth check DISABLING %s", (thread ? "Threaded " : ""),
+                             worker->s->name);
+            }
         }
-        ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, ctx->s, "%s", buffer);
-        *value = '\0';
-        ++value;
-        while (apr_isspace(*value))
-            ++value;            /* Skip to start of value   */
-        for (end = &value[strlen(value)-1]; end > value && apr_isspace(*end); --end)
-            *end = '\0';
-        apr_table_add(r->headers_out, buffer, value);
     }
-    return OK;
+    worker->s->updated = now;
+    apr_pool_destroy(ptemp);
+    return NULL;
 }

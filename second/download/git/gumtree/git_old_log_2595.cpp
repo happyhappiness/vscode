@@ -1,1 +1,1 @@
-not_found("Repository not exported: '%s'", dir);
+not_found("Request not supported: '%s'", dir);

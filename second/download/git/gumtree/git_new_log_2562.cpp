@@ -1,2 +1,4 @@
-xstrfmt(_("bad config line %d in file %s"),
-				      cf->linenr, cf->name);
+die(include_depth_advice, MAX_INCLUDE_DEPTH, path,
+			    !cf ? "<unknown>" :
+			    cf->name ? cf->name :
+			    "the command line");

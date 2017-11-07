@@ -1,2 +1,2 @@
-error(_("splitIndex.maxPercentChange value '%d' "
-			       "should be between 0 and 100"), val);
+error(_("unknown core.untrackedCache value '%s'; "
+			"using 'keep' default value"), v);

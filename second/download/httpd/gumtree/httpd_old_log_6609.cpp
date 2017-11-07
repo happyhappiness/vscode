@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01456)
-                                  "rl: partition failed.");
+ap_rputs("<hr />\n<table>\n\
+<tr><th>Vhost</th><th>Seconds since last used</th></tr>\n", r);

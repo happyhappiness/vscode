@@ -1,2 +1,1 @@
-die("unable to pack objects reachable from tag %s",
-			    oid_to_hex(oid));
+fprintf(file, "\nbase-commit: %s\n", oid_to_hex(&bases->base_commit));

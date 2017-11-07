@@ -1,27 +1,19 @@
-apr_status_t h2_session_stream_destroy(h2_session *session, h2_stream *stream)
+static apr_status_t on_stream_resume(void *ctx, int stream_id)
 {
-    apr_pool_t *pool = h2_stream_detach_pool(stream);
-
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                  "h2_stream(%ld-%d): cleanup by EOS bucket destroy", 
-                  session->id, stream->id);
-    /* this may be called while the session has already freed
-     * some internal structures or even when the mplx is locked. */
-    if (session->mplx) {
-        h2_mplx_stream_done(session->mplx, stream->id, stream->rst_error);
-    }
+    h2_session *session = ctx;
+    h2_stream *stream = get_stream(session, stream_id);
+    apr_status_t status = APR_SUCCESS;
     
-    if (session->streams) {
-        h2_ihash_remove(session->streams, stream->id);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_stream(%ld-%d): on_resume", session->id, stream_id);
+    if (stream) {
+        int rv = nghttp2_session_resume_data(session->ngh2, stream_id);
+        session->have_written = 1;
+        ap_log_cerror(APLOG_MARK, nghttp2_is_fatal(rv)?
+                      APLOG_ERR : APLOG_DEBUG, 0, session->c,
+                      APLOGNO(02936) 
+                      "h2_stream(%ld-%d): resuming %s",
+                      session->id, stream->id, rv? nghttp2_strerror(rv) : "");
     }
-    h2_stream_destroy(stream);
-    
-    if (pool) {
-        apr_pool_clear(pool);
-        if (session->spare) {
-            apr_pool_destroy(session->spare);
-        }
-        session->spare = pool;
-    }
-    return APR_SUCCESS;
+    return status;
 }

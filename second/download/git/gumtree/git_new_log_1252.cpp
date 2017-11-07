@@ -1,1 +1,1 @@
-error(_("invalid color value: %.*s"), value_len, value);
+die("index cache-tree records empty sub-tree");

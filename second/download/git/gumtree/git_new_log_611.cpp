@@ -1,1 +1,2 @@
-die(_("option not supported with --recurse-submodules."));
+die("process for submodule '%s' failed with exit code: %d",
+		    gs->name, status);

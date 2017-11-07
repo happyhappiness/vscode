@@ -1,1 +1,1 @@
-error("external filter %s failed", cmd);
+error("read from external filter %s failed", cmd);

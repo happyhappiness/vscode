@@ -1,1 +1,1 @@
-fprintf(stderr, "    -c concurrency  Number of multiple requests to make\n");
+fprintf(stderr, "    -T content-type Content-type header for POSTing, eg.\n");

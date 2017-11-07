@@ -1,1 +1,2 @@
-printf("%s\n", oid_to_hex(bad));
+die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);

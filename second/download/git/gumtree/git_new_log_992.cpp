@@ -1,1 +1,2 @@
-error_errno(_("Cannot open patch file %s"), filename.buf);
+printf(" %u %s", obj_stat[i].delta_depth,
+			       oid_to_hex(&bobj->idx.oid));

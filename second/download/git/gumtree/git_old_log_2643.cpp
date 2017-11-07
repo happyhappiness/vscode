@@ -1,1 +1,1 @@
-die(_("blob expected for %s '%s'"), sha1_to_hex(sha), path);
+error(msg, path, _(": perhaps a D/F conflict?"));

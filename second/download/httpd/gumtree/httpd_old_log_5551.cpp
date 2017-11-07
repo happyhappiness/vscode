@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "protocol propose: connection requirements not met");
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                          "upgrade without HTTP2-Settings declined");

@@ -1,1 +1,1 @@
-die("BUG: ref_update_reject_duplicates() received unsorted list");
+die("BUG: %s ref_store '%s' initialized twice", type, name);

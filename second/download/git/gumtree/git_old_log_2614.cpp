@@ -1,1 +1,1 @@
-printf("In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);
+printf("From %s Mon Sep 17 00:00:00 2001\n", name);

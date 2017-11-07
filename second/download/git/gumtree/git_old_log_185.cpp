@@ -1,1 +1,1 @@
-die(_("unrecognized whitespace option '%s'"), option);
+error(_("Could not parse object '%s'."), sha1_to_hex(index));

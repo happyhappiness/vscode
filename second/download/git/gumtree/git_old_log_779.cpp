@@ -1,1 +1,1 @@
-printf("-%d-g%s", depth, find_unique_abbrev(sha1, abbrev));
+warning(_(msg_warn_remove_failed), qname);

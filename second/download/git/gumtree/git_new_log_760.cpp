@@ -1,1 +1,1 @@
-fprintf(stderr, "%s: %s:%d\n", err.buf, src, lineno);
+die("BUG: interned attributes shouldn't be deleted");

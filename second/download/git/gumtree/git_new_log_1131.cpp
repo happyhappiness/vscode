@@ -1,1 +1,1 @@
-die("git-cvsserver only handles server: %s", arg);
+error_errno("Could not write %s", output);

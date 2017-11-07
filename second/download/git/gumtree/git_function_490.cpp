@@ -1,64 +1,48 @@
-struct commit_list *get_shallow_commits_by_rev_list(int ac, const char **av,
-						    int shallow_flag,
-						    int not_shallow_flag)
+static int get_short_sha1(const char *name, int len, unsigned char *sha1,
+			  unsigned flags)
 {
-	struct commit_list *result = NULL, *p;
-	struct commit_list *not_shallow_list = NULL;
-	struct rev_info revs;
-	int both_flags = shallow_flag | not_shallow_flag;
+	int status;
+	struct disambiguate_state ds;
+	int quietly = !!(flags & GET_SHA1_QUIETLY);
 
-	/*
-	 * SHALLOW (excluded) and NOT_SHALLOW (included) should not be
-	 * set at this point. But better be safe than sorry.
-	 */
-	clear_object_flags(both_flags);
+	if (init_object_disambiguation(name, len, &ds) < 0)
+		return -1;
 
-	is_repository_shallow(); /* make sure shallows are read */
+	if (HAS_MULTI_BITS(flags & GET_SHA1_DISAMBIGUATORS))
+		die("BUG: multiple get_short_sha1 disambiguator flags");
 
-	init_revisions(&revs, NULL);
-	save_commit_buffer = 0;
-	setup_revisions(ac, av, &revs, NULL);
+	if (flags & GET_SHA1_COMMIT)
+		ds.fn = disambiguate_commit_only;
+	else if (flags & GET_SHA1_COMMITTISH)
+		ds.fn = disambiguate_committish_only;
+	else if (flags & GET_SHA1_TREE)
+		ds.fn = disambiguate_tree_only;
+	else if (flags & GET_SHA1_TREEISH)
+		ds.fn = disambiguate_treeish_only;
+	else if (flags & GET_SHA1_BLOB)
+		ds.fn = disambiguate_blob_only;
+	else
+		ds.fn = default_disambiguate_hint;
 
-	if (prepare_revision_walk(&revs))
-		die("revision walk setup failed");
-	traverse_commit_list(&revs, show_commit, NULL, &not_shallow_list);
+	find_short_object_filename(&ds);
+	find_short_packed_object(&ds);
+	status = finish_object_disambiguation(&ds, sha1);
 
-	/* Mark all reachable commits as NOT_SHALLOW */
-	for (p = not_shallow_list; p; p = p->next)
-		p->item->object.flags |= not_shallow_flag;
+	if (!quietly && (status == SHORT_NAME_AMBIGUOUS)) {
+		error(_("short SHA1 %s is ambiguous"), ds.hex_pfx);
 
-	/*
-	 * mark border commits SHALLOW + NOT_SHALLOW.
-	 * We cannot clear NOT_SHALLOW right now. Imagine border
-	 * commit A is processed first, then commit B, whose parent is
-	 * A, later. If NOT_SHALLOW on A is cleared at step 1, B
-	 * itself is considered border at step 2, which is incorrect.
-	 */
-	for (p = not_shallow_list; p; p = p->next) {
-		struct commit *c = p->item;
-		struct commit_list *parent;
+		/*
+		 * We may still have ambiguity if we simply saw a series of
+		 * candidates that did not satisfy our hint function. In
+		 * that case, we still want to show them, so disable the hint
+		 * function entirely.
+		 */
+		if (!ds.ambiguous)
+			ds.fn = NULL;
 
-		if (parse_commit(c))
-			die("unable to parse commit %s",
-			    oid_to_hex(&c->object.oid));
-
-		for (parent = c->parents; parent; parent = parent->next)
-			if (!(parent->item->object.flags & not_shallow_flag)) {
-				c->object.flags |= shallow_flag;
-				commit_list_insert(c, &result);
-				break;
-			}
+		advise(_("The candidates are:"));
+		for_each_abbrev(ds.hex_pfx, show_ambiguous_object, &ds);
 	}
-	free_commit_list(not_shallow_list);
 
-	/*
-	 * Now we can clean up NOT_SHALLOW on border commits. Having
-	 * both flags set can confuse the caller.
-	 */
-	for (p = result; p; p = p->next) {
-		struct object *o = &p->item->object;
-		if ((o->flags & both_flags) == both_flags)
-			o->flags &= ~not_shallow_flag;
-	}
-	return result;
+	return status;
 }

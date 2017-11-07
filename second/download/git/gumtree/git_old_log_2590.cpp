@@ -1,1 +1,1 @@
-die("bug: malformed header expr");
+die("bug: a non-header pattern in grep header list.");

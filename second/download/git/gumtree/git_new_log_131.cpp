@@ -1,1 +1,1 @@
-error("unable to rewind rpc post data - try increasing http.postBuffer");
+die("BUG: have_old is true but old_sha1 is NULL");

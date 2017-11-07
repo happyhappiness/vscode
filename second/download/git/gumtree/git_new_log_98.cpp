@@ -1,1 +1,1 @@
-die_errno(fmt, params);
+WaitForSingleObject(hthread, INFINITE);

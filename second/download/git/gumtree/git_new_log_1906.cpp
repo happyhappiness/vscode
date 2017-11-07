@@ -1,1 +1,3 @@
-die(_("Not all child objects of %s are reachable"), oid_to_hex(&obj->oid));
+die(_("object %s: expected type %s, found %s"),
+			    oid_to_hex(&obj->oid),
+			    typename(obj->type), typename(type));

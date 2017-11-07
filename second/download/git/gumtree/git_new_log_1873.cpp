@@ -1,2 +1,2 @@
-die ("Could not find author in commit %s",
-		     oid_to_hex(&commit->object.oid));
+printf("%s %s\n", oid_to_hex(&tree1->object.oid),
+			  oid_to_hex(&tree2->object.oid));

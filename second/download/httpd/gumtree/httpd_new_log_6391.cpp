@@ -1,1 +1,1 @@
-ap_rputs("\n</dt>\n", r);
+ap_rputs("</dl>\n<hr />\n", r);

@@ -1,96 +1,119 @@
-apr_status_t ssl_init_CheckServers(server_rec *base_server, apr_pool_t *p)
+static BOOL stapling_renew_response(server_rec *s, modssl_ctx_t *mctx, SSL *ssl,
+                                    certinfo *cinf, OCSP_RESPONSE **prsp,
+                                    apr_pool_t *pool)
 {
-    server_rec *s, *ps;
-    SSLSrvConfigRec *sc;
-    apr_hash_t *table;
-    const char *key;
-    apr_ssize_t klen;
+    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
+    apr_pool_t *vpool;
+    OCSP_REQUEST *req = NULL;
+    OCSP_CERTID *id = NULL;
+    STACK_OF(X509_EXTENSION) *exts;
+    int i;
+    BOOL ok = FALSE;
+    BOOL rv = TRUE;
+    const char *ocspuri;
+    apr_uri_t uri;
 
-    BOOL conflict = FALSE;
+    *prsp = NULL;
+    /* Build up OCSP query from server certificate info */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01938)
+                 "stapling_renew_response: querying responder");
 
-    /*
-     * Give out warnings when a server has HTTPS configured
-     * for the HTTP port or vice versa
-     */
-    for (s = base_server; s; s = s->next) {
-        sc = mySrvConfig(s);
-
-        if ((sc->enabled == SSL_ENABLED_TRUE) && (s->port == DEFAULT_HTTP_PORT)) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                         base_server, APLOGNO(01915)
-                         "Init: (%s) You configured HTTPS(%d) "
-                         "on the standard HTTP(%d) port!",
-                         ssl_util_vhostid(p, s),
-                         DEFAULT_HTTPS_PORT, DEFAULT_HTTP_PORT);
-        }
-
-        if ((sc->enabled == SSL_ENABLED_FALSE) && (s->port == DEFAULT_HTTPS_PORT)) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                         base_server, APLOGNO(01916)
-                         "Init: (%s) You configured HTTP(%d) "
-                         "on the standard HTTPS(%d) port!",
-                         ssl_util_vhostid(p, s),
-                         DEFAULT_HTTP_PORT, DEFAULT_HTTPS_PORT);
-        }
+    req = OCSP_REQUEST_new();
+    if (!req)
+        goto err;
+    id = OCSP_CERTID_dup(cinf->cid);
+    if (!id)
+        goto err;
+    if (!OCSP_request_add0_id(req, id))
+        goto err;
+    id = NULL;
+    /* Add any extensions to the request */
+    SSL_get_tlsext_status_exts(ssl, &exts);
+    for (i = 0; i < sk_X509_EXTENSION_num(exts); i++) {
+        X509_EXTENSION *ext = sk_X509_EXTENSION_value(exts, i);
+        if (!OCSP_REQUEST_add_ext(req, ext, -1))
+            goto err;
     }
 
-    /*
-     * Give out warnings when more than one SSL-aware virtual server uses the
-     * same IP:port. This doesn't work because mod_ssl then will always use
-     * just the certificate/keys of one virtual host (which one cannot be said
-     * easily - but that doesn't matter here).
-     */
-    table = apr_hash_make(p);
+    if (mctx->stapling_force_url)
+        ocspuri = mctx->stapling_force_url;
+    else
+        ocspuri = cinf->uri;
 
-    for (s = base_server; s; s = s->next) {
-        char *addr;
-
-        sc = mySrvConfig(s);
-
-        if (!((sc->enabled == SSL_ENABLED_TRUE) && s->addrs)) {
-            continue;
-        }
-
-        apr_sockaddr_ip_get(&addr, s->addrs->host_addr);
-        key = apr_psprintf(p, "%s:%u", addr, s->addrs->host_port);
-        klen = strlen(key);
-
-        if ((ps = (server_rec *)apr_hash_get(table, key, klen))) {
-#ifndef HAVE_TLSEXT
-            int level = APLOG_WARNING;
-            const char *problem = "conflict";
-#else
-            int level = APLOG_DEBUG;
-            const char *problem = "overlap";
-#endif
-            ap_log_error(APLOG_MARK, level, 0, base_server,
-                         "Init: SSL server IP/port %s: "
-                         "%s (%s:%d) vs. %s (%s:%d)",
-                         problem, ssl_util_vhostid(p, s),
-                         (s->defn_name ? s->defn_name : "unknown"),
-                         s->defn_line_number,
-                         ssl_util_vhostid(p, ps),
-                         (ps->defn_name ? ps->defn_name : "unknown"),
-                         ps->defn_line_number);
-            conflict = TRUE;
-            continue;
-        }
-
-        apr_hash_set(table, key, klen, s);
+    if (!ocspuri) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02621)
+                     "stapling_renew_response: no uri for responder");
+        rv = FALSE;
+        goto done;
     }
 
-    if (conflict) {
-#ifndef HAVE_TLSEXT
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(01917)
-                     "Init: You should not use name-based "
-                     "virtual hosts in conjunction with SSL!!");
-#else
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, base_server, APLOGNO(02292)
-                     "Init: Name-based SSL virtual hosts only "
-                     "work for clients with TLS server name indication "
-                     "support (RFC 4366)");
-#endif
+    /* Create a temporary pool to constrain memory use */
+    apr_pool_create(&vpool, conn->pool);
+
+    ok = apr_uri_parse(vpool, ocspuri, &uri);
+    if (ok != APR_SUCCESS) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01939)
+                     "stapling_renew_response: Error parsing uri %s",
+                      ocspuri);
+        rv = FALSE;
+        goto done;
+    }
+    else if (strcmp(uri.scheme, "http")) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01940)
+                     "stapling_renew_response: Unsupported uri %s", ocspuri);
+        rv = FALSE;
+        goto done;
     }
 
-    return APR_SUCCESS;
+    if (!uri.port) {
+        uri.port = apr_uri_port_of_scheme(uri.scheme);
+    }
+
+    *prsp = modssl_dispatch_ocsp_request(&uri, mctx->stapling_responder_timeout,
+                                         req, conn, vpool);
+
+    apr_pool_destroy(vpool);
+
+    if (!*prsp) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01941)
+                     "stapling_renew_response: responder error");
+        if (mctx->stapling_fake_trylater) {
+            *prsp = OCSP_response_create(OCSP_RESPONSE_STATUS_TRYLATER, NULL);
+        }
+        else {
+            goto done;
+        }
+    }
+    else {
+        int response_status = OCSP_response_status(*prsp);
+
+        if (response_status == OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01942)
+                        "stapling_renew_response: query response received");
+            stapling_check_response(s, mctx, cinf, *prsp, &ok);
+            if (ok == FALSE) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
+                             "stapling_renew_response: error in retrieved response!");
+            }
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01944)
+                         "stapling_renew_response: responder error %s",
+                         OCSP_response_status_str(response_status));
+        }
+    }
+    if (stapling_cache_response(s, mctx, *prsp, cinf, ok, pool) == FALSE) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01945)
+                     "stapling_renew_response: error caching response!");
+    }
+
+done:
+    if (id)
+        OCSP_CERTID_free(id);
+    if (req)
+        OCSP_REQUEST_free(req);
+    return rv;
+err:
+    rv = FALSE;
+    goto done;
 }

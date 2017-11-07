@@ -1,38 +1,59 @@
-static void execv_dashed_external(const char **argv)
+static int run_builtin(struct cmd_struct *p, int argc, const char **argv)
 {
-	struct strbuf cmd = STRBUF_INIT;
-	const char *tmp;
-	int status;
+	int status, help;
+	struct stat st;
+	const char *prefix;
 
-	if (get_super_prefix())
-		die("%s doesn't support --super-prefix", argv[0]);
+	prefix = NULL;
+	help = argc == 2 && !strcmp(argv[1], "-h");
+	if (!help) {
+		if (p->option & RUN_SETUP)
+			prefix = setup_git_directory();
+		else if (p->option & RUN_SETUP_GENTLY) {
+			int nongit_ok;
+			prefix = setup_git_directory_gently(&nongit_ok);
+		}
 
-	if (use_pager == -1)
-		use_pager = check_pager_config(argv[0]);
+		if (use_pager == -1 && p->option & (RUN_SETUP | RUN_SETUP_GENTLY))
+			use_pager = check_pager_config(p->cmd);
+		if (use_pager == -1 && p->option & USE_PAGER)
+			use_pager = 1;
+
+		if ((p->option & (RUN_SETUP | RUN_SETUP_GENTLY)) &&
+		    startup_info->have_repository) /* get_git_dir() may set up repo, avoid that */
+			trace_repo_setup(prefix);
+	}
 	commit_pager_choice();
 
-	strbuf_addf(&cmd, "git-%s", argv[0]);
+	if (!help && get_super_prefix()) {
+		if (!(p->option & SUPPORT_SUPER_PREFIX))
+			die("%s doesn't support --super-prefix", p->cmd);
+		if (prefix)
+			die("can't use --super-prefix from a subdirectory");
+	}
 
-	/*
-	 * argv[0] must be the git command, but the argv array
-	 * belongs to the caller, and may be reused in
-	 * subsequent loop iterations. Save argv[0] and
-	 * restore it on error.
-	 */
-	tmp = argv[0];
-	argv[0] = cmd.buf;
+	if (!help && p->option & NEED_WORK_TREE)
+		setup_work_tree();
 
-	trace_argv_printf(argv, "trace: exec:");
+	trace_argv_printf(argv, "trace: built-in: git");
 
-	/*
-	 * if we fail because the command is not found, it is
-	 * OK to return. Otherwise, we just pass along the status code.
-	 */
-	status = run_command_v_opt(argv, RUN_SILENT_EXEC_FAILURE | RUN_CLEAN_ON_EXIT);
-	if (status >= 0 || errno != ENOENT)
-		exit(status);
+	status = p->fn(argc, argv, prefix);
+	if (status)
+		return status;
 
-	argv[0] = tmp;
+	/* Somebody closed stdout? */
+	if (fstat(fileno(stdout), &st))
+		return 0;
+	/* Ignore write errors for pipes and sockets.. */
+	if (S_ISFIFO(st.st_mode) || S_ISSOCK(st.st_mode))
+		return 0;
 
-	strbuf_release(&cmd);
+	/* Check for ENOSPC and EIO errors.. */
+	if (fflush(stdout))
+		die_errno("write failure on standard output");
+	if (ferror(stdout))
+		die("unknown write failure on standard output");
+	if (fclose(stdout))
+		die_errno("close failed on standard output");
+	return 0;
 }

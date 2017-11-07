@@ -1,1 +1,1 @@
-die(_("negative values not allowed for submodule.fetchJobs"));
+error_errno("unable to open %s", path->buf);

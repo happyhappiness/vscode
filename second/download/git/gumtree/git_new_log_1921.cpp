@@ -1,1 +1,1 @@
-printf("%s\n", oid_to_hex(&bases->item->object.oid));
+printf("%s\n", oid_to_hex(&result->item->object.oid));

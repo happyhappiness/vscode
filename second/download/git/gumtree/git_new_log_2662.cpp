@@ -1,2 +1,2 @@
-error("Could not get patch ID for %s",
-			oid_to_hex(&a->commit->object.oid));
+die("malformed build-time PAGER_ENV: %s",
+			split_cmdline_strerror(n));

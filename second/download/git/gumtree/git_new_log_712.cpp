@@ -1,1 +1,1 @@
-die("unknown value for config '%s': %s", key, value);
+is_blank_line(buf + ll);

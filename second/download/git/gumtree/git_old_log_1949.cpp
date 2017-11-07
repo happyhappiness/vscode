@@ -1,1 +1,1 @@
-printf("%s\n", filter.tags.items[i].string);
+printf("%-15s ", refname);

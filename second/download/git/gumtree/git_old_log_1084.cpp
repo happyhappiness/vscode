@@ -1,2 +1,1 @@
-die("Could not read %s for notes-index",
-		     sha1_to_hex(subtree->val_sha1));
+error("Remote HEAD resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", sha1_to_hex(head_sha1));

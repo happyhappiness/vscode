@@ -1,1 +1,1 @@
-die(_("malformed input line: '%s'."), buf.buf);
+die(_("cannot read note data from non-blob object '%s'."), arg);

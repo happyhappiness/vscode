@@ -1,1 +1,3 @@
-error_buf(err, _("HEAD does not point to a branch"));
+error_buf(err,
+				 _("push destination '%s' on remote '%s' has no local tracking branch"),
+				 refname, remote->name);

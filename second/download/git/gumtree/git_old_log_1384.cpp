@@ -1,1 +1,0 @@
-fputs(line->buf, cmitmsg);

@@ -1,1 +1,1 @@
-error("invalid pattern: %s", regex_);
+error("invalid key pattern: %s", key_);

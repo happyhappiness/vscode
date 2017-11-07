@@ -1,66 +1,36 @@
-static void usage(const char *progname)
+static void htdbm_usage(void)
 {
-    fprintf(stderr, "Usage: %s [options] [http"
-#ifdef USE_SSL
-        "[s]"
-#endif
-        "://]hostname[:port]/path\n", progname);
-/* 80 column ruler:  ********************************************************************************
- */
-    fprintf(stderr, "Options are:\n");
-    fprintf(stderr, "    -n requests     Number of requests to perform\n");
-    fprintf(stderr, "    -c concurrency  Number of multiple requests to make at a time\n");
-    fprintf(stderr, "    -t timelimit    Seconds to max. to spend on benchmarking\n");
-    fprintf(stderr, "                    This implies -n 50000\n");
-    fprintf(stderr, "    -s timeout      Seconds to max. wait for each response\n");
-    fprintf(stderr, "                    Default is 30 seconds\n");
-    fprintf(stderr, "    -b windowsize   Size of TCP send/receive buffer, in bytes\n");
-    fprintf(stderr, "    -B address      Address to bind to when making outgoing connections\n");
-    fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");
-    fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");
-    fprintf(stderr, "    -T content-type Content-type header to use for POST/PUT data, eg.\n");
-    fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
-    fprintf(stderr, "                    Default is 'text/plain'\n");
-    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
-    fprintf(stderr, "    -w              Print out results in HTML tables\n");
-    fprintf(stderr, "    -i              Use HEAD instead of GET\n");
-    fprintf(stderr, "    -x attributes   String to insert as table attributes\n");
-    fprintf(stderr, "    -y attributes   String to insert as tr attributes\n");
-    fprintf(stderr, "    -z attributes   String to insert as td or th attributes\n");
-    fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234'. (repeatable)\n");
-    fprintf(stderr, "    -H attribute    Add Arbitrary header line, eg. 'Accept-Encoding: gzip'\n");
-    fprintf(stderr, "                    Inserted after all normal header lines. (repeatable)\n");
-    fprintf(stderr, "    -A attribute    Add Basic WWW Authentication, the attributes\n");
-    fprintf(stderr, "                    are a colon separated username and password.\n");
-    fprintf(stderr, "    -P attribute    Add Basic Proxy Authentication, the attributes\n");
-    fprintf(stderr, "                    are a colon separated username and password.\n");
-    fprintf(stderr, "    -X proxy:port   Proxyserver and port number to use\n");
-    fprintf(stderr, "    -V              Print version number and exit\n");
-    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
-    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
-    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
-    fprintf(stderr, "    -q              Do not show progress when doing more than 150 requests\n");
-    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
-    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
-    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
-    fprintf(stderr, "    -h              Display usage information (this message)\n");
-#ifdef USE_SSL
 
-#ifndef OPENSSL_NO_SSL2
-#define SSL2_HELP_MSG "SSL2, "
+#if (!(defined(WIN32) || defined(NETWARE)))
+#define CRYPT_OPTION "d"
 #else
-#define SSL2_HELP_MSG ""
+#define CRYPT_OPTION ""
 #endif
+    fprintf(stderr, "htdbm -- program for manipulating DBM password databases.\n\n");
+    fprintf(stderr, "Usage: htdbm    [-cm"CRYPT_OPTION"pstvx] [-TDBTYPE] database username\n");
+    fprintf(stderr, "                -b[cm"CRYPT_OPTION"ptsv] [-TDBTYPE] database username password\n");
+    fprintf(stderr, "                -n[m"CRYPT_OPTION"pst]   username\n");
+    fprintf(stderr, "                -nb[m"CRYPT_OPTION"pst]  username password\n");
+    fprintf(stderr, "                -v[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
+    fprintf(stderr, "                -vb[m"CRYPT_OPTION"ps]   [-TDBTYPE] database username password\n");
+    fprintf(stderr, "                -x[m"CRYPT_OPTION"ps]    [-TDBTYPE] database username\n");
+    fprintf(stderr, "                -l                       [-TDBTYPE] database\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "   -b   Use the password from the command line rather "
+                    "than prompting for it.\n");
+    fprintf(stderr, "   -c   Create a new database.\n");
+    fprintf(stderr, "   -n   Don't update database; display results on stdout.\n");
+    fprintf(stderr, "   -m   Force MD5 encryption of the password (default).\n");
+#if (!(defined(WIN32) || defined(NETWARE)))
+    fprintf(stderr, "   -d   Force CRYPT encryption of the password (now deprecated).\n");
+#endif
+    fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");
+    fprintf(stderr, "   -s   Force SHA encryption of the password.\n");
+    fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");
+    fprintf(stderr, "   -l   Display usernames from database on stdout.\n");
+    fprintf(stderr, "   -t   The last param is username comment.\n");
+    fprintf(stderr, "   -v   Verify the username/password.\n");
+    fprintf(stderr, "   -x   Remove the username record from database.\n");
+    exit(ERR_SYNTAX);
 
-#ifdef HAVE_TLSV1_X
-#define TLS1_X_HELP_MSG ", TLS1.1, TLS1.2"
-#else
-#define TLS1_X_HELP_MSG ""
-#endif
-
-    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
-    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n"); 
-    fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");
-#endif
-    exit(EINVAL);
 }

@@ -1,1 +1,1 @@
-error("copy-fd: read returned %s", strerror(errno));
+error(_("failed to close rev-list's stdin: %s"), strerror(errno));

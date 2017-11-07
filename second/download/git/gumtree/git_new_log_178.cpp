@@ -1,1 +1,1 @@
-die("unknown option passed through to git apply");
+die("BUG: init_apply_state() failed");

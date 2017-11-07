@@ -1,16 +1,31 @@
-static void write_eolinfo(const struct cache_entry *ce, const char *path)
+int cmd_interpret_trailers(int argc, const char **argv, const char *prefix)
 {
-	if (!show_eol)
-		return;
-	else {
-		struct stat st;
-		const char *i_txt = "";
-		const char *w_txt = "";
-		const char *a_txt = get_convert_attr_ascii(path);
-		if (ce && S_ISREG(ce->ce_mode))
-			i_txt = get_cached_convert_stats_ascii(ce->name);
-		if (!lstat(path, &st) && S_ISREG(st.st_mode))
-			w_txt = get_wt_convert_stats_ascii(path);
-		printf("i/%-5s w/%-5s attr/%-17s\t", i_txt, w_txt, a_txt);
+	int in_place = 0;
+	int trim_empty = 0;
+	struct string_list trailers = STRING_LIST_INIT_DUP;
+
+	struct option options[] = {
+		OPT_BOOL(0, "in-place", &in_place, N_("edit files in place")),
+		OPT_BOOL(0, "trim-empty", &trim_empty, N_("trim empty trailers")),
+		OPT_STRING_LIST(0, "trailer", &trailers, N_("trailer"),
+				N_("trailer(s) to add")),
+		OPT_END()
+	};
+
+	argc = parse_options(argc, argv, prefix, options,
+			     git_interpret_trailers_usage, 0);
+
+	if (argc) {
+		int i;
+		for (i = 0; i < argc; i++)
+			process_trailers(argv[i], in_place, trim_empty, &trailers);
+	} else {
+		if (in_place)
+			die(_("no input file given for in-place editing"));
+		process_trailers(NULL, in_place, trim_empty, &trailers);
 	}
+
+	string_list_clear(&trailers, 0);
+
+	return 0;
 }

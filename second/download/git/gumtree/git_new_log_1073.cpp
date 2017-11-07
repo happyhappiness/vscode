@@ -1,1 +1,1 @@
-die("Couldn't allocate PCRE JIT stack");
+printf("%s\n", commands[i].cmd);

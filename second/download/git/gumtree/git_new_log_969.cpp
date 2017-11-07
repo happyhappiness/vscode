@@ -1,2 +1,1 @@
-die("timestamp too large for this system: %"PRItime,
-		    *timestamp);
+die("strange hostname '%s' blocked", ssh_host);

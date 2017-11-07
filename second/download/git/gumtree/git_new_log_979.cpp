@@ -1,1 +1,1 @@
-die("BUG: Added a new grep pattern type without updating switch statement");
+warning(_("no threads support, ignoring %s"), var);

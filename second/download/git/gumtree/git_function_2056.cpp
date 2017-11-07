@@ -1,16 +1,20 @@
-int open_pack_index(struct packed_git *p)
+static int add_info_ref(const char *path, const struct object_id *oid,
+			int flag, void *cb_data)
 {
-	char *idx_name;
-	size_t len;
-	int ret;
+	FILE *fp = cb_data;
+	struct object *o = parse_object(oid->hash);
+	if (!o)
+		return -1;
 
-	if (p->index_data)
-		return 0;
+	if (fprintf(fp, "%s	%s\n", oid_to_hex(oid), path) < 0)
+		return -1;
 
-	if (!strip_suffix(p->pack_name, ".pack", &len))
-		die("BUG: pack_name does not end in .pack");
-	idx_name = xstrfmt("%.*s.idx", (int)len, p->pack_name);
-	ret = check_packed_git_idx(idx_name, p);
-	free(idx_name);
-	return ret;
+	if (o->type == OBJ_TAG) {
+		o = deref_tag(o, path, 0);
+		if (o)
+			if (fprintf(fp, "%s	%s^{}\n",
+				sha1_to_hex(o->sha1), path) < 0)
+				return -1;
+	}
+	return 0;
 }

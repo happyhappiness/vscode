@@ -1,1 +1,2 @@
-error(_("unusable instruction sheet: '%s'"), todo_file);
+error(_("invalid line %d: %.*s"),
+				i, (int)(eol - p), p);

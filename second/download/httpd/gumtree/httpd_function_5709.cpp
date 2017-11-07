@@ -1,121 +1,93 @@
-static int prefork_check_config(apr_pool_t *p, apr_pool_t *plog,
-                                apr_pool_t *ptemp, server_rec *s)
+static int winnt_check_config(apr_pool_t *pconf, apr_pool_t *plog,
+                              apr_pool_t *ptemp, server_rec* s)
 {
+    int is_parent;
     int startup = 0;
 
-    /* the reverse of pre_config, we want this only the first time around */
-    if (retained->module_loads == 1) {
+    /* We want this only in the parent and only the first time around */
+    is_parent = (parent_pid == my_pid);
+    if (is_parent &&
+        ap_state_query(AP_SQ_MAIN_STATE) == AP_SQ_MS_CREATE_PRE_CONFIG) {
         startup = 1;
     }
 
-    if (server_limit > MAX_SERVER_LIMIT) {
+    if (thread_limit > MAX_THREAD_LIMIT) {
         if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00175)
-                         "WARNING: ServerLimit of %d exceeds compile-time "
-                         "limit of", server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00439)
+                         "WARNING: ThreadLimit of %d exceeds compile-time "
+                         "limit of", thread_limit);
             ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing to %d.",
-                         MAX_SERVER_LIMIT, MAX_SERVER_LIMIT);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00176)
-                         "ServerLimit of %d exceeds compile-time limit "
+                         " %d threads, decreasing to %d.",
+                         MAX_THREAD_LIMIT, MAX_THREAD_LIMIT);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00440)
+                         "ThreadLimit of %d exceeds compile-time limit "
                          "of %d, decreasing to match",
-                         server_limit, MAX_SERVER_LIMIT);
+                         thread_limit, MAX_THREAD_LIMIT);
         }
-        server_limit = MAX_SERVER_LIMIT;
+        thread_limit = MAX_THREAD_LIMIT;
     }
-    else if (server_limit < 1) {
+    else if (thread_limit < 1) {
         if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00177)
-                         "WARNING: ServerLimit of %d not allowed, "
-                         "increasing to 1.", server_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00178)
-                         "ServerLimit of %d not allowed, increasing to 1",
-                         server_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00441)
+                         "WARNING: ThreadLimit of %d not allowed, "
+                         "increasing to 1.", thread_limit);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00442)
+                         "ThreadLimit of %d not allowed, increasing to 1",
+                         thread_limit);
         }
-        server_limit = 1;
+        thread_limit = 1;
     }
 
-    /* you cannot change ServerLimit across a restart; ignore
-     * any such attempts
+    /* You cannot change ThreadLimit across a restart; ignore
+     * any such attempts.
      */
-    if (!retained->first_server_limit) {
-        retained->first_server_limit = server_limit;
+    if (!first_thread_limit) {
+        first_thread_limit = thread_limit;
     }
-    else if (server_limit != retained->first_server_limit) {
-        /* don't need a startup console version here */
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00179)
-                     "changing ServerLimit to %d from original value of %d "
-                     "not allowed during restart",
-                     server_limit, retained->first_server_limit);
-        server_limit = retained->first_server_limit;
+    else if (thread_limit != first_thread_limit) {
+        /* Don't need a startup console version here */
+        if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00443)
+                         "changing ThreadLimit to %d from original value "
+                         "of %d not allowed during restart",
+                         thread_limit, first_thread_limit);
+        }
+        thread_limit = first_thread_limit;
     }
 
-    if (ap_daemons_limit > server_limit) {
+    if (ap_threads_per_child > thread_limit) {
         if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00180)
-                         "WARNING: MaxRequestWorkers of %d exceeds ServerLimit "
-                         "value of", ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00444)
+                         "WARNING: ThreadsPerChild of %d exceeds ThreadLimit "
+                         "of", ap_threads_per_child);
             ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " %d servers, decreasing MaxRequestWorkers to %d.",
-                         server_limit, server_limit);
+                         " %d threads, decreasing to %d.",
+                         thread_limit, thread_limit);
             ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " To increase, please see the ServerLimit "
+                         " To increase, please see the ThreadLimit "
                          "directive.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00181)
-                         "MaxRequestWorkers of %d exceeds ServerLimit value "
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00445)
+                         "ThreadsPerChild of %d exceeds ThreadLimit "
                          "of %d, decreasing to match",
-                         ap_daemons_limit, server_limit);
+                         ap_threads_per_child, thread_limit);
         }
-        ap_daemons_limit = server_limit;
+        ap_threads_per_child = thread_limit;
     }
-    else if (ap_daemons_limit < 1) {
+    else if (ap_threads_per_child < 1) {
         if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00182)
-                         "WARNING: MaxRequestWorkers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_limit);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00183)
-                         "MaxRequestWorkers of %d not allowed, increasing to 1",
-                         ap_daemons_limit);
+            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00446)
+                         "WARNING: ThreadsPerChild of %d not allowed, "
+                         "increasing to 1.", ap_threads_per_child);
+        } else if (is_parent) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00447)
+                         "ThreadsPerChild of %d not allowed, increasing to 1",
+                         ap_threads_per_child);
         }
-        ap_daemons_limit = 1;
+        ap_threads_per_child = 1;
     }
-
-    /* ap_daemons_to_start > ap_daemons_limit checked in prefork_run() */
-    if (ap_daemons_to_start < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00184)
-                         "WARNING: StartServers of %d not allowed, "
-                         "increasing to 1.", ap_daemons_to_start);
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00185)
-                         "StartServers of %d not allowed, increasing to 1",
-                         ap_daemons_to_start);
-        }
-        ap_daemons_to_start = 1;
-    }
-
-    if (ap_daemons_min_free < 1) {
-        if (startup) {
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL, APLOGNO(00186)
-                         "WARNING: MinSpareServers of %d not allowed, "
-                         "increasing to 1", ap_daemons_min_free);
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " to avoid almost certain server failure.");
-            ap_log_error(APLOG_MARK, APLOG_WARNING | APLOG_STARTUP, 0, NULL,
-                         " Please read the documentation.");
-        } else {
-            ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s, APLOGNO(00187)
-                         "MinSpareServers of %d not allowed, increasing to 1",
-                         ap_daemons_min_free);
-        }
-        ap_daemons_min_free = 1;
-    }
-
-    /* ap_daemons_max_free < ap_daemons_min_free + 1 checked in prefork_run() */
 
     return OK;
 }

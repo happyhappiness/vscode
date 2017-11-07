@@ -1,1 +1,1 @@
-fprintf(stderr, "No prefix given for --super-prefix.\n" );
+die(_("no matching remote head"));

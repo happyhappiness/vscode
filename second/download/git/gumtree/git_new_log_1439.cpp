@@ -1,1 +1,1 @@
-error("%s", err.buf);
+error("cannot lock ref '%s'", refname);

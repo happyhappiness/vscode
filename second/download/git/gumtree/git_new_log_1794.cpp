@@ -1,1 +1,1 @@
-set_common_push_options(transport, data->name, flags);
+die("helper %s does not support --signed=if-asked", name);

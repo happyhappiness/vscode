@@ -1,1 +1,1 @@
-die(_("malformed object at '%s'"), refname);
+die(_("positive width expected with the %%(align) atom"));

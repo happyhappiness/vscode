@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, c, APLOGNO(02411)
-                              "SSL Proxy: Peer certificate does not match "
-                              "for hostname %s", hostname_note);
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
+                             "stapling_renew_response: error in retrieved response!");

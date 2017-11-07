@@ -1,47 +1,92 @@
-static apr_status_t cache_invalidate_filter(ap_filter_t *f,
-                                            apr_bucket_brigade *in)
+static void register_hooks(apr_pool_t *p)
 {
-    request_rec *r = f->r;
-    cache_request_rec *cache;
-
-    /* Setup cache_request_rec */
-    cache = (cache_request_rec *) f->ctx;
-
-    if (!cache) {
-        /* user likely configured CACHE_INVALIDATE manually; they should really
-         * use mod_cache configuration to do that. So:
-         * 1. Remove ourselves
-         * 2. Do nothing and bail out
-         */
-        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02465)
-                "cache: CACHE_INVALIDATE enabled unexpectedly: %s", r->uri);
-    }
-    else {
-
-        if (r->status > 299) {
-
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02466)
-                    "cache: response status to '%s' method is %d (>299), not invalidating cached entity: %s", r->method, r->status, r->uri);
-
-        }
-        else {
-
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(02467)
-                    "cache: Invalidating all cached entities in response to '%s' request for %s",
-                    r->method, r->uri);
-
-            cache_invalidate(cache, r);
-
-            /* we've got a cache invalidate! tell everyone who cares */
-            cache_run_cache_status(cache->handle, r, r->headers_out,
-                    AP_CACHE_INVALIDATE, apr_psprintf(r->pool,
-                            "cache invalidated by %s", r->method));
-
-        }
-
-    }
-
-    /* remove ourselves */
-    ap_remove_output_filter(f);
-    return ap_pass_brigade(f->next, in);
+    /* cache initializer */
+    /* cache quick handler */
+    ap_hook_quick_handler(cache_quick_handler, NULL, NULL, APR_HOOK_FIRST);
+    /* cache handler */
+    ap_hook_handler(cache_handler, NULL, NULL, APR_HOOK_REALLY_FIRST);
+    /* cache status */
+    cache_hook_cache_status(cache_status, NULL, NULL, APR_HOOK_MIDDLE);
+    /* cache error handler */
+    ap_hook_insert_error_filter(cache_insert_error_filter, NULL, NULL, APR_HOOK_MIDDLE);
+    /* cache filters
+     * XXX The cache filters need to run right after the handlers and before
+     * any other filters. Consider creating AP_FTYPE_CACHE for this purpose.
+     *
+     * Depending on the type of request (subrequest / main request) they
+     * need to be run before AP_FTYPE_CONTENT_SET / after AP_FTYPE_CONTENT_SET
+     * filters. Thus create two filter handles for each type:
+     * cache_save_filter_handle / cache_out_filter_handle to be used by
+     * main requests and
+     * cache_save_subreq_filter_handle / cache_out_subreq_filter_handle
+     * to be run by subrequest
+     */
+    /*
+     * CACHE is placed into the filter chain at an admin specified location,
+     * and when the cache_handler is run, the CACHE filter is swapped with
+     * the CACHE_OUT filter, or CACHE_SAVE filter as appropriate. This has
+     * the effect of offering optional fine control of where the cache is
+     * inserted into the filter chain.
+     */
+    cache_filter_handle =
+        ap_register_output_filter("CACHE",
+                                  cache_filter,
+                                  NULL,
+                                  AP_FTYPE_RESOURCE);
+    /*
+     * CACHE_SAVE must go into the filter chain after a possible DEFLATE
+     * filter to ensure that the compressed content is stored.
+     * Incrementing filter type by 1 ensures this happens.
+     */
+    cache_save_filter_handle =
+        ap_register_output_filter("CACHE_SAVE",
+                                  cache_save_filter,
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET+1);
+    /*
+     * CACHE_SAVE_SUBREQ must go into the filter chain before SUBREQ_CORE to
+     * handle subrequsts. Decrementing filter type by 1 ensures this
+     * happens.
+     */
+    cache_save_subreq_filter_handle =
+        ap_register_output_filter("CACHE_SAVE_SUBREQ",
+                                  cache_save_filter,
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET-1);
+    /*
+     * CACHE_OUT must go into the filter chain after a possible DEFLATE
+     * filter to ensure that already compressed cache objects do not
+     * get compressed again. Incrementing filter type by 1 ensures
+     * this happens.
+     */
+    cache_out_filter_handle =
+        ap_register_output_filter("CACHE_OUT",
+                                  cache_out_filter,
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET+1);
+    /*
+     * CACHE_OUT_SUBREQ must go into the filter chain before SUBREQ_CORE to
+     * handle subrequsts. Decrementing filter type by 1 ensures this
+     * happens.
+     */
+    cache_out_subreq_filter_handle =
+        ap_register_output_filter("CACHE_OUT_SUBREQ",
+                                  cache_out_filter,
+                                  NULL,
+                                  AP_FTYPE_CONTENT_SET-1);
+    /* CACHE_REMOVE_URL has to be a protocol filter to ensure that is
+     * run even if the response is a canned error message, which
+     * removes the content filters.
+     */
+    cache_remove_url_filter_handle =
+        ap_register_output_filter("CACHE_REMOVE_URL",
+                                  cache_remove_url_filter,
+                                  NULL,
+                                  AP_FTYPE_PROTOCOL);
+    cache_invalidate_filter_handle =
+        ap_register_output_filter("CACHE_INVALIDATE",
+                                  cache_invalidate_filter,
+                                  NULL,
+                                  AP_FTYPE_PROTOCOL);
+    ap_hook_post_config(cache_post_config, NULL, NULL, APR_HOOK_REALLY_FIRST);
 }

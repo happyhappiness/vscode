@@ -1,1 +1,1 @@
-die(_("could not unset '%s'"), key);
+die(_("could not set '%s' to '%s'"), key, value);

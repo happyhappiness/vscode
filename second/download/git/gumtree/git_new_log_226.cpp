@@ -1,1 +1,1 @@
-die("%s", err.buf);
+error("--path=<path> incompatible with --batch");

@@ -1,2 +1,2 @@
-die(_("Not tracking: ambiguous information for ref %s"),
-		    orig_ref);
+die("ref '%s' does not have %ld components to :strip",
+			    refname, nr);

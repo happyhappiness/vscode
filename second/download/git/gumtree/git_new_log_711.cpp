@@ -1,1 +1,1 @@
-is_blank_line(buf + ll);
+die(_("could not recurse into submodule '%s'"), path);

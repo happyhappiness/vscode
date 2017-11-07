@@ -1,3 +1,1 @@
-apr_file_printf(errfile, " -m  Force MD5 encryption of the password"
-        " (default)"
-        "." NL);
+apr_file_printf(errfile, " -p  Do not encrypt the password (plaintext)." NL);

@@ -1,1 +1,1 @@
-printf("%s", ret);
+die("submodule--helper remote-branch takes exactly one arguments, got %d", argc);

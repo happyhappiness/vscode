@@ -1,1 +1,2 @@
-error("packfile %s cannot be accessed", p->pack_name);
+warning("skipping invalid relative alternate: %s/%s",
+				src_repo, line.buf);

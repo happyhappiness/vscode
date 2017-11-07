@@ -1,2 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
-                                     APLOGNO(03094) "pollset remove failed");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                                 ap_server_conf, APLOGNO(03096)
+                                 "event_loop: unexpected state %d",
+                                 cs->pub.state);

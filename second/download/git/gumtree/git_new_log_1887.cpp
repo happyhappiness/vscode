@@ -1,2 +1,2 @@
-fprintf(stderr, "%s in %s %s: %s\n",
-		msg_type, typename(obj->type), oid_to_hex(&obj->oid), err);
+printf("%s %s\n",
+		       oid_to_hex(&ref->old_oid), ref->name);

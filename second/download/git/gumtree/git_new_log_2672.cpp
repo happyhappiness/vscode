@@ -1,1 +1,1 @@
-die(_("the receiving end does not support push options"));
+die("BUG: REF_ISPRUNING set without REF_NODEREF");

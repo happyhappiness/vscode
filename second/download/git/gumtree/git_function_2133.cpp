@@ -1,97 +1,71 @@
-static int http_options(const char *var, const char *value, void *cb)
+static int handle_alias(int *argcp, const char ***argv)
 {
-	if (!strcmp("http.sslverify", var)) {
-		curl_ssl_verify = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp("http.sslcipherlist", var))
-		return git_config_string(&ssl_cipherlist, var, value);
-	if (!strcmp("http.sslversion", var))
-		return git_config_string(&ssl_version, var, value);
-	if (!strcmp("http.sslcert", var))
-		return git_config_string(&ssl_cert, var, value);
-#if LIBCURL_VERSION_NUM >= 0x070903
-	if (!strcmp("http.sslkey", var))
-		return git_config_string(&ssl_key, var, value);
-#endif
-#if LIBCURL_VERSION_NUM >= 0x070908
-	if (!strcmp("http.sslcapath", var))
-		return git_config_pathname(&ssl_capath, var, value);
-#endif
-	if (!strcmp("http.sslcainfo", var))
-		return git_config_pathname(&ssl_cainfo, var, value);
-	if (!strcmp("http.sslcertpasswordprotected", var)) {
-		ssl_cert_password_required = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp("http.ssltry", var)) {
-		curl_ssl_try = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp("http.minsessions", var)) {
-		min_curl_sessions = git_config_int(var, value);
-#ifndef USE_CURL_MULTI
-		if (min_curl_sessions > 1)
-			min_curl_sessions = 1;
-#endif
-		return 0;
-	}
-#ifdef USE_CURL_MULTI
-	if (!strcmp("http.maxrequests", var)) {
-		max_requests = git_config_int(var, value);
-		return 0;
-	}
-#endif
-	if (!strcmp("http.lowspeedlimit", var)) {
-		curl_low_speed_limit = (long)git_config_int(var, value);
-		return 0;
-	}
-	if (!strcmp("http.lowspeedtime", var)) {
-		curl_low_speed_time = (long)git_config_int(var, value);
-		return 0;
+	int envchanged = 0, ret = 0, saved_errno = errno;
+	const char *subdir;
+	int count, option_count;
+	const char **new_argv;
+	const char *alias_command;
+	char *alias_string;
+	int unused_nongit;
+
+	subdir = setup_git_directory_gently(&unused_nongit);
+
+	alias_command = (*argv)[0];
+	alias_string = alias_lookup(alias_command);
+	if (alias_string) {
+		if (alias_string[0] == '!') {
+			struct child_process child = CHILD_PROCESS_INIT;
+
+			commit_pager_choice();
+
+			child.use_shell = 1;
+			argv_array_push(&child.args, alias_string + 1);
+			argv_array_pushv(&child.args, (*argv) + 1);
+
+			ret = run_command(&child);
+			if (ret >= 0)   /* normal exit */
+				exit(ret);
+
+			die_errno("While expanding alias '%s': '%s'",
+			    alias_command, alias_string + 1);
+		}
+		count = split_cmdline(alias_string, &new_argv);
+		if (count < 0)
+			die("Bad alias.%s string: %s", alias_command,
+			    split_cmdline_strerror(count));
+		option_count = handle_options(&new_argv, &count, &envchanged);
+		if (envchanged)
+			die("alias '%s' changes environment variables\n"
+				 "You can use '!git' in the alias to do this.",
+				 alias_command);
+		memmove(new_argv - option_count, new_argv,
+				count * sizeof(char *));
+		new_argv -= option_count;
+
+		if (count < 1)
+			die("empty alias for %s", alias_command);
+
+		if (!strcmp(alias_command, new_argv[0]))
+			die("recursive alias: %s", alias_command);
+
+		trace_argv_printf(new_argv,
+				  "trace: alias expansion: %s =>",
+				  alias_command);
+
+		REALLOC_ARRAY(new_argv, count + *argcp);
+		/* insert after command name */
+		memcpy(new_argv + count, *argv + 1, sizeof(char *) * *argcp);
+
+		*argv = new_argv;
+		*argcp += count - 1;
+
+		ret = 1;
 	}
 
-	if (!strcmp("http.noepsv", var)) {
-		curl_ftp_no_epsv = git_config_bool(var, value);
-		return 0;
-	}
-	if (!strcmp("http.proxy", var))
-		return git_config_string(&curl_http_proxy, var, value);
+	if (subdir && chdir(subdir))
+		die_errno("Cannot change to '%s'", subdir);
 
-	if (!strcmp("http.proxyauthmethod", var))
-		return git_config_string(&http_proxy_authmethod, var, value);
+	errno = saved_errno;
 
-	if (!strcmp("http.cookiefile", var))
-		return git_config_string(&curl_cookie_file, var, value);
-	if (!strcmp("http.savecookies", var)) {
-		curl_save_cookies = git_config_bool(var, value);
-		return 0;
-	}
-
-	if (!strcmp("http.postbuffer", var)) {
-		http_post_buffer = git_config_int(var, value);
-		if (http_post_buffer < LARGE_PACKET_MAX)
-			http_post_buffer = LARGE_PACKET_MAX;
-		return 0;
-	}
-
-	if (!strcmp("http.useragent", var))
-		return git_config_string(&user_agent, var, value);
-
-	if (!strcmp("http.emptyauth", var)) {
-		curl_empty_auth = git_config_bool(var, value);
-		return 0;
-	}
-
-	if (!strcmp("http.pinnedpubkey", var)) {
-#if LIBCURL_VERSION_NUM >= 0x072c00
-		return git_config_pathname(&ssl_pinnedkey, var, value);
-#else
-		warning(_("Public key pinning not supported with cURL < 7.44.0"));
-		return 0;
-#endif
-	}
-
-	/* Fall back on the default ones */
-	return git_default_config(var, value, cb);
+	return ret;
 }

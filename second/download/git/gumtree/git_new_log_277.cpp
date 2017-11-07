@@ -1,1 +1,1 @@
-error(_("failed to remove 'git notes merge' worktree"));
+error(_("failed to delete ref NOTES_MERGE_REF"));

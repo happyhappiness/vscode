@@ -1,2 +1,4 @@
-printf("%s %s\n",
-		       oid_to_hex(&ref->old_oid), ref->name);
+fprintf(fp, "%s\t%s\t%s",
+					oid_to_hex(&rm->old_oid),
+					merge_status_marker,
+					note.buf);

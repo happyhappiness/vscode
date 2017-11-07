@@ -1,68 +1,67 @@
-apr_status_t h2_conn_child_init(apr_pool_t *pool, server_rec *s)
+conn_rec *h2_slave_create(conn_rec *master, int slave_id, apr_pool_t *parent)
 {
-    const h2_config *config = h2_config_sget(s);
-    apr_status_t status = APR_SUCCESS;
-    int minw, maxw, max_tx_handles, n;
-    int max_threads_per_child = 0;
-    int idle_secs = 0;
-
-    check_modules(1);
+    apr_allocator_t *allocator;
+    apr_pool_t *pool;
+    conn_rec *c;
+    void *cfg;
     
-    ap_mpm_query(AP_MPMQ_MAX_THREADS, &max_threads_per_child);
+    ap_assert(master);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, master,
+                  "h2_conn(%ld): create slave", master->id);
     
-    status = ap_mpm_query(AP_MPMQ_IS_ASYNC, &async_mpm);
-    if (status != APR_SUCCESS) {
-        /* some MPMs do not implemnent this */
-        async_mpm = 0;
-        status = APR_SUCCESS;
-    }
-
-    h2_config_init(pool);
-    
-    minw = h2_config_geti(config, H2_CONF_MIN_WORKERS);
-    maxw = h2_config_geti(config, H2_CONF_MAX_WORKERS);    
-    if (minw <= 0) {
-        minw = max_threads_per_child;
-    }
-    if (maxw <= 0) {
-        maxw = minw;
-    }
-    
-    /* How many file handles is it safe to use for transfer
-     * to the master connection to be streamed out? 
-     * Is there a portable APR rlimit on NOFILES? Have not
-     * found it. And if, how many of those would we set aside?
-     * This leads all into a process wide handle allocation strategy
-     * which ultimately would limit the number of accepted connections
-     * with the assumption of implicitly reserving n handles for every 
-     * connection and requiring modules with excessive needs to allocate
-     * from a central pool.
+    /* We create a pool with its own allocator to be used for
+     * processing a request. This is the only way to have the processing
+     * independant of its parent pool in the sense that it can work in
+     * another thread.
      */
-    n = h2_config_geti(config, H2_CONF_SESSION_FILES);
-    if (n < 0) {
-        max_tx_handles = maxw * 2;
-    }
-    else {
-        max_tx_handles = maxw * n;
+    apr_allocator_create(&allocator);
+    apr_pool_create_ex(&pool, parent, NULL, allocator);
+    apr_pool_tag(pool, "h2_slave_conn");
+    apr_allocator_owner_set(allocator, pool);
+
+    c = (conn_rec *) apr_palloc(pool, sizeof(conn_rec));
+    if (c == NULL) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
+                      APLOGNO(02913) "h2_task: creating conn");
+        return NULL;
     }
     
-    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, s,
-                 "h2_workers: min=%d max=%d, mthrpchild=%d, tx_files=%d", 
-                 minw, maxw, max_threads_per_child, max_tx_handles);
-    workers = h2_workers_create(s, pool, minw, maxw, max_tx_handles);
-    
-    idle_secs = h2_config_geti(config, H2_CONF_MAX_WORKER_IDLE_SECS);
-    h2_workers_set_max_idle_secs(workers, idle_secs);
- 
-    ap_register_input_filter("H2_IN", h2_filter_core_input,
-                             NULL, AP_FTYPE_CONNECTION);
-   
-    status = h2_mplx_child_init(pool, s);
-
-    if (status == APR_SUCCESS) {
-        status = apr_socket_create(&dummy_socket, APR_INET, SOCK_STREAM,
-                                   APR_PROTO_TCP, pool);
+    memcpy(c, master, sizeof(conn_rec));
+        
+    c->master                 = master;
+    c->pool                   = pool;   
+    c->conn_config            = ap_create_conn_config(pool);
+    c->notes                  = apr_table_make(pool, 5);
+    c->input_filters          = NULL;
+    c->output_filters         = NULL;
+    c->bucket_alloc           = apr_bucket_alloc_create(pool);
+    c->data_in_input_filters  = 0;
+    c->data_in_output_filters = 0;
+    c->clogging_input_filters = 1;
+    c->log                    = NULL;
+    c->log_id                 = apr_psprintf(pool, "%ld-%d", 
+                                             master->id, slave_id);
+    /* Simulate that we had already a request on this connection. */
+    c->keepalives             = 1;
+    /* We cannot install the master connection socket on the slaves, as
+     * modules mess with timeouts/blocking of the socket, with
+     * unwanted side effects to the master connection processing.
+     * Fortunately, since we never use the slave socket, we can just install
+     * a single, process-wide dummy and everyone is happy.
+     */
+    ap_set_module_config(c->conn_config, &core_module, dummy_socket);
+    /* TODO: these should be unique to this thread */
+    c->sbh                    = master->sbh;
+    /* TODO: not all mpm modules have learned about slave connections yet.
+     * copy their config from master to slave.
+     */
+    if (h2_conn_mpm_module()) {
+        cfg = ap_get_module_config(master->conn_config, h2_conn_mpm_module());
+        ap_set_module_config(c->conn_config, h2_conn_mpm_module(), cfg);
     }
 
-    return status;
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
+                  "h2_task: creating conn, master=%ld, sid=%ld, logid=%s", 
+                  master->id, c->id, c->log_id);
+    return c;
 }

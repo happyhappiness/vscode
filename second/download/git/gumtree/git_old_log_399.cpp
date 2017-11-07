@@ -1,1 +1,1 @@
-die("no matching remote head");
+die("git fetch-pack: fetch failed.");

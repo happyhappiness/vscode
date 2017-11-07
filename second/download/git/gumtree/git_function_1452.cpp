@@ -1,37 +1,62 @@
-static int verify_absent_1(const struct cache_entry *ce,
-			   enum unpack_trees_error_types error_type,
-			   struct unpack_trees_options *o)
+static int print_one_push_status(struct ref *ref, const char *dest, int count, int porcelain)
 {
-	int len;
-	struct stat st;
+	if (!count)
+		fprintf(porcelain ? stdout : stderr, "To %s\n", dest);
 
-	if (o->index_only || o->reset || !o->update)
-		return 0;
-
-	len = check_leading_path(ce->name, ce_namelen(ce));
-	if (!len)
-		return 0;
-	else if (len > 0) {
-		char *path;
-		int ret;
-
-		path = xmemdupz(ce->name, len);
-		if (lstat(path, &st))
-			ret = error("cannot stat '%s': %s", path,
-					strerror(errno));
-		else
-			ret = check_ok_to_remove(path, len, DT_UNKNOWN, NULL,
-						 &st, error_type, o);
-		free(path);
-		return ret;
-	} else if (lstat(ce->name, &st)) {
-		if (errno != ENOENT)
-			return error("cannot stat '%s': %s", ce->name,
-				     strerror(errno));
-		return 0;
-	} else {
-		return check_ok_to_remove(ce->name, ce_namelen(ce),
-					  ce_to_dtype(ce), ce, &st,
-					  error_type, o);
+	switch(ref->status) {
+	case REF_STATUS_NONE:
+		print_ref_status('X', "[no match]", ref, NULL, NULL, porcelain);
+		break;
+	case REF_STATUS_REJECT_NODELETE:
+		print_ref_status('!', "[rejected]", ref, NULL,
+						 "remote does not support deleting refs", porcelain);
+		break;
+	case REF_STATUS_UPTODATE:
+		print_ref_status('=', "[up to date]", ref,
+						 ref->peer_ref, NULL, porcelain);
+		break;
+	case REF_STATUS_REJECT_NONFASTFORWARD:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "non-fast-forward", porcelain);
+		break;
+	case REF_STATUS_REJECT_ALREADY_EXISTS:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "already exists", porcelain);
+		break;
+	case REF_STATUS_REJECT_FETCH_FIRST:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "fetch first", porcelain);
+		break;
+	case REF_STATUS_REJECT_NEEDS_FORCE:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "needs force", porcelain);
+		break;
+	case REF_STATUS_REJECT_STALE:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "stale info", porcelain);
+		break;
+	case REF_STATUS_REJECT_SHALLOW:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "new shallow roots not allowed", porcelain);
+		break;
+	case REF_STATUS_REMOTE_REJECT:
+		print_ref_status('!', "[remote rejected]", ref,
+						 ref->deletion ? NULL : ref->peer_ref,
+						 ref->remote_status, porcelain);
+		break;
+	case REF_STATUS_EXPECTING_REPORT:
+		print_ref_status('!', "[remote failure]", ref,
+						 ref->deletion ? NULL : ref->peer_ref,
+						 "remote failed to report status", porcelain);
+		break;
+	case REF_STATUS_ATOMIC_PUSH_FAILED:
+		print_ref_status('!', "[rejected]", ref, ref->peer_ref,
+						 "atomic push failed", porcelain);
+		break;
+	case REF_STATUS_OK:
+		print_ok_ref_status(ref, porcelain);
+		break;
 	}
+
+	return 1;
 }

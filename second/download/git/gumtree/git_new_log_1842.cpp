@@ -1,1 +1,2 @@
-die("unable to auto-detect name (got '%s')", name);
+error("Unable to write file %s: %s",
+			export_marks_file, strerror(errno));

@@ -1,3 +1,5 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
-                  "h2_slave_in(%s): read, mode=%d, block=%d, readbytes=%ld", 
-                  task->id, mode, block, (long)readbytes);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, task->c, APLOGNO(03348)
+                  "h2_task(%s): open output to %s %s %s",
+                  task->id, task->request->method, 
+                  task->request->authority, 
+                  task->request->path);

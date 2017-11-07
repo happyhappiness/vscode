@@ -1,1 +1,2 @@
-logerror("base-path too large: %s", rpath);
+logerror("interpolated path too large: %s",
+				 interp_path);

@@ -1,23 +1,20 @@
-static apr_status_t stream_pool_cleanup(void *ctx)
+void h2_stream_cleanup(h2_stream *stream)
 {
-    h2_stream *stream = ctx;
-    apr_status_t status;
-    
+    AP_DEBUG_ASSERT(stream);
+    if (stream->buffer) {
+        apr_brigade_cleanup(stream->buffer);
+    }
     if (stream->input) {
-        h2_beam_destroy(stream->input);
-        stream->input = NULL;
-    }
-    if (stream->files) {
-        apr_file_t *file;
-        int i;
-        for (i = 0; i < stream->files->nelts; ++i) {
-            file = APR_ARRAY_IDX(stream->files, i, apr_file_t*);
-            status = apr_file_close(file);
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE3, status, stream->session->c, 
-                          "h2_stream(%ld-%d): destroy, closed file %d", 
-                          stream->session->id, stream->id, i);
+        apr_status_t status;
+        status = h2_beam_shutdown(stream->input, APR_NONBLOCK_READ, 1);
+        if (status == APR_EAGAIN) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c, 
+                          "h2_stream(%ld-%d): wait on input shutdown", 
+                          stream->session->id, stream->id);
+            status = h2_beam_shutdown(stream->input, APR_BLOCK_READ, 1);
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, stream->session->c, 
+                          "h2_stream(%ld-%d): input shutdown returned", 
+                          stream->session->id, stream->id);
         }
-        stream->files = NULL;
     }
-    return APR_SUCCESS;
 }

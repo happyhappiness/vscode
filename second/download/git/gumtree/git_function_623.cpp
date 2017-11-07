@@ -1,19 +1,8 @@
-static void parse_graph_colors_config(struct argv_array *colors, const char *string)
+void relocate_gitdir(const char *path, const char *old_git_dir, const char *new_git_dir)
 {
-	const char *end, *start;
+	if (rename(old_git_dir, new_git_dir) < 0)
+		die_errno(_("could not migrate git directory from '%s' to '%s'"),
+			old_git_dir, new_git_dir);
 
-	start = string;
-	end = string + strlen(string);
-	while (start < end) {
-		const char *comma = strchrnul(start, ',');
-		char color[COLOR_MAXLEN];
-
-		if (!color_parse_mem(start, comma - start, color))
-			argv_array_push(colors, color);
-		else
-			warning(_("ignore invalid color '%.*s' in log.graphColors"),
-				(int)(comma - start), start);
-		start = comma + 1;
-	}
-	argv_array_push(colors, GIT_COLOR_RESET);
+	connect_work_tree_and_git_dir(path, new_git_dir);
 }

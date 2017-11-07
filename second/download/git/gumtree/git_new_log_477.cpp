@@ -1,2 +1,1 @@
-error(_("%s: can't cherry-pick a %s"),
-					name, typename(type));
+error(_("failed to finalize '%s'."), todo_path);

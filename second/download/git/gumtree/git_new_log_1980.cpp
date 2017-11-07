@@ -1,2 +1,2 @@
-error("in tree %s: entry %s has bad mode %.6o",
-					oid_to_hex(&tree->object.oid), entry.path, entry.mode);
+fprintf(stderr, "Marking %s as complete\n",
+				oid_to_hex(&complete->item->object.oid));

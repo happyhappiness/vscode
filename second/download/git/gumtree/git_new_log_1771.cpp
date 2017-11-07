@@ -1,1 +1,2 @@
-die(_("Could not format %s."), git_path_todo_file());
+error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
+			git_path_head_file());

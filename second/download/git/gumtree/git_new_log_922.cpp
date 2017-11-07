@@ -1,1 +1,1 @@
-die (_("BUG: returned path string doesn't match cwd?"));
+die(_("could not start ls-files in .."));

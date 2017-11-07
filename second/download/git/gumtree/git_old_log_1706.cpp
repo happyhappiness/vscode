@@ -1,1 +1,1 @@
-fprintf_ln(stderr, _("Enter %s (identifier %s)"), path, name);
+die(_("unable to resolve HEAD"));

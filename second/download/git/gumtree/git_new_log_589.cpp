@@ -1,1 +1,1 @@
-die_errno("unable to get current working directory");
+die("strange hostname '%s' blocked", ssh_host);

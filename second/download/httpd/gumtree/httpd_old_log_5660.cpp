@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
-                         "process_socket: apr_pollset_add failure");
+ap_log_error(APLOG_MARK, APLOG_CRIT, rc,
+                                     ap_server_conf, "push2worker failed");

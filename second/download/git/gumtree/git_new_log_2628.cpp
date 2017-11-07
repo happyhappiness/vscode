@@ -1,1 +1,1 @@
-fputs(o->obuf.buf, stdout);
+fprintf(opt->diffopt.file, "\n%s\n", opt->break_bar);

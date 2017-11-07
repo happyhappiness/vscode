@@ -1,65 +1,50 @@
-apr_status_t h2_ngn_shed_push_task(h2_ngn_shed *shed, const char *ngn_type, 
-                                   h2_task *task, http2_req_engine_init *einit) 
-{
-    h2_req_engine *ngn;
-
-    AP_DEBUG_ASSERT(shed);
+apr_status_t h2_ngn_shed_pull_task(h2_ngn_shed *shed, 
+                                   h2_req_engine *ngn, 
+                                   apr_uint32_t capacity, 
+                                   int want_shutdown,
+                                   h2_task **ptask)
+{   
+    h2_ngn_entry *entry;
     
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
-                  "h2_ngn_shed(%ld): PUSHing request (task=%s)", shed->c->id, 
-                  task->id);
-    if (task->ser_headers) {
-        /* Max compatibility, deny processing of this */
-        return APR_EOF;
+    AP_DEBUG_ASSERT(ngn);
+    *ptask = NULL;
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
+                  "h2_ngn_shed(%ld): pull task for engine %s, shutdown=%d", 
+                  shed->c->id, ngn->id, want_shutdown);
+    if (shed->aborted) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, shed->c,
+                      "h2_ngn_shed(%ld): abort while pulling requests %s", 
+                      shed->c->id, ngn->id);
+        ngn->shutdown = 1;
+        return APR_ECONNABORTED;
     }
     
-    ngn = apr_hash_get(shed->ngns, ngn_type, APR_HASH_KEY_STRING);
-    if (ngn && !ngn->shutdown) {
-        /* this task will be processed in another thread,
-         * freeze any I/O for the time being. */
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, task->c,
-                      "h2_ngn_shed(%ld): pushing request %s to %s", 
-                      shed->c->id, task->id, ngn->id);
-        if (!h2_task_is_detached(task)) {
-            h2_task_freeze(task);
+    ngn->capacity = capacity;
+    if (H2_REQ_ENTRIES_EMPTY(&ngn->entries)) {
+        if (want_shutdown) {
+            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
+                          "h2_ngn_shed(%ld): emtpy queue, shutdown engine %s", 
+                          shed->c->id, ngn->id);
+            ngn->shutdown = 1;
         }
-        /* FIXME: sometimes ngn is garbage, probly alread freed */
-        ngn_add_task(ngn, task);
-        ngn->no_assigned++;
+        return ngn->shutdown? APR_EOF : APR_EAGAIN;
+    }
+    
+    if ((entry = pop_detached(ngn))) {
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, entry->task->c,
+                      "h2_ngn_shed(%ld): pulled request %s for engine %s", 
+                      shed->c->id, entry->task->id, ngn->id);
+        ngn->no_live++;
+        *ptask = entry->task;
+        entry->task->assigned = ngn;
         return APR_SUCCESS;
     }
     
-    /* no existing engine or being shut down, start a new one */
-    if (einit) {
-        apr_status_t status;
-        apr_pool_t *pool = task->pool;
-        h2_req_engine *newngn;
-        
-        newngn = apr_pcalloc(pool, sizeof(*ngn));
-        newngn->pool = pool;
-        newngn->id   = apr_psprintf(pool, "ngn-%s", task->id);
-        newngn->type = apr_pstrdup(pool, ngn_type);
-        newngn->c    = task->c;
-        newngn->shed = shed;
-        newngn->capacity = shed->default_capacity;
-        newngn->no_assigned = 1;
-        newngn->no_live = 1;
-        APR_RING_INIT(&newngn->entries, h2_ngn_entry, link);
-        
-        status = einit(newngn, newngn->id, newngn->type, newngn->pool,
-                       shed->req_buffer_size, task->r, 
-                       &newngn->out_consumed, &newngn->out_consumed_ctx);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c,
-                      "h2_ngn_shed(%ld): create engine %s (%s)", 
-                      shed->c->id, newngn->id, newngn->type);
-        if (status == APR_SUCCESS) {
-            AP_DEBUG_ASSERT(task->engine == NULL);
-            newngn->task = task;
-            task->engine = newngn;
-            task->assigned = newngn;
-            apr_hash_set(shed->ngns, newngn->type, APR_HASH_KEY_STRING, newngn);
-        }
-        return status;
+    if (1) {
+        h2_ngn_entry *entry = H2_REQ_ENTRIES_FIRST(&ngn->entries);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
+                      "h2_ngn_shed(%ld): pull task, nothing, first task %s", 
+                      shed->c->id, entry->task->id);
     }
-    return APR_EOF;
+    return APR_EAGAIN;
 }

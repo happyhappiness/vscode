@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03391)
-                                  "h2_conn_io(%ld): pass bucket(%ld)", 
-                                  io->c->id, (long)b->length);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, f->c,
+                  "core_input(%ld): read, %s, mode=%d, readbytes=%ld", 
+                  (long)f->c->id, (block == APR_BLOCK_READ)? "BLOCK_READ" : "NONBLOCK_READ", 
+                  mode, (long)readbytes);

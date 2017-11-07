@@ -1,1 +1,3 @@
-die("%s not a valid tag", oid_to_hex(&oid));
+die(Q_("file %s has only %lu line",
+			       "file %s has only %lu lines",
+			       lno), path, lno);

@@ -1,3 +1,1 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                      APLOGNO(02942) 
-                      "h2_task, unsupported READ mode %d", mode);
+ap_add_output_filter("H2_TRAILERS_OUT", task, r, r->connection);

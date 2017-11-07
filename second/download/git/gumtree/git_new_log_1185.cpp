@@ -1,1 +1,1 @@
-die(_("unable to write index file"));
+die(_("revision walk setup failed"));

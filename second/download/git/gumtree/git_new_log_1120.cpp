@@ -1,1 +1,1 @@
-die("BUG: %s ref_store '%s' initialized twice", type, name);
+die("BUG: unexpected reference transaction state");

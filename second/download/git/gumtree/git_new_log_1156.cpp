@@ -1,1 +1,1 @@
-error("external filter '%s' failed", entry->subprocess.cmd);
+die(_("unable to parse format string"));

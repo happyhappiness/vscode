@@ -1,1 +1,1 @@
-error("%s", err.buf);
+printf("reset %s\n", refname);

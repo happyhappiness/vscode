@@ -1,65 +1,111 @@
-static void ssl_init_ctx_tls_extensions(server_rec *s,
-                                        apr_pool_t *p,
-                                        apr_pool_t *ptemp,
-                                        modssl_ctx_t *mctx)
+static int netware_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s)
 {
-    /*
-     * Configure TLS extensions support
-     */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01893)
-                 "Configuring TLS extension handling");
+    apr_status_t status=0;
 
-    /*
-     * Server name indication (SNI)
-     */
-    if (!SSL_CTX_set_tlsext_servername_callback(mctx->ssl_ctx,
-                          ssl_callback_ServerNameIndication) ||
-        !SSL_CTX_set_tlsext_servername_arg(mctx->ssl_ctx, mctx)) {
-        ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(01894)
-                     "Unable to initialize TLS servername extension "
-                     "callback (incompatible OpenSSL version?)");
-        ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-        ssl_die(s);
+    pconf = _pconf;
+    ap_server_conf = s;
+
+    if (setup_listeners(s)) {
+        ap_log_error(APLOG_MARK, APLOG_ALERT, status, s, APLOGNO(00223)
+            "no listening sockets available, shutting down");
+        return -1;
     }
 
-#ifdef HAVE_OCSP_STAPLING
-    /*
-     * OCSP Stapling support, status_request extension
-     */
-    if ((mctx->pkp == FALSE) && (mctx->stapling_enabled == TRUE)) {
-        modssl_init_stapling(s, p, ptemp, mctx);
+    restart_pending = shutdown_pending = 0;
+    worker_thread_count = 0;
+
+    if (!is_graceful) {
+        if (ap_run_pre_mpm(s->process->pool, SB_NOT_SHARED) != OK) {
+            return 1;
+        }
     }
-#endif
 
-#ifndef OPENSSL_NO_SRP
-    /*
-     * TLS-SRP support
-     */
-    if (mctx->srp_vfile != NULL) {
-        int err;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(02308)
-                     "Using SRP verifier file [%s]", mctx->srp_vfile);
+    /* Only set slot 0 since that is all NetWare will ever have. */
+    ap_scoreboard_image->parent[0].pid = getpid();
+    ap_run_child_status(ap_server_conf,
+                        ap_scoreboard_image->parent[0].pid,
+                        ap_my_generation,
+                        0,
+                        MPM_CHILD_STARTED);
 
-        if (!(mctx->srp_vbase = SRP_VBASE_new(mctx->srp_unknown_user_seed))) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02309)
-                         "Unable to initialize SRP verifier structure "
-                         "[%s seed]",
-                         mctx->srp_unknown_user_seed ? "with" : "without");
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-            ssl_die(s);
+    set_signals();
+
+    apr_pool_create(&pmain, pconf);
+    ap_run_child_init(pmain, ap_server_conf);
+
+    if (ap_threads_max_free < ap_threads_min_free + 1)  /* Don't thrash... */
+        ap_threads_max_free = ap_threads_min_free + 1;
+    request_count = 0;
+
+    startup_workers(ap_threads_to_start);
+
+     /* Allow the Apache screen to be closed normally on exit() only if it
+        has not been explicitly forced to close on exit(). (ie. the -E flag
+        was specified at startup) */
+    if (hold_screen_on_exit > 0) {
+        hold_screen_on_exit = 0;
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00224)
+            "%s configured -- resuming normal operations",
+            ap_get_server_description());
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf, APLOGNO(00225)
+            "Server built: %s", ap_get_server_built());
+    ap_log_command_line(plog, s);
+    show_server_data();
+
+    mpm_state = AP_MPMQ_RUNNING;
+    while (!restart_pending && !shutdown_pending) {
+        perform_idle_server_maintenance(pconf);
+        if (show_settings)
+            display_settings();
+        apr_thread_yield();
+        apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
+    }
+    mpm_state = AP_MPMQ_STOPPING;
+
+    ap_run_child_status(ap_server_conf,
+                        ap_scoreboard_image->parent[0].pid,
+                        ap_my_generation,
+                        0,
+                        MPM_CHILD_EXITED);
+
+    /* Shutdown the listen sockets so that we don't get stuck in a blocking call.
+    shutdown_listeners();*/
+
+    if (shutdown_pending) { /* Got an unload from the console */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00226)
+            "caught SIGTERM, shutting down");
+
+        while (worker_thread_count > 0) {
+            printf ("\rShutdown pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
         }
 
-        err = SRP_VBASE_init(mctx->srp_vbase, mctx->srp_vfile);
-        if (err != SRP_NO_ERROR) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02310)
-                         "Unable to load SRP verifier file [error %d]", err);
-            ssl_log_ssl_error(SSLLOG_MARK, APLOG_EMERG, s);
-            ssl_die(s);
-        }
-
-        SSL_CTX_set_srp_username_callback(mctx->ssl_ctx,
-                                          ssl_callback_SRPServerParams);
-        SSL_CTX_set_srp_cb_arg(mctx->ssl_ctx, mctx);
+        mpm_main_cleanup();
+        return 1;
     }
-#endif
+    else {  /* the only other way out is a restart */
+        /* advance to the next generation */
+        /* XXX: we really need to make sure this new generation number isn't in
+         * use by any of the children.
+         */
+        ++ap_my_generation;
+        ap_scoreboard_image->global->running_generation = ap_my_generation;
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00227)
+                "Graceful restart requested, doing restart");
+
+        /* Wait for all of the threads to terminate before initiating the restart */
+        while (worker_thread_count > 0) {
+            printf ("\rRestart pending. Waiting for %d thread(s) to terminate...",
+                    worker_thread_count);
+            apr_thread_yield();
+        }
+        printf ("\nRestarting...\n");
+    }
+
+    mpm_main_cleanup();
+    return 0;
 }

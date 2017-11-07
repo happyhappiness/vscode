@@ -1,1 +1,1 @@
-die("Can't read object %s", sha1_to_hex(sha1));
+die("The commit %s is corrupt", sha1_to_hex(b->sha1));

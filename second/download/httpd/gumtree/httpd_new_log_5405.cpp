@@ -1,2 +1,1 @@
-ap_register_output_filter(reqtimeout_filter_name, reqtimeout_eor, NULL,
-                              AP_FTYPE_CONNECTION);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02998) "%s", error);

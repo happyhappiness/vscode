@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                         ref ? APLOGNO(03226) "Spelling fix: %s: %d candidates from %s"
-                             : APLOGNO(03227) "Spelling fix: %s: %d candidates%s",
-                         r->uri, candidates->nelts,
-                         (ref ? ref : ""));
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                (direct_connect) ? APLOGNO(03231) "NoProxy for %s" : APLOGNO(03232) "UseProxy for %s",
+                r->uri);

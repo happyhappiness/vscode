@@ -1,1 +1,2 @@
-printf("%s", find_unique_abbrev(sha1, abbrev));
+fprintf(stderr, _("finished search at %s\n"),
+					sha1_to_hex(c->object.sha1));

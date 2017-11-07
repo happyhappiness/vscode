@@ -1,1 +1,1 @@
-fprintf(outfile, "%s", lines[i]->buf);
+error(_("running trailer command '%s' failed"), cmd.buf);

@@ -1,1 +1,2 @@
-die(_("object %s not found"), sha1_to_hex(ref->new_sha1));
+(fprintf(f, ":%"PRIu32" %s\n", mark,
+				sha1_to_hex(deco->base->sha1));

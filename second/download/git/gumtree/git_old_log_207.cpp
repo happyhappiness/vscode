@@ -1,1 +1,1 @@
-die("--reverse --first-parent together require range along first-parent chain");
+die("--reverse and --first-parent together require specified latest commit");

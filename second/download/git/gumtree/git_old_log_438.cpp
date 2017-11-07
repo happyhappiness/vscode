@@ -1,1 +1,1 @@
-error(_("Your local changes would be overwritten by cherry-pick."));
+die(_("Error wrapping up %s."), filename);

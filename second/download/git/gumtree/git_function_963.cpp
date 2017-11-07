@@ -1,42 +1,34 @@
-static int apply_autostash(struct replay_opts *opts)
+static int write_shared_index(struct index_state *istate,
+			      struct lock_file *lock, unsigned flags)
 {
-	struct strbuf stash_sha1 = STRBUF_INIT;
-	struct child_process child = CHILD_PROCESS_INIT;
-	int ret = 0;
+	struct split_index *si = istate->split_index;
+	int fd, ret;
 
-	if (!read_oneliner(&stash_sha1, rebase_path_autostash(), 1)) {
-		strbuf_release(&stash_sha1);
-		return 0;
+	fd = mks_tempfile(&temporary_sharedindex, git_path("sharedindex_XXXXXX"));
+	if (fd < 0) {
+		hashclr(si->base_sha1);
+		return do_write_locked_index(istate, lock, flags);
 	}
-	strbuf_trim(&stash_sha1);
-
-	child.git_cmd = 1;
-	child.no_stdout = 1;
-	child.no_stderr = 1;
-	argv_array_push(&child.args, "stash");
-	argv_array_push(&child.args, "apply");
-	argv_array_push(&child.args, stash_sha1.buf);
-	if (!run_command(&child))
-		printf(_("Applied autostash.\n"));
-	else {
-		struct child_process store = CHILD_PROCESS_INIT;
-
-		store.git_cmd = 1;
-		argv_array_push(&store.args, "stash");
-		argv_array_push(&store.args, "store");
-		argv_array_push(&store.args, "-m");
-		argv_array_push(&store.args, "autostash");
-		argv_array_push(&store.args, "-q");
-		argv_array_push(&store.args, stash_sha1.buf);
-		if (run_command(&store))
-			ret = error(_("cannot store %s"), stash_sha1.buf);
-		else
-			printf(_("Applying autostash resulted in conflicts.\n"
-				"Your changes are safe in the stash.\n"
-				"You can run \"git stash pop\" or"
-				" \"git stash drop\" at any time.\n"));
+	move_cache_to_base_index(istate);
+	ret = do_write_index(si->base, &temporary_sharedindex, 1);
+	if (ret) {
+		delete_tempfile(&temporary_sharedindex);
+		return ret;
+	}
+	ret = adjust_shared_perm(get_tempfile_path(&temporary_sharedindex));
+	if (ret) {
+		int save_errno = errno;
+		error("cannot fix permission bits on %s", get_tempfile_path(&temporary_sharedindex));
+		delete_tempfile(&temporary_sharedindex);
+		errno = save_errno;
+		return ret;
+	}
+	ret = rename_tempfile(&temporary_sharedindex,
+			      git_path("sharedindex.%s", sha1_to_hex(si->base->sha1)));
+	if (!ret) {
+		hashcpy(si->base_sha1, si->base->sha1);
+		clean_shared_index_files(sha1_to_hex(si->base->sha1));
 	}
 
-	strbuf_release(&stash_sha1);
 	return ret;
 }

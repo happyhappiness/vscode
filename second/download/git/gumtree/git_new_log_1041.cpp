@@ -1,2 +1,3 @@
-warning(_("%s %s is not a commit!"),
-			ref_name, oid_to_hex(oid));
+fprintf(stderr, "cache-tree <%s> (%d ent, %d subtree) %s\n",
+			*buffer, it->entry_count, subtree_nr,
+			oid_to_hex(&it->oid));

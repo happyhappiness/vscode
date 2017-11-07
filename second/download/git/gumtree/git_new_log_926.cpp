@@ -1,1 +1,2 @@
-warning(_("submodule update strategy not supported for submodule '%s'"), ce->name);
+warning("invalid line while parsing alternate refs: %s",
+				line.buf);

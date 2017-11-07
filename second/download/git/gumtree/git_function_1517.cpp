@@ -1,44 +1,41 @@
-static void fix_unresolved_deltas(struct sha1file *f, int nr_unresolved)
+static void conclude_pack(int fix_thin_pack, const char *curr_pack, unsigned char *pack_sha1)
 {
-	struct delta_entry **sorted_by_pos;
-	int i, n = 0;
-
-	/*
-	 * Since many unresolved deltas may well be themselves base objects
-	 * for more unresolved deltas, we really want to include the
-	 * smallest number of base objects that would cover as much delta
-	 * as possible by picking the
-	 * trunc deltas first, allowing for other deltas to resolve without
-	 * additional base objects.  Since most base objects are to be found
-	 * before deltas depending on them, a good heuristic is to start
-	 * resolving deltas in the same order as their position in the pack.
-	 */
-	sorted_by_pos = xmalloc(nr_unresolved * sizeof(*sorted_by_pos));
-	for (i = 0; i < nr_deltas; i++) {
-		if (objects[deltas[i].obj_no].real_type != OBJ_REF_DELTA)
-			continue;
-		sorted_by_pos[n++] = &deltas[i];
+	if (nr_deltas == nr_resolved_deltas) {
+		stop_progress(&progress);
+		/* Flush remaining pack final 20-byte SHA1. */
+		flush();
+		return;
 	}
-	qsort(sorted_by_pos, n, sizeof(*sorted_by_pos), delta_pos_compare);
 
-	for (i = 0; i < n; i++) {
-		struct delta_entry *d = sorted_by_pos[i];
-		enum object_type type;
-		struct base_data *base_obj = alloc_base_data();
-
-		if (objects[d->obj_no].real_type != OBJ_REF_DELTA)
-			continue;
-		base_obj->data = read_sha1_file(d->base.sha1, &type, &base_obj->size);
-		if (!base_obj->data)
-			continue;
-
-		if (check_sha1_signature(d->base.sha1, base_obj->data,
-				base_obj->size, typename(type)))
-			die(_("local object %s is corrupt"), sha1_to_hex(d->base.sha1));
-		base_obj->obj = append_obj_to_pack(f, d->base.sha1,
-					base_obj->data, base_obj->size, type);
-		find_unresolved_deltas(base_obj);
-		display_progress(progress, nr_resolved_deltas);
+	if (fix_thin_pack) {
+		struct sha1file *f;
+		unsigned char read_sha1[20], tail_sha1[20];
+		struct strbuf msg = STRBUF_INIT;
+		int nr_unresolved = nr_deltas - nr_resolved_deltas;
+		int nr_objects_initial = nr_objects;
+		if (nr_unresolved <= 0)
+			die(_("confusion beyond insanity"));
+		REALLOC_ARRAY(objects, nr_objects + nr_unresolved + 1);
+		memset(objects + nr_objects + 1, 0,
+		       nr_unresolved * sizeof(*objects));
+		f = sha1fd(output_fd, curr_pack);
+		fix_unresolved_deltas(f, nr_unresolved);
+		strbuf_addf(&msg, _("completed with %d local objects"),
+			    nr_objects - nr_objects_initial);
+		stop_progress_msg(&progress, msg.buf);
+		strbuf_release(&msg);
+		sha1close(f, tail_sha1, 0);
+		hashcpy(read_sha1, pack_sha1);
+		fixup_pack_header_footer(output_fd, pack_sha1,
+					 curr_pack, nr_objects,
+					 read_sha1, consumed_bytes-20);
+		if (hashcmp(read_sha1, tail_sha1) != 0)
+			die(_("Unexpected tail checksum for %s "
+			      "(disk corruption?)"), curr_pack);
 	}
-	free(sorted_by_pos);
+	if (nr_deltas != nr_resolved_deltas)
+		die(Q_("pack has %d unresolved delta",
+		       "pack has %d unresolved deltas",
+		       nr_deltas - nr_resolved_deltas),
+		    nr_deltas - nr_resolved_deltas);
 }

@@ -1,14 +1,14 @@
-static int send_loop(h2_proxy_session *session)
+void h2_proxy_session_cleanup(h2_proxy_session *session, 
+                              h2_proxy_request_done *done)
 {
-    while (nghttp2_session_want_write(session->ngh2)) {
-        int rv = nghttp2_session_send(session->ngh2);
-        if (rv < 0 && nghttp2_is_fatal(rv)) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                          "h2_proxy_session(%s): write, rv=%d", session->id, rv);
-            dispatch_event(session, H2_PROXYS_EV_CONN_ERROR, rv, NULL);
-            break;
-        }
-        return 1;
+    if (session->streams && !h2_ihash_empty(session->streams)) {
+        cleanup_iter_ctx ctx;
+        ctx.session = session;
+        ctx.done = done;
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03366)
+                      "h2_proxy_session(%s): terminated, %d streams unfinished",
+                      session->id, (int)h2_ihash_count(session->streams));
+        h2_ihash_iter(session->streams, done_iter, &ctx);
+        h2_ihash_clear(session->streams);
     }
-    return 0;
 }

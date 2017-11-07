@@ -1,1 +1,1 @@
-printf("num get patch: %d\n", sb.num_get_patch);
+printf("num read blob: %d\n", sb.num_read_blob);

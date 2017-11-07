@@ -1,2 +1,2 @@
-die("size_t overflow: %"PRIuMAX" + %"PRIuMAX,
-		    (uintmax_t)a, (uintmax_t)b);
+die("-L argument not 'start,end:file' or ':funcname:file': %s",
+			    item->string);

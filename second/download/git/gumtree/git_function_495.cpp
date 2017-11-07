@@ -1,68 +1,35 @@
-void show_submodule_inline_diff(FILE *f, const char *path,
+void show_submodule_summary(FILE *f, const char *path,
 		const char *line_prefix,
 		struct object_id *one, struct object_id *two,
 		unsigned dirty_submodule, const char *meta,
-		const char *del, const char *add, const char *reset,
-		const struct diff_options *o)
+		const char *del, const char *add, const char *reset)
 {
-	const struct object_id *old = &empty_tree_oid, *new = &empty_tree_oid;
+	struct rev_info rev;
 	struct commit *left = NULL, *right = NULL;
 	struct commit_list *merge_bases = NULL;
-	struct strbuf submodule_dir = STRBUF_INIT;
-	struct child_process cp = CHILD_PROCESS_INIT;
 
 	show_submodule_header(f, path, line_prefix, one, two, dirty_submodule,
 			      meta, reset, &left, &right, &merge_bases);
 
-	/* We need a valid left and right commit to display a difference */
-	if (!(left || is_null_oid(one)) ||
-	    !(right || is_null_oid(two)))
-		goto done;
-
-	if (left)
-		old = one;
-	if (right)
-		new = two;
-
-	fflush(f);
-	cp.git_cmd = 1;
-	cp.dir = path;
-	cp.out = dup(fileno(f));
-	cp.no_stdin = 1;
-
-	/* TODO: other options may need to be passed here. */
-	argv_array_push(&cp.args, "diff");
-	argv_array_pushf(&cp.args, "--line-prefix=%s", line_prefix);
-	if (DIFF_OPT_TST(o, REVERSE_DIFF)) {
-		argv_array_pushf(&cp.args, "--src-prefix=%s%s/",
-				 o->b_prefix, path);
-		argv_array_pushf(&cp.args, "--dst-prefix=%s%s/",
-				 o->a_prefix, path);
-	} else {
-		argv_array_pushf(&cp.args, "--src-prefix=%s%s/",
-				 o->a_prefix, path);
-		argv_array_pushf(&cp.args, "--dst-prefix=%s%s/",
-				 o->b_prefix, path);
-	}
-	argv_array_push(&cp.args, oid_to_hex(old));
 	/*
-	 * If the submodule has modified content, we will diff against the
-	 * work tree, under the assumption that the user has asked for the
-	 * diff format and wishes to actually see all differences even if they
-	 * haven't yet been committed to the submodule yet.
+	 * If we don't have both a left and a right pointer, there is no
+	 * reason to try and display a summary. The header line should contain
+	 * all the information the user needs.
 	 */
-	if (!(dirty_submodule & DIRTY_SUBMODULE_MODIFIED))
-		argv_array_push(&cp.args, oid_to_hex(new));
+	if (!left || !right)
+		goto out;
 
-	if (run_command(&cp))
-		fprintf(f, "(diff failed)\n");
+	/* Treat revision walker failure the same as missing commits */
+	if (prepare_submodule_summary(&rev, path, left, right, merge_bases)) {
+		fprintf(f, "%s(revision walker failed)\n", line_prefix);
+		goto out;
+	}
 
-done:
-	strbuf_release(&submodule_dir);
+	print_submodule_summary(&rev, f, line_prefix, del, add, reset);
+
+out:
 	if (merge_bases)
 		free_commit_list(merge_bases);
-	if (left)
-		clear_commit_marks(left, ~0);
-	if (right)
-		clear_commit_marks(right, ~0);
+	clear_commit_marks(left, ~0);
+	clear_commit_marks(right, ~0);
 }

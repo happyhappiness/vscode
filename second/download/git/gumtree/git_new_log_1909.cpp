@@ -1,2 +1,1 @@
-die_errno(_("cannot symlink '%s' '%s'"),
-					  lnk.buf, path->buf);
+die_errno(_("cannot stat '%s'"), path->buf);

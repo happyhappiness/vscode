@@ -1,52 +1,74 @@
-static enum write_one_status write_one(struct sha1file *f,
-				       struct object_entry *e,
-				       off_t *offset)
+static off_t write_reuse_object(struct sha1file *f, struct object_entry *entry,
+				unsigned long limit, int usable_delta)
 {
-	off_t size;
-	int recursing;
+	struct packed_git *p = entry->in_pack;
+	struct pack_window *w_curs = NULL;
+	struct revindex_entry *revidx;
+	off_t offset;
+	enum object_type type = entry->type;
+	off_t datalen;
+	unsigned char header[MAX_PACK_OBJECT_HEADER],
+		      dheader[MAX_PACK_OBJECT_HEADER];
+	unsigned hdrlen;
 
-	/*
-	 * we set offset to 1 (which is an impossible value) to mark
-	 * the fact that this object is involved in "write its base
-	 * first before writing a deltified object" recursion.
-	 */
-	recursing = (e->idx.offset == 1);
-	if (recursing) {
-		warning("recursive delta detected for object %s",
-			sha1_to_hex(e->idx.sha1));
-		return WRITE_ONE_RECURSIVE;
-	} else if (e->idx.offset || e->preferred_base) {
-		/* offset is non zero if object is written already. */
-		return WRITE_ONE_SKIP;
+	if (entry->delta)
+		type = (allow_ofs_delta && entry->delta->idx.offset) ?
+			OBJ_OFS_DELTA : OBJ_REF_DELTA;
+	hdrlen = encode_in_pack_object_header(header, sizeof(header),
+					      type, entry->size);
+
+	offset = entry->in_pack_offset;
+	revidx = find_pack_revindex(p, offset);
+	datalen = revidx[1].offset - offset;
+	if (!pack_to_stdout && p->index_version > 1 &&
+	    check_pack_crc(p, &w_curs, offset, datalen, revidx->nr)) {
+		error("bad packed object CRC for %s", sha1_to_hex(entry->idx.sha1));
+		unuse_pack(&w_curs);
+		return write_no_reuse_object(f, entry, limit, usable_delta);
 	}
 
-	/* if we are deltified, write out base object first. */
-	if (e->delta) {
-		e->idx.offset = 1; /* now recurse */
-		switch (write_one(f, e->delta, offset)) {
-		case WRITE_ONE_RECURSIVE:
-			/* we cannot depend on this one */
-			e->delta = NULL;
-			break;
-		default:
-			break;
-		case WRITE_ONE_BREAK:
-			e->idx.offset = recursing;
-			return WRITE_ONE_BREAK;
+	offset += entry->in_pack_header_size;
+	datalen -= entry->in_pack_header_size;
+
+	if (!pack_to_stdout && p->index_version == 1 &&
+	    check_pack_inflate(p, &w_curs, offset, datalen, entry->size)) {
+		error("corrupt packed object for %s", sha1_to_hex(entry->idx.sha1));
+		unuse_pack(&w_curs);
+		return write_no_reuse_object(f, entry, limit, usable_delta);
+	}
+
+	if (type == OBJ_OFS_DELTA) {
+		off_t ofs = entry->idx.offset - entry->delta->idx.offset;
+		unsigned pos = sizeof(dheader) - 1;
+		dheader[pos] = ofs & 127;
+		while (ofs >>= 7)
+			dheader[--pos] = 128 | (--ofs & 127);
+		if (limit && hdrlen + sizeof(dheader) - pos + datalen + 20 >= limit) {
+			unuse_pack(&w_curs);
+			return 0;
 		}
+		sha1write(f, header, hdrlen);
+		sha1write(f, dheader + pos, sizeof(dheader) - pos);
+		hdrlen += sizeof(dheader) - pos;
+		reused_delta++;
+	} else if (type == OBJ_REF_DELTA) {
+		if (limit && hdrlen + 20 + datalen + 20 >= limit) {
+			unuse_pack(&w_curs);
+			return 0;
+		}
+		sha1write(f, header, hdrlen);
+		sha1write(f, entry->delta->idx.sha1, 20);
+		hdrlen += 20;
+		reused_delta++;
+	} else {
+		if (limit && hdrlen + datalen + 20 >= limit) {
+			unuse_pack(&w_curs);
+			return 0;
+		}
+		sha1write(f, header, hdrlen);
 	}
-
-	e->idx.offset = *offset;
-	size = write_object(f, e, *offset);
-	if (!size) {
-		e->idx.offset = recursing;
-		return WRITE_ONE_BREAK;
-	}
-	written_list[nr_written++] = &e->idx;
-
-	/* make sure off_t is sufficiently large not to wrap */
-	if (signed_add_overflows(*offset, size))
-		die("pack too large for current definition of off_t");
-	*offset += size;
-	return WRITE_ONE_WRITTEN;
+	copy_pack_data(f, p, &w_curs, offset, datalen);
+	unuse_pack(&w_curs);
+	reused++;
+	return hdrlen + datalen;
 }

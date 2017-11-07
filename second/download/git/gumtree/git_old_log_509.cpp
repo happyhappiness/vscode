@@ -1,2 +1,2 @@
 print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "stale info", porcelain);
+						 "needs force", porcelain);

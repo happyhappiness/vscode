@@ -1,63 +1,35 @@
-static int pump_io_round(struct io_pump *slots, int nr, struct pollfd *pfd)
+int ref_transaction_update(struct ref_transaction *transaction,
+			   const char *refname,
+			   const unsigned char *new_sha1,
+			   const unsigned char *old_sha1,
+			   unsigned int flags, const char *msg,
+			   struct strbuf *err)
 {
-	int pollsize = 0;
-	int i;
+	struct ref_update *update;
 
-	for (i = 0; i < nr; i++) {
-		struct io_pump *io = &slots[i];
-		if (io->fd < 0)
-			continue;
-		pfd[pollsize].fd = io->fd;
-		pfd[pollsize].events = io->type;
-		io->pfd = &pfd[pollsize++];
+	assert(err);
+
+	if (transaction->state != REF_TRANSACTION_OPEN)
+		die("BUG: update called for transaction that is not open");
+
+	if (new_sha1 && !is_null_sha1(new_sha1) &&
+	    check_refname_format(refname, REFNAME_ALLOW_ONELEVEL)) {
+		strbuf_addf(err, "refusing to update ref with bad name %s",
+			    refname);
+		return -1;
 	}
 
-	if (!pollsize)
-		return 0;
-
-	if (poll(pfd, pollsize, -1) < 0) {
-		if (errno == EINTR)
-			return 1;
-		die_errno("poll failed");
+	update = add_update(transaction, refname);
+	if (new_sha1) {
+		hashcpy(update->new_sha1, new_sha1);
+		flags |= REF_HAVE_NEW;
 	}
-
-	for (i = 0; i < nr; i++) {
-		struct io_pump *io = &slots[i];
-
-		if (io->fd < 0)
-			continue;
-
-		if (!(io->pfd->revents & (POLLOUT|POLLIN|POLLHUP|POLLERR|POLLNVAL)))
-			continue;
-
-		if (io->type == POLLOUT) {
-			ssize_t len = xwrite(io->fd,
-					     io->u.out.buf, io->u.out.len);
-			if (len < 0) {
-				io->error = errno;
-				close(io->fd);
-				io->fd = -1;
-			} else {
-				io->u.out.buf += len;
-				io->u.out.len -= len;
-				if (!io->u.out.len) {
-					close(io->fd);
-					io->fd = -1;
-				}
-			}
-		}
-
-		if (io->type == POLLIN) {
-			ssize_t len = strbuf_read_once(io->u.in.buf,
-						       io->fd, io->u.in.hint);
-			if (len < 0)
-				io->error = errno;
-			if (len <= 0) {
-				close(io->fd);
-				io->fd = -1;
-			}
-		}
+	if (old_sha1) {
+		hashcpy(update->old_sha1, old_sha1);
+		flags |= REF_HAVE_OLD;
 	}
-
-	return 1;
+	update->flags = flags;
+	if (msg)
+		update->msg = xstrdup(msg);
+	return 0;
 }

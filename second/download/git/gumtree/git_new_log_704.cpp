@@ -1,1 +1,2 @@
-die(_("could not lookup name for submodule '%s'"), path);
+die(_("relocate_gitdir for submodule '%s' with "
+		      "more than one worktree not supported"), path);

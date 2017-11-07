@@ -1,44 +1,32 @@
-static apr_status_t dbd_remove(request_rec * r, const char *key)
+static void restore_slotmem(void *ptr, const char *name, apr_size_t size,
+                            apr_pool_t *pool)
 {
-
+    const char *storename;
+    apr_file_t *fp;
+    apr_size_t nbytes = size;
     apr_status_t rv;
-    apr_dbd_prepared_t *statement;
-    int rows = 0;
 
-    session_dbd_dir_conf *conf = ap_get_module_config(r->per_dir_config,
-                                                      &session_dbd_module);
-    ap_dbd_t *dbd = session_dbd_acquire_fn(r);
-    if (dbd == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01861)
-                      "failed to acquire database connection to remove "
-                      "session with key '%s'", key);
-        return APR_EGENERAL;
+    storename = slotmem_filename(pool, name, 1);
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02335)
+                 "restoring %s", storename);
+
+    if (storename) {
+        rv = apr_file_open(&fp, storename, APR_READ | APR_WRITE, APR_OS_DEFAULT,
+                           pool);
+        if (rv == APR_SUCCESS) {
+            apr_finfo_t fi;
+            if (apr_file_info_get(&fi, APR_FINFO_SIZE, fp) == APR_SUCCESS) {
+                if (fi.size == nbytes) {
+                    apr_file_read(fp, ptr, &nbytes);
+                }
+                else {
+                    apr_file_close(fp);
+                    apr_file_remove(storename, pool);
+                    return;
+                }
+            }
+            apr_file_close(fp);
+        }
     }
-
-    if (conf->deletelabel == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01862)
-                      "no SessionDBDdeletelabel has been specified");
-        return APR_EGENERAL;
-    }
-
-    statement = apr_hash_get(dbd->prepared, conf->deletelabel,
-                             APR_HASH_KEY_STRING);
-    if (statement == NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01863)
-                      "prepared statement could not be found for "
-                      "SessionDBDdeletelabel with the label '%s'",
-                      conf->deletelabel);
-        return APR_EGENERAL;
-    }
-    rv = apr_dbd_pvbquery(dbd->driver, r->pool, dbd->handle, &rows, statement,
-                          key, NULL);
-    if (rv != APR_SUCCESS) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01864)
-                      "query execution error removing session '%s' "
-                      "from database", key);
-        return rv;
-    }
-
-    return APR_SUCCESS;
-
 }

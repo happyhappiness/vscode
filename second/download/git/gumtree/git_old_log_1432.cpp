@@ -1,1 +1,1 @@
-die("BUG: have_old is true but old_sha1 is NULL");
+die("BUG: create ref with null new_sha1");

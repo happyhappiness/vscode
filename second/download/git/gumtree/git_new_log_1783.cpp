@@ -1,1 +1,1 @@
-die_errno("unable to read alternates file");
+die("No path in gitfile: %s", path);

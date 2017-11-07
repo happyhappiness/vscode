@@ -1,2 +1,1 @@
-error(_("malformed options sheet: '%s'"),
-			git_path_opts_file());
+error(_("invalid value for %s: %s"), key, value);

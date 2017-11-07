@@ -1,1 +1,1 @@
-die("BUG: fatal merge failure, shouldn't happen.");
+err(o, _("cannot read object %s"), oid_to_hex(oid));

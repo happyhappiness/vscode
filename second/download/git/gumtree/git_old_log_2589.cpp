@@ -1,1 +1,1 @@
-die("bug: unknown header field %d", p->field);
+error("object %s: %s", oid_to_hex(&obj->oid), message);

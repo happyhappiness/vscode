@@ -1,51 +1,64 @@
-static void import_marks(char *input_file)
+static void show_filemodify(struct diff_queue_struct *q,
+			    struct diff_options *options, void *data)
 {
-	char line[512];
-	FILE *f = fopen(input_file, "r");
-	if (!f)
-		die_errno("cannot read '%s'", input_file);
+	int i;
 
-	while (fgets(line, sizeof(line), f)) {
-		uint32_t mark;
-		char *line_end, *mark_end;
-		unsigned char sha1[20];
-		struct object *object;
-		struct commit *commit;
-		enum object_type type;
+	/*
+	 * Handle files below a directory first, in case they are all deleted
+	 * and the directory changes to a file or symlink.
+	 */
+	QSORT(q->queue, q->nr, depth_first);
 
-		line_end = strchr(line, '\n');
-		if (line[0] != ':' || !line_end)
-			die("corrupt mark line: %s", line);
-		*line_end = '\0';
+	for (i = 0; i < q->nr; i++) {
+		struct diff_filespec *ospec = q->queue[i]->one;
+		struct diff_filespec *spec = q->queue[i]->two;
 
-		mark = strtoumax(line + 1, &mark_end, 10);
-		if (!mark || mark_end == line + 1
-			|| *mark_end != ' ' || get_sha1_hex(mark_end + 1, sha1))
-			die("corrupt mark line: %s", line);
+		switch (q->queue[i]->status) {
+		case DIFF_STATUS_DELETED:
+			printf("D ");
+			print_path(spec->path);
+			putchar('\n');
+			break;
 
-		if (last_idnum < mark)
-			last_idnum = mark;
+		case DIFF_STATUS_COPIED:
+		case DIFF_STATUS_RENAMED:
+			printf("%c ", q->queue[i]->status);
+			print_path(ospec->path);
+			putchar(' ');
+			print_path(spec->path);
+			putchar('\n');
 
-		type = sha1_object_info(sha1, NULL);
-		if (type < 0)
-			die("object not found: %s", sha1_to_hex(sha1));
+			if (!oidcmp(&ospec->oid, &spec->oid) &&
+			    ospec->mode == spec->mode)
+				break;
+			/* fallthrough */
 
-		if (type != OBJ_COMMIT)
-			/* only commits */
-			continue;
+		case DIFF_STATUS_TYPE_CHANGED:
+		case DIFF_STATUS_MODIFIED:
+		case DIFF_STATUS_ADDED:
+			/*
+			 * Links refer to objects in another repositories;
+			 * output the SHA-1 verbatim.
+			 */
+			if (no_data || S_ISGITLINK(spec->mode))
+				printf("M %06o %s ", spec->mode,
+				       sha1_to_hex(anonymize ?
+						   anonymize_sha1(spec->oid.hash) :
+						   spec->oid.hash));
+			else {
+				struct object *object = lookup_object(spec->oid.hash);
+				printf("M %06o :%d ", spec->mode,
+				       get_object_mark(object));
+			}
+			print_path(spec->path);
+			putchar('\n');
+			break;
 
-		commit = lookup_commit(sha1);
-		if (!commit)
-			die("not a commit? can't happen: %s", sha1_to_hex(sha1));
-
-		object = &commit->object;
-
-		if (object->flags & SHOWN)
-			error("Object %s already has a mark", sha1_to_hex(sha1));
-
-		mark_object(object, mark);
-
-		object->flags |= SHOWN;
+		default:
+			die("Unexpected comparison status '%c' for %s, %s",
+				q->queue[i]->status,
+				ospec->path ? ospec->path : "none",
+				spec->path ? spec->path : "none");
+		}
 	}
-	fclose(f);
 }

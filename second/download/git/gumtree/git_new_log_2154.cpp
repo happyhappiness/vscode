@@ -1,1 +1,1 @@
-die("BUG: unknown %%(objectname) option");
+error(_("malformed format string %s"), sp);

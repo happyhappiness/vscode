@@ -1,19 +1,47 @@
-static uint32_t *paint_alloc(struct paint_info *info)
+int sequencer_rollback(struct replay_opts *opts)
 {
-	unsigned nr = (info->nr_bits + 31) / 32;
-	unsigned size = nr * sizeof(uint32_t);
-	void *p;
-	if (!info->pool_count || size > info->end - info->free) {
-		if (size > POOL_SIZE)
-			die("BUG: pool size too small for %d in paint_alloc()",
-			    size);
-		info->pool_count++;
-		REALLOC_ARRAY(info->pools, info->pool_count);
-		info->free = xmalloc(POOL_SIZE);
-		info->pools[info->pool_count - 1] = info->free;
-		info->end = info->free + POOL_SIZE;
+	FILE *f;
+	unsigned char sha1[20];
+	struct strbuf buf = STRBUF_INIT;
+
+	f = fopen(git_path_head_file(), "r");
+	if (!f && errno == ENOENT) {
+		/*
+		 * There is no multiple-cherry-pick in progress.
+		 * If CHERRY_PICK_HEAD or REVERT_HEAD indicates
+		 * a single-cherry-pick in progress, abort that.
+		 */
+		return rollback_single_pick();
 	}
-	p = info->free;
-	info->free += size;
-	return p;
+	if (!f)
+		return error_errno(_("cannot open '%s'"), git_path_head_file());
+	if (strbuf_getline_lf(&buf, f)) {
+		error(_("cannot read '%s': %s"), git_path_head_file(),
+		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));
+		fclose(f);
+		goto fail;
+	}
+	fclose(f);
+	if (get_sha1_hex(buf.buf, sha1) || buf.buf[40] != '\0') {
+		error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
+			git_path_head_file());
+		goto fail;
+	}
+	if (is_null_sha1(sha1)) {
+		error(_("cannot abort from a branch yet to be born"));
+		goto fail;
+	}
+
+	if (!rollback_is_safe()) {
+		/* Do not error, just do not rollback */
+		warning(_("You seem to have moved HEAD. "
+			  "Not rewinding, check your HEAD!"));
+	} else
+	if (reset_for_rollback(sha1))
+		goto fail;
+	strbuf_release(&buf);
+	return sequencer_remove_state(opts);
+fail:
+	strbuf_release(&buf);
+	return -1;
 }

@@ -1,1 +1,2 @@
-packet_write_fmt(fd, "shallow %s\n", oid_to_hex(&graft->oid));
+die("unable to parse commit %s",
+			    oid_to_hex(&c->object.oid));

@@ -1,1 +1,1 @@
-error(_("cannot read HEAD"));
+error(_("unknown command %d"), item->command);

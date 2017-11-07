@@ -1,1 +1,1 @@
-die(_("unrecognized width:%s"), s);
+die(_("unrecognized position:%s"), s);

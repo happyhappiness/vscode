@@ -1,1 +1,1 @@
-objreport(obj, "error", err, params);
+fputs("\n", stderr);

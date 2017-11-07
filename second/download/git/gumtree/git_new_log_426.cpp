@@ -1,1 +1,1 @@
-die_errno("packet write with format failed");
+error("flush packet write failed");

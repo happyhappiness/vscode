@@ -1,1 +1,3 @@
-die("submodule--helper remote-branch takes exactly one arguments, got %d", argc);
+die(_("Submodule (%s) branch configured to inherit "
+			      "branch from superproject, but the superproject "
+			      "is not on any branch"), sub->name);

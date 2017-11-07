@@ -1,59 +1,35 @@
-static int start_multi_file_filter_fn(struct subprocess_entry *subprocess)
+static int list_tags(struct ref_filter *filter, struct ref_sorting *sorting,
+		     struct ref_format *format)
 {
-	int err;
-	struct cmd2process *entry = (struct cmd2process *)subprocess;
-	struct string_list cap_list = STRING_LIST_INIT_NODUP;
-	char *cap_buf;
-	const char *cap_name;
-	struct child_process *process = &subprocess->process;
-	const char *cmd = subprocess->cmd;
+	struct ref_array array;
+	char *to_free = NULL;
+	int i;
 
-	sigchain_push(SIGPIPE, SIG_IGN);
+	memset(&array, 0, sizeof(array));
 
-	err = packet_writel(process->in, "git-filter-client", "version=2", NULL);
-	if (err)
-		goto done;
+	if (filter->lines == -1)
+		filter->lines = 0;
 
-	err = strcmp(packet_read_line(process->out, NULL), "git-filter-server");
-	if (err) {
-		error("external filter '%s' does not support filter protocol version 2", cmd);
-		goto done;
-	}
-	err = strcmp(packet_read_line(process->out, NULL), "version=2");
-	if (err)
-		goto done;
-	err = packet_read_line(process->out, NULL) != NULL;
-	if (err)
-		goto done;
-
-	err = packet_writel(process->in, "capability=clean", "capability=smudge", NULL);
-
-	for (;;) {
-		cap_buf = packet_read_line(process->out, NULL);
-		if (!cap_buf)
-			break;
-		string_list_split_in_place(&cap_list, cap_buf, '=', 1);
-
-		if (cap_list.nr != 2 || strcmp(cap_list.items[0].string, "capability"))
-			continue;
-
-		cap_name = cap_list.items[1].string;
-		if (!strcmp(cap_name, "clean")) {
-			entry->supported_capabilities |= CAP_CLEAN;
-		} else if (!strcmp(cap_name, "smudge")) {
-			entry->supported_capabilities |= CAP_SMUDGE;
-		} else {
-			warning(
-				"external filter '%s' requested unsupported filter capability '%s'",
-				cmd, cap_name
-			);
-		}
-
-		string_list_clear(&cap_list, 0);
+	if (!format->format) {
+		if (filter->lines) {
+			to_free = xstrfmt("%s %%(contents:lines=%d)",
+					  "%(align:15)%(refname:lstrip=2)%(end)",
+					  filter->lines);
+			format->format = to_free;
+		} else
+			format->format = "%(refname:lstrip=2)";
 	}
 
-done:
-	sigchain_pop(SIGPIPE);
+	if (verify_ref_format(format))
+		die(_("unable to parse format string"));
+	filter->with_commit_tag_algo = 1;
+	filter_refs(&array, filter, FILTER_REFS_TAGS);
+	ref_array_sort(sorting, &array);
 
-	return err;
+	for (i = 0; i < array.nr; i++)
+		show_ref_array_item(array.items[i], format);
+	ref_array_clear(&array);
+	free(to_free);
+
+	return 0;
 }

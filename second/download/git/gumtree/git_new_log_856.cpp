@@ -1,1 +1,1 @@
-die("BUG: should have same number of entries");
+die(_("invalid attribute name %s"), attr_name);

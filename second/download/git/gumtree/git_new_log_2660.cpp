@@ -1,2 +1,1 @@
-die("malformed build-time PAGER_ENV: %s",
-			split_cmdline_strerror(n));
+get_ref(base_list[i], oid_to_hex(base_list[i]));

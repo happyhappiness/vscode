@@ -1,1 +1,1 @@
-err(o, msg, path, _(": perhaps a D/F conflict?"));
+err(o, msg, path, "");

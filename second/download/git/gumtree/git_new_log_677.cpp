@@ -1,1 +1,1 @@
-error(_("could not remove CHERRY_PICK_HEAD"));
+error(_("cannot rebase: You have unstaged changes."));

@@ -1,1 +1,1 @@
-fprintf(rev->diffopt.file, "\n");
+fprintf(file, "-- \n%s", signature);

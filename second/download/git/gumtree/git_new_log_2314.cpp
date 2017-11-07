@@ -1,1 +1,1 @@
-warning_errno("realloc failed");
+warning_errno("malloc failed");

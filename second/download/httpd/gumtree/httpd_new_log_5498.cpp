@@ -1,10 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c, APLOGNO(03200)
-                          "h2_session(%ld) created, max_streams=%d, "
-                          "stream_mem=%d, workers_limit=%d, workers_max=%d, "
-                          "push_diary(type=%d,N=%d)",
-                          session->id, (int)session->max_stream_count, 
-                          (int)session->max_stream_mem,
-                          session->mplx->workers_limit, 
-                          session->mplx->workers_max, 
-                          session->push_diary->dtype, 
-                          (int)session->push_diary->N);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, session->r, APLOGNO(03070)
+                          "upgrading h2c session with HTTP2-Settings: %s -> %s (%d)",
+                          s, buffer, (int)dlen);

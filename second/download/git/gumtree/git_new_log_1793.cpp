@@ -1,1 +1,1 @@
-die("helper %s does not support --signed=if-asked", name);
+die("helper %s does not support --signed", name);

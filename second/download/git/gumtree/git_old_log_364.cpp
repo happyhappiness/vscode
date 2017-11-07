@@ -1,1 +1,1 @@
-die("--stateless-rpc requires multi_ack_detailed");
+die("git fetch_pack: expected ACK/NAK, got '%s'", line);

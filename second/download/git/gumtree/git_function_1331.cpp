@@ -1,19 +1,22 @@
-int delete_ref(const char *refname, const unsigned char *sha1, int delopt)
+static void prune_ref(struct ref_to_prune *r)
 {
 	struct ref_transaction *transaction;
 	struct strbuf err = STRBUF_INIT;
 
+	if (check_refname_format(r->name, 0))
+		return;
+
 	transaction = ref_transaction_begin(&err);
 	if (!transaction ||
-	    ref_transaction_delete(transaction, refname, sha1, delopt,
-				   sha1 && !is_null_sha1(sha1), NULL, &err) ||
+	    ref_transaction_delete(transaction, r->name, r->sha1,
+				   REF_ISPRUNING, 1, NULL, &err) ||
 	    ref_transaction_commit(transaction, &err)) {
-		error("%s", err.buf);
 		ref_transaction_free(transaction);
+		error("%s", err.buf);
 		strbuf_release(&err);
-		return 1;
+		return;
 	}
 	ref_transaction_free(transaction);
 	strbuf_release(&err);
-	return 0;
+	try_remove_empty_parents(r->name);
 }

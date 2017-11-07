@@ -1,3 +1,1 @@
-warning(_("not sending a push certificate since the"
-				  " receiving end does not support --signed"
-				  " push"));
+die("bad %s argument: %s", opt->long_name, arg);

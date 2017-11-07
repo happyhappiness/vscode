@@ -1,22 +1,16 @@
-static void check_embedded_repo(const char *path)
+static void dos_time(timestamp_t *timestamp, int *dos_date, int *dos_time)
 {
-	struct strbuf name = STRBUF_INIT;
+	time_t time;
+	struct tm *t;
 
-	if (!warn_on_embedded_repo)
-		return;
-	if (!ends_with(path, "/"))
-		return;
+	if (date_overflows(*timestamp))
+		die("timestamp too large for this system: %"PRItime,
+		    *timestamp);
+	time = (time_t)*timestamp;
+	t = localtime(&time);
+	*timestamp = time;
 
-	/* Drop trailing slash for aesthetics */
-	strbuf_addstr(&name, path);
-	strbuf_strip_suffix(&name, "/");
-
-	warning(_("adding embedded git repository: %s"), name.buf);
-	if (advice_add_embedded_repo) {
-		advise(embedded_advice, name.buf, name.buf);
-		/* there may be multiple entries; advise only once */
-		advice_add_embedded_repo = 0;
-	}
-
-	strbuf_release(&name);
+	*dos_date = t->tm_mday + (t->tm_mon + 1) * 32 +
+	            (t->tm_year + 1900 - 1980) * 512;
+	*dos_time = t->tm_sec / 2 + t->tm_min * 32 + t->tm_hour * 2048;
 }

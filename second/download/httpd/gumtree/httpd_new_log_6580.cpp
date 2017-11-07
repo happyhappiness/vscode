@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "%s: %s" NL, argv[0], errstr);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02455)
+                      "AuthBasicFake: could not evaluate user expression for URI '%s': %s", r->uri, err);

@@ -1,2 +1,1 @@
-err(o, _("failed to open '%s': %s"),
-					  path, strerror(errno));
+err(o, _("cannot read object %s '%s'"), oid_to_hex(oid), path);

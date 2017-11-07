@@ -1,1 +1,1 @@
-die(_("invalid commit %s"), oid_to_hex(result_oid));
+packet_buf_write(&req_buf, "have %s\n", oid_to_hex(oid));

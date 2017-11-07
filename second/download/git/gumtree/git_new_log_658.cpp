@@ -1,2 +1,2 @@
-error(_("could not copy '%s' to '%s'"),
-			     rebase_path_message(), git_path("MERGE_MSG"));
+error(_("could not rename '%s' to '%s'"),
+			rebase_path_squash_msg(), rebase_path_message());

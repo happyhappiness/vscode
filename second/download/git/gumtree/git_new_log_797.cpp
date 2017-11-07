@@ -1,1 +1,1 @@
-error("%s: invalid reflog entry %s", refname, oid_to_hex(oid));
+error("Object %s already has a mark", oid_to_hex(&oid));

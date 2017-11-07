@@ -1,1 +1,1 @@
-die("create %s: missing <newvalue>", refname);
+die("create: missing <ref>");

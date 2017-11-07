@@ -1,69 +1,120 @@
-int main(int argc, char **argv)
+struct child_process *git_connect(int fd[2], const char *url,
+				  const char *prog, int flags)
 {
-	struct strbuf all_msgs = STRBUF_INIT;
-	int total;
-	int nongit_ok;
+	char *hostandport, *path;
+	struct child_process *conn = &no_fork;
+	enum protocol protocol;
+	struct strbuf cmd = STRBUF_INIT;
 
-	git_extract_argv0_path(argv[0]);
+	/* Without this we cannot rely on waitpid() to tell
+	 * what happened to our children.
+	 */
+	signal(SIGCHLD, SIG_DFL);
 
-	git_setup_gettext();
+	protocol = parse_connect_url(url, &hostandport, &path);
+	if ((flags & CONNECT_DIAG_URL) && (protocol != PROTO_SSH)) {
+		printf("Diag: url=%s\n", url ? url : "NULL");
+		printf("Diag: protocol=%s\n", prot_name(protocol));
+		printf("Diag: hostandport=%s\n", hostandport ? hostandport : "NULL");
+		printf("Diag: path=%s\n", path ? path : "NULL");
+		conn = NULL;
+	} else if (protocol == PROTO_GIT) {
+		/*
+		 * Set up virtual host information based on where we will
+		 * connect, unless the user has overridden us in
+		 * the environment.
+		 */
+		char *target_host = getenv("GIT_OVERRIDE_VIRTUAL_HOST");
+		if (target_host)
+			target_host = xstrdup(target_host);
+		else
+			target_host = xstrdup(hostandport);
 
-	setup_git_directory_gently(&nongit_ok);
-	git_imap_config();
+		/* These underlying connection commands die() if they
+		 * cannot connect.
+		 */
+		if (git_use_proxy(hostandport))
+			conn = git_proxy_connect(fd, hostandport);
+		else
+			git_tcp_connect(fd, hostandport, flags);
+		/*
+		 * Separate original protocol components prog and path
+		 * from extended host header with a NUL byte.
+		 *
+		 * Note: Do not add any other headers here!  Doing so
+		 * will cause older git-daemon servers to crash.
+		 */
+		packet_write(fd[1],
+			     "%s %s%chost=%s%c",
+			     prog, path, 0,
+			     target_host, 0);
+		free(target_host);
+	} else {
+		conn = xmalloc(sizeof(*conn));
+		child_process_init(conn);
 
-	argc = parse_options(argc, (const char **)argv, "", imap_send_options, imap_send_usage, 0);
+		strbuf_addstr(&cmd, prog);
+		strbuf_addch(&cmd, ' ');
+		sq_quote_buf(&cmd, path);
 
-	if (argc)
-		usage_with_options(imap_send_usage, imap_send_options);
+		conn->in = conn->out = -1;
+		if (protocol == PROTO_SSH) {
+			const char *ssh;
+			int putty;
+			char *ssh_host = hostandport;
+			const char *port = NULL;
+			get_host_and_port(&ssh_host, &port);
 
-#ifndef USE_CURL_FOR_IMAP_SEND
-	if (use_curl) {
-		warning("--use-curl not supported in this build");
-		use_curl = 0;
-	}
-#endif
+			if (!port)
+				port = get_port(ssh_host);
 
-	if (!server.port)
-		server.port = server.use_ssl ? 993 : 143;
+			if (flags & CONNECT_DIAG_URL) {
+				printf("Diag: url=%s\n", url ? url : "NULL");
+				printf("Diag: protocol=%s\n", prot_name(protocol));
+				printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+				printf("Diag: port=%s\n", port ? port : "NONE");
+				printf("Diag: path=%s\n", path ? path : "NULL");
 
-	if (!server.folder) {
-		fprintf(stderr, "no imap store specified\n");
-		return 1;
-	}
-	if (!server.host) {
-		if (!server.tunnel) {
-			fprintf(stderr, "no imap host specified\n");
-			return 1;
+				free(hostandport);
+				free(path);
+				return NULL;
+			} else {
+				ssh = getenv("GIT_SSH_COMMAND");
+				if (ssh) {
+					conn->use_shell = 1;
+					putty = 0;
+				} else {
+					ssh = getenv("GIT_SSH");
+					if (!ssh)
+						ssh = "ssh";
+					putty = !!strcasestr(ssh, "plink");
+				}
+
+				argv_array_push(&conn->args, ssh);
+				if (putty && !strcasestr(ssh, "tortoiseplink"))
+					argv_array_push(&conn->args, "-batch");
+				if (port) {
+					/* P is for PuTTY, p is for OpenSSH */
+					argv_array_push(&conn->args, putty ? "-P" : "-p");
+					argv_array_push(&conn->args, port);
+				}
+				argv_array_push(&conn->args, ssh_host);
+			}
+		} else {
+			/* remove repo-local variables from the environment */
+			conn->env = local_repo_env;
+			conn->use_shell = 1;
 		}
-		server.host = "tunnel";
+		argv_array_push(&conn->args, cmd.buf);
+
+		if (start_command(conn))
+			die("unable to fork");
+
+		fd[0] = conn->out; /* read from child's stdout */
+		fd[1] = conn->in;  /* write to child's stdin */
+		strbuf_release(&cmd);
 	}
-
-	/* read the messages */
-	if (read_message(stdin, &all_msgs)) {
-		fprintf(stderr, "error reading input\n");
-		return 1;
-	}
-
-	if (all_msgs.len == 0) {
-		fprintf(stderr, "nothing to send\n");
-		return 1;
-	}
-
-	total = count_messages(&all_msgs);
-	if (!total) {
-		fprintf(stderr, "no messages to send\n");
-		return 1;
-	}
-
-	/* write it to the imap server */
-
-	if (server.tunnel)
-		return append_msgs_to_imap(&server, &all_msgs, total);
-
-#ifdef USE_CURL_FOR_IMAP_SEND
-	if (use_curl)
-		return curl_append_msgs_to_imap(&server, &all_msgs, total);
-#endif
-
-	return append_msgs_to_imap(&server, &all_msgs, total);
+	free(hostandport);
+	free(path);
+	return conn;
 }

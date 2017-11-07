@@ -1,1 +1,1 @@
-die(_("object not found: %s"), line);
+die(_("invalid unshallow line: %s"), line);

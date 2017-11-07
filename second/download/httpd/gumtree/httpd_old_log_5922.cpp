@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_EEXIST, r, APLOGNO(00779)
-                "Could not stat a cache lock file: %s",
-                lockname);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00768)
+                "cache: %s not cached. Reason: %s", r->unparsed_uri,
+                reason);

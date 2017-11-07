@@ -14,2721 +14,2394 @@
  * limitations under the License.
  */
 
-/* Utility routines for Apache proxy */
-#include "mod_proxy.h"
-#include "ap_mpm.h"
-#include "scoreboard.h"
-#include "apr_version.h"
-#include "apr_hash.h"
-#include "proxy_util.h"
-
-#if APR_HAVE_UNISTD_H
-#include <unistd.h>         /* for getpid() */
-#endif
-
-#if (APR_MAJOR_VERSION < 1)
-#undef apr_socket_create
-#define apr_socket_create apr_socket_create_ex
-#endif
-
-APLOG_USE_MODULE(proxy);
+/*
+   ** This program is based on ZeusBench V1.0 written by Adam Twiss
+   ** which is Copyright (c) 1996 by Zeus Technology Ltd. http://www.zeustech.net/
+   **
+   ** This software is provided "as is" and any express or implied waranties,
+   ** including but not limited to, the implied warranties of merchantability and
+   ** fitness for a particular purpose are disclaimed.  In no event shall
+   ** Zeus Technology Ltd. be liable for any direct, indirect, incidental, special,
+   ** exemplary, or consequential damaged (including, but not limited to,
+   ** procurement of substitute good or services; loss of use, data, or profits;
+   ** or business interruption) however caused and on theory of liability.  Whether
+   ** in contract, strict liability or tort (including negligence or otherwise)
+   ** arising in any way out of the use of this software, even if advised of the
+   ** possibility of such damage.
+   **
+ */
 
 /*
- * Opaque structure containing target server info when
- * using a forward proxy.
- * Up to now only used in combination with HTTP CONNECT.
- */
-typedef struct {
-    int          use_http_connect; /* Use SSL Tunneling via HTTP CONNECT */
-    const char   *target_host;     /* Target hostname */
-    apr_port_t   target_port;      /* Target port */
-    const char   *proxy_auth;      /* Proxy authorization */
-} forward_info;
+   ** HISTORY:
+   **    - Originally written by Adam Twiss <adam@zeus.co.uk>, March 1996
+   **      with input from Mike Belshe <mbelshe@netscape.com> and
+   **      Michael Campanella <campanella@stevms.enet.dec.com>
+   **    - Enhanced by Dean Gaudet <dgaudet@apache.org>, November 1997
+   **    - Cleaned up by Ralf S. Engelschall <rse@apache.org>, March 1998
+   **    - POST and verbosity by Kurt Sussman <kls@merlot.com>, August 1998
+   **    - HTML table output added by David N. Welton <davidw@prosa.it>, January 1999
+   **    - Added Cookie, Arbitrary header and auth support. <dirkx@webweaving.org>, April 1999
+   ** Version 1.3d
+   **    - Increased version number - as some of the socket/error handling has
+   **      fundamentally changed - and will give fundamentally different results
+   **      in situations where a server is dropping requests. Therefore you can
+   **      no longer compare results of AB as easily. Hence the inc of the version.
+   **      They should be closer to the truth though. Sander & <dirkx@covalent.net>, End 2000.
+   **    - Fixed proxy functionality, added median/mean statistics, added gnuplot
+   **      output option, added _experimental/rudimentary_ SSL support. Added
+   **      confidence guestimators and warnings. Sander & <dirkx@covalent.net>, End 2000
+   **    - Fixed serious int overflow issues which would cause realistic (longer
+   **      than a few minutes) run's to have wrong (but believable) results. Added
+   **      trapping of connection errors which influenced measurements.
+   **      Contributed by Sander Temme, Early 2001
+   ** Version 1.3e
+   **    - Changed timeout behavour during write to work whilst the sockets
+   **      are filling up and apr_write() does writes a few - but not all.
+   **      This will potentially change results. <dirkx@webweaving.org>, April 2001
+   ** Version 2.0.36-dev
+   **    Improvements to concurrent processing:
+   **      - Enabled non-blocking connect()s.
+   **      - Prevent blocking calls to apr_socket_recv() (thereby allowing AB to
+   **        manage its entire set of socket descriptors).
+   **      - Any error returned from apr_socket_recv() that is not EAGAIN or EOF
+   **        is now treated as fatal.
+   **      Contributed by Aaron Bannert, April 24, 2002
+   **
+   ** Version 2.0.36-2
+   **     Internalized the version string - this string is part
+   **     of the Agent: header and the result output.
+   **
+   ** Version 2.0.37-dev
+   **     Adopted SSL code by Madhu Mathihalli <madhusudan_mathihalli@hp.com>
+   **     [PATCH] ab with SSL support  Posted Wed, 15 Aug 2001 20:55:06 GMT
+   **     Introduces four 'if (int == value)' tests per non-ssl request.
+   **
+   ** Version 2.0.40-dev
+   **     Switched to the new abstract pollset API, allowing ab to
+   **     take advantage of future apr_pollset_t scalability improvements.
+   **     Contributed by Brian Pane, August 31, 2002
+   **
+   ** Version 2.3
+   **     SIGINT now triggers output_results().
+   **     Contributed by colm, March 30, 2006
+   **/
 
-/* Keep synced with mod_proxy.h! */
-static struct wstat {
-    unsigned int bit;
-    char flag;
-    const char *name;
-} wstat_tbl[] = {
-    {PROXY_WORKER_INITIALIZED,   PROXY_WORKER_INITIALIZED_FLAG,   "Init "},
-    {PROXY_WORKER_IGNORE_ERRORS, PROXY_WORKER_IGNORE_ERRORS_FLAG, "Ign "},
-    {PROXY_WORKER_DRAIN,         PROXY_WORKER_DRAIN_FLAG,         "Drn "},
-    {PROXY_WORKER_IN_SHUTDOWN,   PROXY_WORKER_IN_SHUTDOWN_FLAG,   "Shut "},
-    {PROXY_WORKER_DISABLED,      PROXY_WORKER_DISABLED_FLAG,      "Dis "},
-    {PROXY_WORKER_STOPPED,       PROXY_WORKER_STOPPED_FLAG,       "Stop "},
-    {PROXY_WORKER_IN_ERROR,      PROXY_WORKER_IN_ERROR_FLAG,      "Err "},
-    {PROXY_WORKER_HOT_STANDBY,   PROXY_WORKER_HOT_STANDBY_FLAG,   "Stby "},
-    {PROXY_WORKER_FREE,          PROXY_WORKER_FREE_FLAG,          "Free "},
-    {0x0, '\0', NULL}
+/* Note: this version string should start with \d+[\d\.]* and be a valid
+ * string for an HTTP Agent: header when prefixed with 'ApacheBench/'.
+ * It should reflect the version of AB - and not that of the apache server
+ * it happens to accompany. And it should be updated or changed whenever
+ * the results are no longer fundamentally comparable to the results of
+ * a previous version of ab. Either due to a change in the logic of
+ * ab - or to due to a change in the distribution it is compiled with
+ * (such as an APR change in for example blocking).
+ */
+#define AP_AB_BASEREVISION "2.3"
+
+/*
+ * BUGS:
+ *
+ * - uses strcpy/etc.
+ * - has various other poor buffer attacks related to the lazy parsing of
+ *   response headers from the server
+ * - doesn't implement much of HTTP/1.x, only accepts certain forms of
+ *   responses
+ * - (performance problem) heavy use of strstr shows up top in profile
+ *   only an issue for loopback usage
+ */
+
+/*  -------------------------------------------------------------------- */
+
+#if 'A' != 0x41
+/* Hmmm... This source code isn't being compiled in ASCII.
+ * In order for data that flows over the network to make
+ * sense, we need to translate to/from ASCII.
+ */
+#define NOT_ASCII
+#endif
+
+/* affects include files on Solaris */
+#define BSD_COMP
+
+#include "apr.h"
+#include "apr_signal.h"
+#include "apr_strings.h"
+#include "apr_network_io.h"
+#include "apr_file_io.h"
+#include "apr_time.h"
+#include "apr_getopt.h"
+#include "apr_general.h"
+#include "apr_lib.h"
+#include "apr_portable.h"
+#include "ap_release.h"
+#include "apr_poll.h"
+
+#define APR_WANT_STRFUNC
+#include "apr_want.h"
+
+#include "apr_base64.h"
+#ifdef NOT_ASCII
+#include "apr_xlate.h"
+#endif
+#if APR_HAVE_STDIO_H
+#include <stdio.h>
+#endif
+#if APR_HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#if APR_HAVE_UNISTD_H
+#include <unistd.h> /* for getpid() */
+#endif
+
+#if !defined(WIN32) && !defined(NETWARE)
+#include "ap_config_auto.h"
+#endif
+
+#if defined(HAVE_OPENSSL)
+
+#include <openssl/rsa.h>
+#include <openssl/crypto.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#define USE_SSL
+#define SK_NUM(x) sk_X509_num(x)
+#define SK_VALUE(x,y) sk_X509_value(x,y)
+typedef STACK_OF(X509) X509_STACK_TYPE;
+
+#endif
+
+#if defined(USE_SSL)
+#if (OPENSSL_VERSION_NUMBER >= 0x00909000)
+#define AB_SSL_METHOD_CONST const
+#else
+#define AB_SSL_METHOD_CONST
+#endif
+#if (OPENSSL_VERSION_NUMBER >= 0x0090707f)
+#define AB_SSL_CIPHER_CONST const
+#else
+#define AB_SSL_CIPHER_CONST
+#endif
+#ifdef SSL_OP_NO_TLSv1_2
+#define HAVE_TLSV1_X
+#endif
+#endif
+
+#include <math.h>
+#if APR_HAVE_CTYPE_H
+#include <ctype.h>
+#endif
+#if APR_HAVE_LIMITS_H
+#include <limits.h>
+#endif
+
+/* ------------------- DEFINITIONS -------------------------- */
+
+#ifndef LLONG_MAX
+#define AB_MAX APR_INT64_C(0x7fffffffffffffff)
+#else
+#define AB_MAX LLONG_MAX
+#endif
+
+/* maximum number of requests on a time limited test */
+#define MAX_REQUESTS (INT_MAX > 50000 ? 50000 : INT_MAX)
+
+/* connection state
+ * don't add enums or rearrange or otherwise change values without
+ * visiting set_conn_state()
+ */
+typedef enum {
+    STATE_UNCONNECTED = 0,
+    STATE_CONNECTING,           /* TCP connect initiated, but we don't
+                                 * know if it worked yet
+                                 */
+    STATE_CONNECTED,            /* we know TCP connect completed */
+    STATE_READ
+} connect_state_e;
+
+#define CBUFFSIZE (2048)
+
+struct connection {
+    apr_pool_t *ctx;
+    apr_socket_t *aprsock;
+    apr_pollfd_t pollfd;
+    int state;
+    apr_size_t read;            /* amount of bytes read */
+    apr_size_t bread;           /* amount of body read */
+    apr_size_t rwrite, rwrote;  /* keep pointers in what we write - across
+                                 * EAGAINs */
+    apr_size_t length;          /* Content-Length value used for keep-alive */
+    char cbuff[CBUFFSIZE];      /* a buffer to store server response header */
+    int cbx;                    /* offset in cbuffer */
+    int keepalive;              /* non-zero if a keep-alive request */
+    int gotheader;              /* non-zero if we have the entire header in
+                                 * cbuff */
+    apr_time_t start,           /* Start of connection */
+               connect,         /* Connected, start writing */
+               endwrite,        /* Request written */
+               beginread,       /* First byte of input */
+               done;            /* Connection closed */
+
+    int socknum;
+#ifdef USE_SSL
+    SSL *ssl;
+#endif
 };
 
-/* Global balancer counter */
-int PROXY_DECLARE_DATA proxy_lb_workers = 0;
-static int lb_workers_limit = 0;
-const apr_strmatch_pattern PROXY_DECLARE_DATA *ap_proxy_strmatch_path;
-const apr_strmatch_pattern PROXY_DECLARE_DATA *ap_proxy_strmatch_domain;
+struct data {
+    apr_time_t starttime;         /* start time of connection */
+    apr_interval_time_t waittime; /* between request and reading response */
+    apr_interval_time_t ctime;    /* time to connect */
+    apr_interval_time_t time;     /* time for connection */
+};
 
-static int proxy_match_ipaddr(struct dirconn_entry *This, request_rec *r);
-static int proxy_match_domainname(struct dirconn_entry *This, request_rec *r);
-static int proxy_match_hostname(struct dirconn_entry *This, request_rec *r);
-static int proxy_match_word(struct dirconn_entry *This, request_rec *r);
+#define ap_min(a,b) (((a)<(b))?(a):(b))
+#define ap_max(a,b) (((a)>(b))?(a):(b))
+#define ap_round_ms(a) ((apr_time_t)((a) + 500)/1000)
+#define ap_double_ms(a) ((double)(a)/1000.0)
+#define MAX_CONCURRENCY 20000
 
-APR_IMPLEMENT_OPTIONAL_HOOK_RUN_ALL(proxy, PROXY, int, create_req,
-                                   (request_rec *r, request_rec *pr), (r, pr),
-                                   OK, DECLINED)
+/* --------------------- GLOBALS ---------------------------- */
 
-PROXY_DECLARE(apr_status_t) ap_proxy_strncpy(char *dst, const char *src,
-                                             apr_size_t dlen)
+int verbosity = 0;      /* no verbosity by default */
+int recverrok = 0;      /* ok to proceed after socket receive errors */
+enum {NO_METH = 0, GET, HEAD, PUT, POST, CUSTOM_METHOD} method = NO_METH;
+const char *method_str[] = {"bug", "GET", "HEAD", "PUT", "POST", ""};
+int send_body = 0;      /* non-zero if sending body with request */
+int requests = 1;       /* Number of requests to make */
+int heartbeatres = 100; /* How often do we say we're alive */
+int concurrency = 1;    /* Number of multiple requests to make */
+int percentile = 1;     /* Show percentile served */
+int nolength = 0;       /* Accept variable document length */
+int confidence = 1;     /* Show confidence estimator and warnings */
+int tlimit = 0;         /* time limit in secs */
+int keepalive = 0;      /* try and do keepalive connections */
+int windowsize = 0;     /* we use the OS default window size */
+char servername[1024];  /* name that server reports */
+char *hostname;         /* host name from URL */
+const char *host_field;       /* value of "Host:" header field */
+const char *path;             /* path name */
+char *postdata;         /* *buffer containing data from postfile */
+apr_size_t postlen = 0; /* length of data to be POSTed */
+char *content_type = NULL;     /* content type to put in POST header */
+const char *cookie,           /* optional cookie line */
+           *auth,             /* optional (basic/uuencoded) auhentication */
+           *hdrs;             /* optional arbitrary headers */
+apr_port_t port;        /* port number */
+char *proxyhost = NULL; /* proxy host name */
+int proxyport = 0;      /* proxy port */
+const char *connecthost;
+const char *myhost;
+apr_port_t connectport;
+const char *gnuplot;          /* GNUplot file */
+const char *csvperc;          /* CSV Percentile file */
+const char *fullurl;
+const char *colonhost;
+int isproxy = 0;
+apr_interval_time_t aprtimeout = apr_time_from_sec(30); /* timeout value */
+
+/* overrides for ab-generated common headers */
+int opt_host = 0;       /* was an optional "Host:" header specified? */
+int opt_useragent = 0;  /* was an optional "User-Agent:" header specified? */
+int opt_accept = 0;     /* was an optional "Accept:" header specified? */
+ /*
+  * XXX - this is now a per read/write transact type of value
+  */
+
+int use_html = 0;       /* use html in the report */
+const char *tablestring;
+const char *trstring;
+const char *tdstring;
+
+apr_size_t doclen = 0;     /* the length the document should be */
+apr_int64_t totalread = 0;    /* total number of bytes read */
+apr_int64_t totalbread = 0;   /* totoal amount of entity body read */
+apr_int64_t totalposted = 0;  /* total number of bytes posted, inc. headers */
+int started = 0;           /* number of requests started, so no excess */
+int done = 0;              /* number of requests we have done */
+int doneka = 0;            /* number of keep alive connections done */
+int good = 0, bad = 0;     /* number of good and bad requests */
+int epipe = 0;             /* number of broken pipe writes */
+int err_length = 0;        /* requests failed due to response length */
+int err_conn = 0;          /* requests failed due to connection drop */
+int err_recv = 0;          /* requests failed due to broken read */
+int err_except = 0;        /* requests failed due to exception */
+int err_response = 0;      /* requests with invalid or non-200 response */
+
+#ifdef USE_SSL
+int is_ssl;
+SSL_CTX *ssl_ctx;
+char *ssl_cipher = NULL;
+char *ssl_info = NULL;
+BIO *bio_out,*bio_err;
+#endif
+
+apr_time_t start, lasttime, stoptime;
+
+/* global request (and its length) */
+char _request[2048];
+char *request = _request;
+apr_size_t reqlen;
+
+/* one global throw-away buffer to read stuff into */
+char buffer[8192];
+
+/* interesting percentiles */
+int percs[] = {50, 66, 75, 80, 90, 95, 98, 99, 100};
+
+struct connection *con;     /* connection array */
+struct data *stats;         /* data for each request */
+apr_pool_t *cntxt;
+
+apr_pollset_t *readbits;
+
+apr_sockaddr_t *mysa;
+apr_sockaddr_t *destsa;
+
+#ifdef NOT_ASCII
+apr_xlate_t *from_ascii, *to_ascii;
+#endif
+
+static void write_request(struct connection * c);
+static void close_connection(struct connection * c);
+
+/* --------------------------------------------------------- */
+
+/* simple little function to write an error string and exit */
+
+static void err(const char *s)
 {
-    char *thenil;
-    apr_size_t thelen;
-
-    thenil = apr_cpystrn(dst, src, dlen);
-    thelen = thenil - dst;
-    /* Assume the typical case is smaller copying into bigger
-       so we have a fast return */
-    if ((thelen < dlen-1) || ((strlen(src)) == thelen)) {
-        return APR_SUCCESS;
-    }
-    /* XXX: APR_ENOSPACE would be better */
-    return APR_EGENERAL;
+    fprintf(stderr, "%s\n", s);
+    if (done)
+        printf("Total of %d requests completed\n" , done);
+    exit(1);
 }
 
-/* already called in the knowledge that the characters are hex digits */
-PROXY_DECLARE(int) ap_proxy_hex2c(const char *x)
+/* simple little function to write an APR error string and exit */
+
+static void apr_err(const char *s, apr_status_t rv)
 {
-    int i;
+    char buf[120];
 
-#if !APR_CHARSET_EBCDIC
-    int ch = x[0];
-
-    if (apr_isdigit(ch)) {
-        i = ch - '0';
-    }
-    else if (apr_isupper(ch)) {
-        i = ch - ('A' - 10);
-    }
-    else {
-        i = ch - ('a' - 10);
-    }
-    i <<= 4;
-
-    ch = x[1];
-    if (apr_isdigit(ch)) {
-        i += ch - '0';
-    }
-    else if (apr_isupper(ch)) {
-        i += ch - ('A' - 10);
-    }
-    else {
-        i += ch - ('a' - 10);
-    }
-    return i;
-#else /*APR_CHARSET_EBCDIC*/
-    /*
-     * we assume that the hex value refers to an ASCII character
-     * so convert to EBCDIC so that it makes sense locally;
-     *
-     * example:
-     *
-     * client specifies %20 in URL to refer to a space char;
-     * at this point we're called with EBCDIC "20"; after turning
-     * EBCDIC "20" into binary 0x20, we then need to assume that 0x20
-     * represents an ASCII char and convert 0x20 to EBCDIC, yielding
-     * 0x40
-     */
-    char buf[1];
-
-    if (1 == sscanf(x, "%2x", &i)) {
-        buf[0] = i & 0xFF;
-        ap_xlate_proto_from_ascii(buf, 1);
-        return buf[0];
-    }
-    else {
-        return 0;
-    }
-#endif /*APR_CHARSET_EBCDIC*/
+    fprintf(stderr,
+        "%s: %s (%d)\n",
+        s, apr_strerror(rv, buf, sizeof buf), rv);
+    if (done)
+        printf("Total of %d requests completed\n" , done);
+    exit(rv);
 }
 
-PROXY_DECLARE(void) ap_proxy_c2hex(int ch, char *x)
+static void *xmalloc(size_t size)
 {
-#if !APR_CHARSET_EBCDIC
-    int i;
-
-    x[0] = '%';
-    i = (ch & 0xF0) >> 4;
-    if (i >= 10) {
-        x[1] = ('A' - 10) + i;
+    void *ret = malloc(size);
+    if (ret == NULL) {
+        fprintf(stderr, "Could not allocate memory (%"
+                APR_SIZE_T_FMT" bytes)\n", size);
+        exit(1);
     }
-    else {
-        x[1] = '0' + i;
-    }
-
-    i = ch & 0x0F;
-    if (i >= 10) {
-        x[2] = ('A' - 10) + i;
-    }
-    else {
-        x[2] = '0' + i;
-    }
-#else /*APR_CHARSET_EBCDIC*/
-    static const char ntoa[] = { "0123456789ABCDEF" };
-    char buf[1];
-
-    ch &= 0xFF;
-
-    buf[0] = ch;
-    ap_xlate_proto_to_ascii(buf, 1);
-
-    x[0] = '%';
-    x[1] = ntoa[(buf[0] >> 4) & 0x0F];
-    x[2] = ntoa[buf[0] & 0x0F];
-    x[3] = '\0';
-#endif /*APR_CHARSET_EBCDIC*/
+    return ret;
 }
 
-/*
- * canonicalise a URL-encoded string
- */
-
-/*
- * Convert a URL-encoded string to canonical form.
- * It decodes characters which need not be encoded,
- * and encodes those which must be encoded, and does not touch
- * those which must not be touched.
- */
-PROXY_DECLARE(char *)ap_proxy_canonenc(apr_pool_t *p, const char *x, int len,
-                                       enum enctype t, int forcedec,
-                                       int proxyreq)
+static void *xcalloc(size_t num, size_t size)
 {
-    int i, j, ch;
-    char *y;
-    char *allowed;  /* characters which should not be encoded */
-    char *reserved; /* characters which much not be en/de-coded */
-
-/*
- * N.B. in addition to :@&=, this allows ';' in an http path
- * and '?' in an ftp path -- this may be revised
- *
- * Also, it makes a '+' character in a search string reserved, as
- * it may be form-encoded. (Although RFC 1738 doesn't allow this -
- * it only permits ; / ? : @ = & as reserved chars.)
- */
-    if (t == enc_path) {
-        allowed = "~$-_.+!*'(),;:@&=";
+    void *ret = calloc(num, size);
+    if (ret == NULL) {
+        fprintf(stderr, "Could not allocate memory (%"
+                APR_SIZE_T_FMT" bytes)\n", size*num);
+        exit(1);
     }
-    else if (t == enc_search) {
-        allowed = "$-_.!*'(),;:@&=";
-    }
-    else if (t == enc_user) {
-        allowed = "$-_.+!*'(),;@&=";
-    }
-    else if (t == enc_fpath) {
-        allowed = "$-_.+!*'(),?:@&=";
-    }
-    else {            /* if (t == enc_parm) */
-        allowed = "$-_.+!*'(),?/:@&=";
-    }
-
-    if (t == enc_path) {
-        reserved = "/";
-    }
-    else if (t == enc_search) {
-        reserved = "+";
-    }
-    else {
-        reserved = "";
-    }
-
-    y = apr_palloc(p, 3 * len + 1);
-
-    for (i = 0, j = 0; i < len; i++, j++) {
-/* always handle '/' first */
-        ch = x[i];
-        if (strchr(reserved, ch)) {
-            y[j] = ch;
-            continue;
-        }
-/*
- * decode it if not already done. do not decode reverse proxied URLs
- * unless specifically forced
- */
-        if ((forcedec || (proxyreq && proxyreq != PROXYREQ_REVERSE)) && ch == '%') {
-            if (!apr_isxdigit(x[i + 1]) || !apr_isxdigit(x[i + 2])) {
-                return NULL;
-            }
-            ch = ap_proxy_hex2c(&x[i + 1]);
-            i += 2;
-            if (ch != 0 && strchr(reserved, ch)) {  /* keep it encoded */
-                ap_proxy_c2hex(ch, &y[j]);
-                j += 2;
-                continue;
-            }
-        }
-/* recode it, if necessary */
-        if (!apr_isalnum(ch) && !strchr(allowed, ch)) {
-            ap_proxy_c2hex(ch, &y[j]);
-            j += 2;
-        }
-        else {
-            y[j] = ch;
-        }
-    }
-    y[j] = '\0';
-    return y;
+    return ret;
 }
 
-/*
- * Parses network-location.
- *    urlp           on input the URL; on output the path, after the leading /
- *    user           NULL if no user/password permitted
- *    password       holder for password
- *    host           holder for host
- *    port           port number; only set if one is supplied.
- *
- * Returns an error string.
- */
-PROXY_DECLARE(char *)
-     ap_proxy_canon_netloc(apr_pool_t *p, char **const urlp, char **userp,
-            char **passwordp, char **hostp, apr_port_t *port)
+static char *xstrdup(const char *s)
 {
-    char *addr, *scope_id, *strp, *host, *url = *urlp;
-    char *user = NULL, *password = NULL;
-    apr_port_t tmp_port;
+    char *ret = strdup(s);
+    if (ret == NULL) {
+        fprintf(stderr, "Could not allocate memory (%"
+                APR_SIZE_T_FMT " bytes)\n", strlen(s));
+        exit(1);
+    }
+    return ret;
+}
+
+/* pool abort function */
+static int abort_on_oom(int retcode)
+{
+    fprintf(stderr, "Could not allocate memory\n");
+    exit(1);
+    /* not reached */
+    return retcode;
+}
+
+static void set_polled_events(struct connection *c, apr_int16_t new_reqevents)
+{
     apr_status_t rv;
 
-    if (url[0] != '/' || url[1] != '/') {
-        return "Malformed URL";
-    }
-    host = url + 2;
-    url = strchr(host, '/');
-    if (url == NULL) {
-        url = "";
-    }
-    else {
-        *(url++) = '\0';    /* skip seperating '/' */
-    }
-
-    /* find _last_ '@' since it might occur in user/password part */
-    strp = strrchr(host, '@');
-
-    if (strp != NULL) {
-        *strp = '\0';
-        user = host;
-        host = strp + 1;
-
-/* find password */
-        strp = strchr(user, ':');
-        if (strp != NULL) {
-            *strp = '\0';
-            password = ap_proxy_canonenc(p, strp + 1, strlen(strp + 1), enc_user, 1, 0);
-            if (password == NULL) {
-                return "Bad %-escape in URL (password)";
+    if (c->pollfd.reqevents != new_reqevents) {
+        if (c->pollfd.reqevents != 0) {
+            rv = apr_pollset_remove(readbits, &c->pollfd);
+            if (rv != APR_SUCCESS) {
+                apr_err("apr_pollset_remove()", rv);
             }
         }
 
-        user = ap_proxy_canonenc(p, user, strlen(user), enc_user, 1, 0);
-        if (user == NULL) {
-            return "Bad %-escape in URL (username)";
+        if (new_reqevents != 0) {
+            c->pollfd.reqevents = new_reqevents;
+            rv = apr_pollset_add(readbits, &c->pollfd);
+            if (rv != APR_SUCCESS) {
+                apr_err("apr_pollset_add()", rv);
+            }
         }
     }
-    if (userp != NULL) {
-        *userp = user;
-    }
-    if (passwordp != NULL) {
-        *passwordp = password;
-    }
-
-    /*
-     * Parse the host string to separate host portion from optional port.
-     * Perform range checking on port.
-     */
-    rv = apr_parse_addr_port(&addr, &scope_id, &tmp_port, host, p);
-    if (rv != APR_SUCCESS || addr == NULL || scope_id != NULL) {
-        return "Invalid host/port";
-    }
-    if (tmp_port != 0) { /* only update caller's port if port was specified */
-        *port = tmp_port;
-    }
-
-    ap_str_tolower(addr); /* DNS names are case-insensitive */
-
-    *urlp = url;
-    *hostp = addr;
-
-    return NULL;
 }
 
-PROXY_DECLARE(int) ap_proxyerror(request_rec *r, int statuscode, const char *message)
+static void set_conn_state(struct connection *c, connect_state_e new_state)
 {
-    const char *uri = ap_escape_html(r->pool, r->uri);
-    apr_table_setn(r->notes, "error-notes",
-        apr_pstrcat(r->pool,
-            "The proxy server could not handle the request <em><a href=\"",
-            uri, "\">", ap_escape_html(r->pool, r->method), "&nbsp;", uri,
-            "</a></em>.<p>\n"
-            "Reason: <strong>", ap_escape_html(r->pool, message),
-            "</strong></p>",
-            NULL));
+    apr_int16_t events_by_state[] = {
+        0,           /* for STATE_UNCONNECTED */
+        APR_POLLOUT, /* for STATE_CONNECTING */
+        APR_POLLIN,  /* for STATE_CONNECTED; we don't poll in this state,
+                      * so prepare for polling in the following state --
+                      * STATE_READ
+                      */
+        APR_POLLIN   /* for STATE_READ */
+    };
 
-    /* Allow "error-notes" string to be printed by ap_send_error_response() */
-    apr_table_setn(r->notes, "verbose-error-to", apr_pstrdup(r->pool, "*"));
+    c->state = new_state;
 
-    r->status_line = apr_psprintf(r->pool, "%3.3u Proxy Error", statuscode);
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00898) "%s returned by %s", message,
-                  r->uri);
-    return statuscode;
+    set_polled_events(c, events_by_state[new_state]);
 }
 
-static const char *
-     proxy_get_host_of_request(request_rec *r)
+/* --------------------------------------------------------- */
+/* write out request to a connection - assumes we can write
+ * (small) request out in one go into our new socket buffer
+ *
+ */
+#ifdef USE_SSL
+static long ssl_print_cb(BIO *bio,int cmd,const char *argp,int argi,long argl,long ret)
 {
-    char *url, *user = NULL, *password = NULL, *err, *host;
-    apr_port_t port;
+    BIO *out;
 
-    if (r->hostname != NULL) {
-        return r->hostname;
+    out=(BIO *)BIO_get_callback_arg(bio);
+    if (out == NULL) return(ret);
+
+    if (cmd == (BIO_CB_READ|BIO_CB_RETURN)) {
+        BIO_printf(out,"read from %p [%p] (%d bytes => %ld (0x%lX))\n",
+                   bio, argp, argi, ret, ret);
+        BIO_dump(out,(char *)argp,(int)ret);
+        return(ret);
     }
-
-    /* Set url to the first char after "scheme://" */
-    if ((url = strchr(r->uri, ':')) == NULL || url[1] != '/' || url[2] != '/') {
-        return NULL;
+    else if (cmd == (BIO_CB_WRITE|BIO_CB_RETURN)) {
+        BIO_printf(out,"write to %p [%p] (%d bytes => %ld (0x%lX))\n",
+                   bio, argp, argi, ret, ret);
+        BIO_dump(out,(char *)argp,(int)ret);
     }
-
-    url = apr_pstrdup(r->pool, &url[1]);    /* make it point to "//", which is what proxy_canon_netloc expects */
-
-    err = ap_proxy_canon_netloc(r->pool, &url, &user, &password, &host, &port);
-
-    if (err != NULL) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00899) "%s", err);
-    }
-
-    r->hostname = host;
-
-    return host;        /* ought to return the port, too */
+    return ret;
 }
 
-/* Return TRUE if addr represents an IP address (or an IP network address) */
-PROXY_DECLARE(int) ap_proxy_is_ipaddr(struct dirconn_entry *This, apr_pool_t *p)
+static void ssl_state_cb(const SSL *s, int w, int r)
 {
-    const char *addr = This->name;
-    long ip_addr[4];
-    int i, quads;
-    long bits;
+    if (w & SSL_CB_ALERT) {
+        BIO_printf(bio_err, "SSL/TLS Alert [%s] %s:%s\n",
+                   (w & SSL_CB_READ ? "read" : "write"),
+                   SSL_alert_type_string_long(r),
+                   SSL_alert_desc_string_long(r));
+    } else if (w & SSL_CB_LOOP) {
+        BIO_printf(bio_err, "SSL/TLS State [%s] %s\n",
+                   (SSL_in_connect_init((SSL*)s) ? "connect" : "-"),
+                   SSL_state_string_long(s));
+    } else if (w & (SSL_CB_HANDSHAKE_START|SSL_CB_HANDSHAKE_DONE)) {
+        BIO_printf(bio_err, "SSL/TLS Handshake [%s] %s\n",
+                   (w & SSL_CB_HANDSHAKE_START ? "Start" : "Done"),
+                   SSL_state_string_long(s));
+    }
+}
+
+#ifndef RAND_MAX
+#define RAND_MAX INT_MAX
+#endif
+
+static int ssl_rand_choosenum(int l, int h)
+{
+    int i;
+    char buf[50];
+
+    srand((unsigned int)time(NULL));
+    apr_snprintf(buf, sizeof(buf), "%.0f",
+                 (((double)(rand()%RAND_MAX)/RAND_MAX)*(h-l)));
+    i = atoi(buf)+1;
+    if (i < l) i = l;
+    if (i > h) i = h;
+    return i;
+}
+
+static void ssl_rand_seed(void)
+{
+    int n, l;
+    time_t t;
+    pid_t pid;
+    unsigned char stackdata[256];
 
     /*
-     * if the address is given with an explicit netmask, use that
-     * Due to a deficiency in apr_inet_addr(), it is impossible to parse
-     * "partial" addresses (with less than 4 quads) correctly, i.e.
-     * 192.168.123 is parsed as 192.168.0.123, which is not what I want.
-     * I therefore have to parse the IP address manually:
-     * if (proxy_readmask(This->name, &This->addr.s_addr, &This->mask.s_addr) == 0)
-     * addr and mask were set by proxy_readmask()
-     * return 1;
+     * seed in the current time (usually just 4 bytes)
      */
+    t = time(NULL);
+    l = sizeof(time_t);
+    RAND_seed((unsigned char *)&t, l);
 
     /*
-     * Parse IP addr manually, optionally allowing
-     * abbreviated net addresses like 192.168.
+     * seed in the current process id (usually just 4 bytes)
      */
+    pid = getpid();
+    l = sizeof(pid_t);
+    RAND_seed((unsigned char *)&pid, l);
 
-    /* Iterate over up to 4 (dotted) quads. */
-    for (quads = 0; quads < 4 && *addr != '\0'; ++quads) {
-        char *tmp;
+    /*
+     * seed in some current state of the run-time stack (128 bytes)
+     */
+    n = ssl_rand_choosenum(0, sizeof(stackdata)-128-1);
+    RAND_seed(stackdata+n, 128);
+}
 
-        if (*addr == '/' && quads > 0) {  /* netmask starts here. */
+static int ssl_print_connection_info(BIO *bio, SSL *ssl)
+{
+    AB_SSL_CIPHER_CONST SSL_CIPHER *c;
+    int alg_bits,bits;
+
+    BIO_printf(bio,"Transport Protocol      :%s\n", SSL_get_version(ssl));
+
+    c = SSL_get_current_cipher(ssl);
+    BIO_printf(bio,"Cipher Suite Protocol   :%s\n", SSL_CIPHER_get_version(c));
+    BIO_printf(bio,"Cipher Suite Name       :%s\n",SSL_CIPHER_get_name(c));
+
+    bits = SSL_CIPHER_get_bits(c,&alg_bits);
+    BIO_printf(bio,"Cipher Suite Cipher Bits:%d (%d)\n",bits,alg_bits);
+
+    return(1);
+}
+
+static void ssl_print_cert_info(BIO *bio, X509 *cert)
+{
+    X509_NAME *dn;
+    EVP_PKEY *pk;
+    char buf[1024];
+
+    BIO_printf(bio, "Certificate version: %ld\n", X509_get_version(cert)+1);
+    BIO_printf(bio,"Valid from: ");
+    ASN1_UTCTIME_print(bio, X509_get_notBefore(cert));
+    BIO_printf(bio,"\n");
+
+    BIO_printf(bio,"Valid to  : ");
+    ASN1_UTCTIME_print(bio, X509_get_notAfter(cert));
+    BIO_printf(bio,"\n");
+
+    pk = X509_get_pubkey(cert);
+    BIO_printf(bio,"Public key is %d bits\n",
+               EVP_PKEY_bits(pk));
+    EVP_PKEY_free(pk);
+
+    dn = X509_get_issuer_name(cert);
+    X509_NAME_oneline(dn, buf, sizeof(buf));
+    BIO_printf(bio,"The issuer name is %s\n", buf);
+
+    dn=X509_get_subject_name(cert);
+    X509_NAME_oneline(dn, buf, sizeof(buf));
+    BIO_printf(bio,"The subject name is %s\n", buf);
+
+    /* dump the extension list too */
+    BIO_printf(bio, "Extension Count: %d\n", X509_get_ext_count(cert));
+}
+
+static void ssl_print_info(struct connection *c)
+{
+    X509_STACK_TYPE *sk;
+    X509 *cert;
+    int count;
+
+    BIO_printf(bio_err, "\n");
+    sk = SSL_get_peer_cert_chain(c->ssl);
+    if ((count = SK_NUM(sk)) > 0) {
+        int i;
+        for (i=1; i<count; i++) {
+            cert = (X509 *)SK_VALUE(sk, i);
+            ssl_print_cert_info(bio_out, cert);
+    }
+    }
+    cert = SSL_get_peer_certificate(c->ssl);
+    if (cert == NULL) {
+        BIO_printf(bio_out, "Anon DH\n");
+    } else {
+        BIO_printf(bio_out, "Peer certificate\n");
+        ssl_print_cert_info(bio_out, cert);
+        X509_free(cert);
+    }
+    ssl_print_connection_info(bio_err,c->ssl);
+    SSL_SESSION_print(bio_err, SSL_get_session(c->ssl));
+    }
+
+static void ssl_proceed_handshake(struct connection *c)
+{
+    int do_next = 1;
+
+    while (do_next) {
+        int ret, ecode;
+
+        ret = SSL_do_handshake(c->ssl);
+        ecode = SSL_get_error(c->ssl, ret);
+
+        switch (ecode) {
+        case SSL_ERROR_NONE:
+            if (verbosity >= 2)
+                ssl_print_info(c);
+            if (ssl_info == NULL) {
+                AB_SSL_CIPHER_CONST SSL_CIPHER *ci;
+                X509 *cert;
+                int sk_bits, pk_bits, swork;
+
+                ci = SSL_get_current_cipher(c->ssl);
+                sk_bits = SSL_CIPHER_get_bits(ci, &swork);
+                cert = SSL_get_peer_certificate(c->ssl);
+                if (cert)
+                    pk_bits = EVP_PKEY_bits(X509_get_pubkey(cert));
+                else
+                    pk_bits = 0;  /* Anon DH */
+
+                ssl_info = xmalloc(128);
+                apr_snprintf(ssl_info, 128, "%s,%s,%d,%d",
+                             SSL_get_version(c->ssl),
+                             SSL_CIPHER_get_name(ci),
+                             pk_bits, sk_bits);
+            }
+            write_request(c);
+            do_next = 0;
+            break;
+        case SSL_ERROR_WANT_READ:
+            set_polled_events(c, APR_POLLIN);
+            do_next = 0;
+            break;
+        case SSL_ERROR_WANT_WRITE:
+            /* Try again */
+            do_next = 1;
+            break;
+        case SSL_ERROR_WANT_CONNECT:
+        case SSL_ERROR_SSL:
+        case SSL_ERROR_SYSCALL:
+            /* Unexpected result */
+            BIO_printf(bio_err, "SSL handshake failed (%d).\n", ecode);
+            ERR_print_errors(bio_err);
+            close_connection(c);
+            do_next = 0;
             break;
         }
-
-        if (!apr_isdigit(*addr)) {
-            return 0;       /* no digit at start of quad */
-        }
-
-        ip_addr[quads] = strtol(addr, &tmp, 0);
-
-        if (tmp == addr) {  /* expected a digit, found something else */
-            return 0;
-        }
-
-        if (ip_addr[quads] < 0 || ip_addr[quads] > 255) {
-            /* invalid octet */
-            return 0;
-        }
-
-        addr = tmp;
-
-        if (*addr == '.' && quads != 3) {
-            ++addr;     /* after the 4th quad, a dot would be illegal */
-        }
-    }
-
-    for (This->addr.s_addr = 0, i = 0; i < quads; ++i) {
-        This->addr.s_addr |= htonl(ip_addr[i] << (24 - 8 * i));
-    }
-
-    if (addr[0] == '/' && apr_isdigit(addr[1])) {   /* net mask follows: */
-        char *tmp;
-
-        ++addr;
-
-        bits = strtol(addr, &tmp, 0);
-
-        if (tmp == addr) {   /* expected a digit, found something else */
-            return 0;
-        }
-
-        addr = tmp;
-
-        if (bits < 0 || bits > 32) { /* netmask must be between 0 and 32 */
-            return 0;
-        }
-
-    }
-    else {
-        /*
-         * Determine (i.e., "guess") netmask by counting the
-         * number of trailing .0's; reduce #quads appropriately
-         * (so that 192.168.0.0 is equivalent to 192.168.)
-         */
-        while (quads > 0 && ip_addr[quads - 1] == 0) {
-            --quads;
-        }
-
-        /* "IP Address should be given in dotted-quad form, optionally followed by a netmask (e.g., 192.168.111.0/24)"; */
-        if (quads < 1) {
-            return 0;
-        }
-
-        /* every zero-byte counts as 8 zero-bits */
-        bits = 8 * quads;
-
-        if (bits != 32) {     /* no warning for fully qualified IP address */
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00900)
-                         "Warning: NetMask not supplied with IP-Addr; guessing: %s/%ld",
-                         inet_ntoa(This->addr), bits);
-        }
-    }
-
-    This->mask.s_addr = htonl(APR_INADDR_NONE << (32 - bits));
-
-    if (*addr == '\0' && (This->addr.s_addr & ~This->mask.s_addr) != 0) {
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00901)
-                     "Warning: NetMask and IP-Addr disagree in %s/%ld",
-                     inet_ntoa(This->addr), bits);
-        This->addr.s_addr &= This->mask.s_addr;
-        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00902)
-                     "         Set to %s/%ld", inet_ntoa(This->addr), bits);
-    }
-
-    if (*addr == '\0') {
-        This->matcher = proxy_match_ipaddr;
-        return 1;
-    }
-    else {
-        return (*addr == '\0'); /* okay iff we've parsed the whole string */
     }
 }
 
-/* Return TRUE if addr represents an IP address (or an IP network address) */
-static int proxy_match_ipaddr(struct dirconn_entry *This, request_rec *r)
+#endif /* USE_SSL */
+
+static void write_request(struct connection * c)
 {
-    int i, ip_addr[4];
-    struct in_addr addr, *ip;
-    const char *host = proxy_get_host_of_request(r);
-
-    if (host == NULL) {   /* oops! */
-       return 0;
+    if (started >= requests) {
+        return;
     }
 
-    memset(&addr, '\0', sizeof addr);
-    memset(ip_addr, '\0', sizeof ip_addr);
+    do {
+        apr_time_t tnow;
+        apr_size_t l = c->rwrite;
+        apr_status_t e = APR_SUCCESS; /* prevent gcc warning */
 
-    if (4 == sscanf(host, "%d.%d.%d.%d", &ip_addr[0], &ip_addr[1], &ip_addr[2], &ip_addr[3])) {
-        for (addr.s_addr = 0, i = 0; i < 4; ++i) {
-            /* ap_proxy_is_ipaddr() already confirmed that we have
-             * a valid octet in ip_addr[i]
-             */
-            addr.s_addr |= htonl(ip_addr[i] << (24 - 8 * i));
+        tnow = lasttime = apr_time_now();
+
+        /*
+         * First time round ?
+         */
+        if (c->rwrite == 0) {
+            apr_socket_timeout_set(c->aprsock, 0);
+            c->connect = tnow;
+            c->rwrote = 0;
+            c->rwrite = reqlen;
+            if (send_body)
+                c->rwrite += postlen;
+        }
+        else if (tnow > c->connect + aprtimeout) {
+            printf("Send request timed out!\n");
+            close_connection(c);
+            return;
         }
 
-        if (This->addr.s_addr == (addr.s_addr & This->mask.s_addr)) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00903)
-                         "1)IP-Match: %s[%s] <-> ", host, inet_ntoa(addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00904)
-                         "%s/", inet_ntoa(This->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00905)
-                         "%s", inet_ntoa(This->mask));
-#endif
-            return 1;
-        }
-#if DEBUGGING
-        else {
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00906)
-                         "1)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00907)
-                         "%s/", inet_ntoa(This->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00908)
-                         "%s", inet_ntoa(This->mask));
-        }
-#endif
-    }
-    else {
-        struct apr_sockaddr_t *reqaddr;
-
-        if (apr_sockaddr_info_get(&reqaddr, host, APR_UNSPEC, 0, 0, r->pool)
-            != APR_SUCCESS) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00909)
-             "2)IP-NoMatch: hostname=%s msg=Host not found", host);
-#endif
-            return 0;
-        }
-
-        /* Try to deal with multiple IP addr's for a host */
-        /* FIXME: This needs to be able to deal with IPv6 */
-        while (reqaddr) {
-            ip = (struct in_addr *) reqaddr->ipaddr_ptr;
-            if (This->addr.s_addr == (ip->s_addr & This->mask.s_addr)) {
-#if DEBUGGING
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00910)
-                             "3)IP-Match: %s[%s] <-> ", host, inet_ntoa(*ip));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00911)
-                             "%s/", inet_ntoa(This->addr));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00912)
-                             "%s", inet_ntoa(This->mask));
-#endif
-                return 1;
+#ifdef USE_SSL
+        if (c->ssl) {
+            apr_size_t e_ssl;
+            e_ssl = SSL_write(c->ssl,request + c->rwrote, l);
+            if (e_ssl != l) {
+                BIO_printf(bio_err, "SSL write failed - closing connection\n");
+                ERR_print_errors(bio_err);
+                close_connection (c);
+                return;
             }
-#if DEBUGGING
-            else {
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00913)
-                             "3)IP-NoMatch: %s[%s] <-> ", host, inet_ntoa(*ip));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00914)
-                             "%s/", inet_ntoa(This->addr));
-                ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00915)
-                             "%s", inet_ntoa(This->mask));
-            }
-#endif
-            reqaddr = reqaddr->next;
+            l = e_ssl;
+            e = APR_SUCCESS;
         }
-    }
+        else
+#endif
+            e = apr_socket_send(c->aprsock, request + c->rwrote, &l);
 
+        if (e != APR_SUCCESS && !APR_STATUS_IS_EAGAIN(e)) {
+            epipe++;
+            printf("Send request failed!\n");
+            close_connection(c);
+            return;
+        }
+        totalposted += l;
+        c->rwrote += l;
+        c->rwrite -= l;
+    } while (c->rwrite);
+
+    c->endwrite = lasttime = apr_time_now();
+    started++;
+    set_conn_state(c, STATE_READ);
+}
+
+/* --------------------------------------------------------- */
+
+/* calculate and output results */
+
+static int compradre(struct data * a, struct data * b)
+{
+    if ((a->ctime) < (b->ctime))
+        return -1;
+    if ((a->ctime) > (b->ctime))
+        return +1;
     return 0;
 }
 
-/* Return TRUE if addr represents a domain name */
-PROXY_DECLARE(int) ap_proxy_is_domainname(struct dirconn_entry *This, apr_pool_t *p)
+static int comprando(struct data * a, struct data * b)
 {
-    char *addr = This->name;
-    int i;
+    if ((a->time) < (b->time))
+        return -1;
+    if ((a->time) > (b->time))
+        return +1;
+    return 0;
+}
 
-    /* Domain name must start with a '.' */
-    if (addr[0] != '.') {
-        return 0;
+static int compri(struct data * a, struct data * b)
+{
+    apr_interval_time_t p = a->time - a->ctime;
+    apr_interval_time_t q = b->time - b->ctime;
+    if (p < q)
+        return -1;
+    if (p > q)
+        return +1;
+    return 0;
+}
+
+static int compwait(struct data * a, struct data * b)
+{
+    if ((a->waittime) < (b->waittime))
+        return -1;
+    if ((a->waittime) > (b->waittime))
+        return 1;
+    return 0;
+}
+
+static void output_results(int sig)
+{
+    double timetaken;
+
+    if (sig) {
+        lasttime = apr_time_now();  /* record final time if interrupted */
     }
+    timetaken = (double) (lasttime - start) / APR_USEC_PER_SEC;
 
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; apr_isalnum(addr[i]) || addr[i] == '-' || addr[i] == '.'; ++i) {
-        continue;
-    }
-
-#if 0
-    if (addr[i] == ':') {
-    ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                     "@@@@ handle optional port in proxy_is_domainname()");
-    /* @@@@ handle optional port */
+    printf("\n\n");
+    printf("Server Software:        %s\n", servername);
+    printf("Server Hostname:        %s\n", hostname);
+    printf("Server Port:            %hu\n", port);
+#ifdef USE_SSL
+    if (is_ssl && ssl_info) {
+        printf("SSL/TLS Protocol:       %s\n", ssl_info);
     }
 #endif
+    printf("\n");
+    printf("Document Path:          %s\n", path);
+    if (nolength)
+        printf("Document Length:        Variable\n");
+    else
+        printf("Document Length:        %" APR_SIZE_T_FMT " bytes\n", doclen);
+    printf("\n");
+    printf("Concurrency Level:      %d\n", concurrency);
+    printf("Time taken for tests:   %.3f seconds\n", timetaken);
+    printf("Complete requests:      %d\n", done);
+    printf("Failed requests:        %d\n", bad);
+    if (bad)
+        printf("   (Connect: %d, Receive: %d, Length: %d, Exceptions: %d)\n",
+            err_conn, err_recv, err_length, err_except);
+    if (epipe)
+        printf("Write errors:           %d\n", epipe);
+    if (err_response)
+        printf("Non-2xx responses:      %d\n", err_response);
+    if (keepalive)
+        printf("Keep-Alive requests:    %d\n", doneka);
+    printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
+    if (send_body)
+        printf("Total body sent:        %" APR_INT64_T_FMT "\n",
+               totalposted);
+    printf("HTML transferred:       %" APR_INT64_T_FMT " bytes\n", totalbread);
 
-    if (addr[i] != '\0') {
-        return 0;
-    }
-
-    /* Strip trailing dots */
-    for (i = strlen(addr) - 1; i > 0 && addr[i] == '.'; --i) {
-        addr[i] = '\0';
-    }
-
-    This->matcher = proxy_match_domainname;
-    return 1;
-}
-
-/* Return TRUE if host "host" is in domain "domain" */
-static int proxy_match_domainname(struct dirconn_entry *This, request_rec *r)
-{
-    const char *host = proxy_get_host_of_request(r);
-    int d_len = strlen(This->name), h_len;
-
-    if (host == NULL) {      /* some error was logged already */
-        return 0;
-    }
-
-    h_len = strlen(host);
-
-    /* @@@ do this within the setup? */
-    /* Ignore trailing dots in domain comparison: */
-    while (d_len > 0 && This->name[d_len - 1] == '.') {
-        --d_len;
-    }
-    while (h_len > 0 && host[h_len - 1] == '.') {
-        --h_len;
-    }
-    return h_len > d_len
-        && strncasecmp(&host[h_len - d_len], This->name, d_len) == 0;
-}
-
-/* Return TRUE if host represents a host name */
-PROXY_DECLARE(int) ap_proxy_is_hostname(struct dirconn_entry *This, apr_pool_t *p)
-{
-    struct apr_sockaddr_t *addr;
-    char *host = This->name;
-    int i;
-
-    /* Host names must not start with a '.' */
-    if (host[0] == '.') {
-        return 0;
-    }
-    /* rfc1035 says DNS names must consist of "[-a-zA-Z0-9]" and '.' */
-    for (i = 0; apr_isalnum(host[i]) || host[i] == '-' || host[i] == '.'; ++i);
-
-    if (host[i] != '\0' || apr_sockaddr_info_get(&addr, host, APR_UNSPEC, 0, 0, p) != APR_SUCCESS) {
-        return 0;
-    }
-
-    This->hostaddr = addr;
-
-    /* Strip trailing dots */
-    for (i = strlen(host) - 1; i > 0 && host[i] == '.'; --i) {
-        host[i] = '\0';
-    }
-
-    This->matcher = proxy_match_hostname;
-    return 1;
-}
-
-/* Return TRUE if host "host" is equal to host2 "host2" */
-static int proxy_match_hostname(struct dirconn_entry *This, request_rec *r)
-{
-    char *host = This->name;
-    const char *host2 = proxy_get_host_of_request(r);
-    int h2_len;
-    int h1_len;
-
-    if (host == NULL || host2 == NULL) {
-        return 0; /* oops! */
-    }
-
-    h2_len = strlen(host2);
-    h1_len = strlen(host);
-
-#if 0
-    struct apr_sockaddr_t *addr = *This->hostaddr;
-
-    /* Try to deal with multiple IP addr's for a host */
-    while (addr) {
-        if (addr->ipaddr_ptr == ? ? ? ? ? ? ? ? ? ? ? ? ?)
-            return 1;
-        addr = addr->next;
-    }
-#endif
-
-    /* Ignore trailing dots in host2 comparison: */
-    while (h2_len > 0 && host2[h2_len - 1] == '.') {
-        --h2_len;
-    }
-    while (h1_len > 0 && host[h1_len - 1] == '.') {
-        --h1_len;
-    }
-    return h1_len == h2_len
-        && strncasecmp(host, host2, h1_len) == 0;
-}
-
-/* Return TRUE if addr is to be matched as a word */
-PROXY_DECLARE(int) ap_proxy_is_word(struct dirconn_entry *This, apr_pool_t *p)
-{
-    This->matcher = proxy_match_word;
-    return 1;
-}
-
-/* Return TRUE if string "str2" occurs literally in "str1" */
-static int proxy_match_word(struct dirconn_entry *This, request_rec *r)
-{
-    const char *host = proxy_get_host_of_request(r);
-    return host != NULL && ap_strstr_c(host, This->name) != NULL;
-}
-
-/* checks whether a host in uri_addr matches proxyblock */
-PROXY_DECLARE(int) ap_proxy_checkproxyblock(request_rec *r, proxy_server_conf *conf,
-                             apr_sockaddr_t *uri_addr)
-{
-    int j;
-    apr_sockaddr_t * src_uri_addr = uri_addr;
-    /* XXX FIXME: conf->noproxies->elts is part of an opaque structure */
-    for (j = 0; j < conf->noproxies->nelts; j++) {
-        struct noproxy_entry *npent = (struct noproxy_entry *) conf->noproxies->elts;
-        struct apr_sockaddr_t *conf_addr = npent[j].addr;
-        uri_addr = src_uri_addr;
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                      "checking remote machine [%s] against [%s]",
-                      uri_addr->hostname, npent[j].name);
-        if (ap_strstr_c(uri_addr->hostname, npent[j].name)
-            || npent[j].name[0] == '*') {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00916)
-                          "connect to remote machine %s blocked: name %s "
-                          "matched", uri_addr->hostname, npent[j].name);
-            return HTTP_FORBIDDEN;
+    /* avoid divide by zero */
+    if (timetaken && done) {
+        printf("Requests per second:    %.2f [#/sec] (mean)\n",
+               (double) done / timetaken);
+        printf("Time per request:       %.3f [ms] (mean)\n",
+               (double) concurrency * timetaken * 1000 / done);
+        printf("Time per request:       %.3f [ms] (mean, across all concurrent requests)\n",
+               (double) timetaken * 1000 / done);
+        printf("Transfer rate:          %.2f [Kbytes/sec] received\n",
+               (double) totalread / 1024 / timetaken);
+        if (send_body) {
+            printf("                        %.2f kb/s sent\n",
+               (double) totalposted / 1024 / timetaken);
+            printf("                        %.2f kb/s total\n",
+               (double) (totalread + totalposted) / 1024 / timetaken);
         }
-        while (conf_addr) {
-            uri_addr = src_uri_addr;
-            while (uri_addr) {
-                char *conf_ip;
-                char *uri_ip;
-                apr_sockaddr_ip_get(&conf_ip, conf_addr);
-                apr_sockaddr_ip_get(&uri_ip, uri_addr);
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                              "ProxyBlock comparing %s and %s", conf_ip,
-                              uri_ip);
-                if (!apr_strnatcasecmp(conf_ip, uri_ip)) {
-                    ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(00917)
-                                 "connect to remote machine %s blocked: "
-                                 "IP %s matched", uri_addr->hostname, conf_ip);
-                    return HTTP_FORBIDDEN;
-                }
-                uri_addr = uri_addr->next;
+    }
+
+    if (done > 0) {
+        /* work out connection times */
+        int i;
+        apr_time_t totalcon = 0, total = 0, totald = 0, totalwait = 0;
+        apr_time_t meancon, meantot, meand, meanwait;
+        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX, mind = AB_MAX,
+                            minwait = AB_MAX;
+        apr_interval_time_t maxcon = 0, maxtot = 0, maxd = 0, maxwait = 0;
+        apr_interval_time_t mediancon = 0, mediantot = 0, mediand = 0, medianwait = 0;
+        double sdtot = 0, sdcon = 0, sdd = 0, sdwait = 0;
+
+        for (i = 0; i < done; i++) {
+            struct data *s = &stats[i];
+            mincon = ap_min(mincon, s->ctime);
+            mintot = ap_min(mintot, s->time);
+            mind = ap_min(mind, s->time - s->ctime);
+            minwait = ap_min(minwait, s->waittime);
+
+            maxcon = ap_max(maxcon, s->ctime);
+            maxtot = ap_max(maxtot, s->time);
+            maxd = ap_max(maxd, s->time - s->ctime);
+            maxwait = ap_max(maxwait, s->waittime);
+
+            totalcon += s->ctime;
+            total += s->time;
+            totald += s->time - s->ctime;
+            totalwait += s->waittime;
+        }
+        meancon = totalcon / done;
+        meantot = total / done;
+        meand = totald / done;
+        meanwait = totalwait / done;
+
+        /* calculating the sample variance: the sum of the squared deviations, divided by n-1 */
+        for (i = 0; i < done; i++) {
+            struct data *s = &stats[i];
+            double a;
+            a = ((double)s->time - meantot);
+            sdtot += a * a;
+            a = ((double)s->ctime - meancon);
+            sdcon += a * a;
+            a = ((double)s->time - (double)s->ctime - meand);
+            sdd += a * a;
+            a = ((double)s->waittime - meanwait);
+            sdwait += a * a;
+        }
+
+        sdtot = (done > 1) ? sqrt(sdtot / (done - 1)) : 0;
+        sdcon = (done > 1) ? sqrt(sdcon / (done - 1)) : 0;
+        sdd = (done > 1) ? sqrt(sdd / (done - 1)) : 0;
+        sdwait = (done > 1) ? sqrt(sdwait / (done - 1)) : 0;
+
+        /*
+         * XXX: what is better; this hideous cast of the compradre function; or
+         * the four warnings during compile ? dirkx just does not know and
+         * hates both/
+         */
+        qsort(stats, done, sizeof(struct data),
+              (int (*) (const void *, const void *)) compradre);
+        if ((done > 1) && (done % 2))
+            mediancon = (stats[done / 2].ctime + stats[done / 2 + 1].ctime) / 2;
+        else
+            mediancon = stats[done / 2].ctime;
+
+        qsort(stats, done, sizeof(struct data),
+              (int (*) (const void *, const void *)) compri);
+        if ((done > 1) && (done % 2))
+            mediand = (stats[done / 2].time + stats[done / 2 + 1].time \
+            -stats[done / 2].ctime - stats[done / 2 + 1].ctime) / 2;
+        else
+            mediand = stats[done / 2].time - stats[done / 2].ctime;
+
+        qsort(stats, done, sizeof(struct data),
+              (int (*) (const void *, const void *)) compwait);
+        if ((done > 1) && (done % 2))
+            medianwait = (stats[done / 2].waittime + stats[done / 2 + 1].waittime) / 2;
+        else
+            medianwait = stats[done / 2].waittime;
+
+        qsort(stats, done, sizeof(struct data),
+              (int (*) (const void *, const void *)) comprando);
+        if ((done > 1) && (done % 2))
+            mediantot = (stats[done / 2].time + stats[done / 2 + 1].time) / 2;
+        else
+            mediantot = stats[done / 2].time;
+
+        printf("\nConnection Times (ms)\n");
+        /*
+         * Reduce stats from apr time to milliseconds
+         */
+        mincon     = ap_round_ms(mincon);
+        mind       = ap_round_ms(mind);
+        minwait    = ap_round_ms(minwait);
+        mintot     = ap_round_ms(mintot);
+        meancon    = ap_round_ms(meancon);
+        meand      = ap_round_ms(meand);
+        meanwait   = ap_round_ms(meanwait);
+        meantot    = ap_round_ms(meantot);
+        mediancon  = ap_round_ms(mediancon);
+        mediand    = ap_round_ms(mediand);
+        medianwait = ap_round_ms(medianwait);
+        mediantot  = ap_round_ms(mediantot);
+        maxcon     = ap_round_ms(maxcon);
+        maxd       = ap_round_ms(maxd);
+        maxwait    = ap_round_ms(maxwait);
+        maxtot     = ap_round_ms(maxtot);
+        sdcon      = ap_double_ms(sdcon);
+        sdd        = ap_double_ms(sdd);
+        sdwait     = ap_double_ms(sdwait);
+        sdtot      = ap_double_ms(sdtot);
+
+        if (confidence) {
+#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %4" APR_TIME_T_FMT " %5.1f %6" APR_TIME_T_FMT " %7" APR_TIME_T_FMT "\n"
+            printf("              min  mean[+/-sd] median   max\n");
+            printf("Connect:    " CONF_FMT_STRING,
+                   mincon, meancon, sdcon, mediancon, maxcon);
+            printf("Processing: " CONF_FMT_STRING,
+                   mind, meand, sdd, mediand, maxd);
+            printf("Waiting:    " CONF_FMT_STRING,
+                   minwait, meanwait, sdwait, medianwait, maxwait);
+            printf("Total:      " CONF_FMT_STRING,
+                   mintot, meantot, sdtot, mediantot, maxtot);
+#undef CONF_FMT_STRING
+
+#define     SANE(what,mean,median,sd) \
+              { \
+                double d = (double)mean - median; \
+                if (d < 0) d = -d; \
+                if (d > 2 * sd ) \
+                    printf("ERROR: The median and mean for " what " are more than twice the standard\n" \
+                           "       deviation apart. These results are NOT reliable.\n"); \
+                else if (d > sd ) \
+                    printf("WARNING: The median and mean for " what " are not within a normal deviation\n" \
+                           "        These results are probably not that reliable.\n"); \
             }
-            conf_addr = conf_addr->next;
+            SANE("the initial connection time", meancon, mediancon, sdcon);
+            SANE("the processing time", meand, mediand, sdd);
+            SANE("the waiting time", meanwait, medianwait, sdwait);
+            SANE("the total time", meantot, mediantot, sdtot);
+        }
+        else {
+            printf("              min   avg   max\n");
+#define CONF_FMT_STRING "%5" APR_TIME_T_FMT " %5" APR_TIME_T_FMT "%5" APR_TIME_T_FMT "\n"
+            printf("Connect:    " CONF_FMT_STRING, mincon, meancon, maxcon);
+            printf("Processing: " CONF_FMT_STRING, mind, meand, maxd);
+            printf("Waiting:    " CONF_FMT_STRING, minwait, meanwait, maxwait);
+            printf("Total:      " CONF_FMT_STRING, mintot, meantot, maxtot);
+#undef CONF_FMT_STRING
+        }
+
+
+        /* Sorted on total connect times */
+        if (percentile && (done > 1)) {
+            printf("\nPercentage of the requests served within a certain time (ms)\n");
+            for (i = 0; i < sizeof(percs) / sizeof(int); i++) {
+                if (percs[i] <= 0)
+                    printf(" 0%%  <0> (never)\n");
+                else if (percs[i] >= 100)
+                    printf(" 100%%  %5" APR_TIME_T_FMT " (longest request)\n",
+                           ap_round_ms(stats[done - 1].time));
+                else
+                    printf("  %d%%  %5" APR_TIME_T_FMT "\n", percs[i],
+                           ap_round_ms(stats[(int) (done * percs[i] / 100)].time));
+            }
+        }
+        if (csvperc) {
+            FILE *out = fopen(csvperc, "w");
+            if (!out) {
+                perror("Cannot open CSV output file");
+                exit(1);
+            }
+            fprintf(out, "" "Percentage served" "," "Time in ms" "\n");
+            for (i = 0; i < 100; i++) {
+                double t;
+                if (i == 0)
+                    t = ap_double_ms(stats[0].time);
+                else if (i == 100)
+                    t = ap_double_ms(stats[done - 1].time);
+                else
+                    t = ap_double_ms(stats[(int) (0.5 + done * i / 100.0)].time);
+                fprintf(out, "%d,%.3f\n", i, t);
+            }
+            fclose(out);
+        }
+        if (gnuplot) {
+            FILE *out = fopen(gnuplot, "w");
+            char tmstring[APR_CTIME_LEN];
+            if (!out) {
+                perror("Cannot open gnuplot output file");
+                exit(1);
+            }
+            fprintf(out, "starttime\tseconds\tctime\tdtime\tttime\twait\n");
+            for (i = 0; i < done; i++) {
+                (void) apr_ctime(tmstring, stats[i].starttime);
+                fprintf(out, "%s\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT
+                               "\t%" APR_TIME_T_FMT "\t%" APR_TIME_T_FMT
+                               "\t%" APR_TIME_T_FMT "\n", tmstring,
+                        apr_time_sec(stats[i].starttime),
+                        ap_round_ms(stats[i].ctime),
+                        ap_round_ms(stats[i].time - stats[i].ctime),
+                        ap_round_ms(stats[i].time),
+                        ap_round_ms(stats[i].waittime));
+            }
+            fclose(out);
         }
     }
-    return OK;
+
+    if (sig) {
+        exit(1);
+    }
 }
 
-/* set up the minimal filter set */
-PROXY_DECLARE(int) ap_proxy_pre_http_request(conn_rec *c, request_rec *r)
+/* --------------------------------------------------------- */
+
+/* calculate and output results in HTML  */
+
+static void output_html_results(void)
 {
-    ap_add_input_filter("HTTP_IN", NULL, r, c);
-    return OK;
+    double timetaken = (double) (lasttime - start) / APR_USEC_PER_SEC;
+
+    printf("\n\n<table %s>\n", tablestring);
+    printf("<tr %s><th colspan=2 %s>Server Software:</th>"
+       "<td colspan=2 %s>%s</td></tr>\n",
+       trstring, tdstring, tdstring, servername);
+    printf("<tr %s><th colspan=2 %s>Server Hostname:</th>"
+       "<td colspan=2 %s>%s</td></tr>\n",
+       trstring, tdstring, tdstring, hostname);
+    printf("<tr %s><th colspan=2 %s>Server Port:</th>"
+       "<td colspan=2 %s>%hu</td></tr>\n",
+       trstring, tdstring, tdstring, port);
+    printf("<tr %s><th colspan=2 %s>Document Path:</th>"
+       "<td colspan=2 %s>%s</td></tr>\n",
+       trstring, tdstring, tdstring, path);
+    if (nolength)
+        printf("<tr %s><th colspan=2 %s>Document Length:</th>"
+            "<td colspan=2 %s>Variable</td></tr>\n",
+            trstring, tdstring, tdstring);
+    else
+        printf("<tr %s><th colspan=2 %s>Document Length:</th>"
+            "<td colspan=2 %s>%" APR_SIZE_T_FMT " bytes</td></tr>\n",
+            trstring, tdstring, tdstring, doclen);
+    printf("<tr %s><th colspan=2 %s>Concurrency Level:</th>"
+       "<td colspan=2 %s>%d</td></tr>\n",
+       trstring, tdstring, tdstring, concurrency);
+    printf("<tr %s><th colspan=2 %s>Time taken for tests:</th>"
+       "<td colspan=2 %s>%.3f seconds</td></tr>\n",
+       trstring, tdstring, tdstring, timetaken);
+    printf("<tr %s><th colspan=2 %s>Complete requests:</th>"
+       "<td colspan=2 %s>%d</td></tr>\n",
+       trstring, tdstring, tdstring, done);
+    printf("<tr %s><th colspan=2 %s>Failed requests:</th>"
+       "<td colspan=2 %s>%d</td></tr>\n",
+       trstring, tdstring, tdstring, bad);
+    if (bad)
+        printf("<tr %s><td colspan=4 %s >   (Connect: %d, Length: %d, Exceptions: %d)</td></tr>\n",
+           trstring, tdstring, err_conn, err_length, err_except);
+    if (err_response)
+        printf("<tr %s><th colspan=2 %s>Non-2xx responses:</th>"
+           "<td colspan=2 %s>%d</td></tr>\n",
+           trstring, tdstring, tdstring, err_response);
+    if (keepalive)
+        printf("<tr %s><th colspan=2 %s>Keep-Alive requests:</th>"
+           "<td colspan=2 %s>%d</td></tr>\n",
+           trstring, tdstring, tdstring, doneka);
+    printf("<tr %s><th colspan=2 %s>Total transferred:</th>"
+       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalread);
+    if (send_body)
+        printf("<tr %s><th colspan=2 %s>Total body sent:</th>"
+           "<td colspan=2 %s>%" APR_INT64_T_FMT "</td></tr>\n",
+           trstring, tdstring,
+           tdstring, totalposted);
+    printf("<tr %s><th colspan=2 %s>HTML transferred:</th>"
+       "<td colspan=2 %s>%" APR_INT64_T_FMT " bytes</td></tr>\n",
+       trstring, tdstring, tdstring, totalbread);
+
+    /* avoid divide by zero */
+    if (timetaken) {
+        printf("<tr %s><th colspan=2 %s>Requests per second:</th>"
+           "<td colspan=2 %s>%.2f</td></tr>\n",
+           trstring, tdstring, tdstring, (double) done / timetaken);
+        printf("<tr %s><th colspan=2 %s>Transfer rate:</th>"
+           "<td colspan=2 %s>%.2f kb/s received</td></tr>\n",
+           trstring, tdstring, tdstring, (double) totalread / 1024 / timetaken);
+        if (send_body) {
+            printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s sent</td></tr>\n",
+               trstring, tdstring, tdstring,
+               (double) totalposted / 1024 / timetaken);
+            printf("<tr %s><td colspan=2 %s>&nbsp;</td>"
+               "<td colspan=2 %s>%.2f kb/s total</td></tr>\n",
+               trstring, tdstring, tdstring,
+               (double) (totalread + totalposted) / 1024 / timetaken);
+        }
+    }
+    {
+        /* work out connection times */
+        int i;
+        apr_interval_time_t totalcon = 0, total = 0;
+        apr_interval_time_t mincon = AB_MAX, mintot = AB_MAX;
+        apr_interval_time_t maxcon = 0, maxtot = 0;
+
+        for (i = 0; i < done; i++) {
+            struct data *s = &stats[i];
+            mincon = ap_min(mincon, s->ctime);
+            mintot = ap_min(mintot, s->time);
+            maxcon = ap_max(maxcon, s->ctime);
+            maxtot = ap_max(maxtot, s->time);
+            totalcon += s->ctime;
+            total    += s->time;
+        }
+        /*
+         * Reduce stats from apr time to milliseconds
+         */
+        mincon   = ap_round_ms(mincon);
+        mintot   = ap_round_ms(mintot);
+        maxcon   = ap_round_ms(maxcon);
+        maxtot   = ap_round_ms(maxtot);
+        totalcon = ap_round_ms(totalcon);
+        total    = ap_round_ms(total);
+
+        if (done > 0) { /* avoid division by zero (if 0 done) */
+            printf("<tr %s><th %s colspan=4>Connnection Times (ms)</th></tr>\n",
+               trstring, tdstring);
+            printf("<tr %s><th %s>&nbsp;</th> <th %s>min</th>   <th %s>avg</th>   <th %s>max</th></tr>\n",
+               trstring, tdstring, tdstring, tdstring, tdstring);
+            printf("<tr %s><th %s>Connect:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mincon, tdstring, totalcon / done, tdstring, maxcon);
+            printf("<tr %s><th %s>Processing:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mintot - mincon, tdstring,
+               (total / done) - (totalcon / done), tdstring, maxtot - maxcon);
+            printf("<tr %s><th %s>Total:</th>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td>"
+               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
+               trstring, tdstring, tdstring, mintot, tdstring, total / done, tdstring, maxtot);
+        }
+        printf("</table>\n");
+    }
 }
 
-PROXY_DECLARE(const char *) ap_proxy_location_reverse_map(request_rec *r,
-                              proxy_dir_conf *conf, const char *url)
-{
-    proxy_req_conf *rconf;
-    struct proxy_alias *ent;
-    int i, l1, l2;
-    char *u;
+/* --------------------------------------------------------- */
 
-    /*
-     * XXX FIXME: Make sure this handled the ambiguous case of the :<PORT>
-     * after the hostname
-     * XXX FIXME: Ensure the /uri component is a case sensitive match
-     */
-    if (r->proxyreq != PROXYREQ_REVERSE) {
-        return url;
+/* start asnchronous non-blocking connection */
+
+static void start_connect(struct connection * c)
+{
+    apr_status_t rv;
+
+    if (!(started < requests))
+    return;
+
+    c->read = 0;
+    c->bread = 0;
+    c->keepalive = 0;
+    c->cbx = 0;
+    c->gotheader = 0;
+    c->rwrite = 0;
+    if (c->ctx)
+        apr_pool_clear(c->ctx);
+    else
+        apr_pool_create(&c->ctx, cntxt);
+
+    if ((rv = apr_socket_create(&c->aprsock, destsa->family,
+                SOCK_STREAM, 0, c->ctx)) != APR_SUCCESS) {
+    apr_err("socket", rv);
     }
 
-    l1 = strlen(url);
-    if (conf->interpolate_env == 1) {
-        rconf = ap_get_module_config(r->request_config, &proxy_module);
-        ent = (struct proxy_alias *)rconf->raliases->elts;
+    if (myhost) {
+        if ((rv = apr_socket_bind(c->aprsock, mysa)) != APR_SUCCESS) {
+            apr_err("bind", rv);
+        }
+    }
+
+    c->pollfd.desc_type = APR_POLL_SOCKET;
+    c->pollfd.desc.s = c->aprsock;
+    c->pollfd.reqevents = 0;
+    c->pollfd.client_data = c;
+
+    if ((rv = apr_socket_opt_set(c->aprsock, APR_SO_NONBLOCK, 1))
+         != APR_SUCCESS) {
+        apr_err("socket nonblock", rv);
+    }
+
+    if (windowsize != 0) {
+        rv = apr_socket_opt_set(c->aprsock, APR_SO_SNDBUF,
+                                windowsize);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+            apr_err("socket send buffer", rv);
+        }
+        rv = apr_socket_opt_set(c->aprsock, APR_SO_RCVBUF,
+                                windowsize);
+        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
+            apr_err("socket receive buffer", rv);
+        }
+    }
+
+    c->start = lasttime = apr_time_now();
+#ifdef USE_SSL
+    if (is_ssl) {
+        BIO *bio;
+        apr_os_sock_t fd;
+
+        if ((c->ssl = SSL_new(ssl_ctx)) == NULL) {
+            BIO_printf(bio_err, "SSL_new failed.\n");
+            ERR_print_errors(bio_err);
+            exit(1);
+        }
+        ssl_rand_seed();
+        apr_os_sock_get(&fd, c->aprsock);
+        bio = BIO_new_socket(fd, BIO_NOCLOSE);
+        SSL_set_bio(c->ssl, bio, bio);
+        SSL_set_connect_state(c->ssl);
+        if (verbosity >= 4) {
+            BIO_set_callback(bio, ssl_print_cb);
+            BIO_set_callback_arg(bio, (void *)bio_err);
+        }
+    } else {
+        c->ssl = NULL;
+    }
+#endif
+    if ((rv = apr_socket_connect(c->aprsock, destsa)) != APR_SUCCESS) {
+        if (APR_STATUS_IS_EINPROGRESS(rv)) {
+            set_conn_state(c, STATE_CONNECTING);
+            c->rwrite = 0;
+            return;
+        }
+        else {
+            set_conn_state(c, STATE_UNCONNECTED);
+            apr_socket_close(c->aprsock);
+            err_conn++;
+            if (bad++ > 10) {
+                fprintf(stderr,
+                   "\nTest aborted after 10 failures\n\n");
+                apr_err("apr_socket_connect()", rv);
+            }
+
+            start_connect(c);
+            return;
+        }
+    }
+
+    /* connected first time */
+    set_conn_state(c, STATE_CONNECTED);
+#ifdef USE_SSL
+    if (c->ssl) {
+        ssl_proceed_handshake(c);
+    } else
+#endif
+    {
+        write_request(c);
+    }
+}
+
+/* --------------------------------------------------------- */
+
+/* close down connection and save stats */
+
+static void close_connection(struct connection * c)
+{
+    if (c->read == 0 && c->keepalive) {
+        /*
+         * server has legitimately shut down an idle keep alive request
+         */
+        if (good)
+            good--;     /* connection never happened */
     }
     else {
-        ent = (struct proxy_alias *)conf->raliases->elts;
-    }
-    for (i = 0; i < conf->raliases->nelts; i++) {
-        proxy_server_conf *sconf = (proxy_server_conf *)
-            ap_get_module_config(r->server->module_config, &proxy_module);
-        proxy_balancer *balancer;
-        const char *real = ent[i].real;
-        /*
-         * First check if mapping against a balancer and see
-         * if we have such a entity. If so, then we need to
-         * find the particulars of the actual worker which may
-         * or may not be the right one... basically, we need
-         * to find which member actually handled this request.
-         */
-        if (ap_proxy_valid_balancer_name((char *)real, 0) &&
-            (balancer = ap_proxy_get_balancer(r->pool, sconf, real, 1))) {
-            int n, l3 = 0;
-            proxy_worker **worker = (proxy_worker **)balancer->workers->elts;
-            const char *urlpart = ap_strchr_c(real, '/');
-            if (urlpart) {
-                if (!urlpart[1])
-                    urlpart = NULL;
-                else
-                    l3 = strlen(urlpart);
+        if (good == 1) {
+            /* first time here */
+            doclen = c->bread;
+        }
+        else if ((c->bread != doclen) && !nolength) {
+            bad++;
+            err_length++;
+        }
+        /* save out time */
+        if (done < requests) {
+            struct data *s = &stats[done++];
+            c->done      = lasttime = apr_time_now();
+            s->starttime = c->start;
+            s->ctime     = ap_max(0, c->connect - c->start);
+            s->time      = ap_max(0, c->done - c->start);
+            s->waittime  = ap_max(0, c->beginread - c->endwrite);
+            if (heartbeatres && !(done % heartbeatres)) {
+                fprintf(stderr, "Completed %d requests\n", done);
+                fflush(stderr);
             }
-            /* The balancer comparison is a bit trickier.  Given the context
-             *   BalancerMember balancer://alias http://example.com/foo
-             *   ProxyPassReverse /bash balancer://alias/bar
-             * translate url http://example.com/foo/bar/that to /bash/that
-             */
-            for (n = 0; n < balancer->workers->nelts; n++) {
-                l2 = strlen((*worker)->s->name);
-                if (urlpart) {
-                    /* urlpart (l3) assuredly starts with its own '/' */
-                    if ((*worker)->s->name[l2 - 1] == '/')
-                        --l2;
-                    if (l1 >= l2 + l3
-                            && strncasecmp((*worker)->s->name, url, l2) == 0
-                            && strncmp(urlpart, url + l2, l3) == 0) {
-                        u = apr_pstrcat(r->pool, ent[i].fake, &url[l2 + l3],
-                                        NULL);
-                        return ap_is_url(u) ? u : ap_construct_url(r->pool, u, r);
-                    }
+        }
+    }
+
+    set_conn_state(c, STATE_UNCONNECTED);
+#ifdef USE_SSL
+    if (c->ssl) {
+        SSL_shutdown(c->ssl);
+        SSL_free(c->ssl);
+        c->ssl = NULL;
+    }
+#endif
+    apr_socket_close(c->aprsock);
+
+    /* connect again */
+    start_connect(c);
+    return;
+}
+
+/* --------------------------------------------------------- */
+
+/* read data from connection */
+
+static void read_connection(struct connection * c)
+{
+    apr_size_t r;
+    apr_status_t status;
+    char *part;
+    char respcode[4];       /* 3 digits and null */
+
+    r = sizeof(buffer);
+#ifdef USE_SSL
+    if (c->ssl) {
+        status = SSL_read(c->ssl, buffer, r);
+        if (status <= 0) {
+            int scode = SSL_get_error(c->ssl, status);
+
+            if (scode == SSL_ERROR_ZERO_RETURN) {
+                /* connection closed cleanly: */
+                good++;
+                close_connection(c);
+            }
+            else if (scode == SSL_ERROR_SYSCALL
+                     && status == 0
+                     && c->read != 0) {
+                /* connection closed, but in violation of the protocol, after
+                 * some data has already been read; this commonly happens, so
+                 * let the length check catch any response errors
+                 */
+                good++;
+                close_connection(c);
+            }
+            else if (scode != SSL_ERROR_WANT_WRITE
+                     && scode != SSL_ERROR_WANT_READ) {
+                /* some fatal error: */
+                c->read = 0;
+                BIO_printf(bio_err, "SSL read failed (%d) - closing connection\n", scode);
+                ERR_print_errors(bio_err);
+                close_connection(c);
+            }
+            return;
+        }
+        r = status;
+    }
+    else
+#endif
+    {
+        status = apr_socket_recv(c->aprsock, buffer, &r);
+        if (APR_STATUS_IS_EAGAIN(status))
+            return;
+        else if (r == 0 && APR_STATUS_IS_EOF(status)) {
+            good++;
+            close_connection(c);
+            return;
+        }
+        /* catch legitimate fatal apr_socket_recv errors */
+        else if (status != APR_SUCCESS) {
+            err_recv++;
+            if (recverrok) {
+                bad++;
+                close_connection(c);
+                if (verbosity >= 1) {
+                    char buf[120];
+                    fprintf(stderr,"%s: %s (%d)\n", "apr_socket_recv", apr_strerror(status, buf, sizeof buf), status);
                 }
-                else if (l1 >= l2 && strncasecmp((*worker)->s->name, url, l2) == 0) {
-                    u = apr_pstrcat(r->pool, ent[i].fake, &url[l2], NULL);
-                    return ap_is_url(u) ? u : ap_construct_url(r->pool, u, r);
+                return;
+            } else {
+                apr_err("apr_socket_recv", status);
+            }
+        }
+    }
+
+    totalread += r;
+    if (c->read == 0) {
+        c->beginread = apr_time_now();
+    }
+    c->read += r;
+
+
+    if (!c->gotheader) {
+        char *s;
+        int l = 4;
+        apr_size_t space = CBUFFSIZE - c->cbx - 1; /* -1 allows for \0 term */
+        int tocopy = (space < r) ? space : r;
+#ifdef NOT_ASCII
+        apr_size_t inbytes_left = space, outbytes_left = space;
+
+        status = apr_xlate_conv_buffer(from_ascii, buffer, &inbytes_left,
+                           c->cbuff + c->cbx, &outbytes_left);
+        if (status || inbytes_left || outbytes_left) {
+            fprintf(stderr, "only simple translation is supported (%d/%" APR_SIZE_T_FMT
+                            "/%" APR_SIZE_T_FMT ")\n", status, inbytes_left, outbytes_left);
+            exit(1);
+        }
+#else
+        memcpy(c->cbuff + c->cbx, buffer, space);
+#endif              /* NOT_ASCII */
+        c->cbx += tocopy;
+        space -= tocopy;
+        c->cbuff[c->cbx] = 0;   /* terminate for benefit of strstr */
+        if (verbosity >= 2) {
+            printf("LOG: header received:\n%s\n", c->cbuff);
+        }
+        s = strstr(c->cbuff, "\r\n\r\n");
+        /*
+         * this next line is so that we talk to NCSA 1.5 which blatantly
+         * breaks the http specifaction
+         */
+        if (!s) {
+            s = strstr(c->cbuff, "\n\n");
+            l = 2;
+        }
+
+        if (!s) {
+            /* read rest next time */
+            if (space) {
+                return;
+            }
+            else {
+            /* header is in invalid or too big - close connection */
+                set_conn_state(c, STATE_UNCONNECTED);
+                apr_socket_close(c->aprsock);
+                err_response++;
+                if (bad++ > 10) {
+                    err("\nTest aborted after 10 failures\n\n");
                 }
-                worker++;
+                start_connect(c);
             }
         }
         else {
-            const char *part = url;
-            l2 = strlen(real);
-            if (real[0] == '/') {
-                part = ap_strstr_c(url, "://");
-                if (part) {
-                    part = ap_strchr_c(part+3, '/');
-                    if (part) {
-                        l1 = strlen(part);
+            /* have full header */
+            if (!good) {
+                /*
+                 * this is first time, extract some interesting info
+                 */
+                char *p, *q;
+                p = strstr(c->cbuff, "Server:");
+                q = servername;
+                if (p) {
+                    p += 8;
+                    while (*p > 32)
+                    *q++ = *p++;
+                }
+                *q = 0;
+            }
+            /*
+             * XXX: this parsing isn't even remotely HTTP compliant... but in
+             * the interest of speed it doesn't totally have to be, it just
+             * needs to be extended to handle whatever servers folks want to
+             * test against. -djg
+             */
+
+            /* check response code */
+            part = strstr(c->cbuff, "HTTP");    /* really HTTP/1.x_ */
+            if (part && strlen(part) > strlen("HTTP/1.x_")) {
+                strncpy(respcode, (part + strlen("HTTP/1.x_")), 3);
+                respcode[3] = '\0';
+            }
+            else {
+                strcpy(respcode, "500");
+            }
+
+            if (respcode[0] != '2') {
+                err_response++;
+                if (verbosity >= 2)
+                    printf("WARNING: Response code not 2xx (%s)\n", respcode);
+            }
+            else if (verbosity >= 3) {
+                printf("LOG: Response code = %s\n", respcode);
+            }
+            c->gotheader = 1;
+            *s = 0;     /* terminate at end of header */
+            if (keepalive &&
+            (strstr(c->cbuff, "Keep-Alive")
+             || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
+                char *cl;
+                cl = strstr(c->cbuff, "Content-Length:");
+                /* handle NCSA, which sends Content-length: */
+                if (!cl)
+                    cl = strstr(c->cbuff, "Content-length:");
+                if (cl) {
+                    c->keepalive = 1;
+                    /* response to HEAD doesn't have entity body */
+                    c->length = method != HEAD ? atoi(cl + 16) : 0;
+                }
+                /* The response may not have a Content-Length header */
+                if (!cl) {
+                    c->keepalive = 1;
+                    c->length = 0;
+                }
+            }
+            c->bread += c->cbx - (s + l - c->cbuff) + r - tocopy;
+            totalbread += c->bread;
+        }
+    }
+    else {
+        /* outside header, everything we have read is entity body */
+        c->bread += r;
+        totalbread += r;
+    }
+
+    if (c->keepalive && (c->bread >= c->length)) {
+        /* finished a keep-alive connection */
+        good++;
+        /* save out time */
+        if (good == 1) {
+            /* first time here */
+            doclen = c->bread;
+        }
+        else if ((c->bread != doclen) && !nolength) {
+            bad++;
+            err_length++;
+        }
+        if (done < requests) {
+            struct data *s = &stats[done++];
+            doneka++;
+            c->done      = apr_time_now();
+            s->starttime = c->start;
+            s->ctime     = ap_max(0, c->connect - c->start);
+            s->time      = ap_max(0, c->done - c->start);
+            s->waittime  = ap_max(0, c->beginread - c->endwrite);
+            if (heartbeatres && !(done % heartbeatres)) {
+                fprintf(stderr, "Completed %d requests\n", done);
+                fflush(stderr);
+            }
+        }
+        c->keepalive = 0;
+        c->length = 0;
+        c->gotheader = 0;
+        c->cbx = 0;
+        c->read = c->bread = 0;
+        /* zero connect time with keep-alive */
+        c->start = c->connect = lasttime = apr_time_now();
+        write_request(c);
+    }
+}
+
+/* --------------------------------------------------------- */
+
+/* run the tests */
+
+static void test(void)
+{
+    apr_time_t stoptime;
+    apr_int16_t rtnev;
+    apr_status_t rv;
+    int i;
+    apr_status_t status;
+    int snprintf_res = 0;
+#ifdef NOT_ASCII
+    apr_size_t inbytes_left, outbytes_left;
+#endif
+
+    if (isproxy) {
+        connecthost = apr_pstrdup(cntxt, proxyhost);
+        connectport = proxyport;
+    }
+    else {
+        connecthost = apr_pstrdup(cntxt, hostname);
+        connectport = port;
+    }
+
+    if (!use_html) {
+        printf("Benchmarking %s ", hostname);
+    if (isproxy)
+        printf("[through %s:%d] ", proxyhost, proxyport);
+    printf("(be patient)%s",
+           (heartbeatres ? "\n" : "..."));
+    fflush(stdout);
+    }
+
+    con = xcalloc(concurrency, sizeof(struct connection));
+
+    /*
+     * XXX: a way to calculate the stats without requiring O(requests) memory
+     * XXX: would be nice.
+     */
+    stats = xcalloc(requests, sizeof(struct data));
+
+    if ((status = apr_pollset_create(&readbits, concurrency, cntxt,
+                                     APR_POLLSET_NOCOPY)) != APR_SUCCESS) {
+        apr_err("apr_pollset_create failed", status);
+    }
+
+    /* add default headers if necessary */
+    if (!opt_host) {
+        /* Host: header not overridden, add default value to hdrs */
+        hdrs = apr_pstrcat(cntxt, hdrs, "Host: ", host_field, colonhost, "\r\n", NULL);
+    }
+    else {
+        /* Header overridden, no need to add, as it is already in hdrs */
+    }
+
+    if (!opt_useragent) {
+        /* User-Agent: header not overridden, add default value to hdrs */
+        hdrs = apr_pstrcat(cntxt, hdrs, "User-Agent: ApacheBench/", AP_AB_BASEREVISION, "\r\n", NULL);
+    }
+    else {
+        /* Header overridden, no need to add, as it is already in hdrs */
+    }
+
+    if (!opt_accept) {
+        /* Accept: header not overridden, add default value to hdrs */
+        hdrs = apr_pstrcat(cntxt, hdrs, "Accept: */*\r\n", NULL);
+    }
+    else {
+        /* Header overridden, no need to add, as it is already in hdrs */
+    }
+
+    /* setup request */
+    if (!send_body) {
+        snprintf_res = apr_snprintf(request, sizeof(_request),
+            "%s %s HTTP/1.0\r\n"
+            "%s" "%s" "%s"
+            "%s" "\r\n",
+            method_str[method],
+            (isproxy) ? fullurl : path,
+            keepalive ? "Connection: Keep-Alive\r\n" : "",
+            cookie, auth, hdrs);
+    }
+    else {
+        snprintf_res = apr_snprintf(request,  sizeof(_request),
+            "%s %s HTTP/1.0\r\n"
+            "%s" "%s" "%s"
+            "Content-length: %" APR_SIZE_T_FMT "\r\n"
+            "Content-type: %s\r\n"
+            "%s"
+            "\r\n",
+            method_str[method],
+            (isproxy) ? fullurl : path,
+            keepalive ? "Connection: Keep-Alive\r\n" : "",
+            cookie, auth,
+            postlen,
+            (content_type != NULL) ? content_type : "text/plain", hdrs);
+    }
+    if (snprintf_res >= sizeof(_request)) {
+        err("Request too long\n");
+    }
+
+    if (verbosity >= 2)
+        printf("INFO: %s header == \n---\n%s\n---\n",
+               method_str[method], request);
+
+    reqlen = strlen(request);
+
+    /*
+     * Combine headers and (optional) post file into one continuous buffer
+     */
+    if (send_body) {
+        char *buff = xmalloc(postlen + reqlen + 1);
+        strcpy(buff, request);
+        memcpy(buff + reqlen, postdata, postlen);
+        request = buff;
+    }
+
+#ifdef NOT_ASCII
+    inbytes_left = outbytes_left = reqlen;
+    status = apr_xlate_conv_buffer(to_ascii, request, &inbytes_left,
+                   request, &outbytes_left);
+    if (status || inbytes_left || outbytes_left) {
+        fprintf(stderr, "only simple translation is supported (%d/%"
+                        APR_SIZE_T_FMT "/%" APR_SIZE_T_FMT ")\n",
+                        status, inbytes_left, outbytes_left);
+        exit(1);
+    }
+#endif              /* NOT_ASCII */
+
+    if (myhost) {
+        /* This only needs to be done once */
+        if ((rv = apr_sockaddr_info_get(&mysa, myhost, APR_UNSPEC, 0, 0, cntxt)) != APR_SUCCESS) {
+            char buf[120];
+            apr_snprintf(buf, sizeof(buf),
+                         "apr_sockaddr_info_get() for %s", myhost);
+            apr_err(buf, rv);
+        }
+    }
+
+    /* This too */
+    if ((rv = apr_sockaddr_info_get(&destsa, connecthost,
+                                    myhost ? mysa->family : APR_UNSPEC,
+                                    connectport, 0, cntxt))
+       != APR_SUCCESS) {
+        char buf[120];
+        apr_snprintf(buf, sizeof(buf),
+                 "apr_sockaddr_info_get() for %s", connecthost);
+        apr_err(buf, rv);
+    }
+
+    /* ok - lets start */
+    start = lasttime = apr_time_now();
+    stoptime = tlimit ? (start + apr_time_from_sec(tlimit)) : AB_MAX;
+
+#ifdef SIGINT
+    /* Output the results if the user terminates the run early. */
+    apr_signal(SIGINT, output_results);
+#endif
+
+    /* initialise lots of requests */
+    for (i = 0; i < concurrency; i++) {
+        con[i].socknum = i;
+        start_connect(&con[i]);
+    }
+
+    do {
+        apr_int32_t n;
+        const apr_pollfd_t *pollresults, *pollfd;
+
+        n = concurrency;
+        do {
+            status = apr_pollset_poll(readbits, aprtimeout, &n, &pollresults);
+        } while (APR_STATUS_IS_EINTR(status));
+        if (status != APR_SUCCESS)
+            apr_err("apr_pollset_poll", status);
+
+        for (i = 0, pollfd = pollresults; i < n; i++, pollfd++) {
+            struct connection *c;
+
+            c = pollfd->client_data;
+
+            /*
+             * If the connection isn't connected how can we check it?
+             */
+            if (c->state == STATE_UNCONNECTED)
+                continue;
+
+            rtnev = pollfd->rtnevents;
+
+#ifdef USE_SSL
+            if (c->state == STATE_CONNECTED && c->ssl && SSL_in_init(c->ssl)) {
+                ssl_proceed_handshake(c);
+                continue;
+            }
+#endif
+
+            /*
+             * Notes: APR_POLLHUP is set after FIN is received on some
+             * systems, so treat that like APR_POLLIN so that we try to read
+             * again.
+             *
+             * Some systems return APR_POLLERR with APR_POLLHUP.  We need to
+             * call read_connection() for APR_POLLHUP, so check for
+             * APR_POLLHUP first so that a closed connection isn't treated
+             * like an I/O error.  If it is, we never figure out that the
+             * connection is done and we loop here endlessly calling
+             * apr_poll().
+             */
+            if ((rtnev & APR_POLLIN) || (rtnev & APR_POLLPRI) || (rtnev & APR_POLLHUP))
+                read_connection(c);
+            if ((rtnev & APR_POLLERR) || (rtnev & APR_POLLNVAL)) {
+                bad++;
+                err_except++;
+                /* avoid apr_poll/EINPROGRESS loop on HP-UX, let recv discover ECONNREFUSED */
+                if (c->state == STATE_CONNECTING) {
+                    read_connection(c);
+                }
+                else {
+                    start_connect(c);
+                }
+                continue;
+            }
+            if (rtnev & APR_POLLOUT) {
+                if (c->state == STATE_CONNECTING) {
+                    rv = apr_socket_connect(c->aprsock, destsa);
+                    if (rv != APR_SUCCESS) {
+                        set_conn_state(c, STATE_UNCONNECTED);
+                        apr_socket_close(c->aprsock);
+                        err_conn++;
+                        if (bad++ > 10) {
+                            fprintf(stderr,
+                                    "\nTest aborted after 10 failures\n\n");
+                            apr_err("apr_socket_connect()", rv);
+                        }
+                        start_connect(c);
+                        continue;
                     }
                     else {
-                        part = url;
+                        set_conn_state(c, STATE_CONNECTED);
+#ifdef USE_SSL
+                        if (c->ssl)
+                            ssl_proceed_handshake(c);
+                        else
+#endif
+                        write_request(c);
                     }
                 }
                 else {
-                    part = url;
+                    write_request(c);
                 }
             }
-            if (l1 >= l2 && strncasecmp(real, part, l2) == 0) {
-                u = apr_pstrcat(r->pool, ent[i].fake, &part[l2], NULL);
-                return ap_is_url(u) ? u : ap_construct_url(r->pool, u, r);
-            }
         }
-    }
+    } while (lasttime < stoptime && done < requests);
 
-    return url;
+    if (heartbeatres)
+        fprintf(stderr, "Finished %d requests\n", done);
+    else
+        printf("..done\n");
+
+    if (use_html)
+        output_html_results();
+    else
+        output_results(0);
 }
 
-/*
- * Cookies are a bit trickier to match: we've got two substrings to worry
- * about, and we can't just find them with strstr 'cos of case.  Regexp
- * matching would be an easy fix, but for better consistency with all the
- * other matches we'll refrain and use apr_strmatch to find path=/domain=
- * and stick to plain strings for the config values.
- */
-PROXY_DECLARE(const char *) ap_proxy_cookie_reverse_map(request_rec *r,
-                              proxy_dir_conf *conf, const char *str)
+/* ------------------------------------------------------- */
+
+/* display copyright information */
+static void copyright(void)
 {
-    proxy_req_conf *rconf = ap_get_module_config(r->request_config,
-                                                 &proxy_module);
-    struct proxy_alias *ent;
-    apr_size_t len = strlen(str);
-    const char *newpath = NULL;
-    const char *newdomain = NULL;
-    const char *pathp;
-    const char *domainp;
-    const char *pathe = NULL;
-    const char *domaine = NULL;
-    apr_size_t l1, l2, poffs = 0, doffs = 0;
-    int i;
-    int ddiff = 0;
-    int pdiff = 0;
-    char *ret;
-
-    if (r->proxyreq != PROXYREQ_REVERSE) {
-        return str;
-    }
-
-   /*
-    * Find the match and replacement, but save replacing until we've done
-    * both path and domain so we know the new strlen
-    */
-    if ((pathp = apr_strmatch(ap_proxy_strmatch_path, str, len)) != NULL) {
-        pathp += 5;
-        poffs = pathp - str;
-        pathe = ap_strchr_c(pathp, ';');
-        l1 = pathe ? (pathe - pathp) : strlen(pathp);
-        pathe = pathp + l1 ;
-        if (conf->interpolate_env == 1) {
-            ent = (struct proxy_alias *)rconf->cookie_paths->elts;
-        }
-        else {
-            ent = (struct proxy_alias *)conf->cookie_paths->elts;
-        }
-        for (i = 0; i < conf->cookie_paths->nelts; i++) {
-            l2 = strlen(ent[i].fake);
-            if (l1 >= l2 && strncmp(ent[i].fake, pathp, l2) == 0) {
-                newpath = ent[i].real;
-                pdiff = strlen(newpath) - l1;
-                break;
-            }
-        }
-    }
-
-    if ((domainp = apr_strmatch(ap_proxy_strmatch_domain, str, len)) != NULL) {
-        domainp += 7;
-        doffs = domainp - str;
-        domaine = ap_strchr_c(domainp, ';');
-        l1 = domaine ? (domaine - domainp) : strlen(domainp);
-        domaine = domainp + l1;
-        if (conf->interpolate_env == 1) {
-            ent = (struct proxy_alias *)rconf->cookie_domains->elts;
-        }
-        else {
-            ent = (struct proxy_alias *)conf->cookie_domains->elts;
-        }
-        for (i = 0; i < conf->cookie_domains->nelts; i++) {
-            l2 = strlen(ent[i].fake);
-            if (l1 >= l2 && strncasecmp(ent[i].fake, domainp, l2) == 0) {
-                newdomain = ent[i].real;
-                ddiff = strlen(newdomain) - l1;
-                break;
-            }
-        }
-    }
-
-    if (newpath) {
-        ret = apr_palloc(r->pool, len + pdiff + ddiff + 1);
-        l1 = strlen(newpath);
-        if (newdomain) {
-            l2 = strlen(newdomain);
-            if (doffs > poffs) {
-                memcpy(ret, str, poffs);
-                memcpy(ret + poffs, newpath, l1);
-                memcpy(ret + poffs + l1, pathe, domainp - pathe);
-                memcpy(ret + doffs + pdiff, newdomain, l2);
-                strcpy(ret + doffs + pdiff + l2, domaine);
-            }
-            else {
-                memcpy(ret, str, doffs) ;
-                memcpy(ret + doffs, newdomain, l2);
-                memcpy(ret + doffs + l2, domaine, pathp - domaine);
-                memcpy(ret + poffs + ddiff, newpath, l1);
-                strcpy(ret + poffs + ddiff + l1, pathe);
-            }
-        }
-        else {
-            memcpy(ret, str, poffs);
-            memcpy(ret + poffs, newpath, l1);
-            strcpy(ret + poffs + l1, pathe);
-        }
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1604373 $>");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
+        printf("\n");
     }
     else {
-        if (newdomain) {
-            ret = apr_palloc(r->pool, len + pdiff + ddiff + 1);
-            l2 = strlen(newdomain);
-            memcpy(ret, str, doffs);
-            memcpy(ret + doffs, newdomain, l2);
-            strcpy(ret + doffs+l2, domaine);
-        }
-        else {
-            ret = (char *)str; /* no change */
-        }
+        printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1604373 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
+        printf("</p>\n<p>\n");
     }
-
-    return ret;
 }
 
-/*
- * BALANCER related...
+/* display usage information */
+static void usage(const char *progname)
+{
+    fprintf(stderr, "Usage: %s [options] [http"
+#ifdef USE_SSL
+        "[s]"
+#endif
+        "://]hostname[:port]/path\n", progname);
+/* 80 column ruler:  ********************************************************************************
  */
+    fprintf(stderr, "Options are:\n");
+    fprintf(stderr, "    -n requests     Number of requests to perform\n");
+    fprintf(stderr, "    -c concurrency  Number of multiple requests to make at a time\n");
+    fprintf(stderr, "    -t timelimit    Seconds to max. to spend on benchmarking\n");
+    fprintf(stderr, "                    This implies -n 50000\n");
+    fprintf(stderr, "    -s timeout      Seconds to max. wait for each response\n");
+    fprintf(stderr, "                    Default is 30 seconds\n");
+    fprintf(stderr, "    -b windowsize   Size of TCP send/receive buffer, in bytes\n");
+    fprintf(stderr, "    -B address      Address to bind to when making outgoing connections\n");
+    fprintf(stderr, "    -p postfile     File containing data to POST. Remember also to set -T\n");
+    fprintf(stderr, "    -u putfile      File containing data to PUT. Remember also to set -T\n");
+    fprintf(stderr, "    -T content-type Content-type header to use for POST/PUT data, eg.\n");
+    fprintf(stderr, "                    'application/x-www-form-urlencoded'\n");
+    fprintf(stderr, "                    Default is 'text/plain'\n");
+    fprintf(stderr, "    -v verbosity    How much troubleshooting info to print\n");
+    fprintf(stderr, "    -w              Print out results in HTML tables\n");
+    fprintf(stderr, "    -i              Use HEAD instead of GET\n");
+    fprintf(stderr, "    -x attributes   String to insert as table attributes\n");
+    fprintf(stderr, "    -y attributes   String to insert as tr attributes\n");
+    fprintf(stderr, "    -z attributes   String to insert as td or th attributes\n");
+    fprintf(stderr, "    -C attribute    Add cookie, eg. 'Apache=1234'. (repeatable)\n");
+    fprintf(stderr, "    -H attribute    Add Arbitrary header line, eg. 'Accept-Encoding: gzip'\n");
+    fprintf(stderr, "                    Inserted after all normal header lines. (repeatable)\n");
+    fprintf(stderr, "    -A attribute    Add Basic WWW Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -P attribute    Add Basic Proxy Authentication, the attributes\n");
+    fprintf(stderr, "                    are a colon separated username and password.\n");
+    fprintf(stderr, "    -X proxy:port   Proxyserver and port number to use\n");
+    fprintf(stderr, "    -V              Print version number and exit\n");
+    fprintf(stderr, "    -k              Use HTTP KeepAlive feature\n");
+    fprintf(stderr, "    -d              Do not show percentiles served table.\n");
+    fprintf(stderr, "    -S              Do not show confidence estimators and warnings.\n");
+    fprintf(stderr, "    -q              Do not show progress when doing more than 150 requests\n");
+    fprintf(stderr, "    -l              Accept variable document length (use this for dynamic pages)\n");
+    fprintf(stderr, "    -g filename     Output collected data to gnuplot format file.\n");
+    fprintf(stderr, "    -e filename     Output CSV file with percentages served\n");
+    fprintf(stderr, "    -r              Don't exit on socket receive errors.\n");
+    fprintf(stderr, "    -m method       Method name\n");
+    fprintf(stderr, "    -h              Display usage information (this message)\n");
+#ifdef USE_SSL
 
-/*
- * verifies that the balancer name conforms to standards.
- */
-PROXY_DECLARE(int) ap_proxy_valid_balancer_name(char *name, int i)
-{
-    if (!i)
-        i = sizeof(BALANCER_PREFIX)-1;
-    return (!strncasecmp(name, BALANCER_PREFIX, i));
+#ifndef OPENSSL_NO_SSL2
+#define SSL2_HELP_MSG "SSL2, "
+#else
+#define SSL2_HELP_MSG ""
+#endif
+
+#ifdef HAVE_TLSV1_X
+#define TLS1_X_HELP_MSG ", TLS1.1, TLS1.2"
+#else
+#define TLS1_X_HELP_MSG ""
+#endif
+
+    fprintf(stderr, "    -Z ciphersuite  Specify SSL/TLS cipher suite (See openssl ciphers)\n");
+    fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol\n");
+    fprintf(stderr, "                    (" SSL2_HELP_MSG "SSL3, TLS1" TLS1_X_HELP_MSG " or ALL)\n");
+#endif
+    exit(EINVAL);
 }
 
+/* ------------------------------------------------------- */
 
-PROXY_DECLARE(proxy_balancer *) ap_proxy_get_balancer(apr_pool_t *p,
-                                                      proxy_server_conf *conf,
-                                                      const char *url,
-                                                      int care)
+/* split URL into parts */
+
+static int parse_url(const char *url)
 {
-    proxy_balancer *balancer;
-    char *c, *uri = apr_pstrdup(p, url);
-    int i;
-    proxy_hashes hash;
+    char *cp;
+    char *h;
+    char *scope_id;
+    apr_status_t rv;
 
-    ap_str_tolower(uri);
-    c = strchr(uri, ':');
-    if (c == NULL || c[1] != '/' || c[2] != '/' || c[3] == '\0') {
-        return NULL;
+    /* Save a copy for the proxy */
+    fullurl = apr_pstrdup(cntxt, url);
+
+    if (strlen(url) > 7 && strncmp(url, "http://", 7) == 0) {
+        url += 7;
+#ifdef USE_SSL
+        is_ssl = 0;
+#endif
     }
-    /* remove path from uri */
-    if ((c = strchr(c + 3, '/'))) {
-        *c = '\0';
-    }
-    hash.def = ap_proxy_hashfunc(uri, PROXY_HASHFUNC_DEFAULT);
-    hash.fnv = ap_proxy_hashfunc(uri, PROXY_HASHFUNC_FNV);
-    balancer = (proxy_balancer *)conf->balancers->elts;
-    for (i = 0; i < conf->balancers->nelts; i++) {
-        if (balancer->hash.def == hash.def && balancer->hash.fnv == hash.fnv) {
-            if (!care || !balancer->s->inactive) {
-                return balancer;
-            }
-        }
-        balancer++;
-    }
-    return NULL;
-}
-
-
-PROXY_DECLARE(char *) ap_proxy_update_balancer(apr_pool_t *p,
-                                                proxy_balancer *balancer,
-                                                const char *url)
-{
-    apr_uri_t puri;
-    if (apr_uri_parse(p, url, &puri) != APR_SUCCESS) {
-        return apr_psprintf(p, "unable to parse: %s", url);
-    }
-    if (puri.path && PROXY_STRNCPY(balancer->s->vpath, puri.path) != APR_SUCCESS) {
-        return apr_psprintf(p, "balancer %s front-end virtual-path (%s) too long",
-                            balancer->s->name, puri.path);
-    }
-    if (puri.hostname && PROXY_STRNCPY(balancer->s->vhost, puri.hostname) != APR_SUCCESS) {
-        return apr_psprintf(p, "balancer %s front-end vhost name (%s) too long",
-                            balancer->s->name, puri.hostname);
-    }
-    return NULL;
-}
-
-PROXY_DECLARE(char *) ap_proxy_define_balancer(apr_pool_t *p,
-                                               proxy_balancer **balancer,
-                                               proxy_server_conf *conf,
-                                               const char *url,
-                                               const char *alias,
-                                               int do_malloc)
-{
-    char nonce[APR_UUID_FORMATTED_LENGTH + 1];
-    proxy_balancer_method *lbmethod;
-    apr_uuid_t uuid;
-    proxy_balancer_shared *bshared;
-    char *c, *q, *uri = apr_pstrdup(p, url);
-    const char *sname;
-
-    /* We should never get here without a valid BALANCER_PREFIX... */
-
-    c = strchr(uri, ':');
-    if (c == NULL || c[1] != '/' || c[2] != '/' || c[3] == '\0')
-        return "Bad syntax for a balancer name";
-    /* remove path from uri */
-    if ((q = strchr(c + 3, '/')))
-        *q = '\0';
-
-    ap_str_tolower(uri);
-    *balancer = apr_array_push(conf->balancers);
-    memset(*balancer, 0, sizeof(proxy_balancer));
-
-    /*
-     * NOTE: The default method is byrequests, which we assume
-     * exists!
-     */
-    lbmethod = ap_lookup_provider(PROXY_LBMETHOD, "byrequests", "0");
-    if (!lbmethod) {
-        return "Can't find 'byrequests' lb method";
-    }
-
-    (*balancer)->workers = apr_array_make(p, 5, sizeof(proxy_worker *));
-    (*balancer)->gmutex = NULL;
-    (*balancer)->tmutex = NULL;
-    (*balancer)->lbmethod = lbmethod;
-
-    if (do_malloc)
-        bshared = ap_malloc(sizeof(proxy_balancer_shared));
     else
-        bshared = apr_palloc(p, sizeof(proxy_balancer_shared));
-
-    memset(bshared, 0, sizeof(proxy_balancer_shared));
-
-    bshared->was_malloced = (do_malloc != 0);
-    PROXY_STRNCPY(bshared->lbpname, "byrequests");
-    if (PROXY_STRNCPY(bshared->name, uri) != APR_SUCCESS) {
-        return apr_psprintf(p, "balancer name (%s) too long", uri);
+#ifdef USE_SSL
+    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
+        url += 8;
+        is_ssl = 1;
     }
-    ap_pstr2_alnum(p, bshared->name + sizeof(BALANCER_PREFIX) - 1,
-                   &sname);
-    sname = apr_pstrcat(p, conf->id, "_", sname, NULL);
-    if (PROXY_STRNCPY(bshared->sname, sname) != APR_SUCCESS) {
-        return apr_psprintf(p, "balancer safe-name (%s) too long", sname);
+#else
+    if (strlen(url) > 8 && strncmp(url, "https://", 8) == 0) {
+        fprintf(stderr, "SSL not compiled in; no https support\n");
+        exit(1);
     }
-    bshared->hash.def = ap_proxy_hashfunc(bshared->name, PROXY_HASHFUNC_DEFAULT);
-    bshared->hash.fnv = ap_proxy_hashfunc(bshared->name, PROXY_HASHFUNC_FNV);
-    (*balancer)->hash = bshared->hash;
+#endif
 
-    /* Retrieve a UUID and store the nonce for the lifetime of
-     * the process. */
-    apr_uuid_get(&uuid);
-    apr_uuid_format(nonce, &uuid);
-    if (PROXY_STRNCPY(bshared->nonce, nonce) != APR_SUCCESS) {
-        return apr_psprintf(p, "balancer nonce (%s) too long", nonce);
+    if ((cp = strchr(url, '/')) == NULL)
+        return 1;
+    h = apr_pstrmemdup(cntxt, url, cp - url);
+    rv = apr_parse_addr_port(&hostname, &scope_id, &port, h, cntxt);
+    if (rv != APR_SUCCESS || !hostname || scope_id) {
+        return 1;
+    }
+    path = apr_pstrdup(cntxt, cp);
+    *cp = '\0';
+    if (*url == '[') {      /* IPv6 numeric address string */
+        host_field = apr_psprintf(cntxt, "[%s]", hostname);
+    }
+    else {
+        host_field = hostname;
     }
 
-    (*balancer)->s = bshared;
-    (*balancer)->sconf = conf;
+    if (port == 0) {        /* no port specified */
+#ifdef USE_SSL
+        if (is_ssl)
+            port = 443;
+        else
+#endif
+        port = 80;
+    }
 
-    return ap_proxy_update_balancer(p, *balancer, alias);
+    if ((
+#ifdef USE_SSL
+         is_ssl && (port != 443)) || (!is_ssl &&
+#endif
+         (port != 80)))
+    {
+        colonhost = apr_psprintf(cntxt,":%d",port);
+    } else
+        colonhost = "";
+    return 0;
 }
 
-/*
- * Create an already defined balancer and free up memory.
- */
-PROXY_DECLARE(apr_status_t) ap_proxy_share_balancer(proxy_balancer *balancer,
-                                                    proxy_balancer_shared *shm,
-                                                    int i)
+/* ------------------------------------------------------- */
+
+/* read data to POST/PUT from file, save contents and length */
+
+static apr_status_t open_postfile(const char *pfile)
 {
-    proxy_balancer_method *lbmethod;
-    if (!shm || !balancer->s)
-        return APR_EINVAL;
+    apr_file_t *postfd;
+    apr_finfo_t finfo;
+    apr_status_t rv;
+    char errmsg[120];
 
-    memcpy(shm, balancer->s, sizeof(proxy_balancer_shared));
-    if (balancer->s->was_malloced)
-        free(balancer->s);
-    balancer->s = shm;
-    balancer->s->index = i;
-    /* the below should always succeed */
-    lbmethod = ap_lookup_provider(PROXY_LBMETHOD, balancer->s->lbpname, "0");
-    if (lbmethod)
-        balancer->lbmethod = lbmethod;
-    return APR_SUCCESS;
-}
-
-PROXY_DECLARE(apr_status_t) ap_proxy_initialize_balancer(proxy_balancer *balancer, server_rec *s, apr_pool_t *p)
-{
-    apr_status_t rv = APR_SUCCESS;
-    ap_slotmem_provider_t *storage = balancer->storage;
-    apr_size_t size;
-    unsigned int num;
-
-    if (!storage) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00918)
-                     "no provider for %s", balancer->s->name);
-        return APR_EGENERAL;
-    }
-    /*
-     * for each balancer we need to init the global
-     * mutex and then attach to the shared worker shm
-     */
-    if (!balancer->gmutex) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00919)
-                     "no mutex %s", balancer->s->name);
-        return APR_EGENERAL;
-    }
-
-    /* Re-open the mutex for the child. */
-    rv = apr_global_mutex_child_init(&(balancer->gmutex),
-                                     apr_global_mutex_lockfile(balancer->gmutex),
-                                     p);
+    rv = apr_file_open(&postfd, pfile, APR_READ, APR_OS_DEFAULT, cntxt);
     if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(00920)
-                     "Failed to reopen mutex %s in child",
-                     balancer->s->name);
+        fprintf(stderr, "ab: Could not open POST data file (%s): %s\n", pfile,
+                apr_strerror(rv, errmsg, sizeof errmsg));
         return rv;
     }
 
-    /* now attach */
-    storage->attach(&(balancer->wslot), balancer->s->sname, &size, &num, p);
-    if (!balancer->wslot) {
-        ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00921) "slotmem_attach failed");
-        return APR_EGENERAL;
-    }
-    if (balancer->lbmethod && balancer->lbmethod->reset)
-        balancer->lbmethod->reset(balancer, s);
-
-    if (balancer->tmutex == NULL) {
-        rv = apr_thread_mutex_create(&(balancer->tmutex), APR_THREAD_MUTEX_DEFAULT, p);
-        if (rv != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s, APLOGNO(00922)
-                         "can not create balancer thread mutex");
-            return rv;
-        }
-    }
-    return APR_SUCCESS;
-}
-
-/*
- * CONNECTION related...
- */
-
-static apr_status_t conn_pool_cleanup(void *theworker)
-{
-    proxy_worker *worker = (proxy_worker *)theworker;
-    if (worker->cp->res) {
-        worker->cp->pool = NULL;
-    }
-    return APR_SUCCESS;
-}
-
-static void init_conn_pool(apr_pool_t *p, proxy_worker *worker)
-{
-    apr_pool_t *pool;
-    proxy_conn_pool *cp;
-
-    /*
-     * Create a connection pool's subpool.
-     * This pool is used for connection recycling.
-     * Once the worker is added it is never removed but
-     * it can be disabled.
-     */
-    apr_pool_create(&pool, p);
-    apr_pool_tag(pool, "proxy_worker_cp");
-    /*
-     * Alloc from the same pool as worker.
-     * proxy_conn_pool is permanently attached to the worker.
-     */
-    cp = (proxy_conn_pool *)apr_pcalloc(p, sizeof(proxy_conn_pool));
-    cp->pool = pool;
-    worker->cp = cp;
-}
-
-static apr_status_t connection_cleanup(void *theconn)
-{
-    proxy_conn_rec *conn = (proxy_conn_rec *)theconn;
-    proxy_worker *worker = conn->worker;
-
-    /*
-     * If the connection pool is NULL the worker
-     * cleanup has been run. Just return.
-     */
-    if (!worker->cp) {
-        return APR_SUCCESS;
-    }
-
-    if (conn->r) {
-        apr_pool_destroy(conn->r->pool);
-        conn->r = NULL;
-    }
-
-    /* Sanity check: Did we already return the pooled connection? */
-    if (conn->inreslist) {
-        ap_log_perror(APLOG_MARK, APLOG_ERR, 0, conn->pool, APLOGNO(00923)
-                      "Pooled connection 0x%pp for worker %s has been"
-                      " already returned to the connection pool.", conn,
-                      worker->s->name);
-        return APR_SUCCESS;
-    }
-
-    /* determine if the connection need to be closed */
-    if (conn->close || !worker->s->is_address_reusable || worker->s->disablereuse) {
-        apr_pool_t *p = conn->pool;
-        apr_pool_clear(p);
-        conn = apr_pcalloc(p, sizeof(proxy_conn_rec));
-        conn->pool = p;
-        conn->worker = worker;
-        apr_pool_create(&(conn->scpool), p);
-        apr_pool_tag(conn->scpool, "proxy_conn_scpool");
-    }
-
-    if (worker->s->hmax && worker->cp->res) {
-        conn->inreslist = 1;
-        apr_reslist_release(worker->cp->res, (void *)conn);
-    }
-    else
-    {
-        worker->cp->conn = conn;
-    }
-
-    /* Always return the SUCCESS */
-    return APR_SUCCESS;
-}
-
-static void socket_cleanup(proxy_conn_rec *conn)
-{
-    conn->sock = NULL;
-    conn->connection = NULL;
-    apr_pool_clear(conn->scpool);
-}
-
-PROXY_DECLARE(apr_status_t) ap_proxy_ssl_connection_cleanup(proxy_conn_rec *conn,
-                                                            request_rec *r)
-{
-    apr_bucket_brigade *bb;
-    apr_status_t rv;
-
-    /*
-     * If we have an existing SSL connection it might be possible that the
-     * server sent some SSL message we have not read so far (e.g. an SSL
-     * shutdown message if the server closed the keepalive connection while
-     * the connection was held unused in our pool).
-     * So ensure that if present (=> APR_NONBLOCK_READ) it is read and
-     * processed. We don't expect any data to be in the returned brigade.
-     */
-    if (conn->sock && conn->connection) {
-        bb = apr_brigade_create(r->pool, r->connection->bucket_alloc);
-        rv = ap_get_brigade(conn->connection->input_filters, bb,
-                            AP_MODE_READBYTES, APR_NONBLOCK_READ,
-                            HUGE_STRING_LEN);
-        if ((rv != APR_SUCCESS) && !APR_STATUS_IS_EAGAIN(rv)) {
-            socket_cleanup(conn);
-        }
-        if (!APR_BRIGADE_EMPTY(bb)) {
-            apr_off_t len;
-
-            rv = apr_brigade_length(bb, 0, &len);
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE3, rv, r,
-                          "SSL cleanup brigade contained %"
-                          APR_OFF_T_FMT " bytes of data.", len);
-        }
-        apr_brigade_destroy(bb);
-    }
-    return APR_SUCCESS;
-}
-
-/* reslist constructor */
-static apr_status_t connection_constructor(void **resource, void *params,
-                                           apr_pool_t *pool)
-{
-    apr_pool_t *ctx;
-    apr_pool_t *scpool;
-    proxy_conn_rec *conn;
-    proxy_worker *worker = (proxy_worker *)params;
-
-    /*
-     * Create the subpool for each connection
-     * This keeps the memory consumption constant
-     * when disconnecting from backend.
-     */
-    apr_pool_create(&ctx, pool);
-    apr_pool_tag(ctx, "proxy_conn_pool");
-    /*
-     * Create another subpool that manages the data for the
-     * socket and the connection member of the proxy_conn_rec struct as we
-     * destroy this data more frequently than other data in the proxy_conn_rec
-     * struct like hostname and addr (at least in the case where we have
-     * keepalive connections that timed out).
-     */
-    apr_pool_create(&scpool, ctx);
-    apr_pool_tag(scpool, "proxy_conn_scpool");
-    conn = apr_pcalloc(ctx, sizeof(proxy_conn_rec));
-
-    conn->pool   = ctx;
-    conn->scpool = scpool;
-    conn->worker = worker;
-    conn->inreslist = 1;
-    *resource = conn;
-
-    return APR_SUCCESS;
-}
-
-/* reslist destructor */
-static apr_status_t connection_destructor(void *resource, void *params,
-                                          apr_pool_t *pool)
-{
-    proxy_conn_rec *conn = (proxy_conn_rec *)resource;
-
-    /* Destroy the pool only if not called from reslist_destroy */
-    if (conn->worker->cp->pool) {
-        apr_pool_destroy(conn->pool);
-    }
-
-    return APR_SUCCESS;
-}
-
-/*
- * WORKER related...
- */
-
-PROXY_DECLARE(proxy_worker *) ap_proxy_get_worker(apr_pool_t *p,
-                                                  proxy_balancer *balancer,
-                                                  proxy_server_conf *conf,
-                                                  const char *url)
-{
-    proxy_worker *worker;
-    proxy_worker *max_worker = NULL;
-    int max_match = 0;
-    int url_length;
-    int min_match;
-    int worker_name_length;
-    const char *c;
-    char *url_copy;
-    int i;
-
-    c = ap_strchr_c(url, ':');
-    if (c == NULL || c[1] != '/' || c[2] != '/' || c[3] == '\0') {
-        return NULL;
-    }
-
-    url_length = strlen(url);
-    url_copy = apr_pstrmemdup(p, url, url_length);
-
-    /*
-     * We need to find the start of the path and
-     * therefore we know the length of the scheme://hostname/
-     * part to we can force-lowercase everything up to
-     * the start of the path.
-     */
-    c = ap_strchr_c(c+3, '/');
-    if (c) {
-        char *pathstart;
-        pathstart = url_copy + (c - url);
-        *pathstart = '\0';
-        ap_str_tolower(url_copy);
-        min_match = strlen(url_copy);
-        *pathstart = '/';
-    }
-    else {
-        ap_str_tolower(url_copy);
-        min_match = strlen(url_copy);
-    }
-    /*
-     * Do a "longest match" on the worker name to find the worker that
-     * fits best to the URL, but keep in mind that we must have at least
-     * a minimum matching of length min_match such that
-     * scheme://hostname[:port] matches between worker and url.
-     */
-
-    if (balancer) {
-        proxy_worker **workers = (proxy_worker **)balancer->workers->elts;
-        for (i = 0; i < balancer->workers->nelts; i++, workers++) {
-            worker = *workers;
-            if ( ((worker_name_length = strlen(worker->s->name)) <= url_length)
-                && (worker_name_length >= min_match)
-                && (worker_name_length > max_match)
-                && (strncmp(url_copy, worker->s->name, worker_name_length) == 0) ) {
-                max_worker = worker;
-                max_match = worker_name_length;
-            }
-
-        }
-    } else {
-        worker = (proxy_worker *)conf->workers->elts;
-        for (i = 0; i < conf->workers->nelts; i++, worker++) {
-            if ( ((worker_name_length = strlen(worker->s->name)) <= url_length)
-                && (worker_name_length >= min_match)
-                && (worker_name_length > max_match)
-                && (strncmp(url_copy, worker->s->name, worker_name_length) == 0) ) {
-                max_worker = worker;
-                max_match = worker_name_length;
-            }
-        }
-    }
-
-    return max_worker;
-}
-
-/*
- * To create a worker from scratch first we define the
- * specifics of the worker; this is all local data.
- * We then allocate space for it if data needs to be
- * shared. This allows for dynamic addition during
- * config and runtime.
- */
-PROXY_DECLARE(char *) ap_proxy_define_worker(apr_pool_t *p,
-                                             proxy_worker **worker,
-                                             proxy_balancer *balancer,
-                                             proxy_server_conf *conf,
-                                             const char *url,
-                                             int do_malloc)
-{
-    int rv;
-    apr_uri_t uri;
-    proxy_worker_shared *wshared;
-    char *ptr;
-
-    rv = apr_uri_parse(p, url, &uri);
-
+    rv = apr_file_info_get(&finfo, APR_FINFO_NORM, postfd);
     if (rv != APR_SUCCESS) {
-        return "Unable to parse URL";
+        fprintf(stderr, "ab: Could not stat POST data file (%s): %s\n", pfile,
+                apr_strerror(rv, errmsg, sizeof errmsg));
+        return rv;
     }
-    if (!uri.hostname || !uri.scheme) {
-        return "URL must be absolute!";
+    postlen = (apr_size_t)finfo.size;
+    postdata = xmalloc(postlen);
+    rv = apr_file_read_full(postfd, postdata, postlen, NULL);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "ab: Could not read POST data file: %s\n",
+                apr_strerror(rv, errmsg, sizeof errmsg));
+        return rv;
     }
-
-    ap_str_tolower(uri.hostname);
-    ap_str_tolower(uri.scheme);
-    /*
-     * Workers can be associated w/ balancers or on their
-     * own; ie: the generic reverse-proxy or a worker
-     * in a simple ProxyPass statement. eg:
-     *
-     *      ProxyPass / http://www.example.com
-     *
-     * in which case the worker goes in the conf slot.
-     */
-    if (balancer) {
-        proxy_worker **runtime;
-        /* recall that we get a ptr to the ptr here */
-        runtime = apr_array_push(balancer->workers);
-        *worker = *runtime = apr_palloc(p, sizeof(proxy_worker));   /* right to left baby */
-        /* we've updated the list of workers associated with
-         * this balancer *locally* */
-        balancer->wupdated = apr_time_now();
-    } else if (conf) {
-        *worker = apr_array_push(conf->workers);
-    } else {
-        /* we need to allocate space here */
-        *worker = apr_palloc(p, sizeof(proxy_worker));
-    }
-
-    memset(*worker, 0, sizeof(proxy_worker));
-    /* right here we just want to tuck away the worker info.
-     * if called during config, we don't have shm setup yet,
-     * so just note the info for later. */
-    if (do_malloc)
-        wshared = ap_malloc(sizeof(proxy_worker_shared));  /* will be freed ap_proxy_share_worker */
-    else
-        wshared = apr_palloc(p, sizeof(proxy_worker_shared));
-
-    memset(wshared, 0, sizeof(proxy_worker_shared));
-
-    ptr = apr_uri_unparse(p, &uri, APR_URI_UNP_REVEALPASSWORD);
-    if (PROXY_STRNCPY(wshared->name, ptr) != APR_SUCCESS) {
-        return apr_psprintf(p, "worker name (%s) too long", ptr);
-    }
-    if (PROXY_STRNCPY(wshared->scheme, uri.scheme) != APR_SUCCESS) {
-        return apr_psprintf(p, "worker scheme (%s) too long", uri.scheme);
-    }
-    if (PROXY_STRNCPY(wshared->hostname, uri.hostname) != APR_SUCCESS) {
-        return apr_psprintf(p, "worker hostname (%s) too long", uri.hostname);
-    }
-    wshared->port = uri.port;
-    wshared->flush_packets = flush_off;
-    wshared->flush_wait = PROXY_FLUSH_WAIT;
-    wshared->is_address_reusable = 1;
-    wshared->lbfactor = 1;
-    wshared->smax = -1;
-    wshared->hash.def = ap_proxy_hashfunc(wshared->name, PROXY_HASHFUNC_DEFAULT);
-    wshared->hash.fnv = ap_proxy_hashfunc(wshared->name, PROXY_HASHFUNC_FNV);
-    wshared->was_malloced = (do_malloc != 0);
-
-    (*worker)->hash = wshared->hash;
-    (*worker)->context = NULL;
-    (*worker)->cp = NULL;
-    (*worker)->balancer = balancer;
-    (*worker)->s = wshared;
-
-    return NULL;
-}
-
-/*
- * Create an already defined worker and free up memory
- */
-PROXY_DECLARE(apr_status_t) ap_proxy_share_worker(proxy_worker *worker, proxy_worker_shared *shm,
-                                                  int i)
-{
-    if (!shm || !worker->s)
-        return APR_EINVAL;
-
-    memcpy(shm, worker->s, sizeof(proxy_worker_shared));
-    if (worker->s->was_malloced)
-        free(worker->s); /* was malloced in ap_proxy_define_worker */
-    worker->s = shm;
-    worker->s->index = i;
+    apr_file_close(postfd);
     return APR_SUCCESS;
 }
 
-PROXY_DECLARE(apr_status_t) ap_proxy_initialize_worker(proxy_worker *worker, server_rec *s, apr_pool_t *p)
+/* ------------------------------------------------------- */
+
+/* sort out command-line args and call test */
+int main(int argc, const char * const argv[])
 {
-    apr_status_t rv = APR_SUCCESS;
-    int mpm_threads;
-
-    if (worker->s->status & PROXY_WORKER_INITIALIZED) {
-        /* The worker is already initialized */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00924)
-                     "worker %s shared already initialized", worker->s->name);
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00925)
-                     "initializing worker %s shared", worker->s->name);
-        /* Set default parameters */
-        if (!worker->s->retry_set) {
-            worker->s->retry = apr_time_from_sec(PROXY_WORKER_DEFAULT_RETRY);
-        }
-        /* By default address is reusable unless DisableReuse is set */
-        if (worker->s->disablereuse) {
-            worker->s->is_address_reusable = 0;
-        }
-        else {
-            worker->s->is_address_reusable = 1;
-        }
-
-        ap_mpm_query(AP_MPMQ_MAX_THREADS, &mpm_threads);
-        if (mpm_threads > 1) {
-            /* Set hard max to no more then mpm_threads */
-            if (worker->s->hmax == 0 || worker->s->hmax > mpm_threads) {
-                worker->s->hmax = mpm_threads;
-            }
-            if (worker->s->smax == -1 || worker->s->smax > worker->s->hmax) {
-                worker->s->smax = worker->s->hmax;
-            }
-            /* Set min to be lower then smax */
-            if (worker->s->min > worker->s->smax) {
-                worker->s->min = worker->s->smax;
-            }
-        }
-        else {
-            /* This will supress the apr_reslist creation */
-            worker->s->min = worker->s->smax = worker->s->hmax = 0;
-        }
-    }
-
-    /* What if local is init'ed and shm isn't?? Even possible? */
-    if (worker->local_status & PROXY_WORKER_INITIALIZED) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00926)
-                     "worker %s local already initialized", worker->s->name);
-    }
-    else {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00927)
-                     "initializing worker %s local", worker->s->name);
-        /* Now init local worker data */
-        if (worker->tmutex == NULL) {
-            rv = apr_thread_mutex_create(&(worker->tmutex), APR_THREAD_MUTEX_DEFAULT, p);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00928)
-                             "can not create worker thread mutex");
-                return rv;
-            }
-        }
-        if (worker->cp == NULL)
-            init_conn_pool(p, worker);
-        if (worker->cp == NULL) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00929)
-                         "can not create connection pool");
-            return APR_EGENERAL;
-        }
-
-        if (worker->s->hmax) {
-            rv = apr_reslist_create(&(worker->cp->res),
-                                    worker->s->min, worker->s->smax,
-                                    worker->s->hmax, worker->s->ttl,
-                                    connection_constructor, connection_destructor,
-                                    worker, worker->cp->pool);
-
-            apr_pool_cleanup_register(worker->cp->pool, (void *)worker,
-                                      conn_pool_cleanup,
-                                      apr_pool_cleanup_null);
-
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00930)
-                "initialized pool in child %" APR_PID_T_FMT " for (%s) min=%d max=%d smax=%d",
-                 getpid(), worker->s->hostname, worker->s->min,
-                 worker->s->hmax, worker->s->smax);
-
-            /* Set the acquire timeout */
-            if (rv == APR_SUCCESS && worker->s->acquire_set) {
-                apr_reslist_timeout_set(worker->cp->res, worker->s->acquire);
-            }
-
-        }
-        else {
-            void *conn;
-
-            rv = connection_constructor(&conn, worker, worker->cp->pool);
-            worker->cp->conn = conn;
-
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00931)
-                 "initialized single connection worker in child %" APR_PID_T_FMT " for (%s)",
-                 getpid(), worker->s->hostname);
-        }
-    }
-    if (rv == APR_SUCCESS) {
-        worker->s->status |= (PROXY_WORKER_INITIALIZED);
-        worker->local_status |= (PROXY_WORKER_INITIALIZED);
-    }
-    return rv;
-}
-
-static int ap_proxy_retry_worker(const char *proxy_function, proxy_worker *worker,
-        server_rec *s)
-{
-    if (worker->s->status & PROXY_WORKER_IN_ERROR) {
-        if (apr_time_now() > worker->s->error_time + worker->s->retry) {
-            ++worker->s->retries;
-            worker->s->status &= ~PROXY_WORKER_IN_ERROR;
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00932)
-                         "%s: worker for (%s) has been marked for retry",
-                         proxy_function, worker->s->hostname);
-            return OK;
-        }
-        else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00933)
-                         "%s: too soon to retry worker for (%s)",
-                         proxy_function, worker->s->hostname);
-            return DECLINED;
-        }
-    }
-    else {
-        return OK;
-    }
-}
-
-PROXY_DECLARE(int) ap_proxy_pre_request(proxy_worker **worker,
-                                        proxy_balancer **balancer,
-                                        request_rec *r,
-                                        proxy_server_conf *conf, char **url)
-{
-    int access_status;
-
-    access_status = proxy_run_pre_request(worker, balancer, r, conf, url);
-    if (access_status == DECLINED && *balancer == NULL) {
-        *worker = ap_proxy_get_worker(r->pool, NULL, conf, *url);
-        if (*worker) {
-            ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                          "%s: found worker %s for %s",
-                          (*worker)->s->scheme, (*worker)->s->name, *url);
-
-            *balancer = NULL;
-            access_status = OK;
-        }
-        else if (r->proxyreq == PROXYREQ_PROXY) {
-            if (conf->forward) {
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                              "*: found forward proxy worker for %s", *url);
-                *balancer = NULL;
-                *worker = conf->forward;
-                access_status = OK;
-                /*
-                 * The forward worker does not keep connections alive, so
-                 * ensure that mod_proxy_http does the correct thing
-                 * regarding the Connection header in the request.
-                 */
-                apr_table_setn(r->subprocess_env, "proxy-nokeepalive", "1");
-            }
-        }
-        else if (r->proxyreq == PROXYREQ_REVERSE) {
-            if (conf->reverse) {
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                              "*: found reverse proxy worker for %s", *url);
-                *balancer = NULL;
-                *worker = conf->reverse;
-                access_status = OK;
-                /*
-                 * The reverse worker does not keep connections alive, so
-                 * ensure that mod_proxy_http does the correct thing
-                 * regarding the Connection header in the request.
-                 */
-                apr_table_setn(r->subprocess_env, "proxy-nokeepalive", "1");
-            }
-        }
-    }
-    else if (access_status == DECLINED && *balancer != NULL) {
-        /* All the workers are busy */
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00934)
-                      "all workers are busy.  Unable to serve %s", *url);
-        access_status = HTTP_SERVICE_UNAVAILABLE;
-    }
-    return access_status;
-}
-
-PROXY_DECLARE(int) ap_proxy_post_request(proxy_worker *worker,
-                                         proxy_balancer *balancer,
-                                         request_rec *r,
-                                         proxy_server_conf *conf)
-{
-    int access_status = OK;
-    if (balancer) {
-        access_status = proxy_run_post_request(worker, balancer, r, conf);
-        if (access_status == DECLINED) {
-            access_status = OK; /* no post_request handler available */
-            /* TODO: recycle direct worker */
-        }
-    }
-
-    return access_status;
-}
-
-/* DEPRECATED */
-PROXY_DECLARE(int) ap_proxy_connect_to_backend(apr_socket_t **newsock,
-                                               const char *proxy_function,
-                                               apr_sockaddr_t *backend_addr,
-                                               const char *backend_name,
-                                               proxy_server_conf *conf,
-                                               request_rec *r)
-{
-    apr_status_t rv;
-    int connected = 0;
-    int loglevel;
-
-    while (backend_addr && !connected) {
-        if ((rv = apr_socket_create(newsock, backend_addr->family,
-                                    SOCK_STREAM, 0, r->pool)) != APR_SUCCESS) {
-            loglevel = backend_addr->next ? APLOG_DEBUG : APLOG_ERR;
-            ap_log_rerror(APLOG_MARK, loglevel, rv, r, APLOGNO(00935)
-                          "%s: error creating fam %d socket for target %s",
-                          proxy_function, backend_addr->family, backend_name);
-            /*
-             * this could be an IPv6 address from the DNS but the
-             * local machine won't give us an IPv6 socket; hopefully the
-             * DNS returned an additional address to try
-             */
-            backend_addr = backend_addr->next;
-            continue;
-        }
-
-        if (conf->recv_buffer_size > 0 &&
-            (rv = apr_socket_opt_set(*newsock, APR_SO_RCVBUF,
-                                     conf->recv_buffer_size))) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00936)
-                          "apr_socket_opt_set(SO_RCVBUF): Failed to set "
-                          "ProxyReceiveBufferSize, using default");
-        }
-
-        rv = apr_socket_opt_set(*newsock, APR_TCP_NODELAY, 1);
-        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00937)
-                          "apr_socket_opt_set(APR_TCP_NODELAY): "
-                          "Failed to set");
-        }
-
-        /* Set a timeout on the socket */
-        if (conf->timeout_set) {
-            apr_socket_timeout_set(*newsock, conf->timeout);
-        }
-        else {
-            apr_socket_timeout_set(*newsock, r->server->timeout);
-        }
-
-        ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                      "%s: fam %d socket created to connect to %s",
-                      proxy_function, backend_addr->family, backend_name);
-
-        if (conf->source_address) {
-            rv = apr_socket_bind(*newsock, conf->source_address);
-            if (rv != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00938)
-                              "%s: failed to bind socket to local address",
-                              proxy_function);
-            }
-        }
-
-        /* make the connection out of the socket */
-        rv = apr_socket_connect(*newsock, backend_addr);
-
-        /* if an error occurred, loop round and try again */
-        if (rv != APR_SUCCESS) {
-            apr_socket_close(*newsock);
-            loglevel = backend_addr->next ? APLOG_DEBUG : APLOG_ERR;
-            ap_log_rerror(APLOG_MARK, loglevel, rv, r, APLOGNO(00939)
-                          "%s: attempt to connect to %pI (%s) failed",
-                          proxy_function, backend_addr, backend_name);
-            backend_addr = backend_addr->next;
-            continue;
-        }
-        connected = 1;
-    }
-    return connected ? 0 : 1;
-}
-
-PROXY_DECLARE(int) ap_proxy_acquire_connection(const char *proxy_function,
-                                               proxy_conn_rec **conn,
-                                               proxy_worker *worker,
-                                               server_rec *s)
-{
-    apr_status_t rv;
-
-    if (!PROXY_WORKER_IS_USABLE(worker)) {
-        /* Retry the worker */
-        ap_proxy_retry_worker(proxy_function, worker, s);
-
-        if (!PROXY_WORKER_IS_USABLE(worker)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00940)
-                         "%s: disabled connection for (%s)",
-                         proxy_function, worker->s->hostname);
-            return HTTP_SERVICE_UNAVAILABLE;
-        }
-    }
-
-    if (worker->s->hmax && worker->cp->res) {
-        rv = apr_reslist_acquire(worker->cp->res, (void **)conn);
-    }
-    else {
-        /* create the new connection if the previous was destroyed */
-        if (!worker->cp->conn) {
-            connection_constructor((void **)conn, worker, worker->cp->pool);
-        }
-        else {
-            *conn = worker->cp->conn;
-            worker->cp->conn = NULL;
-        }
-        rv = APR_SUCCESS;
-    }
-
-    if (rv != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00941)
-                     "%s: failed to acquire connection for (%s)",
-                     proxy_function, worker->s->hostname);
-        return HTTP_SERVICE_UNAVAILABLE;
-    }
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00942)
-                 "%s: has acquired connection for (%s)",
-                 proxy_function, worker->s->hostname);
-
-    (*conn)->worker = worker;
-    (*conn)->close  = 0;
-    (*conn)->inreslist = 0;
-
-    return OK;
-}
-
-PROXY_DECLARE(int) ap_proxy_release_connection(const char *proxy_function,
-                                               proxy_conn_rec *conn,
-                                               server_rec *s)
-{
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00943)
-                "%s: has released connection for (%s)",
-                proxy_function, conn->worker->s->hostname);
-    connection_cleanup(conn);
-
-    return OK;
-}
-
-PROXY_DECLARE(int)
-ap_proxy_determine_connection(apr_pool_t *p, request_rec *r,
-                              proxy_server_conf *conf,
-                              proxy_worker *worker,
-                              proxy_conn_rec *conn,
-                              apr_uri_t *uri,
-                              char **url,
-                              const char *proxyname,
-                              apr_port_t proxyport,
-                              char *server_portstr,
-                              int server_portstr_size)
-{
-    int server_port;
-    apr_status_t err = APR_SUCCESS;
-    apr_status_t uerr = APR_SUCCESS;
-
-    /*
-     * Break up the URL to determine the host to connect to
-     */
-
-    /* we break the URL into host, port, uri */
-    if (APR_SUCCESS != apr_uri_parse(p, *url, uri)) {
-        return ap_proxyerror(r, HTTP_BAD_REQUEST,
-                             apr_pstrcat(p,"URI cannot be parsed: ", *url,
-                                         NULL));
-    }
-    if (!uri->port) {
-        uri->port = apr_uri_port_of_scheme(uri->scheme);
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00944)
-                 "connecting %s to %s:%d", *url, uri->hostname, uri->port);
-
-    /*
-     * allocate these out of the specified connection pool
-     * The scheme handler decides if this is permanent or
-     * short living pool.
-     */
-    /* are we connecting directly, or via a proxy? */
-    if (!proxyname) {
-        *url = apr_pstrcat(p, uri->path, uri->query ? "?" : "",
-                           uri->query ? uri->query : "",
-                           uri->fragment ? "#" : "",
-                           uri->fragment ? uri->fragment : "", NULL);
-    }
-    /*
-     * Figure out if our passed in proxy_conn_rec has a usable
-     * address cached.
-     *
-     * TODO: Handle this much better... 
-     *
-     * XXX: If generic workers are ever address-reusable, we need 
-     *      to check host and port on the conn and be careful about
-     *      spilling the cached addr from the worker.
-     */
-    if (!conn->hostname || !worker->s->is_address_reusable ||
-        worker->s->disablereuse) {
-        if (proxyname) {
-            conn->hostname = apr_pstrdup(conn->pool, proxyname);
-            conn->port = proxyport;
-            /*
-             * If we have a forward proxy and the protocol is HTTPS,
-             * then we need to prepend a HTTP CONNECT request before
-             * sending our actual HTTPS requests.
-             * Save our real backend data for using it later during HTTP CONNECT.
-             */
-            if (conn->is_ssl) {
-                const char *proxy_auth;
-
-                forward_info *forward = apr_pcalloc(conn->pool, sizeof(forward_info));
-                conn->forward = forward;
-                forward->use_http_connect = 1;
-                forward->target_host = apr_pstrdup(conn->pool, uri->hostname);
-                forward->target_port = uri->port;
-                /* Do we want to pass Proxy-Authorization along?
-                 * If we haven't used it, then YES
-                 * If we have used it then MAYBE: RFC2616 says we MAY propagate it.
-                 * So let's make it configurable by env.
-                 * The logic here is the same used in mod_proxy_http.
-                 */
-                proxy_auth = apr_table_get(r->headers_in, "Proxy-Authorization");
-                if (proxy_auth != NULL &&
-                    proxy_auth[0] != '\0' &&
-                    r->user == NULL && /* we haven't yet authenticated */
-                    apr_table_get(r->subprocess_env, "Proxy-Chain-Auth")) {
-                    forward->proxy_auth = apr_pstrdup(conn->pool, proxy_auth);
-                }
-            }
-        }
-        else {
-            conn->hostname = apr_pstrdup(conn->pool, uri->hostname);
-            conn->port = uri->port;
-        }
-        socket_cleanup(conn);
-        err = apr_sockaddr_info_get(&(conn->addr),
-                                    conn->hostname, APR_UNSPEC,
-                                    conn->port, 0,
-                                    conn->pool);
-    }
-    else if (!worker->cp->addr) {
-        if ((err = PROXY_THREAD_LOCK(worker)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, err, r, APLOGNO(00945) "lock");
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        /*
-         * Worker can have the single constant backend adress.
-         * The single DNS lookup is used once per worker.
-         * If dynamic change is needed then set the addr to NULL
-         * inside dynamic config to force the lookup.
-         */
-        err = apr_sockaddr_info_get(&(worker->cp->addr),
-                                    conn->hostname, APR_UNSPEC,
-                                    conn->port, 0,
-                                    worker->cp->pool);
-        conn->addr = worker->cp->addr;
-        if ((uerr = PROXY_THREAD_UNLOCK(worker)) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, uerr, r, APLOGNO(00946) "unlock");
-        }
-    }
-    else {
-        conn->addr = worker->cp->addr;
-    }
-    /* Close a possible existing socket if we are told to do so */
-    if (conn->close) {
-        socket_cleanup(conn);
-        conn->close = 0;
-    }
-
-    if (err != APR_SUCCESS) {
-        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
-                             apr_pstrcat(p, "DNS lookup failure for: ",
-                                         conn->hostname, NULL));
-    }
-
-    /* Get the server port for the Via headers */
-    {
-        server_port = ap_get_server_port(r);
-        if (ap_is_default_port(server_port, r)) {
-            strcpy(server_portstr,"");
-        }
-        else {
-            apr_snprintf(server_portstr, server_portstr_size, ":%d",
-                         server_port);
-        }
-    }
-    /* check if ProxyBlock directive on this host */
-    if (OK != ap_proxy_checkproxyblock(r, conf, conn->addr)) {
-        return ap_proxyerror(r, HTTP_FORBIDDEN,
-                             "Connect to remote machine blocked");
-    }
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00947)
-                 "connected %s to %s:%d", *url, conn->hostname, conn->port);
-    return OK;
-}
-
-#define USE_ALTERNATE_IS_CONNECTED 1
-
-#if !defined(APR_MSG_PEEK) && defined(MSG_PEEK)
-#define APR_MSG_PEEK MSG_PEEK
+    int l;
+    char tmp[1024];
+    apr_status_t status;
+    apr_getopt_t *opt;
+    const char *opt_arg;
+    char c;
+#ifdef USE_SSL
+    AB_SSL_METHOD_CONST SSL_METHOD *meth = SSLv23_client_method();
 #endif
 
-#if USE_ALTERNATE_IS_CONNECTED && defined(APR_MSG_PEEK)
-static int is_socket_connected(apr_socket_t *socket)
-{
-    apr_pollfd_t pfds[1];
-    apr_status_t status;
-    apr_int32_t  nfds;
+    /* table defaults  */
+    tablestring = "";
+    trstring = "";
+    tdstring = "bgcolor=white";
+    cookie = "";
+    auth = "";
+    proxyhost = "";
+    hdrs = "";
 
-    pfds[0].reqevents = APR_POLLIN;
-    pfds[0].desc_type = APR_POLL_SOCKET;
-    pfds[0].desc.s = socket;
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(apr_terminate);
+    apr_pool_create(&cntxt, NULL);
+    apr_pool_abort_set(abort_on_oom, cntxt);
 
-    do {
-        status = apr_poll(&pfds[0], 1, &nfds, 0);
-    } while (APR_STATUS_IS_EINTR(status));
-
-    if (status == APR_SUCCESS && nfds == 1 &&
-        pfds[0].rtnevents == APR_POLLIN) {
-        apr_sockaddr_t unused;
-        apr_size_t len = 1;
-        char buf[1];
-        /* The socket might be closed in which case
-         * the poll will return POLLIN.
-         * If there is no data available the socket
-         * is closed.
-         */
-        status = apr_socket_recvfrom(&unused, socket, APR_MSG_PEEK,
-                                     &buf[0], &len);
-        if (status == APR_SUCCESS && len)
-            return 1;
-        else
-            return 0;
+#ifdef NOT_ASCII
+    status = apr_xlate_open(&to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, cntxt);
+    if (status) {
+        fprintf(stderr, "apr_xlate_open(to ASCII)->%d\n", status);
+        exit(1);
     }
-    else if (APR_STATUS_IS_EAGAIN(status) || APR_STATUS_IS_TIMEUP(status)) {
-        return 1;
+    status = apr_xlate_open(&from_ascii, APR_DEFAULT_CHARSET, "ISO-8859-1", cntxt);
+    if (status) {
+        fprintf(stderr, "apr_xlate_open(from ASCII)->%d\n", status);
+        exit(1);
     }
-    return 0;
-
-}
-#else
-static int is_socket_connected(apr_socket_t *sock)
-
-{
-    apr_size_t buffer_len = 1;
-    char test_buffer[1];
-    apr_status_t socket_status;
-    apr_interval_time_t current_timeout;
-
-    /* save timeout */
-    apr_socket_timeout_get(sock, &current_timeout);
-    /* set no timeout */
-    apr_socket_timeout_set(sock, 0);
-    socket_status = apr_socket_recv(sock, test_buffer, &buffer_len);
-    /* put back old timeout */
-    apr_socket_timeout_set(sock, current_timeout);
-    if (APR_STATUS_IS_EOF(socket_status)
-        || APR_STATUS_IS_ECONNRESET(socket_status)) {
-        return 0;
+    status = apr_base64init_ebcdic(to_ascii, from_ascii);
+    if (status) {
+        fprintf(stderr, "apr_base64init_ebcdic()->%d\n", status);
+        exit(1);
     }
-    else {
-        return 1;
-    }
-}
-#endif /* USE_ALTERNATE_IS_CONNECTED */
+#endif
 
+    myhost = NULL; /* 0.0.0.0 or :: */
 
-/*
- * Send a HTTP CONNECT request to a forward proxy.
- * The proxy is given by "backend", the target server
- * is contained in the "forward" member of "backend".
- */
-static apr_status_t send_http_connect(proxy_conn_rec *backend,
-                                      server_rec *s)
-{
-    int status;
-    apr_size_t nbytes;
-    apr_size_t left;
-    int complete = 0;
-    char buffer[HUGE_STRING_LEN];
-    char drain_buffer[HUGE_STRING_LEN];
-    forward_info *forward = (forward_info *)backend->forward;
-    int len = 0;
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00948)
-                 "CONNECT: sending the CONNECT request for %s:%d "
-                 "to the remote proxy %pI (%s)",
-                 forward->target_host, forward->target_port,
-                 backend->addr, backend->hostname);
-    /* Create the CONNECT request */
-    nbytes = apr_snprintf(buffer, sizeof(buffer),
-                          "CONNECT %s:%d HTTP/1.0" CRLF,
-                          forward->target_host, forward->target_port);
-    /* Add proxy authorization from the initial request if necessary */
-    if (forward->proxy_auth != NULL) {
-        nbytes += apr_snprintf(buffer + nbytes, sizeof(buffer) - nbytes,
-                               "Proxy-Authorization: %s" CRLF,
-                               forward->proxy_auth);
-    }
-    /* Set a reasonable agent and send everything */
-    nbytes += apr_snprintf(buffer + nbytes, sizeof(buffer) - nbytes,
-                           "Proxy-agent: %s" CRLF CRLF,
-                           ap_get_server_banner());
-    apr_socket_send(backend->sock, buffer, &nbytes);
-
-    /* Receive the whole CONNECT response */
-    left = sizeof(buffer) - 1;
-    /* Read until we find the end of the headers or run out of buffer */
-    do {
-        nbytes = left;
-        status = apr_socket_recv(backend->sock, buffer + len, &nbytes);
-        len += nbytes;
-        left -= nbytes;
-        buffer[len] = '\0';
-        if (strstr(buffer + len - nbytes, "\r\n\r\n") != NULL) {
-            complete = 1;
-            break;
-        }
-    } while (status == APR_SUCCESS && left > 0);
-    /* Drain what's left */
-    if (!complete) {
-        nbytes = sizeof(drain_buffer) - 1;
-        while (status == APR_SUCCESS && nbytes) {
-            status = apr_socket_recv(backend->sock, drain_buffer, &nbytes);
-            buffer[nbytes] = '\0';
-            nbytes = sizeof(drain_buffer) - 1;
-            if (strstr(drain_buffer, "\r\n\r\n") != NULL) {
-                break;
-            }
-        }
-    }
-
-    /* Check for HTTP_OK response status */
-    if (status == APR_SUCCESS) {
-        int major, minor;
-        /* Only scan for three character status code */
-        char code_str[4];
-
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00949)
-                     "send_http_connect: response from the forward proxy: %s",
-                     buffer);
-
-        /* Extract the returned code */
-        if (sscanf(buffer, "HTTP/%u.%u %3s", &major, &minor, code_str) == 3) {
-            status = atoi(code_str);
-            if (status == HTTP_OK) {
-                status = APR_SUCCESS;
-            }
-            else {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00950)
-                             "send_http_connect: the forward proxy returned code is '%s'",
-                             code_str);
-            status = APR_INCOMPLETE;
-            }
-        }
-    }
-
-    return(status);
-}
-
-
-PROXY_DECLARE(int) ap_proxy_connect_backend(const char *proxy_function,
-                                            proxy_conn_rec *conn,
-                                            proxy_worker *worker,
-                                            server_rec *s)
-{
-    apr_status_t rv;
-    int connected = 0;
-    int loglevel;
-    apr_sockaddr_t *backend_addr = conn->addr;
-    /* the local address to use for the outgoing connection */
-    apr_sockaddr_t *local_addr;
-    apr_socket_t *newsock;
-    void *sconf = s->module_config;
-    proxy_server_conf *conf =
-        (proxy_server_conf *) ap_get_module_config(sconf, &proxy_module);
-
-    if (conn->sock) {
-        if (!(connected = is_socket_connected(conn->sock))) {
-            socket_cleanup(conn);
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00951)
-                         "%s: backend socket is disconnected.",
-                         proxy_function);
-        }
-    }
-    while (backend_addr && !connected) {
-        if ((rv = apr_socket_create(&newsock, backend_addr->family,
-                                SOCK_STREAM, APR_PROTO_TCP,
-                                conn->scpool)) != APR_SUCCESS) {
-            loglevel = backend_addr->next ? APLOG_DEBUG : APLOG_ERR;
-            ap_log_error(APLOG_MARK, loglevel, rv, s, APLOGNO(00952)
-                         "%s: error creating fam %d socket for target %s",
-                         proxy_function,
-                         backend_addr->family,
-                         worker->s->hostname);
-            /*
-             * this could be an IPv6 address from the DNS but the
-             * local machine won't give us an IPv6 socket; hopefully the
-             * DNS returned an additional address to try
-             */
-            backend_addr = backend_addr->next;
-            continue;
-        }
-        conn->connection = NULL;
-
-        if (worker->s->recv_buffer_size > 0 &&
-            (rv = apr_socket_opt_set(newsock, APR_SO_RCVBUF,
-                                     worker->s->recv_buffer_size))) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00953)
-                         "apr_socket_opt_set(SO_RCVBUF): Failed to set "
-                         "ProxyReceiveBufferSize, using default");
-        }
-
-        rv = apr_socket_opt_set(newsock, APR_TCP_NODELAY, 1);
-        if (rv != APR_SUCCESS && rv != APR_ENOTIMPL) {
-             ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00954)
-                          "apr_socket_opt_set(APR_TCP_NODELAY): "
-                          "Failed to set");
-        }
-
-        /* Set a timeout for connecting to the backend on the socket */
-        if (worker->s->conn_timeout_set) {
-            apr_socket_timeout_set(newsock, worker->s->conn_timeout);
-        }
-        else if (worker->s->timeout_set) {
-            apr_socket_timeout_set(newsock, worker->s->timeout);
-        }
-        else if (conf->timeout_set) {
-            apr_socket_timeout_set(newsock, conf->timeout);
-        }
-        else {
-             apr_socket_timeout_set(newsock, s->timeout);
-        }
-        /* Set a keepalive option */
-        if (worker->s->keepalive) {
-            if ((rv = apr_socket_opt_set(newsock,
-                            APR_SO_KEEPALIVE, 1)) != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00955)
-                             "apr_socket_opt_set(SO_KEEPALIVE): Failed to set"
-                             " Keepalive");
-            }
-        }
-        ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, s,
-                     "%s: fam %d socket created to connect to %s",
-                     proxy_function, backend_addr->family, worker->s->hostname);
-
-        if (conf->source_address_set) {
-            local_addr = apr_pmemdup(conn->pool, conf->source_address,
-                                     sizeof(apr_sockaddr_t));
-            local_addr->pool = conn->pool;
-            rv = apr_socket_bind(newsock, local_addr);
-            if (rv != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, rv, s, APLOGNO(00956)
-                    "%s: failed to bind socket to local address",
-                    proxy_function);
-            }
-        }
-
-        /* make the connection out of the socket */
-        rv = apr_socket_connect(newsock, backend_addr);
-
-        /* if an error occurred, loop round and try again */
-        if (rv != APR_SUCCESS) {
-            apr_socket_close(newsock);
-            loglevel = backend_addr->next ? APLOG_DEBUG : APLOG_ERR;
-            ap_log_error(APLOG_MARK, loglevel, rv, s, APLOGNO(00957)
-                         "%s: attempt to connect to %pI (%s) failed",
-                         proxy_function,
-                         backend_addr,
-                         worker->s->hostname);
-            backend_addr = backend_addr->next;
-            continue;
-        }
-
-        /* Set a timeout on the socket */
-        if (worker->s->timeout_set) {
-            apr_socket_timeout_set(newsock, worker->s->timeout);
-        }
-        else if (conf->timeout_set) {
-            apr_socket_timeout_set(newsock, conf->timeout);
-        }
-        else {
-             apr_socket_timeout_set(newsock, s->timeout);
-        }
-
-        conn->sock = newsock;
-
-        if (conn->forward) {
-            forward_info *forward = (forward_info *)conn->forward;
-            /*
-             * For HTTP CONNECT we need to prepend CONNECT request before
-             * sending our actual HTTPS requests.
-             */
-            if (forward->use_http_connect) {
-                rv = send_http_connect(conn, s);
-                /* If an error occurred, loop round and try again */
-                if (rv != APR_SUCCESS) {
-                    conn->sock = NULL;
-                    apr_socket_close(newsock);
-                    loglevel = backend_addr->next ? APLOG_DEBUG : APLOG_ERR;
-                    ap_log_error(APLOG_MARK, loglevel, rv, s, APLOGNO(00958)
-                                 "%s: attempt to connect to %s:%d "
-                                 "via http CONNECT through %pI (%s) failed",
-                                 proxy_function,
-                                 forward->target_host, forward->target_port,
-                                 backend_addr, worker->s->hostname);
-                    backend_addr = backend_addr->next;
-                    continue;
+    apr_getopt_init(&opt, cntxt, argc, argv);
+    while ((status = apr_getopt(opt, "n:c:t:s:b:T:p:u:v:lrkVhwix:y:z:C:H:P:A:g:X:de:SqB:m:"
+#ifdef USE_SSL
+            "Z:f:"
+#endif
+            ,&c, &opt_arg)) == APR_SUCCESS) {
+        switch (c) {
+            case 'n':
+                requests = atoi(opt_arg);
+                if (requests <= 0) {
+                    err("Invalid number of requests\n");
                 }
-            }
-        }
-
-        connected    = 1;
-    }
-    /*
-     * Put the entire worker to error state if
-     * the PROXY_WORKER_IGNORE_ERRORS flag is not set.
-     * Altrough some connections may be alive
-     * no further connections to the worker could be made
-     */
-    if (!connected && PROXY_WORKER_IS_USABLE(worker) &&
-        !(worker->s->status & PROXY_WORKER_IGNORE_ERRORS)) {
-        worker->s->error_time = apr_time_now();
-        worker->s->status |= PROXY_WORKER_IN_ERROR;
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(00959)
-            "ap_proxy_connect_backend disabling worker for (%s) for %"
-            APR_TIME_T_FMT "s",
-            worker->s->hostname, apr_time_sec(worker->s->retry));
-    }
-    else {
-        if (worker->s->retries) {
-            /*
-             * A worker came back. So here is where we need to
-             * either reset all params to initial conditions or
-             * apply some sort of aging
-             */
-        }
-        worker->s->error_time = 0;
-        worker->s->retries = 0;
-    }
-    return connected ? OK : DECLINED;
-}
-
-PROXY_DECLARE(int) ap_proxy_connection_create(const char *proxy_function,
-                                              proxy_conn_rec *conn,
-                                              conn_rec *c,
-                                              server_rec *s)
-{
-    apr_sockaddr_t *backend_addr = conn->addr;
-    int rc;
-    apr_interval_time_t current_timeout;
-    apr_bucket_alloc_t *bucket_alloc;
-
-    if (conn->connection) {
-        return OK;
-    }
-
-    bucket_alloc = apr_bucket_alloc_create(conn->scpool);
-    /*
-     * The socket is now open, create a new backend server connection
-     */
-    conn->connection = ap_run_create_connection(conn->scpool, s, conn->sock,
-                                                0, NULL,
-                                                bucket_alloc);
-
-    if (!conn->connection) {
-        /*
-         * the peer reset the connection already; ap_run_create_connection()
-         * closed the socket
-         */
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
-                     s, APLOGNO(00960) "%s: an error occurred creating a "
-                     "new connection to %pI (%s)", proxy_function,
-                     backend_addr, conn->hostname);
-        /* XXX: Will be closed when proxy_conn is closed */
-        socket_cleanup(conn);
-        return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    /* For ssl connection to backend */
-    if (conn->is_ssl) {
-        if (!ap_proxy_ssl_enable(conn->connection)) {
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0,
-                         s, APLOGNO(00961) "%s: failed to enable ssl support "
-                         "for %pI (%s)", proxy_function,
-                         backend_addr, conn->hostname);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-    }
-    else {
-        /* TODO: See if this will break FTP */
-        ap_proxy_ssl_disable(conn->connection);
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00962)
-                 "%s: connection complete to %pI (%s)",
-                 proxy_function, backend_addr, conn->hostname);
-
-    /*
-     * save the timeout of the socket because core_pre_connection
-     * will set it to base_server->timeout
-     * (core TimeOut directive).
-     */
-    apr_socket_timeout_get(conn->sock, &current_timeout);
-    /* set up the connection filters */
-    rc = ap_run_pre_connection(conn->connection, conn->sock);
-    if (rc != OK && rc != DONE) {
-        conn->connection->aborted = 1;
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(00963)
-                     "%s: pre_connection setup failed (%d)",
-                     proxy_function, rc);
-        return rc;
-    }
-    apr_socket_timeout_set(conn->sock, current_timeout);
-
-    return OK;
-}
-
-int ap_proxy_lb_workers(void)
-{
-    /*
-     * Since we can't resize the scoreboard when reconfiguring, we
-     * have to impose a limit on the number of workers, we are
-     * able to reconfigure to.
-     */
-    if (!lb_workers_limit)
-        lb_workers_limit = proxy_lb_workers + PROXY_DYNAMIC_BALANCER_LIMIT;
-    return lb_workers_limit;
-}
-
-PROXY_DECLARE(void) ap_proxy_backend_broke(request_rec *r,
-                                           apr_bucket_brigade *brigade)
-{
-    apr_bucket *e;
-    conn_rec *c = r->connection;
-
-    r->no_cache = 1;
-    /*
-     * If this is a subrequest, then prevent also caching of the main
-     * request.
-     */
-    if (r->main)
-        r->main->no_cache = 1;
-    e = ap_bucket_error_create(HTTP_BAD_GATEWAY, NULL, c->pool,
-                               c->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(brigade, e);
-    e = apr_bucket_eos_create(c->bucket_alloc);
-    APR_BRIGADE_INSERT_TAIL(brigade, e);
-}
-
-/*
- * Provide a string hashing function for the proxy.
- * We offer 2 methods: one is the APR model but we
- * also provide our own, based on either FNV or SDBM.
- * The reason is in case we want to use both to ensure no
- * collisions.
- */
-PROXY_DECLARE(unsigned int)
-ap_proxy_hashfunc(const char *str, proxy_hash_t method)
-{
-    if (method == PROXY_HASHFUNC_APR) {
-        apr_ssize_t slen = strlen(str);
-        return apr_hashfunc_default(str, &slen);
-    }
-    else if (method == PROXY_HASHFUNC_FNV) {
-        /* FNV model */
-        unsigned int hash;
-        const unsigned int fnv_prime = 0x811C9DC5;
-        for (hash = 0; *str; str++) {
-            hash *= fnv_prime;
-            hash ^= (*str);
-        }
-        return hash;
-    }
-    else { /* method == PROXY_HASHFUNC_DEFAULT */
-        /* SDBM model */
-        unsigned int hash;
-        for (hash = 0; *str; str++) {
-            hash = (*str) + (hash << 6) + (hash << 16) - hash;
-        }
-        return hash;
-    }
-}
-
-PROXY_DECLARE(apr_status_t) ap_proxy_set_wstatus(char c, int set, proxy_worker *w)
-{
-    unsigned int *status = &w->s->status;
-    char flag = toupper(c);
-    struct wstat *pwt = wstat_tbl;
-    while (pwt->bit) {
-        if (flag == pwt->flag) {
-            if (set)
-                *status |= pwt->bit;
-            else
-                *status &= ~(pwt->bit);
-            return APR_SUCCESS;
-        }
-        pwt++;
-    }
-    return APR_EINVAL;
-}
-
-PROXY_DECLARE(char *) ap_proxy_parse_wstatus(apr_pool_t *p, proxy_worker *w)
-{
-    char *ret = "";
-    unsigned int status = w->s->status;
-    struct wstat *pwt = wstat_tbl;
-    while (pwt->bit) {
-        if (status & pwt->bit)
-            ret = apr_pstrcat(p, ret, pwt->name, NULL);
-        pwt++;
-    }
-    if (PROXY_WORKER_IS_USABLE(w))
-        ret = apr_pstrcat(p, ret, "Ok ", NULL);
-    return ret;
-}
-
-PROXY_DECLARE(apr_status_t) ap_proxy_sync_balancer(proxy_balancer *b, server_rec *s,
-                                                    proxy_server_conf *conf)
-{
-    proxy_worker **workers;
-    int i;
-    int index;
-    proxy_worker_shared *shm;
-    proxy_balancer_method *lbmethod;
-    ap_slotmem_provider_t *storage = b->storage;
-
-    if (b->s->wupdated <= b->wupdated)
-        return APR_SUCCESS;
-    /* balancer sync */
-    lbmethod = ap_lookup_provider(PROXY_LBMETHOD, b->s->lbpname, "0");
-    if (lbmethod) {
-        b->lbmethod = lbmethod;
-    }
-    /* worker sync */
-
-    /*
-     * Look thru the list of workers in shm
-     * and see which one(s) we are lacking...
-     * again, the cast to unsigned int is safe
-     * since our upper limit is always max_workers
-     * which is int.
-     */
-    for (index = 0; index < b->max_workers; index++) {
-        int found;
-        apr_status_t rv;
-        if ((rv = storage->dptr(b->wslot, (unsigned int)index, (void *)&shm)) != APR_SUCCESS) {
-            ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(00965) "worker slotmem_dptr failed");
-            return APR_EGENERAL;
-        }
-        /* account for possible "holes" in the slotmem
-         * (eg: slots 0-2 are used, but 3 isn't, but 4-5 is)
-         */
-        if (!shm->hash.def || !shm->hash.fnv)
-            continue;
-        found = 0;
-        workers = (proxy_worker **)b->workers->elts;
-        for (i = 0; i < b->workers->nelts; i++, workers++) {
-            proxy_worker *worker = *workers;
-            if (worker->hash.def == shm->hash.def && worker->hash.fnv == shm->hash.fnv) {
-                found = 1;
                 break;
-            }
-        }
-        if (!found) {
-            proxy_worker **runtime;
-            runtime = apr_array_push(b->workers);
-            *runtime = apr_palloc(conf->pool, sizeof(proxy_worker));
-            (*runtime)->hash = shm->hash;
-            (*runtime)->context = NULL;
-            (*runtime)->cp = NULL;
-            (*runtime)->balancer = b;
-            (*runtime)->s = shm;
-            (*runtime)->tmutex = NULL;
-            if ((rv = ap_proxy_initialize_worker(*runtime, s, conf->pool)) != APR_SUCCESS) {
-                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(00966) "Cannot init worker");
-                return rv;
-            }
-        }
-    }
-    if (b->s->need_reset) {
-        if (b->lbmethod && b->lbmethod->reset)
-            b->lbmethod->reset(b, s);
-        b->s->need_reset = 0;
-    }
-    b->wupdated = b->s->wupdated;
-    return APR_SUCCESS;
-}
+            case 'k':
+                keepalive = 1;
+                break;
+            case 'q':
+                heartbeatres = 0;
+                break;
+            case 'c':
+                concurrency = atoi(opt_arg);
+                break;
+            case 'b':
+                windowsize = atoi(opt_arg);
+                break;
+            case 'i':
+                if (method != NO_METH)
+                    err("Cannot mix HEAD with other methods\n");
+                method = HEAD;
+                break;
+            case 'g':
+                gnuplot = xstrdup(opt_arg);
+                break;
+            case 'd':
+                percentile = 0;
+                break;
+            case 'e':
+                csvperc = xstrdup(opt_arg);
+                break;
+            case 'S':
+                confidence = 0;
+                break;
+            case 's':
+                aprtimeout = apr_time_from_sec(atoi(opt_arg)); /* timeout value */
+                break;
+            case 'p':
+                if (method != NO_METH)
+                    err("Cannot mix POST with other methods\n");
+                if (open_postfile(opt_arg) != APR_SUCCESS) {
+                    exit(1);
+                }
+                method = POST;
+                send_body = 1;
+                break;
+            case 'u':
+                if (method != NO_METH)
+                    err("Cannot mix PUT with other methods\n");
+                if (open_postfile(opt_arg) != APR_SUCCESS) {
+                    exit(1);
+                }
+                method = PUT;
+                send_body = 1;
+                break;
+            case 'l':
+                nolength = 1;
+                break;
+            case 'r':
+                recverrok = 1;
+                break;
+            case 'v':
+                verbosity = atoi(opt_arg);
+                break;
+            case 't':
+                tlimit = atoi(opt_arg);
+                requests = MAX_REQUESTS;    /* need to size data array on
+                                             * something */
+                break;
+            case 'T':
+                content_type = apr_pstrdup(cntxt, opt_arg);
+                break;
+            case 'C':
+                cookie = apr_pstrcat(cntxt, "Cookie: ", opt_arg, "\r\n", NULL);
+                break;
+            case 'A':
+                /*
+                 * assume username passwd already to be in colon separated form.
+                 * Ready to be uu-encoded.
+                 */
+                while (apr_isspace(*opt_arg))
+                    opt_arg++;
+                if (apr_base64_encode_len(strlen(opt_arg)) > sizeof(tmp)) {
+                    err("Authentication credentials too long\n");
+                }
+                l = apr_base64_encode(tmp, opt_arg, strlen(opt_arg));
+                tmp[l] = '\0';
 
-void proxy_util_register_hooks(apr_pool_t *p)
-{
-    APR_REGISTER_OPTIONAL_FN(ap_proxy_retry_worker);
+                auth = apr_pstrcat(cntxt, auth, "Authorization: Basic ", tmp,
+                                       "\r\n", NULL);
+                break;
+            case 'P':
+                /*
+                 * assume username passwd already to be in colon separated form.
+                 */
+                while (apr_isspace(*opt_arg))
+                opt_arg++;
+                if (apr_base64_encode_len(strlen(opt_arg)) > sizeof(tmp)) {
+                    err("Proxy credentials too long\n");
+                }
+                l = apr_base64_encode(tmp, opt_arg, strlen(opt_arg));
+                tmp[l] = '\0';
+
+                auth = apr_pstrcat(cntxt, auth, "Proxy-Authorization: Basic ",
+                                       tmp, "\r\n", NULL);
+                break;
+            case 'H':
+                hdrs = apr_pstrcat(cntxt, hdrs, opt_arg, "\r\n", NULL);
+                /*
+                 * allow override of some of the common headers that ab adds
+                 */
+                if (strncasecmp(opt_arg, "Host:", 5) == 0) {
+                    opt_host = 1;
+                } else if (strncasecmp(opt_arg, "Accept:", 7) == 0) {
+                    opt_accept = 1;
+                } else if (strncasecmp(opt_arg, "User-Agent:", 11) == 0) {
+                    opt_useragent = 1;
+                }
+                break;
+            case 'w':
+                use_html = 1;
+                break;
+                /*
+                 * if any of the following three are used, turn on html output
+                 * automatically
+                 */
+            case 'x':
+                use_html = 1;
+                tablestring = opt_arg;
+                break;
+            case 'X':
+                {
+                    char *p;
+                    /*
+                     * assume proxy-name[:port]
+                     */
+                    if ((p = strchr(opt_arg, ':'))) {
+                        *p = '\0';
+                        p++;
+                        proxyport = atoi(p);
+                    }
+                    proxyhost = apr_pstrdup(cntxt, opt_arg);
+                    isproxy = 1;
+                }
+                break;
+            case 'y':
+                use_html = 1;
+                trstring = opt_arg;
+                break;
+            case 'z':
+                use_html = 1;
+                tdstring = opt_arg;
+                break;
+            case 'h':
+                usage(argv[0]);
+                break;
+            case 'V':
+                copyright();
+                return 0;
+            case 'B':
+                myhost = apr_pstrdup(cntxt, opt_arg);
+                break;
+#ifdef USE_SSL
+            case 'Z':
+                ssl_cipher = strdup(opt_arg);
+                break;
+            case 'm':
+                method = CUSTOM_METHOD;
+                method_str[CUSTOM_METHOD] = strdup(opt_arg);
+                break;
+            case 'f':
+                if (strncasecmp(opt_arg, "ALL", 3) == 0) {
+                    meth = SSLv23_client_method();
+#ifndef OPENSSL_NO_SSL2
+                } else if (strncasecmp(opt_arg, "SSL2", 4) == 0) {
+                    meth = SSLv2_client_method();
+#endif
+                } else if (strncasecmp(opt_arg, "SSL3", 4) == 0) {
+                    meth = SSLv3_client_method();
+#ifdef HAVE_TLSV1_X
+                } else if (strncasecmp(opt_arg, "TLS1.1", 6) == 0) {
+                    meth = TLSv1_1_client_method();
+                } else if (strncasecmp(opt_arg, "TLS1.2", 6) == 0) {
+                    meth = TLSv1_2_client_method();
+#endif
+                } else if (strncasecmp(opt_arg, "TLS1", 4) == 0) {
+                    meth = TLSv1_client_method();
+                }
+                break;
+#endif
+        }
+    }
+
+    if (opt->ind != argc - 1) {
+        fprintf(stderr, "%s: wrong number of arguments\n", argv[0]);
+        usage(argv[0]);
+    }
+
+    if (method == NO_METH) {
+        method = GET;
+    }
+
+    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
+        fprintf(stderr, "%s: invalid URL\n", argv[0]);
+        usage(argv[0]);
+    }
+
+    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {
+        fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
+                argv[0], MAX_CONCURRENCY);
+        usage(argv[0]);
+    }
+
+    if (concurrency > requests) {
+        fprintf(stderr, "%s: Cannot use concurrency level greater than "
+                "total number of requests\n", argv[0]);
+        usage(argv[0]);
+    }
+
+    if ((heartbeatres) && (requests > 150)) {
+        heartbeatres = requests / 10;   /* Print line every 10% of requests */
+        if (heartbeatres < 100)
+            heartbeatres = 100; /* but never more often than once every 100
+                                 * connections. */
+    }
+    else
+        heartbeatres = 0;
+
+#ifdef USE_SSL
+#ifdef RSAREF
+    R_malloc_init();
+#else
+    CRYPTO_malloc_init();
+#endif
+    SSL_load_error_strings();
+    SSL_library_init();
+    bio_out=BIO_new_fp(stdout,BIO_NOCLOSE);
+    bio_err=BIO_new_fp(stderr,BIO_NOCLOSE);
+
+    if (!(ssl_ctx = SSL_CTX_new(meth))) {
+        BIO_printf(bio_err, "Could not initialize SSL Context.\n");
+        ERR_print_errors(bio_err);
+        exit(1);
+    }
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_ALL);
+#ifdef SSL_MODE_RELEASE_BUFFERS
+    /* Keep memory usage as low as possible */
+    SSL_CTX_set_mode (ssl_ctx, SSL_MODE_RELEASE_BUFFERS);
+#endif
+    if (ssl_cipher != NULL) {
+        if (!SSL_CTX_set_cipher_list(ssl_ctx, ssl_cipher)) {
+            fprintf(stderr, "error setting cipher list [%s]\n", ssl_cipher);
+        ERR_print_errors_fp(stderr);
+        exit(1);
+    }
+    }
+    if (verbosity >= 3) {
+        SSL_CTX_set_info_callback(ssl_ctx, ssl_state_cb);
+    }
+#endif
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);       /* Ignore writes to connections that
+                                         * have been closed at the other end. */
+#endif
+    copyright();
+    test();
+    apr_pool_destroy(cntxt);
+
+    return 0;
 }

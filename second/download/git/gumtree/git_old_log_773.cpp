@@ -1,1 +1,1 @@
-die("git_all_attrs died");
+printf(": %s: %s\n", git_attr_name(check[j].attr), value);

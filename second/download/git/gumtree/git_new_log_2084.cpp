@@ -1,1 +1,1 @@
-die("not in a git directory");
+error(_("Unable to write upstream branch configuration"));

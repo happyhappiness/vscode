@@ -1,4 +1,4 @@
-fprintf(stderr, "The merge base %s is %s.\n"
-				"This means the first '%s' commit is "
+fprintf(stderr, "The merge base %s is new.\n"
+				"The property has changed "
 				"between %s and [%s].\n",
-				bad_hex, term_bad, term_good, bad_hex, good_hex);
+				bad_hex, bad_hex, good_hex);

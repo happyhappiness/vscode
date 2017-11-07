@@ -1,3 +1,2 @@
-error("Unable to determine requirements "
-		     "of type %s for %s",
-		     typename(obj->type), sha1_to_hex(obj->sha1));
+fprintf(stderr, "Cannot obtain needed %s %s\n",
+		obj->type ? typename(obj->type): "object", missing_hex);

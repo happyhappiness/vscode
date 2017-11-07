@@ -1,27 +1,37 @@
-void ref_transaction_free(struct ref_transaction *transaction)
+static int prefix_ref_iterator_advance(struct ref_iterator *ref_iterator)
 {
-	size_t i;
+	struct prefix_ref_iterator *iter =
+		(struct prefix_ref_iterator *)ref_iterator;
+	int ok;
 
-	if (!transaction)
-		return;
+	while ((ok = ref_iterator_advance(iter->iter0)) == ITER_OK) {
+		if (!starts_with(iter->iter0->refname, iter->prefix))
+			continue;
 
-	switch (transaction->state) {
-	case REF_TRANSACTION_OPEN:
-	case REF_TRANSACTION_CLOSED:
-		/* OK */
-		break;
-	case REF_TRANSACTION_PREPARED:
-		die("BUG: free called on a prepared reference transaction");
-		break;
-	default:
-		die("BUG: unexpected reference transaction state");
-		break;
+		if (iter->trim) {
+			/*
+			 * It is nonsense to trim off characters that
+			 * you haven't already checked for via a
+			 * prefix check, whether via this
+			 * `prefix_ref_iterator` or upstream in
+			 * `iter0`). So if there wouldn't be at least
+			 * one character left in the refname after
+			 * trimming, report it as a bug:
+			 */
+			if (strlen(iter->iter0->refname) <= iter->trim)
+				die("BUG: attempt to trim too many characters");
+			iter->base.refname = iter->iter0->refname + iter->trim;
+		} else {
+			iter->base.refname = iter->iter0->refname;
+		}
+
+		iter->base.oid = iter->iter0->oid;
+		iter->base.flags = iter->iter0->flags;
+		return ITER_OK;
 	}
 
-	for (i = 0; i < transaction->nr; i++) {
-		free(transaction->updates[i]->msg);
-		free(transaction->updates[i]);
-	}
-	free(transaction->updates);
-	free(transaction);
+	iter->iter0 = NULL;
+	if (ref_iterator_abort(ref_iterator) != ITER_DONE)
+		return ITER_ERROR;
+	return ok;
 }

@@ -1,22 +1,61 @@
-const char *is_worktree_locked(struct worktree *wt)
+static struct ref *get_refs_list(struct transport *transport, int for_push)
 {
-	assert(!is_main_worktree(wt));
+	struct helper_data *data = transport->data;
+	struct child_process *helper;
+	struct ref *ret = NULL;
+	struct ref **tail = &ret;
+	struct ref *posn;
+	struct strbuf buf = STRBUF_INIT;
 
-	if (!wt->lock_reason_valid) {
-		struct strbuf path = STRBUF_INIT;
+	helper = get_helper(transport);
 
-		strbuf_addstr(&path, worktree_git_path(wt, "locked"));
-		if (file_exists(path.buf)) {
-			struct strbuf lock_reason = STRBUF_INIT;
-			if (strbuf_read_file(&lock_reason, path.buf, 0) < 0)
-				die_errno(_("failed to read '%s'"), path.buf);
-			strbuf_trim(&lock_reason);
-			wt->lock_reason = strbuf_detach(&lock_reason, NULL);
-		} else
-			wt->lock_reason = NULL;
-		wt->lock_reason_valid = 1;
-		strbuf_release(&path);
+	if (process_connect(transport, for_push)) {
+		do_take_over(transport);
+		return transport->get_refs_list(transport, for_push);
 	}
 
-	return wt->lock_reason;
+	if (data->push && for_push)
+		write_str_in_full(helper->in, "list for-push\n");
+	else
+		write_str_in_full(helper->in, "list\n");
+
+	while (1) {
+		char *eov, *eon;
+		if (recvline(data, &buf))
+			exit(128);
+
+		if (!*buf.buf)
+			break;
+
+		eov = strchr(buf.buf, ' ');
+		if (!eov)
+			die("Malformed response in ref list: %s", buf.buf);
+		eon = strchr(eov + 1, ' ');
+		*eov = '\0';
+		if (eon)
+			*eon = '\0';
+		*tail = alloc_ref(eov + 1);
+		if (buf.buf[0] == '@')
+			(*tail)->symref = xstrdup(buf.buf + 1);
+		else if (buf.buf[0] != '?')
+			get_oid_hex(buf.buf, &(*tail)->old_oid);
+		if (eon) {
+			if (has_attribute(eon + 1, "unchanged")) {
+				(*tail)->status |= REF_STATUS_UPTODATE;
+				if (read_ref((*tail)->name,
+					     (*tail)->old_oid.hash) < 0)
+					die(N_("Could not read ref %s"),
+					    (*tail)->name);
+			}
+		}
+		tail = &((*tail)->next);
+	}
+	if (debug)
+		fprintf(stderr, "Debug: Read ref listing.\n");
+	strbuf_release(&buf);
+
+	for (posn = ret; posn; posn = posn->next)
+		resolve_remote_symref(posn, ret);
+
+	return ret;
 }

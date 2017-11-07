@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                          "h2_task(%s): getline: %s",
-                          task->id, buffer);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, 
+                          "h2_task(%s): adding request filters", task->id);

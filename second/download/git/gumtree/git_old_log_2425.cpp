@@ -1,1 +1,1 @@
-fprintf(stderr, "%.*s", l, b);
+fprintf(stderr, "%.*s", brk + sf, b);

@@ -224,8 +224,6 @@ static int status_handler(request_rec *r)
                   ")</h1>\n\n", NULL);
         ap_rvputs(r, "<dl><dt>Server Version: ",
                   ap_get_server_description(), "</dt>\n", NULL);
-        ap_rvputs(r, "<dt>Server MPM: ",
-                  ap_show_mpm(), "</dt>\n", NULL);
         ap_rvputs(r, "<dt>Server Built: ",
                   ap_get_server_built(), "\n</dt></dl><hr /><dl>\n", NULL);
         ap_rvputs(r, "<dt>Current Time: ",
@@ -440,6 +438,7 @@ static int status_handler(request_rec *r)
     }
 
     if (ap_extended_status && !short_report) {
+        apr_table_t *vhosts = apr_table_make(r->pool, 10);
         if (no_table_report)
             ap_rputs("<hr /><h2>Server Details</h2>\n\n", r);
         else
@@ -456,6 +455,10 @@ static int status_handler(request_rec *r)
 
         for (i = 0; i < server_limit; ++i) {
             for (j = 0; j < thread_limit; ++j) {
+                char *escvhost;
+                long last_used;
+                const char *vlast;
+
                 ws_record = ap_get_scoreboard_worker_from_indexes(i, j);
 
                 if (ws_record->access_count == 0 &&
@@ -474,6 +477,22 @@ static int status_handler(request_rec *r)
                           ws_record->start_time) / 1000);
                 if (req_time < 0L)
                     req_time = 0L;
+
+                escvhost = ap_escape_html(r->pool, ws_record->vhost);
+                last_used = (long)apr_time_sec(nowtime - ws_record->last_used);
+                if (escvhost && *escvhost) {
+                    if ((vlast = apr_table_get(vhosts, escvhost)) != NULL) {
+                        long temp = atol(vlast);
+                        if (last_used < temp) {
+                            apr_table_setn(vhosts, apr_pstrdup(r->pool, escvhost),
+                                           apr_psprintf(r->pool, "%ld", last_used));
+                        }
+                    }
+                    else {
+                        apr_table_setn(vhosts, apr_pstrdup(r->pool, escvhost),
+                                           apr_psprintf(r->pool, "%ld", last_used));
+                    }
+                }
 
                 lres = ws_record->access_count;
                 my_lres = ws_record->my_access_count;
@@ -554,8 +573,7 @@ static int status_handler(request_rec *r)
                                ws_record->times.tms_cutime / tick,
                                ws_record->times.tms_cstime / tick,
 #endif
-                               (long)apr_time_sec(nowtime -
-                                                  ws_record->last_used),
+                               last_used,
                                (long) req_time);
 
                     format_byte_out(r, conn_bytes);
@@ -571,8 +589,7 @@ static int status_handler(request_rec *r)
                                ap_escape_html(r->pool,
                                               ap_escape_logitem(r->pool,
                                                                 ws_record->request)),
-                               ap_escape_html(r->pool,
-                                              ws_record->vhost));
+                               escvhost);
                 }
                 else { /* !no_table_report */
                     if (ws_record->status == SERVER_DEAD)
@@ -641,8 +658,7 @@ static int status_handler(request_rec *r)
                                 ws_record->times.tms_cutime +
                                 ws_record->times.tms_cstime) / tick,
 #endif
-                               (long)apr_time_sec(nowtime -
-                                                  ws_record->last_used),
+                               last_used,
                                (long)req_time);
 
                     ap_rprintf(r, "</td><td>%-1.1f</td><td>%-2.2f</td><td>%-2.2f\n",
@@ -653,8 +669,7 @@ static int status_handler(request_rec *r)
                                   "<td nowrap>%s</td></tr>\n\n",
                                ap_escape_html(r->pool,
                                               ws_record->client),
-                               ap_escape_html(r->pool,
-                                              ws_record->vhost),
+                               escvhost,
                                ap_escape_html(r->pool,
                                               ap_escape_logitem(r->pool,
                                                       ws_record->request)));
@@ -663,6 +678,10 @@ static int status_handler(request_rec *r)
         } /* for (i...) */
 
         if (!no_table_report) {
+            int i;
+            const apr_array_header_t *arr = apr_table_elts(vhosts);
+            const apr_table_entry_t *elts = (const apr_table_entry_t *)arr->elts;
+
             ap_rputs("</table>\n \
 <hr /> \
 <table>\n \
@@ -681,6 +700,13 @@ static int status_handler(request_rec *r)
 <tr><th>Child</th><td>Megabytes transferred this child</td></tr>\n \
 <tr><th>Slot</th><td>Total megabytes transferred this slot</td></tr>\n \
 </table>\n", r);
+            ap_rputs("<hr />\n<table>\n\
+<tr><th>Vhost</th><th>Seconds since last used</th></tr>\n", r);
+            for (i = 0; i < arr->nelts; i++) {
+                ap_rprintf(r, "<tr><td><pre>%s</pre></td><td><pre>%27s</pre></td></tr>\n",
+                           elts[i].key, elts[i].val);
+            }
+            ap_rputs("</table>\n", r);
         }
     } /* if (ap_extended_status && !short_report) */
     else {

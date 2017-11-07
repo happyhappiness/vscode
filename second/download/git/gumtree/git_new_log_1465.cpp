@@ -1,1 +1,1 @@
-printf("Diag: userandhost=%s\n", ssh_host ? ssh_host : "NULL");
+printf("Diag: protocol=%s\n", prot_name(protocol));

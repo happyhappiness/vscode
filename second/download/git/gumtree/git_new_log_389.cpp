@@ -1,1 +1,1 @@
-print_verbose(args, _("Server supports no-done"));
+print_verbose(args, _("Server supports multi_ack_detailed"));

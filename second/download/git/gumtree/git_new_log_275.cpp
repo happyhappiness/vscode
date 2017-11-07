@@ -1,1 +1,2 @@
-error(_("failed to delete ref NOTES_MERGE_PARTIAL"));
+error(_("no note found for object %s."),
+			       sha1_to_hex(object));

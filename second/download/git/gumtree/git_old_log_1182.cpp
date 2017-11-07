@@ -1,1 +1,1 @@
-die("revision walk setup failed");
+die_errno(_("Failed to write ref"));

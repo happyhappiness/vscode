@@ -1,2 +1,1 @@
-error(_("unknown core.untrackedCache value '%s'; "
-			"using 'keep' default value"), v);
+git_die_config(key, _("Invalid %s: '%s'"), key, *output);

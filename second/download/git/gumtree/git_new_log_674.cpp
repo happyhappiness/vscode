@@ -1,2 +1,2 @@
-error(_("could not update HEAD to %s"),
+error(_("could not update %s"),
 					head_ref.buf);

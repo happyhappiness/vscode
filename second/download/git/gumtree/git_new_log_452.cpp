@@ -1,4 +1,2 @@
-error(command == TODO_REVERT
-		      ? _("could not revert %s... %s")
-		      : _("could not apply %s... %s"),
-		      short_commit_name(commit), msg.subject);
+error(_("cannot get commit message for %s"),
+			oid_to_hex(&commit->object.oid));

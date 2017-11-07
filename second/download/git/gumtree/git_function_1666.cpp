@@ -1,7 +1,7 @@
-void NORETURN die_conclude_merge(void)
+static inline size_t st_sub(size_t a, size_t b)
 {
-	error(_("You have not concluded your merge (MERGE_HEAD exists)."));
-	if (advice_resolve_conflict)
-		advise(_("Please, commit your changes before you can merge."));
-	die(_("Exiting because of unfinished merge."));
+	if (a < b)
+		die("size_t underflow: %"PRIuMAX" - %"PRIuMAX,
+		    (uintmax_t)a, (uintmax_t)b);
+	return a - b;
 }

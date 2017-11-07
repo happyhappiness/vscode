@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s, APLOGNO(03016)
-                     "mod_lua: Failed to reopen mutex lua-ivm-shm in child");
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, s, APLOGNO(02665)
+            "mod_lua: Failed to create shared memory segment on file %s",
+                     lua_ivm_shmfile ? lua_ivm_shmfile : "(anonymous)");

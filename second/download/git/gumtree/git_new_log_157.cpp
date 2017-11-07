@@ -1,1 +1,1 @@
-fprintf(stderr, "cannot chmod '%s'", ce->name);
+status_printf_ln(s, GIT_COLOR_NORMAL, "%s", "");

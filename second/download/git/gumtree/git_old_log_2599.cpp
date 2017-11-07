@@ -1,1 +1,1 @@
-fputs(prefix, stdout);
+die("Fatal: buffer too small. Please report a bug.");

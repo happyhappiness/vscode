@@ -1,1 +1,1 @@
-die_errno(_("Cannot change to '%s/..'"), cwd.buf);
+die_errno(_("Cannot come back to cwd"));

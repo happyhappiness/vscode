@@ -1,2 +1,1 @@
-error_errno("Could not open %s for writing",
-					  filename);
+error_errno("failed to redirect stderr to /dev/null");

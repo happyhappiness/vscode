@@ -1,1 +1,1 @@
-error("too many parameters");
+error("cannot mix --commit, --abort or -s/--strategy");

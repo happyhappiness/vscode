@@ -1,1 +1,1 @@
-vwritef(child_err, "fatal: ", err, params);
+die("bad default revision '%s'", revs->def);

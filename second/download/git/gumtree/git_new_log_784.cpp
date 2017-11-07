@@ -1,1 +1,1 @@
-die(_("--broken is incompatible with commit-ishes"));
+printf("%s", suffix);

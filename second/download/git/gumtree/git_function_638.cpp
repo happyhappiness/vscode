@@ -1,91 +1,65 @@
-static int update_squash_messages(enum todo_command command,
-		struct commit *commit, struct replay_opts *opts)
+static int run_git_commit(const char *defmsg, struct replay_opts *opts,
+			  int allow_empty, int edit, int amend,
+			  int cleanup_commit_message)
 {
-	struct strbuf buf = STRBUF_INIT;
-	int count, res;
-	const char *message, *body;
+	struct child_process cmd = CHILD_PROCESS_INIT;
+	const char *value;
 
-	if (file_exists(rebase_path_squash_msg())) {
-		struct strbuf header = STRBUF_INIT;
-		char *eol, *p;
+	cmd.git_cmd = 1;
 
-		if (strbuf_read_file(&buf, rebase_path_squash_msg(), 2048) <= 0)
-			return error(_("could not read '%s'"),
-				rebase_path_squash_msg());
-
-		p = buf.buf + 1;
-		eol = strchrnul(buf.buf, '\n');
-		if (buf.buf[0] != comment_line_char ||
-		    (p += strcspn(p, "0123456789\n")) == eol)
-			return error(_("unexpected 1st line of squash message:"
-				       "\n\n\t%.*s"),
-				     (int)(eol - buf.buf), buf.buf);
-		count = strtol(p, NULL, 10);
-
-		if (count < 1)
-			return error(_("invalid 1st line of squash message:\n"
-				       "\n\t%.*s"),
-				     (int)(eol - buf.buf), buf.buf);
-
-		strbuf_addf(&header, "%c ", comment_line_char);
-		strbuf_addf(&header,
-			    _("This is a combination of %d commits."), ++count);
-		strbuf_splice(&buf, 0, eol - buf.buf, header.buf, header.len);
-		strbuf_release(&header);
-	} else {
-		unsigned char head[20];
-		struct commit *head_commit;
-		const char *head_message, *body;
-
-		if (get_sha1("HEAD", head))
-			return error(_("need a HEAD to fixup"));
-		if (!(head_commit = lookup_commit_reference(head)))
-			return error(_("could not read HEAD"));
-		if (!(head_message = get_commit_buffer(head_commit, NULL)))
-			return error(_("could not read HEAD's commit message"));
-
-		find_commit_subject(head_message, &body);
-		if (write_message(body, strlen(body),
-				  rebase_path_fixup_msg(), 0)) {
-			unuse_commit_buffer(head_commit, head_message);
-			return error(_("cannot write '%s'"),
-				     rebase_path_fixup_msg());
+	if (is_rebase_i(opts)) {
+		if (!edit) {
+			cmd.stdout_to_stderr = 1;
+			cmd.err = -1;
 		}
 
-		count = 2;
-		strbuf_addf(&buf, "%c ", comment_line_char);
-		strbuf_addf(&buf, _("This is a combination of %d commits."),
-			    count);
-		strbuf_addf(&buf, "\n%c ", comment_line_char);
-		strbuf_addstr(&buf, _("This is the 1st commit message:"));
-		strbuf_addstr(&buf, "\n\n");
-		strbuf_addstr(&buf, body);
+		if (read_env_script(&cmd.env_array)) {
+			const char *gpg_opt = gpg_sign_opt_quoted(opts);
 
-		unuse_commit_buffer(head_commit, head_message);
+			return error(_(staged_changes_advice),
+				     gpg_opt, gpg_opt);
+		}
 	}
 
-	if (!(message = get_commit_buffer(commit, NULL)))
-		return error(_("could not read commit message of %s"),
-			     oid_to_hex(&commit->object.oid));
-	find_commit_subject(message, &body);
+	argv_array_push(&cmd.args, "commit");
+	argv_array_push(&cmd.args, "-n");
 
-	if (command == TODO_SQUASH) {
-		unlink(rebase_path_fixup_msg());
-		strbuf_addf(&buf, "\n%c ", comment_line_char);
-		strbuf_addf(&buf, _("This is the commit message #%d:"), count);
-		strbuf_addstr(&buf, "\n\n");
-		strbuf_addstr(&buf, body);
-	} else if (command == TODO_FIXUP) {
-		strbuf_addf(&buf, "\n%c ", comment_line_char);
-		strbuf_addf(&buf, _("The commit message #%d will be skipped:"),
-			    count);
-		strbuf_addstr(&buf, "\n\n");
-		strbuf_add_commented_lines(&buf, body, strlen(body));
-	} else
-		return error(_("unknown command: %d"), command);
-	unuse_commit_buffer(commit, message);
+	if (amend)
+		argv_array_push(&cmd.args, "--amend");
+	if (opts->gpg_sign)
+		argv_array_pushf(&cmd.args, "-S%s", opts->gpg_sign);
+	if (opts->signoff)
+		argv_array_push(&cmd.args, "-s");
+	if (defmsg)
+		argv_array_pushl(&cmd.args, "-F", defmsg, NULL);
+	if (cleanup_commit_message)
+		argv_array_push(&cmd.args, "--cleanup=strip");
+	if (edit)
+		argv_array_push(&cmd.args, "-e");
+	else if (!cleanup_commit_message &&
+		 !opts->signoff && !opts->record_origin &&
+		 git_config_get_value("commit.cleanup", &value))
+		argv_array_push(&cmd.args, "--cleanup=verbatim");
 
-	res = write_message(buf.buf, buf.len, rebase_path_squash_msg(), 0);
-	strbuf_release(&buf);
-	return res;
+	if (allow_empty)
+		argv_array_push(&cmd.args, "--allow-empty");
+
+	if (opts->allow_empty_message)
+		argv_array_push(&cmd.args, "--allow-empty-message");
+
+	if (cmd.err == -1) {
+		/* hide stderr on success */
+		struct strbuf buf = STRBUF_INIT;
+		int rc = pipe_command(&cmd,
+				      NULL, 0,
+				      /* stdout is already redirected */
+				      NULL, 0,
+				      &buf, 0);
+		if (rc)
+			fputs(buf.buf, stderr);
+		strbuf_release(&buf);
+		return rc;
+	}
+
+	return run_command(&cmd);
 }

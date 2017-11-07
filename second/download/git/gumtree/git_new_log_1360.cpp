@@ -1,2 +1,2 @@
-die_errno("failed to write to %s",
-				  shallow_lock->filename.buf);
+error("unable to get sha1 of object %u in %s",
+				     i, p->pack_name);

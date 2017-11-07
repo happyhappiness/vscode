@@ -1,1 +1,1 @@
-fprintf(fp, "\t%s\n", ce->name);
+fprintf(fp, "\nConflicts:\n");

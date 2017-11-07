@@ -1,2 +1,1 @@
-ap_rvputs(r, "value='", ap_escape_html(r->pool, wsel->s->redirect),
-                      NULL);
+ap_rputs("<td><table><tr><th>Ign</th><th>Drn</th><th>Dis</th><th>Stby</th></tr>\n<tr>", r);

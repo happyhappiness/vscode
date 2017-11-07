@@ -1,1 +1,2 @@
-fputs(sha1_to_hex(commit->object.sha1), stdout);
+fputs(find_unique_abbrev(commit->object.sha1, revs->abbrev),
+		      stdout);

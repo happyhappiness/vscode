@@ -1,47 +1,33 @@
-static int log_ref_write(const char *refname, const unsigned char *old_sha1,
-			 const unsigned char *new_sha1, const char *msg)
+int read_index_from(struct index_state *istate, const char *path)
 {
-	int logfd, result, written, oflags = O_APPEND | O_WRONLY;
-	unsigned maxlen, len;
-	int msglen;
-	char log_file[PATH_MAX];
-	char *logrec;
-	const char *committer;
+	struct split_index *split_index;
+	int ret;
 
-	if (log_all_ref_updates < 0)
-		log_all_ref_updates = !is_bare_repository();
+	/* istate->initialized covers both .git/index and .git/sharedindex.xxx */
+	if (istate->initialized)
+		return istate->cache_nr;
 
-	result = log_ref_setup(refname, log_file, sizeof(log_file));
-	if (result)
-		return result;
+	ret = do_read_index(istate, path, 0);
+	split_index = istate->split_index;
+	if (!split_index)
+		return ret;
 
-	logfd = open(log_file, oflags);
-	if (logfd < 0)
-		return 0;
-	msglen = msg ? strlen(msg) : 0;
-	committer = git_committer_info(0);
-	maxlen = strlen(committer) + msglen + 100;
-	logrec = xmalloc(maxlen);
-	len = sprintf(logrec, "%s %s %s\n",
-		      sha1_to_hex(old_sha1),
-		      sha1_to_hex(new_sha1),
-		      committer);
-	if (msglen)
-		len += copy_msg(logrec + len - 1, msg) - 1;
-	written = len <= maxlen ? write_in_full(logfd, logrec, len) : -1;
-	free(logrec);
-	if (written != len) {
-		int save_errno = errno;
-		close(logfd);
-		error("Unable to append to %s", log_file);
-		errno = save_errno;
-		return -1;
-	}
-	if (close(logfd)) {
-		int save_errno = errno;
-		error("Unable to append to %s", log_file);
-		errno = save_errno;
-		return -1;
-	}
-	return 0;
+	if (is_null_sha1(split_index->base_sha1))
+		return ret;
+
+	if (split_index->base)
+		discard_index(split_index->base);
+	else
+		split_index->base = xcalloc(1, sizeof(*split_index->base));
+	ret = do_read_index(split_index->base,
+			    git_path("sharedindex.%s",
+				     sha1_to_hex(split_index->base_sha1)), 1);
+	if (hashcmp(split_index->base_sha1, split_index->base->sha1))
+		die("broken index, expect %s in %s, got %s",
+		    sha1_to_hex(split_index->base_sha1),
+		    git_path("sharedindex.%s",
+				     sha1_to_hex(split_index->base_sha1)),
+		    sha1_to_hex(split_index->base->sha1));
+	merge_base_index(istate);
+	return ret;
 }

@@ -1,31 +1,15 @@
-apr_status_t h2_workers_register(h2_workers *workers, struct h2_mplx *m)
+apr_size_t h2_workers_tx_reserve(h2_workers *workers, apr_size_t count)
 {
-    apr_status_t status = apr_thread_mutex_lock(workers->lock);
+    apr_status_t status = apr_thread_mutex_lock(workers->tx_lock);
     if (status == APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_TRACE2, status, workers->s,
-                     "h2_workers: register mplx(%ld)", m->id);
-        if (in_list(workers, m)) {
-            status = APR_EAGAIN;
-        }
-        else {
-            H2_MPLX_LIST_INSERT_TAIL(&workers->mplxs, m);
-            status = APR_SUCCESS;
-        }
-        
-        if (workers->idle_worker_count > 0) { 
-            apr_thread_cond_signal(workers->mplx_added);
-        }
-        else if (workers->worker_count < workers->max_size) {
-            ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
-                         "h2_workers: got %d worker, adding 1", 
-                         workers->worker_count);
-            add_worker(workers);
-        }
-        
-        /* cleanup any zombie workers that may have accumulated */
-        cleanup_zombies(workers, 0);
-        
-        apr_thread_mutex_unlock(workers->lock);
+        count = H2MIN(workers->spare_tx_handles, count);
+        workers->spare_tx_handles -= count;
+        ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, workers->s,
+                     "h2_workers: reserved %d tx handles, %d/%d left", 
+                     (int)count, (int)workers->spare_tx_handles,
+                     (int)workers->max_tx_handles);
+        apr_thread_mutex_unlock(workers->tx_lock);
+        return count;
     }
-    return status;
+    return 0;
 }

@@ -1,1 +1,2 @@
-fprintf(stderr, "    -f protocol     Specify SSL/TLS protocol (SSL3, TLS1, or ALL)\n");
+fprintf(stderr, "crypt() failed: %s\n", 
+                        apr_strerror(errno, errbuf, sizeof errbuf));

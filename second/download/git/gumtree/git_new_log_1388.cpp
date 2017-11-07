@@ -1,1 +1,1 @@
-die_errno(_("could not create file '%s'"), d->edit_path);
+fputs(msgbuf.buf, fp);

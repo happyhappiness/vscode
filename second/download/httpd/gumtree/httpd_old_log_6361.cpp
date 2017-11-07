@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO()
-                         "scoreboard is full, not at MaxRequestWorkers."
-                         "Increase ServerLimit.");
+ap_log_error(APLOG_MARK, APLOG_ERR | APLOG_STARTUP, rv, NULL,
+                     APLOGNO(00369)  "Failed to open the Windows service "
+                     "manager, perhaps you forgot to log in as Adminstrator?");

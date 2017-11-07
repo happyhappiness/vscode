@@ -1,55 +1,71 @@
-static const char *
-    set_proxy_dirconn(cmd_parms *parms, void *dummy, const char *arg)
+static int fcgi_do_request(apr_pool_t *p, request_rec *r,
+                           proxy_conn_rec *conn,
+                           conn_rec *origin,
+                           proxy_dir_conf *conf,
+                           apr_uri_t *uri,
+                           char *url, char *server_portstr)
 {
-    server_rec *s = parms->server;
-    proxy_server_conf *conf =
-    ap_get_module_config(s->module_config, &proxy_module);
-    struct dirconn_entry *New;
-    struct dirconn_entry *list = (struct dirconn_entry *) conf->dirconn->elts;
-    int found = 0;
-    int i;
+    /* Request IDs are arbitrary numbers that we assign to a
+     * single request. This would allow multiplex/pipelining of
+     * multiple requests to the same FastCGI connection, but
+     * we don't support that, and always use a value of '1' to
+     * keep things simple. */
+    apr_uint16_t request_id = 1;
+    apr_status_t rv;
+    apr_pool_t *temp_pool;
+    const char *err;
+    int bad_request = 0,
+        has_responded = 0;
 
-    /* Don't duplicate entries */
-    for (i = 0; i < conf->dirconn->nelts; i++) {
-        if (strcasecmp(arg, list[i].name) == 0) {
-            found = 1;
-            break;
-        }
+    /* Step 1: Send AP_FCGI_BEGIN_REQUEST */
+    rv = send_begin_request(conn, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01073)
+                      "Failed Writing Request to %s:", server_portstr);
+        conn->close = 1;
+        return HTTP_SERVICE_UNAVAILABLE;
     }
 
-    if (!found) {
-        New = apr_array_push(conf->dirconn);
-        New->name = apr_pstrdup(parms->pool, arg);
-        New->hostaddr = NULL;
+    apr_pool_create(&temp_pool, r->pool);
 
-        if (ap_proxy_is_ipaddr(New, parms->pool)) {
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed addr %s", inet_ntoa(New->addr));
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed mask %s", inet_ntoa(New->mask));
-#endif
-        }
-        else if (ap_proxy_is_domainname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed domain %s", New->name);
-#endif
-        }
-        else if (ap_proxy_is_hostname(New, parms->pool)) {
-            ap_str_tolower(New->name);
-#if DEBUGGING
-            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
-                         "Parsed host %s", New->name);
-#endif
-        }
-        else {
-            ap_proxy_is_word(New, parms->pool);
-#if DEBUGGING
-            fprintf(stderr, "Parsed word %s\n", New->name);
-#endif
-        }
+    /* Step 2: Send Environment via FCGI_PARAMS */
+    rv = send_environment(conn, r, temp_pool, request_id);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01074)
+                      "Failed writing Environment to %s:", server_portstr);
+        conn->close = 1;
+        return HTTP_SERVICE_UNAVAILABLE;
     }
-    return NULL;
+
+    /* Step 3: Read records from the back end server and handle them. */
+    rv = dispatch(conn, conf, r, temp_pool, request_id,
+                  &err, &bad_request, &has_responded);
+    if (rv != APR_SUCCESS) {
+        /* If the client aborted the connection during retrieval or (partially)
+         * sending the response, don't return a HTTP_SERVICE_UNAVAILABLE, since
+         * this is not a backend problem. */
+        if (r->connection->aborted) {
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE1, rv, r, 
+                          "The client aborted the connection.");
+            conn->close = 1;
+            return OK;
+        }
+
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(01075)
+                      "Error dispatching request to %s: %s%s%s",
+                      server_portstr,
+                      err ? "(" : "",
+                      err ? err : "",
+                      err ? ")" : "");
+        conn->close = 1;
+        if (has_responded) {
+            return AP_FILTER_ERROR;
+        }
+        if (bad_request) {
+            return ap_map_http_request_error(rv, HTTP_BAD_REQUEST);
+        }
+        return HTTP_SERVICE_UNAVAILABLE;
+    }
+
+    return OK;
 }

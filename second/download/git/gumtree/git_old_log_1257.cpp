@@ -1,1 +1,1 @@
-die("Failed to expand user dir in: '%s'", value);
+die("bad numeric config value '%s' for '%s': %s", value, name, reason);

@@ -1,2 +1,1 @@
-error(_("could not rename '%s' to '%s'"),
-					     rebase_path_squash_msg(), dest);
+fprintf(out, "%s\n", oid_to_hex(oid));

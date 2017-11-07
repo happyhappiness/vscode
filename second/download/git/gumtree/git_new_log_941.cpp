@@ -1,1 +1,1 @@
-die("'%s': not a non-negative integer", optarg);
+error(_("could not close '%s'"), tempfile->filename.buf);

@@ -1,1 +1,1 @@
-printf("%lu ", commit->date);
+die("Expected two arguments");

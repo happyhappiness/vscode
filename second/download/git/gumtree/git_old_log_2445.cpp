@@ -1,1 +1,1 @@
-die("Unknown archive format '%s'", format);
+die("Unexpected option --output");

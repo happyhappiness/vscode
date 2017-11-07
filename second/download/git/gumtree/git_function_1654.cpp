@@ -1,69 +1,66 @@
-static void combine_diff(const struct object_id *parent, unsigned int mode,
-			 mmfile_t *result_file,
-			 struct sline *sline, unsigned int cnt, int n,
-			 int num_parent, int result_deleted,
-			 struct userdiff_driver *textconv,
-			 const char *path, long flags)
+int cmd_rerere(int argc, const char **argv, const char *prefix)
 {
-	unsigned int p_lno, lno;
-	unsigned long nmask = (1UL << n);
-	xpparam_t xpp;
-	xdemitconf_t xecfg;
-	mmfile_t parent_file;
-	struct combine_diff_state state;
-	unsigned long sz;
+	struct string_list merge_rr = STRING_LIST_INIT_DUP;
+	int i, fd, autoupdate = -1, flags = 0;
 
-	if (result_deleted)
-		return; /* result deleted */
+	struct option options[] = {
+		OPT_SET_INT(0, "rerere-autoupdate", &autoupdate,
+			N_("register clean resolutions in index"), 1),
+		OPT_END(),
+	};
 
-	parent_file.ptr = grab_blob(parent, mode, &sz, textconv, path);
-	parent_file.size = sz;
-	memset(&xpp, 0, sizeof(xpp));
-	xpp.flags = flags;
-	memset(&xecfg, 0, sizeof(xecfg));
-	memset(&state, 0, sizeof(state));
-	state.nmask = nmask;
-	state.sline = sline;
-	state.lno = 1;
-	state.num_parent = num_parent;
-	state.n = n;
+	argc = parse_options(argc, argv, prefix, options, rerere_usage, 0);
 
-	if (xdi_diff_outf(&parent_file, result_file, consume_line, &state,
-			  &xpp, &xecfg))
-		die("unable to generate combined diff for %s",
-		    oid_to_hex(parent));
-	free(parent_file.ptr);
+	git_config(git_xmerge_config, NULL);
 
-	/* Assign line numbers for this parent.
-	 *
-	 * sline[lno].p_lno[n] records the first line number
-	 * (counting from 1) for parent N if the final hunk display
-	 * started by showing sline[lno] (possibly showing the lost
-	 * lines attached to it first).
-	 */
-	for (lno = 0,  p_lno = 1; lno <= cnt; lno++) {
-		struct lline *ll;
-		sline[lno].p_lno[n] = p_lno;
+	if (autoupdate == 1)
+		flags = RERERE_AUTOUPDATE;
+	if (autoupdate == 0)
+		flags = RERERE_NOAUTOUPDATE;
 
-		/* Coalesce new lines */
-		if (sline[lno].plost.lost_head) {
-			struct sline *sl = &sline[lno];
-			sl->lost = coalesce_lines(sl->lost, &sl->lenlost,
-						  sl->plost.lost_head,
-						  sl->plost.len, n, flags);
-			sl->plost.lost_head = sl->plost.lost_tail = NULL;
-			sl->plost.len = 0;
-		}
+	if (argc < 1)
+		return rerere(flags);
 
-		/* How many lines would this sline advance the p_lno? */
-		ll = sline[lno].lost;
-		while (ll) {
-			if (ll->parent_map & nmask)
-				p_lno++; /* '-' means parent had it */
-			ll = ll->next;
-		}
-		if (lno < cnt && !(sline[lno].flag & nmask))
-			p_lno++; /* no '+' means parent had it */
+	if (!strcmp(argv[0], "forget")) {
+		struct pathspec pathspec;
+		if (argc < 2)
+			warning("'git rerere forget' without paths is deprecated");
+		parse_pathspec(&pathspec, 0, PATHSPEC_PREFER_CWD,
+			       prefix, argv + 1);
+		return rerere_forget(&pathspec);
 	}
-	sline[lno].p_lno[n] = p_lno; /* trailer */
+
+	fd = setup_rerere(&merge_rr, flags);
+	if (fd < 0)
+		return 0;
+
+	if (!strcmp(argv[0], "clear")) {
+		rerere_clear(&merge_rr);
+	} else if (!strcmp(argv[0], "gc"))
+		rerere_gc(&merge_rr);
+	else if (!strcmp(argv[0], "status"))
+		for (i = 0; i < merge_rr.nr; i++)
+			printf("%s\n", merge_rr.items[i].string);
+	else if (!strcmp(argv[0], "remaining")) {
+		rerere_remaining(&merge_rr);
+		for (i = 0; i < merge_rr.nr; i++) {
+			if (merge_rr.items[i].util != RERERE_RESOLVED)
+				printf("%s\n", merge_rr.items[i].string);
+			else
+				/* prepare for later call to
+				 * string_list_clear() */
+				merge_rr.items[i].util = NULL;
+		}
+	} else if (!strcmp(argv[0], "diff"))
+		for (i = 0; i < merge_rr.nr; i++) {
+			const char *path = merge_rr.items[i].string;
+			const char *name = (const char *)merge_rr.items[i].util;
+			if (diff_two(rerere_path(name, "preimage"), path, path, path))
+				die("unable to generate diff for %s", name);
+		}
+	else
+		usage_with_options(rerere_usage, options);
+
+	string_list_clear(&merge_rr, 1);
+	return 0;
 }

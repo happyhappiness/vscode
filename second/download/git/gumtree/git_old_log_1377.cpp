@@ -1,1 +1,1 @@
-die("Bad type of menu_staff when print menu");
+die(_("no files added"));

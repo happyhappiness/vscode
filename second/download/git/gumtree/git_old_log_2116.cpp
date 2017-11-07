@@ -1,1 +1,2 @@
-warning("%s\n", _(warn_unspecified_push_default_msg));
+die("Refusing to %s notes in %s (outside of refs/notes/)",
+		    subcommand, t->ref);

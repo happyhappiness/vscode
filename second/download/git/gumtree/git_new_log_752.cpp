@@ -1,1 +1,1 @@
-die(_("unable to auto-detect email address (got '%s')"), email);
+die(_("no email was given and auto-detection is disabled"));

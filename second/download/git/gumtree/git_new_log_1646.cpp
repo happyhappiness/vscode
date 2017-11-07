@@ -1,0 +1,1 @@
+diagnose_missing_default(revs->def);

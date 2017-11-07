@@ -1,1 +1,1 @@
-error("BUG: expected exactly one commit from walk");
+error(_("revision walk setup failed"));

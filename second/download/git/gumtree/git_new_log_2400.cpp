@@ -1,1 +1,1 @@
-error_errno("poll failed, resuming");
+error_errno("cannot stat '%s'", ce->name);

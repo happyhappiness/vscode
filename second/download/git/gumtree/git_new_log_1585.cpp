@@ -1,1 +1,1 @@
-die("BUG: incompatible flags for get_sha1_with_context");
+die("%s", err.buf);

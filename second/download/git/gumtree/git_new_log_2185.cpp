@@ -1,1 +1,1 @@
-die(_("file %s is not writable by user"), file);
+die(_("file %s is not a regular file"), file);

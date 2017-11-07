@@ -1,1 +1,1 @@
-objreport(obj, (type == FSCK_WARN) ? "warning" : "error", err, params);
+objreport(obj, "error", err, params);

@@ -1,4 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, m->c, APLOGNO(03055)  
-                          "h2_mplx(%ld-%d): stream timeout expired: %s",
-                          m->id, io->id, 
-                          (io->timed_op == H2_IO_READ)? "read" : "write");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, m->c,
+                  "h2_mplx(%ld): destroy, ios=%d", 
+                  m->id, (int)h2_io_set_size(m->stream_ios));

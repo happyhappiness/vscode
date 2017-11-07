@@ -1,1 +1,1 @@
-error("write(%s) failed: %s", t->dest_name, strerror(errno));
+error("read(%s) failed: %s", t->src_name, strerror(errno));

@@ -1,3 +1,3 @@
-die("Problem with core.sharedRepository filemode value "
-		    "(0%.3o).\nThe owner of files must always have "
-		    "read and write permissions.", i);
+die("Not a git repository (or any parent up to mount point %s)\n"
+				"Stopping at filesystem boundary (GIT_DISCOVERY_ACROSS_FILESYSTEM not set).",
+				    cwd.buf);

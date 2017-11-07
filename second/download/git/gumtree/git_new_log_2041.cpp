@@ -1,1 +1,1 @@
-die("bad object %s", oid_to_hex(&tag->tagged->oid));
+die("bad tree %s", oid_to_hex(&obj->oid));

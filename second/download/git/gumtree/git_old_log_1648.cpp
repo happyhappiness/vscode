@@ -1,1 +1,1 @@
-fprintf(stderr, "%s%s\n", prefix, msg);
+vwritef(child_err, "error: ", err, params);

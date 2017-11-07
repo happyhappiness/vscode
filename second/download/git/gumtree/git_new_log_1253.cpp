@@ -1,1 +1,1 @@
-die(_("bad config file line %d in %s"), cf->linenr, cf->name);
+error(_("invalid color value: %.*s"), value_len, value);

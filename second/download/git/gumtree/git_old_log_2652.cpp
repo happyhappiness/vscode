@@ -1,1 +1,1 @@
-error(_("cannot read object %s"), sha1_to_hex(sha1));
+die("ren1_src != ren2_src");

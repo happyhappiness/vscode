@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02474)
-                "cache: Removing CACHE_REMOVE_URL filter.");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02485)
+                                  "Encountered extra data after compressed data");

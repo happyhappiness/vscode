@@ -1,30 +1,35 @@
-static int write_ref_to_lockfile(struct ref_lock *lock,
-				 const unsigned char *sha1)
+static int log_ref_write_1(const char *refname, const unsigned char *old_sha1,
+			   const unsigned char *new_sha1, const char *msg,
+			   struct strbuf *sb_log_file)
 {
-	static char term = '\n';
-	struct object *o;
+	int logfd, result, oflags = O_APPEND | O_WRONLY;
+	char *log_file;
 
-	o = parse_object(sha1);
-	if (!o) {
-		error("Trying to write ref %s with nonexistent object %s",
-			lock->ref_name, sha1_to_hex(sha1));
-		unlock_ref(lock);
-		errno = EINVAL;
-		return -1;
-	}
-	if (o->type != OBJ_COMMIT && is_branch(lock->ref_name)) {
-		error("Trying to write non-commit object %s to branch %s",
-			sha1_to_hex(sha1), lock->ref_name);
-		unlock_ref(lock);
-		errno = EINVAL;
-		return -1;
-	}
-	if (write_in_full(lock->lk->fd, sha1_to_hex(sha1), 40) != 40 ||
-	    write_in_full(lock->lk->fd, &term, 1) != 1 ||
-	    close_ref(lock) < 0) {
+	if (log_all_ref_updates < 0)
+		log_all_ref_updates = !is_bare_repository();
+
+	result = log_ref_setup(refname, sb_log_file);
+	if (result)
+		return result;
+	log_file = sb_log_file->buf;
+	/* make sure the rest of the function can't change "log_file" */
+	sb_log_file = NULL;
+
+	logfd = open(log_file, oflags);
+	if (logfd < 0)
+		return 0;
+	result = log_ref_write_fd(logfd, old_sha1, new_sha1,
+				  git_committer_info(0), msg);
+	if (result) {
 		int save_errno = errno;
-		error("Couldn't write %s", lock->lk->filename.buf);
-		unlock_ref(lock);
+		close(logfd);
+		error("Unable to append to %s", log_file);
+		errno = save_errno;
+		return -1;
+	}
+	if (close(logfd)) {
+		int save_errno = errno;
+		error("Unable to append to %s", log_file);
 		errno = save_errno;
 		return -1;
 	}

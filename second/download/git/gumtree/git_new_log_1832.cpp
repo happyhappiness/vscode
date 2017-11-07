@@ -1,1 +1,1 @@
-warning("symbolic ref is dangling: %s", path);
+warning("No LOGIN_OPTIONS support in this cURL version");

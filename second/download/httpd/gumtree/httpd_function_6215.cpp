@@ -1,8 +1,7 @@
-static void *session_realloc(void *p, size_t size, void *ctx)
+void h2_session_eoc_callback(h2_session *session)
 {
-    h2_session *session = ctx;
-    ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, session->c,
-                  "h2_session(%ld): realloc(%ld)",
-                  session->id, (long)size);
-    return realloc(p, size);
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                  "session(%ld): cleanup and destroy", session->id);
+    apr_pool_cleanup_kill(session->pool, session, session_pool_cleanup);
+    h2_session_destroy(session);
 }

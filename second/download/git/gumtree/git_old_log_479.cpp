@@ -1,1 +1,1 @@
-die(_("revision walk setup failed"));
+die(_("%s: bad revision"), name);

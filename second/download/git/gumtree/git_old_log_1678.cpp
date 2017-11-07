@@ -1,1 +1,0 @@
-die("cannot open '%s' for reading", merge_head_file);

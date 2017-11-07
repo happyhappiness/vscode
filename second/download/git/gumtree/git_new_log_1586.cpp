@@ -1,1 +1,1 @@
-packet_write(fd, "shallow %s\n", oid_to_hex(&graft->oid));
+die("BUG: incompatible flags for get_sha1_with_context");

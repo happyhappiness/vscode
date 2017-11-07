@@ -1,1 +1,1 @@
-error("Object %s already has a mark", sha1_to_hex(sha1));
+die("not a commit? can't happen: %s", sha1_to_hex(sha1));

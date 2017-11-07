@@ -1,1 +1,2 @@
-die("ren1_src != ren2_src");
+die(_("Unable to add %s to database"),
+				    a->path);

@@ -1,1 +1,1 @@
-die("BUG: packed-refs not locked");
+die("Reference has invalid format: '%s'", refname);

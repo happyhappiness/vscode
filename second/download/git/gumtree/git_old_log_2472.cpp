@@ -1,2 +1,2 @@
-fprintf(stderr, "%s:%d: %s.\n%.*s\n",
-		patch_input_file, linenr, err, len, line);
+die("git diff header lacks filename information "
+				    "(line %d)", linenr);

@@ -1,1 +1,1 @@
-fprintf(pack_edges, " %s", sha1_to_hex(b->sha1));
+fputs(sha1_to_hex(tg->sha1), rpt);

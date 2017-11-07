@@ -1,1 +1,1 @@
-die_errno("atexit(winansi_exit) failed");
+error("Tweaking file descriptors doesn't work with this MSVCRT.dll");

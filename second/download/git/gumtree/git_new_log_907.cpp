@@ -1,1 +1,2 @@
-die("BUG: unhandled setup_git_directory_1() result");
+warning("ignoring git dir '%s': %s",
+			gitdir->buf + gitdir_offset, err.buf);

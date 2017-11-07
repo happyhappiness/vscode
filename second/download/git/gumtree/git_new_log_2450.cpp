@@ -1,1 +1,1 @@
-printf("%s\n", oid_to_hex(&tried->item->object.oid));
+printf(_("We cannot bisect more!\n"));

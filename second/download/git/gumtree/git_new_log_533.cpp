@@ -1,1 +1,1 @@
-die("Invalid deepen-since: %s", line);
+packet_write_fmt(1, "NAK\n");

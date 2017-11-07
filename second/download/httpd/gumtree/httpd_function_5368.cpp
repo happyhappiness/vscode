@@ -1,74 +1,96 @@
-int ssl_callback_alpn_select(SSL *ssl,
-                             const unsigned char **out, unsigned char *outlen,
-                             const unsigned char *in, unsigned int inlen,
-                             void *arg)
+static int stapling_check_response(server_rec *s, modssl_ctx_t *mctx,
+                                   certinfo *cinf, OCSP_RESPONSE *rsp,
+                                   BOOL *pok)
 {
-    conn_rec *c = (conn_rec*)SSL_get_app_data(ssl);
-    SSLConnRec *sslconn = myConnConfig(c);
-    apr_array_header_t *client_protos;
-    const char *proposed;
-    size_t len;
-    int i;
+    int status = V_OCSP_CERTSTATUS_UNKNOWN;
+    int reason = OCSP_REVOKED_STATUS_NOSTATUS;
+    OCSP_BASICRESP *bs = NULL;
+    ASN1_GENERALIZEDTIME *rev, *thisupd, *nextupd;
+    int response_status = OCSP_response_status(rsp);
+    int rv = SSL_TLSEXT_ERR_OK;
 
-    /* If the connection object is not available,
-     * then there's nothing for us to do. */
-    if (c == NULL) {
+    if (pok)
+        *pok = FALSE;
+    /* Check to see if response is an error. If so we automatically accept
+     * it because it would have expired from the cache if it was time to
+     * retry.
+     */
+    if (response_status != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+        if (mctx->stapling_return_errors)
+            return SSL_TLSEXT_ERR_OK;
+        else
+            return SSL_TLSEXT_ERR_NOACK;
+    }
+
+    bs = OCSP_response_get1_basic(rsp);
+    if (bs == NULL) {
+        /* If we can't parse response just pass it to client */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01934)
+                     "stapling_check_response: Error Parsing Response!");
         return SSL_TLSEXT_ERR_OK;
     }
 
-    if (inlen == 0) {
-        /* someone tries to trick us? */
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02837)
-                      "ALPN client protocol list empty");
-        return SSL_TLSEXT_ERR_ALERT_FATAL;
+    if (!OCSP_resp_find_status(bs, cinf->cid, &status, &reason, &rev,
+                               &thisupd, &nextupd)) {
+        /* If ID not present pass back to client (if configured so) */
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01935)
+                     "stapling_check_response: certificate ID not present in response!");
+        if (mctx->stapling_return_errors == FALSE)
+            rv = SSL_TLSEXT_ERR_NOACK;
     }
-
-    client_protos = apr_array_make(c->pool, 0, sizeof(char *));
-    for (i = 0; i < inlen; /**/) {
-        unsigned int plen = in[i++];
-        if (plen + i > inlen) {
-            /* someone tries to trick us? */
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02838)
-                          "ALPN protocol identifier too long");
-            return SSL_TLSEXT_ERR_ALERT_FATAL;
+    else {
+        if (OCSP_check_validity(thisupd, nextupd,
+                                mctx->stapling_resptime_skew,
+                                mctx->stapling_resp_maxage)) {
+            if (pok)
+                *pok = TRUE;
         }
-        APR_ARRAY_PUSH(client_protos, char *) =
-            apr_pstrndup(c->pool, (const char *)in+i, plen);
-        i += plen;
-    }
+        else {
+            /* If pok is not NULL response was direct from a responder and
+             * the times should be valide. If pok is NULL the response was
+             * retrieved from cache and it is expected to subsequently expire
+             */
+            if (pok) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01936)
+                             "stapling_check_response: response times invalid");
+            }
+            else {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01937)
+                             "stapling_check_response: cached response expired");
+            }
 
-    /* The order the callbacks are invoked from TLS extensions is, unfortunately
-     * not defined and older openssl versions do call ALPN selection before
-     * they callback the SNI. We need to make sure that we know which vhost
-     * we are dealing with so we respect the correct protocols.
-     */
-    init_vhost(c, ssl);
-    
-    proposed = ap_select_protocol(c, NULL, sslconn->server, client_protos);
-    if (!proposed) {
-        proposed = ap_get_protocol(c);
-    }
-    
-    len = strlen(proposed);
-    if (len > 255) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, c, APLOGNO(02840)
-                      "ALPN negotiated protocol name too long");
-        return SSL_TLSEXT_ERR_ALERT_FATAL;
-    }
-    *out = (const unsigned char *)proposed;
-    *outlen = (unsigned char)len;
-        
-    if (strcmp(proposed, ap_get_protocol(c))) {
-        apr_status_t status;
-        
-        status = ap_switch_protocol(c, NULL, sslconn->server, proposed);
-        if (status != APR_SUCCESS) {
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, c,
-                          APLOGNO(02908) "protocol switch to '%s' failed",
-                          proposed);
-            return SSL_TLSEXT_ERR_ALERT_FATAL;
+            rv = SSL_TLSEXT_ERR_NOACK;
+        }
+
+        if (status != V_OCSP_CERTSTATUS_GOOD) {
+            char snum[MAX_STRING_LEN] = { '\0' };
+            BIO *bio = BIO_new(BIO_s_mem());
+
+            if (bio) {
+                int n;
+                if ((i2a_ASN1_INTEGER(bio, cinf->cid->serialNumber) != -1) &&
+                    ((n = BIO_read(bio, snum, sizeof snum - 1)) > 0))
+                    snum[n] = '\0';
+                BIO_free(bio);
+            }
+
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02969)
+                         "stapling_check_response: response has certificate "
+                         "status %s (reason: %s) for serial number %s",
+                         OCSP_cert_status_str(status),
+                         (reason != OCSP_REVOKED_STATUS_NOSTATUS) ?
+                         OCSP_crl_reason_str(reason) : "n/a",
+                         snum[0] ? snum : "[n/a]");
+
+            if (mctx->stapling_return_errors == FALSE) {
+                if (pok)
+                    *pok = FALSE;
+                rv = SSL_TLSEXT_ERR_NOACK;
+            }
         }
     }
 
-    return SSL_TLSEXT_ERR_OK;
+    OCSP_BASICRESP_free(bs);
+
+    return rv;
 }

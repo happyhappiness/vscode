@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                          H2_STRM_MSG(stream, "prepare, no data"));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
+                      H2_STRM_MSG(stream, "found %d push candidates"),
+                      pushes->nelts);

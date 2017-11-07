@@ -1,2 +1,1 @@
-fprintf(stderr, "Could not allocate memory (%"
-                APR_SIZE_T_FMT " bytes)\n", strlen(s));
+printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1554214 $");

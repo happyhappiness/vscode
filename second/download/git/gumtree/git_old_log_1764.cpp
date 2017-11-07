@@ -1,1 +1,1 @@
-die(_("Malformed options sheet: %s"), opts_file);
+die(_("Unusable instruction sheet: %s"), todo_file);

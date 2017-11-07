@@ -1,1 +1,1 @@
-warning(_("%s has multiple values"), key);
+vreportf("error: ", err, params);

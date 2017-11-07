@@ -1,1 +1,1 @@
-printf("%s ", caller_name ? caller_name : oid_to_hex(oid));
+printf("  %-6s %o %s %s\n", desc[entry->stage], entry->mode, oid_to_hex(&entry->blob->object.oid), entry->path);

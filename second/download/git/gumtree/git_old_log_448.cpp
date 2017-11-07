@@ -1,2 +1,2 @@
-error(_("Commit %s does not have parent %d"),
-				oid_to_hex(&commit->object.oid), opts->mainline);
+error(_("Commit %s is a merge but no -m option was given."),
+				oid_to_hex(&commit->object.oid));

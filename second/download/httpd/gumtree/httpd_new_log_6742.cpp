@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(02555)
-                              "Unknown Transfer-Encoding: %s;"
-                              " using read-until-close", tenc);
+ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                        "Websocket: Reading %" APR_SIZE_T_FMT " bytes of PONG", plen);

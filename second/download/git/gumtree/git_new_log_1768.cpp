@@ -1,2 +1,1 @@
-error(_("cannot open %s: %s"), git_path_head_file(),
-						strerror(errno));
+die(_("Error wrapping up %s."), git_path_head_file());

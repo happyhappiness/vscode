@@ -1,1 +1,1 @@
-die_errno("Error opening '%s'", path);
+die(_("Error wrapping up %s."), todo_file);

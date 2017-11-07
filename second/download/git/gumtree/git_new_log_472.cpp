@@ -1,1 +1,2 @@
-error(_("failed to finalize '%s'."), git_path_head_file());
+error_errno(_("could not write to '%s'"),
+				   git_path_head_file());

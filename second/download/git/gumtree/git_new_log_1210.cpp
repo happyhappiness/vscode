@@ -1,1 +1,1 @@
-die(_("unrecognized argument: %s"), argv[1]);
+die(_("invalid --decorate option: %s"), arg);

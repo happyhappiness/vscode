@@ -1,2 +1,2 @@
-printf("One merge base found (%.7s)\n",
-			       oid_to_hex(base_oid));
+die("Could not parse remote commit %s (%s)",
+		    oid_to_hex(&remote_oid), o->remote_ref);

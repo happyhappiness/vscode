@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(2404)
-                     "write pipe_of_death");
+printf("                        %.2f kb/s sent\n",
+               (double) totalposted / 1024 / timetaken);

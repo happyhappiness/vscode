@@ -1,1 +1,1 @@
-error(_("Could not spawn pack-objects"));
+die("%s", err.buf);

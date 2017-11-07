@@ -1,1 +1,1 @@
-die("BUG: want to close pack marked 'do-not-close'");
+die_errno(_("Cannot change to '%s/..'"), cwd.buf);

@@ -1,33 +1,20 @@
-static apr_table_t *make_table(h2_response_parser *parser)
+static apr_status_t parse_status(h2_task *task, char *line)
 {
-    h2_task *task = parser->task;
-    apr_array_header_t *hlines = parser->hlines;
-    if (hlines) {
-        apr_table_t *headers = apr_table_make(task->pool, hlines->nelts);        
-        int i;
+    h2_response_parser *parser = task->output.rparser;
+    int sindex = (apr_date_checkmask(line, "HTTP/#.# ###*")? 9 : 
+                  (apr_date_checkmask(line, "HTTP/# ###*")? 7 : 0));
+    if (sindex > 0) {
+        int k = sindex + 3;
+        char keepchar = line[k];
+        line[k] = '\0';
+        parser->http_status = atoi(&line[sindex]);
+        line[k] = keepchar;
+        parser->state = H2_RP_HEADER_LINE;
         
-        for (i = 0; i < hlines->nelts; ++i) {
-            char *hline = ((char **)hlines->elts)[i];
-            char *sep = ap_strchr(hline, ':');
-            if (!sep) {
-                ap_log_cerror(APLOG_MARK, APLOG_WARNING, APR_EINVAL, task->c,
-                              APLOGNO(02955) "h2_task(%s): invalid header[%d] '%s'",
-                              task->id, i, (char*)hline);
-                /* not valid format, abort */
-                return NULL;
-            }
-            (*sep++) = '\0';
-            while (*sep == ' ' || *sep == '\t') {
-                ++sep;
-            }
-            
-            if (!h2_util_ignore_header(hline)) {
-                apr_table_merge(headers, hline, sep);
-            }
-        }
-        return headers;
+        return APR_SUCCESS;
     }
-    else {
-        return apr_table_make(task->pool, 0);        
-    }
+    ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, task->c, APLOGNO(03467)
+                  "h2_task(%s): unable to parse status line: %s", 
+                  task->id, line);
+    return APR_EINVAL;
 }

@@ -1,1 +1,1 @@
-printf("%s %s\n", oid_to_hex(result), name);
+warning("old-style 'git merge <msg> HEAD <commit>' is deprecated.");

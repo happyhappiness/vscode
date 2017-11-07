@@ -1,2 +1,3 @@
-error(_("relative config include "
-				       "conditionals must come from files"));
+warning(_("core.splitIndex is set to true; "
+				  "remove or change it, if you really want to "
+				  "disable split index"));

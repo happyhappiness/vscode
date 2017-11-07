@@ -1,60 +1,53 @@
-static void wt_porcelain_v2_print_changed_entry(
-	struct string_list_item *it,
-	struct wt_status *s)
+static void wt_porcelain_v2_print_tracking(struct wt_status *s)
 {
-	struct wt_status_change_data *d = it->util;
-	struct strbuf buf_index = STRBUF_INIT;
-	struct strbuf buf_head = STRBUF_INIT;
-	const char *path_index = NULL;
-	const char *path_head = NULL;
-	char key[3];
-	char submodule_token[5];
-	char sep_char, eol_char;
+	struct branch *branch;
+	const char *base;
+	const char *branch_name;
+	struct wt_status_state state;
+	int ab_info, nr_ahead, nr_behind;
+	char eol = s->null_termination ? '\0' : '\n';
 
-	wt_porcelain_v2_fix_up_changed(it, s);
-	wt_porcelain_v2_submodule_state(d, submodule_token);
+	memset(&state, 0, sizeof(state));
+	wt_status_get_state(&state, s->branch && !strcmp(s->branch, "HEAD"));
 
-	key[0] = d->index_status ? d->index_status : '.';
-	key[1] = d->worktree_status ? d->worktree_status : '.';
-	key[2] = 0;
+	fprintf(s->fp, "# branch.oid %s%c",
+			(s->is_initial ? "(initial)" : sha1_to_hex(s->sha1_commit)),
+			eol);
 
-	if (s->null_termination) {
-		/*
-		 * In -z mode, we DO NOT C-quote pathnames.  Current path is ALWAYS first.
-		 * A single NUL character separates them.
-		 */
-		sep_char = '\0';
-		eol_char = '\0';
-		path_index = it->string;
-		path_head = d->head_path;
-	} else {
-		/*
-		 * Path(s) are C-quoted if necessary. Current path is ALWAYS first.
-		 * The source path is only present when necessary.
-		 * A single TAB separates them (because paths can contain spaces
-		 * which are not escaped and C-quoting does escape TAB characters).
-		 */
-		sep_char = '\t';
-		eol_char = '\n';
-		path_index = quote_path(it->string, s->prefix, &buf_index);
-		if (d->head_path)
-			path_head = quote_path(d->head_path, s->prefix, &buf_head);
+	if (!s->branch)
+		fprintf(s->fp, "# branch.head %s%c", "(unknown)", eol);
+	else {
+		if (!strcmp(s->branch, "HEAD")) {
+			fprintf(s->fp, "# branch.head %s%c", "(detached)", eol);
+
+			if (state.rebase_in_progress || state.rebase_interactive_in_progress)
+				branch_name = state.onto;
+			else if (state.detached_from)
+				branch_name = state.detached_from;
+			else
+				branch_name = "";
+		} else {
+			branch_name = NULL;
+			skip_prefix(s->branch, "refs/heads/", &branch_name);
+
+			fprintf(s->fp, "# branch.head %s%c", branch_name, eol);
+		}
+
+		/* Lookup stats on the upstream tracking branch, if set. */
+		branch = branch_get(branch_name);
+		base = NULL;
+		ab_info = (stat_tracking_info(branch, &nr_ahead, &nr_behind, &base) == 0);
+		if (base) {
+			base = shorten_unambiguous_ref(base, 0);
+			fprintf(s->fp, "# branch.upstream %s%c", base, eol);
+			free((char *)base);
+
+			if (ab_info)
+				fprintf(s->fp, "# branch.ab +%d -%d%c", nr_ahead, nr_behind, eol);
+		}
 	}
 
-	if (path_head)
-		fprintf(s->fp, "2 %s %s %06o %06o %06o %s %s %c%d %s%c%s%c",
-				key, submodule_token,
-				d->mode_head, d->mode_index, d->mode_worktree,
-				oid_to_hex(&d->oid_head), oid_to_hex(&d->oid_index),
-				key[0], d->score,
-				path_index, sep_char, path_head, eol_char);
-	else
-		fprintf(s->fp, "1 %s %s %06o %06o %06o %s %s %s%c",
-				key, submodule_token,
-				d->mode_head, d->mode_index, d->mode_worktree,
-				oid_to_hex(&d->oid_head), oid_to_hex(&d->oid_index),
-				path_index, eol_char);
-
-	strbuf_release(&buf_index);
-	strbuf_release(&buf_head);
+	free(state.branch);
+	free(state.onto);
+	free(state.detached_from);
 }

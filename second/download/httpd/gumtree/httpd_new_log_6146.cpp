@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                      H2_SSSN_MSG(session, "fed %ld bytes to nghttp2, %ld read"),
-                      (long)len, (long)n);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
+                              "h2_session(%ld): read", f->c->id);

@@ -1,3 +1,2 @@
-die("internal error: work tree has already been set\n"
-			    "Current worktree: %s\nNew worktree: %s",
-			    work_tree, new_work_tree);
+error("bad tree object %s",
+			     tree_name ? tree_name : sha1_to_hex(tree_sha1));

@@ -1,2 +1,2 @@
-error("Unexpected line '%s', expected version",
-			     line ? line : "<flush packet>");
+error("Unexpected line '%s', expected %s-server",
+			     line ? line : "<flush packet>", welcome_prefix);

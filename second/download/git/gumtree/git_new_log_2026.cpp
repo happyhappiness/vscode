@@ -1,1 +1,1 @@
-die(_("format: %%(end) atom missing"));
+die(_("revision walk setup failed"));

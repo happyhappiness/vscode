@@ -1,2 +1,2 @@
-(fprintf(fp, "%s	%s^{}\n",
-				oid_to_hex(&o->oid), path);
+error(_("Cannot get commit message for %s"),
+			oid_to_hex(&commit->object.oid));

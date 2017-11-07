@@ -1,1 +1,1 @@
-error("'%s' exists; cannot create '%s'", entry->name, refname);
+warning("packfile %s cannot be accessed", p->pack_name);

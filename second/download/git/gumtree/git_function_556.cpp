@@ -1,21 +1,21 @@
-void wt_status_print(struct wt_status *s)
+static void wt_porcelain_v2_print_other(
+	struct string_list_item *it,
+	struct wt_status *s,
+	char prefix)
 {
-	switch (s->status_format) {
-	case STATUS_FORMAT_SHORT:
-		wt_shortstatus_print(s);
-		break;
-	case STATUS_FORMAT_PORCELAIN:
-		wt_porcelain_print(s);
-		break;
-	case STATUS_FORMAT_PORCELAIN_V2:
-		wt_porcelain_v2_print(s);
-		break;
-	case STATUS_FORMAT_UNSPECIFIED:
-		die("BUG: finalize_deferred_config() should have been called");
-		break;
-	case STATUS_FORMAT_NONE:
-	case STATUS_FORMAT_LONG:
-		wt_longstatus_print(s);
-		break;
+	struct strbuf buf = STRBUF_INIT;
+	const char *path;
+	char eol_char;
+
+	if (s->null_termination) {
+		path = it->string;
+		eol_char = '\0';
+	} else {
+		path = quote_path(it->string, s->prefix, &buf);
+		eol_char = '\n';
 	}
+
+	fprintf(s->fp, "%c %s%c", prefix, path, eol_char);
+
+	strbuf_release(&buf);
 }

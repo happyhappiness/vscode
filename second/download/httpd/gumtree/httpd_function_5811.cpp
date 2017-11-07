@@ -1,50 +1,26 @@
-apr_status_t h2_ngn_shed_pull_task(h2_ngn_shed *shed, 
-                                   h2_req_engine *ngn, 
-                                   apr_uint32_t capacity, 
-                                   int want_shutdown,
-                                   h2_task **ptask)
-{   
-    h2_ngn_entry *entry;
+apr_status_t h2_request_rwrite(h2_request *req, request_rec *r)
+{
+    apr_status_t status;
+    const char *scheme, *authority;
     
-    AP_DEBUG_ASSERT(ngn);
-    *ptask = NULL;
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
-                  "h2_ngn_shed(%ld): pull task for engine %s, shutdown=%d", 
-                  shed->c->id, ngn->id, want_shutdown);
-    if (shed->aborted) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, shed->c,
-                      "h2_ngn_shed(%ld): abort while pulling requests %s", 
-                      shed->c->id, ngn->id);
-        ngn->shutdown = 1;
-        return APR_ECONNABORTED;
-    }
-    
-    ngn->capacity = capacity;
-    if (H2_REQ_ENTRIES_EMPTY(&ngn->entries)) {
-        if (want_shutdown) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, shed->c,
-                          "h2_ngn_shed(%ld): emtpy queue, shutdown engine %s", 
-                          shed->c->id, ngn->id);
-            ngn->shutdown = 1;
+    scheme = (r->parsed_uri.scheme? r->parsed_uri.scheme
+              : ap_http_scheme(r));
+    authority = r->hostname;
+    if (!ap_strchr_c(authority, ':') && r->server && r->server->port) {
+        apr_port_t defport = apr_uri_port_of_scheme(scheme);
+        if (defport != r->server->port) {
+            /* port info missing and port is not default for scheme: append */
+            authority = apr_psprintf(r->pool, "%s:%d", authority,
+                                     (int)r->server->port);
         }
-        return ngn->shutdown? APR_EOF : APR_EAGAIN;
     }
     
-    if ((entry = pop_detached(ngn))) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, entry->task->c,
-                      "h2_ngn_shed(%ld): pulled request %s for engine %s", 
-                      shed->c->id, entry->task->id, ngn->id);
-        ngn->no_live++;
-        *ptask = entry->task;
-        entry->task->assigned = ngn;
-        return APR_SUCCESS;
-    }
-    
-    if (1) {
-        h2_ngn_entry *entry = H2_REQ_ENTRIES_FIRST(&ngn->entries);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, shed->c,
-                      "h2_ngn_shed(%ld): pull task, nothing, first task %s", 
-                      shed->c->id, entry->task->id);
-    }
-    return APR_EAGAIN;
+    status = h2_request_make(req, r->pool,  r->method, scheme, authority,
+                             apr_uri_unparse(r->pool, &r->parsed_uri, 
+                                             APR_URI_UNP_OMITSITEPART),
+                             r->headers_in);
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r, APLOGNO(03058)
+                  "h2_request(%d): rwrite %s host=%s://%s%s",
+                  req->id, req->method, req->scheme, req->authority, req->path);
+    return status;
 }

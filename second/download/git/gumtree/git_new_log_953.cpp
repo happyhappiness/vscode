@@ -1,1 +1,1 @@
-fprintf(stderr, "%s%s\n", prefix, msg);
+die_errno(_("open /dev/null failed"));

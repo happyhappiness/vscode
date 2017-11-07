@@ -1,1 +1,1 @@
-die(_("could not resolve ref '%s'"), o.branch2);
+die(_("could not resolve ref '%s'"), o.branch1);

@@ -1,1 +1,2 @@
-strbuf_swap(&sb, &next_sb);
+die_errno("Invalid symlink '%s'",
+						  sb.buf);

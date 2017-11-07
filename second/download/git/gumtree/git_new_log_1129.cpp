@@ -1,1 +1,1 @@
-error_errno("Could not open %s", path);
+die("BUG: unexpected reference transaction state");

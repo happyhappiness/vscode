@@ -1,2 +1,1 @@
-error("problems writing temporary file %s: %s",
-			     buf->buf, strerror(errno));
+write_file(buf->buf, 0, "%s\n", oid_to_hex(oid));

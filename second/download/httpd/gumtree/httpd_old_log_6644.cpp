@@ -1,3 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00565)
-                              "request failed: URI too long (longer than %d)",
-                              r->server->limit_req_line);
+apr_file_printf(errfile, "Could not open passwd file %s for writing: %s\n",
+                    argv[2],
+                    apr_strerror(rv, errmsg, sizeof errmsg));

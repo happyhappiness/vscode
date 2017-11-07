@@ -1,1 +1,1 @@
-die(":strip= requires a positive integer argument");
+die_errno("Could not open '%s'", path);

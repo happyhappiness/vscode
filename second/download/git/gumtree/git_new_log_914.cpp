@@ -1,2 +1,2 @@
-die(_("could not start 'git status' in submodule '%s'"),
-				path);
+die("BUG: invalid status --porcelain=2 line %s",
+				    buf.buf);

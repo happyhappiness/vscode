@@ -1,117 +1,59 @@
-static int apply_multi_file_filter(const char *path, const char *src, size_t len,
-				   int fd, struct strbuf *dst, const char *cmd,
-				   const unsigned int wanted_capability)
+static int start_multi_file_filter_fn(struct subprocess_entry *subprocess)
 {
 	int err;
-	struct cmd2process *entry;
-	struct child_process *process;
-	struct strbuf nbuf = STRBUF_INIT;
-	struct strbuf filter_status = STRBUF_INIT;
-	const char *filter_type;
-
-	if (!subprocess_map_initialized) {
-		subprocess_map_initialized = 1;
-		hashmap_init(&subprocess_map, (hashmap_cmp_fn) cmd2process_cmp,
-			     NULL, 0);
-		entry = NULL;
-	} else {
-		entry = (struct cmd2process *)subprocess_find_entry(&subprocess_map, cmd);
-	}
-
-	fflush(NULL);
-
-	if (!entry) {
-		entry = xmalloc(sizeof(*entry));
-		entry->supported_capabilities = 0;
-
-		if (subprocess_start(&subprocess_map, &entry->subprocess, cmd, start_multi_file_filter_fn)) {
-			free(entry);
-			return 0;
-		}
-	}
-	process = &entry->subprocess.process;
-
-	if (!(wanted_capability & entry->supported_capabilities))
-		return 0;
-
-	if (CAP_CLEAN & wanted_capability)
-		filter_type = "clean";
-	else if (CAP_SMUDGE & wanted_capability)
-		filter_type = "smudge";
-	else
-		die("unexpected filter type");
+	struct cmd2process *entry = (struct cmd2process *)subprocess;
+	struct string_list cap_list = STRING_LIST_INIT_NODUP;
+	char *cap_buf;
+	const char *cap_name;
+	struct child_process *process = &subprocess->process;
+	const char *cmd = subprocess->cmd;
 
 	sigchain_push(SIGPIPE, SIG_IGN);
 
-	assert(strlen(filter_type) < LARGE_PACKET_DATA_MAX - strlen("command=\n"));
-	err = packet_write_fmt_gently(process->in, "command=%s\n", filter_type);
+	err = packet_writel(process->in, "git-filter-client", "version=2", NULL);
 	if (err)
 		goto done;
 
-	err = strlen(path) > LARGE_PACKET_DATA_MAX - strlen("pathname=\n");
+	err = strcmp(packet_read_line(process->out, NULL), "git-filter-server");
 	if (err) {
-		error("path name too long for external filter");
+		error("external filter '%s' does not support filter protocol version 2", cmd);
 		goto done;
 	}
-
-	err = packet_write_fmt_gently(process->in, "pathname=%s\n", path);
+	err = strcmp(packet_read_line(process->out, NULL), "version=2");
+	if (err)
+		goto done;
+	err = packet_read_line(process->out, NULL) != NULL;
 	if (err)
 		goto done;
 
-	err = packet_flush_gently(process->in);
-	if (err)
-		goto done;
+	err = packet_writel(process->in, "capability=clean", "capability=smudge", NULL);
 
-	if (fd >= 0)
-		err = write_packetized_from_fd(fd, process->in);
-	else
-		err = write_packetized_from_buf(src, len, process->in);
-	if (err)
-		goto done;
+	for (;;) {
+		cap_buf = packet_read_line(process->out, NULL);
+		if (!cap_buf)
+			break;
+		string_list_split_in_place(&cap_list, cap_buf, '=', 1);
 
-	err = subprocess_read_status(process->out, &filter_status);
-	if (err)
-		goto done;
+		if (cap_list.nr != 2 || strcmp(cap_list.items[0].string, "capability"))
+			continue;
 
-	err = strcmp(filter_status.buf, "success");
-	if (err)
-		goto done;
+		cap_name = cap_list.items[1].string;
+		if (!strcmp(cap_name, "clean")) {
+			entry->supported_capabilities |= CAP_CLEAN;
+		} else if (!strcmp(cap_name, "smudge")) {
+			entry->supported_capabilities |= CAP_SMUDGE;
+		} else {
+			warning(
+				"external filter '%s' requested unsupported filter capability '%s'",
+				cmd, cap_name
+			);
+		}
 
-	err = read_packetized_to_strbuf(process->out, &nbuf) < 0;
-	if (err)
-		goto done;
-
-	err = subprocess_read_status(process->out, &filter_status);
-	if (err)
-		goto done;
-
-	err = strcmp(filter_status.buf, "success");
+		string_list_clear(&cap_list, 0);
+	}
 
 done:
 	sigchain_pop(SIGPIPE);
 
-	if (err) {
-		if (!strcmp(filter_status.buf, "error")) {
-			/* The filter signaled a problem with the file. */
-		} else if (!strcmp(filter_status.buf, "abort")) {
-			/*
-			 * The filter signaled a permanent problem. Don't try to filter
-			 * files with the same command for the lifetime of the current
-			 * Git process.
-			 */
-			 entry->supported_capabilities &= ~wanted_capability;
-		} else {
-			/*
-			 * Something went wrong with the protocol filter.
-			 * Force shutdown and restart if another blob requires filtering.
-			 */
-			error("external filter '%s' failed", cmd);
-			subprocess_stop(&subprocess_map, &entry->subprocess);
-			free(entry);
-		}
-	} else {
-		strbuf_swap(dst, &nbuf);
-	}
-	strbuf_release(&nbuf);
-	return !err;
+	return err;
 }

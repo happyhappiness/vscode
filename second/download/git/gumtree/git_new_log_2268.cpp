@@ -1,1 +1,1 @@
-die(_("cannot get patch id"));
+die(_("revision walk setup failed"));

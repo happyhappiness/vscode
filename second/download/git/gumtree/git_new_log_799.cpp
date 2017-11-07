@@ -1,2 +1,2 @@
-error("%s: object corrupt or missing: %s",
-		      oid_to_hex(oid), path);
+fprintf(stderr, "Checking reflog %s->%s\n",
+			oid_to_hex(ooid), oid_to_hex(noid));

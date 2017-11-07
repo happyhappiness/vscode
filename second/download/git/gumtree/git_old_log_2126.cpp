@@ -1,2 +1,1 @@
-die(_("bad numeric config value '%s' for '%s' in %s: %s"),
-		    value, name, cf->name, reason);
+error(_("bad config file line %d in %s"), cf->linenr, cf->name);

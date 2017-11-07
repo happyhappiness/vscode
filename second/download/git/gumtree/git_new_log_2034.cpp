@@ -1,1 +1,1 @@
-strbuf_release(&buf);
+strcpy(id->hex, hex);

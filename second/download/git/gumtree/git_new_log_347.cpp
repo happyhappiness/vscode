@@ -1,1 +1,1 @@
-die(_("option '%s' requires a value"), option_name);
+packet_write_fmt(1, "ERR %s: %s", msg, dir);

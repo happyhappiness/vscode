@@ -1,1 +1,1 @@
-error(str, refname, err.buf);
+die("BUG: have_old is true but old_sha1 is NULL");

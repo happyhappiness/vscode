@@ -1,54 +1,67 @@
-static void diagnose_invalid_index_path(int stage,
-					const char *prefix,
-					const char *filename)
+static int write_loose_object(const unsigned char *sha1, char *hdr, int hdrlen,
+			      const void *buf, unsigned long len, time_t mtime)
 {
-	const struct cache_entry *ce;
-	int pos;
-	unsigned namelen = strlen(filename);
-	unsigned fullnamelen;
-	char *fullname;
+	int fd, ret;
+	unsigned char compressed[4096];
+	git_zstream stream;
+	git_SHA_CTX c;
+	unsigned char parano_sha1[20];
+	static char tmp_file[PATH_MAX];
+	const char *filename = sha1_file_name(sha1);
 
-	if (!prefix)
-		prefix = "";
-
-	/* Wrong stage number? */
-	pos = cache_name_pos(filename, namelen);
-	if (pos < 0)
-		pos = -pos - 1;
-	if (pos < active_nr) {
-		ce = active_cache[pos];
-		if (ce_namelen(ce) == namelen &&
-		    !memcmp(ce->name, filename, namelen))
-			die("Path '%s' is in the index, but not at stage %d.\n"
-			    "Did you mean ':%d:%s'?",
-			    filename, stage,
-			    ce_stage(ce), filename);
+	fd = create_tmpfile(tmp_file, sizeof(tmp_file), filename);
+	if (fd < 0) {
+		if (errno == EACCES)
+			return error("insufficient permission for adding an object to repository database %s", get_object_directory());
+		else
+			return error("unable to create temporary file: %s", strerror(errno));
 	}
 
-	/* Confusion between relative and absolute filenames? */
-	fullnamelen = namelen + strlen(prefix);
-	fullname = xmalloc(fullnamelen + 1);
-	strcpy(fullname, prefix);
-	strcat(fullname, filename);
-	pos = cache_name_pos(fullname, fullnamelen);
-	if (pos < 0)
-		pos = -pos - 1;
-	if (pos < active_nr) {
-		ce = active_cache[pos];
-		if (ce_namelen(ce) == fullnamelen &&
-		    !memcmp(ce->name, fullname, fullnamelen))
-			die("Path '%s' is in the index, but not '%s'.\n"
-			    "Did you mean ':%d:%s' aka ':%d:./%s'?",
-			    fullname, filename,
-			    ce_stage(ce), fullname,
-			    ce_stage(ce), filename);
+	/* Set it up */
+	git_deflate_init(&stream, zlib_compression_level);
+	stream.next_out = compressed;
+	stream.avail_out = sizeof(compressed);
+	git_SHA1_Init(&c);
+
+	/* First header.. */
+	stream.next_in = (unsigned char *)hdr;
+	stream.avail_in = hdrlen;
+	while (git_deflate(&stream, 0) == Z_OK)
+		; /* nothing */
+	git_SHA1_Update(&c, hdr, hdrlen);
+
+	/* Then the data itself.. */
+	stream.next_in = (void *)buf;
+	stream.avail_in = len;
+	do {
+		unsigned char *in0 = stream.next_in;
+		ret = git_deflate(&stream, Z_FINISH);
+		git_SHA1_Update(&c, in0, stream.next_in - in0);
+		if (write_buffer(fd, compressed, stream.next_out - compressed) < 0)
+			die("unable to write sha1 file");
+		stream.next_out = compressed;
+		stream.avail_out = sizeof(compressed);
+	} while (ret == Z_OK);
+
+	if (ret != Z_STREAM_END)
+		die("unable to deflate new object %s (%d)", sha1_to_hex(sha1), ret);
+	ret = git_deflate_end_gently(&stream);
+	if (ret != Z_OK)
+		die("deflateEnd on object %s failed (%d)", sha1_to_hex(sha1), ret);
+	git_SHA1_Final(parano_sha1, &c);
+	if (hashcmp(sha1, parano_sha1) != 0)
+		die("confused by unstable object source data for %s", sha1_to_hex(sha1));
+
+	close_sha1_file(fd);
+
+	if (mtime) {
+		struct utimbuf utb;
+		utb.actime = mtime;
+		utb.modtime = mtime;
+		if (utime(tmp_file, &utb) < 0)
+			warning("failed utime() on %s: %s",
+				tmp_file, strerror(errno));
 	}
 
-	if (file_exists(filename))
-		die("Path '%s' exists on disk, but not in the index.", filename);
-	if (errno == ENOENT || errno == ENOTDIR)
-		die("Path '%s' does not exist (neither on disk nor in the index).",
-		    filename);
-
-	free(fullname);
+	return finalize_object_file(tmp_file, filename);
 }

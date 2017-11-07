@@ -1,1 +1,1 @@
-die("BUG: unexpected reference transaction state");
+die("BUG: abort called on a closed reference transaction");

@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+die("data too large to fit into virtual memory space");

@@ -1,1 +1,1 @@
-fprintf(s->fp, "# branch.ab +%d -%d%c", nr_ahead, nr_behind, eol);
+fprintf(s->fp, "# branch.upstream %s%c", base, eol);

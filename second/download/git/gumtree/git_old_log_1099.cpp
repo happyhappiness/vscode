@@ -1,4 +1,2 @@
-error("index CRC mismatch for object %s "
-					    "from %s at offset %"PRIuMAX"",
-					    sha1_to_hex(entries[i].sha1),
-					    p->pack_name, (uintmax_t)offset);
+die("Missing type information for %s (%d/%d)",
+			    sha1_to_hex(entry->idx.sha1), real_type, entry->type);

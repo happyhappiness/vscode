@@ -1,2 +1,1 @@
-die("BUG: unhandled change_type %d in wt_status_print_change_data",
-		    change_type);
+packet_write(1, "%s %s^{}\n", oid_to_hex(&peeled), refname_nons);

@@ -1,1 +1,1 @@
-die(_("%%(subject) does not take arguments"));
+die("BUG: unhandled unmerged status %x", stagemask);

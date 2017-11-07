@@ -1,54 +1,61 @@
-static int check_updates(struct unpack_trees_options *o)
+static struct ref *get_refs_list(struct transport *transport, int for_push)
 {
-	unsigned cnt = 0, total = 0;
-	struct progress *progress = NULL;
-	struct index_state *index = &o->result;
-	int i;
-	int errs = 0;
+	struct helper_data *data = transport->data;
+	struct child_process *helper;
+	struct ref *ret = NULL;
+	struct ref **tail = &ret;
+	struct ref *posn;
+	struct strbuf buf = STRBUF_INIT;
 
-	if (o->update && o->verbose_update) {
-		for (total = cnt = 0; cnt < index->cache_nr; cnt++) {
-			const struct cache_entry *ce = index->cache[cnt];
-			if (ce->ce_flags & (CE_UPDATE | CE_WT_REMOVE))
-				total++;
-		}
+	helper = get_helper(transport);
 
-		progress = start_progress_delay(_("Checking out files"),
-						total, 50, 1);
-		cnt = 0;
+	if (process_connect(transport, for_push)) {
+		do_take_over(transport);
+		return transport->get_refs_list(transport, for_push);
 	}
 
-	if (o->update)
-		git_attr_set_direction(GIT_ATTR_CHECKOUT, &o->result);
-	for (i = 0; i < index->cache_nr; i++) {
-		const struct cache_entry *ce = index->cache[i];
+	if (data->push && for_push)
+		write_str_in_full(helper->in, "list for-push\n");
+	else
+		write_str_in_full(helper->in, "list\n");
 
-		if (ce->ce_flags & CE_WT_REMOVE) {
-			display_progress(progress, ++cnt);
-			if (o->update && !o->dry_run)
-				unlink_entry(ce);
-			continue;
-		}
-	}
-	remove_marked_cache_entries(&o->result);
-	remove_scheduled_dirs();
+	while (1) {
+		char *eov, *eon;
+		if (recvline(data, &buf))
+			exit(128);
 
-	for (i = 0; i < index->cache_nr; i++) {
-		struct cache_entry *ce = index->cache[i];
+		if (!*buf.buf)
+			break;
 
-		if (ce->ce_flags & CE_UPDATE) {
-			if (ce->ce_flags & CE_WT_REMOVE)
-				die("BUG: both update and delete flags are set on %s",
-				    ce->name);
-			display_progress(progress, ++cnt);
-			ce->ce_flags &= ~CE_UPDATE;
-			if (o->update && !o->dry_run) {
-				errs |= checkout_entry(ce, &state, NULL);
+		eov = strchr(buf.buf, ' ');
+		if (!eov)
+			die("Malformed response in ref list: %s", buf.buf);
+		eon = strchr(eov + 1, ' ');
+		*eov = '\0';
+		if (eon)
+			*eon = '\0';
+		*tail = alloc_ref(eov + 1);
+		if (buf.buf[0] == '@')
+			(*tail)->symref = xstrdup(buf.buf + 1);
+		else if (buf.buf[0] != '?')
+			get_sha1_hex(buf.buf, (*tail)->old_sha1);
+		if (eon) {
+			if (has_attribute(eon + 1, "unchanged")) {
+				(*tail)->status |= REF_STATUS_UPTODATE;
+				if (read_ref((*tail)->name,
+					     (*tail)->old_sha1) < 0)
+					die(N_("Could not read ref %s"),
+					    (*tail)->name);
 			}
 		}
+		tail = &((*tail)->next);
 	}
-	stop_progress(&progress);
-	if (o->update)
-		git_attr_set_direction(GIT_ATTR_CHECKIN, NULL);
-	return errs != 0;
+	if (debug)
+		fprintf(stderr, "Debug: Read ref listing.\n");
+	strbuf_release(&buf);
+
+	for (posn = ret; posn; posn = posn->next)
+		resolve_remote_symref(posn, ret);
+
+	return ret;
 }

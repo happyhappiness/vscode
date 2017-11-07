@@ -1,1 +1,1 @@
-die("BUG: invalid protocol_allow_config type");
+die("unknown value for config '%s': %s", key, value);

@@ -1,1 +1,1 @@
-print_signature_buffer(&signature_check, flags);
+error("Invalid value for '%s'", k);

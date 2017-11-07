@@ -1,1 +1,1 @@
-insert_one_record(log, author, !*buffer ? "<none>" : buffer);
+insert_one_record(log, author + 8, oneline);

@@ -1,1 +1,1 @@
-die("unable to read %s", sha1_to_hex(s->sha1));
+die("strange hostname '%s' blocked", ssh_host);

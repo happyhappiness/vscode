@@ -1,1 +1,1 @@
-warning(_("--shallow-exclude is ignored in local clones; use file:// instead."));
+warning(_("--shallow-since is ignored in local clones; use file:// instead."));

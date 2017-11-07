@@ -1,2 +1,1 @@
-printf(" %s", diff_unique_abbrev(p->parent[i].sha1,
-							 opt->abbrev));
+die("object '%s' is not a blob!", sha1_to_hex(sha1));

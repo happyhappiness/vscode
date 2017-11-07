@@ -1,1 +1,1 @@
-packet_write_fmt(1, "ACK %s continue\n", hex);
+packet_write_fmt(1, "ACK %s ready\n", hex);

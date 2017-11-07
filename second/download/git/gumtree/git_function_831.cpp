@@ -1,23 +1,12 @@
-int git_config_get_untracked_cache(void)
+int git_config_get_expiry(const char *key, const char **output)
 {
-	int val = -1;
-	const char *v;
-
-	/* Hack for test programs like test-dump-untracked-cache */
-	if (ignore_untracked_cache_config)
-		return -1;
-
-	if (!git_config_get_maybe_bool("core.untrackedcache", &val))
-		return val;
-
-	if (!git_config_get_value("core.untrackedcache", &v)) {
-		if (!strcasecmp(v, "keep"))
-			return -1;
-
-		error("unknown core.untrackedCache value '%s'; "
-		      "using 'keep' default value", v);
-		return -1;
+	int ret = git_config_get_string_const(key, output);
+	if (ret)
+		return ret;
+	if (strcmp(*output, "now")) {
+		unsigned long now = approxidate("now");
+		if (approxidate(*output) >= now)
+			git_die_config(key, _("Invalid %s: '%s'"), key, *output);
 	}
-
-	return -1; /* default value */
+	return ret;
 }

@@ -1,2 +1,1 @@
-die("src refspec '%s' must name a ref",
-				    rs->src);
+die("remote '%s' not configured", argv[1]);

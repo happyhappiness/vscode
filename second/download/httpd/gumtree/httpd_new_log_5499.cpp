@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, session->r, APLOGNO(03070)
-                          "upgrading h2c session with HTTP2-Settings: %s -> %s (%d)",
-                          s, buffer, (int)dlen);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, APLOGNO(03201)
+                  "h2_session(%ld): start, INITIAL_WINDOW_SIZE=%ld, "
+                  "MAX_CONCURRENT_STREAMS=%d", 
+                  session->id, (long)win_size, (int)session->max_stream_count);

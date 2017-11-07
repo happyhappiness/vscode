@@ -1,1 +1,1 @@
-error("cannot lock ref '%s'", refname);
+error("unable to lock %s for rollback", oldrefname);

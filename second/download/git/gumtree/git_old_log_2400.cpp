@@ -1,2 +1,2 @@
-error("poll failed, resuming: %s",
-				      strerror(errno));
+error("cannot stat '%s': %s", ce->name,
+				     strerror(errno));

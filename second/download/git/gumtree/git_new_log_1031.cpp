@@ -1,1 +1,1 @@
-usage("git submodule--helper <command>");
+printf("%"PRItime" ", commit->date);

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server, APLOGNO(00116)
-                             "Discarding unrecognized directive `%s' in AllowOverrideList.",
-                             argv[i]);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00035)
+                              "access to %s denied because search "
+                              "permissions are missing on a component "
+                              "of the path", r->uri);

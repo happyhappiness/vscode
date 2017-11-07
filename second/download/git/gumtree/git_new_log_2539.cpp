@@ -1,1 +1,1 @@
-die(_("--keep-unreachable and -A are incompatible"));
+printf_ln(_("  HEAD branch: %s"), _("(not queried)"));

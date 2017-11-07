@@ -1,1 +1,1 @@
-strbuf_addf(err, "can't verify ref %s", lock->ref_name);
+die("loose refname is dangerous: %s", refname.buf);

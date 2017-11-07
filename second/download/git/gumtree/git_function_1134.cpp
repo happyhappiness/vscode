@@ -1,23 +1,29 @@
-static void collect_changed_submodules(struct string_list *changed,
-				       struct argv_array *argv)
+void die_path_inside_submodule(const struct index_state *istate,
+			       const struct pathspec *ps)
 {
-	struct rev_info rev;
-	const struct commit *commit;
+	int i, j;
 
-	init_revisions(&rev, NULL);
-	setup_revisions(argv->argc, argv->argv, &rev, NULL);
-	if (prepare_revision_walk(&rev))
-		die("revision walk setup failed");
+	for (i = 0; i < istate->cache_nr; i++) {
+		struct cache_entry *ce = istate->cache[i];
+		int ce_len = ce_namelen(ce);
 
-	while ((commit = get_revision(&rev))) {
-		struct rev_info diff_rev;
+		if (!S_ISGITLINK(ce->ce_mode))
+			continue;
 
-		init_revisions(&diff_rev, NULL);
-		diff_rev.diffopt.output_format |= DIFF_FORMAT_CALLBACK;
-		diff_rev.diffopt.format_callback = collect_changed_submodules_cb;
-		diff_rev.diffopt.format_callback_data = changed;
-		diff_tree_combined_merge(commit, 1, &diff_rev);
+		for (j = 0; j < ps->nr ; j++) {
+			const struct pathspec_item *item = &ps->items[j];
+
+			if (item->len <= ce_len)
+				continue;
+			if (item->match[ce_len] != '/')
+				continue;
+			if (strncmp(ce->name, item->match, ce_len))
+				continue;
+			if (item->len == ce_len + 1)
+				continue;
+
+			die(_("Pathspec '%s' is in submodule '%.*s'"),
+			    item->original, ce_len, ce->name);
+		}
 	}
-
-	reset_revision_walk();
 }

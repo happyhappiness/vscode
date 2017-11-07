@@ -1,1 +1,1 @@
-die(_("Server does not support --shallow-since"));
+print_verbose(args, _("Server supports ofs-delta"));

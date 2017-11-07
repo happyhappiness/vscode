@@ -1,3 +1,1 @@
-die("Cannot read blob %s for path %s",
-			    oid_to_hex(&o->blob_oid),
-			    o->path);
+packet_write_fmt(fd[1], "argument %s\n", argv[i]);

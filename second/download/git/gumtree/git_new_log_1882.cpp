@@ -1,2 +1,3 @@
-die ("Can't find replacement commit for tag %s\n",
-					     oid_to_hex(&tag->object.oid));
+die ("Tag %s tags unexported %s!",
+				     oid_to_hex(&tag->object.oid),
+				     typename(tagged->type));

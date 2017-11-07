@@ -1,141 +1,112 @@
-static const char *update(struct command *cmd, struct shallow_info *si)
+int cmd_pull(int argc, const char **argv, const char *prefix)
 {
-	const char *name = cmd->ref_name;
-	struct strbuf namespaced_name_buf = STRBUF_INIT;
-	const char *namespaced_name, *ret;
-	unsigned char *old_sha1 = cmd->old_sha1;
-	unsigned char *new_sha1 = cmd->new_sha1;
+	const char *repo, **refspecs;
+	struct sha1_array merge_heads = SHA1_ARRAY_INIT;
+	unsigned char orig_head[GIT_SHA1_RAWSZ], curr_head[GIT_SHA1_RAWSZ];
+	unsigned char rebase_fork_point[GIT_SHA1_RAWSZ];
 
-	/* only refs/... are allowed */
-	if (!starts_with(name, "refs/") || check_refname_format(name + 5, 0)) {
-		rp_error("refusing to create funny ref '%s' remotely", name);
-		return "funny refname";
+	if (!getenv("GIT_REFLOG_ACTION"))
+		set_reflog_message(argc, argv);
+
+	argc = parse_options(argc, argv, prefix, pull_options, pull_usage, 0);
+
+	parse_repo_refspecs(argc, argv, &repo, &refspecs);
+
+	if (!opt_ff)
+		opt_ff = xstrdup_or_null(config_get_ff());
+
+	if (opt_rebase < 0)
+		opt_rebase = config_get_rebase();
+
+	git_config(git_pull_config, NULL);
+
+	if (read_cache_unmerged())
+		die_resolve_conflict("pull");
+
+	if (file_exists(git_path("MERGE_HEAD")))
+		die_conclude_merge();
+
+	if (get_sha1("HEAD", orig_head))
+		hashclr(orig_head);
+
+	if (!opt_rebase && opt_autostash != -1)
+		die(_("--[no-]autostash option is only valid with --rebase."));
+
+	if (opt_rebase) {
+		int autostash = config_autostash;
+		if (opt_autostash != -1)
+			autostash = opt_autostash;
+
+		if (is_null_sha1(orig_head) && !is_cache_unborn())
+			die(_("Updating an unborn branch with changes added to the index."));
+
+		if (!autostash)
+			require_clean_work_tree(N_("pull with rebase"),
+				_("please commit or stash them."), 1, 0);
+
+		if (get_rebase_fork_point(rebase_fork_point, repo, *refspecs))
+			hashclr(rebase_fork_point);
 	}
 
-	strbuf_addf(&namespaced_name_buf, "%s%s", get_git_namespace(), name);
-	namespaced_name = strbuf_detach(&namespaced_name_buf, NULL);
+	if (run_fetch(repo, refspecs))
+		return 1;
 
-	if (is_ref_checked_out(namespaced_name)) {
-		switch (deny_current_branch) {
-		case DENY_IGNORE:
-			break;
-		case DENY_WARN:
-			rp_warning("updating the current branch");
-			break;
-		case DENY_REFUSE:
-		case DENY_UNCONFIGURED:
-			rp_error("refusing to update checked out branch: %s", name);
-			if (deny_current_branch == DENY_UNCONFIGURED)
-				refuse_unconfigured_deny();
-			return "branch is currently checked out";
-		case DENY_UPDATE_INSTEAD:
-			ret = update_worktree(new_sha1);
-			if (ret)
-				return ret;
-			break;
-		}
+	if (opt_dry_run)
+		return 0;
+
+	if (get_sha1("HEAD", curr_head))
+		hashclr(curr_head);
+
+	if (!is_null_sha1(orig_head) && !is_null_sha1(curr_head) &&
+			hashcmp(orig_head, curr_head)) {
+		/*
+		 * The fetch involved updating the current branch.
+		 *
+		 * The working tree and the index file are still based on
+		 * orig_head commit, but we are merging into curr_head.
+		 * Update the working tree to match curr_head.
+		 */
+
+		warning(_("fetch updated the current branch head.\n"
+			"fast-forwarding your working tree from\n"
+			"commit %s."), sha1_to_hex(orig_head));
+
+		if (checkout_fast_forward(orig_head, curr_head, 0))
+			die(_("Cannot fast-forward your working tree.\n"
+				"After making sure that you saved anything precious from\n"
+				"$ git diff %s\n"
+				"output, run\n"
+				"$ git reset --hard\n"
+				"to recover."), sha1_to_hex(orig_head));
 	}
 
-	if (!is_null_sha1(new_sha1) && !has_sha1_file(new_sha1)) {
-		error("unpack should have generated %s, "
-		      "but I can't find it!", sha1_to_hex(new_sha1));
-		return "bad pack";
+	get_merge_heads(&merge_heads);
+
+	if (!merge_heads.nr)
+		die_no_merge_candidates(repo, refspecs);
+
+	if (is_null_sha1(orig_head)) {
+		if (merge_heads.nr > 1)
+			die(_("Cannot merge multiple branches into empty head."));
+		return pull_into_void(*merge_heads.sha1, curr_head);
 	}
+	if (opt_rebase && merge_heads.nr > 1)
+		die(_("Cannot rebase onto multiple branches."));
 
-	if (!is_null_sha1(old_sha1) && is_null_sha1(new_sha1)) {
-		if (deny_deletes && starts_with(name, "refs/heads/")) {
-			rp_error("denying ref deletion for %s", name);
-			return "deletion prohibited";
+	if (opt_rebase) {
+		struct commit_list *list = NULL;
+		struct commit *merge_head, *head;
+
+		head = lookup_commit_reference(orig_head);
+		commit_list_insert(head, &list);
+		merge_head = lookup_commit_reference(merge_heads.sha1[0]);
+		if (is_descendant_of(merge_head, list)) {
+			/* we can fast-forward this without invoking rebase */
+			opt_ff = "--ff-only";
+			return run_merge();
 		}
-
-		if (head_name && !strcmp(namespaced_name, head_name)) {
-			switch (deny_delete_current) {
-			case DENY_IGNORE:
-				break;
-			case DENY_WARN:
-				rp_warning("deleting the current branch");
-				break;
-			case DENY_REFUSE:
-			case DENY_UNCONFIGURED:
-			case DENY_UPDATE_INSTEAD:
-				if (deny_delete_current == DENY_UNCONFIGURED)
-					refuse_unconfigured_deny_delete_current();
-				rp_error("refusing to delete the current branch: %s", name);
-				return "deletion of the current branch prohibited";
-			default:
-				return "Invalid denyDeleteCurrent setting";
-			}
-		}
-	}
-
-	if (deny_non_fast_forwards && !is_null_sha1(new_sha1) &&
-	    !is_null_sha1(old_sha1) &&
-	    starts_with(name, "refs/heads/")) {
-		struct object *old_object, *new_object;
-		struct commit *old_commit, *new_commit;
-
-		old_object = parse_object(old_sha1);
-		new_object = parse_object(new_sha1);
-
-		if (!old_object || !new_object ||
-		    old_object->type != OBJ_COMMIT ||
-		    new_object->type != OBJ_COMMIT) {
-			error("bad sha1 objects for %s", name);
-			return "bad ref";
-		}
-		old_commit = (struct commit *)old_object;
-		new_commit = (struct commit *)new_object;
-		if (!in_merge_bases(old_commit, new_commit)) {
-			rp_error("denying non-fast-forward %s"
-				 " (you should pull first)", name);
-			return "non-fast-forward";
-		}
-	}
-	if (run_update_hook(cmd)) {
-		rp_error("hook declined to update %s", name);
-		return "hook declined";
-	}
-
-	if (is_null_sha1(new_sha1)) {
-		struct strbuf err = STRBUF_INIT;
-		if (!parse_object(old_sha1)) {
-			old_sha1 = NULL;
-			if (ref_exists(name)) {
-				rp_warning("Allowing deletion of corrupt ref.");
-			} else {
-				rp_warning("Deleting a non-existent ref.");
-				cmd->did_not_exist = 1;
-			}
-		}
-		if (ref_transaction_delete(transaction,
-					   namespaced_name,
-					   old_sha1,
-					   0, "push", &err)) {
-			rp_error("%s", err.buf);
-			strbuf_release(&err);
-			return "failed to delete";
-		}
-		strbuf_release(&err);
-		return NULL; /* good */
-	}
-	else {
-		struct strbuf err = STRBUF_INIT;
-		if (shallow_update && si->shallow_ref[cmd->index] &&
-		    update_shallow_ref(cmd, si))
-			return "shallow error";
-
-		if (ref_transaction_update(transaction,
-					   namespaced_name,
-					   new_sha1, old_sha1,
-					   0, "push",
-					   &err)) {
-			rp_error("%s", err.buf);
-			strbuf_release(&err);
-
-			return "failed to update ref";
-		}
-		strbuf_release(&err);
-
-		return NULL; /* good */
+		return run_rebase(curr_head, *merge_heads.sha1, rebase_fork_point);
+	} else {
+		return run_merge();
 	}
 }

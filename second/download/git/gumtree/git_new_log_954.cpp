@@ -1,1 +1,1 @@
-vreportf(prefix, fmt, params);
+fprintf(stderr, "%s%s\n", prefix, msg);

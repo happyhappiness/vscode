@@ -1,1 +1,1 @@
-error("object file %s is empty", sha1_file_name(sha1));
+die("Too large to be a .git file: '%s'", path);

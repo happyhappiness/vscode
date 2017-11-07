@@ -1,73 +1,48 @@
-static int h2_protocol_propose(conn_rec *c, request_rec *r,
-                               server_rec *s,
-                               const apr_array_header_t *offers,
-                               apr_array_header_t *proposals)
+static int h2_protocol_switch(conn_rec *c, request_rec *r, server_rec *s,
+                              const char *protocol)
 {
-    int proposed = 0;
-    int is_tls = h2_h2_is_tls(c);
-    const char **protos = is_tls? h2_tls_protos : h2_clear_protos;
+    int found = 0;
+    const char **protos = h2_h2_is_tls(c)? h2_tls_protos : h2_clear_protos;
+    const char **p = protos;
     
     (void)s;
-    if (strcmp(AP_PROTOCOL_HTTP1, ap_get_protocol(c))) {
-        /* We do not know how to switch from anything else but http/1.1.
-         */
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "protocol switch: current proto != http/1.1, declined");
-        return DECLINED;
+    while (*p) {
+        if (!strcmp(*p, protocol)) {
+            found = 1;
+            break;
+        }
+        p++;
     }
     
-    if (!h2_is_acceptable_connection(c, 0)) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, c,
-                      "protocol propose: connection requirements not met");
-        return DECLINED;
+    if (found) {
+        h2_ctx *ctx = h2_ctx_get(c);
+        
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                      "switching protocol to '%s'", protocol);
+        h2_ctx_protocol_set(ctx, protocol);
+        h2_ctx_server_set(ctx, s);
+        
+        if (r != NULL) {
+            apr_status_t status;
+            /* Switching in the middle of a request means that
+             * we have to send out the response to this one in h2
+             * format. So we need to take over the connection
+             * right away.
+             */
+            ap_remove_input_filter_byhandle(r->input_filters, "http_in");
+            ap_remove_input_filter_byhandle(r->input_filters, "reqtimeout");
+            ap_remove_output_filter_byhandle(r->output_filters, "HTTP_HEADER");
+            
+            /* Ok, start an h2_conn on this one. */
+            status = h2_conn_process(r->connection, r, r->server);
+            if (status != DONE) {
+                /* Nothing really to do about this. */
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
+                              "session proessed, unexpected status");
+            }
+        }
+        return DONE;
     }
     
-    if (r) {
-        /* So far, this indicates an HTTP/1 Upgrade header initiated
-         * protocol switch. For that, the HTTP2-Settings header needs
-         * to be present and valid for the connection.
-         */
-        const char *p;
-        
-        if (!h2_allows_h2_upgrade(c)) {
-            return DECLINED;
-        }
-         
-        p = apr_table_get(r->headers_in, "HTTP2-Settings");
-        if (!p) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "upgrade without HTTP2-Settings declined");
-            return DECLINED;
-        }
-        
-        p = apr_table_get(r->headers_in, "Connection");
-        if (!ap_find_token(r->pool, p, "http2-settings")) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "upgrade without HTTP2-Settings declined");
-            return DECLINED;
-        }
-        
-        /* We also allow switching only for requests that have no body.
-         */
-        p = apr_table_get(r->headers_in, "Content-Length");
-        if (p && strcmp(p, "0")) {
-            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "upgrade with content-length: %s, declined", p);
-            return DECLINED;
-        }
-    }
-    
-    while (*protos) {
-        /* Add all protocols we know (tls or clear) and that
-         * are part of the offerings (if there have been any). 
-         */
-        if (!offers || ap_array_str_contains(offers, *protos)) {
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
-                          "proposing protocol '%s'", *protos);
-            APR_ARRAY_PUSH(proposals, const char*) = *protos;
-            proposed = 1;
-        }
-        ++protos;
-    }
-    return proposed? DECLINED : OK;
+    return DECLINED;
 }

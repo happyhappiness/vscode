@@ -1,24 +1,11 @@
-static int error_with_patch(struct commit *commit,
-	const char *subject, int subject_len,
-	struct replay_opts *opts, int exit_code, int to_amend)
+static int intend_to_amend(void)
 {
-	if (make_patch(commit, opts))
-		return -1;
+	unsigned char head[20];
+	char *p;
 
-	if (to_amend) {
-		if (intend_to_amend())
-			return -1;
+	if (get_sha1("HEAD", head))
+		return error(_("cannot read HEAD"));
 
-		fprintf(stderr, "You can amend the commit now, with\n"
-			"\n"
-			"  git commit --amend %s\n"
-			"\n"
-			"Once you are satisfied with your changes, run\n"
-			"\n"
-			"  git rebase --continue\n", gpg_sign_opt_quoted(opts));
-	} else if (exit_code)
-		fprintf(stderr, "Could not apply %s... %.*s\n",
-			short_commit_name(commit), subject_len, subject);
-
-	return exit_code;
+	p = sha1_to_hex(head);
+	return write_message(p, strlen(p), rebase_path_amend(), 1);
 }

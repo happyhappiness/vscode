@@ -1,1 +1,1 @@
-error("Object %s already has a mark", oid_to_hex(&oid));
+die("not a commit? can't happen: %s", oid_to_hex(&oid));

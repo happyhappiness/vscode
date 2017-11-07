@@ -1,1 +1,1 @@
-die_errno(_("cannot create configuration file %s"), config_file);
+die(_("unable to parse default color value"));

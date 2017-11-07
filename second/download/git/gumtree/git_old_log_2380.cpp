@@ -1,1 +1,2 @@
-error("unable to write sha1 filename %s: %s", filename, strerror(ret));
+error("unable to open object pack directory: %s: %s",
+			      path.buf, strerror(errno));

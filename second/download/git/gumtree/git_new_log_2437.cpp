@@ -1,1 +1,1 @@
-error(_("Committing is not possible because you have unmerged files."));
+error(_("Cherry-picking is not possible because you have unmerged files."));

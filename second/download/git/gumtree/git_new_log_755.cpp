@@ -1,1 +1,1 @@
-die("strange hostname '%s' blocked", host);
+die(_("invalid date format: %s"), date_str);

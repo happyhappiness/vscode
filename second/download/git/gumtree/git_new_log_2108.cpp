@@ -1,2 +1,1 @@
-error("--show-origin is only applicable to --get, --get-all, "
-			  "--get-regexp, and --list.");
+die(_("unable to write parameters to config file"));

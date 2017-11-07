@@ -1,1 +1,1 @@
-printf("-%s\n", oid_to_hex(&commit->object.oid));
+die("missing blob object '%s'", oid_to_hex(&obj->oid));

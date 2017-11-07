@@ -1,130 +1,87 @@
-apr_status_t h2_util_move(apr_bucket_brigade *to, apr_bucket_brigade *from, 
-                          apr_off_t maxlen, apr_size_t *pfile_buckets_allowed, 
-                          const char *msg)
+static apr_status_t get_mplx_next(h2_worker *worker, void *ctx, 
+                                  h2_task **ptask, int *psticky)
 {
-    apr_status_t status = APR_SUCCESS;
-    int same_alloc;
+    apr_status_t status;
+    apr_time_t wait_until = 0, now;
+    h2_workers *workers = ctx;
+    h2_task *task = NULL;
     
-    AP_DEBUG_ASSERT(to);
-    AP_DEBUG_ASSERT(from);
-    same_alloc = (to->bucket_alloc == from->bucket_alloc 
-                  || to->p == from->p);
-
-    if (!FILE_MOVE) {
-        pfile_buckets_allowed = NULL;
-    }
+    *ptask = NULL;
+    *psticky = 0;
     
-    if (!APR_BRIGADE_EMPTY(from)) {
-        apr_bucket *b, *end;
+    status = apr_thread_mutex_lock(workers->lock);
+    if (status == APR_SUCCESS) {
+        ++workers->idle_workers;
+        ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                     "h2_worker(%d): looking for work", h2_worker_get_id(worker));
         
-        status = last_not_included(from, maxlen, same_alloc,
-                                   pfile_buckets_allowed, &end);
-        if (status != APR_SUCCESS) {
-            return status;
-        }
+        while (!h2_worker_is_aborted(worker) && !workers->aborted
+               && !(task = next_task(workers))) {
         
-        while (!APR_BRIGADE_EMPTY(from) && status == APR_SUCCESS) {
-            b = APR_BRIGADE_FIRST(from);
-            if (b == end) {
-                break;
-            }
-            
-            if (same_alloc || (b->list == to->bucket_alloc)) {
-                /* both brigades use the same bucket_alloc and auto-cleanups
-                 * have the same life time. It's therefore safe to just move
-                 * directly. */
-                APR_BUCKET_REMOVE(b);
-                APR_BRIGADE_INSERT_TAIL(to, b);
-#if LOG_BUCKETS
-                ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p, APLOGNO(03205)
-                              "h2_util_move: %s, passed bucket(same bucket_alloc) "
-                              "%ld-%ld, type=%s",
-                              msg, (long)b->start, (long)b->length, 
-                              APR_BUCKET_IS_METADATA(b)? 
-                              (APR_BUCKET_IS_EOS(b)? "EOS": 
-                               (APR_BUCKET_IS_FLUSH(b)? "FLUSH" : "META")) : 
-                              (APR_BUCKET_IS_FILE(b)? "FILE" : "DATA"));
-#endif
-            }
-            else if (DEEP_COPY) {
-                /* we have not managed the magic of passing buckets from
-                 * one thread to another. Any attempts result in
-                 * cleanup of pools scrambling memory.
-                 */
-                if (APR_BUCKET_IS_METADATA(b)) {
-                    if (APR_BUCKET_IS_EOS(b)) {
-                        APR_BRIGADE_INSERT_TAIL(to, apr_bucket_eos_create(to->bucket_alloc));
-                    }
-                    else {
-                        /* ignore */
-                    }
+            /* Need to wait for a new tasks to arrive. If we are above
+             * minimum workers, we do a timed wait. When timeout occurs
+             * and we have still more workers, we shut down one after
+             * the other. */
+            cleanup_zombies(workers, 0);
+            if (workers->worker_count > workers->min_workers) {
+                now = apr_time_now();
+                if (now >= wait_until) {
+                    wait_until = now + apr_time_from_sec(workers->max_idle_secs);
                 }
-                else if (pfile_buckets_allowed 
-                         && *pfile_buckets_allowed > 0 
-                         && APR_BUCKET_IS_FILE(b)) {
-                    /* We do not want to read files when passing buckets, if
-                     * we can avoid it. However, what we've come up so far
-                     * is not working corrently, resulting either in crashes or
-                     * too many open file descriptors.
-                     */
-                    apr_bucket_file *f = (apr_bucket_file *)b->data;
-                    apr_file_t *fd = f->fd;
-                    int setaside = (f->readpool != to->p);
-#if LOG_BUCKETS
-                    ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p, APLOGNO(03206)
-                                  "h2_util_move: %s, moving FILE bucket %ld-%ld "
-                                  "from=%lx(p=%lx) to=%lx(p=%lx), setaside=%d",
-                                  msg, (long)b->start, (long)b->length, 
-                                  (long)from, (long)from->p, 
-                                  (long)to, (long)to->p, setaside);
-#endif
-                    if (setaside) {
-                        status = apr_file_setaside(&fd, fd, to->p);
-                        if (status != APR_SUCCESS) {
-                            ap_log_perror(APLOG_MARK, APLOG_ERR, status, to->p,
-                                          APLOGNO(02947) "h2_util: %s, setaside FILE", 
-                                          msg);
-                            return status;
-                        }
-                    }
-                    apr_brigade_insert_file(to, fd, b->start, b->length, 
-                                            to->p);
-                    --(*pfile_buckets_allowed);
+                
+                ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                             "h2_worker(%d): waiting signal, "
+                             "workers=%d, idle=%d", worker->id, 
+                             (int)workers->worker_count, 
+                             workers->idle_workers);
+                status = apr_thread_cond_timedwait(workers->mplx_added,
+                                                   workers->lock, 
+                                                   wait_until - now);
+                if (status == APR_TIMEUP
+                    && workers->worker_count > workers->min_workers) {
+                    /* waited long enough without getting a task and
+                     * we are above min workers, abort this one. */
+                    ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, 
+                                 workers->s,
+                                 "h2_workers: aborting idle worker");
+                    h2_worker_abort(worker);
+                    break;
                 }
-                else {
-                    const char *data;
-                    apr_size_t len;
-
-                    status = apr_bucket_read(b, &data, &len, APR_BLOCK_READ);
-                    if (status == APR_SUCCESS && len > 0) {
-                        status = apr_brigade_write(to, NULL, NULL, data, len);
-#if LOG_BUCKETS
-                        ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p, APLOGNO(03207)
-                                      "h2_util_move: %s, copied bucket %ld-%ld "
-                                      "from=%lx(p=%lx) to=%lx(p=%lx)",
-                                      msg, (long)b->start, (long)b->length, 
-                                      (long)from, (long)from->p, 
-                                      (long)to, (long)to->p);
-#endif
-                    }
-                }
-                apr_bucket_delete(b);
             }
             else {
-                apr_bucket_setaside(b, to->p);
-                APR_BUCKET_REMOVE(b);
-                APR_BRIGADE_INSERT_TAIL(to, b);
-#if LOG_BUCKETS
-                ap_log_perror(APLOG_MARK, LOG_LEVEL, 0, to->p, APLOGNO(03208)
-                              "h2_util_move: %s, passed setaside bucket %ld-%ld "
-                              "from=%lx(p=%lx) to=%lx(p=%lx)",
-                              msg, (long)b->start, (long)b->length, 
-                              (long)from, (long)from->p, 
-                              (long)to, (long)to->p);
-#endif
+                ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
+                             "h2_worker(%d): waiting signal (eternal), "
+                             "worker_count=%d, idle=%d", worker->id, 
+                             (int)workers->worker_count,
+                             workers->idle_workers);
+                apr_thread_cond_wait(workers->mplx_added, workers->lock);
             }
         }
+        
+        /* Here, we either have gotten task or decided to shut down
+         * the calling worker.
+         */
+        if (task) {
+            /* Ok, we got something to give back to the worker for execution. 
+             * If we have more idle workers than h2_mplx in our queue, then
+             * we let the worker be sticky, e.g. making it poll the task's
+             * h2_mplx instance for more work before asking back here.
+             * This avoids entering our global lock as long as enough idle
+             * workers remain. Stickiness of a worker ends when the connection
+             * has no new tasks to process, so the worker will get back here
+             * eventually.
+             */
+            *ptask = task;
+            *psticky = (workers->max_workers >= workers->mplx_count);
+            
+            if (workers->mplx_count && workers->idle_workers > 1) {
+                apr_thread_cond_signal(workers->mplx_added);
+            }
+        }
+        
+        --workers->idle_workers;
+        apr_thread_mutex_unlock(workers->lock);
     }
     
-    return status;
+    return *ptask? APR_SUCCESS : APR_EOF;
 }

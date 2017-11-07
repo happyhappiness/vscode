@@ -1,1 +1,1 @@
-die_errno("mmap failed");
+warning("core.bare and core.worktree do not make sense");

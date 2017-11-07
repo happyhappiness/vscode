@@ -1,1 +1,1 @@
-die("BUG: no entry found");
+report_invalid_attr(name, namelen, src, lineno);

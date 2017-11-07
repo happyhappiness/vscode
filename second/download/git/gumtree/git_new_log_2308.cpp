@@ -1,1 +1,1 @@
-!error("tag '%s' not found.", name);
+error_errno("poll failed resuming");

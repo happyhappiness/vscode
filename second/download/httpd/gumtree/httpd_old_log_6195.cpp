@@ -1,7 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
-                          "h2_session:  stream(%ld-%d): PRIORITY frame "
-                          " weight=%d, dependsOn=%d, exclusive=%d", 
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03067)
+                          "h2_session(%ld-%d): RST_STREAM by client, errror=%d",
                           session->id, (int)frame->hd.stream_id,
-                          frame->priority.pri_spec.weight,
-                          frame->priority.pri_spec.stream_id,
-                          frame->priority.pri_spec.exclusive);
+                          (int)frame->rst_stream.error_code);

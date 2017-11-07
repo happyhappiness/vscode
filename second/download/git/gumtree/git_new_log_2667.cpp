@@ -1,1 +1,1 @@
-error("bad ref for %s", diter->path.buf);
+die("BUG: peel called before advance for cache iterator");

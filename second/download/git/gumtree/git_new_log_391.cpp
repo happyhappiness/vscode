@@ -1,1 +1,1 @@
-print_verbose(args, _("Server supports side-band-64k"));
+print_verbose(args, _("Server supports multi_ack"));

@@ -1,1 +1,1 @@
-die_errno(_("could not open %s for writing"), path);
+packet_write(1, "%s %s^{}\n", oid_to_hex(&peeled), refname_nons);

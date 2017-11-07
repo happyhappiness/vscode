@@ -1,20 +1,14 @@
-static struct ref_entry *create_ref_entry(const char *refname,
-					  const unsigned char *sha1, int flag,
-					  int check_name)
+static void check_ce_order(struct cache_entry *ce, struct cache_entry *next_ce)
 {
-	int len;
-	struct ref_entry *ref;
-
-	if (check_name &&
-	    check_refname_format(refname, REFNAME_ALLOW_ONELEVEL))
-		die("Reference has invalid format: '%s'", refname);
-	if (!check_name && !refname_is_safe(refname))
-		die("Reference has invalid name: '%s'", refname);
-	len = strlen(refname) + 1;
-	ref = xmalloc(sizeof(struct ref_entry) + len);
-	hashcpy(ref->u.value.sha1, sha1);
-	hashclr(ref->u.value.peeled);
-	memcpy(ref->name, refname, len);
-	ref->flag = flag;
-	return ref;
+	int name_compare = strcmp(ce->name, next_ce->name);
+	if (0 < name_compare)
+		die("unordered stage entries in index");
+	if (!name_compare) {
+		if (!ce_stage(ce))
+			die("multiple stage entries for merged file '%s'",
+				ce->name);
+		if (ce_stage(ce) > ce_stage(next_ce))
+			die("unordered stage entries for '%s'",
+				ce->name);
+	}
 }

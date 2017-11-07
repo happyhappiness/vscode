@@ -1,2 +1,4 @@
-fprintf(stderr, _("No testable commit found.\n"
-			"Maybe you started with bad path parameters?\n"));
+printf(_("%s was both %s and %s\n"),
+		       oid_to_hex(current_bad_oid),
+		       term_good,
+		       term_bad);

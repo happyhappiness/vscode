@@ -1,2 +1,6 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02421)
-                          "HTTP Request Line; URI must not contain a fragment");
+ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(00561)
+                              "Request header exceeds LimitRequestFieldSize%s"
+                              "%.*s",
+                              (field && *field) ? ": " : "",
+                              (field) ? field_name_len(field) : 0,
+                              (field) ? field : "");

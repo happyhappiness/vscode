@@ -1,1 +1,1 @@
-die("submodule--helper push-check requires at least 1 argument");
+warning(_("could not lookup configuration '%s'. Assuming this repository is its own authoritative upstream."), remotesb.buf);

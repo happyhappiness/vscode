@@ -1,1 +1,1 @@
-die("%s is not a tree", sha1_to_hex(hash));
+die("unable to read tree (%s)", sha1_to_hex(hash));

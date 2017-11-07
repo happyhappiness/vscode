@@ -1,1 +1,1 @@
-fprintf(stderr, _("Testing mtime in '%s' "), cwd);
+die(_("--no-contains option is only allowed in list mode"));

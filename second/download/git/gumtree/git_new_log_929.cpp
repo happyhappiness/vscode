@@ -1,1 +1,1 @@
-die(_("invalid ident line: %.*s"), (int)ident_len, ident_line);
+printf_ln(_("Patch is empty."));

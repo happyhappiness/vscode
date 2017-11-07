@@ -1,1 +1,1 @@
-fputs(env_hint, stderr);
+die("no name was given and auto-detection is disabled");

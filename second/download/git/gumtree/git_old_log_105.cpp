@@ -1,1 +1,0 @@
-die("remote error: %s", buffer + 4);

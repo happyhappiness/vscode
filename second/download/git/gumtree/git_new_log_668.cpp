@@ -1,3 +1,4 @@
-warning(_("stopped at %s... %.*s"),
-						short_commit_name(commit),
-						item->arg_len, item->arg);
+fprintf(stderr, "Rebasing (%d/%d)%s",
+					todo_list->done_nr,
+					todo_list->total_nr,
+					opts->verbose ? "\n" : "\r");

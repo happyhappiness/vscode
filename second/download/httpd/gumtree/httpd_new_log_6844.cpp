@@ -1,3 +1,2 @@
-ap_log_perror(APLOG_MARK, APLOG_CRIT, 0, plog, APLOGNO(02612)
-                        "failed to create mod_socache_shmcb socache "
-                        "instance: %s", errmsg);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, f->r, APLOGNO(00765)
+                    "cache: Cache provider's store_body failed for URI %s", f->r->uri);

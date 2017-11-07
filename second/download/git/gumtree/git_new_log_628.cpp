@@ -1,1 +1,2 @@
-parse_long_magic(magic, prefix_len, elem);
+die(_("Missing ')' at the end of pathspec magic in '%s'"),
+		    elem);

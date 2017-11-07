@@ -1,0 +1,1 @@
+fputs(line->buf, cmitmsg);

@@ -1,1 +1,1 @@
-die(_("unrecognized color: %%(color:%s)"), color_value);
+die(_("expected format: %%(color:<color>)"));

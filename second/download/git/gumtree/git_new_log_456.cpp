@@ -1,1 +1,1 @@
-rollback_lock_file(&index_lock);
+_(action_name(opts));

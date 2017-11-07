@@ -1,54 +1,54 @@
-static int core_override_type(request_rec *r)
+static int start_lingering_close_common(event_conn_state_t *cs, int in_worker)
 {
-    core_dir_config *conf =
-        (core_dir_config *)ap_get_core_module_config(r->per_dir_config);
-
-    /* Check for overrides with ForceType / SetHandler
+    apr_status_t rv;
+    struct timeout_queue *q;
+    apr_socket_t *csd = cs->pfd.desc.s;
+#ifdef AP_DEBUG
+    {
+        rv = apr_socket_timeout_set(csd, 0);
+        AP_DEBUG_ASSERT(rv == APR_SUCCESS);
+    }
+#else
+    apr_socket_timeout_set(csd, 0);
+#endif
+    cs->queue_timestamp = apr_time_now();
+    /*
+     * If some module requested a shortened waiting period, only wait for
+     * 2s (SECONDS_TO_LINGER). This is useful for mitigating certain
+     * DoS attacks.
      */
-    if (conf->mime_type && strcmp(conf->mime_type, "none"))
-        ap_set_content_type(r, (char*) conf->mime_type);
-
-    if (conf->expr_handler) { 
-        const char *err;
-        const char *val;
-        val = ap_expr_str_exec(r, conf->expr_handler, &err);
-        if (err) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03154)
-                          "Can't evaluate handler expression: %s", err);
-            return HTTP_INTERNAL_SERVER_ERROR;
-        }
-
-        if (val != ap_strstr_c(val, "proxy:unix")) { 
-            /* Retained for compatibility --  but not for UDS */
-            char *tmp = apr_pstrdup(r->pool, val);
-            ap_str_tolower(tmp);
-            val = tmp;
-        }
-
-        if (strcmp(val, "none")) { 
-            r->handler = val;
-        }
+    if (apr_table_get(cs->c->notes, "short-lingering-close")) {
+        q = short_linger_q;
+        cs->pub.state = CONN_STATE_LINGER_SHORT;
     }
-    else if (conf->handler && strcmp(conf->handler, "none")) { 
-        r->handler = conf->handler;
+    else {
+        q = linger_q;
+        cs->pub.state = CONN_STATE_LINGER_NORMAL;
     }
-
-    /* Deal with the poor soul who is trying to force path_info to be
-     * accepted within the core_handler, where they will let the subreq
-     * address its contents.  This is toggled by the user in the very
-     * beginning of the fixup phase (here!), so modules should override the user's
-     * discretion in their own module fixup phase.  It is tristate, if
-     * the user doesn't specify, the result is AP_REQ_DEFAULT_PATH_INFO.
-     * (which the module may interpret to its own customary behavior.)
-     * It won't be touched if the value is no longer AP_ACCEPT_PATHINFO_UNSET,
-     * so any module changing the value prior to the fixup phase
-     * OVERRIDES the user's choice.
-     */
-    if ((r->used_path_info == AP_REQ_DEFAULT_PATH_INFO)
-        && (conf->accept_path_info != AP_ACCEPT_PATHINFO_UNSET)) {
-        /* No module knew better, and the user coded AcceptPathInfo */
-        r->used_path_info = conf->accept_path_info;
+    apr_atomic_inc32(&lingering_count);
+    if (in_worker) { 
+        notify_suspend(cs);
     }
-
-    return OK;
+    else {
+        cs->c->sbh = NULL;
+    }
+    apr_thread_mutex_lock(timeout_mutex);
+    TO_QUEUE_APPEND(q, cs);
+    cs->pfd.reqevents = (
+            cs->pub.sense == CONN_SENSE_WANT_WRITE ? APR_POLLOUT :
+                    APR_POLLIN) | APR_POLLHUP | APR_POLLERR;
+    cs->pub.sense = CONN_SENSE_DEFAULT;
+    rv = apr_pollset_add(event_pollset, &cs->pfd);
+    apr_thread_mutex_unlock(timeout_mutex);
+    if (rv != APR_SUCCESS && !APR_STATUS_IS_EEXIST(rv)) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                     "start_lingering_close: apr_pollset_add failure");
+        apr_thread_mutex_lock(timeout_mutex);
+        TO_QUEUE_REMOVE(q, cs);
+        apr_thread_mutex_unlock(timeout_mutex);
+        apr_socket_close(cs->pfd.desc.s);
+        ap_push_pool(worker_queue_info, cs->p);
+        return 0;
+    }
+    return 1;
 }

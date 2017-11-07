@@ -1,1 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, "mod_example_hooks: %s", note);
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+                     "Failed to find temporary directory");

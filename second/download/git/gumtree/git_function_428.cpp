@@ -1,16 +1,17 @@
-static int packet_write_gently(const int fd_out, const char *buf, size_t size)
+static int packet_write_fmt_1(int fd, int gently,
+			      const char *fmt, va_list args)
 {
-	static char packet_write_buffer[LARGE_PACKET_MAX];
-	size_t packet_size;
+	struct strbuf buf = STRBUF_INIT;
+	ssize_t count;
 
-	if (size > sizeof(packet_write_buffer) - 4)
-		return error("packet write failed - data exceeds max packet size");
-
-	packet_trace(buf, size, 1);
-	packet_size = size + 4;
-	set_packet_header(packet_write_buffer, packet_size);
-	memcpy(packet_write_buffer + 4, buf, size);
-	if (write_in_full(fd_out, packet_write_buffer, packet_size) == packet_size)
+	format_packet(&buf, fmt, args);
+	count = write_in_full(fd, buf.buf, buf.len);
+	if (count == buf.len)
 		return 0;
-	return error("packet write failed");
+
+	if (!gently) {
+		check_pipe(errno);
+		die_errno("packet write with format failed");
+	}
+	return error("packet write with format failed");
 }

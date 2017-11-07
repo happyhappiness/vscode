@@ -1,1 +1,1 @@
-ap_rputs("Error", r);
+ap_rputs("Standby", r);

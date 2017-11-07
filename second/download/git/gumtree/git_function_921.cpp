@@ -1,81 +1,40 @@
-const char *get_superproject_working_tree(void)
+static void relocate_single_git_dir_into_superproject(const char *prefix,
+						      const char *path)
 {
-	struct child_process cp = CHILD_PROCESS_INIT;
-	struct strbuf sb = STRBUF_INIT;
-	const char *one_up = real_path_if_valid("../");
-	const char *cwd = xgetcwd();
-	const char *ret = NULL;
-	const char *subpath;
-	int code;
-	ssize_t len;
+	char *old_git_dir = NULL, *real_old_git_dir = NULL, *real_new_git_dir = NULL;
+	const char *new_git_dir;
+	const struct submodule *sub;
 
-	if (!is_inside_work_tree())
-		/*
-		 * FIXME:
-		 * We might have a superproject, but it is harder
-		 * to determine.
-		 */
-		return NULL;
+	if (submodule_uses_worktrees(path))
+		die(_("relocate_gitdir for submodule '%s' with "
+		      "more than one worktree not supported"), path);
 
-	if (!one_up)
-		return NULL;
+	old_git_dir = xstrfmt("%s/.git", path);
+	if (read_gitfile(old_git_dir))
+		/* If it is an actual gitfile, it doesn't need migration. */
+		return;
 
-	subpath = relative_path(cwd, one_up, &sb);
+	real_old_git_dir = real_pathdup(old_git_dir, 1);
 
-	prepare_submodule_repo_env(&cp.env_array);
-	argv_array_pop(&cp.env_array);
+	sub = submodule_from_path(null_sha1, path);
+	if (!sub)
+		die(_("could not lookup name for submodule '%s'"), path);
 
-	argv_array_pushl(&cp.args, "--literal-pathspecs", "-C", "..",
-			"ls-files", "-z", "--stage", "--full-name", "--",
-			subpath, NULL);
-	strbuf_reset(&sb);
+	new_git_dir = git_path("modules/%s", sub->name);
+	if (safe_create_leading_directories_const(new_git_dir) < 0)
+		die(_("could not create directory '%s'"), new_git_dir);
+	real_new_git_dir = real_pathdup(new_git_dir, 1);
 
-	cp.no_stdin = 1;
-	cp.no_stderr = 1;
-	cp.out = -1;
-	cp.git_cmd = 1;
+	if (!prefix)
+		prefix = get_super_prefix();
 
-	if (start_command(&cp))
-		die(_("could not start ls-files in .."));
+	fprintf(stderr, _("Migrating git directory of '%s%s' from\n'%s' to\n'%s'\n"),
+		prefix ? prefix : "", path,
+		real_old_git_dir, real_new_git_dir);
 
-	len = strbuf_read(&sb, cp.out, PATH_MAX);
-	close(cp.out);
+	relocate_gitdir(path, real_old_git_dir, real_new_git_dir);
 
-	if (starts_with(sb.buf, "160000")) {
-		int super_sub_len;
-		int cwd_len = strlen(cwd);
-		char *super_sub, *super_wt;
-
-		/*
-		 * There is a superproject having this repo as a submodule.
-		 * The format is <mode> SP <hash> SP <stage> TAB <full name> \0,
-		 * We're only interested in the name after the tab.
-		 */
-		super_sub = strchr(sb.buf, '\t') + 1;
-		super_sub_len = sb.buf + sb.len - super_sub - 1;
-
-		if (super_sub_len > cwd_len ||
-		    strcmp(&cwd[cwd_len - super_sub_len], super_sub))
-			die (_("BUG: returned path string doesn't match cwd?"));
-
-		super_wt = xstrdup(cwd);
-		super_wt[cwd_len - super_sub_len] = '\0';
-
-		ret = real_path(super_wt);
-		free(super_wt);
-	}
-	strbuf_release(&sb);
-
-	code = finish_command(&cp);
-
-	if (code == 128)
-		/* '../' is not a git repository */
-		return NULL;
-	if (code == 0 && len == 0)
-		/* There is an unrelated git repository at '../' */
-		return NULL;
-	if (code)
-		die(_("ls-tree returned unexpected return code %d"), code);
-
-	return ret;
+	free(old_git_dir);
+	free(real_old_git_dir);
+	free(real_new_git_dir);
 }

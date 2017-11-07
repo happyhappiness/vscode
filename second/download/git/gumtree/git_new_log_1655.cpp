@@ -1,1 +1,2 @@
-die("unable to generate word diff");
+die("unable to generate combined diff for %s",
+		    oid_to_hex(parent));

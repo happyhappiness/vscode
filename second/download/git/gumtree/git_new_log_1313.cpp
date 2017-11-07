@@ -1,1 +1,1 @@
-optbug(opts, "short name already used");
+optbug(opts, "invalid short name");

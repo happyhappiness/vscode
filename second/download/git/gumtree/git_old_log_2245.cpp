@@ -1,1 +1,2 @@
-die(_("'%s' is already checked out at '%s'"), branch, existing);
+die("could not read file '%s': %s", filename,
+				strerror(errno));

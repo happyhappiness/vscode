@@ -1,2 +1,1 @@
-die(_("Unimplemented pathspec magic '%c' in '%s'"),
-			    ch, elem);
+parse_long_magic(magic, prefix_len, elem);

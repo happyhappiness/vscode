@@ -1,2 +1,1 @@
-error("There are still logs under '%s'",
-				      logfile);
+error("unable to create directory for %s", logfile);

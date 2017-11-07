@@ -1,3 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02457)
-                  "AuthBasicFake: \"Authorization: %s\"",
-                  auth_line);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS,
+                            r, APLOGNO(00694) "cache_select(): Vary header mismatch.");

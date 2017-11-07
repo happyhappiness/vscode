@@ -1,85 +1,64 @@
-void parse_pathspec(struct pathspec *pathspec,
-		    unsigned magic_mask, unsigned flags,
-		    const char *prefix, const char **argv)
+static void parse_pathspec_attr_match(struct pathspec_item *item, const char *value)
 {
-	struct pathspec_item *item;
-	const char *entry = argv ? *argv : NULL;
-	int i, n, prefixlen, warn_empty_string, nr_exclude = 0;
+	struct string_list_item *si;
+	struct string_list list = STRING_LIST_INIT_DUP;
 
-	memset(pathspec, 0, sizeof(*pathspec));
+	if (item->attr_check || item->attr_match)
+		die(_("Only one 'attr:' specification is allowed."));
 
-	if (flags & PATHSPEC_MAXDEPTH_VALID)
-		pathspec->magic |= PATHSPEC_MAXDEPTH;
+	if (!value || !*value)
+		die(_("attr spec must not be empty"));
 
-	/* No arguments, no prefix -> no pathspec */
-	if (!entry && !prefix)
-		return;
+	string_list_split(&list, value, ' ', -1);
+	string_list_remove_empty_items(&list, 0);
 
-	if ((flags & PATHSPEC_PREFER_CWD) &&
-	    (flags & PATHSPEC_PREFER_FULL))
-		die("BUG: PATHSPEC_PREFER_CWD and PATHSPEC_PREFER_FULL are incompatible");
+	item->attr_check = attr_check_alloc();
+	item->attr_match = xcalloc(list.nr, sizeof(struct attr_match));
 
-	/* No arguments with prefix -> prefix pathspec */
-	if (!entry) {
-		if (flags & PATHSPEC_PREFER_FULL)
-			return;
+	for_each_string_list_item(si, &list) {
+		size_t attr_len;
+		char *attr_name;
+		const struct git_attr *a;
 
-		if (!(flags & PATHSPEC_PREFER_CWD))
-			die("BUG: PATHSPEC_PREFER_CWD requires arguments");
+		int j = item->attr_match_nr++;
+		const char *attr = si->string;
+		struct attr_match *am = &item->attr_match[j];
 
-		pathspec->items = item = xcalloc(1, sizeof(*item));
-		item->match = xstrdup(prefix);
-		item->original = xstrdup(prefix);
-		item->nowildcard_len = item->len = strlen(prefix);
-		item->prefix = item->len;
-		pathspec->nr = 1;
-		return;
-	}
-
-	n = 0;
-	warn_empty_string = 1;
-	while (argv[n]) {
-		if (*argv[n] == '\0' && warn_empty_string) {
-			warning(_("empty strings as pathspecs will be made invalid in upcoming releases. "
-				  "please use . instead if you meant to match all paths"));
-			warn_empty_string = 0;
-		}
-		n++;
-	}
-
-	pathspec->nr = n;
-	ALLOC_ARRAY(pathspec->items, n);
-	item = pathspec->items;
-	prefixlen = prefix ? strlen(prefix) : 0;
-
-	for (i = 0; i < n; i++) {
-		entry = argv[i];
-
-		init_pathspec_item(item + i, flags, prefix, prefixlen, entry);
-
-		if (item[i].magic & PATHSPEC_EXCLUDE)
-			nr_exclude++;
-		if (item[i].magic & magic_mask)
-			unsupported_magic(entry, item[i].magic & magic_mask);
-
-		if ((flags & PATHSPEC_SYMLINK_LEADING_PATH) &&
-		    has_symlink_leading_path(item[i].match, item[i].len)) {
-			die(_("pathspec '%s' is beyond a symbolic link"), entry);
+		switch (*attr) {
+		case '!':
+			am->match_mode = MATCH_UNSPECIFIED;
+			attr++;
+			attr_len = strlen(attr);
+			break;
+		case '-':
+			am->match_mode = MATCH_UNSET;
+			attr++;
+			attr_len = strlen(attr);
+			break;
+		default:
+			attr_len = strcspn(attr, "=");
+			if (attr[attr_len] != '=')
+				am->match_mode = MATCH_SET;
+			else {
+				const char *v = &attr[attr_len + 1];
+				am->match_mode = MATCH_VALUE;
+				am->value = attr_value_unescape(v);
+			}
+			break;
 		}
 
-		if (item[i].nowildcard_len < item[i].len)
-			pathspec->has_wildcard = 1;
-		pathspec->magic |= item[i].magic;
+		attr_name = xmemdupz(attr, attr_len);
+		a = git_attr(attr_name);
+		if (!a)
+			die(_("invalid attribute name %s"), attr_name);
+
+		attr_check_append(item->attr_check, a);
+
+		free(attr_name);
 	}
 
-	if (nr_exclude == n)
-		die(_("There is nothing to exclude from by :(exclude) patterns.\n"
-		      "Perhaps you forgot to add either ':/' or '.' ?"));
+	if (item->attr_check->nr != item->attr_match_nr)
+		die("BUG: should have same number of entries");
 
-
-	if (pathspec->magic & PATHSPEC_MAXDEPTH) {
-		if (flags & PATHSPEC_KEEP_ORDER)
-			die("BUG: PATHSPEC_MAXDEPTH_VALID and PATHSPEC_KEEP_ORDER are incompatible");
-		QSORT(pathspec->items, pathspec->nr, pathspec_item_cmp);
-	}
+	string_list_clear(&list, 0);
 }

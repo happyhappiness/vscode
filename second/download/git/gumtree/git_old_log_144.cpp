@@ -1,1 +1,1 @@
-die("remote-helpers do not support ref deletion");
+fprintf(stderr, "Defaulting to tracing on stderr...\n");

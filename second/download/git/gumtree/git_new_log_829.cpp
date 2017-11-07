@@ -1,1 +1,2 @@
-die("BUG: how is this possible?");
+error(_("relative config include "
+				       "conditionals must come from files"));

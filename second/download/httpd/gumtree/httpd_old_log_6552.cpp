@@ -1,1 +1,1 @@
-fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");
+fprintf(stderr, "   -t   The last param is username comment.\n");

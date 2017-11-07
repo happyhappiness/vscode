@@ -1,1 +1,1 @@
-error_errno(_("could not write to '%s'"), filename);
+die("dumb http transport does not support shallow capabilities");

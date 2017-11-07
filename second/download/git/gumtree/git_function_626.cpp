@@ -1,16 +1,25 @@
-int hold_lock_file_for_update_timeout(struct lock_file *lk, const char *path,
-				      int flags, long timeout_ms)
+static int is_alternate_allowed(const char *url)
 {
-	int fd = lock_file_timeout(lk, path, flags, timeout_ms);
-	if (fd < 0) {
-		if (flags & LOCK_DIE_ON_ERROR)
-			unable_to_lock_die(path, errno);
-		if (flags & LOCK_REPORT_ON_ERROR) {
-			struct strbuf buf = STRBUF_INIT;
-			unable_to_lock_message(path, errno, &buf);
-			error("%s", buf.buf);
-			strbuf_release(&buf);
-		}
+	const char *protocols[] = {
+		"http", "https", "ftp", "ftps"
+	};
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(protocols); i++) {
+		const char *end;
+		if (skip_prefix(url, protocols[i], &end) &&
+		    starts_with(end, "://"))
+			break;
 	}
-	return fd;
+
+	if (i >= ARRAY_SIZE(protocols)) {
+		warning("ignoring alternate with unknown protocol: %s", url);
+		return 0;
+	}
+	if (!is_transport_allowed(protocols[i], 0)) {
+		warning("ignoring alternate with restricted protocol: %s", url);
+		return 0;
+	}
+
+	return 1;
 }

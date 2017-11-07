@@ -1,3 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, task->c, APLOGNO(03405)
-                      "h2_task(%s): could not write all, saving brigade", 
-                      task->id);
+ap_register_output_filter("H1_TO_H2", h2_filter_stream_output,
+                              NULL, AP_FTYPE_NETWORK);

@@ -1,1 +1,1 @@
-printf("%s (%d):\n", item->string, onelines->nr);
+printf("%6d\t%s\n", (int)UTIL_TO_INT(item), item->string);

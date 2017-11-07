@@ -1,3 +1,2 @@
-warning(_("fetch updated the current branch head.\n"
-			"fast-forwarding your working tree from\n"
-			"commit %s."), oid_to_hex(&orig_head));
+printf("%s %s\n", oid_to_hex(oid),
+		       (type > 0) ? typename(type) : "unknown");

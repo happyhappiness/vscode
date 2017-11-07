@@ -1,1 +1,1 @@
-error("corrupt loose object '%s'", sha1_to_hex(expected_sha1));
+error("object file %s is empty", path);

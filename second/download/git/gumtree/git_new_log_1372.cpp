@@ -1,2 +1,2 @@
-error("Out of memory, malloc failed (tried to allocate %lu bytes)",
-				      (unsigned long)size);
+error("attempting to allocate %"PRIuMAX" over limit %"PRIuMAX,
+			      (uintmax_t)size, (uintmax_t)limit);

@@ -1,1 +1,1 @@
-err(o, _("object %s is not a blob"), oid_to_hex(oid));
+die("BUG: ren1_dst != ren2_dst");

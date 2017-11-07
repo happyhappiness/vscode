@@ -1,57 +1,58 @@
-static void do_commit(const struct am_state *state)
+static int run_apply(const struct am_state *state, const char *index_file)
 {
-	unsigned char tree[GIT_SHA1_RAWSZ], parent[GIT_SHA1_RAWSZ],
-		      commit[GIT_SHA1_RAWSZ];
-	unsigned char *ptr;
-	struct commit_list *parents = NULL;
-	const char *reflog_msg, *author;
-	struct strbuf sb = STRBUF_INIT;
+	struct argv_array apply_paths = ARGV_ARRAY_INIT;
+	struct argv_array apply_opts = ARGV_ARRAY_INIT;
+	struct apply_state apply_state;
+	int res, opts_left;
+	static struct lock_file lock_file;
+	int force_apply = 0;
+	int options = 0;
 
-	if (run_hook_le(NULL, "pre-applypatch", NULL))
-		exit(1);
+	if (init_apply_state(&apply_state, NULL, &lock_file))
+		die("BUG: init_apply_state() failed");
 
-	if (write_cache_as_tree(tree, 0, NULL))
-		die(_("git write-tree failed to write a tree"));
+	argv_array_push(&apply_opts, "apply");
+	argv_array_pushv(&apply_opts, state->git_apply_opts.argv);
 
-	if (!get_sha1_commit("HEAD", parent)) {
-		ptr = parent;
-		commit_list_insert(lookup_commit(parent), &parents);
-	} else {
-		ptr = NULL;
-		say(state, stderr, _("applying to an empty history"));
+	opts_left = apply_parse_options(apply_opts.argc, apply_opts.argv,
+					&apply_state, &force_apply, &options,
+					NULL);
+
+	if (opts_left != 0)
+		die("unknown option passed through to git apply");
+
+	if (index_file) {
+		apply_state.index_file = index_file;
+		apply_state.cached = 1;
+	} else
+		apply_state.check_index = 1;
+
+	/*
+	 * If we are allowed to fall back on 3-way merge, don't give false
+	 * errors during the initial attempt.
+	 */
+	if (state->threeway && !index_file)
+		apply_state.apply_verbosity = verbosity_silent;
+
+	if (check_apply_state(&apply_state, force_apply))
+		die("BUG: check_apply_state() failed");
+
+	argv_array_push(&apply_paths, am_path(state, "patch"));
+
+	res = apply_all_patches(&apply_state, apply_paths.argc, apply_paths.argv, options);
+
+	argv_array_clear(&apply_paths);
+	argv_array_clear(&apply_opts);
+	clear_apply_state(&apply_state);
+
+	if (res)
+		return res;
+
+	if (index_file) {
+		/* Reload index as apply_all_patches() will have modified it. */
+		discard_cache();
+		read_cache_from(index_file);
 	}
 
-	author = fmt_ident(state->author_name, state->author_email,
-			state->ignore_date ? NULL : state->author_date,
-			IDENT_STRICT);
-
-	if (state->committer_date_is_author_date)
-		setenv("GIT_COMMITTER_DATE",
-			state->ignore_date ? "" : state->author_date, 1);
-
-	if (commit_tree(state->msg, state->msg_len, tree, parents, commit,
-				author, state->sign_commit))
-		die(_("failed to write commit object"));
-
-	reflog_msg = getenv("GIT_REFLOG_ACTION");
-	if (!reflog_msg)
-		reflog_msg = "am";
-
-	strbuf_addf(&sb, "%s: %.*s", reflog_msg, linelen(state->msg),
-			state->msg);
-
-	update_ref(sb.buf, "HEAD", commit, ptr, 0, UPDATE_REFS_DIE_ON_ERR);
-
-	if (state->rebasing) {
-		FILE *fp = xfopen(am_path(state, "rewritten"), "a");
-
-		assert(!is_null_sha1(state->orig_commit));
-		fprintf(fp, "%s ", sha1_to_hex(state->orig_commit));
-		fprintf(fp, "%s\n", sha1_to_hex(commit));
-		fclose(fp);
-	}
-
-	run_hook_le(NULL, "post-applypatch", NULL);
-
-	strbuf_release(&sb);
+	return 0;
 }

@@ -116,8 +116,8 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 			die(_("%s - not something we can merge"), argv[0]);
 		if (remoteheads->next)
 			die(_("Can merge only exactly one commit into empty head"));
-		read_empty(remote_head->object.oid.hash, 0);
-		update_ref("initial pull", "HEAD", remote_head->object.oid.hash,
+		read_empty(remote_head->object.sha1, 0);
+		update_ref("initial pull", "HEAD", remote_head->object.sha1,
 			   NULL, 0, UPDATE_REFS_DIE_ON_ERR);
 		goto done;
 	}
@@ -131,7 +131,7 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 	 * additional safety measure to check for it.
 	 */
 	if (!have_message &&
-	    is_old_style_invocation(argc, argv, head_commit->object.oid.hash)) {
+	    is_old_style_invocation(argc, argv, head_commit->object.sha1)) {
 		warning("old-style 'git merge <msg> HEAD <commit>' is deprecated.");
 		strbuf_addstr(&merge_msg, argv[0]);
 		head_arg = argv[1];
@@ -159,13 +159,13 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 	if (verify_signatures) {
 		for (p = remoteheads; p; p = p->next) {
 			struct commit *commit = p->item;
-			char hex[GIT_SHA1_HEXSZ + 1];
+			char hex[41];
 			struct signature_check signature_check;
 			memset(&signature_check, 0, sizeof(signature_check));
 
 			check_commit_signature(commit, &signature_check);
 
-			find_unique_abbrev_r(hex, commit->object.oid.hash, DEFAULT_ABBREV);
+			strcpy(hex, find_unique_abbrev(commit->object.sha1, DEFAULT_ABBREV));
 			switch (signature_check.result) {
 			case 'G':
 				break;
@@ -195,7 +195,7 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 	for (p = remoteheads; p; p = p->next) {
 		struct commit *commit = p->item;
 		strbuf_addf(&buf, "GITHEAD_%s",
-			    sha1_to_hex(commit->object.oid.hash));
+			    sha1_to_hex(commit->object.sha1));
 		setenv(buf.buf, merge_remote_util(commit)->name, 1);
 		strbuf_reset(&buf);
 		if (fast_forward != FF_ONLY &&
@@ -235,7 +235,7 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 		free(list);
 	}
 
-	update_ref("updating ORIG_HEAD", "ORIG_HEAD", head_commit->object.oid.hash,
+	update_ref("updating ORIG_HEAD", "ORIG_HEAD", head_commit->object.sha1,
 		   NULL, 0, UPDATE_REFS_DIE_ON_ERR);
 
 	if (remoteheads && !common)
@@ -251,19 +251,19 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 		goto done;
 	} else if (fast_forward != FF_NO && !remoteheads->next &&
 			!common->next &&
-			!hashcmp(common->item->object.oid.hash, head_commit->object.oid.hash)) {
+			!hashcmp(common->item->object.sha1, head_commit->object.sha1)) {
 		/* Again the most common case of merging one remote. */
 		struct strbuf msg = STRBUF_INIT;
 		struct commit *commit;
+		char hex[41];
 
-		if (verbosity >= 0) {
-			char from[GIT_SHA1_HEXSZ + 1], to[GIT_SHA1_HEXSZ + 1];
-			find_unique_abbrev_r(from, head_commit->object.oid.hash,
-					      DEFAULT_ABBREV);
-			find_unique_abbrev_r(to, remoteheads->item->object.oid.hash,
-					      DEFAULT_ABBREV);
-			printf(_("Updating %s..%s\n"), from, to);
-		}
+		strcpy(hex, find_unique_abbrev(head_commit->object.sha1, DEFAULT_ABBREV));
+
+		if (verbosity >= 0)
+			printf(_("Updating %s..%s\n"),
+				hex,
+				find_unique_abbrev(remoteheads->item->object.sha1,
+				DEFAULT_ABBREV));
 		strbuf_addstr(&msg, "Fast-forward");
 		if (have_message)
 			strbuf_addstr(&msg,
@@ -274,14 +274,14 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 			goto done;
 		}
 
-		if (checkout_fast_forward(head_commit->object.oid.hash,
-					  commit->object.oid.hash,
+		if (checkout_fast_forward(head_commit->object.sha1,
+					  commit->object.sha1,
 					  overwrite_ignore)) {
 			ret = 1;
 			goto done;
 		}
 
-		finish(head_commit, remoteheads, commit->object.oid.hash, msg.buf);
+		finish(head_commit, remoteheads, commit->object.sha1, msg.buf);
 		drop_save();
 		goto done;
 	} else if (!remoteheads->next && common->next)
@@ -300,9 +300,9 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 			/* See if it is really trivial. */
 			git_committer_info(IDENT_STRICT);
 			printf(_("Trying really trivial in-index merge...\n"));
-			if (!read_tree_trivial(common->item->object.oid.hash,
-					       head_commit->object.oid.hash,
-					       remoteheads->item->object.oid.hash)) {
+			if (!read_tree_trivial(common->item->object.sha1,
+					       head_commit->object.sha1,
+					       remoteheads->item->object.sha1)) {
 				ret = merge_trivial(head_commit, remoteheads);
 				goto done;
 			}
@@ -325,8 +325,8 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 			 * HEAD^^" would be missed.
 			 */
 			common_one = get_merge_bases(head_commit, j->item);
-			if (hashcmp(common_one->item->object.oid.hash,
-				j->item->object.oid.hash)) {
+			if (hashcmp(common_one->item->object.sha1,
+				j->item->object.sha1)) {
 				up_to_date = 0;
 				break;
 			}
@@ -362,7 +362,7 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 		int ret;
 		if (i) {
 			printf(_("Rewinding the tree to pristine...\n"));
-			restore_state(head_commit->object.oid.hash, stash);
+			restore_state(head_commit->object.sha1, stash);
 		}
 		if (use_strategies_nr != 1)
 			printf(_("Trying merge strategy %s...\n"),
@@ -428,7 +428,7 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 	 * it up.
 	 */
 	if (!best_strategy) {
-		restore_state(head_commit->object.oid.hash, stash);
+		restore_state(head_commit->object.sha1, stash);
 		if (use_strategies_nr > 1)
 			fprintf(stderr,
 				_("No merge strategy handled the merge.\n"));
@@ -441,7 +441,7 @@ int cmd_merge(int argc, const char **argv, const char *prefix)
 		; /* We already have its result in the working tree. */
 	else {
 		printf(_("Rewinding the tree to pristine...\n"));
-		restore_state(head_commit->object.oid.hash, stash);
+		restore_state(head_commit->object.sha1, stash);
 		printf(_("Using the %s to prepare resolving by hand.\n"),
 			best_strategy);
 		try_merge_strategy(best_strategy, common, remoteheads,

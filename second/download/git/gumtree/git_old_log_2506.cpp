@@ -1,1 +1,1 @@
-printf("%s%s\n", pathname, S_ISDIR(mode) ? "/" : "");
+printf(_("Final output: %d %s\n"), nr, stage);

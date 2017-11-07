@@ -1,1 +1,1 @@
-die(_("bad config line %d in %s %s"), cf->linenr, cf->origin_type, cf->name);
+printf(format, oid_to_hex(&list->item->object.oid));

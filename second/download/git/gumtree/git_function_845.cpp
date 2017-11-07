@@ -1,53 +1,65 @@
-static int handle_range_dir(
-	struct index_state *istate,
-	int k_start,
-	int k_end,
-	struct dir_entry *parent,
-	struct strbuf *prefix,
-	struct lazy_entry *lazy_entries,
-	struct dir_entry **dir_new_out)
+static int handle_change_delete(struct merge_options *o,
+				 const char *path, const char *old_path,
+				 const struct object_id *o_oid, int o_mode,
+				 const struct object_id *changed_oid,
+				 int changed_mode,
+				 const char *change_branch,
+				 const char *delete_branch,
+				 const char *change, const char *change_past)
 {
-	int rc, k;
-	int input_prefix_len = prefix->len;
-	struct dir_entry *dir_new;
+	char *alt_path = NULL;
+	const char *update_path = path;
+	int ret = 0;
 
-	dir_new = hash_dir_entry_with_parent_and_prefix(istate, parent, prefix);
-
-	strbuf_addch(prefix, '/');
-
-	/*
-	 * Scan forward in the index array for index entries having the same
-	 * path prefix (that are also in this directory).
-	 */
-	if (k_start + 1 >= k_end)
-		k = k_end;
-	else if (strncmp(istate->cache[k_start + 1]->name, prefix->buf, prefix->len) > 0)
-		k = k_start + 1;
-	else if (strncmp(istate->cache[k_end - 1]->name, prefix->buf, prefix->len) == 0)
-		k = k_end;
-	else {
-		int begin = k_start;
-		int end = k_end;
-		while (begin < end) {
-			int mid = (begin + end) >> 1;
-			int cmp = strncmp(istate->cache[mid]->name, prefix->buf, prefix->len);
-			if (cmp == 0) /* mid has same prefix; look in second part */
-				begin = mid + 1;
-			else if (cmp > 0) /* mid is past group; look in first part */
-				end = mid;
-			else
-				die("cache entry out of order");
-		}
-		k = begin;
+	if (dir_in_way(path, !o->call_depth, 0)) {
+		update_path = alt_path = unique_path(o, path, change_branch);
 	}
 
-	/*
-	 * Recurse and process what we can of this subset [k_start, k).
-	 */
-	rc = handle_range_1(istate, k_start, k, dir_new, prefix, lazy_entries);
+	if (o->call_depth) {
+		/*
+		 * We cannot arbitrarily accept either a_sha or b_sha as
+		 * correct; since there is no true "middle point" between
+		 * them, simply reuse the base version for virtual merge base.
+		 */
+		ret = remove_file_from_cache(path);
+		if (!ret)
+			ret = update_file(o, 0, o_oid, o_mode, update_path);
+	} else {
+		if (!alt_path) {
+			if (!old_path) {
+				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+				       "and %s in %s. Version %s of %s left in tree."),
+				       change, path, delete_branch, change_past,
+				       change_branch, change_branch, path);
+			} else {
+				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+				       "and %s to %s in %s. Version %s of %s left in tree."),
+				       change, old_path, delete_branch, change_past, path,
+				       change_branch, change_branch, path);
+			}
+		} else {
+			if (!old_path) {
+				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+				       "and %s in %s. Version %s of %s left in tree at %s."),
+				       change, path, delete_branch, change_past,
+				       change_branch, change_branch, path, alt_path);
+			} else {
+				output(o, 1, _("CONFLICT (%s/delete): %s deleted in %s "
+				       "and %s to %s in %s. Version %s of %s left in tree at %s."),
+				       change, old_path, delete_branch, change_past, path,
+				       change_branch, change_branch, path, alt_path);
+			}
+		}
+		/*
+		 * No need to call update_file() on path when change_branch ==
+		 * o->branch1 && !alt_path, since that would needlessly touch
+		 * path.  We could call update_file_flags() with update_cache=0
+		 * and update_wd=0, but that's a no-op.
+		 */
+		if (change_branch != o->branch1 || alt_path)
+			ret = update_file(o, 0, changed_oid, changed_mode, update_path);
+	}
+	free(alt_path);
 
-	strbuf_setlen(prefix, input_prefix_len);
-
-	*dir_new_out = dir_new;
-	return rc;
+	return ret;
 }

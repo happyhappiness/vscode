@@ -1,112 +1,56 @@
-static BOOL stapling_renew_response(server_rec *s, modssl_ctx_t *mctx, SSL *ssl,
-                                    certinfo *cinf, OCSP_RESPONSE **prsp,
-                                    apr_pool_t *pool)
+static apr_status_t piped_log_spawn(piped_log *pl)
 {
-    conn_rec *conn      = (conn_rec *)SSL_get_app_data(ssl);
-    apr_pool_t *vpool;
-    OCSP_REQUEST *req = NULL;
-    OCSP_CERTID *id = NULL;
-    STACK_OF(X509_EXTENSION) *exts;
-    int i;
-    BOOL ok = FALSE;
-    BOOL rv = TRUE;
-    const char *ocspuri;
-    apr_uri_t uri;
+    apr_procattr_t *procattr;
+    apr_proc_t *procnew = NULL;
+    apr_status_t status;
 
-    *prsp = NULL;
-    /* Build up OCSP query from server certificate info */
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01938)
-                 "stapling_renew_response: querying responder");
-
-    req = OCSP_REQUEST_new();
-    if (!req)
-        goto err;
-    id = OCSP_CERTID_dup(cinf->cid);
-    if (!id)
-        goto err;
-    if (!OCSP_request_add0_id(req, id))
-        goto err;
-    id = NULL;
-    /* Add any extensions to the request */
-    SSL_get_tlsext_status_exts(ssl, &exts);
-    for (i = 0; i < sk_X509_EXTENSION_num(exts); i++) {
-        X509_EXTENSION *ext = sk_X509_EXTENSION_value(exts, i);
-        if (!OCSP_REQUEST_add_ext(req, ext, -1))
-            goto err;
-    }
-
-    if (mctx->stapling_force_url)
-        ocspuri = mctx->stapling_force_url;
-    else
-        ocspuri = cinf->uri;
-
-    /* Create a temporary pool to constrain memory use */
-    apr_pool_create(&vpool, conn->pool);
-
-    ok = apr_uri_parse(vpool, ocspuri, &uri);
-    if (ok != APR_SUCCESS) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01939)
-                     "stapling_renew_response: Error parsing uri %s",
-                      ocspuri);
-        rv = FALSE;
-        goto done;
-    }
-    else if (strcmp(uri.scheme, "http")) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01940)
-                     "stapling_renew_response: Unsupported uri %s", ocspuri);
-        rv = FALSE;
-        goto done;
-    }
-
-    if (!uri.port) {
-        uri.port = apr_uri_port_of_scheme(uri.scheme);
-    }
-
-    *prsp = modssl_dispatch_ocsp_request(&uri, mctx->stapling_responder_timeout,
-                                         req, conn, vpool);
-
-    apr_pool_destroy(vpool);
-
-    if (!*prsp) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01941)
-                     "stapling_renew_response: responder error");
-        if (mctx->stapling_fake_trylater) {
-            *prsp = OCSP_response_create(OCSP_RESPONSE_STATUS_TRYLATER, NULL);
-        }
-        else {
-            goto done;
-        }
+    if (((status = apr_procattr_create(&procattr, pl->p)) != APR_SUCCESS) ||
+        ((status = apr_procattr_dir_set(procattr, ap_server_root))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_cmdtype_set(procattr, pl->cmdtype))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_child_in_set(procattr,
+                                             pl->read_fd,
+                                             pl->write_fd))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_child_errfn_set(procattr, log_child_errfn))
+         != APR_SUCCESS) ||
+        ((status = apr_procattr_error_check_set(procattr, 1)) != APR_SUCCESS)) {
+        char buf[120];
+        /* Something bad happened, give up and go away. */
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00103)
+                     "piped_log_spawn: unable to setup child process '%s': %s",
+                     pl->program, apr_strerror(status, buf, sizeof(buf)));
     }
     else {
-        int response_status = OCSP_response_status(*prsp);
+        char **args;
+        const char *pname;
 
-        if (response_status == OCSP_RESPONSE_STATUS_SUCCESSFUL) {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01942)
-                        "stapling_renew_response: query response received");
-            stapling_check_response(s, mctx, cinf, *prsp, &ok);
-            if (ok == FALSE) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01943)
-                             "stapling_renew_response: error in retreived response!");
-            }
+        apr_tokenize_to_argv(pl->program, &args, pl->p);
+        pname = apr_pstrdup(pl->p, args[0]);
+        procnew = apr_pcalloc(pl->p, sizeof(apr_proc_t));
+        status = apr_proc_create(procnew, pname, (const char * const *) args,
+                                 NULL, procattr, pl->p);
+
+        if (status == APR_SUCCESS) {
+            pl->pid = procnew;
+            /* procnew->in was dup2'd from pl->write_fd;
+             * since the original fd is still valid, close the copy to
+             * avoid a leak. */
+            apr_file_close(procnew->in);
+            procnew->in = NULL;
+            apr_proc_other_child_register(procnew, piped_log_maintenance, pl,
+                                          pl->write_fd, pl->p);
+            close_handle_in_child(pl->p, pl->read_fd);
         }
         else {
-            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01944)
-                         "stapling_renew_response: responder error %s",
-                         OCSP_response_status_str(response_status));
+            char buf[120];
+            /* Something bad happened, give up and go away. */
+            ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, APLOGNO(00104)
+                         "unable to start piped log program '%s': %s",
+                         pl->program, apr_strerror(status, buf, sizeof(buf)));
         }
     }
-    if (stapling_cache_response(s, mctx, *prsp, cinf, ok, pool) == FALSE) {
-        ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01945)
-                     "stapling_renew_response: error caching response!");
-    }
 
-done:
-    if (id)
-        OCSP_CERTID_free(id);
-    if (req)
-        OCSP_REQUEST_free(req);
-    return rv;
-err:
-    rv = FALSE;
-    goto done;
+    return status;
 }

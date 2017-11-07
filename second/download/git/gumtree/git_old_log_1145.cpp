@@ -1,1 +1,1 @@
-error("Could not open %s", filename);
+error("Could not stat %s", filename);

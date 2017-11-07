@@ -1,1 +1,1 @@
-status_printf_ln(s, c, "");
+die("git diff-tree: internal error");

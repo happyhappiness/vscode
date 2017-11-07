@@ -1,2 +1,2 @@
-printf("tagged %s %s", printable_type(tag->tagged),
-				describe_object(tag->tagged));
+fprintf(stderr, "Checking %s %s\n",
+			printable_type(obj), describe_object(obj));

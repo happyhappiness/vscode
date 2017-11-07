@@ -1,1 +1,1 @@
-die(_("--points-at option is only allowed with -l."));
+die(_("--contains option is only allowed with -l."));

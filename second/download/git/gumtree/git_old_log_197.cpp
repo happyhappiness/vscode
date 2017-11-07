@@ -1,1 +1,1 @@
-packet_write(fd[1], "argument --format=%s\n", format);
+fprintf(rej, "%.*s", frag->size, frag->patch);

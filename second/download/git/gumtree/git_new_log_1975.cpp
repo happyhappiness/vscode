@@ -1,1 +1,1 @@
-die_errno(_("failed to unlink '%s'"), path.buf);
+printf(format, oid_to_hex(&list->item->object.oid));

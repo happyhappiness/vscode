@@ -1,1 +1,1 @@
-fprintf(opt->diffopt.file, "Message-Id: <%s>\n", opt->message_id);
+fputs(sb.buf, opt->diffopt.file);

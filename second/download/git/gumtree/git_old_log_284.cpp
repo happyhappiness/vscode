@@ -1,1 +1,1 @@
-error(_("Unknown -s/--strategy: %s"), strategy);
+error(_("Must specify a notes ref to merge"));

@@ -1,1 +1,1 @@
-fprintf(stdout, "%s", item->string);
+fprintf(stdout, "%s\n", ce->name);

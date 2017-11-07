@@ -1,2 +1,1 @@
-ap_register_output_filter("H2_TRAILERS", h2_response_trailers_filter,
-                              NULL, AP_FTYPE_PROTOCOL);
+ap_add_output_filter("H1_TO_H2", NULL, NULL, c);

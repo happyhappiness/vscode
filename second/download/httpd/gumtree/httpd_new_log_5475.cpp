@@ -1,3 +1,4 @@
-ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, pool,
-                      "h2_push_diary_digest_get: golomb compressed hashes, %d bytes",
-                      (int)encoder.offset + 1);
+ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, decoder->pool,
+                  "h2_push_diary_digest_dec: val=%"APR_UINT64_T_HEX_FMT", delta=%"
+                  APR_UINT64_T_HEX_FMT", flex=%d, fixed=%"APR_UINT64_T_HEX_FMT, 
+                  *phash, delta, (int)flex, fixed);

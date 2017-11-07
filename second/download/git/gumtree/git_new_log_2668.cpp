@@ -1,1 +1,1 @@
-die("BUG: ref_iterator_peel() called for reflog_iterator");
+strbuf_addf(err, "couldn't set '%s'", lock->ref_name);

@@ -1,1 +1,3 @@
-die("no branches given, and HEAD is not valid");
+printf("[%s] ",
+			       find_unique_abbrev(commit->object.oid.hash,
+						  DEFAULT_ABBREV));

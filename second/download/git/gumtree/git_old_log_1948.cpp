@@ -1,1 +1,1 @@
-printf("%-15s ", refname);
+printf("%s\n", refname);

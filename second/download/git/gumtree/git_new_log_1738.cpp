@@ -1,1 +1,1 @@
-error(_("could not remove reference %s"), refname);
+error(_("could not delete references: %s"), err.buf);

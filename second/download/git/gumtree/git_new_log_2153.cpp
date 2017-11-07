@@ -1,1 +1,1 @@
-error(_("malformed format string %s"), sp);
+die(_("unknown field name: %.*s"), (int)(ep-atom), atom);

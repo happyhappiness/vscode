@@ -1,2 +1,1 @@
-fprintf(stderr,
-						"Also look at %s\n", target);
+fprintf(stderr, "Error creating curl multi handle.\n");

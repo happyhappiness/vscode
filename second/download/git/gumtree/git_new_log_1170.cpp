@@ -1,1 +1,1 @@
-error("Could not write requested capability");
+error("Version %d not supported", *chosen_version);

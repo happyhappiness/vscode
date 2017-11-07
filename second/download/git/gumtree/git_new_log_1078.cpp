@@ -1,1 +1,1 @@
-die("Couldn't allocate PCRE2 match context");
+die("Couldn't allocate PCRE2 JIT stack");

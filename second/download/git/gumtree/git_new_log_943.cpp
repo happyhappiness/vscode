@@ -1,1 +1,0 @@
-vreportf("fatal: ", err, params);

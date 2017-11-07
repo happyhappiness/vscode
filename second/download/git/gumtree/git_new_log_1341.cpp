@@ -1,1 +1,1 @@
-die("revision walk setup failed");
+die("BUG: commit called for transaction that is not open");

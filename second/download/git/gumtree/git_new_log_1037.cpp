@@ -1,0 +1,1 @@
+error("%s %s", oid_to_hex(&e->oid), e->name);

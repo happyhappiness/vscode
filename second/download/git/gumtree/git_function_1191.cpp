@@ -1,32 +1,61 @@
-static const char *find_author_by_nickname(const char *name)
+static void determine_author_info(struct strbuf *author_ident)
 {
-	struct rev_info revs;
-	struct commit *commit;
-	struct strbuf buf = STRBUF_INIT;
-	struct string_list mailmap = STRING_LIST_INIT_NODUP;
-	const char *av[20];
-	int ac = 0;
+	char *name, *email, *date;
+	struct ident_split author;
 
-	init_revisions(&revs, NULL);
-	strbuf_addf(&buf, "--author=%s", name);
-	av[++ac] = "--all";
-	av[++ac] = "-i";
-	av[++ac] = buf.buf;
-	av[++ac] = NULL;
-	setup_revisions(ac, av, &revs, NULL);
-	revs.mailmap = &mailmap;
-	read_mailmap(revs.mailmap, NULL);
+	name = envdup("GIT_AUTHOR_NAME");
+	email = envdup("GIT_AUTHOR_EMAIL");
+	date = envdup("GIT_AUTHOR_DATE");
 
-	if (prepare_revision_walk(&revs))
-		die(_("revision walk setup failed"));
-	commit = get_revision(&revs);
-	if (commit) {
-		struct pretty_print_context ctx = {0};
-		ctx.date_mode = DATE_NORMAL;
-		strbuf_release(&buf);
-		format_commit_message(commit, "%aN <%aE>", &buf, &ctx);
-		clear_mailmap(&mailmap);
-		return strbuf_detach(&buf, NULL);
+	if (author_message) {
+		struct ident_split ident;
+		size_t len;
+		const char *a;
+
+		a = find_commit_header(author_message_buffer, "author", &len);
+		if (!a)
+			die(_("commit '%s' lacks author header"), author_message);
+		if (split_ident_line(&ident, a, len) < 0)
+			die(_("commit '%s' has malformed author line"), author_message);
+
+		set_ident_var(&name, xmemdupz(ident.name_begin, ident.name_end - ident.name_begin));
+		set_ident_var(&email, xmemdupz(ident.mail_begin, ident.mail_end - ident.mail_begin));
+
+		if (ident.date_begin) {
+			struct strbuf date_buf = STRBUF_INIT;
+			strbuf_addch(&date_buf, '@');
+			strbuf_add(&date_buf, ident.date_begin, ident.date_end - ident.date_begin);
+			strbuf_addch(&date_buf, ' ');
+			strbuf_add(&date_buf, ident.tz_begin, ident.tz_end - ident.tz_begin);
+			set_ident_var(&date, strbuf_detach(&date_buf, NULL));
+		}
 	}
-	die(_("No existing author found with '%s'"), name);
+
+	if (force_author) {
+		struct ident_split ident;
+
+		if (split_ident_line(&ident, force_author, strlen(force_author)) < 0)
+			die(_("malformed --author parameter"));
+		set_ident_var(&name, xmemdupz(ident.name_begin, ident.name_end - ident.name_begin));
+		set_ident_var(&email, xmemdupz(ident.mail_begin, ident.mail_end - ident.mail_begin));
+	}
+
+	if (force_date) {
+		struct strbuf date_buf = STRBUF_INIT;
+		if (parse_force_date(force_date, &date_buf))
+			die(_("invalid date format: %s"), force_date);
+		set_ident_var(&date, strbuf_detach(&date_buf, NULL));
+	}
+
+	strbuf_addstr(author_ident, fmt_ident(name, email, date, IDENT_STRICT));
+	if (!split_ident_line(&author, author_ident->buf, author_ident->len) &&
+	    sane_ident_split(&author)) {
+		export_one("GIT_AUTHOR_NAME", author.name_begin, author.name_end, 0);
+		export_one("GIT_AUTHOR_EMAIL", author.mail_begin, author.mail_end, 0);
+		export_one("GIT_AUTHOR_DATE", author.date_begin, author.tz_end, '@');
+	}
+
+	free(name);
+	free(email);
+	free(date);
 }

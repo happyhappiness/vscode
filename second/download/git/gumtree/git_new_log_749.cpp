@@ -1,1 +1,1 @@
-die(_("unable to auto-detect name (got '%s')"), name);
+die(_("no name was given and auto-detection is disabled"));

@@ -1,2 +1,3 @@
-error(_("cannot get commit message for %s"),
-			oid_to_hex(&commit->object.oid));
+error(_("%s: cannot parse parent commit %s"),
+			command_to_string(command),
+			oid_to_hex(&parent->object.oid));

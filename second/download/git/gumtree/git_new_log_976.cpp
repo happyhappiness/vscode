@@ -1,1 +1,1 @@
-error("%s: object corrupt or missing", oid_to_hex(oid));
+printf("num commits: %d\n", sb.num_commits);

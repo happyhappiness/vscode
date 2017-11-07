@@ -1,1 +1,0 @@
-fputs(env_hint, stderr);

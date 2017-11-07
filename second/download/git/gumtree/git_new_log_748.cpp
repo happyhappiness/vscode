@@ -1,1 +1,1 @@
-die(_("no name was given and auto-detection is disabled"));
+warning("alternate disabled by http.followRedirects: %s", url);

@@ -1,73 +1,133 @@
-static int grep_submodule_launch(struct grep_opt *opt,
-				 const struct grep_source *gs)
+int cmd_fsck(int argc, const char **argv, const char *prefix)
 {
-	struct child_process cp = CHILD_PROCESS_INIT;
-	int status, i;
-	const char *end_of_base;
-	const char *name;
-	struct work_item *w = opt->output_priv;
+	int i, heads;
+	struct alternate_object_database *alt;
 
-	end_of_base = strchr(gs->name, ':');
-	if (gs->identifier && end_of_base)
-		name = end_of_base + 1;
-	else
-		name = gs->name;
+	errors_found = 0;
+	check_replace_refs = 0;
 
-	prepare_submodule_repo_env(&cp.env_array);
-	argv_array_push(&cp.env_array, GIT_DIR_ENVIRONMENT);
+	argc = parse_options(argc, argv, prefix, fsck_opts, fsck_usage, 0);
 
-	/* Add super prefix */
-	argv_array_pushf(&cp.args, "--super-prefix=%s%s/",
-			 super_prefix ? super_prefix : "",
-			 name);
-	argv_array_push(&cp.args, "grep");
+	fsck_walk_options.walk = mark_object;
+	fsck_obj_options.walk = mark_used;
+	fsck_obj_options.error_func = fsck_error_func;
+	if (check_strict)
+		fsck_obj_options.strict = 1;
 
-	/*
-	 * Add basename of parent project
-	 * When performing grep on a tree object the filename is prefixed
-	 * with the object's name: 'tree-name:filename'.  In order to
-	 * provide uniformity of output we want to pass the name of the
-	 * parent project's object name to the submodule so the submodule can
-	 * prefix its output with the parent's name and not its own SHA1.
-	 */
-	if (gs->identifier && end_of_base)
-		argv_array_pushf(&cp.args, "--parent-basename=%.*s",
-				 (int) (end_of_base - gs->name),
-				 gs->name);
+	if (show_progress == -1)
+		show_progress = isatty(2);
+	if (verbose)
+		show_progress = 0;
 
-	/* Add options */
-	for (i = 0; i < submodule_options.argc; i++) {
-		/*
-		 * If there is a tree identifier for the submodule, add the
-		 * rev after adding the submodule options but before the
-		 * pathspecs.  To do this we listen for the '--' and insert the
-		 * sha1 before pushing the '--' onto the child process argv
-		 * array.
-		 */
-		if (gs->identifier &&
-		    !strcmp("--", submodule_options.argv[i])) {
-			argv_array_push(&cp.args, sha1_to_hex(gs->identifier));
+	if (write_lost_and_found) {
+		check_full = 1;
+		include_reflogs = 0;
+	}
+
+	if (name_objects)
+		fsck_walk_options.object_names =
+			xcalloc(1, sizeof(struct decoration));
+
+	git_config(fsck_config, NULL);
+
+	fsck_head_link();
+	if (connectivity_only) {
+		for_each_loose_object(mark_loose_for_connectivity, NULL, 0);
+		for_each_packed_object(mark_packed_for_connectivity, NULL, 0);
+	} else {
+		fsck_object_dir(get_object_directory());
+
+		prepare_alt_odb();
+		for (alt = alt_odb_list; alt; alt = alt->next)
+			fsck_object_dir(alt->path);
+
+		if (check_full) {
+			struct packed_git *p;
+			uint32_t total = 0, count = 0;
+			struct progress *progress = NULL;
+
+			prepare_packed_git();
+
+			if (show_progress) {
+				for (p = packed_git; p; p = p->next) {
+					if (open_pack_index(p))
+						continue;
+					total += p->num_objects;
+				}
+
+				progress = start_progress(_("Checking objects"), total);
+			}
+			for (p = packed_git; p; p = p->next) {
+				/* verify gives error messages itself */
+				if (verify_pack(p, fsck_obj_buffer,
+						progress, count))
+					errors_found |= ERROR_PACK;
+				count += p->num_objects;
+			}
+			stop_progress(&progress);
 		}
-
-		argv_array_push(&cp.args, submodule_options.argv[i]);
 	}
 
-	cp.git_cmd = 1;
-	cp.dir = gs->path;
+	heads = 0;
+	for (i = 0; i < argc; i++) {
+		const char *arg = argv[i];
+		unsigned char sha1[20];
+		if (!get_sha1(arg, sha1)) {
+			struct object *obj = lookup_object(sha1);
+
+			if (!obj || !(obj->flags & HAS_OBJ)) {
+				error("%s: object missing", sha1_to_hex(sha1));
+				errors_found |= ERROR_OBJECT;
+				continue;
+			}
+
+			obj->used = 1;
+			if (name_objects)
+				add_decoration(fsck_walk_options.object_names,
+					obj, xstrdup(arg));
+			mark_object_reachable(obj);
+			heads++;
+			continue;
+		}
+		error("invalid parameter: expected sha1, got '%s'", arg);
+		errors_found |= ERROR_OBJECT;
+	}
 
 	/*
-	 * Capture output to output buffer and check the return code from the
-	 * child process.  A '0' indicates a hit, a '1' indicates no hit and
-	 * anything else is an error.
+	 * If we've not been given any explicit head information, do the
+	 * default ones from .git/refs. We also consider the index file
+	 * in this case (ie this implies --cache).
 	 */
-	status = capture_command(&cp, &w->out, 0);
-	if (status && (status != 1)) {
-		/* flush the buffer */
-		write_or_die(1, w->out.buf, w->out.len);
-		die("process for submodule '%s' failed with exit code: %d",
-		    gs->name, status);
+	if (!argc) {
+		get_default_heads();
+		keep_cache_objects = 1;
 	}
 
-	/* invert the return code to make a hit equal to 1 */
-	return !status;
+	if (keep_cache_objects) {
+		read_cache();
+		for (i = 0; i < active_nr; i++) {
+			unsigned int mode;
+			struct blob *blob;
+			struct object *obj;
+
+			mode = active_cache[i]->ce_mode;
+			if (S_ISGITLINK(mode))
+				continue;
+			blob = lookup_blob(active_cache[i]->oid.hash);
+			if (!blob)
+				continue;
+			obj = &blob->object;
+			obj->used = 1;
+			if (name_objects)
+				add_decoration(fsck_walk_options.object_names,
+					obj,
+					xstrfmt(":%s", active_cache[i]->name));
+			mark_object_reachable(obj);
+		}
+		if (active_cache_tree)
+			fsck_cache_tree(active_cache_tree);
+	}
+
+	check_connectivity();
+	return errors_found;
 }

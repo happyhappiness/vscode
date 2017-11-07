@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_CRIT, rs, s, APLOGNO(02994)
-                     "Failed to reopen mutex %s in child",
-                     exipc_mutex_type);
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, r->server, APLOGNO(02995)
+                             "Child %ld failed to acquire lock",
+                             (long int)getpid());

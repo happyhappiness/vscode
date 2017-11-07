@@ -1,2 +1,1 @@
-fprintf(stderr, "%s: protocol error: bad band #%d\n",
-				me, band);
+fprintf(stderr, "%.*s", l, b);

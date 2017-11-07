@@ -1,2 +1,1 @@
-die("could not convert '%s' %s",
-					    oid_to_hex(oid), data->rest);
+die("missing path for '%s'", oid_to_hex(oid));

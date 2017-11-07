@@ -1,1 +1,1 @@
-report_invalid_attr(name, namelen, src, lineno);
+report_invalid_attr(cp, len, src, lineno);

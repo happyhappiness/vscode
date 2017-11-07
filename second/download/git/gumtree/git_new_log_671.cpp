@@ -1,1 +1,1 @@
-error(_("could not read orig-head"));
+error(_("cannot read HEAD"));

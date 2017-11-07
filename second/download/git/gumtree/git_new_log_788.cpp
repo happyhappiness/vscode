@@ -1,2 +1,2 @@
-error("Object %s is a %s, not a commit or tree",
-	      oid_to_hex(&oid), typename(obj->type));
+die(_("could not read object %s for symlink %s"),
+				oid_to_hex(oid), path);

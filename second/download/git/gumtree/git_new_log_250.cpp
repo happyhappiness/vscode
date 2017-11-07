@@ -1,1 +1,1 @@
-die(_("could not parse object '%s'"), argv[i]);
+die(_("unknown option %s"), arg);

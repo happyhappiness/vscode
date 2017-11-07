@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                              "%d:  <function>", i);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, 
+                    "Websocket: Got websocket key: %s", key);

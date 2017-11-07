@@ -1,1 +1,0 @@
-error("read(%s) failed: %s", t->src_name, strerror(errno));

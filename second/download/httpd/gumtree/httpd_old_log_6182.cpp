@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03366)
-                      "h2_proxy_session(%s): terminated, %d streams unfinished",
-                      session->id, (int)h2_proxy_ihash_count(session->streams));
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                  "h2_session(%ld-%d): consumed %ld bytes",
+                  session->id, stream_id, (long)bytes_read);

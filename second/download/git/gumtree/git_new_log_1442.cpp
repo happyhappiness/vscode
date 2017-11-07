@@ -1,2 +1,2 @@
-error("couldn't write %s",
-					lock->lk->filename.buf);
+error("couldn't write %s: %s", log_file,
+					strerror(errno));

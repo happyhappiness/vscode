@@ -1,1 +1,1 @@
-printf("-%s\n", sha1_to_hex(commit->object.sha1));
+die("missing blob object '%s'", sha1_to_hex(obj->sha1));

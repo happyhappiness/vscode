@@ -1,1 +1,1 @@
-die_errno(_("open /dev/null failed"));
+child_die(CHILD_ERR_ERRNO);

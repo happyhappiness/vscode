@@ -1,1 +1,1 @@
-die_errno(_("failed to read %s"), path.buf);
+(fprintf(fp, "%s	%s\n", oid_to_hex(oid), path) <;

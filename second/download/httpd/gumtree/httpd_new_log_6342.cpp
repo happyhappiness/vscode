@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE4, 0, s, APLOGNO(10019)
-                         "Missing unique per-server context: %s (%pp:%pp) (no hchecks)",
-                         s->server_hostname, s, ctx->s);
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, server,
+                         "%s: reusing backend connection %pI<>%pI",
+                         scheme, local_addr, conn->addr);

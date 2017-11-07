@@ -1,1 +1,1 @@
-die("Not a git repository: %s", dir);
+die("No path in gitfile: %s", path);

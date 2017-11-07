@@ -1,1 +1,1 @@
-error(_("invalid mode on line %d: %s"), linenr, line);
+vreportf(prefix, fmt, params);

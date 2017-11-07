@@ -1,1 +1,2 @@
-die_errno(_("failed to read '%s'"), path.buf);
+die(_("Could not read ref %s"),
+					    (*tail)->name);

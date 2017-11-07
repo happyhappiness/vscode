@@ -1,1 +1,1 @@
-die_errno(_("failed to unlink '%s'"), path);
+printf(format, sha1_to_hex(list->item->object.sha1));

@@ -1,1 +1,1 @@
-printf("  ctime: %d:%d\n", sd->sd_ctime.sec, sd->sd_ctime.nsec);
+error_errno(_("Cannot open patch file %s"), filename.buf);

@@ -1,43 +1,104 @@
-static void ev_stream_done(h2_proxy_session *session, int stream_id, 
-                           const char *msg)
+apr_status_t h2_proxy_session_process(h2_proxy_session *session)
 {
-    h2_proxy_stream *stream;
-    
-    stream = nghttp2_session_get_stream_user_data(session->ngh2, stream_id);
-    if (stream) {
-        int touched = (stream->data_sent || 
-                       stream_id <= session->last_stream_id);
-        int complete = (stream->error_code == 0);
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03364)
-                      "h2_proxy_sesssion(%s): stream(%d) closed "
-                      "(complete=%d, touched=%d)", 
-                      session->id, stream_id, complete, touched);
-        
-        if (complete && !stream->data_received) {
-            apr_bucket *b;
-            /* if the response had no body, this is the time to flush
-             * an empty brigade which will also "write" the resonse
-             * headers */
-            h2_proxy_stream_end_headers_out(stream);
-            stream->data_received = 1;
-            b = apr_bucket_flush_create(stream->r->connection->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(stream->output, b);
-            b = apr_bucket_eos_create(stream->r->connection->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(stream->output, b);
-            ap_pass_brigade(stream->r->output_filters, stream->output);
-        }
-        
-        stream->state = H2_STREAM_ST_CLOSED;
-        h2_ihash_remove(session->streams, stream_id);
-        h2_iq_remove(session->suspended, stream_id);
-        if (session->done) {
-            session->done(session, stream->r, complete, touched);
-        }
-    }
-    
+    apr_status_t status;
+    int have_written = 0, have_read = 0;
+
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                  "h2_proxy_session(%s): process", session->id);
+           
+run_loop:
     switch (session->state) {
+        case H2_PROXYS_ST_INIT:
+            status = session_start(session);
+            if (status == APR_SUCCESS) {
+                dispatch_event(session, H2_PROXYS_EV_INIT, 0, NULL);
+                goto run_loop;
+            }
+            else {
+                dispatch_event(session, H2_PROXYS_EV_CONN_ERROR, status, NULL);
+            }
+            break;
+            
+        case H2_PROXYS_ST_BUSY:
+        case H2_PROXYS_ST_LOCAL_SHUTDOWN:
+        case H2_PROXYS_ST_REMOTE_SHUTDOWN:
+            while (nghttp2_session_want_write(session->ngh2)) {
+                int rv = nghttp2_session_send(session->ngh2);
+                if (rv < 0 && nghttp2_is_fatal(rv)) {
+                    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
+                                  "h2_proxy_session(%s): write, rv=%d", session->id, rv);
+                    dispatch_event(session, H2_PROXYS_EV_CONN_ERROR, rv, NULL);
+                    break;
+                }
+                have_written = 1;
+            }
+            
+            if (nghttp2_session_want_read(session->ngh2)) {
+                status = h2_proxy_session_read(session, 0, 0);
+                if (status == APR_SUCCESS) {
+                    have_read = 1;
+                }
+            }
+            
+            if (!have_written && !have_read 
+                && !nghttp2_session_want_write(session->ngh2)) {
+                dispatch_event(session, H2_PROXYS_EV_NO_IO, 0, NULL);
+                goto run_loop;
+            }
+            break;
+            
+        case H2_PROXYS_ST_WAIT:
+            if (check_suspended(session) == APR_EAGAIN) {
+                /* no stream has become resumed. Do a blocking read with
+                 * ever increasing timeouts... */
+                if (session->wait_timeout < 25) {
+                    session->wait_timeout = 25;
+                }
+                else {
+                    session->wait_timeout = H2MIN(apr_time_from_msec(100), 
+                                                  2*session->wait_timeout);
+                }
+                
+                status = h2_proxy_session_read(session, 1, session->wait_timeout);
+                ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, session->c, 
+                              APLOGNO(03365)
+                              "h2_proxy_session(%s): WAIT read, timeout=%fms", 
+                              session->id, (float)session->wait_timeout/1000.0);
+                if (status == APR_SUCCESS) {
+                    have_read = 1;
+                    dispatch_event(session, H2_PROXYS_EV_DATA_READ, 0, NULL);
+                }
+                else if (APR_STATUS_IS_TIMEUP(status)
+                    || APR_STATUS_IS_EAGAIN(status)) {
+                    /* go back to checking all inputs again */
+                    transit(session, "wait cycle", H2_PROXYS_ST_BUSY);
+                }
+            }
+            break;
+            
+        case H2_PROXYS_ST_IDLE:
+            break;
+
+        case H2_PROXYS_ST_DONE: /* done, session terminated */
+            return APR_EOF;
+            
         default:
-            /* nop */
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_EGENERAL, session->c,
+                          APLOGNO(03346)"h2_proxy_session(%s): unknown state %d", 
+                          session->id, session->state);
+            dispatch_event(session, H2_PROXYS_EV_PROTO_ERROR, 0, NULL);
             break;
     }
+
+
+    if (have_read || have_written) {
+        session->wait_timeout = 0;
+    }
+    
+    if (!nghttp2_session_want_read(session->ngh2)
+        && !nghttp2_session_want_write(session->ngh2)) {
+        dispatch_event(session, H2_PROXYS_EV_NGH2_DONE, 0, NULL);
+    }
+    
+    return APR_SUCCESS; /* needs to be called again */
 }

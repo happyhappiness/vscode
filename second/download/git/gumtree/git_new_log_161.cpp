@@ -1,1 +1,1 @@
-fprintf(o->file, "%s", ecbdata->header->buf);
+die("deleting '%s' is not allowed", argv[0]);

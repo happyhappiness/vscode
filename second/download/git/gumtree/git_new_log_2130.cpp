@@ -1,1 +1,1 @@
-die("socket directory must be an absolute path");
+warning("Illegal crlf_action %d\n", (int)crlf_action);

@@ -1,1 +1,1 @@
-printf("would prune %s", message);
+die("BUG: verify called with old_sha1 set to NULL");

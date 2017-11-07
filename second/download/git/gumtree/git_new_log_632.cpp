@@ -1,2 +1,2 @@
-die(_("Pathspec '%s' is in submodule '%.*s'"),
-			    item->original, ce_len, ce->name);
+die(_("Invalid pathspec magic '%.*s' in '%s'"),
+			    (int) len, pos, elem);

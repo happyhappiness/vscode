@@ -73,6 +73,7 @@ def analyze_repos(repos_name, postfix=''):
     @ return nothing \n
     @ involve fetch file from given repos and build two sort of records(log and call)\n
     """
+    print 'input repos: %s' %(repos_name),
     # if no given repos name, create info for first or last repos
     if repos_name == my_constant.FIRST_REPOS:
         versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
@@ -83,6 +84,7 @@ def analyze_repos(repos_name, postfix=''):
         versions = commands.getoutput('ls ' + my_constant.REPOS_DIR)
         versions = versions.split('\n')
         repos_name = max(versions, key=my_util.get_version_number)
+    print 'analyzing repos: %s' %(repos_name)
 
     srcml = SrcmlApi()
     # fetch file name

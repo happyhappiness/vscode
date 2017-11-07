@@ -1,1 +1,1 @@
-error_errno("cannot create pipe");
+error_errno("cannot spawn %s", cmd->argv[0]);

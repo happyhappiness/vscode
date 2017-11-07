@@ -1,1 +1,1 @@
-die("a %s revision is needed", term_bad);
+printf("Bisecting: a merge base must be tested\n");

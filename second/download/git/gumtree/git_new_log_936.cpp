@@ -1,1 +1,1 @@
-printf(_("Applied autostash.\n"));
+error("empty patch: '%s'", patch);

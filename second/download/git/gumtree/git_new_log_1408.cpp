@@ -1,1 +1,1 @@
-append_msgs_to_imap(&server, &all_msgs, total);
+warning("--use-curl not supported in this build");

@@ -1,2 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, session->c, 
-                      "h2_proxy_session(%s): read from conn", session->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03364)
+                      "h2_proxy_sesssion(%s): stream(%d) closed "
+                      "(complete=%d, touched=%d)", 
+                      session->id, stream_id, complete, touched);

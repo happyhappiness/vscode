@@ -1,1 +1,1 @@
-error("Could not write flush packet");
+error("Could not write requested version");

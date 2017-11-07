@@ -1,1 +1,1 @@
-die("no name was given and auto-detection is disabled");
+error("missing value for '%s'", var);

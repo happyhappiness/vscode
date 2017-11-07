@@ -1,1 +1,1 @@
-fprintf(opt->diffopt.file, "In-Reply-To: <%s>\n", opt->ref_message_ids->items[n-1].string);
+fprintf(opt->diffopt.file, "From %s Mon Sep 17 00:00:00 2001\n", name);

@@ -1,2 +1,2 @@
-error(_("stored pre-cherry-pick HEAD file '%s' is corrupt"),
-			git_path_head_file());
+error(_("cannot read %s: %s"), git_path_head_file(),
+		      ferror(f) ?  strerror(errno) : _("unexpected end of file"));

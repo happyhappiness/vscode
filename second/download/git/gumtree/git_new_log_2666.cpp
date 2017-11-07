@@ -1,1 +1,1 @@
-strbuf_addf(err, "couldn't set '%s'", lock->ref_name);
+error("%s does not point to a valid object!", refname);

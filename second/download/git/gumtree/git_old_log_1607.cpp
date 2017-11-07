@@ -1,1 +1,2 @@
-error("unable to create directory for %s", ref_file);
+error("unable to resolve reference %s: %s",
+			orig_refname, strerror(errno));

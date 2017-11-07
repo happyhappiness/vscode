@@ -1,81 +1,39 @@
-apr_status_t h2_filter_request_in(ap_filter_t* f,
-                                  apr_bucket_brigade* bb,
-                                  ap_input_mode_t mode,
-                                  apr_read_type_e block,
-                                  apr_off_t readbytes)
+static int h2_h2_post_read_req(request_rec *r)
 {
-    h2_task *task = f->ctx;
-    request_rec *r = f->r;
-    apr_status_t status = APR_SUCCESS;
-    apr_bucket *b, *next;
-
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, f->r,
-                  "h2_task(%s): request filter, exp=%d", task->id, r->expecting_100);
-    if (!task->request->chunked) {
-        status = ap_get_brigade(f->next, bb, mode, block, readbytes);
-        /* pipe data through, just take care of trailers */
-        for (b = APR_BRIGADE_FIRST(bb); 
-             b != APR_BRIGADE_SENTINEL(bb); b = next) {
-            next = APR_BUCKET_NEXT(b);
-            if (H2_BUCKET_IS_HEADERS(b)) {
-                h2_headers *headers = h2_bucket_headers_get(b);
-                ap_assert(headers);
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r,
-                              "h2_task(%s): receiving trailers", task->id);
-                r->trailers_in = apr_table_clone(r->pool, headers->headers);
-                APR_BUCKET_REMOVE(b);
-                apr_bucket_destroy(b);
-                ap_remove_input_filter(f);
-                break;
+    /* slave connection? */
+    if (r->connection->master) {
+        h2_ctx *ctx = h2_ctx_rget(r);
+        struct h2_task *task = h2_ctx_get_task(ctx);
+        /* This hook will get called twice on internal redirects. Take care
+         * that we manipulate filters only once. */
+        if (task && !task->filters_set) {
+            ap_filter_t *f;
+            
+            /* setup the correct output filters to process the response
+             * on the proper mod_http2 way. */
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE3, 0, r, "adding task output filter");
+            if (task->ser_headers) {
+                ap_add_output_filter("H1_TO_H2_RESP", task, r, r->connection);
             }
-        }
-        return status;
-    }
-
-    /* Things are more complicated. The standard HTTP input filter, which
-     * does a lot what we do not want to duplicate, also cares about chunked
-     * transfer encoding and trailers.
-     * We need to simulate chunked encoding for it to be happy.
-     */
-    if ((status = read_and_chunk(f, task, block)) != APR_SUCCESS) {
-        return status;
-    }
-    
-    if (mode == AP_MODE_EXHAUSTIVE) {
-        /* return all we have */
-        APR_BRIGADE_CONCAT(bb, task->input.bbchunk);
-    }
-    else if (mode == AP_MODE_READBYTES) {
-        status = h2_brigade_concat_length(bb, task->input.bbchunk, readbytes);
-    }
-    else if (mode == AP_MODE_SPECULATIVE) {
-        status = h2_brigade_copy_length(bb, task->input.bbchunk, readbytes);
-    }
-    else if (mode == AP_MODE_GETLINE) {
-        /* we are reading a single LF line, e.g. the HTTP headers. 
-         * this has the nasty side effect to split the bucket, even
-         * though it ends with CRLF and creates a 0 length bucket */
-        status = apr_brigade_split_line(bb, task->input.bbchunk, block, 
-                                        HUGE_STRING_LEN);
-        if (APLOGctrace1(f->c)) {
-            char buffer[1024];
-            apr_size_t len = sizeof(buffer)-1;
-            apr_brigade_flatten(bb, buffer, &len);
-            buffer[len] = 0;
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, f->c,
-                          "h2_task(%s): getline: %s",
-                          task->id, buffer);
+            else {
+                /* replace the core http filter that formats response headers
+                 * in HTTP/1 with our own that collects status and headers */
+                ap_remove_output_filter_byhandle(r->output_filters, "HTTP_HEADER");
+                ap_add_output_filter("H2_RESPONSE", task, r, r->connection);
+            }
+            
+            /* trailers processing. Incoming trailers are added to this
+             * request via our h2 input filter, outgoing trailers
+             * in a special h2 out filter. */
+            for (f = r->input_filters; f; f = f->next) {
+                if (!strcmp("H2_TO_H1", f->frec->name)) {
+                    f->r = r;
+                    break;
+                }
+            }
+            ap_add_output_filter("H2_TRAILERS", task, r, r->connection);
+            task->filters_set = 1;
         }
     }
-    else {
-        /* Hmm, well. There is mode AP_MODE_EATCRLF, but we chose not
-         * to support it. Seems to work. */
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOTIMPL, f->c,
-                      APLOGNO(02942) 
-                      "h2_task, unsupported READ mode %d", mode);
-        status = APR_ENOTIMPL;
-    }
-    
-    h2_util_bb_log(f->c, task->stream_id, APLOG_TRACE2, "forwarding input", bb);
-    return status;
+    return DECLINED;
 }

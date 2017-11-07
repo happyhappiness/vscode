@@ -1,5 +1,5 @@
-ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
-                         ap_server_conf, APLOGNO(02325)
-                         "A resource shortage or other unrecoverable failure "
-                         "was encountered before any child process initialized "
-                         "successfully... httpd is exiting!");
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00027)
+                                  "No authentication done but request not "
+                                  "allowed without authentication for %s. "
+                                  "Authentication not configured?",
+                                  r->uri);

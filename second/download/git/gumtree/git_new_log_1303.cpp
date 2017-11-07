@@ -1,1 +1,1 @@
-die("BUG: fdopen_lock_file() called for unlocked object");
+die("BUG: fdopen_lock_file() called twice for file '%s'", lk->filename.buf);

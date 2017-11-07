@@ -1,1 +1,1 @@
-rp_error("failed to delete %s", name);
+printf(_("remove %s? "), qname);

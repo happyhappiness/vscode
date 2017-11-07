@@ -1,1 +1,1 @@
-printf("prune %s", message);
+printf("would prune %s", message);

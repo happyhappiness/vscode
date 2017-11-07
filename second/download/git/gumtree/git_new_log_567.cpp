@@ -1,1 +1,1 @@
-die(_("--stdin requires a git repository"));
+printf("previous %s ", oid_to_hex(&prev->commit->object.oid));

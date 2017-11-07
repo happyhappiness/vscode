@@ -1,1 +1,1 @@
-die("%s not a valid tag", sha1_to_hex(sha1));
+die("file %s has only %lu lines", path, lno);

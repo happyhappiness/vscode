@@ -1,12 +1,9 @@
-void show_object_with_name(FILE *out, struct object *obj,
-			   const struct name_path *path, const char *component)
+void show_object_with_name(FILE *out, struct object *obj, const char *name)
 {
-	struct name_path leaf;
-	leaf.up = (struct name_path *)path;
-	leaf.elem = component;
-	leaf.elem_len = strlen(component);
+	const char *p;
 
-	fprintf(out, "%s ", oid_to_hex(&obj->oid));
-	show_path_truncated(out, &leaf);
+	fprintf(out, "%s ", sha1_to_hex(obj->sha1));
+	for (p = name; *p && *p != '\n'; p++)
+		fputc(*p, out);
 	fputc('\n', out);
 }

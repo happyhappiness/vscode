@@ -1,1 +1,1 @@
-fprintf(stderr, "done\n");
+fprintf(stderr, "giving up\n");

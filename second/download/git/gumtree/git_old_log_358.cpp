@@ -1,1 +1,1 @@
-warning(rename_limit_warning);
+warning(degrade_cc_to_c_warning);

@@ -1,1 +1,1 @@
-error(_("cannot cherry-pick during a revert."));
+error(_("unusable instruction sheet: '%s'"), todo_file);

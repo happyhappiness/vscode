@@ -1,2 +1,3 @@
-warning(_("not copying templates from '%s': %s"),
-			  template_dir, err.buf);
+error(_("Cannot delete branch '%s' "
+					"checked out at '%s'"),
+				      bname.buf, worktree);

@@ -1,1 +1,1 @@
-error(_("object %s is not a blob"), sha1_to_hex(sha1));
+die("ren1_dst != ren2_dst");

@@ -1,2 +1,2 @@
-ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, diary->entries->pool,
-                  "push_diary_append: %"APR_UINT64_T_HEX_FMT, ne->hash);
+ap_log_cerror(APLOG_MARK, GCSLOG_LEVEL, 0, session->c,
+                              "push_diary_update: already there PUSH %s", push->req->path);

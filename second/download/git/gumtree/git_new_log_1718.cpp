@@ -1,1 +1,1 @@
-die("Unknown fsck message type: '%s'", str);
+die("Invalid SHA-1: %s", buffer);

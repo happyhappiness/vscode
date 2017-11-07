@@ -1,1 +1,1 @@
-die(_("git %s: failed to refresh the index"), action_name(opts));
+die(_("git %s: failed to read the index"), action_name(opts));

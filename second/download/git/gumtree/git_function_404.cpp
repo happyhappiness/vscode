@@ -1,31 +1,38 @@
-static void get_info_refs(struct strbuf *hdr, char *arg)
+static void execv_dashed_external(const char **argv)
 {
-	const char *service_name = get_parameter("service");
-	struct strbuf buf = STRBUF_INIT;
+	struct strbuf cmd = STRBUF_INIT;
+	const char *tmp;
+	int status;
 
-	hdr_nocache(hdr);
+	if (get_super_prefix())
+		die("%s doesn't support --super-prefix", argv[0]);
 
-	if (service_name) {
-		const char *argv[] = {NULL /* service name */,
-			"--stateless-rpc", "--advertise-refs",
-			".", NULL};
-		struct rpc_service *svc = select_service(hdr, service_name);
+	if (use_pager == -1)
+		use_pager = check_pager_config(argv[0]);
+	commit_pager_choice();
 
-		strbuf_addf(&buf, "application/x-git-%s-advertisement",
-			svc->name);
-		hdr_str(hdr, content_type, buf.buf);
-		end_headers(hdr);
+	strbuf_addf(&cmd, "git-%s", argv[0]);
 
-		packet_write(1, "# service=git-%s\n", svc->name);
-		packet_flush(1);
+	/*
+	 * argv[0] must be the git command, but the argv array
+	 * belongs to the caller, and may be reused in
+	 * subsequent loop iterations. Save argv[0] and
+	 * restore it on error.
+	 */
+	tmp = argv[0];
+	argv[0] = cmd.buf;
 
-		argv[0] = svc->name;
-		run_service(argv, 0);
+	trace_argv_printf(argv, "trace: exec:");
 
-	} else {
-		select_getanyfile(hdr);
-		for_each_namespaced_ref(show_text_ref, &buf);
-		send_strbuf(hdr, "text/plain", &buf);
-	}
-	strbuf_release(&buf);
+	/*
+	 * if we fail because the command is not found, it is
+	 * OK to return. Otherwise, we just pass along the status code.
+	 */
+	status = run_command_v_opt(argv, RUN_SILENT_EXEC_FAILURE | RUN_CLEAN_ON_EXIT);
+	if (status >= 0 || errno != ENOENT)
+		exit(status);
+
+	argv[0] = tmp;
+
+	strbuf_release(&cmd);
 }

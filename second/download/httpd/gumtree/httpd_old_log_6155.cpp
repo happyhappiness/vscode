@@ -1,2 +1,7 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                  "h2_stream(%ld-%d): done", m->c->id, stream->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
+                      "->03198: h2_stream(%s): %s %s %s"
+                      "[orph=%d/started=%d/done=%d/frozen=%d]", 
+                      task->id, task->request->method, 
+                      task->request->authority, task->request->path,
+                      (stream? 0 : 1), task->worker_started, 
+                      task->worker_done, task->frozen);

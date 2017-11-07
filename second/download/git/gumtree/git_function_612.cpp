@@ -1,488 +1,316 @@
-int cmd_merge(int argc, const char **argv, const char *prefix)
+int cmd_grep(int argc, const char **argv, const char *prefix)
 {
-	unsigned char result_tree[20];
-	unsigned char stash[20];
-	unsigned char head_sha1[20];
-	struct commit *head_commit;
-	struct strbuf buf = STRBUF_INIT;
-	const char *head_arg;
-	int i, ret = 0, head_subsumed;
-	int best_cnt = -1, merge_was_ok = 0, automerge_was_ok = 0;
-	struct commit_list *common = NULL;
-	const char *best_strategy = NULL, *wt_strategy = NULL;
-	struct commit_list *remoteheads, *p;
-	void *branch_to_free;
-	int orig_argc = argc;
+	int hit = 0;
+	int cached = 0, untracked = 0, opt_exclude = -1;
+	int seen_dashdash = 0;
+	int external_grep_allowed__ignored;
+	const char *show_in_pager = NULL, *default_pager = "dummy";
+	struct grep_opt opt;
+	struct object_array list = OBJECT_ARRAY_INIT;
+	struct pathspec pathspec;
+	struct string_list path_list = STRING_LIST_INIT_NODUP;
+	int i;
+	int dummy;
+	int use_index = 1;
+	int pattern_type_arg = GREP_PATTERN_TYPE_UNSPECIFIED;
 
-	if (argc == 2 && !strcmp(argv[1], "-h"))
-		usage_with_options(builtin_merge_usage, builtin_merge_options);
+	struct option options[] = {
+		OPT_BOOL(0, "cached", &cached,
+			N_("search in index instead of in the work tree")),
+		OPT_NEGBIT(0, "no-index", &use_index,
+			 N_("find in contents not managed by git"), 1),
+		OPT_BOOL(0, "untracked", &untracked,
+			N_("search in both tracked and untracked files")),
+		OPT_SET_INT(0, "exclude-standard", &opt_exclude,
+			    N_("ignore files specified via '.gitignore'"), 1),
+		OPT_BOOL(0, "recurse-submodules", &recurse_submodules,
+			 N_("recursivley search in each submodule")),
+		OPT_STRING(0, "parent-basename", &parent_basename,
+			   N_("basename"),
+			   N_("prepend parent project's basename to output")),
+		OPT_GROUP(""),
+		OPT_BOOL('v', "invert-match", &opt.invert,
+			N_("show non-matching lines")),
+		OPT_BOOL('i', "ignore-case", &opt.ignore_case,
+			N_("case insensitive matching")),
+		OPT_BOOL('w', "word-regexp", &opt.word_regexp,
+			N_("match patterns only at word boundaries")),
+		OPT_SET_INT('a', "text", &opt.binary,
+			N_("process binary files as text"), GREP_BINARY_TEXT),
+		OPT_SET_INT('I', NULL, &opt.binary,
+			N_("don't match patterns in binary files"),
+			GREP_BINARY_NOMATCH),
+		OPT_BOOL(0, "textconv", &opt.allow_textconv,
+			 N_("process binary files with textconv filters")),
+		{ OPTION_INTEGER, 0, "max-depth", &opt.max_depth, N_("depth"),
+			N_("descend at most <depth> levels"), PARSE_OPT_NONEG,
+			NULL, 1 },
+		OPT_GROUP(""),
+		OPT_SET_INT('E', "extended-regexp", &pattern_type_arg,
+			    N_("use extended POSIX regular expressions"),
+			    GREP_PATTERN_TYPE_ERE),
+		OPT_SET_INT('G', "basic-regexp", &pattern_type_arg,
+			    N_("use basic POSIX regular expressions (default)"),
+			    GREP_PATTERN_TYPE_BRE),
+		OPT_SET_INT('F', "fixed-strings", &pattern_type_arg,
+			    N_("interpret patterns as fixed strings"),
+			    GREP_PATTERN_TYPE_FIXED),
+		OPT_SET_INT('P', "perl-regexp", &pattern_type_arg,
+			    N_("use Perl-compatible regular expressions"),
+			    GREP_PATTERN_TYPE_PCRE),
+		OPT_GROUP(""),
+		OPT_BOOL('n', "line-number", &opt.linenum, N_("show line numbers")),
+		OPT_NEGBIT('h', NULL, &opt.pathname, N_("don't show filenames"), 1),
+		OPT_BIT('H', NULL, &opt.pathname, N_("show filenames"), 1),
+		OPT_NEGBIT(0, "full-name", &opt.relative,
+			N_("show filenames relative to top directory"), 1),
+		OPT_BOOL('l', "files-with-matches", &opt.name_only,
+			N_("show only filenames instead of matching lines")),
+		OPT_BOOL(0, "name-only", &opt.name_only,
+			N_("synonym for --files-with-matches")),
+		OPT_BOOL('L', "files-without-match",
+			&opt.unmatch_name_only,
+			N_("show only the names of files without match")),
+		OPT_BOOL('z', "null", &opt.null_following_name,
+			N_("print NUL after filenames")),
+		OPT_BOOL('c', "count", &opt.count,
+			N_("show the number of matches instead of matching lines")),
+		OPT__COLOR(&opt.color, N_("highlight matches")),
+		OPT_BOOL(0, "break", &opt.file_break,
+			N_("print empty line between matches from different files")),
+		OPT_BOOL(0, "heading", &opt.heading,
+			N_("show filename only once above matches from same file")),
+		OPT_GROUP(""),
+		OPT_CALLBACK('C', "context", &opt, N_("n"),
+			N_("show <n> context lines before and after matches"),
+			context_callback),
+		OPT_INTEGER('B', "before-context", &opt.pre_context,
+			N_("show <n> context lines before matches")),
+		OPT_INTEGER('A', "after-context", &opt.post_context,
+			N_("show <n> context lines after matches")),
+		OPT_INTEGER(0, "threads", &num_threads,
+			N_("use <n> worker threads")),
+		OPT_NUMBER_CALLBACK(&opt, N_("shortcut for -C NUM"),
+			context_callback),
+		OPT_BOOL('p', "show-function", &opt.funcname,
+			N_("show a line with the function name before matches")),
+		OPT_BOOL('W', "function-context", &opt.funcbody,
+			N_("show the surrounding function")),
+		OPT_GROUP(""),
+		OPT_CALLBACK('f', NULL, &opt, N_("file"),
+			N_("read patterns from file"), file_callback),
+		{ OPTION_CALLBACK, 'e', NULL, &opt, N_("pattern"),
+			N_("match <pattern>"), PARSE_OPT_NONEG, pattern_callback },
+		{ OPTION_CALLBACK, 0, "and", &opt, NULL,
+		  N_("combine patterns specified with -e"),
+		  PARSE_OPT_NOARG | PARSE_OPT_NONEG, and_callback },
+		OPT_BOOL(0, "or", &dummy, ""),
+		{ OPTION_CALLBACK, 0, "not", &opt, NULL, "",
+		  PARSE_OPT_NOARG | PARSE_OPT_NONEG, not_callback },
+		{ OPTION_CALLBACK, '(', NULL, &opt, NULL, "",
+		  PARSE_OPT_NOARG | PARSE_OPT_NONEG | PARSE_OPT_NODASH,
+		  open_callback },
+		{ OPTION_CALLBACK, ')', NULL, &opt, NULL, "",
+		  PARSE_OPT_NOARG | PARSE_OPT_NONEG | PARSE_OPT_NODASH,
+		  close_callback },
+		OPT__QUIET(&opt.status_only,
+			   N_("indicate hit with exit status without output")),
+		OPT_BOOL(0, "all-match", &opt.all_match,
+			N_("show only matches from files that match all patterns")),
+		{ OPTION_SET_INT, 0, "debug", &opt.debug, NULL,
+		  N_("show parse tree for grep expression"),
+		  PARSE_OPT_NOARG | PARSE_OPT_HIDDEN, NULL, 1 },
+		OPT_GROUP(""),
+		{ OPTION_STRING, 'O', "open-files-in-pager", &show_in_pager,
+			N_("pager"), N_("show matching files in the pager"),
+			PARSE_OPT_OPTARG, NULL, (intptr_t)default_pager },
+		OPT_BOOL(0, "ext-grep", &external_grep_allowed__ignored,
+			 N_("allow calling of grep(1) (ignored by this build)")),
+		OPT_END()
+	};
 
-	/*
-	 * Check if we are _not_ on a detached HEAD, i.e. if there is a
-	 * current branch.
-	 */
-	branch = branch_to_free = resolve_refdup("HEAD", 0, head_sha1, NULL);
-	if (branch && starts_with(branch, "refs/heads/"))
-		branch += 11;
-	if (!branch || is_null_sha1(head_sha1))
-		head_commit = NULL;
-	else
-		head_commit = lookup_commit_or_die(head_sha1, "HEAD");
-
-	init_diff_ui_defaults();
-	git_config(git_merge_config, NULL);
-
-	if (branch_mergeoptions)
-		parse_branch_merge_options(branch_mergeoptions);
-	argc = parse_options(argc, argv, prefix, builtin_merge_options,
-			builtin_merge_usage, 0);
-	if (shortlog_len < 0)
-		shortlog_len = (merge_log_config > 0) ? merge_log_config : 0;
-
-	if (verbosity < 0 && show_progress == -1)
-		show_progress = 0;
-
-	if (abort_current_merge) {
-		int nargc = 2;
-		const char *nargv[] = {"reset", "--merge", NULL};
-
-		if (orig_argc != 2)
-			usage_msg_opt(_("--abort expects no arguments"),
-			      builtin_merge_usage, builtin_merge_options);
-
-		if (!file_exists(git_path_merge_head()))
-			die(_("There is no merge to abort (MERGE_HEAD missing)."));
-
-		/* Invoke 'git reset --merge' */
-		ret = cmd_reset(nargc, nargv, prefix);
-		goto done;
-	}
-
-	if (continue_current_merge) {
-		int nargc = 1;
-		const char *nargv[] = {"commit", NULL};
-
-		if (orig_argc != 2)
-			usage_msg_opt(_("--continue expects no arguments"),
-			      builtin_merge_usage, builtin_merge_options);
-
-		if (!file_exists(git_path_merge_head()))
-			die(_("There is no merge in progress (MERGE_HEAD missing)."));
-
-		/* Invoke 'git commit' */
-		ret = cmd_commit(nargc, nargv, prefix);
-		goto done;
-	}
-
-	if (read_cache_unmerged())
-		die_resolve_conflict("merge");
-
-	if (file_exists(git_path_merge_head())) {
-		/*
-		 * There is no unmerged entry, don't advise 'git
-		 * add/rm <file>', just 'git commit'.
-		 */
-		if (advice_resolve_conflict)
-			die(_("You have not concluded your merge (MERGE_HEAD exists).\n"
-				  "Please, commit your changes before you merge."));
-		else
-			die(_("You have not concluded your merge (MERGE_HEAD exists)."));
-	}
-	if (file_exists(git_path_cherry_pick_head())) {
-		if (advice_resolve_conflict)
-			die(_("You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists).\n"
-			    "Please, commit your changes before you merge."));
-		else
-			die(_("You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists)."));
-	}
-	resolve_undo_clear();
-
-	if (verbosity < 0)
-		show_diffstat = 0;
-
-	if (squash) {
-		if (fast_forward == FF_NO)
-			die(_("You cannot combine --squash with --no-ff."));
-		option_commit = 0;
-	}
-
-	if (!argc) {
-		if (default_to_upstream)
-			argc = setup_with_upstream(&argv);
-		else
-			die(_("No commit specified and merge.defaultToUpstream not set."));
-	} else if (argc == 1 && !strcmp(argv[0], "-")) {
-		argv[0] = "@{-1}";
-	}
-
-	if (!argc)
-		usage_with_options(builtin_merge_usage,
-			builtin_merge_options);
-
-	if (!head_commit) {
-		/*
-		 * If the merged head is a valid one there is no reason
-		 * to forbid "git merge" into a branch yet to be born.
-		 * We do the same for "git pull".
-		 */
-		unsigned char *remote_head_sha1;
-		if (squash)
-			die(_("Squash commit into empty head not supported yet"));
-		if (fast_forward == FF_NO)
-			die(_("Non-fast-forward commit does not make sense into "
-			    "an empty head"));
-		remoteheads = collect_parents(head_commit, &head_subsumed,
-					      argc, argv, NULL);
-		if (!remoteheads)
-			die(_("%s - not something we can merge"), argv[0]);
-		if (remoteheads->next)
-			die(_("Can merge only exactly one commit into empty head"));
-		remote_head_sha1 = remoteheads->item->object.oid.hash;
-		read_empty(remote_head_sha1, 0);
-		update_ref("initial pull", "HEAD", remote_head_sha1,
-			   NULL, 0, UPDATE_REFS_DIE_ON_ERR);
-		goto done;
-	}
+	init_grep_defaults();
+	git_config(grep_cmd_config, NULL);
+	grep_init(&opt, prefix);
+	super_prefix = get_super_prefix();
 
 	/*
-	 * This could be traditional "merge <msg> HEAD <commit>..."  and
-	 * the way we can tell it is to see if the second token is HEAD,
-	 * but some people might have misused the interface and used a
-	 * commit-ish that is the same as HEAD there instead.
-	 * Traditional format never would have "-m" so it is an
-	 * additional safety measure to check for it.
+	 * If there is no -- then the paths must exist in the working
+	 * tree.  If there is no explicit pattern specified with -e or
+	 * -f, we take the first unrecognized non option to be the
+	 * pattern, but then what follows it must be zero or more
+	 * valid refs up to the -- (if exists), and then existing
+	 * paths.  If there is an explicit pattern, then the first
+	 * unrecognized non option is the beginning of the refs list
+	 * that continues up to the -- (if exists), and then paths.
 	 */
-	if (!have_message &&
-	    is_old_style_invocation(argc, argv, head_commit->object.oid.hash)) {
-		warning("old-style 'git merge <msg> HEAD <commit>' is deprecated.");
-		strbuf_addstr(&merge_msg, argv[0]);
-		head_arg = argv[1];
-		argv += 2;
-		argc -= 2;
-		remoteheads = collect_parents(head_commit, &head_subsumed,
-					      argc, argv, NULL);
-	} else {
-		/* We are invoked directly as the first-class UI. */
-		head_arg = "HEAD";
+	argc = parse_options(argc, argv, prefix, options, grep_usage,
+			     PARSE_OPT_KEEP_DASHDASH |
+			     PARSE_OPT_STOP_AT_NON_OPTION);
+	grep_commit_pattern_type(pattern_type_arg, &opt);
 
-		/*
-		 * All the rest are the commits being merged; prepare
-		 * the standard merge summary message to be appended
-		 * to the given message.
-		 */
-		remoteheads = collect_parents(head_commit, &head_subsumed,
-					      argc, argv, &merge_msg);
-	}
-
-	if (!head_commit || !argc)
-		usage_with_options(builtin_merge_usage,
-			builtin_merge_options);
-
-	if (verify_signatures) {
-		for (p = remoteheads; p; p = p->next) {
-			struct commit *commit = p->item;
-			char hex[GIT_SHA1_HEXSZ + 1];
-			struct signature_check signature_check;
-			memset(&signature_check, 0, sizeof(signature_check));
-
-			check_commit_signature(commit, &signature_check);
-
-			find_unique_abbrev_r(hex, commit->object.oid.hash, DEFAULT_ABBREV);
-			switch (signature_check.result) {
-			case 'G':
-				break;
-			case 'U':
-				die(_("Commit %s has an untrusted GPG signature, "
-				      "allegedly by %s."), hex, signature_check.signer);
-			case 'B':
-				die(_("Commit %s has a bad GPG signature "
-				      "allegedly by %s."), hex, signature_check.signer);
-			default: /* 'N' */
-				die(_("Commit %s does not have a GPG signature."), hex);
-			}
-			if (verbosity >= 0 && signature_check.result == 'G')
-				printf(_("Commit %s has a good GPG signature by %s\n"),
-				       hex, signature_check.signer);
-
-			signature_check_clear(&signature_check);
-		}
-	}
-
-	strbuf_addstr(&buf, "merge");
-	for (p = remoteheads; p; p = p->next)
-		strbuf_addf(&buf, " %s", merge_remote_util(p->item)->name);
-	setenv("GIT_REFLOG_ACTION", buf.buf, 0);
-	strbuf_reset(&buf);
-
-	for (p = remoteheads; p; p = p->next) {
-		struct commit *commit = p->item;
-		strbuf_addf(&buf, "GITHEAD_%s",
-			    oid_to_hex(&commit->object.oid));
-		setenv(buf.buf, merge_remote_util(commit)->name, 1);
-		strbuf_reset(&buf);
-		if (fast_forward != FF_ONLY &&
-		    merge_remote_util(commit) &&
-		    merge_remote_util(commit)->obj &&
-		    merge_remote_util(commit)->obj->type == OBJ_TAG)
-			fast_forward = FF_NO;
-	}
-
-	if (option_edit < 0)
-		option_edit = default_edit_option();
-
-	if (!use_strategies) {
-		if (!remoteheads)
-			; /* already up-to-date */
-		else if (!remoteheads->next)
-			add_strategies(pull_twohead, DEFAULT_TWOHEAD);
+	if (use_index && !startup_info->have_repository) {
+		int fallback = 0;
+		git_config_get_bool("grep.fallbacktonoindex", &fallback);
+		if (fallback)
+			use_index = 0;
 		else
-			add_strategies(pull_octopus, DEFAULT_OCTOPUS);
+			/* die the same way as if we did it at the beginning */
+			setup_git_directory();
 	}
-
-	for (i = 0; i < use_strategies_nr; i++) {
-		if (use_strategies[i]->attr & NO_FAST_FORWARD)
-			fast_forward = FF_NO;
-		if (use_strategies[i]->attr & NO_TRIVIAL)
-			allow_trivial = 0;
-	}
-
-	if (!remoteheads)
-		; /* already up-to-date */
-	else if (!remoteheads->next)
-		common = get_merge_bases(head_commit, remoteheads->item);
-	else {
-		struct commit_list *list = remoteheads;
-		commit_list_insert(head_commit, &list);
-		common = get_octopus_merge_bases(list);
-		free(list);
-	}
-
-	update_ref("updating ORIG_HEAD", "ORIG_HEAD", head_commit->object.oid.hash,
-		   NULL, 0, UPDATE_REFS_DIE_ON_ERR);
-
-	if (remoteheads && !common) {
-		/* No common ancestors found. */
-		if (!allow_unrelated_histories)
-			die(_("refusing to merge unrelated histories"));
-		/* otherwise, we need a real merge. */
-	} else if (!remoteheads ||
-		 (!remoteheads->next && !common->next &&
-		  common->item == remoteheads->item)) {
-		/*
-		 * If head can reach all the merge then we are up to date.
-		 * but first the most common case of merging one remote.
-		 */
-		finish_up_to_date(_("Already up-to-date."));
-		goto done;
-	} else if (fast_forward != FF_NO && !remoteheads->next &&
-			!common->next &&
-			!oidcmp(&common->item->object.oid, &head_commit->object.oid)) {
-		/* Again the most common case of merging one remote. */
-		struct strbuf msg = STRBUF_INIT;
-		struct commit *commit;
-
-		if (verbosity >= 0) {
-			printf(_("Updating %s..%s\n"),
-			       find_unique_abbrev(head_commit->object.oid.hash,
-						  DEFAULT_ABBREV),
-			       find_unique_abbrev(remoteheads->item->object.oid.hash,
-						  DEFAULT_ABBREV));
-		}
-		strbuf_addstr(&msg, "Fast-forward");
-		if (have_message)
-			strbuf_addstr(&msg,
-				" (no commit created; -m option ignored)");
-		commit = remoteheads->item;
-		if (!commit) {
-			ret = 1;
-			goto done;
-		}
-
-		if (checkout_fast_forward(head_commit->object.oid.hash,
-					  commit->object.oid.hash,
-					  overwrite_ignore)) {
-			ret = 1;
-			goto done;
-		}
-
-		finish(head_commit, remoteheads, commit->object.oid.hash, msg.buf);
-		drop_save();
-		goto done;
-	} else if (!remoteheads->next && common->next)
-		;
-		/*
-		 * We are not doing octopus and not fast-forward.  Need
-		 * a real merge.
-		 */
-	else if (!remoteheads->next && !common->next && option_commit) {
-		/*
-		 * We are not doing octopus, not fast-forward, and have
-		 * only one common.
-		 */
-		refresh_cache(REFRESH_QUIET);
-		if (allow_trivial && fast_forward != FF_ONLY) {
-			/* See if it is really trivial. */
-			git_committer_info(IDENT_STRICT);
-			printf(_("Trying really trivial in-index merge...\n"));
-			if (!read_tree_trivial(common->item->object.oid.hash,
-					       head_commit->object.oid.hash,
-					       remoteheads->item->object.oid.hash)) {
-				ret = merge_trivial(head_commit, remoteheads);
-				goto done;
-			}
-			printf(_("Nope.\n"));
-		}
-	} else {
-		/*
-		 * An octopus.  If we can reach all the remote we are up
-		 * to date.
-		 */
-		int up_to_date = 1;
-		struct commit_list *j;
-
-		for (j = remoteheads; j; j = j->next) {
-			struct commit_list *common_one;
-
-			/*
-			 * Here we *have* to calculate the individual
-			 * merge_bases again, otherwise "git merge HEAD^
-			 * HEAD^^" would be missed.
-			 */
-			common_one = get_merge_bases(head_commit, j->item);
-			if (oidcmp(&common_one->item->object.oid, &j->item->object.oid)) {
-				up_to_date = 0;
-				break;
-			}
-		}
-		if (up_to_date) {
-			finish_up_to_date(_("Already up-to-date. Yeeah!"));
-			goto done;
-		}
-	}
-
-	if (fast_forward == FF_ONLY)
-		die(_("Not possible to fast-forward, aborting."));
-
-	/* We are going to make a new commit. */
-	git_committer_info(IDENT_STRICT);
 
 	/*
-	 * At this point, we need a real merge.  No matter what strategy
-	 * we use, it would operate on the index, possibly affecting the
-	 * working tree, and when resolved cleanly, have the desired
-	 * tree in the index -- this means that the index must be in
-	 * sync with the head commit.  The strategies are responsible
-	 * to ensure this.
+	 * skip a -- separator; we know it cannot be
+	 * separating revisions from pathnames if
+	 * we haven't even had any patterns yet
 	 */
-	if (use_strategies_nr == 1 ||
-	    /*
-	     * Stash away the local changes so that we can try more than one.
-	     */
-	    save_state(stash))
-		hashclr(stash);
+	if (argc > 0 && !opt.pattern_list && !strcmp(argv[0], "--")) {
+		argv++;
+		argc--;
+	}
 
-	for (i = 0; i < use_strategies_nr; i++) {
-		int ret;
-		if (i) {
-			printf(_("Rewinding the tree to pristine...\n"));
-			restore_state(head_commit->object.oid.hash, stash);
+	/* First unrecognized non-option token */
+	if (argc > 0 && !opt.pattern_list) {
+		append_grep_pattern(&opt, argv[0], "command line", 0,
+				    GREP_PATTERN);
+		argv++;
+		argc--;
+	}
+
+	if (show_in_pager == default_pager)
+		show_in_pager = git_pager(1);
+	if (show_in_pager) {
+		opt.color = 0;
+		opt.name_only = 1;
+		opt.null_following_name = 1;
+		opt.output_priv = &path_list;
+		opt.output = append_path;
+		string_list_append(&path_list, show_in_pager);
+	}
+
+	if (!opt.pattern_list)
+		die(_("no pattern given."));
+	if (!opt.fixed && opt.ignore_case)
+		opt.regflags |= REG_ICASE;
+
+	compile_grep_patterns(&opt);
+
+	/* Check revs and then paths */
+	for (i = 0; i < argc; i++) {
+		const char *arg = argv[i];
+		unsigned char sha1[20];
+		struct object_context oc;
+		/* Is it a rev? */
+		if (!get_sha1_with_context(arg, 0, sha1, &oc)) {
+			struct object *object = parse_object_or_die(sha1, arg);
+			if (!seen_dashdash)
+				verify_non_filename(prefix, arg);
+			add_object_array_with_path(object, arg, &list, oc.mode, oc.path);
+			continue;
 		}
-		if (use_strategies_nr != 1)
-			printf(_("Trying merge strategy %s...\n"),
-				use_strategies[i]->name);
-		/*
-		 * Remember which strategy left the state in the working
-		 * tree.
-		 */
-		wt_strategy = use_strategies[i]->name;
-
-		ret = try_merge_strategy(use_strategies[i]->name,
-					 common, remoteheads,
-					 head_commit, head_arg);
-		if (!option_commit && !ret) {
-			merge_was_ok = 1;
-			/*
-			 * This is necessary here just to avoid writing
-			 * the tree, but later we will *not* exit with
-			 * status code 1 because merge_was_ok is set.
-			 */
-			ret = 1;
+		if (!strcmp(arg, "--")) {
+			i++;
+			seen_dashdash = 1;
 		}
-
-		if (ret) {
-			/*
-			 * The backend exits with 1 when conflicts are
-			 * left to be resolved, with 2 when it does not
-			 * handle the given merge at all.
-			 */
-			if (ret == 1) {
-				int cnt = evaluate_result();
-
-				if (best_cnt <= 0 || cnt <= best_cnt) {
-					best_strategy = use_strategies[i]->name;
-					best_cnt = cnt;
-				}
-			}
-			if (merge_was_ok)
-				break;
-			else
-				continue;
-		}
-
-		/* Automerge succeeded. */
-		write_tree_trivial(result_tree);
-		automerge_was_ok = 1;
 		break;
 	}
 
-	/*
-	 * If we have a resulting tree, that means the strategy module
-	 * auto resolved the merge cleanly.
-	 */
-	if (automerge_was_ok) {
-		ret = finish_automerge(head_commit, head_subsumed,
-				       common, remoteheads,
-				       result_tree, wt_strategy);
-		goto done;
+#ifndef NO_PTHREADS
+	if (list.nr || cached || show_in_pager)
+		num_threads = 0;
+	else if (num_threads == 0)
+		num_threads = GREP_NUM_THREADS_DEFAULT;
+	else if (num_threads < 0)
+		die(_("invalid number of threads specified (%d)"), num_threads);
+#else
+	num_threads = 0;
+#endif
+
+#ifndef NO_PTHREADS
+	if (num_threads) {
+		if (!(opt.name_only || opt.unmatch_name_only || opt.count)
+		    && (opt.pre_context || opt.post_context ||
+			opt.file_break || opt.funcbody))
+			skip_first_line = 1;
+		start_threads(&opt);
+	}
+#endif
+
+	/* The rest are paths */
+	if (!seen_dashdash) {
+		int j;
+		for (j = i; j < argc; j++)
+			verify_filename(prefix, argv[j], j == i);
 	}
 
-	/*
-	 * Pick the result from the best strategy and have the user fix
-	 * it up.
-	 */
-	if (!best_strategy) {
-		restore_state(head_commit->object.oid.hash, stash);
-		if (use_strategies_nr > 1)
-			fprintf(stderr,
-				_("No merge strategy handled the merge.\n"));
-		else
-			fprintf(stderr, _("Merge with strategy %s failed.\n"),
-				use_strategies[0]->name);
-		ret = 2;
-		goto done;
-	} else if (best_strategy == wt_strategy)
-		; /* We already have its result in the working tree. */
-	else {
-		printf(_("Rewinding the tree to pristine...\n"));
-		restore_state(head_commit->object.oid.hash, stash);
-		printf(_("Using the %s to prepare resolving by hand.\n"),
-			best_strategy);
-		try_merge_strategy(best_strategy, common, remoteheads,
-				   head_commit, head_arg);
+	parse_pathspec(&pathspec, 0,
+		       PATHSPEC_PREFER_CWD |
+		       (opt.max_depth != -1 ? PATHSPEC_MAXDEPTH_VALID : 0),
+		       prefix, argv + i);
+	pathspec.max_depth = opt.max_depth;
+	pathspec.recursive = 1;
+
+	if (recurse_submodules) {
+		gitmodules_config();
+		compile_submodule_options(&opt, &pathspec, cached, untracked,
+					  opt_exclude, use_index,
+					  pattern_type_arg);
 	}
 
-	if (squash)
-		finish(head_commit, remoteheads, NULL, NULL);
-	else
-		write_merge_state(remoteheads);
+	if (show_in_pager && (cached || list.nr))
+		die(_("--open-files-in-pager only works on the worktree"));
 
-	if (merge_was_ok)
-		fprintf(stderr, _("Automatic merge went well; "
-			"stopped before committing as requested\n"));
-	else
-		ret = suggest_conflicts();
+	if (show_in_pager && opt.pattern_list && !opt.pattern_list->next) {
+		const char *pager = path_list.items[0].string;
+		int len = strlen(pager);
 
-done:
-	free(branch_to_free);
-	return ret;
+		if (len > 4 && is_dir_sep(pager[len - 5]))
+			pager += len - 4;
+
+		if (opt.ignore_case && !strcmp("less", pager))
+			string_list_append(&path_list, "-I");
+
+		if (!strcmp("less", pager) || !strcmp("vi", pager)) {
+			struct strbuf buf = STRBUF_INIT;
+			strbuf_addf(&buf, "+/%s%s",
+					strcmp("less", pager) ? "" : "*",
+					opt.pattern_list->pattern);
+			string_list_append(&path_list, buf.buf);
+			strbuf_detach(&buf, NULL);
+		}
+	}
+
+	if (recurse_submodules && (!use_index || untracked))
+		die(_("option not supported with --recurse-submodules."));
+
+	if (!show_in_pager && !opt.status_only)
+		setup_pager();
+
+	if (!use_index && (untracked || cached))
+		die(_("--cached or --untracked cannot be used with --no-index."));
+
+	if (!use_index || untracked) {
+		int use_exclude = (opt_exclude < 0) ? use_index : !!opt_exclude;
+		if (list.nr)
+			die(_("--no-index or --untracked cannot be used with revs."));
+		hit = grep_directory(&opt, &pathspec, use_exclude, use_index);
+	} else if (0 <= opt_exclude) {
+		die(_("--[no-]exclude-standard cannot be used for tracked contents."));
+	} else if (!list.nr) {
+		if (!cached)
+			setup_work_tree();
+
+		hit = grep_cache(&opt, &pathspec, cached);
+	} else {
+		if (cached)
+			die(_("both --cached and trees are given."));
+		hit = grep_objects(&opt, &pathspec, &list);
+	}
+
+	if (num_threads)
+		hit |= wait_all();
+	if (hit && show_in_pager)
+		run_pager(&opt, prefix);
+	free_grep_patterns(&opt);
+	return !hit;
 }

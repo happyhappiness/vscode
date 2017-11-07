@@ -1,2 +1,1 @@
-error("chmod on %s failed: %s",
-				lock->filename, strerror(errno));
+error("core.commentChar should only be one character");

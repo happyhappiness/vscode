@@ -1,1 +1,1 @@
-error(_("short SHA1 %s is ambiguous"), ds.hex_pfx);
+die("BUG: multiple get_short_sha1 disambiguator flags");

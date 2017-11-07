@@ -18,13 +18,8 @@ int main(int argc, char **argv)
 
 #ifndef USE_CURL_FOR_IMAP_SEND
 	if (use_curl) {
-		warning("--curl not supported in this build");
+		warning("--use-curl not supported in this build");
 		use_curl = 0;
-	}
-#elif defined(NO_OPENSSL)
-	if (!use_curl) {
-		warning("--no-curl not supported in this build");
-		use_curl = 1;
 	}
 #endif
 

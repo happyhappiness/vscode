@@ -1,189 +1,269 @@
-static util_ldap_connection_t *
-            uldap_connection_find(request_rec *r,
-                                  const char *host, int port,
-                                  const char *binddn, const char *bindpw,
-                                  deref_options deref, int secure)
+static int uldap_cache_checkuserid(request_rec *r, util_ldap_connection_t *ldc,
+                                   const char *url, const char *basedn,
+                                   int scope, char **attrs, const char *filter,
+                                   const char *bindpw, const char **binddn,
+                                   const char ***retvals)
 {
-    struct util_ldap_connection_t *l, *p; /* To traverse the linked list */
-    int secureflag = secure;
-    apr_time_t now = apr_time_now();
+    const char **vals = NULL;
+    int numvals = 0;
+    int result = 0;
+    LDAPMessage *res, *entry;
+    char *dn;
+    int count;
+    int failures = 0;
+    util_url_node_t *curl;              /* Cached URL node */
+    util_url_node_t curnode;
+    util_search_node_t *search_nodep;   /* Cached search node */
+    util_search_node_t the_search_node;
+    apr_time_t curtime;
 
     util_ldap_state_t *st =
         (util_ldap_state_t *)ap_get_module_config(r->server->module_config,
         &ldap_module);
-    util_ldap_config_t *dc =
-        (util_ldap_config_t *) ap_get_module_config(r->per_dir_config, &ldap_module);
 
-#if APR_HAS_THREADS
-    /* mutex lock this function */
-    apr_thread_mutex_lock(st->mutex);
-#endif
-
-    if (secure < APR_LDAP_NONE) {
-        secureflag = st->secure;
+    /* Get the cache node for this url */
+    LDAP_CACHE_LOCK();
+    curnode.url = url;
+    curl = (util_url_node_t *)util_ald_cache_fetch(st->util_ldap_cache,
+                                                   &curnode);
+    if (curl == NULL) {
+        curl = util_ald_create_caches(st, url);
     }
+    LDAP_CACHE_UNLOCK();
 
-    /* Search for an exact connection match in the list that is not
-     * being used.
-     */
-    for (l=st->connections,p=NULL; l; l=l->next) {
-#if APR_HAS_THREADS
-        if (APR_SUCCESS == apr_thread_mutex_trylock(l->lock)) {
-#endif
-        if (   (l->port == port) && (strcmp(l->host, host) == 0)
-            && ((!l->binddn && !binddn) || (l->binddn && binddn
-                                             && !strcmp(l->binddn, binddn)))
-            && ((!l->bindpw && !bindpw) || (l->bindpw && bindpw
-                                             && !strcmp(l->bindpw, bindpw)))
-            && (l->deref == deref) && (l->secure == secureflag)
-            && !compare_client_certs(dc->client_certs, l->client_certs))
-        {
-            if (st->connection_pool_ttl > 0) {
-                if (l->bound && (now - l->last_backend_conn) > st->connection_pool_ttl) {
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                                  "Removing LDAP connection last used %" APR_TIME_T_FMT " seconds ago",
-                                  (now - l->last_backend_conn) / APR_USEC_PER_SEC);
-                    l->r = r;
-                    uldap_connection_unbind(l);
-                    /* Go ahead (by falling through) and use it, so we don't create more just to unbind some other old ones */
-                }
-                ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
-                              "Reuse %s LDC %pp", 
-                              l->bound ? "bound" : "unbound", l);
-            }
-            break;
-        }
-#if APR_HAS_THREADS
-            /* If this connection didn't match the criteria, then we
-             * need to unlock the mutex so it is available to be reused.
+    if (curl) {
+        LDAP_CACHE_LOCK();
+        the_search_node.username = filter;
+        search_nodep = util_ald_cache_fetch(curl->search_cache,
+                                            &the_search_node);
+        if (search_nodep != NULL) {
+
+            /* found entry in search cache... */
+            curtime = apr_time_now();
+
+            /*
+             * Remove this item from the cache if its expired. If the sent
+             * password doesn't match the storepassword, the entry will
+             * be removed and readded later if the credentials pass
+             * authentication.
              */
-            apr_thread_mutex_unlock(l->lock);
-        }
-#endif
-        p = l;
-    }
-
-    /* If nothing found, search again, but we don't care about the
-     * binddn and bindpw this time.
-     */
-    if (!l) {
-        for (l=st->connections,p=NULL; l; l=l->next) {
-#if APR_HAS_THREADS
-            if (APR_SUCCESS == apr_thread_mutex_trylock(l->lock)) {
-
-#endif
-            if ((l->port == port) && (strcmp(l->host, host) == 0) &&
-                (l->deref == deref) && (l->secure == secureflag) &&
-                !compare_client_certs(dc->client_certs, l->client_certs))
+            if ((curtime - search_nodep->lastbind) > st->search_cache_ttl) {
+                /* ...but entry is too old */
+                util_ald_cache_remove(curl->search_cache, search_nodep);
+            }
+            else if (   (search_nodep->bindpw)
+                     && (search_nodep->bindpw[0] != '\0')
+                     && (strcmp(search_nodep->bindpw, bindpw) == 0))
             {
-                if (st->connection_pool_ttl > 0) {
-                    if (l->bound && (now - l->last_backend_conn) > st->connection_pool_ttl) {
-                        ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
-                                "Removing LDAP connection last used %" APR_TIME_T_FMT " seconds ago",
-                                (now - l->last_backend_conn) / APR_USEC_PER_SEC);
-                        l->r = r;
-                        uldap_connection_unbind(l);
-                        /* Go ahead (by falling through) and use it, so we don't create more just to unbind some other old ones */
+                /* ...and entry is valid */
+                *binddn = apr_pstrdup(r->pool, search_nodep->dn);
+                if (attrs) {
+                    int i;
+                    *retvals = apr_palloc(r->pool, sizeof(char *) * search_nodep->numvals);
+                    for (i = 0; i < search_nodep->numvals; i++) {
+                        (*retvals)[i] = apr_pstrdup(r->pool, search_nodep->vals[i]);
                     }
-                    ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
-                                  "Reuse %s LDC %pp (will rebind)", 
-                                   l->bound ? "bound" : "unbound", l);
                 }
-
-                /* the bind credentials have changed */
-                l->must_rebind = 1;
-                util_ldap_strdup((char**)&(l->binddn), binddn);
-                util_ldap_strdup((char**)&(l->bindpw), bindpw);
-
-                break;
+                LDAP_CACHE_UNLOCK();
+                ldc->reason = "Authentication successful (cached)";
+                return LDAP_SUCCESS;
             }
-#if APR_HAS_THREADS
-                /* If this connection didn't match the criteria, then we
-                 * need to unlock the mutex so it is available to be reused.
-                 */
-                apr_thread_mutex_unlock(l->lock);
-            }
-#endif
-            p = l;
         }
+        /* unlock this read lock */
+        LDAP_CACHE_UNLOCK();
     }
 
-/* artificially disable cache */
-/* l = NULL; */
-
-    /* If no connection was found after the second search, we
-     * must create one.
+    /*
+     * At this point, there is no valid cached search, so lets do the search.
      */
-    if (!l) {
-        apr_pool_t *newpool;
-        if (apr_pool_create(&newpool, NULL) != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01285)
-                          "util_ldap: Failed to create memory pool");
-#if APR_HAS_THREADS
-            apr_thread_mutex_unlock(st->mutex);
-#endif
-            return NULL;
-        }
 
+    /*
+     * If LDAP operation fails due to LDAP_SERVER_DOWN, control returns here.
+     */
+start_over:
+    if (failures > st->retries) {
+        return result;
+    }
+
+    if (failures > 0 && st->retry_delay > 0) {
+        apr_sleep(st->retry_delay);
+    }
+
+    if (LDAP_SUCCESS != (result = uldap_connection_open(r, ldc))) {
+        return result;
+    }
+
+    /* try do the search */
+    result = ldap_search_ext_s(ldc->ldap,
+                               (char *)basedn, scope,
+                               (char *)filter, attrs, 0,
+                               NULL, NULL, st->opTimeout, APR_LDAP_SIZELIMIT, &res);
+    if (AP_LDAP_IS_SERVER_DOWN(result))
+    {
+        ldc->reason = "ldap_search_ext_s() for user failed with server down";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
+    }
+
+    if (result == LDAP_TIMEOUT) {
+        ldc->reason = "ldap_search_ext_s() for user failed with timeout";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
+    }
+
+
+    /* if there is an error (including LDAP_NO_SUCH_OBJECT) return now */
+    if (result != LDAP_SUCCESS) {
+        ldc->reason = "ldap_search_ext_s() for user failed";
+        return result;
+    }
+
+    /*
+     * We should have found exactly one entry; to find a different
+     * number is an error.
+     */
+    ldc->last_backend_conn = r->request_time;
+    count = ldap_count_entries(ldc->ldap, res);
+    if (count != 1)
+    {
+        if (count == 0 )
+            ldc->reason = "User not found";
+        else
+            ldc->reason = "User is not unique (search found two "
+                          "or more matches)";
+        ldap_msgfree(res);
+        return LDAP_NO_SUCH_OBJECT;
+    }
+
+    entry = ldap_first_entry(ldc->ldap, res);
+
+    /* Grab the dn, copy it into the pool, and free it again */
+    dn = ldap_get_dn(ldc->ldap, entry);
+    *binddn = apr_pstrdup(r->pool, dn);
+    ldap_memfree(dn);
+
+    /*
+     * A bind to the server with an empty password always succeeds, so
+     * we check to ensure that the password is not empty. This implies
+     * that users who actually do have empty passwords will never be
+     * able to authenticate with this module. I don't see this as a big
+     * problem.
+     */
+    if (!bindpw || strlen(bindpw) <= 0) {
+        ldap_msgfree(res);
+        ldc->reason = "Empty password not allowed";
+        return LDAP_INVALID_CREDENTIALS;
+    }
+
+    /*
+     * Attempt to bind with the retrieved dn and the password. If the bind
+     * fails, it means that the password is wrong (the dn obviously
+     * exists, since we just retrieved it)
+     */
+    result = uldap_simple_bind(ldc, (char *)*binddn, (char *)bindpw,
+                               st->opTimeout);
+    if (AP_LDAP_IS_SERVER_DOWN(result) ||
+        (result == LDAP_TIMEOUT && failures == 0)) {
+        if (AP_LDAP_IS_SERVER_DOWN(result))
+            ldc->reason = "ldap_simple_bind() to check user credentials "
+                          "failed with server down";
+        else
+            ldc->reason = "ldap_simple_bind() to check user credentials "
+                          "timed out";
+        ldap_msgfree(res);
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
+    }
+
+    /* failure? if so - return */
+    if (result != LDAP_SUCCESS) {
+        ldc->reason = "ldap_simple_bind() to check user credentials failed";
+        ldap_msgfree(res);
+        uldap_connection_unbind(ldc);
+        return result;
+    }
+    else {
         /*
-         * Add the new connection entry to the linked list. Note that we
-         * don't actually establish an LDAP connection yet; that happens
-         * the first time authentication is requested.
+         * We have just bound the connection to a different user and password
+         * combination, which might be reused unintentionally next time this
+         * connection is used from the connection pool.
          */
+        ldc->must_rebind = 0;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "LDC %pp used for authn, must be rebound", ldc);
+    }
 
-        /* create the details of this connection in the new pool */
-        l = apr_pcalloc(newpool, sizeof(util_ldap_connection_t));
-        l->pool = newpool;
-        l->st = st;
-
-#if APR_HAS_THREADS
-        apr_thread_mutex_create(&l->lock, APR_THREAD_MUTEX_DEFAULT, l->pool);
-        apr_thread_mutex_lock(l->lock);
-#endif
-        l->bound = 0;
-        l->host = apr_pstrdup(l->pool, host);
-        l->port = port;
-        l->deref = deref;
-        util_ldap_strdup((char**)&(l->binddn), binddn);
-        util_ldap_strdup((char**)&(l->bindpw), bindpw);
-        l->ChaseReferrals = dc->ChaseReferrals;
-        l->ReferralHopLimit = dc->ReferralHopLimit;
-
-        /* The security mode after parsing the URL will always be either
-         * APR_LDAP_NONE (ldap://) or APR_LDAP_SSL (ldaps://).
-         * If the security setting is NONE, override it to the security
-         * setting optionally supplied by the admin using LDAPTrustedMode
-         */
-        l->secure = secureflag;
-
-        /* save away a copy of the client cert list that is presently valid */
-        l->client_certs = apr_array_copy_hdr(l->pool, dc->client_certs);
-
-        /* whether or not to keep this connection in the pool when it's returned */
-        l->keep = (st->connection_pool_ttl == 0) ? 0 : 1;
-
-        if (l->ChaseReferrals == AP_LDAP_CHASEREFERRALS_ON) {
-            if (apr_pool_create(&(l->rebind_pool), l->pool) != APR_SUCCESS) {
-                ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01286)
-                              "util_ldap: Failed to create memory pool");
-#if APR_HAS_THREADS
-                apr_thread_mutex_unlock(st->mutex);
-#endif
-                return NULL;
+    /*
+     * Get values for the provided attributes.
+     */
+    if (attrs) {
+        int k = 0;
+        int i = 0;
+        while (attrs[k++]);
+        vals = apr_pcalloc(r->pool, sizeof(char *) * (k+1));
+        numvals = k;
+        while (attrs[i]) {
+            char **values;
+            int j = 0;
+            char *str = NULL;
+            /* get values */
+            values = ldap_get_values(ldc->ldap, entry, attrs[i]);
+            while (values && values[j]) {
+                str = str ? apr_pstrcat(r->pool, str, "; ", values[j], NULL)
+                          : apr_pstrdup(r->pool, values[j]);
+                j++;
             }
+            ldap_value_free(values);
+            vals[i] = str;
+            i++;
         }
+        *retvals = vals;
+    }
 
-        if (p) {
-            p->next = l;
+    /*
+     * Add the new username to the search cache.
+     */
+    if (curl) {
+        LDAP_CACHE_LOCK();
+        the_search_node.username = filter;
+        the_search_node.dn = *binddn;
+        the_search_node.bindpw = bindpw;
+        the_search_node.lastbind = apr_time_now();
+        the_search_node.vals = vals;
+        the_search_node.numvals = numvals;
+
+        /* Search again to make sure that another thread didn't ready insert
+         * this node into the cache before we got here. If it does exist then
+         * update the lastbind
+         */
+        search_nodep = util_ald_cache_fetch(curl->search_cache,
+                                            &the_search_node);
+        if ((search_nodep == NULL) ||
+            (strcmp(*binddn, search_nodep->dn) != 0)) {
+
+            /* Nothing in cache, insert new entry */
+            util_ald_cache_insert(curl->search_cache, &the_search_node);
+        }
+        else if ((!search_nodep->bindpw) ||
+            (strcmp(bindpw, search_nodep->bindpw) != 0)) {
+
+            /* Entry in cache is invalid, remove it and insert new one */
+            util_ald_cache_remove(curl->search_cache, search_nodep);
+            util_ald_cache_insert(curl->search_cache, &the_search_node);
         }
         else {
-            st->connections = l;
+            /* Cache entry is valid, update lastbind */
+            search_nodep->lastbind = the_search_node.lastbind;
         }
+        LDAP_CACHE_UNLOCK();
     }
+    ldap_msgfree(res);
 
-#if APR_HAS_THREADS
-    apr_thread_mutex_unlock(st->mutex);
-#endif
-    l->r = r;
-    return l;
+    ldc->reason = "Authentication successful";
+    return LDAP_SUCCESS;
 }

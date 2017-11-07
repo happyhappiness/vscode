@@ -1,2 +1,1 @@
-die(_("your current branch '%s' does not have any commits yet"),
-	    refname);
+die(_("your current branch appears to be broken"));

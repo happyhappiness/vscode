@@ -1,2 +1,1 @@
-fprintf(stderr, _("finished search at %s\n"),
-					oid_to_hex(&c->object.oid));
+die(_("no tag exactly matches '%s'"), oid_to_hex(&cmit->object.oid));

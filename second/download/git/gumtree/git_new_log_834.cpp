@@ -1,1 +1,0 @@
-die(_("could not create directories for %s"), gitfile_sb.buf);

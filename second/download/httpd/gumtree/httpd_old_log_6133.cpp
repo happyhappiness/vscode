@@ -1,2 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
-                      APLOGNO(02913) "h2_task: creating conn");
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
+                  "h2_task: creating conn, master=%ld, sid=%ld, logid=%s", 
+                  master->id, c->id, c->log_id);

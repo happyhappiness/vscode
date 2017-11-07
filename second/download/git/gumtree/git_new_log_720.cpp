@@ -1,2 +1,1 @@
-status_printf_ln(s, color,
-				_("git-rebase-todo is missing."));
+warning("ignoring versionsort.prereleasesuffix because versionsort.suffix is set");

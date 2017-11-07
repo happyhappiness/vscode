@@ -1,1 +1,2 @@
-error("Unexpected line '%s', expected flush", line);
+error("Unexpected line '%s', expected version",
+			     line ? line : "<flush packet>");

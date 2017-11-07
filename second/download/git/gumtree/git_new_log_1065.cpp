@@ -1,1 +1,1 @@
-die("Can't read object %s", oid_to_hex(oid));
+die("The commit %s is corrupt", oid_to_hex(&b->oid));

@@ -1,2 +1,1 @@
-error("Unable to write file %s: %s",
-			export_marks_file, strerror(errno));
+die_errno("unable to write credential store");

@@ -1,1 +1,1 @@
-fprintf(opt->diffopt.file, "\t%s", (char *) commit->util);
+fprintf(file, " %s", find_unique_abbrev(parent->object.oid.hash, abbrev));

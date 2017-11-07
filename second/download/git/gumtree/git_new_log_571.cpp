@@ -1,1 +1,1 @@
-die(_("bad pack compression level %d"), level);
+error("abbrev length out of range: %d", abbrev);

@@ -1,1 +1,1 @@
-die("sent error to the client: %s", buf);
+die("Error on reachable objects of %s", sha1_to_hex(obj->sha1));

@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02985)
-                          "%s: %s", cid->r->filename,
-                          (char*) buf_data);
+ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(03178)
+                          "ServerSupportFunction "
+                          "HSE_REQ_TRANSMIT_FILE "
+                          "ap_pass_brigade failed: %s", r->filename);

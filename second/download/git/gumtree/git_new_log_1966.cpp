@@ -1,2 +1,1 @@
-die("cannot read commit object %s",
-			    oid_to_hex(&commit->object.oid));
+die("BUG: color parsing ran out of space");

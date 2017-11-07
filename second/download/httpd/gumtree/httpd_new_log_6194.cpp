@@ -1,4 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,  
-                              H2_STRM_LOG(APLOGNO(02923), stream, 
-                              "DATA, len=%ld, flags=%d"), 
-                              (long)frame->hd.length, frame->hd.flags);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c,
+                          "h2_stream(%ld-%d): WINDOW_UPDATE incr=%d", 
+                          session->id, (int)frame->hd.stream_id,
+                          frame->window_update.window_size_increment);

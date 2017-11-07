@@ -1,1 +1,1 @@
-die(_("Failed to execute internal merge"));
+die_errno(_("failed to symlink '%s'"), path);

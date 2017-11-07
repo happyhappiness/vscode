@@ -1,1 +1,2 @@
-error(_("Failed to find tree of %s."), oid_to_hex(oid));
+packet_write_fmt(stdin_fd, "%s %s%chost=%s%c", serv, repo, 0,
+			     vhost, 0);

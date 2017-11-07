@@ -1,1 +1,1 @@
-error("%s", err.buf);
+die_errno("unable to fdopen packed-refs descriptor");

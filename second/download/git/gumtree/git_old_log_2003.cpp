@@ -1,1 +1,1 @@
-fputs(find_unique_abbrev(commit->object.sha1, abbrev_commit), stdout);
+printf(" %s", find_unique_abbrev(p->item->object.sha1, abbrev));

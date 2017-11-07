@@ -1,1 +1,1 @@
-warning(_("removing '%s' failed"), fname);
+printf_ln(_("  HEAD branch: %s"), "(unknown)");

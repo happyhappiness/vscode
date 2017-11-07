@@ -1,1 +1,1 @@
-printf("committer-time %"PRItime"\n", ci.committer_time);
+printf("author-time %"PRItime"\n", ci.author_time);

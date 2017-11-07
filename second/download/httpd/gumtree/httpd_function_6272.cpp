@@ -1,42 +1,20 @@
-static apr_status_t close_input(h2_stream *stream)
+static void on_state_invalid(h2_stream *stream) 
 {
-    conn_rec *c = stream->session->c;
-    apr_status_t status = APR_SUCCESS;
-
-    stream->input_eof = 1;
-    if (stream->input && h2_beam_is_closed(stream->input)) {
-        return APR_SUCCESS;
+    if (stream->monitor && stream->monitor->on_state_invalid) {
+        stream->monitor->on_state_invalid(stream->monitor->ctx, stream);
     }
-    
+    /* stream got an event/frame invalid in its state */
     ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, stream->session->c,
-                  H2_STRM_MSG(stream, "closing input"));
-    if (stream->rst_error) {
-        return APR_ECONNRESET;
+                  H2_STRM_MSG(stream, "invalid state event")); 
+    switch (stream->state) {
+        case H2_SS_OPEN:
+        case H2_SS_RSVD_L:
+        case H2_SS_RSVD_R:
+        case H2_SS_CLOSED_L:
+        case H2_SS_CLOSED_R:
+            h2_stream_rst(stream, H2_ERR_INTERNAL_ERROR);
+            break;
+        default:
+            break;
     }
-    
-    if (stream->trailers && !apr_is_empty_table(stream->trailers)) {
-        apr_bucket *b;
-        h2_headers *r;
-        
-        if (!stream->in_buffer) {
-            stream->in_buffer = apr_brigade_create(stream->pool, c->bucket_alloc);
-        }
-        
-        r = h2_headers_create(HTTP_OK, stream->trailers, NULL, stream->pool);
-        stream->trailers = NULL;        
-        b = h2_bucket_headers_create(c->bucket_alloc, r);
-        APR_BRIGADE_INSERT_TAIL(stream->in_buffer, b);
-        
-        b = apr_bucket_eos_create(c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(stream->in_buffer, b);
-        
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, stream->session->c,
-                      H2_STRM_MSG(stream, "added trailers"));
-        h2_stream_dispatch(stream, H2_SEV_IN_DATA_PENDING);
-    }
-    if (stream->input) {
-        h2_stream_flush_input(stream);
-        return h2_beam_close(stream->input);
-    }
-    return status;
 }

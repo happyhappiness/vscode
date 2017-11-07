@@ -1,2 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                          "upgrade with content-length: %s, declined", p);
+ap_add_output_filter("H1_TO_H2", task, NULL, c);

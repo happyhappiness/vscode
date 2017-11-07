@@ -1,33 +1,14 @@
-apr_status_t h2_mplx_dispatch_master_events(h2_mplx *m, 
-                                            stream_ev_callback *on_resume, 
-                                            void *on_ctx)
+void h2_proxy_session_cleanup(h2_proxy_session *session, 
+                              h2_proxy_request_done *done)
 {
-    apr_status_t status;
-    int acquired;
-    int ids[100];
-    h2_stream *stream;
-    size_t i, n;
-    
-    if ((status = enter_mutex(m, &acquired)) == APR_SUCCESS) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                      "h2_mplx(%ld): dispatch events", m->id);
-                      
-        /* update input windows for streams */
-        h2_ihash_iter(m->streams, update_window, m);
-        if (on_resume && !h2_iq_empty(m->readyq)) {
-            n = h2_iq_mshift(m->readyq, ids, H2_ALEN(ids));
-            for (i = 0; i < n; ++i) {
-                stream = h2_ihash_get(m->streams, ids[i]);
-                if (stream) {
-                    ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, m->c, 
-                                  "h2_mplx(%ld-%d): on_resume", 
-                                  m->id, stream->id);
-                    on_resume(on_ctx, stream);
-                }
-            }
-        }
-        
-        leave_mutex(m, acquired);
+    if (!h2_proxy_ihash_empty(session->streams)) {
+        cleanup_iter_ctx ctx;
+        ctx.session = session;
+        ctx.done = done;
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03366)
+                      "h2_proxy_session(%s): terminated, %d streams unfinished",
+                      session->id, (int)h2_proxy_ihash_count(session->streams));
+        h2_proxy_ihash_iter(session->streams, done_iter, &ctx);
+        h2_proxy_ihash_clear(session->streams);
     }
-    return status;
 }

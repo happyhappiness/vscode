@@ -1,1 +1,0 @@
-die("Unable to get current working directory");

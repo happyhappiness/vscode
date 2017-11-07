@@ -1,2 +1,2 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(03040)
-                             "stapling_cb: success renewing response");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, NULL, APLOGNO(02818)
+                     "MPM run failed, exiting");

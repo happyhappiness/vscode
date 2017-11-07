@@ -1,1 +1,1 @@
-die(_("%s: bad revision"), name);
+die(_("%s: can't cherry-pick a %s"), name, typename(type));

@@ -1,2 +1,1 @@
-printf("%s %s\n", oid_to_hex(oid),
-		       (type > 0) ? typename(type) : "unknown");
+die(_("cannot read existing object info %s"), sha1_to_hex(sha1));

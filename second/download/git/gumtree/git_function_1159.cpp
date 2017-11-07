@@ -1,77 +1,48 @@
-int finish_delayed_checkout(struct checkout *state)
+int async_query_available_blobs(const char *cmd, struct string_list *available_paths)
 {
-	int errs = 0;
-	struct string_list_item *filter, *path;
-	struct delayed_checkout *dco = state->delayed_checkout;
+	int err;
+	char *line;
+	struct cmd2process *entry;
+	struct child_process *process;
+	struct strbuf filter_status = STRBUF_INIT;
 
-	if (!state->delayed_checkout)
-		return errs;
-
-	dco->state = CE_RETRY;
-	while (dco->filters.nr > 0) {
-		for_each_string_list_item(filter, &dco->filters) {
-			struct string_list available_paths = STRING_LIST_INIT_NODUP;
-
-			if (!async_query_available_blobs(filter->string, &available_paths)) {
-				/* Filter reported an error */
-				errs = 1;
-				filter->string = "";
-				continue;
-			}
-			if (available_paths.nr <= 0) {
-				/*
-				 * Filter responded with no entries. That means
-				 * the filter is done and we can remove the
-				 * filter from the list (see
-				 * "string_list_remove_empty_items" call below).
-				 */
-				filter->string = "";
-				continue;
-			}
-
-			/*
-			 * In dco->paths we store a list of all delayed paths.
-			 * The filter just send us a list of available paths.
-			 * Remove them from the list.
-			 */
-			filter_string_list(&dco->paths, 0,
-				&remove_available_paths, &available_paths);
-
-			for_each_string_list_item(path, &available_paths) {
-				struct cache_entry* ce;
-
-				if (!path->util) {
-					error("external filter '%s' signaled that '%s' "
-					      "is now available although it has not been "
-					      "delayed earlier",
-					      filter->string, path->string);
-					errs |= 1;
-
-					/*
-					 * Do not ask the filter for available blobs,
-					 * again, as the filter is likely buggy.
-					 */
-					filter->string = "";
-					continue;
-				}
-				ce = index_file_exists(state->istate, path->string,
-						       strlen(path->string), 0);
-				errs |= (ce ? checkout_entry(ce, state, NULL) : 1);
-			}
-		}
-		string_list_remove_empty_items(&dco->filters, 0);
+	assert(subprocess_map_initialized);
+	entry = (struct cmd2process *)subprocess_find_entry(&subprocess_map, cmd);
+	if (!entry) {
+		error("external filter '%s' is not available anymore although "
+		      "not all paths have been filtered", cmd);
+		return 0;
 	}
-	string_list_clear(&dco->filters, 0);
+	process = &entry->subprocess.process;
+	sigchain_push(SIGPIPE, SIG_IGN);
 
-	/* At this point we should not have any delayed paths anymore. */
-	errs |= dco->paths.nr;
-	for_each_string_list_item(path, &dco->paths) {
-		error("'%s' was not filtered properly", path->string);
+	err = packet_write_fmt_gently(
+		process->in, "command=list_available_blobs\n");
+	if (err)
+		goto done;
+
+	err = packet_flush_gently(process->in);
+	if (err)
+		goto done;
+
+	while ((line = packet_read_line(process->out, NULL))) {
+		const char *path;
+		if (skip_prefix(line, "pathname=", &path))
+			string_list_insert(available_paths, xstrdup(path));
+		else
+			; /* ignore unknown keys */
 	}
-	string_list_clear(&dco->paths, 0);
 
-	free(dco);
-	state->delayed_checkout = NULL;
+	err = subprocess_read_status(process->out, &filter_status);
+	if (err)
+		goto done;
 
-	return errs;
+	err = strcmp(filter_status.buf, "success");
+
+done:
+	sigchain_pop(SIGPIPE);
+
+	if (err)
+		handle_filter_error(&filter_status, entry, 0);
+	return !err;
 }

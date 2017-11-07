@@ -1,80 +1,72 @@
-static int add(int argc, const char **argv, const char *prefix)
+static void create_note(const unsigned char *object, struct msg_arg *msg,
+			int append_only, const unsigned char *prev,
+			unsigned char *result)
 {
-	int retval = 0, force = 0;
-	const char *object_ref;
-	struct notes_tree *t;
-	unsigned char object[20], new_note[20];
-	char logmsg[100];
-	const unsigned char *note;
-	struct msg_arg msg = { 0, 0, STRBUF_INIT };
-	struct option options[] = {
-		{ OPTION_CALLBACK, 'm', "message", &msg, N_("message"),
-			N_("note contents as a string"), PARSE_OPT_NONEG,
-			parse_msg_arg},
-		{ OPTION_CALLBACK, 'F', "file", &msg, N_("file"),
-			N_("note contents in a file"), PARSE_OPT_NONEG,
-			parse_file_arg},
-		{ OPTION_CALLBACK, 'c', "reedit-message", &msg, N_("object"),
-			N_("reuse and edit specified note object"), PARSE_OPT_NONEG,
-			parse_reedit_arg},
-		{ OPTION_CALLBACK, 'C', "reuse-message", &msg, N_("object"),
-			N_("reuse specified note object"), PARSE_OPT_NONEG,
-			parse_reuse_arg},
-		OPT__FORCE(&force, N_("replace existing notes")),
-		OPT_END()
-	};
+	char *path = NULL;
 
-	argc = parse_options(argc, argv, prefix, options, git_notes_add_usage,
-			     PARSE_OPT_KEEP_ARGV0);
+	if (msg->use_editor || !msg->given) {
+		int fd;
+		struct strbuf buf = STRBUF_INIT;
 
-	if (2 < argc) {
-		error(_("too many parameters"));
-		usage_with_options(git_notes_add_usage, options);
-	}
+		/* write the template message before editing: */
+		path = git_pathdup("NOTES_EDITMSG");
+		fd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+		if (fd < 0)
+			die_errno(_("could not create file '%s'"), path);
 
-	object_ref = argc > 1 ? argv[1] : "HEAD";
+		if (msg->given)
+			write_or_die(fd, msg->buf.buf, msg->buf.len);
+		else if (prev && !append_only)
+			write_note_data(fd, prev);
 
-	if (get_sha1(object_ref, object))
-		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
+		strbuf_addch(&buf, '\n');
+		strbuf_add_commented_lines(&buf, note_template, strlen(note_template));
+		strbuf_addch(&buf, '\n');
+		write_or_die(fd, buf.buf, buf.len);
 
-	t = init_notes_check("add");
-	note = get_note(t, object);
+		write_commented_object(fd, object);
 
-	if (note) {
-		if (!force) {
-			if (!msg.given) {
-				/*
-				 * Redirect to "edit" subcommand.
-				 *
-				 * We only end up here if none of -m/-F/-c/-C
-				 * or -f are given. The original args are
-				 * therefore still in argv[0-1].
-				 */
-				argv[0] = "edit";
-				free_notes(t);
-				return append_edit(argc, argv, prefix);
-			}
-			retval = error(_("Cannot add notes. Found existing notes "
-				       "for object %s. Use '-f' to overwrite "
-				       "existing notes"), sha1_to_hex(object));
-			goto out;
+		close(fd);
+		strbuf_release(&buf);
+		strbuf_reset(&(msg->buf));
+
+		if (launch_editor(path, &(msg->buf), NULL)) {
+			die(_("Please supply the note contents using either -m" \
+			    " or -F option"));
 		}
-		fprintf(stderr, _("Overwriting existing notes for object %s\n"),
-			sha1_to_hex(object));
+		stripspace(&(msg->buf), 1);
 	}
 
-	create_note(object, &msg, 0, note, new_note);
+	if (prev && append_only) {
+		/* Append buf to previous note contents */
+		unsigned long size;
+		enum object_type type;
+		char *prev_buf = read_sha1_file(prev, &type, &size);
 
-	if (is_null_sha1(new_note))
-		remove_note(t, object);
-	else if (add_note(t, object, new_note, combine_notes_overwrite))
-		die("BUG: combine_notes_overwrite failed");
+		strbuf_grow(&(msg->buf), size + 1);
+		if (msg->buf.len && prev_buf && size)
+			strbuf_insert(&(msg->buf), 0, "\n", 1);
+		if (prev_buf && size)
+			strbuf_insert(&(msg->buf), 0, prev_buf, size);
+		free(prev_buf);
+	}
 
-	snprintf(logmsg, sizeof(logmsg), "Notes %s by 'git notes %s'",
-		 is_null_sha1(new_note) ? "removed" : "added", "add");
-	commit_notes(t, logmsg);
-out:
-	free_notes(t);
-	strbuf_release(&(msg.buf));
-	return retval;
+	if (!msg->buf.len) {
+		fprintf(stderr, _("Removing note for object %s\n"),
+			sha1_to_hex(object));
+		hashclr(result);
+	} else {
+		if (write_sha1_file(msg->buf.buf, msg->buf.len, blob_type, result)) {
+			error(_("unable to write note object"));
+			if (path)
+				error(_("The note contents have been left in %s"),
+				      path);
+			exit(128);
+		}
+	}
+
+	if (path) {
+		unlink_or_warn(path);
+		free(path);
+	}
 }

@@ -1,1 +1,1 @@
-warning("ignoring alternate with restricted protocol: %s", url);
+warning("ignoring alternate with unknown protocol: %s", url);

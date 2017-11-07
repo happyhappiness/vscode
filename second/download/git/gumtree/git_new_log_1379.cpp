@@ -1,2 +1,1 @@
-die("sha1 information is lacking or useless for submodule %s",
-				    name);
+die("BUG: reverse reflog parser had leftover data");

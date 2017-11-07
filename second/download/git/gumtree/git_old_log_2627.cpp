@@ -1,1 +1,1 @@
-maybe_flush_or_die(stdout, "stdout");
+printf("\n%s\n", opt->break_bar);

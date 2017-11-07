@@ -1,3 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, APLOGNO(02437)
-               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
-               r->method);
+ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, APLOGNO(01184) "Doing workers create: %s (%s), %d, %d [%u]",
+                         balancer->s->name, balancer->s->sname,
+                         (int)ALIGNED_PROXY_WORKER_SHARED_SIZE,
+                         (int)balancer->max_workers, i);

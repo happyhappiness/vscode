@@ -1,1 +1,1 @@
-die("--reverse --first-parent together require range along first-parent chain");
+die("BUG: not unique item in first-parent chain");

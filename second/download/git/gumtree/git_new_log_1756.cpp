@@ -1,2 +1,1 @@
-error("cannot fdopen %s (%s)",
-			      get_lock_file_path(&reflog_lock), strerror(errno));
+die("BUG: initial ref transaction with old_sha1 set");

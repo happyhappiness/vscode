@@ -1,1 +1,1 @@
-die(_("'%s' is already locked"), av[0]);
+die(_("The main working tree cannot be locked or unlocked"));

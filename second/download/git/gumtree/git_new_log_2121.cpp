@@ -1,1 +1,1 @@
-printf("%6d\t%s\n", (int)UTIL_TO_INT(item), item->string);
+insert_one_record(log, author.buf, oneline.len ? oneline.buf : "<none>");

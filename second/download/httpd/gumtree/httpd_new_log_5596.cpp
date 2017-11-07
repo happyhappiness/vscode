@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_TRACE3, 0, workers->s,
-                         "h2_workers: got %d worker, adding 1", 
-                         workers->worker_count);
+ap_log_error(APLOG_MARK, APLOG_TRACE2, 0, workers->s,
+                     "h2_workers: freed %d tx handles, %d/%d left", 
+                     (int)count, (int)workers->spare_tx_handles,
+                     (int)workers->max_tx_handles);

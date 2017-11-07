@@ -1,0 +1,1 @@
+die("BUG: setup_git_env called without repository");

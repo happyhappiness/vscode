@@ -1,1 +1,1 @@
-fprintf(file, "base-commit: %s\n", oid_to_hex(&bases->base_commit));
+fprintf(rev->diffopt.file, "%s\n", sb.buf);

@@ -1,1 +1,2 @@
-die("BUG: reference backend %s is unknown", be_name);
+die("BUG: ref_store for submodule '%s' initialized twice",
+			    submodule);

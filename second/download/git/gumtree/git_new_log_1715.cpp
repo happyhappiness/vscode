@@ -1,1 +1,1 @@
-die("Could not open skip list: %s", path);
+die("Unknown mark: %s", command_buf.buf);

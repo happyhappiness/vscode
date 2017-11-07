@@ -1,1 +1,1 @@
-die_errno(_("cannot stat '%s'"), path);
+die(_("insanely long template name %s"), de->d_name);

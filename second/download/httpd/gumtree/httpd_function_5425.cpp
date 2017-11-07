@@ -1,27 +1,45 @@
-static apr_status_t pass_out(apr_bucket_brigade *bb, void *ctx) 
+apr_status_t h2_conn_io_write(h2_conn_io *io, 
+                              const char *buf, size_t length)
 {
-    pass_out_ctx *pctx = ctx;
-    conn_rec *c = pctx->c;
-    apr_status_t status;
-    apr_off_t bblen;
+    apr_status_t status = APR_SUCCESS;
     
-    if (APR_BRIGADE_EMPTY(bb)) {
-        return APR_SUCCESS;
+    io->unflushed = 1;
+    if (io->bufsize > 0) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, io->connection,
+                      "h2_conn_io: buffering %ld bytes", (long)length);
+                      
+        if (!APR_BRIGADE_EMPTY(io->output)) {
+            status = h2_conn_io_pass(io);
+            io->unflushed = 1;
+        }
+        
+        while (length > 0 && (status == APR_SUCCESS)) {
+            apr_size_t avail = io->bufsize - io->buflen;
+            if (avail <= 0) {
+                bucketeer_buffer(io);
+                status = pass_out(io->output, io);
+                io->buflen = 0;
+            }
+            else if (length > avail) {
+                memcpy(io->buffer + io->buflen, buf, avail);
+                io->buflen += avail;
+                length -= avail;
+                buf += avail;
+            }
+            else {
+                memcpy(io->buffer + io->buflen, buf, length);
+                io->buflen += length;
+                length = 0;
+                break;
+            }
+        }
+        
+    }
+    else {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, status, io->connection,
+                      "h2_conn_io: writing %ld bytes to brigade", (long)length);
+        status = apr_brigade_write(io->output, pass_out, io, buf, length);
     }
     
-    ap_update_child_status_from_conn(c->sbh, SERVER_BUSY_WRITE, c);
-    apr_brigade_length(bb, 0, &bblen);
-    h2_conn_io_bb_log(c, 0, APLOG_TRACE2, "master conn pass", bb);
-    status = ap_pass_brigade(c->output_filters, bb);
-    if (status == APR_SUCCESS && pctx->io) {
-        pctx->io->bytes_written += (apr_size_t)bblen;
-        pctx->io->last_write = apr_time_now();
-    }
-    if (status != APR_SUCCESS) {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03044)
-                      "h2_conn_io(%ld): pass_out brigade %ld bytes",
-                      c->id, (long)bblen);
-    }
-    apr_brigade_cleanup(bb);
     return status;
 }

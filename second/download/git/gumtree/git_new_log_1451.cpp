@@ -1,2 +1,1 @@
-print_ref_status('!', "[rejected]", ref, ref->peer_ref,
-						 "atomic push failed", porcelain);
+error("running trailer command '%s' failed", cmd.buf);

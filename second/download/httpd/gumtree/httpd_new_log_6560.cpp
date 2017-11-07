@@ -1,1 +1,2 @@
-fprintf(stderr, "Error: %s\n", h->ctx.errstr);
+fprintf(stderr, "%s:%s:%s\n", h->username, h->ctx.passwd,
+                    h->comment);

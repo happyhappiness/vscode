@@ -1,1 +1,1 @@
-die("'git status --porcelain -uall --ignore-submodules=none' failed in submodule %s", path);
+die("Could not run 'git status --porcelain -uall --ignore-submodules=none' in submodule %s", path);

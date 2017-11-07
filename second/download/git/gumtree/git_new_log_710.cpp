@@ -1,1 +1,1 @@
-die(_("could not recurse into submodule '%s'"), path);
+die("BUG: we don't know how to pass the flags down?");

@@ -1,3 +1,4 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
-                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
-                      session->id, stream->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03202)
+                                  "h2_stream(%ld-%d): PUSH BEFORE, weight=%d, "
+                                  "depends=%d, returned=%d",
+                                  session->id, id_parent, ps.weight, ps.stream_id, rv);

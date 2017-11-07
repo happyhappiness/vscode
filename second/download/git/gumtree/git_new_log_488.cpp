@@ -1,1 +1,1 @@
-die("BUG: multiple get_short_sha1 disambiguator flags");
+for_each_abbrev(ds.hex_pfx, show_ambiguous_object, &ds);

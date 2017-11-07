@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_ERR, rv, c, APLOGNO(02321)
-                      "empty response from OCSP server");
+ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, ap_server_conf,
+                     "Stopping process due to MaxConnectionsPerChild");

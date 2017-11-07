@@ -1,1 +1,2 @@
-die("could not recurse into submodule '%s'", sub->path);
+die(_("could not run 'git status' in submodule '%s'"),
+				path);

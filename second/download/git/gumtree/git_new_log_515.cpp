@@ -1,1 +1,1 @@
-strbuf_addstr(err, _("too-short tree object"));
+warning("%s unexpectedly said: '%s'", data->name, buf->buf);

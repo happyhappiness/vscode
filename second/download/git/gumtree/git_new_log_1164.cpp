@@ -1,1 +1,1 @@
-error("Could not write requested version");
+error("Could not write client identification");

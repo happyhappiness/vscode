@@ -1,1 +1,1 @@
-die(_("git show %s: bad file"), obj_name);
+die(_("Not a valid object name %s"), obj_name);

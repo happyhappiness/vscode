@@ -1,4 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(03178)
-                          "ServerSupportFunction "
-                          "HSE_REQ_TRANSMIT_FILE "
-                          "ap_pass_brigade failed: %s", r->filename);
+ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02986)
+                              "asynchronous I/O not supported: %s",
+                              r->filename);

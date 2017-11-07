@@ -1,1 +1,1 @@
-printf("%s\n", sha1_to_hex(bases->item->object.sha1));
+printf("%s\n", sha1_to_hex(result->item->object.sha1));

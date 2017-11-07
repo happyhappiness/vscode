@@ -1,199 +1,99 @@
-apr_status_t ap_core_output_filter(ap_filter_t *f, apr_bucket_brigade *new_bb)
+int ap_open_logs(apr_pool_t *pconf, apr_pool_t *p /* plog */,
+                 apr_pool_t *ptemp, server_rec *s_main)
 {
-    conn_rec *c = f->c;
-    core_net_rec *net = f->ctx;
-    core_output_filter_ctx_t *ctx = net->out_ctx;
-    apr_bucket_brigade *bb = NULL;
-    apr_bucket *bucket, *next, *flush_upto = NULL;
-    apr_size_t bytes_in_brigade, non_file_bytes_in_brigade;
-    int eor_buckets_in_brigade, morphing_bucket_in_brigade;
-    apr_status_t rv;
+    apr_pool_t *stderr_p;
+    server_rec *virt, *q;
+    int replace_stderr;
 
-    /* Fail quickly if the connection has already been aborted. */
-    if (c->aborted) {
-        if (new_bb != NULL) {
-            apr_brigade_cleanup(new_bb);
-        }
-        return APR_ECONNABORTED;
+
+    /* Register to throw away the read_handles list when we
+     * cleanup plog.  Upon fork() for the apache children,
+     * this read_handles list is closed so only the parent
+     * can relaunch a lost log child.  These read handles
+     * are always closed on exec.
+     * We won't care what happens to our stderr log child
+     * between log phases, so we don't mind losing stderr's
+     * read_handle a little bit early.
+     */
+    apr_pool_cleanup_register(p, &read_handles, ap_pool_cleanup_set_null,
+                              apr_pool_cleanup_null);
+
+    /* HERE we need a stdout log that outlives plog.
+     * We *presume* the parent of plog is a process
+     * or global pool which spans server restarts.
+     * Create our stderr_pool as a child of the plog's
+     * parent pool.
+     */
+    apr_pool_create(&stderr_p, apr_pool_parent_get(p));
+    apr_pool_tag(stderr_p, "stderr_pool");
+
+    if (open_error_log(s_main, 1, stderr_p) != OK) {
+        return DONE;
     }
 
-    if (ctx == NULL) {
-        ctx = apr_pcalloc(c->pool, sizeof(*ctx));
-        net->out_ctx = (core_output_filter_ctx_t *)ctx;
-        /*
-         * Need to create tmp brigade with correct lifetime. Passing
-         * NULL to apr_brigade_split_ex would result in a brigade
-         * allocated from bb->pool which might be wrong.
-         */
-        ctx->tmp_flush_bb = apr_brigade_create(c->pool, c->bucket_alloc);
-        /* same for buffered_bb and ap_save_brigade */
-        ctx->buffered_bb = apr_brigade_create(c->pool, c->bucket_alloc);
-    }
+    replace_stderr = 1;
+    if (s_main->error_log) {
+        apr_status_t rv;
 
-    if (new_bb != NULL)
-        bb = new_bb;
-
-    if ((ctx->buffered_bb != NULL) &&
-        !APR_BRIGADE_EMPTY(ctx->buffered_bb)) {
-        if (new_bb != NULL) {
-            APR_BRIGADE_PREPEND(bb, ctx->buffered_bb);
+        /* Replace existing stderr with new log. */
+        apr_file_flush(s_main->error_log);
+        rv = apr_file_dup2(stderr_log, s_main->error_log, stderr_p);
+        if (rv != APR_SUCCESS) {
+            ap_log_error(APLOG_MARK, APLOG_CRIT, rv, s_main, APLOGNO(00092)
+                         "unable to replace stderr with error_log");
         }
         else {
-            bb = ctx->buffered_bb;
+            /* We are done with stderr_pool, close it, killing
+             * the previous generation's stderr logger
+             */
+            if (stderr_pool)
+                apr_pool_destroy(stderr_pool);
+            stderr_pool = stderr_p;
+            replace_stderr = 0;
+            /*
+             * Now that we have dup'ed s_main->error_log to stderr_log
+             * close it and set s_main->error_log to stderr_log. This avoids
+             * this fd being inherited by the next piped logger who would
+             * keep open the writing end of the pipe that this one uses
+             * as stdin. This in turn would prevent the piped logger from
+             * exiting.
+             */
+             apr_file_close(s_main->error_log);
+             s_main->error_log = stderr_log;
         }
-        c->data_in_output_filters = 0;
     }
-    else if (new_bb == NULL) {
-        return APR_SUCCESS;
-    }
-
-    /* Scan through the brigade and decide whether to attempt a write,
-     * and how much to write, based on the following rules:
-     *
-     *  1) The new_bb is null: Do a nonblocking write of as much as
-     *     possible: do a nonblocking write of as much data as possible,
-     *     then save the rest in ctx->buffered_bb.  (If new_bb == NULL,
-     *     it probably means that the MPM is doing asynchronous write
-     *     completion and has just determined that this connection
-     *     is writable.)
-     *
-     *  2) Determine if and up to which bucket we need to do a blocking
-     *     write:
-     *
-     *  a) The brigade contains a flush bucket: Do a blocking write
-     *     of everything up that point.
-     *
-     *  b) The request is in CONN_STATE_HANDLER state, and the brigade
-     *     contains at least THRESHOLD_MAX_BUFFER bytes in non-file
-     *     buckets: Do blocking writes until the amount of data in the
-     *     buffer is less than THRESHOLD_MAX_BUFFER.  (The point of this
-     *     rule is to provide flow control, in case a handler is
-     *     streaming out lots of data faster than the data can be
-     *     sent to the client.)
-     *
-     *  c) The request is in CONN_STATE_HANDLER state, and the brigade
-     *     contains at least MAX_REQUESTS_IN_PIPELINE EOR buckets:
-     *     Do blocking writes until less than MAX_REQUESTS_IN_PIPELINE EOR
-     *     buckets are left. (The point of this rule is to prevent too many
-     *     FDs being kept open by pipelined requests, possibly allowing a
-     *     DoS).
-     *
-     *  d) The brigade contains a morphing bucket: If there was no other
-     *     reason to do a blocking write yet, try reading the bucket. If its
-     *     contents fit into memory before THRESHOLD_MAX_BUFFER is reached,
-     *     everything is fine. Otherwise we need to do a blocking write the
-     *     up to and including the morphing bucket, because ap_save_brigade()
-     *     would read the whole bucket into memory later on.
-     *
-     *  3) Actually do the blocking write up to the last bucket determined
-     *     by rules 2a-d. The point of doing only one flush is to make as
-     *     few calls to writev() as possible.
-     *
-     *  4) If the brigade contains at least THRESHOLD_MIN_WRITE
-     *     bytes: Do a nonblocking write of as much data as possible,
-     *     then save the rest in ctx->buffered_bb.
+    /* note that stderr may still need to be replaced with something
+     * because it points to the old error log, or back to the tty
+     * of the submitter.
+     * XXX: This is BS - /dev/null is non-portable
+     *      errno-as-apr_status_t is also non-portable
      */
-
-    if (new_bb == NULL) {
-        rv = send_brigade_nonblocking(net->client_socket, bb,
-                                      &(ctx->bytes_written), c);
-        if (APR_STATUS_IS_EAGAIN(rv)) {
-            rv = APR_SUCCESS;
-        }
-        else if (rv != APR_SUCCESS) {
-            /* The client has aborted the connection */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
-                          "core_output_filter: writing data to the network");
-            c->aborted = 1;
-        }
-        setaside_remaining_output(f, ctx, bb, c);
-        return rv;
+    if (replace_stderr && freopen("/dev/null", "w", stderr) == NULL) {
+        ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main, APLOGNO(00093)
+                     "unable to replace stderr with /dev/null");
     }
 
-    bytes_in_brigade = 0;
-    non_file_bytes_in_brigade = 0;
-    eor_buckets_in_brigade = 0;
-    morphing_bucket_in_brigade = 0;
+    for (virt = s_main->next; virt; virt = virt->next) {
+        if (virt->error_fname) {
+            for (q=s_main; q != virt; q = q->next) {
+                if (q->error_fname != NULL
+                    && strcmp(q->error_fname, virt->error_fname) == 0) {
+                    break;
+                }
+            }
 
-    for (bucket = APR_BRIGADE_FIRST(bb); bucket != APR_BRIGADE_SENTINEL(bb);
-         bucket = next) {
-        next = APR_BUCKET_NEXT(bucket);
-
-        if (!APR_BUCKET_IS_METADATA(bucket)) {
-            if (bucket->length == (apr_size_t)-1) {
-                /*
-                 * A setaside of morphing buckets would read everything into
-                 * memory. Instead, we will flush everything up to and
-                 * including this bucket.
-                 */
-                morphing_bucket_in_brigade = 1;
+            if (q == virt) {
+                if (open_error_log(virt, 0, p) != OK) {
+                    return DONE;
+                }
             }
             else {
-                bytes_in_brigade += bucket->length;
-                if (!APR_BUCKET_IS_FILE(bucket))
-                    non_file_bytes_in_brigade += bucket->length;
+                virt->error_log = q->error_log;
             }
         }
-        else if (AP_BUCKET_IS_EOR(bucket)) {
-            eor_buckets_in_brigade++;
-        }
-
-        if (APR_BUCKET_IS_FLUSH(bucket)
-            || non_file_bytes_in_brigade >= THRESHOLD_MAX_BUFFER
-            || morphing_bucket_in_brigade
-            || eor_buckets_in_brigade > MAX_REQUESTS_IN_PIPELINE) {
-            /* this segment of the brigade MUST be sent before returning. */
-
-            if (APLOGctrace6(c)) {
-                char *reason = APR_BUCKET_IS_FLUSH(bucket) ?
-                               "FLUSH bucket" :
-                               (non_file_bytes_in_brigade >= THRESHOLD_MAX_BUFFER) ?
-                               "THRESHOLD_MAX_BUFFER" :
-                               morphing_bucket_in_brigade ? "morphing bucket" :
-                               "MAX_REQUESTS_IN_PIPELINE";
-                ap_log_cerror(APLOG_MARK, APLOG_TRACE6, 0, c,
-                              "core_output_filter: flushing because of %s",
-                              reason);
-            }
-            /*
-             * Defer the actual blocking write to avoid doing many writes.
-             */
-            flush_upto = next;
-
-            bytes_in_brigade = 0;
-            non_file_bytes_in_brigade = 0;
-            eor_buckets_in_brigade = 0;
-            morphing_bucket_in_brigade = 0;
+        else {
+            virt->error_log = s_main->error_log;
         }
     }
-
-    if (flush_upto != NULL) {
-        ctx->tmp_flush_bb = apr_brigade_split_ex(bb, flush_upto,
-                                                 ctx->tmp_flush_bb);
-        rv = send_brigade_blocking(net->client_socket, bb,
-                                   &(ctx->bytes_written), c);
-        if (rv != APR_SUCCESS) {
-            /* The client has aborted the connection */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
-                          "core_output_filter: writing data to the network");
-            c->aborted = 1;
-            return rv;
-        }
-        APR_BRIGADE_CONCAT(bb, ctx->tmp_flush_bb);
-    }
-
-    if (bytes_in_brigade >= THRESHOLD_MIN_WRITE) {
-        rv = send_brigade_nonblocking(net->client_socket, bb,
-                                      &(ctx->bytes_written), c);
-        if ((rv != APR_SUCCESS) && (!APR_STATUS_IS_EAGAIN(rv))) {
-            /* The client has aborted the connection */
-            ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
-                          "core_output_filter: writing data to the network");
-            c->aborted = 1;
-            return rv;
-        }
-    }
-
-    setaside_remaining_output(f, ctx, bb, c);
-    return APR_SUCCESS;
+    return OK;
 }

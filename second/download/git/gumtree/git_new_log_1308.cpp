@@ -1,1 +1,1 @@
-die("BUG: attempt to commit unlocked object to \"%s\"", path);
+die(_("BUG: reopen a lockfile that has been committed"));

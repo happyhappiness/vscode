@@ -1,2 +1,1 @@
-die("unknown object type for %s: %s",
-		    sha1_to_hex(sha1), typename(type));
+add_recent_object(sha1, st.st_mtime, data);

@@ -1,1 +1,0 @@
-error_errno("cannot unlink %s", filename);

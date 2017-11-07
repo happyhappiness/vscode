@@ -1,28 +1,22 @@
-int ref_transaction_prepare(struct ref_transaction *transaction,
-			    struct strbuf *err)
+int ref_update_reject_duplicates(struct string_list *refnames,
+				 struct strbuf *err)
 {
-	struct ref_store *refs = transaction->ref_store;
+	size_t i, n = refnames->nr;
 
-	switch (transaction->state) {
-	case REF_TRANSACTION_OPEN:
-		/* Good. */
-		break;
-	case REF_TRANSACTION_PREPARED:
-		die("BUG: prepare called twice on reference transaction");
-		break;
-	case REF_TRANSACTION_CLOSED:
-		die("BUG: prepare called on a closed reference transaction");
-		break;
-	default:
-		die("BUG: unexpected reference transaction state");
-		break;
+	assert(err);
+
+	for (i = 1; i < n; i++) {
+		int cmp = strcmp(refnames->items[i - 1].string,
+				 refnames->items[i].string);
+
+		if (!cmp) {
+			strbuf_addf(err,
+				    "multiple updates for ref '%s' not allowed.",
+				    refnames->items[i].string);
+			return 1;
+		} else if (cmp > 0) {
+			die("BUG: ref_update_reject_duplicates() received unsorted list");
+		}
 	}
-
-	if (getenv(GIT_QUARANTINE_ENVIRONMENT)) {
-		strbuf_addstr(err,
-			      _("ref updates forbidden inside quarantine environment"));
-		return -1;
-	}
-
-	return refs->be->transaction_prepare(refs, transaction, err);
+	return 0;
 }

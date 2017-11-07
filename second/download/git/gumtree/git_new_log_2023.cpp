@@ -1,1 +1,1 @@
-die(_("positive width expected with the %%(align) atom"));
+die(_("improper format entered align:%s"), s[0]->buf);

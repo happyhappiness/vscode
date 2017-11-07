@@ -1,213 +1,141 @@
-int main (int argc, const char * const argv[])
+static int authenticate_basic_user(request_rec *r)
 {
-    char buf[BUFSIZE];
-    apr_size_t nRead, nWrite;
-    apr_file_t *f_stdin;
-    apr_file_t *f_stdout;
-    apr_getopt_t *opt;
-    apr_status_t rv;
-    char c;
-    const char *opt_arg;
-    const char *err = NULL;
-#if APR_FILES_AS_SOCKETS
-    apr_pollfd_t pollfd = { 0 };
-    apr_status_t pollret = APR_SUCCESS;
-    int polltimeout;
-#endif
+    auth_basic_config_rec *conf = ap_get_module_config(r->per_dir_config,
+                                                       &auth_basic_module);
+    const char *sent_user, *sent_pw, *current_auth;
+    const char *realm = NULL;
+    const char *digest = NULL;
+    int res;
+    authn_status auth_result;
+    authn_provider_list *current_provider;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(apr_terminate);
-
-    memset(&config, 0, sizeof config);
-    memset(&status, 0, sizeof status);
-    status.rotateReason = ROTATE_NONE;
-
-    apr_pool_create(&status.pool, NULL);
-    apr_getopt_init(&opt, status.pool, argc, argv);
-#if APR_FILES_AS_SOCKETS
-    while ((rv = apr_getopt(opt, "lL:p:ftvecn:", &c, &opt_arg)) == APR_SUCCESS) {
-#else
-    while ((rv = apr_getopt(opt, "lL:p:ftven:", &c, &opt_arg)) == APR_SUCCESS) {
-#endif
-        switch (c) {
-        case 'l':
-            config.use_localtime = 1;
-            break;
-        case 'L':
-            config.linkfile = opt_arg;
-            break;
-        case 'p':
-            config.postrotate_prog = opt_arg;
-            break;
-        case 'f':
-            config.force_open = 1;
-            break;
-        case 't':
-            config.truncate = 1;
-            break;
-        case 'v':
-            config.verbose = 1;
-            break;
-        case 'e':
-            config.echo = 1;
-            break;
-#if APR_FILES_AS_SOCKETS
-        case 'c':
-            config.create_empty = 1;
-            break;
-#endif
-        case 'n':
-            config.num_files = atoi(opt_arg);
-            status.fileNum = -1;
-            break;
-        }
+    /* Are we configured to be Basic auth? */
+    current_auth = ap_auth_type(r);
+    if (!current_auth || strcasecmp(current_auth, "Basic")) {
+        return DECLINED;
     }
 
-    if (rv != APR_EOF) {
-        usage(argv[0], NULL /* specific error message already issued */ );
+    /* We need an authentication realm. */
+    if (!ap_auth_name(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR,
+                      0, r, APLOGNO(01615) "need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
     }
 
-    /*
-     * After the initial flags we need 2 to 4 arguments,
-     * the file name, either the rotation interval time or size
-     * or both of them, and optionally the UTC offset.
-     */
-    if ((argc - opt->ind < 2) || (argc - opt->ind > 4) ) {
-        usage(argv[0], "Incorrect number of arguments");
+    r->ap_auth_type = (char*)current_auth;
+
+    res = get_basic_auth(r, &sent_user, &sent_pw);
+    if (res) {
+        return res;
     }
 
-    config.szLogRoot = argv[opt->ind++];
-
-    /* Read in the remaining flags, namely time, size and UTC offset. */
-    for(; opt->ind < argc; opt->ind++) {
-        if ((err = get_time_or_size(&config, argv[opt->ind],
-                                    opt->ind < argc - 1 ? 0 : 1)) != NULL) {
-            usage(argv[0], err);
-        }
+    if (conf->use_digest_algorithm
+        && !strcasecmp(conf->use_digest_algorithm, "MD5")) {
+        realm = ap_auth_name(r);
+        digest = ap_md5(r->pool,
+                        (unsigned char *)apr_pstrcat(r->pool, sent_user, ":",
+                                                     realm, ":",
+                                                     sent_pw, NULL));
     }
 
-    config.use_strftime = (strchr(config.szLogRoot, '%') != NULL);
+    current_provider = conf->providers;
+    do {
+        const authn_provider *provider;
 
-    if (config.use_strftime && config.num_files > 0) { 
-        fprintf(stderr, "Cannot use -n with %% in filename\n");
-        exit(1);
-    }
+        /* For now, if a provider isn't set, we'll be nice and use the file
+         * provider.
+         */
+        if (!current_provider) {
+            provider = ap_lookup_provider(AUTHN_PROVIDER_GROUP,
+                                          AUTHN_DEFAULT_PROVIDER,
+                                          AUTHN_PROVIDER_VERSION);
 
-    if (status.fileNum == -1 && config.num_files < 1) { 
-        fprintf(stderr, "Invalid -n argument\n");
-        exit(1);
-    }
-
-    if (apr_file_open_stdin(&f_stdin, status.pool) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to open stdin\n");
-        exit(1);
-    }
-
-    if (apr_file_open_stdout(&f_stdout, status.pool) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to open stdout\n");
-        exit(1);
-    }
-
-    /*
-     * Write out result of config parsing if verbose is set.
-     */
-    if (config.verbose) {
-        dumpConfig(&config);
-    }
-
-#if APR_FILES_AS_SOCKETS
-    if (config.create_empty && config.tRotation) {
-        pollfd.p = status.pool;
-        pollfd.desc_type = APR_POLL_FILE;
-        pollfd.reqevents = APR_POLLIN;
-        pollfd.desc.f = f_stdin;
-    }
-#endif
-
-    /*
-     * Immediately open the logfile as we start, if we were forced
-     * to do so via '-f'.
-     */
-    if (config.force_open) {
-        doRotate(&config, &status);
-    }
-
-    for (;;) {
-        nRead = sizeof(buf);
-#if APR_FILES_AS_SOCKETS
-        if (config.create_empty && config.tRotation) {
-            polltimeout = status.tLogEnd ? status.tLogEnd - get_now(&config) : config.tRotation;
-            if (polltimeout <= 0) {
-                pollret = APR_TIMEUP;
-            }
-            else {
-                pollret = apr_poll(&pollfd, 1, &pollret, apr_time_from_sec(polltimeout));
-            }
-        }
-        if (pollret == APR_SUCCESS) {
-            rv = apr_file_read(f_stdin, buf, &nRead);
-            if (APR_STATUS_IS_EOF(rv)) {
+            if (!provider || !provider->check_password) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01616)
+                              "No Authn provider configured");
+                auth_result = AUTH_GENERAL_ERROR;
                 break;
             }
-            else if (rv != APR_SUCCESS) {
-                exit(3);
-            }
-        }
-        else if (pollret == APR_TIMEUP) {
-            *buf = 0;
-            nRead = 0;
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, AUTHN_DEFAULT_PROVIDER);
         }
         else {
-            fprintf(stderr, "Unable to poll stdin\n");
-            exit(5);
+            provider = current_provider->provider;
+            apr_table_setn(r->notes, AUTHN_PROVIDER_NAME_NOTE, current_provider->provider_name);
         }
-#else /* APR_FILES_AS_SOCKETS */
-        rv = apr_file_read(f_stdin, buf, &nRead);
-        if (APR_STATUS_IS_EOF(rv)) {
+
+        if (digest) {
+            char *password;
+
+            if (!provider->get_realm_hash) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02493)
+                              "Authn provider does not support "
+                              "AuthBasicUseDigestAlgorithm");
+                auth_result = AUTH_GENERAL_ERROR;
+                break;
+            }
+            /* We expect the password to be hash of user:realm:password */
+            auth_result = provider->get_realm_hash(r, sent_user, realm,
+                                                   &password);
+            if (auth_result == AUTH_USER_FOUND) {
+                auth_result = strcmp(digest, password) ? AUTH_DENIED
+                                                       : AUTH_GRANTED;
+            }
+        }
+        else {
+            auth_result = provider->check_password(r, sent_user, sent_pw);
+        }
+
+        apr_table_unset(r->notes, AUTHN_PROVIDER_NAME_NOTE);
+
+        /* Something occured. Stop checking. */
+        if (auth_result != AUTH_USER_NOT_FOUND) {
             break;
         }
-        else if (rv != APR_SUCCESS) {
-            exit(3);
-        }
-#endif /* APR_FILES_AS_SOCKETS */
-        checkRotate(&config, &status);
-        if (status.rotateReason != ROTATE_NONE) {
-            doRotate(&config, &status);
+
+        /* If we're not really configured for providers, stop now. */
+        if (!conf->providers) {
+            break;
         }
 
-        nWrite = nRead;
-        rv = apr_file_write_full(status.current.fd, buf, nWrite, &nWrite);
-        if (nWrite != nRead) {
-            char strerrbuf[120];
-            apr_off_t cur_offset;
+        current_provider = current_provider->next;
+    } while (current_provider);
 
-            cur_offset = 0;
-            if (apr_file_seek(status.current.fd, APR_CUR, &cur_offset) != APR_SUCCESS) {
-                cur_offset = -1;
-            }
-            apr_strerror(rv, strerrbuf, sizeof strerrbuf);
-            status.nMessCount++;
-            apr_snprintf(status.errbuf, sizeof status.errbuf,
-                         "Error %d writing to log file at offset %" APR_OFF_T_FMT ". "
-                         "%10d messages lost (%s)\n",
-                         rv, cur_offset, status.nMessCount, strerrbuf);
-            nWrite = strlen(status.errbuf);
-            apr_file_trunc(status.current.fd, 0);
-            if (apr_file_write_full(status.current.fd, status.errbuf, nWrite, NULL) != APR_SUCCESS) {
-                fprintf(stderr, "Error writing to the file %s\n", status.current.name);
-                exit(2);
-            }
+    if (auth_result != AUTH_GRANTED) {
+        int return_code;
+
+        /* If we're not authoritative, then any error is ignored. */
+        if (!(conf->authoritative) && auth_result != AUTH_DENIED) {
+            return DECLINED;
         }
-        else {
-            status.nMessCount++;
+
+        switch (auth_result) {
+        case AUTH_DENIED:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01617)
+                      "user %s: authentication failure for \"%s\": "
+                      "Password Mismatch",
+                      sent_user, r->uri);
+            return_code = HTTP_UNAUTHORIZED;
+            break;
+        case AUTH_USER_NOT_FOUND:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01618)
+                      "user %s not found: %s", sent_user, r->uri);
+            return_code = HTTP_UNAUTHORIZED;
+            break;
+        case AUTH_GENERAL_ERROR:
+        default:
+            /* We'll assume that the module has already said what its error
+             * was in the logs.
+             */
+            return_code = HTTP_INTERNAL_SERVER_ERROR;
+            break;
         }
-        if (config.echo) {
-            if (apr_file_write_full(f_stdout, buf, nRead, &nWrite)) {
-                fprintf(stderr, "Unable to write to stdout\n");
-                exit(4);
-            }
+
+        /* If we're returning 403, tell them to try again. */
+        if (return_code == HTTP_UNAUTHORIZED) {
+            note_basic_auth_failure(r);
         }
+        return return_code;
     }
 
-    return 0; /* reached only at stdin EOF. */
+    return OK;
 }

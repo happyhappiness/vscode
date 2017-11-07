@@ -1,2 +1,1 @@
-error("%s: not a valid attribute name",
-					name);
+die("git_all_attrs died");

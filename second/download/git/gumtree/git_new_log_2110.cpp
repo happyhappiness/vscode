@@ -1,1 +1,2 @@
-die(_("invalid number of threads specified (%d)"), num_threads);
+die(_("invalid number of threads specified (%d) for %s"),
+			    num_threads, var);

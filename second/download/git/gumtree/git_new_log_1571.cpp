@@ -1,3 +1,3 @@
 error_buf(err,
-				 _("push destination '%s' on remote '%s' has no local tracking branch"),
-				 refname, remote->name);
+				 _("upstream branch '%s' not stored as a remote-tracking branch"),
+				 branch->merge[0]->src);

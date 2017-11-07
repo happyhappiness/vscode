@@ -1,91 +1,208 @@
-static void check_args(int argc, const char *const argv[],
-                       struct passwd_ctx *ctx, int *mask, char **user,
-                       char **pwfilename)
+int main(int argc, const char * const argv[])
 {
-    const char *arg;
-    int args_left = 2;
-    int i, ret;
-    apr_getopt_t *state;
+    apr_file_t *fpw = NULL;
+    const char *errstr = NULL;
+    char line[MAX_STRING_LEN];
+    char *pwfilename = NULL;
+    char *user = NULL;
+    char tn[] = "htpasswd.tmp.XXXXXX";
+    char *dirname;
+    char *scratch, cp[MAX_STRING_LEN];
+    int found = 0;
+    int i;
+    int mask = 0;
+    apr_pool_t *pool;
+    int existing_file = 0;
+    struct passwd_ctx ctx = { 0 };
+#if APR_CHARSET_EBCDIC
     apr_status_t rv;
-    char opt;
-    const char *opt_arg;
-    apr_pool_t *pool = ctx->pool;
+    apr_xlate_t *to_ascii;
+#endif
 
-    rv = apr_getopt_init(&state, pool, argc, argv);
-    if (rv != APR_SUCCESS)
-        exit(ERR_SYNTAX);
+    apr_app_initialize(&argc, &argv, NULL);
+    atexit(terminate);
+    apr_pool_create(&pool, NULL);
+    apr_file_open_stderr(&errfile, pool);
+    ctx.pool = pool;
+    ctx.alg = ALG_APMD5;
 
-    while ((rv = apr_getopt(state, "cnmspdBbDiC:", &opt, &opt_arg)) == APR_SUCCESS) {
-        switch (opt) {
-        case 'c':
-            *mask |= APHTP_NEWFILE;
-            break;
-        case 'n':
-            args_left--;
-            *mask |= APHTP_NOFILE;
-            break;
-        case 'D':
-            *mask |= APHTP_DELUSER;
-            break;
-        default:
-            ret = parse_common_options(ctx, opt, opt_arg);
-            if (ret) {
-                apr_file_printf(errfile, "%s: %s" NL, argv[0], ctx->errstr);
-                exit(ret);
+#if APR_CHARSET_EBCDIC
+    rv = apr_xlate_open(&to_ascii, "ISO-8859-1", APR_DEFAULT_CHARSET, pool);
+    if (rv) {
+        apr_file_printf(errfile, "apr_xlate_open(to ASCII)->%d" NL, rv);
+        exit(1);
+    }
+    rv = apr_SHA1InitEBCDIC(to_ascii);
+    if (rv) {
+        apr_file_printf(errfile, "apr_SHA1InitEBCDIC()->%d" NL, rv);
+        exit(1);
+    }
+    rv = apr_MD5InitEBCDIC(to_ascii);
+    if (rv) {
+        apr_file_printf(errfile, "apr_MD5InitEBCDIC()->%d" NL, rv);
+        exit(1);
+    }
+#endif /*APR_CHARSET_EBCDIC*/
+
+    check_args(argc, argv, &ctx, &mask, &user, &pwfilename);
+
+    /*
+     * Only do the file checks if we're supposed to frob it.
+     */
+    if (!(mask & APHTP_NOFILE)) {
+        existing_file = exists(pwfilename, pool);
+        if (existing_file) {
+            /*
+             * Check that this existing file is readable and writable.
+             */
+            if (!accessible(pool, pwfilename, APR_FOPEN_READ|APR_FOPEN_WRITE)) {
+                apr_file_printf(errfile, "%s: cannot open file %s for "
+                                "read/write access" NL, argv[0], pwfilename);
+                exit(ERR_FILEPERM);
+            }
+        }
+        else {
+            /*
+             * Error out if -c was omitted for this non-existant file.
+             */
+            if (!(mask & APHTP_NEWFILE)) {
+                apr_file_printf(errfile,
+                        "%s: cannot modify file %s; use '-c' to create it" NL,
+                        argv[0], pwfilename);
+                exit(ERR_FILEPERM);
+            }
+            /*
+             * As it doesn't exist yet, verify that we can create it.
+             */
+            if (!accessible(pool, pwfilename, APR_FOPEN_WRITE|APR_FOPEN_CREATE)) {
+                apr_file_printf(errfile, "%s: cannot create file %s" NL,
+                                argv[0], pwfilename);
+                exit(ERR_FILEPERM);
             }
         }
     }
-    if (ctx->passwd_src == PW_ARG)
-        args_left++;
-    if (rv != APR_EOF)
-        usage();
 
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_NOFILE)) {
-        apr_file_printf(errfile, "%s: -c and -n options conflict" NL, argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    if ((*mask & APHTP_NEWFILE) && (*mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "%s: -c and -D options conflict" NL, argv[0]);
-        exit(ERR_SYNTAX);
-    }
-    if ((*mask & APHTP_NOFILE) && (*mask & APHTP_DELUSER)) {
-        apr_file_printf(errfile, "%s: -n and -D options conflict" NL, argv[0]);
-        exit(ERR_SYNTAX);
-    }
     /*
-     * Make sure we still have exactly the right number of arguments left
-     * (the filename, the username, and possibly the password if -b was
-     * specified).
+     * All the file access checks (if any) have been made.  Time to go to work;
+     * try to create the record for the username in question.  If that
+     * fails, there's no need to waste any time on file manipulations.
+     * Any error message text is returned in the record buffer, since
+     * the mkrecord() routine doesn't have access to argv[].
      */
-    i = state->ind;
-    if ((argc - i) != args_left) {
-        usage();
+    if (!(mask & APHTP_DELUSER)) {
+        i = mkrecord(&ctx, user);
+        if (i != 0) {
+            apr_file_printf(errfile, "%s: %s" NL, argv[0], errstr);
+            exit(i);
+        }
+        if (mask & APHTP_NOFILE) {
+            printf("%s" NL, ctx.out);
+            exit(0);
+        }
     }
 
-    if (!(*mask & APHTP_NOFILE)) {
-        if (strlen(argv[i]) > (APR_PATH_MAX - 1)) {
-            apr_file_printf(errfile, "%s: filename too long" NL, argv[0]);
-            exit(ERR_OVERFLOW);
+    /*
+     * We can access the files the right way, and we have a record
+     * to add or update.  Let's do it..
+     */
+    if (apr_temp_dir_get((const char**)&dirname, pool) != APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: could not determine temp dir" NL,
+                        argv[0]);
+        exit(ERR_FILEPERM);
+    }
+    dirname = apr_psprintf(pool, "%s/%s", dirname, tn);
+
+    if (apr_file_mktemp(&ftemp, dirname, 0, pool) != APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to create temporary file %s" NL,
+                        argv[0], dirname);
+        exit(ERR_FILEPERM);
+    }
+
+    /*
+     * If we're not creating a new file, copy records from the existing
+     * one to the temporary file until we find the specified user.
+     */
+    if (existing_file && !(mask & APHTP_NEWFILE)) {
+        if (apr_file_open(&fpw, pwfilename, APR_READ | APR_BUFFERED,
+                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
+            apr_file_printf(errfile, "%s: unable to read file %s" NL,
+                            argv[0], pwfilename);
+            exit(ERR_FILEPERM);
         }
-        *pwfilename = apr_pstrdup(pool, argv[i++]);
-    }
-    if (strlen(argv[i]) > (MAX_STRING_LEN - 1)) {
-        apr_file_printf(errfile, "%s: username too long (> %d)" NL,
-                        argv[0], MAX_STRING_LEN - 1);
-        exit(ERR_OVERFLOW);
-    }
-    *user = apr_pstrdup(pool, argv[i++]);
-    if ((arg = strchr(*user, ':')) != NULL) {
-        apr_file_printf(errfile, "%s: username contains illegal "
-                        "character '%c'" NL, argv[0], *arg);
-        exit(ERR_BADUSER);
-    }
-    if (ctx->passwd_src == PW_ARG) {
-        if (strlen(argv[i]) > (MAX_STRING_LEN - 1)) {
-            apr_file_printf(errfile, "%s: password too long (> %d)" NL,
-                argv[0], MAX_STRING_LEN);
-            exit(ERR_OVERFLOW);
+        while (apr_file_gets(line, sizeof(line), fpw) == APR_SUCCESS) {
+            char *colon;
+
+            strcpy(cp, line);
+            scratch = cp;
+            while (apr_isspace(*scratch)) {
+                ++scratch;
+            }
+
+            if (!*scratch || (*scratch == '#')) {
+                putline(ftemp, line);
+                continue;
+            }
+            /*
+             * See if this is our user.
+             */
+            colon = strchr(scratch, ':');
+            if (colon != NULL) {
+                *colon = '\0';
+            }
+            else {
+                /*
+                 * If we've not got a colon on the line, this could well
+                 * not be a valid htpasswd file.
+                 * We should bail at this point.
+                 */
+                apr_file_printf(errfile, "%s: The file %s does not appear "
+                                         "to be a valid htpasswd file." NL,
+                                argv[0], pwfilename);
+                apr_file_close(fpw);
+                exit(ERR_INVALID);
+            }
+            if (strcmp(user, scratch) != 0) {
+                putline(ftemp, line);
+                continue;
+            }
+            else {
+                if (!(mask & APHTP_DELUSER)) {
+                    /* We found the user we were looking for.
+                     * Add him to the file.
+                    */
+                    apr_file_printf(errfile, "Updating ");
+                    putline(ftemp, ctx.out);
+                    found++;
+                }
+                else {
+                    /* We found the user we were looking for.
+                     * Delete them from the file.
+                     */
+                    apr_file_printf(errfile, "Deleting ");
+                    found++;
+                }
+            }
         }
-        ctx->passwd = apr_pstrdup(pool, argv[i]);
+        apr_file_close(fpw);
     }
+    if (!found && !(mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "Adding ");
+        putline(ftemp, ctx.out);
+    }
+    else if (!found && (mask & APHTP_DELUSER)) {
+        apr_file_printf(errfile, "User %s not found" NL, user);
+        exit(0);
+    }
+    apr_file_printf(errfile, "password for user %s" NL, user);
+
+    /* The temporary file has all the data, just copy it to the new location.
+     */
+    if (apr_file_copy(dirname, pwfilename, APR_FILE_SOURCE_PERMS, pool) !=
+        APR_SUCCESS) {
+        apr_file_printf(errfile, "%s: unable to update file %s" NL,
+                        argv[0], pwfilename);
+        exit(ERR_FILEPERM);
+    }
+    apr_file_close(ftemp);
+    return 0;
 }

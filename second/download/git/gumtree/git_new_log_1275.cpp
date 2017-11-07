@@ -1,1 +1,2 @@
-die_errno("unable to point stderr to /dev/null");
+error("copy-fd: write returned %s",
+				     strerror(errno));

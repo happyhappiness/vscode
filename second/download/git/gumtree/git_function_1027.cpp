@@ -1,130 +1,70 @@
-int cmd_pull(int argc, const char **argv, const char *prefix)
+static void prepare_pack(int window, int depth)
 {
-	const char *repo, **refspecs;
-	struct oid_array merge_heads = OID_ARRAY_INIT;
-	struct object_id orig_head, curr_head;
-	struct object_id rebase_fork_point;
-	int autostash;
+	struct object_entry **delta_list;
+	uint32_t i, nr_deltas;
+	unsigned n;
 
-	if (!getenv("GIT_REFLOG_ACTION"))
-		set_reflog_message(argc, argv);
+	get_object_details();
 
-	argc = parse_options(argc, argv, prefix, pull_options, pull_usage, 0);
+	/*
+	 * If we're locally repacking then we need to be doubly careful
+	 * from now on in order to make sure no stealth corruption gets
+	 * propagated to the new pack.  Clients receiving streamed packs
+	 * should validate everything they get anyway so no need to incur
+	 * the additional cost here in that case.
+	 */
+	if (!pack_to_stdout)
+		do_check_packed_object_crc = 1;
 
-	parse_repo_refspecs(argc, argv, &repo, &refspecs);
+	if (!to_pack.nr_objects || !window || !depth)
+		return;
 
-	if (!opt_ff)
-		opt_ff = xstrdup_or_null(config_get_ff());
+	ALLOC_ARRAY(delta_list, to_pack.nr_objects);
+	nr_deltas = n = 0;
 
-	if (opt_rebase < 0)
-		opt_rebase = config_get_rebase();
+	for (i = 0; i < to_pack.nr_objects; i++) {
+		struct object_entry *entry = to_pack.objects + i;
 
-	git_config(git_pull_config, NULL);
+		if (entry->delta)
+			/* This happens if we decided to reuse existing
+			 * delta from a pack.  "reuse_delta &&" is implied.
+			 */
+			continue;
 
-	if (read_cache_unmerged())
-		die_resolve_conflict("pull");
+		if (entry->size < 50)
+			continue;
 
-	if (file_exists(git_path_merge_head()))
-		die_conclude_merge();
+		if (entry->no_try_delta)
+			continue;
 
-	if (get_oid("HEAD", &orig_head))
-		oidclr(&orig_head);
-
-	if (!opt_rebase && opt_autostash != -1)
-		die(_("--[no-]autostash option is only valid with --rebase."));
-
-	autostash = config_autostash;
-	if (opt_rebase) {
-		if (opt_autostash != -1)
-			autostash = opt_autostash;
-
-		if (is_null_oid(&orig_head) && !is_cache_unborn())
-			die(_("Updating an unborn branch with changes added to the index."));
-
-		if (!autostash)
-			require_clean_work_tree(N_("pull with rebase"),
-				_("please commit or stash them."), 1, 0);
-
-		if (get_rebase_fork_point(&rebase_fork_point, repo, *refspecs))
-			oidclr(&rebase_fork_point);
-	}
-
-	if (run_fetch(repo, refspecs))
-		return 1;
-
-	if (opt_dry_run)
-		return 0;
-
-	if (get_oid("HEAD", &curr_head))
-		oidclr(&curr_head);
-
-	if (!is_null_oid(&orig_head) && !is_null_oid(&curr_head) &&
-			oidcmp(&orig_head, &curr_head)) {
-		/*
-		 * The fetch involved updating the current branch.
-		 *
-		 * The working tree and the index file are still based on
-		 * orig_head commit, but we are merging into curr_head.
-		 * Update the working tree to match curr_head.
-		 */
-
-		warning(_("fetch updated the current branch head.\n"
-			"fast-forwarding your working tree from\n"
-			"commit %s."), oid_to_hex(&orig_head));
-
-		if (checkout_fast_forward(&orig_head, &curr_head, 0))
-			die(_("Cannot fast-forward your working tree.\n"
-				"After making sure that you saved anything precious from\n"
-				"$ git diff %s\n"
-				"output, run\n"
-				"$ git reset --hard\n"
-				"to recover."), oid_to_hex(&orig_head));
-	}
-
-	get_merge_heads(&merge_heads);
-
-	if (!merge_heads.nr)
-		die_no_merge_candidates(repo, refspecs);
-
-	if (is_null_oid(&orig_head)) {
-		if (merge_heads.nr > 1)
-			die(_("Cannot merge multiple branches into empty head."));
-		return pull_into_void(merge_heads.oid, &curr_head);
-	}
-	if (opt_rebase && merge_heads.nr > 1)
-		die(_("Cannot rebase onto multiple branches."));
-
-	if (opt_rebase) {
-		int ret = 0;
-		if ((recurse_submodules == RECURSE_SUBMODULES_ON ||
-		     recurse_submodules == RECURSE_SUBMODULES_ON_DEMAND) &&
-		    submodule_touches_in_range(&rebase_fork_point, &curr_head))
-			die(_("cannot rebase with locally recorded submodule modifications"));
-		if (!autostash) {
-			struct commit_list *list = NULL;
-			struct commit *merge_head, *head;
-
-			head = lookup_commit_reference(&orig_head);
-			commit_list_insert(head, &list);
-			merge_head = lookup_commit_reference(&merge_heads.oid[0]);
-			if (is_descendant_of(merge_head, list)) {
-				/* we can fast-forward this without invoking rebase */
-				opt_ff = "--ff-only";
-				ret = run_merge();
+		if (!entry->preferred_base) {
+			nr_deltas++;
+			if (entry->type < 0)
+				die("unable to get type of object %s",
+				    sha1_to_hex(entry->idx.sha1));
+		} else {
+			if (entry->type < 0) {
+				/*
+				 * This object is not found, but we
+				 * don't have to include it anyway.
+				 */
+				continue;
 			}
 		}
-		ret = run_rebase(&curr_head, merge_heads.oid, &rebase_fork_point);
 
-		if (!ret && (recurse_submodules == RECURSE_SUBMODULES_ON ||
-			     recurse_submodules == RECURSE_SUBMODULES_ON_DEMAND))
-			ret = rebase_submodules();
-
-		return ret;
-	} else {
-		int ret = run_merge();
-		if (!ret && (recurse_submodules == RECURSE_SUBMODULES_ON ||
-			     recurse_submodules == RECURSE_SUBMODULES_ON_DEMAND))
-			ret = update_submodules();
-		return ret;
+		delta_list[n++] = entry;
 	}
+
+	if (nr_deltas && n > 1) {
+		unsigned nr_done = 0;
+		if (progress)
+			progress_state = start_progress(_("Compressing objects"),
+							nr_deltas);
+		QSORT(delta_list, n, type_size_sort);
+		ll_find_deltas(delta_list, n, window+1, depth, &nr_done);
+		stop_progress(&progress_state);
+		if (nr_done != nr_deltas)
+			die("inconsistency with delta count");
+	}
+	free(delta_list);
 }

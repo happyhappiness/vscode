@@ -1,1 +1,1 @@
-die(_("failed to sign the push certificate"));
+die("unable to add index blob to traversal");

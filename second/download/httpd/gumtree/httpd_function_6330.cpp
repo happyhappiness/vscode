@@ -1,58 +1,55 @@
-static proxy_worker *hc_get_hcworker(sctx_t *ctx, proxy_worker *worker,
-                                     apr_pool_t *p)
+static int hc_read_headers(sctx_t *ctx, request_rec *r)
 {
-    proxy_worker *hc = NULL;
-    const char* wptr;
-    apr_port_t port;
+    char buffer[HUGE_STRING_LEN];
+    int len;
 
-    wptr = apr_psprintf(ctx->p, "%pp", worker);
-    hc = (proxy_worker *)apr_hash_get(ctx->hcworkers, wptr, APR_HASH_KEY_STRING);
-    port = (worker->s->port ? worker->s->port : ap_proxy_port_of_scheme(worker->s->scheme));
-    if (!hc) {
-        apr_uri_t uri;
-        apr_status_t rv;
-        const char *url = worker->s->name;
-        wctx_t *wctx = apr_pcalloc(ctx->p, sizeof(wctx_t));
+    len = ap_getline(buffer, sizeof(buffer), r, 1);
+    if (len <= 0) {
+        return !OK;
+    }
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03254)
+            "%s", buffer);
+    /* for the below, see ap_proxy_http_process_response() */
+    if (apr_date_checkmask(buffer, "HTTP/#.# ###*")) {
+        int major;
+        char keepchar;
+        int proxy_status = OK;
+        const char *proxy_status_line = NULL;
 
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03248)
-                     "Creating hc worker %s for %s://%s:%d",
-                     wptr, worker->s->scheme, worker->s->hostname,
-                     (int)port);
-
-        ap_proxy_define_worker(ctx->p, &hc, NULL, NULL, worker->s->name, 0);
-        PROXY_STRNCPY(hc->s->name,     wptr);
-        PROXY_STRNCPY(hc->s->hostname, worker->s->hostname);
-        PROXY_STRNCPY(hc->s->scheme,   worker->s->scheme);
-        PROXY_STRNCPY(hc->s->hcuri,    worker->s->hcuri);
-        PROXY_STRNCPY(hc->s->hcexpr,   worker->s->hcexpr);
-        hc->hash.def = hc->s->hash.def = ap_proxy_hashfunc(hc->s->name, PROXY_HASHFUNC_DEFAULT);
-        hc->hash.fnv = hc->s->hash.fnv = ap_proxy_hashfunc(hc->s->name, PROXY_HASHFUNC_FNV);
-        hc->s->port = port;
-        /* Do not disable worker in case of errors */
-        hc->s->status |= PROXY_WORKER_IGNORE_ERRORS;
-        /* Mark as the "generic" worker */
-        hc->s->status |= PROXY_WORKER_GENERIC;
-        ap_proxy_initialize_worker(hc, ctx->s, ctx->p);
-        hc->s->is_address_reusable = worker->s->is_address_reusable;
-        hc->s->disablereuse = worker->s->disablereuse;
-        hc->s->method = worker->s->method;
-        rv = apr_uri_parse(p, url, &uri);
-        if (rv == APR_SUCCESS) {
-            wctx->path = apr_pstrdup(ctx->p, uri.path);
+        major = buffer[5] - '0';
+        if ((major != 1) || (len >= sizeof(buffer)-1)) {
+            return !OK;
         }
-        wctx->w = worker;
-        hc->context = wctx;
-        apr_hash_set(ctx->hcworkers, wptr, APR_HASH_KEY_STRING, hc);
+
+        keepchar = buffer[12];
+        buffer[12] = '\0';
+        proxy_status = atoi(&buffer[9]);
+        if (keepchar != '\0') {
+            buffer[12] = keepchar;
+        } else {
+            buffer[12] = ' ';
+            buffer[13] = '\0';
+        }
+        proxy_status_line = apr_pstrdup(r->pool, &buffer[9]);
+        r->status = proxy_status;
+        r->status_line = proxy_status_line;
+    } else {
+        return !OK;
     }
-    /* This *could* have changed via the Balancer Manager */
-    /* TODO */
-    if (hc->s->method != worker->s->method) {
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ctx->s, APLOGNO(03311)
-                     "Updating hc worker %s for %s://%s:%d",
-                     wptr, worker->s->scheme, worker->s->hostname,
-                     (int)port);
-        hc->s->method = worker->s->method;
-        apr_hash_set(ctx->hcworkers, wptr, APR_HASH_KEY_STRING, hc);
+    /* OK, 1st line is OK... scarf in the headers */
+    while ((len = ap_getline(buffer, sizeof(buffer), r, 1)) > 0) {
+        char *value, *end;
+        if (!(value = strchr(buffer, ':'))) {
+            return !OK;
+        }
+        ap_log_error(APLOG_MARK, APLOG_TRACE7, 0, ctx->s, "%s", buffer);
+        *value = '\0';
+        ++value;
+        while (apr_isspace(*value))
+            ++value;            /* Skip to start of value   */
+        for (end = &value[strlen(value)-1]; end > value && apr_isspace(*end); --end)
+            *end = '\0';
+        apr_table_add(r->headers_out, buffer, value);
     }
-    return hc;
+    return OK;
 }

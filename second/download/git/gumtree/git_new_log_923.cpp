@@ -1,1 +1,1 @@
-die(_("ls-tree returned unexpected return code %d"), code);
+die (_("BUG: returned path string doesn't match cwd?"));

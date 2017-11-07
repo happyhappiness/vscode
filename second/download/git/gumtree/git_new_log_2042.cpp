@@ -1,1 +1,1 @@
-die("update_treesame %s", oid_to_hex(&commit->object.oid));
+die("bad object %s", oid_to_hex(&tag->tagged->oid));

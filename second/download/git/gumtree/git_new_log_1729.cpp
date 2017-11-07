@@ -1,1 +1,1 @@
-strbuf_release(&filename);
+strbuf_addstr(&filename, path);

@@ -1,1 +1,1 @@
-die("unknown line in '%s': %s", git_path_merge_head(), line.buf);
+die("cannot open '%s' for reading", git_path_merge_head());

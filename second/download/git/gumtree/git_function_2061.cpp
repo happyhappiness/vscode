@@ -1,91 +1,65 @@
-int merge_submodule(unsigned char result[20], const char *path,
-		    const unsigned char base[20], const unsigned char a[20],
-		    const unsigned char b[20], int search)
+static void paint_down(struct paint_info *info, const unsigned char *sha1,
+		       int id)
 {
-	struct commit *commit_base, *commit_a, *commit_b;
-	int parent_count;
-	struct object_array merges;
+	unsigned int i, nr;
+	struct commit_list *head = NULL;
+	int bitmap_nr = (info->nr_bits + 31) / 32;
+	int bitmap_size = bitmap_nr * sizeof(uint32_t);
+	uint32_t *tmp = xmalloc(bitmap_size); /* to be freed before return */
+	uint32_t *bitmap = paint_alloc(info);
+	struct commit *c = lookup_commit_reference_gently(sha1, 1);
+	if (!c)
+		return;
+	memset(bitmap, 0, bitmap_size);
+	bitmap[id / 32] |= (1 << (id % 32));
+	commit_list_insert(c, &head);
+	while (head) {
+		struct commit_list *p;
+		struct commit *c = pop_commit(&head);
+		uint32_t **refs = ref_bitmap_at(&info->ref_bitmap, c);
 
-	int i;
+		/* XXX check "UNINTERESTING" from pack bitmaps if available */
+		if (c->object.flags & (SEEN | UNINTERESTING))
+			continue;
+		else
+			c->object.flags |= SEEN;
 
-	/* store a in result in case we fail */
-	hashcpy(result, a);
+		if (*refs == NULL)
+			*refs = bitmap;
+		else {
+			memcpy(tmp, *refs, bitmap_size);
+			for (i = 0; i < bitmap_nr; i++)
+				tmp[i] |= bitmap[i];
+			if (memcmp(tmp, *refs, bitmap_size)) {
+				*refs = paint_alloc(info);
+				memcpy(*refs, tmp, bitmap_size);
+			}
+		}
 
-	/* we can not handle deletion conflicts */
-	if (is_null_sha1(base))
-		return 0;
-	if (is_null_sha1(a))
-		return 0;
-	if (is_null_sha1(b))
-		return 0;
+		if (c->object.flags & BOTTOM)
+			continue;
 
-	if (add_submodule_odb(path)) {
-		MERGE_WARNING(path, "not checked out");
-		return 0;
+		if (parse_commit(c))
+			die("unable to parse commit %s",
+			    sha1_to_hex(c->object.sha1));
+
+		for (p = c->parents; p; p = p->next) {
+			uint32_t **p_refs = ref_bitmap_at(&info->ref_bitmap,
+							  p->item);
+			if (p->item->object.flags & SEEN)
+				continue;
+			if (*p_refs == NULL || *p_refs == *refs)
+				*p_refs = *refs;
+			commit_list_insert(p->item, &head);
+		}
 	}
 
-	if (!(commit_base = lookup_commit_reference(base)) ||
-	    !(commit_a = lookup_commit_reference(a)) ||
-	    !(commit_b = lookup_commit_reference(b))) {
-		MERGE_WARNING(path, "commits not present");
-		return 0;
+	nr = get_max_object_index();
+	for (i = 0; i < nr; i++) {
+		struct object *o = get_indexed_object(i);
+		if (o && o->type == OBJ_COMMIT)
+			o->flags &= ~SEEN;
 	}
 
-	/* check whether both changes are forward */
-	if (!in_merge_bases(commit_base, commit_a) ||
-	    !in_merge_bases(commit_base, commit_b)) {
-		MERGE_WARNING(path, "commits don't follow merge-base");
-		return 0;
-	}
-
-	/* Case #1: a is contained in b or vice versa */
-	if (in_merge_bases(commit_a, commit_b)) {
-		hashcpy(result, b);
-		return 1;
-	}
-	if (in_merge_bases(commit_b, commit_a)) {
-		hashcpy(result, a);
-		return 1;
-	}
-
-	/*
-	 * Case #2: There are one or more merges that contain a and b in
-	 * the submodule. If there is only one, then present it as a
-	 * suggestion to the user, but leave it marked unmerged so the
-	 * user needs to confirm the resolution.
-	 */
-
-	/* Skip the search if makes no sense to the calling context.  */
-	if (!search)
-		return 0;
-
-	/* find commit which merges them */
-	parent_count = find_first_merges(&merges, path, commit_a, commit_b);
-	switch (parent_count) {
-	case 0:
-		MERGE_WARNING(path, "merge following commits not found");
-		break;
-
-	case 1:
-		MERGE_WARNING(path, "not fast-forward");
-		fprintf(stderr, "Found a possible merge resolution "
-				"for the submodule:\n");
-		print_commit((struct commit *) merges.objects[0].item);
-		fprintf(stderr,
-			"If this is correct simply add it to the index "
-			"for example\n"
-			"by using:\n\n"
-			"  git update-index --cacheinfo 160000 %s \"%s\"\n\n"
-			"which will accept this suggestion.\n",
-			sha1_to_hex(merges.objects[0].item->sha1), path);
-		break;
-
-	default:
-		MERGE_WARNING(path, "multiple merges found");
-		for (i = 0; i < merges.nr; i++)
-			print_commit((struct commit *) merges.objects[i].item);
-	}
-
-	free(merges.objects);
-	return 0;
+	free(tmp);
 }

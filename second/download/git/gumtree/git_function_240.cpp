@@ -1,80 +1,120 @@
-int init_db(const char *git_dir, const char *real_git_dir,
-	    const char *template_dir, unsigned int flags)
+static int create_default_files(const char *template_path,
+				const char *original_git_dir)
 {
+	struct stat st1;
+	struct strbuf buf = STRBUF_INIT;
+	char *path;
+	char repo_version_string[10];
+	char junk[2];
 	int reinit;
-	int exist_ok = flags & INIT_DB_EXIST_OK;
-	char *original_git_dir = xstrdup(real_path(git_dir));
+	int filemode;
+	struct strbuf err = STRBUF_INIT;
 
-	if (real_git_dir) {
-		struct stat st;
+	/* Just look for `init.templatedir` */
+	git_config(git_init_db_config, NULL);
 
-		if (!exist_ok && !stat(git_dir, &st))
-			die(_("%s already exists"), git_dir);
-
-		if (!exist_ok && !stat(real_git_dir, &st))
-			die(_("%s already exists"), real_git_dir);
-
-		set_git_dir(real_path(real_git_dir));
-		git_dir = get_git_dir();
-		separate_git_dir(git_dir, original_git_dir);
-	}
-	else {
-		set_git_dir(real_path(git_dir));
-		git_dir = get_git_dir();
-	}
-	startup_info->have_repository = 1;
-
-	safe_create_dir(git_dir, 0);
-
-	init_is_bare_repository = is_bare_repository();
-
-	/* Check to see if the repository version is right.
-	 * Note that a newly created repository does not have
-	 * config file, so this will not fail.  What we are catching
-	 * is an attempt to reinitialize new repository with an old tool.
+	/*
+	 * First copy the templates -- we might have the default
+	 * config file there, in which case we would want to read
+	 * from it after installing.
+	 *
+	 * Before reading that config, we also need to clear out any cached
+	 * values (since we've just potentially changed what's available on
+	 * disk).
 	 */
-	check_repository_format();
+	copy_templates(template_path);
+	git_config_clear();
+	reset_shared_repository();
+	git_config(git_default_config, NULL);
 
-	reinit = create_default_files(template_dir, original_git_dir);
+	/*
+	 * We must make sure command-line options continue to override any
+	 * values we might have just re-read from the config.
+	 */
+	is_bare_repository_cfg = init_is_bare_repository;
+	if (init_shared_repository != -1)
+		set_shared_repository(init_shared_repository);
 
-	create_object_directory();
-
+	/*
+	 * We would have created the above under user's umask -- under
+	 * shared-repository settings, we would need to fix them up.
+	 */
 	if (get_shared_repository()) {
-		char buf[10];
-		/* We do not spell "group" and such, so that
-		 * the configuration can be read by older version
-		 * of git. Note, we use octal numbers for new share modes,
-		 * and compatibility values for PERM_GROUP and
-		 * PERM_EVERYBODY.
-		 */
-		if (get_shared_repository() < 0)
-			/* force to the mode value */
-			xsnprintf(buf, sizeof(buf), "0%o", -get_shared_repository());
-		else if (get_shared_repository() == PERM_GROUP)
-			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_GROUP);
-		else if (get_shared_repository() == PERM_EVERYBODY)
-			xsnprintf(buf, sizeof(buf), "%d", OLD_PERM_EVERYBODY);
-		else
-			die("BUG: invalid value for shared_repository");
-		git_config_set("core.sharedrepository", buf);
-		git_config_set("receive.denyNonFastforwards", "true");
+		adjust_shared_perm(get_git_dir());
 	}
 
-	if (!(flags & INIT_DB_QUIET)) {
-		int len = strlen(git_dir);
+	/*
+	 * We need to create a "refs" dir in any case so that older
+	 * versions of git can tell that this is a repository.
+	 */
+	safe_create_dir(git_path("refs"), 1);
+	adjust_shared_perm(git_path("refs"));
 
-		if (reinit)
-			printf(get_shared_repository()
-			       ? _("Reinitialized existing shared Git repository in %s%s\n")
-			       : _("Reinitialized existing Git repository in %s%s\n"),
-			       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
-		else
-			printf(get_shared_repository()
-			       ? _("Initialized empty shared Git repository in %s%s\n")
-			       : _("Initialized empty Git repository in %s%s\n"),
-			       git_dir, len && git_dir[len-1] != '/' ? "/" : "");
+	if (refs_init_db(&err))
+		die("failed to set up refs db: %s", err.buf);
+
+	/*
+	 * Create the default symlink from ".git/HEAD" to the "master"
+	 * branch, if it does not exist yet.
+	 */
+	path = git_path_buf(&buf, "HEAD");
+	reinit = (!access(path, R_OK)
+		  || readlink(path, junk, sizeof(junk)-1) != -1);
+	if (!reinit) {
+		if (create_symref("HEAD", "refs/heads/master", NULL) < 0)
+			exit(1);
 	}
 
-	free(original_git_dir);
-	return 0;
+	/* This forces creation of new config file */
+	xsnprintf(repo_version_string, sizeof(repo_version_string),
+		  "%d", GIT_REPO_VERSION);
+	git_config_set("core.repositoryformatversion", repo_version_string);
+
+	/* Check filemode trustability */
+	path = git_path_buf(&buf, "config");
+	filemode = TEST_FILEMODE;
+	if (TEST_FILEMODE && !lstat(path, &st1)) {
+		struct stat st2;
+		filemode = (!chmod(path, st1.st_mode ^ S_IXUSR) &&
+				!lstat(path, &st2) &&
+				st1.st_mode != st2.st_mode &&
+				!chmod(path, st1.st_mode));
+		if (filemode && !reinit && (st1.st_mode & S_IXUSR))
+			filemode = 0;
+	}
+	git_config_set("core.filemode", filemode ? "true" : "false");
+
+	if (is_bare_repository())
+		git_config_set("core.bare", "true");
+	else {
+		const char *work_tree = get_git_work_tree();
+		git_config_set("core.bare", "false");
+		/* allow template config file to override the default */
+		if (log_all_ref_updates == -1)
+			git_config_set("core.logallrefupdates", "true");
+		if (needs_work_tree_config(original_git_dir, work_tree))
+			git_config_set("core.worktree", work_tree);
+	}
+
+	if (!reinit) {
+		/* Check if symlink is supported in the work tree */
+		path = git_path_buf(&buf, "tXXXXXX");
+		if (!close(xmkstemp(path)) &&
+		    !unlink(path) &&
+		    !symlink("testing", path) &&
+		    !lstat(path, &st1) &&
+		    S_ISLNK(st1.st_mode))
+			unlink(path); /* good */
+		else
+			git_config_set("core.symlinks", "false");
+
+		/* Check if the filesystem is case-insensitive */
+		path = git_path_buf(&buf, "CoNfIg");
+		if (!access(path, F_OK))
+			git_config_set("core.ignorecase", "true");
+		probe_utf8_pathname_composition();
+	}
+
+	strbuf_release(&buf);
+	return reinit;
 }

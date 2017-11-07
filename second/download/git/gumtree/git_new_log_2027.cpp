@@ -1,1 +1,1 @@
-die(_("malformed object name %s"), arg);
+die(_("format: %%(end) atom missing"));

@@ -1,1 +1,2 @@
-warning_errno(_(msg_warn_remove_failed), quoted.buf);
+error("%s: not a valid attribute name",
+					     argv[i]);

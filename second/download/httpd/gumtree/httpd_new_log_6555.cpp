@@ -1,0 +1,1 @@
+fprintf(stderr, "Error opening database %s\n", h->filename);

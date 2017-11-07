@@ -1,1 +1,1 @@
-die_errno("Could not open '%s'", path);
+die("BUG: attempt to snprintf into too-small buffer");

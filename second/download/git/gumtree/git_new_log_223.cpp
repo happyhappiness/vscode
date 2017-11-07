@@ -1,2 +1,1 @@
-die("--batch-all-objects cannot be combined with "
-			    "--textconv nor with --filters");
+die("BUG: invalid cmdmode: %c", opt->cmdmode);

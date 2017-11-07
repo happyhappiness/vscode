@@ -1,1 +1,1 @@
-error(_("empty commit set passed"));
+error(_("revision walk setup failed"));

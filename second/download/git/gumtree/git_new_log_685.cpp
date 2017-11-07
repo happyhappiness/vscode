@@ -1,1 +1,1 @@
-die("Error reading %s", path);
+die("Too large to be a .git file: '%s'", path);

@@ -1,2 +1,1 @@
-help_unknown_ref(argv[i], "merge",
-						 "not something we can merge");
+die("Bad value '%s' in environment '%s'", e, name);

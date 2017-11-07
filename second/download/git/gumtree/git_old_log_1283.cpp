@@ -1,1 +1,1 @@
-error("Unable to update %s", ref_name.buf);
+error("Unable to update %s", b->name);

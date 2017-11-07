@@ -1,3 +1,3 @@
 ap_log_rerror(
-                            APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r, APLOGNO(00695) "Cached response for %s isn't fresh. Adding "
-                            "conditional request headers.", r->uri);
+                APLOG_MARK, APLOG_ERR, APR_EGENERAL, r, APLOGNO(00697) "cache: No cache request information available for key"
+                " generation");

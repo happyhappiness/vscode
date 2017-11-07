@@ -1,1 +1,1 @@
-printf("  %-6s %o %s %s\n", desc[entry->stage], entry->mode, oid_to_hex(&entry->blob->object.oid), entry->path);
+printf(_("Updating %s..%s\n"), from, to);

@@ -1,148 +1,88 @@
-static void receive_needs(void)
+static void check_non_tip(void)
 {
-	struct object_array shallows = OBJECT_ARRAY_INIT;
-	int depth = 0;
-	int has_non_tip = 0;
-
-	shallow_nr = 0;
-	for (;;) {
-		struct object *o;
-		const char *features;
-		unsigned char sha1_buf[20];
-		char *line = packet_read_line(0, NULL);
-		reset_timeout();
-		if (!line)
-			break;
-
-		if (starts_with(line, "shallow ")) {
-			unsigned char sha1[20];
-			struct object *object;
-			if (get_sha1_hex(line + 8, sha1))
-				die("invalid shallow line: %s", line);
-			object = parse_object(sha1);
-			if (!object)
-				continue;
-			if (object->type != OBJ_COMMIT)
-				die("invalid shallow object %s", sha1_to_hex(sha1));
-			if (!(object->flags & CLIENT_SHALLOW)) {
-				object->flags |= CLIENT_SHALLOW;
-				add_object_array(object, NULL, &shallows);
-			}
-			continue;
-		}
-		if (starts_with(line, "deepen ")) {
-			char *end;
-			depth = strtol(line + 7, &end, 0);
-			if (end == line + 7 || depth <= 0)
-				die("Invalid deepen: %s", line);
-			continue;
-		}
-		if (!starts_with(line, "want ") ||
-		    get_sha1_hex(line+5, sha1_buf))
-			die("git upload-pack: protocol error, "
-			    "expected to get sha, not '%s'", line);
-
-		features = line + 45;
-
-		if (parse_feature_request(features, "multi_ack_detailed"))
-			multi_ack = 2;
-		else if (parse_feature_request(features, "multi_ack"))
-			multi_ack = 1;
-		if (parse_feature_request(features, "no-done"))
-			no_done = 1;
-		if (parse_feature_request(features, "thin-pack"))
-			use_thin_pack = 1;
-		if (parse_feature_request(features, "ofs-delta"))
-			use_ofs_delta = 1;
-		if (parse_feature_request(features, "side-band-64k"))
-			use_sideband = LARGE_PACKET_MAX;
-		else if (parse_feature_request(features, "side-band"))
-			use_sideband = DEFAULT_PACKET_MAX;
-		if (parse_feature_request(features, "no-progress"))
-			no_progress = 1;
-		if (parse_feature_request(features, "include-tag"))
-			use_include_tag = 1;
-
-		o = parse_object(sha1_buf);
-		if (!o)
-			die("git upload-pack: not our ref %s",
-			    sha1_to_hex(sha1_buf));
-		if (!(o->flags & WANTED)) {
-			o->flags |= WANTED;
-			if (!is_our_ref(o))
-				has_non_tip = 1;
-			add_object_array(o, NULL, &want_obj);
-		}
-	}
+	static const char *argv[] = {
+		"rev-list", "--stdin", NULL,
+	};
+	static struct child_process cmd = CHILD_PROCESS_INIT;
+	struct object *o;
+	char namebuf[42]; /* ^ + SHA-1 + LF */
+	int i;
 
 	/*
-	 * We have sent all our refs already, and the other end
-	 * should have chosen out of them. When we are operating
-	 * in the stateless RPC mode, however, their choice may
-	 * have been based on the set of older refs advertised
-	 * by another process that handled the initial request.
+	 * In the normal in-process case without
+	 * uploadpack.allowReachableSHA1InWant,
+	 * non-tip requests can never happen.
 	 */
-	if (has_non_tip)
-		check_non_tip();
+	if (!stateless_rpc && !(allow_unadvertised_object_request & ALLOW_REACHABLE_SHA1))
+		goto error;
 
-	if (!use_sideband && daemon_mode)
-		no_progress = 1;
+	cmd.argv = argv;
+	cmd.git_cmd = 1;
+	cmd.no_stderr = 1;
+	cmd.in = -1;
+	cmd.out = -1;
 
-	if (depth == 0 && shallows.nr == 0)
-		return;
-	if (depth > 0) {
-		struct commit_list *result = NULL, *backup = NULL;
-		int i;
-		if (depth == INFINITE_DEPTH && !is_repository_shallow())
-			for (i = 0; i < shallows.nr; i++) {
-				struct object *object = shallows.objects[i].item;
-				object->flags |= NOT_SHALLOW;
-			}
-		else
-			backup = result =
-				get_shallow_commits(&want_obj, depth,
-						    SHALLOW, NOT_SHALLOW);
-		while (result) {
-			struct object *object = &result->item->object;
-			if (!(object->flags & (CLIENT_SHALLOW|NOT_SHALLOW))) {
-				packet_write(1, "shallow %s",
-						sha1_to_hex(object->sha1));
-				register_shallow(object->sha1);
-				shallow_nr++;
-			}
-			result = result->next;
-		}
-		free_commit_list(backup);
-		for (i = 0; i < shallows.nr; i++) {
-			struct object *object = shallows.objects[i].item;
-			if (object->flags & NOT_SHALLOW) {
-				struct commit_list *parents;
-				packet_write(1, "unshallow %s",
-					sha1_to_hex(object->sha1));
-				object->flags &= ~CLIENT_SHALLOW;
-				/* make sure the real parents are parsed */
-				unregister_shallow(object->sha1);
-				object->parsed = 0;
-				parse_commit_or_die((struct commit *)object);
-				parents = ((struct commit *)object)->parents;
-				while (parents) {
-					add_object_array(&parents->item->object,
-							NULL, &want_obj);
-					parents = parents->next;
-				}
-				add_object_array(object, NULL, &extra_edge_obj);
-			}
-			/* make sure commit traversal conforms to client */
-			register_shallow(object->sha1);
-		}
-		packet_flush(1);
-	} else
-		if (shallows.nr > 0) {
-			int i;
-			for (i = 0; i < shallows.nr; i++)
-				register_shallow(shallows.objects[i].item->sha1);
-		}
+	if (start_command(&cmd))
+		goto error;
 
-	shallow_nr += shallows.nr;
-	free(shallows.objects);
+	/*
+	 * If rev-list --stdin encounters an unknown commit, it
+	 * terminates, which will cause SIGPIPE in the write loop
+	 * below.
+	 */
+	sigchain_push(SIGPIPE, SIG_IGN);
+
+	namebuf[0] = '^';
+	namebuf[41] = '\n';
+	for (i = get_max_object_index(); 0 < i; ) {
+		o = get_indexed_object(--i);
+		if (!o)
+			continue;
+		if (!is_our_ref(o))
+			continue;
+		memcpy(namebuf + 1, sha1_to_hex(o->sha1), 40);
+		if (write_in_full(cmd.in, namebuf, 42) < 0)
+			goto error;
+	}
+	namebuf[40] = '\n';
+	for (i = 0; i < want_obj.nr; i++) {
+		o = want_obj.objects[i].item;
+		if (is_our_ref(o))
+			continue;
+		memcpy(namebuf, sha1_to_hex(o->sha1), 40);
+		if (write_in_full(cmd.in, namebuf, 41) < 0)
+			goto error;
+	}
+	close(cmd.in);
+
+	sigchain_pop(SIGPIPE);
+
+	/*
+	 * The commits out of the rev-list are not ancestors of
+	 * our ref.
+	 */
+	i = read_in_full(cmd.out, namebuf, 1);
+	if (i)
+		goto error;
+	close(cmd.out);
+
+	/*
+	 * rev-list may have died by encountering a bad commit
+	 * in the history, in which case we do want to bail out
+	 * even when it showed no commit.
+	 */
+	if (finish_command(&cmd))
+		goto error;
+
+	/* All the non-tip ones are ancestors of what we advertised */
+	return;
+
+error:
+	/* Pick one of them (we know there at least is one) */
+	for (i = 0; i < want_obj.nr; i++) {
+		o = want_obj.objects[i].item;
+		if (!is_our_ref(o))
+			die("git upload-pack: not our ref %s",
+			    sha1_to_hex(o->sha1));
+	}
 }

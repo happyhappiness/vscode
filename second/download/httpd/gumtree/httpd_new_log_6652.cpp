@@ -1,1 +1,1 @@
-apr_file_printf(errfile, "User %s not found" NL, user);
+fprintf(stderr, "Cannot use -n with %% in filename\n");

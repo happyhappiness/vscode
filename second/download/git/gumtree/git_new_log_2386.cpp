@@ -1,1 +1,1 @@
-error_errno("readlink(\"%s\")", path);
+error_errno("open(\"%s\")", path);

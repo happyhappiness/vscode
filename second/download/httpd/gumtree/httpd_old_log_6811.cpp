@@ -1,3 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_EMERG, 0, pServ, APLOGNO(02204)
-                                 "Init: Pass phrase incorrect for key of %s",
-                                 cpVHostID);
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02248)
+                             "Init: Multiple %s server private keys not "
+                             "allowed", an);

@@ -1,2 +1,2 @@
-apr_file_printf(errfile, "apr_xlate_open(): %pm (%d)\n",
-                &rv, rv);
+apr_file_printf(errfile, "%s: only one of -c -n -v -D may be specified" NL,
+            argv[0]);

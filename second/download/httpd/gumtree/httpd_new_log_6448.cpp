@@ -1,1 +1,1 @@
-ap_rvputs(r, "<a href=\"", ehref, "\">", etext, "</a>", NULL);
+ap_escape_html(r->pool, text);

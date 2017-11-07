@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_TRACE1, rv, c,
-                          "core_output_filter: writing data to the network");
+ap_log_error(APLOG_MARK, APLOG_CRIT, errno, s_main, APLOGNO(00093)
+                     "unable to replace stderr with %s", NULL_DEVICE);

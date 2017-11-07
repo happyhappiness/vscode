@@ -1,2 +1,1 @@
-die(_("unable to start 'show' for object '%s'"),
-		    oid_to_hex(object));
+printf("%s %s\n", oid_to_hex(note_oid), oid_to_hex(object_oid));

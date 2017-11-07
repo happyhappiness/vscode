@@ -1,1 +1,1 @@
-die("BUG: command is empty");
+vreportf("fatal: ", err, params);

@@ -1,1 +1,2 @@
-error("unable to update %s: %s", path, strerror(errno));
+(fprintf(fp, "%s	%s^{}\n",
+				sha1_to_hex(o->sha1), path);

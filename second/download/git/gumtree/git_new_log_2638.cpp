@@ -1,1 +1,1 @@
-err(o, msg, path, _(": perhaps a D/F conflict?"));
+die("BUG: unmerged index entries in merge-recursive.c");

@@ -1,1 +1,1 @@
-die("BUG: reverse reflog parser had leftover data");
+die("Bad type of menu_stuff when print menu");

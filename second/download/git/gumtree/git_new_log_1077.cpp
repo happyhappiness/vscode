@@ -1,1 +1,1 @@
-die("Couldn't allocate PCRE2 JIT stack");
+die("Couldn't JIT the PCRE2 pattern '%s', got '%d'\n", p->pattern, jitret);

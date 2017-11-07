@@ -1,1 +1,1 @@
-parse_push_recurse_submodules_arg(opt->long_name, arg);
+die("%s missing parameter", opt->long_name);

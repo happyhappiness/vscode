@@ -1,1 +1,1 @@
-apr_file_printf(out, "  ");
+apr_file_printf(out, "(*)");

@@ -1,1 +1,1 @@
-die("Error in object");
+strbuf_release(&err);

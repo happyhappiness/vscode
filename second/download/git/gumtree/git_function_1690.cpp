@@ -1,233 +1,239 @@
-int cmd_config(int argc, const char **argv, const char *prefix)
+int cmd_commit(int argc, const char **argv, const char *prefix)
 {
-	int nongit = !startup_info->have_repository;
-	char *value;
+	static struct wt_status s;
+	static struct option builtin_commit_options[] = {
+		OPT__QUIET(&quiet, N_("suppress summary after successful commit")),
+		OPT__VERBOSE(&verbose, N_("show diff in commit message template")),
 
-	given_config_source.file = getenv(CONFIG_ENVIRONMENT);
+		OPT_GROUP(N_("Commit message options")),
+		OPT_FILENAME('F', "file", &logfile, N_("read message from file")),
+		OPT_STRING(0, "author", &force_author, N_("author"), N_("override author for commit")),
+		OPT_STRING(0, "date", &force_date, N_("date"), N_("override date for commit")),
+		OPT_CALLBACK('m', "message", &message, N_("message"), N_("commit message"), opt_parse_m),
+		OPT_STRING('c', "reedit-message", &edit_message, N_("commit"), N_("reuse and edit message from specified commit")),
+		OPT_STRING('C', "reuse-message", &use_message, N_("commit"), N_("reuse message from specified commit")),
+		OPT_STRING(0, "fixup", &fixup_message, N_("commit"), N_("use autosquash formatted message to fixup specified commit")),
+		OPT_STRING(0, "squash", &squash_message, N_("commit"), N_("use autosquash formatted message to squash specified commit")),
+		OPT_BOOL(0, "reset-author", &renew_authorship, N_("the commit is authored by me now (used with -C/-c/--amend)")),
+		OPT_BOOL('s', "signoff", &signoff, N_("add Signed-off-by:")),
+		OPT_FILENAME('t', "template", &template_file, N_("use specified template file")),
+		OPT_BOOL('e', "edit", &edit_flag, N_("force edit of commit")),
+		OPT_STRING(0, "cleanup", &cleanup_arg, N_("default"), N_("how to strip spaces and #comments from message")),
+		OPT_BOOL(0, "status", &include_status, N_("include status in commit message template")),
+		{ OPTION_STRING, 'S', "gpg-sign", &sign_commit, N_("key-id"),
+		  N_("GPG sign commit"), PARSE_OPT_OPTARG, NULL, (intptr_t) "" },
+		/* end commit message options */
 
-	argc = parse_options(argc, argv, prefix, builtin_config_options,
-			     builtin_config_usage,
-			     PARSE_OPT_STOP_AT_NON_OPTION);
+		OPT_GROUP(N_("Commit contents options")),
+		OPT_BOOL('a', "all", &all, N_("commit all changed files")),
+		OPT_BOOL('i', "include", &also, N_("add specified files to index for commit")),
+		OPT_BOOL(0, "interactive", &interactive, N_("interactively add files")),
+		OPT_BOOL('p', "patch", &patch_interactive, N_("interactively add changes")),
+		OPT_BOOL('o', "only", &only, N_("commit only specified files")),
+		OPT_BOOL('n', "no-verify", &no_verify, N_("bypass pre-commit hook")),
+		OPT_BOOL(0, "dry-run", &dry_run, N_("show what would be committed")),
+		OPT_SET_INT(0, "short", &status_format, N_("show status concisely"),
+			    STATUS_FORMAT_SHORT),
+		OPT_BOOL(0, "branch", &s.show_branch, N_("show branch information")),
+		OPT_SET_INT(0, "porcelain", &status_format,
+			    N_("machine-readable output"), STATUS_FORMAT_PORCELAIN),
+		OPT_SET_INT(0, "long", &status_format,
+			    N_("show status in long format (default)"),
+			    STATUS_FORMAT_LONG),
+		OPT_BOOL('z', "null", &s.null_termination,
+			 N_("terminate entries with NUL")),
+		OPT_BOOL(0, "amend", &amend, N_("amend previous commit")),
+		OPT_BOOL(0, "no-post-rewrite", &no_post_rewrite, N_("bypass post-rewrite hook")),
+		{ OPTION_STRING, 'u', "untracked-files", &untracked_files_arg, N_("mode"), N_("show untracked files, optional modes: all, normal, no. (Default: all)"), PARSE_OPT_OPTARG, NULL, (intptr_t)"all" },
+		/* end commit contents options */
 
-	if (use_global_config + use_system_config + use_local_config +
-	    !!given_config_source.file + !!given_config_source.blob > 1) {
-		error("only one config file at a time.");
-		usage_with_options(builtin_config_usage, builtin_config_options);
+		OPT_HIDDEN_BOOL(0, "allow-empty", &allow_empty,
+				N_("ok to record an empty change")),
+		OPT_HIDDEN_BOOL(0, "allow-empty-message", &allow_empty_message,
+				N_("ok to record a change with an empty message")),
+
+		OPT_END()
+	};
+
+	struct strbuf sb = STRBUF_INIT;
+	struct strbuf author_ident = STRBUF_INIT;
+	const char *index_file, *reflog_msg;
+	char *nl;
+	unsigned char sha1[20];
+	struct commit_list *parents = NULL, **pptr = &parents;
+	struct stat statbuf;
+	struct commit *current_head = NULL;
+	struct commit_extra_header *extra = NULL;
+	struct ref_transaction *transaction;
+	struct strbuf err = STRBUF_INIT;
+
+	if (argc == 2 && !strcmp(argv[1], "-h"))
+		usage_with_options(builtin_commit_usage, builtin_commit_options);
+
+	status_init_config(&s, git_commit_config);
+	status_format = STATUS_FORMAT_NONE; /* Ignore status.short */
+	s.colopts = 0;
+
+	if (get_sha1("HEAD", sha1))
+		current_head = NULL;
+	else {
+		current_head = lookup_commit_or_die(sha1, "HEAD");
+		if (parse_commit(current_head))
+			die(_("could not parse HEAD commit"));
+	}
+	argc = parse_and_validate_options(argc, argv, builtin_commit_options,
+					  builtin_commit_usage,
+					  prefix, current_head, &s);
+	if (dry_run)
+		return dry_run_commit(argc, argv, prefix, current_head, &s);
+	index_file = prepare_index(argc, argv, prefix, current_head, 0);
+
+	/* Set up everything for writing the commit object.  This includes
+	   running hooks, writing the trees, and interacting with the user.  */
+	if (!prepare_to_commit(index_file, prefix,
+			       current_head, &s, &author_ident)) {
+		rollback_index_files();
+		return 1;
 	}
 
-	if (given_config_source.file &&
-			!strcmp(given_config_source.file, "-")) {
-		given_config_source.file = NULL;
-		given_config_source.use_stdin = 1;
-	}
+	/* Determine parents */
+	reflog_msg = getenv("GIT_REFLOG_ACTION");
+	if (!current_head) {
+		if (!reflog_msg)
+			reflog_msg = "commit (initial)";
+	} else if (amend) {
+		struct commit_list *c;
 
-	if (use_global_config) {
-		char *user_config = expand_user_path("~/.gitconfig");
-		char *xdg_config = xdg_config_home("config");
+		if (!reflog_msg)
+			reflog_msg = "commit (amend)";
+		for (c = current_head->parents; c; c = c->next)
+			pptr = &commit_list_insert(c->item, pptr)->next;
+	} else if (whence == FROM_MERGE) {
+		struct strbuf m = STRBUF_INIT;
+		FILE *fp;
+		int allow_fast_forward = 1;
 
-		if (!user_config)
-			/*
-			 * It is unknown if HOME/.gitconfig exists, so
-			 * we do not know if we should write to XDG
-			 * location; error out even if XDG_CONFIG_HOME
-			 * is set and points at a sane location.
-			 */
-			die("$HOME not set");
+		if (!reflog_msg)
+			reflog_msg = "commit (merge)";
+		pptr = &commit_list_insert(current_head, pptr)->next;
+		fp = fopen(git_path("MERGE_HEAD"), "r");
+		if (fp == NULL)
+			die_errno(_("could not open '%s' for reading"),
+				  git_path("MERGE_HEAD"));
+		while (strbuf_getline(&m, fp, '\n') != EOF) {
+			struct commit *parent;
 
-		if (access_or_warn(user_config, R_OK, 0) &&
-		    xdg_config && !access_or_warn(xdg_config, R_OK, 0))
-			given_config_source.file = xdg_config;
-		else
-			given_config_source.file = user_config;
-	}
-	else if (use_system_config)
-		given_config_source.file = git_etc_gitconfig();
-	else if (use_local_config)
-		given_config_source.file = git_pathdup("config");
-	else if (given_config_source.file) {
-		if (!is_absolute_path(given_config_source.file) && prefix)
-			given_config_source.file =
-				xstrdup(prefix_filename(prefix,
-							strlen(prefix),
-							given_config_source.file));
-	}
-
-	if (respect_includes == -1)
-		respect_includes = !given_config_source.file;
-
-	if (end_null) {
-		term = '\0';
-		delim = '\n';
-		key_delim = '\n';
-	}
-
-	if (HAS_MULTI_BITS(types)) {
-		error("only one type at a time.");
-		usage_with_options(builtin_config_usage, builtin_config_options);
-	}
-
-	if ((actions & (ACTION_GET_COLOR|ACTION_GET_COLORBOOL)) && types) {
-		error("--get-color and variable type are incoherent");
-		usage_with_options(builtin_config_usage, builtin_config_options);
-	}
-
-	if (HAS_MULTI_BITS(actions)) {
-		error("only one action at a time.");
-		usage_with_options(builtin_config_usage, builtin_config_options);
-	}
-	if (actions == 0)
-		switch (argc) {
-		case 1: actions = ACTION_GET; break;
-		case 2: actions = ACTION_SET; break;
-		case 3: actions = ACTION_SET_ALL; break;
-		default:
-			usage_with_options(builtin_config_usage, builtin_config_options);
+			parent = get_merge_parent(m.buf);
+			if (!parent)
+				die(_("Corrupt MERGE_HEAD file (%s)"), m.buf);
+			pptr = &commit_list_insert(parent, pptr)->next;
 		}
-	if (omit_values &&
-	    !(actions == ACTION_LIST || actions == ACTION_GET_REGEXP)) {
-		error("--name-only is only applicable to --list or --get-regexp");
-		usage_with_options(builtin_config_usage, builtin_config_options);
-	}
-	if (actions == ACTION_LIST) {
-		check_argc(argc, 0, 0);
-		if (git_config_with_options(show_all_config, NULL,
-					    &given_config_source,
-					    respect_includes) < 0) {
-			if (given_config_source.file)
-				die_errno("unable to read config file '%s'",
-					  given_config_source.file);
-			else
-				die("error processing config file(s)");
+		fclose(fp);
+		strbuf_release(&m);
+		if (!stat(git_path("MERGE_MODE"), &statbuf)) {
+			if (strbuf_read_file(&sb, git_path("MERGE_MODE"), 0) < 0)
+				die_errno(_("could not read MERGE_MODE"));
+			if (!strcmp(sb.buf, "no-ff"))
+				allow_fast_forward = 0;
 		}
-	}
-	else if (actions == ACTION_EDIT) {
-		char *config_file;
-
-		check_argc(argc, 0, 0);
-		if (!given_config_source.file && nongit)
-			die("not in a git directory");
-		if (given_config_source.use_stdin)
-			die("editing stdin is not supported");
-		if (given_config_source.blob)
-			die("editing blobs is not supported");
-		git_config(git_default_config, NULL);
-		config_file = xstrdup(given_config_source.file ?
-				      given_config_source.file : git_path("config"));
-		if (use_global_config) {
-			int fd = open(config_file, O_CREAT | O_EXCL | O_WRONLY, 0666);
-			if (fd) {
-				char *content = default_user_config();
-				write_str_in_full(fd, content);
-				free(content);
-				close(fd);
-			}
-			else if (errno != EEXIST)
-				die_errno(_("cannot create configuration file %s"), config_file);
-		}
-		launch_editor(config_file, NULL, NULL);
-		free(config_file);
-	}
-	else if (actions == ACTION_SET) {
-		int ret;
-		check_write();
-		check_argc(argc, 2, 2);
-		value = normalize_value(argv[0], argv[1]);
-		ret = git_config_set_in_file(given_config_source.file, argv[0], value);
-		if (ret == CONFIG_NOTHING_SET)
-			error("cannot overwrite multiple values with a single value\n"
-			"       Use a regexp, --add or --replace-all to change %s.", argv[0]);
-		return ret;
-	}
-	else if (actions == ACTION_SET_ALL) {
-		check_write();
-		check_argc(argc, 2, 3);
-		value = normalize_value(argv[0], argv[1]);
-		return git_config_set_multivar_in_file(given_config_source.file,
-						       argv[0], value, argv[2], 0);
-	}
-	else if (actions == ACTION_ADD) {
-		check_write();
-		check_argc(argc, 2, 2);
-		value = normalize_value(argv[0], argv[1]);
-		return git_config_set_multivar_in_file(given_config_source.file,
-						       argv[0], value,
-						       CONFIG_REGEX_NONE, 0);
-	}
-	else if (actions == ACTION_REPLACE_ALL) {
-		check_write();
-		check_argc(argc, 2, 3);
-		value = normalize_value(argv[0], argv[1]);
-		return git_config_set_multivar_in_file(given_config_source.file,
-						       argv[0], value, argv[2], 1);
-	}
-	else if (actions == ACTION_GET) {
-		check_argc(argc, 1, 2);
-		return get_value(argv[0], argv[1]);
-	}
-	else if (actions == ACTION_GET_ALL) {
-		do_all = 1;
-		check_argc(argc, 1, 2);
-		return get_value(argv[0], argv[1]);
-	}
-	else if (actions == ACTION_GET_REGEXP) {
-		show_keys = 1;
-		use_key_regexp = 1;
-		do_all = 1;
-		check_argc(argc, 1, 2);
-		return get_value(argv[0], argv[1]);
-	}
-	else if (actions == ACTION_GET_URLMATCH) {
-		check_argc(argc, 2, 2);
-		return get_urlmatch(argv[0], argv[1]);
-	}
-	else if (actions == ACTION_UNSET) {
-		check_write();
-		check_argc(argc, 1, 2);
-		if (argc == 2)
-			return git_config_set_multivar_in_file(given_config_source.file,
-							       argv[0], NULL, argv[1], 0);
-		else
-			return git_config_set_in_file(given_config_source.file,
-						      argv[0], NULL);
-	}
-	else if (actions == ACTION_UNSET_ALL) {
-		check_write();
-		check_argc(argc, 1, 2);
-		return git_config_set_multivar_in_file(given_config_source.file,
-						       argv[0], NULL, argv[1], 1);
-	}
-	else if (actions == ACTION_RENAME_SECTION) {
-		int ret;
-		check_write();
-		check_argc(argc, 2, 2);
-		ret = git_config_rename_section_in_file(given_config_source.file,
-							argv[0], argv[1]);
-		if (ret < 0)
-			return ret;
-		if (ret == 0)
-			die("No such section!");
-	}
-	else if (actions == ACTION_REMOVE_SECTION) {
-		int ret;
-		check_write();
-		check_argc(argc, 1, 1);
-		ret = git_config_rename_section_in_file(given_config_source.file,
-							argv[0], NULL);
-		if (ret < 0)
-			return ret;
-		if (ret == 0)
-			die("No such section!");
-	}
-	else if (actions == ACTION_GET_COLOR) {
-		check_argc(argc, 1, 2);
-		get_color(argv[0], argv[1]);
-	}
-	else if (actions == ACTION_GET_COLORBOOL) {
-		check_argc(argc, 1, 2);
-		if (argc == 2)
-			color_stdout_is_tty = git_config_bool("command line", argv[1]);
-		return get_colorbool(argv[0], argc == 2);
+		if (allow_fast_forward)
+			parents = reduce_heads(parents);
+	} else {
+		if (!reflog_msg)
+			reflog_msg = (whence == FROM_CHERRY_PICK)
+					? "commit (cherry-pick)"
+					: "commit";
+		pptr = &commit_list_insert(current_head, pptr)->next;
 	}
 
+	/* Finally, get the commit message */
+	strbuf_reset(&sb);
+	if (strbuf_read_file(&sb, git_path(commit_editmsg), 0) < 0) {
+		int saved_errno = errno;
+		rollback_index_files();
+		die(_("could not read commit message: %s"), strerror(saved_errno));
+	}
+
+	if (verbose || /* Truncate the message just before the diff, if any. */
+	    cleanup_mode == CLEANUP_SCISSORS)
+		wt_status_truncate_message_at_cut_line(&sb);
+
+	if (cleanup_mode != CLEANUP_NONE)
+		stripspace(&sb, cleanup_mode == CLEANUP_ALL);
+	if (template_untouched(&sb) && !allow_empty_message) {
+		rollback_index_files();
+		fprintf(stderr, _("Aborting commit; you did not edit the message.\n"));
+		exit(1);
+	}
+	if (message_is_empty(&sb) && !allow_empty_message) {
+		rollback_index_files();
+		fprintf(stderr, _("Aborting commit due to empty commit message.\n"));
+		exit(1);
+	}
+
+	if (amend) {
+		const char *exclude_gpgsig[2] = { "gpgsig", NULL };
+		extra = read_commit_extra_headers(current_head, exclude_gpgsig);
+	} else {
+		struct commit_extra_header **tail = &extra;
+		append_merge_tag_headers(parents, &tail);
+	}
+
+	if (commit_tree_extended(sb.buf, sb.len, active_cache_tree->sha1,
+			 parents, sha1, author_ident.buf, sign_commit, extra)) {
+		rollback_index_files();
+		die(_("failed to write commit object"));
+	}
+	strbuf_release(&author_ident);
+	free_commit_extra_headers(extra);
+
+	nl = strchr(sb.buf, '\n');
+	if (nl)
+		strbuf_setlen(&sb, nl + 1 - sb.buf);
+	else
+		strbuf_addch(&sb, '\n');
+	strbuf_insert(&sb, 0, reflog_msg, strlen(reflog_msg));
+	strbuf_insert(&sb, strlen(reflog_msg), ": ", 2);
+
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_update(transaction, "HEAD", sha1,
+				   current_head
+				   ? current_head->object.sha1 : null_sha1,
+				   0, sb.buf, &err) ||
+	    ref_transaction_commit(transaction, &err)) {
+		rollback_index_files();
+		die("%s", err.buf);
+	}
+	ref_transaction_free(transaction);
+
+	unlink(git_path("CHERRY_PICK_HEAD"));
+	unlink(git_path("REVERT_HEAD"));
+	unlink(git_path("MERGE_HEAD"));
+	unlink(git_path("MERGE_MSG"));
+	unlink(git_path("MERGE_MODE"));
+	unlink(git_path("SQUASH_MSG"));
+
+	if (commit_index_files())
+		die (_("Repository has been updated, but unable to write\n"
+		     "new_index file. Check that disk is not full and quota is\n"
+		     "not exceeded, and then \"git reset HEAD\" to recover."));
+
+	rerere(0);
+	run_commit_hook(use_editor, get_index_file(), "post-commit", NULL);
+	if (amend && !no_post_rewrite) {
+		struct notes_rewrite_cfg *cfg;
+		cfg = init_copy_notes_for_rewrite("amend");
+		if (cfg) {
+			/* we are amending, so current_head is not NULL */
+			copy_note_for_rewrite(cfg, current_head->object.sha1, sha1);
+			finish_copy_notes_for_rewrite(cfg, "Notes added by 'git commit --amend'");
+		}
+		run_rewrite_hook(current_head->object.sha1, sha1);
+	}
+	if (!quiet)
+		print_summary(prefix, sha1, !current_head);
+
+	strbuf_release(&err);
 	return 0;
 }

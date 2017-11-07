@@ -1,1 +1,1 @@
-die(_("no matching remote head"));
+die(_("git fetch-pack: fetch failed."));

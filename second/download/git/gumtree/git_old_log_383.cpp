@@ -1,1 +1,2 @@
-die("protocol error: bad pack header");
+die("fetch-pack: unable to fork off sideband"
+			    " demultiplexer");

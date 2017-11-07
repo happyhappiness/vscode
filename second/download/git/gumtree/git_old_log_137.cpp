@@ -1,1 +1,1 @@
-fprintf(stderr, "Unknown command '%s'\n", buf.buf);
+die("Fetch attempted without a local repo");

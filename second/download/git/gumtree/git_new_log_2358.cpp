@@ -1,1 +1,1 @@
-die_errno("cannot unlink stray '%s'", path);
+error_errno("Writing %s failed", path);

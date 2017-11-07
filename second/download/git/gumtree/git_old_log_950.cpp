@@ -1,2 +1,2 @@
-error("cannot run %s: %s", cmd->argv[0],
-					strerror(ENOENT));
+die_errno("exec '%s': cd to '%s' failed", cmd->argv[0],
+			    cmd->dir);

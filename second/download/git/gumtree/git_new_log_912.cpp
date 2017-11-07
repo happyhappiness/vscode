@@ -1,1 +1,1 @@
-die(_("'%s' not recognized as a git repository"), git_dir);
+die("'git status --porcelain=2' failed in submodule %s", path);

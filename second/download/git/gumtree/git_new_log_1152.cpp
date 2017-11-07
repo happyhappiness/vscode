@@ -1,1 +1,1 @@
-die("submodule--helper push-check requires at least 2 arguments");
+die(_("unable to parse format string"));

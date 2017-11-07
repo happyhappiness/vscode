@@ -1,1 +1,1 @@
-die(_("The main working tree cannot be locked or unlocked"));
+die("BUG: bad untracked_cache value: %d", untracked_cache);

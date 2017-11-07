@@ -1,1 +1,1 @@
-error("read from external filter '%s' failed", cmd);
+error("external filter '%s' failed %d", params->cmd, status);

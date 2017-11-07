@@ -1,34 +1,53 @@
-const char *h2_proxy_link_reverse_map(request_rec *r,
-                                      proxy_dir_conf *conf, 
-                                      const char *real_backend_uri,
-                                      const char *proxy_server_uri,
-                                      const char *s)
+apr_status_t h2_request_add_header(h2_request *req, apr_pool_t *pool, 
+                                   const char *name, size_t nlen,
+                                   const char *value, size_t vlen)
 {
-    link_ctx ctx;
+    apr_status_t status = APR_SUCCESS;
     
-    if (r->proxyreq != PROXYREQ_REVERSE) {
-        return s;
+    if (nlen <= 0) {
+        return status;
     }
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.r = r;
-    ctx.pool = r->pool;
-    ctx.conf = conf;
-    ctx.real_backend_uri = real_backend_uri;
-    ctx.rbu_len = (int)strlen(ctx.real_backend_uri);
-    ctx.p_server_uri = proxy_server_uri;
-    ctx.psu_len = (int)strlen(ctx.p_server_uri);
-    ctx.s = s;
-    ctx.slen = (int)strlen(s);
-    while (read_link(&ctx)) {
-        while (skip_param(&ctx)) {
-            /* nop */
+    
+    if (name[0] == ':') {
+        /* pseudo header, see ch. 8.1.2.3, always should come first */
+        if (!apr_is_empty_table(req->headers)) {
+            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, pool,
+                          APLOGNO(02917) 
+                          "h2_request(%d): pseudo header after request start",
+                          req->id);
+            return APR_EGENERAL;
         }
-        map_link(&ctx);
-        if (!read_sep(&ctx)) {
-            break;
+        
+        if (H2_HEADER_METHOD_LEN == nlen
+            && !strncmp(H2_HEADER_METHOD, name, nlen)) {
+            req->method = apr_pstrndup(pool, value, vlen);
+        }
+        else if (H2_HEADER_SCHEME_LEN == nlen
+                 && !strncmp(H2_HEADER_SCHEME, name, nlen)) {
+            req->scheme = apr_pstrndup(pool, value, vlen);
+        }
+        else if (H2_HEADER_PATH_LEN == nlen
+                 && !strncmp(H2_HEADER_PATH, name, nlen)) {
+            req->path = apr_pstrndup(pool, value, vlen);
+        }
+        else if (H2_HEADER_AUTH_LEN == nlen
+                 && !strncmp(H2_HEADER_AUTH, name, nlen)) {
+            req->authority = apr_pstrndup(pool, value, vlen);
+        }
+        else {
+            char buffer[32];
+            memset(buffer, 0, 32);
+            strncpy(buffer, name, (nlen > 31)? 31 : nlen);
+            ap_log_perror(APLOG_MARK, APLOG_WARNING, 0, pool,
+                          APLOGNO(02954) 
+                          "h2_request(%d): ignoring unknown pseudo header %s",
+                          req->id, buffer);
         }
     }
-    ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, 
-                  "link_reverse_map %s --> %s", s, ctx.s);
-    return ctx.s;
+    else {
+        /* non-pseudo header, append to work bucket of stream */
+        status = h2_headers_add_h1(req->headers, pool, name, nlen, value, vlen);
+    }
+    
+    return status;
 }

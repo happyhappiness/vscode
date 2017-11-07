@@ -1,26 +1,27 @@
-static apr_status_t add_trailer(h2_stream *stream,
-                                const char *name, size_t nlen,
-                                const char *value, size_t vlen)
+apr_status_t h2_stream_set_response(h2_stream *stream, h2_response *response,
+                                    h2_bucket_beam *output)
 {
+    apr_status_t status = APR_SUCCESS;
     conn_rec *c = stream->session->c;
-    char *hname, *hvalue;
-
-    if (nlen == 0 || name[0] == ':') {
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, c, APLOGNO(03060)
-                      "h2_request(%ld-%d): pseudo header in trailer",
-                      c->id, stream->id);
-        return APR_EINVAL;
-    }
-    if (h2_req_ignore_trailer(name, nlen)) {
-        return APR_SUCCESS;
-    }
-    if (!stream->trailers) {
-        stream->trailers = apr_table_make(stream->pool, 5);
-    }
-    hname = apr_pstrndup(stream->pool, name, nlen);
-    hvalue = apr_pstrndup(stream->pool, value, vlen);
-    h2_util_camel_case_header(hname, nlen);
-    apr_table_mergen(stream->trailers, hname, hvalue);
     
-    return APR_SUCCESS;
+    if (!output_open(stream)) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, c,
+                      "h2_stream(%ld-%d): output closed", 
+                      stream->session->id, stream->id);
+        return APR_ECONNRESET;
+    }
+    
+    stream->response = response;
+    stream->output = output;
+    stream->buffer = apr_brigade_create(stream->pool, c->bucket_alloc);
+    
+    h2_stream_filter(stream);
+    if (stream->output) {
+        status = fill_buffer(stream, 0);
+    }
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE1, status, c,
+                  "h2_stream(%ld-%d): set_response(%d)", 
+                  stream->session->id, stream->id, 
+                  stream->response->http_status);
+    return status;
 }

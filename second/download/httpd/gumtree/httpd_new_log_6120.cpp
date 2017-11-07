@@ -1,1 +1,1 @@
-printf("TLS Server Name:        %s\n", tls_sni);
+fprintf(stderr, "    -I              Disable TLS Server Name Indication (SNI) extension\n");

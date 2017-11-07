@@ -1,1 +1,1 @@
-fprintf(stderr, commit_utf8_warn);
+printf(" %s ", diff_unique_abbrev(p->oid.hash, opt->abbrev));

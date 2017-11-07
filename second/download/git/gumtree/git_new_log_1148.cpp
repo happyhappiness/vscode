@@ -1,1 +1,1 @@
-die("strange pathname '%s' blocked", path);
+die("strange port '%s' blocked", port);

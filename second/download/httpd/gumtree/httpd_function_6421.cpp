@@ -26,12 +26,10 @@ static void perform_idle_server_maintenance(void)
         int any_dead_threads = 0;
         int all_dead_threads = 1;
 
-        if (i >= retained->max_daemons_limit
-            && totally_free_length == retained->idle_spawn_rate)
+        if (i >= retained->max_daemons_limit && totally_free_length == retained->idle_spawn_rate)
             /* short cut if all active processes have been examined and
              * enough empty scoreboard slots have been found
              */
-
             break;
         ps = &ap_scoreboard_image->parent[i];
         for (j = 0; j < threads_per_child; j++) {
@@ -40,10 +38,11 @@ static void perform_idle_server_maintenance(void)
 
             /* XXX any_dying_threads is probably no longer needed    GLA */
             any_dying_threads = any_dying_threads ||
-                (status == SERVER_GRACEFUL);
+                                (status == SERVER_GRACEFUL);
             any_dead_threads = any_dead_threads || (status == SERVER_DEAD);
             all_dead_threads = all_dead_threads &&
-                (status == SERVER_DEAD || status == SERVER_GRACEFUL);
+                                   (status == SERVER_DEAD ||
+                                    status == SERVER_GRACEFUL);
 
             /* We consider a starting server as idle because we started it
              * at least a cycle ago, and if it still hasn't finished starting
@@ -51,11 +50,11 @@ static void perform_idle_server_maintenance(void)
              * So we hopefully won't need to fork more if we count it.
              * This depends on the ordering of SERVER_READY and SERVER_STARTING.
              */
-            if (ps->pid != 0) { /* XXX just set all_dead_threads in outer
-                                   for loop if no pid?  not much else matters */
-                if (status <= SERVER_READY && !ps->quiescing && !ps->not_accepting
-                    && ps->generation == retained->my_generation)
-                {
+            if (ps->pid != 0) { /* XXX just set all_dead_threads in outer for
+                                   loop if no pid?  not much else matters */
+                if (status <= SERVER_READY &&
+                        !ps->quiescing &&
+                        ps->generation == retained->my_generation) {
                     ++idle_thread_count;
                 }
                 if (status >= SERVER_READY && status < SERVER_GRACEFUL) {
@@ -63,11 +62,10 @@ static void perform_idle_server_maintenance(void)
                 }
             }
         }
-        if (any_dead_threads
-            && totally_free_length < retained->idle_spawn_rate
-            && free_length < MAX_SPAWN_RATE
-            && (!ps->pid      /* no process in the slot */
-                  || ps->quiescing)) {  /* or at least one is going away */
+        if (any_dead_threads && totally_free_length < retained->idle_spawn_rate
+                && free_length < MAX_SPAWN_RATE
+                && (!ps->pid               /* no process in the slot */
+                    || ps->quiescing)) {   /* or at least one is going away */
             if (all_dead_threads) {
                 /* great! we prefer these, because the new process can
                  * start more threads sooner.  So prioritize this slot
@@ -106,7 +104,7 @@ static void perform_idle_server_maintenance(void)
             shutdown_pending = 1;
             child_fatal = 1;
             ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
-                         ap_server_conf, APLOGNO(00483)
+                         ap_server_conf, APLOGNO(00285)
                          "No active workers found..."
                          " Apache is exiting!");
             /* the child already logged the failure details */
@@ -118,7 +116,7 @@ static void perform_idle_server_maintenance(void)
 
     if (idle_thread_count > max_spare_threads) {
         /* Kill off one child */
-        ap_event_pod_signal(pod, TRUE);
+        ap_worker_pod_signal(pod, TRUE);
         retained->idle_spawn_rate = 1;
     }
     else if (idle_thread_count < min_spare_threads) {
@@ -126,17 +124,30 @@ static void perform_idle_server_maintenance(void)
         if (free_length == 0) { /* scoreboard is full, can't fork */
 
             if (active_thread_count >= ap_daemons_limit * threads_per_child) {
-                if (!retained->maxclients_reported) {
-                    /* only report this condition once */
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00484)
-                                 "server reached MaxRequestWorkers setting, "
-                                 "consider raising the MaxRequestWorkers "
-                                 "setting");
-                    retained->maxclients_reported = 1;
+                /* no threads are "inactive" - starting, stopping, etc. */
+                /* have we reached MaxRequestWorkers, or just getting close? */
+                if (0 == idle_thread_count) {
+                    if (!retained->maxclients_reported) {
+                        /* only report this condition once */
+                        ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00286)
+                                     "server reached MaxRequestWorkers "
+                                     "setting, consider raising the "
+                                     "MaxRequestWorkers setting");
+                        retained->maxclients_reported = 1;
+                    }
+                } else {
+                    if (!retained->near_maxclients_reported) {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00287)
+                                     "server is within MinSpareThreads of "
+                                     "MaxRequestWorkers, consider raising the "
+                                     "MaxRequestWorkers setting");
+                        retained->near_maxclients_reported = 1;
+                    }
                 }
             }
             else {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, ap_server_conf, APLOGNO(00485)
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                             ap_server_conf, APLOGNO(00288)
                              "scoreboard is full, not at MaxRequestWorkers");
             }
             retained->idle_spawn_rate = 1;
@@ -146,7 +157,8 @@ static void perform_idle_server_maintenance(void)
                 free_length = retained->idle_spawn_rate;
             }
             if (retained->idle_spawn_rate >= 8) {
-                ap_log_error(APLOG_MARK, APLOG_INFO, 0, ap_server_conf, APLOGNO(00486)
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf, APLOGNO(00289)
                              "server seems busy, (you may need "
                              "to increase StartServers, ThreadsPerChild "
                              "or Min/MaxSpareThreads), "
@@ -169,6 +181,6 @@ static void perform_idle_server_maintenance(void)
         }
     }
     else {
-        retained->idle_spawn_rate = 1;
+      retained->idle_spawn_rate = 1;
     }
 }

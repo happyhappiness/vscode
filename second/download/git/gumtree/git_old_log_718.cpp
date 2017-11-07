@@ -1,1 +1,1 @@
-fputs(prefix, fh);
+error(ERRORMSG(o, ERROR_BIND_OVERLAP), a->name, old->name);

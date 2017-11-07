@@ -1,1 +1,1 @@
-die("Missing '=': '%s'", buf);
+die("skiplist requires a path");

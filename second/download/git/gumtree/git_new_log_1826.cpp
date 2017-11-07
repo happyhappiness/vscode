@@ -1,1 +1,1 @@
-die("--contents and --reverse do not blend well.");
+die("combining --first-parent and --reverse is not supported");

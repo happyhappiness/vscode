@@ -1,2 +1,1 @@
-error(_("inconsistent header lines %d and %d"),
-			     patch->extension_linenr, state->linenr);
+error(_("invalid mode on line %d: %s"), linenr, line);

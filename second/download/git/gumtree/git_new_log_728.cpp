@@ -1,1 +1,1 @@
-die(_("could not unset '%s'"), buf.buf);
+die(_("unable to resolve revision: %s"), arg);

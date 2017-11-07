@@ -1,1 +1,2 @@
-die_errno("unable to write credential store");
+error("could not write config file %s: %s",
+			    config_filename, strerror(errno));

@@ -1,1 +1,1 @@
-error("Unable to update %s", b->name);
+error("Unable to lock %s", b->name);

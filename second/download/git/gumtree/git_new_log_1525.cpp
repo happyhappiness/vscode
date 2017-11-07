@@ -1,1 +1,1 @@
-warning("old-style 'git merge <msg> HEAD <commit>' is deprecated.");
+die(_("Can merge only exactly one commit into empty head"));

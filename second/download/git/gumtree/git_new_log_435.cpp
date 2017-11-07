@@ -1,1 +1,1 @@
-die("dumb http transport does not support shallow capabilities");
+die("BUG: %s called for a submodule", caller);

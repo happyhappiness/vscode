@@ -1,1 +1,1 @@
-printf(" %s", sha1_to_hex(parents->item->object.sha1));
+fputs(sha1_to_hex(commit->object.sha1), stdout);

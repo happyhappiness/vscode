@@ -1,2 +1,2 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, status, c, APLOGNO(03045)
-                          "h2_session(%ld): process, closing conn", c->id);
+ap_log_cerror(APLOG_MARK, APLOG_ERR, APR_ENOMEM, master, 
+                      APLOGNO(02913) "h2_task: creating conn");

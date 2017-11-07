@@ -1,1 +1,1 @@
-die(_("failed to expand user dir in: '%s'"), value);
+die(_("bad numeric config value '%s' for '%s': %s"), value, name, reason);

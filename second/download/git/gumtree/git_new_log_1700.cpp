@@ -1,2 +1,1 @@
-error(_("'%s' for '%s' is not a valid timestamp"),
-			     value, var);
+warning("Skipping unknown msg id '%s'", var);

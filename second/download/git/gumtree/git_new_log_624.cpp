@@ -1,1 +1,2 @@
-warning("ignoring alternate with unknown protocol: %s", url);
+warning(_("ignore invalid color '%.*s' in log.graphColors"),
+				(int)(comma - start), start);

@@ -1,1 +1,1 @@
-die("The commit %s is corrupt", oid_to_hex(&b->oid));
+die("Not a valid commit: %s", oid_to_hex(&b->oid));

@@ -1,1 +1,1 @@
-warning("ignoring broken ref %s.", fullref);
+warning("ignoring dangling symref %s.", fullref);

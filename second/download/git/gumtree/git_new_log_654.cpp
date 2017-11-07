@@ -1,1 +1,1 @@
-error(_("cannot read HEAD"));
+fprintf(f, "%d\n", todo_list->total_nr);

@@ -1,2 +1,2 @@
-fprintf(log_file, "%s %"PRIuMAX"\n",
-		p->pack_name, (uintmax_t)obj_offset);
+error("unable to open object pack directory: %s: %s",
+			      path, strerror(errno));

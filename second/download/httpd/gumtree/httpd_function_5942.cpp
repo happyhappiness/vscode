@@ -1,11 +1,11 @@
-conn_rec *h2_slave_create(conn_rec *master, apr_pool_t *parent,
-                          apr_allocator_t *allocator)
+conn_rec *h2_slave_create(conn_rec *master, int slave_id, apr_pool_t *parent)
 {
+    apr_allocator_t *allocator;
     apr_pool_t *pool;
     conn_rec *c;
     void *cfg;
     
-    AP_DEBUG_ASSERT(master);
+    ap_assert(master);
     ap_log_cerror(APLOG_MARK, APLOG_TRACE3, 0, master,
                   "h2_conn(%ld): create slave", master->id);
     
@@ -14,9 +14,7 @@ conn_rec *h2_slave_create(conn_rec *master, apr_pool_t *parent,
      * independant of its parent pool in the sense that it can work in
      * another thread.
      */
-    if (!allocator) {
-        apr_allocator_create(&allocator);
-    }
+    apr_allocator_create(&allocator);
     apr_pool_create_ex(&pool, parent, NULL, allocator);
     apr_pool_tag(pool, "h2_slave_conn");
     apr_allocator_owner_set(allocator, pool);
@@ -29,8 +27,7 @@ conn_rec *h2_slave_create(conn_rec *master, apr_pool_t *parent,
     }
     
     memcpy(c, master, sizeof(conn_rec));
-           
-    /* Replace these */
+        
     c->master                 = master;
     c->pool                   = pool;   
     c->conn_config            = ap_create_conn_config(pool);
@@ -42,7 +39,8 @@ conn_rec *h2_slave_create(conn_rec *master, apr_pool_t *parent,
     c->data_in_output_filters = 0;
     c->clogging_input_filters = 1;
     c->log                    = NULL;
-    c->log_id                 = NULL;
+    c->log_id                 = apr_psprintf(pool, "%ld-%d", 
+                                             master->id, slave_id);
     /* Simulate that we had already a request on this connection. */
     c->keepalives             = 1;
     /* We cannot install the master connection socket on the slaves, as
@@ -62,5 +60,8 @@ conn_rec *h2_slave_create(conn_rec *master, apr_pool_t *parent,
         ap_set_module_config(c->conn_config, h2_conn_mpm_module(), cfg);
     }
 
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, c, 
+                  "h2_task: creating conn, master=%ld, sid=%ld, logid=%s", 
+                  master->id, c->id, c->log_id);
     return c;
 }

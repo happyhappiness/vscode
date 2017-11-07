@@ -1,61 +1,44 @@
-int create_bundle(struct bundle_header *header, const char *path,
-		  int argc, const char **argv)
+static int add(int ac, const char **av, const char *prefix)
 {
-	static struct lock_file lock;
-	int bundle_fd = -1;
-	int bundle_to_stdout;
-	int ref_count = 0;
-	struct rev_info revs;
+	int force = 0, detach = 0;
+	const char *new_branch = NULL, *new_branch_force = NULL;
+	const char *path, *branch;
+	struct argv_array cmd = ARGV_ARRAY_INIT;
+	struct option options[] = {
+		OPT__FORCE(&force, N_("checkout <branch> even if already checked out in other worktree")),
+		OPT_STRING('b', NULL, &new_branch, N_("branch"),
+			   N_("create a new branch")),
+		OPT_STRING('B', NULL, &new_branch_force, N_("branch"),
+			   N_("create or reset a branch")),
+		OPT_BOOL(0, "detach", &detach, N_("detach HEAD at named commit")),
+		OPT_END()
+	};
 
-	bundle_to_stdout = !strcmp(path, "-");
-	if (bundle_to_stdout)
-		bundle_fd = 1;
-	else {
-		bundle_fd = hold_lock_file_for_update(&lock, path,
-						      LOCK_DIE_ON_ERROR);
+	ac = parse_options(ac, av, prefix, options, worktree_usage, 0);
+	if (new_branch && new_branch_force)
+		die(_("-b and -B are mutually exclusive"));
+	if (ac < 1 || ac > 2)
+		usage_with_options(worktree_usage, options);
 
-		/*
-		 * write_pack_data() will close the fd passed to it,
-		 * but commit_lock_file() will also try to close the
-		 * lockfile's fd. So make a copy of the file
-		 * descriptor to avoid trying to close it twice.
-		 */
-		bundle_fd = dup(bundle_fd);
-		if (bundle_fd < 0)
-			die_errno("unable to dup file descriptor");
+	path = prefix ? prefix_filename(prefix, strlen(prefix), av[0]) : av[0];
+	branch = ac < 2 ? "HEAD" : av[1];
+
+	if (ac < 2 && !new_branch && !new_branch_force) {
+		int n;
+		const char *s = worktree_basename(path, &n);
+		new_branch = xstrndup(s, n);
 	}
 
-	/* write signature */
-	write_or_die(bundle_fd, bundle_signature, strlen(bundle_signature));
+	argv_array_push(&cmd, "checkout");
+	if (force)
+		argv_array_push(&cmd, "--ignore-other-worktrees");
+	if (new_branch)
+		argv_array_pushl(&cmd, "-b", new_branch, NULL);
+	if (new_branch_force)
+		argv_array_pushl(&cmd, "-B", new_branch_force, NULL);
+	if (detach)
+		argv_array_push(&cmd, "--detach");
+	argv_array_push(&cmd, branch);
 
-	/* init revs to list objects for pack-objects later */
-	save_commit_buffer = 0;
-	init_revisions(&revs, NULL);
-
-	/* write prerequisites */
-	if (compute_and_write_prerequisites(bundle_fd, &revs, argc, argv))
-		return -1;
-
-	argc = setup_revisions(argc, argv, &revs, NULL);
-
-	if (argc > 1)
-		return error(_("unrecognized argument: %s"), argv[1]);
-
-	object_array_remove_duplicates(&revs.pending);
-
-	ref_count = write_bundle_refs(bundle_fd, &revs);
-	if (!ref_count)
-		die(_("Refusing to create empty bundle."));
-	else if (ref_count < 0)
-		return -1;
-
-	/* write pack */
-	if (write_pack_data(bundle_fd, &revs))
-		return -1;
-
-	if (!bundle_to_stdout) {
-		if (commit_lock_file(&lock))
-			die_errno(_("cannot create '%s'"), path);
-	}
-	return 0;
+	return add_worktree(path, cmd.argv);
 }

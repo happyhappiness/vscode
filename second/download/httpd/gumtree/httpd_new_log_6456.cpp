@@ -1,5 +1,3 @@
-ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                         ref ? "Spelling fix: %s: %d candidates from %s"
-                             : "Spelling fix: %s: %d candidates%s",
-                         r->uri, candidates->nelts,
-                         (ref ? ref : ""));
+ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r, APLOGNO(02437)
+               "ajp_marshal_into_msgb - Sending unknown method %s as request attribute",
+               r->method);

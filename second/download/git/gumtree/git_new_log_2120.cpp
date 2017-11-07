@@ -1,1 +1,0 @@
-insert_one_record(log, author.buf, oneline.len ? oneline.buf : "<none>");

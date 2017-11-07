@@ -1,1 +1,1 @@
-fprintf(stderr, "   -l   Display usernames from database on stdout.\n");
+fprintf(stderr, "   -v   Verify the username/password.\n");

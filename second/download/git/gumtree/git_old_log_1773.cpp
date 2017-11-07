@@ -1,1 +1,1 @@
-die(_("Error wrapping up %s."), todo_file);
+die_errno(_("Could not write to %s"), todo_file);

@@ -1,2 +1,2 @@
-fprintf(stderr, "Successfully rebased and updated %s.\n",
-			head_ref.buf);
+error(_("could not update HEAD to %s"),
+					head_ref.buf);

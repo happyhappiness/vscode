@@ -1,1 +1,1 @@
-error(ERRORMSG(o, e), super_prefixed(path));
+die("helper %s does not support 'push-option'", name);

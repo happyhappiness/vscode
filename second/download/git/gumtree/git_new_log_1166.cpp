@@ -1,2 +1,1 @@
-error("Unexpected line '%s', expected %s-server",
-			     line ? line : "<flush packet>", welcome_prefix);
+error("Could not write flush packet");

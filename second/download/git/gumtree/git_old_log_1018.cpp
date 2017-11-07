@@ -1,2 +1,1 @@
-warning("recursive delta detected for object %s",
-			sha1_to_hex(e->idx.sha1));
+error("corrupt packed object for %s", sha1_to_hex(entry->idx.sha1));

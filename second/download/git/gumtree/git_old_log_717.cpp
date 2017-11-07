@@ -1,1 +1,1 @@
-error(ERRORMSG(o, ERROR_BIND_OVERLAP), a->name, old->name);
+error(ERRORMSG(o, e), path.buf);

@@ -1,1 +1,2 @@
-get_ref(base_list[i], oid_to_hex(base_list[i]));
+die("BUG: unprocessed path??? %s",
+				    entries->items[i].string);

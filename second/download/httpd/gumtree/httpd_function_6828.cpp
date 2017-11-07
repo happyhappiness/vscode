@@ -1,10 +1,16 @@
-static char *xstrdup(const char *s)
+static void copyright(void)
 {
-    char *ret = strdup(s);
-    if (ret == NULL) {
-        fprintf(stderr, "Could not allocate memory (%"
-                APR_SIZE_T_FMT " bytes)\n", strlen(s));
-        exit(1);
+    if (!use_html) {
+        printf("This is ApacheBench, Version %s\n", AP_AB_BASEREVISION " <$Revision: 1528965 $>");
+        printf("Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/\n");
+        printf("Licensed to The Apache Software Foundation, http://www.apache.org/\n");
+        printf("\n");
     }
-    return ret;
+    else {
+        printf("<p>\n");
+        printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1528965 $");
+        printf(" Copyright 1996 Adam Twiss, Zeus Technology Ltd, http://www.zeustech.net/<br>\n");
+        printf(" Licensed to The Apache Software Foundation, http://www.apache.org/<br>\n");
+        printf("</p>\n<p>\n");
+    }
 }

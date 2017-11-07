@@ -1,468 +1,175 @@
-int cmd_merge(int argc, const char **argv, const char *prefix)
+int cmd_ls_files(int argc, const char **argv, const char *cmd_prefix)
 {
-	unsigned char result_tree[20];
-	unsigned char stash[20];
-	unsigned char head_sha1[20];
-	struct commit *head_commit;
-	struct strbuf buf = STRBUF_INIT;
-	const char *head_arg;
-	int i, ret = 0, head_subsumed;
-	int best_cnt = -1, merge_was_ok = 0, automerge_was_ok = 0;
-	struct commit_list *common = NULL;
-	const char *best_strategy = NULL, *wt_strategy = NULL;
-	struct commit_list *remoteheads, *p;
-	void *branch_to_free;
+	int require_work_tree = 0, show_tag = 0, i;
+	const char *max_prefix;
+	struct dir_struct dir;
+	struct exclude_list *el;
+	struct string_list exclude_list = STRING_LIST_INIT_NODUP;
+	struct option builtin_ls_files_options[] = {
+		/* Think twice before adding "--nul" synonym to this */
+		OPT_SET_INT('z', NULL, &line_terminator,
+			N_("paths are separated with NUL character"), '\0'),
+		OPT_BOOL('t', NULL, &show_tag,
+			N_("identify the file status with tags")),
+		OPT_BOOL('v', NULL, &show_valid_bit,
+			N_("use lowercase letters for 'assume unchanged' files")),
+		OPT_BOOL('c', "cached", &show_cached,
+			N_("show cached files in the output (default)")),
+		OPT_BOOL('d', "deleted", &show_deleted,
+			N_("show deleted files in the output")),
+		OPT_BOOL('m', "modified", &show_modified,
+			N_("show modified files in the output")),
+		OPT_BOOL('o', "others", &show_others,
+			N_("show other files in the output")),
+		OPT_BIT('i', "ignored", &dir.flags,
+			N_("show ignored files in the output"),
+			DIR_SHOW_IGNORED),
+		OPT_BOOL('s', "stage", &show_stage,
+			N_("show staged contents' object name in the output")),
+		OPT_BOOL('k', "killed", &show_killed,
+			N_("show files on the filesystem that need to be removed")),
+		OPT_BIT(0, "directory", &dir.flags,
+			N_("show 'other' directories' names only"),
+			DIR_SHOW_OTHER_DIRECTORIES),
+		OPT_BOOL(0, "eol", &show_eol, N_("show line endings of files")),
+		OPT_NEGBIT(0, "empty-directory", &dir.flags,
+			N_("don't show empty directories"),
+			DIR_HIDE_EMPTY_DIRECTORIES),
+		OPT_BOOL('u', "unmerged", &show_unmerged,
+			N_("show unmerged files in the output")),
+		OPT_BOOL(0, "resolve-undo", &show_resolve_undo,
+			    N_("show resolve-undo information")),
+		{ OPTION_CALLBACK, 'x', "exclude", &exclude_list, N_("pattern"),
+			N_("skip files matching pattern"),
+			0, option_parse_exclude },
+		{ OPTION_CALLBACK, 'X', "exclude-from", &dir, N_("file"),
+			N_("exclude patterns are read from <file>"),
+			0, option_parse_exclude_from },
+		OPT_STRING(0, "exclude-per-directory", &dir.exclude_per_dir, N_("file"),
+			N_("read additional per-directory exclude patterns in <file>")),
+		{ OPTION_CALLBACK, 0, "exclude-standard", &dir, NULL,
+			N_("add the standard git exclusions"),
+			PARSE_OPT_NOARG, option_parse_exclude_standard },
+		{ OPTION_SET_INT, 0, "full-name", &prefix_len, NULL,
+			N_("make the output relative to the project top directory"),
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG, NULL },
+		OPT_BOOL(0, "recurse-submodules", &recurse_submodules,
+			N_("recurse through submodules")),
+		OPT_BOOL(0, "error-unmatch", &error_unmatch,
+			N_("if any <file> is not in the index, treat this as an error")),
+		OPT_STRING(0, "with-tree", &with_tree, N_("tree-ish"),
+			N_("pretend that paths removed since <tree-ish> are still present")),
+		OPT__ABBREV(&abbrev),
+		OPT_BOOL(0, "debug", &debug_mode, N_("show debugging data")),
+		OPT_END()
+	};
 
 	if (argc == 2 && !strcmp(argv[1], "-h"))
-		usage_with_options(builtin_merge_usage, builtin_merge_options);
+		usage_with_options(ls_files_usage, builtin_ls_files_options);
+
+	memset(&dir, 0, sizeof(dir));
+	prefix = cmd_prefix;
+	if (prefix)
+		prefix_len = strlen(prefix);
+	super_prefix = get_super_prefix();
+	git_config(git_default_config, NULL);
+
+	if (read_cache() < 0)
+		die("index file corrupt");
+
+	argc = parse_options(argc, argv, prefix, builtin_ls_files_options,
+			ls_files_usage, 0);
+	el = add_exclude_list(&dir, EXC_CMDL, "--exclude option");
+	for (i = 0; i < exclude_list.nr; i++) {
+		add_exclude(exclude_list.items[i].string, "", 0, el, --exclude_args);
+	}
+	if (show_tag || show_valid_bit) {
+		tag_cached = "H ";
+		tag_unmerged = "M ";
+		tag_removed = "R ";
+		tag_modified = "C ";
+		tag_other = "? ";
+		tag_killed = "K ";
+		tag_skip_worktree = "S ";
+		tag_resolve_undo = "U ";
+	}
+	if (show_modified || show_others || show_deleted || (dir.flags & DIR_SHOW_IGNORED) || show_killed)
+		require_work_tree = 1;
+	if (show_unmerged)
+		/*
+		 * There's no point in showing unmerged unless
+		 * you also show the stage information.
+		 */
+		show_stage = 1;
+	if (dir.exclude_per_dir)
+		exc_given = 1;
+
+	if (require_work_tree && !is_inside_work_tree())
+		setup_work_tree();
+
+	if (recurse_submodules)
+		compile_submodule_options(&dir, show_tag);
+
+	if (recurse_submodules &&
+	    (show_stage || show_deleted || show_others || show_unmerged ||
+	     show_killed || show_modified || show_resolve_undo || with_tree))
+		die("ls-files --recurse-submodules unsupported mode");
+
+	if (recurse_submodules && error_unmatch)
+		die("ls-files --recurse-submodules does not support "
+		    "--error-unmatch");
+
+	parse_pathspec(&pathspec, 0,
+		       PATHSPEC_PREFER_CWD |
+		       PATHSPEC_STRIP_SUBMODULE_SLASH_CHEAP,
+		       prefix, argv);
 
 	/*
-	 * Check if we are _not_ on a detached HEAD, i.e. if there is a
-	 * current branch.
+	 * Find common prefix for all pathspec's
+	 * This is used as a performance optimization which unfortunately cannot
+	 * be done when recursing into submodules
 	 */
-	branch = branch_to_free = resolve_refdup("HEAD", 0, head_sha1, NULL);
-	if (branch && starts_with(branch, "refs/heads/"))
-		branch += 11;
-	if (!branch || is_null_sha1(head_sha1))
-		head_commit = NULL;
+	if (recurse_submodules)
+		max_prefix = NULL;
 	else
-		head_commit = lookup_commit_or_die(head_sha1, "HEAD");
+		max_prefix = common_prefix(&pathspec);
+	max_prefix_len = max_prefix ? strlen(max_prefix) : 0;
 
-	init_diff_ui_defaults();
-	git_config(git_merge_config, NULL);
+	/* Treat unmatching pathspec elements as errors */
+	if (pathspec.nr && error_unmatch)
+		ps_matched = xcalloc(pathspec.nr, 1);
 
-	if (branch_mergeoptions)
-		parse_branch_merge_options(branch_mergeoptions);
-	argc = parse_options(argc, argv, prefix, builtin_merge_options,
-			builtin_merge_usage, 0);
-	if (shortlog_len < 0)
-		shortlog_len = (merge_log_config > 0) ? merge_log_config : 0;
+	if ((dir.flags & DIR_SHOW_IGNORED) && !exc_given)
+		die("ls-files --ignored needs some exclude pattern");
 
-	if (verbosity < 0 && show_progress == -1)
-		show_progress = 0;
+	/* With no flags, we default to showing the cached files */
+	if (!(show_stage || show_deleted || show_others || show_unmerged ||
+	      show_killed || show_modified || show_resolve_undo))
+		show_cached = 1;
 
-	if (abort_current_merge) {
-		int nargc = 2;
-		const char *nargv[] = {"reset", "--merge", NULL};
-
-		if (!file_exists(git_path_merge_head()))
-			die(_("There is no merge to abort (MERGE_HEAD missing)."));
-
-		/* Invoke 'git reset --merge' */
-		ret = cmd_reset(nargc, nargv, prefix);
-		goto done;
-	}
-
-	if (read_cache_unmerged())
-		die_resolve_conflict("merge");
-
-	if (file_exists(git_path_merge_head())) {
+	if (max_prefix)
+		prune_cache(max_prefix);
+	if (with_tree) {
 		/*
-		 * There is no unmerged entry, don't advise 'git
-		 * add/rm <file>', just 'git commit'.
+		 * Basic sanity check; show-stages and show-unmerged
+		 * would not make any sense with this option.
 		 */
-		if (advice_resolve_conflict)
-			die(_("You have not concluded your merge (MERGE_HEAD exists).\n"
-				  "Please, commit your changes before you merge."));
-		else
-			die(_("You have not concluded your merge (MERGE_HEAD exists)."));
+		if (show_stage || show_unmerged)
+			die("ls-files --with-tree is incompatible with -s or -u");
+		overlay_tree_on_cache(with_tree, max_prefix);
 	}
-	if (file_exists(git_path_cherry_pick_head())) {
-		if (advice_resolve_conflict)
-			die(_("You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists).\n"
-			    "Please, commit your changes before you merge."));
-		else
-			die(_("You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists)."));
-	}
-	resolve_undo_clear();
+	show_files(&dir);
+	if (show_resolve_undo)
+		show_ru_info();
 
-	if (verbosity < 0)
-		show_diffstat = 0;
+	if (ps_matched) {
+		int bad;
+		bad = report_path_error(ps_matched, &pathspec, prefix);
+		if (bad)
+			fprintf(stderr, "Did you forget to 'git add'?\n");
 
-	if (squash) {
-		if (fast_forward == FF_NO)
-			die(_("You cannot combine --squash with --no-ff."));
-		option_commit = 0;
+		return bad ? 1 : 0;
 	}
 
-	if (!argc) {
-		if (default_to_upstream)
-			argc = setup_with_upstream(&argv);
-		else
-			die(_("No commit specified and merge.defaultToUpstream not set."));
-	} else if (argc == 1 && !strcmp(argv[0], "-")) {
-		argv[0] = "@{-1}";
-	}
-
-	if (!argc)
-		usage_with_options(builtin_merge_usage,
-			builtin_merge_options);
-
-	if (!head_commit) {
-		/*
-		 * If the merged head is a valid one there is no reason
-		 * to forbid "git merge" into a branch yet to be born.
-		 * We do the same for "git pull".
-		 */
-		unsigned char *remote_head_sha1;
-		if (squash)
-			die(_("Squash commit into empty head not supported yet"));
-		if (fast_forward == FF_NO)
-			die(_("Non-fast-forward commit does not make sense into "
-			    "an empty head"));
-		remoteheads = collect_parents(head_commit, &head_subsumed,
-					      argc, argv, NULL);
-		if (!remoteheads)
-			die(_("%s - not something we can merge"), argv[0]);
-		if (remoteheads->next)
-			die(_("Can merge only exactly one commit into empty head"));
-		remote_head_sha1 = remoteheads->item->object.oid.hash;
-		read_empty(remote_head_sha1, 0);
-		update_ref("initial pull", "HEAD", remote_head_sha1,
-			   NULL, 0, UPDATE_REFS_DIE_ON_ERR);
-		goto done;
-	}
-
-	/*
-	 * This could be traditional "merge <msg> HEAD <commit>..."  and
-	 * the way we can tell it is to see if the second token is HEAD,
-	 * but some people might have misused the interface and used a
-	 * commit-ish that is the same as HEAD there instead.
-	 * Traditional format never would have "-m" so it is an
-	 * additional safety measure to check for it.
-	 */
-	if (!have_message &&
-	    is_old_style_invocation(argc, argv, head_commit->object.oid.hash)) {
-		warning("old-style 'git merge <msg> HEAD <commit>' is deprecated.");
-		strbuf_addstr(&merge_msg, argv[0]);
-		head_arg = argv[1];
-		argv += 2;
-		argc -= 2;
-		remoteheads = collect_parents(head_commit, &head_subsumed,
-					      argc, argv, NULL);
-	} else {
-		/* We are invoked directly as the first-class UI. */
-		head_arg = "HEAD";
-
-		/*
-		 * All the rest are the commits being merged; prepare
-		 * the standard merge summary message to be appended
-		 * to the given message.
-		 */
-		remoteheads = collect_parents(head_commit, &head_subsumed,
-					      argc, argv, &merge_msg);
-	}
-
-	if (!head_commit || !argc)
-		usage_with_options(builtin_merge_usage,
-			builtin_merge_options);
-
-	if (verify_signatures) {
-		for (p = remoteheads; p; p = p->next) {
-			struct commit *commit = p->item;
-			char hex[GIT_SHA1_HEXSZ + 1];
-			struct signature_check signature_check;
-			memset(&signature_check, 0, sizeof(signature_check));
-
-			check_commit_signature(commit, &signature_check);
-
-			find_unique_abbrev_r(hex, commit->object.oid.hash, DEFAULT_ABBREV);
-			switch (signature_check.result) {
-			case 'G':
-				break;
-			case 'U':
-				die(_("Commit %s has an untrusted GPG signature, "
-				      "allegedly by %s."), hex, signature_check.signer);
-			case 'B':
-				die(_("Commit %s has a bad GPG signature "
-				      "allegedly by %s."), hex, signature_check.signer);
-			default: /* 'N' */
-				die(_("Commit %s does not have a GPG signature."), hex);
-			}
-			if (verbosity >= 0 && signature_check.result == 'G')
-				printf(_("Commit %s has a good GPG signature by %s\n"),
-				       hex, signature_check.signer);
-
-			signature_check_clear(&signature_check);
-		}
-	}
-
-	strbuf_addstr(&buf, "merge");
-	for (p = remoteheads; p; p = p->next)
-		strbuf_addf(&buf, " %s", merge_remote_util(p->item)->name);
-	setenv("GIT_REFLOG_ACTION", buf.buf, 0);
-	strbuf_reset(&buf);
-
-	for (p = remoteheads; p; p = p->next) {
-		struct commit *commit = p->item;
-		strbuf_addf(&buf, "GITHEAD_%s",
-			    oid_to_hex(&commit->object.oid));
-		setenv(buf.buf, merge_remote_util(commit)->name, 1);
-		strbuf_reset(&buf);
-		if (fast_forward != FF_ONLY &&
-		    merge_remote_util(commit) &&
-		    merge_remote_util(commit)->obj &&
-		    merge_remote_util(commit)->obj->type == OBJ_TAG)
-			fast_forward = FF_NO;
-	}
-
-	if (option_edit < 0)
-		option_edit = default_edit_option();
-
-	if (!use_strategies) {
-		if (!remoteheads)
-			; /* already up-to-date */
-		else if (!remoteheads->next)
-			add_strategies(pull_twohead, DEFAULT_TWOHEAD);
-		else
-			add_strategies(pull_octopus, DEFAULT_OCTOPUS);
-	}
-
-	for (i = 0; i < use_strategies_nr; i++) {
-		if (use_strategies[i]->attr & NO_FAST_FORWARD)
-			fast_forward = FF_NO;
-		if (use_strategies[i]->attr & NO_TRIVIAL)
-			allow_trivial = 0;
-	}
-
-	if (!remoteheads)
-		; /* already up-to-date */
-	else if (!remoteheads->next)
-		common = get_merge_bases(head_commit, remoteheads->item);
-	else {
-		struct commit_list *list = remoteheads;
-		commit_list_insert(head_commit, &list);
-		common = get_octopus_merge_bases(list);
-		free(list);
-	}
-
-	update_ref("updating ORIG_HEAD", "ORIG_HEAD", head_commit->object.oid.hash,
-		   NULL, 0, UPDATE_REFS_DIE_ON_ERR);
-
-	if (remoteheads && !common) {
-		/* No common ancestors found. */
-		if (!allow_unrelated_histories)
-			die(_("refusing to merge unrelated histories"));
-		/* otherwise, we need a real merge. */
-	} else if (!remoteheads ||
-		 (!remoteheads->next && !common->next &&
-		  common->item == remoteheads->item)) {
-		/*
-		 * If head can reach all the merge then we are up to date.
-		 * but first the most common case of merging one remote.
-		 */
-		finish_up_to_date(_("Already up-to-date."));
-		goto done;
-	} else if (fast_forward != FF_NO && !remoteheads->next &&
-			!common->next &&
-			!oidcmp(&common->item->object.oid, &head_commit->object.oid)) {
-		/* Again the most common case of merging one remote. */
-		struct strbuf msg = STRBUF_INIT;
-		struct commit *commit;
-
-		if (verbosity >= 0) {
-			char from[GIT_SHA1_HEXSZ + 1], to[GIT_SHA1_HEXSZ + 1];
-			find_unique_abbrev_r(from, head_commit->object.oid.hash,
-					      DEFAULT_ABBREV);
-			find_unique_abbrev_r(to, remoteheads->item->object.oid.hash,
-					      DEFAULT_ABBREV);
-			printf(_("Updating %s..%s\n"), from, to);
-		}
-		strbuf_addstr(&msg, "Fast-forward");
-		if (have_message)
-			strbuf_addstr(&msg,
-				" (no commit created; -m option ignored)");
-		commit = remoteheads->item;
-		if (!commit) {
-			ret = 1;
-			goto done;
-		}
-
-		if (checkout_fast_forward(head_commit->object.oid.hash,
-					  commit->object.oid.hash,
-					  overwrite_ignore)) {
-			ret = 1;
-			goto done;
-		}
-
-		finish(head_commit, remoteheads, commit->object.oid.hash, msg.buf);
-		drop_save();
-		goto done;
-	} else if (!remoteheads->next && common->next)
-		;
-		/*
-		 * We are not doing octopus and not fast-forward.  Need
-		 * a real merge.
-		 */
-	else if (!remoteheads->next && !common->next && option_commit) {
-		/*
-		 * We are not doing octopus, not fast-forward, and have
-		 * only one common.
-		 */
-		refresh_cache(REFRESH_QUIET);
-		if (allow_trivial && fast_forward != FF_ONLY) {
-			/* See if it is really trivial. */
-			git_committer_info(IDENT_STRICT);
-			printf(_("Trying really trivial in-index merge...\n"));
-			if (!read_tree_trivial(common->item->object.oid.hash,
-					       head_commit->object.oid.hash,
-					       remoteheads->item->object.oid.hash)) {
-				ret = merge_trivial(head_commit, remoteheads);
-				goto done;
-			}
-			printf(_("Nope.\n"));
-		}
-	} else {
-		/*
-		 * An octopus.  If we can reach all the remote we are up
-		 * to date.
-		 */
-		int up_to_date = 1;
-		struct commit_list *j;
-
-		for (j = remoteheads; j; j = j->next) {
-			struct commit_list *common_one;
-
-			/*
-			 * Here we *have* to calculate the individual
-			 * merge_bases again, otherwise "git merge HEAD^
-			 * HEAD^^" would be missed.
-			 */
-			common_one = get_merge_bases(head_commit, j->item);
-			if (oidcmp(&common_one->item->object.oid, &j->item->object.oid)) {
-				up_to_date = 0;
-				break;
-			}
-		}
-		if (up_to_date) {
-			finish_up_to_date(_("Already up-to-date. Yeeah!"));
-			goto done;
-		}
-	}
-
-	if (fast_forward == FF_ONLY)
-		die(_("Not possible to fast-forward, aborting."));
-
-	/* We are going to make a new commit. */
-	git_committer_info(IDENT_STRICT);
-
-	/*
-	 * At this point, we need a real merge.  No matter what strategy
-	 * we use, it would operate on the index, possibly affecting the
-	 * working tree, and when resolved cleanly, have the desired
-	 * tree in the index -- this means that the index must be in
-	 * sync with the head commit.  The strategies are responsible
-	 * to ensure this.
-	 */
-	if (use_strategies_nr == 1 ||
-	    /*
-	     * Stash away the local changes so that we can try more than one.
-	     */
-	    save_state(stash))
-		hashclr(stash);
-
-	for (i = 0; i < use_strategies_nr; i++) {
-		int ret;
-		if (i) {
-			printf(_("Rewinding the tree to pristine...\n"));
-			restore_state(head_commit->object.oid.hash, stash);
-		}
-		if (use_strategies_nr != 1)
-			printf(_("Trying merge strategy %s...\n"),
-				use_strategies[i]->name);
-		/*
-		 * Remember which strategy left the state in the working
-		 * tree.
-		 */
-		wt_strategy = use_strategies[i]->name;
-
-		ret = try_merge_strategy(use_strategies[i]->name,
-					 common, remoteheads,
-					 head_commit, head_arg);
-		if (!option_commit && !ret) {
-			merge_was_ok = 1;
-			/*
-			 * This is necessary here just to avoid writing
-			 * the tree, but later we will *not* exit with
-			 * status code 1 because merge_was_ok is set.
-			 */
-			ret = 1;
-		}
-
-		if (ret) {
-			/*
-			 * The backend exits with 1 when conflicts are
-			 * left to be resolved, with 2 when it does not
-			 * handle the given merge at all.
-			 */
-			if (ret == 1) {
-				int cnt = evaluate_result();
-
-				if (best_cnt <= 0 || cnt <= best_cnt) {
-					best_strategy = use_strategies[i]->name;
-					best_cnt = cnt;
-				}
-			}
-			if (merge_was_ok)
-				break;
-			else
-				continue;
-		}
-
-		/* Automerge succeeded. */
-		write_tree_trivial(result_tree);
-		automerge_was_ok = 1;
-		break;
-	}
-
-	/*
-	 * If we have a resulting tree, that means the strategy module
-	 * auto resolved the merge cleanly.
-	 */
-	if (automerge_was_ok) {
-		ret = finish_automerge(head_commit, head_subsumed,
-				       common, remoteheads,
-				       result_tree, wt_strategy);
-		goto done;
-	}
-
-	/*
-	 * Pick the result from the best strategy and have the user fix
-	 * it up.
-	 */
-	if (!best_strategy) {
-		restore_state(head_commit->object.oid.hash, stash);
-		if (use_strategies_nr > 1)
-			fprintf(stderr,
-				_("No merge strategy handled the merge.\n"));
-		else
-			fprintf(stderr, _("Merge with strategy %s failed.\n"),
-				use_strategies[0]->name);
-		ret = 2;
-		goto done;
-	} else if (best_strategy == wt_strategy)
-		; /* We already have its result in the working tree. */
-	else {
-		printf(_("Rewinding the tree to pristine...\n"));
-		restore_state(head_commit->object.oid.hash, stash);
-		printf(_("Using the %s to prepare resolving by hand.\n"),
-			best_strategy);
-		try_merge_strategy(best_strategy, common, remoteheads,
-				   head_commit, head_arg);
-	}
-
-	if (squash)
-		finish(head_commit, remoteheads, NULL, NULL);
-	else
-		write_merge_state(remoteheads);
-
-	if (merge_was_ok)
-		fprintf(stderr, _("Automatic merge went well; "
-			"stopped before committing as requested\n"));
-	else
-		ret = suggest_conflicts();
-
-done:
-	free(branch_to_free);
-	return ret;
+	return 0;
 }

@@ -1,1 +1,1 @@
-fprintf(stderr, "bad sha1 file: %s/%s\n", path, de->d_name);
+printf(" (%s) in %s\n", tag->tag, sha1_to_hex(tag->object.sha1));

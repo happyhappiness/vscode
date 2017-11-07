@@ -1,2 +1,1 @@
-error_errno("Couldn't truncate temporary file %s",
-					    freq->tmpfile);
+error_errno("Couldn't create temporary file %s", freq->tmpfile);

@@ -1,1 +1,1 @@
-die(_("unable to parse command-line config"));
+die("failed to parse %s", k);

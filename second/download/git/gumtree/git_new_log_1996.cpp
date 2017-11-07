@@ -1,1 +1,3 @@
-error("Remote branch %s resolves to object %s\nwhich does not exist locally, perhaps you need to fetch?", remote_ref->name, oid_to_hex(&remote_ref->old_oid));
+fprintf(stderr,
+			"Unable to parse object %s for remote ref %s\n",
+			oid_to_hex(&ref->old_oid), ls->dentry_name);

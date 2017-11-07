@@ -1,1 +1,1 @@
-printf_ln("%s", *url);
+printf_ln("%s", url[i]);

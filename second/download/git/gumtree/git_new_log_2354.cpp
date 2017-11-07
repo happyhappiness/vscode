@@ -1,0 +1,1 @@
+error_errno("Failed to flush %s", path);

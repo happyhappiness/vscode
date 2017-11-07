@@ -1,213 +1,275 @@
-int main (int argc, const char * const argv[])
+static int authenticate_digest_user(request_rec *r)
 {
-    char buf[BUFSIZE];
-    apr_size_t nRead, nWrite;
-    apr_file_t *f_stdin;
-    apr_file_t *f_stdout;
-    apr_getopt_t *opt;
-    apr_status_t rv;
-    char c;
-    const char *opt_arg;
-    const char *err = NULL;
-#if APR_FILES_AS_SOCKETS
-    apr_pollfd_t pollfd = { 0 };
-    apr_status_t pollret = APR_SUCCESS;
-    int polltimeout;
-#endif
+    digest_config_rec *conf;
+    digest_header_rec *resp;
+    request_rec       *mainreq;
+    const char        *t;
+    int                res;
+    authn_status       return_code;
 
-    apr_app_initialize(&argc, &argv, NULL);
-    atexit(apr_terminate);
+    /* do we require Digest auth for this URI? */
 
-    memset(&config, 0, sizeof config);
-    memset(&status, 0, sizeof status);
-    status.rotateReason = ROTATE_NONE;
+    if (!(t = ap_auth_type(r)) || strcasecmp(t, "Digest")) {
+        return DECLINED;
+    }
 
-    apr_pool_create(&status.pool, NULL);
-    apr_getopt_init(&opt, status.pool, argc, argv);
-#if APR_FILES_AS_SOCKETS
-    while ((rv = apr_getopt(opt, "lL:p:ftvecn:", &c, &opt_arg)) == APR_SUCCESS) {
-#else
-    while ((rv = apr_getopt(opt, "lL:p:ftven:", &c, &opt_arg)) == APR_SUCCESS) {
-#endif
-        switch (c) {
-        case 'l':
-            config.use_localtime = 1;
-            break;
-        case 'L':
-            config.linkfile = opt_arg;
-            break;
-        case 'p':
-            config.postrotate_prog = opt_arg;
-            break;
-        case 'f':
-            config.force_open = 1;
-            break;
-        case 't':
-            config.truncate = 1;
-            break;
-        case 'v':
-            config.verbose = 1;
-            break;
-        case 'e':
-            config.echo = 1;
-            break;
-#if APR_FILES_AS_SOCKETS
-        case 'c':
-            config.create_empty = 1;
-            break;
-#endif
-        case 'n':
-            config.num_files = atoi(opt_arg);
-            status.fileNum = -1;
-            break;
+    if (!ap_auth_name(r)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01780)
+                      "need AuthName: %s", r->uri);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+
+    /* get the client response and mark */
+
+    mainreq = r;
+    while (mainreq->main != NULL) {
+        mainreq = mainreq->main;
+    }
+    while (mainreq->prev != NULL) {
+        mainreq = mainreq->prev;
+    }
+    resp = (digest_header_rec *) ap_get_module_config(mainreq->request_config,
+                                                      &auth_digest_module);
+    resp->needed_auth = 1;
+
+
+    /* get our conf */
+
+    conf = (digest_config_rec *) ap_get_module_config(r->per_dir_config,
+                                                      &auth_digest_module);
+
+
+    /* check for existence and syntax of Auth header */
+
+    if (resp->auth_hdr_sts != VALID) {
+        if (resp->auth_hdr_sts == NOT_DIGEST) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01781)
+                          "client used wrong authentication scheme `%s': %s",
+                          resp->scheme, r->uri);
         }
-    }
-
-    if (rv != APR_EOF) {
-        usage(argv[0], NULL /* specific error message already issued */ );
-    }
-
-    /*
-     * After the initial flags we need 2 to 4 arguments,
-     * the file name, either the rotation interval time or size
-     * or both of them, and optionally the UTC offset.
-     */
-    if ((argc - opt->ind < 2) || (argc - opt->ind > 4) ) {
-        usage(argv[0], "Incorrect number of arguments");
-    }
-
-    config.szLogRoot = argv[opt->ind++];
-
-    /* Read in the remaining flags, namely time, size and UTC offset. */
-    for(; opt->ind < argc; opt->ind++) {
-        if ((err = get_time_or_size(&config, argv[opt->ind],
-                                    opt->ind < argc - 1 ? 0 : 1)) != NULL) {
-            usage(argv[0], err);
+        else if (resp->auth_hdr_sts == INVALID) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01782)
+                          "missing user, realm, nonce, uri, digest, "
+                          "cnonce, or nonce_count in authorization header: %s",
+                          r->uri);
         }
+        /* else (resp->auth_hdr_sts == NO_HEADER) */
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
     }
 
-    config.use_strftime = (strchr(config.szLogRoot, '%') != NULL);
+    r->user         = (char *) resp->username;
+    r->ap_auth_type = (char *) "Digest";
 
-    if (config.use_strftime && config.num_files > 0) { 
-        fprintf(stderr, "Cannot use -n with %% in filename\n");
-        exit(1);
-    }
+    /* check the auth attributes */
 
-    if (status.fileNum == -1 && config.num_files < 1) { 
-        fprintf(stderr, "Invalid -n argument\n");
-        exit(1);
-    }
+    if (strcmp(resp->uri, resp->raw_request_uri)) {
+        /* Hmm, the simple match didn't work (probably a proxy modified the
+         * request-uri), so lets do a more sophisticated match
+         */
+        apr_uri_t r_uri, d_uri;
 
-    if (apr_file_open_stdin(&f_stdin, status.pool) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to open stdin\n");
-        exit(1);
-    }
+        copy_uri_components(&r_uri, resp->psd_request_uri, r);
+        if (apr_uri_parse(r->pool, resp->uri, &d_uri) != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01783)
+                          "invalid uri <%s> in Authorization header",
+                          resp->uri);
+            return HTTP_BAD_REQUEST;
+        }
 
-    if (apr_file_open_stdout(&f_stdout, status.pool) != APR_SUCCESS) {
-        fprintf(stderr, "Unable to open stdout\n");
-        exit(1);
-    }
+        if (d_uri.hostname) {
+            ap_unescape_url(d_uri.hostname);
+        }
+        if (d_uri.path) {
+            ap_unescape_url(d_uri.path);
+        }
 
-    /*
-     * Write out result of config parsing if verbose is set.
-     */
-    if (config.verbose) {
-        dumpConfig(&config);
-    }
+        if (d_uri.query) {
+            ap_unescape_url(d_uri.query);
+        }
+        else if (r_uri.query) {
+            /* MSIE compatibility hack.  MSIE has some RFC issues - doesn't
+             * include the query string in the uri Authorization component
+             * or when computing the response component.  the second part
+             * works out ok, since we can hash the header and get the same
+             * result.  however, the uri from the request line won't match
+             * the uri Authorization component since the header lacks the
+             * query string, leaving us incompatable with a (broken) MSIE.
+             *
+             * the workaround is to fake a query string match if in the proper
+             * environment - BrowserMatch MSIE, for example.  the cool thing
+             * is that if MSIE ever fixes itself the simple match ought to
+             * work and this code won't be reached anyway, even if the
+             * environment is set.
+             */
 
-#if APR_FILES_AS_SOCKETS
-    if (config.create_empty && config.tRotation) {
-        pollfd.p = status.pool;
-        pollfd.desc_type = APR_POLL_FILE;
-        pollfd.reqevents = APR_POLLIN;
-        pollfd.desc.f = f_stdin;
-    }
-#endif
+            if (apr_table_get(r->subprocess_env,
+                              "AuthDigestEnableQueryStringHack")) {
 
-    /*
-     * Immediately open the logfile as we start, if we were forced
-     * to do so via '-f'.
-     */
-    if (config.force_open) {
-        doRotate(&config, &status);
-    }
+                ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(01784)
+                              "applying AuthDigestEnableQueryStringHack "
+                              "to uri <%s>", resp->raw_request_uri);
 
-    for (;;) {
-        nRead = sizeof(buf);
-#if APR_FILES_AS_SOCKETS
-        if (config.create_empty && config.tRotation) {
-            polltimeout = status.tLogEnd ? status.tLogEnd - get_now(&config) : config.tRotation;
-            if (polltimeout <= 0) {
-                pollret = APR_TIMEUP;
-            }
-            else {
-                pollret = apr_poll(&pollfd, 1, &pollret, apr_time_from_sec(polltimeout));
+               d_uri.query = r_uri.query;
             }
         }
-        if (pollret == APR_SUCCESS) {
-            rv = apr_file_read(f_stdin, buf, &nRead);
-            if (APR_STATUS_IS_EOF(rv)) {
+
+        if (r->method_number == M_CONNECT) {
+            if (!r_uri.hostinfo || strcmp(resp->uri, r_uri.hostinfo)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01785)
+                              "uri mismatch - <%s> does not match "
+                              "request-uri <%s>", resp->uri, r_uri.hostinfo);
+                return HTTP_BAD_REQUEST;
+            }
+        }
+        else if (
+            /* check hostname matches, if present */
+            (d_uri.hostname && d_uri.hostname[0] != '\0'
+              && strcasecmp(d_uri.hostname, r_uri.hostname))
+            /* check port matches, if present */
+            || (d_uri.port_str && d_uri.port != r_uri.port)
+            /* check that server-port is default port if no port present */
+            || (d_uri.hostname && d_uri.hostname[0] != '\0'
+                && !d_uri.port_str && r_uri.port != ap_default_port(r))
+            /* check that path matches */
+            || (d_uri.path != r_uri.path
+                /* either exact match */
+                && (!d_uri.path || !r_uri.path
+                    || strcmp(d_uri.path, r_uri.path))
+                /* or '*' matches empty path in scheme://host */
+                && !(d_uri.path && !r_uri.path && resp->psd_request_uri->hostname
+                    && d_uri.path[0] == '*' && d_uri.path[1] == '\0'))
+            /* check that query matches */
+            || (d_uri.query != r_uri.query
+                && (!d_uri.query || !r_uri.query
+                    || strcmp(d_uri.query, r_uri.query)))
+            ) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01786)
+                          "uri mismatch - <%s> does not match "
+                          "request-uri <%s>", resp->uri, resp->raw_request_uri);
+            return HTTP_BAD_REQUEST;
+        }
+    }
+
+    if (resp->opaque && resp->opaque_num == 0) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01787)
+                      "received invalid opaque - got `%s'",
+                      resp->opaque);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (!conf->realm) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02533)
+                      "realm mismatch - got `%s' but no realm specified",
+                      resp->realm);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (!resp->realm || strcmp(resp->realm, conf->realm)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01788)
+                      "realm mismatch - got `%s' but expected `%s'",
+                      resp->realm, conf->realm);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    if (resp->algorithm != NULL
+        && strcasecmp(resp->algorithm, "MD5")
+        && strcasecmp(resp->algorithm, "MD5-sess")) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01789)
+                      "unknown algorithm `%s' received: %s",
+                      resp->algorithm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    return_code = get_hash(r, r->user, conf);
+
+    if (return_code == AUTH_USER_NOT_FOUND) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01790)
+                      "user `%s' in realm `%s' not found: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+    else if (return_code == AUTH_USER_FOUND) {
+        /* we have a password, so continue */
+    }
+    else if (return_code == AUTH_DENIED) {
+        /* authentication denied in the provider before attempting a match */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01791)
+                      "user `%s' in realm `%s' denied by provider: %s",
+                      r->user, conf->realm, r->uri);
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+    else {
+        /* AUTH_GENERAL_ERROR (or worse)
+         * We'll assume that the module has already said what its error
+         * was in the logs.
+         */
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    if (resp->message_qop == NULL) {
+        /* old (rfc-2069) style digest */
+        if (strcmp(resp->digest, old_digest(r, resp, conf->ha1))) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01792)
+                          "user %s: password mismatch: %s", r->user,
+                          r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
+        }
+    }
+    else {
+        const char *exp_digest;
+        int match = 0, idx;
+        const char **tmp = (const char **)(conf->qop_list->elts);
+        for (idx = 0; idx < conf->qop_list->nelts; idx++) {
+            if (!strcasecmp(*tmp, resp->message_qop)) {
+                match = 1;
                 break;
             }
-            else if (rv != APR_SUCCESS) {
-                exit(3);
-            }
-        }
-        else if (pollret == APR_TIMEUP) {
-            *buf = 0;
-            nRead = 0;
-        }
-        else {
-            fprintf(stderr, "Unable to poll stdin\n");
-            exit(5);
-        }
-#else /* APR_FILES_AS_SOCKETS */
-        rv = apr_file_read(f_stdin, buf, &nRead);
-        if (APR_STATUS_IS_EOF(rv)) {
-            break;
-        }
-        else if (rv != APR_SUCCESS) {
-            exit(3);
-        }
-#endif /* APR_FILES_AS_SOCKETS */
-        checkRotate(&config, &status);
-        if (status.rotateReason != ROTATE_NONE) {
-            doRotate(&config, &status);
+            ++tmp;
         }
 
-        nWrite = nRead;
-        rv = apr_file_write_full(status.current.fd, buf, nWrite, &nWrite);
-        if (nWrite != nRead) {
-            char strerrbuf[120];
-            apr_off_t cur_offset;
+        if (!match
+            && !(apr_is_empty_array(conf->qop_list)
+                 && !strcasecmp(resp->message_qop, "auth"))) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01793)
+                          "invalid qop `%s' received: %s",
+                          resp->message_qop, r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
+        }
 
-            cur_offset = 0;
-            if (apr_file_seek(status.current.fd, APR_CUR, &cur_offset) != APR_SUCCESS) {
-                cur_offset = -1;
-            }
-            apr_strerror(rv, strerrbuf, sizeof strerrbuf);
-            status.nMessCount++;
-            apr_snprintf(status.errbuf, sizeof status.errbuf,
-                         "Error %d writing to log file at offset %" APR_OFF_T_FMT ". "
-                         "%10d messages lost (%s)\n",
-                         rv, cur_offset, status.nMessCount, strerrbuf);
-            nWrite = strlen(status.errbuf);
-            apr_file_trunc(status.current.fd, 0);
-            if (apr_file_write_full(status.current.fd, status.errbuf, nWrite, NULL) != APR_SUCCESS) {
-                fprintf(stderr, "Error writing to the file %s\n", status.current.name);
-                exit(2);
-            }
+        exp_digest = new_digest(r, resp, conf);
+        if (!exp_digest) {
+            /* we failed to allocate a client struct */
+            return HTTP_INTERNAL_SERVER_ERROR;
         }
-        else {
-            status.nMessCount++;
-        }
-        if (config.echo) {
-            if (apr_file_write_full(f_stdout, buf, nRead, &nWrite)) {
-                fprintf(stderr, "Unable to write to stdout\n");
-                exit(4);
-            }
+        if (strcmp(resp->digest, exp_digest)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01794)
+                          "user %s: password mismatch: %s", r->user,
+                          r->uri);
+            note_digest_auth_failure(r, conf, resp, 0);
+            return HTTP_UNAUTHORIZED;
         }
     }
 
-    return 0; /* reached only at stdin EOF. */
+    if (check_nc(r, resp, conf) != OK) {
+        note_digest_auth_failure(r, conf, resp, 0);
+        return HTTP_UNAUTHORIZED;
+    }
+
+    /* Note: this check is done last so that a "stale=true" can be
+       generated if the nonce is old */
+    if ((res = check_nonce(r, resp, conf))) {
+        return res;
+    }
+
+    return OK;
 }

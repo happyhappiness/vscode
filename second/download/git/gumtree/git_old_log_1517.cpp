@@ -1,1 +1,4 @@
-die(_("local object %s is corrupt"), sha1_to_hex(d->base.sha1));
+die(Q_("pack has %d unresolved delta",
+		       "pack has %d unresolved deltas",
+		       nr_deltas - nr_resolved_deltas),
+		    nr_deltas - nr_resolved_deltas);

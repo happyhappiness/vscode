@@ -1,2 +1,1 @@
-die("BUG: invalid status --porcelain=2 line %s",
-				    buf.buf);
+die(_("'%s' not recognized as a git repository"), git_dir);

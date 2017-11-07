@@ -1,1 +1,2 @@
-report_unmatched_refs(sought, nr_sought);
+warning("Invalid parameter '%s' for config option "
+					"'submodule.%s.ignore'", value, name.buf);

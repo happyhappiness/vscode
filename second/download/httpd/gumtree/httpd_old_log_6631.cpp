@@ -1,4 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf, APLOGNO(02236)
-                     "slotmem(%s) fgrab failed. Num %u/num_free %u",
-                     slot->name, slotmem_num_slots(slot),
-                     slotmem_num_free_slots(slot));
+ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(01880)
+                     "Init: Skipping generating temporary "
+                     "%d bit DH parameters in FIPS mode", bits);

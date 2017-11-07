@@ -1,4 +1,2 @@
-fprintf(stderr, "IMAP command '%s' returned response (%s) - %s\n",
-					!starts_with(cmdp->cmd, "LOGIN") ?
-							cmdp->cmd : "LOGIN <user> <pass>",
-							arg, cmd ? cmd : "");
+fprintf(stderr, "Also look at %s\n",
+						target.buf);

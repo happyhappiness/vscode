@@ -1,1 +1,1 @@
-die(_("-b, -B, and --detach are mutually exclusive"));
+fprintf_ln(stderr, _("Preparing %s (identifier %s)"), path, name);

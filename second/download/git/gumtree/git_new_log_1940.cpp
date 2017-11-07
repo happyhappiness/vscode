@@ -1,1 +1,1 @@
-printf(" %s", oid_to_hex(&children->item->object.oid));
+printf(" %s", oid_to_hex(&parents->item->object.oid));

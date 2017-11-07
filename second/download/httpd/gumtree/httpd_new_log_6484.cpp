@@ -1,1 +1,1 @@
-ap_rvputs(r, balancer->s->name, "</a> [",balancer->s->sname, "]</h3>\n", NULL);
+ap_rvputs(r, ap_escape_uri(r->pool, action), "\">\n", NULL);

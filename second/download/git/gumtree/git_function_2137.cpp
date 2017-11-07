@@ -1,39 +1,64 @@
-void init_notes(struct notes_tree *t, const char *notes_ref,
-		combine_notes_fn combine_notes, int flags)
+const char *fmt_ident(const char *name, const char *email,
+		      const char *date_str, int flag)
 {
-	unsigned char sha1[20], object_sha1[20];
-	unsigned mode;
-	struct leaf_node root_tree;
+	static struct strbuf ident = STRBUF_INIT;
+	int strict = (flag & IDENT_STRICT);
+	int want_date = !(flag & IDENT_NO_DATE);
+	int want_name = !(flag & IDENT_NO_NAME);
 
-	if (!t)
-		t = &default_notes_tree;
-	assert(!t->initialized);
+	if (want_name) {
+		int using_default = 0;
+		if (!name) {
+			name = ident_default_name();
+			using_default = 1;
+			if (strict && default_name_is_bogus) {
+				fputs(env_hint, stderr);
+				die("unable to auto-detect name (got '%s')", name);
+			}
+			if (strict && ident_use_config_only
+			    && !(ident_config_given & IDENT_NAME_GIVEN))
+				die("user.useConfigOnly set but no name given");
+		}
+		if (!*name) {
+			struct passwd *pw;
+			if (strict) {
+				if (using_default)
+					fputs(env_hint, stderr);
+				die("empty ident name (for <%s>) not allowed", email);
+			}
+			pw = xgetpwuid_self(NULL);
+			name = pw->pw_name;
+		}
+	}
 
-	if (!notes_ref)
-		notes_ref = default_notes_ref();
+	if (!email) {
+		email = ident_default_email();
+		if (strict && default_email_is_bogus) {
+			fputs(env_hint, stderr);
+			die("unable to auto-detect email address (got '%s')", email);
+		}
+		if (strict && ident_use_config_only
+		    && !(ident_config_given & IDENT_MAIL_GIVEN))
+			die("user.useConfigOnly set but no mail given");
+	}
 
-	if (!combine_notes)
-		combine_notes = combine_notes_concatenate;
+	strbuf_reset(&ident);
+	if (want_name) {
+		strbuf_addstr_without_crud(&ident, name);
+		strbuf_addstr(&ident, " <");
+	}
+	strbuf_addstr_without_crud(&ident, email);
+	if (want_name)
+			strbuf_addch(&ident, '>');
+	if (want_date) {
+		strbuf_addch(&ident, ' ');
+		if (date_str && date_str[0]) {
+			if (parse_date(date_str, &ident) < 0)
+				die("invalid date format: %s", date_str);
+		}
+		else
+			strbuf_addstr(&ident, ident_default_date());
+	}
 
-	t->root = (struct int_node *) xcalloc(1, sizeof(struct int_node));
-	t->first_non_note = NULL;
-	t->prev_non_note = NULL;
-	t->ref = xstrdup_or_null(notes_ref);
-	t->update_ref = (flags & NOTES_INIT_WRITABLE) ? t->ref : NULL;
-	t->combine_notes = combine_notes;
-	t->initialized = 1;
-	t->dirty = 0;
-
-	if (flags & NOTES_INIT_EMPTY || !notes_ref ||
-	    get_sha1_treeish(notes_ref, object_sha1))
-		return;
-	if (flags & NOTES_INIT_WRITABLE && read_ref(notes_ref, object_sha1))
-		die("Cannot use notes ref %s", notes_ref);
-	if (get_tree_entry(object_sha1, "", sha1, &mode))
-		die("Failed to read notes tree referenced by %s (%s)",
-		    notes_ref, sha1_to_hex(object_sha1));
-
-	hashclr(root_tree.key_sha1);
-	hashcpy(root_tree.val_sha1, sha1);
-	load_subtree(t, &root_tree, t->root, 0);
+	return ident.buf;
 }

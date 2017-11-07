@@ -1,1 +1,1 @@
-die("helper %s does not support 'push-option'", name);
+die("BUG: invalid protocol_allow_config type");

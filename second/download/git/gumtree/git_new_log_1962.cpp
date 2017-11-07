@@ -1,1 +1,1 @@
-printf("\n");
+printf("branch %s\n", wt->head_ref);

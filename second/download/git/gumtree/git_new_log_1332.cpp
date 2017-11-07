@@ -1,1 +1,1 @@
-error("Couldn't write %s", lock->lk->filename.buf);
+error("%s", err.buf);

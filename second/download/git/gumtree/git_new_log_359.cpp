@@ -1,1 +1,1 @@
-warning(_(rename_limit_advice), varname, needed);
+warning(_(rename_limit_warning));

@@ -1,1 +1,1 @@
-error("--path=<path> incompatible with --batch");
+error("--path=<path> needs --textconv or --filters");

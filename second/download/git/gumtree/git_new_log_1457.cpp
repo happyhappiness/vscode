@@ -1,1 +1,1 @@
-die("helper %s does not support --signed", data->name);
+die("BUG: config_buf can only ungetc the same character");

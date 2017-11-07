@@ -1,1 +1,1 @@
-packet_buf_write(&preamble, "%s\n", specs[i]);
+die("BUG: child->real_type != OBJ_REF_DELTA");

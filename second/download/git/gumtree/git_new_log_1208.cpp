@@ -1,3 +1,2 @@
-die((flags & HASH_WRITE_OBJECT)
-		    ? "Unable to add %s to database"
-		    : "Unable to hash %s", path);
+git_die_config("gc.pruneexpire", _("Invalid gc.pruneexpire: '%s'"),
+						prune_expire);

@@ -1,3 +1,3 @@
-ap_log_perror(APLOG_MARK, APLOG_DEBUG, APR_EINVAL, pool, APLOGNO(03060)
-                      "h2_request(%d): pseudo header in trailer",
-                      req->id);
+ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, conn, APLOGNO()
+                      "h2_request(%d): access_status=%d, request_create failed",
+                      req->id, access_status);

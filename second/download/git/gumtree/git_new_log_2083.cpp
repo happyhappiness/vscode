@@ -1,1 +1,2 @@
-error(_("Unable to write upstream branch configuration"));
+die(_("Not tracking: ambiguous information for ref %s"),
+		    orig_ref);

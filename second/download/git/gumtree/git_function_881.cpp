@@ -1,17 +1,27 @@
-static int is_dup_ref(const struct ref_entry *ref1, const struct ref_entry *ref2)
+int parse_opt_merge_filter(const struct option *opt, const char *arg, int unset)
 {
-	if (strcmp(ref1->name, ref2->name))
-		return 0;
+	struct ref_filter *rf = opt->value;
+	unsigned char sha1[20];
+	int no_merged = starts_with(opt->long_name, "no");
 
-	/* Duplicate name; make sure that they don't conflict: */
+	if (rf->merge) {
+		if (no_merged) {
+			return opterror(opt, "is incompatible with --merged", 0);
+		} else {
+			return opterror(opt, "is incompatible with --no-merged", 0);
+		}
+	}
 
-	if ((ref1->flag & REF_DIR) || (ref2->flag & REF_DIR))
-		/* This is impossible by construction */
-		die("Reference directory conflict: %s", ref1->name);
+	rf->merge = no_merged
+		? REF_FILTER_MERGED_OMIT
+		: REF_FILTER_MERGED_INCLUDE;
 
-	if (oidcmp(&ref1->u.value.oid, &ref2->u.value.oid))
-		die("Duplicated ref, and SHA1s don't match: %s", ref1->name);
+	if (get_sha1(arg, sha1))
+		die(_("malformed object name %s"), arg);
 
-	warning("Duplicated ref: %s", ref1->name);
-	return 1;
+	rf->merge_commit = lookup_commit_reference_gently(sha1, 0);
+	if (!rf->merge_commit)
+		return opterror(opt, "must point to a commit", 0);
+
+	return 0;
 }

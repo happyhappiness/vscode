@@ -1,1 +1,2 @@
-git_die_config(key, _("unknown notes merge strategy %s"), value);
+die(_("not something we can merge in %s: %s"),
+			    filename, merge_names->buf + pos);

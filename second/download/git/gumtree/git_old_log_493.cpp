@@ -1,0 +1,1 @@
+packet_write(fd, "shallow %s\n", oid_to_hex(&graft->oid));

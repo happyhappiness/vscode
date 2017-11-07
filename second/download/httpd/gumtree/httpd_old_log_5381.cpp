@@ -1,4 +1,4 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
-                              "ServerSupport function "
-                              "HSE_REQ_SEND_RESPONSE_HEADER_EX "
-                              "ap_pass_brigade failed: %s", r->filename);
+ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                 strict ? "No ExecCGI verb found for files of type '%s'."
+                        : "No ExecCGI or Open verb found for files of type '%s'.",
+                 ext);

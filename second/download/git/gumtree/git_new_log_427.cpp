@@ -1,1 +1,1 @@
-error("packet write with format failed");
+die_errno("packet write with format failed");

@@ -1,1 +1,2 @@
-print_ref_status(type, quickref, ref, ref->peer_ref, msg, porcelain);
+error("Object %s not a tag",
+			     sha1_to_hex(item->object.sha1));

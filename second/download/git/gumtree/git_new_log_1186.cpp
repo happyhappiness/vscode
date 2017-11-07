@@ -1,1 +1,1 @@
-die(_("unable to update temporary index"));
+die(_("unable to write index file"));

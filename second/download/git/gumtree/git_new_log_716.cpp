@@ -1,1 +1,1 @@
-error(ERRORMSG(o, e), super_prefixed(path.buf));
+error(ERRORMSG(o, e), super_prefixed(path));

@@ -1,20 +1,17 @@
-static int proxy_post_config(apr_pool_t *pconf, apr_pool_t *plog,
-                             apr_pool_t *ptemp, server_rec *s)
+static int proxy_pre_config(apr_pool_t *pconf, apr_pool_t *plog,
+                            apr_pool_t *ptemp)
 {
-    apr_status_t rv = ap_global_mutex_create(&proxy_mutex, NULL,
-            proxy_id, NULL, s, pconf, 0);
+    apr_status_t rv = ap_mutex_register(pconf, proxy_id, NULL,
+            APR_LOCK_DEFAULT, 0);
     if (rv != APR_SUCCESS) {
-        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02478)
-        "failed to create %s mutex", proxy_id);
-        return rv;
+        ap_log_perror(APLOG_MARK, APLOG_CRIT, rv, plog, APLOGNO(02480)
+                "failed to register %s mutex", proxy_id);
+        return 500; /* An HTTP status would be a misnomer! */
     }
 
-    proxy_ssl_enable = APR_RETRIEVE_OPTIONAL_FN(ssl_proxy_enable);
-    proxy_ssl_disable = APR_RETRIEVE_OPTIONAL_FN(ssl_engine_disable);
-    proxy_is_https = APR_RETRIEVE_OPTIONAL_FN(ssl_is_https);
-    proxy_ssl_val = APR_RETRIEVE_OPTIONAL_FN(ssl_var_lookup);
-    ap_proxy_strmatch_path = apr_strmatch_precompile(pconf, "path=", 0);
-    ap_proxy_strmatch_domain = apr_strmatch_precompile(pconf, "domain=", 0);
-
+    APR_OPTIONAL_HOOK(ap, status_hook, proxy_status_hook, NULL, NULL,
+                      APR_HOOK_MIDDLE);
+    /* Reset workers count on gracefull restart */
+    proxy_lb_workers = 0;
     return OK;
 }

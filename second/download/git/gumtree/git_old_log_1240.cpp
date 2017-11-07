@@ -1,1 +1,1 @@
-die(_("%s: cannot update the ref"), ref.buf);
+die(_("%s: cannot lock the ref"), ref.buf);

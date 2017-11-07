@@ -1,2 +1,2 @@
-warning("recursive delta detected for object %s",
-			oid_to_hex(&e->idx.oid));
+error("corrupt packed object for %s",
+		      oid_to_hex(&entry->idx.oid));

@@ -1,1 +1,3 @@
-xwrite(2, outbuf.buf, outbuf.len);
+strbuf_addf(&outbuf,
+				    "%s%s: protocol error: no band designator",
+				    outbuf.len ? "\n" : "", me);

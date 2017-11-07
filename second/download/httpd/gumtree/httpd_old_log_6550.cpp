@@ -1,1 +1,1 @@
-fprintf(stderr, "   -p   Do not encrypt the password (plaintext).\n");
+fprintf(stderr, "   -T   DBM Type (SDBM|GDBM|DB|default).\n");

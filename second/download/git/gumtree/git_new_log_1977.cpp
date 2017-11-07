@@ -1,1 +1,1 @@
-die("date format missing colon separator: %s", format);
+die("unknown date format %s", format);

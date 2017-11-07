@@ -1,1 +1,2 @@
-error("Data too large to fit into virtual memory space.");
+error("Out of memory, malloc failed (tried to allocate %lu bytes)",
+				      (unsigned long)size);

@@ -1,1 +1,1 @@
-die(_("Please stage your changes to .gitmodules or stash them to proceed"));
+die(_("Directory %s is in index and no submodule?"), src);

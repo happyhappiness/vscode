@@ -1,1 +1,2 @@
-apr_file_printf(errfile, "\thtpasswd -nb[mdps] username password" NL);
+apr_file_printf(errfile, " -n  Don't update file; display results on "
+                    "stdout." NL);

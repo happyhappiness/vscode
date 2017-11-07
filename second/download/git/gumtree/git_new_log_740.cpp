@@ -1,2 +1,1 @@
-die_errno(_("cannot write keep file '%s'"),
-					  keep_name);
+report_unmatched_refs(sought, nr_sought);

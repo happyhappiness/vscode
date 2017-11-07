@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(02331)
-                                    "lua: Unable to find entry function '%s' in %s (not a valid function)",
-                                    function_name,
-                                    filename);
+ap_log_error(APLOG_MARK, APLOG_ERR, rs, s,
+                 "mod_lua IVM: Failed to find temporary directory");

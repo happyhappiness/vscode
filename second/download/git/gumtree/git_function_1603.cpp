@@ -1,37 +1,91 @@
-static int want_object_in_pack(const unsigned char *sha1,
-			       int exclude,
-			       struct packed_git **found_pack,
-			       off_t *found_offset)
+static int delete_branches(int argc, const char **argv, int force, int kinds,
+			   int quiet)
 {
-	struct packed_git *p;
+	struct commit *head_rev = NULL;
+	unsigned char sha1[20];
+	char *name = NULL;
+	const char *fmt;
+	int i;
+	int ret = 0;
+	int remote_branch = 0;
+	struct strbuf bname = STRBUF_INIT;
 
-	if (!exclude && local && has_loose_object_nonlocal(sha1))
-		return 0;
+	switch (kinds) {
+	case REF_REMOTE_BRANCH:
+		fmt = "refs/remotes/%s";
+		/* For subsequent UI messages */
+		remote_branch = 1;
 
-	*found_pack = NULL;
-	*found_offset = 0;
-
-	for (p = packed_git; p; p = p->next) {
-		off_t offset = find_pack_entry_one(sha1, p);
-		if (offset) {
-			if (!*found_pack) {
-				if (!is_pack_valid(p)) {
-					warning("packfile %s cannot be accessed", p->pack_name);
-					continue;
-				}
-				*found_offset = offset;
-				*found_pack = p;
-			}
-			if (exclude)
-				return 1;
-			if (incremental)
-				return 0;
-			if (local && !p->pack_local)
-				return 0;
-			if (ignore_packed_keep && p->pack_local && p->pack_keep)
-				return 0;
-		}
+		force = 1;
+		break;
+	case REF_LOCAL_BRANCH:
+		fmt = "refs/heads/%s";
+		break;
+	default:
+		die(_("cannot use -a with -d"));
 	}
 
-	return 1;
+	if (!force) {
+		head_rev = lookup_commit_reference(head_sha1);
+		if (!head_rev)
+			die(_("Couldn't look up commit object for HEAD"));
+	}
+	for (i = 0; i < argc; i++, strbuf_release(&bname)) {
+		const char *target;
+		int flags = 0;
+
+		strbuf_branchname(&bname, argv[i]);
+		if (kinds == REF_LOCAL_BRANCH && !strcmp(head, bname.buf)) {
+			error(_("Cannot delete the branch '%s' "
+			      "which you are currently on."), bname.buf);
+			ret = 1;
+			continue;
+		}
+
+		free(name);
+
+		name = mkpathdup(fmt, bname.buf);
+		target = resolve_ref_unsafe(name,
+					    RESOLVE_REF_READING
+					    | RESOLVE_REF_NO_RECURSE
+					    | RESOLVE_REF_ALLOW_BAD_NAME,
+					    sha1, &flags);
+		if (!target) {
+			error(remote_branch
+			      ? _("remote branch '%s' not found.")
+			      : _("branch '%s' not found."), bname.buf);
+			ret = 1;
+			continue;
+		}
+
+		if (!(flags & (REF_ISSYMREF|REF_ISBROKEN)) &&
+		    check_branch_commit(bname.buf, name, sha1, head_rev, kinds,
+					force)) {
+			ret = 1;
+			continue;
+		}
+
+		if (delete_ref(name, sha1, REF_NODEREF)) {
+			error(remote_branch
+			      ? _("Error deleting remote branch '%s'")
+			      : _("Error deleting branch '%s'"),
+			      bname.buf);
+			ret = 1;
+			continue;
+		}
+		if (!quiet) {
+			printf(remote_branch
+			       ? _("Deleted remote branch %s (was %s).\n")
+			       : _("Deleted branch %s (was %s).\n"),
+			       bname.buf,
+			       (flags & REF_ISBROKEN) ? "broken"
+			       : (flags & REF_ISSYMREF) ? target
+			       : find_unique_abbrev(sha1, DEFAULT_ABBREV));
+		}
+		delete_branch_config(bname.buf);
+	}
+
+	free(name);
+
+	return(ret);
 }

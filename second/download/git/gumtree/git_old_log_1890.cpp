@@ -1,2 +1,2 @@
-printf("              to %7s %s\n",
-				 typename(obj->type), sha1_to_hex(obj->sha1));
+printf("broken link from %7s %s\n",
+				 typename(parent->type), sha1_to_hex(parent->sha1));

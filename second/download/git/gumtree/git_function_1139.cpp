@@ -1,16 +1,21 @@
-void fast_export_begin_note(uint32_t revision, const char *author,
-		const char *log, unsigned long timestamp, const char *note_ref)
+static int die_is_recursing_builtin(void)
 {
-	static int firstnote = 1;
-	size_t loglen = strlen(log);
-	printf("commit %s\n", note_ref);
-	printf("committer %s <%s@%s> %lu +0000\n", author, author, "local", timestamp);
-	printf("data %"PRIuMAX"\n", (uintmax_t)loglen);
-	fwrite(log, loglen, 1, stdout);
-	if (firstnote) {
-		if (revision > 1)
-			printf("from %s^0", note_ref);
-		firstnote = 0;
+	static int dying;
+	/*
+	 * Just an arbitrary number X where "a < x < b" where "a" is
+	 * "maximum number of pthreads we'll ever plausibly spawn" and
+	 * "b" is "something less than Inf", since the point is to
+	 * prevent infinite recursion.
+	 */
+	static const int recursion_limit = 1024;
+
+	dying++;
+	if (dying > recursion_limit) {
+		return 1;
+	} else if (dying == 2) {
+		warning("die() called many times. Recursion error or racy threaded death!");
+		return 0;
+	} else {
+		return 0;
 	}
-	fputc('\n', stdout);
 }

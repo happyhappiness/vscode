@@ -1,1 +1,0 @@
-fprintf(stderr, "Error creating curl multi handle.\n");

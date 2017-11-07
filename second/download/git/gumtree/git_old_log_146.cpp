@@ -1,1 +1,1 @@
-die("git diff-tree: internal error");
+die("corrupt tree sha %s", sha1_to_hex(sha1));

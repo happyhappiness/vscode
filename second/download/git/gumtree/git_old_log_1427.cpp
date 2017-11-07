@@ -1,3 +1,2 @@
-error("BUG: run 'git fsck' for safety.\n"
-		      "If there are errors, try to remove "
-		      "the reported refs above");
+error("BUG: connectivity check has not been run on ref %s",
+			      cmd->ref_name);

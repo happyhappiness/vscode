@@ -1,16 +1,31 @@
-static void append_scratch(h2_conn_io *io) 
+static apr_status_t h2_conn_io_flush_int(h2_conn_io *io, int flush, int eoc)
 {
-    if (io->scratch && io->slen > 0) {
-        apr_bucket *b = apr_bucket_heap_create(io->scratch, io->slen,
-                                               apr_bucket_free,
-                                               io->c->bucket_alloc);
-        APR_BRIGADE_INSERT_TAIL(io->output, b);
-#if LOG_SCRATCH
-        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, io->c, APLOGNO(03386)
-                      "h2_conn_io(%ld): append_scratch(%ld)", 
-                      io->c->id, (long)io->slen);
-#endif
-        io->scratch = NULL;
-        io->slen = io->ssize = 0;
+    pass_out_ctx ctx;
+    apr_bucket *b;
+    
+    if (io->buflen == 0 && APR_BRIGADE_EMPTY(io->output)) {
+        return APR_SUCCESS;
     }
+        
+    if (io->buflen > 0) {
+        /* something in the buffer, put it in the output brigade */
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, io->c,
+                      "h2_conn_io: flush, flushing %ld bytes", 
+                      (long)io->buflen);
+        bucketeer_buffer(io);
+    }
+    
+    if (flush) {
+        b = apr_bucket_flush_create(io->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(io->output, b);
+    }
+    
+    ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, io->c, "h2_conn_io: flush");
+    io->buflen = 0;
+    ctx.c = io->c;
+    ctx.io = eoc? NULL : io;
+    
+    return pass_out(io->output, &ctx);
+    /* no more access after this, as we might have flushed an EOC bucket
+     * that de-allocated us all. */
 }

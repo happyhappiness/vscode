@@ -1,1 +1,1 @@
-die(_("cannot delete packs in a precious-objects repo"));
+die(_("cannot prune in a precious-objects repo"));

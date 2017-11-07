@@ -1,1 +1,1 @@
-ap_rputs("On", r);
+ap_rputs("</httpd:flushpackets>\n", r);

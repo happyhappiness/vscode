@@ -1,1 +1,2 @@
-die("Could not create directory %s", rr_cache);
+error("couldn't write %s",
+					lock->lk->filename.buf);

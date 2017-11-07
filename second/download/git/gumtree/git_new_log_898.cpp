@@ -1,1 +1,1 @@
-die("cannot handle pushes this big");
+die("BUG: error while iterating over references");

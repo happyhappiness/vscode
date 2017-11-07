@@ -1,1 +1,1 @@
-error(msg, path, _(": perhaps a D/F conflict?"));
+die("Bug in merge-recursive.c");

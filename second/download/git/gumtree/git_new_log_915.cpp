@@ -1,2 +1,2 @@
-die(_("could not run 'git status' in submodule '%s'"),
+die(_("could not start 'git status' in submodule '%s'"),
 				path);

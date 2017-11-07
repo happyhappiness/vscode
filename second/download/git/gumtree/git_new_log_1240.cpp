@@ -1,1 +1,1 @@
-strbuf_release(&err);
+die("%s", err.buf);

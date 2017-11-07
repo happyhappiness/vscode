@@ -1,1 +1,2 @@
-warning_errno("failed to stat %s", pack_tmp_name);
+die(_("A notes merge into %s is already in-progress at %s"),
+			    default_notes_ref(), wt->path);

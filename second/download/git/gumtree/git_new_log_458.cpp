@@ -1,1 +1,1 @@
-error_errno(_("could not open '%s'"), todo_file);
+error(_("no commits parsed."));

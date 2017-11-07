@@ -1,1 +1,1 @@
-error("cannot lock ref '%s'", refname);
+printf("keep %s", message);

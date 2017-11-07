@@ -1,1 +1,0 @@
-die_errno("can't find the current directory");

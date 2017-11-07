@@ -1,1 +1,1 @@
-fprintf(stderr, "%4u%% (%d/%d) done\r", percent, n, total);
+fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");

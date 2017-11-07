@@ -1,6 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, m->c, /* NO APLOGNO */
-                      H2_STRM_MSG(stream, "->03198: %s %s %s"
-                      "[started=%d/done=%d/frozen=%d]"), 
-                      task->request->method, task->request->authority, 
-                      task->request->path, task->worker_started, 
-                      task->worker_done, task->frozen);
+ap_log_cerror(APLOG_MARK, APLOG_WARNING, 0, m->c, /* NO APLOGNO */
+                  H2_STRM_MSG(stream, "unexpected, started=%d, scheduled=%d, ready=%d"), 
+                  !!stream->task, stream->scheduled, h2_stream_is_ready(stream));

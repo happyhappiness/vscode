@@ -1,1 +1,1 @@
-warning_errno("accept failed");
+error_errno("%s: close error", dst);

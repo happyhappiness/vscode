@@ -1,2 +1,1 @@
-die("Duplicate entry when writing index: %s",
-			    sha1_to_hex(object->sha1));
+die("Commit %s doesn't have an indexed bitmap", sha1_to_hex(root->sha1));

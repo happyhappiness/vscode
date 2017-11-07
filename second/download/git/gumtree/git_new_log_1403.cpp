@@ -1,1 +1,1 @@
-fprintf(stderr, "sending %d message%s\n", total, (total != 1) ? "s" : "");
+die("curl_easy_init failed");

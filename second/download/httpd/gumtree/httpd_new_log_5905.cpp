@@ -1,1 +1,1 @@
-ap_rputs("<tr><td>Expr</td><td><select name='w_he'>\n", r);
+ap_rputs("</table>\n</td></tr>\n", r);

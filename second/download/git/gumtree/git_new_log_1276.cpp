@@ -1,1 +1,1 @@
-usage_with_options(usage, options);
+die_errno("unable to point stderr to /dev/null");

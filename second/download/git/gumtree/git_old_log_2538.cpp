@@ -1,1 +1,1 @@
-printf_ln(_("  HEAD branch: %s"), "(unknown)");
+printf_ln(_("  Push  URL: %s"), "(no URL)");

@@ -1,18 +1,35 @@
-static void h2_push_diary_append(h2_push_diary *diary, h2_push_diary_entry *e)
+apr_array_header_t *h2_push_diary_update(h2_session *session, apr_array_header_t *pushes)
 {
-    h2_push_diary_entry *ne;
+    apr_array_header_t *npushes = pushes;
+    h2_push_diary_entry e;
+    int i, idx;
     
-    if (diary->entries->nelts < diary->N) {
-        /* append a new diary entry at the end */
-        APR_ARRAY_PUSH(diary->entries, h2_push_diary_entry) = *e;
-        ne = &APR_ARRAY_IDX(diary->entries, diary->entries->nelts-1, h2_push_diary_entry);
+    if (session->push_diary && pushes) {
+        npushes = NULL;
+        
+        for (i = 0; i < pushes->nelts; ++i) {
+            h2_push *push;
+            
+            push = APR_ARRAY_IDX(pushes, i, h2_push*);
+            session->push_diary->dcalc(session->push_diary, &e.hash, push);
+            idx = h2_push_diary_find(session->push_diary, e.hash);
+            if (idx >= 0) {
+                /* Intentional no APLOGNO */
+                ap_log_cerror(APLOG_MARK, GCSLOG_LEVEL, 0, session->c,
+                              "push_diary_update: already there PUSH %s", push->req->path);
+                move_to_last(session->push_diary, idx);
+            }
+            else {
+                /* Intentional no APLOGNO */
+                ap_log_cerror(APLOG_MARK, GCSLOG_LEVEL, 0, session->c,
+                              "push_diary_update: adding PUSH %s", push->req->path);
+                if (!npushes) {
+                    npushes = apr_array_make(pushes->pool, 5, sizeof(h2_push_diary_entry*));
+                }
+                APR_ARRAY_PUSH(npushes, h2_push*) = push;
+                h2_push_diary_append(session->push_diary, &e);
+            }
+        }
     }
-    else {
-        /* replace content with new digest. keeps memory usage constant once diary is full */
-        ne = move_to_last(diary, 0);
-        *ne = *e;
-    }
-    /* Intentional no APLOGNO */
-    ap_log_perror(APLOG_MARK, GCSLOG_LEVEL, 0, diary->entries->pool,
-                  "push_diary_append: %"APR_UINT64_T_HEX_FMT, ne->hash);
+    return npushes;
 }

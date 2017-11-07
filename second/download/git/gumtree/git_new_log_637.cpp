@@ -1,1 +1,1 @@
-fputs(buf.buf, stderr);
+fputs(o.obuf.buf, stdout);

@@ -1,3 +1,1 @@
-ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00550)
-                  "Client sent malformed Host header: %s",
-                  r->hostname);
+fprintf(stderr, "    -c concurrency  Number of multiple requests to make at a time\n");

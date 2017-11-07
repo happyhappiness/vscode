@@ -1,1 +1,1 @@
-die("expected NUL but got: %s", next);
+die("expected SP but got: %s", next);

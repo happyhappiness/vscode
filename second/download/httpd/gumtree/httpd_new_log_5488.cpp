@@ -1,3 +1,3 @@
-ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03064)
-                      "h2_stream(%ld-%d): on_data_chunk for unknown stream",
-                      session->id, (int)stream_id);
+ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      "h2_stream(%ld-%d): handled, closing", 
+                      session->id, (int)stream->id);

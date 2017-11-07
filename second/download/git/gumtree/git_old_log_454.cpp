@@ -1,1 +1,1 @@
-die(_("empty commit set passed"));
+die(_("revision walk setup failed"));

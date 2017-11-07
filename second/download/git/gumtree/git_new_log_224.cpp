@@ -1,1 +1,2 @@
-error("--path=<path> needs --textconv or --filters");
+die("--batch-all-objects cannot be combined with "
+			    "--textconv nor with --filters");

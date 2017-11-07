@@ -1,1 +1,1 @@
-die("'%s': not a non-negative integer", arg);
+error("no remembered resolution for '%s'", path);

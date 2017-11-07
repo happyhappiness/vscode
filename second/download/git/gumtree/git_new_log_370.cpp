@@ -1,1 +1,1 @@
-die(_("expected shallow/unshallow, got %s"), line);
+die(_("no shallow found: %s"), line);

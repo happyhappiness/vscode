@@ -1,1 +1,1 @@
-fprintf(o->file, "%s", header.buf);
+usage_with_options(usage, options);

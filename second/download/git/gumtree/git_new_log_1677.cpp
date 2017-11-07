@@ -1,1 +1,2 @@
-die(_("'%s' is already checked out at '%s'"), branch, existing);
+printf("%s is the first %s commit\n", sha1_to_hex(bisect_rev),
+			term_bad);

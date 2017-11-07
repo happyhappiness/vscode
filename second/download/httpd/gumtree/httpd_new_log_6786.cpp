@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02560)
-                     "Init: Wiped out the queried pass phrases from memory");
+ap_log_error(APLOG_MARK, APLOG_EMERG, 0, s, APLOGNO(02564)
+                             "Failed to configure encrypted (?) private key %s,"
+                             " check %s", key_id, keyfile);

@@ -1,3 +1,4 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, rs, r->server,
-                         "Child %ld failed to try and acquire lock",
-                         (long int)getpid());
+ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, r->server,
+                     "Child %ld camping out on mutex for %" APR_INT64_T_FMT
+                     " microseconds",
+                     (long int) getpid(), timecamped);

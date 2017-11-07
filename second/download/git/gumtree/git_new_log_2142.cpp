@@ -1,1 +1,1 @@
-die(_("%%(subject) does not take arguments"));
+die(_("%%(body) does not take arguments"));

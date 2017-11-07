@@ -1,1 +1,1 @@
-die(_("attr spec must not be empty"));
+die(_("Only one 'attr:' specification is allowed."));

@@ -1,2 +1,2 @@
-die("Could not parse local commit %s (%s)",
-		    oid_to_hex(&local_oid), o->local_ref);
+die("blob expected in note %s for object %s",
+		    oid_to_hex(note), oid_to_hex(obj));

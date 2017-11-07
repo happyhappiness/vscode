@@ -1,1 +1,2 @@
-printf(" This is ApacheBench, Version %s <i>&lt;%s&gt;</i><br>\n", AP_AB_BASEREVISION, "$Revision: 1373084 $");
+apr_file_printf(errfile, " -d  Force CRYPT encryption of the password"
+            " (8 chars max, insecure)." NL);

@@ -1,1 +1,1 @@
-warning(_("Untracked cache is disabled on this system or location."));
+die("socket directory must be an absolute path");

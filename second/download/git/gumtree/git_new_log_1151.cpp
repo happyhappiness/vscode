@@ -1,1 +1,1 @@
-die(_("unable to parse format string"));
+fprintf(stderr, "cannot chmod %cx '%s'\n", flip, ce->name);

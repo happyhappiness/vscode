@@ -1,1 +1,1 @@
-warning(_("could not lookup configuration '%s'. Assuming this repository is its own authoritative upstream."), remotesb.buf);
+opterror(opt, "expects a number greater than zero", 0);

@@ -1,1 +1,1 @@
-ap_rvputs(r, action, "'>\n", NULL);
+ap_rputs("'></td></tr>\n", r);

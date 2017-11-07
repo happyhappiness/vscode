@@ -1,1 +1,2 @@
-apr_file_printf(writetty, "Server %s (%s)\n", cpVHostID, cpAlgoType);
+ap_log_error(APLOG_MARK, APLOG_CRIT, 0, NULL, APLOGNO(02405)
+                         "atomics not working as expected");

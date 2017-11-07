@@ -1,1 +1,1 @@
-fprintf(stderr, _("Testing "));
+printf("%s (%d):\n", log->list.items[i].string, onelines->nr);

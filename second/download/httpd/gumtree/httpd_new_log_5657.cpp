@@ -1,2 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(03154)
-                          "Can't evaluate handler expression: %s", err);
+ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf, APLOGNO(03092)
+                     "start_lingering_close: apr_pollset_add failure");

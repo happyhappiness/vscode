@@ -1,1 +1,1 @@
-error(_("invalid file: '%s'"), rebase_path_amend());
+error(_("cannot amend non-existing commit"));

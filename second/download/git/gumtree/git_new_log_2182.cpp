@@ -1,1 +1,1 @@
-fprintf(outfile, "\n");
+fprintf(outfile, "%s", lines[i]->buf);

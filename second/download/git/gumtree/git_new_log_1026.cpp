@@ -1,2 +1,3 @@
-die("unable to get type of object %s",
-				    oid_to_hex(&entry->idx.oid));
+die("object %s inconsistent object length (%lu vs %lu)",
+			    oid_to_hex(&src_entry->idx.oid), sz,
+			    src_size);

@@ -1,1 +1,1 @@
-die("sent error to the client: %s", buf.buf);
+die("Error on reachable objects of %s", oid_to_hex(&obj->oid));

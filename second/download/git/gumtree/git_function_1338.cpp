@@ -1,32 +1,27 @@
-int update_ref(const char *action, const char *refname,
-	       const unsigned char *sha1, const unsigned char *oldval,
-	       int flags, enum action_on_err onerr)
+int ref_transaction_delete(struct ref_transaction *transaction,
+			   const char *refname,
+			   const unsigned char *old_sha1,
+			   int flags, int have_old, const char *msg,
+			   struct strbuf *err)
 {
-	struct ref_transaction *t;
-	struct strbuf err = STRBUF_INIT;
+	struct ref_update *update;
 
-	t = ref_transaction_begin(&err);
-	if (!t ||
-	    ref_transaction_update(t, refname, sha1, oldval, flags,
-				   !!oldval, action, &err) ||
-	    ref_transaction_commit(t, &err)) {
-		const char *str = "update_ref failed for ref '%s': %s";
+	assert(err);
 
-		ref_transaction_free(t);
-		switch (onerr) {
-		case UPDATE_REFS_MSG_ON_ERR:
-			error(str, refname, err.buf);
-			break;
-		case UPDATE_REFS_DIE_ON_ERR:
-			die(str, refname, err.buf);
-			break;
-		case UPDATE_REFS_QUIET_ON_ERR:
-			break;
-		}
-		strbuf_release(&err);
-		return 1;
+	if (transaction->state != REF_TRANSACTION_OPEN)
+		die("BUG: delete called for transaction that is not open");
+
+	if (have_old && !old_sha1)
+		die("BUG: have_old is true but old_sha1 is NULL");
+
+	update = add_update(transaction, refname);
+	update->flags = flags;
+	update->have_old = have_old;
+	if (have_old) {
+		assert(!is_null_sha1(old_sha1));
+		hashcpy(update->old_sha1, old_sha1);
 	}
-	strbuf_release(&err);
-	ref_transaction_free(t);
+	if (msg)
+		update->msg = xstrdup(msg);
 	return 0;
 }

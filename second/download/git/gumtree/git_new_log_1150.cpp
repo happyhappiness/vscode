@@ -1,1 +1,1 @@
-fprintf(stderr, "cannot chmod %cx '%s'\n", flip, ce->name);
+die("strange hostname '%s' blocked", ssh_host);

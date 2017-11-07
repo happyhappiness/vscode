@@ -1,1 +1,1 @@
-die_errno(_("failed to open '%s'"), path);
+die(_("cannot read object %s '%s'"), sha1_to_hex(sha), path);

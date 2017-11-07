@@ -1,2 +1,1 @@
-error(_("cannot %s: Your index contains uncommitted changes."),
-			      _(action));
+error(_("additionally, your index contains uncommitted changes."));

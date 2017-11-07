@@ -1,15 +1,9 @@
-h2_stream *h2_stream_open(int id, apr_pool_t *pool, h2_session *session)
+void h2_stream_rst(h2_stream *stream, int error_code)
 {
-    h2_stream *stream = apr_pcalloc(pool, sizeof(h2_stream));
-    stream->id        = id;
-    stream->state     = H2_STREAM_ST_IDLE;
-    stream->pool      = pool;
-    stream->session   = session;
-    set_state(stream, H2_STREAM_ST_OPEN);
-    stream->request   = h2_request_create(id, pool, 
-        h2_config_geti(session->config, H2_CONF_SER_HEADERS));
-    
-    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03082)
-                  "h2_stream(%ld-%d): opened", session->id, stream->id);
-    return stream;
+    stream->rst_error = error_code;
+    close_input(stream);
+    close_output(stream);
+    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, stream->session->c,
+                  "h2_stream(%ld-%d): reset, error=%d", 
+                  stream->session->id, stream->id, error_code);
 }

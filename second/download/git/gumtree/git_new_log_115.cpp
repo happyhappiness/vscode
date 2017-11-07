@@ -1,1 +1,1 @@
-xstrdup(srvc->host);
+die_errno("could not move to %s", orig_cwd);

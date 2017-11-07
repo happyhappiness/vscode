@@ -1,1 +1,1 @@
-die("BUG: bad untracked_cache value: %d", untracked_cache);
+die("submodule %s doesn't exist", argv[1]);

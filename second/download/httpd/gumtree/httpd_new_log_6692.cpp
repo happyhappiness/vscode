@@ -1,4 +1,2 @@
-ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                              APLOGNO(02536) "couldn't encode envvar '%s' in %"
-                              APR_SIZE_T_FMT " bytes",
-                              elts[next_elem].key, avail_len);
+ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01067)
+                              "Failed to read FastCGI header");

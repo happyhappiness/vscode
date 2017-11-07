@@ -1,2 +1,3 @@
-ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, APLOGNO(02621)
-                     "stapling_renew_response: no uri for responder");
+ap_log_error(APLOG_MARK, APLOG_ERR, apr_get_os_error(), ap_server_conf, APLOGNO(02643)
+                         "Child: Failed to open handle to parent process %ld; "
+                         "will not react to abrupt parent termination", parent_pid);

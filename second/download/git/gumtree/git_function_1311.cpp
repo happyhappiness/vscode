@@ -1,10 +1,19 @@
-int optbug(const struct option *opt, const char *reason)
+int commit_lock_file(struct lock_file *lk)
 {
-	if (opt->long_name) {
-		if (opt->short_name)
-			return error("BUG: switch '%c' (--%s) %s",
-				     opt->short_name, opt->long_name, reason);
-		return error("BUG: option '%s' %s", opt->long_name, reason);
-	}
-	return error("BUG: switch '%c' %s", opt->short_name, reason);
+	static struct strbuf result_file = STRBUF_INIT;
+	int err;
+
+	if (!lk->active)
+		die("BUG: attempt to commit unlocked object");
+
+	if (lk->filename.len <= LOCK_SUFFIX_LEN ||
+	    strcmp(lk->filename.buf + lk->filename.len - LOCK_SUFFIX_LEN, LOCK_SUFFIX))
+		die("BUG: lockfile filename corrupt");
+
+	/* remove ".lock": */
+	strbuf_add(&result_file, lk->filename.buf,
+		   lk->filename.len - LOCK_SUFFIX_LEN);
+	err = commit_lock_file_to(lk, result_file.buf);
+	strbuf_reset(&result_file);
+	return err;
 }

@@ -1,1 +1,1 @@
-die(_("Not a valid commit name %s"), sha1_to_hex(sha1));
+die("BUG: non-INDEX attr direction in a bare repo");

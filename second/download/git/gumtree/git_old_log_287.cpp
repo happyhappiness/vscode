@@ -1,1 +1,2 @@
-error(_("Unknown subcommand: %s"), argv[0]);
+die(_("Failed to store link to current notes ref (%s)"),
+			    default_notes_ref());

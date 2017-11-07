@@ -1,2 +1,1 @@
-error(_("The note contents have been left in %s"),
-				      path);
+die(_("destination '%s' is not a directory"), dest_path[0]);

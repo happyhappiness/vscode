@@ -1,1 +1,1 @@
-printf("Diag: protocol=%s\n", prot_name(protocol));
+printf("Diag: url=%s\n", url ? url : "NULL");

@@ -1,1 +1,1 @@
-die(_("No such remote '%s'"), remotename);
+parse_push_recurse_submodules_arg(opt->long_name, arg);

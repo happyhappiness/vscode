@@ -1,1 +1,2 @@
-die("BUG: read_loose_object streamed a non-blob");
+printf("tagged %s %s", printable_type(tag->tagged),
+				describe_object(tag->tagged));

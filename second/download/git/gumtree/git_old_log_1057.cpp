@@ -1,1 +1,1 @@
-die("Can't load tree %s", sha1_to_hex(sha1));
+die("Not a tree: %s", sha1_to_hex(sha1));

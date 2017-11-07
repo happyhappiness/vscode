@@ -1,1 +1,1 @@
-fprintf(stderr, "bad sha1 file: %s\n", path);
+die("revision walk setup failed");

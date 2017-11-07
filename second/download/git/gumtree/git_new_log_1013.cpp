@@ -1,1 +1,2 @@
-die("unable to read %s", oid_to_hex(&entry->idx.oid));
+error(_("no note found for object %s."),
+			       oid_to_hex(&object));

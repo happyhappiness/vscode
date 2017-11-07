@@ -1,1 +1,1 @@
-error(_("Must specify a notes ref to merge"));
+die("Failed to finalize notes merge");

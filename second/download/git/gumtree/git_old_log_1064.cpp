@@ -1,1 +1,1 @@
-die("The commit %s is corrupt", sha1_to_hex(b->sha1));
+die("Not a valid commit: %s", sha1_to_hex(b->sha1));

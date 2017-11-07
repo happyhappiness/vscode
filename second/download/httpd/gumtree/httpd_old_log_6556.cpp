@@ -1,1 +1,1 @@
-fprintf(stderr, "   -x   Remove the username record from database.\n");
+fprintf(stderr, "Password verification error\n");

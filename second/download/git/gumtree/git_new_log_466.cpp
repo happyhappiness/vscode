@@ -1,1 +1,1 @@
-error(_("cannot revert during a cherry-pick."));
+error(_("cannot cherry-pick during a revert."));

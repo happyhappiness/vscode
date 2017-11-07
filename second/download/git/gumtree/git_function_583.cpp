@@ -1,31 +1,19 @@
-static int submodule_needs_pushing(const char *path, const unsigned char sha1[20])
+static uint32_t *paint_alloc(struct paint_info *info)
 {
-	if (add_submodule_odb(path) || !lookup_commit_reference(sha1))
-		return 0;
-
-	if (for_each_remote_ref_submodule(path, has_remote, NULL) > 0) {
-		struct child_process cp = CHILD_PROCESS_INIT;
-		const char *argv[] = {"rev-list", NULL, "--not", "--remotes", "-n", "1" , NULL};
-		struct strbuf buf = STRBUF_INIT;
-		int needs_pushing = 0;
-
-		argv[1] = sha1_to_hex(sha1);
-		cp.argv = argv;
-		prepare_submodule_repo_env(&cp.env_array);
-		cp.git_cmd = 1;
-		cp.no_stdin = 1;
-		cp.out = -1;
-		cp.dir = path;
-		if (start_command(&cp))
-			die("Could not run 'git rev-list %s --not --remotes -n 1' command in submodule %s",
-				sha1_to_hex(sha1), path);
-		if (strbuf_read(&buf, cp.out, 41))
-			needs_pushing = 1;
-		finish_command(&cp);
-		close(cp.out);
-		strbuf_release(&buf);
-		return needs_pushing;
+	unsigned nr = (info->nr_bits + 31) / 32;
+	unsigned size = nr * sizeof(uint32_t);
+	void *p;
+	if (!info->pool_count || size > info->end - info->free) {
+		if (size > POOL_SIZE)
+			die("BUG: pool size too small for %d in paint_alloc()",
+			    size);
+		info->pool_count++;
+		REALLOC_ARRAY(info->pools, info->pool_count);
+		info->free = xmalloc(POOL_SIZE);
+		info->pools[info->pool_count - 1] = info->free;
+		info->end = info->free + POOL_SIZE;
 	}
-
-	return 0;
+	p = info->free;
+	info->free += size;
+	return p;
 }

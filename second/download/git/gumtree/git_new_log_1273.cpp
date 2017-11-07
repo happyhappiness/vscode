@@ -1,2 +1,1 @@
-error("copy-fd: read returned %s",
-				     strerror(errno));
+die("%s: clean filter '%s' failed", path, ca.drv->name);

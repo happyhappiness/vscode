@@ -1,2 +1,1 @@
-error(_("No note found for object %s."),
-			       sha1_to_hex(object));
+die(_("Failed to resolve '%s' as a valid ref."), object_ref);

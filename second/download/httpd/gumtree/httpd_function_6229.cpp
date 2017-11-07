@@ -1,72 +1,100 @@
-static ssize_t stream_data_cb(nghttp2_session *ng2s,
-                              int32_t stream_id,
-                              uint8_t *buf,
-                              size_t length,
-                              uint32_t *data_flags,
-                              nghttp2_data_source *source,
-                              void *puser)
+apr_status_t h2_session_set_prio(h2_session *session, h2_stream *stream, 
+                                 const h2_priority *prio)
 {
-    h2_session *session = (h2_session *)puser;
-    apr_off_t nread = length;
-    int eos = 0;
-    apr_status_t status;
-    h2_stream *stream;
-    ap_assert(session);
+    apr_status_t status = APR_SUCCESS;
+#ifdef H2_NG2_CHANGE_PRIO
+    nghttp2_stream *s_grandpa, *s_parent, *s;
     
-    /* The session wants to send more DATA for the stream. We need
-     * to find out how much of the requested length we can send without
-     * blocking.
-     * Indicate EOS when we encounter it or DEFERRED if the stream
-     * should be suspended. Beware of trailers.
-     */
- 
-    (void)ng2s;
-    (void)buf;
-    (void)source;
-    stream = h2_session_stream_get(session, stream_id);
-    if (!stream) {
-        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, session->c,
-                      APLOGNO(02937) 
-                      "h2_stream(%ld-%d): data_cb, stream not found",
-                      session->id, (int)stream_id);
-        return NGHTTP2_ERR_CALLBACK_FAILURE;
+    if (prio == NULL) {
+        /* we treat this as a NOP */
+        return APR_SUCCESS;
     }
+    s = nghttp2_session_find_stream(session->ngh2, stream->id);
+    if (!s) {
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE1, 0, session->c,
+                      "h2_stream(%ld-%d): lookup of nghttp2_stream failed",
+                      session->id, stream->id);
+        return APR_EINVAL;
+    }
+    
+    s_parent = nghttp2_stream_get_parent(s);
+    if (s_parent) {
+        nghttp2_priority_spec ps;
+        int id_parent, id_grandpa, w_parent, w;
+        int rv = 0;
+        const char *ptype = "AFTER";
+        h2_dependency dep = prio->dependency;
+        
+        id_parent = nghttp2_stream_get_stream_id(s_parent);
+        s_grandpa = nghttp2_stream_get_parent(s_parent);
+        if (s_grandpa) {
+            id_grandpa = nghttp2_stream_get_stream_id(s_grandpa);
+        }
+        else {
+            /* parent of parent does not exist, 
+             * only possible if parent == root */
+            dep = H2_DEPENDANT_AFTER;
+        }
+        
+        switch (dep) {
+            case H2_DEPENDANT_INTERLEAVED:
+                /* PUSHed stream is to be interleaved with initiating stream.
+                 * It is made a sibling of the initiating stream and gets a
+                 * proportional weight [1, MAX_WEIGHT] of the initiaing
+                 * stream weight.
+                 */
+                ptype = "INTERLEAVED";
+                w_parent = nghttp2_stream_get_weight(s_parent);
+                w = valid_weight(w_parent * ((float)prio->weight / NGHTTP2_MAX_WEIGHT));
+                nghttp2_priority_spec_init(&ps, id_grandpa, w, 0);
+                break;
+                
+            case H2_DEPENDANT_BEFORE:
+                /* PUSHed stream os to be sent BEFORE the initiating stream.
+                 * It gets the same weight as the initiating stream, replaces
+                 * that stream in the dependency tree and has the initiating
+                 * stream as child.
+                 */
+                ptype = "BEFORE";
+                w = w_parent = nghttp2_stream_get_weight(s_parent);
+                nghttp2_priority_spec_init(&ps, stream->id, w_parent, 0);
+                id_grandpa = nghttp2_stream_get_stream_id(s_grandpa);
+                rv = nghttp2_session_change_stream_priority(session->ngh2, id_parent, &ps);
+                if (rv < 0) {
+                    ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03202)
+                                  "h2_stream(%ld-%d): PUSH BEFORE, weight=%d, "
+                                  "depends=%d, returned=%d",
+                                  session->id, id_parent, ps.weight, ps.stream_id, rv);
+                    return APR_EGENERAL;
+                }
+                nghttp2_priority_spec_init(&ps, id_grandpa, w, 0);
+                break;
+                
+            case H2_DEPENDANT_AFTER:
+                /* The PUSHed stream is to be sent after the initiating stream.
+                 * Give if the specified weight and let it depend on the intiating
+                 * stream.
+                 */
+                /* fall through, it's the default */
+            default:
+                nghttp2_priority_spec_init(&ps, id_parent, valid_weight(prio->weight), 0);
+                break;
+        }
 
-    status = h2_stream_out_prepare(stream, &nread, &eos, NULL);
-    if (nread) {
-        ap_log_cerror(APLOG_MARK, APLOG_TRACE2, 0, session->c, 
-                      H2_STRM_MSG(stream, "prepared no_copy, len=%ld, eos=%d"),
-                      (long)nread, eos);
-        *data_flags |=  NGHTTP2_DATA_FLAG_NO_COPY;
+
+        rv = nghttp2_session_change_stream_priority(session->ngh2, stream->id, &ps);
+        ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c, APLOGNO(03203)
+                      "h2_stream(%ld-%d): PUSH %s, weight=%d, "
+                      "depends=%d, returned=%d",
+                      session->id, stream->id, ptype, 
+                      ps.weight, ps.stream_id, rv);
+        status = (rv < 0)? APR_EGENERAL : APR_SUCCESS;
     }
-    
-    switch (status) {
-        case APR_SUCCESS:
-            break;
-            
-        case APR_ECONNRESET:
-        case APR_ECONNABORTED:
-            return NGHTTP2_ERR_CALLBACK_FAILURE;
-            
-        case APR_EAGAIN:
-            /* If there is no data available, our session will automatically
-             * suspend this stream and not ask for more data until we resume
-             * it. Remember at our h2_stream that we need to do this.
-             */
-            nread = 0;
-            ap_log_cerror(APLOG_MARK, APLOG_DEBUG, 0, session->c,
-                          H2_STRM_LOG(APLOGNO(03071), stream, "suspending"));
-            return NGHTTP2_ERR_DEFERRED;
-            
-        default:
-            nread = 0;
-            ap_log_cerror(APLOG_MARK, APLOG_ERR, status, session->c, 
-                          H2_STRM_LOG(APLOGNO(02938), stream, "reading data"));
-            return NGHTTP2_ERR_CALLBACK_FAILURE;
-    }
-    
-    if (eos) {
-        *data_flags |= NGHTTP2_DATA_FLAG_EOF;
-    }
-    return (ssize_t)nread;
+#else
+    (void)session;
+    (void)stream;
+    (void)prio;
+    (void)valid_weight;
+#endif
+    return status;
 }
