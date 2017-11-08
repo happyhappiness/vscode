@@ -269,6 +269,7 @@ def generate_class_from_cluster(cluster_file_name, class_file_name, title, featu
     writer.writerow(title)
     # traverse records to build class
     cluster_size = {}
+    class_records = []
     for record in islice(records, 1, None):
         # last column is cluster index
         cluster_index = record[-1]
@@ -283,16 +284,24 @@ def generate_class_from_cluster(cluster_file_name, class_file_name, title, featu
                 feature_records.append(record[feature_index])
             # build and store class record
             class_record = [cluster_index] + feature_records
-            writer.writerow(class_record)
+            class_records.append(class_record)
+            # writer.writerow(class_record)
             # record this occurence
             cluster_size[cluster_index] += 1
         # record this occurence
         else:
             cluster_size[cluster_index] += 1
 
+    for class_record in class_records:
+        cluster_index = class_record[0]
+        # insert class size
+        class_record.insert(1, cluster_size[cluster_index])
+        writer.writerow(class_record)
+
     # close file
     cluster_file.close()
     class_file.close()
+
 
 def generate_records_for_class(cluster_file_name, class_index):
     """

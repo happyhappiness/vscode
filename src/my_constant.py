@@ -96,7 +96,7 @@ ANALYZE_VARIABLE = ANALYZE_OLD_NEW_LLVM_TITLE.index('variable')
 # cluster and class
 CLUSTER_OLD_NEW_TITLE = ANALYZE_OLD_NEW_LLVM_TITLE + ['cluster']
 ANALYZE_CLUSTER = CLUSTER_OLD_NEW_TITLE.index('cluster')
-CLASS_OLD_NEW_TITLE = ['class', 'patch_file', 'old_loc', 'old_log', 'new_log', 'function', 'function_loc', 'check', 'variable', 'edit']
+CLASS_OLD_NEW_TITLE = ['class', 'class_size', 'patch_file', 'old_loc', 'old_log', 'new_log', 'function', 'function_loc', 'check', 'variable', 'edit']
 CLASS_OLD_NEW_PATCH_FILE_NAME = CLASS_OLD_NEW_TITLE.index('patch_file')
 CLASS_OLD_NEW_OLD_LOC = CLASS_OLD_NEW_TITLE.index('old_loc')
 CLASS_OLD_NEW_CHECK = CLASS_OLD_NEW_TITLE.index('check')
@@ -125,7 +125,7 @@ ANALYZE_REPOS_FUNCTION_TYPES = ANALYZE_REPOS_FUNCTION_TITLE.index('types')
 # cluster and class
 CLUSTER_REPOS_LOG_TITLE = ANALYZE_REPOS_LOG_TITLE + ['cluster']
 ANALYZE_REPOS_LOG_CLUSTER = CLUSTER_REPOS_LOG_TITLE.index('cluster')
-CLASS_REPOS_LOG_TITLE = ['class', 'check', 'variable']
+CLASS_REPOS_LOG_TITLE = ['class', 'class_size', 'check', 'variable']
 CLASS_REPOS_LOG_CHECK = CLASS_REPOS_LOG_TITLE.index('check')
 CLASS_REPOS_LOG_VARIABLE = CLASS_REPOS_LOG_TITLE.index('variable')
 

@@ -211,7 +211,8 @@ class SrcmlApi:
             self.tree = etree.parse(xml_file)
         except etree.XMLSyntaxError:
             print 'can not process file:%s' %(xml_file)
-            return False
+            self.tree = None
+            return
         self.root = self.tree.getroot()
         self.namespace_map = self.root.nsmap
         self.namespace_map['default'] = self.namespace_map[None]
@@ -296,7 +297,8 @@ class SrcmlApi:
             if candi_line <= node_line:
                 # filter by name = (***) call
                 operator_node = candi_node.getnext()
-                if operator_node is not None and self._remove_blank(operator_node) == '=':
+                if operator_node is not None and self._remove_prefix(operator_node) == 'operator'\
+                                        and self._remove_blank(operator_node) == '=':
                     expr_node = operator_node.getparent()
                     func_node = self._get_sub_call_node(expr_node)
                     if func_node is not None:
@@ -307,7 +309,8 @@ class SrcmlApi:
                 if argument_node is not None and self._remove_prefix(argument_node) == 'argument':
                     func_node = argument_node.getparent().getparent()
                     modifier_node = candi_node.getprevious()
-                    if modifier_node is not None and self._remove_blank(modifier_node) == '&':
+                    if modifier_node is not None and self._remove_prefix(modifier_node) == 'modifier'\
+                                             and self._remove_blank(modifier_node) == '&':
                         self._update_dict(depended_nodes, candi_line, my_constant.VAR_FUNC_ARG_RETURN, func_node)
                     # filter by call ----argument --------name(ptr)
                     elif is_ptr:
@@ -488,6 +491,9 @@ class SrcmlApi:
         @ return text without blank\n
         @ involve remove blank directly without check\n
         """
+        if node.text is None:
+            print 'no need to remove for none text'
+            return None
         return node.text.replace(' ', '')
 
 
@@ -560,10 +566,10 @@ class SrcmlApi:
 
 if __name__ == "__main__":
     # input function cpp file
-    # srcml_api = SrcmlApi('second/download/mutt/gumtree/mutt_repos_function_4.cpp', is_function=True)
-    # print srcml_api.get_logs_calls_types()
-    srcml_api = SrcmlApi('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/mutt/gumtree/mutt_repos_function_1140_mutt-1.4.2.3.cpp', True)
-    if srcml_api.set_log_loc(13):
-        if srcml_api.set_control_dependence():
-            print srcml_api.get_control_info()
-            print srcml_api.get_log_info()
+    srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_repos_function_48_httpd-2.4.3.cpp', is_function=True)
+    print srcml_api.get_logs_calls_types()
+    # srcml_api = SrcmlApi('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_48_httpd-2.4.3.cpp', True)
+    # if srcml_api.set_log_loc(13):
+    #     if srcml_api.set_control_dependence():
+    #         print srcml_api.get_control_info()
+    #         print srcml_api.get_log_info()
