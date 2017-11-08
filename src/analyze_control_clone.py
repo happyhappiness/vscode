@@ -233,6 +233,8 @@ def seek_clone_for_corresponding_repos(rebuild_repos=False):
     rule_counter = 0
     # get length and transfer iterator to list
     rule_size, rule_records = my_util.get_csv_record_len(rule_records)
+    # list of analyzed reposes
+    repos_list = []
     # search clone instance for each rule
     for rule_record in islice(rule_records, 1, None):
         rule_counter += 1
@@ -247,7 +249,6 @@ def seek_clone_for_corresponding_repos(rebuild_repos=False):
         edit_words = json.loads(rule_record[my_constant.CLASS_OLD_NEW_EDIT])
         rule_feature = [check, variable]
         # deal with each repos for this rule
-        repos_list = []
         for rule_cluster_record in rule_cluster_records:
             # get repos info files with old repos name
             old_repos_name = my_util.get_old_repos_name(rule_cluster_record[0])
