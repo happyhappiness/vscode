@@ -1,0 +1,1 @@
+char *readdirectory(directory_type *dir) {}

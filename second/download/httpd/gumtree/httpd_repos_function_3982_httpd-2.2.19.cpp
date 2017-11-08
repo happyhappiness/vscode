@@ -1,0 +1,1 @@
+directory_type * opendirectory(char *filename) {}

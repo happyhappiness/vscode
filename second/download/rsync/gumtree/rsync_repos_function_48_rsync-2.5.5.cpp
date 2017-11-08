@@ -1,0 +1,33 @@
+void setup_protocol(int f_out,int f_in)
+{
+	if (remote_version == 0) {
+		if (am_server) {
+			remote_version = read_int(f_in);
+			write_int(f_out,PROTOCOL_VERSION);
+		} else {
+			write_int(f_out,PROTOCOL_VERSION);
+			remote_version = read_int(f_in);
+		}
+	}
+
+	if (remote_version < MIN_PROTOCOL_VERSION ||
+	    remote_version > MAX_PROTOCOL_VERSION) {
+		rprintf(FERROR,"protocol version mismatch - is your shell clean?\n");
+		rprintf(FERROR,"(see the rsync man page for an explanation)\n");
+		exit_cleanup(RERR_PROTOCOL);
+	}	
+	
+	if (remote_version >= 12) {
+		if (am_server) {
+		    if (read_batch || write_batch) /* dw */
+			checksum_seed = 32761;
+		    else
+			checksum_seed = time(NULL);
+			write_int(f_out,checksum_seed);
+		} else {
+			checksum_seed = read_int(f_in);
+		}
+	}
+	
+	checksum_init();
+}

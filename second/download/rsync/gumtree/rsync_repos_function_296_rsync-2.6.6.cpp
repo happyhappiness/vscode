@@ -1,0 +1,71 @@
+static int get_secret(int module, char *user, char *secret, int len)
+{
+	char *fname = lp_secrets_file(module);
+	STRUCT_STAT st;
+	int fd, ok = 1;
+	char ch, *p;
+
+	if (!fname || !*fname)
+		return 0;
+
+	if ((fd = open(fname, O_RDONLY)) < 0)
+		return 0;
+
+	if (do_stat(fname, &st) == -1) {
+		rsyserr(FLOG, errno, "stat(%s)", safe_fname(fname));
+		ok = 0;
+	} else if (lp_strict_modes(module)) {
+		if ((st.st_mode & 06) != 0) {
+			rprintf(FLOG, "secrets file must not be other-accessible (see strict modes option)\n");
+			ok = 0;
+		} else if (am_root && (st.st_uid != 0)) {
+			rprintf(FLOG, "secrets file must be owned by root when running as root (see strict modes)\n");
+			ok = 0;
+		}
+	}
+	if (!ok) {
+		rprintf(FLOG, "continuing without secrets file\n");
+		close(fd);
+		return 0;
+	}
+
+	if (*user == '#') {
+		/* Reject attempt to match a comment. */
+		close(fd);
+		return 0;
+	}
+
+	/* Try to find a line that starts with the user name and a ':'. */
+	p = user;
+	while (1) {
+		if (read(fd, &ch, 1) != 1) {
+			close(fd);
+			return 0;
+		}
+		if (ch == '\n')
+			p = user;
+		else if (p) {
+			if (*p == ch)
+				p++;
+			else if (!*p && ch == ':')
+				break;
+			else
+				p = NULL;
+		}
+	}
+
+	/* Slurp the secret into the "secret" buffer. */
+	p = secret;
+	while (len > 0) {
+		if (read(fd, p, 1) != 1 || *p == '\n')
+			break;
+		if (*p == '\r')
+			continue;
+		p++;
+		len--;
+	}
+	*p = '\0';
+	close(fd);
+
+	return 1;
+}

@@ -1,0 +1,40 @@
+apr_status_t apr_socket_recvfrom(apr_sockaddr_t *from, apr_socket_t *sock,
+                                 apr_int32_t flags, char *buf, 
+                                 apr_size_t *len)
+{
+    apr_ssize_t rv;
+    
+    from->salen = sizeof(from->sa);
+
+    do {
+        rv = recvfrom(sock->socketdes, buf, (*len), flags, 
+                      (struct sockaddr*)&from->sa, &from->salen);
+    } while (rv == -1 && errno == EINTR);
+
+    while ((rv == -1) && (errno == EAGAIN || errno == EWOULDBLOCK)
+                      && (sock->timeout > 0)) {
+        apr_status_t arv = apr_wait_for_io_or_timeout(NULL, sock, 1);
+        if (arv != APR_SUCCESS) {
+            *len = 0;
+            return arv;
+        } else {
+            do {
+                rv = recvfrom(sock->socketdes, buf, (*len), flags,
+                              (struct sockaddr*)&from->sa, &from->salen);
+            } while (rv == -1 && errno == EINTR);
+        }
+    }
+    if (rv == -1) {
+        (*len) = 0;
+        return errno;
+    }
+
+    apr_sockaddr_vars_set(from, from->sa.sin.sin_family, ntohs(from->sa.sin.sin_port));
+
+    (*len) = rv;
+    if (rv == 0 && sock->type == SOCK_STREAM) {
+        return APR_EOF;
+    }
+
+    return APR_SUCCESS;
+}

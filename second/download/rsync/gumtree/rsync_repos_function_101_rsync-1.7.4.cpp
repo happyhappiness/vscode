@@ -1,0 +1,10 @@
+void exit_cleanup(int code)
+{
+	if (cleanup_fname)
+		do_unlink(cleanup_fname);
+	signal(SIGUSR1, SIG_IGN);
+	if (code) {
+		kill_all(SIGUSR1);
+	}
+	exit(code);
+}

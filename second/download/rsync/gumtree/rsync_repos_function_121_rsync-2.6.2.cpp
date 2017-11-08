@@ -1,0 +1,51 @@
+int check_name(int fd,
+	       const struct sockaddr_storage *ss,
+	       char *name_buf)
+{
+	struct addrinfo hints, *res, *res0;
+	int error;
+	int ss_family = get_sockaddr_family(ss);
+
+	memset(&hints, 0, sizeof hints);
+	hints.ai_family = ss_family;
+	hints.ai_flags = AI_CANONNAME;
+	hints.ai_socktype = SOCK_STREAM;
+	error = getaddrinfo(name_buf, NULL, &hints, &res0);
+	if (error) {
+		rprintf(FERROR,
+			RSYNC_NAME ": forward name lookup for %s failed: %s\n",
+			name_buf, gai_strerror(error));
+		strcpy(name_buf, default_name);
+		return error;
+	}
+
+
+	/* Given all these results, we expect that one of them will be
+	 * the same as ss.  The comparison is a bit complicated. */
+	for (res = res0; res; res = res->ai_next) {
+		if (!compare_addrinfo_sockaddr(res, ss))
+			break;	/* OK, identical */
+	}
+
+	if (!res0) {
+		/* We hit the end of the list without finding an
+		 * address that was the same as ss. */
+		rprintf(FERROR, RSYNC_NAME
+			": no known address for \"%s\": "
+			"spoofed address?\n",
+			name_buf);
+		strcpy(name_buf, default_name);
+	} else if (res == NULL) {
+		/* We hit the end of the list without finding an
+		 * address that was the same as ss. */
+		rprintf(FERROR, RSYNC_NAME
+			": %s is not a known address for \"%s\": "
+			"spoofed address?\n",
+			client_addr(fd),
+			name_buf);
+		strcpy(name_buf, default_name);
+	}
+
+	freeaddrinfo(res0);
+	return 0;
+}

@@ -1,0 +1,1 @@
+static void win32_cleanup(void) { }

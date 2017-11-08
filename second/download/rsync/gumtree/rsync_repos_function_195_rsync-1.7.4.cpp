@@ -1,0 +1,19 @@
+local void ct_align(s)
+    deflate_state *s;
+{
+    send_bits(s, STATIC_TREES<<1, 3);
+    send_code(s, END_BLOCK, static_ltree);
+    s->compressed_len += 10L; /* 3 for block type, 7 for EOB */
+    bi_flush(s);
+    /* Of the 10 bits for the empty block, we have already sent
+     * (10 - bi_valid) bits. The lookahead for the EOB of the previous
+     * block was thus its length plus what we have just sent.
+     */
+    if (s->last_eob_len + 10 - s->bi_valid < 9) {
+        send_bits(s, STATIC_TREES<<1, 3);
+        send_code(s, END_BLOCK, static_ltree);
+        s->compressed_len += 10L;
+        bi_flush(s);
+    }
+    s->last_eob_len = 7;
+}

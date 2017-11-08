@@ -1,0 +1,38 @@
+static apr_status_t create_wakeup_pipe(apr_pollset_t *pollset)
+{
+    apr_status_t rv;
+    apr_pollfd_t fd;
+
+    if ((rv = apr_file_pipe_create(&pollset->wakeup_pipe[0],
+                                   &pollset->wakeup_pipe[1],
+                                   pollset->pool)) != APR_SUCCESS)
+        return rv;
+    fd.reqevents = APR_POLLIN;
+    fd.desc_type = APR_POLL_FILE;
+    fd.desc.f = pollset->wakeup_pipe[0];
+
+    {
+        int flags;
+
+        if ((flags = fcntl(pollset->wakeup_pipe[0]->filedes, F_GETFD)) == -1)
+            return errno;
+
+        flags |= FD_CLOEXEC;
+        if (fcntl(pollset->wakeup_pipe[0]->filedes, F_SETFD, flags) == -1)
+            return errno;
+    }
+    {
+        int flags;
+
+        if ((flags = fcntl(pollset->wakeup_pipe[1]->filedes, F_GETFD)) == -1)
+            return errno;
+
+        flags |= FD_CLOEXEC;
+        if (fcntl(pollset->wakeup_pipe[1]->filedes, F_SETFD, flags) == -1)
+            return errno;
+    }
+
+    /* Add the pipe to the pollset
+     */
+    return apr_pollset_add(pollset, &fd);
+}

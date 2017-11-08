@@ -249,11 +249,16 @@ def seek_clone_for_corresponding_repos(rebuild_repos=False):
         edit_words = json.loads(rule_record[my_constant.CLASS_OLD_NEW_EDIT])
         rule_feature = [check, variable]
         # deal with each repos for this rule
+        rule_repos_list = []
         for rule_cluster_record in rule_cluster_records:
             # get repos info files with old repos name
             old_repos_name = my_util.get_old_repos_name(rule_cluster_record[0])
             postfix = '_' + old_repos_name
             repos_list = check_repos_info(old_repos_name, repos_list, rebuild_repos, postfix)
+            # do not reanalyze rule
+            if old_repos_name in rule_repos_list:
+                continue
+            rule_repos_list.append(old_repos_name)
             # clone counter
             clone_counter_function = 0
             clone_counter_log = 0
@@ -273,8 +278,7 @@ def seek_clone_for_corresponding_repos(rebuild_repos=False):
                         clone_counter_function += 1
                         necessity = check_for_insert_rule(rule_feature, \
                     repos_function_record[my_constant.ANALYZE_REPOS_FUNCTION_FUNCTION_NAME], postfix)
-                        repos_function_clone_writer.writerow(rule_cluster_record + \
-                                                        repos_function_record + [necessity])
+                        repos_function_clone_writer.writerow(rule_record + repos_function_record + [necessity])
                 # close file
                 repos_function_file.close()
             # modification rule -> log records
@@ -290,7 +294,7 @@ def seek_clone_for_corresponding_repos(rebuild_repos=False):
                         clone_counter_log += 1
                         necessity = check_for_modify_rule(edit_words, \
                                 repos_log_record[my_constant.ANALYZE_REPOS_LOG_LOG])
-                        repos_log_clone_writer.writerow(rule_cluster_record + repos_log_record + [necessity])
+                        repos_log_clone_writer.writerow(rule_record + repos_log_record + [necessity])
 
                 # close repos info files
                 repos_log_file.close()

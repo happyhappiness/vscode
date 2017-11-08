@@ -1,0 +1,52 @@
+static int recv_rsync_acl(item_list *racl_list, SMB_ACL_TYPE_T type, int f)
+{
+	uchar computed_mask_bits = 0;
+	acl_duo *duo_item;
+	uchar flags;
+	int ndx = read_varint(f);
+
+	if (ndx < 0 || (size_t)ndx > racl_list->count) {
+		rprintf(FERROR_XFER, "recv_acl_index: %s ACL index %d > %d\n",
+			str_acl_type(type), ndx, (int)racl_list->count);
+		exit_cleanup(RERR_STREAMIO);
+	}
+
+	if (ndx != 0)
+		return ndx - 1;
+	
+	ndx = racl_list->count;
+	duo_item = EXPAND_ITEM_LIST(racl_list, acl_duo, 1000);
+	duo_item->racl = empty_rsync_acl;
+
+	flags = read_byte(f);
+
+	if (flags & XMIT_USER_OBJ)
+		duo_item->racl.user_obj = recv_acl_access(NULL, f);
+	if (flags & XMIT_GROUP_OBJ)
+		duo_item->racl.group_obj = recv_acl_access(NULL, f);
+	if (flags & XMIT_MASK_OBJ)
+		duo_item->racl.mask_obj = recv_acl_access(NULL, f);
+	if (flags & XMIT_OTHER_OBJ)
+		duo_item->racl.other_obj = recv_acl_access(NULL, f);
+	if (flags & XMIT_NAME_LIST)
+		computed_mask_bits |= recv_ida_entries(&duo_item->racl.names, f);
+
+#ifdef HAVE_OSX_ACLS
+	/* If we received a superfluous mask, throw it away. */
+	duo_item->racl.mask_obj = NO_ENTRY;
+#else
+	if (!duo_item->racl.names.count) {
+		/* If we received a superfluous mask, throw it away. */
+		if (duo_item->racl.mask_obj != NO_ENTRY) {
+			/* Mask off the group perms with it first. */
+			duo_item->racl.group_obj &= duo_item->racl.mask_obj | NO_ENTRY;
+			duo_item->racl.mask_obj = NO_ENTRY;
+		}
+	} else if (duo_item->racl.mask_obj == NO_ENTRY) /* Must be non-empty with lists. */
+		duo_item->racl.mask_obj = (computed_mask_bits | duo_item->racl.group_obj) & ~NO_ENTRY;
+#endif
+
+	duo_item->sacl = NULL;
+
+	return ndx;
+}

@@ -1,0 +1,10 @@
+static
+int cert_verify_callback(int ok, X509_STORE_CTX *ctx)
+{
+  X509 *err_cert;
+  char buf[256];
+
+  err_cert=X509_STORE_CTX_get_current_cert(ctx);
+  (void)x509_name_oneline(X509_get_subject_name(err_cert), buf, sizeof(buf));
+  return ok;
+}
