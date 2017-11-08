@@ -124,4 +124,76 @@ int main (int argc, const char * const argv[])
             exit(2);
         }
 
-        if (nLogFD 
+        if (nLogFD == NULL) {
+            int tLogStart;
+
+            if (tRotation) {
+                tLogStart = (now / tRotation) * tRotation;
+            }
+            else {
+                tLogStart = (int)apr_time_sec(apr_time_now());
+            }
+
+            if (use_strftime) {
+                apr_time_t tNow = apr_time_from_sec(tLogStart);
+                apr_time_exp_t e;
+                apr_size_t rs;
+
+                apr_time_exp_gmt(&e, tNow);
+                apr_strftime(buf2, &rs, sizeof(buf2), szLogRoot, &e);
+            }
+            else {
+                sprintf(buf2, "%s.%010d", szLogRoot, tLogStart);
+            }
+            tLogEnd = tLogStart + tRotation;
+            apr_file_open(&nLogFD, buf2, APR_READ | APR_WRITE | APR_CREATE | APR_APPEND,
+                          APR_OS_DEFAULT, pool);
+            if (nLogFD == NULL) {
+                /* Uh-oh. Failed to open the new log file. Try to clear
+                 * the previous log file, note the lost log entries,
+                 * and keep on truckin'. */
+                if (nLogFDprev == NULL) {
+                    fprintf(stderr, "1 Previous file handle doesn't exists %s\n", buf2);
+                    exit(2);
+                }
+                else {
+                    nLogFD = nLogFDprev;
+                    sprintf(errbuf,
+                            "Resetting log file due to error opening "
+                            "new log file. %10d messages lost.\n",
+                            nMessCount);
+                    nWrite = strlen(errbuf);
+                    apr_file_trunc(nLogFD, 0);
+                    if (apr_file_write(nLogFD, errbuf, &nWrite) != APR_SUCCESS) {
+                        fprintf(stderr, "Error writing to the file %s\n", buf2);
+                        exit(2);
+                    }
+                }
+            }
+            else if (nLogFDprev) {
+                apr_file_close(nLogFDprev);
+            }
+            nMessCount = 0;
+        }
+        nWrite = nRead;
+        apr_file_write(nLogFD, buf, &nWrite);
+        if (nWrite != nRead) {
+            nMessCount++;
+            sprintf(errbuf,
+                    "Error writing to log file. "
+                    "%10d messages lost.\n",
+                    nMessCount);
+            nWrite = strlen(errbuf);
+            apr_file_trunc(nLogFD, 0);
+            if (apr_file_write(nLogFD, errbuf, &nWrite) != APR_SUCCESS) {
+                fprintf(stderr, "Error writing to the file %s\n", buf2);
+                exit(2);
+            }
+        }
+        else {
+            nMessCount++;
+        }
+    }
+    /* Of course we never, but prevent compiler warnings */
+    return 0;
+}

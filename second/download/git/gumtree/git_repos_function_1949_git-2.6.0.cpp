@@ -1,0 +1,8 @@
+int is_excluded(struct dir_struct *dir, const char *pathname, int *dtype_p)
+{
+	struct exclude *exclude =
+		last_exclude_matching(dir, pathname, dtype_p);
+	if (exclude)
+		return exclude->flags & EXC_FLAG_NEGATIVE ? 0 : 1;
+	return 0;
+}

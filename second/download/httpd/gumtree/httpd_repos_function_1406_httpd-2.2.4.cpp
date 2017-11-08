@@ -230,4 +230,82 @@ static int proxy_connect_handler(request_rec *r, proxy_worker *worker,
                     nbytes = sizeof(buffer);
                     rv = apr_socket_recv(sock, buffer, &nbytes);
                     if (rv == APR_SUCCESS) {
-                    
+                        o = 0;
+                        i = nbytes;
+                        while(i > 0)
+                        {
+                            nbytes = i;
+    /* This is just plain wrong.  No module should ever write directly
+     * to the client.  For now, this works, but this is high on my list of
+     * things to fix.  The correct line is:
+     * if ((nbytes = ap_rwrite(buffer + o, nbytes, r)) < 0)
+     * rbb
+     */
+                            rv = apr_socket_send(client_socket, buffer + o, &nbytes);
+                            if (rv != APR_SUCCESS)
+                                break;
+                            o += nbytes;
+                            i -= nbytes;
+                        }
+                    }
+                    else
+                        break;
+                }
+                else if ((pollevent & APR_POLLERR) || (pollevent & APR_POLLHUP))
+                    break;
+            }
+            else if (cur->desc.s == client_socket) {
+                pollevent = cur->rtnevents;
+                if (pollevent & APR_POLLIN) {
+#ifdef DEBUGGING
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                 "proxy: CONNECT: client was set");
+#endif
+                    nbytes = sizeof(buffer);
+                    rv = apr_socket_recv(client_socket, buffer, &nbytes);
+                    if (rv == APR_SUCCESS) {
+                        o = 0;
+                        i = nbytes;
+#ifdef DEBUGGING
+                        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                                     "proxy: CONNECT: read %d from client", i);
+#endif
+                        while(i > 0)
+                        {
+                            nbytes = i;
+                            rv = apr_socket_send(sock, buffer + o, &nbytes);
+                            if (rv != APR_SUCCESS)
+                                break;
+                            o += nbytes;
+                            i -= nbytes;
+                        }
+                    }
+                    else
+                        break;
+                }
+                else if ((pollevent & APR_POLLERR) || (pollevent & APR_POLLHUP)) {
+                    rv = APR_EOF;
+                    break;
+                }
+            }
+            else
+                break;
+        }
+        if (rv != APR_SUCCESS) {
+            break;
+        }
+    }
+
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+         "proxy: CONNECT: finished with poll() - cleaning up");
+
+    /*
+     * Step Five: Clean Up
+     *
+     * Close the socket and clean up
+     */
+
+    apr_socket_close(sock);
+
+    return OK;
+}

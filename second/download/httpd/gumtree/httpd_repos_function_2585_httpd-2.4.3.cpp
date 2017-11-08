@@ -106,10 +106,4 @@ static authz_status ldapattribute_check_authorization(request_rec *r,
         }
     }
 
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01737)
-                  "auth_ldap authorize attribute: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
-
-    return AUTHZ_DENIED;
-}
+    ap_log_rerror(APLOG_MARK, A

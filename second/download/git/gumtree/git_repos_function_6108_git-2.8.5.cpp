@@ -1,0 +1,1 @@
+void   nedfree(void *mem) THROWSPEC					{ nedpfree(0, mem); }

@@ -179,4 +179,38 @@ static apr_status_t substitute_filter(ap_filter_t *f, apr_bucket_brigade *bb)
                     }
                     else {
                         /*
-  
+                         * no newline in whatever is left of this buffer so
+                         * tuck data away and get next bucket
+                         */
+                        APR_BUCKET_REMOVE(b);
+                        APR_BRIGADE_INSERT_TAIL(ctx->linebb, b);
+                        bytes = 0;
+                    }
+                }
+            }
+        }
+        if (!APR_BRIGADE_EMPTY(ctx->passbb)) {
+            rv = ap_pass_brigade(f->next, ctx->passbb);
+            apr_brigade_cleanup(ctx->passbb);
+            if (rv != APR_SUCCESS) {
+                apr_pool_clear(ctx->tpool);
+                return rv;
+            }
+        }
+        apr_pool_clear(ctx->tpool);
+    }
+
+    /* Anything left we want to save/setaside for the next go-around */
+    if (!APR_BRIGADE_EMPTY(ctx->linebb)) {
+        /*
+         * Provide ap_save_brigade with an existing empty brigade
+         * (ctx->linesbb) to avoid creating a new one.
+         */
+        ap_save_brigade(f, &(ctx->linesbb), &(ctx->linebb), f->r->pool);
+        tmp_bb = ctx->linebb;
+        ctx->linebb = ctx->linesbb;
+        ctx->linesbb = tmp_bb;
+    }
+
+    return APR_SUCCESS;
+}

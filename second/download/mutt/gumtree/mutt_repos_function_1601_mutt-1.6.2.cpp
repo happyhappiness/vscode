@@ -1755,4 +1755,84 @@ int mutt_index_menu (void)
 	  mutt_set_flag (Context, CURHDR, M_DELETE, 0);
 	  if (option (OPTRESOLVE) && menu->current < Context->vcount - 1)
 	  {
-	    
+	    menu->current++;
+	    menu->redraw = REDRAW_MOTION_RESYNCH;
+	  }
+	  else
+	    menu->redraw = REDRAW_CURRENT;
+	}
+	menu->redraw |= REDRAW_STATUS;
+	break;
+
+      case OP_UNDELETE_THREAD:
+      case OP_UNDELETE_SUBTHREAD:
+
+	CHECK_MSGCOUNT;
+        CHECK_VISIBLE;
+	CHECK_READONLY;
+        /* L10N: CHECK_ACL */
+	CHECK_ACL(M_ACL_DELETE, _("Cannot undelete message(s)"));
+
+	rc = mutt_thread_set_flag (CURHDR, M_DELETE, 0,
+				   op == OP_UNDELETE_THREAD ? 0 : 1);
+
+	if (rc != -1)
+	{
+	  if (option (OPTRESOLVE))
+	  {
+	    if (op == OP_UNDELETE_THREAD)
+	      menu->current = mutt_next_thread (CURHDR);
+	    else
+	      menu->current = mutt_next_subthread (CURHDR);
+
+	    if (menu->current == -1)
+	      menu->current = menu->oldcurrent;
+	  }
+	  menu->redraw = REDRAW_INDEX | REDRAW_STATUS;
+	}
+	break;
+
+      case OP_VERSION:
+	mutt_version ();
+	break;
+
+      case OP_BUFFY_LIST:
+	mutt_buffy_list ();
+	break;
+
+      case OP_VIEW_ATTACHMENTS:
+	CHECK_MSGCOUNT;
+        CHECK_VISIBLE;
+	mutt_view_attachments (CURHDR);
+	if (CURHDR->attach_del)
+	  Context->changed = 1;
+	menu->redraw = REDRAW_FULL;
+	break;
+
+      case OP_END_COND:
+	break;
+
+      case OP_WHAT_KEY:
+	mutt_what_key();
+	break;
+
+      default:
+	if (menu->menu == MENU_MAIN)
+	  km_error_key (MENU_MAIN);
+    }
+
+    if (menu->menu == MENU_PAGER)
+    {
+      menu->menu = MENU_MAIN;
+      menu->redraw = REDRAW_FULL;
+#if 0
+      set_option (OPTWEED); /* turn header weeding back on. */
+#endif
+    }
+
+    if (done) break;
+  }
+
+  mutt_menuDestroy (&menu);
+  return (close);
+}

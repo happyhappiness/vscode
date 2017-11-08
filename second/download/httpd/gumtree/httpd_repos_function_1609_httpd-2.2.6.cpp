@@ -95,4 +95,15 @@ static apr_status_t includes_filter(ap_filter_t *f, apr_bucket_brigade *b)
         apr_table_unset(f->r->headers_out, "Last-Modified");
     }
 
-    /* add QUERY stuff
+    /* add QUERY stuff to env cause it ain't yet */
+    if (r->args) {
+        char *arg_copy = apr_pstrdup(r->pool, r->args);
+
+        apr_table_setn(r->subprocess_env, "QUERY_STRING", r->args);
+        ap_unescape_url(arg_copy);
+        apr_table_setn(r->subprocess_env, "QUERY_STRING_UNESCAPED",
+                  ap_escape_shell_cmd(r->pool, arg_copy));
+    }
+
+    return send_parsed_content(f, b);
+}

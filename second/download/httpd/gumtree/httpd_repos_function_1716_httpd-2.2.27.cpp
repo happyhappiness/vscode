@@ -362,45 +362,4 @@ static apr_status_t send_parsed_content(ap_filter_t *f, apr_bucket_brigade *bb)
     if (intern->seen_eos) {
         if (PARSE_HEAD == intern->state) {
             if (ctx->flags & SSI_FLAG_PRINTING) {
-                char *to_release = apr_pmemdup(ctx->pool, intern->start_seq,
-                                                          intern->parse_pos);
-
-                APR_BRIGADE_INSERT_TAIL(pass_bb,
-                                        apr_bucket_pool_create(to_release,
-                                        intern->parse_pos, ctx->pool,
-                                        f->c->bucket_alloc));
-            }
-        }
-        else if (PARSE_PRE_HEAD != intern->state) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                          "SSI directive was not properly finished at the end "
-                          "of parsed document %s", r->filename);
-            if (ctx->flags & SSI_FLAG_PRINTING) {
-                SSI_CREATE_ERROR_BUCKET(ctx, f, pass_bb);
-            }
-        }
-
-        if (!(ctx->flags & SSI_FLAG_PRINTING)) {
-            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
-                          "missing closing endif directive in parsed document"
-                          " %s", r->filename);
-        }
-
-        /* cleanup our temporary memory */
-        apr_brigade_destroy(intern->tmp_bb);
-        apr_pool_destroy(ctx->dpool);
-
-        /* don't forget to finally insert the EOS bucket */
-        APR_BRIGADE_INSERT_TAIL(pass_bb, b);
-    }
-
-    /* if something's left over, pass it along */
-    if (!APR_BRIGADE_EMPTY(pass_bb)) {
-        rv = ap_pass_brigade(f->next, pass_bb);
-    }
-    else {
-        rv = APR_SUCCESS;
-        apr_brigade_destroy(pass_bb);
-    }
-    return rv;
-}
+                char *to_release = apr_pmemdup(ctx->pool,

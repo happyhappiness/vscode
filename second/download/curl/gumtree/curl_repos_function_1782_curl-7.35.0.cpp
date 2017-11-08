@@ -1,0 +1,21 @@
+static void _ldap_free_urldesc (LDAPURLDesc *ludp)
+{
+  size_t i;
+
+  if(!ludp)
+    return;
+
+  if(ludp->lud_dn)
+    free(ludp->lud_dn);
+
+  if(ludp->lud_filter)
+    free(ludp->lud_filter);
+
+  if(ludp->lud_attrs) {
+    for(i = 0; i < ludp->lud_attrs_dups; i++)
+      free(ludp->lud_attrs[i]);
+    free(ludp->lud_attrs);
+  }
+
+  free (ludp);
+}

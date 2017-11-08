@@ -309,4 +309,45 @@ apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
      * it means our assumptions have changed. */
     AP_DEBUG_ASSERT(totalread >= 0);
 
-    if (ctx->stat
+    if (ctx->state != BODY_NONE) {
+        ctx->remaining -= totalread;
+        if (ctx->remaining > 0) {
+            e = APR_BRIGADE_LAST(b);
+            if (APR_BUCKET_IS_EOS(e))
+                return APR_EOF;
+        }
+    }
+
+    /* If we have no more bytes remaining on a C-L request,
+     * save the callter a roundtrip to discover EOS.
+     */
+    if (ctx->state == BODY_LENGTH && ctx->remaining == 0) {
+        e = apr_bucket_eos_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(b, e);
+    }
+
+    /* We have a limit in effect. */
+    if (ctx->limit) {
+        /* FIXME: Note that we might get slightly confused on chunked inputs
+         * as we'd need to compensate for the chunk lengths which may not
+         * really count.  This seems to be up for interpretation.  */
+        ctx->limit_used += totalread;
+        if (ctx->limit < ctx->limit_used) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r,
+                          "Read content-length of %" APR_OFF_T_FMT
+                          " is larger than the configured limit"
+                          " of %" APR_OFF_T_FMT, ctx->limit_used, ctx->limit);
+            apr_brigade_cleanup(bb);
+            e = ap_bucket_error_create(HTTP_REQUEST_ENTITY_TOO_LARGE, NULL,
+                                       f->r->pool,
+                                       f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+            e = apr_bucket_eos_create(f->c->bucket_alloc);
+            APR_BRIGADE_INSERT_TAIL(bb, e);
+            ctx->eos_sent = 1;
+            return ap_pass_brigade(f->r->output_filters, bb);
+        }
+    }
+
+    return APR_SUCCESS;
+}

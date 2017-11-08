@@ -232,4 +232,73 @@ static int cgid_handler(request_rec *r)
              */
             if (ret == HTTP_NOT_MODIFIED) {
                 r->status = ret;
-             
+                return OK;
+            }
+
+            return ret;
+        }
+
+        location = apr_table_get(r->headers_out, "Location");
+
+        if (location && location[0] == '/' && r->status == 200) {
+
+            /* Soak up all the script output */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            /* This redirect needs to be a GET no matter what the original
+             * method was.
+             */
+            r->method = apr_pstrdup(r->pool, "GET");
+            r->method_number = M_GET;
+
+            /* We already read the message body (if any), so don't allow
+             * the redirected request to think it has one. We can ignore
+             * Transfer-Encoding, since we used REQUEST_CHUNKED_ERROR.
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
+
+            ap_internal_redirect_handler(location, r);
+            return OK;
+        }
+        else if (location && r->status == 200) {
+            /* XX Note that if a script wants to produce its own Redirect
+             * body, it now has to explicitly *say* "Status: 302"
+             */
+            discard_script_output(bb);
+            apr_brigade_destroy(bb);
+            return HTTP_MOVED_TEMPORARILY;
+        }
+
+        rv = ap_pass_brigade(r->output_filters, bb);
+        if (rv != APR_SUCCESS) { 
+            /* APLOG_ERR because the core output filter message is at error,
+             * but doesn't know it's passing CGI output 
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, "Failed to flush CGI output to client");
+        }
+    }
+
+    if (nph) {
+        struct ap_filter_t *cur;
+
+        /* get rid of all filters up through protocol...  since we
+         * haven't parsed off the headers, there is no way they can
+         * work
+         */
+
+        cur = r->proto_output_filters;
+        while (cur && cur->frec->ftype < AP_FTYPE_CONNECTION) {
+            cur = cur->next;
+        }
+        r->output_filters = r->proto_output_filters = cur;
+
+        bb = apr_brigade_create(r->pool, c->bucket_alloc);
+        b = apr_bucket_pipe_create(tempsock, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        ap_pass_brigade(r->output_filters, bb);
+    }
+
+    return OK; /* NOT r->status, even if it has changed. */
+}

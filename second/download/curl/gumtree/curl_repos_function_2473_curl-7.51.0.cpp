@@ -144,8 +144,4 @@ polarssl_connect_step2(struct connectdata *conn,
   }
 #endif
 
-  connssl->connecting_state = ssl_connect_3;
-  infof(data, "SSL connected\n");
-
-  return CURLE_OK;
-}
+  connssl->connecting_stat

@@ -117,4 +117,21 @@ apr_status_t apr_socket_sendfile(apr_socket_t *sock, apr_file_t *file,
                                   off,                /* where in the file to start */
                                   nbytes,             /* number of bytes to send from file */
                                   hdtrarray,          /* Headers/footers */
-                                  fl
+                                  flags);             /* undefined, set to 0 */
+                }
+                else {      /* we can't call sendfile() with no bytes to send from the file */
+                    rc = writev(sock->socketdes, hdtrarray, 2);
+                }
+            } while (rc == -1 && errno == EINTR);
+        }
+    }
+
+    if (rc == -1) {
+        *len = 0;
+        return errno;
+    }
+
+    /* Set len to the number of bytes written */
+    *len = rc;
+    return APR_SUCCESS;
+}

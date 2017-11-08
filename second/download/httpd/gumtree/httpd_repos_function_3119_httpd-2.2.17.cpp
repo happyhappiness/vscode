@@ -232,4 +232,93 @@ storeAtts(XML_Parser parser, const ENCODING *enc,
             }
             if (!step)
               step = PROBE_STEP(uriHash, mask, nsAttsPower);
-            j < step ? ( j += nsAttsSize - step) : 
+            j < step ? ( j += nsAttsSize - step) : (j -= step);
+          }
+        }
+
+        if (ns_triplets) {  /* append namespace separator and prefix */
+          tempPool.ptr[-1] = namespaceSeparator;
+          s = b->prefix->name;
+          do {
+            if (!poolAppendChar(&tempPool, *s))
+              return XML_ERROR_NO_MEMORY;
+          } while (*s++);
+        }
+
+        /* store expanded name in attribute list */
+        s = poolStart(&tempPool);
+        poolFinish(&tempPool);
+        appAtts[i] = s;
+
+        /* fill empty slot with new version, uriName and hash value */
+        nsAtts[j].version = version;
+        nsAtts[j].hash = uriHash;
+        nsAtts[j].uriName = s;
+
+        if (!--nPrefixes)
+          break;
+      }
+      else  /* not prefixed */
+        ((XML_Char *)s)[-1] = 0;  /* clear flag */
+    }
+  }
+  /* clear flags for the remaining attributes */
+  for (; i < attIndex; i += 2)
+    ((XML_Char *)(appAtts[i]))[-1] = 0;
+  for (binding = *bindingsPtr; binding; binding = binding->nextTagBinding)
+    binding->attId->name[-1] = 0;
+
+  if (!ns)
+    return XML_ERROR_NONE;
+
+  /* expand the element type name */
+  if (elementType->prefix) {
+    binding = elementType->prefix->binding;
+    if (!binding)
+      return XML_ERROR_UNBOUND_PREFIX;
+    localPart = tagNamePtr->str;
+    while (*localPart++ != XML_T(':'))
+      ;
+  }
+  else if (dtd->defaultPrefix.binding) {
+    binding = dtd->defaultPrefix.binding;
+    localPart = tagNamePtr->str;
+  }
+  else
+    return XML_ERROR_NONE;
+  prefixLen = 0;
+  if (ns_triplets && binding->prefix->name) {
+    for (; binding->prefix->name[prefixLen++];)
+      ;
+  }
+  tagNamePtr->localPart = localPart;
+  tagNamePtr->uriLen = binding->uriLen;
+  tagNamePtr->prefix = binding->prefix->name;
+  tagNamePtr->prefixLen = prefixLen;
+  for (i = 0; localPart[i++];)
+    ;
+  n = i + binding->uriLen + prefixLen;
+  if (n > binding->uriAlloc) {
+    TAG *p;
+    uri = (XML_Char *)MALLOC((n + EXPAND_SPARE) * sizeof(XML_Char));
+    if (!uri)
+      return XML_ERROR_NO_MEMORY;
+    binding->uriAlloc = n + EXPAND_SPARE;
+    memcpy(uri, binding->uri, binding->uriLen * sizeof(XML_Char));
+    for (p = tagStack; p; p = p->parent)
+      if (p->name.str == binding->uri)
+        p->name.str = uri;
+    FREE(binding->uri);
+    binding->uri = uri;
+  }
+  uri = binding->uri + binding->uriLen;
+  memcpy(uri, localPart, i * sizeof(XML_Char));
+  if (prefixLen) {
+    uri = uri + (i - 1);
+    if (namespaceSeparator)
+      *uri = namespaceSeparator;
+    memcpy(uri + 1, binding->prefix->name, prefixLen * sizeof(XML_Char));
+  }
+  tagNamePtr->str = binding->uri;
+  return XML_ERROR_NONE;
+}

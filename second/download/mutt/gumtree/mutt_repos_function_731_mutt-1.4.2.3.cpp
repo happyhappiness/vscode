@@ -350,4 +350,113 @@ hdr_format_str (char *dest,
 
     case 'T':
       snprintf (fmt, sizeof (fmt), "%%%sc", prefix);
-      snprintf (dest, destlen, 
+      snprintf (dest, destlen, fmt,
+		(Tochars && ((i = mutt_user_is_recipient (hdr))) < mutt_strlen (Tochars)) ? Tochars[i] : ' ');
+      break;
+
+    case 'u':
+      if (hdr->env->from && hdr->env->from->mailbox)
+      {
+	strfcpy (buf2, hdr->env->from->mailbox, sizeof (buf2));
+	if ((p = strpbrk (buf2, "%@")))
+	  *p = 0;
+      }
+      else
+	buf2[0] = 0;
+      mutt_format_s (dest, destlen, prefix, buf2);
+      break;
+
+    case 'v':
+      if (mutt_addr_is_user (hdr->env->from)) 
+      {
+	if (hdr->env->to)
+	  mutt_format_s (buf2, sizeof (buf2), prefix, mutt_get_name (hdr->env->to));
+	else if (hdr->env->cc)
+	  mutt_format_s (buf2, sizeof (buf2), prefix, mutt_get_name (hdr->env->cc));
+	else
+	  *buf2 = 0;
+      }
+      else
+	mutt_format_s (buf2, sizeof (buf2), prefix, mutt_get_name (hdr->env->from));
+      if ((p = strpbrk (buf2, " %@")))
+	*p = 0;
+      mutt_format_s (dest, destlen, prefix, buf2);
+      break;
+
+    case 'Z':
+    
+      ch = ' ';
+
+#ifdef HAVE_PGP
+      if (hdr->pgp & PGPGOODSIGN)
+        ch = 'S';
+      else if (hdr->pgp & PGPENCRYPT)
+      	ch = 'P';
+      else if (hdr->pgp & PGPSIGN)
+        ch = 's';
+      else if (hdr->pgp & PGPKEY)
+        ch = 'K';
+#endif
+
+      snprintf (buf2, sizeof (buf2),
+		"%c%c%c", (THREAD_NEW ? 'n' : (THREAD_OLD ? 'o' : 
+		((hdr->read && (ctx && ctx->msgnotreadyet != hdr->msgno))
+		? (hdr->replied ? 'r' : ' ') : (hdr->old ? 'O' : 'N')))),
+		hdr->deleted ? 'D' : (hdr->attach_del ? 'd' : ch),
+		hdr->tagged ? '*' :
+		(hdr->flagged ? '!' :
+		 (Tochars && ((i = mutt_user_is_recipient (hdr)) < mutt_strlen (Tochars)) ? Tochars[i] : ' ')));
+      mutt_format_s (dest, destlen, prefix, buf2);
+      break;
+
+     case 'y':
+       if (optional)
+	 optional = hdr->env->x_label ? 1 : 0;
+
+       mutt_format_s (dest, destlen, prefix, NONULL (hdr->env->x_label));
+       break;
+ 
+    case 'Y':
+      if (hdr->env->x_label)
+      {
+	i = 1;	/* reduce reuse recycle */
+	htmp = NULL;
+	if (flags & M_FORMAT_TREE
+	    && (hdr->thread->prev && hdr->thread->prev->message
+		&& hdr->thread->prev->message->env->x_label))
+	  htmp = hdr->thread->prev->message;
+	else if (flags & M_FORMAT_TREE
+		 && (hdr->thread->parent && hdr->thread->parent->message
+		     && hdr->thread->parent->message->env->x_label))
+	  htmp = hdr->thread->parent->message;
+	if (htmp && mutt_strcasecmp (hdr->env->x_label,
+				     htmp->env->x_label) == 0)
+	  i = 0;
+      }
+      else
+	i = 0;
+
+      if (optional)
+	optional = i;
+
+      if (i)
+        mutt_format_s (dest, destlen, prefix, NONULL (hdr->env->x_label));
+      else
+        mutt_format_s (dest, destlen, prefix, "");
+
+      break;
+
+    default:
+      snprintf (dest, destlen, "%%%s%c", prefix, op);
+      break;
+  }
+
+  if (optional)
+    mutt_FormatString (dest, destlen, ifstring, hdr_format_str, (unsigned long) hfi, flags);
+  else if (flags & M_FORMAT_OPTIONAL)
+    mutt_FormatString (dest, destlen, elsestring, hdr_format_str, (unsigned long) hfi, flags);
+
+  return (src);
+#undef THREAD_NEW
+#undef THREAD_OLD
+}

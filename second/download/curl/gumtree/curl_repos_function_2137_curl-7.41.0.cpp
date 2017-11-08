@@ -121,11 +121,4 @@ static CURLcode set_ciphers(struct SessionHandle *data,
                         ciphers[CURL_GSKPROTO_SSLV3].buf, FALSE);
   if(!result && (*protoflags & CURL_GSKPROTO_SSLV2_MASK))
     result = set_buffer(data, h, GSK_V2_CIPHER_SPECS,
-                        ciphers[CURL_GSKPROTO_SSLV2].buf, FALSE);
-
-  /* Clean-up. */
-  for(i = 0; i < CURL_GSKPROTO_LAST; i++)
-    free(ciphers[i].buf);
-
-  return result;
-}
+                        ciphe

@@ -206,4 +206,8 @@
         }<pos:position pos:line="205" pos:column="10"/></block></then></if>
     }<pos:position pos:line="206" pos:column="6"/></block></then>
     <else pos:line="207" pos:column="5">else <block pos:line="207" pos:column="10">{
-        <macro><name pos:line="208" pos:column="9">log_xl<pos:position pos:line="208" pos:column="15"/></name></macro></block></else></if></block></function></unit>
+        <expr_stmt><expr><call><name pos:line="208" pos:column="9">log_xlate_error<pos:position pos:line="208" pos:column="24"/></name><argument_list pos:line="208" pos:column="24">(<argument><expr><name pos:line="208" pos:column="25">f<pos:position pos:line="208" pos:column="26"/></name></expr></argument>, <argument><expr><name pos:line="208" pos:column="28">rv<pos:position pos:line="208" pos:column="30"/></name></expr></argument>)<pos:position pos:line="208" pos:column="31"/></argument_list></call></expr>;<pos:position pos:line="208" pos:column="32"/></expr_stmt>
+    }<pos:position pos:line="209" pos:column="6"/></block></else></if>
+
+    <return pos:line="211" pos:column="5">return <expr><name pos:line="211" pos:column="12">rv<pos:position pos:line="211" pos:column="14"/></name></expr>;<pos:position pos:line="211" pos:column="15"/></return>
+}<pos:position pos:line="212" pos:column="2"/></block></function></unit>

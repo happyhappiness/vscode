@@ -96,4 +96,6 @@ XML_Parser XML_ExternalEntityParserCreate(XML_Parser oldParser,
     dtd.complete = 1;
     hadExternalDoctype = 1;
   }
-#endif /* XML_DT
+#endif /* XML_DTD */
+  return parser;
+}

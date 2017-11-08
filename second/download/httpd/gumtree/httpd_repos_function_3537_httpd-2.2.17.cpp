@@ -308,4 +308,87 @@ APR_DECLARE(apr_status_t) apr_proc_mutex_create(apr_proc_mutex_t **mutex,
 }
 
 APR_DECLARE(apr_status_t) apr_proc_mutex_child_init(apr_proc_mutex_t **mutex,
-                                             
+                                                    const char *fname,
+                                                    apr_pool_t *pool)
+{
+    return (*mutex)->meth->child_init(mutex, pool, fname);
+}
+
+APR_DECLARE(apr_status_t) apr_proc_mutex_lock(apr_proc_mutex_t *mutex)
+{
+    return mutex->meth->acquire(mutex);
+}
+
+APR_DECLARE(apr_status_t) apr_proc_mutex_trylock(apr_proc_mutex_t *mutex)
+{
+    return mutex->meth->tryacquire(mutex);
+}
+
+APR_DECLARE(apr_status_t) apr_proc_mutex_unlock(apr_proc_mutex_t *mutex)
+{
+    return mutex->meth->release(mutex);
+}
+
+APR_DECLARE(apr_status_t) apr_proc_mutex_cleanup(void *mutex)
+{
+    return ((apr_proc_mutex_t *)mutex)->meth->cleanup(mutex);
+}
+
+APR_DECLARE(const char *) apr_proc_mutex_name(apr_proc_mutex_t *mutex)
+{
+    return mutex->meth->name;
+}
+
+APR_DECLARE(const char *) apr_proc_mutex_lockfile(apr_proc_mutex_t *mutex)
+{
+    /* POSIX sems use the fname field but don't use a file,
+     * so be careful. */
+#if APR_HAS_FLOCK_SERIALIZE
+    if (mutex->meth == &mutex_flock_methods) {
+        return mutex->fname;
+    }
+#endif
+#if APR_HAS_FCNTL_SERIALIZE
+    if (mutex->meth == &mutex_fcntl_methods) {
+        return mutex->fname;
+    }
+#endif
+    return NULL;
+}
+
+APR_POOL_IMPLEMENT_ACCESSOR(proc_mutex)
+
+/* Implement OS-specific accessors defined in apr_portable.h */
+
+APR_DECLARE(apr_status_t) apr_os_proc_mutex_get(apr_os_proc_mutex_t *ospmutex,
+                                                apr_proc_mutex_t *pmutex)
+{
+#if APR_HAS_SYSVSEM_SERIALIZE || APR_HAS_FCNTL_SERIALIZE || APR_HAS_FLOCK_SERIALIZE || APR_HAS_POSIXSEM_SERIALIZE
+    ospmutex->crossproc = pmutex->interproc->filedes;
+#endif
+#if APR_HAS_PROC_PTHREAD_SERIALIZE
+    ospmutex->pthread_interproc = pmutex->pthread_interproc;
+#endif
+    return APR_SUCCESS;
+}
+
+APR_DECLARE(apr_status_t) apr_os_proc_mutex_put(apr_proc_mutex_t **pmutex,
+                                                apr_os_proc_mutex_t *ospmutex,
+                                                apr_pool_t *pool)
+{
+    if (pool == NULL) {
+        return APR_ENOPOOL;
+    }
+    if ((*pmutex) == NULL) {
+        (*pmutex) = (apr_proc_mutex_t *)apr_pcalloc(pool,
+                                                    sizeof(apr_proc_mutex_t));
+        (*pmutex)->pool = pool;
+    }
+#if APR_HAS_SYSVSEM_SERIALIZE || APR_HAS_FCNTL_SERIALIZE || APR_HAS_FLOCK_SERIALIZE || APR_HAS_POSIXSEM_SERIALIZE
+    apr_os_file_put(&(*pmutex)->interproc, &ospmutex->crossproc, 0, pool);
+#endif
+#if APR_HAS_PROC_PTHREAD_SERIALIZE
+    (*pmutex)->pthread_interproc = ospmutex->pthread_interproc;
+#endif
+    return APR_SUCCESS;
+}

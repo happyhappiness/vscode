@@ -114,4 +114,24 @@ static apr_ssize_t send_response_header(isapi_cid *cid,
 
     /* If only Status was passed, we consumed nothing
      */
-    if (!
+    if (!head_present)
+        return 0;
+
+    cid->headers_set = 1;
+
+    /* If all went well, tell the caller we consumed the headers complete
+     */
+    if (!termch)
+        return(ate + headlen);
+
+    /* Any data left must be sent directly by the caller, all we
+     * give back is the size of the headers we consumed (which only
+     * happens if the parser got to the head arg, which varies based
+     * on whether we passed stat+head to scan, or only head.
+     */
+    if (termch && (termarg == (stat ? 1 : 0))
+               && head_present && head + headlen > termch) {
+        return ate + termch - head;
+    }
+    return ate;
+}

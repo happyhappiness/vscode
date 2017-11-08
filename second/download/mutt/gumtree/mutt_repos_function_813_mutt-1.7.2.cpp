@@ -689,9 +689,3 @@ void _mutt_select_file (char *f, size_t flen, int flags, char ***files, int *num
     }
   }
   
-  bail:
-  
-  if (!folder)
-    strfcpy (LastDir, LastDirBackup, sizeof (LastDir));
-  
-}

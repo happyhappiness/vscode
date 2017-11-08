@@ -255,4 +255,44 @@ static int dav_method_options(request_rec *r)
 
         if (elem->ns == APR_XML_NS_DAV_ID) {
             if (strcmp(elem->name, "supported-method-set") == 0) {
-       
+                err = dav_gen_supported_methods(r, elem, methods, &body);
+                core_option = 1;
+            }
+            else if (strcmp(elem->name, "supported-live-property-set") == 0) {
+                err = dav_gen_supported_live_props(r, resource, elem, &body);
+                core_option = 1;
+            }
+            else if (strcmp(elem->name, "supported-report-set") == 0) {
+                err = dav_gen_supported_reports(r, resource, elem, vsn_hooks, &body);
+                core_option = 1;
+            }
+        }
+
+        if (err != NULL)
+            return dav_handle_err(r, err, NULL);
+
+        /* if unrecognized option, pass to versioning provider */
+        if (!core_option && vsn_hooks != NULL) {
+            if ((err = (*vsn_hooks->get_option)(resource, elem, &body))
+                != NULL) {
+                return dav_handle_err(r, err, NULL);
+            }
+        }
+    }
+
+    /* send the options response */
+    r->status = HTTP_OK;
+    ap_set_content_type(r, DAV_XML_CONTENT_TYPE);
+
+    /* send the headers and response body */
+    ap_rputs(DAV_XML_HEADER DEBUG_CR
+             "<D:options-response xmlns:D=\"DAV:\">" DEBUG_CR, r);
+
+    for (t = body.first; t != NULL; t = t->next)
+        ap_rputs(t->text, r);
+
+    ap_rputs("</D:options-response>" DEBUG_CR, r);
+
+    /* we've sent everything necessary to the client. */
+    return DONE;
+}

@@ -113,7 +113,4 @@ static int stream_reqbody_chunked(apr_pool_t *p,
                                    5, bucket_alloc);
     APR_BRIGADE_INSERT_TAIL(bb, e);
 
-    /* Now we have headers-only, or the chunk EOS mark; flush it */
-    rv = pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1);
-    return rv;
-}
+    /* No

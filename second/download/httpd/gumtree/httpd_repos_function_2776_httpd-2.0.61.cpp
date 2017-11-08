@@ -123,4 +123,18 @@ int main(int argc, const char * const argv[])
     }
     fprintf(stdout, "OK\n");
 
-    length = STRLEN
+    length = STRLEN;
+    APR_TEST_SUCCESS(rv, "Sending data over socket",
+        apr_socket_send(sock2, datarecv, &length))
+    
+    APR_TEST_SUCCESS(rv, "Shutting down accepted socket",
+        apr_socket_shutdown(sock2, APR_SHUTDOWN_READ))
+
+    APR_TEST_SUCCESS(rv, "Closing duplicate socket",
+        apr_socket_close(sock2))
+    
+    APR_TEST_SUCCESS(rv, "Closing original socket",
+        apr_socket_close(sock))
+
+    return 0;
+}

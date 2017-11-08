@@ -1103,4 +1103,19 @@ static int proxy_ftp_handler(request_rec *r, proxy_worker *worker,
     /*
      * VII: Clean Up -------------
      *
-     * If there
+     * If there are no KeepAlives, or if the connection has been signalled to
+     * close, close the socket and clean up
+     */
+
+    /* finish */
+    rc = proxy_ftp_command("QUIT" CRLF,
+                           r, origin, bb, &ftpmessage);
+    /* responses: 221, 500 */
+    /* 221 Service closing control connection. */
+    /* 500 Syntax error, command unrecognized. */
+    ap_flush_conn(origin);
+    proxy_ftp_cleanup(r, backend);
+
+    apr_brigade_destroy(bb);
+    return OK;
+}

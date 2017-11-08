@@ -90,4 +90,20 @@ static int setup_choice_response(request_rec *r, negotiation_state *neg,
     if ((sub_vary = apr_table_get(sub_req->err_headers_out, "Vary")) != NULL) {
         apr_table_setn(r->err_headers_out, "Variant-Vary", sub_vary);
 
-        /* Move 
+        /* Move the subreq Vary header into the main request to
+         * prevent having two Vary headers in the response, which
+         * would be legal but strange.
+         */
+        apr_table_setn(r->err_headers_out, "Vary", sub_vary);
+        apr_table_unset(sub_req->err_headers_out, "Vary");
+    }
+
+    apr_table_setn(r->err_headers_out, "Content-Location",
+                  ap_escape_path_segment(r->pool, variant->file_name));
+
+    set_neg_headers(r, neg, alg_choice);         /* add Alternates and Vary */
+
+    /* Still to do by caller: add Expires */
+
+    return 0;
+}

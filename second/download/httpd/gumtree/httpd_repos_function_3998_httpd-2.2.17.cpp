@@ -1,1 +1,0 @@
-void closedirectory(directory_type *dir) {}

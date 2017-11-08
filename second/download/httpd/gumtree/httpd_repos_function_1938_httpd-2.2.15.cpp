@@ -366,4 +366,9 @@ static int authz_ldap_check_user_access(request_rec *r)
         return DECLINED;
     }
 
-    ap_log_rerror(APL
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorise: authorisation denied", getpid());
+    ap_note_basic_auth_failure (r);
+
+    return HTTP_UNAUTHORIZED;
+}

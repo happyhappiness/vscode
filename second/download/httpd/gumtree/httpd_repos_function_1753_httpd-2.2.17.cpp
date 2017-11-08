@@ -197,4 +197,28 @@ static apr_status_t xlate_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
              * current output buffer to bother with converting more data.
              */
             rv = send_downstream(f, tmp, sizeof(tmp) - space_avail);
-            if (rv != AP
+            if (rv != APR_SUCCESS) {
+                done = 1;
+            }
+
+            /* tmp is now empty */
+            space_avail = sizeof(tmp);
+        }
+    }
+
+    if (rv == APR_SUCCESS) {
+        if (space_avail < sizeof(tmp)) { /* gotta write out what we converted */
+            rv = send_downstream(f, tmp, sizeof(tmp) - space_avail);
+        }
+    }
+    if (rv == APR_SUCCESS) {
+        if (cur_len == -1) {
+            rv = send_eos(f);
+        }
+    }
+    else {
+        log_xlate_error(f, rv);
+    }
+
+    return rv;
+}

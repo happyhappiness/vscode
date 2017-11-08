@@ -308,4 +308,14 @@ static apr_status_t proxy_send_dir_filter(ap_filter_t *f,
     if (FOOTER == ctx->state) {
         str = apr_psprintf(p, "</pre>\n\n  <hr />\n\n  %s\n\n </body>\n</html>\n", ap_psignature("", r));
         APR_BRIGADE_INSERT_TAIL(out, apr_bucket_pool_create(str, strlen(str), p,
-                                                            c->buc
+                                                            c->bucket_alloc));
+        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_flush_create(c->bucket_alloc));
+        APR_BRIGADE_INSERT_TAIL(out, apr_bucket_eos_create(c->bucket_alloc));
+        if (APR_SUCCESS != (rv = ap_pass_brigade(f->next, out))) {
+            return rv;
+        }
+        apr_brigade_destroy(out);
+    }
+
+    return APR_SUCCESS;
+}
