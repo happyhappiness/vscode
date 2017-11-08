@@ -105,4 +105,32 @@ static void do_expand(request_rec *r, char *input, char *buffer, int nbuf,
         }
         else if (apr_isdigit(inp[1])) {
             int n = inp[1] - '0';
-            backre
+            backrefinfo *bri = NULL;
+            if (inp[0] == '$') {
+                /* $N RewriteRule regexp backref expansion */
+                bri = briRR;
+            }
+            else if (inp[0] == '%') {
+                /* %N RewriteCond regexp backref expansion */
+                bri = briRC;
+            }
+            /* see ap_pregsub() in src/main/util.c */
+            if (bri && n < AP_MAX_REG_MATCH
+                && bri->regmatch[n].rm_eo > bri->regmatch[n].rm_so) {
+                span = bri->regmatch[n].rm_eo - bri->regmatch[n].rm_so;
+                if (span > space) {
+                    span = space;
+                }
+                memcpy(outp, bri->source + bri->regmatch[n].rm_so, span);
+                outp += span;
+                space -= span;
+            }
+            inp += 2;
+            continue;
+        }
+        skip:
+        *outp++ = *inp++;
+        space--;
+    }
+    *outp++ = '\0';
+}

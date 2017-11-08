@@ -137,4 +137,62 @@ static int show_server_settings(request_rec * r)
 #endif
 
 #ifdef BUFFERED_LOGS
-    ap_rputs(" -D B
+    ap_rputs(" -D BUFFERED_LOGS\n", r);
+#ifdef PIPE_BUF
+    ap_rputs(" -D PIPE_BUF=%ld\n", (long) PIPE_BUF, r);
+#endif
+#endif
+
+#if APR_CHARSET_EBCDIC
+    ap_rputs(" -D APR_CHARSET_EBCDIC\n", r);
+#endif
+
+#ifdef NEED_HASHBANG_EMUL
+    ap_rputs(" -D NEED_HASHBANG_EMUL\n", r);
+#endif
+
+#ifdef SHARED_CORE
+    ap_rputs(" -D SHARED_CORE\n", r);
+#endif
+
+/* This list displays the compiled in default paths: */
+#ifdef HTTPD_ROOT
+    ap_rputs(" -D HTTPD_ROOT=\"" HTTPD_ROOT "\"\n", r);
+#endif
+
+#ifdef SUEXEC_BIN
+    ap_rputs(" -D SUEXEC_BIN=\"" SUEXEC_BIN "\"\n", r);
+#endif
+
+#if defined(SHARED_CORE) && defined(SHARED_CORE_DIR)
+    ap_rputs(" -D SHARED_CORE_DIR=\"" SHARED_CORE_DIR "\"\n", r);
+#endif
+
+#ifdef DEFAULT_PIDLOG
+    ap_rputs(" -D DEFAULT_PIDLOG=\"" DEFAULT_PIDLOG "\"\n", r);
+#endif
+
+#ifdef DEFAULT_SCOREBOARD
+    ap_rputs(" -D DEFAULT_SCOREBOARD=\"" DEFAULT_SCOREBOARD "\"\n", r);
+#endif
+
+#ifdef DEFAULT_LOCKFILE
+    ap_rputs(" -D DEFAULT_LOCKFILE=\"" DEFAULT_LOCKFILE "\"\n", r);
+#endif
+
+#ifdef DEFAULT_ERRORLOG
+    ap_rputs(" -D DEFAULT_ERRORLOG=\"" DEFAULT_ERRORLOG "\"\n", r);
+#endif
+
+
+#ifdef AP_TYPES_CONFIG_FILE
+    ap_rputs(" -D AP_TYPES_CONFIG_FILE=\"" AP_TYPES_CONFIG_FILE "\"\n", r);
+#endif
+
+#ifdef SERVER_CONFIG_FILE
+    ap_rputs(" -D SERVER_CONFIG_FILE=\"" SERVER_CONFIG_FILE "\"\n", r);
+#endif
+    ap_rputs("</tt></dt>\n", r);
+    ap_rputs("</dl><hr />", r);
+    return 0;
+}

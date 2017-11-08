@@ -180,4 +180,14 @@ static unsigned int __stdcall winnt_accept(void *lr_)
          * mpm_post_completion_context(), but why do an extra function call...
          */
         PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_CONNECTION_ACCEPTED,
-                         
+                                   &context->Overlapped);
+        context = NULL;
+    }
+    if (!shutdown_in_progress) {
+        /* Yow, hit an irrecoverable error! Tell the child to die. */
+        SetEvent(exit_event);
+    }
+    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                 "Child %lu: Accept thread exiting.", my_pid);
+    return 0;
+}

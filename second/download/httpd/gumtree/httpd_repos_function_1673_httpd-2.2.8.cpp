@@ -205,4 +205,8 @@ static apr_status_t xlate_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
         }
     }
     else {
-        log_xl
+        log_xlate_error(f, rv);
+    }
+
+    return rv;
+}

@@ -242,4 +242,8 @@ static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog,
     else
     {
        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, s, 
-                         "LDAP: SSL 
+                         "LDAP: SSL support unavailable" );
+    }
+    
+    return(OK);
+}

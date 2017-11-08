@@ -167,4 +167,30 @@ static BODY *smime_handle_entity (BODY *m, STATE *s, FILE *outFile)
   if (s->flags & M_DISPLAY)
   {
     if (type & ENCRYPT)
-      state_attach_puts (_("\n[-- End of S/M
+      state_attach_puts (_("\n[-- End of S/MIME encrypted data. --]\n"), s);
+    else
+      state_attach_puts (_("\n[-- End of S/MIME signed data. --]\n"), s);
+  }
+
+  if (type & SIGNOPAQUE)
+  {
+    char *line = NULL;
+    int lineno = 0;
+    size_t linelen;
+    
+    rewind (smimeerr);
+    
+    line = mutt_read_line (line, &linelen, smimeerr, &lineno, 0);
+    if (linelen && !ascii_strcasecmp (line, "verification successful"))
+      m->goodsig = 1;
+    FREE (&line);
+  }
+  else 
+  {
+    m->goodsig = p->goodsig;
+    m->badsig  = p->badsig;
+  }
+  safe_fclose (&smimeerr);
+
+  return (p);
+}

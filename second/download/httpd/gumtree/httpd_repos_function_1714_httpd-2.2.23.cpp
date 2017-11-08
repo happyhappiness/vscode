@@ -94,4 +94,36 @@ static apr_status_t includes_filter(ap_filter_t *f, apr_bucket_brigade *b)
     if (conf->lastmodified) {
 
         /* update the last modified if we have a valid time, and only if
-         * we don't alrea
+         * we don't already have a valid last modified.
+         */
+        if (r->finfo.valid & APR_FINFO_MTIME
+                && !apr_table_get(f->r->headers_out, "Last-Modified")) {
+            ap_update_mtime(r, r->finfo.mtime);
+            ap_set_last_modified(r);
+        }
+
+    }
+
+    /* Assure the platform supports Group protections */
+    else if (((conf->xbithack == XBITHACK_FULL)
+        && (r->finfo.valid & APR_FINFO_GPROT)
+        && (r->finfo.protection & APR_GEXECUTE))) {
+        ap_update_mtime(r, r->finfo.mtime);
+        ap_set_last_modified(r);
+    }
+    else {
+        apr_table_unset(f->r->headers_out, "Last-Modified");
+    }
+
+    /* add QUERY stuff to env cause it ain't yet */
+    if (r->args) {
+        char *arg_copy = apr_pstrdup(r->pool, r->args);
+
+        apr_table_setn(r->subprocess_env, "QUERY_STRING", r->args);
+        ap_unescape_url(arg_copy);
+        apr_table_setn(r->subprocess_env, "QUERY_STRING_UNESCAPED",
+                  ap_escape_shell_cmd(r->pool, arg_copy));
+    }
+
+    return send_parsed_content(f, b);
+}

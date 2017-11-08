@@ -227,4 +227,43 @@ ditto_request_rec:
     return OK;
 }
 
-static const command_rec remoteip_cmds[] 
+static const command_rec remoteip_cmds[] =
+{
+    AP_INIT_TAKE1("RemoteIPHeader", header_name_set, NULL, RSRC_CONF,
+                  "Specifies a request header to trust as the client IP, "
+                  "e.g. X-Forwarded-For"),
+    AP_INIT_TAKE1("RemoteIPProxiesHeader", proxies_header_name_set,
+                  NULL, RSRC_CONF,
+                  "Specifies a request header to record proxy IP's, "
+                  "e.g. X-Forwarded-By; if not given then do not record"),
+    AP_INIT_ITERATE("RemoteIPTrustedProxy", proxies_set, 0, RSRC_CONF,
+                    "Specifies one or more proxies which are trusted "
+                    "to present IP headers"),
+    AP_INIT_ITERATE("RemoteIPInternalProxy", proxies_set, (void*)1, RSRC_CONF,
+                    "Specifies one or more internal (transparent) proxies "
+                    "which are trusted to present IP headers"),
+    AP_INIT_TAKE1("RemoteIPTrustedProxyList", proxylist_read, 0,
+                  RSRC_CONF | EXEC_ON_READ,
+                  "The filename to read the list of trusted proxies, "
+                  "see the RemoteIPTrustedProxy directive"),
+    AP_INIT_TAKE1("RemoteIPInternalProxyList", proxylist_read, (void*)1,
+                  RSRC_CONF | EXEC_ON_READ,
+                  "The filename to read the list of internal proxies, "
+                  "see the RemoteIPInternalProxy directive"),
+    { NULL }
+};
+
+static void register_hooks(apr_pool_t *p)
+{
+    ap_hook_post_read_request(remoteip_modify_connection, NULL, NULL, APR_HOOK_FIRST);
+}
+
+AP_DECLARE_MODULE(remoteip) = {
+    STANDARD20_MODULE_STUFF,
+    NULL,                          /* create per-directory config structure */
+    NULL,                          /* merge per-directory config structures */
+    create_remoteip_server_config, /* create per-server config structure */
+    merge_remoteip_server_config,  /* merge per-server config structures */
+    remoteip_cmds,                 /* command apr_table_t */
+    register_hooks                 /* register hooks */
+};

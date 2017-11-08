@@ -423,9 +423,4 @@ doContent(XML_Parser parser,
     default:
       if (defaultHandler)
 	reportDefault(parser, enc, s, next);
-      break;
-    }
-    *eventPP = s = next;
-  }
-  /* not reached */
-}
+ 

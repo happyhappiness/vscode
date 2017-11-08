@@ -126,4 +126,88 @@ static void read_connection(struct connection * c)
                 *q = 0;
             }
             /*
-             * XXX: this
+             * XXX: this parsing isn't even remotely HTTP compliant... but in
+             * the interest of speed it doesn't totally have to be, it just
+             * needs to be extended to handle whatever servers folks want to
+             * test against. -djg
+             */
+
+            /* check response code */
+            part = strstr(c->cbuff, "HTTP");    /* really HTTP/1.x_ */
+            if (part && strlen(part) > strlen("HTTP/1.x_")) {
+                strncpy(respcode, (part + strlen("HTTP/1.x_")), 3);
+                respcode[3] = '\0';
+            }
+            else {
+                strcpy(respcode, "500");
+            }
+
+            if (respcode[0] != '2') {
+                err_response++;
+                if (verbosity >= 2)
+                    printf("WARNING: Response code not 2xx (%s)\n", respcode);
+            }
+            else if (verbosity >= 3) {
+                printf("LOG: Response code = %s\n", respcode);
+            }
+            c->gotheader = 1;
+            *s = 0;     /* terminate at end of header */
+            if (keepalive &&
+            (strstr(c->cbuff, "Keep-Alive")
+             || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
+                char *cl;
+                cl = strstr(c->cbuff, "Content-Length:");
+                /* handle NCSA, which sends Content-length: */
+                if (!cl)
+                    cl = strstr(c->cbuff, "Content-length:");
+                if (cl) {
+                    c->keepalive = 1;
+                    c->length = atoi(cl + 16);
+                }
+            }
+            c->bread += c->cbx - (s + l - c->cbuff) + r - tocopy;
+            totalbread += c->bread;
+        }
+    }
+    else {
+        /* outside header, everything we have read is entity body */
+        c->bread += r;
+        totalbread += r;
+    }
+
+    if (c->keepalive && (c->bread >= c->length)) {
+        /* finished a keep-alive connection */
+        good++;
+        /* save out time */
+        if (good == 1) {
+            /* first time here */
+            doclen = c->bread;
+        }
+        else if (c->bread != doclen) {
+            bad++;
+            err_length++;
+        }
+        if (done < requests) {
+            struct data s;
+            doneka++;
+            if (done && heartbeatres && !(done % heartbeatres)) {
+                fprintf(stderr, "Completed %ld requests\n", done);
+                fflush(stderr);
+            }
+            c->done = apr_time_now();
+            s.read = c->read;
+            s.starttime = c->start;
+            s.ctime = ap_max(0, (c->connect - c->start) / 1000);
+            s.waittime = ap_max(0, (c->beginread - c->endwrite) / 1000);
+            s.time = ap_max(0, (c->done - c->start) / 1000);
+            stats[done++] = s;
+        }
+        c->keepalive = 0;
+        c->length = 0;
+        c->gotheader = 0;
+        c->cbx = 0;
+        c->read = c->bread = 0;
+        c->start = c->connect = apr_time_now(); /* zero connect time with keep-alive */
+        write_request(c);
+    }
+}

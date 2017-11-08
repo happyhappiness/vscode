@@ -125,4 +125,45 @@ static int check_file_owner(request_rec *r)
             }
 
             status = apr_gid_name_get(&group, finfo.group, r->pool);
-          
+            if (status != APR_SUCCESS || !group) {
+                reason = "could not get name of file group";
+                continue;
+            }
+
+            /* store group name in a note and let others decide... */
+            apr_table_setn(r->notes, AUTHZ_GROUP_NOTE, group);
+            required_owner |= 4;
+            continue;
+#endif /* APR_HAS_USER */
+        }
+    }
+
+    if (!required_owner || !conf->authoritative) {
+        return DECLINED;
+    }
+
+    /* allow file-group passed to group db modules either if this is the
+     * only applicable requirement here or if a file-owner failed but we're
+     * not authoritative.
+     * This allows configurations like:
+     *
+     * AuthzOwnerAuthoritative Off
+     * require file-owner
+     * require file-group
+     *
+     * with the semantical meaning of "either owner or group must match"
+     * (inclusive or)
+     *
+     * [ 6 == 2 | 4; 7 == 1 | 2 | 4 ] should I use #defines instead?
+     */
+    if (required_owner == 6 || (required_owner == 7 && !conf->authoritative)) {
+        return DECLINED;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r,
+                  "Authorization of user %s to access %s failed, reason: %s",
+                  r->user, r->uri, reason ? reason : "unknown");
+
+    ap_note_auth_failure(r);
+    return HTTP_UNAUTHORIZED;
+}

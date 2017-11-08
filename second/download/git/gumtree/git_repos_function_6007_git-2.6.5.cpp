@@ -1,0 +1,1 @@
+void   nedmalloc_stats(void) THROWSPEC					{ nedpmalloc_stats(0); }

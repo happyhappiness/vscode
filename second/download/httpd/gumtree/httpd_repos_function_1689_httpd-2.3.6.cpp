@@ -106,4 +106,25 @@ static int stream_reqbody_cl(apr_pool_t *p,
                                 AP_MODE_READBYTES, APR_BLOCK_READ,
                                 HUGE_STRING_LEN);
 
-        if (stat
+        if (status != APR_SUCCESS) {
+            return HTTP_BAD_REQUEST;
+        }
+    }
+
+    if (bytes_streamed != cl_val) {
+        ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                     "proxy: client %s given Content-Length did not match"
+                     " number of body bytes read", r->connection->remote_ip);
+        return HTTP_BAD_REQUEST;
+    }
+
+    if (header_brigade) {
+        /* we never sent the header brigade since there was no request
+         * body; send it now with the flush flag
+         */
+        bb = header_brigade;
+        return(pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1));
+    }
+
+    return OK;
+}

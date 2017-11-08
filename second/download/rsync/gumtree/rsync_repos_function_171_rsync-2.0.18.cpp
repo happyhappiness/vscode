@@ -104,4 +104,37 @@ static BOOL Parameter( FILE *InFile, BOOL (*pfunc)(char *, char *), int c )
       if( NULL == bufr )
         {
         rprintf(FERROR, "%s Memory re-allocation failure.", func) ;
-        return(
+        return( False );
+        }
+      }
+
+    switch( c )
+      {
+      case '\r':              /* Explicitly remove '\r' because the older */
+        c = getc( InFile );   /* version called fgets_slash() which also  */
+        break;                /* removes them.                            */
+
+      case '\n':              /* Marks end of value unless there's a '\'. */
+        i = Continuation( bufr, i );
+        if( i < 0 )
+          c = 0;
+        else
+          {
+          for( end = i; (end >= 0) && isspace(bufr[end]); end-- )
+            ;
+          c = getc( InFile );
+          }
+        break;
+
+      default:               /* All others verbatim.  Note that spaces do */
+        bufr[i++] = c;       /* not advance <end>.  This allows trimming  */
+        if( !isspace( c ) )  /* of whitespace at the end of the line.     */
+          end = i;
+        c = getc( InFile );
+        break;
+      }
+    }
+  bufr[end] = '\0';          /* End of value. */
+
+  return( pfunc( bufr, &bufr[vstart] ) );   /* Pass name & value to pfunc().  */
+  }

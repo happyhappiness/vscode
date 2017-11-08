@@ -132,4 +132,48 @@ static int dav_handler(request_rec *r)
     }
 
     if (r->method_number == M_CHECKIN) {
-        return dav_method_che
+        return dav_method_checkin(r);
+    }
+
+    if (r->method_number == M_UPDATE) {
+        return dav_method_update(r);
+    }
+
+    if (r->method_number == M_LABEL) {
+        return dav_method_label(r);
+    }
+
+    if (r->method_number == M_REPORT) {
+        return dav_method_report(r);
+    }
+
+    if (r->method_number == M_MKWORKSPACE) {
+        return dav_method_make_workspace(r);
+    }
+
+    if (r->method_number == M_MKACTIVITY) {
+        return dav_method_make_activity(r);
+    }
+
+    if (r->method_number == M_BASELINE_CONTROL) {
+        return dav_method_baseline_control(r);
+    }
+
+    if (r->method_number == M_MERGE) {
+        return dav_method_merge(r);
+    }
+
+    /* BIND method */
+    if (r->method_number == dav_methods[DAV_M_BIND]) {
+        return dav_method_bind(r);
+    }
+
+    /* DASL method */
+    if (r->method_number == dav_methods[DAV_M_SEARCH]) {
+        return dav_method_search(r);
+    }
+
+    /* ### add'l methods for Advanced Collections, ACLs */
+
+    return DECLINED;
+}

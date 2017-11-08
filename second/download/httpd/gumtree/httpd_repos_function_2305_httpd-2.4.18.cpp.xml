@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2305_httpd-2.4.18.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">workers_register<pos:position pos:line="1" pos:column="29"/></name><parameter_list pos:line="1" pos:column="29">(<parameter><decl><type><name pos:line="1" pos:column="30">h2_mplx<pos:position pos:line="1" pos:column="37"/></name> <modifier pos:line="1" pos:column="38">*<pos:position pos:line="1" pos:column="39"/></modifier></type><name pos:line="1" pos:column="39">m<pos:position pos:line="1" pos:column="40"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="41"/></parameter_list> <block pos:line="1" pos:column="42">{
+    <comment type="block" pos:line="2" pos:column="5">/* Initially, there was ref count increase for this as well, but
+     * this is not needed, even harmful.
+     * h2_workers is only a hub for all the h2_worker instances.
+     * At the end-of-life of this h2_mplx, we always unregister at
+     * the workers. The thing to manage are all the h2_worker instances
+     * out there. Those may hold a reference to this h2_mplx and we cannot
+     * call them to unregister.
+     * 
+     * Therefore: ref counting for h2_workers in not needed, ref counting
+     * for h2_worker using this is critical.
+     */</comment>
+    <expr_stmt><expr><call><name pos:line="13" pos:column="5">h2_workers_register<pos:position pos:line="13" pos:column="24"/></name><argument_list pos:line="13" pos:column="24">(<argument><expr><name><name pos:line="13" pos:column="25">m<pos:position pos:line="13" pos:column="26"/></name><operator pos:line="13" pos:column="26">-&gt;<pos:position pos:line="13" pos:column="31"/></operator><name pos:line="13" pos:column="28">workers<pos:position pos:line="13" pos:column="35"/></name></name></expr></argument>, <argument><expr><name pos:line="13" pos:column="37">m<pos:position pos:line="13" pos:column="38"/></name></expr></argument>)<pos:position pos:line="13" pos:column="39"/></argument_list></call></expr>;<pos:position pos:line="13" pos:column="40"/></expr_stmt>
+}<pos:position pos:line="14" pos:column="2"/></block></function></unit>

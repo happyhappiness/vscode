@@ -110,4 +110,56 @@ storeEntityValue(XML_Parser parser,
               result = XML_ERROR_NO_MEMORY;
         goto endEntityValue;
       }
-      *(pool->ptr)++ = 0
+      *(pool->ptr)++ = 0xA;
+      break;
+    case XML_TOK_CHAR_REF:
+      {
+        XML_Char buf[XML_ENCODE_MAX];
+        int i;
+        int n = XmlCharRefNumber(enc, entityTextPtr);
+        if (n < 0) {
+          if (enc == encoding)
+            eventPtr = entityTextPtr;
+          result = XML_ERROR_BAD_CHAR_REF;
+          goto endEntityValue;
+        }
+        n = XmlEncode(n, (ICHAR *)buf);
+        if (!n) {
+          if (enc == encoding)
+            eventPtr = entityTextPtr;
+          result = XML_ERROR_BAD_CHAR_REF;
+          goto endEntityValue;
+        }
+        for (i = 0; i < n; i++) {
+          if (pool->end == pool->ptr && !poolGrow(pool)) {
+            result = XML_ERROR_NO_MEMORY;
+            goto endEntityValue;
+          }
+          *(pool->ptr)++ = buf[i];
+        }
+      }
+      break;
+    case XML_TOK_PARTIAL:
+      if (enc == encoding)
+        eventPtr = entityTextPtr;
+      result = XML_ERROR_INVALID_TOKEN;
+      goto endEntityValue;
+    case XML_TOK_INVALID:
+      if (enc == encoding)
+        eventPtr = next;
+      result = XML_ERROR_INVALID_TOKEN;
+      goto endEntityValue;
+    default:
+      if (enc == encoding)
+        eventPtr = entityTextPtr;
+      result = XML_ERROR_UNEXPECTED_STATE;
+      goto endEntityValue;
+    }
+    entityTextPtr = next;
+  }
+endEntityValue:
+#ifdef XML_DTD
+  prologState.inEntityValue = oldInEntityValue;
+#endif /* XML_DTD */
+  return result;
+}

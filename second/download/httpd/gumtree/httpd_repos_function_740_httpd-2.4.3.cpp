@@ -103,4 +103,12 @@ static apr_status_t ssl_io_filter_input(ap_filter_t *f,
         return ssl_io_filter_error(f, bb, status);
     }
 
-    /* Create a transie
+    /* Create a transient bucket out of the decrypted data. */
+    if (len > 0) {
+        apr_bucket *bucket =
+            apr_bucket_transient_create(start, len, f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, bucket);
+    }
+
+    return APR_SUCCESS;
+}

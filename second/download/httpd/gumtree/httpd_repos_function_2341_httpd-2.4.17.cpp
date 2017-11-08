@@ -1,0 +1,13 @@
+static apr_status_t h2_filter_stream_input(ap_filter_t* filter,
+                                           apr_bucket_brigade* brigade,
+                                           ap_input_mode_t mode,
+                                           apr_read_type_e block,
+                                           apr_off_t readbytes) {
+    h2_task_env *env = filter->ctx;
+    AP_DEBUG_ASSERT(env);
+    if (!env->input) {
+        return APR_ECONNABORTED;
+    }
+    return h2_task_input_read(env->input, filter, brigade,
+                              mode, block, readbytes);
+}

@@ -1,0 +1,1 @@
+struct mallinfo nedmallinfo(void) THROWSPEC			{ return nedpmallinfo(0); }

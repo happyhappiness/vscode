@@ -99,4 +99,12 @@ static int dav_method_delete(request_rec *r)
                              "The DELETE was successful, but there "
                              "was a problem automatically checking in "
                              "the parent collection.",
-                           
+                             err2);
+        dav_log_err(r, err, APLOG_WARNING);
+    }
+
+    /* ### HTTP_NO_CONTENT if no body, HTTP_OK if there is a body (some day) */
+
+    /* Apache will supply a default error for this. */
+    return HTTP_NO_CONTENT;
+}

@@ -124,4 +124,12 @@ start_over:
             {
                 util_ald_cache_insert(curl->dn_compare_cache, &newnode);
             }
-            LDAP_CACHE_UNL
+            LDAP_CACHE_UNLOCK();
+        }
+        ldc->reason = "DN Comparison TRUE (checked on server)";
+        result = LDAP_COMPARE_TRUE;
+    }
+    ldap_memfree(searchdn);
+    return result;
+
+}

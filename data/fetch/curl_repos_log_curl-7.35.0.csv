@@ -1,0 +1,164 @@
+file,function,loc,log,check,variable
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/docs/examples/debug.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_90_curl-7.35.0.cpp,27,"fputs(""   "", stream)","[""size_t"", ""size_t"", ""size_t""]","[""fprintf_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/docs/examples/multi-debugcallback.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_93_curl-7.35.0.cpp,27,"fputs(""   "", stream)","[""size_t"", ""size_t"", ""size_t""]","[""fprintf_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/docs/examples/sendrecv.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_236_curl-7.35.0.cpp,45,"puts(""Sending request."")","[""curl_easy_init_ret""]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/docs/examples/sendrecv.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_236_curl-7.35.0.cpp,55,"puts(""Reading response."")","[""curl_easy_init_ret""]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/packages/OS400/ccsidcurl.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_351_curl-7.35.0.cpp,24,"curl_mfprintf(stderr,
+       ""*** WARNING: curl_easy_setopt_ccsid() should be reworked ***\n"")","[null, null, null, null]",[null]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/packages/vms/report_openssl_version.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_353_curl-7.35.0.cpp,8,"puts(""report_openssl_version filename"")","[""int""]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/packages/vms/report_openssl_version.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_353_curl-7.35.0.cpp,25,"puts(""Unable to lookup version of OpenSSL"")","[null, ""(_ret"", null]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/packages/vms/report_openssl_version.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_353_curl-7.35.0.cpp,31,puts(version),"[null, ""(_ret"", null]","[""ssl_version_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/tests/libtest/lib552.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_437_curl-7.35.0.cpp,26,"fputs(""   "", stream)","[""size_t"", ""size_t"", ""size_t""]","[""fprintf_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/tests/server/sws.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_586_curl-7.35.0.cpp,97,"puts(""Usage: sws [option]\n""
+           "" --version\n""
+           "" --logfile [file]\n""
+           "" --pidfile [file]\n""
+           "" --ipv4\n""
+           "" --ipv6\n""
+           "" --port [port]\n""
+           "" --srcdir [path]\n""
+           "" --connect [ip4-addr]\n""
+           "" --gopher"")","[""strcmp_ret""]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/tests/server/tftpd.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_601_curl-7.35.0.cpp,75,"puts(""Usage: tftpd [option]\n""
+           "" --version\n""
+           "" --logfile [file]\n""
+           "" --pidfile [file]\n""
+           "" --ipv4\n""
+           "" --ipv6\n""
+           "" --port [port]\n""
+           "" --srcdir [path]"")","[""strcmp_ret""]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/tests/server/resolve.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_608_curl-7.35.0.cpp,33,"puts(""Usage: resolve [option] <host>\n""
+         "" --version\n""
+         "" --ipv4""
+#ifdef ENABLE_IPV6
+         ""\n --ipv6""
+#endif
+         )","[""gethostbyname_arg""]",[null]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/tests/server/resolve.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_608_curl-7.35.0.cpp,82,"puts(""IPv6 support has been disabled in this program"")",[null],[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/tests/server/rtspd.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_626_curl-7.35.0.cpp,75,"puts(""Usage: rtspd [option]\n""
+           "" --version\n""
+           "" --logfile [file]\n""
+           "" --pidfile [file]\n""
+           "" --ipv4\n""
+           "" --ipv6\n""
+           "" --port [port]\n""
+           "" --srcdir [path]"")","[""strcmp_ret""]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/tests/server/sockfilt.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_641_curl-7.35.0.cpp,99,"puts(""Usage: sockfilt [option]\n""
+           "" --version\n""
+           "" --verbose\n""
+           "" --logfile [file]\n""
+           "" --pidfile [file]\n""
+           "" --ipv4\n""
+           "" --ipv6\n""
+           "" --bindonly\n""
+           "" --port [port]\n""
+           "" --connect [port]\n""
+           "" --addr [address]"")","[""strcmp_ret""]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/tests/server/fake_ntlm.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_643_curl-7.35.0.cpp,41,"puts(""Usage: fake_ntlm [option]\n""
+           "" --use-cached-creds\n""
+           "" --helper-protocol [protocol]\n""
+           "" --username [username]\n""
+           "" --domain [domain]"")","[""strcmp_ret""]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_msgs.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_716_curl-7.35.0.cpp,14,"fputs(WARN_PREFIX, config->errors)","["" struct Configurable"", null]","[null, "" struct Configurable"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_msgs.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_716_curl-7.35.0.cpp,28,"fputs(""\n"", config->errors)","[""vsnprintf_ret"", null, null]","["" struct Configurable"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_msgs.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_716_curl-7.35.0.cpp,33,"fputs(ptr, config->errors)","[""vsnprintf_ret"", null, null]","[""fwrite_arg_ret"", "" struct Configurable"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_msgs.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_717_curl-7.35.0.cpp,5,"fputs(""curl: "", errors)","[""va_start_arg""]","[""vfprintf_arg""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_paramhlp.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_734_curl-7.35.0.cpp,88,"warnf(config, ""unrecognized protocol '%s'\n"", token)","["" struct sprotos"", ""char""]","["" struct Configurable"", ""curlx_raw_equal_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,153,"warnf(config, ""--trace overrides an earlier trace/verbose option\n"")","[""new_getout_arg"", null, ""new_getout_arg"", null, null]","[""new_getout_arg""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,159,"warnf(config,
+                ""--trace-ascii overrides an earlier trace/verbose option\n"")","[""new_getout_arg"", null, ""new_getout_arg"", null, null]","[""new_getout_arg""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,192,"warnf(config, ""unsupported rate unit. Use G, M, K or B!\n"")","[""strlen_arg_ret""]","[""new_getout_arg""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,302,"warnf(config, ""Failed to open %s!\n"", nextarg)","[""fopen_ret""]","[""new_getout_arg"", ""fopen_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,454,"warnf(config, ""bad range input\n"")","[""ftpfilemethod_arg_ret"", null]","[""ftpfilemethod_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,486,"warnf(config,
+              ""--libcurl option was disabled at build-time!\n"")","[""char""]","[""ftpcccmethod_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,574,"warnf(config,
+                  ""--metalink option cannot be used because the version of ""
+                  ""the linked libmetalink library is too old. ""
+                  ""Required: %d.%d.%d, found %d.%d.%d\n"",
+                  CURL_REQ_LIBMETALINK_MAJOR,
+                  CURL_REQ_LIBMETALINK_MINOR,
+                  CURL_REQ_LIBMETALINK_PATCH,
+                  mlmaj, mlmin, mlpatch)","[""int"", ""int"", ""int"", null]","[""delegation_arg_ret"", null, null, null, ""int"", ""int"", ""int""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,587,"warnf(config, ""--metalink option is ignored because the binary is ""
+                ""built without the Metalink support.\n"")","[""char""]","[""delegation_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,599,"warnf(config, ""--test-event is ignored unless a debug build!\n"")","[""char""]","[""delegation_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,746,"warnf(config,
+                    ""Couldn't read data from file \""%s\"", this makes ""
+                    ""an empty POST.\n"", nextarg)","[""fopen_ret""]","[""delegation_arg_ret"", ""strchr_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,812,"warnf(config, ""Couldn't read data from file \""%s\"", this makes ""
+                  ""an empty POST.\n"", nextarg)","[""fopen_ret""]","[""delegation_arg_ret"", ""fopen_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,1049,"warnf(config,
+              ""--include and --remote-header-name cannot be combined.\n"")","[""SetHTTPrequest_arg_ret"", null]","[""SetHTTPrequest_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,1060,"warnf(config, ""error trying read config from the '%s' file\n"",
+              nextarg)","[""parseconfig_ret""]","[""parseconfig_arg_ret"", ""parseconfig_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,1088,"warnf(config,
+              ""built-in manual was disabled at build-time!\n"")","[""bool""]","[""parseconfig_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,1207,"warnf(config,
+              ""A specified range MUST include at least one dash (-). ""
+              ""Appending one for you!\n"")","[""ISDIGIT_ret"", ""strchr_ret""]","[""new_getout_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,1223,"warnf(config,""Invalid character is found in given range. ""
+                  ""A specified range MUST have only digits in ""
+                  ""\'start\'-\'stop\'. The server's response to this ""
+                  ""request is uncertain.\n"")","[""ISDIGIT_ret"", ""ISDIGIT_arg_ret"", ""ISDIGIT_arg_ret""]","[""new_getout_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,1312,"warnf(config,
+                ""-v, --verbose overrides an earlier trace/verbose option\n"")","[""new_getout_arg_ret"", null, ""new_getout_arg_ret"", null, null]","[""new_getout_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,1334,"puts("""")","[null, null]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,1346,"puts("""")","[null, null]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,1372,"warnf(config, ""Failed to read %s"", fname)","[""new_getout_arg_ret"", null]","[""new_getout_arg_ret"", ""char""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getparam.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_743_curl-7.35.0.cpp,1429,"warnf(config,
+                ""Illegal date format for -z, --timecond (and not ""
+                ""a file name). Disabling time condition. ""
+                ""See curl_getdate(3) for valid date syntax.\n"")","[""stat_ret""]","[""new_getout_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_operate.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_747_curl-7.35.0.cpp,272,"warnf(config, ""Failed to open %s\n"", config->headerfile)","[""fopen_ret""]","[""SetHTTPrequest_arg_ret"", ""SetHTTPrequest_arg_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_operate.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_747_curl-7.35.0.cpp,517,"warnf(config, ""bad output glob!\n"")","[""glob_match_url_ret""]","[""SetHTTPrequest_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_operate.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_747_curl-7.35.0.cpp,662,"warnf(config,
+                  ""Using --anyauth or --proxy-anyauth with upload from stdin""
+                  "" involves a big risk of it not working. Use a temporary""
+                  "" file or a fixed auth type instead!\n"")","[""SetHTTPrequest_arg_ret"", null, ""int""]","[""SetHTTPrequest_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_operate.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_747_curl-7.35.0.cpp,674,"warnf(config,
+                    ""fcntl failed on fd=%d: %s\n"", infd, strerror(errno))","[""curlx_nonblock_ret""]","[""strerror_ret"", ""SetHTTPrequest_arg_ret"", ""open_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_operate.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_747_curl-7.35.0.cpp,1188,"warnf(config, ""Keep-alive functionality somewhat crippled due to ""
+                ""missing support in your operating system!\n"")","[""my_setopt_arg_ret"", null]","[""my_setopt_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_operate.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_747_curl-7.35.0.cpp,1378,"warnf(config, ""Transient problem: %s ""
+                    ""Will retry in %ld seconds. ""
+                    ""%ld retries left.\n"",
+                    m[retry], retry_sleep/1000L, retry_numretries)",[null],"[""my_setopt_arg_ret"", null, null, ""tool_go_sleep_arg"", ""long""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_operate.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_747_curl-7.35.0.cpp,1469,"fputs(""\n"", progressbar.out)","[""my_setopt_arg_ret"", null, null, "" struct ProgressData"", null]","["" struct ProgressData"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_operate.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_747_curl-7.35.0.cpp,1521,"warnf(config, ""Error setting extended attributes: %s\n"",
+                  strerror(errno))","[""fwrite_xattr_ret""]","[""strerror_ret"", ""my_setopt_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_operhlp.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_752_curl-7.35.0.cpp,4,"puts(""  <none>"")","["" struct curl_slist""]",[]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_parsecfg.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_793_curl-7.35.0.cpp,158,"warnf(config, ""%s:%d: warning: '%s' uses unquoted white space in the""
+                "" line that may cause side-effects!\n"",
+                filename, lineno, option)","[""ISSPACE_arg_ret""]","[""getparameter_arg"", ""fopen_arg_ret"", ""int"", ""fprintf_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_parsecfg.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_793_curl-7.35.0.cpp,188,"warnf(config, ""%s:%d: warning: '%s' %s\n"",
+                filename, lineno, option, reason)","[null, ""getparameter_ret""]","[""getparameter_arg_ret"", ""strcmp_arg_ret"", ""int"", ""getparameter_arg_ret"", ""param2text_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_easysrc.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_802_curl-7.35.0.cpp,15,"warnf(config, ""Failed to open %s to write libcurl code!\n"", o)","[""fopen_ret""]","["" struct Configurable"", ""fopen_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_cb_dbg.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_803_curl-7.35.0.cpp,47,"warnf(config, ""Failed to create/open output"")","[""fprintf_arg""]","["" struct Configurable""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_cb_dbg.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_804_curl-7.35.0.cpp,25,"fputs(""   "", stream)","[""size_t"", ""size_t"", ""size_t""]","[""fprintf_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_formparse.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_806_curl-7.35.0.cpp,66,"warnf(config, ""Illegally formatted content-type field!\n"")","[""sscanf_ret""]","["" struct Configurable""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_formparse.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_806_curl-7.35.0.cpp,106,"warnf(config, ""skip unknown form field: %s\n"", unknown)","[""get_param_word_ret""]","["" struct Configurable"", ""get_param_word_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_formparse.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_806_curl-7.35.0.cpp,117,"warnf(config, ""Error building form post!\n"")","[""AddMultiFiles_ret"", ""AddMultiFiles_arg_ret""]","["" struct Configurable""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_formparse.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_806_curl-7.35.0.cpp,151,"warnf(config, ""curl_formadd failed!\n"")","[""curl_formadd_ret""]","["" struct Configurable""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_formparse.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_806_curl-7.35.0.cpp,183,"warnf(config, ""curl_formadd failed, possibly the file %s is bad!\n"",
+                contp+1)","[""curl_formadd_ret""]","["" struct Configurable"", ""strstr_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_formparse.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_806_curl-7.35.0.cpp,192,"warnf(config, ""curl_formadd failed!\n"")","[""convert_to_network_ret"", ""strlen_ret""]","["" struct Configurable""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_formparse.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_806_curl-7.35.0.cpp,203,"warnf(config, ""curl_formadd failed!\n"")","[""curl_formadd_ret""]","["" struct Configurable""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_formparse.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_806_curl-7.35.0.cpp,212,"warnf(config, ""Illegally formatted input field!\n"")","[""sscanf_ret"", ""strchr_ret"", ""sscanf_ret"", null]","["" struct Configurable""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_writeout.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_807_curl-7.35.0.cpp,33,"fputs(stringp, stream)","[""curl_easy_getinfo_ret"", null, ""curl_easy_getinfo_arg_ret""]","[""curl_easy_getinfo_arg_ret"", ""fputc_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_writeout.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_807_curl-7.35.0.cpp,132,"fputs(stringp, stream)","[""curl_easy_getinfo_ret"", null, ""curl_easy_getinfo_arg_ret""]","[""curl_easy_getinfo_arg_ret"", ""fprintf_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_writeout.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_807_curl-7.35.0.cpp,138,"fputs(stringp, stream)","[""curl_easy_getinfo_ret"", null, ""curl_easy_getinfo_arg_ret""]","[""curl_easy_getinfo_arg_ret"", ""fprintf_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_writeout.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_807_curl-7.35.0.cpp,144,"fputs(stringp, stream)","[""curl_easy_getinfo_ret"", null, ""curl_easy_getinfo_arg_ret""]","[""curl_easy_getinfo_arg_ret"", ""fprintf_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/src/tool_getpass.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_822_curl-7.35.0.cpp,21,"fputs(""\n"", stderr)","[""ttyecho_ret""]",[null]
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/lib/krb5.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_929_curl-7.35.0.cpp,56,"Curl_failf(data, ""Error importing service name %s"",
+                   input_buffer.value)","[""snprintf_arg_ret"", ""char""]","[""Curl_infof_arg"", ""gss_buffer_desc"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/lib/krb5.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_929_curl-7.35.0.cpp,131,"Curl_failf(data,""base64-decoding: %s"", curl_easy_strerror(result))","[""Curl_base64_decode_ret""]","[""curl_easy_strerror_ret"", ""Curl_infof_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/lib/mprintf.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_1070_curl-7.35.0.cpp,341,"curl_msnprintf(fptr, left, ""%ld"", width)","[""long""]","[""OUTCHAR_arg"", ""strlen_ret"", ""long""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/lib/mprintf.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_1070_curl-7.35.0.cpp,347,"curl_msnprintf(fptr, left, "".%ld"", prec)","[""long""]","[""OUTCHAR_arg"", ""strlen_ret"", ""long""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/lib/netrc.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_1412_curl-7.35.0.cpp,36,"curl_maprintf(""%s%s%s"", home, DIR_CHAR, NETRC)","[""fopen_arg""]","[""curl_getenv_ret"", null, null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/lib/x509asn1.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_1581_curl-7.35.0.cpp,30,"curl_maprintf(""%lu"", len)","[""infof_arg_ret"", null, null, null]","[""unsigned long""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/lib/x509asn1.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_1582_curl-7.35.0.cpp,51,"curl_maprintf(""%lx"", version)","[""infof_arg_ret"", null, null, null]","[""infof_arg""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/repos/curl-7.35.0/lib/cookie.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_1740_curl-7.35.0.cpp,28,"fputs(""# Netscape HTTP Cookie File\n""
+          ""# http://curl.haxx.se/docs/http-cookies.html\n""
+          ""# This file was generated by libcurl! Edit at your own risk.\n\n"",
+          out)","[""remove_expired_arg_ret""]","[""fopen_ret""]"

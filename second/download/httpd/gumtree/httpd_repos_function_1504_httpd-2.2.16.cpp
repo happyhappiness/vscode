@@ -112,10 +112,4 @@ static const char *
 
         for (i = 0; i < arr->nelts; i++) {
             const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
-                                               elts[i].val);
-            if (err)
-                return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
-        }
-    }
-    return NULL;
-}
+                                         

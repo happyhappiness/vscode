@@ -28,8 +28,8 @@ def regenerate_rule(reanalyze_gumtree=False):
     @ return nothing \n
     @ involve call analyze old new and cluster to generate rule(srcml update)\n
     """
-    # analyze_control_old_new.analyze_old_new(reanalyze_gumtree)
-    # analyze_control_old_new_cluster.cluster()
+    analyze_control_old_new.analyze_old_new(reanalyze_gumtree)
+    analyze_control_old_new_cluster.cluster()
     analyze_control_old_new_cluster.generate_class()
 
     # close jvm
@@ -79,7 +79,7 @@ def seek_clone_for_corresponding_repos(repos_list, reanalyze_rule=False, reanaly
         # update repos value of my constant
         my_constant.reset_repos(repos)
         if reanalyze_rule:
-            regenerate_rule(reanalyze_gumtree)
+             .(reanalyze_gumtree)
         # seek clone
         analyze_control_clone.seek_clone_for_corresponding_repos(reanalyze_repos)
 
@@ -103,10 +103,10 @@ if __name__ == "__main__":
     reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync']
     repos_names = ['httpd-2.3.8', 'git-2.6.7', 'mutt-1.7.2', 'curl-7.41.0', 'rsync-1.4.4']
     # seek_clone_for_given_repos(reposes, repos_names)
-    seek_clone_for_corresponding_repos(reposes, True, True, False)
+    # seek_clone_for_corresponding_repos(reposes, False, True, False)
     # seek_clone_for_corresponding_repos(reposes[1:2], False, True, False)
     # seek_clone_for_corresponding_repos(reposes[4:], True, True, True)
-    # seek_clone_for_lastest_repos(reposes, False, True, False)
+    seek_clone_for_lastest_repos(reposes, False, True, False)
 
     # regenerate_hunk(reposes[0:5])
     # do_statistics(reposes)

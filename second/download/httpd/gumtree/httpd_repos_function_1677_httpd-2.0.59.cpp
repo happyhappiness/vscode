@@ -91,4 +91,40 @@ static int find_code_page(request_rec *r)
 
     reqinfo->dc = dc;
     output_ctx->dc = dc;
-    ap_set_module_config(r->request_conf
+    ap_set_module_config(r->request_config, &charset_lite_module, reqinfo);
+
+    reqinfo->output_ctx = output_ctx;
+    rv = apr_xlate_open(&output_ctx->xlate, 
+                        dc->charset_default, dc->charset_source, r->pool);
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                      "can't open translation %s->%s",
+                      dc->charset_source, dc->charset_default);
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    switch (r->method_number) {
+    case M_PUT:
+    case M_POST:
+        /* Set up input translation.  Note: A request body can be included 
+         * with the OPTIONS method, but for now we don't set up translation 
+         * of it.
+         */
+        input_ctx = apr_pcalloc(r->pool, sizeof(charset_filter_ctx_t));
+        input_ctx->bb = apr_brigade_create(r->pool,
+                                           r->connection->bucket_alloc);
+        input_ctx->tmp = apr_palloc(r->pool, INPUT_XLATE_BUF_SIZE);
+        input_ctx->dc = dc;
+        reqinfo->input_ctx = input_ctx;
+        rv = apr_xlate_open(&input_ctx->xlate, dc->charset_source, 
+                            dc->charset_default, r->pool);
+        if (rv != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                          "can't open translation %s->%s",
+                          dc->charset_default, dc->charset_source);
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+
+    return DECLINED;
+}

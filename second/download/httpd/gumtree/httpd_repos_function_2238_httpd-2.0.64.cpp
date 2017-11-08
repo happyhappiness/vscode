@@ -109,4 +109,63 @@ static void *worker_thread(apr_thread_t *thd, void *arg)
             }
             if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(process_accept_mutex)))
                 != APR_SUCCESS) {
-              
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                             "apr_proc_mutex_unlock failed. Attempting to shutdown "
+                             "process gracefully.");
+                workers_may_exit = 1;
+            }
+            apr_thread_mutex_unlock(thread_accept_mutex);
+            apr_thread_mutex_lock(idle_thread_count_mutex);
+            if (idle_thread_count > min_spare_threads) {
+                idle_thread_count--;
+            }
+            else {
+                if (!start_thread()) {
+                    idle_thread_count--;
+                }
+            }
+            apr_thread_mutex_unlock(idle_thread_count_mutex);
+            if (setjmp(jmpbuffer) != 1) {
+                process_socket(ptrans, csd, conn_id, bucket_alloc);
+            }
+            else {
+                thread_socket_table[thread_num] = AP_PERCHILD_THISCHILD;
+            }  
+            requests_this_child--;
+        }
+        else {
+            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(process_accept_mutex)))
+                != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                             "apr_proc_mutex_unlock failed. Attempting to shutdown "
+                             "process gracefully.");
+                workers_may_exit = 1;
+            }
+            apr_thread_mutex_unlock(thread_accept_mutex);
+            apr_thread_mutex_lock(idle_thread_count_mutex);
+            idle_thread_count--;
+            apr_thread_mutex_unlock(idle_thread_count_mutex);
+        break;
+        }
+        apr_pool_clear(ptrans);
+    }
+
+    apr_thread_mutex_lock(thread_pool_parent_mutex);
+    ap_update_child_status_from_indexes(child_num, thread_num, SERVER_DEAD,
+                                        (request_rec *) NULL);
+    apr_pool_destroy(tpool);
+    apr_thread_mutex_unlock(thread_pool_parent_mutex);
+    apr_thread_mutex_lock(worker_thread_count_mutex);
+    worker_thread_count--;
+    worker_thread_free_ids[worker_thread_count] = thread_num;
+    if (worker_thread_count == 0) {
+        /* All the threads have exited, now finish the shutdown process
+         * by signalling the sigwait thread */
+        kill(my_pid, SIGTERM);
+    }
+    apr_thread_mutex_unlock(worker_thread_count_mutex);
+
+    apr_bucket_alloc_destroy(bucket_alloc);
+
+    return NULL;
+}

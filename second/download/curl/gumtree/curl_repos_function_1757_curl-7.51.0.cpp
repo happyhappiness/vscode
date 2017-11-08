@@ -145,9 +145,4 @@ static CURLcode dict_do(struct connectdata *conn, bool *done)
         return result;
       }
 
-      Curl_setup_transfer(conn, FIRSTSOCKET, -1, FALSE, bytecount, -1, NULL);
-    }
-  }
-
-  return CURLE_OK;
-}
+      Curl_setup_tra

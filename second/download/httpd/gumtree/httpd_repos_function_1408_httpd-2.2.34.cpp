@@ -137,4 +137,19 @@ static apr_status_t parse_chunk_size(http_ctx_t *ctx, const char *buffer,
                 return APR_ENOSPC;
             }
         }
- 
+        else {
+            /* Should not happen */
+            return APR_EGENERAL;
+        }
+
+        i++;
+    }
+
+    /* sanity check */
+    ctx->chunk_used += len;
+    if (ctx->chunk_used < 0 || ctx->chunk_used > linelimit) {
+        return APR_ENOSPC;
+    }
+
+    return APR_SUCCESS;
+}

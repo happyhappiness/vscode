@@ -114,4 +114,10 @@ static dav_error * dav_fs_move_resource(
     return dav_push_error(srcinfo->pool,
                           HTTP_INTERNAL_SERVER_ERROR, 0,
                           "The resource was moved, but a failure "
-                          "
+                          "occurred during the move of its properties. "
+                          "The resource was moved back to its original "
+                          "location, but its properties may have been "
+                          "partially moved. The server may be in an "
+                          "inconsistent state.",
+                          err);
+}

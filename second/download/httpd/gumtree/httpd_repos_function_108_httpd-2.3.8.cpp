@@ -150,11 +150,4 @@ int main(int argc, const char * const argv[])
                 apr_socket_close(skt);
             }
         } else {
-            exit_error(rv, "apr_proc_fork");
-        }
-    }
-
-#endif
-
-    return EXIT_SUCCESS;
-}
+            exit_error(rv, "ap

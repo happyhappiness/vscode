@@ -121,4 +121,19 @@ do_select:
     (*len) = parms.bytes_sent;
 
 #if 0
-    /* Cl
+    /* Clean up after ourselves */
+    if(hbuf) free(hbuf);
+    if(tbuf) free(tbuf);
+#endif
+
+    if (rv == -1) {
+        return errno;
+    }
+
+    if (apr_is_option_set(sock->netmask, APR_SO_TIMEOUT) &&
+        (parms.bytes_sent < (parms.file_bytes + parms.header_length + parms.trailer_length))) {
+        sock->netmask |= APR_INCOMPLETE_WRITE;
+    }
+
+    return APR_SUCCESS;
+}

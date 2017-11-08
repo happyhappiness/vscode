@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_827_git-2.9.5.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">notify_parent<pos:position pos:line="1" pos:column="26"/></name><parameter_list pos:line="1" pos:column="26">(<parameter><decl><type><name pos:line="1" pos:column="27">void<pos:position pos:line="1" pos:column="31"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="32"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+	<comment type="block" pos:line="3" pos:column="9">/*
+	 * execvp failed.  If possible, we'd like to let start_command
+	 * know, so failures like ENOENT can be handled right away; but
+	 * otherwise, finish_command will still report the error.
+	 */</comment>
+	<expr_stmt><expr><call><name pos:line="8" pos:column="9">xwrite<pos:position pos:line="8" pos:column="15"/></name><argument_list pos:line="8" pos:column="15">(<argument><expr><name pos:line="8" pos:column="16">child_notifier<pos:position pos:line="8" pos:column="30"/></name></expr></argument>, <argument><expr><literal type="string" pos:line="8" pos:column="32">""<pos:position pos:line="8" pos:column="34"/></literal></expr></argument>, <argument><expr><literal type="number" pos:line="8" pos:column="36">1<pos:position pos:line="8" pos:column="37"/></literal></expr></argument>)<pos:position pos:line="8" pos:column="38"/></argument_list></call></expr>;<pos:position pos:line="8" pos:column="39"/></expr_stmt>
+}<pos:position pos:line="9" pos:column="2"/></block></function></unit>

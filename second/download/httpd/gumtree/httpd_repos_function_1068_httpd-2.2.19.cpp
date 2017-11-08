@@ -111,4 +111,31 @@ static int fixup_dir(request_rec *r)
             r->headers_out = apr_table_overlay(r->pool, r->headers_out,
                                                rr->headers_out);
             r->err_headers_out = apr_table_overlay(r->pool, r->err_headers_out,
-                                   
+                                                   rr->err_headers_out);
+            return error_notfound;
+        }
+
+        /* If the request returned something other than 404 (or 200),
+         * it means the module encountered some sort of problem. To be
+         * secure, we should return the error, rather than allow autoindex
+         * to create a (possibly unsafe) directory index.
+         *
+         * So we store the error, and if none of the listed files
+         * exist, we return the last error response we got, instead
+         * of a directory listing.
+         */
+        if (rr->status && rr->status != HTTP_NOT_FOUND
+                && rr->status != HTTP_OK) {
+            error_notfound = rr->status;
+        }
+
+        ap_destroy_sub_req(rr);
+    }
+
+    if (error_notfound) {
+        return error_notfound;
+    }
+
+    /* nothing for us to do, pass on through */
+    return DECLINED;
+}

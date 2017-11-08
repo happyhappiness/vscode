@@ -146,4 +146,66 @@ static char *ap_ssi_parse_string(include_ctx_t *ctx, const char *in, char *out,
                     }
                 }
 
-                p = new
+                p = newp;
+            }
+        }
+
+        if ((out && out >= eout) || (length && outlen >= length)) {
+            break;
+        }
+
+        /* check the remainder */
+        if (*p && (span = strcspn(p, "\\$")) > 0) {
+            if (!out && current->len) {
+                current->next = apr_palloc(ctx->dpool, sizeof(*current->next));
+                current = current->next;
+                current->next = NULL;
+            }
+
+            if (out) {
+                memcpy(out, p, (out+span <= eout) ? span : (eout-out));
+                out += span;
+            }
+            else {
+                current->len = span;
+                current->string = p;
+                outlen += span;
+            }
+
+            p += span;
+        }
+    } while (p < in+inlen);
+
+    /* assemble result */
+    if (out) {
+        if (out > eout) {
+            *eout = '\0';
+        }
+        else {
+            *out = '\0';
+        }
+    }
+    else {
+        const char *ep;
+
+        if (length && outlen > length) {
+            outlen = length - 1;
+        }
+
+        ret = out = apr_palloc(ctx->pool, outlen + 1);
+        ep = ret + outlen;
+
+        do {
+            if (result->len) {
+                memcpy(out, result->string, (out+result->len <= ep)
+                                            ? result->len : (ep-out));
+                out += result->len;
+            }
+            result = result->next;
+        } while (result && out < ep);
+
+        ret[outlen] = '\0';
+    }
+
+    return ret;
+}

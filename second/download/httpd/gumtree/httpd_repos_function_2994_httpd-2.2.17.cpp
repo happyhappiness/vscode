@@ -108,4 +108,26 @@ static void dbd_mysql_bbind(apr_pool_t *pool, apr_dbd_prepared_t *statement,
         case APR_DBD_TYPE_TIMESTAMP:
         case APR_DBD_TYPE_ZTIMESTAMP:
             bind[i].buffer = arg;
-            bind[i]
+            bind[i].buffer_type = MYSQL_TYPE_VAR_STRING;
+            bind[i].is_unsigned = 0;
+            bind[i].buffer_length = strlen((const char *)arg);
+            break;
+        case APR_DBD_TYPE_BLOB:
+        case APR_DBD_TYPE_CLOB:
+            bind[i].buffer = (void *)arg;
+            bind[i].buffer_type = MYSQL_TYPE_LONG_BLOB;
+            bind[i].is_unsigned = 0;
+            bind[i].buffer_length = *(apr_size_t*)values[++j];
+
+            /* skip table and column */
+            j += 2;
+            break;
+        case APR_DBD_TYPE_NULL:
+        default:
+            bind[i].buffer_type = MYSQL_TYPE_NULL;
+            break;
+        }
+    }
+
+    return;
+}

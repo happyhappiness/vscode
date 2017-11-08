@@ -120,6 +120,3 @@ found_result:
 	free_commit_list(bases);
 	strbuf_release(&(o->commit_msg));
 	trace_printf("notes_merge(): result = %i, result_sha1 = %.7s\n",
-	       result, sha1_to_hex(result_sha1));
-	return result;
-}

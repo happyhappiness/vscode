@@ -90,8 +90,4 @@ static void server_main_loop(int remaining_children_to_start)
              * yet, so we'd mistakenly create an extra server.
              */
             continue;
-        }
-
-        perform_idle_server_maintenance();
-    }
-}
+    

@@ -809,7 +809,4 @@ module AP_MODULE_DECLARE_DATA mpm_prefork_module = {
     NULL,                       /* create per-directory config structure */
     NULL,                       /* merge per-directory config structures */
     NULL,                       /* create per-server config structure */
-    NULL,                       /* merge per-server config structures */
-    prefork_cmds,               /* command apr_table_t */
-    prefork_hooks,              /* register hooks */
-};
+    NULL,       

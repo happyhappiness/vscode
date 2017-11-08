@@ -106,4 +106,31 @@ static int dbd_pgsql_select(apr_pool_t *pool, apr_dbd_t *sql,
                     return sql->trans->errnum = PGRES_FATAL_ERROR;
                 }
             } else if (TXN_NOTICE_ERRORS(sql->trans)){
-                sql->trans->er
+                sql->trans->errnum = 1;
+            }
+            return 1;
+        } else {
+            if (TXN_IGNORE_ERRORS(sql->trans)) {
+                PGresult *res = PQexec(sql->conn,
+                                       "RELEASE SAVEPOINT APR_DBD_TXN_SP");
+                if (res) {
+                    int ret = PQresultStatus(res);
+                    PQclear(res);
+                    if (!dbd_pgsql_is_success(ret)) {
+                        sql->trans->errnum = ret;
+                        return PGRES_FATAL_ERROR;
+                    }
+                } else {
+                    return sql->trans->errnum = PGRES_FATAL_ERROR;
+                }
+            }
+        }
+        if (*results == NULL) {
+            *results = apr_pcalloc(pool, sizeof(apr_dbd_results_t));
+        }
+        (*results)->random = seek;
+        (*results)->handle = sql->conn;
+        (*results)->pool = pool;
+    }
+    return 0;
+}
