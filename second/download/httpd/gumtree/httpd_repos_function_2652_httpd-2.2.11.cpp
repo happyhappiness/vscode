@@ -1,0 +1,27 @@
+static void update_stats(apr_pool_t *p, apr_memcache_conn_t *conn, 
+                         apr_memcache_stats_t *stats)
+{
+
+    mc_do_stat(version, str)
+    else mc_do_stat(pid, uint32)
+    else mc_do_stat(uptime, uint32)
+    else mc_do_stat(pointer_size, uint32)
+    else mc_do_stat(time, time)
+    else mc_do_stat(rusage_user, rtime)
+    else mc_do_stat(rusage_system, rtime)
+    else mc_do_stat(curr_items, uint32)
+    else mc_do_stat(total_items, uint32)
+    else mc_do_stat(bytes, uint64)
+    else mc_do_stat(curr_connections, uint32)
+    else mc_do_stat(total_connections, uint32)
+    else mc_do_stat(connection_structures, uint32)
+    else mc_do_stat(cmd_get, uint32)
+    else mc_do_stat(cmd_set, uint32)
+    else mc_do_stat(get_hits, uint32)
+    else mc_do_stat(get_misses, uint32)
+    else mc_do_stat(evictions, uint64)
+    else mc_do_stat(bytes_read, uint64)
+    else mc_do_stat(bytes_written, uint64)
+    else mc_do_stat(limit_maxbytes, uint32)
+    else mc_do_stat(threads, uint32)
+}

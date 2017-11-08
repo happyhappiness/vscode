@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_602_curl-7.18.1.cpp" pos:tabs="8"><function><type><specifier pos:line="1" pos:column="1">const<pos:position pos:line="1" pos:column="6"/></specifier> <name pos:line="1" pos:column="7">char<pos:position pos:line="1" pos:column="11"/></name> <modifier pos:line="1" pos:column="12">*<pos:position pos:line="1" pos:column="13"/></modifier></type>
+<name pos:line="2" pos:column="1">curl_easy_strerror<pos:position pos:line="2" pos:column="19"/></name><parameter_list pos:line="2" pos:column="19">(<parameter><decl><type><name pos:line="2" pos:column="20">CURLcode<pos:position pos:line="2" pos:column="28"/></name></type> <name pos:line="2" pos:column="29">error<pos:position pos:line="2" pos:column="34"/></name></decl></parameter>)<pos:position pos:line="2" pos:column="35"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+<cpp:ifndef pos:line="4" pos:column="1">#<cpp:directive pos:line="4" pos:column="2">ifndef<pos:position pos:line="4" pos:column="8"/></cpp:directive> <name pos:line="4" pos:column="9">CURL_DISABLE_VERBOSE_STRINGS<pos:position pos:line="4" pos:column="37"/></name></cpp:ifndef>
+  <switch pos:line="5" pos:column="3">switch <condition pos:line="5" pos:column="10">(<expr><name pos:line="5" pos:column="11">error<pos:position pos:line="5" pos:column="16"/></name></expr>)<pos:position pos:line="5" pos:column="17"/></condition> <block pos:line="5" pos:column="18">{
+  <case pos:line="6" pos:column="3">case <expr><name pos:line="6" pos:column="8">CURLE_OK<pos:position pos:line="6" pos:column="16"/></name></expr>:<pos:position pos:line="6" pos:column="17"/></case>
+    <return pos:line="7" pos:column="5">return <expr><literal type="string" pos:line="7" pos:column="12">"No error"<pos:position pos:line="7" pos:column="22"/></literal></expr>;<pos:position pos:line="7" pos:column="23"/></return>
+
+  <case pos:line="9" pos:column="3">case <expr><name pos:line="9" pos:column="8">CURLE_UNSUPPORTED_PROTOCOL<pos:position pos:line="9" pos:column="34"/></name></expr>:<pos:position pos:line="9" pos:column="35"/></case>
+    <return pos:line="10" pos:column="5">return <expr><literal type="string" pos:line="10" pos:column="12">"Unsupported protocol"<pos:position pos:line="10" pos:column="34"/></literal></expr>;<pos:position pos:line="10" pos:column="35"/></return>
+
+  <case pos:line="12" pos:column="3">case <expr><name pos:line="12" pos:column="8">CURLE_FAILED_INIT<pos:position pos:line="12" pos:column="25"/></name></expr>:<pos:position pos:line="12" pos:column="26"/></case>
+    <return pos:line="13" pos:column="5">return <expr><literal type="string" pos:line="13" pos:column="12">"Failed initialization"<pos:position pos:line="13" pos:column="35"/></literal></expr>;<pos:position pos:line="13" pos:column="36"/></return>
+
+  <case pos:line="15" pos:column="3">case <expr><name pos:line="15" pos:column="8">CURLE_URL_MALFORMAT<pos:position pos:line="15" pos:column="27"/></name></expr>:<pos:position pos:line="15" pos:column="28"/></case>
+    <return pos:line="16" pos:column="5">return <expr><literal type="string" pos:line="16" pos:column="12">"URL using bad/illegal format or missing URL"<pos:position pos:line="16" pos:column="57"/></literal></expr>;<pos:position pos:line="16" pos:column="58"/></return>
+
+  <case pos:line="18" pos:column="3">case <expr><name pos:line="18" pos:column="8">CURLE_COULDNT_RESOLVE_PROXY<pos:position pos:line="18" pos:column="35"/></name></expr>:<pos:position pos:line="18" pos:column="36"/></case>
+    <return pos:line="19" pos:column="5">return <expr><literal type="string" pos:line="19" pos:column="12">"Couldn't resolve proxy name"<pos:position pos:line="19" pos:column="41"/></literal></expr>;<pos:position pos:line="19" pos:column="42"/></return>
+
+  <case pos:line="21" pos:column="3">case <expr><name pos:line="21" pos:column="8">CURLE_COULDNT_RESOLVE_HOST<pos:position pos:line="21" pos:column="34"/></name></expr>:<pos:position pos:line="21" pos:column="35"/></case>
+    <return pos:line="22" pos:column="5">return <expr><literal type="string" pos:line="22" pos:column="12">"Couldn't resolve host name"<pos:position pos:line="22" pos:column="40"/></literal></expr>;<pos:position pos:line="22" pos:column="41"/></return>
+
+  <case pos:line="24" pos:column="3">case <expr><name pos:line="24" pos:column="8">CURLE_COULDNT_CONNECT<pos:position pos:line="24" pos:column="29"/></name></expr>:<pos:position pos:line="24" pos:column="30"/></case>
+    <return pos:line="25" pos:column="5">return <expr><literal type="string" pos:line="25" pos:column="12">"Couldn't connect to server"<pos:position pos:line="25" pos:column="40"/></literal></expr>;<pos:position pos:line="25" pos:column="41"/></return>
+
+  <case pos:line="27" pos:column="3">case <expr><name pos:line="27" pos:column="8">CURLE_FTP_WEIRD_SERVER_REPLY<pos:position pos:line="27" pos:column="36"/></name></expr>:<pos:position pos:line="27" pos:column="37"/></case>
+    <return pos:line="28" pos:column="5">return <expr><literal type="string" pos:line="28" pos:column="12">"FTP: weird server reply"<pos:position pos:line="28" pos:column="37"/></literal></expr>;<pos:position pos:line="28" pos:column="38"/></return>
+
+  <case pos:line="30" pos:column="3">case <expr><name pos:line="30" pos:column="8">CURLE_REMOTE_ACCESS_DENIED<pos:position pos:line="30" pos:column="34"/></name></expr>:<pos:position pos:line="30" pos:column="35"/></case>
+    <return pos:line="31" pos:column="5">return <expr><literal type="string" pos:line="31" pos:column="12">"Access denied to remote resource"<pos:position pos:line="31" pos:column="46"/></literal></expr>;<pos:position pos:line="31" pos:column="47"/></return>
+
+  <case pos:line="33" pos:column="3">case <expr><name pos:line="33" pos:column="8">CURLE_FTP_WEIRD_PASS_REPLY<pos:position pos:line="33" pos:column="34"/></name></expr>:<pos:position pos:line="33" pos:column="35"/></case>
+    <return pos:line="34" pos:column="5">return <expr><literal type="string" pos:line="34" pos:column="12">"FTP: unknown PASS reply"<pos:position pos:line="34" pos:column="37"/></literal></expr>;<pos:position pos:line="34" pos:column="38"/></return>
+
+  <case pos:line="36" pos:column="3">case <expr><name pos:line="36" pos:column="8">CURLE_FTP_WEIRD_PASV_REPLY<pos:position pos:line="36" pos:column="34"/></name></expr>:<pos:position pos:line="36" pos:column="35"/></case>
+    <return pos:line="37" pos:column="5">return <expr><literal type="string" pos:line="37" pos:column="12">"FTP: unknown PASV reply"<pos:position pos:line="37" pos:column="37"/></literal></expr>;<pos:position pos:line="37" pos:column="38"/></return>
+
+  <case pos:line="39" pos:column="3">case <expr><name pos:line="39" pos:column="8">CURLE_FTP_WEIRD_227_FORMAT<pos:position pos:line="39" pos:column="34"/></name></expr>:<pos:position pos:line="39" pos:column="35"/></case>
+    <return pos:line="40" pos:column="5">return <expr><literal type="string" pos:line="40" pos:column="12">"FTP: unknown 227 response format"<pos:position pos:line="40" pos:column="46"/></literal></expr>;<pos:position pos:line="40" pos:column="47"/></return>
+
+  <case pos:line="42" pos:column="3">case <expr><name pos:line="42" pos:column="8">CURLE_FTP_CANT_GET_HOST<pos:position pos:line="42" pos:column="31"/></name></expr>:<pos:position pos:line="42" pos:column="32"/></case>
+    <return pos:line="43" pos:column="5">return <expr><literal type="string" pos:line="43" pos:column="12">"FTP: can't figure out the host in the PASV response"<pos:position pos:line="43" pos:column="65"/></literal></expr>;<pos:position pos:line="43" pos:column="66"/></return>
+
+  <case pos:line="45" pos:column="3">case <expr><name pos:line="45" pos:column="8">CURLE_FTP_COULDNT_SET_TYPE<pos:position pos:line="45" pos:column="34"/></name></expr>:<pos:position pos:line="45" pos:column="35"/></case>
+    <return pos:line="46" pos:column="5">return <expr><literal type="string" pos:line="46" pos:column="12">"FTP: couldn't set file type"<pos:position pos:line="46" pos:column="41"/></literal></expr>;<pos:position pos:line="46" pos:column="42"/></return>
+
+  <case pos:line="48" pos:column="3">case <expr><name pos:line="48" pos:column="8">CURLE_PARTIAL_FILE<pos:position pos:line="48" pos:column="26"/></name></expr>:<pos:position pos:line="48" pos:column="27"/></case>
+    <return pos:line="49" pos:column="5">return <expr><literal type="string" pos:line="49" pos:column="12">"Transferred a partial file"<pos:position pos:line="49" pos:column="40"/></literal></expr>;<pos:position pos:line="49" pos:column="41"/></return>
+
+  <case pos:line="51" pos:column="3">case <expr><name pos:line="51" pos:column="8">CURLE_FTP_COULDNT_RETR_FILE<pos:position pos:line="51" pos:column="35"/></name></expr>:<pos:position pos:line="51" pos:column="36"/></case>
+    <return pos:line="52" pos:column="5">return <expr><literal type="string" pos:line="52" pos:column="12">"FTP: couldn't retrieve (RETR failed) the specified file"<pos:position pos:line="52" pos:column="69"/></literal></expr>;<pos:position pos:line="52" pos:column="70"/></return>
+
+  <case pos:line="54" pos:column="3">case <expr><name pos:line="54" pos:column="8">CURLE_QUOTE_ERROR<pos:position pos:line="54" pos:column="25"/></name></expr>:<pos:position pos:line="54" pos:column="26"/></case>
+    <return pos:line="55" pos:column="5">return <expr><literal type="string" pos:line="55" pos:column="12">"Quote command returned error"<pos:position pos:line="55" pos:column="42"/></literal></expr>;<pos:position pos:line="55" pos:column="43"/></return>
+
+  <case pos:line="57" pos:column="3">case <expr><name pos:line="57" pos:column="8">CURLE_HTTP_RETURNED_ERROR<pos:position pos:line="57" pos:column="33"/></name></expr>:<pos:position pos:line="57" pos:column="34"/></case>
+    <return pos:line="58" pos:column="5">return <expr><literal type="string" pos:line="58" pos:column="12">"HTTP response code said error"<pos:position pos:line="58" pos:column="43"/></literal></expr>;<pos:position pos:line="58" pos:column="44"/></return>
+
+  <case pos:line="60" pos:column="3">case <expr><name pos:line="60" pos:column="8">CURLE_WRITE_ERROR<pos:position pos:line="60" pos:column="25"/></name></expr>:<pos:position pos:line="60" pos:column="26"/></case>
+    <return pos:line="61" pos:column="5">return <expr><literal type="string" pos:line="61" pos:column="12">"Failed writing received data to disk/application"<pos:position pos:line="61" pos:column="62"/></literal></expr>;<pos:position pos:line="61" pos:column="63"/></return>
+
+  <case pos:line="63" pos:column="3">case <expr><name pos:line="63" pos:column="8">CURLE_UPLOAD_FAILED<pos:position pos:line="63" pos:column="27"/></name></expr>:<pos:position pos:line="63" pos:column="28"/></case>
+    <return pos:line="64" pos:column="5">return <expr><literal type="string" pos:line="64" pos:column="12">"Upload failed (at start/before it took off)"<pos:position pos:line="64" pos:column="57"/></literal></expr>;<pos:position pos:line="64" pos:column="58"/></return>
+
+  <case pos:line="66" pos:column="3">case <expr><name pos:line="66" pos:column="8">CURLE_READ_ERROR<pos:position pos:line="66" pos:column="24"/></name></expr>:<pos:position pos:line="66" pos:column="25"/></case>
+    <return pos:line="67" pos:column="5">return <expr><literal type="string" pos:line="67" pos:column="12">"Failed to open/read local data from file/application"<pos:position pos:line="67" pos:column="66"/></literal></expr>;<pos:position pos:line="67" pos:column="67"/></return>
+
+  <case pos:line="69" pos:column="3">case <expr><name pos:line="69" pos:column="8">CURLE_OUT_OF_MEMORY<pos:position pos:line="69" pos:column="27"/></name></expr>:<pos:position pos:line="69" pos:column="28"/></case>
+    <return pos:line="70" pos:column="5">return <expr><literal type="string" pos:line="70" pos:column="12">"Out of memory"<pos:position pos:line="70" pos:column="27"/></literal></expr>;<pos:position pos:line="70" pos:column="28"/></return>
+
+  <case pos:line="72" pos:column="3">case <expr><name pos:line="72" pos:column="8">CURLE_OPERATION_TIMEDOUT<pos:position pos:line="72" pos:column="32"/></name></expr>:<pos:position pos:line="72" pos:column="33"/></case>
+    <return pos:line="73" pos:column="5">return <expr><literal type="string" pos:line="73" pos:column="12">"Timeout was reached"<pos:position pos:line="73" pos:column="33"/></literal></expr>;<pos:position pos:line="73" pos:column="34"/></return>
+
+  <case pos:line="75" pos:column="3">case <expr><name pos:line="75" pos:column="8">CURLE_FTP_PORT_FAILED<pos:position pos:line="75" pos:column="29"/></name></expr>:<pos:position pos:line="75" pos:column="30"/></case>
+    <return pos:line="76" pos:column="5">return <expr><literal type="string" pos:line="76" pos:column="12">"FTP: command PORT failed"<pos:position pos:line="76" pos:column="38"/></literal></expr>;<pos:position pos:line="76" pos:column="39"/></return>
+
+  <case pos:line="78" pos:column="3">case <expr><name pos:line="78" pos:column="8">CURLE_FTP_COULDNT_USE_REST<pos:position pos:line="78" pos:column="34"/></name></expr>:<pos:position pos:line="78" pos:column="35"/></case>
+    <return pos:line="79" pos:column="5">return <expr><literal type="string" pos:line="79" pos:column="12">"FTP: command REST failed"<pos:position pos:line="79" pos:column="38"/></literal></expr>;<pos:position pos:line="79" pos:column="39"/></return>
+
+  <case pos:line="81" pos:column="3">case <expr><name pos:line="81" pos:column="8">CURLE_RANGE_ERROR<pos:position pos:line="81" pos:column="25"/></name></expr>:<pos:position pos:line="81" pos:column="26"/></case>
+    <return pos:line="82" pos:column="5">return <expr><literal type="string" pos:line="82" pos:column="12">"Requested range was not delivered by the server"<pos:position pos:line="82" pos:column="61"/></literal></expr>;<pos:position pos:line="82" pos:column="62"/></return>
+
+  <case pos:line="84" pos:column="3">case <expr><name pos:line="84" pos:column="8">CURLE_HTTP_POST_ERROR<pos:position pos:line="84" pos:column="29"/></name></expr>:<pos:position pos:line="84" pos:column="30"/></case>
+    <return pos:line="85" pos:column="5">return <expr><literal type="string" pos:line="85" pos:column="12">"Internal problem setting up the POST"<pos:position pos:line="85" pos:column="50"/></literal></expr>;<pos:position pos:line="85" pos:column="51"/></return>
+
+  <case pos:line="87" pos:column="3">case <expr><name pos:line="87" pos:column="8">CURLE_SSL_CONNECT_ERROR<pos:position pos:line="87" pos:column="31"/></name></expr>:<pos:position pos:line="87" pos:column="32"/></case>
+    <return pos:line="88" pos:column="5">return <expr><literal type="string" pos:line="88" pos:column="12">"SSL connect error"<pos:position pos:line="88" pos:column="31"/></literal></expr>;<pos:position pos:line="88" pos:column="32"/></return>
+
+  <case pos:line="90" pos:column="3">case <expr><name pos:line="90" pos:column="8">CURLE_BAD_DOWNLOAD_RESUME<pos:position pos:line="90" pos:column="33"/></name></expr>:<pos:position pos:line="90" pos:column="34"/></case>
+    <return pos:line="91" pos:column="5">return <expr><literal type="string" pos:line="91" pos:column="12">"Couldn't resume download"<pos:position pos:line="91" pos:column="38"/></literal></expr>;<pos:position pos:line="91" pos:column="39"/></return>
+
+  <case pos:line="93" pos:column="3">case <expr><name pos:line="93" pos:column="8">CURLE_FILE_COULDNT_READ_FILE<pos:position pos:line="93" pos:column="36"/></name></expr>:<pos:position pos:line="93" pos:column="37"/></case>
+    <return pos:line="94" pos:column="5">return <expr><literal type="string" pos:line="94" pos:column="12">"Couldn't read a file:// file"<pos:position pos:line="94" pos:column="42"/></literal></expr>;<pos:position pos:line="94" pos:column="43"/></return>
+
+  <case pos:line="96" pos:column="3">case <expr><name pos:line="96" pos:column="8">CURLE_LDAP_CANNOT_BIND<pos:position pos:line="96" pos:column="30"/></name></expr>:<pos:position pos:line="96" pos:column="31"/></case>
+    <return pos:line="97" pos:column="5">return <expr><literal type="string" pos:line="97" pos:column="12">"LDAP: cannot bind"<pos:position pos:line="97" pos:column="31"/></literal></expr>;<pos:position pos:line="97" pos:column="32"/></return>
+
+  <case pos:line="99" pos:column="3">case <expr><name pos:line="99" pos:column="8">CURLE_LDAP_SEARCH_FAILED<pos:position pos:line="99" pos:column="32"/></name></expr>:<pos:position pos:line="99" pos:column="33"/></case>
+    <return pos:line="100" pos:column="5">return <expr><literal type="string" pos:line="100" pos:column="12">"LDAP: search failed"<pos:position pos:line="100" pos:column="33"/></literal></expr>;<pos:position pos:line="100" pos:column="34"/></return>
+
+  <case pos:line="102" pos:column="3">case <expr><name pos:line="102" pos:column="8">CURLE_FUNCTION_NOT_FOUND<pos:position pos:line="102" pos:column="32"/></name></expr>:<pos:position pos:line="102" pos:column="33"/></case>
+    <return pos:line="103" pos:column="5">return <expr><literal type="string" pos:line="103" pos:column="12">"A required function in the library was not found"<pos:position pos:line="103" pos:column="62"/></literal></expr>;<pos:position pos:line="103" pos:column="63"/></return>
+
+  <case pos:line="105" pos:column="3">case <expr><name pos:line="105" pos:column="8">CURLE_ABORTED_BY_CALLBACK<pos:position pos:line="105" pos:column="33"/></name></expr>:<pos:position pos:line="105" pos:column="34"/></case>
+    <return pos:line="106" pos:column="5">return <expr><literal type="string" pos:line="106" pos:column="12">"Operation was aborted by an application callback"<pos:position pos:line="106" pos:column="62"/></literal></expr>;<pos:position pos:line="106" pos:column="63"/></return>
+
+  <case pos:line="108" pos:column="3">case <expr><name pos:line="108" pos:column="8">CURLE_BAD_FUNCTION_ARGUMENT<pos:position pos:line="108" pos:column="35"/></name></expr>:<pos:position pos:line="108" pos:column="36"/></case>
+    <return pos:line="109" pos:column="5">return <expr><literal type="string" pos:line="109" pos:column="12">"A libcurl function was given a bad argument"<pos:position pos:line="109" pos:column="57"/></literal></expr>;<pos:position pos:line="109" pos:column="58"/></return>
+
+  <case pos:line="111" pos:column="3">case <expr><name pos:line="111" pos:column="8">CURLE_INTERFACE_FAILED<pos:position pos:line="111" pos:column="30"/></name></expr>:<pos:position pos:line="111" pos:column="31"/></case>
+    <return pos:line="112" pos:column="5">return <expr><literal type="string" pos:line="112" pos:column="12">"Failed binding local connection end"<pos:position pos:line="112" pos:column="49"/></literal></expr>;<pos:position pos:line="112" pos:column="50"/></return>
+
+  <case pos:line="114" pos:column="3">case <expr><name pos:line="114" pos:column="8">CURLE_TOO_MANY_REDIRECTS<pos:position pos:line="114" pos:column="32"/></name></expr> :<pos:position pos:line="114" pos:column="34"/></case>
+    <return pos:line="115" pos:column="5">return <expr><literal type="string" pos:line="115" pos:column="12">"Number of redirects hit maximum amount"<pos:position pos:line="115" pos:column="52"/></literal></expr>;<pos:position pos:line="115" pos:column="53"/></return>
+
+  <case pos:line="117" pos:column="3">case <expr><name pos:line="117" pos:column="8">CURLE_UNKNOWN_TELNET_OPTION<pos:position pos:line="117" pos:column="35"/></name></expr>:<pos:position pos:line="117" pos:column="36"/></case>
+    <return pos:line="118" pos:column="5">return <expr><literal type="string" pos:line="118" pos:column="12">"User specified an unknown telnet option"<pos:position pos:line="118" pos:column="53"/></literal></expr>;<pos:position pos:line="118" pos:column="54"/></return>
+
+  <case pos:line="120" pos:column="3">case <expr><name pos:line="120" pos:column="8">CURLE_TELNET_OPTION_SYNTAX<pos:position pos:line="120" pos:column="34"/></name></expr> :<pos:position pos:line="120" pos:column="36"/></case>
+    <return pos:line="121" pos:column="5">return <expr><literal type="string" pos:line="121" pos:column="12">"Malformed telnet option"<pos:position pos:line="121" pos:column="37"/></literal></expr>;<pos:position pos:line="121" pos:column="38"/></return>
+
+  <case pos:line="123" pos:column="3">case <expr><name pos:line="123" pos:column="8">CURLE_PEER_FAILED_VERIFICATION<pos:position pos:line="123" pos:column="38"/></name></expr>:<pos:position pos:line="123" pos:column="39"/></case>
+    <return pos:line="124" pos:column="5">return <expr><literal type="string" pos:line="124" pos:column="12">"SSL peer certificate or SSH md5 fingerprint was not OK"<pos:position pos:line="124" pos:column="68"/></literal></expr>;<pos:position pos:line="124" pos:column="69"/></return>
+
+  <case pos:line="126" pos:column="3">case <expr><name pos:line="126" pos:column="8">CURLE_GOT_NOTHING<pos:position pos:line="126" pos:column="25"/></name></expr>:<pos:position pos:line="126" pos:column="26"/></case>
+    <return pos:line="127" pos:column="5">return <expr><literal type="string" pos:line="127" pos:column="12">"Server returned nothing (no headers, no data)"<pos:position pos:line="127" pos:column="59"/></literal></expr>;<pos:position pos:line="127" pos:column="60"/></return>
+
+  <case pos:line="129" pos:column="3">case <expr><name pos:line="129" pos:column="8">CURLE_SSL_ENGINE_NOTFOUND<pos:position pos:line="129" pos:column="33"/></name></expr>:<pos:position pos:line="129" pos:column="34"/></case>
+    <return pos:line="130" pos:column="5">return <expr><literal type="string" pos:line="130" pos:column="12">"SSL crypto engine not found"<pos:position pos:line="130" pos:column="41"/></literal></expr>;<pos:position pos:line="130" pos:column="42"/></return>
+
+  <case pos:line="132" pos:column="3">case <expr><name pos:line="132" pos:column="8">CURLE_SSL_ENGINE_SETFAILED<pos:position pos:line="132" pos:column="34"/></name></expr>:<pos:position pos:line="132" pos:column="35"/></case>
+    <return pos:line="133" pos:column="5">return <expr><literal type="string" pos:line="133" pos:column="12">"Can not set SSL crypto engine as default"<pos:position pos:line="133" pos:column="54"/></literal></expr>;<pos:position pos:line="133" pos:column="55"/></return>
+
+  <case pos:line="135" pos:column="3">case <expr><name pos:line="135" pos:column="8">CURLE_SSL_ENGINE_INITFAILED<pos:position pos:line="135" pos:column="35"/></name></expr>:<pos:position pos:line="135" pos:column="36"/></case>
+    <return pos:line="136" pos:column="5">return <expr><literal type="string" pos:line="136" pos:column="12">"Failed to initialise SSL crypto engine"<pos:position pos:line="136" pos:column="52"/></literal></expr>;<pos:position pos:line="136" pos:column="53"/></return>
+
+  <case pos:line="138" pos:column="3">case <expr><name pos:line="138" pos:column="8">CURLE_SEND_ERROR<pos:position pos:line="138" pos:column="24"/></name></expr>:<pos:position pos:line="138" pos:column="25"/></case>
+    <return pos:line="139" pos:column="5">return <expr><literal type="string" pos:line="139" pos:column="12">"Failed sending data to the peer"<pos:position pos:line="139" pos:column="45"/></literal></expr>;<pos:position pos:line="139" pos:column="46"/></return>
+
+  <case pos:line="141" pos:column="3">case <expr><name pos:line="141" pos:column="8">CURLE_RECV_ERROR<pos:position pos:line="141" pos:column="24"/></name></expr>:<pos:position pos:line="141" pos:column="25"/></case>
+    <return pos:line="142" pos:column="5">return <expr><literal type="string" pos:line="142" pos:column="12">"Failure when receiving data from the peer"<pos:position pos:line="142" pos:column="55"/></literal></expr>;<pos:position pos:line="142" pos:column="56"/></return>
+
+  <case pos:line="144" pos:column="3">case <expr><name pos:line="144" pos:column="8">CURLE_SSL_CERTPROBLEM<pos:position pos:line="144" pos:column="29"/></name></expr>:<pos:position pos:line="144" pos:column="30"/></case>
+    <return pos:line="145" pos:column="5">return <expr><literal type="string" pos:line="145" pos:column="12">"Problem with the local SSL certificate"<pos:position pos:line="145" pos:column="52"/></literal></expr>;<pos:position pos:line="145" pos:column="53"/></return>
+
+  <case pos:line="147" pos:column="3">case <expr><name pos:line="147" pos:column="8">CURLE_SSL_CIPHER<pos:position pos:line="147" pos:column="24"/></name></expr>:<pos:position pos:line="147" pos:column="25"/></case>
+    <return pos:line="148" pos:column="5">return <expr><literal type="string" pos:line="148" pos:column="12">"Couldn't use specified SSL cipher"<pos:position pos:line="148" pos:column="47"/></literal></expr>;<pos:position pos:line="148" pos:column="48"/></return>
+
+  <case pos:line="150" pos:column="3">case <expr><name pos:line="150" pos:column="8">CURLE_SSL_CACERT<pos:position pos:line="150" pos:column="24"/></name></expr>:<pos:position pos:line="150" pos:column="25"/></case>
+    <return pos:line="151" pos:column="5">return <expr><literal type="string" pos:line="151" pos:column="12">"Peer certificate cannot be authenticated with known CA certificates"<pos:position pos:line="151" pos:column="81"/></literal></expr>;<pos:position pos:line="151" pos:column="82"/></return>
+
+  <case pos:line="153" pos:column="3">case <expr><name pos:line="153" pos:column="8">CURLE_SSL_CACERT_BADFILE<pos:position pos:line="153" pos:column="32"/></name></expr>:<pos:position pos:line="153" pos:column="33"/></case>
+    <return pos:line="154" pos:column="5">return <expr><literal type="string" pos:line="154" pos:column="12">"Problem with the SSL CA cert (path? access rights?)"<pos:position pos:line="154" pos:column="65"/></literal></expr>;<pos:position pos:line="154" pos:column="66"/></return>
+
+  <case pos:line="156" pos:column="3">case <expr><name pos:line="156" pos:column="8">CURLE_BAD_CONTENT_ENCODING<pos:position pos:line="156" pos:column="34"/></name></expr>:<pos:position pos:line="156" pos:column="35"/></case>
+    <return pos:line="157" pos:column="5">return <expr><literal type="string" pos:line="157" pos:column="12">"Unrecognized HTTP Content-Encoding"<pos:position pos:line="157" pos:column="48"/></literal></expr>;<pos:position pos:line="157" pos:column="49"/></return>
+
+  <case pos:line="159" pos:column="3">case <expr><name pos:line="159" pos:column="8">CURLE_LDAP_INVALID_URL<pos:position pos:line="159" pos:column="30"/></name></expr>:<pos:position pos:line="159" pos:column="31"/></case>
+    <return pos:line="160" pos:column="5">return <expr><literal type="string" pos:line="160" pos:column="12">"Invalid LDAP URL"<pos:position pos:line="160" pos:column="30"/></literal></expr>;<pos:position pos:line="160" pos:column="31"/></return>
+
+  <case pos:line="162" pos:column="3">case <expr><name pos:line="162" pos:column="8">CURLE_FILESIZE_EXCEEDED<pos:position pos:line="162" pos:column="31"/></name></expr>:<pos:position pos:line="162" pos:column="32"/></case>
+    <return pos:line="163" pos:column="5">return <expr><literal type="string" pos:line="163" pos:column="12">"Maximum file size exceeded"<pos:position pos:line="163" pos:column="40"/></literal></expr>;<pos:position pos:line="163" pos:column="41"/></return>
+
+  <case pos:line="165" pos:column="3">case <expr><name pos:line="165" pos:column="8">CURLE_USE_SSL_FAILED<pos:position pos:line="165" pos:column="28"/></name></expr>:<pos:position pos:line="165" pos:column="29"/></case>
+    <return pos:line="166" pos:column="5">return <expr><literal type="string" pos:line="166" pos:column="12">"Requested SSL level failed"<pos:position pos:line="166" pos:column="40"/></literal></expr>;<pos:position pos:line="166" pos:column="41"/></return>
+
+  <case pos:line="168" pos:column="3">case <expr><name pos:line="168" pos:column="8">CURLE_SSL_SHUTDOWN_FAILED<pos:position pos:line="168" pos:column="33"/></name></expr>:<pos:position pos:line="168" pos:column="34"/></case>
+    <return pos:line="169" pos:column="5">return <expr><literal type="string" pos:line="169" pos:column="12">"Failed to shut down the SSL connection"<pos:position pos:line="169" pos:column="52"/></literal></expr>;<pos:position pos:line="169" pos:column="53"/></return>
+
+  <case pos:line="171" pos:column="3">case <expr><name pos:line="171" pos:column="8">CURLE_SEND_FAIL_REWIND<pos:position pos:line="171" pos:column="30"/></name></expr>:<pos:position pos:line="171" pos:column="31"/></case>
+    <return pos:line="172" pos:column="5">return <expr><literal type="string" pos:line="172" pos:column="12">"Send failed since rewinding of the data stream failed"<pos:position pos:line="172" pos:column="67"/></literal></expr>;<pos:position pos:line="172" pos:column="68"/></return>
+
+  <case pos:line="174" pos:column="3">case <expr><name pos:line="174" pos:column="8">CURLE_LOGIN_DENIED<pos:position pos:line="174" pos:column="26"/></name></expr>:<pos:position pos:line="174" pos:column="27"/></case>
+    <return pos:line="175" pos:column="5">return <expr><literal type="string" pos:line="175" pos:column="12">"Login denied"<pos:position pos:line="175" pos:column="26"/></literal></expr>;<pos:position pos:line="175" pos:column="27"/></return>
+
+  <case pos:line="177" pos:column="3">case <expr><name pos:line="177" pos:column="8">CURLE_TFTP_NOTFOUND<pos:position pos:line="177" pos:column="27"/></name></expr>:<pos:position pos:line="177" pos:column="28"/></case>
+    <return pos:line="178" pos:column="5">return <expr><literal type="string" pos:line="178" pos:column="12">"TFTP: File Not Found"<pos:position pos:line="178" pos:column="34"/></literal></expr>;<pos:position pos:line="178" pos:column="35"/></return>
+
+  <case pos:line="180" pos:column="3">case <expr><name pos:line="180" pos:column="8">CURLE_TFTP_PERM<pos:position pos:line="180" pos:column="23"/></name></expr>:<pos:position pos:line="180" pos:column="24"/></case>
+    <return pos:line="181" pos:column="5">return <expr><literal type="string" pos:line="181" pos:column="12">"TFTP: Access Violation"<pos:position pos:line="181" pos:column="36"/></literal></expr>;<pos:position pos:line="181" pos:column="37"/></return>
+
+  <case pos:line="183" pos:column="3">case <expr><name pos:line="183" pos:column="8">CURLE_REMOTE_DISK_FULL<pos:position pos:line="183" pos:column="30"/></name></expr>:<pos:position pos:line="183" pos:column="31"/></case>
+    <return pos:line="184" pos:column="5">return <expr><literal type="string" pos:line="184" pos:column="12">"Disk full or allocation exceeded"<pos:position pos:line="184" pos:column="46"/></literal></expr>;<pos:position pos:line="184" pos:column="47"/></return>
+
+  <case pos:line="186" pos:column="3">case <expr><name pos:line="186" pos:column="8">CURLE_TFTP_ILLEGAL<pos:position pos:line="186" pos:column="26"/></name></expr>:<pos:position pos:line="186" pos:column="27"/></case>
+    <return pos:line="187" pos:column="5">return <expr><literal type="string" pos:line="187" pos:column="12">"TFTP: Illegal operation"<pos:position pos:line="187" pos:column="37"/></literal></expr>;<pos:position pos:line="187" pos:column="38"/></return>
+
+  <case pos:line="189" pos:column="3">case <expr><name pos:line="189" pos:column="8">CURLE_TFTP_UNKNOWNID<pos:position pos:line="189" pos:column="28"/></name></expr>:<pos:position pos:line="189" pos:column="29"/></case>
+    <return pos:line="190" pos:column="5">return <expr><literal type="string" pos:line="190" pos:column="12">"TFTP: Unknown transfer ID"<pos:position pos:line="190" pos:column="39"/></literal></expr>;<pos:position pos:line="190" pos:column="40"/></return>
+
+  <case pos:line="192" pos:column="3">case <expr><name pos:line="192" pos:column="8">CURLE_REMOTE_FILE_EXISTS<pos:position pos:line="192" pos:column="32"/></name></expr>:<pos:position pos:line="192" pos:column="33"/></case>
+    <return pos:line="193" pos:column="5">return <expr><literal type="string" pos:line="193" pos:column="12">"Remote file already exists"<pos:position pos:line="193" pos:column="40"/></literal></expr>;<pos:position pos:line="193" pos:column="41"/></return>
+
+  <case pos:line="195" pos:column="3">case <expr><name pos:line="195" pos:column="8">CURLE_TFTP_NOSUCHUSER<pos:position pos:line="195" pos:column="29"/></name></expr>:<pos:position pos:line="195" pos:column="30"/></case>
+    <return pos:line="196" pos:column="5">return <expr><literal type="string" pos:line="196" pos:column="12">"TFTP: No such user"<pos:position pos:line="196" pos:column="32"/></literal></expr>;<pos:position pos:line="196" pos:column="33"/></return>
+
+  <case pos:line="198" pos:column="3">case <expr><name pos:line="198" pos:column="8">CURLE_CONV_FAILED<pos:position pos:line="198" pos:column="25"/></name></expr>:<pos:position pos:line="198" pos:column="26"/></case>
+    <return pos:line="199" pos:column="5">return <expr><literal type="string" pos:line="199" pos:column="12">"Conversion failed"<pos:position pos:line="199" pos:column="31"/></literal></expr>;<pos:position pos:line="199" pos:column="32"/></return>
+
+  <case pos:line="201" pos:column="3">case <expr><name pos:line="201" pos:column="8">CURLE_CONV_REQD<pos:position pos:line="201" pos:column="23"/></name></expr>:<pos:position pos:line="201" pos:column="24"/></case>
+    <return pos:line="202" pos:column="5">return <expr><literal type="string" pos:line="202" pos:column="12">"Caller must register CURLOPT_CONV_ callback options"<pos:position pos:line="202" pos:column="65"/></literal></expr>;<pos:position pos:line="202" pos:column="66"/></return>
+
+  <case pos:line="204" pos:column="3">case <expr><name pos:line="204" pos:column="8">CURLE_REMOTE_FILE_NOT_FOUND<pos:position pos:line="204" pos:column="35"/></name></expr>:<pos:position pos:line="204" pos:column="36"/></case>
+    <return pos:line="205" pos:column="5">return <expr><literal type="string" pos:line="205" pos:column="12">"Remote file not found"<pos:position pos:line="205" pos:column="35"/></literal></expr>;<pos:position pos:line="205" pos:column="36"/></return>
+
+  <case pos:line="207" pos:column="3">case <expr><name pos:line="207" pos:column="8">CURLE_SSH<pos:position pos:line="207" pos:column="17"/></name></expr>:<pos:position pos:line="207" pos:column="18"/></case>
+    <return pos:line="208" pos:column="5">return <expr><literal type="string" pos:line="208" pos:column="12">"Error in the SSH layer"<pos:position pos:line="208" pos:column="36"/></literal></expr>;<pos:position pos:line="208" pos:column="37"/></return>
+
+    <comment type="block" pos:line="210" pos:column="5">/* error codes not used by current libcurl */</comment>
+  <case pos:line="211" pos:column="3">case <expr><name pos:line="211" pos:column="8">CURLE_OBSOLETE4<pos:position pos:line="211" pos:column="23"/></name></expr>:<pos:position pos:line="211" pos:column="24"/></case>
+  <case pos:line="212" pos:column="3">case <expr><name pos:line="212" pos:column="8">CURLE_OBSOLETE10<pos:position pos:line="212" pos:column="24"/></name></expr>:<pos:position pos:line="212" pos:column="25"/></case>
+  <case pos:line="213" pos:column="3">case <expr><name pos:line="213" pos:column="8">CURLE_OBSOLETE12<pos:position pos:line="213" pos:column="24"/></name></expr>:<pos:position pos:line="213" pos:column="25"/></case>
+  <case pos:line="214" pos:column="3">case <expr><name pos:line="214" pos:column="8">CURLE_OBSOLETE16<pos:position pos:line="214" pos:column="24"/></name></expr>:<pos:position pos:line="214" pos:column="25"/></case>
+  <case pos:line="215" pos:column="3">case <expr><name pos:line="215" pos:column="8">CURLE_OBSOLETE20<pos:position pos:line="215" pos:column="24"/></name></expr>:<pos:position pos:line="215" pos:column="25"/></case>
+  <case pos:line="216" pos:column="3">case <expr><name pos:line="216" pos:column="8">CURLE_OBSOLETE24<pos:position pos:line="216" pos:column="24"/></name></expr>:<pos:position pos:line="216" pos:column="25"/></case>
+  <case pos:line="217" pos:column="3">case <expr><name pos:line="217" pos:column="8">CURLE_OBSOLETE29<pos:position pos:line="217" pos:column="24"/></name></expr>:<pos:position pos:line="217" pos:column="25"/></case>
+  <case pos:line="218" pos:column="3">case <expr><name pos:line="218" pos:column="8">CURLE_OBSOLETE32<pos:position pos:line="218" pos:column="24"/></name></expr>:<pos:position pos:line="218" pos:column="25"/></case>
+  <case pos:line="219" pos:column="3">case <expr><name pos:line="219" pos:column="8">CURLE_OBSOLETE40<pos:position pos:line="219" pos:column="24"/></name></expr>:<pos:position pos:line="219" pos:column="25"/></case>
+  <case pos:line="220" pos:column="3">case <expr><name pos:line="220" pos:column="8">CURLE_OBSOLETE44<pos:position pos:line="220" pos:column="24"/></name></expr>:<pos:position pos:line="220" pos:column="25"/></case>
+  <case pos:line="221" pos:column="3">case <expr><name pos:line="221" pos:column="8">CURLE_OBSOLETE46<pos:position pos:line="221" pos:column="24"/></name></expr>:<pos:position pos:line="221" pos:column="25"/></case>
+  <case pos:line="222" pos:column="3">case <expr><name pos:line="222" pos:column="8">CURLE_OBSOLETE50<pos:position pos:line="222" pos:column="24"/></name></expr>:<pos:position pos:line="222" pos:column="25"/></case>
+  <case pos:line="223" pos:column="3">case <expr><name pos:line="223" pos:column="8">CURLE_OBSOLETE57<pos:position pos:line="223" pos:column="24"/></name></expr>:<pos:position pos:line="223" pos:column="25"/></case>
+  <case pos:line="224" pos:column="3">case <expr><name pos:line="224" pos:column="8">CURL_LAST<pos:position pos:line="224" pos:column="17"/></name></expr>:<pos:position pos:line="224" pos:column="18"/></case>
+    <break pos:line="225" pos:column="5">break;<pos:position pos:line="225" pos:column="11"/></break>
+  }<pos:position pos:line="226" pos:column="4"/></block></switch>
+  <comment type="block" pos:line="227" pos:column="3">/*
+   * By using a switch, gcc -Wall will complain about enum values
+   * which do not appear, helping keep this function up-to-date.
+   * By using gcc -Wall -Werror, you can't forget.
+   *
+   * A table would not have the same benefit.  Most compilers will
+   * generate code very similar to a table in any case, so there
+   * is little performance gain from a table.  And something is broken
+   * for the user's application, anyways, so does it matter how fast
+   * it _doesn't_ work?
+   *
+   * The line number for the error will be near this comment, which
+   * is why it is here, and not at the start of the switch.
+   */</comment>
+  <return pos:line="241" pos:column="3">return <expr><literal type="string" pos:line="241" pos:column="10">"Unknown error"<pos:position pos:line="241" pos:column="25"/></literal></expr>;<pos:position pos:line="241" pos:column="26"/></return>
+<cpp:else pos:line="242" pos:column="1">#<cpp:directive pos:line="242" pos:column="2">else<pos:position pos:line="242" pos:column="6"/></cpp:directive></cpp:else>
+  <if pos:line="243" pos:column="3">if<condition pos:line="243" pos:column="5">(<expr><name pos:line="243" pos:column="6">error<pos:position pos:line="243" pos:column="11"/></name> <operator pos:line="243" pos:column="12">==<pos:position pos:line="243" pos:column="14"/></operator> <name pos:line="243" pos:column="15">CURLE_OK<pos:position pos:line="243" pos:column="23"/></name></expr>)<pos:position pos:line="243" pos:column="24"/></condition><then pos:line="243" pos:column="24">
+    <block type="pseudo"><return pos:line="244" pos:column="5">return <expr><literal type="string" pos:line="244" pos:column="12">"No error"<pos:position pos:line="244" pos:column="22"/></literal></expr>;<pos:position pos:line="244" pos:column="23"/></return></block></then>
+  <else pos:line="245" pos:column="3">else
+    <block type="pseudo"><return pos:line="246" pos:column="5">return <expr><literal type="string" pos:line="246" pos:column="12">"Error"<pos:position pos:line="246" pos:column="19"/></literal></expr>;<pos:position pos:line="246" pos:column="20"/></return></block></else></if>
+<cpp:endif pos:line="247" pos:column="1">#<cpp:directive pos:line="247" pos:column="2">endif<pos:position pos:line="247" pos:column="7"/></cpp:directive></cpp:endif>
+}<pos:position pos:line="248" pos:column="2"/></block></function></unit>

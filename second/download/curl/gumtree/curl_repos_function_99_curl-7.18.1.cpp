@@ -1,0 +1,30 @@
+int init_fifo (GlobalInfo *g) {
+  struct stat st;
+  static const char *fifo = "hiper.fifo";
+  int socket;
+
+  fprintf(MSG_OUT, "Creating named pipe \"%s\"\n", fifo);
+  if (lstat (fifo, &st) == 0) {
+    if ((st.st_mode & S_IFMT) == S_IFREG) {
+      errno = EEXIST;
+      perror("lstat");
+      exit (1);
+    }
+  }
+  unlink(fifo);
+  if (mkfifo (fifo, 0600) == -1) {
+    perror("mkfifo");
+    exit (1);
+  }
+  socket = open(fifo, O_RDWR | O_NONBLOCK, 0);
+  if (socket == -1) {
+     perror("open");
+     exit (1);
+  }
+  g->input = fdopen(socket, "r");
+
+  fprintf(MSG_OUT, "Now, pipe some URL's into > %s\n", fifo);
+  event_set(&g->fifo_event, socket, EV_READ | EV_PERSIST, fifo_cb, g);
+  event_add(&g->fifo_event, NULL);
+  return (0);
+}

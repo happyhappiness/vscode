@@ -1,0 +1,46 @@
+static void touch_up_dirs(struct file_list *flist, int ndx)
+{
+	static int counter = 0;
+	struct file_struct *file;
+	char *fname;
+	int i, start, end;
+
+	if (ndx < 0) {
+		start = 0;
+		end = flist->used - 1;
+	} else
+		start = end = ndx;
+
+	/* Fix any directory permissions that were modified during the
+	 * transfer and/or re-set any tweaked modified-time values. */
+	for (i = start; i <= end; i++, counter++) {
+		file = flist->files[i];
+		if (!S_ISDIR(file->mode)
+		 || (!implied_dirs && file->flags & FLAG_IMPLIED_DIR))
+			continue;
+		if (verbose > 3) {
+			fname = f_name(file, NULL);
+			rprintf(FINFO, "touch_up_dirs: %s (%d)\n",
+				NS(fname), i);
+		}
+		if (!F_IS_ACTIVE(file) || file->flags & FLAG_MISSING_DIR
+		 || (!need_retouch_dir_times && file->mode & S_IWUSR))
+			continue;
+		fname = f_name(file, NULL);
+		if (!(file->mode & S_IWUSR))
+			do_chmod(fname, file->mode);
+		if (need_retouch_dir_times) {
+			STRUCT_STAT st;
+			if (link_stat(fname, &st, 0) == 0
+			 && cmp_time(st.st_mtime, file->modtime) != 0)
+				set_modtime(fname, file->modtime, file->mode);
+		}
+		if (counter >= loopchk_limit) {
+			if (allowed_lull)
+				maybe_send_keepalive();
+			else
+				maybe_flush_socket(0);
+			counter = 0;
+		}
+	}
+}

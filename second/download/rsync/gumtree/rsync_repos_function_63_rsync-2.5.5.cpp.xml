@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/gumtree/rsync_repos_function_63_rsync-2.5.5.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">whine_about_eof<pos:position pos:line="1" pos:column="28"/></name> <parameter_list pos:line="1" pos:column="29">(<parameter><decl><type><name pos:line="1" pos:column="30">void<pos:position pos:line="1" pos:column="34"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="35"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+	<comment type="block" format="doxygen" pos:line="3" pos:column="9">/**
+	   It's almost always an error to get an EOF when we're trying
+	   to read from the network, because the protocol is
+	   self-terminating.
+	   
+	   However, there is one unfortunate cases where it is not,
+	   which is rsync &lt;2.4.6 sending a list of modules on a
+	   server, since the list is terminated by closing the socket.
+	   So, for the section of the program where that is a problem
+	   (start_socket_client), kludge_around_eof is True and we
+	   just exit.
+	*/</comment>
+
+	<if pos:line="16" pos:column="9">if <condition pos:line="16" pos:column="12">(<expr><name pos:line="16" pos:column="13">kludge_around_eof<pos:position pos:line="16" pos:column="30"/></name></expr>)<pos:position pos:line="16" pos:column="31"/></condition><then pos:line="16" pos:column="31">
+		<block type="pseudo"><expr_stmt><expr><call><name pos:line="17" pos:column="17">exit_cleanup<pos:position pos:line="17" pos:column="29"/></name> <argument_list pos:line="17" pos:column="30">(<argument><expr><literal type="number" pos:line="17" pos:column="31">0<pos:position pos:line="17" pos:column="32"/></literal></expr></argument>)<pos:position pos:line="17" pos:column="33"/></argument_list></call></expr>;<pos:position pos:line="17" pos:column="34"/></expr_stmt></block></then>
+	<else pos:line="18" pos:column="9">else <block pos:line="18" pos:column="14">{
+		<expr_stmt><expr><call><name pos:line="19" pos:column="17">rprintf<pos:position pos:line="19" pos:column="24"/></name> <argument_list pos:line="19" pos:column="25">(<argument><expr><name pos:line="19" pos:column="26">FERROR<pos:position pos:line="19" pos:column="32"/></name></expr></argument>,
+			 <argument><expr><literal type="string" pos:line="20" pos:column="26">"%s: connection unexpectedly closed "<pos:position pos:line="20" pos:column="63"/></literal>
+			 <literal type="string" pos:line="21" pos:column="26">"(%.0f bytes read so far)\n"<pos:position pos:line="21" pos:column="54"/></literal></expr></argument>,
+			 <argument><expr><name pos:line="22" pos:column="26">RSYNC_NAME<pos:position pos:line="22" pos:column="36"/></name></expr></argument>, <argument><expr><operator pos:line="22" pos:column="38">(<pos:position pos:line="22" pos:column="39"/></operator><name pos:line="22" pos:column="39">double<pos:position pos:line="22" pos:column="45"/></name><operator pos:line="22" pos:column="45">)<pos:position pos:line="22" pos:column="46"/></operator><name><name pos:line="22" pos:column="46">stats<pos:position pos:line="22" pos:column="51"/></name><operator pos:line="22" pos:column="51">.<pos:position pos:line="22" pos:column="52"/></operator><name pos:line="22" pos:column="52">total_read<pos:position pos:line="22" pos:column="62"/></name></name></expr></argument>)<pos:position pos:line="22" pos:column="63"/></argument_list></call></expr>;<pos:position pos:line="22" pos:column="64"/></expr_stmt>
+	
+		<expr_stmt><expr><call><name pos:line="24" pos:column="17">exit_cleanup<pos:position pos:line="24" pos:column="29"/></name> <argument_list pos:line="24" pos:column="30">(<argument><expr><name pos:line="24" pos:column="31">RERR_STREAMIO<pos:position pos:line="24" pos:column="44"/></name></expr></argument>)<pos:position pos:line="24" pos:column="45"/></argument_list></call></expr>;<pos:position pos:line="24" pos:column="46"/></expr_stmt>
+	}<pos:position pos:line="25" pos:column="10"/></block></else></if>
+}<pos:position pos:line="26" pos:column="2"/></block></function></unit>

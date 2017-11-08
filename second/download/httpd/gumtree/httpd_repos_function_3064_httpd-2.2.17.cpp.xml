@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_3064_httpd-2.2.17.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">int<pos:position pos:line="1" pos:column="4"/></name> <name pos:line="1" pos:column="5">XMLCALL<pos:position pos:line="1" pos:column="12"/></name></type>
+<name pos:line="2" pos:column="1">XML_GetIdAttributeIndex<pos:position pos:line="2" pos:column="24"/></name><parameter_list pos:line="2" pos:column="24">(<parameter><decl><type><name pos:line="2" pos:column="25">XML_Parser<pos:position pos:line="2" pos:column="35"/></name></type> <name pos:line="2" pos:column="36">parser<pos:position pos:line="2" pos:column="42"/></name></decl></parameter>)<pos:position pos:line="2" pos:column="43"/></parameter_list>
+<block pos:line="3" pos:column="1">{
+  <return pos:line="4" pos:column="3">return <expr><name pos:line="4" pos:column="10">idAttIndex<pos:position pos:line="4" pos:column="20"/></name></expr>;<pos:position pos:line="4" pos:column="21"/></return>
+}<pos:position pos:line="5" pos:column="2"/></block></function></unit>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_292_curl-7.10.4.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">int<pos:position pos:line="1" pos:column="11"/></name></type> <name pos:line="1" pos:column="12">_num_chars<pos:position pos:line="1" pos:column="22"/></name><parameter_list pos:line="1" pos:column="22">(<parameter><decl><type><name pos:line="1" pos:column="23">int<pos:position pos:line="1" pos:column="26"/></name></type> <name pos:line="1" pos:column="27">i<pos:position pos:line="1" pos:column="28"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="29"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+  <decl_stmt><decl><type><name pos:line="3" pos:column="3">int<pos:position pos:line="3" pos:column="6"/></name></type> <name pos:line="3" pos:column="7">chars<pos:position pos:line="3" pos:column="12"/></name> <init pos:line="3" pos:column="13">= <expr><literal type="number" pos:line="3" pos:column="15">0<pos:position pos:line="3" pos:column="16"/></literal></expr></init></decl>;<pos:position pos:line="3" pos:column="17"/></decl_stmt>
+
+  <comment type="block" pos:line="5" pos:column="3">/* While the number divided by 10 is greater than one, 
+   * re-divide the number by 10, and increment the number of 
+   * characters by 1.
+   *
+   * this relies on the fact that for every multiple of 10, 
+   * a new digit is added onto every number
+   */</comment>
+  <do pos:line="12" pos:column="3">do <block pos:line="12" pos:column="6">{
+    <expr_stmt><expr><name pos:line="13" pos:column="5">chars<pos:position pos:line="13" pos:column="10"/></name><operator pos:line="13" pos:column="10">++<pos:position pos:line="13" pos:column="12"/></operator></expr>;<pos:position pos:line="13" pos:column="13"/></expr_stmt>
+
+    <expr_stmt><expr><name pos:line="15" pos:column="5">i<pos:position pos:line="15" pos:column="6"/></name> <operator pos:line="15" pos:column="7">=<pos:position pos:line="15" pos:column="8"/></operator> <operator pos:line="15" pos:column="9">(<pos:position pos:line="15" pos:column="10"/></operator><name pos:line="15" pos:column="10">int<pos:position pos:line="15" pos:column="13"/></name><operator pos:line="15" pos:column="13">)<pos:position pos:line="15" pos:column="14"/></operator> <name pos:line="15" pos:column="15">i<pos:position pos:line="15" pos:column="16"/></name> <operator pos:line="15" pos:column="17">/<pos:position pos:line="15" pos:column="18"/></operator> <literal type="number" pos:line="15" pos:column="19">10<pos:position pos:line="15" pos:column="21"/></literal></expr>;<pos:position pos:line="15" pos:column="22"/></expr_stmt>
+  }<pos:position pos:line="16" pos:column="4"/></block> while <condition pos:line="16" pos:column="11">(<expr><name pos:line="16" pos:column="12">i<pos:position pos:line="16" pos:column="13"/></name> <operator pos:line="16" pos:column="14">&gt;=<pos:position pos:line="16" pos:column="19"/></operator> <literal type="number" pos:line="16" pos:column="17">1<pos:position pos:line="16" pos:column="18"/></literal></expr>)<pos:position pos:line="16" pos:column="19"/></condition>;<pos:position pos:line="16" pos:column="20"/></do>
+
+  <return pos:line="18" pos:column="3">return <expr><name pos:line="18" pos:column="10">chars<pos:position pos:line="18" pos:column="15"/></name></expr>;<pos:position pos:line="18" pos:column="16"/></return>
+}<pos:position pos:line="19" pos:column="2"/></block></function></unit>

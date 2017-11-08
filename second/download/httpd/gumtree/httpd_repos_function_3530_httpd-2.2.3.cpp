@@ -1,0 +1,1 @@
+int isdirectory(char *filename) { return FALSE; }
