@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/rsync/gumtree/rsync_repos_function_407_last_repos.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type> <name pos:line="1" pos:column="6">sig_int<pos:position pos:line="1" pos:column="13"/></name><parameter_list pos:line="1" pos:column="13">(<parameter><decl><type><name pos:line="1" pos:column="14">int<pos:position pos:line="1" pos:column="17"/></name></type> <name pos:line="1" pos:column="18">sig_num<pos:position pos:line="1" pos:column="25"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="26"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+	<comment type="block" pos:line="3" pos:column="9">/* KLUGE: if the user hits Ctrl-C while ssh is prompting
+	 * for a password, then our cleanup's sending of a SIGUSR1
+	 * signal to all our children may kill ssh before it has a
+	 * chance to restore the tty settings (i.e. turn echo back
+	 * on).  By sleeping for a short time, ssh gets a bigger
+	 * chance to do the right thing.  If child processes are
+	 * not ssh waiting for a password, then this tiny delay
+	 * shouldn't hurt anything. */</comment>
+	<expr_stmt><expr><call><name pos:line="11" pos:column="9">msleep<pos:position pos:line="11" pos:column="15"/></name><argument_list pos:line="11" pos:column="15">(<argument><expr><literal type="number" pos:line="11" pos:column="16">400<pos:position pos:line="11" pos:column="19"/></literal></expr></argument>)<pos:position pos:line="11" pos:column="20"/></argument_list></call></expr>;<pos:position pos:line="11" pos:column="21"/></expr_stmt>
+
+	<comment type="block" pos:line="13" pos:column="9">/* If we're an rsync daemon listener (not a daemon server),
+	 * we'll exit with status 0 if we received SIGTERM. */</comment>
+	<if pos:line="15" pos:column="9">if <condition pos:line="15" pos:column="12">(<expr><name pos:line="15" pos:column="13">am_daemon<pos:position pos:line="15" pos:column="22"/></name> <operator pos:line="15" pos:column="23">&amp;&amp;<pos:position pos:line="15" pos:column="33"/></operator> <operator pos:line="15" pos:column="26">!<pos:position pos:line="15" pos:column="27"/></operator><name pos:line="15" pos:column="27">am_server<pos:position pos:line="15" pos:column="36"/></name> <operator pos:line="15" pos:column="37">&amp;&amp;<pos:position pos:line="15" pos:column="47"/></operator> <name pos:line="15" pos:column="40">sig_num<pos:position pos:line="15" pos:column="47"/></name> <operator pos:line="15" pos:column="48">==<pos:position pos:line="15" pos:column="50"/></operator> <name pos:line="15" pos:column="51">SIGTERM<pos:position pos:line="15" pos:column="58"/></name></expr>)<pos:position pos:line="15" pos:column="59"/></condition><then pos:line="15" pos:column="59">
+		<block type="pseudo"><expr_stmt><expr><call><name pos:line="16" pos:column="17">exit_cleanup<pos:position pos:line="16" pos:column="29"/></name><argument_list pos:line="16" pos:column="29">(<argument><expr><literal type="number" pos:line="16" pos:column="30">0<pos:position pos:line="16" pos:column="31"/></literal></expr></argument>)<pos:position pos:line="16" pos:column="32"/></argument_list></call></expr>;<pos:position pos:line="16" pos:column="33"/></expr_stmt></block></then></if>
+
+	<comment type="block" pos:line="18" pos:column="9">/* If the signal arrived on the server side (or for the receiver
+	 * process on the client), we want to try to do a controlled shutdown
+	 * that lets the client side (generator process) know what happened.
+	 * To do this, we set a flag and let the normal process handle the
+	 * shutdown.  We only attempt this if multiplexed IO is in effect and
+	 * we didn't already set the flag. */</comment>
+	<if pos:line="24" pos:column="9">if <condition pos:line="24" pos:column="12">(<expr><operator pos:line="24" pos:column="13">!<pos:position pos:line="24" pos:column="14"/></operator><name pos:line="24" pos:column="14">got_kill_signal<pos:position pos:line="24" pos:column="29"/></name> <operator pos:line="24" pos:column="30">&amp;&amp;<pos:position pos:line="24" pos:column="40"/></operator> <operator pos:line="24" pos:column="33">(<pos:position pos:line="24" pos:column="34"/></operator><name pos:line="24" pos:column="34">am_server<pos:position pos:line="24" pos:column="43"/></name> <operator pos:line="24" pos:column="44">||<pos:position pos:line="24" pos:column="46"/></operator> <name pos:line="24" pos:column="47">am_receiver<pos:position pos:line="24" pos:column="58"/></name><operator pos:line="24" pos:column="58">)<pos:position pos:line="24" pos:column="59"/></operator></expr>)<pos:position pos:line="24" pos:column="60"/></condition><then pos:line="24" pos:column="60"> <block pos:line="24" pos:column="61">{
+		<expr_stmt><expr><name pos:line="25" pos:column="17">got_kill_signal<pos:position pos:line="25" pos:column="32"/></name> <operator pos:line="25" pos:column="33">=<pos:position pos:line="25" pos:column="34"/></operator> <name pos:line="25" pos:column="35">sig_num<pos:position pos:line="25" pos:column="42"/></name></expr>;<pos:position pos:line="25" pos:column="43"/></expr_stmt>
+		<return pos:line="26" pos:column="17">return;<pos:position pos:line="26" pos:column="24"/></return>
+	}<pos:position pos:line="27" pos:column="10"/></block></then></if>
+
+	<expr_stmt><expr><call><name pos:line="29" pos:column="9">exit_cleanup<pos:position pos:line="29" pos:column="21"/></name><argument_list pos:line="29" pos:column="21">(<argument><expr><name pos:line="29" pos:column="22">RERR_SIGNAL<pos:position pos:line="29" pos:column="33"/></name></expr></argument>)<pos:position pos:line="29" pos:column="34"/></argument_list></call></expr>;<pos:position pos:line="29" pos:column="35"/></expr_stmt>
+}<pos:position pos:line="30" pos:column="2"/></block></function></unit>

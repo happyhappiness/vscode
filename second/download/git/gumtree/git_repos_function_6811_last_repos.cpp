@@ -1,0 +1,1 @@
+size_t nedmalloc_footprint(void) THROWSPEC				{ return nedpmalloc_footprint(0); }

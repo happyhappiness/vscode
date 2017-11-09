@@ -1,0 +1,1 @@
+static inline void debug_mm(const char *format, ...) {}

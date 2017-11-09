@@ -1,0 +1,1 @@
+void nedsetvalue(void *v) THROWSPEC					{ nedpsetvalue(0, v); }

@@ -1,0 +1,1 @@
+static inline const char *debug_str(const char *s) { return s; }

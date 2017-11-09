@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_368_last_repos.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">int<pos:position pos:line="1" pos:column="11"/></name></type>
+<name pos:line="2" pos:column="1">Curl_is_formadd_string<pos:position pos:line="2" pos:column="23"/></name><parameter_list pos:line="2" pos:column="23">(<parameter><decl><type><name pos:line="2" pos:column="24">CURLformoption<pos:position pos:line="2" pos:column="38"/></name></type> <name pos:line="2" pos:column="39">option<pos:position pos:line="2" pos:column="45"/></name></decl></parameter>)<pos:position pos:line="2" pos:column="46"/></parameter_list>
+
+<block pos:line="4" pos:column="1">{
+  <switch pos:line="5" pos:column="3">switch <condition pos:line="5" pos:column="10">(<expr><name pos:line="5" pos:column="11">option<pos:position pos:line="5" pos:column="17"/></name></expr>)<pos:position pos:line="5" pos:column="18"/></condition> <block pos:line="5" pos:column="19">{
+
+  <case pos:line="7" pos:column="3">case <expr><name pos:line="7" pos:column="8">CURLFORM_FILENAME<pos:position pos:line="7" pos:column="25"/></name></expr>:<pos:position pos:line="7" pos:column="26"/></case>
+  <case pos:line="8" pos:column="3">case <expr><name pos:line="8" pos:column="8">CURLFORM_CONTENTTYPE<pos:position pos:line="8" pos:column="28"/></name></expr>:<pos:position pos:line="8" pos:column="29"/></case>
+  <case pos:line="9" pos:column="3">case <expr><name pos:line="9" pos:column="8">CURLFORM_BUFFER<pos:position pos:line="9" pos:column="23"/></name></expr>:<pos:position pos:line="9" pos:column="24"/></case>
+  <case pos:line="10" pos:column="3">case <expr><name pos:line="10" pos:column="8">CURLFORM_FILE<pos:position pos:line="10" pos:column="21"/></name></expr>:<pos:position pos:line="10" pos:column="22"/></case>
+  <case pos:line="11" pos:column="3">case <expr><name pos:line="11" pos:column="8">CURLFORM_FILECONTENT<pos:position pos:line="11" pos:column="28"/></name></expr>:<pos:position pos:line="11" pos:column="29"/></case>
+  <case pos:line="12" pos:column="3">case <expr><name pos:line="12" pos:column="8">CURLFORM_COPYCONTENTS<pos:position pos:line="12" pos:column="29"/></name></expr>:<pos:position pos:line="12" pos:column="30"/></case>
+  <case pos:line="13" pos:column="3">case <expr><name pos:line="13" pos:column="8">CURLFORM_COPYNAME<pos:position pos:line="13" pos:column="25"/></name></expr>:<pos:position pos:line="13" pos:column="26"/></case>
+    <return pos:line="14" pos:column="5">return <expr><literal type="number" pos:line="14" pos:column="12">1<pos:position pos:line="14" pos:column="13"/></literal></expr>;<pos:position pos:line="14" pos:column="14"/></return>
+  }<pos:position pos:line="15" pos:column="4"/></block></switch>
+
+  <return pos:line="17" pos:column="3">return <expr><literal type="number" pos:line="17" pos:column="10">0<pos:position pos:line="17" pos:column="11"/></literal></expr>;<pos:position pos:line="17" pos:column="12"/></return>
+}<pos:position pos:line="18" pos:column="2"/></block></function></unit>

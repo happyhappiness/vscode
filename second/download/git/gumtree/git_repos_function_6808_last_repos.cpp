@@ -1,0 +1,1 @@
+int    nedmallopt(int parno, int value) THROWSPEC	{ return nedpmallopt(0, parno, value); }
