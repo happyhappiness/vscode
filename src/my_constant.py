@@ -6,7 +6,7 @@
 """
 repository
 """
-REPOS = 'httpd'
+REPOS = 'git'
 """
 stroed file name prefix
 """
