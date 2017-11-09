@@ -1,0 +1,24 @@
+void ssl_util_thread_setup(apr_pool_t *p)
+{
+    int i;
+
+    lock_num_locks = CRYPTO_num_locks();
+    lock_cs = apr_palloc(p, lock_num_locks * sizeof(*lock_cs));
+
+    for (i = 0; i < lock_num_locks; i++) {
+        apr_thread_mutex_create(&(lock_cs[i]), APR_THREAD_MUTEX_DEFAULT, p);
+    }
+
+    CRYPTO_set_locking_callback(ssl_util_thr_lock);
+
+    /* Set up dynamic locking scaffolding for OpenSSL to use at its
+     * convenience.
+     */
+    dynlockpool = p;
+    CRYPTO_set_dynlock_create_callback(ssl_dyn_create_function);
+    CRYPTO_set_dynlock_lock_callback(ssl_dyn_lock_function);
+    CRYPTO_set_dynlock_destroy_callback(ssl_dyn_destroy_function);
+
+    apr_pool_cleanup_register(p, NULL, ssl_util_thread_cleanup,
+                                       apr_pool_cleanup_null);
+}
