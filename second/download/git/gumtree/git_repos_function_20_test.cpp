@@ -1,0 +1,18 @@
+const void *detach_commit_buffer(struct commit *commit, unsigned long *sizep)
+{
+	struct commit_buffer *v = buffer_slab_peek(&buffer_slab, commit);
+	void *ret;
+
+	if (!v) {
+		if (sizep)
+			*sizep = 0;
+		return NULL;
+	}
+	ret = v->buffer;
+	if (sizep)
+		*sizep = v->size;
+
+	v->buffer = NULL;
+	v->size = 0;
+	return ret;
+}
