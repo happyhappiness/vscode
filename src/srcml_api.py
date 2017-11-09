@@ -38,6 +38,8 @@ class SrcmlApi:
         @ return functions info[function file name]\n
         @ involve get all functions in source file, store both file and xml file\n
         """
+        if self.root == None:
+            return []
         # get all sub functions
         function_nodes = self.root.iterdescendants(tag=self.function_tag)
         if function_nodes is not None:
@@ -212,6 +214,7 @@ class SrcmlApi:
         except etree.XMLSyntaxError:
             print 'can not process file:%s' %(xml_file)
             self.tree = None
+            self.root = None
             return
         self.root = self.tree.getroot()
         self.namespace_map = self.root.nsmap
@@ -566,7 +569,9 @@ class SrcmlApi:
 
 if __name__ == "__main__":
     # input function cpp file
-    srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_repos_function_48_httpd-2.4.3.cpp', is_function=True)
+    # srcml_api = SrcmlApi('second/download/git/repos/git-2.8.6/builtin/am.c', is_function=False)
+    # print srcml_api.get_functions(0, "_test")
+    srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_repos_function_25_test.cpp', is_function=True)
     print srcml_api.get_logs_calls_types()
     # srcml_api = SrcmlApi('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_48_httpd-2.4.3.cpp', True)
     # if srcml_api.set_log_loc(13):
