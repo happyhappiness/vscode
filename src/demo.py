@@ -79,7 +79,7 @@ def seek_clone_for_corresponding_repos(repos_list, reanalyze_rule=False, reanaly
         # update repos value of my constant
         my_constant.reset_repos(repos)
         if reanalyze_rule:
-             .(reanalyze_gumtree)
+            regenerate_rule(reanalyze_gumtree)
         # seek clone
         analyze_control_clone.seek_clone_for_corresponding_repos(reanalyze_repos)
 

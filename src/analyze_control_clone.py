@@ -57,8 +57,20 @@ def check_for_modify_rule(edit_words, curr_log):
     """
     old_edits = edit_words[0]
     new_edits = edit_words[1]
+    # just add new things
+    if old_edits == []:
+        for new_edit in new_edits:
+            # do not has all new
+            if curr_log.find(new_edit) == -1:
+                return "accept-true"
+            # has all new edit -> do not need edit
+            return "accept-false"
+    # update old, so check whether old exist
     for old_edit in old_edits:
         if curr_log.find(old_edit) == -1:
+            # for deleted log, must be same old log
+            if new_edits == []:
+                return "reject"
             for new_edit in new_edits:
                 # do not has all new, and do not has all old
                 if curr_log.find(new_edit) == -1:
@@ -140,7 +152,7 @@ def seek_clone(repos_name, rebuild_repos=False, postfix=''):
     @ involve match rule class against given repos log class and function\n
     """
     # check repos according to rebuild repos flag(warn:no repos list)
-    check_repos_info(repos_name, rebuild_repos, postfix)
+    check_repos_info(repos_name, [], rebuild_repos, postfix)
     # initiate csv reader file(rule class, repos log class, function class)
     rule_file = file(my_constant.CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME, 'rb')
     rule_records = csv.reader(rule_file)
