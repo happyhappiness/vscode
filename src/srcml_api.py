@@ -211,18 +211,18 @@ class SrcmlApi:
         """
         try:
             self.tree = etree.parse(xml_file)
-        except etree.XMLSyntaxError:
+        except:
             print 'can not process file:%s' %(xml_file)
             self.tree = None
             self.root = None
-            return
-        self.root = self.tree.getroot()
-        self.namespace_map = self.root.nsmap
-        self.namespace_map['default'] = self.namespace_map[None]
-        self.namespace_map.pop(None)
-        self.name_tag = "{" + self.namespace_map['default'] + "}name"
-        self.call_tag = "{" + self.namespace_map['default'] + "}call"
-        self.function_tag = "{" + self.namespace_map['default'] + "}function"
+        else:
+            self.root = self.tree.getroot()
+            self.namespace_map = self.root.nsmap
+            self.namespace_map['default'] = self.namespace_map[None]
+            self.namespace_map.pop(None)
+            self.name_tag = "{" + self.namespace_map['default'] + "}name"
+            self.call_tag = "{" + self.namespace_map['default'] + "}call"
+            self.function_tag = "{" + self.namespace_map['default'] + "}function"
 
 
     def _get_info_for_node(self, node):
@@ -569,10 +569,10 @@ class SrcmlApi:
 
 if __name__ == "__main__":
     # input function cpp file
-    # srcml_api = SrcmlApi('second/download/git/repos/git-2.8.6/builtin/am.c', is_function=False)
-    # print srcml_api.get_functions(0, "_test")
-    srcml_api = SrcmlApi('second/download/httpd/gumtree/httpd_repos_function_25_test.cpp', is_function=True)
-    print srcml_api.get_logs_calls_types()
+    srcml_api = SrcmlApi('second/download/git/repos/git-2.6.7/commit.c', is_function=False)
+    print srcml_api.get_functions(0, "_test")
+    # srcml_api = SrcmlApi('second/download/git/gumtree/git_repos_function_4242_git-2.7.6.cpp', is_function=True)
+    # print srcml_api.get_logs_calls_types()
     # srcml_api = SrcmlApi('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_48_httpd-2.4.3.cpp', True)
     # if srcml_api.set_log_loc(13):
     #     if srcml_api.set_control_dependence():
