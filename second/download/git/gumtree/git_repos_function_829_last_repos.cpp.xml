@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_829_last_repos.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">init_gettext_charset<pos:position pos:line="1" pos:column="33"/></name><parameter_list pos:line="1" pos:column="33">(<parameter><decl><type><specifier pos:line="1" pos:column="34">const<pos:position pos:line="1" pos:column="39"/></specifier> <name pos:line="1" pos:column="40">char<pos:position pos:line="1" pos:column="44"/></name> <modifier pos:line="1" pos:column="45">*<pos:position pos:line="1" pos:column="46"/></modifier></type><name pos:line="1" pos:column="46">domain<pos:position pos:line="1" pos:column="52"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="53"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+	<comment type="block" pos:line="3" pos:column="9">/*
+	   This trick arranges for messages to be emitted in the user's
+	   requested encoding, but avoids setting LC_CTYPE from the
+	   environment for the whole program.
+
+	   This primarily done to avoid a bug in vsnprintf in the GNU C
+	   Library [1]. which triggered a "your vsnprintf is broken" error
+	   on Git's own repository when inspecting v0.99.6~1 under a UTF-8
+	   locale.
+
+	   That commit contains a ISO-8859-1 encoded author name, which
+	   the locale aware vsnprintf(3) won't interpolate in the format
+	   argument, due to mismatch between the data encoding and the
+	   locale.
+
+	   Even if it wasn't for that bug we wouldn't want to use LC_CTYPE at
+	   this point, because it'd require auditing all the code that uses C
+	   functions whose semantics are modified by LC_CTYPE.
+
+	   But only setting LC_MESSAGES as we do creates a problem, since
+	   we declare the encoding of our PO files[2] the gettext
+	   implementation will try to recode it to the user's locale, but
+	   without LC_CTYPE it'll emit something like this on 'git init'
+	   under the Icelandic locale:
+
+	       Bj? til t?ma Git lind ? /hlagh/.git/
+
+	   Gettext knows about the encoding of our PO file, but we haven't
+	   told it about the user's encoding, so all the non-US-ASCII
+	   characters get encoded to question marks.
+
+	   But we're in luck! We can set LC_CTYPE from the environment
+	   only while we call nl_langinfo and
+	   bind_textdomain_codeset. That suffices to tell gettext what
+	   encoding it should emit in, so it'll now say:
+
+	       BjÃ³ til tÃ³ma Git lind Ã­ /hlagh/.git/
+
+	   And the equivalent ISO-8859-1 string will be emitted under a
+	   ISO-8859-1 locale.
+
+	   With this change way we get the advantages of setting LC_CTYPE
+	   (talk to the user in his language/encoding), without the major
+	   drawbacks (changed semantics for C functions we rely on).
+
+	   However foreign functions using other message catalogs that
+	   aren't using our neat trick will still have a problem, e.g. if
+	   we have to call perror(3):
+
+	   #include &lt;stdio.h&gt;
+	   #include &lt;locale.h&gt;
+	   #include &lt;errno.h&gt;
+
+	   int main(void)
+	   {
+		   setlocale(LC_MESSAGES, "");
+		   setlocale(LC_CTYPE, "C");
+		   errno = ENODEV;
+		   perror("test");
+		   return 0;
+	   }
+
+	   Running that will give you a message with question marks:
+
+	   $ LANGUAGE= LANG=de_DE.utf8 ./test
+	   test: Kein passendes Ger?t gefunden
+
+	   The vsnprintf bug has been fixed since glibc 2.17.
+
+	   Then we could simply set LC_CTYPE from the environment, which would
+	   make things like the external perror(3) messages work.
+
+	   See t/t0203-gettext-setlocale-sanity.sh's "gettext.c" tests for
+	   regression tests.
+
+	   1. http://sourceware.org/bugzilla/show_bug.cgi?id=6530
+	   2. E.g. "Content-Type: text/plain; charset=UTF-8\n" in po/is.po
+	*/</comment>
+	<expr_stmt><expr><call><name pos:line="81" pos:column="9">setlocale<pos:position pos:line="81" pos:column="18"/></name><argument_list pos:line="81" pos:column="18">(<argument><expr><name pos:line="81" pos:column="19">LC_CTYPE<pos:position pos:line="81" pos:column="27"/></name></expr></argument>, <argument><expr><literal type="string" pos:line="81" pos:column="29">""<pos:position pos:line="81" pos:column="31"/></literal></expr></argument>)<pos:position pos:line="81" pos:column="32"/></argument_list></call></expr>;<pos:position pos:line="81" pos:column="33"/></expr_stmt>
+	<expr_stmt><expr><name pos:line="82" pos:column="9">charset<pos:position pos:line="82" pos:column="16"/></name> <operator pos:line="82" pos:column="17">=<pos:position pos:line="82" pos:column="18"/></operator> <call><name pos:line="82" pos:column="19">locale_charset<pos:position pos:line="82" pos:column="33"/></name><argument_list pos:line="82" pos:column="33">()<pos:position pos:line="82" pos:column="35"/></argument_list></call></expr>;<pos:position pos:line="82" pos:column="36"/></expr_stmt>
+	<expr_stmt><expr><call><name pos:line="83" pos:column="9">bind_textdomain_codeset<pos:position pos:line="83" pos:column="32"/></name><argument_list pos:line="83" pos:column="32">(<argument><expr><name pos:line="83" pos:column="33">domain<pos:position pos:line="83" pos:column="39"/></name></expr></argument>, <argument><expr><name pos:line="83" pos:column="41">charset<pos:position pos:line="83" pos:column="48"/></name></expr></argument>)<pos:position pos:line="83" pos:column="49"/></argument_list></call></expr>;<pos:position pos:line="83" pos:column="50"/></expr_stmt>
+	<comment type="block" pos:line="84" pos:column="9">/* the string is taken from v0.99.6~1 */</comment>
+	<if pos:line="85" pos:column="9">if <condition pos:line="85" pos:column="12">(<expr><call><name pos:line="85" pos:column="13">test_vsnprintf<pos:position pos:line="85" pos:column="27"/></name><argument_list pos:line="85" pos:column="27">(<argument><expr><literal type="string" pos:line="85" pos:column="28">"%.*s"<pos:position pos:line="85" pos:column="34"/></literal></expr></argument>, <argument><expr><literal type="number" pos:line="85" pos:column="36">13<pos:position pos:line="85" pos:column="38"/></literal></expr></argument>, <argument><expr><literal type="string" pos:line="85" pos:column="40">"David_K\345gedal"<pos:position pos:line="85" pos:column="58"/></literal></expr></argument>)<pos:position pos:line="85" pos:column="59"/></argument_list></call> <operator pos:line="85" pos:column="60">&lt;<pos:position pos:line="85" pos:column="64"/></operator> <literal type="number" pos:line="85" pos:column="62">0<pos:position pos:line="85" pos:column="63"/></literal></expr>)<pos:position pos:line="85" pos:column="64"/></condition><then pos:line="85" pos:column="64">
+		<block type="pseudo"><expr_stmt><expr><call><name pos:line="86" pos:column="17">setlocale<pos:position pos:line="86" pos:column="26"/></name><argument_list pos:line="86" pos:column="26">(<argument><expr><name pos:line="86" pos:column="27">LC_CTYPE<pos:position pos:line="86" pos:column="35"/></name></expr></argument>, <argument><expr><literal type="string" pos:line="86" pos:column="37">"C"<pos:position pos:line="86" pos:column="40"/></literal></expr></argument>)<pos:position pos:line="86" pos:column="41"/></argument_list></call></expr>;<pos:position pos:line="86" pos:column="42"/></expr_stmt></block></then></if>
+}<pos:position pos:line="87" pos:column="2"/></block></function></unit>

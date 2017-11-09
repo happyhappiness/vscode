@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_902_last_repos.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">bool<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">is_fatal_error<pos:position pos:line="1" pos:column="27"/></name><parameter_list pos:line="1" pos:column="27">(<parameter><decl><type><name pos:line="1" pos:column="28">CURLcode<pos:position pos:line="1" pos:column="36"/></name></type> <name pos:line="1" pos:column="37">code<pos:position pos:line="1" pos:column="41"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="42"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+  <switch pos:line="3" pos:column="3">switch<condition pos:line="3" pos:column="9">(<expr><name pos:line="3" pos:column="10">code<pos:position pos:line="3" pos:column="14"/></name></expr>)<pos:position pos:line="3" pos:column="15"/></condition> <block pos:line="3" pos:column="16">{
+  <comment type="block" pos:line="4" pos:column="3">/* TODO: Should CURLE_SSL_CACERT be included as critical error ? */</comment>
+  <case pos:line="5" pos:column="3">case <expr><name pos:line="5" pos:column="8">CURLE_FAILED_INIT<pos:position pos:line="5" pos:column="25"/></name></expr>:<pos:position pos:line="5" pos:column="26"/></case>
+  <case pos:line="6" pos:column="3">case <expr><name pos:line="6" pos:column="8">CURLE_OUT_OF_MEMORY<pos:position pos:line="6" pos:column="27"/></name></expr>:<pos:position pos:line="6" pos:column="28"/></case>
+  <case pos:line="7" pos:column="3">case <expr><name pos:line="7" pos:column="8">CURLE_UNKNOWN_OPTION<pos:position pos:line="7" pos:column="28"/></name></expr>:<pos:position pos:line="7" pos:column="29"/></case>
+  <case pos:line="8" pos:column="3">case <expr><name pos:line="8" pos:column="8">CURLE_FUNCTION_NOT_FOUND<pos:position pos:line="8" pos:column="32"/></name></expr>:<pos:position pos:line="8" pos:column="33"/></case>
+  <case pos:line="9" pos:column="3">case <expr><name pos:line="9" pos:column="8">CURLE_BAD_FUNCTION_ARGUMENT<pos:position pos:line="9" pos:column="35"/></name></expr>:<pos:position pos:line="9" pos:column="36"/></case>
+    <comment type="block" pos:line="10" pos:column="5">/* critical error */</comment>
+    <return pos:line="11" pos:column="5">return <expr><name pos:line="11" pos:column="12">TRUE<pos:position pos:line="11" pos:column="16"/></name></expr>;<pos:position pos:line="11" pos:column="17"/></return>
+  <default pos:line="12" pos:column="3">default:<pos:position pos:line="12" pos:column="11"/></default>
+    <break pos:line="13" pos:column="5">break;<pos:position pos:line="13" pos:column="11"/></break>
+  }<pos:position pos:line="14" pos:column="4"/></block></switch>
+
+  <comment type="block" pos:line="16" pos:column="3">/* no error or not critical */</comment>
+  <return pos:line="17" pos:column="3">return <expr><name pos:line="17" pos:column="10">FALSE<pos:position pos:line="17" pos:column="15"/></name></expr>;<pos:position pos:line="17" pos:column="16"/></return>
+}<pos:position pos:line="18" pos:column="2"/></block></function></unit>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_1002_last_repos.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">int<pos:position pos:line="1" pos:column="4"/></name></type> <name pos:line="1" pos:column="5">in_async<pos:position pos:line="1" pos:column="13"/></name><parameter_list pos:line="1" pos:column="13">(<parameter><decl><type><name pos:line="1" pos:column="14">void<pos:position pos:line="1" pos:column="18"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="19"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+	<return pos:line="3" pos:column="9">return <expr><name pos:line="3" pos:column="16">process_is_async<pos:position pos:line="3" pos:column="32"/></name></expr>;<pos:position pos:line="3" pos:column="33"/></return>
+}<pos:position pos:line="4" pos:column="2"/></block></function></unit>

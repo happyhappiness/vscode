@@ -1,0 +1,29 @@
+static void check_one_mergetag(struct commit *commit,
+			       struct commit_extra_header *extra,
+			       void *data)
+{
+	struct check_mergetag_data *mergetag_data = (struct check_mergetag_data *)data;
+	const char *ref = mergetag_data->argv[0];
+	struct object_id tag_oid;
+	struct tag *tag;
+	int i;
+
+	hash_sha1_file(extra->value, extra->len, typename(OBJ_TAG), tag_oid.hash);
+	tag = lookup_tag(&tag_oid);
+	if (!tag)
+		die(_("bad mergetag in commit '%s'"), ref);
+	if (parse_tag_buffer(tag, extra->value, extra->len))
+		die(_("malformed mergetag in commit '%s'"), ref);
+
+	/* iterate over new parents */
+	for (i = 1; i < mergetag_data->argc; i++) {
+		struct object_id oid;
+		if (get_sha1(mergetag_data->argv[i], oid.hash) < 0)
+			die(_("Not a valid object name: '%s'"), mergetag_data->argv[i]);
+		if (!oidcmp(&tag->tagged->oid, &oid))
+			return; /* found */
+	}
+
+	die(_("original commit '%s' contains mergetag '%s' that is discarded; "
+	      "use --edit instead of --graft"), ref, oid_to_hex(&tag_oid));
+}

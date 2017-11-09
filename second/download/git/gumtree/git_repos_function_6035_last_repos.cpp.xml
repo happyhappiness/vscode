@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_6035_last_repos.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">avoid_racy<pos:position pos:line="1" pos:column="23"/></name><parameter_list pos:line="1" pos:column="23">(<parameter><decl><type><name pos:line="1" pos:column="24">void<pos:position pos:line="1" pos:column="28"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="29"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+	<comment type="block" pos:line="3" pos:column="9">/*
+	 * not use if we could usleep(10) if USE_NSEC is defined. The
+	 * field nsec could be there, but the OS could choose to
+	 * ignore it?
+	 */</comment>
+	<expr_stmt><expr><call><name pos:line="8" pos:column="9">sleep<pos:position pos:line="8" pos:column="14"/></name><argument_list pos:line="8" pos:column="14">(<argument><expr><literal type="number" pos:line="8" pos:column="15">1<pos:position pos:line="8" pos:column="16"/></literal></expr></argument>)<pos:position pos:line="8" pos:column="17"/></argument_list></call></expr>;<pos:position pos:line="8" pos:column="18"/></expr_stmt>
+}<pos:position pos:line="9" pos:column="2"/></block></function></unit>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/curl/gumtree/curl_repos_function_1952_last_repos.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">char<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">level_to_char<pos:position pos:line="1" pos:column="26"/></name><parameter_list pos:line="1" pos:column="26">(<parameter><decl><type><name pos:line="1" pos:column="27">int<pos:position pos:line="1" pos:column="30"/></name></type> <name pos:line="1" pos:column="31">level<pos:position pos:line="1" pos:column="36"/></name></decl></parameter>)<pos:position pos:line="1" pos:column="37"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+  <switch pos:line="3" pos:column="3">switch<condition pos:line="3" pos:column="9">(<expr><name pos:line="3" pos:column="10">level<pos:position pos:line="3" pos:column="15"/></name></expr>)<pos:position pos:line="3" pos:column="16"/></condition> <block pos:line="3" pos:column="17">{
+  <case pos:line="4" pos:column="3">case <expr><name pos:line="4" pos:column="8">PROT_CLEAR<pos:position pos:line="4" pos:column="18"/></name></expr>:<pos:position pos:line="4" pos:column="19"/></case>
+    <return pos:line="5" pos:column="5">return <expr><literal type="char" pos:line="5" pos:column="12">'C'<pos:position pos:line="5" pos:column="15"/></literal></expr>;<pos:position pos:line="5" pos:column="16"/></return>
+  <case pos:line="6" pos:column="3">case <expr><name pos:line="6" pos:column="8">PROT_SAFE<pos:position pos:line="6" pos:column="17"/></name></expr>:<pos:position pos:line="6" pos:column="18"/></case>
+    <return pos:line="7" pos:column="5">return <expr><literal type="char" pos:line="7" pos:column="12">'S'<pos:position pos:line="7" pos:column="15"/></literal></expr>;<pos:position pos:line="7" pos:column="16"/></return>
+  <case pos:line="8" pos:column="3">case <expr><name pos:line="8" pos:column="8">PROT_CONFIDENTIAL<pos:position pos:line="8" pos:column="25"/></name></expr>:<pos:position pos:line="8" pos:column="26"/></case>
+    <return pos:line="9" pos:column="5">return <expr><literal type="char" pos:line="9" pos:column="12">'E'<pos:position pos:line="9" pos:column="15"/></literal></expr>;<pos:position pos:line="9" pos:column="16"/></return>
+  <case pos:line="10" pos:column="3">case <expr><name pos:line="10" pos:column="8">PROT_PRIVATE<pos:position pos:line="10" pos:column="20"/></name></expr>:<pos:position pos:line="10" pos:column="21"/></case>
+    <return pos:line="11" pos:column="5">return <expr><literal type="char" pos:line="11" pos:column="12">'P'<pos:position pos:line="11" pos:column="15"/></literal></expr>;<pos:position pos:line="11" pos:column="16"/></return>
+  <case pos:line="12" pos:column="3">case <expr><name pos:line="12" pos:column="8">PROT_CMD<pos:position pos:line="12" pos:column="16"/></name></expr>:<pos:position pos:line="12" pos:column="17"/></case>
+    <comment type="block" pos:line="13" pos:column="5">/* Fall through */</comment>
+  <default pos:line="14" pos:column="3">default:<pos:position pos:line="14" pos:column="11"/></default>
+    <comment type="block" pos:line="15" pos:column="5">/* Those 2 cases should not be reached! */</comment>
+    <break pos:line="16" pos:column="5">break;<pos:position pos:line="16" pos:column="11"/></break>
+  }<pos:position pos:line="17" pos:column="4"/></block></switch>
+  <expr_stmt><expr><call><name pos:line="18" pos:column="3">DEBUGASSERT<pos:position pos:line="18" pos:column="14"/></name><argument_list pos:line="18" pos:column="14">(<argument><expr><literal type="number" pos:line="18" pos:column="15">0<pos:position pos:line="18" pos:column="16"/></literal></expr></argument>)<pos:position pos:line="18" pos:column="17"/></argument_list></call></expr>;<pos:position pos:line="18" pos:column="18"/></expr_stmt>
+  <comment type="block" pos:line="19" pos:column="3">/* Default to the most secure alternative. */</comment>
+  <return pos:line="20" pos:column="3">return <expr><literal type="char" pos:line="20" pos:column="10">'P'<pos:position pos:line="20" pos:column="13"/></literal></expr>;<pos:position pos:line="20" pos:column="14"/></return>
+}<pos:position pos:line="21" pos:column="2"/></block></function></unit>
