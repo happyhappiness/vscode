@@ -115,6 +115,4 @@ apr_status_t apr_socket_sendfile(apr_socket_t *sock, apr_file_t *file,
     }
 
     /* Set len to the number of bytes written */
-    *len = rc;
-    return APR_SUCCESS;
-}
+    *len = 

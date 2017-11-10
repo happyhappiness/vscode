@@ -135,9 +135,4 @@ apr_memnode_t *allocator_alloc(apr_allocator_t *allocator, apr_size_t in_size)
         return NULL;
 
     node->next = NULL;
-    node->index = (APR_UINT32_TRUNC_CAST)index;
-    node->first_avail = (char *)node + APR_MEMNODE_T_SIZE;
-    node->endp = (char *)node + size;
-
-    return node;
-}
+   

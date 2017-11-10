@@ -102,4 +102,81 @@ static void perform_idle_server_maintenance(void)
             child_fatal = 1;
             ap_log_error(APLOG_MARK, APLOG_ALERT, 0,
                          ap_server_conf,
-               
+                         "No active workers found..."
+                         " Apache is exiting!");
+            /* the child already logged the failure details */
+            return;
+        }
+    }
+
+    ap_max_daemons_limit = last_non_dead + 1;
+
+    if (idle_thread_count > max_spare_threads) {
+        /* Kill off one child */
+        ap_mpm_pod_signal(pod, TRUE);
+        idle_spawn_rate = 1;
+    }
+    else if (idle_thread_count < min_spare_threads) {
+        /* terminate the free list */
+        if (free_length == 0) {
+            /* No room for more children, might warn about configuration */
+            if (active_thread_count >= ap_daemons_limit * ap_threads_per_child) {
+                /* no threads are "inactive" - starting, stopping, etc. - which would confuse matters */
+                /* Are all threads in use?  Then we're really at MaxClients */
+                if (0 == idle_thread_count) {
+                    /* only report this condition once */
+                    static int reported = 0;
+
+                    if (!reported) {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     ap_server_conf,
+                                     "server reached MaxClients setting, consider"
+                                     " raising the MaxClients setting");
+                        reported = 1;
+                    }
+                } else {
+                    static int reported = 0;
+
+                    if (!reported) {
+                        ap_log_error(APLOG_MARK, APLOG_ERR, 0,
+                                     ap_server_conf,
+                                     "server is within MinSpareThreads of MaxClients, consider"
+                                     " raising the MaxClients setting");
+                        reported = 1;
+                    }
+                }
+            }
+            idle_spawn_rate = 1;
+        }
+        else {
+            if (free_length > idle_spawn_rate) {
+                free_length = idle_spawn_rate;
+            }
+            if (idle_spawn_rate >= 8) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "server seems busy, (you may need "
+                             "to increase StartServers, ThreadsPerChild "
+                             "or Min/MaxSpareThreads), "
+                             "spawning %d children, there are around %d idle "
+                             "threads, and %d total children", free_length,
+                             idle_thread_count, total_non_dead);
+            }
+            for (i = 0; i < free_length; ++i) {
+                make_child(ap_server_conf, free_slots[i]);
+            }
+            /* the next time around we want to spawn twice as many if this
+             * wasn't good enough, but not if we've just done a graceful
+             */
+            if (hold_off_on_exponential_spawning) {
+                --hold_off_on_exponential_spawning;
+            }
+            else if (idle_spawn_rate < MAX_SPAWN_RATE) {
+                idle_spawn_rate *= 2;
+            }
+        }
+    }
+    else {
+      idle_spawn_rate = 1;
+    }
+}

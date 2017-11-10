@@ -653,4 +653,54 @@ static const char *set_server_limit (cmd_parms *cmd, void *dummy, const char *ar
      */
     if (first_server_limit &&
         tmp_server_limit != server_limit) {
-        /* how do we log a mes
+        /* how do we log a message?  the error log is a bit bucket at this
+         * point; we'll just have to set a flag so that ap_mpm_run()
+         * logs a warning later
+         */
+        changed_limit_at_restart = 1;
+        return NULL;
+    }
+    server_limit = tmp_server_limit;
+    
+    if (server_limit > MAX_SERVER_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    "WARNING: ServerLimit of %d exceeds compile time limit "
+                    "of %d servers,", server_limit, MAX_SERVER_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                    " lowering ServerLimit to %d.", MAX_SERVER_LIMIT);
+       server_limit = MAX_SERVER_LIMIT;
+    } 
+    else if (server_limit < 1) {
+	ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
+                     "WARNING: Require ServerLimit > 0, setting to 1");
+	server_limit = 1;
+    }
+    return NULL;
+}
+
+static const command_rec prefork_cmds[] = {
+UNIX_DAEMON_COMMANDS,
+LISTEN_COMMANDS,
+AP_INIT_TAKE1("StartServers", set_daemons_to_start, NULL, RSRC_CONF,
+              "Number of child processes launched at server startup"),
+AP_INIT_TAKE1("MinSpareServers", set_min_free_servers, NULL, RSRC_CONF,
+              "Minimum number of idle children, to handle request spikes"),
+AP_INIT_TAKE1("MaxSpareServers", set_max_free_servers, NULL, RSRC_CONF,
+              "Maximum number of idle children"),
+AP_INIT_TAKE1("MaxClients", set_max_clients, NULL, RSRC_CONF,
+              "Maximum number of children alive at the same time"),
+AP_INIT_TAKE1("ServerLimit", set_server_limit, NULL, RSRC_CONF,
+              "Maximum value of MaxClients for this run of Apache"),
+{ NULL }
+};
+
+module AP_MODULE_DECLARE_DATA mpm_prefork_module = {
+    MPM20_MODULE_STUFF,
+    ap_mpm_rewrite_args,        /* hook to run before apache parses args */
+    NULL,			/* create per-directory config structure */
+    NULL,			/* merge per-directory config structures */
+    NULL,			/* create per-server config structure */
+    NULL,			/* merge per-server config structures */
+    prefork_cmds,		/* command apr_table_t */
+    prefork_hooks,		/* register hooks */
+};

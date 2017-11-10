@@ -156,4 +156,5 @@ int main(int argc, const char *const argv[])
         apr_file_printf(errfile, "Conversion Complete." NL);
     }
 
-    r
+    return 0;
+}

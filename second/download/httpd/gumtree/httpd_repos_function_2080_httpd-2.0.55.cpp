@@ -101,4 +101,40 @@ apr_status_t mpm_service_start(apr_pool_t *ptemp, int argc,
             next_arg = strchr(exe_cmd, '\0');
         }
         
-  
+        memset(&si, 0, sizeof(si));
+        memset(&pi, 0, sizeof(pi));
+        si.cb = sizeof(si);
+        si.dwFlags     = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;   /* This might be redundant */
+        
+        rv = APR_EINIT;
+        if (CreateProcess(NULL, exe_cmd, NULL, NULL, FALSE, 
+                           DETACHED_PROCESS, /* Creation flags */
+                           NULL, NULL, &si, &pi)) 
+        {
+            DWORD code;
+            while (GetExitCodeProcess(pi.hProcess, &code) == STILL_ACTIVE) {
+                if (FindWindow("ApacheWin95ServiceMonitor", mpm_service_name)) {
+                    rv = APR_SUCCESS;
+                    break;
+                }
+                Sleep (1000);
+            }
+        }
+        
+        if (rv != APR_SUCCESS)
+            rv = apr_get_os_error();
+        
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }    
+
+    if (rv == APR_SUCCESS)
+        fprintf(stderr,"The %s service is running.\n", mpm_display_name);
+    else
+        ap_log_error(APLOG_MARK, APLOG_CRIT, rv, NULL,
+                     "%s: Failed to start the service process.",
+                     mpm_display_name);
+        
+    return rv;
+}

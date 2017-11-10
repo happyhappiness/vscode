@@ -135,20 +135,4 @@ static int magic_rsl_to_request(request_rec *r)
 					 encoding_pos, encoding_len);
 	/* XXX: this could be done at config time I'm sure... but I'm
 	 * confused by all this magic_rsl stuff. -djg */
-	ap_str_tolower(tmp);
-	r->content_encoding = tmp;
-    }
-
-    /* detect memory allocation or other errors */
-    if (!r->content_type ||
-	(state == rsl_encoding && !r->content_encoding)) {
-        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      MODNAME ": unexpected state %d; could be caused by bad "
-                      "data in magic file",
-                      state);
-	return HTTP_INTERNAL_SERVER_ERROR;
-    }
-
-    /* success! */
-    return OK;
-}
+	ap_str_to

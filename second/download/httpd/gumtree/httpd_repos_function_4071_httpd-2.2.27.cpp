@@ -215,3 +215,83 @@ for (;;)
 
   if (ovector[0] == ovector[1])
     {
+    if (ovector[0] == subject_length) break;
+    options = PCRE_NOTEMPTY | PCRE_ANCHORED;
+    }
+
+  /* Run the next matching operation */
+
+  rc = pcre_exec(
+    re,                   /* the compiled pattern */
+    NULL,                 /* no extra data - we didn't study the pattern */
+    subject,              /* the subject string */
+    subject_length,       /* the length of the subject */
+    start_offset,         /* starting offset in the subject */
+    options,              /* options */
+    ovector,              /* output vector for substring information */
+    OVECCOUNT);           /* number of elements in the output vector */
+
+  /* This time, a result of NOMATCH isn't an error. If the value in "options"
+  is zero, it just means we have found all possible matches, so the loop ends.
+  Otherwise, it means we have failed to find a non-empty-string match at a
+  point where there was a previous empty-string match. In this case, we do what
+  Perl does: advance the matching position by one, and continue. We do this by
+  setting the "end of previous match" offset, because that is picked up at the
+  top of the loop as the point at which to start again. */
+
+  if (rc == PCRE_ERROR_NOMATCH)
+    {
+    if (options == 0) break;
+    ovector[1] = start_offset + 1;
+    continue;    /* Go round the loop again */
+    }
+
+  /* Other matching errors are not recoverable. */
+
+  if (rc < 0)
+    {
+    printf("Matching error %d\n", rc);
+    free(re);    /* Release memory used for the compiled pattern */
+    return 1;
+    }
+
+  /* Match succeded */
+
+  printf("\nMatch succeeded again at offset %d\n", ovector[0]);
+
+  /* The match succeeded, but the output vector wasn't big enough. */
+
+  if (rc == 0)
+    {
+    rc = OVECCOUNT/3;
+    printf("ovector only has room for %d captured substrings\n", rc - 1);
+    }
+
+  /* As before, show substrings stored in the output vector by number, and then
+  also any named substrings. */
+
+  for (i = 0; i < rc; i++)
+    {
+    char *substring_start = subject + ovector[2*i];
+    int substring_length = ovector[2*i+1] - ovector[2*i];
+    printf("%2d: %.*s\n", i, substring_length, substring_start);
+    }
+
+  if (namecount <= 0) printf("No named substrings\n"); else
+    {
+    unsigned char *tabptr = name_table;
+    printf("Named substrings\n");
+    for (i = 0; i < namecount; i++)
+      {
+      int n = (tabptr[0] << 8) | tabptr[1];
+      printf("(%d) %*s: %.*s\n", n, name_entry_size - 3, tabptr + 2,
+        ovector[2*n+1] - ovector[2*n], subject + ovector[2*n]);
+      tabptr += name_entry_size;
+      }
+    }
+  }      /* End of loop to find second and subsequent matches */
+
+printf("\n");
+free(re);       /* Release memory used for the compiled pattern */
+return 0;
+}

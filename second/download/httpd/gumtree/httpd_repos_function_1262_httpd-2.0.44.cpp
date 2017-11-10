@@ -100,4 +100,10 @@ int ap_proxy_http_handler(request_rec *r, proxy_server_conf *conf,
     }
 
     /* Step Five: Clean Up */
-    status = ap_proxy_h
+    status = ap_proxy_http_cleanup(r, p_conn, backend);
+    if ( status != OK ) {
+        return status;
+    }
+
+    return OK;
+}

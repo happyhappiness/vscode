@@ -111,6 +111,4 @@
      * caller) to only declare the resource transparently negotiable if
      * all variants are neighbors.
      */</comment>
-    <expr_stmt><expr><operator pos:line="113" pos:column="5">*<pos:position pos:line="113" pos:column="6"/></operator><name pos:line="113" pos:column="6">pbest<pos:position pos:line="113" pos:column="11"/></name> <operator pos:line="113" pos:column="12">=<pos:position pos:line="113" pos:column="13"/></operator> <name pos:line="113" pos:column="14">best<pos:position pos:line="113" pos:column="18"/></name></expr>;<pos:position pos:line="113" pos:column="19"/></expr_stmt>
-    <return pos:line="114" pos:column="5">return <expr><name pos:line="114" pos:column="12">algorithm_result<pos:position pos:line="114" pos:column="28"/></name></expr>;<pos:position pos:line="114" pos:column="29"/></return>
-}<pos:position pos:line="115" pos:column="2"/></block></function></unit>
+    <expr_stmt><expr><operator pos:line="113" pos:column="5">*<pos:position pos:line="113" pos:column="6"/></operator><name pos:line="113" pos:column="6">pbest<pos:position pos:line="113" pos:column="11"/></name> <operator pos:line="113" pos:column="12">=<pos:position pos:line="113" pos:column="13"/></operator> <macro><name pos:line="113" pos:column="14">be<pos:position pos:line="113" pos:column="16"/></name></macro></expr></expr_stmt></block></function></unit>

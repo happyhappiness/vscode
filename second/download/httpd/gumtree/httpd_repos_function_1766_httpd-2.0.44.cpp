@@ -111,4 +111,30 @@ static const char *invoke_cmd(const command_rec *cmd, cmd_parms *parms,
     case ITERATE2:
         w = ap_getword_conf(parms->pool, &args);
 
-        if (*w == '\
+        if (*w == '\0' || *args == 0)
+            return apr_pstrcat(parms->pool, cmd->name,
+                               " requires at least two arguments",
+                               cmd->errmsg ? ", " : NULL, cmd->errmsg, NULL);
+
+        while (*(w2 = ap_getword_conf(parms->pool, &args)) != '\0') {
+            if ((errmsg = cmd->AP_TAKE2(parms, mconfig, w, w2)))
+                return errmsg;
+        }
+
+        return NULL;
+
+    case FLAG:
+        w = ap_getword_conf(parms->pool, &args);
+
+        if (*w == '\0' || (strcasecmp(w, "on") && strcasecmp(w, "off")))
+            return apr_pstrcat(parms->pool, cmd->name, " must be On or Off",
+                               NULL);
+
+        return cmd->AP_FLAG(parms, mconfig, strcasecmp(w, "off") != 0);
+
+    default:
+        return apr_pstrcat(parms->pool, cmd->name,
+                           " is improperly configured internally (server bug)",
+                           NULL);
+    }
+}

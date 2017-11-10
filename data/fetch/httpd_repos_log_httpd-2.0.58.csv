@@ -3,6 +3,7 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/cls.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2_httpd-2.0.58.cpp,45,"fprintf(stderr, ""Bad cache file\n"")","[""checkmask_ret""]",[null]
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/cls.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2_httpd-2.0.58.cpp,62,"fprintf(stderr, ""Bad cache file\n"")","[""strncmp_ret"", null, ""strlen_ret""]",[null]
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/cls.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2_httpd-2.0.58.cpp,87,"printf(""%s: %d; %s  %s  %s\n"", line + 7, ver, sdate, slmod, sexpire)","[""strncmp_ret"", null, ""strlen_ret""]","[null, ""hex2sec_ret"", null, null, null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/time-sem.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_3_httpd-2.0.58.cpp,20,"fprintf (stderr, ""Cannot open lock file: %s\n"", ""test-lock-thing"")","[""open_ret""]",[null]
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/time-sem.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_6_httpd-2.0.58.cpp,8,"fprintf (stderr, ""Cannot open lock file: %s\n"", ""test-lock-thing"")","[""open_ret""]",[null]
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/time-sem.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_18_httpd-2.0.58.cpp,7,"fprintf(stderr, ""didn't get lock\n"")","[""ussetlock_ret""]",[null]
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/time-sem.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_22_httpd-2.0.58.cpp,12,"fprintf (stderr, ""Usage: time-sem num-child num iter\n"")","[""int""]",[null]
@@ -11,19 +12,6 @@ file,function,loc,log,check,variable
 		*shared_counter,
 		num_child, num_iter)","[""get_shared_mem_ret"", ""atoi_ret"", ""atoi_ret""]","[""get_shared_mem_ret"", ""atoi_ret"", ""atoi_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/time-sem.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_22_httpd-2.0.58.cpp,81,"printf (""%8lu.%06lu\n"", last.tv_sec, last.tv_usec)","[""get_shared_mem_ret"", ""atoi_ret"", ""atoi_ret""]","["" struct timeval"", null, "" struct timeval"", null]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,15,"printf(""   (Connect: %d, Length: %d, Exceptions: %d)\n"",
-		 err_conn, err_length, err_except)",[null],"[null, null, null]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,17,"printf(""Keep-Alive requests:    %d\n"", doneka)",[null],[null]
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,18,"printf(""Bytes transfered:       %d\n"", totalread)",[null],"[""float_arg""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,19,"printf(""HTML transfered:        %d\n"", totalbread)",[null],[null]
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,23,"printf(""Requests per seconds:   %.2f\n"", 1000*(float)(done)/timetaken)","[""timedif_ret""]","[""float_ret"", ""timedif_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,24,"printf(""Transfer rate:          %.2f kb/s\n"", 
-	   (float)(totalread)/timetaken)","[""timedif_ret""]","[""float_ret"", ""timedif_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,44,"printf(""\nConnnection Times (ms)\n"")","[""timedif_ret""]",[]
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,45,"printf(""           min   avg   max\n"")","[""timedif_ret""]",[]
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,46,"printf(""Connect: %5d %5d %5d\n"",mincon, totalcon/requests, maxcon )","[""timedif_ret""]","[""min_ret"", ""int"", null, ""max_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,47,"printf(""Total:   %5d %5d %5d\n"", mintot, total/requests, maxtot)","[""timedif_ret""]","[""min_ret"", ""int"", null, ""max_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_27_httpd-2.0.58.cpp,48,"printf(""---\n\n"")","[""timedif_ret""]",[]
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_28_httpd-2.0.58.cpp,9,"err(""socket"")","[""start_connect_arg"", null]",[]
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_28_httpd-2.0.58.cpp,24,"printf(""\nTest aborted after 10 failures\n\n"")",[null],[]
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/test/zb.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_30_httpd-2.0.58.cpp,37,"printf(""\nTest aborted after 10 failures\n\n"")",[null],[]
@@ -65,6 +53,8 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/support/suexec.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_49_httpd-2.0.58.cpp,17,"fprintf(log, ""[%d-%.2d-%.2d %.2d:%.2d:%.2d]: "",
             lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
             lt->tm_hour, lt->tm_min, lt->tm_sec)","[""fopen_ret"", ""fopen_ret"", null]","[""fopen_ret"", ""localtime_ret"", null, ""localtime_ret"", null, ""localtime_ret"", null, ""localtime_ret"", null, ""localtime_ret"", null, ""localtime_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/support/httxt2dbm.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_54_httpd-2.0.58.cpp,50,"apr_file_printf(errfile, ""    '%s' -> '%s'""NL,
+                            dbmkey.dptr, dbmval.dptr)",[null],"[null, null, ""apr_dbm_store_arg"", null, ""apr_dbm_store_arg"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/support/httxt2dbm.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_55_httpd-2.0.58.cpp,100,"apr_file_printf(errfile, ""DBM Format: %s""NL, format)",[null],"[null, null, ""apr_pstrdup_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/support/httxt2dbm.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_55_httpd-2.0.58.cpp,119,"apr_file_printf(errfile, ""Input File: %s""NL, input)",[null],"[null, null, ""apr_pstrdup_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/support/httxt2dbm.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_55_httpd-2.0.58.cpp,140,"apr_file_printf(errfile, ""DBM File: %s""NL, output)",[null],"[null, null, ""apr_pstrdup_ret""]"
@@ -370,6 +360,11 @@ file,function,loc,log,check,variable
                          ""than its parent."")","[""strcasecmp_ret""]","[null, null, null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_282_httpd-2.0.58.cpp,15,"ap_rputs("" xmlns:m=\""http://apache.org/dav/xmlns\"""", r)","[""dav_error"", null, null]","[""ap_set_content_type_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_282_httpd-2.0.58.cpp,40,"ap_rputs(""</D:error>"" DEBUG_CR, r)","[""dav_error"", null, null]","[null, ""ap_rprintf_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_288_httpd-2.0.58.cpp,12,"ap_log_rerror(APLOG_MARK, level, errno, r, ""%s  [%d, #%d]"",
+                          errscan->desc, errscan->status, errscan->error_id)","[""dav_error"", null]","[null, ""int"", null, ""request_rec"", ""dav_error"", null, ""dav_error"", null, ""dav_error"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_288_httpd-2.0.58.cpp,16,"ap_log_rerror(APLOG_MARK, level, 0, r,
+                          ""%s  [%d, #%d]"",
+                          errscan->desc, errscan->status, errscan->error_id)","[""dav_error"", null]","[null, ""int"", ""request_rec"", ""dav_error"", null, ""dav_error"", null, ""dav_error"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_299_httpd-2.0.58.cpp,32,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
                       ""Depth must be \""infinity\"" for DELETE of a collection."")","[""dav_get_resource_arg_ret"", null, ""dav_get_depth_ret"", null]","[null, null, ""dav_get_depth_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_299_httpd-2.0.58.cpp,39,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
@@ -403,11 +398,6 @@ file,function,loc,log,check,variable
                       ""Depth must be \""infinity\"" when moving a collection."")","[""int"", ""int"", ""dav_get_depth_ret"", ""dav_validate_request_arg""]","[null, null, ""dav_get_depth_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_316_httpd-2.0.58.cpp,24,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
                       ""Depth must be 0 or \""infinity\"" for LOCK."")","[""dav_get_depth_ret"", ""dav_get_depth_ret"", null]","[null, null, ""dav_get_depth_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_316_httpd-2.0.58.cpp,143,"ap_rputs(""<D:lockdiscovery/>"" DEBUG_CR, r)","[""dav_add_lock_arg_ret"", ""dav_lock_get_activelock_arg""]","[""ap_rprintf_arg"", ""ap_set_content_type_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_316_httpd-2.0.58.cpp,151,"ap_rputs(""</D:prop>"", r)","[""dav_add_lock_arg_ret"", ""dav_lock_get_activelock_arg""]","[""dav_lock_get_activelock_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_317_httpd-2.0.58.cpp,19,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      ""Unlock failed (%s):  ""
-                      ""No Lock-Token specified in header"", r->filename)","[""apr_table_get_ret"", ""apr_table_get_ret"", ""dav_handle_err_arg""]","[null, null, ""DAV_GET_HOOKS_LOCKS_arg_ret"", ""DAV_GET_HOOKS_LOCKS_arg_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_318_httpd-2.0.58.cpp,36,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
                           ""The request body does not contain ""
                           ""a \""version-control\"" element."")","[""dav_validate_root_ret""]","[null, null, ""ap_xml_parse_input_arg_ret""]"
@@ -459,9 +449,6 @@ file,function,loc,log,check,variable
                       ""a label name."")","[""apr_size_t""]","[null, null, ""ap_xml_parse_input_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_325_httpd-2.0.58.cpp,17,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
                       ""The request body must specify a report."")","[""ap_xml_parse_input_arg_ret"", ""dav_handle_err_arg""]","[null, ""dav_log_err_arg"", ""ap_xml_parse_input_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_326_httpd-2.0.58.cpp,27,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      ""The request body does not contain ""
-                      ""a \""mkworkspace\"" element."")","[""dav_validate_root_ret"", ""ap_xml_parse_input_arg_ret"", ""dav_handle_err_arg""]","[null, null, ""ap_xml_parse_input_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/dav/main/mod_dav.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_329_httpd-2.0.58.cpp,25,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
                       ""The request body must be present and must be a ""
                       ""DAV:merge element."")","[""dav_validate_root_ret"", ""dav_validate_root_arg_ret"", ""dav_handle_err_arg""]","[null, null, ""ap_xml_parse_input_arg_ret""]"
@@ -502,6 +489,10 @@ file,function,loc,log,check,variable
 				MODNAME "": bad state %d (ws)"", state)","[""rsl_states"", null]","[null, null, ""rsl_strdup_arg"", null, ""rsl_states""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_mime_magic.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_440_httpd-2.0.58.cpp,104,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
 				MODNAME "": bad state %d (ns)"", state)","[""rsl_states"", null]","[null, null, ""rsl_strdup_arg"", null, ""rsl_states""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_mime_magic.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_440_httpd-2.0.58.cpp,144,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      MODNAME "": unexpected state %d; could be caused by bad ""
+                      ""data in magic file"",
+                      state)","[""rsl_strdup_arg_ret"", null, ""rsl_states"", null, ""rsl_strdup_arg_ret"", null]","[null, null, ""rsl_strdup_arg_ret"", null, ""rsl_states""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_mime_magic.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_441_httpd-2.0.58.cpp,23,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
 		    MODNAME "": can't read `%s'"", r->filename)","[""apr_file_open_ret"", null]","[null, null, ""magic_rsl_putchar_arg_ret"", null, ""magic_rsl_putchar_arg_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_mime_magic.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_441_httpd-2.0.58.cpp,34,"ap_log_rerror(APLOG_MARK, APLOG_ERR, result, r,
@@ -610,6 +601,10 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_mime_magic.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_458_httpd-2.0.58.cpp,40,"ap_log_rerror(APLOG_MARK, APLOG_ERR, APR_ENOPROC, r,
                           MODNAME "": could not execute `%s'."",
                           compr[parm->method].argv[0])","[""apr_proc_create_ret"", null]","[null, null, null, ""request_rec"", null, null, "" struct uncompress_parms"", null, null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_mime_magic.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_459_httpd-2.0.58.cpp,19,"ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+		    MODNAME "": couldn't spawn uncompress process: %s"", r->uri)","[""create_uncompress_child_ret"", ""create_uncompress_child_ret"", null]","[null, null, ""create_uncompress_child_ret"", ""request_rec"", null, ""request_rec"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_mime_magic.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_459_httpd-2.0.58.cpp,28,"ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+	    MODNAME "": read failed %s"", r->filename)","[""apr_size_t""]","[null, null, ""apr_file_read_ret"", ""request_rec"", null, ""request_rec"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_mime_magic.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_462_httpd-2.0.58.cpp,35,"ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
 		    MODNAME "": subrequest %s got %s"",
 		    sub_filename, r->content_type)","[""ap_sub_req_lookup_file_ret"", null]","[null, null, ""ap_set_content_type_arg_ret"", null, ""ap_sub_req_lookup_file_arg_ret"", ""ap_set_content_type_arg_ret"", null]"
@@ -641,6 +636,8 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_unique_id.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_521_httpd-2.0.58.cpp,61,"ap_log_error(APLOG_MARK, APLOG_INFO, 0, main_server,
                 ""mod_unique_id: using ip addr %s"",
                  ipaddrstr)","[""apr_sockaddr_info_get_ret"", ""apr_sockaddr_info_get_ret"", null]","[null, null, ""server_rec"", ""apr_sockaddr_ip_get_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_unique_id.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_522_httpd-2.0.58.cpp,24,"ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
+                    ""oh no! pids are greater than 32-bits!  I'm broken!"")","[null, null, ""getpid_ret"", ""getpid_ret""]","[null, null, ""server_rec""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/metadata/mod_expires.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_531_httpd-2.0.58.cpp,33,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
                     ""internal error: bad expires code: %s"", r->filename)","[""char""]","[null, null, ""request_rec"", ""request_rec"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_pphrase.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_539_httpd-2.0.58.cpp,54,"ap_log_error(APLOG_MARK, APLOG_ERR, 0, pServ,
@@ -911,8 +908,6 @@ file,function,loc,log,check,variable
                          error ? error : ""unknown"")","[""ssl_verify_error_is_optional_ret"", ""mySrvConfig_ret"", null, null, null, null]","[""ssl_log_ssl_error_arg"", ""ssl_log_ssl_error_arg"", ""ssl_filter_io_shutdown_arg_ret"", null, ""X509_verify_cert_error_string_ret"", ""X509_verify_cert_error_string_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_io.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_677_httpd-2.0.58.cpp,147,"ap_log_error(APLOG_MARK, APLOG_INFO, 0, c->base_server,
                      ""No acceptable peer certificate available"")","[""mySrvConfig_ret"", null, null, null, null, ""myConnConfig_ret"", null]","[null, null, ""ssl_filter_io_shutdown_arg_ret"", null]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_io.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_679_httpd-2.0.58.cpp,73,"ap_log_error(APLOG_MARK, APLOG_INFO, status, NULL,
-                             ""SSL filter error shutting down I/O"")","[""ssl_filter_io_shutdown_ret"", null]","[null, null, ""ssl_filter_io_shutdown_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_io.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_683_httpd-2.0.58.cpp,44,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, srvr,
                 ""| %04ld - <SPACES/NULS>"", len + trunc)","[""int""]","[null, null, ""server_rec"", ""long"", ""int""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_io.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_683_httpd-2.0.58.cpp,46,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, srvr,
@@ -1086,15 +1081,6 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_776_httpd-2.0.58.cpp,91,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, buff)","[""mySrvConfig_arg_ret"", null, null]","[null, null, ""mySrvConfig_arg_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_776_httpd-2.0.58.cpp,105,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
                          ""Invalid signature on CRL"")","[""X509_CRL_verify_ret""]","[null, null, ""mySrvConfig_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_776_httpd-2.0.58.cpp,119,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         ""Found CRL has invalid nextUpdate field"")","[""X509_cmp_current_time_ret""]","[null, null, ""mySrvConfig_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_776_httpd-2.0.58.cpp,130,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
-                         ""Found CRL is expired - ""
-                         ""revoking all certificates until you get updated CRL"")","[""X509_cmp_current_time_ret""]","[null, null, ""mySrvConfig_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_776_httpd-2.0.58.cpp,169,"ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
-                                 ""Certificate with serial %ld (0x%lX) ""
-                                 ""revoked per CRL from issuer %s"",
-                                 serial, serial, cp)","[""mySrvConfig_arg_ret"", null, null]","[null, null, ""mySrvConfig_arg_ret"", ""ASN1_INTEGER_get_ret"", ""ASN1_INTEGER_get_ret"", ""X509_NAME_oneline_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_778_httpd-2.0.58.cpp,16,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
                      SSLPROXY_CERT_CB_LOG_FMT
                      ""downstream server wanted client certificate ""
@@ -1102,6 +1088,38 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_778_httpd-2.0.58.cpp,56,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
                  SSLPROXY_CERT_CB_LOG_FMT
                  ""no client certificate found!?"", sc->vhost_id)","[""sk_X509_INFO_num_ret"", ""STACK_OF_ret""]","[null, null, ""modssl_proxy_info_log_arg_ret"", null, ""mySrvConfig_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_783_httpd-2.0.58.cpp,23,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         ""%s: Handshake: start"", SSL_LIBRARY_NAME)","[""int"", null]","[null, null, ""mySrvConfig_arg_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_783_httpd-2.0.58.cpp,27,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         ""%s: Handshake: done"", SSL_LIBRARY_NAME)","[""int"", null]","[null, null, ""mySrvConfig_arg_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_783_httpd-2.0.58.cpp,31,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         ""%s: Loop: %s"",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl))","[""int"", null]","[""SSL_state_string_long_ret"", null, null, ""mySrvConfig_arg_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_783_httpd-2.0.58.cpp,36,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         ""%s: Read: %s"",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl))","[""int"", null]","[""SSL_state_string_long_ret"", null, null, ""mySrvConfig_arg_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_783_httpd-2.0.58.cpp,41,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         ""%s: Write: %s"",
+                         SSL_LIBRARY_NAME, SSL_state_string_long(ssl))","[""int"", null]","[""SSL_state_string_long_ret"", null, null, ""mySrvConfig_arg_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_783_httpd-2.0.58.cpp,47,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                         ""%s: Alert: %s:%s:%s"",
+                         SSL_LIBRARY_NAME, str,
+                         SSL_alert_type_string_long(rc),
+                         SSL_alert_desc_string_long(rc))","[""int"", null]","[""SSL_alert_type_string_long_ret"", ""SSL_alert_desc_string_long_ret"", null, null, ""mySrvConfig_arg_ret"", null, ""char""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_783_httpd-2.0.58.cpp,55,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             ""%s: Exit: failed in %s"",
+                             SSL_LIBRARY_NAME, SSL_state_string_long(ssl))","[""int""]","[""SSL_state_string_long_ret"", null, null, ""mySrvConfig_arg_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_783_httpd-2.0.58.cpp,60,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
+                             ""%s: Exit: error in %s"",
+                             SSL_LIBRARY_NAME, SSL_state_string_long(ssl))","[""int""]","[""SSL_state_string_long_ret"", null, null, ""mySrvConfig_arg_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_kernel.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_783_httpd-2.0.58.cpp,73,"ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     ""Connection: Client IP: %s, Protocol: %s, ""
+                     ""Cipher: %s (%s/%s bits)"",
+                     ssl_var_lookup(NULL, s, c, NULL, ""REMOTE_ADDR""),
+                     ssl_var_lookup(NULL, s, c, NULL, ""SSL_PROTOCOL""),
+                     ssl_var_lookup(NULL, s, c, NULL, ""SSL_CIPHER""),
+                     ssl_var_lookup(NULL, s, c, NULL, ""SSL_CIPHER_USEKEYSIZE""),
+                     ssl_var_lookup(NULL, s, c, NULL, ""SSL_CIPHER_ALGKEYSIZE""))","[""int"", null]","[""ssl_var_lookup_ret"", ""ssl_var_lookup_ret"", ""ssl_var_lookup_ret"", ""ssl_var_lookup_ret"", ""ssl_var_lookup_ret"", null, null, ""mySrvConfig_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_engine_log.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_786_httpd-2.0.58.cpp,12,"ap_log_error(file, line, level, 0, s,
                          ""SSL Library Error: %lu %s %s"",
                          e, err, annotation)","[""ssl_log_annotation_ret""]","[""char"", ""int"", ""int"", ""server_rec"", ""ERR_get_error_ret"", null, ""ssl_log_annotation_ret""]"
@@ -1310,6 +1328,19 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/ssl/ssl_scache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_861_httpd-2.0.58.cpp,9,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
                      ""Init: Session Cache is not configured ""
                      ""[hint: SSLSessionCache]"")","[""myModConfig_ret"", null, null]","[null, null, ""myModConfig_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/cache/mod_file_cache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_873_httpd-2.0.58.cpp,11,"ap_log_error(APLOG_MARK, APLOG_WARNING, APR_EBADPATH, cmd->server,
+                     ""mod_file_cache: invalid file path ""
+                     ""%s, skipping"", filename)","[""ap_server_root_relative_ret""]","[null, null, null, ""cmd_parms"", null, ""ap_server_root_relative_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/cache/mod_file_cache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_873_httpd-2.0.58.cpp,18,"ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+	    ""mod_file_cache: unable to stat(%s), skipping"", fspec)","[""apr_stat_ret"", ""apr_stat_ret"", null]","[null, null, ""apr_stat_ret"", ""cmd_parms"", null, ""apr_stat_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/cache/mod_file_cache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_873_httpd-2.0.58.cpp,23,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+	    ""mod_file_cache: %s isn't a regular file, skipping"", fspec)","[""a_file"", null, null, null]","[null, null, ""cmd_parms"", null, ""apr_stat_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/cache/mod_file_cache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_873_httpd-2.0.58.cpp,28,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+	    ""mod_file_cache: %s is too large to cache, skipping"", fspec)","[""a_file"", null, null, null]","[null, null, ""cmd_parms"", null, ""apr_stat_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/cache/mod_file_cache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_873_httpd-2.0.58.cpp,36,"ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                     ""mod_file_cache: unable to open(%s, O_RDONLY), skipping"", fspec)","[""apr_file_open_ret"", null]","[null, null, ""apr_file_open_ret"", ""cmd_parms"", null, ""apr_file_open_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/cache/mod_file_cache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_873_httpd-2.0.58.cpp,56,"ap_log_error(APLOG_MARK, APLOG_WARNING, rc, cmd->server,
+                         ""mod_file_cache: unable to mmap %s, skipping"", filename)","[""apr_mmap_create_ret"", ""apr_mmap_create_ret"", null]","[null, null, ""apr_mmap_create_ret"", ""cmd_parms"", null, ""ap_server_root_relative_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/mappers/mod_so.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_884_httpd-2.0.58.cpp,34,"ap_log_perror(APLOG_MARK, APLOG_WARNING, 0,
                           cmd->pool, ""module %s is already loaded, skipping"",
                           modname)","[""strcmp_ret"", ""apr_pool_cleanup_register_arg"", null, ""apr_pstrcat_arg""]","[null, null, ""cmd_parms"", null, ""strcmp_arg_ret""]"
@@ -1391,6 +1422,9 @@ file,function,loc,log,check,variable
                                   ""file %s"", s->checkfile)","[""apr_stat_ret"", ""apr_stat_ret"", null]","[null, null, ""apr_stat_ret"", ""rewritelog_arg"", ""rewritemap_entry"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/mappers/mod_rewrite.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_993_httpd-2.0.58.cpp,59,"ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
                                   ""mod_rewrite: can't access DBM RewriteMap ""
+                                  ""file %s"", s->checkfile)","[""apr_stat_ret"", ""apr_stat_ret"", null]","[null, null, ""apr_stat_ret"", ""rewritelog_arg_ret"", ""rewritemap_entry"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/mappers/mod_rewrite.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_993_httpd-2.0.58.cpp,119,"ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  ""mod_rewrite: can't access text RewriteMap ""
                                   ""file %s"", s->checkfile)","[""apr_stat_ret"", ""apr_stat_ret"", null]","[null, null, ""apr_stat_ret"", ""rewritelog_arg_ret"", ""rewritemap_entry"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/mappers/mod_rewrite.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_996_httpd-2.0.58.cpp,33,"ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
                           ""apr_global_mutex_lock(rewrite_mapr_lock_acquire) ""
@@ -1711,29 +1745,6 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/generators/mod_status.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1141_httpd-2.0.58.cpp,505,"ap_rputs(""</td><td>G"", r)","[""ap_get_scoreboard_worker_ret"", null, null]","[""ap_rprintf_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/generators/mod_status.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1141_httpd-2.0.58.cpp,508,"ap_rputs(""</td><td>I"", r)","[""ap_get_scoreboard_worker_ret"", null, null]","[""ap_rprintf_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/generators/mod_status.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1141_httpd-2.0.58.cpp,511,"ap_rputs(""</td><td>?"", r)","[""ap_get_scoreboard_worker_ret"", null]","[""ap_rprintf_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/generators/mod_status.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1141_httpd-2.0.58.cpp,552,"ap_rputs(""</table>\n \
-<hr /> \
-<table>\n \
-<tr><th>Srv</th><td>Child Server number - generation</td></tr>\n \
-<tr><th>PID</th><td>OS process ID</td></tr>\n \
-<tr><th>Acc</th><td>Number of accesses this connection / this child / this slot</td></tr>\n \
-<tr><th>M</th><td>Mode of operation</td></tr>\n""
-
-#ifdef HAVE_TIMES
-""<tr><th>CPU</th><td>CPU usage, number of seconds</td></tr>\n""
-#endif
-
-""<tr><th>SS</th><td>Seconds since beginning of most recent request</td></tr>\n \
-<tr><th>Req</th><td>Milliseconds required to process most recent request</td></tr>\n \
-<tr><th>Conn</th><td>Kilobytes transferred this connection</td></tr>\n \
-<tr><th>Child</th><td>Megabytes transferred this child</td></tr>\n \
-<tr><th>Slot</th><td>Total megabytes transferred this slot</td></tr>\n \
-</table>\n"", r)","[""int""]","[null, ""ap_rprintf_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/generators/mod_status.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1141_httpd-2.0.58.cpp,575,"ap_rputs(""<hr />To obtain a full report with current status ""
-                     ""information you need to use the ""
-                     ""<code>ExtendedStatus On</code> directive.\n"", r)","[""int""]","[""ap_rprintf_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/generators/mod_status.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1141_httpd-2.0.58.cpp,592,"ap_rputs(ap_psignature(""<hr />\n"",r), r)","[""int""]","[""ap_psignature_ret"", ""ap_run_status_hook_arg_ret""]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/generators/mod_status.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1141_httpd-2.0.58.cpp,593,"ap_rputs(""</body></html>\n"", r)","[""int""]","[""ap_run_status_hook_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/generators/mod_asis.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1145_httpd-2.0.58.cpp,14,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
 		    ""File does not exist: %s"", r->filename)","[""ap_scan_script_header_err_arg"", null, null]","[null, null, ""ap_scan_script_header_err_arg"", ""ap_scan_script_header_err_arg"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/generators/mod_asis.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1145_httpd-2.0.58.cpp,21,"ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
@@ -2179,6 +2190,8 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/proxy/proxy_connect.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1316_httpd-2.0.58.cpp,188,"ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
             ""proxy: CONNECT: error apr_poll_setup()"")","[""apr_poll_setup_ret"", ""apr_poll_setup_ret"", null]","[null, null, ""apr_poll_setup_ret"", ""ap_proxyerror_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/proxy/proxy_connect.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1316_httpd-2.0.58.cpp,204,"ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, ""proxy: CONNECT: error apr_poll()"")","[""apr_poll_ret"", ""apr_poll_ret"", null]","[null, null, ""apr_poll_ret"", ""ap_proxyerror_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/proxy/proxy_connect.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1316_httpd-2.0.58.cpp,268,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+		 ""proxy: CONNECT: finished with poll() - cleaning up"")","[""apr_poll_ret"", ""apr_poll_ret"", null]","[null, null, ""ap_proxyerror_arg_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/filters/mod_ext_filter.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1323_httpd-2.0.58.cpp,111,"ap_register_output_filter(filter->name, ef_output_filter, NULL, filter->ftype)","[""parse_cmd_arg_ret"", null, null]","[""parse_cmd_arg_ret"", ""apr_hash_set_arg_ret"", null, null, ""parse_cmd_arg_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/filters/mod_ext_filter.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1329_httpd-2.0.58.cpp,62,"ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, f->r,
                       ""couldn't create child process to run `%s'"",
@@ -2615,8 +2628,6 @@ file,function,loc,log,check,variable
                      key)","[""len_arg"", null, null, ""apr_off_t"", null, null]","[null, null, ""request_rec"", null, ""strlen_arg""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/experimental/mod_mem_cache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1511_httpd-2.0.58.cpp,53,"ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
                          ""mem_cache: Cached file: %s with key: %s"", name, obj->key)","[""int"", ""int"", ""int""]","[null, null, ""request_rec"", null, ""apr_file_open_arg_ret"", ""cache_remove_arg"", null]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/experimental/mod_mem_cache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1511_httpd-2.0.58.cpp,143,"ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
-                         ""mem_cache: Cached url: %s"", obj->key)","[""APR_BUCKET_IS_EOS_ret""]","[null, null, ""request_rec"", null, ""cache_insert_arg_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/experimental/mod_mem_cache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1512_httpd-2.0.58.cpp,7,"ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
                      ""MCacheMaxObjectSize must be greater than MCacheMinObjectSize"")","[""apr_pool_cleanup_register_arg"", null, ""apr_pool_cleanup_register_arg"", null]","[null, null, ""server_rec""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/modules/experimental/mod_mem_cache.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1512_httpd-2.0.58.cpp,12,"ap_log_error(APLOG_MARK, APLOG_CRIT, 0, s,
@@ -3097,6 +3108,8 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/os/unix/unixd.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1790_httpd-2.0.58.cpp,41,"ap_log_error(APLOG_MARK, APLOG_ALERT, errno, NULL,
 			""initgroups: unable to set groups for User %s ""
 			""and Group %u"", name, (unsigned)unixd_config.group_id)","[""initgroups_ret""]","[null, null, null, null, ""initgroups_arg_ret"", null, null, null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/vhost.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1798_httpd-2.0.58.cpp,57,"ap_log_error(APLOG_MARK, APLOG_ERR, rv, NULL,
+                ""Cannot resolve host name %s --- ignoring!"", host)","[""apr_sockaddr_info_get_ret"", null]","[null, null, ""apr_sockaddr_info_get_ret"", null, ""apr_sockaddr_info_get_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/vhost.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1809_httpd-2.0.58.cpp,24,"apr_file_printf(f, ""%-22s %s (%s:%u)\n"", buf,
                         ic->server->server_hostname,
                         ic->server->defn_name, ic->server->defn_line_number)","[""ipaddr_chain"", null, null]","[""apr_file_t"", null, ""ipaddr_chain"", null, null, ""ipaddr_chain"", null, null, ""ipaddr_chain"", null, null]"
@@ -3218,6 +3231,11 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/listen.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1846_httpd-2.0.58.cpp,121,"ap_log_perror(APLOG_MARK, APLOG_CRIT, stat, p,
                     ""make_sock: for address %pI, apr_socket_opt_set: (SO_REUSEADDR)"", 
                      server->bind_addr)","[""apr_socket_opt_set_ret"", null, ""apr_socket_opt_set_ret"", null]","[null, null, ""apr_socket_opt_set_ret"", ""apr_pool_t"", ""ap_listen_rec"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/listen.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1849_httpd-2.0.58.cpp,49,"ap_log_perror(APLOG_MARK, APLOG_CRIT, status, process->pool,
+                      ""alloc_listener: failed to set up sockaddr for %s"",
+                      addr)","[""apr_sockaddr_info_get_ret"", ""apr_sockaddr_info_get_ret"", null]","[null, null, ""apr_sockaddr_info_get_ret"", ""process_rec"", null, ""apr_sockaddr_info_get_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/listen.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1849_httpd-2.0.58.cpp,58,"ap_log_perror(APLOG_MARK, APLOG_CRIT, status, process->pool,
+                      ""alloc_listener: failed to get a socket for %s"", addr)","[""apr_socket_create_ret"", ""apr_socket_create_ret"", null]","[null, null, ""apr_socket_create_ret"", ""process_rec"", null, ""apr_sockaddr_info_get_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/listen.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1850_httpd-2.0.58.cpp,49,"ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
                               ""ap_listen_open: unable to make socket non-blocking"")","[""apr_socket_opt_set_ret"", null]","[null, null, null, ""apr_socket_opt_set_ret"", ""make_sock_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/protocol.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_1857_httpd-2.0.58.cpp,49,"ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
@@ -4122,6 +4140,11 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/worker/worker.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2190_httpd-2.0.58.cpp,176,"ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
                              ""apr_proc_mutex_unlock failed. Attempting to ""
                              ""shutdown process gracefully."")","[""SAFE_ACCEPT_ret"", ""apr_proc_mutex_unlock_ret"", ""SAFE_ACCEPT_ret"", ""apr_thread_exit_arg""]","[null, ""int"", ""SAFE_ACCEPT_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/worker/worker.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2191_httpd-2.0.58.cpp,21,"ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                             ""ap_queue_info_set_idle failed. Attempting to ""
+                             ""shutdown process gracefully."")","[""ap_queue_info_set_idle_ret"", ""apr_thread_exit_arg""]","[null, null, ""ap_queue_info_set_idle_ret"", null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/worker/worker.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2191_httpd-2.0.58.cpp,60,"ap_log_error(APLOG_MARK, APLOG_CRIT, rv, ap_server_conf,
+                             ""ap_queue_pop failed"")",[null],"[null, null, ""ap_queue_pop_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/worker/worker.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2193_httpd-2.0.58.cpp,14,"ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
                      ""apr_thread_create: unable to create listener thread"")","[""apr_thread_create_ret"", null]","[null, null, ""apr_thread_create_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/worker/worker.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2194_httpd-2.0.58.cpp,20,"ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
@@ -4181,6 +4204,10 @@ file,function,loc,log,check,variable
                              ""spawning %d children, there are around %d idle ""
                              ""threads, and %d total children"", free_length,
                              idle_thread_count, total_non_dead)",[null],"[null, null, ""make_child_arg"", ""int"", ""int"", ""int""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/worker/worker.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2201_httpd-2.0.58.cpp,58,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
+                             ap_server_conf,
+                             ""long lost child came home! (pid %ld)"",
+                             (long)pid.pid)",[null],"[null, null, null, null, ""apr_proc_t"", ""apr_proc_t""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/worker/worker.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2202_httpd-2.0.58.cpp,10,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
                      ""WARNING: Attempt to change ServerLimit or ThreadLimit ""
                      ""ignored during restart"")",[null],"[null, null, ""server_rec""]"
@@ -4400,6 +4427,10 @@ file,function,loc,log,check,variable
                      ""fork: Unable to fork new process"")","[""fork_ret"", ""fork_ret""]","[null, null, null, ""server_rec""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/perchild/perchild.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2233_httpd-2.0.58.cpp,36,"ap_log_error(APLOG_MARK, APLOG_WARNING, errno, 
                          ap_server_conf, ""processor unbind failed %d"", status)","[""bindprocessor_ret"", null]","[null, null, null, null, ""bindprocessor_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/perchild/perchild.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2236_httpd-2.0.58.cpp,52,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0, 
+                             ap_server_conf,
+                             ""long lost child came home! (pid %ld)"", 
+                             (long)pid.pid)",[null],"[null, null, null, null, ""apr_proc_t"", ""apr_proc_t""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/perchild/perchild.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2237_httpd-2.0.58.cpp,15,"ap_log_error(APLOG_MARK, APLOG_WARNING, 0, s,
                      ""WARNING: Attempt to change ServerLimit or ThreadLimit ""
                      ""ignored during restart"")",[null],"[null, null, ""server_rec""]"
@@ -4499,6 +4530,12 @@ file,function,loc,log,check,variable
                     ""WARNING: detected MaxThreadsPerChild set higher than"")","[""atoi_ret"", null]","[null, null, null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/perchild/perchild.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2249_httpd-2.0.58.cpp,11,"ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
                     ""ThreadLimit. Resetting to %d"", thread_limit)","[""atoi_ret"", null]","[null, null, null, null]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/perchild/perchild.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2251_httpd-2.0.58.cpp,28,"ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server, 
+                         ""filling out child_info_table; UID: %d, GID: %d, ""
+                         ""SD: %d %d, OUTPUT: %d %d, Child Num: %d"", 
+                         child_info_table[i].uid, child_info_table[i].gid, 
+                         sconf->input, child_info_table[i].input, sconf->output,
+                         child_info_table[i].output, i)","[""ap_uname2id_ret"", null, ""int"", ""apr_pstrcat_arg_ret"", ""ap_gname2id_ret"", null, ""int"", ""apr_pstrcat_arg_ret""]","[null, null, ""cmd_parms"", null, null, ""int"", ""apr_pstrcat_arg_ret"", null, ""int"", ""apr_pstrcat_arg_ret"", ""ap_get_module_config_ret"", null, null, ""int"", null, ""ap_get_module_config_ret"", null, null, ""int"", null, ""int""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/perchild/perchild.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2252_httpd-2.0.58.cpp,25,"ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL, 
                     ""WARNING: ServerLimit of %d exceeds compile time limit ""
                     ""of %d servers,"", server_limit, MAX_SERVER_LIMIT)","[null, null]","[null, null, null, null, null]"
@@ -4785,15 +4822,9 @@ file,function,loc,log,check,variable
                                  ""worker_stack_wait failed. Shutting down"")","[""worker_stack_wait_ret"", null]","[null, null, ""worker_stack_wait_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/leader/leader.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2314_httpd-2.0.58.cpp,72,"ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
                          ""apr_proc_mutex_lock failed. Attempting to shutdown ""
-                         ""process gracefully."")","[""SAFE_ACCEPT_ret"", ""apr_proc_mutex_lock_ret"", ""SAFE_ACCEPT_ret"", ""AP_DEBUG_ASSERT_arg""]","[null, ""int"", ""SAFE_ACCEPT_ret"", null]"
+                         ""process gracefully."")","[""SAFE_ACCEPT_ret"", ""apr_proc_mutex_lock_ret"", ""SAFE_ACCEPT_ret"", null]","[null, ""int"", ""SAFE_ACCEPT_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/leader/leader.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2314_httpd-2.0.58.cpp,96,"ap_log_error(APLOG_MARK, APLOG_ERR, ret, (const server_rec *)
-                                 ap_server_conf, ""apr_poll: (listen)"")","[""apr_poll_ret"", ""AP_DEBUG_ASSERT_arg""]","[null, null, ""apr_poll_ret"", null, null]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/leader/leader.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2314_httpd-2.0.58.cpp,141,"ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
-                             ""apr_proc_mutex_unlock failed. Attempting to ""
-                             ""shutdown process gracefully."")","[""SAFE_ACCEPT_ret"", ""apr_proc_mutex_unlock_ret"", ""SAFE_ACCEPT_ret"", ""apr_thread_exit_arg""]","[null, ""int"", ""SAFE_ACCEPT_ret"", null]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/leader/leader.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2314_httpd-2.0.58.cpp,164,"ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
-                             ""apr_proc_mutex_unlock failed. Attempting to ""
-                             ""shutdown process gracefully."")","[""SAFE_ACCEPT_ret"", ""apr_proc_mutex_unlock_ret"", ""SAFE_ACCEPT_ret"", ""apr_thread_exit_arg""]","[null, null, ""SAFE_ACCEPT_ret"", null]"
+                                 ap_server_conf, ""apr_poll: (listen)"")","[""apr_poll_ret"", null]","[null, null, ""apr_poll_ret"", null, null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/leader/leader.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2316_httpd-2.0.58.cpp,16,"ap_log_error(APLOG_MARK, APLOG_ALERT, 0, ap_server_conf,
                      ""worker_stack_create() failed"")","[""worker_stack_create_ret"", ""ap_update_child_status_from_indexes_arg""]","[null, null, null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/server/mpm/experimental/leader/leader.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2316_httpd-2.0.58.cpp,37,"ap_log_error(APLOG_MARK, APLOG_ALERT|APLOG_NOERRNO, 0,
@@ -5081,6 +5112,23 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/apr/test/sendfile.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2766_httpd-2.0.58.cpp,37,"fprintf(stderr, ""apr_socket_addr_get()->%d/%s\n"",
                     rv,
                     apr_strerror(rv, buf, sizeof buf))","[""apr_socket_addr_get_ret"", null]","[""apr_strerror_ret"", null, ""apr_socket_addr_get_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/apr/test/sendfile.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2767_httpd-2.0.58.cpp,13,"fprintf(stderr, ""apr_file_open()->%d/%s\n"",
+                rv, apr_strerror(rv, buf, sizeof buf))","[""apr_file_open_ret""]","[""apr_strerror_ret"", null, ""apr_file_open_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/apr/test/sendfile.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2767_httpd-2.0.58.cpp,25,"fprintf(stderr, ""apr_file_putc()->%d/%s\n"",
+                        rv, apr_strerror(rv, buf, sizeof buf))","[""apr_file_putc_ret""]","[""apr_strerror_ret"", null, ""apr_file_putc_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/apr/test/sendfile.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2767_httpd-2.0.58.cpp,31,"apr_file_puts(buf, f)","[""int""]","[""apr_strerror_arg"", ""apr_file_putc_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/apr/test/sendfile.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2767_httpd-2.0.58.cpp,33,"fprintf(stderr, ""apr_file_puts()->%d/%s\n"",
+                        rv, apr_strerror(rv, buf, sizeof buf))","[""apr_file_putc_ret""]","[""apr_strerror_ret"", null, ""apr_file_putc_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/apr/test/sendfile.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2767_httpd-2.0.58.cpp,42,"fprintf(stderr, ""apr_file_close()->%d/%s\n"",
+                rv, apr_strerror(rv, buf, sizeof buf))","[""apr_file_close_ret""]","[""apr_strerror_ret"", null, ""apr_file_close_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/apr/test/sendfile.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2767_httpd-2.0.58.cpp,49,"fprintf(stderr, ""apr_stat()->%d/%s\n"",
+                rv, apr_strerror(rv, buf, sizeof buf))","[""apr_stat_ret"", null, ""apr_stat_ret"", null]","[""apr_strerror_ret"", null, ""apr_stat_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/apr/test/sendfile.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2767_httpd-2.0.58.cpp,55,"fprintf(stderr, 
+                ""test file %s should be %ld-bytes long\n""
+                ""instead it is %ld-bytes long\n"",
+                fname,
+                (long int)FILE_LENGTH,
+                (long int)finfo.size)","[""apr_finfo_t"", null, null]","[null, ""apr_stat_arg_ret"", null, null, null, null, null, ""apr_finfo_t"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/apr/test/sendfile.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2768_httpd-2.0.58.cpp,26,"fprintf(stderr, ""apr_file_open()->%d/%s\n"",
                 rv,
                 apr_strerror(rv, buf, sizeof buf))","[""apr_file_open_ret"", null]","[""apr_strerror_ret"", null, ""apr_file_open_ret""]"
@@ -5339,6 +5387,9 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/pcre/pcregrep.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_3222_httpd-2.0.58.cpp,40,"fprintf(stdout, ""%s\n"", buffer)",[null],"[null, null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/pcre/pcregrep.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_3222_httpd-2.0.58.cpp,49,"fprintf(stdout, ""%s:"", name)","[""char"", null]","[null, ""char""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/pcre/pcregrep.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_3222_httpd-2.0.58.cpp,50,"fprintf(stdout, ""%d\n"", count)",[null],"[null, ""int""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/pcre/pcregrep.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_3223_httpd-2.0.58.cpp,19,"fprintf(stderr, ""pcregrep: Failed to open directory %s: %s\n"", filename,
+      strerror(errno))","[""opendirectory_ret"", null]","[""strerror_ret"", null, ""opendirectory_arg_ret""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/pcre/pcregrep.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_3223_httpd-2.0.58.cpp,43,"fprintf(stderr, ""pcregrep: Failed to open %s: %s\n"", filename, strerror(errno))","[""fopen_ret"", null]","[""strerror_ret"", null, ""fopen_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/pcre/pcregrep.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_3226_httpd-2.0.58.cpp,17,"fprintf(stderr, ""pcregrep version %s using "", VERSION)","[""int""]","[null, null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/pcre/pcregrep.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_3226_httpd-2.0.58.cpp,18,"fprintf(stderr, ""PCRE version %s\n"", pcre_version())","[""int""]","[""pcre_version_ret"", null]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/repos/httpd-2.0.58/srclib/pcre/pcregrep.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_3226_httpd-2.0.58.cpp,23,"fprintf(stderr, ""pcregrep: Unknown option -%c\n"", letter)","[""int""]","[null, ""int""]"

@@ -91,4 +91,31 @@ static apr_status_t xlate_in_filter(ap_filter_t *f, apr_bucket_brigade *bb,
              * an eos bucket already there, and the eos bucket should
              * come after the data
              */
-            APR_BRIGADE_INSERT_HEAD(bb
+            APR_BRIGADE_INSERT_HEAD(bb, e);
+        }
+        else {
+            /* XXX need to get some more data... what if the last brigade
+             * we got had only the first byte of a multibyte char?  we need
+             * to grab more data from the network instead of returning an
+             * empty brigade
+             */
+        }
+        /* If we have any metadata at the head of ctx->bb, go ahead and move it
+         * onto the end of bb to be returned to our caller.
+         */
+        if (!APR_BRIGADE_EMPTY(ctx->bb)) {
+            apr_bucket *b = APR_BRIGADE_FIRST(ctx->bb);
+            while (b != APR_BRIGADE_SENTINEL(ctx->bb)
+                   && APR_BUCKET_IS_METADATA(b)) {
+                APR_BUCKET_REMOVE(b);
+                APR_BRIGADE_INSERT_TAIL(bb, b);
+                b = APR_BRIGADE_FIRST(ctx->bb);
+            }
+        }
+    }
+    else {
+        log_xlate_error(f, rv);
+    }
+
+    return rv;
+}

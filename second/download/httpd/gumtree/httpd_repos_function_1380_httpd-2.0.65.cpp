@@ -136,4 +136,81 @@ static apr_size_t find_argument(ssi_ctx_t *ctx, const char *data,
         break;
 
     case PARSE_ARG_VAL_ESC:
-        if (*p == ctx->quo
+        if (*p == ctx->quote) {
+            ++p;
+        }
+        ctx->state = PARSE_ARG_VAL;
+        /* continue with next state immediately */
+
+    case PARSE_ARG_VAL:
+        for (; p < ep; ++p) {
+            if (ctx->quote && *p == '\\') {
+                ++p;
+                if (p == ep) {
+                    ctx->state = PARSE_ARG_VAL_ESC;
+                    break;
+                }
+
+                if (*p != ctx->quote) {
+                    --p;
+                }
+            }
+            else if (ctx->quote && *p == ctx->quote) {
+                ++p;
+                *store = &ctx->current_arg->value;
+                *store_len = &ctx->current_arg->value_len;
+                ctx->state = PARSE_ARG_POSTVAL;
+                break;
+            }
+            else if (!ctx->quote && apr_isspace(*p)) {
+                ++p;
+                *store = &ctx->current_arg->value;
+                *store_len = &ctx->current_arg->value_len;
+                ctx->state = PARSE_ARG_POSTVAL;
+                break;
+            }
+        }
+
+        return (p - data);
+
+    case PARSE_ARG_POSTVAL:
+        /*
+         * The value is still the raw input string. Finally clean it up.
+         */
+        --(ctx->current_arg->value_len);
+
+        /* strip quote escaping \ from the string */
+        if (ctx->quote) {
+            apr_size_t shift = 0;
+            char *sp;
+
+            sp = ctx->current_arg->value;
+            ep = ctx->current_arg->value + ctx->current_arg->value_len;
+            while (sp < ep && *sp != '\\') {
+                ++sp;
+            }
+            for (; sp < ep; ++sp) {
+                if (*sp == '\\' && sp[1] == ctx->quote) {
+                    ++sp;
+                    ++shift;
+                }
+                if (shift) {
+                    *(sp-shift) = *sp;
+                }
+            }
+
+            ctx->current_arg->value_len -= shift;
+        }
+
+        ctx->current_arg->value[ctx->current_arg->value_len] = '\0';
+        ctx->state = PARSE_PRE_ARG;
+
+        return 0;
+
+    default:
+        /* get a rid of a gcc warning about unhandled enumerations */
+        break;
+    }
+
+    return len; /* partial match of something */
+}

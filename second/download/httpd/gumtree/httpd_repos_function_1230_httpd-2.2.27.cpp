@@ -107,4 +107,20 @@ static int read_type_map(apr_file_t **map, negotiation_state *neg,
         }
         else {
             if (*mime_info.file_name && has_content) {
-                void *new_var = apr_array_push(neg->a
+                void *new_var = apr_array_push(neg->avail_vars);
+
+                memcpy(new_var, (void *) &mime_info, sizeof(var_rec));
+            }
+
+            clean_var_rec(&mime_info);
+            has_content = 0;
+        }
+    } while (hstate != header_eof);
+
+    if (map_)
+        apr_file_close(map_);
+
+    set_vlist_validator(r, rr);
+
+    return OK;
+}

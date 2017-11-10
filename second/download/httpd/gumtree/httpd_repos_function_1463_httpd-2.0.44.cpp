@@ -752,4 +752,87 @@ static const char
     apr_size_t val;
 
     if (sscanf(arg, "%" APR_SIZE_T_FMT, &val) != 1) {
-        return "MCache
+        return "MCacheMaxObjectSize value must be an integer (bytes)";
+    }
+    sconf->max_cache_object_size = val;
+    return NULL;
+}
+static const char 
+*set_max_object_count(cmd_parms *parms, void *in_struct_ptr, const char *arg)
+{
+    apr_size_t val;
+
+    if (sscanf(arg, "%" APR_SIZE_T_FMT, &val) != 1) {
+        return "MCacheMaxObjectCount value must be an integer";
+    }
+    sconf->max_object_cnt = val;
+    return NULL;
+}
+
+static const char 
+*set_cache_removal_algorithm(cmd_parms *parms, void *name, const char *arg)
+{
+    if (strcasecmp("LRU", arg)) {
+        sconf->cache_remove_algorithm = memcache_lru_algorithm;
+    }
+    else {
+        if (strcasecmp("GDSF", arg)) {
+            sconf->cache_remove_algorithm = memcache_gdsf_algorithm;
+        }
+        else {
+            return "currently implemented algorithms are LRU and GDSF";
+        }
+    }
+    return NULL;
+}
+
+static const char *set_max_streaming_buffer(cmd_parms *parms, void *dummy,
+                                            const char *arg)
+{
+    apr_off_t val;
+    char *err;
+    val = (apr_off_t)strtol(arg, &err, 10);
+    if (*err != 0) {
+        return "MCacheMaxStreamingBuffer value must be a number";
+    }
+    sconf->max_streaming_buffer_size = val;
+    return NULL;
+}
+
+static const command_rec cache_cmds[] =
+{
+    AP_INIT_TAKE1("MCacheSize", set_max_cache_size, NULL, RSRC_CONF,
+     "The maximum amount of memory used by the cache in KBytes"),
+    AP_INIT_TAKE1("MCacheMaxObjectCount", set_max_object_count, NULL, RSRC_CONF,
+     "The maximum number of objects allowed to be placed in the cache"),
+    AP_INIT_TAKE1("MCacheMinObjectSize", set_min_cache_object_size, NULL, RSRC_CONF,
+     "The minimum size (in bytes) of an object to be placed in the cache"),
+    AP_INIT_TAKE1("MCacheMaxObjectSize", set_max_cache_object_size, NULL, RSRC_CONF,
+     "The maximum size (in bytes) of an object to be placed in the cache"),
+    AP_INIT_TAKE1("MCacheRemovalAlgorithm", set_cache_removal_algorithm, NULL, RSRC_CONF,
+     "The algorithm used to remove entries from the cache (default: GDSF)"),
+    AP_INIT_TAKE1("MCacheMaxStreamingBuffer", set_max_streaming_buffer, NULL, RSRC_CONF,
+     "Maximum number of bytes of content to buffer for a streamed response"),
+    {NULL}
+};
+
+static void register_hooks(apr_pool_t *p)
+{
+    ap_hook_post_config(mem_cache_post_config, NULL, NULL, APR_HOOK_MIDDLE);
+    /* cache initializer */
+    /* cache_hook_init(cache_mem_init, NULL, NULL, APR_HOOK_MIDDLE);  */
+    cache_hook_create_entity(create_entity, NULL, NULL, APR_HOOK_MIDDLE);
+    cache_hook_open_entity(open_entity,  NULL, NULL, APR_HOOK_MIDDLE);
+    cache_hook_remove_url(remove_url, NULL, NULL, APR_HOOK_MIDDLE);
+}
+
+module AP_MODULE_DECLARE_DATA mem_cache_module =
+{
+    STANDARD20_MODULE_STUFF,
+    NULL,                    /* create per-directory config structure */
+    NULL,                    /* merge per-directory config structures */
+    create_cache_config,     /* create per-server config structure */
+    NULL,                    /* merge per-server config structures */
+    cache_cmds,              /* command apr_table_t */
+    register_hooks
+};

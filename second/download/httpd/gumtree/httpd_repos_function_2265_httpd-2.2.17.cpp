@@ -103,4 +103,104 @@ int ap_core_input_filter(ap_filter_t *f, apr_bucket_brigade *b,
             /* If we reach here, we were a bucket just full of CRLFs, so
              * just toss the bucket. */
             /* FIXME: Is this the right thing to do in the core? */
-            apr_bucket_delete
+            apr_bucket_delete(e);
+        }
+        return APR_SUCCESS;
+    }
+
+    /* If mode is EXHAUSTIVE, we want to just read everything until the end
+     * of the brigade, which in this case means the end of the socket.
+     * To do this, we attach the brigade that has currently been setaside to
+     * the brigade that was passed down, and send that brigade back.
+     *
+     * NOTE:  This is VERY dangerous to use, and should only be done with
+     * extreme caution.  However, the Perchild MPM needs this feature
+     * if it is ever going to work correctly again.  With this, the Perchild
+     * MPM can easily request the socket and all data that has been read,
+     * which means that it can pass it to the correct child process.
+     */
+    if (mode == AP_MODE_EXHAUSTIVE) {
+        apr_bucket *e;
+
+        /* Tack on any buckets that were set aside. */
+        APR_BRIGADE_CONCAT(b, ctx->b);
+
+        /* Since we've just added all potential buckets (which will most
+         * likely simply be the socket bucket) we know this is the end,
+         * so tack on an EOS too. */
+        /* We have read until the brigade was empty, so we know that we
+         * must be EOS. */
+        e = apr_bucket_eos_create(f->c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(b, e);
+        return APR_SUCCESS;
+    }
+
+    /* read up to the amount they specified. */
+    if (mode == AP_MODE_READBYTES || mode == AP_MODE_SPECULATIVE) {
+        apr_bucket *e;
+
+        AP_DEBUG_ASSERT(readbytes > 0);
+
+        e = APR_BRIGADE_FIRST(ctx->b);
+        rv = apr_bucket_read(e, &str, &len, block);
+
+        if (APR_STATUS_IS_EAGAIN(rv)) {
+            return APR_SUCCESS;
+        }
+        else if (rv != APR_SUCCESS) {
+            return rv;
+        }
+        else if (block == APR_BLOCK_READ && len == 0) {
+            /* We wanted to read some bytes in blocking mode.  We read
+             * 0 bytes.  Hence, we now assume we are EOS.
+             *
+             * When we are in normal mode, return an EOS bucket to the
+             * caller.
+             * When we are in speculative mode, leave ctx->b empty, so
+             * that the next call returns an EOS bucket.
+             */
+            apr_bucket_delete(e);
+
+            if (mode == AP_MODE_READBYTES) {
+                e = apr_bucket_eos_create(f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(b, e);
+            }
+            return APR_SUCCESS;
+        }
+
+        /* We can only return at most what we read. */
+        if (len < readbytes) {
+            readbytes = len;
+        }
+
+        rv = apr_brigade_partition(ctx->b, readbytes, &e);
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+
+        /* Must do move before CONCAT */
+        brigade_move(ctx->b, ctx->tmpbb, e);
+
+        if (mode == AP_MODE_READBYTES) {
+            APR_BRIGADE_CONCAT(b, ctx->b);
+        }
+        else if (mode == AP_MODE_SPECULATIVE) {
+            apr_bucket *copy_bucket;
+
+            for (e = APR_BRIGADE_FIRST(ctx->b);
+                 e != APR_BRIGADE_SENTINEL(ctx->b);
+                 e = APR_BUCKET_NEXT(e))
+            {
+                rv = apr_bucket_copy(e, &copy_bucket);
+                if (rv != APR_SUCCESS) {
+                    return rv;
+                }
+                APR_BRIGADE_INSERT_TAIL(b, copy_bucket);
+            }
+        }
+
+        /* Take what was originally there and place it back on ctx->b */
+        APR_BRIGADE_CONCAT(ctx->b, ctx->tmpbb);
+    }
+    return APR_SUCCESS;
+}

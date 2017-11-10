@@ -92,10 +92,4 @@ end)
         if (len >= size - 1) {
             while ((len = ap_getline(field, MAX_STRING_LEN, rr, 1))
                     >= MAX_STRING_LEN - 1) {
-                /* soak up the extra data */
-            }
-            if (len == 0) /* time to exit the larger loop as well */
-                break;
-        }
-    }
-}
+                /* soak up the extra data

@@ -88,4 +88,6 @@ static BOOL shmcb_subcache_store(server_rec *s, SHMCBHeader *header,
                  "finished insert, subcache: idx_pos/idx_used=%d/%d, "
                  "data_pos/data_used=%d/%d",
                  subcache->idx_pos, subcache->idx_used,
-                 sub
+                 subcache->data_pos, subcache->data_used);
+    return TRUE;
+}

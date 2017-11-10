@@ -93,4 +93,33 @@ apr_status_t more_finfo(apr_finfo_t *finfo, const void *ufile,
              * you probably understand why APR chooses not to implement.
              */
             IOSB sb;
+            FSI fi;
+            if ((ZwQueryInformationFile((HANDLE)ufile, &sb, 
+                                       &fi, sizeof(fi), 5) == 0) 
+                    && (sb.Status == 0)) {
+                finfo->csize = fi.AllocationSize;
+                finfo->valid |= APR_FINFO_CSIZE;
+            }
+        }
+        else {
+            SetLastError(NO_ERROR);
+            if (whatfile == MORE_OF_WFSPEC)
+                sizelo = GetCompressedFileSizeW((apr_wchar_t*)ufile, &sizehi);
+            else if (whatfile == MORE_OF_FSPEC)
+                sizelo = GetCompressedFileSizeA((char*)ufile, &sizehi);
         
+            if (sizelo != INVALID_FILE_SIZE || GetLastError() == NO_ERROR) {
+#if APR_HAS_LARGE_FILES
+                finfo->csize =  (apr_off_t)sizelo
+                             | ((apr_off_t)sizehi << 32);
+#else
+                finfo->csize = (apr_off_t)sizelo;
+                if (finfo->csize < 0 || sizehi)
+                    finfo->csize = 0x7fffffff;
+#endif
+                finfo->valid |= APR_FINFO_CSIZE;
+            }
+        }
+    }
+    return ((wanted & ~finfo->valid) ? APR_INCOMPLETE : APR_SUCCESS);
+}

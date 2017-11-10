@@ -97,12 +97,4 @@ static int proxy_ajp_handler(request_rec *r, proxy_worker *worker,
             }
         }
         /* Step Three: Process the Request */
-        status = ap_proxy_ajp_request(p, r, backend, origin, dconf, uri, locurl,
-                                      server_portstr);
-        break;
-    }
-
-    /* Do not close the socket */
-    ap_proxy_release_connection(scheme, backend, r->server);
-    return status;
-}
+        status = ap_proxy_ajp

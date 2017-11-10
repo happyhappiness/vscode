@@ -107,25 +107,4 @@ static int dav_method_propfind(request_rec *r)
     }
 
     if (err != NULL) {
-        /* ### add a higher-level description? */
-        return dav_handle_err(r, err, NULL);
-    }
-
-    /* return a 207 (Multi-Status) response now. */
-
-    /* if a 404 was generated for an HREF, then we need to spit out the
-     * doc's namespaces for use by the 404. Note that <response> elements
-     * will override these ns0, ns1, etc, but NOT within the <response>
-     * scope for the badprops. */
-    /* NOTE: propstat_404 != NULL implies doc != NULL */
-    if (ctx.propstat_404 != NULL) {
-        dav_send_multistatus(r, HTTP_MULTI_STATUS, multi_status,
-                             doc->namespaces);
-    }
-    else {
-        dav_send_multistatus(r, HTTP_MULTI_STATUS, multi_status, NULL);
-    }
-
-    /* the response has been sent. */
-    return DONE;
-}
+        /* ### add a highe

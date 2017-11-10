@@ -549,9 +549,4 @@ module AP_MODULE_DECLARE_DATA mpm_threadpool_module = {
     MPM20_MODULE_STUFF,
     ap_mpm_rewrite_args,        /* hook to run before apache parses args */
     NULL,                       /* create per-directory config structure */
-    NULL,                       /* merge per-directory config structures */
-    NULL,                       /* create per-server config structure */
-    NULL,                       /* merge per-server config structures */
-    threadpool_cmds,            /* command apr_table_t */
-    threadpool_hooks            /* register_hooks */
-};
+    NULL,                   

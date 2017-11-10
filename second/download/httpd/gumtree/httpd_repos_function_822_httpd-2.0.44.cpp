@@ -96,14 +96,4 @@ static BOOL shmcb_init_memory(
     /* The header is done, make the caches empty */
     for (loop = 0; loop < granularity; loop++) {
         if (!shmcb_get_division(header, &queue, &cache, loop))
-            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "shmcb_init_memory, " "internal error");
-        shmcb_set_safe_uint(cache.first_pos, 0);
-        shmcb_set_safe_uint(cache.pos_count, 0);
-        shmcb_set_safe_uint(queue.first_pos, 0);
-        shmcb_set_safe_uint(queue.pos_count, 0);
-    }
-
-    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s,
-                 "leaving shmcb_init_memory()");
-    return TRUE;
-}
+            ap_log_error(APLOG_MARK, APLOG_ERR, 0, s, "shmcb_in

@@ -95,4 +95,35 @@ XML_ExternalEntityParserCreate(XML_Parser oldParser,
   else
     handlerArg = parser;
   if (oldExternalEntityRefHandlerArg != oldParser)
-    externalEntityRefHan
+    externalEntityRefHandlerArg = oldExternalEntityRefHandlerArg;
+  defaultExpandInternalEntities = oldDefaultExpandInternalEntities;
+  ns_triplets = oldns_triplets;
+  parentParser = oldParser;
+#ifdef XML_DTD
+  paramEntityParsing = oldParamEntityParsing;
+  prologState.inEntityValue = oldInEntityValue;
+  if (context) {
+#endif /* XML_DTD */
+    if (!dtdCopy(_dtd, oldDtd, &parser->m_mem)
+      || !setContext(parser, context)) {
+      XML_ParserFree(parser);
+      return NULL;
+    }
+    processor = externalEntityInitProcessor;
+#ifdef XML_DTD
+  }
+  else {
+    /* The DTD instance referenced by _dtd is shared between the document's
+       root parser and external PE parsers, therefore one does not need to
+       call setContext. In addition, one also *must* not call setContext,
+       because this would overwrite existing prefix->binding pointers in
+       _dtd with ones that get destroyed with the external PE parser.
+       This would leave those prefixes with dangling pointers.
+    */
+    isParamEntity = XML_TRUE;
+    XmlPrologStateInitExternalEntity(&prologState);
+    processor = externalParEntInitProcessor;
+  }
+#endif /* XML_DTD */
+  return parser;
+}

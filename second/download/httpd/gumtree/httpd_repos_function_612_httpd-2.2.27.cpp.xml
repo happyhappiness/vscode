@@ -144,4 +144,35 @@
     <comment type="block" pos:line="143" pos:column="5">/*
      *  initialize servers
      */</comment>
-    <macro><name pos:line="146" pos:column="5">ap_log_error<pos:position pos:line="146" pos:column="17"/></name><argument_list pos:line="146" pos:column="17">(<argument pos:line="146" pos:column="18">APLOG_MARK<pos:position pos:line="146" pos:column="28"/></argument>, <argument pos:line="146" pos:column="30">APLOG_INFO<pos:position pos:line="146" pos:column="40"/></argument>, <argument><literal type="number" pos:line="146" pos:column="42">0<pos:position pos:line="146" pos:column="43"/></literal></argument>, <argument pos:line="146" pos:column="45">bas<pos:position pos:line="146" pos:column="48"/></argument></argument_list></macro></block></function></unit>
+    <expr_stmt><expr><call><name pos:line="146" pos:column="5">ap_log_error<pos:position pos:line="146" pos:column="17"/></name><argument_list pos:line="146" pos:column="17">(<argument><expr><name pos:line="146" pos:column="18">APLOG_MARK<pos:position pos:line="146" pos:column="28"/></name></expr></argument>, <argument><expr><name pos:line="146" pos:column="30">APLOG_INFO<pos:position pos:line="146" pos:column="40"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="146" pos:column="42">0<pos:position pos:line="146" pos:column="43"/></literal></expr></argument>, <argument><expr><name pos:line="146" pos:column="45">base_server<pos:position pos:line="146" pos:column="56"/></name></expr></argument>,
+                 <argument><expr><literal type="string" pos:line="147" pos:column="18">"Init: Initializing (virtual) servers for SSL"<pos:position pos:line="147" pos:column="64"/></literal></expr></argument>)<pos:position pos:line="147" pos:column="65"/></argument_list></call></expr>;<pos:position pos:line="147" pos:column="66"/></expr_stmt>
+
+    <for pos:line="149" pos:column="5">for <control pos:line="149" pos:column="9">(<init><expr><name pos:line="149" pos:column="10">s<pos:position pos:line="149" pos:column="11"/></name> <operator pos:line="149" pos:column="12">=<pos:position pos:line="149" pos:column="13"/></operator> <name pos:line="149" pos:column="14">base_server<pos:position pos:line="149" pos:column="25"/></name></expr>;<pos:position pos:line="149" pos:column="26"/></init> <condition><expr><name pos:line="149" pos:column="27">s<pos:position pos:line="149" pos:column="28"/></name></expr>;<pos:position pos:line="149" pos:column="29"/></condition> <incr><expr><name pos:line="149" pos:column="30">s<pos:position pos:line="149" pos:column="31"/></name> <operator pos:line="149" pos:column="32">=<pos:position pos:line="149" pos:column="33"/></operator> <name><name pos:line="149" pos:column="34">s<pos:position pos:line="149" pos:column="35"/></name><operator pos:line="149" pos:column="35">-&gt;<pos:position pos:line="149" pos:column="40"/></operator><name pos:line="149" pos:column="37">next<pos:position pos:line="149" pos:column="41"/></name></name></expr></incr>)<pos:position pos:line="149" pos:column="42"/></control> <block pos:line="149" pos:column="43">{
+        <expr_stmt><expr><name pos:line="150" pos:column="9">sc<pos:position pos:line="150" pos:column="11"/></name> <operator pos:line="150" pos:column="12">=<pos:position pos:line="150" pos:column="13"/></operator> <call><name pos:line="150" pos:column="14">mySrvConfig<pos:position pos:line="150" pos:column="25"/></name><argument_list pos:line="150" pos:column="25">(<argument><expr><name pos:line="150" pos:column="26">s<pos:position pos:line="150" pos:column="27"/></name></expr></argument>)<pos:position pos:line="150" pos:column="28"/></argument_list></call></expr>;<pos:position pos:line="150" pos:column="29"/></expr_stmt>
+        <comment type="block" pos:line="151" pos:column="9">/*
+         * Either now skip this server when SSL is disabled for
+         * it or give out some information about what we're
+         * configuring.
+         */</comment>
+
+        <comment type="block" pos:line="157" pos:column="9">/*
+         * Read the server certificate and key
+         */</comment>
+        <expr_stmt><expr><call><name pos:line="160" pos:column="9">ssl_init_ConfigureServer<pos:position pos:line="160" pos:column="33"/></name><argument_list pos:line="160" pos:column="33">(<argument><expr><name pos:line="160" pos:column="34">s<pos:position pos:line="160" pos:column="35"/></name></expr></argument>, <argument><expr><name pos:line="160" pos:column="37">p<pos:position pos:line="160" pos:column="38"/></name></expr></argument>, <argument><expr><name pos:line="160" pos:column="40">ptemp<pos:position pos:line="160" pos:column="45"/></name></expr></argument>, <argument><expr><name pos:line="160" pos:column="47">sc<pos:position pos:line="160" pos:column="49"/></name></expr></argument>)<pos:position pos:line="160" pos:column="50"/></argument_list></call></expr>;<pos:position pos:line="160" pos:column="51"/></expr_stmt>
+    }<pos:position pos:line="161" pos:column="6"/></block></for>
+
+    <comment type="block" pos:line="163" pos:column="5">/*
+     * Configuration consistency checks
+     */</comment>
+    <expr_stmt><expr><call><name pos:line="166" pos:column="5">ssl_init_CheckServers<pos:position pos:line="166" pos:column="26"/></name><argument_list pos:line="166" pos:column="26">(<argument><expr><name pos:line="166" pos:column="27">base_server<pos:position pos:line="166" pos:column="38"/></name></expr></argument>, <argument><expr><name pos:line="166" pos:column="40">ptemp<pos:position pos:line="166" pos:column="45"/></name></expr></argument>)<pos:position pos:line="166" pos:column="46"/></argument_list></call></expr>;<pos:position pos:line="166" pos:column="47"/></expr_stmt>
+
+    <comment type="block" pos:line="168" pos:column="5">/*
+     *  Announce mod_ssl and SSL library in HTTP Server field
+     *  as ``mod_ssl/X.X.X OpenSSL/X.X.X''
+     */</comment>
+    <expr_stmt><expr><call><name pos:line="172" pos:column="5">ssl_add_version_components<pos:position pos:line="172" pos:column="31"/></name><argument_list pos:line="172" pos:column="31">(<argument><expr><name pos:line="172" pos:column="32">p<pos:position pos:line="172" pos:column="33"/></name></expr></argument>, <argument><expr><name pos:line="172" pos:column="35">base_server<pos:position pos:line="172" pos:column="46"/></name></expr></argument>)<pos:position pos:line="172" pos:column="47"/></argument_list></call></expr>;<pos:position pos:line="172" pos:column="48"/></expr_stmt>
+
+    <expr_stmt><expr><call><name pos:line="174" pos:column="5">SSL_init_app_data2_idx<pos:position pos:line="174" pos:column="27"/></name><argument_list pos:line="174" pos:column="27">()<pos:position pos:line="174" pos:column="29"/></argument_list></call></expr>;<pos:position pos:line="174" pos:column="30"/></expr_stmt> <comment type="block" pos:line="174" pos:column="31">/* for SSL_get_app_data2() at request time */</comment>
+
+    <return pos:line="176" pos:column="5">return <expr><name pos:line="176" pos:column="12">OK<pos:position pos:line="176" pos:column="14"/></name></expr>;<pos:position pos:line="176" pos:column="15"/></return>
+}<pos:position pos:line="177" pos:column="2"/></block></function></unit>

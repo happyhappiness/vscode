@@ -104,4 +104,53 @@ int table_insert_kd(table_t * table_p,
         else
             data_copy_p = NULL;
         if (key_buf_p != NULL)
-            *key_buf_p = ENTRY_KEY_
+            *key_buf_p = ENTRY_KEY_BUF(entry_p);
+        if (data_buf_p != NULL)
+            *data_buf_p = data_copy_p;
+        /* returning from the section where we were overwriting table data */
+        return TABLE_ERROR_NONE;
+    }
+
+    /*
+     * It is a new entry.
+     */
+
+    /* allocate a new entry */
+    entry_p = (table_entry_t *)
+               table_p->ta_malloc(table_p->opt_param,
+                                  entry_size(table_p, ksize, dsize));
+    if (entry_p == NULL)
+        return TABLE_ERROR_ALLOC;
+    /* copy key into storage */
+    entry_p->te_key_size = ksize;
+    key_copy_p = ENTRY_KEY_BUF(entry_p);
+    memcpy(key_copy_p, key_buf, ksize);
+
+    /* copy data in */
+    entry_p->te_data_size = dsize;
+    if (dsize > 0) {
+        if (table_p->ta_data_align == 0)
+            data_copy_p = ENTRY_DATA_BUF(table_p, entry_p);
+        else
+            data_copy_p = entry_data_buf(table_p, entry_p);
+        if (data_buf != NULL)
+            memcpy(data_copy_p, data_buf, dsize);
+    }
+    else
+        data_copy_p = NULL;
+    if (key_buf_p != NULL)
+        *key_buf_p = key_copy_p;
+    if (data_buf_p != NULL)
+        *data_buf_p = data_copy_p;
+    /* insert into list, no need to append */
+    entry_p->te_next_p = table_p->ta_buckets[bucket];
+    table_p->ta_buckets[bucket] = entry_p;
+
+    table_p->ta_entry_n++;
+
+    /* do we need auto-adjust? */
+    if (table_p->ta_flags & TABLE_FLAG_AUTO_ADJUST
+        && SHOULD_TABLE_GROW(table_p))
+        return table_adjust(table_p, table_p->ta_entry_n);
+    return TABLE_ERROR_NONE;
+}

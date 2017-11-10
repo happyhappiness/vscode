@@ -94,4 +94,67 @@ static dav_error * dav_process_if_header(request_rec *r, dav_if_header **p_ih)
                     if ((state_token = dav_fetch_next_token(&list, ']')) == NULL) {
                         /* ### add a description to this error */
                         return dav_new_error(r->pool, HTTP_BAD_REQUEST,
-                                      
+                                             DAV_ERR_IF_PARSE, NULL);
+                    }
+
+                    if ((err = dav_add_if_state(r->pool, ih, state_token, dav_if_etag,
+                                                condition, locks_hooks)) != NULL) {
+                        /* ### maybe add a higher level description */
+                        return err;
+                    }
+                    condition = DAV_IF_COND_NORMAL;
+                    break;
+
+                case 'N':
+                    if (list[1] == 'o' && list[2] == 't') {
+                        if (condition != DAV_IF_COND_NORMAL) {
+                            return dav_new_error(r->pool, HTTP_BAD_REQUEST,
+                                                 DAV_ERR_IF_MULTIPLE_NOT,
+                                                 "Invalid \"If:\" header: "
+                                                 "Multiple \"not\" entries "
+                                                 "for the same state.");
+                        }
+                        condition = DAV_IF_COND_NOT;
+                    }
+                    list += 2;
+                    break;
+
+                case ' ':
+                case '\t':
+                    break;
+
+                default:
+                    return dav_new_error(r->pool, HTTP_BAD_REQUEST,
+                                         DAV_ERR_IF_UNK_CHAR,
+                                         apr_psprintf(r->pool,
+                                                     "Invalid \"If:\" "
+                                                     "header: Unexpected "
+                                                     "character encountered "
+                                                     "(0x%02x, '%c').",
+                                                     *list, *list));
+                }
+
+                list++;
+            }
+            break;
+
+        case ' ':
+        case '\t':
+            break;
+
+        default:
+            return dav_new_error(r->pool, HTTP_BAD_REQUEST,
+                                 DAV_ERR_IF_UNK_CHAR,
+                                 apr_psprintf(r->pool,
+                                             "Invalid \"If:\" header: "
+                                             "Unexpected character "
+                                             "encountered (0x%02x, '%c').",
+                                             *str, *str));
+        }
+
+        str++;
+    }
+
+    *p_ih = ih;
+    return NULL;
+}

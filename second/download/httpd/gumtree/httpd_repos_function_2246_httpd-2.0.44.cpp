@@ -107,4 +107,18 @@ static void child_main(int child_num_arg)
          *   they have (then cleans up).
          */
         join_workers(threads);
-   
+    }
+    else { /* !one_process */
+        /* remove SIGTERM from the set of blocked signals...  if one of
+         * the other threads in the process needs to take us down
+         * (e.g., for MaxRequestsPerChild) it will send us SIGTERM
+         */
+        unblock_signal(SIGTERM);
+        join_start_thread(start_thread_id);
+        join_workers(threads);
+    }
+
+    free(threads);
+
+    clean_child_exit(resource_shortage ? APEXIT_CHILDSICK : 0);
+}

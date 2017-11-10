@@ -114,4 +114,8 @@ const char *ssl_cmd_SSLSessionCache(cmd_parms *cmd,
         }
     }
     else {
-        ret
+        return "SSLSessionCache: Invalid argument";
+    }
+
+    return NULL;
+}

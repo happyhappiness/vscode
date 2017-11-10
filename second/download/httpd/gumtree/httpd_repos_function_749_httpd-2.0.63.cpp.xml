@@ -115,4 +115,8 @@
         }<pos:position pos:line="114" pos:column="10"/></block></then></if>
     }<pos:position pos:line="115" pos:column="6"/></block></then></if></elseif>
     <else pos:line="116" pos:column="5">else <block pos:line="116" pos:column="10">{
-        <macro><name pos:line="117" pos:column="9">ret<pos:position pos:line="117" pos:column="12"/></name></macro></block></else></if></block></function></unit>
+        <return pos:line="117" pos:column="9">return <expr><literal type="string" pos:line="117" pos:column="16">"SSLSessionCache: Invalid argument"<pos:position pos:line="117" pos:column="51"/></literal></expr>;<pos:position pos:line="117" pos:column="52"/></return>
+    }<pos:position pos:line="118" pos:column="6"/></block></else></if>
+
+    <return pos:line="120" pos:column="5">return <expr><name pos:line="120" pos:column="12">NULL<pos:position pos:line="120" pos:column="16"/></name></expr>;<pos:position pos:line="120" pos:column="17"/></return>
+}<pos:position pos:line="121" pos:column="2"/></block></function></unit>
