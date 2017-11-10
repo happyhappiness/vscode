@@ -104,18 +104,3 @@ static const char *add_setenvif_core(cmd_parms *cmd, void *mconfig,
                                             (AP_REG_EXTENDED | AP_REG_NOSUB
                                              | (icase ? AP_REG_ICASE : 0)));
                 if (new->pnamereg == NULL)
-                    return apr_pstrcat(cmd->pool, cmd->cmd->name,
-                                       "Header name regex could not be "
-                                       "compiled.", NULL);
-            }
-            else {
-                new->pnamereg = NULL;
-            }
-        }
-    }
-    else {
-        new = &entries[i];
-    }
-
-    return add_envvars(cmd, args, new);
-}

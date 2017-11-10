@@ -214,4 +214,34 @@ static void child_main(int child_num_arg)
 
         /*
          * We now have a connection, so set it up with the appropriate
-         * socket options
+         * socket options, file descriptors, and read/write buffers.
+         */
+
+        current_conn = ap_run_create_connection(ptrans, ap_server_conf, csd, my_child_num, sbh, bucket_alloc);
+        if (current_conn) {
+#if APR_HAS_THREADS
+            current_conn->current_thread = thd;
+#endif
+            ap_process_connection(current_conn, csd);
+            ap_lingering_close(current_conn);
+        }
+
+        /* Check the pod and the generation number after processing a
+         * connection so that we'll go away if a graceful restart occurred
+         * while we were processing the connection or we are the lucky
+         * idle server process that gets to die.
+         */
+        if (ap_mpm_pod_check(pod) == APR_SUCCESS) { /* selected as idle? */
+            die_now = 1;
+        }
+        else if (retained->my_generation !=
+                 ap_scoreboard_image->global->running_generation) { /* restart? */
+            /* yeah, this could be non-graceful restart, in which case the
+             * parent will kill us soon enough, but why bother checking?
+             */
+            die_now = 1;
+        }
+    }
+    apr_pool_clear(ptrans); /* kludge to avoid crash in APR reslist cleanup code */
+    clean_child_exit(0);
+}

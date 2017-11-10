@@ -110,4 +110,6 @@ static int best_match(negotiation_state *neg, var_rec **pbest)
      * caller) to only declare the resource transparently negotiable if
      * all variants are neighbors.
      */
-    *pbest = be
+    *pbest = best;
+    return algorithm_result;
+}

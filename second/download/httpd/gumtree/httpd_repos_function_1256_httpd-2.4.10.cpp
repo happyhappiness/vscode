@@ -88,5 +88,4 @@ static void register_hooks(apr_pool_t *p)
                                   cache_invalidate_filter,
                                   NULL,
                                   AP_FTYPE_PROTOCOL);
-    ap_hook_post_config(cache_post_config, NULL, NULL, APR_HOOK_REALLY_FIRST);
-}
+    ap_hook_post_co

@@ -117,4 +117,72 @@ static char *lookup_map(request_rec *r, char *name, char *key)
         if (!value) {
             rewritelog((r, 5, NULL, "SQL map lookup FAILED: map %s key=%s",
                         name, key));
-      
+            return NULL;
+        }
+
+        rewritelog((r, 5, NULL, "SQL map lookup OK: map %s key=%s, val=%s",
+                   name, key, value));
+
+        return value;
+
+    /*
+     * SQL map with cache
+     */
+    case MAPTYPE_DBD_CACHE:
+        value = get_cache_value(s->cachename, 0, key, r->pool);
+        if (!value) {
+            rewritelog((r, 6, NULL,
+                        "cache lookup FAILED, forcing new map lookup"));
+
+            value = lookup_map_dbd(r, key, s->dbdq);
+            if (!value) {
+                rewritelog((r, 5, NULL, "SQL map lookup FAILED: map %s key=%s",
+                            name, key));
+                set_cache_value(s->cachename, 0, key, "");
+                return NULL;
+            }
+
+            rewritelog((r, 5, NULL, "SQL map lookup OK: map %s key=%s, val=%s",
+                        name, key, value));
+
+            set_cache_value(s->cachename, 0, key, value);
+            return value;
+        }
+
+        rewritelog((r, 5, NULL, "cache lookup OK: map=%s[SQL] key=%s, val=%s",
+                    name, key, value));
+        return *value ? value : NULL;
+
+    /*
+     * Program file map
+     */
+    case MAPTYPE_PRG:
+        value = lookup_map_program(r, s->fpin, s->fpout, key);
+        if (!value) {
+            rewritelog((r, 5,NULL,"map lookup FAILED: map=%s key=%s", name,
+                        key));
+            return NULL;
+        }
+
+        rewritelog((r, 5, NULL, "map lookup OK: map=%s key=%s -> val=%s",
+                    name, key, value));
+        return value;
+
+    /*
+     * Internal Map
+     */
+    case MAPTYPE_INT:
+        value = s->func(r, key);
+        if (!value) {
+            rewritelog((r, 5,NULL,"map lookup FAILED: map=%s key=%s", name,
+                        key));
+            return NULL;
+        }
+
+        rewritelog((r, 5, NULL, "map lookup OK: map=%s key=%s -> val=%s",
+                    name, key, value));
+        return value;
+    }
+
+    return NULL;
+}

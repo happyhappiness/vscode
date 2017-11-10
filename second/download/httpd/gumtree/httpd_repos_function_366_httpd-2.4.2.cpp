@@ -396,4 +396,12 @@ static int dav_method_copymove(request_rec *r, int is_move)
                                  "The MOVE/COPY was successful, but there "
                                  "was a problem updating the lock "
                                  "information.",
-     
+                                 err);
+            return dav_handle_err(r, err, NULL);
+        }
+    }
+
+    /* return an appropriate response (HTTP_CREATED or HTTP_NO_CONTENT) */
+    return dav_created(r, lookup.rnew->uri, "Destination",
+                       resnew_state == DAV_RESOURCE_EXISTS);
+}

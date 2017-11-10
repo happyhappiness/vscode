@@ -100,4 +100,5 @@ apr_status_t h2_session_start(h2_session *session, int *rv)
                           nghttp2_strerror(*rv));        
         }
     }
-    ret
+    return status;
+}

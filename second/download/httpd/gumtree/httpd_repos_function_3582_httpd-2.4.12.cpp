@@ -753,4 +753,72 @@ static const char *set_min_free_servers(cmd_parms *cmd, void *dummy, const char 
         return err;
     }
 
-    ap_daemons_min_free = 
+    ap_daemons_min_free = atoi(arg);
+    return NULL;
+}
+
+static const char *set_max_free_servers(cmd_parms *cmd, void *dummy, const char *arg)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    ap_daemons_max_free = atoi(arg);
+    return NULL;
+}
+
+static const char *set_max_clients (cmd_parms *cmd, void *dummy, const char *arg)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+    if (!strcasecmp(cmd->cmd->name, "MaxClients")) {
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, APLOGNO(00188)
+                     "MaxClients is deprecated, use MaxRequestWorkers "
+                     "instead.");
+    }
+    ap_daemons_limit = atoi(arg);
+    return NULL;
+}
+
+static const char *set_server_limit (cmd_parms *cmd, void *dummy, const char *arg)
+{
+    const char *err = ap_check_cmd_context(cmd, GLOBAL_ONLY);
+    if (err != NULL) {
+        return err;
+    }
+
+    server_limit = atoi(arg);
+    return NULL;
+}
+
+static const command_rec prefork_cmds[] = {
+LISTEN_COMMANDS,
+AP_INIT_TAKE1("StartServers", set_daemons_to_start, NULL, RSRC_CONF,
+              "Number of child processes launched at server startup"),
+AP_INIT_TAKE1("MinSpareServers", set_min_free_servers, NULL, RSRC_CONF,
+              "Minimum number of idle children, to handle request spikes"),
+AP_INIT_TAKE1("MaxSpareServers", set_max_free_servers, NULL, RSRC_CONF,
+              "Maximum number of idle children"),
+AP_INIT_TAKE1("MaxClients", set_max_clients, NULL, RSRC_CONF,
+              "Deprecated name of MaxRequestWorkers"),
+AP_INIT_TAKE1("MaxRequestWorkers", set_max_clients, NULL, RSRC_CONF,
+              "Maximum number of children alive at the same time"),
+AP_INIT_TAKE1("ServerLimit", set_server_limit, NULL, RSRC_CONF,
+              "Maximum value of MaxRequestWorkers for this run of Apache"),
+AP_GRACEFUL_SHUTDOWN_TIMEOUT_COMMAND,
+{ NULL }
+};
+
+AP_DECLARE_MODULE(mpm_prefork) = {
+    MPM20_MODULE_STUFF,
+    NULL,                       /* hook to run before apache parses args */
+    NULL,                       /* create per-directory config structure */
+    NULL,                       /* merge per-directory config structures */
+    NULL,                       /* create per-server config structure */
+    NULL,                       /* merge per-server config structures */
+    prefork_cmds,               /* command apr_table_t */
+    prefork_hooks,              /* register hooks */
+};

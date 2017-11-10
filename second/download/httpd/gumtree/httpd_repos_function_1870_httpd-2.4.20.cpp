@@ -237,4 +237,25 @@ static const char *get_canned_error_string(int status,
                                "this error.</p>\n"
                                "<p>More information about this error "
                                "may be available\n"
-                      
+                               "in the server error log.</p>\n",
+                               NULL));
+        }
+        /*
+         * It would be nice to give the user the information they need to
+         * fix the problem directly since many users don't have access to
+         * the error_log (think University sites) even though they can easily
+         * get this error by misconfiguring an htaccess file.  However, the
+         * e error notes tend to include the real file pathname in this case,
+         * which some people consider to be a breach of privacy.  Until we
+         * can figure out a way to remove the pathname, leave this commented.
+         *
+         * if ((error_notes = apr_table_get(r->notes,
+         *                                  "error-notes")) != NULL) {
+         *     return(apr_pstrcat(p, error_notes, "<p />\n", NULL);
+         * }
+         * else {
+         *     return "";
+         * }
+         */
+    }
+}

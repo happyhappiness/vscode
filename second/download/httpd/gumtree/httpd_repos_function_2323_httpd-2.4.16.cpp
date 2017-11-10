@@ -94,45 +94,4 @@ static int filter_lookup(ap_filter_t *f, ap_filter_rec_t *filter)
                     }
                     apr_table_addn(r->headers_out, "Warning",
                                    apr_psprintf(r->pool,
-                                                "214 %s Transformation applied",
-                                                r->hostname));
-                }
-            }
-
-            /* things that are invalidated if the filter transforms content */
-            if (proto_flags & AP_FILTER_PROTO_CHANGE) {
-                apr_table_unset(r->headers_out, "Content-MD5");
-                apr_table_unset(r->headers_out, "ETag");
-                if (proto_flags & AP_FILTER_PROTO_CHANGE_LENGTH) {
-                    apr_table_unset(r->headers_out, "Content-Length");
-                }
-            }
-
-            /* no-cache is for a filter that has different effect per-hit */
-            if (proto_flags & AP_FILTER_PROTO_NO_CACHE) {
-                apr_table_unset(r->headers_out, "Last-Modified");
-                apr_table_addn(r->headers_out, "Cache-Control", "no-cache");
-            }
-
-            if (proto_flags & AP_FILTER_PROTO_NO_BYTERANGE) {
-                apr_table_setn(r->headers_out, "Accept-Ranges", "none");
-            }
-            else if (rctx && rctx->range) {
-                /* restore range header we saved earlier */
-                apr_table_setn(r->headers_in, "Range", rctx->range);
-                rctx->range = NULL;
-            }
-#endif
-            for (pctx = ctx->init_ctx; pctx; pctx = pctx->next) {
-                if (pctx->provider == provider) {
-                    ctx->fctx = pctx->ctx ;
-                }
-            }
-            ctx->func = provider->frec->filter_func.out_func;
-            return 1;
-        }
-    }
-
-    /* No provider matched */
-    return 0;
-}
+                                            

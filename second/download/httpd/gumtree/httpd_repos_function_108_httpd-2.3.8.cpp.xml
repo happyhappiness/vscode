@@ -151,4 +151,11 @@
                 <expr_stmt><expr><call><name pos:line="150" pos:column="17">apr_socket_close<pos:position pos:line="150" pos:column="33"/></name><argument_list pos:line="150" pos:column="33">(<argument><expr><name pos:line="150" pos:column="34">skt<pos:position pos:line="150" pos:column="37"/></name></expr></argument>)<pos:position pos:line="150" pos:column="38"/></argument_list></call></expr>;<pos:position pos:line="150" pos:column="39"/></expr_stmt>
             }<pos:position pos:line="151" pos:column="14"/></block></then></if>
         }<pos:position pos:line="152" pos:column="10"/></block></then></if></elseif> <else pos:line="152" pos:column="11">else <block pos:line="152" pos:column="16">{
-            <macro><name pos:line="153" pos:column="13">exit_error<pos:position pos:line="153" pos:column="23"/></name><argument_list pos:line="153" pos:column="23">(<argument pos:line="153" pos:column="24">rv<pos:position pos:line="153" pos:column="26"/></argument>, <argument><literal type="string" pos:line="153" pos:column="28">"<pos:position pos:line="153" pos:column="29"/></literal></argument></argument_list></macro></block></else></if></block></while></block></function>ap</unit>
+            <expr_stmt><expr><call><name pos:line="153" pos:column="13">exit_error<pos:position pos:line="153" pos:column="23"/></name><argument_list pos:line="153" pos:column="23">(<argument><expr><name pos:line="153" pos:column="24">rv<pos:position pos:line="153" pos:column="26"/></name></expr></argument>, <argument><expr><literal type="string" pos:line="153" pos:column="28">"apr_proc_fork"<pos:position pos:line="153" pos:column="43"/></literal></expr></argument>)<pos:position pos:line="153" pos:column="44"/></argument_list></call></expr>;<pos:position pos:line="153" pos:column="45"/></expr_stmt>
+        }<pos:position pos:line="154" pos:column="10"/></block></else></if>
+    }<pos:position pos:line="155" pos:column="6"/></block></while>
+
+<cpp:endif pos:line="157" pos:column="1">#<cpp:directive pos:line="157" pos:column="2">endif<pos:position pos:line="157" pos:column="7"/></cpp:directive></cpp:endif>
+
+    <return pos:line="159" pos:column="5">return <expr><name pos:line="159" pos:column="12">EXIT_SUCCESS<pos:position pos:line="159" pos:column="24"/></name></expr>;<pos:position pos:line="159" pos:column="25"/></return>
+}<pos:position pos:line="160" pos:column="2"/></block></function></unit>

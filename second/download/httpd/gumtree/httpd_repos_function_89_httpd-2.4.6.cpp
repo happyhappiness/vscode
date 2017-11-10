@@ -86,40 +86,4 @@ static void output_html_results(void)
             maxcon = ap_max(maxcon, s->ctime);
             maxtot = ap_max(maxtot, s->time);
             totalcon += s->ctime;
-            total    += s->time;
-        }
-        /*
-         * Reduce stats from apr time to milliseconds
-         */
-        mincon   = ap_round_ms(mincon);
-        mintot   = ap_round_ms(mintot);
-        maxcon   = ap_round_ms(maxcon);
-        maxtot   = ap_round_ms(maxtot);
-        totalcon = ap_round_ms(totalcon);
-        total    = ap_round_ms(total);
-
-        if (done > 0) { /* avoid division by zero (if 0 done) */
-            printf("<tr %s><th %s colspan=4>Connnection Times (ms)</th></tr>\n",
-               trstring, tdstring);
-            printf("<tr %s><th %s>&nbsp;</th> <th %s>min</th>   <th %s>avg</th>   <th %s>max</th></tr>\n",
-               trstring, tdstring, tdstring, tdstring, tdstring);
-            printf("<tr %s><th %s>Connect:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mincon, tdstring, totalcon / done, tdstring, maxcon);
-            printf("<tr %s><th %s>Processing:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mintot - mincon, tdstring,
-               (total / done) - (totalcon / done), tdstring, maxtot - maxcon);
-            printf("<tr %s><th %s>Total:</th>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td>"
-               "<td %s>%5" APR_TIME_T_FMT "</td></tr>\n",
-               trstring, tdstring, tdstring, mintot, tdstring, total / done, tdstring, maxtot);
-        }
-        printf("</table>\n");
-    }
-}
+            tota

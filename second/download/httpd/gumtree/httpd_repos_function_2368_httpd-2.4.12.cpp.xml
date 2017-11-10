@@ -117,6 +117,11 @@
          * r-&gt;pool, so that pool must survive as long as this request.
          * Yes, this is a memory leak. */</comment>
 
-    }<pos:position pos:line="119" pos:column="6"/></block></while></block></function>
+    }<pos:position pos:line="119" pos:column="6"/></block></while>
 
- </unit>
+    <if pos:line="121" pos:column="5">if <condition pos:line="121" pos:column="8">(<expr><name pos:line="121" pos:column="9">last_error<pos:position pos:line="121" pos:column="19"/></name></expr>)<pos:position pos:line="121" pos:column="20"/></condition><then pos:line="121" pos:column="20"> <block pos:line="121" pos:column="21">{
+        <expr_stmt><expr><call><name pos:line="122" pos:column="9">SSI_CREATE_ERROR_BUCKET<pos:position pos:line="122" pos:column="32"/></name><argument_list pos:line="122" pos:column="32">(<argument><expr><name pos:line="122" pos:column="33">ctx<pos:position pos:line="122" pos:column="36"/></name></expr></argument>, <argument><expr><name pos:line="122" pos:column="38">f<pos:position pos:line="122" pos:column="39"/></name></expr></argument>, <argument><expr><name pos:line="122" pos:column="41">bb<pos:position pos:line="122" pos:column="43"/></name></expr></argument>)<pos:position pos:line="122" pos:column="44"/></argument_list></call></expr>;<pos:position pos:line="122" pos:column="45"/></expr_stmt>
+    }<pos:position pos:line="123" pos:column="6"/></block></then></if>
+
+    <return pos:line="125" pos:column="5">return <expr><name pos:line="125" pos:column="12">APR_SUCCESS<pos:position pos:line="125" pos:column="23"/></name></expr>;<pos:position pos:line="125" pos:column="24"/></return>
+}<pos:position pos:line="126" pos:column="2"/></block></function></unit>

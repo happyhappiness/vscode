@@ -115,3 +115,92 @@ static const char *set_worker_param(apr_pool_t *p,
             return "Redirect length must be < 64 characters";
         worker->redirect = apr_pstrdup(p, val);
     }
+    else if (!strcasecmp(key, "status")) {
+        const char *v;
+        int mode = 1;
+        /* Worker status.
+         */
+        for (v = val; *v; v++) {
+            if (*v == '+') {
+                mode = 1;
+                v++;
+            }
+            else if (*v == '-') {
+                mode = 0;
+                v++;
+            }
+            if (*v == 'D' || *v == 'd') {
+                if (mode)
+                    worker->status |= PROXY_WORKER_DISABLED;
+                else
+                    worker->status &= ~PROXY_WORKER_DISABLED;
+            }
+            else if (*v == 'S' || *v == 's') {
+                if (mode)
+                    worker->status |= PROXY_WORKER_STOPPED;
+                else
+                    worker->status &= ~PROXY_WORKER_STOPPED;
+            }
+            else if (*v == 'E' || *v == 'e') {
+                if (mode)
+                    worker->status |= PROXY_WORKER_IN_ERROR;
+                else
+                    worker->status &= ~PROXY_WORKER_IN_ERROR;
+            }
+            else if (*v == 'H' || *v == 'h') {
+                if (mode)
+                    worker->status |= PROXY_WORKER_HOT_STANDBY;
+                else
+                    worker->status &= ~PROXY_WORKER_HOT_STANDBY;
+            }
+	    else if (*v == 'I' || *v == 'i') {
+	    	if (mode)
+		    worker->status |= PROXY_WORKER_IGNORE_ERRORS;
+		else
+		    worker->status &= ~PROXY_WORKER_IGNORE_ERRORS;
+	    }
+            else {
+                return "Unknown status parameter option";
+            }
+        }
+    }
+    else if (!strcasecmp(key, "flushpackets")) {
+        if (!strcasecmp(val, "on"))
+            worker->flush_packets = flush_on;
+        else if (!strcasecmp(val, "off"))
+            worker->flush_packets = flush_off;
+        else if (!strcasecmp(val, "auto"))
+            worker->flush_packets = flush_auto;
+        else
+            return "flushpackets must be on|off|auto";
+    }
+    else if (!strcasecmp(key, "flushwait")) {
+        ival = atoi(val);
+        if (ival > 1000 || ival < 0) {
+            return "flushwait must be <= 1000, or 0 for system default of 10 millseconds.";
+        }
+        if (ival == 0)
+            worker->flush_wait = PROXY_FLUSH_WAIT;
+        else
+            worker->flush_wait = ival * 1000;    /* change to microseconds */
+    }
+    else if (!strcasecmp(key, "lbset")) {
+        ival = atoi(val);
+        if (ival < 0 || ival > 99)
+            return "lbset must be between 0 and 99";
+        worker->lbset = ival;
+    }
+    else if (!strcasecmp(key, "ping")) {
+        /* Ping/Pong timeout in seconds.
+         */
+        ival = atoi(val);
+        if (ival < 1)
+            return "Ping/Pong timeout must be at least one second";
+        worker->ping_timeout = apr_time_from_sec(ival);
+        worker->ping_timeout_set = 1;
+    }
+    else {
+        return "unknown Worker parameter";
+    }
+    return NULL;
+}

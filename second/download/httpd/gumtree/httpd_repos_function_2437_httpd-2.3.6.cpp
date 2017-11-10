@@ -101,4 +101,28 @@ start_over:
                         char **newgrp = (char **) apr_array_push(subgroups);
                         *newgrp = apr_pstrdup(r->pool, values[val_index]);
                     }
-                    val_
+                    val_index++;
+                }
+                ldap_value_free(values);
+            }
+            indx++;
+        }
+    }
+
+    ldap_msgfree(sga_res);
+
+    if (subgroups->nelts > 0) {
+        /* We need to fill in tmp_local_subgroups using the data from LDAP */
+        int sgindex;
+        char **group;
+        res = apr_pcalloc(r->pool, sizeof(util_compare_subgroup_t));
+        res->subgroupDNs  = apr_pcalloc(r->pool,
+                                        sizeof(char *) * (subgroups->nelts));
+        for (sgindex = 0; (group = apr_array_pop(subgroups)); sgindex++) {
+            res->subgroupDNs[sgindex] = apr_pstrdup(r->pool, *group);
+        }
+        res->len = sgindex;
+    }
+
+    return res;
+}

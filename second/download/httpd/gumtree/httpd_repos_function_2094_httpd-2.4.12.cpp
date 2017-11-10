@@ -114,4 +114,5 @@ static apr_status_t send_environment(proxy_conn_rec *conn, request_rec *r,
     vec[0].iov_base = (void *)farray;
     vec[0].iov_len = sizeof(farray);
 
-    return send_data(conn, vec, 1,
+    return send_data(conn, vec, 1, &len);
+}

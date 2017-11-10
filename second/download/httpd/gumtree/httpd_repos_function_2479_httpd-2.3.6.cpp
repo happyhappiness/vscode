@@ -105,14 +105,3 @@ static authz_status ldapattribute_check_authorization(request_rec *r,
                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
                               0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
                               "require attribute: authorization failed [%s][%s]", 
-                              getpid(), ldc->reason, ldap_err2string(result));
-            }
-        }
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
-                  "[%" APR_PID_T_FMT "] auth_ldap authorize attribute: authorization denied for user %s to %s",
-                  getpid(), r->user, r->uri);
-
-    return AUTHZ_DENIED;
-}

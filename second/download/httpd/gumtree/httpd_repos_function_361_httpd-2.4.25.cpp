@@ -103,3 +103,38 @@ static int dav_method_propfind(request_rec *r)
     /* send <multistatus> tag, with all doc->namespaces attached.  */
 
     /* NOTE: we *cannot* leave out the doc's namespaces from the
+       initial <multistatus> tag.  if a 404 was generated for an HREF,
+       then we need to spit out the doc's namespaces for use by the
+       404. Note that <response> elements will override these ns0,
+       ns1, etc, but NOT within the <response> scope for the
+       badprops. */
+    dav_begin_multistatus(ctx.bb, r, HTTP_MULTI_STATUS,
+                          doc ? doc->namespaces : NULL);
+
+    /* Have the provider walk the resource. */
+    err = (*resource->hooks->walk)(&ctx.w, depth, &multi_status);
+
+    if (ctx.w.lockdb != NULL) {
+        (*ctx.w.lockdb->hooks->close_lockdb)(ctx.w.lockdb);
+    }
+
+    if (err != NULL) {
+        /* If an error occurred during the resource walk, there's
+           basically nothing we can do but abort the connection and
+           log an error.  This is one of the limitations of HTTP; it
+           needs to "know" the entire status of the response before
+           generating it, which is just impossible in these streamy
+           response situations. */
+        err = dav_push_error(r->pool, err->status, 0,
+                             "Provider encountered an error while streaming"
+                             " a multistatus PROPFIND response.", err);
+        dav_log_err(r, err, APLOG_ERR);
+        r->connection->aborted = 1;
+        return DONE;
+    }
+
+    dav_finish_multistatus(r, ctx.bb);
+
+    /* the response has been sent. */
+    return DONE;
+}

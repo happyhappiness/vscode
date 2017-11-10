@@ -110,4 +110,36 @@ static request_rec *internal_internal_redirect(const char *new_uri,
 
             /* Stop at the protocol filters.  If a protocol filter has
              * been newly installed for this resource, better leave it
-             * in place, though it's probably a misconfigurati
+             * in place, though it's probably a misconfiguration or
+             * filter bug to get into this state. */
+        } while (f && f != new->proto_output_filters);
+    }
+    else {
+        /* If this is not a subrequest, clear out all
+         * resource-specific filters. */
+        new->output_filters  = new->proto_output_filters;
+    }
+
+    update_r_in_filters(new->input_filters, r, new);
+    update_r_in_filters(new->output_filters, r, new);
+
+    apr_table_setn(new->subprocess_env, "REDIRECT_STATUS",
+                   apr_itoa(r->pool, r->status));
+
+    /* Begin by presuming any module can make its own path_info assumptions,
+     * until some module interjects and changes the value.
+     */
+    new->used_path_info = AP_REQ_DEFAULT_PATH_INFO;
+
+    /*
+     * XXX: hmm.  This is because mod_setenvif and mod_unique_id really need
+     * to do their thing on internal redirects as well.  Perhaps this is a
+     * misnamed function.
+     */
+    if ((access_status = ap_run_post_read_request(new))) {
+        ap_die(access_status, new);
+        return NULL;
+    }
+
+    return new;
+}

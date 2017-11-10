@@ -104,4 +104,31 @@ void mpm_signal_service(apr_pool_t *ptemp, int signal)
                     success = TRUE;
                     break;
                 }
-      
+                Sleep(1000);
+            }
+        }
+        else /* !stop */
+        {   
+            /* TODO: Aught to add a little test to the restart logic, and
+             * store the restart counter in the window's user dword.
+             * Then we can hang on and report a successful restart.  But
+             * that's a project for another day.
+             */
+            if (globdat.ssStatus.dwCurrentState == SERVICE_STOPPED) {
+                mpm_service_start(ptemp, 0, NULL);
+                return;
+            }
+            else {
+                success = TRUE;
+                ap_signal_parent(SIGNAL_PARENT_RESTART);
+            }
+        }
+    }
+
+    if (success)
+        fprintf(stderr,"The %s service has %s.\n", mpm_display_name, 
+               signal ? "restarted" : "stopped");
+    else
+        fprintf(stderr,"Failed to %s the %s service.\n", 
+               signal ? "restart" : "stop", mpm_display_name);
+}

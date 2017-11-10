@@ -234,4 +234,78 @@ static int process_dir(char *path, apr_pool_t *pool)
             }
             break;
 
-        /* single data and header
+        /* single data and header files may be deleted either in realclean
+         * mode or if their modification timestamp is not within a
+         * specified positive or negative offset to the current time.
+         * this handling is necessary due to possible race conditions
+         * between apache and this process
+         */
+        case HEADER:
+            current = apr_time_now();
+            nextpath = apr_pstrcat(p, path, "/", d->basename,
+                                   CACHE_HEADER_SUFFIX, NULL);
+            if (apr_file_open(&fd, nextpath, APR_FOPEN_READ | APR_FOPEN_BINARY,
+                              APR_OS_DEFAULT, p) == APR_SUCCESS) {
+                len = sizeof(format);
+                if (apr_file_read_full(fd, &format, len,
+                                       &len) == APR_SUCCESS) {
+                    if (format == VARY_FORMAT_VERSION) {
+                        apr_time_t expires;
+
+                        len = sizeof(expires);
+
+                        apr_file_read_full(fd, &expires, len, &len);
+
+                        apr_file_close(fd);
+
+                        if (expires < current) {
+                            delete_entry(path, d->basename, p);
+                        }
+                        break;
+                    }
+                }
+                apr_file_close(fd);
+            }
+
+            if (realclean || d->htime < current - deviation
+                || d->htime > current + deviation) {
+                delete_entry(path, d->basename, p);
+                unsolicited += d->hsize;
+            }
+            break;
+
+        case DATA:
+            current = apr_time_now();
+            if (realclean || d->dtime < current - deviation
+                || d->dtime > current + deviation) {
+                delete_entry(path, d->basename, p);
+                unsolicited += d->dsize;
+            }
+            break;
+
+        /* temp files may only be deleted in realclean mode which
+         * is asserted above if a tempfile is in the hash array
+         */
+        case TEMP:
+            delete_file(path, d->basename, p);
+            unsolicited += d->dsize;
+            break;
+        }
+    }
+
+    if (interrupted) {
+        return 1;
+    }
+
+    apr_pool_destroy(p);
+
+    if (benice) {
+        apr_sleep(NICE_DELAY);
+    }
+
+    if (interrupted) {
+        return 1;
+    }
+
+    return 0;
+}

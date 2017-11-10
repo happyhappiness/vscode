@@ -200,4 +200,97 @@ void child_main(apr_pool_t *pconf)
         apr_socket_close(lr->sd);
     }
 
-    /* Shutdown li
+    /* Shutdown listener threads and pending AcceptEx socksts
+     * but allow the worker threads to continue consuming from
+     * the queue of accepted connections.
+     */
+    shutdown_in_progress = 1;
+
+    Sleep(1000);
+
+    /* Tell the worker threads to exit */
+    workers_may_exit = 1;
+
+    /* Release the start_mutex to let the new process (in the restart
+     * scenario) a chance to begin accepting and servicing requests
+     */
+    rv = apr_proc_mutex_unlock(start_mutex);
+    if (rv == APR_SUCCESS) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, rv, ap_server_conf,
+                     "Child %d: Released the start mutex", my_pid);
+    }
+    else {
+        ap_log_error(APLOG_MARK,APLOG_ERR, rv, ap_server_conf,
+                     "Child %d: Failure releasing the start mutex", my_pid);
+    }
+
+    /* Shutdown the worker threads */
+    if (!use_acceptex) {
+        for (i = 0; i < threads_created; i++) {
+            add_job(INVALID_SOCKET);
+        }
+    }
+    else { /* Windows NT/2000 */
+        /* Post worker threads blocked on the ThreadDispatch IOCompletion port */
+        while (g_blocked_threads > 0) {
+            ap_log_error(APLOG_MARK,APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                         "Child %d: %d threads blocked on the completion port", my_pid, g_blocked_threads);
+            for (i=g_blocked_threads; i > 0; i--) {
+                PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_SHUTDOWN, NULL);
+            }
+            Sleep(1000);
+        }
+        /* Empty the accept queue of completion contexts */
+        apr_thread_mutex_lock(qlock);
+        while (qhead) {
+            CloseHandle(qhead->Overlapped.hEvent);
+            closesocket(qhead->accept_socket);
+            qhead = qhead->next;
+        }
+        apr_thread_mutex_unlock(qlock);
+    }
+
+    /* Give busy worker threads a chance to service their connections */
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Waiting for %d worker threads to exit.", my_pid, threads_created);
+    end_time = time(NULL) + 180;
+    while (threads_created) {
+        rv = wait_for_many_objects(threads_created, child_handles, (DWORD)(end_time - time(NULL)));
+        if (rv != WAIT_TIMEOUT) {
+            rv = rv - WAIT_OBJECT_0;
+            ap_assert((rv >= 0) && (rv < threads_created));
+            cleanup_thread(child_handles, &threads_created, rv);
+            continue;
+        }
+        break;
+    }
+
+    /* Kill remaining threads off the hard way */
+    if (threads_created) {
+        ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                     "Child %d: Terminating %d threads that failed to exit.",
+                     my_pid, threads_created);
+    }
+    for (i = 0; i < threads_created; i++) {
+        int *score_idx;
+        TerminateThread(child_handles[i], 1);
+        CloseHandle(child_handles[i]);
+        /* Reset the scoreboard entry for the thread we just whacked */
+        score_idx = apr_hash_get(ht, &child_handles[i], sizeof(HANDLE));
+        ap_update_child_status_from_indexes(0, *score_idx, SERVER_DEAD, NULL);
+    }
+    ap_log_error(APLOG_MARK,APLOG_NOTICE, APR_SUCCESS, ap_server_conf,
+                 "Child %d: All worker threads have exited.", my_pid);
+
+    CloseHandle(allowed_globals.jobsemaphore);
+    apr_thread_mutex_destroy(allowed_globals.jobmutex);
+    apr_thread_mutex_destroy(child_lock);
+
+    if (use_acceptex) {
+        apr_thread_mutex_destroy(qlock);
+        CloseHandle(qwait_event);
+    }
+
+    apr_pool_destroy(pchild);
+    CloseHandle(exit_event);
+}

@@ -193,4 +193,91 @@ static int proxy_handler(request_rec *r)
                         }
                         cl_a = apr_table_get(r->headers_in, "Content-Length");
                         if (cl_a) {
-                            apr_strtoff(&cl, cl_a, &end,
+                            apr_strtoff(&cl, cl_a, &end, 10);
+                            /*
+                             * The request body is of length > 0. We cannot
+                             * retry with a direct connection since we already
+                             * sent (parts of) the request body to the proxy
+                             * and do not have any longer.
+                             */
+                            if (cl > 0) {
+                                goto cleanup;
+                            }
+                        }
+                        /*
+                         * Transfer-Encoding was set as input header, so we had
+                         * a request body. We cannot retry with a direct
+                         * connection for the same reason as above.
+                         */
+                        if (apr_table_get(r->headers_in, "Transfer-Encoding")) {
+                            goto cleanup;
+                        }
+                    }
+                }
+            }
+        }
+
+        /* otherwise, try it direct */
+        /* N.B. what if we're behind a firewall, where we must use a proxy or
+        * give up??
+        */
+
+        /* handle the scheme */
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01143)
+                      "Running scheme %s handler (attempt %d)",
+                      scheme, attempts);
+        AP_PROXY_RUN(r, worker, conf, url, attempts);
+        access_status = proxy_run_scheme_handler(r, worker, conf,
+                                                 url, NULL, 0);
+        if (access_status == OK)
+            break;
+        else if (access_status == HTTP_INTERNAL_SERVER_ERROR) {
+            /* Unrecoverable server error.
+             * We can not failover to another worker.
+             * Mark the worker as unusable if member of load balancer
+             */
+            if (balancer) {
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+            }
+            break;
+        }
+        else if (access_status == HTTP_SERVICE_UNAVAILABLE) {
+            /* Recoverable server error.
+             * We can failover to another worker
+             * Mark the worker as unusable if member of load balancer
+             */
+            if (balancer) {
+                worker->s->status |= PROXY_WORKER_IN_ERROR;
+                worker->s->error_time = apr_time_now();
+            }
+        }
+        else {
+            /* Unrecoverable error.
+             * Return the origin status code to the client.
+             */
+            break;
+        }
+        /* Try again if the worker is unusable and the service is
+         * unavailable.
+         */
+    } while (!PROXY_WORKER_IS_USABLE(worker) &&
+             max_attempts > attempts++);
+
+    if (DECLINED == access_status) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01144)
+                      "No protocol handler was valid for the URL %s. "
+                      "If you are using a DSO version of mod_proxy, make sure "
+                      "the proxy submodules are included in the configuration "
+                      "using LoadModule.", r->uri);
+        access_status = HTTP_INTERNAL_SERVER_ERROR;
+        goto cleanup;
+    }
+cleanup:
+    ap_proxy_post_request(worker, balancer, r, conf);
+
+    proxy_run_request_status(&access_status, r);
+    AP_PROXY_RUN_FINISHED(r, attempts, access_status);
+
+    return access_status;
+}

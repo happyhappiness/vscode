@@ -363,29 +363,4 @@ static char *lookup_variable(char *var, rewrite_ctx *ctx)
                 if (!strcmp(var, "SERVER_SOFTWARE")) {
                     result = ap_get_server_banner();
                 }
-                break;
-            }
-            break;
-
-        case 16:
-            if (*var == 'C' && !strcmp(var, "CONN_REMOTE_ADDR")) {
-                result = r->connection->client_ip;
-            }
-            else if (!strcmp(var, "REQUEST_FILENAME")) {
-                result = r->filename; /* same as script_filename (15) */
-            }
-            break;
-
-        case 21:
-            if (!strcmp(var, "HTTP_PROXY_CONNECTION")) {
-                result = lookup_header("Proxy-Connection", ctx);
-            }
-            else if (!strcmp(var, "CONTEXT_DOCUMENT_ROOT")) {
-                result = ap_context_document_root(r);
-            }
-            break;
-        }
-    }
-
-    return apr_pstrdup(r->pool, result ? result : "");
-}
+         

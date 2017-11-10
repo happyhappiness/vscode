@@ -109,4 +109,74 @@ char *ssl_var_lookup(apr_pool_t *p, server_rec *s, conn_rec *c, request_rec *r, 
      */
     if (result == NULL && c != NULL) {
         SSLConnRec *sslconn = ssl_get_effective_config(c);
-        if (strlen(var) > 
+        if (strlen(var) > 4 && strcEQn(var, "SSL_", 4)
+            && sslconn && sslconn->ssl)
+            result = ssl_var_lookup_ssl(p, sslconn, r, var+4);
+        else if (strcEQ(var, "HTTPS")) {
+            if (sslconn && sslconn->ssl)
+                result = "on";
+            else
+                result = "off";
+        }
+    }
+
+    /*
+     * Totally independent stuff
+     */
+    if (result == NULL) {
+        if (strlen(var) > 12 && strcEQn(var, "SSL_VERSION_", 12))
+            result = ssl_var_lookup_ssl_version(p, var+12);
+        else if (strcEQ(var, "SERVER_SOFTWARE"))
+            result = ap_get_server_banner();
+        else if (strcEQ(var, "API_VERSION")) {
+            result = apr_itoa(p, MODULE_MAGIC_NUMBER_MAJOR);
+            resdup = FALSE;
+        }
+        else if (strcEQ(var, "TIME_YEAR")) {
+            apr_time_exp_lt(&tm, apr_time_now());
+            result = apr_psprintf(p, "%02d%02d",
+                                 (tm.tm_year / 100) + 19, tm.tm_year % 100);
+            resdup = FALSE;
+        }
+#define MKTIMESTR(format, tmfield) \
+            apr_time_exp_lt(&tm, apr_time_now()); \
+            result = apr_psprintf(p, format, tm.tmfield); \
+            resdup = FALSE;
+        else if (strcEQ(var, "TIME_MON")) {
+            MKTIMESTR("%02d", tm_mon+1)
+        }
+        else if (strcEQ(var, "TIME_DAY")) {
+            MKTIMESTR("%02d", tm_mday)
+        }
+        else if (strcEQ(var, "TIME_HOUR")) {
+            MKTIMESTR("%02d", tm_hour)
+        }
+        else if (strcEQ(var, "TIME_MIN")) {
+            MKTIMESTR("%02d", tm_min)
+        }
+        else if (strcEQ(var, "TIME_SEC")) {
+            MKTIMESTR("%02d", tm_sec)
+        }
+        else if (strcEQ(var, "TIME_WDAY")) {
+            MKTIMESTR("%d", tm_wday)
+        }
+        else if (strcEQ(var, "TIME")) {
+            apr_time_exp_lt(&tm, apr_time_now());
+            result = apr_psprintf(p,
+                        "%02d%02d%02d%02d%02d%02d%02d", (tm.tm_year / 100) + 19,
+                        (tm.tm_year % 100), tm.tm_mon+1, tm.tm_mday,
+                        tm.tm_hour, tm.tm_min, tm.tm_sec);
+            resdup = FALSE;
+        }
+        /* all other env-variables from the parent Apache process */
+        else if (strlen(var) > 4 && strcEQn(var, "ENV:", 4)) {
+            result = getenv(var+4);
+        }
+    }
+
+    if (result != NULL && resdup)
+        result = apr_pstrdup(p, result);
+    if (result == NULL)
+        result = "";
+    return (char *)result;
+}

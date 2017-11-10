@@ -170,33 +170,4 @@ static int _advance(char *lp, char *ep, step_vars_storage *vars)
             goto star;
 
         case CXCL | STAR:
-            curlp = lp;
-            do {
-                c = (unsigned char)*lp++;
-            } while (ISTHERE(c));
-            ep += 32;
-            goto star;
-
-        case NCCL | STAR:
-            neg = 1;
-
-        case CCL | STAR:
-            curlp = lp;
-            do {
-                c = *lp++;
-            } while (((c & 0200) == 0 && ISTHERE(c)) ^ neg);
-            ep += 16;
-            goto star;
-
-        star:
-            do {
-                if (--lp == vars->locs)
-                    break;
-                if (_advance(lp, ep, vars))
-                    return (1);
-            } while (lp > curlp);
-            return (0);
-
-        }
-    }
-}
+   

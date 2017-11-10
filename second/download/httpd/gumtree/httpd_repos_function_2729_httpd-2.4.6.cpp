@@ -114,47 +114,4 @@ start_over:
             /* compare completed; caching result */
             LDAP_CACHE_LOCK();
             the_compare_node.lastcompare = curtime;
-            the_compare_node.result = result;
-            the_compare_node.sgl_processed = 0;
-            the_compare_node.subgroupList = NULL;
-
-            /* If the node doesn't exist then insert it, otherwise just update
-             * it with the last results
-             */
-            compare_nodep = util_ald_cache_fetch(curl->compare_cache,
-                                                 &the_compare_node);
-            if (   (compare_nodep == NULL)
-                || (strcmp(the_compare_node.dn, compare_nodep->dn) != 0)
-                || (strcmp(the_compare_node.attrib,compare_nodep->attrib) != 0)
-                || (strcmp(the_compare_node.value, compare_nodep->value) != 0))
-            {
-                void *junk;
-
-                junk = util_ald_cache_insert(curl->compare_cache,
-                                             &the_compare_node);
-                if (junk == NULL) {
-                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01287)
-                                  "cache_compare: Cache insertion failure.");
-                }
-            }
-            else {
-                compare_nodep->lastcompare = curtime;
-                compare_nodep->result = result;
-            }
-            LDAP_CACHE_UNLOCK();
-        }
-        if (LDAP_COMPARE_TRUE == result) {
-            ldc->reason = "Comparison true (adding to cache)";
-            return LDAP_COMPARE_TRUE;
-        }
-        else if (LDAP_COMPARE_FALSE == result) {
-            ldc->reason = "Comparison false (adding to cache)";
-            return LDAP_COMPARE_FALSE;
-        }
-        else {
-            ldc->reason = "Comparison no such attribute (adding to cache)";
-            return LDAP_NO_SUCH_ATTRIBUTE;
-        }
-    }
-    return result;
-}
+            the_compare_node.result = re

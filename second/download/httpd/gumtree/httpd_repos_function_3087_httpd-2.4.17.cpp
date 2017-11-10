@@ -121,4 +121,18 @@ start_over:
             newnode.dn = (char *)dn;
 
             node = util_ald_cache_fetch(curl->dn_compare_cache, &newnode);
-            if (   (no
+            if (   (node == NULL)
+                || (strcmp(reqdn, node->reqdn) != 0)
+                || (strcmp(dn, node->dn) != 0))
+            {
+                util_ald_cache_insert(curl->dn_compare_cache, &newnode);
+            }
+            LDAP_CACHE_UNLOCK();
+        }
+        ldc->reason = "DN Comparison TRUE (checked on server)";
+        result = LDAP_COMPARE_TRUE;
+    }
+    ldap_memfree(searchdn);
+    return result;
+
+}

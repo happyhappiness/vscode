@@ -100,4 +100,58 @@ static apr_status_t store_headers(cache_handle_t *h, request_rec *r,
     socache_info->expire = obj->info.expire;
     socache_info->entity_version = sobj->socache_info.entity_version++;
     socache_info->request_time = obj->info.request_time;
-    socache_info->response_time
+    socache_info->response_time = obj->info.response_time;
+    socache_info->status = obj->info.status;
+
+    if (r->header_only && r->status != HTTP_NOT_MODIFIED) {
+        socache_info->header_only = 1;
+    }
+    else {
+        socache_info->header_only = sobj->socache_info.header_only;
+    }
+
+    socache_info->name_len = strlen(sobj->name);
+
+    memcpy(&socache_info->control, &obj->info.control, sizeof(cache_control_t));
+    slider = sizeof(cache_socache_info_t);
+
+    if (slider + socache_info->name_len >= sobj->buffer_len) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02374)
+                "cache buffer too small for name: %s",
+                sobj->name);
+        apr_pool_destroy(sobj->pool);
+        sobj->pool = NULL;
+        return APR_EGENERAL;
+    }
+    memcpy(sobj->buffer + slider, sobj->name, socache_info->name_len);
+    slider += socache_info->name_len;
+
+    if (sobj->headers_out) {
+        if (APR_SUCCESS != store_table(sobj->headers_out, sobj->buffer,
+                sobj->buffer_len, &slider)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02375)
+                    "out-headers didn't fit in buffer: %s", sobj->name);
+            apr_pool_destroy(sobj->pool);
+            sobj->pool = NULL;
+            return APR_EGENERAL;
+        }
+    }
+
+    /* Parse the vary header and dump those fields from the headers_in. */
+    /* TODO: Make call to the same thing cache_select calls to crack Vary. */
+    if (sobj->headers_in) {
+        if (APR_SUCCESS != store_table(sobj->headers_in, sobj->buffer,
+                sobj->buffer_len, &slider)) {
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, rv, r, APLOGNO(02376)
+                    "in-headers didn't fit in buffer %s",
+                    sobj->key);
+            apr_pool_destroy(sobj->pool);
+            sobj->pool = NULL;
+            return APR_EGENERAL;
+        }
+    }
+
+    sobj->body_offset = slider;
+
+    return APR_SUCCESS;
+}

@@ -327,4 +327,51 @@ static void output_directories(struct ent **ar, int n,
                     char time_str[MAX_STRING_LEN];
                     apr_time_exp_t ts;
                     apr_time_exp_lt(&ts, ar[x]->lm);
-                    apr_strftime(time_str, &rv, MAX_STRIN
+                    apr_strftime(time_str, &rv, MAX_STRING_LEN,
+                                "%d-%b-%Y %H:%M  ", &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    /*Length="22-Feb-1998 23:42  " (see 4 lines above) */
+                    ap_rputs("                   ", r);
+                }
+            }
+            if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                char buf[5];
+                ap_rputs(apr_strfsize(ar[x]->size, buf), r);
+                ap_rputs("  ", r);
+            }
+            if (!(autoindex_opts & SUPPRESS_DESC)) {
+                if (ar[x]->desc) {
+                    ap_rputs(terminate_description(d, ar[x]->desc,
+                                                   autoindex_opts,
+                                                   desc_width), r);
+                }
+            }
+            ap_rputc('\n', r);
+        }
+        else {
+            ap_rvputs(r, "<li><a href=\"", anchor, "\"> ",
+                      ap_escape_html(scratch, t2),
+                      "</a></li>\n", NULL);
+        }
+    }
+    if (autoindex_opts & TABLE_INDEXING) {
+        ap_rvputs(r, breakrow, "</table>\n", NULL);
+    }
+    else if (autoindex_opts & FANCY_INDEXING) {
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr", r);
+            if (autoindex_opts & EMIT_XHTML) {
+                ap_rputs(" /", r);
+            }
+            ap_rputs("></pre>\n", r);
+        }
+        else {
+            ap_rputs("</pre>\n", r);
+        }
+    }
+    else {
+        ap_rputs("</ul>\n", r);
+    }
+}

@@ -101,4 +101,53 @@ int ssl_callback_SSLVerify(int ok, X509_STORE_CTX *ctx)
 #endif
 
     /*
-     * If we already know it's n
+     * If we already know it's not ok, log the real reason
+     */
+    if (!ok) {
+        if (APLOGcinfo(conn)) {
+            ssl_log_cxerror(SSLLOG_MARK, APLOG_INFO, 0, conn,
+                            X509_STORE_CTX_get_current_cert(ctx), APLOGNO(02276)
+                            "Certificate Verification: Error (%d): %s",
+                            errnum, X509_verify_cert_error_string(errnum));
+        } else {
+            ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, conn, APLOGNO(02039)
+                          "Certificate Verification: Error (%d): %s",
+                          errnum, X509_verify_cert_error_string(errnum));
+        }
+
+        if (sslconn->client_cert) {
+            X509_free(sslconn->client_cert);
+            sslconn->client_cert = NULL;
+        }
+        sslconn->client_dn = NULL;
+        sslconn->verify_error = X509_verify_cert_error_string(errnum);
+    }
+
+    /*
+     * Finally check the depth of the certificate verification
+     */
+    if (dc && (dc->nVerifyDepth != UNSET)) {
+        depth = dc->nVerifyDepth;
+    }
+    else {
+        depth = mctx->auth.verify_depth;
+    }
+
+    if (errdepth > depth) {
+        ap_log_cerror(APLOG_MARK, APLOG_ERR, 0, conn, APLOGNO(02040)
+                      "Certificate Verification: Certificate Chain too long "
+                      "(chain has %d certificates, but maximum allowed are "
+                      "only %d)",
+                      errdepth, depth);
+
+        errnum = X509_V_ERR_CERT_CHAIN_TOO_LONG;
+        sslconn->verify_error = X509_verify_cert_error_string(errnum);
+
+        ok = FALSE;
+    }
+
+    /*
+     * And finally signal OpenSSL the (perhaps changed) state
+     */
+    return ok;
+}

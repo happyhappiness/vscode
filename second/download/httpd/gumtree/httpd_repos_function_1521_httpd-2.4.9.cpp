@@ -137,27 +137,4 @@ static char *lookup_map_program(request_rec *r, apr_file_t *fpin,
             buflist = buflist->next;
         }
         *p = '\0';
-        i = combined_len;
-    }
-    else {
-        buf[i] = '\0';
-    }
-
-    /* give the lock back */
-    if (rewrite_mapr_lock_acquire) {
-        rv = apr_global_mutex_unlock(rewrite_mapr_lock_acquire);
-        if (rv != APR_SUCCESS) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r, APLOGNO(00660)
-                          "apr_global_mutex_unlock(rewrite_mapr_lock_acquire) "
-                          "failed");
-            return NULL; /* Maybe this should be fatal? */
-        }
-    }
-
-    /* catch the "failed" case */
-    if (i == 4 && !strcasecmp(buf, "NULL")) {
-        return NULL;
-    }
-
-    return buf;
-}
+ 

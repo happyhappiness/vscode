@@ -101,4 +101,5 @@
                           <argument><expr><call><name pos:line="100" pos:column="27">nghttp2_strerror<pos:position pos:line="100" pos:column="43"/></name><argument_list pos:line="100" pos:column="43">(<argument><expr><operator pos:line="100" pos:column="44">*<pos:position pos:line="100" pos:column="45"/></operator><name pos:line="100" pos:column="45">rv<pos:position pos:line="100" pos:column="47"/></name></expr></argument>)<pos:position pos:line="100" pos:column="48"/></argument_list></call></expr></argument>)<pos:position pos:line="100" pos:column="49"/></argument_list></call></expr>;<pos:position pos:line="100" pos:column="50"/></expr_stmt>        
         }<pos:position pos:line="101" pos:column="10"/></block></then></if>
     }<pos:position pos:line="102" pos:column="6"/></block></else></if>
-    <macro><name pos:line="103" pos:column="5">ret<pos:position pos:line="103" pos:column="8"/></name></macro></block></function></unit>
+    <return pos:line="103" pos:column="5">return <expr><name pos:line="103" pos:column="12">status<pos:position pos:line="103" pos:column="18"/></name></expr>;<pos:position pos:line="103" pos:column="19"/></return>
+}<pos:position pos:line="104" pos:column="2"/></block></function></unit>

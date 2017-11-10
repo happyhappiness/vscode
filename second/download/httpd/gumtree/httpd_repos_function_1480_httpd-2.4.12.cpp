@@ -101,38 +101,4 @@ static const char *imap_url(request_rec *r, const char *base, const char *value)
 
             clen = slen - 1;
 
-            while ((slen - clen) == 1) {
-
-                if ((string_pos = strrchr(directory, '/'))) {
-                    *string_pos = '\0';
-                }
-                clen = strlen(directory);
-                if (clen == 0) {
-                    break;
-                }
-            }
-
-            value += 2;         /* jump over the '..' that we found in the
-                                   value */
-        }
-        else if (directory) {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00678)
-                        "invalid directory name in map file: %s", r->uri);
-            return NULL;
-        }
-
-        if (!strncmp(value, "/../", 4) || !strcmp(value, "/..")) {
-            value++;            /* step over the '/' if there are more '..'
-                                   to do.  This way, we leave the starting
-                                   '/' on value after the last '..', but get
-                                   rid of it otherwise */
-        }
-
-    }                           /* by this point, value does not start
-                                   with '..' */
-
-    if (value && *value) {
-        return apr_pstrcat(r->pool, my_base, value, NULL);
-    }
-    return my_base;
-}
+    

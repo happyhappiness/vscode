@@ -114,45 +114,4 @@ static int fixup_dir(request_rec *r)
 
         if (ap_is_HTTP_REDIRECT(rr->status)
             || (rr->status == HTTP_NOT_ACCEPTABLE && num_names == 1)
-            || (rr->status == HTTP_UNAUTHORIZED && num_names == 1)) {
-
-            apr_pool_join(r->pool, rr->pool);
-            error_notfound = rr->status;
-            r->notes = apr_table_overlay(r->pool, r->notes, rr->notes);
-            r->headers_out = apr_table_overlay(r->pool, r->headers_out,
-                                               rr->headers_out);
-            r->err_headers_out = apr_table_overlay(r->pool, r->err_headers_out,
-                                                   rr->err_headers_out);
-            return error_notfound;
-        }
-
-        /* If the request returned something other than 404 (or 200),
-         * it means the module encountered some sort of problem. To be
-         * secure, we should return the error, rather than allow autoindex
-         * to create a (possibly unsafe) directory index.
-         *
-         * So we store the error, and if none of the listed files
-         * exist, we return the last error response we got, instead
-         * of a directory listing.
-         */
-        if (rr->status && rr->status != HTTP_NOT_FOUND
-                && rr->status != HTTP_OK) {
-            error_notfound = rr->status;
-        }
-
-        ap_destroy_sub_req(rr);
-    }
-
-    if (error_notfound) {
-        return error_notfound;
-    }
-
-    /* record what we tried, mostly for the benefit of mod_autoindex */
-    apr_table_set(r->notes, "dir-index-names",
-                  d->index_names ?
-                  apr_array_pstrcat(r->pool, d->index_names, ','):
-                  AP_DEFAULT_INDEX);
-
-    /* nothing for us to do, pass on through */
-    return DECLINED;
-}
+            || (rr->status == HTTP_UNAUTHORIZED

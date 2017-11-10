@@ -294,17 +294,4 @@ int main(int argc, const char * const argv[])
                 }
                 else {
                     apr_sleep(delay);
-                    delay = 0;
-                }
-            }
-        }
-    } while (isdaemon && !interrupted);
-
-    if (!isdaemon && interrupted) {
-        apr_file_printf(errfile, "Cache cleaning aborted due to user "
-                                 "request." APR_EOL_STR);
-        return 1;
-    }
-
-    return 0;
-}
+   

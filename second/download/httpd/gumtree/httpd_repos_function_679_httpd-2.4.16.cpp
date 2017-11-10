@@ -134,14 +134,4 @@ static apr_status_t ssl_init_ctx_protocol(server_rec *s,
      * Disallow a session from being resumed during a renegotiation,
      * so that an acceptable cipher suite can be negotiated.
      */
-    SSL_CTX_set_options(ctx, SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION);
-#endif
-
-#ifdef SSL_MODE_RELEASE_BUFFERS
-    /* If httpd is configured to reduce mem usage, ask openssl to do so, too */
-    if (ap_max_mem_free != APR_ALLOCATOR_MAX_FREE_UNLIMITED)
-        SSL_CTX_set_mode(ctx, SSL_MODE_RELEASE_BUFFERS);
-#endif
-
-    return APR_SUCCESS;
-}
+    SSL_CTX_set_options(ctx, SSL_OP_NO_SESSION_

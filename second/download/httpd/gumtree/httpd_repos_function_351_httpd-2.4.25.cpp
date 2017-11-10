@@ -209,4 +209,29 @@ static int dav_method_put(request_rec *r)
                                  "The file was PUT successfully, but there "
                                  "was a problem opening the lock database "
                                  "which prevents inheriting locks from the "
-                                 "par
+                                 "parent resources.",
+                                 err);
+            return dav_handle_err(r, err, NULL);
+        }
+
+        /* notify lock system that we have created/replaced a resource */
+        err = dav_notify_created(r, lockdb, resource, resource_state, 0);
+
+        (*locks_hooks->close_lockdb)(lockdb);
+
+        if (err != NULL) {
+            /* The file creation was successful, but the locking failed. */
+            err = dav_push_error(r->pool, err->status, 0,
+                                 "The file was PUT successfully, but there "
+                                 "was a problem updating its lock "
+                                 "information.",
+                                 err);
+            return dav_handle_err(r, err, NULL);
+        }
+    }
+
+    /* NOTE: WebDAV spec, S8.7.1 states properties should be unaffected */
+
+    /* return an appropriate response (HTTP_CREATED or HTTP_NO_CONTENT) */
+    return dav_created(r, NULL, "Resource", resource_state == DAV_RESOURCE_EXISTS);
+}

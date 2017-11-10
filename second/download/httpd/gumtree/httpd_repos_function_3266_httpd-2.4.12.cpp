@@ -100,4 +100,5 @@ static apr_status_t dummy_connection(ap_pod_t *pod)
     apr_socket_close(sock);
     apr_pool_destroy(p);
 
-    retu
+    return rv;
+}

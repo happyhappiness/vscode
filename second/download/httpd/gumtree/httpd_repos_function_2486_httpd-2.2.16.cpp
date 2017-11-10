@@ -206,13 +206,4 @@ static void *listener_thread(apr_thread_t *thd, void * dummy)
     }
 
     ap_close_listeners();
-    ap_queue_term(worker_queue);
-    dying = 1;
-    ap_scoreboard_image->parent[process_slot].quiescing = 1;
-
-    /* wake up the main thread */
-    kill(ap_my_pid, SIGTERM);
-
-    apr_thread_exit(thd, APR_SUCCESS);
-    return NULL;
-}
+    ap_queue_term(worker_queue)

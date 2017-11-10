@@ -114,30 +114,4 @@ static int do_headers_fixup(request_rec *r, apr_table_t *headers,
             break;
         case hdr_edit:
         case hdr_edit_r:
-            if (!strcasecmp(hdr->header, "Content-Type") && r->content_type) {
-                const char *repl = process_regexp(hdr, r->content_type, r);
-                if (repl == NULL)
-                    return 0;
-                ap_set_content_type(r, repl);
-            }
-            if (apr_table_get(headers, hdr->header)) {
-                edit_do ed;
-
-                ed.r = r;
-                ed.hdr = hdr;
-                ed.t = apr_table_make(r->pool, 5);
-                if (!apr_table_do(edit_header, (void *) &ed, headers,
-                                  hdr->header, NULL))
-                    return 0;
-                apr_table_unset(headers, hdr->header);
-                apr_table_do(add_them_all, (void *) headers, ed.t, NULL);
-            }
-            break;
-        case hdr_note:
-            apr_table_setn(r->notes, process_tags(hdr, r), apr_table_get(headers, hdr->header));
-            break;
- 
-        }
-    }
-    return 1;
-}
+            if (!strcasec

@@ -394,4 +394,64 @@ int main(int argc, const char * const argv[])
                 return 1;
             }
 
-            if (intelligent && !interrupt
+            if (intelligent && !interrupted) {
+                retries = STAT_ATTEMPTS;
+                status = APR_SUCCESS;
+                do {
+                    if (status != APR_SUCCESS) {
+                        apr_sleep(STAT_DELAY);
+                    }
+                    status = apr_stat(&info, path, APR_FINFO_MTIME, instance);
+                } while (status != APR_SUCCESS && !interrupted && --retries);
+
+                if (status == APR_SUCCESS) {
+                    previous = info.mtime;
+                    intelligent = 2;
+                }
+                else {
+                    intelligent = 1;
+                }
+            }
+        }
+
+        apr_pool_destroy(instance);
+
+        current = apr_time_now();
+        if (current < now) {
+            delay = repeat;
+        }
+        else if (current - now >= repeat) {
+            delay = repeat;
+        }
+        else {
+            delay = now + repeat - current;
+        }
+
+        /* we can't sleep the whole delay time here apiece as this is racy
+         * with respect to interrupt delivery - think about what happens
+         * if we have tested for an interrupt, then get scheduled
+         * before the apr_sleep() call and while waiting for the cpu
+         * we do get an interrupt
+         */
+        if (isdaemon) {
+            while (delay && !interrupted) {
+                if (delay > APR_USEC_PER_SEC) {
+                    apr_sleep(APR_USEC_PER_SEC);
+                    delay -= APR_USEC_PER_SEC;
+                }
+                else {
+                    apr_sleep(delay);
+                    delay = 0;
+                }
+            }
+        }
+    } while (isdaemon && !interrupted);
+
+    if (!isdaemon && interrupted) {
+        apr_file_printf(errfile, "Cache cleaning aborted due to user "
+                                 "request." APR_EOL_STR);
+        return 1;
+    }
+
+    return 0;
+}

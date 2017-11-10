@@ -108,4 +108,25 @@ static char master_main()
                 ap_scoreboard_image->parent[slot].pid = 0;
                 ap_scoreboard_image->parent[slot].quiescing = 0;
 
-                if (proc_rc.c
+                if (proc_rc.codeTerminate == TC_EXIT) {
+                    /* Child terminated normally, check its exit code and
+                     * terminate server if child indicates a fatal error
+                     */
+                    if (proc_rc.codeResult == APEXIT_CHILDFATAL)
+                        break;
+                }
+            }
+        } else if (rc == ERROR_CHILD_NOT_COMPLETE) {
+            /* No child exited, lets sleep for a while.... */
+            apr_sleep(SCOREBOARD_MAINTENANCE_INTERVAL);
+        }
+    }
+
+    /* Signal children to shut down, either gracefully or immediately */
+    for (slot=0; slot<HARD_SERVER_LIMIT; slot++) {
+      kill(ap_scoreboard_image->parent[slot].pid, is_graceful ? SIGHUP : SIGTERM);
+    }
+
+    DosFreeMem(parent_info);
+    return restart_pending;
+}

@@ -99,20 +99,4 @@ static apr_status_t lua_output_filter_handle(ap_filter_t *f, apr_bucket_brigade 
                 if (olen > 0) { 
                     pbktOut = apr_bucket_heap_create(output, olen, NULL,
                             c->bucket_alloc);
-                    APR_BRIGADE_INSERT_TAIL(ctx->tmpBucket, pbktOut);
-                }
-            }
-            pbktEOS = apr_bucket_eos_create(c->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(ctx->tmpBucket, pbktEOS);
-            ap_lua_release_state(L, ctx->spec, r);
-            rv = ap_pass_brigade(f->next, ctx->tmpBucket);
-            apr_brigade_cleanup(ctx->tmpBucket);
-            if (rv != APR_SUCCESS) {
-                return rv;
-            }
-        }
-    }
-    /* Clean up */
-    apr_brigade_cleanup(pbbIn);
-    return APR_SUCCESS;    
-}
+                    APR_BRIGAD

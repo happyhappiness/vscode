@@ -91,4 +91,10 @@ static int wd_post_config_hook(apr_pool_t *pconf, apr_pool_t *plog,
                             return rv;
                         }
                     }
-             
+                    wd_server_conf->child_workers++;
+                }
+            }
+        }
+    }
+    return OK;
+}

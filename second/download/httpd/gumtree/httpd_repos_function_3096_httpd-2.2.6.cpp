@@ -121,32 +121,4 @@ int run_mode(command_t *cmd_data)
                              dynamic_link_version_func(cmd_data->version_info));
 #endif
             }
-            if (cmd_data->output == otModule) {
-#ifdef MODULE_OPTS
-                push_count_chars(cmd_data->program_opts, MODULE_OPTS);
-#endif
-            }
-#ifdef DYNAMIC_LINK_OPTS
-            if (cmd_data->options.pic_mode != pic_AVOID) {
-                push_count_chars(cmd_data->program_opts,
-                                 DYNAMIC_LINK_OPTS);
-            }
-#endif
-            rv = run_command(cmd_data, cmd_data->shared_opts.normal);
-            if (rv) {
-                return rv;
-            }
-        }
-        if (cmd_data->output == otProgram) {
-            rv = run_command(cmd_data, cmd_data->arglist);
-            if (rv) {
-                return rv;
-            }
-        }
-        break;
-    default:
-        break;
-    } 
-
-    return 0;
-}
+            if (cmd_data->output =

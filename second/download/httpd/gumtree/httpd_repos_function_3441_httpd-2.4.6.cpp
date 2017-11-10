@@ -334,3 +334,19 @@ static void winnt_rewrite_args(process_rec *process)
         fprintf(stderr,"Testing httpd.conf....\n");
         fprintf(stderr,"Errors reported here must be corrected before the "
                 "service can be started.\n");
+    }
+    else if (!strcasecmp(signal_arg, "install")) { /* -k install */
+        /* Install the service */
+        rv = mpm_service_install(process->pool, inst_argc, inst_argv, 0);
+        if (rv != APR_SUCCESS) {
+            exit(rv);
+        }
+
+        fprintf(stderr,"Testing httpd.conf....\n");
+        fprintf(stderr,"Errors reported here must be corrected before the "
+                "service can be started.\n");
+    }
+
+    process->argc = mpm_new_argv->nelts;
+    process->argv = (const char * const *) mpm_new_argv->elts;
+}

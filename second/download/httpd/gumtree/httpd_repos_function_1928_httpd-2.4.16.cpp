@@ -90,4 +90,17 @@ end)
          * Modify headers requiring canonicalisation and/or affected
          * by ProxyPassReverse and family with process_proxy_header
          */
-        process_proxy_header(r, 
+        process_proxy_header(r, dconf, buffer, value) ;
+        saw_headers = 1;
+
+        /* the header was too long; at the least we should skip extra data */
+        if (len >= size - 1) {
+            while ((len = ap_getline(field, MAX_STRING_LEN, rr, 1))
+                    >= MAX_STRING_LEN - 1) {
+                /* soak up the extra data */
+            }
+            if (len == 0) /* time to exit the larger loop as well */
+                break;
+        }
+    }
+}

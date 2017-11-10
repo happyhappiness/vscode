@@ -99,4 +99,69 @@ static int open_listeners(apr_pool_t *pool)
                     && lr->bind_addr->port == lr->next->bind_addr->port
                     && IS_INADDR_ANY(lr->next->bind_addr)) {
 
-                    /* Remove the current listener from the 
+                    /* Remove the current listener from the list */
+                    if (previous) {
+                        previous->next = lr->next;
+                    }
+                    else {
+                        ap_listeners = lr->next;
+                    }
+
+                    /* Although we've removed ourselves from the list,
+                     * we need to make sure that the next iteration won't
+                     * consider "previous" a working IPv6 '::' socket.
+                     * Changing the family is enough to make sure the
+                     * conditions before make_sock() fail.
+                     */
+                    lr->bind_addr->family = AF_INET;
+
+                    continue;
+                }
+#endif
+                /* fatal error */
+                return -1;
+            }
+        }
+    }
+
+    /* close the old listeners */
+    for (lr = old_listeners; lr; lr = next) {
+        apr_socket_close(lr->sd);
+        lr->active = 0;
+        next = lr->next;
+    }
+    old_listeners = NULL;
+
+#if AP_NONBLOCK_WHEN_MULTI_LISTEN
+    /* if multiple listening sockets, make them non-blocking so that
+     * if select()/poll() reports readability for a reset connection that
+     * is already forgotten about by the time we call accept, we won't
+     * be hung until another connection arrives on that port
+     */
+    use_nonblock = (ap_listeners && ap_listeners->next);
+    for (lr = ap_listeners; lr; lr = lr->next) {
+        apr_status_t status;
+
+        status = apr_socket_opt_set(lr->sd, APR_SO_NONBLOCK, use_nonblock);
+        if (status != APR_SUCCESS) {
+            ap_log_perror(APLOG_MARK, APLOG_STARTUP|APLOG_ERR, status, pool,
+                          "unable to control socket non-blocking status");
+            return -1;
+        }
+    }
+#endif /* AP_NONBLOCK_WHEN_MULTI_LISTEN */
+
+    /* we come through here on both passes of the open logs phase
+     * only register the cleanup once... otherwise we try to close
+     * listening sockets twice when cleaning up prior to exec
+     */
+    apr_pool_userdata_get(&data, userdata_key, pool);
+    if (!data) {
+        apr_pool_userdata_set((const void *)1, userdata_key,
+                              apr_pool_cleanup_null, pool);
+        apr_pool_cleanup_register(pool, NULL, apr_pool_cleanup_null,
+                                  close_listeners_on_exec);
+    }
+
+    return num_open ? 0 : -1;
+}

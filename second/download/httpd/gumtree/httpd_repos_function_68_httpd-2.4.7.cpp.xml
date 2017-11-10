@@ -54,4 +54,21 @@
     <literal type="string" pos:line="53" pos:column="5">"       same URL will be listed once for each variant."<pos:position pos:line="53" pos:column="60"/></literal>                  NL
                                                                              NL
     <literal type="string" pos:line="55" pos:column="5">"  -A   List the URLs currently stored in the cache, along with their"<pos:position pos:line="55" pos:column="75"/></literal>   NL
-    <literal type="string" pos:line="56" pos:column="5">"<pos:position pos:line="56" pos:column="6"/></literal></argument></argument_list></macro></block></function>       att</unit>
+    <literal type="string" pos:line="56" pos:column="5">"       attributes in the following order: url, header size, body size,"<pos:position pos:line="56" pos:column="77"/></literal> NL
+    <literal type="string" pos:line="57" pos:column="5">"       status, entity version, date, expiry, request time,"<pos:position pos:line="57" pos:column="65"/></literal>             NL
+    <literal type="string" pos:line="58" pos:column="5">"       response time, body present, head request."<pos:position pos:line="58" pos:column="56"/></literal>                      NL
+                                                                             NL
+    <literal type="string" pos:line="60" pos:column="5">"Should an URL be provided on the command line, the URL will be"<pos:position pos:line="60" pos:column="69"/></literal>         NL
+    <literal type="string" pos:line="61" pos:column="5">"deleted from the cache. A reverse proxied URL is made up as follows:"<pos:position pos:line="61" pos:column="75"/></literal>   NL
+    <literal type="string" pos:line="62" pos:column="5">"http://&lt;hostname&gt;:&lt;port&gt;&lt;path&gt;?[query]. So, for the path \"/\" on the"<pos:position pos:line="62" pos:column="94"/></literal>  NL
+    <literal type="string" pos:line="63" pos:column="5">"host \"localhost\" and port 80, the URL to delete becomes"<pos:position pos:line="63" pos:column="64"/></literal>              NL
+    <literal type="string" pos:line="64" pos:column="5">"\"http://localhost:80/?\". Note the '?' in the URL must always be"<pos:position pos:line="64" pos:column="72"/></literal>      NL
+    <literal type="string" pos:line="65" pos:column="5">"specified explicitly, whether a query string is present or not."<pos:position pos:line="65" pos:column="70"/></literal>        NL<pos:position pos:line="65" pos:column="80"/></argument>,
+    <argument pos:line="66" pos:column="5">shortname<pos:position pos:line="66" pos:column="14"/></argument>,
+    <argument pos:line="67" pos:column="5">shortname<pos:position pos:line="67" pos:column="14"/></argument>,
+    <argument pos:line="68" pos:column="5">shortname<pos:position pos:line="68" pos:column="14"/></argument>,
+    <argument pos:line="69" pos:column="5">shortname<pos:position pos:line="69" pos:column="14"/></argument>
+    )<pos:position pos:line="70" pos:column="6"/></argument_list></macro><empty_stmt pos:line="70" pos:column="6">;<pos:position pos:line="70" pos:column="7"/></empty_stmt>
+
+    <expr_stmt><expr><call><name pos:line="72" pos:column="5">exit<pos:position pos:line="72" pos:column="9"/></name><argument_list pos:line="72" pos:column="9">(<argument><expr><literal type="number" pos:line="72" pos:column="10">1<pos:position pos:line="72" pos:column="11"/></literal></expr></argument>)<pos:position pos:line="72" pos:column="12"/></argument_list></call></expr>;<pos:position pos:line="72" pos:column="13"/></expr_stmt>
+}<pos:position pos:line="73" pos:column="2"/></block></function></unit>

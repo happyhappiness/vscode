@@ -224,5 +224,4 @@ static const char *set_worker_param(apr_pool_t *p,
             return "unknown Worker parameter";
         }
     }
-    return NULL;
-}
+    

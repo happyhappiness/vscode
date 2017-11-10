@@ -102,4 +102,64 @@ static int proxy_balancer_pre_request(proxy_worker **worker,
                       (*balancer)->s->name);
     }
     if (!*worker) {
-        runtime = find_best_worker(*balancer,
+        runtime = find_best_worker(*balancer, r);
+        if (!runtime) {
+            if ((*balancer)->workers->nelts) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01170)
+                              "%s: All workers are in error state",
+                              (*balancer)->s->name);
+            } else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01171)
+                              "%s: No workers in balancer",
+                              (*balancer)->s->name);
+            }
+
+            return HTTP_SERVICE_UNAVAILABLE;
+        }
+        if (*(*balancer)->s->sticky && runtime) {
+            /*
+             * This balancer has sticky sessions and the client either has not
+             * supplied any routing information or all workers for this route
+             * including possible redirect and hotstandby workers are in error
+             * state, but we have found another working worker for this
+             * balancer where we can send the request. Thus notice that we have
+             * changed the route to the backend.
+             */
+            apr_table_setn(r->subprocess_env, "BALANCER_ROUTE_CHANGED", "1");
+        }
+        *worker = runtime;
+    }
+
+    (*worker)->s->busy++;
+
+    /* Add balancer/worker info to env. */
+    apr_table_setn(r->subprocess_env,
+                   "BALANCER_NAME", (*balancer)->s->name);
+    apr_table_setn(r->subprocess_env,
+                   "BALANCER_WORKER_NAME", (*worker)->s->name);
+    apr_table_setn(r->subprocess_env,
+                   "BALANCER_WORKER_ROUTE", (*worker)->s->route);
+
+    /* Rewrite the url from 'balancer://url'
+     * to the 'worker_scheme://worker_hostname[:worker_port]/url'
+     * This replaces the balancers fictional name with the
+     * real hostname of the elected worker.
+     */
+    access_status = rewrite_url(r, *worker, url);
+    /* Add the session route to request notes if present */
+    if (route) {
+        apr_table_setn(r->notes, "session-sticky", sticky);
+        apr_table_setn(r->notes, "session-route", route);
+
+        /* Add session info to env. */
+        apr_table_setn(r->subprocess_env,
+                       "BALANCER_SESSION_STICKY", sticky);
+        apr_table_setn(r->subprocess_env,
+                       "BALANCER_SESSION_ROUTE", route);
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01172)
+                  "%s: worker (%s) rewritten to %s",
+                  (*balancer)->s->name, (*worker)->s->name, *url);
+
+    return access_status;
+}

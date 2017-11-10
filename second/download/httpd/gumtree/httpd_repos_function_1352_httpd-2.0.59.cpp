@@ -157,5 +157,4 @@ static const char *get_ptoken(request_rec *r, const char *string,
     }
     token->value[next] = '\0';
 
-    return (string);
-}
+    return (string)

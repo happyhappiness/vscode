@@ -115,4 +115,80 @@ static const char *invoke_cmd(const command_rec *cmd, cmd_parms *parms,
     case TAKE123:
         w = ap_getword_conf(parms->pool, &args);
         w2 = *args ? ap_getword_conf(parms->pool, &args) : NULL;
-        w3 = *args ? ap_getword_conf(parms->pool, &a
+        w3 = *args ? ap_getword_conf(parms->pool, &args) : NULL;
+
+        if (*w == '\0' || *args != 0)
+            return apr_pstrcat(parms->pool, cmd->name,
+                               " takes one, two or three arguments",
+                               cmd->errmsg ? ", " : NULL, cmd->errmsg, NULL);
+
+        return cmd->AP_TAKE3(parms, mconfig, w, w2, w3);
+
+    case TAKE13:
+        w = ap_getword_conf(parms->pool, &args);
+        w2 = *args ? ap_getword_conf(parms->pool, &args) : NULL;
+        w3 = *args ? ap_getword_conf(parms->pool, &args) : NULL;
+
+        if (*w == '\0' || (w2 && *w2 && !w3) || *args != 0)
+            return apr_pstrcat(parms->pool, cmd->name,
+                               " takes one or three arguments",
+                               cmd->errmsg ? ", " : NULL, cmd->errmsg, NULL);
+
+        return cmd->AP_TAKE3(parms, mconfig, w, w2, w3);
+
+    case ITERATE:
+        w = ap_getword_conf(parms->pool, &args);
+        
+        if (*w == '\0')
+            return apr_pstrcat(parms->pool, cmd->name,
+                               " requires at least one argument",
+                               cmd->errmsg ? ", " : NULL, cmd->errmsg, NULL);
+
+        while (*w != '\0') {
+            errmsg = cmd->AP_TAKE1(parms, mconfig, w);
+
+            if (errmsg && strcmp(errmsg, DECLINE_CMD) != 0)
+                return errmsg;
+
+            w = ap_getword_conf(parms->pool, &args);
+        }
+
+        return errmsg;
+
+    case ITERATE2:
+        w = ap_getword_conf(parms->pool, &args);
+
+        if (*w == '\0' || *args == 0)
+            return apr_pstrcat(parms->pool, cmd->name,
+                               " requires at least two arguments",
+                               cmd->errmsg ? ", " : NULL, cmd->errmsg, NULL);
+
+        while (*(w2 = ap_getword_conf(parms->pool, &args)) != '\0') {
+
+            errmsg = cmd->AP_TAKE2(parms, mconfig, w, w2);
+
+            if (errmsg && strcmp(errmsg, DECLINE_CMD) != 0)
+                return errmsg;
+        }
+
+        return errmsg;
+
+    case FLAG:
+        /*
+         * This is safe to use temp_pool here, because the 'flag' itself is not
+         * forwarded as-is
+         */
+        w = ap_getword_conf(parms->temp_pool, &args);
+
+        if (*w == '\0' || (strcasecmp(w, "on") && strcasecmp(w, "off")))
+            return apr_pstrcat(parms->pool, cmd->name, " must be On or Off",
+                               NULL);
+
+        return cmd->AP_FLAG(parms, mconfig, strcasecmp(w, "off") != 0);
+
+    default:
+        return apr_pstrcat(parms->pool, cmd->name,
+                           " is improperly configured internally (server bug)",
+                           NULL);
+    }
+}

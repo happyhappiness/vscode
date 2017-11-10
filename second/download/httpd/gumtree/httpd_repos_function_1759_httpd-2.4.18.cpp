@@ -727,4 +727,15 @@ static int status_handler(request_rec *r)
         int flags =
             (short_report ? AP_STATUS_SHORT : 0) |
             (no_table_report ? AP_STATUS_NOTABLE : 0) |
-            (ap_extended_statu
+            (ap_extended_status ? AP_STATUS_EXTENDED : 0);
+
+        ap_run_status_hook(r, flags);
+    }
+
+    if (!short_report) {
+        ap_rputs(ap_psignature("<hr />\n",r), r);
+        ap_rputs("</body></html>\n", r);
+    }
+
+    return 0;
+}

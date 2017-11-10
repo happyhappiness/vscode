@@ -100,4 +100,22 @@ static int verify_ocsp_status(X509 *cert, X509_STORE_CTX *ctx, conn_rec *c,
 
         {
             int level =
-                (status == V_OCSP_CER
+                (status == V_OCSP_CERTSTATUS_GOOD) ? APLOG_INFO : APLOG_ERR;
+            const char *result =
+                status == V_OCSP_CERTSTATUS_GOOD ? "good" :
+                (status == V_OCSP_CERTSTATUS_REVOKED ? "revoked" : "unknown");
+
+            ssl_log_cxerror(SSLLOG_MARK, level, 0, c, cert,
+                            "OCSP validation completed, "
+                            "certificate status: %s (%d, %d)",
+                            result, status, reason);
+        }
+    }
+
+    if (request) OCSP_REQUEST_free(request);
+    if (response) OCSP_RESPONSE_free(response);
+    if (basicResponse) OCSP_BASICRESP_free(basicResponse);
+    /* certID is freed when the request is freed */
+
+    return rc;
+}

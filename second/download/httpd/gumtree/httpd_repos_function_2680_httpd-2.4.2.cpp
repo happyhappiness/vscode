@@ -94,17 +94,4 @@ static int add_auth_info(request_rec *r)
                          resp->nonce_count ? ", nc=" : "",
                          resp->nonce_count ? resp->nonce_count : "",
                          resp->message_qop ? ", qop=" : "",
-                         resp->message_qop ? resp->message_qop : "",
-                         NULL);
-    }
-
-    if (ai && ai[0]) {
-        apr_table_mergen(r->headers_out,
-                         (PROXYREQ_PROXY == r->proxyreq)
-                             ? "Proxy-Authentication-Info"
-                             : "Authentication-Info",
-                         ai);
-    }
-
-    return OK;
-}
+                         resp->messa

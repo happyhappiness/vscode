@@ -115,4 +115,55 @@ static int uldap_connection_open(request_rec *r,
 #endif
 
 #ifdef LDAP_OPT_NETWORK_TIMEOUT
-        if (st->connectionTimeout > 0)
+        if (st->connectionTimeout > 0) {
+            timeOut.tv_sec = st->connectionTimeout;
+        }
+
+        if (st->connectionTimeout >= 0) {
+            rc = apr_ldap_set_option(ldc->pool, ldc->ldap, LDAP_OPT_NETWORK_TIMEOUT,
+                                     (void *)&timeOut, &(result));
+            if (APR_SUCCESS != rc) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server,
+                                 "LDAP: Could not set the connection timeout");
+            }
+        }
+#endif
+
+
+    }
+
+
+    /* loop trying to bind up to 10 times if LDAP_SERVER_DOWN error is
+     * returned.  Break out of the loop on Success or any other error.
+     *
+     * NOTE: Looping is probably not a great idea. If the server isn't
+     * responding the chances it will respond after a few tries are poor.
+     * However, the original code looped and it only happens on
+     * the error condition.
+      */
+    for (failures=0; failures<10; failures++)
+    {
+        rc = ldap_simple_bind_s(ldc->ldap,
+                                (char *)ldc->binddn,
+                                (char *)ldc->bindpw);
+        if (LDAP_SERVER_DOWN != rc) {
+            break;
+        }
+    }
+
+    /* free the handle if there was an error
+    */
+    if (LDAP_SUCCESS != rc)
+    {
+        ldap_unbind_s(ldc->ldap);
+        ldc->ldap = NULL;
+        ldc->bound = 0;
+        ldc->reason = "LDAP: ldap_simple_bind_s() failed";
+    }
+    else {
+        ldc->bound = 1;
+        ldc->reason = "LDAP: connection open successful";
+    }
+
+    return(rc);
+}

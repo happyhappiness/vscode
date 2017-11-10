@@ -150,16 +150,4 @@ int main(int argc, const char * const argv[])
 
             execl(command, command, NULL);
 
-        } else if (rv == APR_INPARENT) {
-            if (num_to_start == 0) {
-                apr_socket_close(skt);
-            }
-        } else {
-            exit_error(rv, "apr_proc_fork");
-        }
-    }
-
-#endif
-
-    return EXIT_SUCCESS;
-}
+        } else if (rv == APR_INPARENT)

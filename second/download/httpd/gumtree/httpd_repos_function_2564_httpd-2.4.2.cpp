@@ -108,4 +108,39 @@ static authn_status authn_ldap_check_password(request_rec *r, const char *user,
                  : (LDAP_INSUFFICIENT_RIGHTS == result) ? AUTH_DENIED
 #endif
 #endif
-#ifdef LDAP_
+#ifdef LDAP_CONSTRAINT_VIOLATION
+    /* At least Sun Directory Server sends this if a user is
+     * locked. This is not covered by LDAP_SECURITY_ERROR.
+     */
+                 : (LDAP_CONSTRAINT_VIOLATION == result) ? AUTH_DENIED
+#endif
+                 : AUTH_GENERAL_ERROR;
+    }
+
+    /* mark the user and DN */
+    req->dn = apr_pstrdup(r->pool, dn);
+    req->user = apr_pstrdup(r->pool, user);
+    req->password = apr_pstrdup(r->pool, password);
+    if (sec->user_is_dn) {
+        r->user = req->dn;
+    }
+
+    /* add environment variables */
+    remote_user_attribute_set = set_request_vars(r, LDAP_AUTHN);
+
+    /* sanity check */
+    if (sec->remote_user_attribute && !remote_user_attribute_set) {
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01696)
+                  "auth_ldap authenticate: "
+                  "REMOTE_USER was to be set with attribute '%s', "
+                  "but this attribute was not requested for in the "
+                  "LDAP query for the user. REMOTE_USER will fall "
+                  "back to username or DN as appropriate.",
+                  sec->remote_user_attribute);
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01697)
+                  "auth_ldap authenticate: accepting %s", user);
+
+    return AUTH_GRANTED;
+}

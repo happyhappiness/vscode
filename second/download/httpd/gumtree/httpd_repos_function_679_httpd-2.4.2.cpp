@@ -121,4 +121,8 @@ static void ssl_init_proxy_certs(server_rec *s,
         }
 
         /* get ready for next X509_STORE_CTX_init */
-        X509_STORE_CTX_cleanup(
+        X509_STORE_CTX_cleanup(sctx);
+    }
+
+    X509_STORE_CTX_free(sctx);
+}

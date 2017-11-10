@@ -366,4 +366,81 @@ void ssl_pphrase_Handle(server_rec *s, apr_pool_t *p)
             if (nPassPhraseDialogCur == 0) {
                 ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, pServ, APLOGNO(02249)
                              "unencrypted %s private key - pass phrase not "
-                             "require
+                             "required", an);
+            }
+            else {
+                if (cpPassPhraseCur != NULL) {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 pServ, APLOGNO(02250)
+                                 "encrypted %s private key - pass phrase "
+                                 "requested", an);
+                }
+                else {
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 pServ, APLOGNO(02251)
+                                 "encrypted %s private key - pass phrase"
+                                 " reused", an);
+                }
+            }
+
+            /*
+             * Ok, when we have one more pass phrase store it
+             */
+            if (cpPassPhraseCur != NULL) {
+                cpp = (char **)apr_array_push(aPassPhrase);
+                *cpp = cpPassPhraseCur;
+                nPassPhrase++;
+            }
+
+            /*
+             * Insert private key into the global module configuration
+             * (we convert it to a stand-alone DER byte sequence
+             * because the SSL library uses static variables inside a
+             * RSA structure which do not survive DSO reloads!)
+             */
+            length = i2d_PrivateKey(pPrivateKey, NULL);
+            ucp = ssl_asn1_table_set(mc->tPrivateKey, key_id, length);
+            (void)i2d_PrivateKey(pPrivateKey, &ucp); /* 2nd arg increments */
+
+            if (nPassPhraseDialogCur != 0) {
+                /* remember mtime of encrypted keys */
+                asn1 = ssl_asn1_table_get(mc->tPrivateKey, key_id);
+                asn1->source_mtime = pkey_mtime;
+            }
+
+            /*
+             * Free the private key structure
+             */
+            EVP_PKEY_free(pPrivateKey);
+        }
+    }
+
+    /*
+     * Let the user know when we're successful.
+     */
+    if (nPassPhraseDialog > 0) {
+        if (writetty) {
+            apr_file_printf(writetty, "\n"
+                            "OK: Pass Phrase Dialog successful.\n");
+        }
+    }
+
+    /*
+     * Wipe out the used memory from the
+     * pass phrase array and then deallocate it
+     */
+    if (aPassPhrase->nelts) {
+        pphrase_array_clear(aPassPhrase);
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(02205)
+                     "Init: Wiped out the queried pass phrases from memory");
+    }
+
+    /* Close the pipes if they were opened
+     */
+    if (readtty) {
+        apr_file_close(readtty);
+        apr_file_close(writetty);
+        readtty = writetty = NULL;
+    }
+    return;
+}

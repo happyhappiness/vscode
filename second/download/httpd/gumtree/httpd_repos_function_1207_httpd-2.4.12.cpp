@@ -116,4 +116,38 @@ static int lua_websocket_read(lua_State *L)
                     }
                     ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
                     "Websocket: Frame contained %" APR_OFF_T_FMT " bytes, pushed to Lua stack", 
-       
+                        at);
+                }
+                else {
+                    rv = lua_websocket_readbytes(r->connection, buffer, 
+                            remaining);
+                    ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r, 
+                    "Websocket: SSL Frame contained %" APR_SIZE_T_FMT " bytes, "\
+                            "pushed to Lua stack", 
+                        remaining);
+                }
+                if (mask) {
+                    for (n = 0; n < plen; n++) {
+                        buffer[n] ^= mask_bytes[n%4];
+                    }
+                }
+                
+                lua_pushlstring(L, buffer, (size_t) plen); /* push to stack */
+                lua_pushboolean(L, fin); /* push FIN bit to stack as boolean */
+                return 2;
+            }
+            
+            
+            /* Decide if we need to react to the opcode or not */
+            if (opcode == 0x09) { /* ping */
+                char frame[2];
+                plen = 2;
+                frame[0] = 0x8A;
+                frame[1] = 0;
+                apr_socket_send(sock, frame, &plen); /* Pong! */
+                lua_websocket_read(L); /* read the next frame instead */
+            }
+        }
+    }
+    return 0;
+}

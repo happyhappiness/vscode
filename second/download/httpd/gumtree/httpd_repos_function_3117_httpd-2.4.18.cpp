@@ -488,4 +488,50 @@ static int APR_THREAD_FUNC regfnServerSupportFunction(isapi_cid    *cid,
             if (rv != APR_SUCCESS)
                 ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r,
                               "ServerSupport function "
-                              "HSE_
+                              "HSE_REQ_SEND_RESPONSE_HEADER_EX "
+                              "ap_pass_brigade failed: %s", r->filename);
+            return (rv == APR_SUCCESS);
+        }
+        /* Deliberately hold off sending 'just the headers' to begin to
+         * accumulate the body and speed up the overall response, or at
+         * least wait for the end the session.
+         */
+        return 1;
+    }
+
+    case HSE_REQ_CLOSE_CONNECTION:  /* Added after ISAPI 4.0 */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02679)
+                          "ServerSupportFunction "
+                          "HSE_REQ_CLOSE_CONNECTION "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    case HSE_REQ_IS_CONNECTED:  /* Added after ISAPI 4.0 */
+        /* Returns True if client is connected c.f. MSKB Q188346
+         * assuming the identical return mechanism as HSE_REQ_IS_KEEP_CONN
+         */
+        *((int *)buf_data) = (r->connection->aborted == 0);
+        return 1;
+
+    case HSE_REQ_EXTENSION_TRIGGER:  /* Added after ISAPI 4.0 */
+        /*  Undocumented - defined by the Microsoft Jan '00 Platform SDK
+         */
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02680)
+                          "ServerSupportFunction "
+                          "HSE_REQ_EXTENSION_TRIGGER "
+                          "is not supported: %s", r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+
+    default:
+        if (cid->dconf.log_unsupported)
+            ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(02681)
+                          "ServerSupportFunction (%d) not supported: "
+                          "%s", HSE_code, r->filename);
+        apr_set_os_error(APR_FROM_OS_ERROR(ERROR_INVALID_PARAMETER));
+        return 0;
+    }
+}

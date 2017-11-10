@@ -106,4 +106,25 @@ static int stream_reqbody_chunked(apr_pool_t *p,
     else {
         if (!APR_BRIGADE_EMPTY(input_brigade)) {
             /* input brigade still has an EOS which we can't pass to the output_filters. */
-            e = APR_BRIGADE_LAST(input_bri
+            e = APR_BRIGADE_LAST(input_brigade);
+            AP_DEBUG_ASSERT(APR_BUCKET_IS_EOS(e));
+            apr_bucket_delete(e);
+        }
+        bb = input_brigade;
+    }
+
+    e = apr_bucket_immortal_create(ASCII_ZERO ASCII_CRLF
+                                   /* <trailers> */
+                                   ASCII_CRLF,
+                                   5, bucket_alloc);
+    APR_BRIGADE_INSERT_TAIL(bb, e);
+
+    if (apr_table_get(r->subprocess_env, "proxy-sendextracrlf")) {
+        e = apr_bucket_immortal_create(ASCII_CRLF, 2, bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, e);
+    }
+
+    /* Now we have headers-only, or the chunk EOS mark; flush it */
+    rv = ap_proxy_pass_brigade(bucket_alloc, r, p_conn, origin, bb, 1);
+    return rv;
+}

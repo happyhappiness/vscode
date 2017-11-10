@@ -117,21 +117,4 @@ static int apply_rewrite_list(request_rec *r, apr_array_header_t *rewriterules,
                 while (   i < rewriterules->nelts
                        && s > 0) {
                     i++;
-                    s--;
-                }
-            }
-        }
-        else {
-            /*
-             *  If current rule is chained with next rule(s),
-             *  skip all this next rule(s)
-             */
-            while (   i < rewriterules->nelts
-                   && p->flags & RULEFLAG_CHAIN) {
-                i++;
-                p = &entries[i];
-            }
-        }
-    }
-    return changed;
-}
+                    s--

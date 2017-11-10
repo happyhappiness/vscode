@@ -113,4 +113,74 @@ static apr_status_t reqtimeout_filter(ap_filter_t *f,
 
                 /* Haven't got a whole line yet, save what we have ... */
                 if (!ccfg->tmpbb) {
-                    ccfg->tmpbb =
+                    ccfg->tmpbb = apr_brigade_create(f->c->pool, f->c->bucket_alloc);
+                }
+                rv = brigade_append(ccfg->tmpbb, bb);
+                if (rv != APR_SUCCESS)
+                    break;
+            }
+
+            /* ... and wait for more */
+#if APR_MAJOR_VERSION < 2
+            pollset.p = f->c->pool;
+            pollset.desc_type = APR_POLL_SOCKET;
+            pollset.reqevents = APR_POLLIN|APR_POLLHUP;
+            pollset.desc.s = ccfg->socket;
+            apr_socket_timeout_get(ccfg->socket, &poll_timeout);
+            rv = apr_poll(&pollset, 1, &nsds, poll_timeout);
+#else
+            rv = apr_socket_wait(ccfg->socket, APR_WAIT_READ);
+#endif
+            if (rv != APR_SUCCESS)
+                break;
+
+            rv = check_time_left(ccfg, &time_left, 0);
+            if (rv != APR_SUCCESS)
+                break;
+
+            rv = apr_socket_timeout_set(ccfg->socket,
+                                   MIN(time_left, saved_sock_timeout));
+            AP_DEBUG_ASSERT(rv == APR_SUCCESS);
+
+        } while (1);
+
+        if (ccfg->tmpbb)
+            APR_BRIGADE_PREPEND(bb, ccfg->tmpbb);
+
+    }
+    else {
+        /* mode != AP_MODE_GETLINE */
+        rv = ap_get_brigade(f->next, bb, mode, block, readbytes);
+        /* Don't extend the timeout in speculative mode, wait for
+         * the real (relevant) bytes to be asked later, within the
+         * currently alloted time.
+         */
+        if (ccfg->min_rate > 0 && rv == APR_SUCCESS
+                && mode != AP_MODE_SPECULATIVE) {
+            extend_timeout(ccfg, bb);
+        }
+    }
+
+    apr_socket_timeout_set(ccfg->socket, saved_sock_timeout);
+
+out:
+    if (APR_STATUS_IS_TIMEUP(rv)) {
+        ap_log_cerror(APLOG_MARK, APLOG_INFO, 0, f->c, APLOGNO(01382)
+                      "Request %s read timeout", ccfg->type);
+        /*
+         * If we allow a normal lingering close, the client may keep this
+         * process/thread busy for another 30s (MAX_SECS_TO_LINGER).
+         * Therefore we tell ap_lingering_close() to shorten this period to
+         * 2s (SECONDS_TO_LINGER).
+         */
+        apr_table_setn(f->c->notes, "short-lingering-close", "1");
+
+        /*
+         * Also, we must not allow keep-alive requests, as
+         * ap_finalize_protocol() may ignore our error status (if the timeout
+         * happened on a request body that is discarded).
+         */
+        f->c->keepalive = AP_CONN_CLOSE;
+    }
+    return rv;
+}

@@ -262,35 +262,4 @@ static int imap_handler_internal(request_rec *r)
 	if (!redirect) {
 	    return HTTP_INTERNAL_SERVER_ERROR;
 	}
-        return (imap_reply(r, redirect));
-    }
-
-    if (mapdflt) {             /* a default should be defined, even if
-                                  only 'nocontent' */
-        redirect = imap_url(r, base, mapdflt);
-	if (!redirect) {
-	    return HTTP_INTERNAL_SERVER_ERROR;
-	}
-        return (imap_reply(r, redirect));
-    }
-
-    return HTTP_INTERNAL_SERVER_ERROR;        /* If we make it this far,
-                                                 we failed. They lose! */
-
-need_2_fields:
-    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-		"map file %s, line %d syntax error: requires at "
-                "least two fields", r->uri, imap->line_number);
-    /* fall through */
-menu_bail:
-    ap_cfg_closefile(imap);
-    if (showmenu) {
-	/* There's not much else we can do ... we've already sent the headers
-	 * to the client.
-	 */
-	ap_rputs("\n\n[an internal server error occured]\n", r);
-	menu_footer(r);
-	return OK;
-    }
-    return HTTP_INTERNAL_SERVER_ERROR;
-}
+        return (i

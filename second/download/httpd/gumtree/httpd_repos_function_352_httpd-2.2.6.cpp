@@ -106,36 +106,4 @@ static int dav_method_checkout(request_rec *r)
     }
 
     if (resource->working) {
-        return dav_error_response(r, HTTP_CONFLICT,
-                                  "The resource is already checked out to the workspace.");
-    }
-
-    /* ### do lock checks, once behavior is defined */
-
-    /* Do the checkout */
-    if ((err = (*vsn_hooks->checkout)(resource, 0 /*auto_checkout*/,
-                                      is_unreserved, is_fork_ok,
-                                      create_activity, activities,
-                                      &working_resource)) != NULL) {
-        err = dav_push_error(r->pool, HTTP_CONFLICT, 0,
-                             apr_psprintf(r->pool,
-                                          "Could not CHECKOUT resource %s.",
-                                          ap_escape_html(r->pool, r->uri)),
-                             err);
-        return dav_handle_err(r, err, NULL);
-    }
-
-    /* set the Cache-Control header, per the spec */
-    apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
-
-    /* if no working resource created, return OK,
-     * else return CREATED with working resource URL in Location header
-     */
-    if (working_resource == NULL) {
-        /* no body */
-        ap_set_content_length(r, 0);
-        return DONE;
-    }
-
-    return dav_created(r, working_resource->uri, "Checked-out resource", 0);
-}
+        re

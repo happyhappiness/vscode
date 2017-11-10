@@ -193,4 +193,88 @@ int ap_proxy_http_request(apr_pool_t *p, request_rec *r,
         }
         rb_method = RB_STREAM_CL;
     }
-    else if (old_te_val) 
+    else if (old_te_val) {
+        if (force10
+             || (apr_table_get(r->subprocess_env, "proxy-sendcl")
+                  && !apr_table_get(r->subprocess_env, "proxy-sendchunks")
+                  && !apr_table_get(r->subprocess_env, "proxy-sendchunked"))) {
+            rb_method = RB_SPOOL_CL;
+        }
+        else {
+            rb_method = RB_STREAM_CHUNKED;
+        }
+    }
+    else if (old_cl_val) {
+        if (r->input_filters == r->proto_input_filters) {
+            rb_method = RB_STREAM_CL;
+        }
+        else if (!force10
+                  && (apr_table_get(r->subprocess_env, "proxy-sendchunks")
+                      || apr_table_get(r->subprocess_env, "proxy-sendchunked"))
+                  && !apr_table_get(r->subprocess_env, "proxy-sendcl")) {
+            rb_method = RB_STREAM_CHUNKED;
+        }
+        else {
+            rb_method = RB_SPOOL_CL;
+        }
+    }
+    else {
+        /* This is an appropriate default; very efficient for no-body
+         * requests, and has the behavior that it will not add any C-L
+         * when the old_cl_val is NULL.
+         */
+        rb_method = RB_SPOOL_CL;
+    }
+
+/* Yes I hate gotos.  This is the subrequest shortcut */
+skip_body:
+    /*
+     * Handle Connection: header if we do HTTP/1.1 request:
+     * If we plan to close the backend connection sent Connection: close
+     * otherwise sent Connection: Keep-Alive.
+     */
+    if (!force10) {
+        if (p_conn->close) {
+            buf = apr_pstrdup(p, "Connection: close" CRLF);
+        }
+        else {
+            buf = apr_pstrdup(p, "Connection: Keep-Alive" CRLF);
+        }
+        ap_xlate_proto_to_ascii(buf, strlen(buf));
+        e = apr_bucket_pool_create(buf, strlen(buf), p, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(header_brigade, e);
+    }
+
+    /* send the request body, if any. */
+    switch(rb_method) {
+    case RB_STREAM_CHUNKED:
+        rv = stream_reqbody_chunked(p, r, p_conn, origin, header_brigade,
+                                        input_brigade);
+        break;
+    case RB_STREAM_CL:
+        rv = stream_reqbody_cl(p, r, p_conn, origin, header_brigade,
+                                   input_brigade, old_cl_val);
+        break;
+    case RB_SPOOL_CL:
+        rv = spool_reqbody_cl(p, r, p_conn, origin, header_brigade,
+                                  input_brigade, (old_cl_val != NULL)
+                                              || (old_te_val != NULL)
+                                              || (bytes_read > 0));
+        break;
+    default:
+        /* shouldn't be possible */
+        rv = HTTP_INTERNAL_SERVER_ERROR ;
+        break;
+    }
+
+    if (rv != OK) {
+        /* apr_status_t value has been logged in lower level method */
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01097)
+                      "pass request body failed to %pI (%s) from %s (%s)",
+                      p_conn->addr, p_conn->hostname ? p_conn->hostname: "",
+                      c->client_ip, c->remote_host ? c->remote_host: "");
+        return rv;
+    }
+
+    return OK;
+}

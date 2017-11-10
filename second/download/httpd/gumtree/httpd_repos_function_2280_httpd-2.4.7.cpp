@@ -90,4 +90,32 @@ static void sniff_encoding(request_rec* r, xml2ctx* ctx)
                       ctx->encoding);
         if (apr_xlate_open(&ctx->convset, "UTF-8", ctx->encoding, r->pool)
             == APR_SUCCESS) {
-            ctx->xml2enc = XML_CHAR_ENCODING_
+            ctx->xml2enc = XML_CHAR_ENCODING_UTF8 ;
+        } else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01435)
+                          "Charset %s not supported.  Consider aliasing it?",
+                          ctx->encoding) ;
+        }
+    }
+
+    if (!HAVE_ENCODING(ctx->xml2enc)) {
+        /* Use configuration default as a last resort */
+        ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r, APLOGNO(01436)
+                  "No usable charset information; using configuration default");
+        ctx->xml2enc = (cfg->default_encoding == XML_CHAR_ENCODING_NONE)
+                        ? XML_CHAR_ENCODING_8859_1 : cfg->default_encoding ;
+    }
+    if (ctype && ctx->encoding) {
+        if (ap_regexec(seek_charset, ctype, 2, match, 0)) {
+            r->content_type = apr_pstrcat(r->pool, ctype, ";charset=utf-8",
+                                          NULL);
+        } else {
+            char* str = apr_palloc(r->pool, strlen(r->content_type) + 13
+                                   - (match[0].rm_eo - match[0].rm_so) + 1);
+            memcpy(str, r->content_type, match[1].rm_so);
+            memcpy(str + match[1].rm_so, "utf-8", 5);
+            strcpy(str + match[1].rm_so + 5, r->content_type+match[1].rm_eo);
+            r->content_type = str;
+        }
+    }
+}

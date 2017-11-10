@@ -112,39 +112,4 @@ apr_status_t ap_http_chunk_filter(ap_filter_t *f, apr_bucket_brigade *b)
 
         /* RFC 2616, Section 3.6.1
          *
-         * If there is an EOS bucket, then prefix it with:
-         *   1) the last-chunk marker ("0" CRLF)
-         *   2) the trailer
-         *   3) the end-of-chunked body CRLF
-         *
-         * We only do this if we have not seen an error bucket with
-         * status HTTP_BAD_GATEWAY. We have memorized an
-         * error bucket that we had seen in the filter context.
-         * The error bucket with status HTTP_BAD_GATEWAY indicates that the
-         * connection to the backend (mod_proxy) broke in the middle of the
-         * response. In order to signal the client that something went wrong
-         * we do not create the last-chunk marker and set c->keepalive to
-         * AP_CONN_CLOSE in the core output filter.
-         *
-         * XXX: it would be nice to combine this with the end-of-chunk
-         * marker above, but this is a bit more straight-forward for
-         * now.
-         */
-        if (eos && !f->ctx) {
-            /* XXX: (2) trailers ... does not yet exist */
-            e = apr_bucket_immortal_create(ASCII_ZERO ASCII_CRLF
-                                           /* <trailers> */
-                                           ASCII_CRLF, 5, c->bucket_alloc);
-            APR_BUCKET_INSERT_BEFORE(eos, e);
-        }
-
-        /* pass the brigade to the next filter. */
-        rv = ap_pass_brigade(f->next, b);
-        if (rv != APR_SUCCESS || eos != NULL) {
-            return rv;
-        }
-        tmp = b;
-        apr_brigade_cleanup(tmp);
-    }
-    return APR_SUCCESS;
-}
+     

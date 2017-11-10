@@ -98,4 +98,28 @@ static apr_status_t run_cgi_child(apr_file_t **script_out,
                           apr_filename_of_pathname(r->filename));
         }
         else {
-            apr_pool_note_subprocess(p, procnew
+            apr_pool_note_subprocess(p, procnew, APR_KILL_AFTER_TIMEOUT);
+
+            *script_in = procnew->out;
+            if (!*script_in)
+                return APR_EBADF;
+            apr_file_pipe_timeout_set(*script_in, r->server->timeout);
+
+            if (e_info->prog_type == RUN_AS_CGI) {
+                *script_out = procnew->in;
+                if (!*script_out)
+                    return APR_EBADF;
+                apr_file_pipe_timeout_set(*script_out, r->server->timeout);
+
+                *script_err = procnew->err;
+                if (!*script_err)
+                    return APR_EBADF;
+                apr_file_pipe_timeout_set(*script_err, r->server->timeout);
+            }
+        }
+    }
+#ifdef DEBUG_CGI
+    fclose(dbg);
+#endif
+    return (rc);
+}
