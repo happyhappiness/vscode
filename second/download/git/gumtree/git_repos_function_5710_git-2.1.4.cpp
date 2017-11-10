@@ -140,4 +140,118 @@ re_string_reconstruct (re_string_t *pstr, int idx, int eflags)
 		     byte other than 0x80 - 0xbf.  */
 		  raw = pstr->raw_mbs + pstr->raw_mbs_idx;
 		  end = raw + (offset - pstr->mb_cur_max);
-		  if (
+		  if (end < pstr->raw_mbs)
+		    end = pstr->raw_mbs;
+		  p = raw + offset - 1;
+#ifdef _LIBC
+		  /* We know the wchar_t encoding is UCS4, so for the simple
+		     case, ASCII characters, skip the conversion step.  */
+		  if (isascii (*p) && BE (pstr->trans == NULL, 1))
+		    {
+		      memset (&pstr->cur_state, '\0', sizeof (mbstate_t));
+		      /* pstr->valid_len = 0; */
+		      wc = (wchar_t) *p;
+		    }
+		  else
+#endif
+		    for (; p >= end; --p)
+		      if ((*p & 0xc0) != 0x80)
+			{
+			  mbstate_t cur_state;
+			  wchar_t wc2;
+			  int mlen = raw + pstr->len - p;
+			  unsigned char buf[6];
+			  size_t mbclen;
+
+			  if (BE (pstr->trans != NULL, 0))
+			    {
+			      int i = mlen < 6 ? mlen : 6;
+			      while (--i >= 0)
+				buf[i] = pstr->trans[p[i]];
+			    }
+			  /* XXX Don't use mbrtowc, we know which conversion
+			     to use (UTF-8 -> UCS4).  */
+			  memset (&cur_state, 0, sizeof (cur_state));
+			  mbclen = __mbrtowc (&wc2, (const char *) p, mlen,
+					      &cur_state);
+			  if (raw + offset - p <= mbclen
+			      && mbclen < (size_t) -2)
+			    {
+			      memset (&pstr->cur_state, '\0',
+				      sizeof (mbstate_t));
+			      pstr->valid_len = mbclen - (raw + offset - p);
+			      wc = wc2;
+			    }
+			  break;
+			}
+		}
+
+	      if (wc == WEOF)
+		pstr->valid_len = re_string_skip_chars (pstr, idx, &wc) - idx;
+	      if (wc == WEOF)
+		pstr->tip_context
+		  = re_string_context_at (pstr, prev_valid_len - 1, eflags);
+	      else
+		pstr->tip_context = ((BE (pstr->word_ops_used != 0, 0)
+				      && IS_WIDE_WORD_CHAR (wc))
+				     ? CONTEXT_WORD
+				     : ((IS_WIDE_NEWLINE (wc)
+					 && pstr->newline_anchor)
+					? CONTEXT_NEWLINE : 0));
+	      if (BE (pstr->valid_len, 0))
+		{
+		  for (wcs_idx = 0; wcs_idx < pstr->valid_len; ++wcs_idx)
+		    pstr->wcs[wcs_idx] = WEOF;
+		  if (pstr->mbs_allocated)
+		    memset (pstr->mbs, 255, pstr->valid_len);
+		}
+	      pstr->valid_raw_len = pstr->valid_len;
+	    }
+	  else
+#endif /* RE_ENABLE_I18N */
+	    {
+	      int c = pstr->raw_mbs[pstr->raw_mbs_idx + offset - 1];
+	      pstr->valid_raw_len = 0;
+	      if (pstr->trans)
+		c = pstr->trans[c];
+	      pstr->tip_context = (bitset_contain (pstr->word_char, c)
+				   ? CONTEXT_WORD
+				   : ((IS_NEWLINE (c) && pstr->newline_anchor)
+				      ? CONTEXT_NEWLINE : 0));
+	    }
+	}
+      if (!BE (pstr->mbs_allocated, 0))
+	pstr->mbs += offset;
+    }
+  pstr->raw_mbs_idx = idx;
+  pstr->len -= offset;
+  pstr->stop -= offset;
+
+  /* Then build the buffers.  */
+#ifdef RE_ENABLE_I18N
+  if (pstr->mb_cur_max > 1)
+    {
+      if (pstr->icase)
+	{
+	  reg_errcode_t ret = build_wcs_upper_buffer (pstr);
+	  if (BE (ret != REG_NOERROR, 0))
+	    return ret;
+	}
+      else
+	build_wcs_buffer (pstr);
+    }
+  else
+#endif /* RE_ENABLE_I18N */
+    if (BE (pstr->mbs_allocated, 0))
+      {
+	if (pstr->icase)
+	  build_upper_buffer (pstr);
+	else if (pstr->trans != NULL)
+	  re_string_translate_buffer (pstr);
+      }
+    else
+      pstr->valid_len = pstr->len;
+
+  pstr->cur_idx = 0;
+  return REG_NOERROR;
+}

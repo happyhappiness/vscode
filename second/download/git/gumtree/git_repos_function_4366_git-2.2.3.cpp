@@ -149,4 +149,101 @@ static int apply_one_fragment(struct image *img, struct fragment *frag,
 	 */
 	match_end = !unidiff_zero && !trailing;
 
-	pos = frag->newpos ? (frag->newpos - 1) : 
+	pos = frag->newpos ? (frag->newpos - 1) : 0;
+	preimage.buf = oldlines;
+	preimage.len = old - oldlines;
+	postimage.buf = newlines.buf;
+	postimage.len = newlines.len;
+	preimage.line = preimage.line_allocated;
+	postimage.line = postimage.line_allocated;
+
+	for (;;) {
+
+		applied_pos = find_pos(img, &preimage, &postimage, pos,
+				       ws_rule, match_beginning, match_end);
+
+		if (applied_pos >= 0)
+			break;
+
+		/* Am I at my context limits? */
+		if ((leading <= p_context) && (trailing <= p_context))
+			break;
+		if (match_beginning || match_end) {
+			match_beginning = match_end = 0;
+			continue;
+		}
+
+		/*
+		 * Reduce the number of context lines; reduce both
+		 * leading and trailing if they are equal otherwise
+		 * just reduce the larger context.
+		 */
+		if (leading >= trailing) {
+			remove_first_line(&preimage);
+			remove_first_line(&postimage);
+			pos--;
+			leading--;
+		}
+		if (trailing > leading) {
+			remove_last_line(&preimage);
+			remove_last_line(&postimage);
+			trailing--;
+		}
+	}
+
+	if (applied_pos >= 0) {
+		if (new_blank_lines_at_end &&
+		    preimage.nr + applied_pos >= img->nr &&
+		    (ws_rule & WS_BLANK_AT_EOF) &&
+		    ws_error_action != nowarn_ws_error) {
+			record_ws_error(WS_BLANK_AT_EOF, "+", 1,
+					found_new_blank_lines_at_end);
+			if (ws_error_action == correct_ws_error) {
+				while (new_blank_lines_at_end--)
+					remove_last_line(&postimage);
+			}
+			/*
+			 * We would want to prevent write_out_results()
+			 * from taking place in apply_patch() that follows
+			 * the callchain led us here, which is:
+			 * apply_patch->check_patch_list->check_patch->
+			 * apply_data->apply_fragments->apply_one_fragment
+			 */
+			if (ws_error_action == die_on_ws_error)
+				apply = 0;
+		}
+
+		if (apply_verbosely && applied_pos != pos) {
+			int offset = applied_pos - pos;
+			if (apply_in_reverse)
+				offset = 0 - offset;
+			fprintf_ln(stderr,
+				   Q_("Hunk #%d succeeded at %d (offset %d line).",
+				      "Hunk #%d succeeded at %d (offset %d lines).",
+				      offset),
+				   nth_fragment, applied_pos + 1, offset);
+		}
+
+		/*
+		 * Warn if it was necessary to reduce the number
+		 * of context lines.
+		 */
+		if ((leading != frag->leading) ||
+		    (trailing != frag->trailing))
+			fprintf_ln(stderr, _("Context reduced to (%ld/%ld)"
+					     " to apply fragment at %d"),
+				   leading, trailing, applied_pos+1);
+		update_image(img, applied_pos, &preimage, &postimage);
+	} else {
+		if (apply_verbosely)
+			error(_("while searching for:\n%.*s"),
+			      (int)(old - oldlines), oldlines);
+	}
+
+	free(oldlines);
+	strbuf_release(&newlines);
+	free(preimage.line_allocated);
+	free(postimage.line_allocated);
+
+	return (applied_pos < 0);
+}

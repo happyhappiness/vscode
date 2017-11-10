@@ -156,3 +156,7 @@ static void describe(const char *arg, int last_one)
 	if (suffix)
 		printf("%s", suffix);
 	printf("\n");
+
+	if (!last_one)
+		clear_commit_marks(cmit, -1);
+}

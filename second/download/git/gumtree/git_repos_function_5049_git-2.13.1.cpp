@@ -126,4 +126,117 @@ int cmd_config(int argc, const char **argv, const char *prefix)
 			int fd = open(config_file, O_CREAT | O_EXCL | O_WRONLY, 0666);
 			if (fd >= 0) {
 				char *content = default_user_config();
-				write_str_in_full(fd, co
+				write_str_in_full(fd, content);
+				free(content);
+				close(fd);
+			}
+			else if (errno != EEXIST)
+				die_errno(_("cannot create configuration file %s"), config_file);
+		}
+		launch_editor(config_file, NULL, NULL);
+		free(config_file);
+	}
+	else if (actions == ACTION_SET) {
+		int ret;
+		check_write();
+		check_argc(argc, 2, 2);
+		value = normalize_value(argv[0], argv[1]);
+		ret = git_config_set_in_file_gently(given_config_source.file, argv[0], value);
+		if (ret == CONFIG_NOTHING_SET)
+			error(_("cannot overwrite multiple values with a single value\n"
+			"       Use a regexp, --add or --replace-all to change %s."), argv[0]);
+		return ret;
+	}
+	else if (actions == ACTION_SET_ALL) {
+		check_write();
+		check_argc(argc, 2, 3);
+		value = normalize_value(argv[0], argv[1]);
+		return git_config_set_multivar_in_file_gently(given_config_source.file,
+							      argv[0], value, argv[2], 0);
+	}
+	else if (actions == ACTION_ADD) {
+		check_write();
+		check_argc(argc, 2, 2);
+		value = normalize_value(argv[0], argv[1]);
+		return git_config_set_multivar_in_file_gently(given_config_source.file,
+							      argv[0], value,
+							      CONFIG_REGEX_NONE, 0);
+	}
+	else if (actions == ACTION_REPLACE_ALL) {
+		check_write();
+		check_argc(argc, 2, 3);
+		value = normalize_value(argv[0], argv[1]);
+		return git_config_set_multivar_in_file_gently(given_config_source.file,
+							      argv[0], value, argv[2], 1);
+	}
+	else if (actions == ACTION_GET) {
+		check_argc(argc, 1, 2);
+		return get_value(argv[0], argv[1]);
+	}
+	else if (actions == ACTION_GET_ALL) {
+		do_all = 1;
+		check_argc(argc, 1, 2);
+		return get_value(argv[0], argv[1]);
+	}
+	else if (actions == ACTION_GET_REGEXP) {
+		show_keys = 1;
+		use_key_regexp = 1;
+		do_all = 1;
+		check_argc(argc, 1, 2);
+		return get_value(argv[0], argv[1]);
+	}
+	else if (actions == ACTION_GET_URLMATCH) {
+		check_argc(argc, 2, 2);
+		return get_urlmatch(argv[0], argv[1]);
+	}
+	else if (actions == ACTION_UNSET) {
+		check_write();
+		check_argc(argc, 1, 2);
+		if (argc == 2)
+			return git_config_set_multivar_in_file_gently(given_config_source.file,
+								      argv[0], NULL, argv[1], 0);
+		else
+			return git_config_set_in_file_gently(given_config_source.file,
+							     argv[0], NULL);
+	}
+	else if (actions == ACTION_UNSET_ALL) {
+		check_write();
+		check_argc(argc, 1, 2);
+		return git_config_set_multivar_in_file_gently(given_config_source.file,
+							      argv[0], NULL, argv[1], 1);
+	}
+	else if (actions == ACTION_RENAME_SECTION) {
+		int ret;
+		check_write();
+		check_argc(argc, 2, 2);
+		ret = git_config_rename_section_in_file(given_config_source.file,
+							argv[0], argv[1]);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			die("No such section!");
+	}
+	else if (actions == ACTION_REMOVE_SECTION) {
+		int ret;
+		check_write();
+		check_argc(argc, 1, 1);
+		ret = git_config_rename_section_in_file(given_config_source.file,
+							argv[0], NULL);
+		if (ret < 0)
+			return ret;
+		if (ret == 0)
+			die("No such section!");
+	}
+	else if (actions == ACTION_GET_COLOR) {
+		check_argc(argc, 1, 2);
+		get_color(argv[0], argv[1]);
+	}
+	else if (actions == ACTION_GET_COLORBOOL) {
+		check_argc(argc, 1, 2);
+		if (argc == 2)
+			color_stdout_is_tty = git_config_bool("command line", argv[1]);
+		return get_colorbool(argv[0], argc == 2);
+	}
+
+	return 0;
+}

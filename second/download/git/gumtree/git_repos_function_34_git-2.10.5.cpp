@@ -143,4 +143,10 @@ struct child_process *git_connect(int fd[2], const char *url,
 			die("unable to fork");
 
 		fd[0] = conn->out; /* read from child's stdout */
-		fd[1] = conn->in;  /* write to child's stdin 
+		fd[1] = conn->in;  /* write to child's stdin */
+		strbuf_release(&cmd);
+	}
+	free(hostandport);
+	free(path);
+	return conn;
+}

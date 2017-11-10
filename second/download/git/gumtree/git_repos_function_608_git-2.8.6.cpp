@@ -149,4 +149,81 @@ int git_config_set_multivar_in_file_gently(const char *config_filename,
 			if (store.offset[i] == 0) {
 				store.offset[i] = copy_end = contents_sz;
 			} else if (store.state != KEY_SEEN) {
-				copy_end = 
+				copy_end = store.offset[i];
+			} else
+				copy_end = find_beginning_of_line(
+					contents, contents_sz,
+					store.offset[i]-2, &new_line);
+
+			if (copy_end > 0 && contents[copy_end-1] != '\n')
+				new_line = 1;
+
+			/* write the first part of the config */
+			if (copy_end > copy_begin) {
+				if (write_in_full(fd, contents + copy_begin,
+						  copy_end - copy_begin) <
+				    copy_end - copy_begin)
+					goto write_err_out;
+				if (new_line &&
+				    write_str_in_full(fd, "\n") != 1)
+					goto write_err_out;
+			}
+			copy_begin = store.offset[i];
+		}
+
+		/* write the pair (value == NULL means unset) */
+		if (value != NULL) {
+			if (store.state == START) {
+				if (!store_write_section(fd, key))
+					goto write_err_out;
+			}
+			if (!store_write_pair(fd, key, value))
+				goto write_err_out;
+		}
+
+		/* write the rest of the config */
+		if (copy_begin < contents_sz)
+			if (write_in_full(fd, contents + copy_begin,
+					  contents_sz - copy_begin) <
+			    contents_sz - copy_begin)
+				goto write_err_out;
+
+		munmap(contents, contents_sz);
+		contents = NULL;
+	}
+
+	if (commit_lock_file(lock) < 0) {
+		error("could not write config file %s: %s", config_filename,
+		      strerror(errno));
+		ret = CONFIG_NO_WRITE;
+		lock = NULL;
+		goto out_free;
+	}
+
+	/*
+	 * lock is committed, so don't try to roll it back below.
+	 * NOTE: Since lockfile.c keeps a linked list of all created
+	 * lock_file structures, it isn't safe to free(lock).  It's
+	 * better to just leave it hanging around.
+	 */
+	lock = NULL;
+	ret = 0;
+
+	/* Invalidate the config cache */
+	git_config_clear();
+
+out_free:
+	if (lock)
+		rollback_lock_file(lock);
+	free(filename_buf);
+	if (contents)
+		munmap(contents, contents_sz);
+	if (in_fd >= 0)
+		close(in_fd);
+	return ret;
+
+write_err_out:
+	ret = write_error(get_lock_file_path(lock));
+	goto out_free;
+
+}

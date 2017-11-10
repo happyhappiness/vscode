@@ -133,4 +133,44 @@ int cmd_send_pack(int argc, const char **argv, const char *prefix)
 
 	local_refs = get_local_heads();
 
-	fl
+	flags = MATCH_REFS_NONE;
+
+	if (send_all)
+		flags |= MATCH_REFS_ALL;
+	if (args.send_mirror)
+		flags |= MATCH_REFS_MIRROR;
+
+	/* match them up */
+	if (match_push_refs(local_refs, &remote_refs, nr_refspecs, refspecs, flags))
+		return -1;
+
+	if (!is_empty_cas(&cas))
+		apply_push_cas(&cas, remote, remote_refs);
+
+	set_ref_status_for_push(remote_refs, args.send_mirror,
+		args.force_update);
+
+	ret = send_pack(&args, fd, conn, remote_refs, &extra_have);
+
+	if (helper_status)
+		print_helper_status(remote_refs);
+
+	close(fd[1]);
+	close(fd[0]);
+
+	ret |= finish_connect(conn);
+
+	if (!helper_status)
+		transport_print_push_status(dest, remote_refs, args.verbose, 0, &reject_reasons);
+
+	if (!args.dry_run && remote) {
+		struct ref *ref;
+		for (ref = remote_refs; ref; ref = ref->next)
+			transport_update_tracking_ref(remote, ref, args.verbose);
+	}
+
+	if (!ret && !transport_refs_pushed(remote_refs))
+		fprintf(stderr, "Everything up-to-date\n");
+
+	return ret;
+}

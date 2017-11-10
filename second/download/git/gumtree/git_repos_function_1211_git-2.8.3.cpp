@@ -118,4 +118,126 @@ static void show_stats(struct diffstat_t *data, struct diff_options *options)
 	 * Adjust adjustable widths not to exceed maximum width
 	 */
 	if (name_width + number_width + 6 + graph_width > width) {
-	
+		if (graph_width > width * 3/8 - number_width - 6) {
+			graph_width = width * 3/8 - number_width - 6;
+			if (graph_width < 6)
+				graph_width = 6;
+		}
+
+		if (options->stat_graph_width &&
+		    graph_width > options->stat_graph_width)
+			graph_width = options->stat_graph_width;
+		if (name_width > width - number_width - 6 - graph_width)
+			name_width = width - number_width - 6 - graph_width;
+		else
+			graph_width = width - number_width - 6 - name_width;
+	}
+
+	/*
+	 * From here name_width is the width of the name area,
+	 * and graph_width is the width of the graph area.
+	 * max_change is used to scale graph properly.
+	 */
+	for (i = 0; i < count; i++) {
+		const char *prefix = "";
+		struct diffstat_file *file = data->files[i];
+		char *name = file->print_name;
+		uintmax_t added = file->added;
+		uintmax_t deleted = file->deleted;
+		int name_len;
+
+		if (!file->is_interesting && (added + deleted == 0))
+			continue;
+
+		/*
+		 * "scale" the filename
+		 */
+		len = name_width;
+		name_len = strlen(name);
+		if (name_width < name_len) {
+			char *slash;
+			prefix = "...";
+			len -= 3;
+			name += name_len - len;
+			slash = strchr(name, '/');
+			if (slash)
+				name = slash;
+		}
+
+		if (file->is_binary) {
+			fprintf(options->file, "%s", line_prefix);
+			show_name(options->file, prefix, name, len);
+			fprintf(options->file, " %*s", number_width, "Bin");
+			if (!added && !deleted) {
+				putc('\n', options->file);
+				continue;
+			}
+			fprintf(options->file, " %s%"PRIuMAX"%s",
+				del_c, deleted, reset);
+			fprintf(options->file, " -> ");
+			fprintf(options->file, "%s%"PRIuMAX"%s",
+				add_c, added, reset);
+			fprintf(options->file, " bytes");
+			fprintf(options->file, "\n");
+			continue;
+		}
+		else if (file->is_unmerged) {
+			fprintf(options->file, "%s", line_prefix);
+			show_name(options->file, prefix, name, len);
+			fprintf(options->file, " Unmerged\n");
+			continue;
+		}
+
+		/*
+		 * scale the add/delete
+		 */
+		add = added;
+		del = deleted;
+
+		if (graph_width <= max_change) {
+			int total = scale_linear(add + del, graph_width, max_change);
+			if (total < 2 && add && del)
+				/* width >= 2 due to the sanity check */
+				total = 2;
+			if (add < del) {
+				add = scale_linear(add, graph_width, max_change);
+				del = total - add;
+			} else {
+				del = scale_linear(del, graph_width, max_change);
+				add = total - del;
+			}
+		}
+		fprintf(options->file, "%s", line_prefix);
+		show_name(options->file, prefix, name, len);
+		fprintf(options->file, " %*"PRIuMAX"%s",
+			number_width, added + deleted,
+			added + deleted ? " " : "");
+		show_graph(options->file, '+', add, add_c, reset);
+		show_graph(options->file, '-', del, del_c, reset);
+		fprintf(options->file, "\n");
+	}
+
+	for (i = 0; i < data->nr; i++) {
+		struct diffstat_file *file = data->files[i];
+		uintmax_t added = file->added;
+		uintmax_t deleted = file->deleted;
+
+		if (file->is_unmerged ||
+		    (!file->is_interesting && (added + deleted == 0))) {
+			total_files--;
+			continue;
+		}
+
+		if (!file->is_binary) {
+			adds += added;
+			dels += deleted;
+		}
+		if (i < count)
+			continue;
+		if (!extra_shown)
+			fprintf(options->file, "%s ...\n", line_prefix);
+		extra_shown = 1;
+	}
+	fprintf(options->file, "%s", line_prefix);
+	print_stat_summary(options->file, total_files, adds, dels);
+}

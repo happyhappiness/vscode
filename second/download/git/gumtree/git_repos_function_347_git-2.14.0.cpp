@@ -152,4 +152,16 @@ static int has_dir_name(struct index_state *istate,
 			    (p->name[len] != '/') ||
 			    memcmp(p->name, name, len))
 				break; /* not our subdirectory */
-	
+			if (ce_stage(p) == stage && !(p->ce_flags & CE_REMOVE))
+				/*
+				 * p is at the same stage as our entry, and
+				 * is a subdirectory of what we are looking
+				 * at, so we cannot have conflicts at our
+				 * level or anything shorter.
+				 */
+				return retval;
+			pos++;
+		}
+	}
+	return retval;
+}

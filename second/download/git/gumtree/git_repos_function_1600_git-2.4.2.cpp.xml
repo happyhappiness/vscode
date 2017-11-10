@@ -1,2 +1,41 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_1600_git-2.4.2.cpp" pos:tabs="8"/>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_1600_git-2.4.2.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">unsigned<pos:position pos:line="1" pos:column="16"/></name> <name pos:line="1" pos:column="17">int<pos:position pos:line="1" pos:column="20"/></name></type> <name pos:line="1" pos:column="21">get_max_fd_limit<pos:position pos:line="1" pos:column="37"/></name><parameter_list pos:line="1" pos:column="37">(<parameter><decl><type><name pos:line="1" pos:column="38">void<pos:position pos:line="1" pos:column="42"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="43"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+<cpp:ifdef pos:line="3" pos:column="1">#<cpp:directive pos:line="3" pos:column="2">ifdef<pos:position pos:line="3" pos:column="7"/></cpp:directive> <name pos:line="3" pos:column="8">RLIMIT_NOFILE<pos:position pos:line="3" pos:column="21"/></name></cpp:ifdef>
+	<block pos:line="4" pos:column="9">{
+		<decl_stmt><decl><type><name><name pos:line="5" pos:column="17">struct<pos:position pos:line="5" pos:column="23"/></name> <name pos:line="5" pos:column="24">rlimit<pos:position pos:line="5" pos:column="30"/></name></name></type> <name pos:line="5" pos:column="31">lim<pos:position pos:line="5" pos:column="34"/></name></decl>;<pos:position pos:line="5" pos:column="35"/></decl_stmt>
+
+		<if pos:line="7" pos:column="17">if <condition pos:line="7" pos:column="20">(<expr><operator pos:line="7" pos:column="21">!<pos:position pos:line="7" pos:column="22"/></operator><call><name pos:line="7" pos:column="22">getrlimit<pos:position pos:line="7" pos:column="31"/></name><argument_list pos:line="7" pos:column="31">(<argument><expr><name pos:line="7" pos:column="32">RLIMIT_NOFILE<pos:position pos:line="7" pos:column="45"/></name></expr></argument>, <argument><expr><operator pos:line="7" pos:column="47">&amp;<pos:position pos:line="7" pos:column="52"/></operator><name pos:line="7" pos:column="48">lim<pos:position pos:line="7" pos:column="51"/></name></expr></argument>)<pos:position pos:line="7" pos:column="52"/></argument_list></call></expr>)<pos:position pos:line="7" pos:column="53"/></condition><then pos:line="7" pos:column="53">
+			<block type="pseudo"><return pos:line="8" pos:column="25">return <expr><name><name pos:line="8" pos:column="32">lim<pos:position pos:line="8" pos:column="35"/></name><operator pos:line="8" pos:column="35">.<pos:position pos:line="8" pos:column="36"/></operator><name pos:line="8" pos:column="36">rlim_cur<pos:position pos:line="8" pos:column="44"/></name></name></expr>;<pos:position pos:line="8" pos:column="45"/></return></block></then></if>
+	}<pos:position pos:line="9" pos:column="10"/></block>
+<cpp:endif pos:line="10" pos:column="1">#<cpp:directive pos:line="10" pos:column="2">endif<pos:position pos:line="10" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="12" pos:column="1">#<cpp:directive pos:line="12" pos:column="2">ifdef<pos:position pos:line="12" pos:column="7"/></cpp:directive> <name pos:line="12" pos:column="8">_SC_OPEN_MAX<pos:position pos:line="12" pos:column="20"/></name></cpp:ifdef>
+	<block pos:line="13" pos:column="9">{
+		<decl_stmt><decl><type><name pos:line="14" pos:column="17">long<pos:position pos:line="14" pos:column="21"/></name></type> <name pos:line="14" pos:column="22">open_max<pos:position pos:line="14" pos:column="30"/></name> <init pos:line="14" pos:column="31">= <expr><call><name pos:line="14" pos:column="33">sysconf<pos:position pos:line="14" pos:column="40"/></name><argument_list pos:line="14" pos:column="40">(<argument><expr><name pos:line="14" pos:column="41">_SC_OPEN_MAX<pos:position pos:line="14" pos:column="53"/></name></expr></argument>)<pos:position pos:line="14" pos:column="54"/></argument_list></call></expr></init></decl>;<pos:position pos:line="14" pos:column="55"/></decl_stmt>
+		<if pos:line="15" pos:column="17">if <condition pos:line="15" pos:column="20">(<expr><literal type="number" pos:line="15" pos:column="21">0<pos:position pos:line="15" pos:column="22"/></literal> <operator pos:line="15" pos:column="23">&lt;<pos:position pos:line="15" pos:column="27"/></operator> <name pos:line="15" pos:column="25">open_max<pos:position pos:line="15" pos:column="33"/></name></expr>)<pos:position pos:line="15" pos:column="34"/></condition><then pos:line="15" pos:column="34">
+			<block type="pseudo"><return pos:line="16" pos:column="25">return <expr><name pos:line="16" pos:column="32">open_max<pos:position pos:line="16" pos:column="40"/></name></expr>;<pos:position pos:line="16" pos:column="41"/></return></block></then></if>
+		<comment type="block" pos:line="17" pos:column="17">/*
+		 * Otherwise, we got -1 for one of the two
+		 * reasons:
+		 *
+		 * (1) sysconf() did not understand _SC_OPEN_MAX
+		 *     and signaled an error with -1; or
+		 * (2) sysconf() said there is no limit.
+		 *
+		 * We _could_ clear errno before calling sysconf() to
+		 * tell these two cases apart and return a huge number
+		 * in the latter case to let the caller cap it to a
+		 * value that is not so selfish, but letting the
+		 * fallback OPEN_MAX codepath take care of these cases
+		 * is a lot simpler.
+		 */</comment>
+	}<pos:position pos:line="32" pos:column="10"/></block>
+<cpp:endif pos:line="33" pos:column="1">#<cpp:directive pos:line="33" pos:column="2">endif<pos:position pos:line="33" pos:column="7"/></cpp:directive></cpp:endif>
+
+<cpp:ifdef pos:line="35" pos:column="1">#<cpp:directive pos:line="35" pos:column="2">ifdef<pos:position pos:line="35" pos:column="7"/></cpp:directive> <name pos:line="35" pos:column="8">OPEN_MAX<pos:position pos:line="35" pos:column="16"/></name></cpp:ifdef>
+	<return pos:line="36" pos:column="9">return <expr><name pos:line="36" pos:column="16">OPEN_MAX<pos:position pos:line="36" pos:column="24"/></name></expr>;<pos:position pos:line="36" pos:column="25"/></return>
+<cpp:else pos:line="37" pos:column="1">#<cpp:directive pos:line="37" pos:column="2">else<pos:position pos:line="37" pos:column="6"/></cpp:directive></cpp:else>
+	<return pos:line="38" pos:column="9">return <expr><literal type="number" pos:line="38" pos:column="16">1<pos:position pos:line="38" pos:column="17"/></literal></expr>;<pos:position pos:line="38" pos:column="18"/></return> <comment type="block" pos:line="38" pos:column="19">/* see the caller ;-) */</comment>
+<cpp:endif pos:line="39" pos:column="1">#<cpp:directive pos:line="39" pos:column="2">endif<pos:position pos:line="39" pos:column="7"/></cpp:directive></cpp:endif>
+}<pos:position pos:line="40" pos:column="2"/></block></function></unit>

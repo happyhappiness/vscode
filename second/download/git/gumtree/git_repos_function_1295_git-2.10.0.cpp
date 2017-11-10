@@ -208,4 +208,75 @@ int diff_opt_parse(struct diff_options *options,
 		return parse_ws_error_highlight(options, arg);
 
 	/* misc options */
-	else
+	else if (!strcmp(arg, "-z"))
+		options->line_termination = 0;
+	else if ((argcount = short_opt('l', av, &optarg))) {
+		options->rename_limit = strtoul(optarg, NULL, 10);
+		return argcount;
+	}
+	else if ((argcount = short_opt('S', av, &optarg))) {
+		options->pickaxe = optarg;
+		options->pickaxe_opts |= DIFF_PICKAXE_KIND_S;
+		return argcount;
+	} else if ((argcount = short_opt('G', av, &optarg))) {
+		options->pickaxe = optarg;
+		options->pickaxe_opts |= DIFF_PICKAXE_KIND_G;
+		return argcount;
+	}
+	else if (!strcmp(arg, "--pickaxe-all"))
+		options->pickaxe_opts |= DIFF_PICKAXE_ALL;
+	else if (!strcmp(arg, "--pickaxe-regex"))
+		options->pickaxe_opts |= DIFF_PICKAXE_REGEX;
+	else if ((argcount = short_opt('O', av, &optarg))) {
+		const char *path = prefix_filename(prefix, strlen(prefix), optarg);
+		options->orderfile = xstrdup(path);
+		return argcount;
+	}
+	else if ((argcount = parse_long_opt("diff-filter", av, &optarg))) {
+		int offending = parse_diff_filter_opt(optarg, options);
+		if (offending)
+			die("unknown change class '%c' in --diff-filter=%s",
+			    offending, optarg);
+		return argcount;
+	}
+	else if (!strcmp(arg, "--abbrev"))
+		options->abbrev = DEFAULT_ABBREV;
+	else if (skip_prefix(arg, "--abbrev=", &arg)) {
+		options->abbrev = strtoul(arg, NULL, 10);
+		if (options->abbrev < MINIMUM_ABBREV)
+			options->abbrev = MINIMUM_ABBREV;
+		else if (40 < options->abbrev)
+			options->abbrev = 40;
+	}
+	else if ((argcount = parse_long_opt("src-prefix", av, &optarg))) {
+		options->a_prefix = optarg;
+		return argcount;
+	}
+	else if ((argcount = parse_long_opt("dst-prefix", av, &optarg))) {
+		options->b_prefix = optarg;
+		return argcount;
+	}
+	else if (!strcmp(arg, "--no-prefix"))
+		options->a_prefix = options->b_prefix = "";
+	else if (opt_arg(arg, '\0', "inter-hunk-context",
+			 &options->interhunkcontext))
+		;
+	else if (!strcmp(arg, "-W"))
+		DIFF_OPT_SET(options, FUNCCONTEXT);
+	else if (!strcmp(arg, "--function-context"))
+		DIFF_OPT_SET(options, FUNCCONTEXT);
+	else if (!strcmp(arg, "--no-function-context"))
+		DIFF_OPT_CLR(options, FUNCCONTEXT);
+	else if ((argcount = parse_long_opt("output", av, &optarg))) {
+		const char *path = prefix_filename(prefix, strlen(prefix), optarg);
+		options->file = fopen(path, "w");
+		if (!options->file)
+			die_errno("Could not open '%s'", path);
+		options->close_file = 1;
+		if (options->use_color != GIT_COLOR_ALWAYS)
+			options->use_color = GIT_COLOR_NEVER;
+		return argcount;
+	} else
+		return 0;
+	return 1;
+}

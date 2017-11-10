@@ -231,4 +231,7 @@
 		}<pos:position pos:line="230" pos:column="18"/></block></then></if>
 
 	}<pos:position pos:line="232" pos:column="10"/></block></then></if></elseif> <else pos:line="232" pos:column="11">else
-		<block type="pseudo"><macro><name pos:line="233" pos:column="17">usage_with_options<pos:position pos:line="233" pos:column="35"/></name><argument_list pos:line="233" pos:column="35">(<argument pos:line="233" pos:column="36">builtin_branch<pos:position pos:line="233" pos:column="50"/></argument></argument_list></macro></block></else></if></block></function></unit>
+		<block type="pseudo"><expr_stmt><expr><call><name pos:line="233" pos:column="17">usage_with_options<pos:position pos:line="233" pos:column="35"/></name><argument_list pos:line="233" pos:column="35">(<argument><expr><name pos:line="233" pos:column="36">builtin_branch_usage<pos:position pos:line="233" pos:column="56"/></name></expr></argument>, <argument><expr><name pos:line="233" pos:column="58">options<pos:position pos:line="233" pos:column="65"/></name></expr></argument>)<pos:position pos:line="233" pos:column="66"/></argument_list></call></expr>;<pos:position pos:line="233" pos:column="67"/></expr_stmt></block></else></if>
+
+	<return pos:line="235" pos:column="9">return <expr><literal type="number" pos:line="235" pos:column="16">0<pos:position pos:line="235" pos:column="17"/></literal></expr>;<pos:position pos:line="235" pos:column="18"/></return>
+}<pos:position pos:line="236" pos:column="2"/></block></function></unit>

@@ -221,4 +221,79 @@ int cmd_grep(int argc, const char **argv, const char *prefix)
 
 #ifndef NO_PTHREADS
 	if (use_threads) {
-		if (!(opt.name_only || opt.unmatch_name_only || opt.
+		if (!(opt.name_only || opt.unmatch_name_only || opt.count)
+		    && (opt.pre_context || opt.post_context ||
+			opt.file_break || opt.funcbody))
+			skip_first_line = 1;
+		start_threads(&opt);
+	}
+#endif
+
+	/* The rest are paths */
+	if (!seen_dashdash) {
+		int j;
+		for (j = i; j < argc; j++)
+			verify_filename(prefix, argv[j], j == i);
+	}
+
+	parse_pathspec(&pathspec, 0,
+		       PATHSPEC_PREFER_CWD |
+		       (opt.max_depth != -1 ? PATHSPEC_MAXDEPTH_VALID : 0),
+		       prefix, argv + i);
+	pathspec.max_depth = opt.max_depth;
+	pathspec.recursive = 1;
+
+	if (show_in_pager && (cached || list.nr))
+		die(_("--open-files-in-pager only works on the worktree"));
+
+	if (show_in_pager && opt.pattern_list && !opt.pattern_list->next) {
+		const char *pager = path_list.items[0].string;
+		int len = strlen(pager);
+
+		if (len > 4 && is_dir_sep(pager[len - 5]))
+			pager += len - 4;
+
+		if (opt.ignore_case && !strcmp("less", pager))
+			string_list_append(&path_list, "-I");
+
+		if (!strcmp("less", pager) || !strcmp("vi", pager)) {
+			struct strbuf buf = STRBUF_INIT;
+			strbuf_addf(&buf, "+/%s%s",
+					strcmp("less", pager) ? "" : "*",
+					opt.pattern_list->pattern);
+			string_list_append(&path_list, buf.buf);
+			strbuf_detach(&buf, NULL);
+		}
+	}
+
+	if (!show_in_pager && !opt.status_only)
+		setup_pager();
+
+	if (!use_index && (untracked || cached))
+		die(_("--cached or --untracked cannot be used with --no-index."));
+
+	if (!use_index || untracked) {
+		int use_exclude = (opt_exclude < 0) ? use_index : !!opt_exclude;
+		if (list.nr)
+			die(_("--no-index or --untracked cannot be used with revs."));
+		hit = grep_directory(&opt, &pathspec, use_exclude);
+	} else if (0 <= opt_exclude) {
+		die(_("--[no-]exclude-standard cannot be used for tracked contents."));
+	} else if (!list.nr) {
+		if (!cached)
+			setup_work_tree();
+
+		hit = grep_cache(&opt, &pathspec, cached);
+	} else {
+		if (cached)
+			die(_("both --cached and trees are given."));
+		hit = grep_objects(&opt, &pathspec, &list);
+	}
+
+	if (use_threads)
+		hit |= wait_all();
+	if (hit && show_in_pager)
+		run_pager(&opt, prefix);
+	free_grep_patterns(&opt);
+	return !hit;
+}

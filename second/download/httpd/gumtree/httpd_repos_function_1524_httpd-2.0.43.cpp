@@ -92,3 +92,7 @@ static int x_handler(request_rec *r)
      */
     /*
      * We did what we wanted to do, so tell the rest of the server we
+     * succeeded.
+     */
+    return OK;
+}

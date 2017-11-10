@@ -173,4 +173,9 @@ int cmd_fetch_pack(int argc, const char **argv, const char *prefix)
 
 	while (ref) {
 		printf("%s %s\n",
-		
+		       oid_to_hex(&ref->old_oid), ref->name);
+		ref = ref->next;
+	}
+
+	return ret;
+}

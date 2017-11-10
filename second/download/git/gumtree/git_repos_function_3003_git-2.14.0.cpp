@@ -136,4 +136,76 @@ cleanup_head_ref:
 					REF_NODEREF, UPDATE_REFS_MSG_ON_ERR)) {
 				res = error(_("could not update %s"),
 					head_ref.buf);
-				go
+				goto cleanup_head_ref;
+			}
+			msg = reflog_message(opts, "finish", "returning to %s",
+				head_ref.buf);
+			if (create_symref("HEAD", head_ref.buf, msg)) {
+				res = error(_("could not update HEAD to %s"),
+					head_ref.buf);
+				goto cleanup_head_ref;
+			}
+			strbuf_reset(&buf);
+		}
+
+		if (opts->verbose) {
+			struct rev_info log_tree_opt;
+			struct object_id orig, head;
+
+			memset(&log_tree_opt, 0, sizeof(log_tree_opt));
+			init_revisions(&log_tree_opt, NULL);
+			log_tree_opt.diff = 1;
+			log_tree_opt.diffopt.output_format =
+				DIFF_FORMAT_DIFFSTAT;
+			log_tree_opt.disable_stdin = 1;
+
+			if (read_oneliner(&buf, rebase_path_orig_head(), 0) &&
+			    !get_sha1(buf.buf, orig.hash) &&
+			    !get_sha1("HEAD", head.hash)) {
+				diff_tree_oid(&orig, &head, "",
+					      &log_tree_opt.diffopt);
+				log_tree_diff_flush(&log_tree_opt);
+			}
+		}
+		flush_rewritten_pending();
+		if (!stat(rebase_path_rewritten_list(), &st) &&
+				st.st_size > 0) {
+			struct child_process child = CHILD_PROCESS_INIT;
+			const char *post_rewrite_hook =
+				find_hook("post-rewrite");
+
+			child.in = open(rebase_path_rewritten_list(), O_RDONLY);
+			child.git_cmd = 1;
+			argv_array_push(&child.args, "notes");
+			argv_array_push(&child.args, "copy");
+			argv_array_push(&child.args, "--for-rewrite=rebase");
+			/* we don't care if this copying failed */
+			run_command(&child);
+
+			if (post_rewrite_hook) {
+				struct child_process hook = CHILD_PROCESS_INIT;
+
+				hook.in = open(rebase_path_rewritten_list(),
+					O_RDONLY);
+				hook.stdout_to_stderr = 1;
+				argv_array_push(&hook.args, post_rewrite_hook);
+				argv_array_push(&hook.args, "rebase");
+				/* we don't care if this hook failed */
+				run_command(&hook);
+			}
+		}
+		apply_autostash(opts);
+
+		fprintf(stderr, "Successfully rebased and updated %s.\n",
+			head_ref.buf);
+
+		strbuf_release(&buf);
+		strbuf_release(&head_ref);
+	}
+
+	/*
+	 * Sequence of picks finished successfully; cleanup by
+	 * removing the .git/sequencer directory
+	 */
+	return sequencer_remove_state(opts);
+}

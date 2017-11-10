@@ -179,4 +179,57 @@ peek_token (re_token_t *token, re_string_t *input, reg_syntax_t syntax)
       break;
     case '?':
       if (!(syntax & RE_LIMITED_OPS) && !(syntax & RE_BK_PLUS_QM))
-	token->type = OP_DUP_QUESTIO
+	token->type = OP_DUP_QUESTION;
+      break;
+    case '{':
+      if ((syntax & RE_INTERVALS) && (syntax & RE_NO_BK_BRACES))
+	token->type = OP_OPEN_DUP_NUM;
+      break;
+    case '}':
+      if ((syntax & RE_INTERVALS) && (syntax & RE_NO_BK_BRACES))
+	token->type = OP_CLOSE_DUP_NUM;
+      break;
+    case '(':
+      if (syntax & RE_NO_BK_PARENS)
+	token->type = OP_OPEN_SUBEXP;
+      break;
+    case ')':
+      if (syntax & RE_NO_BK_PARENS)
+	token->type = OP_CLOSE_SUBEXP;
+      break;
+    case '[':
+      token->type = OP_OPEN_BRACKET;
+      break;
+    case '.':
+      token->type = OP_PERIOD;
+      break;
+    case '^':
+      if (!(syntax & (RE_CONTEXT_INDEP_ANCHORS | RE_CARET_ANCHORS_HERE)) &&
+	  re_string_cur_idx (input) != 0)
+	{
+	  char prev = re_string_peek_byte (input, -1);
+	  if (!(syntax & RE_NEWLINE_ALT) || prev != '\n')
+	    break;
+	}
+      token->type = ANCHOR;
+      token->opr.ctx_type = LINE_FIRST;
+      break;
+    case '$':
+      if (!(syntax & RE_CONTEXT_INDEP_ANCHORS) &&
+	  re_string_cur_idx (input) + 1 != re_string_length (input))
+	{
+	  re_token_t next;
+	  re_string_skip_bytes (input, 1);
+	  peek_token (&next, input, syntax);
+	  re_string_skip_bytes (input, -1);
+	  if (next.type != OP_ALT && next.type != OP_CLOSE_SUBEXP)
+	    break;
+	}
+      token->type = ANCHOR;
+      token->opr.ctx_type = LINE_LAST;
+      break;
+    default:
+      break;
+    }
+  return 1;
+}

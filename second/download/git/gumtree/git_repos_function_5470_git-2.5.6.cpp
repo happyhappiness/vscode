@@ -173,3 +173,9 @@ int cmd_fetch_pack(int argc, const char **argv, const char *prefix)
 
 	while (ref) {
 		printf("%s %s\n",
+		       sha1_to_hex(ref->old_sha1), ref->name);
+		ref = ref->next;
+	}
+
+	return ret;
+}

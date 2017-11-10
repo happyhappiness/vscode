@@ -172,4 +172,6 @@ done:
 		free(parents[i].tree);
 	free(parents);
 
-	strbuf_release(
+	strbuf_release(&namebuf);
+	return retval;
+}

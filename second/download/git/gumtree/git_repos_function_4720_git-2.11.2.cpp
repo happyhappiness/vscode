@@ -122,4 +122,64 @@ int cmd_mv(int argc, const char **argv, const char *prefix)
 		} else if (string_list_has_string(&src_for_dst, dst))
 			bad = _("multiple sources for the same target");
 		else if (is_dir_sep(dst[strlen(dst) - 1]))
-			bad = _("destinatio
+			bad = _("destination directory does not exist");
+		else
+			string_list_insert(&src_for_dst, dst);
+
+		if (!bad)
+			continue;
+		if (!ignore_errors)
+			die(_("%s, source=%s, destination=%s"),
+			     bad, src, dst);
+		if (--argc > 0) {
+			int n = argc - i;
+			memmove(source + i, source + i + 1,
+				n * sizeof(char *));
+			memmove(destination + i, destination + i + 1,
+				n * sizeof(char *));
+			memmove(modes + i, modes + i + 1,
+				n * sizeof(enum update_mode));
+			memmove(submodule_gitfile + i, submodule_gitfile + i + 1,
+				n * sizeof(char *));
+			i--;
+		}
+	}
+
+	for (i = 0; i < argc; i++) {
+		const char *src = source[i], *dst = destination[i];
+		enum update_mode mode = modes[i];
+		int pos;
+		if (show_only || verbose)
+			printf(_("Renaming %s to %s\n"), src, dst);
+		if (show_only)
+			continue;
+		if (mode != INDEX && rename(src, dst) < 0) {
+			if (ignore_errors)
+				continue;
+			die_errno(_("renaming '%s' failed"), src);
+		}
+		if (submodule_gitfile[i]) {
+			if (submodule_gitfile[i] != SUBMODULE_WITH_GITDIR)
+				connect_work_tree_and_git_dir(dst, submodule_gitfile[i]);
+			if (!update_path_in_gitmodules(src, dst))
+				gitmodules_modified = 1;
+		}
+
+		if (mode == WORKING_DIRECTORY)
+			continue;
+
+		pos = cache_name_pos(src, strlen(src));
+		assert(pos >= 0);
+		if (!show_only)
+			rename_cache_entry_at(pos, dst);
+	}
+
+	if (gitmodules_modified)
+		stage_updated_gitmodules();
+
+	if (active_cache_changed &&
+	    write_locked_index(&the_index, &lock_file, COMMIT_LOCK))
+		die(_("Unable to write new index file"));
+
+	return 0;
+}

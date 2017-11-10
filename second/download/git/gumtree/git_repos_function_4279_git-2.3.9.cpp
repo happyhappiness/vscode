@@ -256,4 +256,52 @@ static int prepare_to_commit(const char *index_file, const char *prefix,
 	 */
 	if (!commitable && whence != FROM_MERGE && !allow_empty &&
 	    !(amend && is_a_merge(current_head))) {
-		s->display_com
+		s->display_comment_prefix = old_display_comment_prefix;
+		run_status(stdout, index_file, prefix, 0, s);
+		if (amend)
+			fputs(_(empty_amend_advice), stderr);
+		else if (whence == FROM_CHERRY_PICK) {
+			fputs(_(empty_cherry_pick_advice), stderr);
+			if (!sequencer_in_use)
+				fputs(_(empty_cherry_pick_advice_single), stderr);
+			else
+				fputs(_(empty_cherry_pick_advice_multi), stderr);
+		}
+		return 0;
+	}
+
+	/*
+	 * Re-read the index as pre-commit hook could have updated it,
+	 * and write it out as a tree.  We must do this before we invoke
+	 * the editor and after we invoke run_status above.
+	 */
+	discard_cache();
+	read_cache_from(index_file);
+	if (update_main_cache_tree(0)) {
+		error(_("Error building trees"));
+		return 0;
+	}
+
+	if (run_commit_hook(use_editor, index_file, "prepare-commit-msg",
+			    git_path(commit_editmsg), hook_arg1, hook_arg2, NULL))
+		return 0;
+
+	if (use_editor) {
+		char index[PATH_MAX];
+		const char *env[2] = { NULL };
+		env[0] =  index;
+		snprintf(index, sizeof(index), "GIT_INDEX_FILE=%s", index_file);
+		if (launch_editor(git_path(commit_editmsg), NULL, env)) {
+			fprintf(stderr,
+			_("Please supply the message using either -m or -F option.\n"));
+			exit(1);
+		}
+	}
+
+	if (!no_verify &&
+	    run_commit_hook(use_editor, index_file, "commit-msg", git_path(commit_editmsg), NULL)) {
+		return 0;
+	}
+
+	return 1;
+}

@@ -118,4 +118,18 @@ void* dlmalloc(size_t bytes) {
       mchunkptr r = gm->top = chunk_plus_offset(p, nb);
       r->head = rsize | PINUSE_BIT;
       set_size_and_pinuse_of_inuse_chunk(gm, p, nb);
-      mem = ch
+      mem = chunk2mem(p);
+      check_top_chunk(gm, gm->top);
+      check_malloced_chunk(gm, mem, nb);
+      goto postaction;
+    }
+
+    mem = sys_alloc(gm, nb);
+
+  postaction:
+    POSTACTION(gm);
+    return mem;
+  }
+
+  return 0;
+}

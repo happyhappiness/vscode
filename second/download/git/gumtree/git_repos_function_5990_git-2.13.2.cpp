@@ -286,4 +286,52 @@ static int run_dir_diff(const char *extcmd, int symlinks, const char *prefix,
 			static struct lock_file lock;
 			strbuf_reset(&buf);
 			strbuf_addf(&buf, "%s/wtindex", tmpdir);
-			if 
+			if (hold_lock_file_for_update(&lock, buf.buf, 0) < 0 ||
+			    write_locked_index(&wtindex, &lock, COMMIT_LOCK)) {
+				ret = error("could not write %s", buf.buf);
+				rollback_lock_file(&lock);
+				goto finish;
+			}
+			changed_files(&wt_modified, buf.buf, workdir);
+			strbuf_setlen(&rdir, rdir_len);
+			changed_files(&tmp_modified, buf.buf, rdir.buf);
+			add_path(&rdir, rdir_len, name);
+			indices_loaded = 1;
+		}
+
+		hashmap_entry_init(&dummy, strhash(name));
+		if (hashmap_get(&tmp_modified, &dummy, name)) {
+			add_path(&wtdir, wtdir_len, name);
+			if (hashmap_get(&wt_modified, &dummy, name)) {
+				warning(_("both files modified: '%s' and '%s'."),
+					wtdir.buf, rdir.buf);
+				warning(_("working tree file has been left."));
+				warning("%s", "");
+				err = 1;
+			} else if (unlink(wtdir.buf) ||
+				   copy_file(wtdir.buf, rdir.buf, st.st_mode))
+				warning_errno(_("could not copy '%s' to '%s'"),
+					      rdir.buf, wtdir.buf);
+		}
+	}
+
+	if (err) {
+		warning(_("temporary files exist in '%s'."), tmpdir);
+		warning(_("you may want to cleanup or recover these."));
+		exit(1);
+	} else
+		exit_cleanup(tmpdir, rc);
+
+finish:
+	if (fp)
+		fclose(fp);
+
+	free(lbase_dir);
+	free(rbase_dir);
+	strbuf_release(&ldir);
+	strbuf_release(&rdir);
+	strbuf_release(&wtdir);
+	strbuf_release(&buf);
+
+	return ret;
+}

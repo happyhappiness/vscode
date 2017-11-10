@@ -156,4 +156,85 @@ check_node_accept_bytes (const re_dfa_t *dfa, int node_idx,
 		in_collseq = find_collation_sequence_value (pin, elem_len);
 	    }
 	  /* match with range expression?  */
-	  for (i = 0; i < cset->nran
+	  for (i = 0; i < cset->nranges; ++i)
+	    if (cset->range_starts[i] <= in_collseq
+		&& in_collseq <= cset->range_ends[i])
+	      {
+		match_len = elem_len;
+		goto check_node_accept_bytes_match;
+	      }
+
+	  /* match with equivalence_class?  */
+	  if (cset->nequiv_classes)
+	    {
+	      const unsigned char *cp = pin;
+	      table = (const int32_t *)
+		_NL_CURRENT (LC_COLLATE, _NL_COLLATE_TABLEMB);
+	      weights = (const unsigned char *)
+		_NL_CURRENT (LC_COLLATE, _NL_COLLATE_WEIGHTMB);
+	      extra = (const unsigned char *)
+		_NL_CURRENT (LC_COLLATE, _NL_COLLATE_EXTRAMB);
+	      indirect = (const int32_t *)
+		_NL_CURRENT (LC_COLLATE, _NL_COLLATE_INDIRECTMB);
+	      int32_t idx = findidx (&cp);
+	      if (idx > 0)
+		for (i = 0; i < cset->nequiv_classes; ++i)
+		  {
+		    int32_t equiv_class_idx = cset->equiv_classes[i];
+		    size_t weight_len = weights[idx & 0xffffff];
+		    if (weight_len == weights[equiv_class_idx & 0xffffff]
+			&& (idx >> 24) == (equiv_class_idx >> 24))
+		      {
+			int cnt = 0;
+
+			idx &= 0xffffff;
+			equiv_class_idx &= 0xffffff;
+
+			while (cnt <= weight_len
+			       && (weights[equiv_class_idx + 1 + cnt]
+				   == weights[idx + 1 + cnt]))
+			  ++cnt;
+			if (cnt > weight_len)
+			  {
+			    match_len = elem_len;
+			    goto check_node_accept_bytes_match;
+			  }
+		      }
+		  }
+	    }
+	}
+      else
+# endif /* _LIBC */
+	{
+	  /* match with range expression?  */
+#if __GNUC__ >= 2
+	  wchar_t cmp_buf[] = {L'\0', L'\0', wc, L'\0', L'\0', L'\0'};
+#else
+	  wchar_t cmp_buf[] = {L'\0', L'\0', L'\0', L'\0', L'\0', L'\0'};
+	  cmp_buf[2] = wc;
+#endif
+	  for (i = 0; i < cset->nranges; ++i)
+	    {
+	      cmp_buf[0] = cset->range_starts[i];
+	      cmp_buf[4] = cset->range_ends[i];
+	      if (wcscoll (cmp_buf, cmp_buf + 2) <= 0
+		  && wcscoll (cmp_buf + 2, cmp_buf + 4) <= 0)
+		{
+		  match_len = char_len;
+		  goto check_node_accept_bytes_match;
+		}
+	    }
+	}
+    check_node_accept_bytes_match:
+      if (!cset->non_match)
+	return match_len;
+      else
+	{
+	  if (match_len > 0)
+	    return 0;
+	  else
+	    return (elem_len > char_len) ? elem_len : char_len;
+	}
+    }
+  return 0;
+}

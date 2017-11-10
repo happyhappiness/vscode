@@ -139,4 +139,10 @@ static void receive_needs(void)
 	} else
 		if (shallows.nr > 0) {
 			int i;
-			for (i = 0; i
+			for (i = 0; i < shallows.nr; i++)
+				register_shallow(shallows.objects[i].item->oid.hash);
+		}
+
+	shallow_nr += shallows.nr;
+	free(shallows.objects);
+}

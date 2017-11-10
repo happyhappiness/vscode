@@ -133,4 +133,24 @@ retry:
 		}
 	}
 
-	curl_easy_se
+	curl_easy_setopt(slot->curl, CURLOPT_HTTPHEADER, headers);
+	curl_easy_setopt(slot->curl, CURLOPT_WRITEFUNCTION, rpc_in);
+	curl_easy_setopt(slot->curl, CURLOPT_FILE, rpc);
+
+
+	rpc->any_written = 0;
+	err = run_slot(slot, NULL);
+	if (err == HTTP_REAUTH && !large_request) {
+		credential_fill(&http_auth);
+		goto retry;
+	}
+	if (err != HTTP_OK)
+		err = -1;
+
+	if (!rpc->any_written)
+		err = -1;
+
+	curl_slist_free_all(headers);
+	free(gzip_body);
+	return err;
+}

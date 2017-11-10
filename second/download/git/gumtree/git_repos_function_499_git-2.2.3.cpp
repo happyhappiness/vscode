@@ -149,4 +149,63 @@ int git_config_set_multivar_in_file(const char *config_filename,
 			/* write the first part of the config */
 			if (copy_end > copy_begin) {
 				if (write_in_full(fd, contents + copy_begin,
-					
+						  copy_end - copy_begin) <
+				    copy_end - copy_begin)
+					goto write_err_out;
+				if (new_line &&
+				    write_str_in_full(fd, "\n") != 1)
+					goto write_err_out;
+			}
+			copy_begin = store.offset[i];
+		}
+
+		/* write the pair (value == NULL means unset) */
+		if (value != NULL) {
+			if (store.state == START) {
+				if (!store_write_section(fd, key))
+					goto write_err_out;
+			}
+			if (!store_write_pair(fd, key, value))
+				goto write_err_out;
+		}
+
+		/* write the rest of the config */
+		if (copy_begin < contents_sz)
+			if (write_in_full(fd, contents + copy_begin,
+					  contents_sz - copy_begin) <
+			    contents_sz - copy_begin)
+				goto write_err_out;
+
+		munmap(contents, contents_sz);
+	}
+
+	if (commit_lock_file(lock) < 0) {
+		error("could not commit config file %s", config_filename);
+		ret = CONFIG_NO_WRITE;
+		lock = NULL;
+		goto out_free;
+	}
+
+	/*
+	 * lock is committed, so don't try to roll it back below.
+	 * NOTE: Since lockfile.c keeps a linked list of all created
+	 * lock_file structures, it isn't safe to free(lock).  It's
+	 * better to just leave it hanging around.
+	 */
+	lock = NULL;
+	ret = 0;
+
+	/* Invalidate the config cache */
+	git_config_clear();
+
+out_free:
+	if (lock)
+		rollback_lock_file(lock);
+	free(filename_buf);
+	return ret;
+
+write_err_out:
+	ret = write_error(lock->filename.buf);
+	goto out_free;
+
+}

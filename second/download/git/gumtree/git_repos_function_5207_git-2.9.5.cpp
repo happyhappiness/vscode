@@ -117,4 +117,10 @@ static int update_local_ref(struct ref *ref,
 		strbuf_release(&quickref);
 		return r;
 	} else {
-		strbuf_addf(display
+		strbuf_addf(display, "! %-*s %-*s -> %s  %s",
+			    TRANSPORT_SUMMARY(_("[rejected]")),
+			    REFCOL_WIDTH, remote, pretty_ref,
+			    _("(non-fast-forward)"));
+		return 1;
+	}
+}

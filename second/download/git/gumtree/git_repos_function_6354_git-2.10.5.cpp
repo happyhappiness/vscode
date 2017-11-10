@@ -117,3 +117,81 @@ static void* sys_alloc(mstate m, size_t nb) {
       if (br != CMFAIL && end != CMFAIL && br < end) {
 	size_t ssize = end - br;
 	if (ssize > nb + TOP_FOOT_SIZE) {
+	  tbase = br;
+	  tsize = ssize;
+	}
+      }
+    }
+  }
+
+  if (tbase != CMFAIL) {
+
+    if ((m->footprint += tsize) > m->max_footprint)
+      m->max_footprint = m->footprint;
+
+    if (!is_initialized(m)) { /* first-time initialization */
+      m->seg.base = m->least_addr = tbase;
+      m->seg.size = tsize;
+      m->seg.sflags = mmap_flag;
+      m->magic = mparams.magic;
+      m->release_checks = MAX_RELEASE_CHECK_RATE;
+      init_bins(m);
+#if !ONLY_MSPACES
+      if (is_global(m))
+	init_top(m, (mchunkptr)tbase, tsize - TOP_FOOT_SIZE);
+      else
+#endif
+      {
+	/* Offset top by embedded malloc_state */
+	mchunkptr mn = next_chunk(mem2chunk(m));
+	init_top(m, mn, (size_t)((tbase + tsize) - (char*)mn) -TOP_FOOT_SIZE);
+      }
+    }
+
+    else {
+      /* Try to merge with an existing segment */
+      msegmentptr sp = &m->seg;
+      /* Only consider most recent segment if traversal suppressed */
+      while (sp != 0 && tbase != sp->base + sp->size)
+	sp = (NO_SEGMENT_TRAVERSAL) ? 0 : sp->next;
+      if (sp != 0 &&
+	  !is_extern_segment(sp) &&
+	  (sp->sflags & IS_MMAPPED_BIT) == mmap_flag &&
+	  segment_holds(sp, m->top)) { /* append */
+	sp->size += tsize;
+	init_top(m, m->top, m->topsize + tsize);
+      }
+      else {
+	if (tbase < m->least_addr)
+	  m->least_addr = tbase;
+	sp = &m->seg;
+	while (sp != 0 && sp->base != tbase + tsize)
+	  sp = (NO_SEGMENT_TRAVERSAL) ? 0 : sp->next;
+	if (sp != 0 &&
+	    !is_extern_segment(sp) &&
+	    (sp->sflags & IS_MMAPPED_BIT) == mmap_flag) {
+	  char* oldbase = sp->base;
+	  sp->base = tbase;
+	  sp->size += tsize;
+	  return prepend_alloc(m, tbase, oldbase, nb);
+	}
+	else
+	  add_segment(m, tbase, tsize, mmap_flag);
+      }
+    }
+
+    if (nb < m->topsize) { /* Allocate from new or extended top space */
+      size_t rsize = m->topsize -= nb;
+      mchunkptr p = m->top;
+      mchunkptr r = m->top = chunk_plus_offset(p, nb);
+      r->head = rsize | PINUSE_BIT;
+      set_size_and_pinuse_of_inuse_chunk(m, p, nb);
+      check_top_chunk(m, m->top);
+      check_malloced_chunk(m, chunk2mem(p), nb);
+      return chunk2mem(p);
+    }
+  }
+
+  MALLOC_FAILURE_ACTION;
+  return 0;
+}

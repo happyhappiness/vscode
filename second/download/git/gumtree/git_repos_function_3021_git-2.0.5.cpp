@@ -121,4 +121,14 @@ static int get_cmd_result(struct imap_store *ctx, struct imap_cmd *tcmd)
 			if ((resp2 = parse_response_code(ctx, &cmdp->cb, cmd)) > resp)
 				resp = resp2;
 		normal:
-			if (cmdp->cb.d
+			if (cmdp->cb.done)
+				cmdp->cb.done(ctx, cmdp, resp);
+			free(cmdp->cb.data);
+			free(cmdp->cmd);
+			free(cmdp);
+			if (!tcmd || tcmd == cmdp)
+				return resp;
+		}
+	}
+	/* not reached */
+}

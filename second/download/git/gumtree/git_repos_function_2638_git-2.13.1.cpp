@@ -135,4 +135,119 @@ int send_pack(struct send_pack_args *args,
 	 * Finally, tell the other end!
 	 */
 	for (ref = remote_refs; ref; ref = ref->next) {
-		char *
+		char *old_hex, *new_hex;
+
+		if (args->dry_run || push_cert_nonce)
+			continue;
+
+		if (check_to_send_update(ref, args) < 0)
+			continue;
+
+		old_hex = oid_to_hex(&ref->old_oid);
+		new_hex = oid_to_hex(&ref->new_oid);
+		if (!cmds_sent) {
+			packet_buf_write(&req_buf,
+					 "%s %s %s%c%s",
+					 old_hex, new_hex, ref->name, 0,
+					 cap_buf.buf);
+			cmds_sent = 1;
+		} else {
+			packet_buf_write(&req_buf, "%s %s %s",
+					 old_hex, new_hex, ref->name);
+		}
+	}
+
+	if (use_push_options) {
+		struct string_list_item *item;
+
+		packet_buf_flush(&req_buf);
+		for_each_string_list_item(item, args->push_options)
+			packet_buf_write(&req_buf, "%s", item->string);
+	}
+
+	if (args->stateless_rpc) {
+		if (!args->dry_run && (cmds_sent || is_repository_shallow())) {
+			packet_buf_flush(&req_buf);
+			send_sideband(out, -1, req_buf.buf, req_buf.len, LARGE_PACKET_MAX);
+		}
+	} else {
+		write_or_die(out, req_buf.buf, req_buf.len);
+		packet_flush(out);
+	}
+	strbuf_release(&req_buf);
+	strbuf_release(&cap_buf);
+
+	if (use_sideband && cmds_sent) {
+		memset(&demux, 0, sizeof(demux));
+		demux.proc = sideband_demux;
+		demux.data = fd;
+		demux.out = -1;
+		demux.isolate_sigpipe = 1;
+		if (start_async(&demux))
+			die("send-pack: unable to fork off sideband demultiplexer");
+		in = demux.out;
+	}
+
+	if (need_pack_data && cmds_sent) {
+		if (pack_objects(out, remote_refs, extra_have, args) < 0) {
+			for (ref = remote_refs; ref; ref = ref->next)
+				ref->status = REF_STATUS_NONE;
+			if (args->stateless_rpc)
+				close(out);
+			if (git_connection_is_socket(conn))
+				shutdown(fd[0], SHUT_WR);
+
+			/*
+			 * Do not even bother with the return value; we know we
+			 * are failing, and just want the error() side effects.
+			 */
+			if (status_report)
+				receive_unpack_status(in);
+
+			if (use_sideband) {
+				close(demux.out);
+				finish_async(&demux);
+			}
+			fd[1] = -1;
+			return -1;
+		}
+		if (!args->stateless_rpc)
+			/* Closed by pack_objects() via start_command() */
+			fd[1] = -1;
+	}
+	if (args->stateless_rpc && cmds_sent)
+		packet_flush(out);
+
+	if (status_report && cmds_sent)
+		ret = receive_status(in, remote_refs);
+	else
+		ret = 0;
+	if (args->stateless_rpc)
+		packet_flush(out);
+
+	if (use_sideband && cmds_sent) {
+		close(demux.out);
+		if (finish_async(&demux)) {
+			error("error in sideband demultiplexer");
+			ret = -1;
+		}
+	}
+
+	if (ret < 0)
+		return ret;
+
+	if (args->porcelain)
+		return 0;
+
+	for (ref = remote_refs; ref; ref = ref->next) {
+		switch (ref->status) {
+		case REF_STATUS_NONE:
+		case REF_STATUS_UPTODATE:
+		case REF_STATUS_OK:
+			break;
+		default:
+			return -1;
+		}
+	}
+	return 0;
+}

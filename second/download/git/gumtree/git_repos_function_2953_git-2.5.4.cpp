@@ -178,4 +178,28 @@ int main(int argc, char **argv)
 
 	if (inetd_mode) {
 		if (!freopen("/dev/null", "w", stderr))
-			die_errno("failed to redirect stderr to /dev/
+			die_errno("failed to redirect stderr to /dev/null");
+	}
+
+	if (inetd_mode || serve_mode)
+		return execute();
+
+	if (detach) {
+		if (daemonize())
+			die("--detach not supported on this platform");
+	} else
+		sanitize_stdfds();
+
+	if (pid_file)
+		write_file(pid_file, 1, "%"PRIuMAX"\n", (uintmax_t) getpid());
+
+	/* prepare argv for serving-processes */
+	cld_argv = xmalloc(sizeof (char *) * (argc + 2));
+	cld_argv[0] = argv[0];	/* git-daemon */
+	cld_argv[1] = "--serve";
+	for (i = 1; i < argc; ++i)
+		cld_argv[i+1] = argv[i];
+	cld_argv[argc+1] = NULL;
+
+	return serve(&listen_addr, listen_port, cred);
+}

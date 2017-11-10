@@ -145,4 +145,134 @@ int cmd_clone(int argc, const char **argv, const char *prefix)
 	if (option_reference.nr)
 		setup_reference();
 	else if (option_dissociate) {
-		warning(_("--dissociate given, but there is no
+		warning(_("--dissociate given, but there is no --reference"));
+		option_dissociate = 0;
+	}
+
+	fetch_pattern = value.buf;
+	refspec = parse_fetch_refspec(1, &fetch_pattern);
+
+	strbuf_reset(&value);
+
+	remote = remote_get(option_origin);
+	transport = transport_get(remote, remote->url[0]);
+	transport_set_verbosity(transport, option_verbosity, option_progress);
+
+	path = get_repo_path(remote->url[0], &is_bundle);
+	is_local = option_local != 0 && path && !is_bundle;
+	if (is_local) {
+		if (option_depth)
+			warning(_("--depth is ignored in local clones; use file:// instead."));
+		if (!access(mkpath("%s/shallow", path), F_OK)) {
+			if (option_local > 0)
+				warning(_("source repository is shallow, ignoring --local"));
+			is_local = 0;
+		}
+	}
+	if (option_local > 0 && !is_local)
+		warning(_("--local is ignored"));
+	transport->cloning = 1;
+
+	if (!transport->get_refs_list || (!is_local && !transport->fetch))
+		die(_("Don't know how to clone %s"), transport->url);
+
+	transport_set_option(transport, TRANS_OPT_KEEP, "yes");
+
+	if (option_depth)
+		transport_set_option(transport, TRANS_OPT_DEPTH,
+				     option_depth);
+	if (option_single_branch)
+		transport_set_option(transport, TRANS_OPT_FOLLOWTAGS, "1");
+
+	if (option_upload_pack)
+		transport_set_option(transport, TRANS_OPT_UPLOADPACK,
+				     option_upload_pack);
+
+	if (transport->smart_options && !option_depth)
+		transport->smart_options->check_self_contained_and_connected = 1;
+
+	refs = transport_get_remote_refs(transport);
+
+	if (refs) {
+		mapped_refs = wanted_peer_refs(refs, refspec);
+		/*
+		 * transport_get_remote_refs() may return refs with null sha-1
+		 * in mapped_refs (see struct transport->get_refs_list
+		 * comment). In that case we need fetch it early because
+		 * remote_head code below relies on it.
+		 *
+		 * for normal clones, transport_get_remote_refs() should
+		 * return reliable ref set, we can delay cloning until after
+		 * remote HEAD check.
+		 */
+		for (ref = refs; ref; ref = ref->next)
+			if (is_null_sha1(ref->old_sha1)) {
+				complete_refs_before_fetch = 0;
+				break;
+			}
+
+		if (!is_local && !complete_refs_before_fetch)
+			transport_fetch_refs(transport, mapped_refs);
+
+		remote_head = find_ref_by_name(refs, "HEAD");
+		remote_head_points_at =
+			guess_remote_head(remote_head, mapped_refs, 0);
+
+		if (option_branch) {
+			our_head_points_at =
+				find_remote_branch(mapped_refs, option_branch);
+
+			if (!our_head_points_at)
+				die(_("Remote branch %s not found in upstream %s"),
+				    option_branch, option_origin);
+		}
+		else
+			our_head_points_at = remote_head_points_at;
+	}
+	else {
+		if (option_branch)
+			die(_("Remote branch %s not found in upstream %s"),
+					option_branch, option_origin);
+
+		warning(_("You appear to have cloned an empty repository."));
+		mapped_refs = NULL;
+		our_head_points_at = NULL;
+		remote_head_points_at = NULL;
+		remote_head = NULL;
+		option_no_checkout = 1;
+		if (!option_bare)
+			install_branch_config(0, "master", option_origin,
+					      "refs/heads/master");
+	}
+
+	write_refspec_config(src_ref_prefix, our_head_points_at,
+			remote_head_points_at, &branch_top);
+
+	if (is_local)
+		clone_local(path, git_dir);
+	else if (refs && complete_refs_before_fetch)
+		transport_fetch_refs(transport, mapped_refs);
+
+	update_remote_refs(refs, mapped_refs, remote_head_points_at,
+			   branch_top.buf, reflog_msg.buf, transport, !is_local);
+
+	update_head(our_head_points_at, remote_head, reflog_msg.buf);
+
+	transport_unlock_pack(transport);
+	transport_disconnect(transport);
+
+	if (option_dissociate)
+		dissociate_from_references();
+
+	junk_mode = JUNK_LEAVE_REPO;
+	err = checkout();
+
+	strbuf_release(&reflog_msg);
+	strbuf_release(&branch_top);
+	strbuf_release(&key);
+	strbuf_release(&value);
+	junk_mode = JUNK_LEAVE_ALL;
+
+	free(refspec);
+	return err;
+}

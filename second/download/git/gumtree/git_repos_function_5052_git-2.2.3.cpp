@@ -86,4 +86,130 @@ int cmd_update_index(int argc, const char **argv, const char *prefix)
 			N_("report actions to standard output"), 1),
 		{OPTION_CALLBACK, 0, "clear-resolve-undo", NULL, NULL,
 			N_("(for porcelains) forget saved unresolved conflicts"),
-			PARSE_OP
+			PARSE_OPT_NOARG | PARSE_OPT_NONEG,
+			resolve_undo_clear_callback},
+		OPT_INTEGER(0, "index-version", &preferred_index_format,
+			N_("write index in this format")),
+		OPT_BOOL(0, "split-index", &split_index,
+			N_("enable or disable split index")),
+		OPT_END()
+	};
+
+	if (argc == 2 && !strcmp(argv[1], "-h"))
+		usage_with_options(update_index_usage, options);
+
+	git_config(git_default_config, NULL);
+
+	/* We can't free this memory, it becomes part of a linked list parsed atexit() */
+	lock_file = xcalloc(1, sizeof(struct lock_file));
+
+	newfd = hold_locked_index(lock_file, 0);
+	if (newfd < 0)
+		lock_error = errno;
+
+	entries = read_cache();
+	if (entries < 0)
+		die("cache corrupted");
+
+	/*
+	 * Custom copy of parse_options() because we want to handle
+	 * filename arguments as they come.
+	 */
+	parse_options_start(&ctx, argc, argv, prefix,
+			    options, PARSE_OPT_STOP_AT_NON_OPTION);
+	while (ctx.argc) {
+		if (parseopt_state != PARSE_OPT_DONE)
+			parseopt_state = parse_options_step(&ctx, options,
+							    update_index_usage);
+		if (!ctx.argc)
+			break;
+		switch (parseopt_state) {
+		case PARSE_OPT_HELP:
+			exit(129);
+		case PARSE_OPT_NON_OPTION:
+		case PARSE_OPT_DONE:
+		{
+			const char *path = ctx.argv[0];
+			const char *p;
+
+			setup_work_tree();
+			p = prefix_path(prefix, prefix_length, path);
+			update_one(p);
+			if (set_executable_bit)
+				chmod_path(set_executable_bit, p);
+			free((char *)p);
+			ctx.argc--;
+			ctx.argv++;
+			break;
+		}
+		case PARSE_OPT_UNKNOWN:
+			if (ctx.argv[0][1] == '-')
+				error("unknown option '%s'", ctx.argv[0] + 2);
+			else
+				error("unknown switch '%c'", *ctx.opt);
+			usage_with_options(update_index_usage, options);
+		}
+	}
+	argc = parse_options_end(&ctx);
+	if (preferred_index_format) {
+		if (preferred_index_format < INDEX_FORMAT_LB ||
+		    INDEX_FORMAT_UB < preferred_index_format)
+			die("index-version %d not in range: %d..%d",
+			    preferred_index_format,
+			    INDEX_FORMAT_LB, INDEX_FORMAT_UB);
+
+		if (the_index.version != preferred_index_format)
+			active_cache_changed |= SOMETHING_CHANGED;
+		the_index.version = preferred_index_format;
+	}
+
+	if (read_from_stdin) {
+		struct strbuf buf = STRBUF_INIT, nbuf = STRBUF_INIT;
+
+		setup_work_tree();
+		while (strbuf_getline(&buf, stdin, line_termination) != EOF) {
+			const char *p;
+			if (line_termination && buf.buf[0] == '"') {
+				strbuf_reset(&nbuf);
+				if (unquote_c_style(&nbuf, buf.buf, NULL))
+					die("line is badly quoted");
+				strbuf_swap(&buf, &nbuf);
+			}
+			p = prefix_path(prefix, prefix_length, buf.buf);
+			update_one(p);
+			if (set_executable_bit)
+				chmod_path(set_executable_bit, p);
+			free((char *)p);
+		}
+		strbuf_release(&nbuf);
+		strbuf_release(&buf);
+	}
+
+	if (split_index > 0) {
+		init_split_index(&the_index);
+		the_index.cache_changed |= SPLIT_INDEX_ORDERED;
+	} else if (!split_index && the_index.split_index) {
+		/*
+		 * can't discard_split_index(&the_index); because that
+		 * will destroy split_index->base->cache[], which may
+		 * be shared with the_index.cache[]. So yeah we're
+		 * leaking a bit here.
+		 */
+		the_index.split_index = NULL;
+		the_index.cache_changed |= SOMETHING_CHANGED;
+	}
+
+	if (active_cache_changed) {
+		if (newfd < 0) {
+			if (refresh_args.flags & REFRESH_QUIET)
+				exit(128);
+			unable_to_lock_die(get_index_file(), lock_error);
+		}
+		if (write_locked_index(&the_index, lock_file, COMMIT_LOCK))
+			die("Unable to write new index file");
+	}
+
+	rollback_lock_file(lock_file);
+
+	return has_errors ? 1 : 0;
+}

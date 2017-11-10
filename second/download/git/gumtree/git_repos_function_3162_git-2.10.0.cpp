@@ -178,21 +178,3 @@ int cmd_main(int argc, const char **argv)
 	}
 
 	if (inetd_mode || serve_mode)
-		return execute();
-
-	if (detach) {
-		if (daemonize())
-			die("--detach not supported on this platform");
-	}
-
-	if (pid_file)
-		write_file(pid_file, "%"PRIuMAX, (uintmax_t) getpid());
-
-	/* prepare argv for serving-processes */
-	argv_array_push(&cld_argv, argv[0]); /* git-daemon */
-	argv_array_push(&cld_argv, "--serve");
-	for (i = 1; i < argc; ++i)
-		argv_array_push(&cld_argv, argv[i]);
-
-	return serve(&listen_addr, listen_port, cred);
-}

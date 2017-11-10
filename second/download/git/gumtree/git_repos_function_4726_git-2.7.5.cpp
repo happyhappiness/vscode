@@ -230,4 +230,7 @@ int cmd_branch(int argc, const char **argv, const char *prefix)
 		}
 
 	} else
-		usage_with_options(builtin_branch_u
+		usage_with_options(builtin_branch_usage, options);
+
+	return 0;
+}

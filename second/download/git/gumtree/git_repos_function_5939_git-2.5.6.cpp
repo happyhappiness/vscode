@@ -268,4 +268,56 @@ re_search_internal (const regex_t *preg,
       if (!preg->no_sub && nmatch > 1)
 	{
 	  err = set_regs (preg, &mctx, nmatch, pmatch,
-			  dfa->has_plural_match && dfa->
+			  dfa->has_plural_match && dfa->nbackref > 0);
+	  if (BE (err != REG_NOERROR, 0))
+	    goto free_return;
+	}
+
+      /* At last, add the offset to the each registers, since we slided
+	 the buffers so that we could assume that the matching starts
+	 from 0.  */
+      for (reg_idx = 0; reg_idx < nmatch; ++reg_idx)
+	if (pmatch[reg_idx].rm_so != -1)
+	  {
+#ifdef RE_ENABLE_I18N
+	    if (BE (mctx.input.offsets_needed != 0, 0))
+	      {
+		pmatch[reg_idx].rm_so =
+		  (pmatch[reg_idx].rm_so == mctx.input.valid_len
+		   ? mctx.input.valid_raw_len
+		   : mctx.input.offsets[pmatch[reg_idx].rm_so]);
+		pmatch[reg_idx].rm_eo =
+		  (pmatch[reg_idx].rm_eo == mctx.input.valid_len
+		   ? mctx.input.valid_raw_len
+		   : mctx.input.offsets[pmatch[reg_idx].rm_eo]);
+	      }
+#else
+	    assert (mctx.input.offsets_needed == 0);
+#endif
+	    pmatch[reg_idx].rm_so += match_first;
+	    pmatch[reg_idx].rm_eo += match_first;
+	  }
+      for (reg_idx = 0; reg_idx < extra_nmatch; ++reg_idx)
+	{
+	  pmatch[nmatch + reg_idx].rm_so = -1;
+	  pmatch[nmatch + reg_idx].rm_eo = -1;
+	}
+
+      if (dfa->subexp_map)
+	for (reg_idx = 0; reg_idx + 1 < nmatch; reg_idx++)
+	  if (dfa->subexp_map[reg_idx] != reg_idx)
+	    {
+	      pmatch[reg_idx + 1].rm_so
+		= pmatch[dfa->subexp_map[reg_idx] + 1].rm_so;
+	      pmatch[reg_idx + 1].rm_eo
+		= pmatch[dfa->subexp_map[reg_idx] + 1].rm_eo;
+	    }
+    }
+
+ free_return:
+  re_free (mctx.state_log);
+  if (dfa->nbackref)
+    match_ctx_free (&mctx);
+  re_string_destruct (&mctx.input);
+  return err;
+}

@@ -82,4 +82,31 @@ int err_win_to_posix(DWORD winerr)
 	case ERROR_NO_PROC_SLOTS: error = EAGAIN; break;
 	case ERROR_NO_SUCH_PRIVILEGE: error = EACCES; break;
 	case ERROR_OPEN_FAILED: error = EIO; break;
-	case ERROR_O
+	case ERROR_OPEN_FILES: error = EBUSY; break;
+	case ERROR_OPERATION_ABORTED: error = EINTR; break;
+	case ERROR_OUTOFMEMORY: error = ENOMEM; break;
+	case ERROR_PASSWORD_EXPIRED: error = EACCES; break;
+	case ERROR_PATH_BUSY: error = EBUSY; break;
+	case ERROR_PATH_NOT_FOUND: error = ENOENT; break;
+	case ERROR_PIPE_BUSY: error = EBUSY; break;
+	case ERROR_PIPE_CONNECTED: error = EPIPE; break;
+	case ERROR_PIPE_LISTENING: error = EPIPE; break;
+	case ERROR_PIPE_NOT_CONNECTED: error = EPIPE; break;
+	case ERROR_PRIVILEGE_NOT_HELD: error = EACCES; break;
+	case ERROR_READ_FAULT: error = EIO; break;
+	case ERROR_SEEK: error = EIO; break;
+	case ERROR_SEEK_ON_DEVICE: error = ESPIPE; break;
+	case ERROR_SHARING_BUFFER_EXCEEDED: error = ENFILE; break;
+	case ERROR_SHARING_VIOLATION: error = EACCES; break;
+	case ERROR_STACK_OVERFLOW: error = ENOMEM; break;
+	case ERROR_SWAPERROR: error = ENOENT; break;
+	case ERROR_TOO_MANY_MODULES: error = EMFILE; break;
+	case ERROR_TOO_MANY_OPEN_FILES: error = EMFILE; break;
+	case ERROR_UNRECOGNIZED_MEDIA: error = ENXIO; break;
+	case ERROR_UNRECOGNIZED_VOLUME: error = ENODEV; break;
+	case ERROR_WAIT_NO_CHILDREN: error = ECHILD; break;
+	case ERROR_WRITE_FAULT: error = EIO; break;
+	case ERROR_WRITE_PROTECT: error = EROFS; break;
+	}
+	return error;
+}

@@ -149,4 +149,16 @@ struct delta_index * create_delta_index(const void *buf, unsigned long bufsize)
 		 * Coalesce all entries belonging to one linked list
 		 * into consecutive array entries.
 		 */
-		packed_hash[i
+		packed_hash[i] = packed_entry;
+		for (entry = hash[i]; entry; entry = entry->next)
+			*packed_entry++ = entry->entry;
+	}
+
+	/* Sentinel value to indicate the length of the last hash bucket */
+	packed_hash[hsize] = packed_entry;
+
+	assert(packed_entry - (struct index_entry *)mem == entries);
+	free(hash);
+
+	return index;
+}

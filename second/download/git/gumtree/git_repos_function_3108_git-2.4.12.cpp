@@ -176,4 +176,140 @@ int main(int argc, char **argv)
 
 		if (!hashcmp(ref->old_sha1, ref->peer_ref->new_sha1)) {
 			if (push_verbosely)
-				fpr
+				fprintf(stderr, "'%s': up-to-date\n", ref->name);
+			if (helper_status)
+				printf("ok %s up to date\n", ref->name);
+			continue;
+		}
+
+		if (!force_all &&
+		    !is_null_sha1(ref->old_sha1) &&
+		    !ref->force) {
+			if (!has_sha1_file(ref->old_sha1) ||
+			    !ref_newer(ref->peer_ref->new_sha1,
+				       ref->old_sha1)) {
+				/*
+				 * We do not have the remote ref, or
+				 * we know that the remote ref is not
+				 * an ancestor of what we are trying to
+				 * push.  Either way this can be losing
+				 * commits at the remote end and likely
+				 * we were not up to date to begin with.
+				 */
+				error("remote '%s' is not an ancestor of\n"
+				      "local '%s'.\n"
+				      "Maybe you are not up-to-date and "
+				      "need to pull first?",
+				      ref->name,
+				      ref->peer_ref->name);
+				if (helper_status)
+					printf("error %s non-fast forward\n", ref->name);
+				rc = -2;
+				continue;
+			}
+		}
+		hashcpy(ref->new_sha1, ref->peer_ref->new_sha1);
+		new_refs++;
+		strcpy(old_hex, sha1_to_hex(ref->old_sha1));
+		new_hex = sha1_to_hex(ref->new_sha1);
+
+		fprintf(stderr, "updating '%s'", ref->name);
+		if (strcmp(ref->name, ref->peer_ref->name))
+			fprintf(stderr, " using '%s'", ref->peer_ref->name);
+		fprintf(stderr, "\n  from %s\n  to   %s\n", old_hex, new_hex);
+		if (dry_run) {
+			if (helper_status)
+				printf("ok %s\n", ref->name);
+			continue;
+		}
+
+		/* Lock remote branch ref */
+		ref_lock = lock_remote(ref->name, LOCK_TIME);
+		if (ref_lock == NULL) {
+			fprintf(stderr, "Unable to lock remote branch %s\n",
+				ref->name);
+			if (helper_status)
+				printf("error %s lock error\n", ref->name);
+			rc = 1;
+			continue;
+		}
+
+		/* Set up revision info for this refspec */
+		commit_argc = 3;
+		new_sha1_hex = xstrdup(sha1_to_hex(ref->new_sha1));
+		old_sha1_hex = NULL;
+		commit_argv[1] = "--objects";
+		commit_argv[2] = new_sha1_hex;
+		if (!push_all && !is_null_sha1(ref->old_sha1)) {
+			old_sha1_hex = xmalloc(42);
+			sprintf(old_sha1_hex, "^%s",
+				sha1_to_hex(ref->old_sha1));
+			commit_argv[3] = old_sha1_hex;
+			commit_argc++;
+		}
+		commit_argv[commit_argc] = NULL;
+		init_revisions(&revs, setup_git_directory());
+		setup_revisions(commit_argc, commit_argv, &revs, NULL);
+		revs.edge_hint = 0; /* just in case */
+		free(new_sha1_hex);
+		if (old_sha1_hex) {
+			free(old_sha1_hex);
+			commit_argv[1] = NULL;
+		}
+
+		/* Generate a list of objects that need to be pushed */
+		pushing = 0;
+		if (prepare_revision_walk(&revs))
+			die("revision walk setup failed");
+		mark_edges_uninteresting(&revs, NULL);
+		objects_to_send = get_delta(&revs, ref_lock);
+		finish_all_active_slots();
+
+		/* Push missing objects to remote, this would be a
+		   convenient time to pack them first if appropriate. */
+		pushing = 1;
+		if (objects_to_send)
+			fprintf(stderr, "    sending %d objects\n",
+				objects_to_send);
+
+		run_request_queue();
+
+		/* Update the remote branch if all went well */
+		if (aborted || !update_remote(ref->new_sha1, ref_lock))
+			rc = 1;
+
+		if (!rc)
+			fprintf(stderr, "    done\n");
+		if (helper_status)
+			printf("%s %s\n", !rc ? "ok" : "error", ref->name);
+		unlock_remote(ref_lock);
+		check_locks();
+	}
+
+	/* Update remote server info if appropriate */
+	if (repo->has_info_refs && new_refs) {
+		if (info_ref_lock && repo->can_update_info_refs) {
+			fprintf(stderr, "Updating remote server info\n");
+			if (!dry_run)
+				update_remote_info_refs(info_ref_lock);
+		} else {
+			fprintf(stderr, "Unable to update server info\n");
+		}
+	}
+
+ cleanup:
+	if (info_ref_lock)
+		unlock_remote(info_ref_lock);
+	free(repo);
+
+	http_cleanup();
+
+	request = request_queue_head;
+	while (request != NULL) {
+		next_request = request->next;
+		release_request(request);
+		request = next_request;
+	}
+
+	return rc;
+}

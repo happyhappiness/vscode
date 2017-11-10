@@ -145,4 +145,25 @@ int unpack_trees(unsigned len, struct tree_desc *t, struct unpack_trees_options 
 		}
 	}
 
-	o->src_index = NUL
+	o->src_index = NULL;
+	ret = check_updates(o) ? (-2) : 0;
+	if (o->dst_index) {
+		discard_index(o->dst_index);
+		*o->dst_index = o->result;
+	} else {
+		discard_index(&o->result);
+	}
+
+done:
+	clear_exclude_list(&el);
+	return ret;
+
+return_failed:
+	if (o->show_all_errors)
+		display_error_msgs(o);
+	mark_all_ce_unused(o->src_index);
+	ret = unpack_failed(o, NULL);
+	if (o->exiting_early)
+		ret = 0;
+	goto done;
+}

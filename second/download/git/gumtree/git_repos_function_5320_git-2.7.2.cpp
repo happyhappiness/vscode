@@ -263,4 +263,27 @@ int cmd_repack(int argc, const char **argv, const char *prefix)
 	if (delete_redundant) {
 		int opts = 0;
 		string_list_sort(&names);
-		for_each_string_list_it
+		for_each_string_list_item(item, &existing_packs) {
+			char *sha1;
+			size_t len = strlen(item->string);
+			if (len < 40)
+				continue;
+			sha1 = item->string + len - 40;
+			if (!string_list_has_string(&names, sha1))
+				remove_redundant_pack(packdir, item->string);
+		}
+		if (!quiet && isatty(2))
+			opts |= PRUNE_PACKED_VERBOSE;
+		prune_packed_objects(opts);
+	}
+
+	if (!no_update_server_info)
+		update_server_info(0);
+	remove_temporary_files();
+	string_list_clear(&names, 0);
+	string_list_clear(&rollback, 0);
+	string_list_clear(&existing_packs, 0);
+	strbuf_release(&line);
+
+	return 0;
+}

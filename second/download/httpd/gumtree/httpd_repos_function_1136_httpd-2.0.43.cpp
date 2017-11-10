@@ -526,4 +526,34 @@ static int status_handler(request_rec *r)
 <table>\n \
 <tr><th>Srv</th><td>Child Server number - generation</td></tr>\n \
 <tr><th>PID</th><td>OS process ID</td></tr>\n \
-<tr><th>Acc</th><td>Number of a
+<tr><th>Acc</th><td>Number of accesses this connection / this child / this slot</td></tr>\n \
+<tr><th>M</th><td>Mode of operation</td></tr>\n"
+
+#ifdef HAVE_TIMES
+"<tr><th>CPU</th><td>CPU usage, number of seconds</td></tr>\n"
+#endif
+
+"<tr><th>SS</th><td>Seconds since beginning of most recent request</td></tr>\n \
+<tr><th>Req</th><td>Milliseconds required to process most recent request</td></tr>\n \
+<tr><th>Conn</th><td>Kilobytes transferred this connection</td></tr>\n \
+<tr><th>Child</th><td>Megabytes transferred this child</td></tr>\n \
+<tr><th>Slot</th><td>Total megabytes transferred this slot</td></tr>\n \
+</table>\n", r);
+        }
+    } /* if (ap_extended_status && !short_report) */
+    else {
+
+        if (!short_report) {
+            ap_rputs("<hr />To obtain a full report with current status "
+                     "information you need to use the "
+                     "<code>ExtendedStatus On</code> directive.\n", r);
+        }
+    }
+
+    if (!short_report) {
+        ap_rputs(ap_psignature("<hr />\n",r), r);
+        ap_rputs("</body></html>\n", r);
+    }
+
+    return 0;
+}
