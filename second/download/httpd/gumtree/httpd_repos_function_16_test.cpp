@@ -1,10 +1,12 @@
-static void write_commit_msg(const struct am_state *state)
+const void *get_cached_commit_buffer(const struct commit *commit, unsigned long *sizep)
 {
-	int fd;
-	const char *filename = am_path(state, "final-commit");
-
-	fd = xopen(filename, O_WRONLY | O_CREAT, 0666);
-	if (write_in_full(fd, state->msg, state->msg_len) < 0)
-		die_errno(_("could not write to %s"), filename);
-	close(fd);
+	struct commit_buffer *v = buffer_slab_peek(&buffer_slab, commit);
+	if (!v) {
+		if (sizep)
+			*sizep = 0;
+		return NULL;
+	}
+	if (sizep)
+		*sizep = v->size;
+	return v->buffer;
 }

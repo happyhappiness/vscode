@@ -1,35 +1,14 @@
-static int fast_forward_to(struct tree *head, struct tree *remote, int reset)
+int is_descendant_of(struct commit *commit, struct commit_list *with_commit)
 {
-	struct lock_file *lock_file;
-	struct unpack_trees_options opts;
-	struct tree_desc t[2];
+	if (!with_commit)
+		return 1;
+	while (with_commit) {
+		struct commit *other;
 
-	if (parse_tree(head) || parse_tree(remote))
-		return -1;
-
-	lock_file = xcalloc(1, sizeof(struct lock_file));
-	hold_locked_index(lock_file, 1);
-
-	refresh_cache(REFRESH_QUIET);
-
-	memset(&opts, 0, sizeof(opts));
-	opts.head_idx = 1;
-	opts.src_index = &the_index;
-	opts.dst_index = &the_index;
-	opts.update = 1;
-	opts.merge = 1;
-	opts.reset = reset;
-	opts.fn = twoway_merge;
-	init_tree_desc(&t[0], head->buffer, head->size);
-	init_tree_desc(&t[1], remote->buffer, remote->size);
-
-	if (unpack_trees(2, t, &opts)) {
-		rollback_lock_file(lock_file);
-		return -1;
+		other = with_commit->item;
+		with_commit = with_commit->next;
+		if (in_merge_bases(other, commit))
+			return 1;
 	}
-
-	if (write_locked_index(&the_index, lock_file, COMMIT_LOCK))
-		die(_("unable to write new index file"));
-
 	return 0;
 }

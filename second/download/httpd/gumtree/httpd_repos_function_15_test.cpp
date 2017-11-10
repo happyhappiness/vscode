@@ -1,14 +1,6 @@
-static int read_commit_msg(struct am_state *state)
+void set_commit_buffer(struct commit *commit, void *buffer, unsigned long size)
 {
-	struct strbuf sb = STRBUF_INIT;
-
-	assert(!state->msg);
-
-	if (read_state_file(&sb, state, "final-commit", 0) < 0) {
-		strbuf_release(&sb);
-		return -1;
-	}
-
-	state->msg = strbuf_detach(&sb, &state->msg_len);
-	return 0;
+	struct commit_buffer *v = buffer_slab_at(&buffer_slab, commit);
+	v->buffer = buffer;
+	v->size = size;
 }

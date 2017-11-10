@@ -487,9 +487,4 @@
     <expr><name pos:line="486" pos:column="5">MPM20_MODULE_STUFF<pos:position pos:line="486" pos:column="23"/></name></expr>,
     <expr><name pos:line="487" pos:column="5">ap_mpm_rewrite_args<pos:position pos:line="487" pos:column="24"/></name></expr>,        <comment type="block" pos:line="487" pos:column="33">/* hook to run before apache parses args */</comment>
     <expr><name pos:line="488" pos:column="5">NULL<pos:position pos:line="488" pos:column="9"/></name></expr>,			<comment type="block" pos:line="488" pos:column="33">/* create per-directory config structure */</comment>
-    <expr><name pos:line="489" pos:column="5">NULL<pos:position pos:line="489" pos:column="9"/></name></expr>,			<comment type="block" pos:line="489" pos:column="33">/* merge per-directory config structures */</comment>
-    <expr><name pos:line="490" pos:column="5">NULL<pos:position pos:line="490" pos:column="9"/></name></expr>,			<comment type="block" pos:line="490" pos:column="33">/* create per-server config structure */</comment>
-    <expr><name pos:line="491" pos:column="5">NULL<pos:position pos:line="491" pos:column="9"/></name></expr>,			<comment type="block" pos:line="491" pos:column="33">/* merge per-server config structures */</comment>
-    <expr><name pos:line="492" pos:column="5">prefork_cmds<pos:position pos:line="492" pos:column="17"/></name></expr>,		<comment type="block" pos:line="492" pos:column="33">/* command apr_table_t */</comment>
-    <expr><name pos:line="493" pos:column="5">prefork_hooks<pos:position pos:line="493" pos:column="18"/></name></expr>,		<comment type="block" pos:line="493" pos:column="33">/* register hooks */</comment>
-}<pos:position pos:line="494" pos:column="2"/></block></expr></init></decl>;<pos:position pos:line="494" pos:column="3"/></decl_stmt></block></function></unit>
+    <macro><name pos:line="489" pos:column="5">NU<pos:position pos:line="489" pos:column="7"/></name></macro></block></expr></init></decl></decl_stmt></block></function></unit>

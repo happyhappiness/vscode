@@ -1,33 +1,29 @@
-static int is_mail(FILE *fp)
+int parse_commit_gently(struct commit *item, int quiet_on_missing)
 {
-	const char *header_regex = "^[!-9;-~]+:";
-	struct strbuf sb = STRBUF_INIT;
-	regex_t regex;
-	int ret = 1;
+	enum object_type type;
+	void *buffer;
+	unsigned long size;
+	int ret;
 
-	if (fseek(fp, 0L, SEEK_SET))
-		die_errno(_("fseek failed"));
-
-	if (regcomp(&regex, header_regex, REG_NOSUB | REG_EXTENDED))
-		die("invalid pattern: %s", header_regex);
-
-	while (!strbuf_getline(&sb, fp)) {
-		if (!sb.len)
-			break; /* End of header */
-
-		/* Ignore indented folded lines */
-		if (*sb.buf == '\t' || *sb.buf == ' ')
-			continue;
-
-		/* It's a header if it matches header_regex */
-		if (regexec(&regex, sb.buf, 0, NULL, 0)) {
-			ret = 0;
-			goto done;
-		}
+	if (!item)
+		return -1;
+	if (item->object.parsed)
+		return 0;
+	buffer = read_sha1_file(item->object.sha1, &type, &size);
+	if (!buffer)
+		return quiet_on_missing ? -1 :
+			error("Could not read %s",
+			     sha1_to_hex(item->object.sha1));
+	if (type != OBJ_COMMIT) {
+		free(buffer);
+		return error("Object %s not a commit",
+			     sha1_to_hex(item->object.sha1));
 	}
-
-done:
-	regfree(&regex);
-	strbuf_release(&sb);
+	ret = parse_commit_buffer(item, buffer, size);
+	if (save_commit_buffer && !ret) {
+		set_commit_buffer(item, buffer, size);
+		return 0;
+	}
+	free(buffer);
 	return ret;
 }

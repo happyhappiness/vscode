@@ -1,22 +1,12 @@
-static int split_mail(struct am_state *state, enum patch_format patch_format,
-			const char **paths, int keep_cr)
+struct commit_list * commit_list_insert_by_date(struct commit *item, struct commit_list **list)
 {
-	if (keep_cr < 0) {
-		keep_cr = 0;
-		git_config_get_bool("am.keepcr", &keep_cr);
+	struct commit_list **pp = list;
+	struct commit_list *p;
+	while ((p = *pp) != NULL) {
+		if (p->item->date < item->date) {
+			break;
+		}
+		pp = &p->next;
 	}
-
-	switch (patch_format) {
-	case PATCH_FORMAT_MBOX:
-		return split_mail_mbox(state, paths, keep_cr);
-	case PATCH_FORMAT_STGIT:
-		return split_mail_conv(stgit_patch_to_mail, state, paths, keep_cr);
-	case PATCH_FORMAT_STGIT_SERIES:
-		return split_mail_stgit_series(state, paths, keep_cr);
-	case PATCH_FORMAT_HG:
-		return split_mail_conv(hg_patch_to_mail, state, paths, keep_cr);
-	default:
-		die("BUG: invalid patch_format");
-	}
-	return -1;
+	return commit_list_insert(item, pp);
 }

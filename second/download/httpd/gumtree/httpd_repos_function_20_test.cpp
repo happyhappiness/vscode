@@ -1,20 +1,18 @@
-static int run_post_rewrite_hook(const struct am_state *state)
+const void *detach_commit_buffer(struct commit *commit, unsigned long *sizep)
 {
-	struct child_process cp = CHILD_PROCESS_INIT;
-	const char *hook = find_hook("post-rewrite");
-	int ret;
+	struct commit_buffer *v = buffer_slab_peek(&buffer_slab, commit);
+	void *ret;
 
-	if (!hook)
-		return 0;
+	if (!v) {
+		if (sizep)
+			*sizep = 0;
+		return NULL;
+	}
+	ret = v->buffer;
+	if (sizep)
+		*sizep = v->size;
 
-	argv_array_push(&cp.args, hook);
-	argv_array_push(&cp.args, "rebase");
-
-	cp.in = xopen(am_path(state, "rewritten"), O_RDONLY);
-	cp.stdout_to_stderr = 1;
-
-	ret = run_command(&cp);
-
-	close(cp.in);
+	v->buffer = NULL;
+	v->size = 0;
 	return ret;
 }

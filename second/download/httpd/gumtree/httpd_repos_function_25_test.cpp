@@ -1,43 +1,8 @@
-static int split_mail_conv(mail_conv_fn fn, struct am_state *state,
-			const char **paths, int keep_cr)
+struct commit_list *commit_list_insert(struct commit *item, struct commit_list **list_p)
 {
-	static const char *stdin_only[] = {"-", NULL};
-	int i;
-
-	if (!*paths)
-		paths = stdin_only;
-
-	for (i = 0; *paths; paths++, i++) {
-		FILE *in, *out;
-		const char *mail;
-		int ret;
-
-		if (!strcmp(*paths, "-"))
-			in = stdin;
-		else
-			in = fopen(*paths, "r");
-
-		if (!in)
-			return error(_("could not open '%s' for reading: %s"),
-					*paths, strerror(errno));
-
-		mail = mkpath("%s/%0*d", state->dir, state->prec, i + 1);
-
-		out = fopen(mail, "w");
-		if (!out)
-			return error(_("could not open '%s' for writing: %s"),
-					mail, strerror(errno));
-
-		ret = fn(out, in, keep_cr);
-
-		fclose(out);
-		fclose(in);
-
-		if (ret)
-			return error(_("could not parse patch '%s'"), *paths);
-	}
-
-	state->cur = 1;
-	state->last = i;
-	return 0;
+	struct commit_list *new_list = xmalloc(sizeof(struct commit_list));
+	new_list->item = item;
+	new_list->next = *list_p;
+	*list_p = new_list;
+	return new_list;
 }

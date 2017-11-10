@@ -1,8 +1,6 @@
-static void am_destroy(const struct am_state *state)
+void unuse_commit_buffer(const struct commit *commit, const void *buffer)
 {
-	struct strbuf sb = STRBUF_INIT;
-
-	strbuf_addstr(&sb, state->dir);
-	remove_dir_recursively(&sb, 0);
-	strbuf_release(&sb);
+	struct commit_buffer *v = buffer_slab_peek(&buffer_slab, commit);
+	if (!(v && v->buffer == buffer))
+		free((void *)buffer);
 }

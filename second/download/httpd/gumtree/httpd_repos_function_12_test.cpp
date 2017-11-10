@@ -1,26 +1,9 @@
-static char *read_shell_var(FILE *fp, const char *key)
+struct commit_graft *lookup_commit_graft(const unsigned char *sha1)
 {
-	struct strbuf sb = STRBUF_INIT;
-	const char *str;
-
-	if (strbuf_getline_lf(&sb, fp))
-		goto fail;
-
-	if (!skip_prefix(sb.buf, key, &str))
-		goto fail;
-
-	if (!skip_prefix(str, "=", &str))
-		goto fail;
-
-	strbuf_remove(&sb, 0, str - sb.buf);
-
-	str = sq_dequote(sb.buf);
-	if (!str)
-		goto fail;
-
-	return strbuf_detach(&sb, NULL);
-
-fail:
-	strbuf_release(&sb);
-	return NULL;
+	int pos;
+	prepare_commit_graft();
+	pos = commit_graft_pos(sha1);
+	if (pos < 0)
+		return NULL;
+	return commit_graft[pos];
 }

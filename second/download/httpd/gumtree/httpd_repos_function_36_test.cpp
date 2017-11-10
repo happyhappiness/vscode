@@ -1,26 +1,11 @@
-static void am_signoff(struct strbuf *sb)
+void clear_commit_marks_many(int nr, struct commit **commit, unsigned int mark)
 {
-	char *cp;
-	struct strbuf mine = STRBUF_INIT;
+	struct commit_list *list = NULL;
 
-	/* Does it end with our own sign-off? */
-	strbuf_addf(&mine, "\n%s%s\n",
-		    sign_off_header,
-		    fmt_name(getenv("GIT_COMMITTER_NAME"),
-			     getenv("GIT_COMMITTER_EMAIL")));
-	if (mine.len < sb->len &&
-	    !strcmp(mine.buf, sb->buf + sb->len - mine.len))
-		goto exit; /* no need to duplicate */
-
-	/* Does it have any Signed-off-by: in the text */
-	for (cp = sb->buf;
-	     cp && *cp && (cp = strstr(cp, sign_off_header)) != NULL;
-	     cp = strchr(cp, '\n')) {
-		if (sb->buf == cp || cp[-1] == '\n')
-			break;
+	while (nr--) {
+		commit_list_insert(*commit, &list);
+		commit++;
 	}
-
-	strbuf_addstr(sb, mine.buf + !!cp);
-exit:
-	strbuf_release(&mine);
+	while (list)
+		clear_commit_marks_1(&list, pop_commit(&list), mark);
 }

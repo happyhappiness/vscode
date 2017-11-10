@@ -45,10 +45,11 @@ class SrcmlApi:
         if function_nodes is not None:
             for function_node in function_nodes:
                 # store xml function
-                function = etree.tostring(function_node)
                 function_file_name = my_constant.SAVE_REPOS_FUNCTION + str(index) + postfix + '.cpp'
                 function_xml_name = function_file_name + '.xml'
-                my_util.save_file(function, function_xml_name)
+                # function = etree.tostring(function_node)
+                # my_util.save_file(function, function_xml_name)
+                etree.ElementTree(function_node).write(function_xml_name)
                 # store source function
                 commands.getoutput('srcml -S ' + function_xml_name + ' -o ' + function_file_name)
                 self.functions.append(function_file_name)

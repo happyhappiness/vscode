@@ -1,8 +1,4 @@
-static void am_append_signoff(struct am_state *state)
+void clear_commit_marks(struct commit *commit, unsigned int mark)
 {
-	struct strbuf sb = STRBUF_INIT;
-
-	strbuf_attach(&sb, state->msg, state->msg_len, state->msg_len);
-	am_signoff(&sb);
-	state->msg = strbuf_detach(&sb, &state->msg_len);
+	clear_commit_marks_many(1, &commit, mark);
 }
