@@ -1,5 +1,6 @@
 #-*-coding: utf-8 -*-
 import os
+import re
 import csv
 import json
 from itertools import islice
@@ -57,26 +58,36 @@ def check_for_modify_rule(edit_words, curr_log):
     """
     old_edits = edit_words[0]
     new_edits = edit_words[1]
+    # log to word list
+    curr_log = my_util.remove_given_element('',\
+             re.split(my_constant.SPLIT_LOG, curr_log))
+    curr_log_copy = list(curr_log)
     # just add new things
-    # if old_edits == []:
-    #     for new_edit in new_edits:
-    #         # do not has all new
-    #         if curr_log.find(new_edit) == -1:
-    #             return "accept-true"
-    #         # has all new edit -> do not need edit
-    #         return "accept-false"
+    if old_edits == []:
+        for new_edit in new_edits:
+            # do not has all new
+            if new_edit not in curr_log_copy:
+                return "accept-true"
+            curr_log_copy.remove(new_edit)
+        # has all new edit
+        return "accept-false"
     # update old, so check whether old exist
     for old_edit in old_edits:
-        if curr_log.find(old_edit) == -1:
+        # do not have all old log -> reject(do not have all new)\
+        #                      or accept-false(new is [] or have all new)
+        if old_edit not in curr_log:
             # for deleted log, must be same old log
             if new_edits == []:
                 return "reject"
             for new_edit in new_edits:
                 # do not has all new, and do not has all old
-                if curr_log.find(new_edit) == -1:
+                if new_edit not in curr_log_copy:
                     return "reject"
+                curr_log_copy.remove(new_edit)
             # has all new edit -> do not need edit
             return "accept-false"
+        # remove matched edit
+        curr_log.remove(old_edit)
 
     # has all old edit -> need edit
     return "accept-true"

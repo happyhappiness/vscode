@@ -113,4 +113,81 @@ static void log_error_core(const char *file, int line, int module_index,
                 info.r = NULL;
                 info.rmain = NULL;
                 info.level = -1;
-                info.module_index = A
+                info.module_index = APLOG_NO_MODULE;
+            }
+
+            log_format = lines[line_number++];
+
+            if (line_number == sconf->error_log_conn->nelts) {
+                /* this is the last line of once-per-connection info */
+                line_number = 0;
+                log_conn_info = 0;
+            }
+        }
+        else if (log_req_info) {
+            /* once-per-request info */
+            if (line_number == 0) {
+                lines = (apr_array_header_t **)sconf->error_log_req->elts;
+                info.r = rmain;
+                info.rmain = rmain;
+                info.level = -1;
+                info.module_index = APLOG_NO_MODULE;
+            }
+
+            log_format = lines[line_number++];
+
+            if (line_number == sconf->error_log_req->nelts) {
+                /* this is the last line of once-per-request info */
+                line_number = 0;
+                log_req_info = 0;
+            }
+        }
+        else {
+            /* the actual error message */
+            info.r            = r;
+            info.rmain        = rmain;
+            info.level        = level_and_mask;
+            info.module_index = module_index;
+            info.file         = file;
+            info.line         = line;
+            info.status       = status;
+            log_format = sconf ? sconf->error_log_format : NULL;
+            done = 1;
+        }
+
+        /*
+         * prepare and log one line
+         */
+
+        if (log_format && !info.startup) {
+            len += do_errorlog_format(log_format, &info, errstr + len,
+                                      MAX_STRING_LEN - len,
+                                      &errstr_start, &errstr_end, fmt, args);
+        }
+        else {
+            len += do_errorlog_default(&info, errstr + len, MAX_STRING_LEN - len,
+                                       &errstr_start, &errstr_end, fmt, args);
+        }
+
+        if (!*errstr) {
+            /*
+             * Don't log empty lines. This can happen with once-per-conn/req
+             * info if an item with AP_ERRORLOG_FLAG_REQUIRED is NULL.
+             */
+            continue;
+        }
+        write_logline(errstr, len, logf, level_and_mask);
+
+        if (done) {
+            /*
+             * We don't call the error_log hook for per-request/per-conn
+             * lines, and we only pass the actual log message, not the
+             * prefix and suffix.
+             */
+            errstr[errstr_end] = '\0';
+            ap_run_error_log(&info, errstr + errstr_start);
+        }
+
+        *errstr = '\0';
+    }
+}

@@ -182,4 +182,61 @@ static int uldap_cache_check_subgroups(request_rec *r,
                     compare_nodep->sgl_processed = 1;
                 }
                 else {
-                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, A
+                    ap_log_error(APLOG_MARK, APLOG_ERR, 0, r->server, APLOGNO(01294)
+                                 "Copy of SGL failed to obtain shared memory, "
+                                 "couldn't update cache");
+                }
+            }
+        }
+        LDAP_CACHE_UNLOCK();
+      }
+    }
+
+    /*
+     * tmp_local_sgl has either been created, or copied out of the cache
+     * If tmp_local_sgl is NULL, there are no subgroups to process and we'll
+     * return false
+     */
+    result = LDAP_COMPARE_FALSE;
+    if (!tmp_local_sgl) {
+        return result;
+    }
+
+    while ((result != LDAP_COMPARE_TRUE) && (sgindex < tmp_local_sgl->len)) {
+        const char *group = NULL;
+        group = tmp_local_sgl->subgroupDNs[sgindex];
+        /*
+         * 4. Now loop through the subgroupList and call uldap_cache_compare
+         * to check for the user.
+         */
+        result = uldap_cache_compare(r, ldc, url, group, attrib, value);
+        if (result == LDAP_COMPARE_TRUE) {
+            /*
+             * 4.A. We found the user in the subgroup. Return
+             * LDAP_COMPARE_TRUE.
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01295)
+                          "Found user %s in a subgroup (%s) at level %d of %d.",
+                          r->user, group, cur_subgroup_depth+1,
+                          max_subgroup_depth);
+        }
+        else {
+            /*
+             * 4.B. We didn't find the user in this subgroup, so recurse into
+             * it and keep looking.
+             */
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01296)
+                          "User %s not found in subgroup (%s) at level %d of "
+                          "%d.", r->user, group, cur_subgroup_depth+1,
+                          max_subgroup_depth);
+            result = uldap_cache_check_subgroups(r, ldc, url, group, attrib,
+                                                 value, subgroupAttrs,
+                                                 subgroupclasses,
+                                                 cur_subgroup_depth+1,
+                                                 max_subgroup_depth);
+        }
+        sgindex++;
+    }
+
+    return result;
+}

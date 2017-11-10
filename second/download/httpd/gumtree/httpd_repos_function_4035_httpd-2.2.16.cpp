@@ -382,18 +382,4 @@ while (!anchored && start_match <= end_subject);
 
 if (using_temporary_offsets)
   {
-  DPRINTF(("Freeing temporary memory\n"));
-  (pcre_free)(match_block.offset_vector);
-  }
-
-if (match_block.partial && match_block.hitend)
-  {
-  DPRINTF((">>>> returning PCRE_ERROR_PARTIAL\n"));
-  return PCRE_ERROR_PARTIAL;
-  }
-else
-  {
-  DPRINTF((">>>> returning PCRE_ERROR_NOMATCH\n"));
-  return PCRE_ERROR_NOMATCH;
-  }
-}
+  DPRINTF(("Freein

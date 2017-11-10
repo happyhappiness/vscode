@@ -88,4 +88,33 @@ static void server_main_loop(int remaining_children_to_start, int num_buckets)
                  * scoreboard.  Somehow we don't know about this child.
                  */
                 ap_log_error(APLOG_MARK, APLOG_WARNING, 0,
-                             ap_s
+                             ap_server_conf, APLOGNO(00488)
+                             "long lost child came home! (pid %ld)",
+                             (long) pid.pid);
+            }
+            /* Don't perform idle maintenance when a child dies,
+             * only do it when there's a timeout.  Remember only a
+             * finite number of children can die, and it's pretty
+             * pathological for a lot to die suddenly.
+             */
+            continue;
+        }
+        else if (remaining_children_to_start) {
+            /* we hit a 1 second timeout in which none of the previous
+             * generation of children needed to be reaped... so assume
+             * they're all done, and pick up the slack if any is left.
+             */
+            startup_children(remaining_children_to_start);
+            remaining_children_to_start = 0;
+            /* In any event we really shouldn't do the code below because
+             * few of the servers we just started are in the IDLE state
+             * yet, so we'd mistakenly create an extra server.
+             */
+            continue;
+        }
+
+        for (i = 0; i < num_buckets; i++) {
+            perform_idle_server_maintenance(i, num_buckets);
+        }
+    }
+}

@@ -99,4 +99,85 @@ static int worker_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s)
         if (!child_fatal) {
             /* cleanup pid file on normal shutdown */
             ap_remove_pid(pconf, ap_pid_fname);
-     
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00296)
+                         "caught " AP_SIG_GRACEFUL_STOP_STRING
+                         ", shutting down gracefully");
+        }
+
+        if (ap_graceful_shutdown_timeout) {
+            cutoff = apr_time_now() +
+                     apr_time_from_sec(ap_graceful_shutdown_timeout);
+        }
+
+        /* Don't really exit until each child has finished */
+        shutdown_pending = 0;
+        do {
+            /* Pause for a second */
+            apr_sleep(apr_time_from_sec(1));
+
+            /* Relieve any children which have now exited */
+            ap_relieve_child_processes(worker_note_child_killed);
+
+            active_children = 0;
+            for (index = 0; index < ap_daemons_limit; ++index) {
+                if (ap_mpm_safe_kill(MPM_CHILD_PID(index), 0) == APR_SUCCESS) {
+                    active_children = 1;
+                    /* Having just one child is enough to stay around */
+                    break;
+                }
+            }
+        } while (!shutdown_pending && active_children &&
+                 (!ap_graceful_shutdown_timeout || apr_time_now() < cutoff));
+
+        /* We might be here because we received SIGTERM, either
+         * way, try and make sure that all of our processes are
+         * really dead.
+         */
+        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_RESTART);
+        ap_reclaim_child_processes(1, worker_note_child_killed);
+
+        return DONE;
+    }
+
+    /* we've been told to restart */
+    apr_signal(SIGHUP, SIG_IGN);
+
+    if (one_process) {
+        /* not worth thinking about */
+        return DONE;
+    }
+
+    /* advance to the next generation */
+    /* XXX: we really need to make sure this new generation number isn't in
+     * use by any of the children.
+     */
+    ++retained->my_generation;
+    ap_scoreboard_image->global->running_generation = retained->my_generation;
+
+    if (retained->is_graceful) {
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00297)
+                     AP_SIG_GRACEFUL_STRING " received.  Doing graceful restart");
+        /* wake up the children...time to die.  But we'll have more soon */
+        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_GRACEFUL);
+
+
+        /* This is mostly for debugging... so that we know what is still
+         * gracefully dealing with existing request.
+         */
+
+    }
+    else {
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+        ap_mpm_podx_killpg(pod, ap_daemons_limit, AP_MPM_PODX_RESTART);
+
+        ap_reclaim_child_processes(1, /* Start with SIGTERM */
+                                   worker_note_child_killed);
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, ap_server_conf, APLOGNO(00298)
+                    "SIGHUP received.  Attempting to restart");
+    }
+
+    return OK;
+}

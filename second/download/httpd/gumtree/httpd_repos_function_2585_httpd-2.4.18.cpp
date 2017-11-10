@@ -96,4 +96,38 @@ static apr_status_t get_mplx_next(h2_worker *worker, h2_mplx **pm,
                     ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
                                  "h2_worker(%d): waiting signal (eternal), "
                                  "worker_count=%d", worker->id, 
-              
+                                 (int)workers->worker_count);
+                    apr_thread_cond_wait(workers->mplx_added, workers->lock);
+                }
+            }
+        }
+        
+        /* Here, we either have gotten task and mplx for the worker or
+         * needed to give up with more than enough workers.
+         */
+        if (task) {
+            ap_log_error(APLOG_MARK, APLOG_TRACE1, 0, workers->s,
+                         "h2_worker(%d): start task(%s)",
+                         h2_worker_get_id(worker), task->id);
+            /* Since we hand out a reference to the worker, we increase
+             * its ref count.
+             */
+            h2_mplx_reference(m);
+            *pm = m;
+            *ptask = task;
+            
+            if (has_more && workers->idle_worker_count > 1) {
+                apr_thread_cond_signal(workers->mplx_added);
+            }
+            status = APR_SUCCESS;
+        }
+        else {
+            status = APR_EOF;
+        }
+        
+        --workers->idle_worker_count;
+        apr_thread_mutex_unlock(workers->lock);
+    }
+    
+    return status;
+}

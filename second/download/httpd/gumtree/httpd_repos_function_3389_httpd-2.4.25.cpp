@@ -97,4 +97,37 @@ static int privileges_req(request_rec *r)
         }
         if (cfg->gid && (setgid(cfg->gid) == -1)) {
             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02146)
-  
+                          "Error setting group");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+    /* set vhost's privileges */
+    if (setppriv(PRIV_SET, PRIV_EFFECTIVE, cfg->priv) == -1) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r, APLOGNO(02147)
+                      "Error setting effective privileges");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* ... including those of any subprocesses */
+    if (setppriv(PRIV_SET, PRIV_INHERITABLE, cfg->child_priv) == -1) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r, APLOGNO(02148)
+                      "Error setting inheritable privileges");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+    if (setppriv(PRIV_SET, PRIV_LIMIT, cfg->child_priv) == -1) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r, APLOGNO(02149)
+                      "Error setting limit privileges");
+        return HTTP_INTERNAL_SERVER_ERROR;
+    }
+
+    /* If we're in a child process, drop down PPERM too */
+    if (fork_req) {
+        if (setppriv(PRIV_SET, PRIV_PERMITTED, cfg->priv) == -1) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, errno, r, APLOGNO(02150)
+                          "Error setting permitted privileges");
+            return HTTP_INTERNAL_SERVER_ERROR;
+        }
+    }
+
+    return OK;
+}

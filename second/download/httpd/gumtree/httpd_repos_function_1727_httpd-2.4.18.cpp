@@ -297,4 +297,98 @@ static void output_directories(struct ent **ar, int n,
                     ap_rvputs(r, "<img src=\"",
                               ap_escape_html(scratch,
                                              ar[x]->icon ? ar[x]->icon
-                        
+                                                         : d->default_icon),
+                              "\" alt=\"[", (ar[x]->alt ? ar[x]->alt : "   "),
+                              "]\"", NULL);
+                    if (d->icon_width) {
+                        ap_rprintf(r, " width=\"%d\"", d->icon_width);
+                    }
+                    if (d->icon_height) {
+                        ap_rprintf(r, " height=\"%d\"", d->icon_height);
+                    }
+
+                    if (autoindex_opts & EMIT_XHTML) {
+                        ap_rputs(" /", r);
+                    }
+                    ap_rputs(">", r);
+                }
+                else {
+                    ap_rputs("     ", r);
+                }
+                if (autoindex_opts & ICONS_ARE_LINKS) {
+                    ap_rputs("</a> ", r);
+                }
+                else {
+                    ap_rputc(' ', r);
+                }
+            }
+            nwidth = strlen(t2);
+            if (nwidth > name_width) {
+                memcpy(name_scratch, t2, name_width - 3);
+                name_scratch[name_width - 3] = '.';
+                name_scratch[name_width - 2] = '.';
+                name_scratch[name_width - 1] = '>';
+                name_scratch[name_width] = 0;
+                t2 = name_scratch;
+                nwidth = name_width;
+            }
+            ap_rvputs(r, "<a href=\"", anchor, "\">",
+                      ap_escape_html(scratch, t2),
+                      "</a>", pad_scratch + nwidth, NULL);
+            /*
+             * The blank before the storm.. er, before the next field.
+             */
+            ap_rputs(" ", r);
+            if (!(autoindex_opts & SUPPRESS_LAST_MOD)) {
+                if (ar[x]->lm != -1) {
+                    char time_str[32];
+                    apr_time_exp_t ts;
+                    apr_time_exp_lt(&ts, ar[x]->lm);
+                    apr_strftime(time_str, &rv, sizeof(time_str),
+                                "%Y-%m-%d %H:%M  ", &ts);
+                    ap_rputs(time_str, r);
+                }
+                else {
+                    /*Length="1975-04-07 01:23  " (see 4 lines above) */
+                    ap_rputs("                   ", r);
+                }
+            }
+            if (!(autoindex_opts & SUPPRESS_SIZE)) {
+                char buf[5];
+                ap_rputs(apr_strfsize(ar[x]->size, buf), r);
+                ap_rputs("  ", r);
+            }
+            if (!(autoindex_opts & SUPPRESS_DESC)) {
+                if (ar[x]->desc) {
+                    ap_rputs(terminate_description(d, ar[x]->desc,
+                                                   autoindex_opts,
+                                                   desc_width), r);
+                }
+            }
+            ap_rputc('\n', r);
+        }
+        else {
+            ap_rvputs(r, "<li><a href=\"", anchor, "\"> ",
+                      ap_escape_html(scratch, t2),
+                      "</a></li>\n", NULL);
+        }
+    }
+    if (autoindex_opts & TABLE_INDEXING) {
+        ap_rvputs(r, breakrow, "</table>\n", NULL);
+    }
+    else if (autoindex_opts & FANCY_INDEXING) {
+        if (!(autoindex_opts & SUPPRESS_RULES)) {
+            ap_rputs("<hr", r);
+            if (autoindex_opts & EMIT_XHTML) {
+                ap_rputs(" /", r);
+            }
+            ap_rputs("></pre>\n", r);
+        }
+        else {
+            ap_rputs("</pre>\n", r);
+        }
+    }
+    else {
+        ap_rputs("</ul>\n", r);
+    }
+}

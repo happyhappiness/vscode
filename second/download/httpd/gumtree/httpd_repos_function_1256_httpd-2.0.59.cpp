@@ -1122,47 +1122,4 @@ int ap_proxy_ftp_handler(request_rec *r, proxy_server_conf *conf,
                 finish = TRUE;
             }
 
-            /* make sure we always clean up after ourselves */
-            apr_brigade_cleanup(bb);
-
-            /* if we are done, leave */
-            if (TRUE == finish) {
-                break;
-            }
-        }
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: end body send");
-
-    }
-    if (data_sock) {
-        ap_flush_conn(data);
-        apr_socket_close(data_sock);
-        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
-                     "proxy: FTP: data connection closed");
-    }
-
-    /* Retrieve the final response for the RETR or LIST commands */
-    rc = proxy_ftp_command(NULL, r, origin, bb, &ftpmessage);
-    apr_brigade_cleanup(bb);
-
-    /*
-     * VII: Clean Up -------------
-     *
-     * If there are no KeepAlives, or if the connection has been signalled to
-     * close, close the socket and clean up
-     */
-
-    /* finish */
-    rc = proxy_ftp_command("QUIT" CRLF,
-                           r, origin, bb, &ftpmessage);
-    /* responses: 221, 500 */
-    /* 221 Service closing control connection. */
-    /* 500 Syntax error, command unrecognized. */
-    ap_flush_conn(origin);
-    if (origin_sock) {
-        apr_socket_close(origin_sock);
-        origin_sock = NULL;
-    }
-    apr_brigade_destroy(bb);
-    return OK;
-}
+            /* make

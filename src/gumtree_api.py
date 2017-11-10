@@ -254,9 +254,10 @@ class Gumtree:
         @ involve split log into tokens, remove exact match tokens to get edit words\n
         """
         # split to get list of words
-        log_spliter = r'[^\w%&/\[\]\*\\]'
-        old_log = my_util.remove_given_element('', re.split(log_spliter, old_log))
-        new_log = my_util.remove_given_element('', re.split(log_spliter, new_log))
+        old_log = my_util.remove_given_element('', \
+                        re.split(my_constant.SPLIT_LOG, old_log))
+        new_log = my_util.remove_given_element('', \
+                        re.split(my_constant.SPLIT_LOG, new_log))
         # get edition(match and compute delta)
         edit_words = []
         edit_feature = []

@@ -108,4 +108,57 @@ static void child_main(int child_num_arg)
                            * quickly than the dispatch of the signal thread
                            * beats the Pipe of Death and the browsers
                            */
-        /* A terminating signal was receiv
+        /* A terminating signal was received. Now join each of the
+         * workers to clean them up.
+         *   If the worker already exited, then the join frees
+         *   their resources and returns.
+         *   If the worker hasn't exited, then this blocks until
+         *   they have (then cleans up).
+         */
+        join_workers(ts->listener, threads);
+    }
+    else { /* !one_process */
+        /* remove SIGTERM from the set of blocked signals...  if one of
+         * the other threads in the process needs to take us down
+         * (e.g., for MaxRequestsPerChild) it will send us SIGTERM
+         */
+        unblock_signal(SIGTERM);
+        apr_signal(SIGTERM, dummy_signal_handler);
+        /* Watch for any messages from the parent over the POD */
+        while (1) {
+            rv = ap_worker_pod_check(pod);
+            if (rv == AP_NORESTART) {
+                /* see if termination was triggered while we slept */
+                switch(terminate_mode) {
+                case ST_GRACEFUL:
+                    rv = AP_GRACEFUL;
+                    break;
+                case ST_UNGRACEFUL:
+                    rv = AP_RESTART;
+                    break;
+                }
+            }
+            if (rv == AP_GRACEFUL || rv == AP_RESTART) {
+                /* make sure the start thread has finished;
+                 * signal_threads() and join_workers depend on that
+                 */
+                join_start_thread(start_thread_id);
+                signal_threads(rv == AP_GRACEFUL ? ST_GRACEFUL : ST_UNGRACEFUL);
+                break;
+            }
+        }
+
+        /* A terminating signal was received. Now join each of the
+         * workers to clean them up.
+         *   If the worker already exited, then the join frees
+         *   their resources and returns.
+         *   If the worker hasn't exited, then this blocks until
+         *   they have (then cleans up).
+         */
+        join_workers(ts->listener, threads);
+    }
+
+    free(threads);
+
+    clean_child_exit(resource_shortage ? APEXIT_CHILDSICK : 0);
+}

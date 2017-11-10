@@ -122,21 +122,4 @@ static const char *load_module(cmd_parms *cmd, void *dummy,
     }
 
     /* 
-     * Add this module to the Apache core structures
-     */
-    ap_add_loaded_module(modp, cmd->pool);
-
-    /* 
-     * Register a cleanup in the config apr_pool_t (normally pconf). When
-     * we do a restart (or shutdown) this cleanup will cause the
-     * shared object to be unloaded.
-     */
-    apr_pool_cleanup_register(cmd->pool, modi, unload_module, apr_pool_cleanup_null);
-
-    /* 
-     * Finally we need to run the configuration process for the module
-     */
-    ap_single_module_configure(cmd->pool, cmd->server, modp);
-
-    return NULL;
-}
+     * Add this module to th

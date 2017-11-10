@@ -183,11 +183,4 @@ static void perform_idle_server_maintenance(void)
                 --retained->hold_off_on_exponential_spawning;
             }
             else if (retained->idle_spawn_rate < MAX_SPAWN_RATE) {
-                retained->idle_spawn_rate *= 2;
-            }
-        }
-    }
-    else {
-      retained->idle_spawn_rate = 1;
-    }
-}
+                retained->idle_spa

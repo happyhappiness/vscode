@@ -305,4 +305,43 @@ apr_status_t ap_http_filter(ap_filter_t *f, apr_bucket_brigade *b,
                 }
             }
 
-     
+            /* If we have no more bytes remaining on a C-L request,
+             * save the caller a round trip to discover EOS.
+             */
+            if (ctx->state == BODY_LENGTH && ctx->remaining == 0) {
+                e = apr_bucket_eos_create(f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(b, e);
+                ctx->eos_sent = 1;
+            }
+
+            break;
+        }
+        case BODY_CHUNK_TRAILER: {
+
+            rv = ap_get_brigade(f->next, b, mode, block, readbytes);
+
+            /* for timeout */
+            if (block == APR_NONBLOCK_READ
+                    && ((rv == APR_SUCCESS && APR_BRIGADE_EMPTY(b))
+                            || (APR_STATUS_IS_EAGAIN(rv)))) {
+                return APR_EAGAIN;
+            }
+
+            if (rv != APR_SUCCESS) {
+                return rv;
+            }
+
+            break;
+        }
+        default: {
+            /* Should not happen */
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, f->r, APLOGNO(02901)
+                          "Unexpected body state (%i)", (int)ctx->state);
+            return APR_EGENERAL;
+        }
+        }
+
+    } while (again);
+
+    return APR_SUCCESS;
+}

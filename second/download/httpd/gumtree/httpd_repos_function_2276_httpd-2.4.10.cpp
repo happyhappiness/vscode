@@ -391,4 +391,83 @@ jtcommon:
                     return -1;
                 }
                 if (text(commands, fnamebuf, &fnamebuf[APR_PATH_MAX]) == NULL) {
-                    command_err
+                    command_errf(commands, SEDERR_FNTL, commands->linebuf);
+                    return -1;
+                }
+                for (i = commands->nfiles - 1; i >= 0; i--)
+                    if (strcmp(fnamebuf,commands->fname[i]) == 0) {
+                        commands->rep->findex = i;
+                        goto done;
+                    }
+                if (commands->nfiles >= NWFILES) {
+                    command_errf(commands, SEDERR_TMWFMES);
+                    return -1;
+                }
+                commands->fname[commands->nfiles] =
+                            apr_pstrdup(commands->pool, fnamebuf);
+                if (commands->fname[commands->nfiles] == NULL) {
+                    command_errf(commands, SEDERR_OOMMES);
+                    return -1;
+                }
+                commands->rep->findex = commands->nfiles++;
+            }
+            break;
+
+        case 'w':
+            commands->rep->command = WCOM;
+            if (*commands->cp++ != ' ') {
+                command_errf(commands, SEDERR_SMMES, commands->linebuf);
+                return -1;
+            }
+            if (text(commands, fnamebuf, &fnamebuf[APR_PATH_MAX]) == NULL) {
+                command_errf(commands, SEDERR_FNTL, commands->linebuf);
+                return -1;
+            }
+            for (i = commands->nfiles - 1; i >= 0; i--)
+                if (strcmp(fnamebuf, commands->fname[i]) == 0) {
+                    commands->rep->findex = i;
+                    goto done;
+                }
+            if (commands->nfiles >= NWFILES) {
+                command_errf(commands, SEDERR_TMWFMES);
+                return -1;
+            }
+            if ((commands->fname[commands->nfiles] =
+                        apr_pstrdup(commands->pool, fnamebuf)) == NULL) {
+                command_errf(commands, SEDERR_OOMMES);
+                return -1;
+            }
+
+            commands->rep->findex = commands->nfiles++;
+            break;
+
+        case 'x':
+            commands->rep->command = XCOM;
+            break;
+
+        case 'y':
+            commands->rep->command = YCOM;
+            commands->sseof = *commands->cp++;
+            commands->rep->re1 = p;
+            p = ycomp(commands, commands->rep->re1);
+            if (p == NULL)
+                return -1;
+            break;
+        }
+done:
+        commands->rep = alloc_reptr(commands);
+
+        commands->rep->ad1 = p;
+
+        if (*commands->cp++ != '\0') {
+            if (commands->cp[-1] == ';')
+                goto comploop;
+            command_errf(commands, SEDERR_CGMES, commands->linebuf);
+            return -1;
+        }
+    }
+    commands->rep->command = 0;
+    commands->lastre = op;
+
+    return 0;
+}

@@ -159,4 +159,64 @@ static int parse(server_rec *serv, apr_pool_t *p, char *l, int lineno)
         ++l;
         m->mask = signextend(serv, m, strtol(l, &l, 0));
     }
-   
+    else
+        m->mask = ~0L;
+    EATAB;
+
+    switch (*l) {
+    case '>':
+    case '<':
+        /* Old-style anding: "0 byte &0x80 dynamically linked" */
+    case '&':
+    case '^':
+    case '=':
+        m->reln = *l;
+        ++l;
+        break;
+    case '!':
+        if (m->type != STRING) {
+            m->reln = *l;
+            ++l;
+            break;
+        }
+        /* FALL THROUGH */
+    default:
+        if (*l == 'x' && apr_isspace(l[1])) {
+            m->reln = *l;
+            ++l;
+            goto GetDesc;  /* Bill The Cat */
+        }
+        m->reln = '=';
+        break;
+    }
+    EATAB;
+
+    if (getvalue(serv, m, &l))
+        return -1;
+    /*
+     * now get last part - the description
+     */
+  GetDesc:
+    EATAB;
+    if (l[0] == '\b') {
+        ++l;
+        m->nospflag = 1;
+    }
+    else if ((l[0] == '\\') && (l[1] == 'b')) {
+        ++l;
+        ++l;
+        m->nospflag = 1;
+    }
+    else
+        m->nospflag = 0;
+    strncpy(m->desc, l, sizeof(m->desc) - 1);
+    m->desc[sizeof(m->desc) - 1] = '\0';
+
+#if MIME_MAGIC_DEBUG
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, serv,
+                MODNAME ": parse line=%d m=%x next=%x cont=%d desc=%s",
+                lineno, m, m->next, m->cont_level, m->desc);
+#endif /* MIME_MAGIC_DEBUG */
+
+    return 0;
+}

@@ -100,4 +100,98 @@ static int authenticate_form_authn(request_rec * r)
 
         /* create a subrequest of our current uri */
         rr = ap_sub_req_lookup_uri(r->uri, r, r->input_filters);
-        
+        rr->headers_in = r->headers_in;
+
+        /* run the insert_filters hook on the subrequest to ensure a body read can
+         * be done properly.
+         */
+        ap_run_insert_filter(rr);
+
+        /* parse the form by reading the subrequest */
+        rv = get_form_auth(rr, conf->username, conf->password, conf->location,
+                           conf->method, conf->mimetype, conf->body,
+                           &sent_user, &sent_pw, &sent_loc, &sent_method,
+                           &sent_mimetype, &sent_body, conf);
+
+        /* make sure any user detected within the subrequest is saved back to
+         * the main request.
+         */
+        r->user = apr_pstrdup(r->pool, rr->user);
+
+        /* we cannot clean up rr at this point, as memory allocated to rr is
+         * referenced from the main request. It will be cleaned up when the
+         * main request is cleaned up.
+         */
+
+        /* insert the kept_body filter on the main request to guarantee the
+         * input filter stack cannot be read a second time, optionally inject
+         * a saved body if one was specified in the login form.
+         */
+        if (sent_body && sent_mimetype) {
+            apr_table_set(r->headers_in, "Content-Type", sent_mimetype);
+            r->kept_body = sent_body;
+        }
+        else {
+            r->kept_body = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+        }
+        ap_request_insert_filter_fn(r);
+
+        /* did the form ask to change the method? if so, switch in the redirect handler
+         * to relaunch this request as the subrequest with the new method. If the
+         * form didn't specify a method, the default value GET will force a redirect.
+         */
+        if (sent_method && strcmp(r->method, sent_method)) {
+            r->handler = FORM_REDIRECT_HANDLER;
+        }
+
+        /* check the authn in the main request, based on the username found */
+        if (OK == rv) {
+            rv = check_authn(r, sent_user, sent_pw);
+            if (OK == rv) {
+                fake_basic_authentication(r, conf, sent_user, sent_pw);
+                set_session_auth(r, sent_user, sent_pw, conf->site);
+                if (sent_loc) {
+                    apr_table_set(r->headers_out, "Location", sent_loc);
+                    return HTTP_MOVED_PERMANENTLY;
+                }
+                if (conf->loginsuccess) {
+                    apr_table_set(r->headers_out, "Location", conf->loginsuccess);
+                    return HTTP_MOVED_PERMANENTLY;
+                }
+            }
+        }
+
+    }
+
+    /*
+     * did the admin prefer to be redirected to the login page on failure
+     * instead?
+     */
+    if (HTTP_UNAUTHORIZED == rv && conf->loginrequired) {
+        apr_table_set(r->headers_out, "Location", conf->loginrequired);
+        return HTTP_MOVED_PERMANENTLY;
+    }
+
+    /* did the user ask to be redirected on login success? */
+    if (sent_loc) {
+        apr_table_set(r->headers_out, "Location", sent_loc);
+        rv = HTTP_MOVED_PERMANENTLY;
+    }
+
+
+    /*
+     * potential security issue: if we return a login to the browser, we must
+     * send a no-store to make sure a well behaved browser will not try and
+     * send the login details a second time if the back button is pressed.
+     *
+     * if the user has full control over the backend, the
+     * AuthCookieDisableNoStore can be used to turn this off.
+     */
+    if (HTTP_UNAUTHORIZED == rv && !conf->disable_no_store) {
+        apr_table_addn(r->headers_out, "Cache-Control", "no-store");
+        apr_table_addn(r->err_headers_out, "Cache-Control", "no-store");
+    }
+
+    return rv;
+
+}

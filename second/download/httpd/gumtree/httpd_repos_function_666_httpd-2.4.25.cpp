@@ -96,4 +96,65 @@ int ssl_pphrase_Handle_CB(char *buf, int bufsize, int verify, void *srv)
         for (;;) {
             apr_file_puts(prompt, writetty);
             if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
-                i = pipe_
+                i = pipe_get_passwd_cb(buf, bufsize, "", FALSE);
+            }
+            else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
+                i = EVP_read_pw_string(buf, bufsize, "", FALSE);
+            }
+            if (i != 0) {
+                PEMerr(PEM_F_PEM_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
+                memset(buf, 0, (unsigned int)bufsize);
+                return (-1);
+            }
+            len = strlen(buf);
+            if (len < 1)
+                apr_file_printf(writetty, "Apache:mod_ssl:Error: Pass phrase empty (needs to be at least 1 character).\n");
+            else
+                break;
+        }
+    }
+
+    /*
+     * Filter program
+     */
+    else if (sc->server->pphrase_dialog_type == SSL_PPTYPE_FILTER) {
+        const char *cmd = sc->server->pphrase_dialog_path;
+        const char **argv = apr_palloc(ppcb_arg->p, sizeof(char *) * 4);
+        const char *idx = ap_strrchr_c(ppcb_arg->key_id, ':') + 1;
+        char *result;
+        int i;
+
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, ppcb_arg->s, APLOGNO(01969)
+                     "Init: Requesting pass phrase from dialog filter "
+                     "program (%s)", cmd);
+
+        argv[0] = cmd;
+        argv[1] = apr_pstrndup(ppcb_arg->p, ppcb_arg->key_id,
+                               idx-1 - ppcb_arg->key_id);
+        if ((i = atoi(idx)) < CERTKEYS_IDX_MAX+1) {
+            /*
+             * For compatibility with existing 2.4.x configurations, use
+             * "RSA", "DSA" and "ECC" strings for the first two/three keys
+             */
+            argv[2] = key_types[i];
+        } else {
+            /* Four and above: use the integer index */
+            argv[2] = apr_pstrdup(ppcb_arg->p, idx);
+        }
+        argv[3] = NULL;
+
+        result = ssl_util_readfilter(ppcb_arg->s, ppcb_arg->p, cmd, argv);
+        apr_cpystrn(buf, result, bufsize);
+        len = strlen(buf);
+    }
+
+    /*
+     * Ok, we now have the pass phrase, so give it back
+     */
+    ppcb_arg->cpPassPhraseCur = apr_pstrdup(ppcb_arg->p, buf);
+
+    /*
+     * And return its length to OpenSSL...
+     */
+    return (len);
+}

@@ -101,4 +101,5 @@
     <expr_stmt><expr><call><name pos:line="100" pos:column="5">apr_socket_close<pos:position pos:line="100" pos:column="21"/></name><argument_list pos:line="100" pos:column="21">(<argument><expr><name pos:line="100" pos:column="22">sock<pos:position pos:line="100" pos:column="26"/></name></expr></argument>)<pos:position pos:line="100" pos:column="27"/></argument_list></call></expr>;<pos:position pos:line="100" pos:column="28"/></expr_stmt>
     <expr_stmt><expr><call><name pos:line="101" pos:column="5">apr_pool_destroy<pos:position pos:line="101" pos:column="21"/></name><argument_list pos:line="101" pos:column="21">(<argument><expr><name pos:line="101" pos:column="22">p<pos:position pos:line="101" pos:column="23"/></name></expr></argument>)<pos:position pos:line="101" pos:column="24"/></argument_list></call></expr>;<pos:position pos:line="101" pos:column="25"/></expr_stmt>
 
-    <macro><name pos:line="103" pos:column="5">retu<pos:position pos:line="103" pos:column="9"/></name></macro></block></function></unit>
+    <return pos:line="103" pos:column="5">return <expr><name pos:line="103" pos:column="12">rv<pos:position pos:line="103" pos:column="14"/></name></expr>;<pos:position pos:line="103" pos:column="15"/></return>
+}<pos:position pos:line="104" pos:column="2"/></block></function></unit>

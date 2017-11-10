@@ -92,4 +92,53 @@ static apr_status_t spool_reqbody_cl(apr_pool_t *p,
                 return status;
             }
 
-      
+        }
+
+        bytes_spooled += bytes;
+
+        if (seen_eos) {
+            break;
+        }
+
+        status = ap_get_brigade(r->input_filters, input_brigade,
+                                AP_MODE_READBYTES, APR_BLOCK_READ,
+                                HUGE_STRING_LEN);
+
+        if (status != APR_SUCCESS) {
+            return status;
+        }
+    }
+
+    if (bytes_spooled || force_cl) {
+        add_cl(p, bucket_alloc, header_brigade, apr_off_t_toa(p, bytes_spooled));
+    }
+    terminate_headers(bucket_alloc, header_brigade);
+    APR_BRIGADE_CONCAT(header_brigade, body_brigade);
+    if (tmpfile) {
+        /* For platforms where the size of the file may be larger than
+         * that which can be stored in a single bucket (where the
+         * length field is an apr_size_t), split it into several
+         * buckets: */
+        if (sizeof(apr_off_t) > sizeof(apr_size_t)
+            && fsize > AP_MAX_SENDFILE) {
+            e = apr_bucket_file_create(tmpfile, 0, AP_MAX_SENDFILE, p,
+                                       bucket_alloc);
+            while (fsize > AP_MAX_SENDFILE) {
+                apr_bucket *ce;
+                apr_bucket_copy(e, &ce);
+                APR_BRIGADE_INSERT_TAIL(header_brigade, ce);
+                e->start += AP_MAX_SENDFILE;
+                fsize -= AP_MAX_SENDFILE;
+            }
+            e->length = (apr_size_t)fsize; /* Resize just the last bucket */
+        }
+        else {
+            e = apr_bucket_file_create(tmpfile, 0, (apr_size_t)fsize, p,
+                                       bucket_alloc);
+        }
+        APR_BRIGADE_INSERT_TAIL(header_brigade, e);
+    }
+    /* This is all a single brigade, pass with flush flagged */
+    status = pass_brigade(bucket_alloc, r, p_conn, origin, header_brigade, 1);
+    return status;
+}

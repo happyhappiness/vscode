@@ -143,4 +143,57 @@ int main(int argc, const char * const argv[])
             /* Add to cache */
             *space = '\0';
             apr_hash_set(cache, line, APR_HASH_KEY_STRING,
-                         apr_pstrdup(apr
+                         apr_pstrdup(apr_hash_pool_get(cache), line));
+            continue;
+        }
+
+        /* Perform a double lookup */
+        if (doublelookups) {
+            /* Do a forward lookup on our hostname, and see if that matches our
+             * original IP address.
+             */
+            status = apr_sockaddr_info_get(&ipdouble, hostname, ip->family, 0,
+                                           0, pline);
+            if (status == APR_SUCCESS ||
+                memcmp(ipdouble->ipaddr_ptr, ip->ipaddr_ptr, ip->ipaddr_len)) {
+                /* Double-lookup failed  */
+                *space = ' ';
+                apr_file_puts(line, outfile);
+                doublefailed++;
+
+                /* Add to cache */
+                *space = '\0';
+                apr_hash_set(cache, line, APR_HASH_KEY_STRING,
+                             apr_pstrdup(apr_hash_pool_get(cache), line));
+                continue;
+            }
+        }
+
+        /* Outout the resolved name */
+        apr_file_printf(outfile, "%s %s", hostname, space + 1);
+
+        /* Store it in the cache */
+        apr_hash_set(cache, line, APR_HASH_KEY_STRING,
+                     apr_pstrdup(apr_hash_pool_get(cache), hostname));
+
+        apr_pool_clear(pline);
+    }
+
+    /* Flush any remaining output */
+    apr_file_flush(outfile);
+
+    if (stats) {
+        apr_file_t *statsfile;
+        if (apr_file_open(&statsfile, stats,
+                       APR_FOPEN_WRITE | APR_FOPEN_CREATE | APR_FOPEN_TRUNCATE,
+                          APR_OS_DEFAULT, pool) != APR_SUCCESS) {
+            apr_file_printf(errfile, "%s: Could not open %s for writing.",
+                            shortname, stats);
+            return 1;
+        }
+        print_statistics(statsfile);
+        apr_file_close(statsfile);
+    }
+
+    return 0;
+}

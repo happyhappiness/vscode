@@ -99,4 +99,16 @@ lua_State *ap_lua_get_lua_state(apr_pool_t *lifecycle_pool,
         int rc;
         ap_log_perror(APLOG_MARK, APLOG_DEBUG, 0, lifecycle_pool, APLOGNO(02332)
             "(re)loading lua file %s", spec->file);
-        rc = lua
+        rc = luaL_loadfile(L, spec->file);
+        if (rc != 0) {
+            ap_log_perror(APLOG_MARK, APLOG_ERR, 0, lifecycle_pool, APLOGNO(02333)
+                          "Error loading %s: %s", spec->file,
+                          rc == LUA_ERRMEM ? "memory allocation error"
+                                           : lua_tostring(L, 0));
+            return 0;
+        }
+        lua_pcall(L, 0, LUA_MULTRET, 0);
+    }
+
+    return L;
+}

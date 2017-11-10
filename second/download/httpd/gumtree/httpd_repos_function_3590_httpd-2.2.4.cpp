@@ -1747,3 +1747,98 @@ for (;; ptr++)
 
       /* For the rest, we can obtain the OP value by negating the escape
       value */
+
+      else
+        {
+        previous = (-c > ESC_b && -c < ESC_Z)? code : NULL;
+        *code++ = -c;
+        }
+      continue;
+      }
+
+    /* We have a data character whose value is in c. In UTF-8 mode it may have
+    a value > 127. We set its representation in the length/buffer, and then
+    handle it as a data character. */
+
+#ifdef SUPPORT_UTF8
+    if (utf8 && c > 127)
+      mclength = ord2utf8(c, mcbuffer);
+    else
+#endif
+
+     {
+     mcbuffer[0] = c;
+     mclength = 1;
+     }
+
+    goto ONE_CHAR;
+
+    /* Handle a literal character. It is guaranteed not to be whitespace or #
+    when the extended flag is set. If we are in UTF-8 mode, it may be a
+    multi-byte literal character. */
+
+    default:
+    NORMAL_CHAR:
+    mclength = 1;
+    mcbuffer[0] = c;
+
+#ifdef SUPPORT_UTF8
+    if (utf8 && (c & 0xc0) == 0xc0)
+      {
+      while ((ptr[1] & 0xc0) == 0x80)
+        mcbuffer[mclength++] = *(++ptr);
+      }
+#endif
+
+    /* At this point we have the character's bytes in mcbuffer, and the length
+    in mclength. When not in UTF-8 mode, the length is always 1. */
+
+    ONE_CHAR:
+    previous = code;
+    *code++ = ((options & PCRE_CASELESS) != 0)? OP_CHARNC : OP_CHAR;
+    for (c = 0; c < mclength; c++) *code++ = mcbuffer[c];
+
+    /* Set the first and required bytes appropriately. If no previous first
+    byte, set it from this character, but revert to none on a zero repeat.
+    Otherwise, leave the firstbyte value alone, and don't change it on a zero
+    repeat. */
+
+    if (firstbyte == REQ_UNSET)
+      {
+      zerofirstbyte = REQ_NONE;
+      zeroreqbyte = reqbyte;
+
+      /* If the character is more than one byte long, we can set firstbyte
+      only if it is not to be matched caselessly. */
+
+      if (mclength == 1 || req_caseopt == 0)
+        {
+        firstbyte = mcbuffer[0] | req_caseopt;
+        if (mclength != 1) reqbyte = code[-1] | cd->req_varyopt;
+        }
+      else firstbyte = reqbyte = REQ_NONE;
+      }
+
+    /* firstbyte was previously set; we can set reqbyte only the length is
+    1 or the matching is caseful. */
+
+    else
+      {
+      zerofirstbyte = firstbyte;
+      zeroreqbyte = reqbyte;
+      if (mclength == 1 || req_caseopt == 0)
+        reqbyte = code[-1] | req_caseopt | cd->req_varyopt;
+      }
+
+    break;            /* End of literal character handling */
+    }
+  }                   /* end of big loop */
+
+/* Control never reaches here by falling through, only by a goto for all the
+error states. Pass back the position in the pattern so that it can be displayed
+to the user for diagnosing the error. */
+
+FAILED:
+*ptrptr = ptr;
+return FALSE;
+}

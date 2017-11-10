@@ -103,4 +103,26 @@ static h2_response *create_response(h2_from_h1 *from_h1, request_rec *r)
     
     headers = apr_table_make(r->pool, 10);
     
- 
+    set_basic_http_header(r, headers);
+    if (r->status == HTTP_NOT_MODIFIED) {
+        apr_table_do((int (*)(void *, const char *, const char *)) copy_header,
+                     (void *) headers, r->headers_out,
+                     "ETag",
+                     "Content-Location",
+                     "Expires",
+                     "Cache-Control",
+                     "Vary",
+                     "Warning",
+                     "WWW-Authenticate",
+                     "Proxy-Authenticate",
+                     "Set-Cookie",
+                     "Set-Cookie2",
+                     NULL);
+    }
+    else {
+        apr_table_do((int (*)(void *, const char *, const char *)) copy_header,
+                     (void *) headers, r->headers_out, NULL);
+    }
+    
+    return h2_response_rcreate(from_h1->stream_id, r, headers, r->pool);
+}

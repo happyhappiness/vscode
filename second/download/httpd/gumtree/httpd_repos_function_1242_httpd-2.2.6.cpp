@@ -243,4 +243,25 @@ static int index_directory(request_rec *r,
         }
     } while (1);
 
-   
+    if (num_ent > 0) {
+        ar = (struct ent **) apr_palloc(r->pool,
+                                        num_ent * sizeof(struct ent *));
+        p = head;
+        x = 0;
+        while (p) {
+            ar[x++] = p;
+            p = p->next;
+        }
+
+        qsort((void *) ar, num_ent, sizeof(struct ent *),
+              (int (*)(const void *, const void *)) dsortf);
+    }
+    output_directories(ar, num_ent, autoindex_conf, r, autoindex_opts,
+                       keyid, direction, colargs);
+    apr_dir_close(thedir);
+
+    emit_tail(r, find_readme(autoindex_conf, r),
+              autoindex_opts & SUPPRESS_PREAMBLE);
+
+    return 0;
+}

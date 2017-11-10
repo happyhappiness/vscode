@@ -112,30 +112,4 @@ static int authenticate_basic_user(request_rec *r)
         case AUTH_DENIED:
             ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01617)
                       "user %s: authentication failure for \"%s\": "
-                      "Password Mismatch",
-                      sent_user, r->uri);
-            return_code = HTTP_UNAUTHORIZED;
-            break;
-        case AUTH_USER_NOT_FOUND:
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01618)
-                      "user %s not found: %s", sent_user, r->uri);
-            return_code = HTTP_UNAUTHORIZED;
-            break;
-        case AUTH_GENERAL_ERROR:
-        default:
-            /* We'll assume that the module has already said what its error
-             * was in the logs.
-             */
-            return_code = HTTP_INTERNAL_SERVER_ERROR;
-            break;
-        }
-
-        /* If we're returning 401, tell them to try again. */
-        if (return_code == HTTP_UNAUTHORIZED) {
-            note_basic_auth_failure(r);
-        }
-        return return_code;
-    }
-
-    return OK;
-}
+                     

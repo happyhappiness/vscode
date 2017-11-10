@@ -115,4 +115,12 @@ static apr_status_t ajp_unmarshal_response(ajp_msg_t *msg,
 
         /* Content-type needs an additional handling */
         if (strcasecmp(stringname, "Content-Type") == 0) {
-         
+             /* add corresponding filter */
+            ap_set_content_type(r, apr_pstrdup(r->pool, value));
+            ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r,
+               "ajp_unmarshal_response: ap_set_content_type to '%s'", value);
+        }
+    }
+
+    return APR_SUCCESS;
+}

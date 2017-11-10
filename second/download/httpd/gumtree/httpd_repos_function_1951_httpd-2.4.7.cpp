@@ -113,46 +113,4 @@ static const char *set_balancer_param(proxy_server_conf *conf,
                 *(int *)apr_array_push(balancer->errstatuses) = ival;
             }
             else {
-                return "failonstatus must be one or more HTTP response codes";
-            }
-            status = apr_strtok(NULL, ", ", &tok_state);
-        }
-
-    }
-    else if (!strcasecmp(key, "failontimeout")) {
-        if (!strcasecmp(val, "on"))
-            balancer->failontimeout = 1;
-        else if (!strcasecmp(val, "off"))
-            balancer->failontimeout = 0;
-        else
-            return "failontimeout must be On|Off";
-    }
-    else if (!strcasecmp(key, "nonce")) {
-        if (!strcasecmp(val, "None")) {
-            *balancer->s->nonce = '\0';
-        }
-        else {
-            if (PROXY_STRNCPY(balancer->s->nonce, val) != APR_SUCCESS) {
-                return "Provided nonce is too large";
-            }
-        }
-    }
-    else if (!strcasecmp(key, "growth")) {
-        ival = atoi(val);
-        if (ival < 1 || ival > 100)   /* arbitrary limit here */
-            return "growth must be between 1 and 100";
-        balancer->growth = ival;
-    }
-    else if (!strcasecmp(key, "forcerecovery")) {
-        if (!strcasecmp(val, "on"))
-            balancer->s->forcerecovery = 1;
-        else if (!strcasecmp(val, "off"))
-            balancer->s->forcerecovery = 0;
-        else
-            return "forcerecovery must be On|Off";
-    }
-    else {
-        return "unknown Balancer parameter";
-    }
-    return NULL;
-}
+                return "failonstatus must

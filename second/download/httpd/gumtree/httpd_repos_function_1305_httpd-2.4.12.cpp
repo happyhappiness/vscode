@@ -120,4 +120,39 @@ static apr_status_t store_body(cache_handle_t *h, request_rec *r,
         if ((dconf->readtime && apr_time_now() > sobj->timeout)) {
             sobj->timeout = 0;
             break;
-  
+        }
+
+    }
+
+    /* Was this the final bucket? If yes, perform sanity checks.
+     */
+    if (seen_eos) {
+        const char *cl_header = apr_table_get(r->headers_out, "Content-Length");
+
+        if (r->connection->aborted || r->no_cache) {
+            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r, APLOGNO(02380)
+                    "Discarding body for URL %s "
+                    "because connection has been aborted.",
+                    h->cache_obj->key);
+            apr_pool_destroy(sobj->pool);
+            sobj->pool = NULL;
+            return APR_EGENERAL;
+        }
+        if (cl_header) {
+            apr_int64_t cl = apr_atoi64(cl_header);
+            if ((errno == 0) && (sobj->file_size != cl)) {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(02381)
+                        "URL %s didn't receive complete response, not caching",
+                        h->cache_obj->key);
+                apr_pool_destroy(sobj->pool);
+                sobj->pool = NULL;
+                return APR_EGENERAL;
+            }
+        }
+
+        /* All checks were fine, we're good to go when the commit comes */
+
+    }
+
+    return APR_SUCCESS;
+}

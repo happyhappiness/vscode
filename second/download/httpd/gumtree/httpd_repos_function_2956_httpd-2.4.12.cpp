@@ -120,10 +120,4 @@ static const char *fcgi_define_provider(cmd_parms *cmd,
                      conf);
         ap_register_auth_provider(cmd->pool, AUTHZ_PROVIDER_GROUP,
                                   conf->name,
-                                  AUTHZ_PROVIDER_VERSION,
-                                  &fcgi_authz_provider,
-                                  AP_AUTH_INTERNAL_PER_CONF);
-    }
-
-    return NULL;
-}
+                                  AUTHZ_PROV

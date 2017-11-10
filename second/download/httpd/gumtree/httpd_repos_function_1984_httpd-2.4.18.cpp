@@ -182,24 +182,4 @@ static int balancer_post_config(apr_pool_t *pconf, apr_pool_t *plog,
 
                     }
                     if ((rv = storage->dptr(balancer->wslot, index, (void *)&shm)) != APR_SUCCESS) {
-                        ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01187) "worker slotmem_dptr failed");
-                        return !OK;
-                    }
-                }
-                if ((rv = ap_proxy_share_worker(worker, shm, index)) != APR_SUCCESS) {
-                    ap_log_error(APLOG_MARK, APLOG_EMERG, rv, s, APLOGNO(01188) "Cannot share worker");
-                    return !OK;
-                }
-                worker->s->updated = tstamp;
-            }
-            if (conf->bal_persist) {
-                /* We could have just read-in a persisted config. Force a sync. */
-                balancer->wupdated--;
-                ap_proxy_sync_balancer(balancer, s, conf);
-            }
-        }
-        s = s->next;
-    }
-
-    return OK;
-}
+                        

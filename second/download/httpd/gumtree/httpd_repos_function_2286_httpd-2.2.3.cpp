@@ -116,4 +116,76 @@ static int32 worker_thread(void *dummy)
                 clean_child_exit(1, worker_slot);
             }
             /* We can always use pdesc[0], but sockets at position N
-       
+             * could end up completely starved of attention in a very
+             * busy server. Therefore, we round-robin across the
+             * returned set of descriptors. While it is possible that
+             * the returned set of descriptors might flip around and
+             * continue to starve some sockets, we happen to know the
+             * internal pollset implementation retains ordering
+             * stability of the sockets. Thus, the round-robin should
+             * ensure that a socket will eventually be serviced.
+             */
+            if (last_poll_idx >= numdesc)
+                last_poll_idx = 0;
+
+            /* Grab a listener record from the client_data of the poll
+             * descriptor, and advance our saved index to round-robin
+             * the next fetch.
+             *
+             * ### hmm... this descriptor might have POLLERR rather
+             * ### than POLLIN
+             */
+
+            lr = pdesc[last_poll_idx++].client_data;
+
+            /* The only socket we add without client_data is the first, the UDP socket
+             * we listen on for restart signals. If we've therefore gotten a hit on that
+             * listener lr will be NULL here and we know we've been told to die.
+             * Before we jump to the end of the while loop with this_worker_should_exit
+             * set to 1 (causing us to exit normally we hope) we release the accept_mutex
+             * as we want every thread to go through this same routine :)
+             * Bit of a hack, but compared to what I had before...
+             */
+            if (lr == NULL) {
+                this_worker_should_exit = 1;
+                apr_thread_mutex_unlock(accept_mutex);
+                goto got_a_black_spot;
+            }
+            goto got_fd;
+        }
+got_fd:
+        /* Run beos_accept to accept the connection and set things up to
+         * allow us to process it. We always release the accept_lock here,
+         * even if we failt o accept as otherwise we'll starve other workers
+         * which would be bad.
+         */
+        rv = beos_accept(&csd, lr, ptrans);
+        apr_thread_mutex_unlock(accept_mutex);
+
+        if (rv == APR_EGENERAL) {
+            /* resource shortage or should-not-occur occured */
+            clean_child_exit(1, worker_slot);
+        } else if (rv != APR_SUCCESS)
+            continue;
+
+        current_conn = ap_run_create_connection(ptrans, ap_server_conf, csd, worker_slot, sbh, bucket_alloc);
+        if (current_conn) {
+            ap_process_connection(current_conn, csd);
+            ap_lingering_close(current_conn);
+        }
+
+        if (ap_my_generation !=
+                 ap_scoreboard_image->global->running_generation) { /* restart? */
+            /* yeah, this could be non-graceful restart, in which case the
+             * parent will kill us soon enough, but why bother checking?
+             */
+            this_worker_should_exit = 1;
+        }
+got_a_black_spot:
+    }
+
+    apr_pool_destroy(ptrans);
+    apr_pool_destroy(pworker);
+
+    clean_child_exit(0, worker_slot);
+}

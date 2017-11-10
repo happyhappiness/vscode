@@ -180,6 +180,7 @@ split string for statement to get tokens
 """
 SPLIT_STR = r'[\W\s_]'
 SPLIT_ALGORITHM = r'[+-\*/%=]'
+SPLIT_LOG = r'[^\w%&/\[\]\*\\]'
 
 CPP_FILE_FORMAT = r'\.(c|cpp|cc|cxx|h)$'
 UNSRCML_FILE_FORMAT = r'\.(h|c|cc|cxx)$'

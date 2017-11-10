@@ -194,4 +194,59 @@ static apr_status_t ajp_marshal_into_msgb(ajp_msg_t *msg,
     /* If the method was unrecognized, encode it as an attribute */
     if (method == SC_M_JK_STORED) {
         if (ajp_msg_append_uint8(msg, SC_A_STORED_METHOD)
-            || a
+            || ajp_msg_append_string(msg, r->method)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(02438)
+                          "ajp_marshal_into_msgb: "
+                          "Error appending the method '%s' as request attribute",
+                          r->method);
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* Forward the remote port information, which was forgotten
+     * from the builtin data of the AJP 13 protocol.
+     * Since the servlet spec allows to retrieve it via getRemotePort(),
+     * we provide the port to the Tomcat connector as a request
+     * attribute. Modern Tomcat versions know how to retrieve
+     * the remote port from this attribute.
+     */
+    {
+        const char *key = SC_A_REQ_REMOTE_PORT;
+        char *val = apr_itoa(r->pool, r->useragent_addr->port);
+        if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+            ajp_msg_append_string(msg, key)   ||
+            ajp_msg_append_string(msg, val)) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00980)
+                    "ajp_marshal_into_msgb: "
+                    "Error appending attribute %s=%s",
+                    key, val);
+            return AJP_EOVERFLOW;
+        }
+    }
+    /* Use the environment vars prefixed with AJP_
+     * and pass it to the header striping that prefix.
+     */
+    for (i = 0; i < (apr_uint32_t)arr->nelts; i++) {
+        if (!strncmp(elts[i].key, "AJP_", 4)) {
+            if (ajp_msg_append_uint8(msg, SC_A_REQ_ATTRIBUTE) ||
+                ajp_msg_append_string(msg, elts[i].key + 4)   ||
+                ajp_msg_append_string(msg, elts[i].val)) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00981)
+                        "ajp_marshal_into_msgb: "
+                        "Error appending attribute %s=%s",
+                        elts[i].key, elts[i].val);
+                return AJP_EOVERFLOW;
+            }
+        }
+    }
+
+    if (ajp_msg_append_uint8(msg, SC_A_ARE_DONE)) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(00982)
+               "ajp_marshal_into_msgb: "
+               "Error appending the message end");
+        return AJP_EOVERFLOW;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE8, 0, r,
+            "ajp_marshal_into_msgb: Done");
+    return APR_SUCCESS;
+}

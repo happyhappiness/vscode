@@ -253,4 +253,60 @@ static int client(client_socket_mode_t socket_mode, char *host)
     
     current_file_offset = 0;
     rv = apr_file_seek(f, APR_CUR, &current_file_offset);
-    if (rv != AP
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "apr_file_seek()->%d/%s\n",
+                rv,
+		apr_strerror(rv, buf, sizeof buf));
+        exit(1);
+    }
+
+    printf("After apr_socket_sendfile(), the kernel file pointer is "
+           "at offset %ld.\n",
+           (long int)current_file_offset);
+
+    rv = apr_socket_shutdown(sock, APR_SHUTDOWN_WRITE);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "apr_socket_shutdown()->%d/%s\n",
+                rv,
+		apr_strerror(rv, buf, sizeof buf));
+        exit(1);
+    }
+
+    /* in case this is the non-blocking test, set socket timeout;
+     * we're just waiting for EOF */
+
+    rv = apr_socket_timeout_set(sock, apr_time_from_sec(3));
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "apr_socket_timeout_set()->%d/%s\n",
+                rv,
+		apr_strerror(rv, buf, sizeof buf));
+        exit(1);
+    }
+    
+    bytes_read = 1;
+    rv = apr_socket_recv(sock, buf, &bytes_read);
+    if (rv != APR_EOF) {
+        fprintf(stderr, "apr_socket_recv()->%d/%s (expected APR_EOF)\n",
+                rv,
+		apr_strerror(rv, buf, sizeof buf));
+        exit(1);
+    }
+    if (bytes_read != 0) {
+        fprintf(stderr, "We expected to get 0 bytes read with APR_EOF\n"
+                "but instead we read %ld bytes.\n",
+                (long int)bytes_read);
+        exit(1);
+    }
+
+    printf("client: apr_socket_sendfile() worked as expected!\n");
+
+    rv = apr_file_remove(TESTFILE, p);
+    if (rv != APR_SUCCESS) {
+        fprintf(stderr, "apr_file_remove()->%d/%s\n",
+                rv,
+		apr_strerror(rv, buf, sizeof buf));
+        exit(1);
+    }
+
+    return 0;
+}

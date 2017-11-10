@@ -106,4 +106,10 @@ request_rec *h2_request_create_rec(const h2_request *req, conn_rec *conn)
     }
     
     AP_READ_REQUEST_SUCCESS((uintptr_t)r, (char *)r->method, 
-                         
+                            (char *)r->uri, (char *)r->server->defn_name, 
+                            r->status);
+    return r;
+traceout:
+    AP_READ_REQUEST_FAILURE((uintptr_t)r);
+    return r;
+}

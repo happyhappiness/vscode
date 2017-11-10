@@ -1,2 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2129_httpd-2.4.25.cpp" pos:tabs="8"/>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2129_httpd-2.4.25.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">int<pos:position pos:line="1" pos:column="4"/></name></type> <name pos:line="1" pos:column="5">ap_proxy_lb_workers<pos:position pos:line="1" pos:column="24"/></name><parameter_list pos:line="1" pos:column="24">(<parameter><decl><type><name pos:line="1" pos:column="25">void<pos:position pos:line="1" pos:column="29"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="30"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+    <comment type="block" pos:line="3" pos:column="5">/*
+     * Since we can't resize the scoreboard when reconfiguring, we
+     * have to impose a limit on the number of workers, we are
+     * able to reconfigure to.
+     */</comment>
+    <if pos:line="8" pos:column="5">if <condition pos:line="8" pos:column="8">(<expr><operator pos:line="8" pos:column="9">!<pos:position pos:line="8" pos:column="10"/></operator><name pos:line="8" pos:column="10">lb_workers_limit<pos:position pos:line="8" pos:column="26"/></name></expr>)<pos:position pos:line="8" pos:column="27"/></condition><then pos:line="8" pos:column="27">
+        <block type="pseudo"><expr_stmt><expr><name pos:line="9" pos:column="9">lb_workers_limit<pos:position pos:line="9" pos:column="25"/></name> <operator pos:line="9" pos:column="26">=<pos:position pos:line="9" pos:column="27"/></operator> <name pos:line="9" pos:column="28">proxy_lb_workers<pos:position pos:line="9" pos:column="44"/></name> <operator pos:line="9" pos:column="45">+<pos:position pos:line="9" pos:column="46"/></operator> <name pos:line="9" pos:column="47">PROXY_DYNAMIC_BALANCER_LIMIT<pos:position pos:line="9" pos:column="75"/></name></expr>;<pos:position pos:line="9" pos:column="76"/></expr_stmt></block></then></if>
+    <return pos:line="10" pos:column="5">return <expr><name pos:line="10" pos:column="12">lb_workers_limit<pos:position pos:line="10" pos:column="28"/></name></expr>;<pos:position pos:line="10" pos:column="29"/></return>
+}<pos:position pos:line="11" pos:column="2"/></block></function></unit>

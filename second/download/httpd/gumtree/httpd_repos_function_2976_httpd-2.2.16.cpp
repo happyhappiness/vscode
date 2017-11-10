@@ -122,30 +122,4 @@ static apr_status_t dbd_mysql_datum_get(const apr_dbd_row_t *row, int n,
             break;
         case APR_DBD_TYPE_STRING:
         case APR_DBD_TYPE_TEXT:
-        case APR_DBD_TYPE_TIME:
-        case APR_DBD_TYPE_DATE:
-        case APR_DBD_TYPE_DATETIME:
-        case APR_DBD_TYPE_TIMESTAMP:
-        case APR_DBD_TYPE_ZTIMESTAMP:
-            *(char**)data = row->row[n];
-            break;
-        case APR_DBD_TYPE_BLOB:
-        case APR_DBD_TYPE_CLOB:
-            {
-            apr_bucket *e;
-            apr_bucket_brigade *b = (apr_bucket_brigade*)data;
-
-            e = apr_bucket_pool_create(row->row[n], row->len[n],
-                                       row->res->pool, b->bucket_alloc);
-            APR_BRIGADE_INSERT_TAIL(b, e);
-            }
-            break;
-        case APR_DBD_TYPE_NULL:
-            *(void**)data = NULL;
-            break;
-        default:
-            return APR_EGENERAL;
-        }
-    }
-    return 0;
-}
+        case APR_DBD_T

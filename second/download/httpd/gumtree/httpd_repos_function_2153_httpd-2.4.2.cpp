@@ -105,44 +105,4 @@ static apr_status_t handle_echo(include_ctx_t *ctx, ap_filter_t *f,
                         echo_text = buf;
                     }
                     else {
-                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01345) "unknown value "
-                                      "\"%s\" to parameter \"encoding\" of tag echo in "
-                                      "%s", token, r->filename);
-                        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-                        error = 1;
-                        break;
-                    }
-                    token = apr_strtok(NULL, ", \t", &last);
-                }
-
-                e_len = strlen(echo_text);
-            }
-            else {
-                echo_text = ctx->intern->undefined_echo;
-                e_len = ctx->intern->undefined_echo_len;
-            }
-
-            if (error) {
-                break;
-            }
-
-            APR_BRIGADE_INSERT_TAIL(bb, apr_bucket_pool_create(
-                                    apr_pmemdup(ctx->pool, echo_text, e_len),
-                                    e_len, ctx->pool, f->c->bucket_alloc));
-        }
-        else if (!strcmp(tag, "decoding")) {
-            decoding = tag_val;
-        }
-        else if (!strcmp(tag, "encoding")) {
-            encoding = tag_val;
-        }
-        else {
-            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01346) "unknown parameter "
-                          "\"%s\" in tag echo of %s", tag, r->filename);
-            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
-            break;
-        }
-    }
-
-    return APR_SUCCESS;
-}
+                        ap_log_rerror(

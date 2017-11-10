@@ -137,4 +137,26 @@ int main(int argc, const char * const argv[])
             ret = htdbm_make(h);
             if (ret)
                 exit(ret);
-    
+            break;
+    }
+    if (need_file && !h->rdonly) {
+        if ((rv = htdbm_save(h, &changed)) != APR_SUCCESS) {
+            apr_strerror(rv, errbuf, sizeof(errbuf));
+            exit(ERR_FILEPERM);
+        }
+        fprintf(stdout, "Database %s %s.\n", h->filename,
+                h->create ? "created" : (changed ? "modified" : "updated"));
+    }
+    if (cmd == HTDBM_NOFILE) {
+        if (!need_cmnt) {
+            fprintf(stderr, "%s:%s\n", h->username, h->ctx.passwd);
+        }
+        else {
+            fprintf(stderr, "%s:%s:%s\n", h->username, h->ctx.passwd,
+                    h->comment);
+        }
+    }
+    htdbm_terminate(h);
+
+    return 0; /* Suppress compiler warning. */
+}

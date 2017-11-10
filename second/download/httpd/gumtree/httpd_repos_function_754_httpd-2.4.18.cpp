@@ -116,37 +116,4 @@ static apr_status_t ssl_io_input_read(bio_filter_in_ctx_t *inctx,
                 continue;  /* Blocking and nothing yet?  Try again. */
             }
             else if (ssl_err == SSL_ERROR_SYSCALL) {
-                if (APR_STATUS_IS_EAGAIN(inctx->rc)
-                        || APR_STATUS_IS_EINTR(inctx->rc)) {
-                    /* Already read something, return APR_SUCCESS instead. */
-                    if (*len > 0) {
-                        inctx->rc = APR_SUCCESS;
-                        break;
-                    }
-                    if (inctx->block == APR_NONBLOCK_READ) {
-                        break;
-                    }
-                    continue;  /* Blocking and nothing yet?  Try again. */
-                }
-                else {
-                    ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c, APLOGNO(01991)
-                                  "SSL input filter read failed.");
-                }
-            }
-            else /* if (ssl_err == SSL_ERROR_SSL) */ {
-                /*
-                 * Log SSL errors and any unexpected conditions.
-                 */
-                ap_log_cerror(APLOG_MARK, APLOG_INFO, inctx->rc, c, APLOGNO(01992)
-                              "SSL library error %d reading data", ssl_err);
-                ssl_log_ssl_error(SSLLOG_MARK, APLOG_INFO, mySrvFromConn(c));
-
-            }
-            if (inctx->rc == APR_SUCCESS) {
-                inctx->rc = APR_EGENERAL;
-            }
-            break;
-        }
-    }
-    return inctx->rc;
-}
+                if (

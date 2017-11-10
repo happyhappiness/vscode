@@ -111,4 +111,8 @@ static int process_socket(apr_pool_t * p, apr_socket_t * sock,
         if (rc != APR_SUCCESS) {
             ap_log_error(APLOG_MARK, APLOG_ERR, rc, ap_server_conf,
                          "process_socket: apr_pollset_add failure");
-            AP_DEBUG_ASSERT(rc =
+            AP_DEBUG_ASSERT(rc == APR_SUCCESS);
+        }
+    }
+    return 0;
+}

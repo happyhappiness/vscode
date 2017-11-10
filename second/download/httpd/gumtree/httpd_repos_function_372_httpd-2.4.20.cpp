@@ -102,4 +102,13 @@ static int dav_method_mkcol(request_rec *r)
             /* The dir creation was successful, but the locking failed. */
             err = dav_push_error(r->pool, err->status, 0,
                                  "The MKCOL was successful, but there "
-         
+                                 "was a problem updating its lock "
+                                 "information.",
+                                 err);
+            return dav_handle_err(r, err, NULL);
+        }
+    }
+
+    /* return an appropriate response (HTTP_CREATED) */
+    return dav_created(r, NULL, "Collection", 0);
+}

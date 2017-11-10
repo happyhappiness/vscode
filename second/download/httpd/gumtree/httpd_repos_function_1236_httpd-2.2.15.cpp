@@ -115,4 +115,30 @@ static int best_match(negotiation_state *neg, var_rec **pbest)
              * only a choice response if the best variant has q>0
              * and is definite
              */
-          
+            algorithm_result = (best && best->definite) && (bestq > 0) ?
+                                alg_choice : alg_list;
+        }
+        else {
+            /* calculate result for Apache negotiation algorithm */
+            algorithm_result = bestq > 0 ? alg_choice : alg_list;
+        }
+
+        /* run the loop again, if the "prefer-language" got no clear result */
+        if (preferred_language && (!best || algorithm_result != alg_choice)) {
+            preferred_language = NULL;
+            continue;
+        }
+
+        break;
+    } while (1);
+
+    /* Returning a choice response with a non-neighboring variant is a
+     * protocol security error in TCN (see rfc2295).  We do *not*
+     * verify here that the variant and URI are neighbors, even though
+     * we may return alg_choice.  We depend on the environment (the
+     * caller) to only declare the resource transparently negotiable if
+     * all variants are neighbors.
+     */
+    *pbest = best;
+    return algorithm_result;
+}

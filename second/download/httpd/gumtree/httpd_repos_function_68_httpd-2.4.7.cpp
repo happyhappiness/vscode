@@ -53,4 +53,21 @@ static void usage(const char *error)
     "       same URL will be listed once for each variant."                  NL
                                                                              NL
     "  -A   List the URLs currently stored in the cache, along with their"   NL
-    "       att
+    "       attributes in the following order: url, header size, body size," NL
+    "       status, entity version, date, expiry, request time,"             NL
+    "       response time, body present, head request."                      NL
+                                                                             NL
+    "Should an URL be provided on the command line, the URL will be"         NL
+    "deleted from the cache. A reverse proxied URL is made up as follows:"   NL
+    "http://<hostname>:<port><path>?[query]. So, for the path \"/\" on the"  NL
+    "host \"localhost\" and port 80, the URL to delete becomes"              NL
+    "\"http://localhost:80/?\". Note the '?' in the URL must always be"      NL
+    "specified explicitly, whether a query string is present or not."        NL,
+    shortname,
+    shortname,
+    shortname,
+    shortname
+    );
+
+    exit(1);
+}

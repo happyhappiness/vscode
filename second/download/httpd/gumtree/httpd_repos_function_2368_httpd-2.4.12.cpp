@@ -118,4 +118,9 @@ static apr_status_t handle_include(include_ctx_t *ctx, ap_filter_t *f,
 
     }
 
- 
+    if (last_error) {
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+    }
+
+    return APR_SUCCESS;
+}

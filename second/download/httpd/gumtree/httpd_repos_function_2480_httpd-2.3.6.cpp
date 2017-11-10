@@ -104,4 +104,42 @@ static authz_status ldapfilter_check_authorization(request_rec *r,
                 /* ldap-filter is the only authz that requires a search and a compare */
                 apr_pool_cleanup_kill(r->pool, ldc, authnz_ldap_cleanup_connection_close);
                 authnz_ldap_cleanup_connection_close(ldc);
-           
+                ldc = get_connection_for_authz(r, LDAP_COMPARE);
+            }
+            result = util_ldap_cache_comparedn(r, ldc, sec->url, req->dn, dn,
+                                               sec->compare_dn_on_server);
+        }
+
+        switch(result) {
+            case LDAP_COMPARE_TRUE: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require ldap-filter: authorization "
+                              "successful", getpid());
+                set_request_vars(r, LDAP_AUTHZ);
+                return AUTHZ_GRANTED;
+            }
+            case LDAP_FILTER_ERROR: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require ldap-filter: %s authorization "
+                              "failed [%s][%s]", getpid(),
+                              filtbuf, ldc->reason, ldap_err2string(result));
+                break;
+            }
+            default: {
+                ap_log_rerror(APLOG_MARK, APLOG_DEBUG,
+                              0, r, "[%" APR_PID_T_FMT "] auth_ldap authorize: "
+                              "require ldap-filter: authorization "
+                              "failed [%s][%s]", getpid(),
+                              ldc->reason, ldap_err2string(result));
+            }
+        }
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                  "[%" APR_PID_T_FMT "] auth_ldap authorize filter: authorization denied for user %s to %s",
+                  getpid(), r->user, r->uri);
+
+    return AUTHZ_DENIED;
+}

@@ -324,3 +324,17 @@ static apr_status_t deflate_out_filter(ap_filter_t *f,
                 if (rv != APR_SUCCESS) {
                     return rv;
                 }
+            }
+
+            zRC = deflate(&(ctx->stream), Z_NO_FLUSH);
+
+            if (zRC != Z_OK)
+                return APR_EGENERAL;
+        }
+
+        apr_bucket_delete(e);
+    }
+
+    apr_brigade_cleanup(bb);
+    return APR_SUCCESS;
+}

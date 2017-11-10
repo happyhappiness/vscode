@@ -122,4 +122,8 @@
         }<pos:position pos:line="121" pos:column="10"/></block></then></if>
 
         <comment type="block" pos:line="123" pos:column="9">/* get ready for next X509_STORE_CTX_init */</comment>
-        <macro><name pos:line="124" pos:column="9">X509_STORE_CTX_cleanup<pos:position pos:line="124" pos:column="31"/></name><argument_list pos:line="124" pos:column="31">(<pos:position pos:line="124" pos:column="32"/></argument_list></macro></block></for></block></function></unit>
+        <expr_stmt><expr><call><name pos:line="124" pos:column="9">X509_STORE_CTX_cleanup<pos:position pos:line="124" pos:column="31"/></name><argument_list pos:line="124" pos:column="31">(<argument><expr><name pos:line="124" pos:column="32">sctx<pos:position pos:line="124" pos:column="36"/></name></expr></argument>)<pos:position pos:line="124" pos:column="37"/></argument_list></call></expr>;<pos:position pos:line="124" pos:column="38"/></expr_stmt>
+    }<pos:position pos:line="125" pos:column="6"/></block></for>
+
+    <expr_stmt><expr><call><name pos:line="127" pos:column="5">X509_STORE_CTX_free<pos:position pos:line="127" pos:column="24"/></name><argument_list pos:line="127" pos:column="24">(<argument><expr><name pos:line="127" pos:column="25">sctx<pos:position pos:line="127" pos:column="29"/></name></expr></argument>)<pos:position pos:line="127" pos:column="30"/></argument_list></call></expr>;<pos:position pos:line="127" pos:column="31"/></expr_stmt>
+}<pos:position pos:line="128" pos:column="2"/></block></function></unit>

@@ -118,4 +118,82 @@ start_over:
         else
             ldc->reason = "User is not unique (search found two "
                           "or more matches)";
-        ldap_msgfree
+        ldap_msgfree(res);
+        return LDAP_NO_SUCH_OBJECT;
+    }
+
+    entry = ldap_first_entry(ldc->ldap, res);
+
+    /* Grab the dn, copy it into the pool, and free it again */
+    dn = ldap_get_dn(ldc->ldap, entry);
+    *binddn = apr_pstrdup(r->pool, dn);
+    ldap_memfree(dn);
+
+    /*
+     * Get values for the provided attributes.
+     */
+    if (attrs) {
+        int k = 0;
+        int i = 0;
+        while (attrs[k++]);
+        vals = apr_pcalloc(r->pool, sizeof(char *) * (k+1));
+        numvals = k;
+        while (attrs[i]) {
+            char **values;
+            int j = 0;
+            char *str = NULL;
+            /* get values */
+            values = ldap_get_values(ldc->ldap, entry, attrs[i]);
+            while (values && values[j]) {
+                str = str ? apr_pstrcat(r->pool, str, "; ", values[j], NULL)
+                          : apr_pstrdup(r->pool, values[j]);
+                j++;
+            }
+            ldap_value_free(values);
+            vals[i] = str;
+            i++;
+        }
+        *retvals = vals;
+    }
+
+    /*
+     * Add the new username to the search cache.
+     */
+    if (curl) {
+        LDAP_CACHE_LOCK();
+        the_search_node.username = filter;
+        the_search_node.dn = *binddn;
+        the_search_node.bindpw = NULL;
+        the_search_node.lastbind = apr_time_now();
+        the_search_node.vals = vals;
+        the_search_node.numvals = numvals;
+
+        /* Search again to make sure that another thread didn't ready insert
+         * this node into the cache before we got here. If it does exist then
+         * update the lastbind
+         */
+        search_nodep = util_ald_cache_fetch(curl->search_cache,
+                                            &the_search_node);
+        if ((search_nodep == NULL) ||
+            (strcmp(*binddn, search_nodep->dn) != 0)) {
+
+            /* Nothing in cache, insert new entry */
+            util_ald_cache_insert(curl->search_cache, &the_search_node);
+        }
+        /*
+         * Don't update lastbind on entries with bindpw because
+         * we haven't verified that password. It's OK to update
+         * the entry if there is no password in it.
+         */
+        else if (!search_nodep->bindpw) {
+            /* Cache entry is valid, update lastbind */
+            search_nodep->lastbind = the_search_node.lastbind;
+        }
+        LDAP_CACHE_UNLOCK();
+    }
+
+    ldap_msgfree(res);
+
+    ldc->reason = "Search successful";
+    return LDAP_SUCCESS;
+}

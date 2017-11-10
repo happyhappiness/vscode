@@ -104,3 +104,20 @@ static apr_status_t ssl_io_filter_coalesce(ap_filter_t *f,
         /* If the brigade is now empty, our work here is done. */
         return APR_SUCCESS;
     }
+
+    /* If anything remains in the brigade, it must now be passed down
+     * the filter stack, first prepending anything that has been
+     * coalesced. */
+    if (ctx && ctx->bytes) {
+        apr_bucket *e;
+
+        ap_log_cerror(APLOG_MARK, APLOG_TRACE4, 0, f->c,
+                      "coalesce: passing on %" APR_SIZE_T_FMT " bytes", ctx->bytes);
+
+        e = apr_bucket_transient_create(ctx->buffer, ctx->bytes, bb->bucket_alloc);
+        APR_BRIGADE_INSERT_HEAD(bb, e);
+        ctx->bytes = 0; /* buffer now emptied. */
+    }
+
+    return ap_pass_brigade(f->next, bb);
+}

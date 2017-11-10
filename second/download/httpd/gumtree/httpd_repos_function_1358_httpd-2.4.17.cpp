@@ -77,4 +77,27 @@ static void socache_shmcb_status(ap_socache_instance_t *ctx,
         ap_rprintf(r, "CacheSharedMemory: %" APR_SIZE_T_FMT "\n",
                    ctx->shm_size);
         ap_rprintf(r, "CacheCurrentEntries: %d\n", total);
-        ap_rprintf(r, "CacheSubcaches: %d\n", header->subcache_num)
+        ap_rprintf(r, "CacheSubcaches: %d\n", header->subcache_num);
+        ap_rprintf(r, "CacheIndexesPerSubcaches: %d\n", header->index_num);
+        if (non_empty_subcaches) {
+            apr_time_t average_expiry = (apr_time_t)(expiry_total / (double)non_empty_subcaches);
+            if (now < average_expiry) {
+                ap_rprintf(r, "CacheTimeLeftOldestAvg: %d\n", (int)apr_time_sec(average_expiry - now));
+                ap_rprintf(r, "CacheTimeLeftOldestMin: %d\n", (int)apr_time_sec(min_expiry - now));
+                ap_rprintf(r, "CacheTimeLeftOldestMax: %d\n", (int)apr_time_sec(max_expiry - now));
+            }
+        }
+
+        ap_rprintf(r, "CacheIndexUsage: %d%%\n", index_pct);
+        ap_rprintf(r, "CacheUsage: %d%%\n", cache_pct);
+        ap_rprintf(r, "CacheStoreCount: %lu\n", header->stat_stores);
+        ap_rprintf(r, "CacheReplaceCount: %lu\n", header->stat_replaced);
+        ap_rprintf(r, "CacheExpireCount: %lu\n", header->stat_expiries);
+        ap_rprintf(r, "CacheDiscardCount: %lu\n", header->stat_scrolled);
+        ap_rprintf(r, "CacheRetrieveHitCount: %lu\n", header->stat_retrieves_hit);
+        ap_rprintf(r, "CacheRetrieveMissCount: %lu\n", header->stat_retrieves_miss);
+        ap_rprintf(r, "CacheRemoveHitCount: %lu\n", header->stat_removes_hit);
+        ap_rprintf(r, "CacheRemoveMissCount: %lu\n", header->stat_removes_miss);
+    }
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(00841) "leaving shmcb_status");
+}

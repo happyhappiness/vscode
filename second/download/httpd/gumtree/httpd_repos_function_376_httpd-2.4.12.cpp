@@ -108,4 +108,78 @@ static int dav_method_vsn_control(request_rec *r)
     }
 
     /* Check If-Headers and existing locks */
-    /* Note: depth
+    /* Note: depth == 0. Implies no need for a multistatus response. */
+    if ((err = dav_validate_request(r, resource, 0, NULL, NULL,
+                                    resource_state == DAV_RESOURCE_NULL ?
+                                    DAV_VALIDATE_PARENT :
+                                    DAV_VALIDATE_RESOURCE, NULL)) != NULL) {
+        return dav_handle_err(r, err, NULL);
+    }
+
+    /* if in versioned collection, make sure parent is checked out */
+    if ((err = dav_auto_checkout(r, resource, 1 /* parent_only */,
+                                 &av_info)) != NULL) {
+        return dav_handle_err(r, err, NULL);
+    }
+
+    /* attempt to version-control the resource */
+    if ((err = (*vsn_hooks->vsn_control)(resource, target)) != NULL) {
+        dav_auto_checkin(r, resource, 1 /*undo*/, 0 /*unlock*/, &av_info);
+        err = dav_push_error(r->pool, HTTP_CONFLICT, 0,
+                             apr_psprintf(r->pool,
+                                          "Could not VERSION-CONTROL resource %s.",
+                                          ap_escape_html(r->pool, r->uri)),
+                             err);
+        return dav_handle_err(r, err, NULL);
+    }
+
+    /* revert writability of parent directory */
+    err = dav_auto_checkin(r, resource, 0 /*undo*/, 0 /*unlock*/, &av_info);
+    if (err != NULL) {
+        /* just log a warning */
+        err = dav_push_error(r->pool, err->status, 0,
+                             "The VERSION-CONTROL was successful, but there "
+                             "was a problem automatically checking in "
+                             "the parent collection.",
+                             err);
+        dav_log_err(r, err, APLOG_WARNING);
+    }
+
+    /* if the resource is lockable, let lock system know of new resource */
+    if (locks_hooks != NULL
+        && (*locks_hooks->get_supportedlock)(resource) != NULL) {
+        dav_lockdb *lockdb;
+
+        if ((err = (*locks_hooks->open_lockdb)(r, 0, 0, &lockdb)) != NULL) {
+            /* The resource creation was successful, but the locking failed. */
+            err = dav_push_error(r->pool, err->status, 0,
+                                 "The VERSION-CONTROL was successful, but there "
+                                 "was a problem opening the lock database "
+                                 "which prevents inheriting locks from the "
+                                 "parent resources.",
+                                 err);
+            return dav_handle_err(r, err, NULL);
+        }
+
+        /* notify lock system that we have created/replaced a resource */
+        err = dav_notify_created(r, lockdb, resource, resource_state, 0);
+
+        (*locks_hooks->close_lockdb)(lockdb);
+
+        if (err != NULL) {
+            /* The dir creation was successful, but the locking failed. */
+            err = dav_push_error(r->pool, err->status, 0,
+                                 "The VERSION-CONTROL was successful, but there "
+                                 "was a problem updating its lock "
+                                 "information.",
+                                 err);
+            return dav_handle_err(r, err, NULL);
+        }
+    }
+
+    /* set the Cache-Control header, per the spec */
+    apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
+
+    /* return an appropriate response (HTTP_CREATED) */
+    return dav_created(r, resource->uri, "Version selector", 0 /*replaced*/);
+}

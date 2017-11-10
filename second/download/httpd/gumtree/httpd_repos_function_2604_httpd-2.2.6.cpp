@@ -106,4 +106,12 @@ static int dbd_sqlite3_select(apr_pool_t * pool, apr_dbd_t * sql, apr_dbd_result
         } while (ret == SQLITE_ROW || ret == SQLITE_BUSY);
     }
     ret = sqlite3_finalize(stmt);
-#if APR_HAS_THREA
+#if APR_HAS_THREADS
+    apr_thread_mutex_unlock(sql->mutex);
+#endif
+
+    if (sql->trans) {
+        sql->trans->errnum = ret;
+    }
+    return ret;
+}

@@ -96,6 +96,4 @@ static void *merge_autoindex_configs(apr_pool_t *p, void *basev, void *addv)
     new->default_keyid = add->default_keyid ? add->default_keyid
                                             : base->default_keyid;
     new->default_direction = add->default_direction ? add->default_direction
-                                                    : base->default_direction;
-    return new;
-}
+                          

@@ -339,19 +339,4 @@ static int apply_rewrite_rule(request_rec *r, rewriterule_entry *p,
         apr_table_setn(r->notes, REWRITE_FORCED_MIMETYPE_NOTEVAR,
                       p->forced_mimetype);
         if (perdir == NULL) {
-            rewritelog(r, 2, "remember %s to have MIME-type '%s'",
-                       r->filename, p->forced_mimetype);
-        }
-        else {
-            rewritelog(r, 2,
-                       "[per-dir %s] remember %s to have MIME-type '%s'",
-                       perdir, r->filename, p->forced_mimetype);
-        }
-    }
-
-    /*
-     *  Puuhhhhhhhh... WHAT COMPLICATED STUFF ;_)
-     *  But now we're done for this particular rule.
-     */
-    return 1;
-}
+            rewritelog(r, 2, 

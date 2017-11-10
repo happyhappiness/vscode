@@ -130,4 +130,93 @@ static void *merge_core_dir_configs(apr_pool_t *a, void *basev, void *newv)
     else if (new->sec_file) {
         /* If we merge, the merge-result must have it's own array
          */
-        conf->sec_file = a
+        conf->sec_file = apr_array_append(a, base->sec_file, new->sec_file);
+    }
+    /* Otherwise we simply use the base->sec_file array
+     */
+
+    /* use a separate ->satisfy[] array either way */
+    conf->satisfy = apr_palloc(a, sizeof(*conf->satisfy) * METHODS);
+    for (i = 0; i < METHODS; ++i) {
+        if (new->satisfy[i] != SATISFY_NOSPEC) {
+            conf->satisfy[i] = new->satisfy[i];
+        } else {
+            conf->satisfy[i] = base->satisfy[i];
+        }
+    }
+
+    if (new->server_signature != srv_sig_unset) {
+        conf->server_signature = new->server_signature;
+    }
+
+    if (new->add_default_charset != ADD_DEFAULT_CHARSET_UNSET) {
+        conf->add_default_charset = new->add_default_charset;
+        conf->add_default_charset_name = new->add_default_charset_name;
+    }
+
+    /* Overriding all negotiation
+     */
+    if (new->mime_type) {
+        conf->mime_type = new->mime_type;
+    }
+
+    if (new->handler) {
+        conf->handler = new->handler;
+    }
+
+    if (new->output_filters) {
+        conf->output_filters = new->output_filters;
+    }
+
+    if (new->input_filters) {
+        conf->input_filters = new->input_filters;
+    }
+
+    if (conf->ct_output_filters && new->ct_output_filters) {
+        conf->ct_output_filters = apr_hash_merge(a,
+                                                 new->ct_output_filters,
+                                                 conf->ct_output_filters,
+                                                 merge_ct_filters,
+                                                 NULL);
+    }
+    else if (new->ct_output_filters) {
+        conf->ct_output_filters = apr_hash_copy(a, new->ct_output_filters);
+    }
+    else if (conf->ct_output_filters) {
+        /* That memcpy above isn't enough. */
+        conf->ct_output_filters = apr_hash_copy(a, base->ct_output_filters);
+    }
+
+    /*
+     * Now merge the setting of the FileETag directive.
+     */
+    if (new->etag_bits == ETAG_UNSET) {
+        conf->etag_add =
+            (conf->etag_add & (~ new->etag_remove)) | new->etag_add;
+        conf->etag_remove =
+            (conf->opts_remove & (~ new->etag_add)) | new->etag_remove;
+        conf->etag_bits =
+            (conf->etag_bits & (~ conf->etag_remove)) | conf->etag_add;
+    }
+    else {
+        conf->etag_bits = new->etag_bits;
+        conf->etag_add = new->etag_add;
+        conf->etag_remove = new->etag_remove;
+    }
+
+    if (conf->etag_bits != ETAG_NONE) {
+        conf->etag_bits &= (~ ETAG_NONE);
+    }
+
+    if (new->enable_mmap != ENABLE_MMAP_UNSET) {
+        conf->enable_mmap = new->enable_mmap;
+    }
+
+    if (new->enable_sendfile != ENABLE_SENDFILE_UNSET) {
+        conf->enable_sendfile = new->enable_sendfile;
+    }
+
+    conf->allow_encoded_slashes = new->allow_encoded_slashes;
+    
+    return (void*)conf;
+}

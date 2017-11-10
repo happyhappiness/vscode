@@ -110,24 +110,4 @@ static APR_INLINE const char *header_inout_cmd(cmd_parms *cmd,
             const char *err = NULL;
             expr = ap_expr_parse_cmd(cmd, envclause + 5, 0, &err, NULL);
             if (err) {
-                return apr_pstrcat(cmd->pool,
-                                   "Can't parse envclause/expression: ", err,
-                                   NULL);
-            }
-        }
-        else {
-            return apr_pstrcat(cmd->pool, "Unknown parameter: ", envclause,
-                               NULL);
-        }
-    }
-
-    if ((colon = ap_strchr_c(hdr, ':'))) {
-        hdr = apr_pstrmemdup(cmd->pool, hdr, colon-hdr);
-    }
-
-    new->header = hdr;
-    new->condition_var = condition_var;
-    new->expr = expr;
-
-    return parse_format_string(cmd, new, value);
-}
+                return apr_ps

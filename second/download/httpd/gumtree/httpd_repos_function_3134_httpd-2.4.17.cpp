@@ -108,21 +108,4 @@ static authz_status ldapattribute_check_authorization(request_rec *r,
                               "auth_ldap authorize: "
                               "require attribute: authorization successful");
                 set_request_vars(r, LDAP_AUTHZ);
-                return AUTHZ_GRANTED;
-            }
-            default: {
-                ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01736)
-                              "auth_ldap authorize: require attribute: "
-                              "authorization failed [%s][%s]",
-                              ldc->reason, ldap_err2string(result));
-            }
-        }
-    }
-
-    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01737)
-                  "auth_ldap authorize attribute: authorization denied for "
-                  "user %s to %s",
-                  r->user, r->uri);
-
-    return AUTHZ_DENIED;
-}
+                ret

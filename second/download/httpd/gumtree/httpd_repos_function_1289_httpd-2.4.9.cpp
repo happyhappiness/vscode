@@ -212,4 +212,70 @@ static int open_entity(cache_handle_t *h, request_rec *r, const char *key)
     if (APR_SUCCESS != read_table(h, r, h->req_hdrs, sobj->buffer, buffer_len,
             &slider)) {
         ap_log_rerror(APLOG_MARK, APLOG_ERR, rc, r, APLOGNO(02365)
-                "Cache entry for key '%s' request headers unreadable, removing", nk
+                "Cache entry for key '%s' request headers unreadable, removing", nkey);
+        goto fail;
+    }
+
+    /* Retrieve the body if we have one */
+    sobj->body = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    len = buffer_len - slider;
+
+    /*
+     *  Optimisation: if the body is small, we want to make a
+     *  copy of the body and free the temporary pool, as we
+     *  don't want large blocks of unused memory hanging around
+     *  to the end of the response. In contrast, if the body is
+     *  large, we would rather leave the body where it is in the
+     *  temporary pool, and save ourselves the copy.
+     */
+    if (len * 2 > dconf->max) {
+        apr_bucket *e;
+
+        /* large - use the brigade as is, we're done */
+        e = apr_bucket_immortal_create((const char *) sobj->buffer + slider,
+                len, r->connection->bucket_alloc);
+
+        APR_BRIGADE_INSERT_TAIL(sobj->body, e);
+    }
+    else {
+
+        /* small - make a copy of the data... */
+        apr_brigade_write(sobj->body, NULL, NULL, (const char *) sobj->buffer
+                + slider, len);
+
+        /* ...and get rid of the large memory buffer */
+        apr_pool_destroy(sobj->pool);
+        sobj->pool = NULL;
+    }
+
+    /* make the configuration stick */
+    h->cache_obj = obj;
+    obj->vobj = sobj;
+
+    return OK;
+
+fail:
+    if (socache_mutex) {
+        apr_status_t status = apr_global_mutex_lock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02366)
+                    "could not acquire lock, ignoring: %s", obj->key);
+            apr_pool_destroy(sobj->pool);
+            sobj->pool = NULL;
+            return DECLINED;
+        }
+    }
+    conf->provider->socache_provider->remove(
+            conf->provider->socache_instance, r->server,
+            (unsigned char *) nkey, strlen(nkey), r->pool);
+    if (socache_mutex) {
+        apr_status_t status = apr_global_mutex_unlock(socache_mutex);
+        if (status != APR_SUCCESS) {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, status, r, APLOGNO(02367)
+                    "could not release lock, ignoring: %s", obj->key);
+        }
+    }
+    apr_pool_destroy(sobj->pool);
+    sobj->pool = NULL;
+    return DECLINED;
+}
