@@ -1,12 +1,9 @@
-static int is_empty_file(const char *filename)
+struct commit *lookup_commit_reference_gently(const unsigned char *sha1,
+					      int quiet)
 {
-	struct stat st;
+	struct object *obj = deref_tag(parse_object(sha1), NULL, 0);
 
-	if (stat(filename, &st) < 0) {
-		if (errno == ENOENT)
-			return 1;
-		die_errno(_("could not stat %s"), filename);
-	}
-
-	return !st.st_size;
+	if (!obj)
+		return NULL;
+	return object_as_type(obj, OBJ_COMMIT, quiet);
 }

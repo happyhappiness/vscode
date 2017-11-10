@@ -1,25 +1,10 @@
-static void write_index_patch(const struct am_state *state)
+int compare_commits_by_commit_date(const void *a_, const void *b_, void *unused)
 {
-	struct tree *tree;
-	unsigned char head[GIT_SHA1_RAWSZ];
-	struct rev_info rev_info;
-	FILE *fp;
-
-	if (!get_sha1_tree("HEAD", head))
-		tree = lookup_tree(head);
-	else
-		tree = lookup_tree(EMPTY_TREE_SHA1_BIN);
-
-	fp = xfopen(am_path(state, "patch"), "w");
-	init_revisions(&rev_info, NULL);
-	rev_info.diff = 1;
-	rev_info.disable_stdin = 1;
-	rev_info.no_commit_id = 1;
-	rev_info.diffopt.output_format = DIFF_FORMAT_PATCH;
-	rev_info.diffopt.use_color = 0;
-	rev_info.diffopt.file = fp;
-	rev_info.diffopt.close_file = 1;
-	add_pending_object(&rev_info, &tree->object, "");
-	diff_setup_done(&rev_info.diffopt);
-	run_diff_index(&rev_info, 1);
+	const struct commit *a = a_, *b = b_;
+	/* newer commits with larger date first */
+	if (a->date < b->date)
+		return 1;
+	else if (a->date > b->date)
+		return -1;
+	return 0;
 }

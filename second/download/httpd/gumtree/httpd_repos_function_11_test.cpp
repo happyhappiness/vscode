@@ -1,17 +1,13 @@
-static int read_state_file(struct strbuf *sb, const struct am_state *state,
-			const char *file, int trim)
+static void prepare_commit_graft(void)
 {
-	strbuf_reset(sb);
+	static int commit_graft_prepared;
+	char *graft_file;
 
-	if (strbuf_read_file(sb, am_path(state, file), 0) >= 0) {
-		if (trim)
-			strbuf_trim(sb);
-
-		return sb->len;
-	}
-
-	if (errno == ENOENT)
-		return -1;
-
-	die_errno(_("could not read '%s'"), am_path(state, file));
+	if (commit_graft_prepared)
+		return;
+	graft_file = get_graft_file();
+	read_graft_file(graft_file);
+	/* make sure shallows are read */
+	is_repository_shallow();
+	commit_graft_prepared = 1;
 }

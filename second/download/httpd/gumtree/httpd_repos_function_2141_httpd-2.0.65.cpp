@@ -103,12 +103,4 @@ static void perform_idle_server_maintenance(apr_pool_t *p)
             if (hold_off_on_exponential_spawning) {
                 --hold_off_on_exponential_spawning;
             }
-            else if (idle_spawn_rate < MAX_SPAWN_RATE) {
-                idle_spawn_rate *= 2;
-            }
-        }
-    }
-    else {
-        idle_spawn_rate = 1;
-    }
-}
+            else if (idle_spawn_rate

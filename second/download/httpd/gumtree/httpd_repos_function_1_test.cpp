@@ -1,4 +1,4 @@
-static int linelen(const char *msg)
+struct commit *lookup_commit_reference(const unsigned char *sha1)
 {
-	return strchrnul(msg, '\n') - msg;
+	return lookup_commit_reference_gently(sha1, 0);
 }

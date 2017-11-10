@@ -1,30 +1,19 @@
-static int merge_tree(struct tree *tree)
+int in_merge_bases_many(struct commit *commit, int nr_reference, struct commit **reference)
 {
-	struct lock_file *lock_file;
-	struct unpack_trees_options opts;
-	struct tree_desc t[1];
+	struct commit_list *bases;
+	int ret = 0, i;
 
-	if (parse_tree(tree))
-		return -1;
+	if (parse_commit(commit))
+		return ret;
+	for (i = 0; i < nr_reference; i++)
+		if (parse_commit(reference[i]))
+			return ret;
 
-	lock_file = xcalloc(1, sizeof(struct lock_file));
-	hold_locked_index(lock_file, 1);
-
-	memset(&opts, 0, sizeof(opts));
-	opts.head_idx = 1;
-	opts.src_index = &the_index;
-	opts.dst_index = &the_index;
-	opts.merge = 1;
-	opts.fn = oneway_merge;
-	init_tree_desc(&t[0], tree->buffer, tree->size);
-
-	if (unpack_trees(1, t, &opts)) {
-		rollback_lock_file(lock_file);
-		return -1;
-	}
-
-	if (write_locked_index(&the_index, lock_file, COMMIT_LOCK))
-		die(_("unable to write new index file"));
-
-	return 0;
+	bases = paint_down_to_common(commit, nr_reference, reference);
+	if (commit->object.flags & PARENT2)
+		ret = 1;
+	clear_commit_marks(commit, all_flags);
+	clear_commit_marks_many(nr_reference, reference, all_flags);
+	free_commit_list(bases);
+	return ret;
 }

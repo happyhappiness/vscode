@@ -1,19 +1,11 @@
-static int get_mail_commit_sha1(unsigned char *commit_id, const char *mail)
+struct commit *pop_commit(struct commit_list **stack)
 {
-	struct strbuf sb = STRBUF_INIT;
-	FILE *fp = xfopen(mail, "r");
-	const char *x;
+	struct commit_list *top = *stack;
+	struct commit *item = top ? top->item : NULL;
 
-	if (strbuf_getline_lf(&sb, fp))
-		return -1;
-
-	if (!skip_prefix(sb.buf, "From ", &x))
-		return -1;
-
-	if (get_sha1_hex(x, commit_id) < 0)
-		return -1;
-
-	strbuf_release(&sb);
-	fclose(fp);
-	return 0;
+	if (top) {
+		*stack = top->next;
+		free(top);
+	}
+	return item;
 }

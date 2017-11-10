@@ -1,17 +1,9 @@
-static int run_applypatch_msg_hook(struct am_state *state)
+void free_commit_buffer(struct commit *commit)
 {
-	int ret;
-
-	assert(state->msg);
-	ret = run_hook_le(NULL, "applypatch-msg", am_path(state, "final-commit"), NULL);
-
-	if (!ret) {
-		free(state->msg);
-		state->msg = NULL;
-		if (read_commit_msg(state) < 0)
-			die(_("'%s' was deleted by the applypatch-msg hook"),
-				am_path(state, "final-commit"));
+	struct commit_buffer *v = buffer_slab_peek(&buffer_slab, commit);
+	if (v) {
+		free(v->buffer);
+		v->buffer = NULL;
+		v->size = 0;
 	}
-
-	return ret;
 }

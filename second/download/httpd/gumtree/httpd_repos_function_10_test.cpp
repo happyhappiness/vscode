@@ -1,12 +1,18 @@
-static int am_in_progress(const struct am_state *state)
+static int read_graft_file(const char *graft_file)
 {
-	struct stat st;
-
-	if (lstat(state->dir, &st) < 0 || !S_ISDIR(st.st_mode))
-		return 0;
-	if (lstat(am_path(state, "last"), &st) || !S_ISREG(st.st_mode))
-		return 0;
-	if (lstat(am_path(state, "next"), &st) || !S_ISREG(st.st_mode))
-		return 0;
-	return 1;
+	FILE *fp = fopen(graft_file, "r");
+	struct strbuf buf = STRBUF_INIT;
+	if (!fp)
+		return -1;
+	while (!strbuf_getwholeline(&buf, fp, '\n')) {
+		/* The format is just "Commit Parent1 Parent2 ...\n" */
+		struct commit_graft *graft = read_graft_line(buf.buf, buf.len);
+		if (!graft)
+			continue;
+		if (register_commit_graft(graft, 1))
+			error("duplicate graft data: %s", buf.buf);
+	}
+	fclose(fp);
+	strbuf_release(&buf);
+	return 0;
 }

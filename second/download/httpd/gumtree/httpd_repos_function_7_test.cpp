@@ -1,5 +1,5 @@
-static int write_state_count(const struct am_state *state,
-			     const char *name, int value)
+static int commit_graft_pos(const unsigned char *sha1)
 {
-	return write_file(am_path(state, name), "%d", value);
+	return sha1_pos(sha1, commit_graft, commit_graft_nr,
+			commit_graft_sha1_access);
 }

@@ -1,9 +1,12 @@
-static void am_state_release(struct am_state *state)
+struct commit *lookup_commit_reference_by_name(const char *name)
 {
-	free(state->dir);
-	free(state->author_name);
-	free(state->author_email);
-	free(state->author_date);
-	free(state->msg);
-	argv_array_clear(&state->git_apply_opts);
+	struct object_id oid;
+	struct commit *commit;
+
+	if (get_sha1_committish(name, oid.hash))
+		return NULL;
+	commit = lookup_commit_reference(oid.hash);
+	if (parse_commit(commit))
+		return NULL;
+	return commit;
 }

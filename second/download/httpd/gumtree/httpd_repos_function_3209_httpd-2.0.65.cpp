@@ -132,8 +132,4 @@ apr_memnode_t *allocator_alloc(apr_allocator_t *allocator, apr_size_t in_size)
 
     node->next = NULL;
     node->index = index;
-    node->first_avail = (char *)node + APR_MEMNODE_T_SIZE;
-    node->endp = (char *)node + size;
-
-    return node;
-}
+    node->first_avail = (char *)node + APR_M

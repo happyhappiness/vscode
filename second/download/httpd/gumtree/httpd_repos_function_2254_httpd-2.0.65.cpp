@@ -109,4 +109,82 @@ int ap_mpm_run(apr_pool_t *_pconf, apr_pool_t *plog, server_rec *s)
 #endif
     restart_pending = shutdown_pending = 0;
 
-    server_main_loop(remainin
+    server_main_loop(remaining_children_to_start);
+
+    if (shutdown_pending) {
+        /* Time to gracefully shut down:
+         * Kill child processes, tell them to call child_exit, etc...
+         */
+        if (unixd_killpg(getpgrp(), SIGTERM) < 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                         "killpg SIGTERM");
+        }
+        ap_reclaim_child_processes(1);      /* Start with SIGTERM */
+
+        if (!child_fatal) {
+            /* cleanup pid file on normal shutdown */
+            const char *pidfile = NULL;
+            pidfile = ap_server_root_relative (pconf, ap_pid_fname);
+            if (pidfile != NULL && unlink(pidfile) == 0) {
+                ap_log_error(APLOG_MARK, APLOG_INFO, 0,
+                             ap_server_conf,
+                             "removed PID file %s (pid=%ld)",
+                             pidfile, (long)getpid());
+            }
+    
+            ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                         ap_server_conf, "caught SIGTERM, shutting down");
+        }
+        return 1;
+    }
+
+    /* we've been told to restart */
+    apr_signal(SIGHUP, SIG_IGN);
+
+    if (one_process) {
+        /* not worth thinking about */
+        return 1;
+    }
+
+    if (is_graceful) {
+        char char_of_death = '!';
+
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                     ap_server_conf, AP_SIG_GRACEFUL_STRING " received.  "
+                     "Doing graceful restart");
+
+        /* This is mostly for debugging... so that we know what is still
+         * gracefully dealing with existing request.
+         */
+    
+        for (i = 0; i < num_daemons; ++i) {
+            if (ap_child_table[i].pid) {
+                ap_child_table[i].status = SERVER_DYING;
+            } 
+        }
+        /* give the children the signal to die */
+        for (i = 0; i < num_daemons;) {
+            if ((rv = apr_file_write(pipe_of_death_out, &char_of_death,
+                                     &one)) != APR_SUCCESS) {
+                if (APR_STATUS_IS_EINTR(rv)) continue;
+                ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf,
+                             "write pipe_of_death");
+            }
+            i++;
+        }
+    }
+    else {
+        /* Kill 'em all.  Since the child acts the same on the parents SIGTERM 
+         * and a SIGHUP, we may as well use the same signal, because some user
+         * pthreads are stealing signals from us left and right.
+         */
+        if (unixd_killpg(getpgrp(), SIGTERM) < 0) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, errno, ap_server_conf,
+                         "killpg SIGTERM");
+        }
+        ap_reclaim_child_processes(1);      /* Start with SIGTERM */
+        ap_log_error(APLOG_MARK, APLOG_NOTICE, 0,
+                     ap_server_conf, "SIGHUP received.  Attempting to restart");
+    }
+    return 0;
+}

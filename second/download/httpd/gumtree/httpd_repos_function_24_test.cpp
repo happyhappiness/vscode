@@ -1,23 +1,18 @@
-static int split_mail_mbox(struct am_state *state, const char **paths, int keep_cr)
+int find_commit_subject(const char *commit_buffer, const char **subject)
 {
-	struct child_process cp = CHILD_PROCESS_INIT;
-	struct strbuf last = STRBUF_INIT;
+	const char *eol;
+	const char *p = commit_buffer;
 
-	cp.git_cmd = 1;
-	argv_array_push(&cp.args, "mailsplit");
-	argv_array_pushf(&cp.args, "-d%d", state->prec);
-	argv_array_pushf(&cp.args, "-o%s", state->dir);
-	argv_array_push(&cp.args, "-b");
-	if (keep_cr)
-		argv_array_push(&cp.args, "--keep-cr");
-	argv_array_push(&cp.args, "--");
-	argv_array_pushv(&cp.args, paths);
+	while (*p && (*p != '\n' || p[1] != '\n'))
+		p++;
+	if (*p) {
+		p += 2;
+		for (eol = p; *eol && *eol != '\n'; eol++)
+			; /* do nothing */
+	} else
+		eol = p;
 
-	if (capture_command(&cp, &last, 8))
-		return -1;
+	*subject = p;
 
-	state->cur = 1;
-	state->last = strtol(last.buf, NULL, 10);
-
-	return 0;
+	return eol - p;
 }

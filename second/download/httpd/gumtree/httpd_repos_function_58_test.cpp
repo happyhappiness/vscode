@@ -1,25 +1,39 @@
-static int safe_to_abort(const struct am_state *state)
+int parse_signed_commit(const struct commit *commit,
+			struct strbuf *payload, struct strbuf *signature)
 {
-	struct strbuf sb = STRBUF_INIT;
-	unsigned char abort_safety[GIT_SHA1_RAWSZ], head[GIT_SHA1_RAWSZ];
 
-	if (file_exists(am_path(state, "dirtyindex")))
-		return 0;
+	unsigned long size;
+	const char *buffer = get_commit_buffer(commit, &size);
+	int in_signature, saw_signature = -1;
+	const char *line, *tail;
 
-	if (read_state_file(&sb, state, "abort-safety", 1) > 0) {
-		if (get_sha1_hex(sb.buf, abort_safety))
-			die(_("could not parse %s"), am_path(state, "abort_safety"));
-	} else
-		hashclr(abort_safety);
+	line = buffer;
+	tail = buffer + size;
+	in_signature = 0;
+	saw_signature = 0;
+	while (line < tail) {
+		const char *sig = NULL;
+		const char *next = memchr(line, '\n', tail - line);
 
-	if (get_sha1("HEAD", head))
-		hashclr(head);
-
-	if (!hashcmp(head, abort_safety))
-		return 1;
-
-	error(_("You seem to have moved HEAD since the last 'am' failure.\n"
-		"Not rewinding to ORIG_HEAD"));
-
-	return 0;
+		next = next ? next + 1 : tail;
+		if (in_signature && line[0] == ' ')
+			sig = line + 1;
+		else if (starts_with(line, gpg_sig_header) &&
+			 line[gpg_sig_header_len] == ' ')
+			sig = line + gpg_sig_header_len + 1;
+		if (sig) {
+			strbuf_add(signature, sig, next - sig);
+			saw_signature = 1;
+			in_signature = 1;
+		} else {
+			if (*line == '\n')
+				/* dump the whole remainder of the buffer */
+				next = tail;
+			strbuf_add(payload, line, next - line);
+			in_signature = 0;
+		}
+		line = next;
+	}
+	unuse_commit_buffer(commit, buffer);
+	return saw_signature;
 }

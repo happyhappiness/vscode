@@ -1,5 +1,5 @@
-static int write_state_text(const struct am_state *state,
-			    const char *name, const char *string)
+static const unsigned char *commit_graft_sha1_access(size_t index, void *table)
 {
-	return write_file(am_path(state, name), "%s", string);
+	struct commit_graft **commit_graft_table = table;
+	return commit_graft_table[index]->oid.hash;
 }

@@ -174,12 +174,14 @@ if __name__ == "__main__":
     # curl
     # analyze_repos("curl-7.41.0")
     # mutt
-    analyze_repos("mutt-1.7.2")
+    # analyze_repos("mutt-1.7.2")
     # rsync
-    # analyze_repos("rsync-1.4.4")
+    # repos_name = "rsync-1.4.4"
     # git
     # analyze_repos('git-2.6.7')
     # httpd
     # analyze_repos('httpd-2.3.8')
-    cluster_repos_log()
     # cluster_repos_log()
+    # cluster_repos_log()
+    repos_name = 'httpd-2.0.65'
+    analyze_repos(repos_name, '_' + repos_name)

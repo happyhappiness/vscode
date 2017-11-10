@@ -1,57 +1,55 @@
-static void do_commit(const struct am_state *state)
+static int remove_redundant(struct commit **array, int cnt)
 {
-	unsigned char tree[GIT_SHA1_RAWSZ], parent[GIT_SHA1_RAWSZ],
-		      commit[GIT_SHA1_RAWSZ];
-	unsigned char *ptr;
-	struct commit_list *parents = NULL;
-	const char *reflog_msg, *author;
-	struct strbuf sb = STRBUF_INIT;
+	/*
+	 * Some commit in the array may be an ancestor of
+	 * another commit.  Move such commit to the end of
+	 * the array, and return the number of commits that
+	 * are independent from each other.
+	 */
+	struct commit **work;
+	unsigned char *redundant;
+	int *filled_index;
+	int i, j, filled;
 
-	if (run_hook_le(NULL, "pre-applypatch", NULL))
-		exit(1);
+	work = xcalloc(cnt, sizeof(*work));
+	redundant = xcalloc(cnt, 1);
+	filled_index = xmalloc(sizeof(*filled_index) * (cnt - 1));
 
-	if (write_cache_as_tree(tree, 0, NULL))
-		die(_("git write-tree failed to write a tree"));
+	for (i = 0; i < cnt; i++)
+		parse_commit(array[i]);
+	for (i = 0; i < cnt; i++) {
+		struct commit_list *common;
 
-	if (!get_sha1_commit("HEAD", parent)) {
-		ptr = parent;
-		commit_list_insert(lookup_commit(parent), &parents);
-	} else {
-		ptr = NULL;
-		say(state, stderr, _("applying to an empty history"));
+		if (redundant[i])
+			continue;
+		for (j = filled = 0; j < cnt; j++) {
+			if (i == j || redundant[j])
+				continue;
+			filled_index[filled] = j;
+			work[filled++] = array[j];
+		}
+		common = paint_down_to_common(array[i], filled, work);
+		if (array[i]->object.flags & PARENT2)
+			redundant[i] = 1;
+		for (j = 0; j < filled; j++)
+			if (work[j]->object.flags & PARENT1)
+				redundant[filled_index[j]] = 1;
+		clear_commit_marks(array[i], all_flags);
+		for (j = 0; j < filled; j++)
+			clear_commit_marks(work[j], all_flags);
+		free_commit_list(common);
 	}
 
-	author = fmt_ident(state->author_name, state->author_email,
-			state->ignore_date ? NULL : state->author_date,
-			IDENT_STRICT);
-
-	if (state->committer_date_is_author_date)
-		setenv("GIT_COMMITTER_DATE",
-			state->ignore_date ? "" : state->author_date, 1);
-
-	if (commit_tree(state->msg, state->msg_len, tree, parents, commit,
-				author, state->sign_commit))
-		die(_("failed to write commit object"));
-
-	reflog_msg = getenv("GIT_REFLOG_ACTION");
-	if (!reflog_msg)
-		reflog_msg = "am";
-
-	strbuf_addf(&sb, "%s: %.*s", reflog_msg, linelen(state->msg),
-			state->msg);
-
-	update_ref(sb.buf, "HEAD", commit, ptr, 0, UPDATE_REFS_DIE_ON_ERR);
-
-	if (state->rebasing) {
-		FILE *fp = xfopen(am_path(state, "rewritten"), "a");
-
-		assert(!is_null_sha1(state->orig_commit));
-		fprintf(fp, "%s ", sha1_to_hex(state->orig_commit));
-		fprintf(fp, "%s\n", sha1_to_hex(commit));
-		fclose(fp);
-	}
-
-	run_hook_le(NULL, "post-applypatch", NULL);
-
-	strbuf_release(&sb);
+	/* Now collect the result */
+	memcpy(work, array, sizeof(*array) * cnt);
+	for (i = filled = 0; i < cnt; i++)
+		if (!redundant[i])
+			array[filled++] = work[i];
+	for (j = filled, i = 0; i < cnt; i++)
+		if (redundant[i])
+			array[j++] = work[i];
+	free(work);
+	free(redundant);
+	free(filled_index);
+	return filled;
 }

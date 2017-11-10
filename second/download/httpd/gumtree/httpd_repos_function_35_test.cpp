@@ -1,14 +1,21 @@
-static void NORETURN die_user_resolve(const struct am_state *state)
+static void clear_commit_marks_1(struct commit_list **plist,
+				 struct commit *commit, unsigned int mark)
 {
-	if (state->resolvemsg) {
-		printf_ln("%s", state->resolvemsg);
-	} else {
-		const char *cmdline = state->interactive ? "git am -i" : "git am";
+	while (commit) {
+		struct commit_list *parents;
 
-		printf_ln(_("When you have resolved this problem, run \"%s --continue\"."), cmdline);
-		printf_ln(_("If you prefer to skip this patch, run \"%s --skip\" instead."), cmdline);
-		printf_ln(_("To restore the original branch and stop patching, run \"%s --abort\"."), cmdline);
+		if (!(mark & commit->object.flags))
+			return;
+
+		commit->object.flags &= ~mark;
+
+		parents = commit->parents;
+		if (!parents)
+			return;
+
+		while ((parents = parents->next))
+			commit_list_insert(parents->item, plist);
+
+		commit = commit->parents->item;
 	}
-
-	exit(128);
 }

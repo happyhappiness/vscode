@@ -1,9 +1,4 @@
-static const char *msgnum(const struct am_state *state)
+static void commit_list_set_next(void *a, void *next)
 {
-	static struct strbuf sb = STRBUF_INIT;
-
-	strbuf_reset(&sb);
-	strbuf_addf(&sb, "%0*d", state->prec, state->cur);
-
-	return sb.buf;
+	((struct commit_list *)a)->next = next;
 }

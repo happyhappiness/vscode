@@ -1,34 +1,33 @@
-static void am_abort(struct am_state *state)
+int remove_signature(struct strbuf *buf)
 {
-	unsigned char curr_head[GIT_SHA1_RAWSZ], orig_head[GIT_SHA1_RAWSZ];
-	int has_curr_head, has_orig_head;
-	char *curr_branch;
+	const char *line = buf->buf;
+	const char *tail = buf->buf + buf->len;
+	int in_signature = 0;
+	const char *sig_start = NULL;
+	const char *sig_end = NULL;
 
-	if (!safe_to_abort(state)) {
-		am_destroy(state);
-		return;
+	while (line < tail) {
+		const char *next = memchr(line, '\n', tail - line);
+		next = next ? next + 1 : tail;
+
+		if (in_signature && line[0] == ' ')
+			sig_end = next;
+		else if (starts_with(line, gpg_sig_header) &&
+			 line[gpg_sig_header_len] == ' ') {
+			sig_start = line;
+			sig_end = next;
+			in_signature = 1;
+		} else {
+			if (*line == '\n')
+				/* dump the whole remainder of the buffer */
+				next = tail;
+			in_signature = 0;
+		}
+		line = next;
 	}
 
-	am_rerere_clear();
+	if (sig_start)
+		strbuf_remove(buf, sig_start - buf->buf, sig_end - sig_start);
 
-	curr_branch = resolve_refdup("HEAD", 0, curr_head, NULL);
-	has_curr_head = !is_null_sha1(curr_head);
-	if (!has_curr_head)
-		hashcpy(curr_head, EMPTY_TREE_SHA1_BIN);
-
-	has_orig_head = !get_sha1("ORIG_HEAD", orig_head);
-	if (!has_orig_head)
-		hashcpy(orig_head, EMPTY_TREE_SHA1_BIN);
-
-	clean_index(curr_head, orig_head);
-
-	if (has_orig_head)
-		update_ref("am --abort", "HEAD", orig_head,
-				has_curr_head ? curr_head : NULL, 0,
-				UPDATE_REFS_DIE_ON_ERR);
-	else if (curr_branch)
-		delete_ref(curr_branch, NULL, REF_NODEREF);
-
-	free(curr_branch);
-	am_destroy(state);
+	return sig_start != NULL;
 }
