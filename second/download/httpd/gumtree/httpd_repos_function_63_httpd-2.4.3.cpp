@@ -329,4 +329,37 @@ static int process_dir(char *path, apr_pool_t *pool, apr_off_t *nodes)
             break;
 
         case DATA:
-            current = 
+            current = apr_time_now();
+            if (realclean || d->dtime < current - deviation
+                || d->dtime > current + deviation) {
+                delete_entry(path, d->basename, nodes, p);
+                unsolicited += d->dsize;
+            }
+            break;
+
+        /* temp files may only be deleted in realclean mode which
+         * is asserted above if a tempfile is in the hash array
+         */
+        case TEMP:
+            delete_file(path, d->basename, nodes, p);
+            unsolicited += d->dsize;
+            break;
+        }
+    }
+
+    if (interrupted) {
+        return 1;
+    }
+
+    apr_pool_destroy(p);
+
+    if (benice) {
+        apr_sleep(NICE_DELAY);
+    }
+
+    if (interrupted) {
+        return 1;
+    }
+
+    return 0;
+}

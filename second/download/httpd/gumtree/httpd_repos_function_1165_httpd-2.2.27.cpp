@@ -117,4 +117,32 @@ static char *lookup_map(request_rec *r, char *name, char *key)
      * Program file map
      */
     case MAPTYPE_PRG:
-        value = lookup
+        value = lookup_map_program(r, s->fpin, s->fpout, key);
+        if (!value) {
+            rewritelog((r, 5,NULL,"map lookup FAILED: map=%s key=%s", name,
+                        key));
+            return NULL;
+        }
+
+        rewritelog((r, 5, NULL, "map lookup OK: map=%s key=%s -> val=%s",
+                    name, key, value));
+        return value;
+
+    /*
+     * Internal Map
+     */
+    case MAPTYPE_INT:
+        value = s->func(r, key);
+        if (!value) {
+            rewritelog((r, 5,NULL,"map lookup FAILED: map=%s key=%s", name,
+                        key));
+            return NULL;
+        }
+
+        rewritelog((r, 5, NULL, "map lookup OK: map=%s key=%s -> val=%s",
+                    name, key, value));
+        return value;
+    }
+
+    return NULL;
+}

@@ -234,4 +234,58 @@ static int cgi_handler(request_rec *r)
             log_script_err(r, script_err);
         }
 
-        if (location && locatio
+        if (location && location[0] == '/' && r->status == 200) {
+            /* This redirect needs to be a GET no matter what the original
+             * method was.
+             */
+            r->method = apr_pstrdup(r->pool, "GET");
+            r->method_number = M_GET;
+
+            /* We already read the message body (if any), so don't allow
+             * the redirected request to think it has one.  We can ignore
+             * Transfer-Encoding, since we used REQUEST_CHUNKED_ERROR.
+             */
+            apr_table_unset(r->headers_in, "Content-Length");
+
+            ap_internal_redirect_handler(location, r);
+            return OK;
+        }
+        else if (location && r->status == 200) {
+            /* XX Note that if a script wants to produce its own Redirect
+             * body, it now has to explicitly *say* "Status: 302"
+             */
+            return HTTP_MOVED_TEMPORARILY;
+        }
+
+        rv = ap_pass_brigade(r->output_filters, bb);
+    }
+    else /* nph */ {
+        struct ap_filter_t *cur;
+
+        /* get rid of all filters up through protocol...  since we
+         * haven't parsed off the headers, there is no way they can
+         * work
+         */
+
+        cur = r->proto_output_filters;
+        while (cur && cur->frec->ftype < AP_FTYPE_CONNECTION) {
+            cur = cur->next;
+        }
+        r->output_filters = r->proto_output_filters = cur;
+
+        rv = ap_pass_brigade(r->output_filters, bb);
+    }
+
+    /* don't soak up script output if errors occurred writing it
+     * out...  otherwise, we prolong the life of the script when the
+     * connection drops or we stopped sending output for some other
+     * reason */
+    if (rv == APR_SUCCESS && !r->connection->aborted) {
+        apr_file_pipe_timeout_set(script_err, r->server->timeout);
+        log_script_err(r, script_err);
+    }
+
+    apr_file_close(script_err);
+
+    return OK;                      /* NOT r->status, even if it has changed. */
+}

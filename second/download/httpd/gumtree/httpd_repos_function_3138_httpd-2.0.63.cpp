@@ -110,4 +110,7 @@ apr_status_t apr_socket_sendfile(apr_socket_t * sock, apr_file_t * file,
 
     (*len) = nbytes;
     if (rv == -1) {
-    
+        return errno;
+    }
+    return APR_SUCCESS;
+}

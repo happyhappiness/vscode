@@ -112,46 +112,4 @@ request_rec *ap_read_request(conn_rec *conn)
          */
         r->status = HTTP_BAD_REQUEST;
         ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                      "client sent HTTP/1.1 request without hostname "
-                      "(see RFC2616 section 14.23): %s", r->uri);
-    }
-
-    if (r->status != HTTP_OK) {
-        ap_send_error_response(r, 0);
-        ap_run_log_transaction(r);
-        return r;
-    }
-
-    if (((expect = apr_table_get(r->headers_in, "Expect")) != NULL)
-        && (expect[0] != '\0')) {
-        /*
-         * The Expect header field was added to HTTP/1.1 after RFC 2068
-         * as a means to signal when a 100 response is desired and,
-         * unfortunately, to signal a poor man's mandatory extension that
-         * the server must understand or return 417 Expectation Failed.
-         */
-        if (strcasecmp(expect, "100-continue") == 0) {
-            r->expecting_100 = 1;
-        }
-        else {
-            r->status = HTTP_EXPECTATION_FAILED;
-            ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
-                          "client sent an unrecognized expectation value of "
-                          "Expect: %s", expect);
-            ap_send_error_response(r, 0);
-            ap_run_log_transaction(r);
-            return r;
-        }
-    }
-
-    ap_add_input_filter_handle(ap_http_input_filter_handle,
-                               NULL, r, r->connection);
-
-    if ((access_status = ap_run_post_read_request(r))) {
-        ap_die(access_status, r);
-        ap_run_log_transaction(r);
-        return NULL;
-    }
-
-    return r;
-}
+                      "client sent HTTP/1.1 request witho

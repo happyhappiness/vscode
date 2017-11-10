@@ -109,8 +109,41 @@
             <else pos:line="108" pos:column="13">else <block pos:line="108" pos:column="18">{
                 <expr_stmt><expr><call><name pos:line="109" pos:column="17">APR_BRIGADE_INSERT_TAIL<pos:position pos:line="109" pos:column="40"/></name><argument_list pos:line="109" pos:column="40">(<argument><expr><name pos:line="109" pos:column="41">b<pos:position pos:line="109" pos:column="42"/></name></expr></argument>, <argument><expr><name pos:line="109" pos:column="44">e<pos:position pos:line="109" pos:column="45"/></name></expr></argument>)<pos:position pos:line="109" pos:column="46"/></argument_list></call></expr>;<pos:position pos:line="109" pos:column="47"/></expr_stmt>
             }<pos:position pos:line="110" pos:column="14"/></block></else></if>
-        }<pos:position pos:line="111" pos:column="10"/></block></then></if></block></for></block></function>
+        }<pos:position pos:line="111" pos:column="10"/></block></then></if>
 
         <comment type="block" pos:line="113" pos:column="9">/* RFC 2616, Section 3.6.1
          *
-         * If there is an EOS buc</comment></unit>
+         * If there is an EOS bucket, then prefix it with:
+         *   1) the last-chunk marker ("0" CRLF)
+         *   2) the trailer
+         *   3) the end-of-chunked body CRLF
+         *
+         * We only do this if we have not seen an error bucket with
+         * status HTTP_BAD_GATEWAY. We have memorized an
+         * error bucket that we had seen in the filter context.
+         * The error bucket with status HTTP_BAD_GATEWAY indicates that the
+         * connection to the backend (mod_proxy) broke in the middle of the
+         * response. In order to signal the client that something went wrong
+         * we do not create the last-chunk marker and set c-&gt;keepalive to
+         * AP_CONN_CLOSE in the core output filter.
+         *
+         * XXX: it would be nice to combine this with the end-of-chunk
+         * marker above, but this is a bit more straight-forward for
+         * now.
+         */</comment>
+        <if pos:line="133" pos:column="9">if <condition pos:line="133" pos:column="12">(<expr><name pos:line="133" pos:column="13">eos<pos:position pos:line="133" pos:column="16"/></name> <operator pos:line="133" pos:column="17">&amp;&amp;<pos:position pos:line="133" pos:column="27"/></operator> <operator pos:line="133" pos:column="20">!<pos:position pos:line="133" pos:column="21"/></operator><name><name pos:line="133" pos:column="21">f<pos:position pos:line="133" pos:column="22"/></name><operator pos:line="133" pos:column="22">-&gt;<pos:position pos:line="133" pos:column="27"/></operator><name pos:line="133" pos:column="24">ctx<pos:position pos:line="133" pos:column="27"/></name></name></expr>)<pos:position pos:line="133" pos:column="28"/></condition><then pos:line="133" pos:column="28"> <block pos:line="133" pos:column="29">{
+            <comment type="block" pos:line="134" pos:column="13">/* XXX: (2) trailers ... does not yet exist */</comment>
+            <expr_stmt><expr><name pos:line="135" pos:column="13">e<pos:position pos:line="135" pos:column="14"/></name> <operator pos:line="135" pos:column="15">=<pos:position pos:line="135" pos:column="16"/></operator> <macro><name pos:line="135" pos:column="17">apr_bucket_immortal_create<pos:position pos:line="135" pos:column="43"/></name><argument_list pos:line="135" pos:column="43">(<argument pos:line="135" pos:column="44">ASCII_ZERO ASCII_CRLF
+                                           <comment type="block" pos:line="136" pos:column="44">/* &lt;trailers&gt; */</comment>
+                                           ASCII_CRLF<pos:position pos:line="137" pos:column="54"/></argument>, <argument><literal type="number" pos:line="137" pos:column="56">5<pos:position pos:line="137" pos:column="57"/></literal></argument>, <argument pos:line="137" pos:column="59">c-&gt;bucket_alloc<pos:position pos:line="137" pos:column="74"/></argument>)<pos:position pos:line="137" pos:column="75"/></argument_list></macro></expr>;<pos:position pos:line="137" pos:column="76"/></expr_stmt>
+            <expr_stmt><expr><call><name pos:line="138" pos:column="13">APR_BUCKET_INSERT_BEFORE<pos:position pos:line="138" pos:column="37"/></name><argument_list pos:line="138" pos:column="37">(<argument><expr><name pos:line="138" pos:column="38">eos<pos:position pos:line="138" pos:column="41"/></name></expr></argument>, <argument><expr><name pos:line="138" pos:column="43">e<pos:position pos:line="138" pos:column="44"/></name></expr></argument>)<pos:position pos:line="138" pos:column="45"/></argument_list></call></expr>;<pos:position pos:line="138" pos:column="46"/></expr_stmt>
+        }<pos:position pos:line="139" pos:column="10"/></block></then></if>
+
+        <comment type="block" pos:line="141" pos:column="9">/* pass the brigade to the next filter. */</comment>
+        <expr_stmt><expr><name pos:line="142" pos:column="9">rv<pos:position pos:line="142" pos:column="11"/></name> <operator pos:line="142" pos:column="12">=<pos:position pos:line="142" pos:column="13"/></operator> <call><name pos:line="142" pos:column="14">ap_pass_brigade<pos:position pos:line="142" pos:column="29"/></name><argument_list pos:line="142" pos:column="29">(<argument><expr><name><name pos:line="142" pos:column="30">f<pos:position pos:line="142" pos:column="31"/></name><operator pos:line="142" pos:column="31">-&gt;<pos:position pos:line="142" pos:column="36"/></operator><name pos:line="142" pos:column="33">next<pos:position pos:line="142" pos:column="37"/></name></name></expr></argument>, <argument><expr><name pos:line="142" pos:column="39">b<pos:position pos:line="142" pos:column="40"/></name></expr></argument>)<pos:position pos:line="142" pos:column="41"/></argument_list></call></expr>;<pos:position pos:line="142" pos:column="42"/></expr_stmt>
+        <if pos:line="143" pos:column="9">if <condition pos:line="143" pos:column="12">(<expr><name pos:line="143" pos:column="13">rv<pos:position pos:line="143" pos:column="15"/></name> <operator pos:line="143" pos:column="16">!=<pos:position pos:line="143" pos:column="18"/></operator> <name pos:line="143" pos:column="19">APR_SUCCESS<pos:position pos:line="143" pos:column="30"/></name> <operator pos:line="143" pos:column="31">||<pos:position pos:line="143" pos:column="33"/></operator> <name pos:line="143" pos:column="34">eos<pos:position pos:line="143" pos:column="37"/></name> <operator pos:line="143" pos:column="38">!=<pos:position pos:line="143" pos:column="40"/></operator> <name pos:line="143" pos:column="41">NULL<pos:position pos:line="143" pos:column="45"/></name></expr>)<pos:position pos:line="143" pos:column="46"/></condition><then pos:line="143" pos:column="46"> <block pos:line="143" pos:column="47">{
+            <return pos:line="144" pos:column="13">return <expr><name pos:line="144" pos:column="20">rv<pos:position pos:line="144" pos:column="22"/></name></expr>;<pos:position pos:line="144" pos:column="23"/></return>
+        }<pos:position pos:line="145" pos:column="10"/></block></then></if>
+    }<pos:position pos:line="146" pos:column="6"/></block></for>
+    <return pos:line="147" pos:column="5">return <expr><name pos:line="147" pos:column="12">APR_SUCCESS<pos:position pos:line="147" pos:column="23"/></name></expr>;<pos:position pos:line="147" pos:column="24"/></return>
+}<pos:position pos:line="148" pos:column="2"/></block></function></unit>

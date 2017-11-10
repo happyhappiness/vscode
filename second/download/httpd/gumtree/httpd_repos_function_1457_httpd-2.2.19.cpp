@@ -108,4 +108,22 @@ static int proxy_http_handler(request_rec *r, proxy_worker *worker,
 
     /* Step Four: Send the Request */
     if ((status = ap_proxy_http_request(p, r, backend, backend->connection,
-                                        conf, uri, url, server_portstr)) != O
+                                        conf, uri, url, server_portstr)) != OK)
+        goto cleanup;
+
+    /* Step Five: Receive the Response */
+    if ((status = ap_proxy_http_process_response(p, r, backend,
+                                                 backend->connection,
+                                                 conf, server_portstr)) != OK)
+        goto cleanup;
+
+    /* Step Six: Clean Up */
+
+cleanup:
+    if (backend) {
+        if (status != OK)
+            backend->close = 1;
+        ap_proxy_http_cleanup(proxy_function, r, backend);
+    }
+    return status;
+}

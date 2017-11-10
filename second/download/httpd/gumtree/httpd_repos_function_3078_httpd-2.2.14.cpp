@@ -131,4 +131,101 @@ static enum XML_Error storeAtts(XML_Parser parser, const ENCODING *enc,
           else {
 	    (da->id->name)[-1] = 2;
 	    nPrefixes++;
- 
+  	    appAtts[attIndex++] = da->id->name;
+	    appAtts[attIndex++] = da->value;
+	  }
+	}
+	else {
+	  (da->id->name)[-1] = 1;
+	  appAtts[attIndex++] = da->id->name;
+	  appAtts[attIndex++] = da->value;
+	}
+      }
+    }
+    appAtts[attIndex] = 0;
+  }
+  i = 0;
+  if (nPrefixes) {
+    /* expand prefixed attribute names */
+    for (; i < attIndex; i += 2) {
+      if (appAtts[i][-1] == 2) {
+        ATTRIBUTE_ID *id;
+        ((XML_Char *)(appAtts[i]))[-1] = 0;
+	id = (ATTRIBUTE_ID *)lookup(&dtd.attributeIds, appAtts[i], 0);
+	if (id->prefix->binding) {
+	  int j;
+	  const BINDING *b = id->prefix->binding;
+	  const XML_Char *s = appAtts[i];
+	  for (j = 0; j < b->uriLen; j++) {
+	    if (!poolAppendChar(&tempPool, b->uri[j]))
+	      return XML_ERROR_NO_MEMORY;
+	  }
+	  while (*s++ != ':')
+	    ;
+	  do {
+	    if (!poolAppendChar(&tempPool, *s))
+	      return XML_ERROR_NO_MEMORY;
+	  } while (*s++);
+	  if (ns_triplets) {
+	    tempPool.ptr[-1] = namespaceSeparator;
+	    s = b->prefix->name;
+	    do {
+	      if (!poolAppendChar(&tempPool, *s))
+		return XML_ERROR_NO_MEMORY;
+	    } while (*s++);
+	  }
+
+	  appAtts[i] = poolStart(&tempPool);
+	  poolFinish(&tempPool);
+	}
+	if (!--nPrefixes)
+	  break;
+      }
+      else
+	((XML_Char *)(appAtts[i]))[-1] = 0;
+    }
+  }
+  /* clear the flags that say whether attributes were specified */
+  for (; i < attIndex; i += 2)
+    ((XML_Char *)(appAtts[i]))[-1] = 0;
+  if (!tagNamePtr)
+    return XML_ERROR_NONE;
+  for (binding = *bindingsPtr; binding; binding = binding->nextTagBinding)
+    binding->attId->name[-1] = 0;
+  /* expand the element type name */
+  if (elementType->prefix) {
+    binding = elementType->prefix->binding;
+    if (!binding)
+      return XML_ERROR_NONE;
+    localPart = tagNamePtr->str;
+    while (*localPart++ != XML_T(':'))
+      ;
+  }
+  else if (dtd.defaultPrefix.binding) {
+    binding = dtd.defaultPrefix.binding;
+    localPart = tagNamePtr->str;
+  }
+  else
+    return XML_ERROR_NONE;
+  tagNamePtr->localPart = localPart;
+  tagNamePtr->uriLen = binding->uriLen;
+  for (i = 0; localPart[i++];)
+    ;
+  n = i + binding->uriLen;
+  if (n > binding->uriAlloc) {
+    TAG *p;
+    XML_Char *uri = MALLOC((n + EXPAND_SPARE) * sizeof(XML_Char));
+    if (!uri)
+      return XML_ERROR_NO_MEMORY;
+    binding->uriAlloc = n + EXPAND_SPARE;
+    memcpy(uri, binding->uri, binding->uriLen * sizeof(XML_Char));
+    for (p = tagStack; p; p = p->parent)
+      if (p->name.str == binding->uri)
+	p->name.str = uri;
+    FREE(binding->uri);
+    binding->uri = uri;
+  }
+  memcpy(binding->uri + binding->uriLen, localPart, i * sizeof(XML_Char));
+  tagNamePtr->str = binding->uri;
+  return XML_ERROR_NONE;
+}

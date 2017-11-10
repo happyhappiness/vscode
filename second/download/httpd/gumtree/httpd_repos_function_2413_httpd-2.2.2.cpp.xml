@@ -1,2 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2413_httpd-2.2.2.cpp" pos:tabs="8"/>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2413_httpd-2.2.2.cpp" pos:tabs="8"><function><specifier pos:line="1" pos:column="1">static<pos:position pos:line="1" pos:column="7"/></specifier> <type><name pos:line="1" pos:column="8">void<pos:position pos:line="1" pos:column="12"/></name></type> <name pos:line="1" pos:column="13">wakeup_listener<pos:position pos:line="1" pos:column="28"/></name><parameter_list pos:line="1" pos:column="28">(<parameter><decl><type><name pos:line="1" pos:column="29">void<pos:position pos:line="1" pos:column="33"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="34"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+    <expr_stmt><expr><name pos:line="3" pos:column="5">listener_may_exit<pos:position pos:line="3" pos:column="22"/></name> <operator pos:line="3" pos:column="23">=<pos:position pos:line="3" pos:column="24"/></operator> <literal type="number" pos:line="3" pos:column="25">1<pos:position pos:line="3" pos:column="26"/></literal></expr>;<pos:position pos:line="3" pos:column="27"/></expr_stmt>
+    <if pos:line="4" pos:column="5">if <condition pos:line="4" pos:column="8">(<expr><operator pos:line="4" pos:column="9">!<pos:position pos:line="4" pos:column="10"/></operator><name pos:line="4" pos:column="10">listener_os_thread<pos:position pos:line="4" pos:column="28"/></name></expr>)<pos:position pos:line="4" pos:column="29"/></condition><then pos:line="4" pos:column="29"> <block pos:line="4" pos:column="30">{
+        <comment type="block" pos:line="5" pos:column="9">/* XXX there is an obscure path that this doesn't handle perfectly:
+         *     right after listener thread is created but before
+         *     listener_os_thread is set, the first worker thread hits an
+         *     error and starts graceful termination
+         */</comment>
+        <return pos:line="10" pos:column="9">return;<pos:position pos:line="10" pos:column="16"/></return>
+    }<pos:position pos:line="11" pos:column="6"/></block></then></if>
+    <comment type="block" pos:line="12" pos:column="5">/*
+     * we should just be able to "kill(ap_my_pid, LISTENER_SIGNAL)" on all
+     * platforms and wake up the listener thread since it is the only thread
+     * with SIGHUP unblocked, but that doesn't work on Linux
+     */</comment>
+<cpp:ifdef pos:line="17" pos:column="1">#<cpp:directive pos:line="17" pos:column="2">ifdef<pos:position pos:line="17" pos:column="7"/></cpp:directive> <name pos:line="17" pos:column="8">HAVE_PTHREAD_KILL<pos:position pos:line="17" pos:column="25"/></name></cpp:ifdef>
+    <expr_stmt><expr><call><name pos:line="18" pos:column="5">pthread_kill<pos:position pos:line="18" pos:column="17"/></name><argument_list pos:line="18" pos:column="17">(<argument><expr><operator pos:line="18" pos:column="18">*<pos:position pos:line="18" pos:column="19"/></operator><name pos:line="18" pos:column="19">listener_os_thread<pos:position pos:line="18" pos:column="37"/></name></expr></argument>, <argument><expr><name pos:line="18" pos:column="39">LISTENER_SIGNAL<pos:position pos:line="18" pos:column="54"/></name></expr></argument>)<pos:position pos:line="18" pos:column="55"/></argument_list></call></expr>;<pos:position pos:line="18" pos:column="56"/></expr_stmt>
+<cpp:else pos:line="19" pos:column="1">#<cpp:directive pos:line="19" pos:column="2">else<pos:position pos:line="19" pos:column="6"/></cpp:directive></cpp:else>
+    <expr_stmt><expr><call><name pos:line="20" pos:column="5">kill<pos:position pos:line="20" pos:column="9"/></name><argument_list pos:line="20" pos:column="9">(<argument><expr><name pos:line="20" pos:column="10">ap_my_pid<pos:position pos:line="20" pos:column="19"/></name></expr></argument>, <argument><expr><name pos:line="20" pos:column="21">LISTENER_SIGNAL<pos:position pos:line="20" pos:column="36"/></name></expr></argument>)<pos:position pos:line="20" pos:column="37"/></argument_list></call></expr>;<pos:position pos:line="20" pos:column="38"/></expr_stmt>
+<cpp:endif pos:line="21" pos:column="1">#<cpp:directive pos:line="21" pos:column="2">endif<pos:position pos:line="21" pos:column="7"/></cpp:directive></cpp:endif>
+}<pos:position pos:line="22" pos:column="2"/></block></function></unit>

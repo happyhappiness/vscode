@@ -110,4 +110,80 @@ static apr_status_t store_body(cache_handle_t *h, request_rec *r, apr_bucket_bri
                 if (sconf->lock) {
                     apr_thread_mutex_lock(sconf->lock);
                 }
-                /* Has the object
+                /* Has the object been ejected from the cache?
+                 */
+                tobj = (cache_object_t *) cache_find(sconf->cache_cache, obj->key);
+                if (tobj == obj) {
+                    /* Object is still in the cache, remove it, update the len field then
+                     * replace it under protection of sconf->lock.
+                     */
+                    cache_remove(sconf->cache_cache, obj);
+                    /* For illustration, cache no longer has reference to the object
+                     * so decrement the refcount
+                     * apr_atomic_dec32(&obj->refcount);
+                     */
+                    mobj->m_len = obj->count;
+
+                    cache_insert(sconf->cache_cache, obj);
+                    /* For illustration, cache now has reference to the object, so
+                     * increment the refcount
+                     * apr_atomic_inc32(&obj->refcount);
+                     */
+                }
+                else if (tobj) {
+                    /* Different object with the same key found in the cache. Doing nothing
+                     * here will cause the object refcount to drop to 0 in decrement_refcount
+                     * and the object will be cleaned up.
+                     */
+
+                } else {
+                    /* Object has been ejected from the cache, add it back to the cache */
+                    mobj->m_len = obj->count;
+                    cache_insert(sconf->cache_cache, obj);
+                    apr_atomic_inc32(&obj->refcount);
+                }
+
+                if (sconf->lock) {
+                    apr_thread_mutex_unlock(sconf->lock);
+                }
+            }
+            /* Open for business */
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "mem_cache: Cached url: %s", obj->key);
+            obj->complete = 1;
+            break;
+        }
+        rv = apr_bucket_read(e, &s, &len, eblock);
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+        if (len) {
+            /* Check for buffer (max_streaming_buffer_size) overflow  */
+           if ((obj->count + len) > mobj->m_len) {
+               ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                            "mem_cache: URL %s exceeds the MCacheMaxStreamingBuffer (%" APR_SIZE_T_FMT ") limit and will not be cached.", 
+                            obj->key, mobj->m_len);
+               return APR_ENOMEM;
+           }
+           else {
+               memcpy(cur, s, len);
+               cur+=len;
+               obj->count+=len;
+           }
+        }
+        /* This should not fail, but if it does, we are in BIG trouble
+         * cause we just stomped all over the heap.
+         */
+        AP_DEBUG_ASSERT(obj->count <= mobj->m_len);
+    }
+    if (r->connection->aborted && !obj->complete) {
+        ap_log_rerror(APLOG_MARK, APLOG_INFO, 0, r,
+                     "mem_cache: Discarding body for URL %s "
+                     "because client connection was aborted.",
+                     obj->key);
+        /* No need to cleanup - obj->complete unset, so
+         * decrement_refcount will discard the object */
+        return APR_EGENERAL;
+    }
+    return APR_SUCCESS;
+}

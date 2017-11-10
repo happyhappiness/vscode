@@ -90,5 +90,9 @@
              * few of the servers we just started are in the IDLE state
              * yet, so we'd mistakenly create an extra server.
              */</comment>
-            <continue pos:line="92" pos:column="13">continue;<pos:position pos:line="92" pos:column="22"/></continue></block></then></if></elseif></if></block></while></block></function>
-    </unit>
+            <continue pos:line="92" pos:column="13">continue;<pos:position pos:line="92" pos:column="22"/></continue>
+        }<pos:position pos:line="93" pos:column="10"/></block></then></if></elseif></if>
+
+        <expr_stmt><expr><call><name pos:line="95" pos:column="9">perform_idle_server_maintenance<pos:position pos:line="95" pos:column="40"/></name><argument_list pos:line="95" pos:column="40">()<pos:position pos:line="95" pos:column="42"/></argument_list></call></expr>;<pos:position pos:line="95" pos:column="43"/></expr_stmt>
+    }<pos:position pos:line="96" pos:column="6"/></block></while>
+}<pos:position pos:line="97" pos:column="2"/></block></function></unit>

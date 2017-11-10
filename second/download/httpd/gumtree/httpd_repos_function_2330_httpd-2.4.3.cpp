@@ -103,4 +103,10 @@ static int exipc_handler(request_rec *r)
 
     /* Release the lock */
     if (gotlock)
-        rs = apr_global_
+        rs = apr_global_mutex_unlock(exipc_mutex);
+    /* Swallowing the result because what are we going to do with it at
+     * this stage?
+     */
+
+    return OK;
+}

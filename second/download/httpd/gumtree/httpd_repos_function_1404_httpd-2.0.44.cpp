@@ -107,4 +107,36 @@ apr_status_t isapi_lookup(apr_pool_t *p, server_rec *s, request_rec *r,
          * attempt to destroy.  A nastier race condition than
          * I want to deal with at this moment...
          */
-        apr_t
+        apr_thread_rwlock_create(&(*isa)->in_progress, loaded.pool);
+        apr_thread_rwlock_wrlock((*isa)->in_progress);
+    }
+
+    apr_hash_set(loaded.hash, key, APR_HASH_KEY_STRING, *isa);
+    
+    /* Now attempt to load the isapi on our own time, 
+     * allow other isapi processing to resume.
+     */
+    apr_thread_mutex_unlock(loaded.lock);
+
+    rv = isapi_load(loaded.pool, s, *isa);
+    (*isa)->last_load_time = apr_time_now();
+    (*isa)->last_load_rv = rv;
+
+    if (r && (rv == APR_SUCCESS)) {
+        /* Let others who are blocked on this particular
+         * module resume their requests, for better or worse.
+         */
+        apr_thread_rwlock_t *unlock = (*isa)->in_progress;
+        (*isa)->in_progress = NULL;
+        apr_thread_rwlock_unlock(unlock);
+    }
+    else if (!r && (rv != APR_SUCCESS)) {
+        /* We must leave a rwlock around for requests to retry
+         * loading this dll after timeup... since we were in 
+         * the setup code we had avoided creating this lock.
+         */
+        apr_thread_rwlock_create(&(*isa)->in_progress, loaded.pool);
+    }
+
+    return (*isa)->last_load_rv;
+}

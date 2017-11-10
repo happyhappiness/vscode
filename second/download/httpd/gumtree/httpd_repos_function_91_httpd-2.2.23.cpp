@@ -244,4 +244,24 @@ static void test(void)
              * connection is in STATE_READ or STATE_CONNECTING we'll add the
              * socket back in as APR_POLLIN.
              */
-                if (c->state
+                if (c->state == STATE_READ) {
+                    apr_pollfd_t new_pollfd;
+                    new_pollfd.desc_type = APR_POLL_SOCKET;
+                    new_pollfd.reqevents = APR_POLLIN;
+                    new_pollfd.desc.s = c->aprsock;
+                    new_pollfd.client_data = c;
+                    apr_pollset_add(readbits, &new_pollfd);
+                }
+        }
+    } while (lasttime < stoptime && done < requests);
+    
+    if (heartbeatres)
+        fprintf(stderr, "Finished %d requests\n", done);
+    else
+        printf("..done\n");
+
+    if (use_html)
+        output_html_results();
+    else
+        output_results(0);
+}

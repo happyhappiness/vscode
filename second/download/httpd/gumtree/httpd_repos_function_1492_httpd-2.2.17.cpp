@@ -101,4 +101,12 @@ static int proxy_trans(request_rec *r)
             r->filename = found;
             r->handler = "proxy-server";
             r->proxyreq = PROXYREQ_REVERSE;
-            if (noc
+            if (nocanon && !mismatch) {
+                /* mod_proxy_http needs to be told.  Different module. */
+                apr_table_setn(r->notes, "proxy-nocanon", "1");
+            }
+            return OK;
+        }
+    }
+    return DECLINED;
+}

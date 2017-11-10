@@ -217,8 +217,4 @@ static int dav_method_put(request_rec *r)
         }
     }
 
-    /* NOTE: WebDAV spec, S8.7.1 states properties should be unaffected */
-
-    /* return an appropriate response (HTTP_CREATED or HTTP_NO_CONTENT) */
-    return dav_created(r, NULL, "Resource", resource_state == DAV_RESOURCE_EXISTS);
-}
+    /* NOTE: WebDAV spec, S8.7.1 states 

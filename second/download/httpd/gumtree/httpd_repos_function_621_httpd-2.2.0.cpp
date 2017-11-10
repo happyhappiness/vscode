@@ -103,26 +103,4 @@ static int yy_get_next_buffer()
                 {
                 if ( number_to_move == YY_MORE_ADJ )
                         {
-                        ret_val = EOB_ACT_END_OF_FILE;
-                        yyrestart( yyin );
-                        }
-
-                else
-                        {
-                        ret_val = EOB_ACT_LAST_MATCH;
-                        yy_current_buffer->yy_buffer_status =
-                                YY_BUFFER_EOF_PENDING;
-                        }
-                }
-
-        else
-                ret_val = EOB_ACT_CONTINUE_SCAN;
-
-        yy_n_chars += number_to_move;
-        yy_current_buffer->yy_ch_buf[yy_n_chars] = YY_END_OF_BUFFER_CHAR;
-        yy_current_buffer->yy_ch_buf[yy_n_chars + 1] = YY_END_OF_BUFFER_CHAR;
-
-        yytext_ptr = &yy_current_buffer->yy_ch_buf[0];
-
-        return ret_val;
-        }
+                        re

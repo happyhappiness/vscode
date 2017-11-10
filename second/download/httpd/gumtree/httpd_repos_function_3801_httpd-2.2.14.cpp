@@ -130,26 +130,4 @@ do_select:
              * Make this an error so the caller knows to log something and
              * exit.
              */
-            return APR_EOF;
-        }
-    }
-
-    /* Now write the footers */
-    if (hdtr->numtrailers > 0) {
-        apr_size_t trbytes;
-        arv = apr_socket_sendv(sock, hdtr->trailers, hdtr->numtrailers, 
-                               &trbytes);
-        nbytes += trbytes;
-        if (arv != APR_SUCCESS) {
-            *len = nbytes;
-            rv = errno;
-            apr_socket_opt_set(sock, APR_TCP_NOPUSH, 0);
-            return rv;
-        }
-    }
-
-    apr_socket_opt_set(sock, APR_TCP_NOPUSH, 0);
-    
-    (*len) = nbytes;
-    return rv < 0 ? errno : APR_SUCCESS;
-}
+            return APR_

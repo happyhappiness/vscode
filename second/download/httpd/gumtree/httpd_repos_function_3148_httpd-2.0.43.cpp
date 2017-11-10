@@ -1362,29 +1362,4 @@ for (;;)
 
       while (eptr >= pp)
         {
-        if (match(eptr--, ecode, offset_top, md, ims, eptrb, 0))
-          return TRUE;
-#ifdef SUPPORT_UTF8
-        if (md->utf8)
-          while (eptr > pp && (*eptr & 0xc0) == 0x80) eptr--;
-#endif
-        }
-      return FALSE;
-      }
-    /* Control never gets here */
-
-    /* There's been some horrible disaster. */
-
-    default:
-    DPRINTF(("Unknown opcode %d\n", *ecode));
-    md->errorcode = PCRE_ERROR_UNKNOWN_NODE;
-    return FALSE;
-    }
-
-  /* Do not stick any code in here without much thought; it is assumed
-  that "continue" in the code above comes out to here to repeat the main
-  loop. */
-
-  }             /* End of main loop */
-/* Control never reaches here */
-}
+        if (match(eptr--, e

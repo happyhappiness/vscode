@@ -212,7 +212,3 @@ static void child_main(int child_num_arg)
              * parent will kill us soon enough, but why bother checking?
              */
             die_now = 1;
-        }
-    }
-    clean_child_exit(0);
-}

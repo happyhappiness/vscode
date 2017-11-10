@@ -102,12 +102,4 @@ static void emit_head(request_rec *r, char *header_fname, int suppress_amble,
     }
 
     if (emit_amble) {
-        emit_preamble(r, emit_xhtml, title);
-    }
-    if (emit_H1) {
-        ap_rvputs(r, "<h1>Index of ", title, "</h1>\n", NULL);
-    }
-    if (rr != NULL) {
-        ap_destroy_sub_req(rr);
-    }
-}
+        emit_preamble(r, emit_xhtml,

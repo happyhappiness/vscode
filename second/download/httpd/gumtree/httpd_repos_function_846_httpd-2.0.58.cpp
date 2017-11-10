@@ -108,3 +108,56 @@ char *ssl_var_lookup(apr_pool_t *p, server_rec *s, conn_rec *c, request_rec *r, 
         else if (strcEQ(var, "API_VERSION")) {
             result = apr_psprintf(p, "%d", MODULE_MAGIC_NUMBER);
             resdup = FALSE;
+        }
+        else if (strcEQ(var, "TIME_YEAR")) {
+            apr_time_exp_lt(&tm, apr_time_now());
+            result = apr_psprintf(p, "%02d%02d",
+                                 (tm.tm_year / 100) + 19, tm.tm_year % 100);
+            resdup = FALSE;
+        }
+#define MKTIMESTR(format, tmfield) \
+            apr_time_exp_lt(&tm, apr_time_now()); \
+            result = apr_psprintf(p, format, tm.tmfield); \
+            resdup = FALSE;
+        else if (strcEQ(var, "TIME_MON")) {
+            MKTIMESTR("%02d", tm_mon+1)
+        }
+        else if (strcEQ(var, "TIME_DAY")) {
+            MKTIMESTR("%02d", tm_mday)
+        }
+        else if (strcEQ(var, "TIME_HOUR")) {
+            MKTIMESTR("%02d", tm_hour)
+        }
+        else if (strcEQ(var, "TIME_MIN")) {
+            MKTIMESTR("%02d", tm_min)
+        }
+        else if (strcEQ(var, "TIME_SEC")) {
+            MKTIMESTR("%02d", tm_sec)
+        }
+        else if (strcEQ(var, "TIME_WDAY")) {
+            MKTIMESTR("%d", tm_wday)
+        }
+        else if (strcEQ(var, "TIME")) {
+            apr_time_exp_lt(&tm, apr_time_now());
+            result = apr_psprintf(p,
+                        "%02d%02d%02d%02d%02d%02d%02d", (tm.tm_year / 100) + 19,
+                        (tm.tm_year % 100), tm.tm_mon+1, tm.tm_mday,
+                        tm.tm_hour, tm.tm_min, tm.tm_sec);
+            resdup = FALSE;
+        }
+        /* all other env-variables from the parent Apache process */
+        else if (strlen(var) > 4 && strcEQn(var, "ENV:", 4)) {
+            result = (char *)apr_table_get(r->notes, var+4);
+            if (result == NULL)
+                result = (char *)apr_table_get(r->subprocess_env, var+4);
+            if (result == NULL)
+                result = getenv(var+4);
+        }
+    }
+
+    if (result != NULL && resdup)
+        result = apr_pstrdup(p, result);
+    if (result == NULL)
+        result = "";
+    return result;
+}

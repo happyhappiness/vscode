@@ -140,4 +140,30 @@ for (;;)
     /* Resetting option if needed */
 
     if ((options & PCRE_IMS) != oldims && *ptr == ')')
-    
+      {
+      *code++ = OP_OPT;
+      *code++ = oldims;
+      }
+
+    /* Set values to pass back */
+
+    *codeptr = code;
+    *ptrptr = ptr;
+    *firstbyteptr = firstbyte;
+    *reqbyteptr = reqbyte;
+    return TRUE;
+    }
+
+  /* Another branch follows; insert an "or" node. Its length field points back
+  to the previous branch while the bracket remains open. At the end the chain
+  is reversed. It's done like this so that the start of the bracket has a
+  zero offset until it is closed, making it possible to detect recursion. */
+
+  *code = OP_ALT;
+  PUT(code, 1, code - last_branch);
+  bc.current = last_branch = code;
+  code += 1 + LINK_SIZE;
+  ptr++;
+  }
+/* Control never reaches here */
+}

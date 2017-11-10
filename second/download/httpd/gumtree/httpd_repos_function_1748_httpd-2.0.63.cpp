@@ -96,4 +96,62 @@ static int add_auth_info(request_rec *r)
         if (resp->algorithm && !strcasecmp(resp->algorithm, "MD5-sess")) {
             ha1 = get_session_HA1(r, resp, conf, 0);
             if (!ha1) {
-                ap_log_rer
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                              "Digest: internal error: couldn't find session "
+                              "info for user %s", resp->username);
+                return !OK;
+            }
+        }
+        else {
+            ha1 = conf->ha1;
+        }
+
+        if (resp->message_qop && !strcasecmp(resp->message_qop, "auth-int")) {
+            a2 = apr_pstrcat(r->pool, ":", resp->uri, ":",
+                             ap_md5(r->pool,(const unsigned char *) ""), NULL);
+                             /* TBD */
+        }
+        else {
+            a2 = apr_pstrcat(r->pool, ":", resp->uri, NULL);
+        }
+        ha2 = ap_md5(r->pool, (const unsigned char *)a2);
+
+        resp_dig = ap_md5(r->pool,
+                          (unsigned char *)apr_pstrcat(r->pool, ha1, ":",
+                                                       resp->nonce, ":",
+                                                       resp->nonce_count, ":",
+                                                       resp->cnonce, ":",
+                                                       resp->message_qop ?
+                                                         resp->message_qop : "",
+                                                       ":", ha2, NULL));
+
+        /* assemble Authentication-Info header
+         */
+        ai = apr_pstrcat(r->pool,
+                         "rspauth=\"", resp_dig, "\"",
+                         nextnonce,
+                         resp->cnonce ? ", cnonce=\"" : "",
+                         resp->cnonce
+                           ? ap_escape_quotes(r->pool, resp->cnonce)
+                           : "",
+                         resp->cnonce ? "\"" : "",
+                         resp->nonce_count ? ", nc=" : "",
+                         resp->nonce_count ? resp->nonce_count : "",
+                         resp->message_qop ? ", qop=" : "",
+                         resp->message_qop ? resp->message_qop : "",
+                         digest ? "digest=\"" : "",
+                         digest ? digest : "",
+                         digest ? "\"" : "",
+                         NULL);
+    }
+
+    if (ai && ai[0]) {
+        apr_table_mergen(r->headers_out,
+                         (PROXYREQ_PROXY == r->proxyreq)
+                             ? "Proxy-Authentication-Info"
+                             : "Authentication-Info",
+                         ai);
+    }
+
+    return OK;
+}

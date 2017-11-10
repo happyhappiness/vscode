@@ -111,4 +111,24 @@ static apr_status_t write_body(cache_handle_t *h, request_rec *r, apr_bucket_bri
             break;
         }
         rv = apr_bucket_read(e, &s, &len, eblock);
-        if (rv != APR_SUCCESS)
+        if (rv != APR_SUCCESS) {
+            return rv;
+        }
+        if (len) {
+            /* Check for buffer overflow */
+           if ((obj->count + len) > mobj->m_len) {
+               return APR_ENOMEM;
+           }
+           else {
+               memcpy(cur, s, len);
+               cur+=len;
+               obj->count+=len;
+           }
+        }
+        /* This should not fail, but if it does, we are in BIG trouble
+         * cause we just stomped all over the heap.
+         */
+        AP_DEBUG_ASSERT(obj->count <= mobj->m_len);
+    }
+    return APR_SUCCESS;
+}

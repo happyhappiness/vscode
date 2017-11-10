@@ -102,4 +102,16 @@ static int proxy_trans(request_rec *r)
                           "Unescaped URL path matched ProxyPass; ignoring unsafe nocanon");
         }
 
-        if (found)
+        if (found) {
+            r->filename = found;
+            r->handler = "proxy-server";
+            r->proxyreq = PROXYREQ_REVERSE;
+            if (nocanon && !mismatch) {
+                /* mod_proxy_http needs to be told.  Different module. */
+                apr_table_setn(r->notes, "proxy-nocanon", "1");
+            }
+            return OK;
+        }
+    }
+    return DECLINED;
+}

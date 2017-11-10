@@ -122,4 +122,11 @@
         }<pos:position pos:line="121" pos:column="10"/></block></else></if>
     }<pos:position pos:line="122" pos:column="6"/></block></then></if>
 
-    <expr_stmt><expr><operator pos:line="124" pos:column="5">*<pos:position pos:line="124" pos:column="6"/></operator><name pos:line="124" pos:column="6">level<pos:position pos:line="124" pos:column="11"/></name> <operator pos:line="124" pos:column="12">=<pos:position pos:line="124" pos:column="13"/></operator> <name pos:line="124" pos:column="14">apr_os_level<pos:position pos:line="124" pos:column="26"/></name></expr>;<pos:position pos:line="124" pos:column="27"/></expr_stmt></block></function></unit>
+    <expr_stmt><expr><operator pos:line="124" pos:column="5">*<pos:position pos:line="124" pos:column="6"/></operator><name pos:line="124" pos:column="6">level<pos:position pos:line="124" pos:column="11"/></name> <operator pos:line="124" pos:column="12">=<pos:position pos:line="124" pos:column="13"/></operator> <name pos:line="124" pos:column="14">apr_os_level<pos:position pos:line="124" pos:column="26"/></name></expr>;<pos:position pos:line="124" pos:column="27"/></expr_stmt>
+
+    <if pos:line="126" pos:column="5">if <condition pos:line="126" pos:column="8">(<expr><name pos:line="126" pos:column="9">apr_os_level<pos:position pos:line="126" pos:column="21"/></name> <operator pos:line="126" pos:column="22">&lt;<pos:position pos:line="126" pos:column="26"/></operator> <name pos:line="126" pos:column="24">APR_WIN_UNSUP<pos:position pos:line="126" pos:column="37"/></name></expr>)<pos:position pos:line="126" pos:column="38"/></condition><then pos:line="126" pos:column="38"> <block pos:line="126" pos:column="39">{
+        <return pos:line="127" pos:column="9">return <expr><name pos:line="127" pos:column="16">APR_EGENERAL<pos:position pos:line="127" pos:column="28"/></name></expr>;<pos:position pos:line="127" pos:column="29"/></return>
+    }<pos:position pos:line="128" pos:column="6"/></block></then></if>
+
+    <return pos:line="130" pos:column="5">return <expr><name pos:line="130" pos:column="12">APR_SUCCESS<pos:position pos:line="130" pos:column="23"/></name></expr>;<pos:position pos:line="130" pos:column="24"/></return>
+}<pos:position pos:line="131" pos:column="2"/></block></function></unit>

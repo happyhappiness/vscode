@@ -58,13 +58,13 @@ def check_for_modify_rule(edit_words, curr_log):
     old_edits = edit_words[0]
     new_edits = edit_words[1]
     # just add new things
-    if old_edits == []:
-        for new_edit in new_edits:
-            # do not has all new
-            if curr_log.find(new_edit) == -1:
-                return "accept-true"
-            # has all new edit -> do not need edit
-            return "accept-false"
+    # if old_edits == []:
+    #     for new_edit in new_edits:
+    #         # do not has all new
+    #         if curr_log.find(new_edit) == -1:
+    #             return "accept-true"
+    #         # has all new edit -> do not need edit
+    #         return "accept-false"
     # update old, so check whether old exist
     for old_edit in old_edits:
         if curr_log.find(old_edit) == -1:

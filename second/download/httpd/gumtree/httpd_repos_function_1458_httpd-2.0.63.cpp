@@ -93,4 +93,54 @@ static apr_status_t ap_cgi_build_command(const char **cmd, const char ***argv,
                     ++interpreter;
                 }
                 if (e_info->cmd_type != APR_SHELLCMD) {
-                    e_info->cmd_ty
+                    e_info->cmd_type = APR_PROGRAM_PATH;
+                }
+            }
+        }
+        else {
+            /* Not a script, is it an executable? */
+            IMAGE_DOS_HEADER *hdr = (IMAGE_DOS_HEADER*)buffer;    
+            if ((bytes >= sizeof(IMAGE_DOS_HEADER))
+                && (hdr->e_magic == IMAGE_DOS_SIGNATURE)) {
+                if (hdr->e_lfarlc < 0x40) {
+                    /* Ought to invoke this 16 bit exe by a stub, (cmd /c?) */
+                    interpreter = "";
+                }
+                else {
+                    interpreter = "";
+                }
+            }
+        }
+    }
+    if (!interpreter) {
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      "%s is not executable; ensure interpreted scripts have "
+                      "\"#!\" first line", *cmd);
+        return APR_EBADF;
+    }
+
+    *argv = (const char **)(split_argv(p, interpreter, *cmd,
+                                       args)->elts);
+    *cmd = (*argv)[0];
+
+    e_info->detached = 1;
+
+    /* XXX: Must fix r->subprocess_env to follow utf-8 conventions from
+     * the client's octets so that win32 apr_proc_create is happy.
+     * The -best- way is to determine if the .exe is unicode aware
+     * (using 0x0080-0x00ff) or is linked as a command or windows
+     * application (following the OEM or Ansi code page in effect.)
+     */
+    for (i = 0; i < elts_arr->nelts; ++i) {
+        if (win_nt && elts[i].key && *elts[i].key 
+                && (strncmp(elts[i].key, "HTTP_", 5) == 0
+                 || strncmp(elts[i].key, "SERVER_", 7) == 0
+                 || strncmp(elts[i].key, "REQUEST_", 8) == 0
+                 || strcmp(elts[i].key, "QUERY_STRING") == 0
+                 || strcmp(elts[i].key, "PATH_INFO") == 0
+                 || strcmp(elts[i].key, "PATH_TRANSLATED") == 0)) {
+            prep_string((const char**) &elts[i].val, r->pool);
+        }
+    }
+    return APR_SUCCESS;
+}

@@ -109,4 +109,15 @@ static int create_entity(cache_handle_t *h, cache_type_e type_e,
          * into the cache at the same time. Defer to the other thread which
          * is further along.
          */
-        cleanup_cache_object(obj
+        cleanup_cache_object(obj);
+        return DECLINED;
+    }
+
+    apr_pool_cleanup_register(r->pool, obj, decrement_refcount,
+                              apr_pool_cleanup_null);
+
+    /* Populate the cache handle */
+    h->cache_obj = obj;
+
+    return OK;
+}

@@ -143,4 +143,35 @@ int ssl_init_Module(apr_pool_t *p, apr_pool_t *plog,
     /*
      *  initialize servers
      */
-    ap_log_error(APLOG_MARK, APLOG_INFO, 0, bas
+    ap_log_error(APLOG_MARK, APLOG_INFO, 0, base_server,
+                 "Init: Initializing (virtual) servers for SSL");
+
+    for (s = base_server; s; s = s->next) {
+        sc = mySrvConfig(s);
+        /*
+         * Either now skip this server when SSL is disabled for
+         * it or give out some information about what we're
+         * configuring.
+         */
+
+        /*
+         * Read the server certificate and key
+         */
+        ssl_init_ConfigureServer(s, p, ptemp, sc);
+    }
+
+    /*
+     * Configuration consistency checks
+     */
+    ssl_init_CheckServers(base_server, ptemp);
+
+    /*
+     *  Announce mod_ssl and SSL library in HTTP Server field
+     *  as ``mod_ssl/X.X.X OpenSSL/X.X.X''
+     */
+    ssl_add_version_components(p, base_server);
+
+    SSL_init_app_data2_idx(); /* for SSL_get_app_data2() at request time */
+
+    return OK;
+}

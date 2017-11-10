@@ -91,4 +91,55 @@ static void winnt_accept(void *lr_)
                 /* WAIT_TIMEOUT */
                 if (shutdown_in_progress) {
                     closesocket(context->accept_socket);
-                    cont
+                    context->accept_socket = INVALID_SOCKET;
+                    break;
+                }
+            }
+            if (context->accept_socket == INVALID_SOCKET) {
+                continue;
+            }
+        }
+
+        /* Inherit the listen socket settings. Required for 
+         * shutdown() to work 
+         */
+        if (setsockopt(context->accept_socket, SOL_SOCKET,
+                       SO_UPDATE_ACCEPT_CONTEXT, (char *)&nlsd,
+                       sizeof(nlsd))) {
+            ap_log_error(APLOG_MARK, APLOG_WARNING, apr_get_netos_error(), ap_server_conf,
+                         "setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed.");
+            /* Not a failure condition. Keep running. */
+        }
+
+        /* Get the local & remote address */
+        GetAcceptExSockaddrs(context->buff,
+                             0,
+                             PADDED_ADDR_SIZE,
+                             PADDED_ADDR_SIZE,
+                             &context->sa_server,
+                             &context->sa_server_len,
+                             &context->sa_client,
+                             &context->sa_client_len);
+
+        sockinfo.os_sock = &context->accept_socket;
+        sockinfo.local   = context->sa_server;
+        sockinfo.remote  = context->sa_client;
+        sockinfo.family  = APR_INET;
+        sockinfo.type    = SOCK_STREAM;
+        apr_os_sock_make(&context->sock, &sockinfo, context->ptrans);
+
+        /* When a connection is received, send an io completion notification to
+         * the ThreadDispatchIOCP. This function could be replaced by
+         * mpm_post_completion_context(), but why do an extra function call...
+         */
+        PostQueuedCompletionStatus(ThreadDispatchIOCP, 0, IOCP_CONNECTION_ACCEPTED,
+                                   &context->Overlapped);
+        context = NULL;
+    }
+    if (!shutdown_in_progress) {
+        /* Yow, hit an irrecoverable error! Tell the child to die. */
+        SetEvent(exit_event);
+    }
+    ap_log_error(APLOG_MARK, APLOG_INFO, APR_SUCCESS, ap_server_conf,
+                 "Child %d: Accept thread exiting.", my_pid);
+}

@@ -104,3 +104,41 @@ dav_error *dav_auto_checkout(
             goto done;
         }
 
+        if (!checkout_resource) {
+            err = dav_new_error(r->pool, HTTP_CONFLICT, 0,
+                                "<DAV:cannot-modify-version-controlled-content>");
+            goto done;
+        }
+
+        /* Auto-versioning can only be applied to version selectors, so
+         * no separate working resource will be created. */
+        if ((err = (*vsn_hooks->checkout)(resource, 1 /*auto_checkout*/,
+                                          0, 0, 0, NULL, NULL))
+            != NULL)
+        {
+            err = dav_push_error(r->pool, HTTP_CONFLICT, 0,
+                                 apr_psprintf(r->pool,
+                                             "Unable to checkout resource %s.",
+                                             ap_escape_html(r->pool, resource->uri)),
+                                 err);
+            goto done;
+        }
+
+        /* remember that resource was checked out */
+        av_info->resource_checkedout = 1;
+    }
+
+done:
+
+    /* make sure lock database is closed */
+    if (lockdb != NULL)
+        (*lockdb->hooks->close_lockdb)(lockdb);
+
+    /* if an error occurred, undo any auto-versioning operations already done */
+    if (err != NULL) {
+        dav_auto_checkin(r, resource, 1 /*undo*/, 0 /*unlock*/, av_info);
+        return err;
+    }
+
+    return NULL;
+}

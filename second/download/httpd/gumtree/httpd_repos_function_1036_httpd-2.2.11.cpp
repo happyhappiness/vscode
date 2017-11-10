@@ -117,33 +117,4 @@ static const char *load_module(cmd_parms *cmd, void *dummy,
      *
      */
     if (modp->magic != MODULE_MAGIC_COOKIE) {
-        return apr_psprintf(cmd->pool, "API module structure '%s' in file %s "
-                            "is garbled - expected signature %08lx but saw "
-                            "%08lx - perhaps this is not an Apache module DSO, "
-                            "or was compiled for a different Apache version?",
-                            modname, szModuleFile, 
-                            MODULE_MAGIC_COOKIE, modp->magic);
-    }
-
-    /*
-     * Add this module to the Apache core structures
-     */
-    error = ap_add_loaded_module(modp, cmd->pool);
-    if (error) {
-        return error;
-    }
-
-    /*
-     * Register a cleanup in the config apr_pool_t (normally pconf). When
-     * we do a restart (or shutdown) this cleanup will cause the
-     * shared object to be unloaded.
-     */
-    apr_pool_cleanup_register(cmd->pool, modi, unload_module, apr_pool_cleanup_null);
-
-    /*
-     * Finally we need to run the configuration process for the module
-     */
-    ap_single_module_configure(cmd->pool, cmd->server, modp);
-
-    return NULL;
-}
+        return apr_psprintf(cmd->pool, "API module structure '%s' in fil

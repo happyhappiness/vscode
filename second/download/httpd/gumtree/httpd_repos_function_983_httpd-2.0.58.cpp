@@ -118,4 +118,19 @@ static int apply_rewrite_cond(request_rec *r, rewritecond_entry *p,
             briRC->source = apr_pstrdup(r->pool, input);
             briRC->nsub   = p->regexp->re_nsub;
             memcpy((void *)(briRC->regmatch), (void *)(regmatch),
-                
+                   sizeof(regmatch));
+        }
+    }
+
+    /* if this is a non-matching regexp, just negate the result */
+    if (p->flags & CONDFLAG_NOTMATCH) {
+        rc = !rc;
+    }
+
+    rewritelog(r, 4, "RewriteCond: input='%s' pattern='%s%s' => %s",
+               input, (p->flags & CONDFLAG_NOTMATCH ? "!" : ""),
+               p->pattern, rc ? "matched" : "not-matched");
+
+    /* end just return the result */
+    return rc;
+}

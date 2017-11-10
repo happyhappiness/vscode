@@ -91,11 +91,5 @@
                         <if pos:line="90" pos:column="25">if <condition pos:line="90" pos:column="28">(<expr><name pos:line="90" pos:column="29">rv<pos:position pos:line="90" pos:column="31"/></name> <operator pos:line="90" pos:column="32">!=<pos:position pos:line="90" pos:column="34"/></operator> <name pos:line="90" pos:column="35">APR_SUCCESS<pos:position pos:line="90" pos:column="46"/></name></expr>)<pos:position pos:line="90" pos:column="47"/></condition><then pos:line="90" pos:column="47"> <block pos:line="90" pos:column="48">{
                             <return pos:line="91" pos:column="29">return <expr><name pos:line="91" pos:column="36">rv<pos:position pos:line="91" pos:column="38"/></name></expr>;<pos:position pos:line="91" pos:column="39"/></return>
                         }<pos:position pos:line="92" pos:column="26"/></block></then></if>
-                    }<pos:position pos:line="93" pos:column="22"/></block></then></if>
-                    <expr_stmt><expr><name><name pos:line="94" pos:column="21">wd_server_conf<pos:position pos:line="94" pos:column="35"/></name><operator pos:line="94" pos:column="35">-&gt;<pos:position pos:line="94" pos:column="40"/></operator><name pos:line="94" pos:column="37">child_workers<pos:position pos:line="94" pos:column="50"/></name></name><operator pos:line="94" pos:column="50">++<pos:position pos:line="94" pos:column="52"/></operator></expr>;<pos:position pos:line="94" pos:column="53"/></expr_stmt>
-                }<pos:position pos:line="95" pos:column="18"/></block></then></if>
-            }<pos:position pos:line="96" pos:column="14"/></block></then></if>
-        }<pos:position pos:line="97" pos:column="10"/></block></for>
-    }<pos:position pos:line="98" pos:column="6"/></block></then></if>
-    <return pos:line="99" pos:column="5">return <expr><name pos:line="99" pos:column="12">OK<pos:position pos:line="99" pos:column="14"/></name></expr>;<pos:position pos:line="99" pos:column="15"/></return>
-}<pos:position pos:line="100" pos:column="2"/></block></function></unit>
+                    }<pos:position pos:line="93" pos:column="22"/></block></then></if></block></then></if></block></then></if></block></for></block></then></if></block></function>
+             </unit>

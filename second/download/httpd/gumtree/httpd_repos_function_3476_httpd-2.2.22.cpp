@@ -122,3 +122,10 @@ apr_status_t apr_get_oslevel(apr_oslevel_e *level)
     }
 
     *level = apr_os_level;
+
+    if (apr_os_level < APR_WIN_UNSUP) {
+        return APR_EGENERAL;
+    }
+
+    return APR_SUCCESS;
+}

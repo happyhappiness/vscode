@@ -157,4 +157,5 @@
         <expr_stmt><expr><call><name pos:line="156" pos:column="9">apr_file_printf<pos:position pos:line="156" pos:column="24"/></name><argument_list pos:line="156" pos:column="24">(<argument><expr><name pos:line="156" pos:column="25">errfile<pos:position pos:line="156" pos:column="32"/></name></expr></argument>, <argument><expr><literal type="string" pos:line="156" pos:column="34">"Conversion Complete."<pos:position pos:line="156" pos:column="56"/></literal> <name pos:line="156" pos:column="57">NL<pos:position pos:line="156" pos:column="59"/></name></expr></argument>)<pos:position pos:line="156" pos:column="60"/></argument_list></call></expr>;<pos:position pos:line="156" pos:column="61"/></expr_stmt>
     }<pos:position pos:line="157" pos:column="6"/></block></then></if>
 
-    <return pos:line="159" pos:column="5">return<pos:position pos:line="159" pos:column="11"/></return></block></function></unit>
+    <return pos:line="159" pos:column="5">return <expr><literal type="number" pos:line="159" pos:column="12">0<pos:position pos:line="159" pos:column="13"/></literal></expr>;<pos:position pos:line="159" pos:column="14"/></return>
+}<pos:position pos:line="160" pos:column="2"/></block></function></unit>

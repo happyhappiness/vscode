@@ -109,3 +109,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
         {
             TranslateMessage(&msg);
             DispatchMessage(&msg);
+        }
+        am_ClearServicesSt();
+    }
+    am_ClearComputersSt();
+    DeleteCriticalSection(&g_stcSection);
+    DestroyIcon(g_icoStop);
+    DestroyIcon(g_icoRun);
+    DestroyCursor(g_hCursorHourglass);
+    DestroyCursor(g_hCursorArrow);
+    DeleteObject(g_hBmpStart);
+    DeleteObject(g_hBmpStop);
+    CoUninitialize();
+    return 0;
+}

@@ -99,4 +99,3 @@ static apr_status_t xlate_brigade(charset_filter_ctx_t *ctx,
     }
 
     return rv;
-}

@@ -534,4 +534,75 @@ static int parse_expr(request_rec *r, include_ctx_t *ctx, const char *expr,
             }
             else {
                 current->value = 0;     /* Don't return -1 if unknown token */
-           
+            }
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], "     Returning %c\n",
+                                  current->value ? '1' : '0');
+#endif
+            current->done = 1;
+            current = current->parent;
+            break;
+
+        case token_not:
+            if (current->right != (struct parse_node *) NULL) {
+                if (!current->right->done) {
+                    current = current->right;
+                    continue;
+                }
+                current->value = !current->right->value;
+            }
+            else {
+                current->value = 0;
+            }
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], "     Evaluate !: %c\n",
+                                  current->value ? '1' : '0');
+#endif
+            current->done = 1;
+            current = current->parent;
+            break;
+
+        case token_group:
+            if (current->right != (struct parse_node *) NULL) {
+                if (!current->right->done) {
+                    current = current->right;
+                    continue;
+                }
+                current->value = current->right->value;
+            }
+            else {
+                current->value = 1;
+            }
+#ifdef DEBUG_INCLUDE
+            debug_pos += sprintf (&debug[debug_pos], "     Evaluate (): %c\n",
+                                  current->value ? '1' : '0');
+#endif
+            current->done = 1;
+            current = current->parent;
+            break;
+
+        case token_lbrace:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "Unmatched '(' in \"%s\" in file %s",
+                        expr, r->filename);
+            *was_error = 1;
+            return retval;
+
+        case token_rbrace:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                        "Unmatched ')' in \"%s\" in file %s",
+                        expr, r->filename);
+            *was_error = 1;
+            return retval;
+
+        default:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          "bad token type");
+            *was_error = 1;
+            return retval;
+        }
+    }
+
+    retval = (root == (struct parse_node *) NULL) ? 0 : root->value;
+    return (retval);
+}

@@ -117,4 +117,19 @@
             }<pos:position pos:line="116" pos:column="14"/></block></then>
             <else pos:line="117" pos:column="13">else <block pos:line="117" pos:column="18">{
                 <expr_stmt><expr><name pos:line="118" pos:column="17">apr_os_level<pos:position pos:line="118" pos:column="29"/></name> <operator pos:line="118" pos:column="30">=<pos:position pos:line="118" pos:column="31"/></operator> <name pos:line="118" pos:column="32">APR_WIN_CE_3<pos:position pos:line="118" pos:column="44"/></name></expr>;<pos:position pos:line="118" pos:column="45"/></expr_stmt>
-            }<pos:position pos:line="119" pos:column="14"/></block></else></if></block></then></if></elseif></if></block></then></if></block></function></unit>
+            }<pos:position pos:line="119" pos:column="14"/></block></else></if>
+        }<pos:position pos:line="120" pos:column="10"/></block></then></if></elseif>
+<cpp:endif pos:line="121" pos:column="1">#<cpp:directive pos:line="121" pos:column="2">endif<pos:position pos:line="121" pos:column="7"/></cpp:directive></cpp:endif>
+        <else pos:line="122" pos:column="9">else <block pos:line="122" pos:column="14">{
+            <expr_stmt><expr><name pos:line="123" pos:column="13">apr_os_level<pos:position pos:line="123" pos:column="25"/></name> <operator pos:line="123" pos:column="26">=<pos:position pos:line="123" pos:column="27"/></operator> <name pos:line="123" pos:column="28">APR_WIN_UNSUP<pos:position pos:line="123" pos:column="41"/></name></expr>;<pos:position pos:line="123" pos:column="42"/></expr_stmt>
+        }<pos:position pos:line="124" pos:column="10"/></block></else></if>
+    }<pos:position pos:line="125" pos:column="6"/></block></then></if>
+
+    <expr_stmt><expr><operator pos:line="127" pos:column="5">*<pos:position pos:line="127" pos:column="6"/></operator><name pos:line="127" pos:column="6">level<pos:position pos:line="127" pos:column="11"/></name> <operator pos:line="127" pos:column="12">=<pos:position pos:line="127" pos:column="13"/></operator> <name pos:line="127" pos:column="14">apr_os_level<pos:position pos:line="127" pos:column="26"/></name></expr>;<pos:position pos:line="127" pos:column="27"/></expr_stmt>
+
+    <if pos:line="129" pos:column="5">if <condition pos:line="129" pos:column="8">(<expr><name pos:line="129" pos:column="9">apr_os_level<pos:position pos:line="129" pos:column="21"/></name> <operator pos:line="129" pos:column="22">&lt;<pos:position pos:line="129" pos:column="26"/></operator> <name pos:line="129" pos:column="24">APR_WIN_UNSUP<pos:position pos:line="129" pos:column="37"/></name></expr>)<pos:position pos:line="129" pos:column="38"/></condition><then pos:line="129" pos:column="38"> <block pos:line="129" pos:column="39">{
+        <return pos:line="130" pos:column="9">return <expr><name pos:line="130" pos:column="16">APR_EGENERAL<pos:position pos:line="130" pos:column="28"/></name></expr>;<pos:position pos:line="130" pos:column="29"/></return>
+    }<pos:position pos:line="131" pos:column="6"/></block></then></if>
+
+    <return pos:line="133" pos:column="5">return <expr><name pos:line="133" pos:column="12">APR_SUCCESS<pos:position pos:line="133" pos:column="23"/></name></expr>;<pos:position pos:line="133" pos:column="24"/></return>
+}<pos:position pos:line="134" pos:column="2"/></block></function></unit>

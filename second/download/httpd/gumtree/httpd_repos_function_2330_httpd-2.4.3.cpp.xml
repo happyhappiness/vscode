@@ -104,4 +104,10 @@
 
     <comment type="block" pos:line="104" pos:column="5">/* Release the lock */</comment>
     <if pos:line="105" pos:column="5">if <condition pos:line="105" pos:column="8">(<expr><name pos:line="105" pos:column="9">gotlock<pos:position pos:line="105" pos:column="16"/></name></expr>)<pos:position pos:line="105" pos:column="17"/></condition><then pos:line="105" pos:column="17">
-        <block type="pseudo"><expr_stmt><expr><name pos:line="106" pos:column="9">rs<pos:position pos:line="106" pos:column="11"/></name> <operator pos:line="106" pos:column="12">=<pos:position pos:line="106" pos:column="13"/></operator> <macro><name pos:line="106" pos:column="14">apr_global_<pos:position pos:line="106" pos:column="25"/></name></macro></expr></expr_stmt></block></then></if></block></function></unit>
+        <block type="pseudo"><expr_stmt><expr><name pos:line="106" pos:column="9">rs<pos:position pos:line="106" pos:column="11"/></name> <operator pos:line="106" pos:column="12">=<pos:position pos:line="106" pos:column="13"/></operator> <call><name pos:line="106" pos:column="14">apr_global_mutex_unlock<pos:position pos:line="106" pos:column="37"/></name><argument_list pos:line="106" pos:column="37">(<argument><expr><name pos:line="106" pos:column="38">exipc_mutex<pos:position pos:line="106" pos:column="49"/></name></expr></argument>)<pos:position pos:line="106" pos:column="50"/></argument_list></call></expr>;<pos:position pos:line="106" pos:column="51"/></expr_stmt></block></then></if>
+    <comment type="block" pos:line="107" pos:column="5">/* Swallowing the result because what are we going to do with it at
+     * this stage?
+     */</comment>
+
+    <return pos:line="111" pos:column="5">return <expr><name pos:line="111" pos:column="12">OK<pos:position pos:line="111" pos:column="14"/></name></expr>;<pos:position pos:line="111" pos:column="15"/></return>
+}<pos:position pos:line="112" pos:column="2"/></block></function></unit>

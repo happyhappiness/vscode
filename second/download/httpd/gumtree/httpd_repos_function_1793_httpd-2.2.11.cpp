@@ -91,8 +91,4 @@ static int x_handler(request_rec *r)
      * called and inherit our outstanding timer.  Not good; to each its own.
      */
     /*
-     * We did what we wanted to do, so tell the rest of the server we
-     * succeeded.
-     */
-    return OK;
-}
+     * We did what we wanted to do, so tell the rest of the ser

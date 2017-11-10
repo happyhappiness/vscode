@@ -1,2 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_828_httpd-2.2.19.cpp" pos:tabs="8"/>
+<unit xmlns="http://www.srcML.org/srcML/src" xmlns:cpp="http://www.srcML.org/srcML/cpp" xmlns:pos="http://www.srcML.org/srcML/position" revision="0.9.5" language="C++" filename="usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_828_httpd-2.2.19.cpp" pos:tabs="8"><function><type><name pos:line="1" pos:column="1">void<pos:position pos:line="1" pos:column="5"/></name></type> <name pos:line="1" pos:column="6">ssl_die<pos:position pos:line="1" pos:column="13"/></name><parameter_list pos:line="1" pos:column="13">(<parameter><decl><type><name pos:line="1" pos:column="14">void<pos:position pos:line="1" pos:column="18"/></name></type></decl></parameter>)<pos:position pos:line="1" pos:column="19"/></parameter_list>
+<block pos:line="2" pos:column="1">{
+    <comment type="block" pos:line="3" pos:column="5">/*
+     * This is used for fatal errors and here
+     * it is common module practice to really
+     * exit from the complete program.
+     */</comment>
+    <expr_stmt><expr><call><name pos:line="8" pos:column="5">exit<pos:position pos:line="8" pos:column="9"/></name><argument_list pos:line="8" pos:column="9">(<argument><expr><literal type="number" pos:line="8" pos:column="10">1<pos:position pos:line="8" pos:column="11"/></literal></expr></argument>)<pos:position pos:line="8" pos:column="12"/></argument_list></call></expr>;<pos:position pos:line="8" pos:column="13"/></expr_stmt>
+}<pos:position pos:line="9" pos:column="2"/></block></function></unit>

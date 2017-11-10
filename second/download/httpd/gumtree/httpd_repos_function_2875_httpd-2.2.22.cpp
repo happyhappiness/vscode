@@ -250,4 +250,40 @@ static apr_dbd_t *dbd_oracle_open(apr_pool_t *pool, const char *params,
 #else
         if (error) {
             *error = apr_pcalloc(pool, ERR_BUF_SIZE);
-            OCIErrorGet(ret->er
+            OCIErrorGet(ret->err, 1, NULL, &errorcode, (unsigned char*)(*error),
+                        ERR_BUF_SIZE, OCI_HTYPE_ERROR);
+        }
+        return NULL;
+#endif
+    case OCI_SUCCESS:
+        break;
+    }
+    ret->status = OCIAttrSet(ret->svc, OCI_HTYPE_SVCCTX, ret->auth, 0,
+                        OCI_ATTR_SESSION, ret->err);
+    switch (ret->status) {
+    default:
+#ifdef DEBUG
+        OCIErrorGet(ret->err, 1, NULL, &errorcode, ret->buf,
+                    sizeof(ret->buf), OCI_HTYPE_ERROR);
+        printf("OPEN ERROR %d (attr session): %s\n", ret->status, ret->buf);
+#else
+        if (error) {
+            *error = apr_pcalloc(pool, ERR_BUF_SIZE);
+            OCIErrorGet(ret->err, 1, NULL, &errorcode, (unsigned char*)(*error),
+                        ERR_BUF_SIZE, OCI_HTYPE_ERROR);
+        }
+        return NULL;
+#endif
+        break;
+    case OCI_SUCCESS:
+        break;
+    }
+#endif
+
+    if(dbd_oracle_prepare(pool, ret, CHECK_CONN_QUERY, NULL, 0, 0, NULL,
+                          &ret->check_conn_stmt) != 0) {
+        return NULL;
+    }
+
+    return ret;
+}

@@ -110,46 +110,4 @@ BOOL ApacheManageService(LPCTSTR szServiceName, LPCTSTR szImagePath,
             _sntprintf(szMsg, sizeof(szMsg) / sizeof(TCHAR),
                        g_lpMsg[IDS_MSG_SRVRESTART - IDS_MSG_FIRST],
                        szServiceName);
-            addListBoxString(g_hwndStdoutList, szMsg);
-            if (ControlService(schService, SERVICE_APACHE_RESTART,
-                               &schSStatus))
-            {
-                ticks = 60;
-                while (schSStatus.dwCurrentState == SERVICE_START_PENDING)
-                {
-                    Sleep(1000);
-                    if (!QueryServiceStatus(schService, &schSStatus))
-                    {
-                        CloseServiceHandle(schService);
-                        CloseServiceHandle(schSCManager);
-                        g_bConsoleRun = FALSE;
-                        SetCursor(g_hCursorArrow);
-                        return FALSE;
-                    }
-                    if (!--ticks) {
-                        break;
-                    }
-                }
-            }
-            if (schSStatus.dwCurrentState == SERVICE_RUNNING)
-            {
-                retValue = TRUE;
-                _sntprintf(szMsg, sizeof(szMsg) / sizeof(TCHAR),
-                           g_lpMsg[IDS_MSG_SRVRESTARTED - IDS_MSG_FIRST],
-                           szServiceName);
-                addListBoxString(g_hwndStdoutList, szMsg);
-            }
-            break;
-        }
-        CloseServiceHandle(schService);
-        CloseServiceHandle(schSCManager);
-        if (!retValue) {
-            ErrorMessage(g_lpMsg[IDS_MSG_SRVFAILED - IDS_MSG_FIRST],
-                         FALSE);
-        }
-        g_bConsoleRun = FALSE;
-        SetCursor(g_hCursorArrow);
-        return retValue;
-    }
-    return FALSE;
-}
+            addListBoxString(g_hwndStdoutLi

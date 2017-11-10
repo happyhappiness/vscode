@@ -80,4 +80,10 @@ void ssl_scache_shmcb_status(server_rec *s, apr_pool_t *p,
     func(apr_psprintf(p, "total retrieves since starting: <b>%lu</b> hit, "
                      "<b>%lu</b> miss<br>", header->num_retrieves_hit,
                      header->num_retrieves_miss), arg);
-    func(apr_pspri
+    func(apr_psprintf(p, "total removes since starting: <b>%lu</b> hit, "
+                     "<b>%lu</b> miss<br>", header->num_removes_hit,
+                     header->num_removes_miss), arg);
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, s, 
+                 "leaving shmcb_status");
+    return;
+}

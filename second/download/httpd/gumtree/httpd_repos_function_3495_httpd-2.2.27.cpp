@@ -117,3 +117,18 @@ apr_status_t apr_get_oslevel(apr_oslevel_e *level)
             else {
                 apr_os_level = APR_WIN_CE_3;
             }
+        }
+#endif
+        else {
+            apr_os_level = APR_WIN_UNSUP;
+        }
+    }
+
+    *level = apr_os_level;
+
+    if (apr_os_level < APR_WIN_UNSUP) {
+        return APR_EGENERAL;
+    }
+
+    return APR_SUCCESS;
+}

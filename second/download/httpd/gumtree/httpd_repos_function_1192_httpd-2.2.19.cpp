@@ -233,8 +233,4 @@ static int apply_rewrite_rule(rewriterule_entry *p, rewrite_ctx *ctx)
     /* Finally remember the forced mime-type */
     force_type_handler(p, ctx);
 
-    /* Puuhhhhhhhh... WHAT COMPLICATED STUFF ;_)
-     * But now we're done for this particular rule.
-     */
-    return 1;
-}
+    /* Puuhhhhhhhh... WHAT COMPLICATED ST

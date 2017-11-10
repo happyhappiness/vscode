@@ -120,20 +120,4 @@ do_select:
     (*len) = parms.bytes_sent;
 
 #if 0
-    /* Clean up after ourselves */
-    if(hbuf) free(hbuf);
-    if(tbuf) free(tbuf);
-#endif
-
-    if (rv == -1) {
-        return errno;
-    }
-
-    if ((sock->timeout > 0)
-          && (parms.bytes_sent 
-                < (parms.file_bytes + parms.header_length + parms.trailer_length))) {
-        sock->options |= APR_INCOMPLETE_WRITE;
-    }
-
-    return APR_SUCCESS;
-}
+    /* Clean up after ourselves
