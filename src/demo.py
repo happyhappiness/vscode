@@ -103,8 +103,8 @@ if __name__ == "__main__":
     reposes = ['httpd', 'git', 'mutt', 'curl', 'rsync']
     repos_names = ['httpd-2.3.8', 'git-2.6.7', 'mutt-1.7.2', 'curl-7.41.0', 'rsync-1.4.4']
     # seek_clone_for_given_repos(reposes, repos_names)
-    # seek_clone_for_corresponding_repos(reposes, False, True, False)
-    seek_clone_for_corresponding_repos(reposes[0:1], False, True, False)
+    seek_clone_for_corresponding_repos(reposes, False, False, False)
+    # seek_clone_for_corresponding_repos(reposes[0:1], False, True, False)
     # seek_clone_for_corresponding_repos(reposes[4:], True, True, True)
     # seek_clone_for_lastest_repos(reposes, False, True, False)
 
