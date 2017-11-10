@@ -125,4 +125,21 @@ static int check_local_mod(struct object_id *head, int index_only)
 	print_error_files(&files_cached,
 			  Q_("the following file has changes "
 			     "staged in the index:",
-			     "the following files ha
+			     "the following files have changes "
+			     "staged in the index:", files_cached.nr),
+			  _("\n(use --cached to keep the file,"
+			    " or -f to force removal)"),
+			  &errs);
+	string_list_clear(&files_cached, 0);
+
+	print_error_files(&files_local,
+			  Q_("the following file has local modifications:",
+			     "the following files have local modifications:",
+			     files_local.nr),
+			  _("\n(use --cached to keep the file,"
+			    " or -f to force removal)"),
+			  &errs);
+	string_list_clear(&files_local, 0);
+
+	return errs;
+}

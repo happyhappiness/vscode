@@ -111,4 +111,14 @@ build_range_exp (bitset_t sbcset, bracket_elem_t *start_elem,
 		   : 0));
     end_ch = ((end_elem->type == SB_CHAR ) ? end_elem->opr.ch
 	      : ((end_elem->type == COLL_SYM) ? end_elem->opr.name[0]
-		 : 0
+		 : 0));
+    if (start_ch > end_ch)
+      return REG_ERANGE;
+    /* Build the table for single byte characters.  */
+    for (ch = 0; ch < SBC_MAX; ++ch)
+      if (start_ch <= ch  && ch <= end_ch)
+	bitset_set (sbcset, ch);
+  }
+# endif /* not RE_ENABLE_I18N */
+  return REG_NOERROR;
+}

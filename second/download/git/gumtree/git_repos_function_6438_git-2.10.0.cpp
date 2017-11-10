@@ -140,4 +140,13 @@ check_arrival (re_match_context_t *mctx, state_array_t *path, int top_node,
 	       : &mctx->state_log[last_str]->nodes);
   path->next_idx = str_idx;
 
-  /
+  /* Fix MCTX.  */
+  mctx->state_log = backup_state_log;
+  mctx->input.cur_idx = backup_cur_idx;
+
+  /* Then check the current node set has the node LAST_NODE.  */
+  if (cur_nodes != NULL && re_node_set_contains (cur_nodes, last_node))
+    return REG_NOERROR;
+
+  return REG_NOMATCH;
+}

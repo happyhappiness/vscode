@@ -109,16 +109,4 @@ static apr_status_t chunk_filter(ap_filter_t *f, apr_bucket_brigade *b)
         if (eos != NULL) {
             /* XXX: (2) trailers ... does not yet exist */
             e = apr_bucket_immortal_create(ASCII_ZERO ASCII_CRLF
-                                           /* <trailers> */
-                                           ASCII_CRLF, 5, c->bucket_alloc);
-            APR_BUCKET_INSERT_BEFORE(eos, e);
-        }
-
-        /* pass the brigade to the next filter. */
-        rv = ap_pass_brigade(f->next, b);
-        if (rv != APR_SUCCESS || eos != NULL) {
-            return rv;
-        }
-    }
-    return APR_SUCCESS;
-}
+                                         

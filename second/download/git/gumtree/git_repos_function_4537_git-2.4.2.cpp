@@ -108,4 +108,45 @@ int cmd_ls_files(int argc, const char **argv, const char *cmd_prefix)
 		       PATHSPEC_STRIP_SUBMODULE_SLASH_CHEAP,
 		       prefix, argv);
 
-	/* Find common prefix for
+	/* Find common prefix for all pathspec's */
+	max_prefix = common_prefix(&pathspec);
+	max_prefix_len = max_prefix ? strlen(max_prefix) : 0;
+
+	/* Treat unmatching pathspec elements as errors */
+	if (pathspec.nr && error_unmatch)
+		ps_matched = xcalloc(1, pathspec.nr);
+
+	if ((dir.flags & DIR_SHOW_IGNORED) && !exc_given)
+		die("ls-files --ignored needs some exclude pattern");
+
+	/* With no flags, we default to showing the cached files */
+	if (!(show_stage || show_deleted || show_others || show_unmerged ||
+	      show_killed || show_modified || show_resolve_undo))
+		show_cached = 1;
+
+	if (max_prefix)
+		prune_cache(max_prefix);
+	if (with_tree) {
+		/*
+		 * Basic sanity check; show-stages and show-unmerged
+		 * would not make any sense with this option.
+		 */
+		if (show_stage || show_unmerged)
+			die("ls-files --with-tree is incompatible with -s or -u");
+		overlay_tree_on_cache(with_tree, max_prefix);
+	}
+	show_files(&dir);
+	if (show_resolve_undo)
+		show_ru_info();
+
+	if (ps_matched) {
+		int bad;
+		bad = report_path_error(ps_matched, &pathspec, prefix);
+		if (bad)
+			fprintf(stderr, "Did you forget to 'git add'?\n");
+
+		return bad ? 1 : 0;
+	}
+
+	return 0;
+}

@@ -141,4 +141,78 @@ static int dowild(const uchar *p, const uchar *text, unsigned int flags)
 							return WM_ABORT_ALL;
 					}
 					if (t_ch <= p_ch && t_ch >= prev_ch)
-					
+						matched = 1;
+					else if ((flags & WM_CASEFOLD) && ISLOWER(t_ch)) {
+						uchar t_ch_upper = toupper(t_ch);
+						if (t_ch_upper <= p_ch && t_ch_upper >= prev_ch)
+							matched = 1;
+					}
+					p_ch = 0; /* This makes "prev_ch" get set to 0. */
+				} else if (p_ch == '[' && p[1] == ':') {
+					const uchar *s;
+					int i;
+					for (s = p += 2; (p_ch = *p) && p_ch != ']'; p++) {} /*SHARED ITERATOR*/
+					if (!p_ch)
+						return WM_ABORT_ALL;
+					i = p - s - 1;
+					if (i < 0 || p[-1] != ':') {
+						/* Didn't find ":]", so treat like a normal set. */
+						p = s - 2;
+						p_ch = '[';
+						if (t_ch == p_ch)
+							matched = 1;
+						continue;
+					}
+					if (CC_EQ(s,i, "alnum")) {
+						if (ISALNUM(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "alpha")) {
+						if (ISALPHA(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "blank")) {
+						if (ISBLANK(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "cntrl")) {
+						if (ISCNTRL(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "digit")) {
+						if (ISDIGIT(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "graph")) {
+						if (ISGRAPH(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "lower")) {
+						if (ISLOWER(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "print")) {
+						if (ISPRINT(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "punct")) {
+						if (ISPUNCT(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "space")) {
+						if (ISSPACE(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "upper")) {
+						if (ISUPPER(t_ch))
+							matched = 1;
+						else if ((flags & WM_CASEFOLD) && ISLOWER(t_ch))
+							matched = 1;
+					} else if (CC_EQ(s,i, "xdigit")) {
+						if (ISXDIGIT(t_ch))
+							matched = 1;
+					} else /* malformed [:class:] string */
+						return WM_ABORT_ALL;
+					p_ch = 0; /* This makes "prev_ch" get set to 0. */
+				} else if (t_ch == p_ch)
+					matched = 1;
+			} while (prev_ch = p_ch, (p_ch = *++p) != ']');
+			if (matched == negated ||
+			    ((flags & WM_PATHNAME) && t_ch == '/'))
+				return WM_NOMATCH;
+			continue;
+		}
+	}
+
+	return *text ? WM_NOMATCH : WM_MATCH;
+}

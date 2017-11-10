@@ -136,4 +136,84 @@ static int find_common(struct fetch_pack_args *args,
 			if (!args->stateless_rpc && count == INITIAL_FLUSH)
 				continue;
 
-			consume_
+			consume_shallow_list(args, fd[0]);
+			do {
+				ack = get_ack(fd[0], result_sha1);
+				if (args->verbose && ack)
+					fprintf(stderr, "got ack %d %s\n", ack,
+							sha1_to_hex(result_sha1));
+				switch (ack) {
+				case ACK:
+					flushes = 0;
+					multi_ack = 0;
+					retval = 0;
+					goto done;
+				case ACK_common:
+				case ACK_ready:
+				case ACK_continue: {
+					struct commit *commit =
+						lookup_commit(result_sha1);
+					if (!commit)
+						die("invalid commit %s", sha1_to_hex(result_sha1));
+					if (args->stateless_rpc
+					 && ack == ACK_common
+					 && !(commit->object.flags & COMMON)) {
+						/* We need to replay the have for this object
+						 * on the next RPC request so the peer knows
+						 * it is in common with us.
+						 */
+						const char *hex = sha1_to_hex(result_sha1);
+						packet_buf_write(&req_buf, "have %s\n", hex);
+						state_len = req_buf.len;
+					}
+					mark_common(commit, 0, 1);
+					retval = 0;
+					in_vain = 0;
+					got_continue = 1;
+					if (ack == ACK_ready) {
+						clear_prio_queue(&rev_list);
+						got_ready = 1;
+					}
+					break;
+					}
+				}
+			} while (ack);
+			flushes--;
+			if (got_continue && MAX_IN_VAIN < in_vain) {
+				if (args->verbose)
+					fprintf(stderr, "giving up\n");
+				break; /* give up */
+			}
+		}
+	}
+done:
+	if (!got_ready || !no_done) {
+		packet_buf_write(&req_buf, "done\n");
+		send_request(args, fd[1], &req_buf);
+	}
+	if (args->verbose)
+		fprintf(stderr, "done\n");
+	if (retval != 0) {
+		multi_ack = 0;
+		flushes++;
+	}
+	strbuf_release(&req_buf);
+
+	if (!got_ready || !no_done)
+		consume_shallow_list(args, fd[0]);
+	while (flushes || multi_ack) {
+		int ack = get_ack(fd[0], result_sha1);
+		if (ack) {
+			if (args->verbose)
+				fprintf(stderr, "got ack (%d) %s\n", ack,
+					sha1_to_hex(result_sha1));
+			if (ack == ACK)
+				return 0;
+			multi_ack = 1;
+			continue;
+		}
+		flushes--;
+	}
+	/* it is no error to fetch into a completely empty repo */
+	return count ? retval : 0;
+}

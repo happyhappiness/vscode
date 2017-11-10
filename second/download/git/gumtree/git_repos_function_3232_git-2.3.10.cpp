@@ -163,4 +163,80 @@ static struct imap_store *imap_open_store(struct imap_server_conf *srvc, char *f
 
 			if (!srvc->user)
 				srvc->user = xstrdup(cred.username);
-	
+			if (!srvc->pass)
+				srvc->pass = xstrdup(cred.password);
+		}
+
+		if (CAP(NOLOGIN)) {
+			fprintf(stderr, "Skipping account %s@%s, server forbids LOGIN\n", srvc->user, srvc->host);
+			goto bail;
+		}
+
+		if (srvc->auth_method) {
+			struct imap_cmd_cb cb;
+
+			if (!strcmp(srvc->auth_method, "CRAM-MD5")) {
+				if (!CAP(AUTH_CRAM_MD5)) {
+					fprintf(stderr, "You specified"
+						"CRAM-MD5 as authentication method, "
+						"but %s doesn't support it.\n", srvc->host);
+					goto bail;
+				}
+				/* CRAM-MD5 */
+
+				memset(&cb, 0, sizeof(cb));
+				cb.cont = auth_cram_md5;
+				if (imap_exec(ctx, &cb, "AUTHENTICATE CRAM-MD5") != RESP_OK) {
+					fprintf(stderr, "IMAP error: AUTHENTICATE CRAM-MD5 failed\n");
+					goto bail;
+				}
+			} else {
+				fprintf(stderr, "Unknown authentication method:%s\n", srvc->host);
+				goto bail;
+			}
+		} else {
+			if (!imap->buf.sock.ssl)
+				imap_warn("*** IMAP Warning *** Password is being "
+					  "sent in the clear\n");
+			if (imap_exec(ctx, NULL, "LOGIN \"%s\" \"%s\"", srvc->user, srvc->pass) != RESP_OK) {
+				fprintf(stderr, "IMAP error: LOGIN failed\n");
+				goto bail;
+			}
+		}
+	} /* !preauth */
+
+	if (cred.username)
+		credential_approve(&cred);
+	credential_clear(&cred);
+
+	/* check the target mailbox exists */
+	ctx->name = folder;
+	switch (imap_exec(ctx, NULL, "EXAMINE \"%s\"", ctx->name)) {
+	case RESP_OK:
+		/* ok */
+		break;
+	case RESP_BAD:
+		fprintf(stderr, "IMAP error: could not check mailbox\n");
+		goto out;
+	case RESP_NO:
+		if (imap_exec(ctx, NULL, "CREATE \"%s\"", ctx->name) == RESP_OK) {
+			imap_info("Created missing mailbox\n");
+		} else {
+			fprintf(stderr, "IMAP error: could not create missing mailbox\n");
+			goto out;
+		}
+		break;
+	}
+
+	ctx->prefix = "";
+	return ctx;
+
+bail:
+	if (cred.username)
+		credential_reject(&cred);
+	credential_clear(&cred);
+
+ out:
+	imap_close_store(ctx);
+	return NULL;
+}

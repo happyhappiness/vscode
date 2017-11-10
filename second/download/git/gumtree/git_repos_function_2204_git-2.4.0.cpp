@@ -132,4 +132,44 @@ static int do_pick_commit(struct commit *commit, struct replay_opts *opts)
 		commit_list_insert(base, &common);
 		commit_list_insert(next, &remotes);
 		res = try_merge_command(opts->strategy, opts->xopts_nr, opts->xopts,
-		
+					common, sha1_to_hex(head), remotes);
+		free_commit_list(common);
+		free_commit_list(remotes);
+	}
+
+	/*
+	 * If the merge was clean or if it failed due to conflict, we write
+	 * CHERRY_PICK_HEAD for the subsequent invocation of commit to use.
+	 * However, if the merge did not even start, then we don't want to
+	 * write it at all.
+	 */
+	if (opts->action == REPLAY_PICK && !opts->no_commit && (res == 0 || res == 1))
+		write_cherry_pick_head(commit, "CHERRY_PICK_HEAD");
+	if (opts->action == REPLAY_REVERT && ((opts->no_commit && res == 0) || res == 1))
+		write_cherry_pick_head(commit, "REVERT_HEAD");
+
+	if (res) {
+		error(opts->action == REPLAY_REVERT
+		      ? _("could not revert %s... %s")
+		      : _("could not apply %s... %s"),
+		      find_unique_abbrev(commit->object.sha1, DEFAULT_ABBREV),
+		      msg.subject);
+		print_advice(res == 1, opts);
+		rerere(opts->allow_rerere_auto);
+		goto leave;
+	}
+
+	allow = allow_empty(opts, commit);
+	if (allow < 0) {
+		res = allow;
+		goto leave;
+	}
+	if (!opts->no_commit)
+		res = run_git_commit(defmsg, opts, allow);
+
+leave:
+	free_message(commit, &msg);
+	free(defmsg);
+
+	return res;
+}

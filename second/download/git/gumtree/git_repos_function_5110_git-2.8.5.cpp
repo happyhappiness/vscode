@@ -386,4 +386,28 @@ int cmd_format_patch(int argc, const char **argv, const char *prefix)
 		/* We put one extra blank line between formatted
 		 * patches and this flag is used by log-tree code
 		 * to see if it needs to emit a LF before showing
-	
+		 * the log; when using one file per patch, we do
+		 * not want the extra blank line.
+		 */
+		if (!use_stdout)
+			rev.shown_one = 0;
+		if (shown) {
+			if (rev.mime_boundary)
+				printf("\n--%s%s--\n\n\n",
+				       mime_boundary_leader,
+				       rev.mime_boundary);
+			else
+				print_signature();
+		}
+		if (!use_stdout)
+			fclose(stdout);
+	}
+	free(list);
+	free(branch_name);
+	string_list_clear(&extra_to, 0);
+	string_list_clear(&extra_cc, 0);
+	string_list_clear(&extra_hdr, 0);
+	if (ignore_if_in_upstream)
+		free_patch_ids(&ids);
+	return 0;
+}

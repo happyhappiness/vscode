@@ -153,4 +153,59 @@ static void show_patch_diff(struct combine_diff_path *elem, int num_parent,
 			sline[lno].len = cp - sline[lno].bol;
 			lno++;
 			if (lno < cnt)
-				sl
+				sline[lno].bol = cp + 1;
+		}
+	}
+	if (result_size && result[result_size-1] != '\n')
+		sline[cnt-1].len = result_size - (sline[cnt-1].bol - result);
+
+	result_file.ptr = result;
+	result_file.size = result_size;
+
+	/* Even p_lno[cnt+1] is valid -- that is for the end line number
+	 * for deletion hunk at the end.
+	 */
+	sline[0].p_lno = xcalloc((cnt+2) * num_parent, sizeof(unsigned long));
+	for (lno = 0; lno <= cnt; lno++)
+		sline[lno+1].p_lno = sline[lno].p_lno + num_parent;
+
+	for (i = 0; i < num_parent; i++) {
+		int j;
+		for (j = 0; j < i; j++) {
+			if (!oidcmp(&elem->parent[i].oid,
+				     &elem->parent[j].oid)) {
+				reuse_combine_diff(sline, cnt, i, j);
+				break;
+			}
+		}
+		if (i <= j)
+			combine_diff(&elem->parent[i].oid,
+				     elem->parent[i].mode,
+				     &result_file, sline,
+				     cnt, i, num_parent, result_deleted,
+				     textconv, elem->path, opt->xdl_opts);
+	}
+
+	show_hunks = make_hunks(sline, cnt, num_parent, dense);
+
+	if (show_hunks || mode_differs || working_tree_file) {
+		show_combined_header(elem, num_parent, dense, rev,
+				     line_prefix, mode_differs, 1);
+		dump_sline(sline, line_prefix, cnt, num_parent,
+			   opt->use_color, result_deleted);
+	}
+	free(result);
+
+	for (lno = 0; lno < cnt; lno++) {
+		if (sline[lno].lost) {
+			struct lline *ll = sline[lno].lost;
+			while (ll) {
+				struct lline *tmp = ll;
+				ll = ll->next;
+				free(tmp);
+			}
+		}
+	}
+	free(sline[0].p_lno);
+	free(sline);
+}

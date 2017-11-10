@@ -184,4 +184,117 @@ restart:
 	    }
 
 	  if (requested)
-	    WSAEventSelect ((SOCKET) h, hEvent, requested
+	    WSAEventSelect ((SOCKET) h, hEvent, requested);
+	}
+      else
+	{
+	  /* Poll now.  If we get an event, do not poll again.  Also,
+	     screen buffer handles are waitable, and they'll block until
+	     a character is available.  win32_compute_revents eliminates
+	     bits for the "wrong" direction. */
+	  pfd[i].revents = win32_compute_revents (h, &sought);
+	  if (sought)
+	    handle_array[nhandles++] = h;
+	  if (pfd[i].revents)
+	    timeout = 0;
+	}
+    }
+
+  if (select (0, &rfds, &wfds, &xfds, &tv0) > 0)
+    {
+      /* Do MsgWaitForMultipleObjects anyway to dispatch messages, but
+	 no need to call select again.  */
+      poll_again = FALSE;
+      wait_timeout = 0;
+    }
+  else
+    {
+      poll_again = TRUE;
+      if (timeout == INFTIM)
+	wait_timeout = INFINITE;
+      else
+	wait_timeout = timeout;
+    }
+
+  for (;;)
+    {
+      ret = MsgWaitForMultipleObjects (nhandles, handle_array, FALSE,
+				       wait_timeout, QS_ALLINPUT);
+
+      if (ret == WAIT_OBJECT_0 + nhandles)
+	{
+	  /* new input of some other kind */
+	  BOOL bRet;
+	  while ((bRet = PeekMessage (&msg, NULL, 0, 0, PM_REMOVE)) != 0)
+	    {
+	      TranslateMessage (&msg);
+	      DispatchMessage (&msg);
+	    }
+	}
+      else
+	break;
+    }
+
+  if (poll_again)
+    select (0, &rfds, &wfds, &xfds, &tv0);
+
+  /* Place a sentinel at the end of the array.  */
+  handle_array[nhandles] = NULL;
+  nhandles = 1;
+  for (i = 0; i < nfd; i++)
+    {
+      int happened;
+
+      if (pfd[i].fd < 0)
+	continue;
+      if (!(pfd[i].events & (POLLIN | POLLRDNORM |
+			     POLLOUT | POLLWRNORM | POLLWRBAND)))
+	continue;
+
+      h = (HANDLE) _get_osfhandle (pfd[i].fd);
+      if (h != handle_array[nhandles])
+	{
+	  /* It's a socket.  */
+	  WSAEnumNetworkEvents ((SOCKET) h, NULL, &ev);
+	  WSAEventSelect ((SOCKET) h, NULL, 0);
+
+	  /* If we're lucky, WSAEnumNetworkEvents already provided a way
+	     to distinguish FD_READ and FD_ACCEPT; this saves a recv later.  */
+	  if (FD_ISSET ((SOCKET) h, &rfds)
+	      && !(ev.lNetworkEvents & (FD_READ | FD_ACCEPT)))
+	    ev.lNetworkEvents |= FD_READ | FD_ACCEPT;
+	  if (FD_ISSET ((SOCKET) h, &wfds))
+	    ev.lNetworkEvents |= FD_WRITE | FD_CONNECT;
+	  if (FD_ISSET ((SOCKET) h, &xfds))
+	    ev.lNetworkEvents |= FD_OOB;
+
+	  happened = win32_compute_revents_socket ((SOCKET) h, pfd[i].events,
+						   ev.lNetworkEvents);
+	}
+      else
+	{
+	  /* Not a socket.  */
+	  int sought = pfd[i].events;
+	  happened = win32_compute_revents (h, &sought);
+	  nhandles++;
+	}
+
+       if ((pfd[i].revents |= happened) != 0)
+	rc++;
+    }
+
+  if (!rc && orig_timeout && timeout != INFTIM)
+    {
+      elapsed = GetTickCount() - start;
+      timeout = elapsed >= orig_timeout ? 0 : orig_timeout - elapsed;
+    }
+
+  if (!rc && timeout)
+    {
+      SleepEx (1, TRUE);
+      goto restart;
+    }
+
+  return rc;
+#endif
+}

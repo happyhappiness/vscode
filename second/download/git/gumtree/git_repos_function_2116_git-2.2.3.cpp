@@ -134,4 +134,56 @@ void show_log(struct rev_info *opt)
 		ctx.need_8bit_cte =
 			has_non_ascii(fmt_name(getenv("GIT_COMMITTER_NAME"),
 					       getenv("GIT_COMMITTER_EMAIL")));
-	ctx
+	ctx.date_mode = opt->date_mode;
+	ctx.date_mode_explicit = opt->date_mode_explicit;
+	ctx.abbrev = opt->diffopt.abbrev;
+	ctx.after_subject = extra_headers;
+	ctx.preserve_subject = opt->preserve_subject;
+	ctx.reflog_info = opt->reflog_info;
+	ctx.fmt = opt->commit_format;
+	ctx.mailmap = opt->mailmap;
+	ctx.color = opt->diffopt.use_color;
+	ctx.output_encoding = get_log_output_encoding();
+	if (opt->from_ident.mail_begin && opt->from_ident.name_begin)
+		ctx.from_ident = &opt->from_ident;
+	pretty_print_commit(&ctx, commit, &msgbuf);
+
+	if (opt->add_signoff)
+		append_signoff(&msgbuf, 0, APPEND_SIGNOFF_DEDUP);
+
+	if ((ctx.fmt != CMIT_FMT_USERFORMAT) &&
+	    ctx.notes_message && *ctx.notes_message) {
+		if (ctx.fmt == CMIT_FMT_EMAIL) {
+			strbuf_addstr(&msgbuf, "---\n");
+			opt->shown_dashes = 1;
+		}
+		strbuf_addstr(&msgbuf, ctx.notes_message);
+	}
+
+	if (opt->show_log_size) {
+		printf("log size %i\n", (int)msgbuf.len);
+		graph_show_oneline(opt->graph);
+	}
+
+	/*
+	 * Set opt->missing_newline if msgbuf doesn't
+	 * end in a newline (including if it is empty)
+	 */
+	if (!msgbuf.len || msgbuf.buf[msgbuf.len - 1] != '\n')
+		opt->missing_newline = 1;
+	else
+		opt->missing_newline = 0;
+
+	if (opt->graph)
+		graph_show_commit_msg(opt->graph, &msgbuf);
+	else
+		fwrite(msgbuf.buf, sizeof(char), msgbuf.len, stdout);
+	if (opt->use_terminator && !commit_format_is_empty(opt->commit_format)) {
+		if (!opt->missing_newline)
+			graph_show_padding(opt->graph);
+		putchar(opt->diffopt.line_termination);
+	}
+
+	strbuf_release(&msgbuf);
+	free(ctx.notes_message);
+}

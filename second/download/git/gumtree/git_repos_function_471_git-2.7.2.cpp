@@ -151,4 +151,98 @@ static void populate_value(struct ref_array_item *ref)
 				refname = strip_ref_components(refname, arg);
 			else if (!strcmp(formatp, "track") &&
 				 (starts_with(name, "upstream") ||
-				  star
+				  starts_with(name, "push"))) {
+
+				if (stat_tracking_info(branch, &num_ours,
+						       &num_theirs, NULL))
+					continue;
+
+				if (!num_ours && !num_theirs)
+					v->s = "";
+				else if (!num_ours)
+					v->s = xstrfmt("[behind %d]", num_theirs);
+				else if (!num_theirs)
+					v->s = xstrfmt("[ahead %d]", num_ours);
+				else
+					v->s = xstrfmt("[ahead %d, behind %d]",
+						       num_ours, num_theirs);
+				continue;
+			} else if (!strcmp(formatp, "trackshort") &&
+				   (starts_with(name, "upstream") ||
+				    starts_with(name, "push"))) {
+				assert(branch);
+
+				if (stat_tracking_info(branch, &num_ours,
+							&num_theirs, NULL))
+					continue;
+
+				if (!num_ours && !num_theirs)
+					v->s = "=";
+				else if (!num_ours)
+					v->s = "<";
+				else if (!num_theirs)
+					v->s = ">";
+				else
+					v->s = "<>";
+				continue;
+			} else
+				die("unknown %.*s format %s",
+				    (int)(formatp - name), name, formatp);
+		}
+
+		if (!deref)
+			v->s = refname;
+		else
+			v->s = xstrfmt("%s^{}", refname);
+	}
+
+	for (i = 0; i < used_atom_cnt; i++) {
+		struct atom_value *v = &ref->value[i];
+		if (v->s == NULL)
+			goto need_obj;
+	}
+	return;
+
+ need_obj:
+	buf = get_obj(ref->objectname, &obj, &size, &eaten);
+	if (!buf)
+		die("missing object %s for %s",
+		    sha1_to_hex(ref->objectname), ref->refname);
+	if (!obj)
+		die("parse_object_buffer failed on %s for %s",
+		    sha1_to_hex(ref->objectname), ref->refname);
+
+	grab_values(ref->value, 0, obj, buf, size);
+	if (!eaten)
+		free(buf);
+
+	/*
+	 * If there is no atom that wants to know about tagged
+	 * object, we are done.
+	 */
+	if (!need_tagged || (obj->type != OBJ_TAG))
+		return;
+
+	/*
+	 * If it is a tag object, see if we use a value that derefs
+	 * the object, and if we do grab the object it refers to.
+	 */
+	tagged = ((struct tag *)obj)->tagged->oid.hash;
+
+	/*
+	 * NEEDSWORK: This derefs tag only once, which
+	 * is good to deal with chains of trust, but
+	 * is not consistent with what deref_tag() does
+	 * which peels the onion to the core.
+	 */
+	buf = get_obj(tagged, &obj, &size, &eaten);
+	if (!buf)
+		die("missing object %s for %s",
+		    sha1_to_hex(tagged), ref->refname);
+	if (!obj)
+		die("parse_object_buffer failed on %s for %s",
+		    sha1_to_hex(tagged), ref->refname);
+	grab_values(ref->value, 1, obj, buf, size);
+	if (!eaten)
+		free(buf);
+}

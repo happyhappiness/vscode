@@ -129,4 +129,47 @@ int cmd_tag(int argc, const char **argv, const char *prefix)
 
 	tag = argv[0];
 
-	object_ref = argc == 2
+	object_ref = argc == 2 ? argv[1] : "HEAD";
+	if (argc > 2)
+		die(_("too many params"));
+
+	if (get_sha1(object_ref, object))
+		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
+
+	if (strbuf_check_tag_ref(&ref, tag))
+		die(_("'%s' is not a valid tag name."), tag);
+
+	if (read_ref(ref.buf, prev))
+		hashclr(prev);
+	else if (!force)
+		die(_("tag '%s' already exists"), tag);
+
+	opt.message_given = msg.given || msgfile;
+
+	if (!cleanup_arg || !strcmp(cleanup_arg, "strip"))
+		opt.cleanup_mode = CLEANUP_ALL;
+	else if (!strcmp(cleanup_arg, "verbatim"))
+		opt.cleanup_mode = CLEANUP_NONE;
+	else if (!strcmp(cleanup_arg, "whitespace"))
+		opt.cleanup_mode = CLEANUP_SPACE;
+	else
+		die(_("Invalid cleanup mode %s"), cleanup_arg);
+
+	if (annotate)
+		create_tag(object, tag, &buf, &opt, prev, object);
+
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_update(transaction, ref.buf, object, prev,
+				   0, NULL, &err) ||
+	    ref_transaction_commit(transaction, &err))
+		die("%s", err.buf);
+	ref_transaction_free(transaction);
+	if (force && !is_null_sha1(prev) && hashcmp(prev, object))
+		printf(_("Updated tag '%s' (was %s)\n"), tag, find_unique_abbrev(prev, DEFAULT_ABBREV));
+
+	strbuf_release(&err);
+	strbuf_release(&buf);
+	strbuf_release(&ref);
+	return 0;
+}

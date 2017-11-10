@@ -341,4 +341,34 @@ static int handle_revision_opt(struct rev_info *revs, int argc, const char **arg
 		revs->grep_filter.regflags |= REG_ICASE;
 		DIFF_OPT_SET(&revs->diffopt, PICKAXE_IGNORE_CASE);
 	} else if (!strcmp(arg, "--fixed-strings") || !strcmp(arg, "-F")) {
-		revs->grep_filter.pattern_type_option =
+		revs->grep_filter.pattern_type_option = GREP_PATTERN_TYPE_FIXED;
+	} else if (!strcmp(arg, "--perl-regexp")) {
+		revs->grep_filter.pattern_type_option = GREP_PATTERN_TYPE_PCRE;
+	} else if (!strcmp(arg, "--all-match")) {
+		revs->grep_filter.all_match = 1;
+	} else if (!strcmp(arg, "--invert-grep")) {
+		revs->invert_grep = 1;
+	} else if ((argcount = parse_long_opt("encoding", argv, &optarg))) {
+		if (strcmp(optarg, "none"))
+			git_log_output_encoding = xstrdup(optarg);
+		else
+			git_log_output_encoding = "";
+		return argcount;
+	} else if (!strcmp(arg, "--reverse")) {
+		revs->reverse ^= 1;
+	} else if (!strcmp(arg, "--children")) {
+		revs->children.name = "children";
+		revs->limited = 1;
+	} else if (!strcmp(arg, "--ignore-missing")) {
+		revs->ignore_missing = 1;
+	} else {
+		int opts = diff_opt_parse(&revs->diffopt, argv, argc, revs->prefix);
+		if (!opts)
+			unkv[(*unkc)++] = arg;
+		return opts;
+	}
+	if (revs->graph && revs->track_linear)
+		die("--show-linear-break and --graph are incompatible");
+
+	return 1;
+}

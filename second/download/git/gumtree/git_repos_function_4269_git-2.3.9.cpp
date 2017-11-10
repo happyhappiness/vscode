@@ -132,4 +132,30 @@ static const char *prepare_index(int argc, const char **argv, const char *prefix
 		exit(1);
 
 	discard_cache();
-	if
+	if (read_cache() < 0)
+		die(_("cannot read the index"));
+
+	hold_locked_index(&index_lock, 1);
+	add_remove_files(&partial);
+	refresh_cache(REFRESH_QUIET);
+	update_main_cache_tree(WRITE_TREE_SILENT);
+	if (write_locked_index(&the_index, &index_lock, CLOSE_LOCK))
+		die(_("unable to write new_index file"));
+
+	hold_lock_file_for_update(&false_lock,
+				  git_path("next-index-%"PRIuMAX,
+					   (uintmax_t) getpid()),
+				  LOCK_DIE_ON_ERROR);
+
+	create_base_index(current_head);
+	add_remove_files(&partial);
+	refresh_cache(REFRESH_QUIET);
+
+	if (write_locked_index(&the_index, &false_lock, CLOSE_LOCK))
+		die(_("unable to write temporary index file"));
+
+	discard_cache();
+	read_cache_from(false_lock.filename.buf);
+
+	return false_lock.filename.buf;
+}

@@ -161,4 +161,54 @@ static int grep_source_1(struct grep_opt *opt, struct grep_source *gs, int colle
 				peek_eol = end_of_line(peek_bol, &peek_left);
 			}
 
-			
+			if (match_funcname(opt, gs, peek_bol, peek_eol))
+				show_function = 0;
+		}
+		if (show_function ||
+		    (last_hit && lno <= last_hit + opt->post_context)) {
+			/* If the last hit is within the post context,
+			 * we need to show this line.
+			 */
+			show_line(opt, bol, eol, gs->name, lno, '-');
+		}
+
+	next_line:
+		bol = eol + 1;
+		if (!left)
+			break;
+		left--;
+		lno++;
+	}
+
+	if (collect_hits)
+		return 0;
+
+	if (opt->status_only)
+		return 0;
+	if (opt->unmatch_name_only) {
+		/* We did not see any hit, so we want to show this */
+		show_name(opt, gs->name);
+		return 1;
+	}
+
+	xdiff_clear_find_func(&xecfg);
+	opt->priv = NULL;
+
+	/* NEEDSWORK:
+	 * The real "grep -c foo *.c" gives many "bar.c:0" lines,
+	 * which feels mostly useless but sometimes useful.  Maybe
+	 * make it another option?  For now suppress them.
+	 */
+	if (opt->count && count) {
+		char buf[32];
+		if (opt->pathname) {
+			output_color(opt, gs->name, strlen(gs->name),
+				     opt->color_filename);
+			output_sep(opt, ':');
+		}
+		xsnprintf(buf, sizeof(buf), "%u\n", count);
+		opt->output(opt, buf, strlen(buf));
+		return 1;
+	}
+	return !!last_hit;
+}

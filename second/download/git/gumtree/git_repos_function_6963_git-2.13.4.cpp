@@ -149,4 +149,64 @@ build_wcs_upper_buffer (re_string_t *pstr)
 		    pstr->offsets[byte_idx] = src_idx;
 		    for (i = 1; i < mbcdlen; ++i)
 		      {
-			pstr->offset
+			pstr->offsets[byte_idx + i]
+			  = src_idx + (i < mbclen ? i : mbclen - 1);
+			pstr->wcs[byte_idx + i] = WEOF;
+		      }
+		    pstr->len += mbcdlen - mbclen;
+		    if (pstr->raw_stop > src_idx)
+		      pstr->stop += mbcdlen - mbclen;
+		    end_idx = (pstr->bufs_len > pstr->len)
+			      ? pstr->len : pstr->bufs_len;
+		    byte_idx += mbcdlen;
+		    src_idx += mbclen;
+		    continue;
+		  }
+		else
+		  memcpy (pstr->mbs + byte_idx, p, mbclen);
+	      }
+	    else
+	      memcpy (pstr->mbs + byte_idx, p, mbclen);
+
+	    if (BE (pstr->offsets_needed != 0, 0))
+	      {
+		size_t i;
+		for (i = 0; i < mbclen; ++i)
+		  pstr->offsets[byte_idx + i] = src_idx + i;
+	      }
+	    src_idx += mbclen;
+
+	    pstr->wcs[byte_idx++] = wcu;
+	    /* Write paddings.  */
+	    for (remain_len = byte_idx + mbclen - 1; byte_idx < remain_len ;)
+	      pstr->wcs[byte_idx++] = WEOF;
+	  }
+	else if (mbclen == (size_t) -1 || mbclen == 0)
+	  {
+	    /* It is an invalid character or '\0'.  Just use the byte.  */
+	    int ch = pstr->raw_mbs[pstr->raw_mbs_idx + src_idx];
+
+	    if (BE (pstr->trans != NULL, 0))
+	      ch = pstr->trans [ch];
+	    pstr->mbs[byte_idx] = ch;
+
+	    if (BE (pstr->offsets_needed != 0, 0))
+	      pstr->offsets[byte_idx] = src_idx;
+	    ++src_idx;
+
+	    /* And also cast it to wide char.  */
+	    pstr->wcs[byte_idx++] = (wchar_t) ch;
+	    if (BE (mbclen == (size_t) -1, 0))
+	      pstr->cur_state = prev_st;
+	  }
+	else
+	  {
+	    /* The buffer doesn't have enough space, finish to build.  */
+	    pstr->cur_state = prev_st;
+	    break;
+	  }
+      }
+  pstr->valid_len = byte_idx;
+  pstr->valid_raw_len = src_idx;
+  return REG_NOERROR;
+}

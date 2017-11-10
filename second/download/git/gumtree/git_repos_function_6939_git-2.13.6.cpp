@@ -547,4 +547,9 @@ parse_bracket_exp (re_string_t *regexp, re_dfa_t *dfa, re_token_t *token,
  parse_bracket_exp_espace:
   *err = REG_ESPACE;
  parse_bracket_exp_free_return:
-  re_free (sbc
+  re_free (sbcset);
+#ifdef RE_ENABLE_I18N
+  free_charset (mbcset);
+#endif /* RE_ENABLE_I18N */
+  return NULL;
+}

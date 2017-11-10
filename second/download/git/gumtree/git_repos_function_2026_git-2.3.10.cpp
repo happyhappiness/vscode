@@ -148,4 +148,48 @@ int send_pack(struct send_pack_args *args,
 				close(out);
 			if (git_connection_is_socket(conn))
 				shutdown(fd[0], SHUT_WR);
-			if (use_si
+			if (use_sideband)
+				finish_async(&demux);
+			fd[1] = -1;
+			return -1;
+		}
+		if (!args->stateless_rpc)
+			/* Closed by pack_objects() via start_command() */
+			fd[1] = -1;
+	}
+	if (args->stateless_rpc && cmds_sent)
+		packet_flush(out);
+
+	if (status_report && cmds_sent)
+		ret = receive_status(in, remote_refs);
+	else
+		ret = 0;
+	if (args->stateless_rpc)
+		packet_flush(out);
+
+	if (use_sideband && cmds_sent) {
+		if (finish_async(&demux)) {
+			error("error in sideband demultiplexer");
+			ret = -1;
+		}
+		close(demux.out);
+	}
+
+	if (ret < 0)
+		return ret;
+
+	if (args->porcelain)
+		return 0;
+
+	for (ref = remote_refs; ref; ref = ref->next) {
+		switch (ref->status) {
+		case REF_STATUS_NONE:
+		case REF_STATUS_UPTODATE:
+		case REF_STATUS_OK:
+			break;
+		default:
+			return -1;
+		}
+	}
+	return 0;
+}

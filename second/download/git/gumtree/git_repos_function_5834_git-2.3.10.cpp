@@ -130,4 +130,103 @@ out_free:
 
 	  dest_states_nl[i] = re_acquire_state_context (&err, dfa, &follows,
 							CONTEXT_NEWLINE);
-	  if (BE (dest_states_nl[i] == 
+	  if (BE (dest_states_nl[i] == NULL && err != REG_NOERROR, 0))
+	    goto out_free;
+ 	}
+      else
+	{
+	  dest_states_word[i] = dest_states[i];
+	  dest_states_nl[i] = dest_states[i];
+	}
+      bitset_merge (acceptable, dests_ch[i]);
+    }
+
+  if (!BE (need_word_trtable, 0))
+    {
+      /* We don't care about whether the following character is a word
+	 character, or we are in a single-byte character set so we can
+	 discern by looking at the character code: allocate a
+	 256-entry transition table.  */
+      trtable = state->trtable =
+	(re_dfastate_t **) calloc (sizeof (re_dfastate_t *), SBC_MAX);
+      if (BE (trtable == NULL, 0))
+	goto out_free;
+
+      /* For all characters ch...:  */
+      for (i = 0; i < BITSET_WORDS; ++i)
+	for (ch = i * BITSET_WORD_BITS, elem = acceptable[i], mask = 1;
+	     elem;
+	     mask <<= 1, elem >>= 1, ++ch)
+	  if (BE (elem & 1, 0))
+	    {
+	      /* There must be exactly one destination which accepts
+		 character ch.  See group_nodes_into_DFAstates.  */
+	      for (j = 0; (dests_ch[j][i] & mask) == 0; ++j)
+		;
+
+	      /* j-th destination accepts the word character ch.  */
+	      if (dfa->word_char[i] & mask)
+		trtable[ch] = dest_states_word[j];
+	      else
+		trtable[ch] = dest_states[j];
+	    }
+    }
+  else
+    {
+      /* We care about whether the following character is a word
+	 character, and we are in a multi-byte character set: discern
+	 by looking at the character code: build two 256-entry
+	 transition tables, one starting at trtable[0] and one
+	 starting at trtable[SBC_MAX].  */
+      trtable = state->word_trtable =
+	(re_dfastate_t **) calloc (sizeof (re_dfastate_t *), 2 * SBC_MAX);
+      if (BE (trtable == NULL, 0))
+	goto out_free;
+
+      /* For all characters ch...:  */
+      for (i = 0; i < BITSET_WORDS; ++i)
+	for (ch = i * BITSET_WORD_BITS, elem = acceptable[i], mask = 1;
+	     elem;
+	     mask <<= 1, elem >>= 1, ++ch)
+	  if (BE (elem & 1, 0))
+	    {
+	      /* There must be exactly one destination which accepts
+		 character ch.  See group_nodes_into_DFAstates.  */
+	      for (j = 0; (dests_ch[j][i] & mask) == 0; ++j)
+		;
+
+	      /* j-th destination accepts the word character ch.  */
+	      trtable[ch] = dest_states[j];
+	      trtable[ch + SBC_MAX] = dest_states_word[j];
+	    }
+    }
+
+  /* new line */
+  if (bitset_contain (acceptable, NEWLINE_CHAR))
+    {
+      /* The current state accepts newline character.  */
+      for (j = 0; j < ndests; ++j)
+	if (bitset_contain (dests_ch[j], NEWLINE_CHAR))
+	  {
+	    /* k-th destination accepts newline character.  */
+	    trtable[NEWLINE_CHAR] = dest_states_nl[j];
+	    if (need_word_trtable)
+	      trtable[NEWLINE_CHAR + SBC_MAX] = dest_states_nl[j];
+	    /* There must be only one destination which accepts
+	       newline.  See group_nodes_into_DFAstates.  */
+	    break;
+	  }
+    }
+
+  if (dest_states_malloced)
+    free (dest_states);
+
+  re_node_set_free (&follows);
+  for (i = 0; i < ndests; ++i)
+    re_node_set_free (dests_node + i);
+
+  if (dests_node_malloced)
+    free (dests_alloc);
+
+  return 1;
+}

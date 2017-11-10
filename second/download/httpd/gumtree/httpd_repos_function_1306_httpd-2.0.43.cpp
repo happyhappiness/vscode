@@ -114,4 +114,56 @@ static char *ap_ssi_parse_string(request_rec *r, include_ctx_t *ctx,
                      * copied */
                     l = 1;
                 }
-                if ((next + l > end_out) && (out_size 
+                if ((next + l > end_out) && (out_size < length)) {
+                    /* increase the buffer size to accommodate l more chars */
+                    apr_size_t new_out_size = out_size;
+                    apr_size_t current_length = next - out;
+                    char *new_out;
+                    do {
+                        new_out_size *= 2;
+                    } while (new_out_size < current_length + l);
+                    if (new_out_size > length) {
+                        new_out_size = length;
+                    }
+                    new_out = apr_palloc(r->pool, new_out_size);
+                    memcpy(new_out, out, current_length);
+                    out = new_out;
+                    out_size = new_out_size;
+                    end_out = out + out_size - 1;
+                    next = out + current_length;
+                }
+                l = ((int)l > end_out - next) ? (end_out - next) : l;
+                memcpy(next, expansion, l);
+                next += l;
+                break;
+            }
+        default:
+            if (next == end_out) {
+                if (out_size < length) {
+                    /* double the buffer size */
+                    apr_size_t new_out_size = out_size * 2;
+                    apr_size_t current_length = next - out;
+                    char *new_out;
+                    if (new_out_size > length) {
+                        new_out_size = length;
+                    }
+                    new_out = apr_palloc(r->pool, new_out_size);
+                    memcpy(new_out, out, current_length);
+                    out = new_out;
+                    out_size = new_out_size;
+                    end_out = out + out_size - 1;
+                    next = out + current_length;
+                }
+                else {
+                    /* truncated */
+                    *next = '\0';
+                    return out;
+                }
+            }
+            *next++ = ch;
+            break;
+        }
+    }
+    *next = '\0';
+    return out;
+}

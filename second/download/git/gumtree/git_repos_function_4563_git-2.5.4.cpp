@@ -97,4 +97,72 @@ int cmd_apply(int argc, const char **argv, const char *prefix_)
 		check_index = 1;
 	}
 	if (apply_with_reject)
-		apply = apply_verbosely
+		apply = apply_verbosely = 1;
+	if (!force_apply && (diffstat || numstat || summary || check || fake_ancestor))
+		apply = 0;
+	if (check_index && is_not_gitdir)
+		die(_("--index outside a repository"));
+	if (cached) {
+		if (is_not_gitdir)
+			die(_("--cached outside a repository"));
+		check_index = 1;
+	}
+	if (check_index)
+		unsafe_paths = 0;
+
+	for (i = 0; i < argc; i++) {
+		const char *arg = argv[i];
+		int fd;
+
+		if (!strcmp(arg, "-")) {
+			errs |= apply_patch(0, "<stdin>", options);
+			read_stdin = 0;
+			continue;
+		} else if (0 < prefix_length)
+			arg = prefix_filename(prefix, prefix_length, arg);
+
+		fd = open(arg, O_RDONLY);
+		if (fd < 0)
+			die_errno(_("can't open patch '%s'"), arg);
+		read_stdin = 0;
+		set_default_whitespace_mode(whitespace_option);
+		errs |= apply_patch(fd, arg, options);
+		close(fd);
+	}
+	set_default_whitespace_mode(whitespace_option);
+	if (read_stdin)
+		errs |= apply_patch(0, "<stdin>", options);
+	if (whitespace_error) {
+		if (squelch_whitespace_errors &&
+		    squelch_whitespace_errors < whitespace_error) {
+			int squelched =
+				whitespace_error - squelch_whitespace_errors;
+			warning(Q_("squelched %d whitespace error",
+				   "squelched %d whitespace errors",
+				   squelched),
+				squelched);
+		}
+		if (ws_error_action == die_on_ws_error)
+			die(Q_("%d line adds whitespace errors.",
+			       "%d lines add whitespace errors.",
+			       whitespace_error),
+			    whitespace_error);
+		if (applied_after_fixing_ws && apply)
+			warning("%d line%s applied after"
+				" fixing whitespace errors.",
+				applied_after_fixing_ws,
+				applied_after_fixing_ws == 1 ? "" : "s");
+		else if (whitespace_error)
+			warning(Q_("%d line adds whitespace errors.",
+				   "%d lines add whitespace errors.",
+				   whitespace_error),
+				whitespace_error);
+	}
+
+	if (update_index) {
+		if (write_locked_index(&the_index, &lock_file, COMMIT_LOCK))
+			die(_("Unable to write new index file"));
+	}
+
+	return !!errs;
+}

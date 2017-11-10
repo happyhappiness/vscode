@@ -148,10 +148,4 @@ kwsincr (kwset_t kws, char const *text, size_t len)
   ++kwset->words;
 
   /* Keep track of the longest and shortest string of the keyword set. */
-  if (trie->depth < kwset->mind)
-    kwset->mind = trie->depth;
-  if (trie->depth > kwset->maxd)
-    kwset->maxd = trie->depth;
-
-  return NULL;
-}
+  if (

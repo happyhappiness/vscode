@@ -360,4 +360,57 @@ void sha1_compression_states(uint32_t ihv[5], const uint32_t m[16], uint32_t W[8
 #endif
 	SHA1COMPRESS_FULL_ROUND4_STEP(b, c, d, e, a, W, 69, temp);
 
-#ifdef DOSTO
+#ifdef DOSTORESTATE70
+	SHA1_STORE_STATE(70)
+#endif
+	SHA1COMPRESS_FULL_ROUND4_STEP(a, b, c, d, e, W, 70, temp);
+
+#ifdef DOSTORESTATE71
+	SHA1_STORE_STATE(71)
+#endif
+	SHA1COMPRESS_FULL_ROUND4_STEP(e, a, b, c, d, W, 71, temp);
+
+#ifdef DOSTORESTATE72
+	SHA1_STORE_STATE(72)
+#endif
+	SHA1COMPRESS_FULL_ROUND4_STEP(d, e, a, b, c, W, 72, temp);
+
+#ifdef DOSTORESTATE73
+	SHA1_STORE_STATE(73)
+#endif
+	SHA1COMPRESS_FULL_ROUND4_STEP(c, d, e, a, b, W, 73, temp);
+
+#ifdef DOSTORESTATE74
+	SHA1_STORE_STATE(74)
+#endif
+	SHA1COMPRESS_FULL_ROUND4_STEP(b, c, d, e, a, W, 74, temp);
+
+#ifdef DOSTORESTATE75
+	SHA1_STORE_STATE(75)
+#endif
+	SHA1COMPRESS_FULL_ROUND4_STEP(a, b, c, d, e, W, 75, temp);
+
+#ifdef DOSTORESTATE76
+	SHA1_STORE_STATE(76)
+#endif
+	SHA1COMPRESS_FULL_ROUND4_STEP(e, a, b, c, d, W, 76, temp);
+
+#ifdef DOSTORESTATE77
+	SHA1_STORE_STATE(77)
+#endif
+	SHA1COMPRESS_FULL_ROUND4_STEP(d, e, a, b, c, W, 77, temp);
+
+#ifdef DOSTORESTATE78
+	SHA1_STORE_STATE(78)
+#endif
+	SHA1COMPRESS_FULL_ROUND4_STEP(c, d, e, a, b, W, 78, temp);
+
+#ifdef DOSTORESTATE79
+	SHA1_STORE_STATE(79)
+#endif
+	SHA1COMPRESS_FULL_ROUND4_STEP(b, c, d, e, a, W, 79, temp);
+
+
+
+	ihv[0] += a; ihv[1] += b; ihv[2] += c; ihv[3] += d; ihv[4] += e;
+}

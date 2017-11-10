@@ -122,4 +122,78 @@ static void builtin_diff(const char *name_a,
 				fprintf(o->file, "%s", header.buf);
 			goto free_ab_and_return;
 		}
-		fprintf(o-
+		fprintf(o->file, "%s", header.buf);
+		strbuf_reset(&header);
+		if (DIFF_OPT_TST(o, BINARY))
+			emit_binary_diff(o->file, &mf1, &mf2, line_prefix);
+		else
+			fprintf(o->file, "%sBinary files %s and %s differ\n",
+				line_prefix, lbl[0], lbl[1]);
+		o->found_changes = 1;
+	} else {
+		/* Crazy xdl interfaces.. */
+		const char *diffopts = getenv("GIT_DIFF_OPTS");
+		const char *v;
+		xpparam_t xpp;
+		xdemitconf_t xecfg;
+		struct emit_callback ecbdata;
+		const struct userdiff_funcname *pe;
+
+		if (must_show_header) {
+			fprintf(o->file, "%s", header.buf);
+			strbuf_reset(&header);
+		}
+
+		mf1.size = fill_textconv(textconv_one, one, &mf1.ptr);
+		mf2.size = fill_textconv(textconv_two, two, &mf2.ptr);
+
+		pe = diff_funcname_pattern(one);
+		if (!pe)
+			pe = diff_funcname_pattern(two);
+
+		memset(&xpp, 0, sizeof(xpp));
+		memset(&xecfg, 0, sizeof(xecfg));
+		memset(&ecbdata, 0, sizeof(ecbdata));
+		ecbdata.label_path = lbl;
+		ecbdata.color_diff = want_color(o->use_color);
+		ecbdata.found_changesp = &o->found_changes;
+		ecbdata.ws_rule = whitespace_rule(name_b);
+		if (ecbdata.ws_rule & WS_BLANK_AT_EOF)
+			check_blank_at_eof(&mf1, &mf2, &ecbdata);
+		ecbdata.opt = o;
+		ecbdata.header = header.len ? &header : NULL;
+		xpp.flags = o->xdl_opts;
+		xecfg.ctxlen = o->context;
+		xecfg.interhunkctxlen = o->interhunkcontext;
+		xecfg.flags = XDL_EMIT_FUNCNAMES;
+		if (DIFF_OPT_TST(o, FUNCCONTEXT))
+			xecfg.flags |= XDL_EMIT_FUNCCONTEXT;
+		if (pe)
+			xdiff_set_find_func(&xecfg, pe->pattern, pe->cflags);
+		if (!diffopts)
+			;
+		else if (skip_prefix(diffopts, "--unified=", &v))
+			xecfg.ctxlen = strtoul(v, NULL, 10);
+		else if (skip_prefix(diffopts, "-u", &v))
+			xecfg.ctxlen = strtoul(v, NULL, 10);
+		if (o->word_diff)
+			init_diff_words_data(&ecbdata, o, one, two);
+		xdi_diff_outf(&mf1, &mf2, fn_out_consume, &ecbdata,
+			      &xpp, &xecfg);
+		if (o->word_diff)
+			free_diff_words_data(&ecbdata);
+		if (textconv_one)
+			free(mf1.ptr);
+		if (textconv_two)
+			free(mf2.ptr);
+		xdiff_clear_find_func(&xecfg);
+	}
+
+ free_ab_and_return:
+	strbuf_release(&header);
+	diff_free_filespec_data(one);
+	diff_free_filespec_data(two);
+	free(a_one);
+	free(b_two);
+	return;
+}

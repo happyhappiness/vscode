@@ -106,4 +106,96 @@ int cmd_am(int argc, const char **argv, const char *prefix)
 	if (in_progress)
 		am_load(&state);
 
-	argc = parse_options(argc, argv, prefix, options, 
+	argc = parse_options(argc, argv, prefix, options, usage, 0);
+
+	if (binary >= 0)
+		fprintf_ln(stderr, _("The -b/--binary option has been a no-op for long time, and\n"
+				"it will be removed. Please do not use it anymore."));
+
+	/* Ensure a valid committer ident can be constructed */
+	git_committer_info(IDENT_STRICT);
+
+	if (read_index_preload(&the_index, NULL) < 0)
+		die(_("failed to read the index"));
+
+	if (in_progress) {
+		/*
+		 * Catch user error to feed us patches when there is a session
+		 * in progress:
+		 *
+		 * 1. mbox path(s) are provided on the command-line.
+		 * 2. stdin is not a tty: the user is trying to feed us a patch
+		 *    from standard input. This is somewhat unreliable -- stdin
+		 *    could be /dev/null for example and the caller did not
+		 *    intend to feed us a patch but wanted to continue
+		 *    unattended.
+		 */
+		if (argc || (resume == RESUME_FALSE && !isatty(0)))
+			die(_("previous rebase directory %s still exists but mbox given."),
+				state.dir);
+
+		if (resume == RESUME_FALSE)
+			resume = RESUME_APPLY;
+
+		if (state.signoff == SIGNOFF_EXPLICIT)
+			am_append_signoff(&state);
+	} else {
+		struct argv_array paths = ARGV_ARRAY_INIT;
+		int i;
+
+		/*
+		 * Handle stray state directory in the independent-run case. In
+		 * the --rebasing case, it is up to the caller to take care of
+		 * stray directories.
+		 */
+		if (file_exists(state.dir) && !state.rebasing) {
+			if (resume == RESUME_ABORT) {
+				am_destroy(&state);
+				am_state_release(&state);
+				return 0;
+			}
+
+			die(_("Stray %s directory found.\n"
+				"Use \"git am --abort\" to remove it."),
+				state.dir);
+		}
+
+		if (resume)
+			die(_("Resolve operation not in progress, we are not resuming."));
+
+		for (i = 0; i < argc; i++) {
+			if (is_absolute_path(argv[i]) || !prefix)
+				argv_array_push(&paths, argv[i]);
+			else
+				argv_array_push(&paths, mkpath("%s/%s", prefix, argv[i]));
+		}
+
+		am_setup(&state, patch_format, paths.argv, keep_cr);
+
+		argv_array_clear(&paths);
+	}
+
+	switch (resume) {
+	case RESUME_FALSE:
+		am_run(&state, 0);
+		break;
+	case RESUME_APPLY:
+		am_run(&state, 1);
+		break;
+	case RESUME_RESOLVED:
+		am_resolve(&state);
+		break;
+	case RESUME_SKIP:
+		am_skip(&state);
+		break;
+	case RESUME_ABORT:
+		am_abort(&state);
+		break;
+	default:
+		die("BUG: invalid resume value");
+	}
+
+	am_state_release(&state);
+
+	return 0;
+}

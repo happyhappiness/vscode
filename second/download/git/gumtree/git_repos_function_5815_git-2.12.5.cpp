@@ -111,4 +111,13 @@ int cmd_reset(int argc, const char **argv, const char *prefix)
 	if (!pathspec.nr && !unborn) {
 		/* Any resets without paths update HEAD to the head being
 		 * switched to, saving the previous head in ORIG_HEAD before. */
-		update_ref_status 
+		update_ref_status = reset_refs(rev, &oid);
+
+		if (reset_type == HARD && !update_ref_status && !quiet)
+			print_new_head_line(lookup_commit_reference(oid.hash));
+	}
+	if (!pathspec.nr)
+		remove_branch_state();
+
+	return update_ref_status;
+}

@@ -138,4 +138,6 @@ static int verify_refname_available(const char *refname,
 	ret = 0;
 
 cleanup:
-	strbuf_r
+	strbuf_release(&dirname);
+	return ret;
+}

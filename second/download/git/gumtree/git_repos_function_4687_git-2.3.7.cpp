@@ -138,4 +138,45 @@ int cmd_index_pack(int argc, const char **argv, const char *prefix)
 #endif
 
 	curr_pack = open_pack_file(pack_name);
-	parse_pack_hea
+	parse_pack_header();
+	objects = xcalloc(nr_objects + 1, sizeof(struct object_entry));
+	deltas = xcalloc(nr_objects, sizeof(struct delta_entry));
+	parse_pack_objects(pack_sha1);
+	resolve_deltas();
+	conclude_pack(fix_thin_pack, curr_pack, pack_sha1);
+	free(deltas);
+	if (strict)
+		foreign_nr = check_objects();
+
+	if (show_stat)
+		show_pack_info(stat_only);
+
+	idx_objects = xmalloc((nr_objects) * sizeof(struct pack_idx_entry *));
+	for (i = 0; i < nr_objects; i++)
+		idx_objects[i] = &objects[i].idx;
+	curr_index = write_idx_file(index_name, idx_objects, nr_objects, &opts, pack_sha1);
+	free(idx_objects);
+
+	if (!verify)
+		final(pack_name, curr_pack,
+		      index_name, curr_index,
+		      keep_name, keep_msg,
+		      pack_sha1);
+	else
+		close(input_fd);
+	free(objects);
+	strbuf_release(&index_name_buf);
+	strbuf_release(&keep_name_buf);
+	if (pack_name == NULL)
+		free((void *) curr_pack);
+	if (index_name == NULL)
+		free((void *) curr_index);
+
+	/*
+	 * Let the caller know this pack is not self contained
+	 */
+	if (check_self_contained_and_connected && foreign_nr)
+		return 1;
+
+	return 0;
+}

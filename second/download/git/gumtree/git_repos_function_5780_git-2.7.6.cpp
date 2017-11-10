@@ -143,4 +143,16 @@ int ref_transaction_commit(struct ref_transaction *transaction,
 		goto cleanup;
 	}
 	for_each_string_list_item(ref_to_delete, &refs_to_delete)
-		unlink_or_warn(git_path("logs/%s", ref_to_de
+		unlink_or_warn(git_path("logs/%s", ref_to_delete->string));
+	clear_loose_ref_cache(&ref_cache);
+
+cleanup:
+	transaction->state = REF_TRANSACTION_CLOSED;
+
+	for (i = 0; i < n; i++)
+		if (updates[i]->lock)
+			unlock_ref(updates[i]->lock);
+	string_list_clear(&refs_to_delete, 0);
+	string_list_clear(&affected_refnames, 0);
+	return ret;
+}

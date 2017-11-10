@@ -123,4 +123,20 @@ get_subexp (re_match_context_t *mctx, int bkref_node, int bkref_str_idx)
 	  /* Can the OP_OPEN_SUBEXP node arrive the OP_CLOSE_SUBEXP node
 	     in the current context?  */
 	  err = check_arrival (mctx, sub_top->path, sub_top->node,
-			       sub_top->str_idx, c
+			       sub_top->str_idx, cls_node, sl_str,
+			       OP_CLOSE_SUBEXP);
+	  if (err == REG_NOMATCH)
+	      continue;
+	  if (BE (err != REG_NOERROR, 0))
+	      return err;
+	  sub_last = match_ctx_add_sublast (sub_top, cls_node, sl_str);
+	  if (BE (sub_last == NULL, 0))
+	    return REG_ESPACE;
+	  err = get_subexp_sub (mctx, sub_top, sub_last, bkref_node,
+				bkref_str_idx);
+	  if (err == REG_NOMATCH)
+	    continue;
+	}
+    }
+  return REG_NOERROR;
+}

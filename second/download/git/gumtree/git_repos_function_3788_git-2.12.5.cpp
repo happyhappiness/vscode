@@ -134,4 +134,21 @@ match_wildcards:
 		if (ps->recursive && S_ISGITLINK(entry->mode) &&
 		    !ps_strncmp(item, match, base->buf + base_offset,
 				item->nowildcard_len)) {
-			s
+			strbuf_setlen(base, base_offset + baselen);
+			return entry_interesting;
+		}
+
+		strbuf_setlen(base, base_offset + baselen);
+
+		/*
+		 * Match all directories. We'll try to match files
+		 * later on.
+		 * max_depth is ignored but we may consider support it
+		 * in future, see
+		 * http://thread.gmane.org/gmane.comp.version-control.git/163757/focus=163840
+		 */
+		if (ps->recursive && S_ISDIR(entry->mode))
+			return entry_interesting;
+	}
+	return never_interesting; /* No matches */
+}

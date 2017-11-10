@@ -141,40 +141,4 @@ group_nodes_into_DFAstates (const re_dfa_t *dfa, const re_dfastate_t *state,
 	    }
 
 	  /* If this state isn't a subset of `accepts', create a
-	     new group state, which has the `remains'. */
-	  if (not_subset)
-	    {
-	      bitset_copy (dests_ch[ndests], remains);
-	      bitset_copy (dests_ch[j], intersec);
-	      err = re_node_set_init_copy (dests_node + ndests, &dests_node[j]);
-	      if (BE (err != REG_NOERROR, 0))
-		goto error_return;
-	      ++ndests;
-	    }
-
-	  /* Put the position in the current group. */
-	  result = re_node_set_insert (&dests_node[j], cur_nodes->elems[i]);
-	  if (BE (result < 0, 0))
-	    goto error_return;
-
-	  /* If all characters are consumed, go to next node. */
-	  if (!not_consumed)
-	    break;
-	}
-      /* Some characters remain, create a new group. */
-      if (j == ndests)
-	{
-	  bitset_copy (dests_ch[ndests], accepts);
-	  err = re_node_set_init_1 (dests_node + ndests, cur_nodes->elems[i]);
-	  if (BE (err != REG_NOERROR, 0))
-	    goto error_return;
-	  ++ndests;
-	  bitset_empty (accepts);
-	}
-    }
-  return ndests;
- error_return:
-  for (j = 0; j < ndests; ++j)
-    re_node_set_free (dests_node + j);
-  return -1;
-}
+	    

@@ -165,4 +165,29 @@ static void create_pack_file(void)
 		 * luck.
 		 */
 		if (!ret && use_sideband) {
-			static const char buf[] = "0
+			static const char buf[] = "0005\1";
+			write_or_die(1, buf, 5);
+		}
+	}
+
+	if (finish_command(&pack_objects)) {
+		error("git upload-pack: git-pack-objects died with error.");
+		goto fail;
+	}
+
+	/* flush the data */
+	if (0 <= buffered) {
+		data[0] = buffered;
+		sz = send_client_data(1, data, 1);
+		if (sz < 0)
+			goto fail;
+		fprintf(stderr, "flushed.\n");
+	}
+	if (use_sideband)
+		packet_flush(1);
+	return;
+
+ fail:
+	send_client_data(3, abort_msg, sizeof(abort_msg));
+	die("git upload-pack: %s", abort_msg);
+}

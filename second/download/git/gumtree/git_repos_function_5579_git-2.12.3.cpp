@@ -125,25 +125,4 @@ int cmd_read_tree(int argc, const char **argv, const char *unused_prefix)
 	cache_tree_free(&active_cache_tree);
 	for (i = 0; i < nr_trees; i++) {
 		struct tree *tree = trees[i];
-		parse_tree(tree);
-		init_tree_desc(t+i, tree->buffer, tree->size);
-	}
-	if (unpack_trees(nr_trees, t, &opts))
-		return 128;
-
-	if (opts.debug_unpack || opts.dry_run)
-		return 0; /* do not write the index out */
-
-	/*
-	 * When reading only one tree (either the most basic form,
-	 * "-m ent" or "--reset ent" form), we can obtain a fully
-	 * valid cache-tree because the index must match exactly
-	 * what came from the tree.
-	 */
-	if (nr_trees == 1 && !opts.prefix)
-		prime_cache_tree(&the_index, trees[0]);
-
-	if (write_locked_index(&the_index, &lock_file, COMMIT_LOCK))
-		die("unable to write new index file");
-	return 0;
-}
+		parse_tree

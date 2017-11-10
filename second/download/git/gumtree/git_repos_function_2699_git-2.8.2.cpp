@@ -142,4 +142,38 @@ int unpack_trees(unsigned len, struct tree_desc *t, struct unpack_trees_options 
 		 * Do not allow users to do that.
 		 */
 		if (o->result.cache_nr && empty_worktree) {
-			ret = unpack_failed(o, "Sparse checkout leaves no entry on working directory"
+			ret = unpack_failed(o, "Sparse checkout leaves no entry on working directory");
+			goto done;
+		}
+	}
+
+	o->src_index = NULL;
+	ret = check_updates(o) ? (-2) : 0;
+	if (o->dst_index) {
+		if (!ret) {
+			if (!o->result.cache_tree)
+				o->result.cache_tree = cache_tree();
+			if (!cache_tree_fully_valid(o->result.cache_tree))
+				cache_tree_update(&o->result,
+						  WRITE_TREE_SILENT |
+						  WRITE_TREE_REPAIR);
+		}
+		discard_index(o->dst_index);
+		*o->dst_index = o->result;
+	} else {
+		discard_index(&o->result);
+	}
+
+done:
+	clear_exclude_list(&el);
+	return ret;
+
+return_failed:
+	if (o->show_all_errors)
+		display_error_msgs(o);
+	mark_all_ce_unused(o->src_index);
+	ret = unpack_failed(o, NULL);
+	if (o->exiting_early)
+		ret = 0;
+	goto done;
+}

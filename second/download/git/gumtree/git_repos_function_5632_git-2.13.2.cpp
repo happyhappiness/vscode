@@ -380,4 +380,51 @@ int cmd_format_patch(int argc, const char **argv, const char *prefix)
 				 * mail but the cover letter a reply
 				 * to the cover letter.  The cover
 				 * letter is a reply to the
-				 * --in-reply-t
+				 * --in-reply-to, if specified.
+				 */
+				if (thread == THREAD_SHALLOW
+				    && rev.ref_message_ids->nr > 0
+				    && (!cover_letter || rev.nr > 1))
+					free(rev.message_id);
+				else
+					string_list_append(rev.ref_message_ids,
+							   rev.message_id);
+			}
+			gen_message_id(&rev, oid_to_hex(&commit->object.oid));
+		}
+
+		if (!use_stdout &&
+		    open_next_file(rev.numbered_files ? NULL : commit, NULL, &rev, quiet))
+			die(_("Failed to create output files"));
+		shown = log_tree_commit(&rev, commit);
+		free_commit_buffer(commit);
+
+		/* We put one extra blank line between formatted
+		 * patches and this flag is used by log-tree code
+		 * to see if it needs to emit a LF before showing
+		 * the log; when using one file per patch, we do
+		 * not want the extra blank line.
+		 */
+		if (!use_stdout)
+			rev.shown_one = 0;
+		if (shown) {
+			print_bases(&bases, rev.diffopt.file);
+			if (rev.mime_boundary)
+				fprintf(rev.diffopt.file, "\n--%s%s--\n\n\n",
+				       mime_boundary_leader,
+				       rev.mime_boundary);
+			else
+				print_signature(rev.diffopt.file);
+		}
+		if (!use_stdout)
+			fclose(rev.diffopt.file);
+	}
+	free(list);
+	free(branch_name);
+	string_list_clear(&extra_to, 0);
+	string_list_clear(&extra_cc, 0);
+	string_list_clear(&extra_hdr, 0);
+	if (ignore_if_in_upstream)
+		free_patch_ids(&ids);
+	return 0;
+}

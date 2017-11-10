@@ -146,4 +146,5 @@ static void graph_output_collapsing_line(struct git_graph *graph, struct strbuf 
 	 * Otherwise, we need to collapse some branch lines together.
 	 */
 	if (graph_is_mapping_correct(graph))
-		graph_update_state(graph, GRAPH_PADDIN
+		graph_update_state(graph, GRAPH_PADDING);
+}

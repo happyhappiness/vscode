@@ -135,4 +135,82 @@ static unsigned prefix_pathspec(struct pathspec_item *item,
 	} else {
 		match = prefix_path_gently(prefix, prefixlen, &prefixlen, copyfrom);
 		if (!match)
-			die(_("%s: '%s' is outside repository"), elt, copyfrom
+			die(_("%s: '%s' is outside repository"), elt, copyfrom);
+	}
+	*raw = item->match = match;
+	/*
+	 * Prefix the pathspec (keep all magic) and assign to
+	 * original. Useful for passing to another command.
+	 */
+	if (flags & PATHSPEC_PREFIX_ORIGIN) {
+		struct strbuf sb = STRBUF_INIT;
+		if (prefixlen && !literal_global) {
+			/* Preserve the actual prefix length of each pattern */
+			if (short_magic)
+				prefix_short_magic(&sb, prefixlen, short_magic);
+			else if (long_magic_end) {
+				strbuf_add(&sb, elt, long_magic_end - elt);
+				strbuf_addf(&sb, ",prefix:%d)", prefixlen);
+			} else
+				strbuf_addf(&sb, ":(prefix:%d)", prefixlen);
+		}
+		strbuf_addstr(&sb, match);
+		item->original = strbuf_detach(&sb, NULL);
+	} else
+		item->original = elt;
+	item->len = strlen(item->match);
+	item->prefix = prefixlen;
+
+	if ((flags & PATHSPEC_STRIP_SUBMODULE_SLASH_CHEAP) &&
+	    (item->len >= 1 && item->match[item->len - 1] == '/') &&
+	    (i = cache_name_pos(item->match, item->len - 1)) >= 0 &&
+	    S_ISGITLINK(active_cache[i]->ce_mode)) {
+		item->len--;
+		match[item->len] = '\0';
+	}
+
+	if (flags & PATHSPEC_STRIP_SUBMODULE_SLASH_EXPENSIVE)
+		for (i = 0; i < active_nr; i++) {
+			struct cache_entry *ce = active_cache[i];
+			int ce_len = ce_namelen(ce);
+
+			if (!S_ISGITLINK(ce->ce_mode))
+				continue;
+
+			if (item->len <= ce_len || match[ce_len] != '/' ||
+			    memcmp(ce->name, match, ce_len))
+				continue;
+			if (item->len == ce_len + 1) {
+				/* strip trailing slash */
+				item->len--;
+				match[item->len] = '\0';
+			} else
+				die (_("Pathspec '%s' is in submodule '%.*s'"),
+				     elt, ce_len, ce->name);
+		}
+
+	if (magic & PATHSPEC_LITERAL)
+		item->nowildcard_len = item->len;
+	else {
+		item->nowildcard_len = simple_length(item->match);
+		if (item->nowildcard_len < prefixlen)
+			item->nowildcard_len = prefixlen;
+	}
+	item->flags = 0;
+	if (magic & PATHSPEC_GLOB) {
+		/*
+		 * FIXME: should we enable ONESTAR in _GLOB for
+		 * pattern "* * / * . c"?
+		 */
+	} else {
+		if (item->nowildcard_len < item->len &&
+		    item->match[item->nowildcard_len] == '*' &&
+		    no_wildcard(item->match + item->nowildcard_len + 1))
+			item->flags |= PATHSPEC_ONESTAR;
+	}
+
+	/* sanity checks, pathspec matchers assume these are sane */
+	assert(item->nowildcard_len <= item->len &&
+	       item->prefix         <= item->len);
+	return magic;
+}

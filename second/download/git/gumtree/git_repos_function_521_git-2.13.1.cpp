@@ -157,4 +157,9 @@ static void populate_value(struct ref_array_item *ref)
 		die(_("missing object %s for %s"),
 		    sha1_to_hex(tagged), ref->refname);
 	if (!obj)
-		die(_("p
+		die(_("parse_object_buffer failed on %s for %s"),
+		    sha1_to_hex(tagged), ref->refname);
+	grab_values(ref->value, 1, obj, buf, size);
+	if (!eaten)
+		free(buf);
+}

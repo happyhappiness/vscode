@@ -206,3 +206,34 @@ int cmd_commit(int argc, const char **argv, const char *prefix)
 		die("%s", err.buf);
 	}
 	ref_transaction_free(transaction);
+
+	unlink(git_path_cherry_pick_head());
+	unlink(git_path_revert_head());
+	unlink(git_path_merge_head());
+	unlink(git_path_merge_msg());
+	unlink(git_path_merge_mode());
+	unlink(git_path_squash_msg());
+
+	if (commit_index_files())
+		die (_("Repository has been updated, but unable to write\n"
+		     "new_index file. Check that disk is not full and quota is\n"
+		     "not exceeded, and then \"git reset HEAD\" to recover."));
+
+	rerere(0);
+	run_commit_hook(use_editor, get_index_file(), "post-commit", NULL);
+	if (amend && !no_post_rewrite) {
+		struct notes_rewrite_cfg *cfg;
+		cfg = init_copy_notes_for_rewrite("amend");
+		if (cfg) {
+			/* we are amending, so current_head is not NULL */
+			copy_note_for_rewrite(cfg, current_head->object.sha1, sha1);
+			finish_copy_notes_for_rewrite(cfg, "Notes added by 'git commit --amend'");
+		}
+		run_rewrite_hook(current_head->object.sha1, sha1);
+	}
+	if (!quiet)
+		print_summary(prefix, sha1, !current_head);
+
+	strbuf_release(&err);
+	return 0;
+}

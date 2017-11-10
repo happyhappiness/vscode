@@ -148,12 +148,4 @@ void svndump_read(const char *url, const char *local_ref, const char *notes_ref)
 			}
 		}
 	}
-	if (buffer_ferror(&input))
-		die_short_read();
-	if (active_ctx == NODE_CTX)
-		handle_node();
-	if (active_ctx == REV_CTX)
-		begin_revision(local_ref);
-	if (active_ctx != DUMP_CTX)
-		end_revision(notes_ref);
-}
+	if (buf

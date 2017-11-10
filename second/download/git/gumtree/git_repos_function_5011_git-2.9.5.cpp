@@ -304,4 +304,35 @@ int cmd_show_branch(int ac, const char **av, const char *prefix)
 		shown_merge_point |= is_merge_point;
 
 		if (1 < num_rev) {
-			int is_merge = !!(commit->par
+			int is_merge = !!(commit->parents &&
+					  commit->parents->next);
+			if (topics &&
+			    !is_merge_point &&
+			    (this_flag & (1u << REV_SHIFT)))
+				continue;
+			if (dense && is_merge &&
+			    omit_in_dense(commit, rev, num_rev))
+				continue;
+			for (i = 0; i < num_rev; i++) {
+				int mark;
+				if (!(this_flag & (1u << (i + REV_SHIFT))))
+					mark = ' ';
+				else if (is_merge)
+					mark = '-';
+				else if (i == head_at)
+					mark = '*';
+				else
+					mark = '+';
+				printf("%s%c%s",
+				       get_color_code(i),
+				       mark, get_color_reset_code());
+			}
+			putchar(' ');
+		}
+		show_one_commit(commit, no_name);
+
+		if (shown_merge_point && --extra < 0)
+			break;
+	}
+	return 0;
+}
