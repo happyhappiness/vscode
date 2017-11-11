@@ -1839,4 +1839,72 @@ int mutt_index_menu (void)
 	  if (option (OPTRESOLVE))
 	  {
 	    if (op == OP_UNDELETE_THREAD)
-	      menu->current = mutt_next_thread (CUR
+	      menu->current = mutt_next_thread (CURHDR);
+	    else
+	      menu->current = mutt_next_subthread (CURHDR);
+
+	    if (menu->current == -1)
+	      menu->current = menu->oldcurrent;
+	  }
+	  menu->redraw |= REDRAW_INDEX | REDRAW_STATUS;
+	}
+	break;
+
+      case OP_VERSION:
+	mutt_version ();
+	break;
+
+      case OP_BUFFY_LIST:
+	mutt_buffy_list ();
+	break;
+
+      case OP_VIEW_ATTACHMENTS:
+	CHECK_MSGCOUNT;
+        CHECK_VISIBLE;
+	mutt_view_attachments (CURHDR);
+	if (CURHDR->attach_del)
+	  Context->changed = 1;
+	menu->redraw = REDRAW_FULL;
+	break;
+
+      case OP_END_COND:
+	break;
+
+      case OP_WHAT_KEY:
+	mutt_what_key();
+	break;
+
+#ifdef USE_SIDEBAR
+      case OP_SIDEBAR_NEXT:
+      case OP_SIDEBAR_NEXT_NEW:
+      case OP_SIDEBAR_PAGE_DOWN:
+      case OP_SIDEBAR_PAGE_UP:
+      case OP_SIDEBAR_PREV:
+      case OP_SIDEBAR_PREV_NEW:
+        mutt_sb_change_mailbox (op);
+        break;
+
+      case OP_SIDEBAR_TOGGLE_VISIBLE:
+	toggle_option (OPTSIDEBAR);
+        mutt_reflow_windows();
+	break;
+#endif
+      default:
+	if (menu->menu == MENU_MAIN)
+	  km_error_key (MENU_MAIN);
+    }
+
+    if (menu->menu == MENU_PAGER)
+    {
+      mutt_clear_pager_position ();
+      menu->menu = MENU_MAIN;
+      menu->redraw = REDRAW_FULL;
+    }
+
+    if (done) break;
+  }
+
+  mutt_pop_current_menu (menu);
+  mutt_menuDestroy (&menu);
+  return (close);
+}

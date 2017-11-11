@@ -161,3 +161,129 @@ static int send_doc(curl_socket_t sock, struct httprequest *req)
     prevbounce = FALSE;
 
   dump = fopen(RESPONSE_DUMP, "ab");
+  if(!dump) {
+    error = errno;
+    logmsg("fopen() failed with error: %d %s", error, strerror(error));
+    logmsg("Error opening file: %s", RESPONSE_DUMP);
+    logmsg("couldn't create logfile: " RESPONSE_DUMP);
+    free(ptr);
+    free(cmd);
+    return -1;
+  }
+
+  responsesize = count;
+  do {
+    /* Ok, we send no more than 200 bytes at a time, just to make sure that
+       larger chunks are split up so that the client will need to do multiple
+       recv() calls to get it and thus we exercise that code better */
+    size_t num = count;
+    if(num > 200)
+      num = 200;
+    written = swrite(sock, buffer, num);
+    if(written < 0) {
+      sendfailure = TRUE;
+      break;
+    }
+    else {
+      logmsg("Sent off %zd bytes", written);
+    }
+    /* write to file as well */
+    fwrite(buffer, 1, (size_t)written, dump);
+    if(got_exit_signal)
+      break;
+
+    count -= written;
+    buffer += written;
+  } while(count>0);
+
+  /* Send out any RTP data */
+  if(req->rtp_buffer) {
+    logmsg("About to write %zu RTP bytes", req->rtp_buffersize);
+    count = req->rtp_buffersize;
+    do {
+      size_t num = count;
+      if(num > 200)
+        num = 200;
+      written = swrite(sock, req->rtp_buffer + (req->rtp_buffersize - count),
+                       num);
+      if(written < 0) {
+        sendfailure = TRUE;
+        break;
+      }
+      count -= written;
+    } while(count > 0);
+
+    free(req->rtp_buffer);
+    req->rtp_buffersize = 0;
+  }
+
+  do {
+    res = fclose(dump);
+  } while(res && ((error = errno) == EINTR));
+  if(res)
+    logmsg("Error closing file %s error: %d %s",
+           RESPONSE_DUMP, error, strerror(error));
+
+  if(got_exit_signal) {
+    free(ptr);
+    free(cmd);
+    return -1;
+  }
+
+  if(sendfailure) {
+    logmsg("Sending response failed. Only (%zu bytes) of "
+           "(%zu bytes) were sent",
+           responsesize-count, responsesize);
+    free(ptr);
+    free(cmd);
+    return -1;
+  }
+
+  logmsg("Response sent (%zu bytes) and written to " RESPONSE_DUMP,
+         responsesize);
+  free(ptr);
+
+  if(cmdsize > 0) {
+    char command[32];
+    int quarters;
+    int num;
+    ptr = cmd;
+    do {
+      if(2 == sscanf(ptr, "%31s %d", command, &num)) {
+        if(!strcmp("wait", command)) {
+          logmsg("Told to sleep for %d seconds", num);
+          quarters = num * 4;
+          while(quarters > 0) {
+            quarters--;
+            res = wait_ms(250);
+            if(got_exit_signal)
+              break;
+            if(res) {
+              /* should not happen */
+              error = errno;
+              logmsg("wait_ms() failed with error: (%d) %s",
+                     error, strerror(error));
+              break;
+            }
+          }
+          if(!quarters)
+            logmsg("Continuing after sleeping %d seconds", num);
+        }
+        else
+          logmsg("Unknown command in reply command section");
+      }
+      ptr = strchr(ptr, '\n');
+      if(ptr)
+        ptr++;
+      else
+        ptr = NULL;
+    } while(ptr && *ptr);
+  }
+  free(cmd);
+  req->open = persistant;
+
+  prevtestno = req->testno;
+  prevpartno = req->partno;
+
+  return 0;
+}

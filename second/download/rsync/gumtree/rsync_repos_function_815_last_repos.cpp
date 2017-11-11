@@ -135,4 +135,88 @@ SMB_ACL_T sys_acl_get_file( const char *path_p, SMB_ACL_TYPE_T type)
 				break;
 			case ACC_DENY:
 				/* Since there is no way to return a DENY acl entry *
-				 * change to PERM
+				 * change to PERMIT and then shift.                 */
+				DEBUG(10,("acl_entry->ace_access is %d\n",acl_entry->ace_access));
+				acl_entry_link->entryp->ace_access = ~acl_entry->ace_access & 7;
+				DEBUG(10,("acl_entry_link->entryp->ace_access is %d\n",acl_entry_link->entryp->ace_access));
+				acl_entry_link->entryp->ace_access <<= 6;
+				acl_entry_link_head->count++;
+				break;
+			default:
+				return(0);
+			}
+
+			DEBUG(10,("acl_entry = %d\n",acl_entry));
+			DEBUG(10,("The ace_type is %d\n",acl_entry->ace_type));
+ 
+			acl_entry = acl_nxt(acl_entry);
+		}
+	} /* end of if enabled */
+
+	/* Since owner, group, other acl entries are not *
+	 * part of the acl entries in an acl, they must  *
+	 * be dummied up to become part of the list.     */
+
+	for( i = 1; i < 4; i++) {
+		DEBUG(10,("i is %d\n",i));
+		if(acl_entry_link_head->count != 0) {
+			acl_entry_link->nextp = SMB_MALLOC_P(struct acl_entry_link);
+			if(acl_entry_link->nextp == NULL) {
+				SAFE_FREE(file_acl);
+				errno = ENOMEM;
+				DEBUG(0,("Error in AIX sys_acl_get_file is %d\n",errno));
+				return(NULL);
+			}
+
+			acl_entry_link->nextp->prevp = acl_entry_link;
+			acl_entry_link = acl_entry_link->nextp;
+			acl_entry_link->entryp = SMB_MALLOC_P(struct new_acl_entry);
+			if(acl_entry_link->entryp == NULL) {
+				SAFE_FREE(file_acl);
+				errno = ENOMEM;
+				DEBUG(0,("Error in AIX sys_acl_get_file is %d\n",errno));
+				return(NULL);
+			}
+		}
+
+		acl_entry_link->nextp = NULL;
+
+		new_acl_entry = acl_entry_link->entryp;
+		idp = new_acl_entry->ace_id;
+
+		new_acl_entry->ace_len = sizeof(struct acl_entry);
+		new_acl_entry->ace_type = ACC_PERMIT;
+		idp->id_len = sizeof(struct ace_id);
+		DEBUG(10,("idp->id_len = %d\n",idp->id_len));
+		memset(idp->id_data,0,sizeof(uid_t));
+
+		switch(i) {
+		case 2:
+			new_acl_entry->ace_access = file_acl->g_access << 6;
+			idp->id_type = SMB_ACL_GROUP_OBJ;
+			break;
+
+		case 3:
+			new_acl_entry->ace_access = file_acl->o_access << 6;
+			idp->id_type = SMB_ACL_OTHER;
+			break;
+ 
+		case 1:
+			new_acl_entry->ace_access = file_acl->u_access << 6;
+			idp->id_type = SMB_ACL_USER_OBJ;
+			break;
+ 
+		default:
+			return(NULL);
+
+		}
+
+		acl_entry_link_head->count++;
+		DEBUG(10,("new_acl_entry->ace_access = %d\n",new_acl_entry->ace_access));
+	}
+
+	acl_entry_link_head->count = 0;
+	SAFE_FREE(file_acl);
+
+	return(acl_entry_link_head);
+}
