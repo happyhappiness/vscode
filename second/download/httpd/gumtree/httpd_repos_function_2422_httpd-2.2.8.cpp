@@ -556,3 +556,55 @@ static const char *set_thread_limit (cmd_parms *cmd, void *dummy, const char *ar
          * point; we'll just have to set a flag so that ap_mpm_run()
          * logs a warning later
          */
+        changed_limit_at_restart = 1;
+        return NULL;
+    }
+    thread_limit = tmp_thread_limit;
+
+    if (thread_limit > MAX_THREAD_LIMIT) {
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    "WARNING: ThreadLimit of %d exceeds compile time limit "
+                    "of %d servers,", thread_limit, MAX_THREAD_LIMIT);
+       ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                    " lowering ThreadLimit to %d.", MAX_THREAD_LIMIT);
+       thread_limit = MAX_THREAD_LIMIT;
+    }
+    else if (thread_limit < 1) {
+        ap_log_error(APLOG_MARK, APLOG_STARTUP, 0, NULL,
+                     "WARNING: Require ThreadLimit > 0, setting to 1");
+        thread_limit = 1;
+    }
+    return NULL;
+}
+
+static const command_rec worker_cmds[] = {
+UNIX_DAEMON_COMMANDS,
+LISTEN_COMMANDS,
+AP_INIT_TAKE1("StartServers", set_daemons_to_start, NULL, RSRC_CONF,
+  "Number of child processes launched at server startup"),
+AP_INIT_TAKE1("MinSpareThreads", set_min_spare_threads, NULL, RSRC_CONF,
+  "Minimum number of idle threads, to handle request spikes"),
+AP_INIT_TAKE1("MaxSpareThreads", set_max_spare_threads, NULL, RSRC_CONF,
+  "Maximum number of idle threads"),
+AP_INIT_TAKE1("MaxClients", set_max_clients, NULL, RSRC_CONF,
+  "Maximum number of threads alive at the same time"),
+AP_INIT_TAKE1("ThreadsPerChild", set_threads_per_child, NULL, RSRC_CONF,
+  "Number of threads each child creates"),
+AP_INIT_TAKE1("ServerLimit", set_server_limit, NULL, RSRC_CONF,
+  "Maximum number of child processes for this run of Apache"),
+AP_INIT_TAKE1("ThreadLimit", set_thread_limit, NULL, RSRC_CONF,
+  "Maximum number of worker threads per child process for this run of Apache - Upper limit for ThreadsPerChild"),
+AP_GRACEFUL_SHUTDOWN_TIMEOUT_COMMAND,
+{ NULL }
+};
+
+module AP_MODULE_DECLARE_DATA mpm_worker_module = {
+    MPM20_MODULE_STUFF,
+    ap_mpm_rewrite_args,        /* hook to run before apache parses args */
+    NULL,                       /* create per-directory config structure */
+    NULL,                       /* merge per-directory config structures */
+    NULL,                       /* create per-server config structure */
+    NULL,                       /* merge per-server config structures */
+    worker_cmds,                /* command apr_table_t */
+    worker_hooks                /* register_hooks */
+};

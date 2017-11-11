@@ -223,4 +223,47 @@ static void *listener_thread(apr_thread_t * thd, void *dummy)
 
         cs = APR_RING_FIRST(&timeout_head);
         timeout_time = time_now + TIMEOUT_FUDGE_FACTOR;
-        while (!
+        while (!APR_RING_EMPTY(&timeout_head, conn_state_t, timeout_list)
+               && cs->expiration_time < timeout_time) {
+
+            cs->state = CONN_STATE_LINGER;
+
+            APR_RING_REMOVE(cs, timeout_list);
+            apr_thread_mutex_unlock(timeout_mutex);
+
+            if (!get_worker(&have_idle_worker)) {
+                apr_thread_mutex_lock(timeout_mutex);
+                APR_RING_INSERT_HEAD(&timeout_head, cs,
+                                     conn_state_t, timeout_list);
+                break;
+            }
+
+            rc = push2worker(&cs->pfd, event_pollset);
+
+            if (rc != APR_SUCCESS) {
+                return NULL;
+                /* XXX return NULL looks wrong - not an init failure
+                 * that bypasses all the cleanup outside the main loop
+                 * break seems more like it
+                 * need to evaluate seriousness of push2worker failures
+                 */
+            }
+            have_idle_worker = 0;
+            apr_thread_mutex_lock(timeout_mutex);
+            cs = APR_RING_FIRST(&timeout_head);
+        }
+        apr_thread_mutex_unlock(timeout_mutex);
+
+    }     /* listener main loop */
+
+    ap_close_listeners();
+    ap_queue_term(worker_queue);
+    dying = 1;
+    ap_scoreboard_image->parent[process_slot].quiescing = 1;
+
+    /* wake up the main thread */
+    kill(ap_my_pid, SIGTERM);
+
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
+}

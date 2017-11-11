@@ -112,4 +112,50 @@ static int match(request_rec *r, unsigned char *s, apr_size_t nbytes)
             if (cont_level >= m->cont_level) {
                 if (cont_level > m->cont_level) {
                     /*
-                     * We're at the end of the level "co
+                     * We're at the end of the level "cont_level"
+                     * continuations.
+                     */
+                    cont_level = m->cont_level;
+                }
+                if (mget(r, &p, s, m, nbytes) &&
+                    mcheck(r, &p, m)) {
+                    /*
+                     * This continuation matched. Print its message, with a
+                     * blank before it if the previous item printed and this
+                     * item isn't empty.
+                     */
+                    /* space if previous printed */
+                    if (need_separator
+                        && (m->nospflag == 0)
+                        && (m->desc[0] != '\0')
+                        ) {
+                        (void) magic_rsl_putchar(r, ' ');
+                        need_separator = 0;
+                    }
+                    mprint(r, &p, m);
+                    if (m->desc[0])
+                        need_separator = 1;
+
+                    /*
+                     * If we see any continuations at a higher level, process
+                     * them.
+                     */
+                    cont_level++;
+                }
+            }
+
+            /* move to next continuation record */
+            m = m->next;
+        }
+#if MIME_MAGIC_DEBUG
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                    MODNAME ": matched after %d rules", rule_counter);
+#endif
+        return 1;  /* all through */
+    }
+#if MIME_MAGIC_DEBUG
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                MODNAME ": failed after %d rules", rule_counter);
+#endif
+    return 0;  /* no match at all */
+}
