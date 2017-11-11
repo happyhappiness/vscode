@@ -107,4 +107,70 @@ start_over:
          * we are reusing a connection that doesn't seem to be active anymore
          * (firewall state drop?), let's try a new connection.
          */
-        ldc->reason =
+        ldc->reason = "ldap_compare_s() failed with timeout";
+        uldap_connection_unbind(ldc);
+        failures++;
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, "%s (attempt %d)", ldc->reason, failures);
+        goto start_over;
+    }
+
+    ldc->last_backend_conn = r->request_time;
+    ldc->reason = "Comparison complete";
+    if ((LDAP_COMPARE_TRUE == result) ||
+        (LDAP_COMPARE_FALSE == result) ||
+        (LDAP_NO_SUCH_ATTRIBUTE == result)) {
+        if (curl) {
+            /* compare completed; caching result */
+            LDAP_CACHE_LOCK();
+            the_compare_node.lastcompare = curtime;
+            the_compare_node.result = result;
+            the_compare_node.sgl_processed = 0;
+            the_compare_node.subgroupList = NULL;
+
+            /* If the node doesn't exist then insert it, otherwise just update
+             * it with the last results
+             */
+            compare_nodep = util_ald_cache_fetch(curl->compare_cache,
+                                                 &the_compare_node);
+            if (   (compare_nodep == NULL)
+                || (strcmp(the_compare_node.dn, compare_nodep->dn) != 0)
+                || (strcmp(the_compare_node.attrib,compare_nodep->attrib) != 0)
+                || (strcmp(the_compare_node.value, compare_nodep->value) != 0))
+            {
+                void *junk;
+
+                junk = util_ald_cache_insert(curl->compare_cache,
+                                             &the_compare_node);
+                if (junk == NULL) {
+                    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01287)
+                                  "cache_compare: Cache insertion failure.");
+                }
+            }
+            else {
+                compare_nodep->lastcompare = curtime;
+                compare_nodep->result = result;
+            }
+            LDAP_CACHE_UNLOCK();
+        }
+
+        if (LDAP_COMPARE_TRUE == result) {
+            ldc->reason = "Comparison true (adding to cache)";
+        }
+        else if (LDAP_COMPARE_FALSE == result) {
+            ldc->reason = "Comparison false (adding to cache)";
+        }
+        else if (LDAP_NO_SUCH_ATTRIBUTE == result) {
+            ldc->reason = "Comparison no such attribute (adding to cache)";
+        }
+        else {
+            ldc->reason = apr_psprintf(r->pool, 
+                                       "Comparison undefined: (%d): %s (adding to cache)", 
+                                        result, ldap_err2string(result));
+        }
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_TRACE5, 0, r, 
+                  "ldap_compare_s(%pp, %s, %s, %s) = %s", 
+                  ldc->ldap, dn, attrib, value, ldap_err2string(result));
+    return result;
+}

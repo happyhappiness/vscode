@@ -148,4 +148,78 @@ char *sed_compile(sed_commands_t *commands, sed_comp_args *compargs,
             case ')':
                 if (bracketp <= bracket)
                     SEDCOMPILE_ERROR(42);
-                
+                *ep++ = CKET;
+                *ep++ = *--bracketp;
+                closed++;
+                continue;
+
+            case '{':
+                if (lastep == (char *) 0)
+                    goto defchar;
+                *lastep |= RNGE;
+                cflg = 0;
+            nlim:
+                c = GETC();
+                i = 0;
+                do {
+                    if ('0' <= c && c <= '9')
+                        i = 10 * i + c - '0';
+                    else
+                        SEDCOMPILE_ERROR(16);
+                } while (((c = GETC()) != '\\') && (c != ','));
+                if (i >= 255)
+                    SEDCOMPILE_ERROR(11);
+                *ep++ = i;
+                if (c == ',') {
+                    if (cflg++)
+                        SEDCOMPILE_ERROR(44);
+                    if ((c = GETC()) == '\\')
+                        *ep++ = (char) 255;
+                    else {
+                        UNGETC(c);
+                        goto nlim;
+                        /* get 2'nd number */
+                    }
+                }
+                if (GETC() != '}')
+                    SEDCOMPILE_ERROR(45);
+                if (!cflg)    /* one number */
+                    *ep++ = i;
+                else if ((ep[-1] & 0377) < (ep[-2] & 0377))
+                    SEDCOMPILE_ERROR(46);
+                continue;
+
+            case '\n':
+                SEDCOMPILE_ERROR(36);
+
+            case 'n':
+                c = '\n';
+                goto defchar;
+
+            default:
+                if (c >= '1' && c <= '9') {
+                    if ((c -= '1') >= closed)
+                        SEDCOMPILE_ERROR(25);
+                    *ep++ = CBACK;
+                    *ep++ = c;
+                    continue;
+                }
+            }
+    /* Drop through to default to use \ to turn off special chars */
+
+        defchar:
+        default:
+            lastep = ep;
+            *ep++ = CCHR;
+            *ep++ = c;
+        }
+    }
+out:
+    if (regerrno) {
+        regerr(commands, regerrno);
+        return (char*) NULL;
+    }
+    /* XXX : Basant : what extra */
+    /* int reglength = (int)(ep - expbuf); */
+    return ep;
+}

@@ -111,4 +111,10 @@ static authz_status ldapdn_check_authorization(request_rec *r,
     }
 
 
-    ap_log_rerror(APLOG
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01728)
+                  "auth_ldap authorize dn: authorization denied for "
+                  "user %s to %s",
+                  r->user, r->uri);
+
+    return AUTHZ_DENIED;
+}

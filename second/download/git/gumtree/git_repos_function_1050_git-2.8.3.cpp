@@ -153,4 +153,35 @@ int setup_revisions(int argc, const char **argv, struct rev_info *revs, struct s
 
 	if (revs->line_level_traverse) {
 		revs->limited = 1;
-		
+		revs->topo_order = 1;
+	}
+
+	diff_setup_done(&revs->diffopt);
+
+	grep_commit_pattern_type(GREP_PATTERN_TYPE_UNSPECIFIED,
+				 &revs->grep_filter);
+	compile_grep_patterns(&revs->grep_filter);
+
+	if (revs->reverse && revs->reflog_info)
+		die("cannot combine --reverse with --walk-reflogs");
+	if (revs->rewrite_parents && revs->children.name)
+		die("cannot combine --parents and --children");
+
+	/*
+	 * Limitations on the graph functionality
+	 */
+	if (revs->reverse && revs->graph)
+		die("cannot combine --reverse with --graph");
+
+	if (revs->reflog_info && revs->graph)
+		die("cannot combine --walk-reflogs with --graph");
+	if (revs->no_walk && revs->graph)
+		die("cannot combine --no-walk with --graph");
+	if (!revs->reflog_info && revs->grep_filter.use_reflog_filter)
+		die("cannot use --grep-reflog without --walk-reflogs");
+
+	if (revs->first_parent_only && revs->bisect)
+		die(_("--first-parent is incompatible with --bisect"));
+
+	return left;
+}

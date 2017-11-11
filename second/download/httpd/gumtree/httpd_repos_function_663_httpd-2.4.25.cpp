@@ -202,4 +202,63 @@ apr_status_t ssl_load_encrypted_pkey(server_rec *s, apr_pool_t *p, int idx,
                          s, APLOGNO(02583)
                          "encrypted %s private key - pass phrase "
                          "requested", key_id);
-  
+        }
+        else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                         s, APLOGNO(02584)
+                         "encrypted %s private key - pass phrase"
+                         " reused", key_id);
+        }
+    }
+
+    /*
+     * Ok, when we have one more pass phrase store it
+     */
+    if (ppcb_arg.cpPassPhraseCur != NULL) {
+        *(const char **)apr_array_push(ppcb_arg.aPassPhrase) =
+            ppcb_arg.cpPassPhraseCur;
+        nPassPhrase++;
+    }
+
+    /*
+     * Insert private key into the global module configuration
+     * (we convert it to a stand-alone DER byte sequence
+     * because the SSL library uses static variables inside a
+     * RSA structure which do not survive DSO reloads!)
+     */
+    length = i2d_PrivateKey(pPrivateKey, NULL);
+    ucp = ssl_asn1_table_set(mc->tPrivateKey, key_id, length);
+    (void)i2d_PrivateKey(pPrivateKey, &ucp); /* 2nd arg increments */
+
+    if (ppcb_arg.nPassPhraseDialogCur != 0) {
+        /* remember mtime of encrypted keys */
+        asn1 = ssl_asn1_table_get(mc->tPrivateKey, key_id);
+        asn1->source_mtime = pkey_mtime;
+    }
+
+    /*
+     * Free the private key structure
+     */
+    EVP_PKEY_free(pPrivateKey);
+
+    /*
+     * Let the user know when we're successful.
+     */
+    if ((ppcb_arg.nPassPhraseDialog > 0) &&
+        (ppcb_arg.cpPassPhraseCur != NULL)) {
+        if (writetty) {
+            apr_file_printf(writetty, "\n"
+                            "OK: Pass Phrase Dialog successful.\n");
+        }
+    }
+
+    /* Close the pipes if they were opened
+     */
+    if (readtty) {
+        apr_file_close(readtty);
+        apr_file_close(writetty);
+        readtty = writetty = NULL;
+    }
+
+    return APR_SUCCESS;
+}

@@ -98,4 +98,23 @@ static int get_form_auth(request_rec * r,
                       "form parsed, but username field '%s' was missing or empty, unauthorized",
                       username);
 
-        return HTT
+        return HTTP_UNAUTHORIZED;
+    }
+    if (!sent_pw || !*sent_pw) {
+
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
+                      "form parsed, but password field '%s' was missing or empty, unauthorized",
+                      password);
+
+        return HTTP_UNAUTHORIZED;
+    }
+
+    /*
+     * save away the username, password, mimetype and method, so that they
+     * are available should the auth need to be run again.
+     */
+    set_notes_auth(r, *sent_user, *sent_pw, sent_method ? *sent_method : NULL,
+                   sent_mimetype ? *sent_mimetype : NULL);
+
+    return OK;
+}

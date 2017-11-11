@@ -118,4 +118,64 @@ static apr_ssize_t send_response_header(isapi_cid *cid,
     else if (cid->ecb->dwHttpStatusCode
               && cid->ecb->dwHttpStatusCode != HTTP_OK) {
         /* Now we fall back on dwHttpStatusCode if it appears
-         * ap_scan
+         * ap_scan_script_header fell back on the default code.
+         * Any other results set dwHttpStatusCode to the decoded
+         * status value.
+         */
+        cid->r->status = cid->ecb->dwHttpStatusCode;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+    }
+    else if (old_status) {
+        /* Well... either there is no dwHttpStatusCode or it's HTTP_OK.
+         * In any case, we don't have a good status to return yet...
+         * Perhaps the one we came in with will be better. Let's use it,
+         * if we were given one (note this is a pendantic case, it would
+         * normally be covered above unless the scan script code unset
+         * the r->status). Should there be a check here as to whether
+         * we are setting a valid response code?
+         */
+        cid->r->status = old_status;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+    }
+    else {
+        /* None of dwHttpStatusCode, the parser's r->status nor the
+         * old value of r->status were helpful, and nothing was decoded
+         * from Status: string passed to us.  Let's just say HTTP_OK
+         * and get the data out, this was the isapi dev's oversight.
+         */
+        cid->r->status = HTTP_OK;
+        cid->r->status_line = ap_get_status_line(cid->r->status);
+        cid->ecb->dwHttpStatusCode = cid->r->status;
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, cid->r, APLOGNO(02111)
+                "Could not determine HTTP response code; using %d",
+                cid->r->status);
+    }
+
+    if (cid->r->status == HTTP_INTERNAL_SERVER_ERROR) {
+        return -1;
+    }
+
+    /* If only Status was passed, we consumed nothing
+     */
+    if (!head_present)
+        return 0;
+
+    cid->headers_set = 1;
+
+    /* If all went well, tell the caller we consumed the headers complete
+     */
+    if (!termch)
+        return(ate + headlen);
+
+    /* Any data left must be sent directly by the caller, all we
+     * give back is the size of the headers we consumed (which only
+     * happens if the parser got to the head arg, which varies based
+     * on whether we passed stat+head to scan, or only head.
+     */
+    if (termch && (termarg == (stat ? 1 : 0))
+               && head_present && head + headlen > termch) {
+        return ate + termch - head;
+    }
+    return ate;
+}

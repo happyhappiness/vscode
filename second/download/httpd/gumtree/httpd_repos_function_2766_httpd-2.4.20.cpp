@@ -88,4 +88,19 @@ static apr_status_t proxy_html_filter(ap_filter_t *f, apr_bucket_brigade *bb)
                     consume_buffer(ctxt, buf+m->end, bytes-m->end, 0);
                 }
                 else {
-                    consu
+                    consume_buffer(ctxt, buf, bytes, 0);
+                }
+            }
+            else {
+                consume_buffer(ctxt, buf, bytes, 0);
+            }
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01424)
+                          "Error in bucket read");
+        }
+    }
+    /*ap_fflush(ctxt->f->next, ctxt->bb);        // uncomment for debug */
+    apr_brigade_cleanup(bb);
+    return APR_SUCCESS;
+}

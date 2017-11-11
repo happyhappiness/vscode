@@ -117,4 +117,14 @@ static apr_status_t buffer_out_filter(ap_filter_t *f, apr_bucket_brigade *bb) {
                     move = 0;
                 }
             } else {
-                apr_brigade_write(ctx->bb, NULL, NULL, data,
+                apr_brigade_write(ctx->bb, NULL, NULL, data, size);
+                apr_bucket_delete(e);
+            }
+
+        }
+
+    }
+
+    return rv;
+
+}

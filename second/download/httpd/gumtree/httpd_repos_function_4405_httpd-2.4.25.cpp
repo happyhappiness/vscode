@@ -93,4 +93,63 @@ static void *APR_THREAD_FUNC start_threads(apr_thread_t * thd, void *dummy)
                 continue;
             }
 
-            my_info = (proc_info *) ap_malloc(sizeof(pr
+            my_info = (proc_info *) ap_malloc(sizeof(proc_info));
+            my_info->pslot = my_child_num;
+            my_info->tslot = i;
+
+            /* We are creating threads right now */
+            ap_update_child_status_from_indexes(my_child_num, i,
+                                                SERVER_STARTING, NULL);
+            /* We let each thread update its own scoreboard entry.  This is
+             * done because it lets us deal with tid better.
+             */
+            rv = apr_thread_create(&threads[i], thread_attr,
+                                   worker_thread, my_info, pchild);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ALERT, rv, ap_server_conf,
+                             APLOGNO(03104)
+                             "apr_thread_create: unable to create worker thread");
+                /* let the parent decide how bad this really is */
+                clean_child_exit(APEXIT_CHILDSICK);
+            }
+            threads_created++;
+        }
+
+        /* Start the listener only when there are workers available */
+        if (!listener_started && threads_created) {
+            create_listener_thread(ts);
+            listener_started = 1;
+        }
+
+
+        if (start_thread_may_exit || threads_created == threads_per_child) {
+            break;
+        }
+        /* wait for previous generation to clean up an entry */
+        apr_sleep(apr_time_from_sec(1));
+        ++loops;
+        if (loops % 120 == 0) { /* every couple of minutes */
+            if (prev_threads_created == threads_created) {
+                ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, ap_server_conf,
+                             "child %" APR_PID_T_FMT " isn't taking over "
+                             "slots very quickly (%d of %d)",
+                             ap_my_pid, threads_created,
+                             threads_per_child);
+            }
+            prev_threads_created = threads_created;
+        }
+    }
+
+    /* What state should this child_main process be listed as in the
+     * scoreboard...?
+     *  ap_update_child_status_from_indexes(my_child_num, i, SERVER_STARTING,
+     *                                      (request_rec *) NULL);
+     *
+     *  This state should be listed separately in the scoreboard, in some kind
+     *  of process_status, not mixed in with the worker threads' status.
+     *  "life_status" is almost right, but it's in the worker's structure, and
+     *  the name could be clearer.   gla
+     */
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
+}

@@ -113,4 +113,13 @@ static int dav_method_label(request_rec *r)
         }
 
         return dav_handle_err(r, err, multi_status);
-    
+    }
+
+    /* set the Cache-Control header, per the spec */
+    apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
+
+    /* no body */
+    ap_set_content_length(r, 0);
+
+    return DONE;
+}

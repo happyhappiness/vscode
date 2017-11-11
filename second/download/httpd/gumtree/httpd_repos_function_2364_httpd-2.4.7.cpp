@@ -114,4 +114,49 @@ static apr_status_t handle_set(include_ctx_t *ctx, ap_filter_t *f,
 
                 while(token) {
                     if (!strcasecmp(token, "none")) {
-      
+                        /* do nothing */
+                    }
+                    else if (!strcasecmp(token, "url")) {
+                        parsed_string = ap_escape_uri(ctx->dpool, parsed_string);
+                    }
+                    else if (!strcasecmp(token, "urlencoded")) {
+                        parsed_string = ap_escape_urlencoded(ctx->dpool, parsed_string);
+                    }
+                    else if (!strcasecmp(token, "entity")) {
+                        parsed_string = ap_escape_html2(ctx->dpool, parsed_string, 0);
+                    }
+                    else if (!strcasecmp(token, "base64")) {
+                        char *buf;
+                        buf = ap_pbase64encode(ctx->dpool, (char *)parsed_string);
+                        parsed_string = buf;
+                    }
+                    else {
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01365) "unknown value "
+                                      "\"%s\" to parameter \"encoding\" of tag set in "
+                                      "%s", token, r->filename);
+                        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+                        error = 1;
+                        break;
+                    }
+                    token = apr_strtok(NULL, ", \t", &last);
+                }
+
+            }
+
+            if (error) {
+                break;
+            }
+
+            apr_table_setn(r->subprocess_env, apr_pstrdup(p, var),
+                           apr_pstrdup(p, parsed_string));
+        }
+        else {
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01366) "Invalid tag for set "
+                          "directive in %s", r->filename);
+            SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+            break;
+        }
+    }
+
+    return APR_SUCCESS;
+}

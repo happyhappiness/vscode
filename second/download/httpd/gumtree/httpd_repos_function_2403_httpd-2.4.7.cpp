@@ -408,4 +408,42 @@ static apr_status_t deflate_out_filter(ap_filter_t *f,
         ctx->crc = crc32(ctx->crc, (const Bytef *)data, len);
 
         /* write */
-        ctx->stream.next_in = (unsigned char *)data; /* We j
+        ctx->stream.next_in = (unsigned char *)data; /* We just lost const-ness,
+                                                      * but we'll just have to
+                                                      * trust zlib */
+        ctx->stream.avail_in = len;
+
+        while (ctx->stream.avail_in != 0) {
+            if (ctx->stream.avail_out == 0) {
+                apr_status_t rv;
+
+                ctx->stream.next_out = ctx->buffer;
+                len = c->bufferSize - ctx->stream.avail_out;
+
+                b = apr_bucket_heap_create((char *)ctx->buffer, len,
+                                           NULL, f->c->bucket_alloc);
+                APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
+                ctx->stream.avail_out = c->bufferSize;
+                /* Send what we have right now to the next filter. */
+                rv = ap_pass_brigade(f->next, ctx->bb);
+                if (rv != APR_SUCCESS) {
+                    return rv;
+                }
+            }
+
+            zRC = deflate(&(ctx->stream), Z_NO_FLUSH);
+
+            if (zRC != Z_OK) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01386)
+                              "Zlib error %d deflating data (%s)", zRC,
+                              ctx->stream.msg);
+                return APR_EGENERAL;
+            }
+        }
+
+        apr_bucket_delete(e);
+    }
+
+    apr_brigade_cleanup(bb);
+    return APR_SUCCESS;
+}

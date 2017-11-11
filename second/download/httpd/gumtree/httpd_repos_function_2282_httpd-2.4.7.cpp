@@ -189,4 +189,41 @@ static apr_status_t xml2enc_ffunc(ap_filter_t* f, apr_bucket_brigade* bb)
                     case APR_SUCCESS:
                         continue;
                     case APR_EINCOMPLETE:
-                        ap_log_rerror(APLOG_MARK, AP
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, f->r, APLOGNO(01443)
+                                      "INCOMPLETE");
+                        continue;     /* If outbuf too small, go round again.
+                                       * If it was inbuf, we'll break out when
+                                       * we test ctx->bytes == ctx->bblen
+                                       */
+                    case APR_EINVAL: /* try skipping one bad byte */
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, f->r, APLOGNO(01444)
+                                   "Skipping invalid byte(s) in input stream!");
+                        --insz;
+                        continue;
+                    default:
+                        /* Erk!  What's this?
+                         * Bail out, flush, and hope to eat the buf raw
+                         */
+                        ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01445)
+                                      "Failed to convert input; trying it raw") ;
+                        ctx->convset = NULL;
+                        rv = ap_fflush(f->next, ctx->bbnext);
+                        if (rv != APR_SUCCESS)
+                            ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, f->r, APLOGNO(01446)
+                                          "ap_fflush failed");
+                        else
+                            rv = ap_pass_brigade(f->next, ctx->bbnext);
+                    }
+                }
+            } else {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, f->r, APLOGNO(01447)
+                              "xml2enc: error reading data") ;
+            }
+            if (bdestroy)
+                apr_bucket_destroy(bdestroy);
+            if (rv != APR_SUCCESS)
+                return rv;
+        }
+    }
+    return APR_SUCCESS;
+}

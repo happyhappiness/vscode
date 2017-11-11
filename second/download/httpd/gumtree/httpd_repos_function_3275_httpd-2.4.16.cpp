@@ -104,4 +104,19 @@ static int find_list_item(apr_pool_t *p, const char *line,
                                if (addspace == 1)
                                    good = (*pos++ == ' ');
                                if (in_com || in_qstr)
-                                   good = good && (*pos++ ==
+                                   good = good && (*pos++ == *ptr);
+                               else
+                                   good = good
+                                       && (apr_tolower(*pos++) == apr_tolower(*ptr));
+                               addspace = 0;
+                               break;
+                }
+            }
+        }
+        if (good && *pos)
+            good = 0;          /* not good if only a prefix was matched */
+
+    } while (*ptr && !good);
+
+    return good;
+}

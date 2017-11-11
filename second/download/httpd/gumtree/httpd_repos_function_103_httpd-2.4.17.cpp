@@ -242,4 +242,85 @@ int main(int argc, const char * const argv[])
                 } else if (strncasecmp(opt_arg, "TLS1", 4) == 0) {
                     meth = TLSv1_client_method();
                 }
-     
+                break;
+#endif
+        }
+    }
+
+    if (opt->ind != argc - 1) {
+        fprintf(stderr, "%s: wrong number of arguments\n", argv[0]);
+        usage(argv[0]);
+    }
+
+    if (method == NO_METH) {
+        method = GET;
+    }
+
+    if (parse_url(apr_pstrdup(cntxt, opt->argv[opt->ind++]))) {
+        fprintf(stderr, "%s: invalid URL\n", argv[0]);
+        usage(argv[0]);
+    }
+
+    if ((concurrency < 0) || (concurrency > MAX_CONCURRENCY)) {
+        fprintf(stderr, "%s: Invalid Concurrency [Range 0..%d]\n",
+                argv[0], MAX_CONCURRENCY);
+        usage(argv[0]);
+    }
+
+    if (concurrency > requests) {
+        fprintf(stderr, "%s: Cannot use concurrency level greater than "
+                "total number of requests\n", argv[0]);
+        usage(argv[0]);
+    }
+
+    if ((heartbeatres) && (requests > 150)) {
+        heartbeatres = requests / 10;   /* Print line every 10% of requests */
+        if (heartbeatres < 100)
+            heartbeatres = 100; /* but never more often than once every 100
+                                 * connections. */
+    }
+    else
+        heartbeatres = 0;
+
+#ifdef USE_SSL
+#ifdef RSAREF
+    R_malloc_init();
+#else
+    CRYPTO_malloc_init();
+#endif
+    SSL_load_error_strings();
+    SSL_library_init();
+    bio_out=BIO_new_fp(stdout,BIO_NOCLOSE);
+    bio_err=BIO_new_fp(stderr,BIO_NOCLOSE);
+
+    if (!(ssl_ctx = SSL_CTX_new(meth))) {
+        BIO_printf(bio_err, "Could not initialize SSL Context.\n");
+        ERR_print_errors(bio_err);
+        exit(1);
+    }
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_ALL);
+#ifdef SSL_MODE_RELEASE_BUFFERS
+    /* Keep memory usage as low as possible */
+    SSL_CTX_set_mode (ssl_ctx, SSL_MODE_RELEASE_BUFFERS);
+#endif
+    if (ssl_cipher != NULL) {
+        if (!SSL_CTX_set_cipher_list(ssl_ctx, ssl_cipher)) {
+            fprintf(stderr, "error setting cipher list [%s]\n", ssl_cipher);
+        ERR_print_errors_fp(stderr);
+        exit(1);
+    }
+    }
+    if (verbosity >= 3) {
+        SSL_CTX_set_info_callback(ssl_ctx, ssl_state_cb);
+    }
+#endif
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);       /* Ignore writes to connections that
+                                         * have been closed at the other end. */
+#endif
+    copyright();
+    test();
+    apr_pool_destroy(cntxt);
+
+    return 0;
+}

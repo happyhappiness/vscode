@@ -119,4 +119,6 @@ static int update_local_ref(struct ref *ref,
 			    TRANSPORT_SUMMARY(_("[rejected]")),
 			    REFCOL_WIDTH, remote, pretty_ref,
 			    _("(non-fast-forward)"));
-		return
+		return 1;
+	}
+}

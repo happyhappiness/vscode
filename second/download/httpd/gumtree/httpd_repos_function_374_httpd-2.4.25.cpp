@@ -106,4 +106,44 @@ static int dav_method_update(request_rec *r)
                 return HTTP_BAD_REQUEST;
             }
 
-            /* ### this
+            /* ### this assumes that dav_lookup_uri() only generates a status
+             * ### that Apache can provide a status line for!! */
+
+            return dav_error_response(r, lookup.err.status, lookup.err.desc);
+        }
+        if (lookup.rnew->status != HTTP_OK) {
+            /* ### how best to report this... */
+            return dav_error_response(r, lookup.rnew->status,
+                                      "Version URI had an error.");
+        }
+
+        /* resolve version resource */
+        err = dav_get_resource(lookup.rnew, 0 /* label_allowed */,
+                               0 /* use_checked_in */, &version);
+        if (err != NULL)
+            return dav_handle_err(r, err, NULL);
+
+        /* NULL out target, since we're using a version resource */
+        target = NULL;
+    }
+
+    /* do the UPDATE operation */
+    err = (*vsn_hooks->update)(resource, version, target, depth, &multi_response);
+
+    if (err != NULL) {
+        err = dav_push_error(r->pool, err->status, 0,
+                             apr_psprintf(r->pool,
+                                          "Could not UPDATE %s.",
+                                          ap_escape_html(r->pool, r->uri)),
+                             err);
+        return dav_handle_err(r, err, multi_response);
+    }
+
+    /* set the Cache-Control header, per the spec */
+    apr_table_setn(r->headers_out, "Cache-Control", "no-cache");
+
+    /* no body */
+    ap_set_content_length(r, 0);
+
+    return DONE;
+}

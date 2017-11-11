@@ -123,4 +123,53 @@ static apr_status_t data_out_filter(ap_filter_t *f, apr_bucket_brigade *bb)
         }
 
         /* make sure we don't read more than 6000 bytes at a time */
-        apr_brigade_partition(bb, (APR_BUCKET
+        apr_brigade_partition(bb, (APR_BUCKET_BUFF_SIZE / 4 * 3), &ee);
+
+        /* size will never be more than 6000 bytes */
+        if (APR_SUCCESS == (rv = apr_bucket_read(e, &data, &size,
+                APR_BLOCK_READ))) {
+
+            /* fill up and write out our overflow buffer if partially used */
+            while (size && ctx->count && ctx->count < sizeof(ctx->overflow)) {
+                ctx->overflow[ctx->count++] = *data++;
+                size--;
+            }
+            if (ctx->count == sizeof(ctx->overflow)) {
+                len = apr_base64_encode_binary(encoded, ctx->overflow,
+                        sizeof(ctx->overflow));
+                apr_brigade_write(ctx->bb, NULL, NULL, encoded, len - 1);
+                ctx->count = 0;
+            }
+
+            /* write the main base64 chunk */
+            tail = size % sizeof(ctx->overflow);
+            size -= tail;
+            if (size) {
+                len = apr_base64_encode_binary(buffer,
+                        (const unsigned char *) data, size);
+                apr_brigade_write(ctx->bb, NULL, NULL, buffer, len - 1);
+            }
+
+            /* save away any tail in the overflow buffer */
+            if (tail) {
+                memcpy(ctx->overflow, data + size, tail);
+                ctx->count += tail;
+            }
+
+            apr_bucket_delete(e);
+
+            /* pass what we have down the chain */
+            rv = ap_pass_brigade(f->next, ctx->bb);
+            if (rv) {
+                /* should break out of the loop, since our write to the client
+                 * failed in some way. */
+                continue;
+            }
+
+        }
+
+    }
+
+    return rv;
+
+}

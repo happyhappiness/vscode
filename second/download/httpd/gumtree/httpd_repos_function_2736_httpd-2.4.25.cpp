@@ -95,4 +95,6 @@ apr_status_t h2_session_set_prio(h2_session *session, h2_stream *stream,
     (void)stream;
     (void)prio;
     (void)valid_weight;
-#end
+#endif
+    return status;
+}

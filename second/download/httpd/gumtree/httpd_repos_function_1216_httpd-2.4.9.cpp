@@ -735,4 +735,40 @@ static apr_status_t cache_save_filter(ap_filter_t *f, apr_bucket_brigade *in)
             /* we've got a cache conditional hit! tell anyone who cares */
             cache_run_cache_status(cache->handle, r, r->headers_out,
                     AP_CACHE_REVALIDATE,
-                    "cond
+                    "conditional cache hit: entity refresh failed");
+
+        }
+        else {
+
+            /* we've got a cache conditional hit! tell anyone who cares */
+            cache_run_cache_status(cache->handle, r, r->headers_out,
+                    AP_CACHE_REVALIDATE,
+                    "conditional cache hit: entity refreshed");
+
+        }
+
+        /* let someone else attempt to cache */
+        cache_remove_lock(conf, cache, r, NULL);
+
+        return ap_pass_brigade(f->next, bb);
+    }
+
+    if (rv != APR_SUCCESS) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG, rv, r, APLOGNO(00774)
+                "cache: store_headers failed");
+
+        /* we've got a cache miss! tell anyone who cares */
+        cache_run_cache_status(cache->handle, r, r->headers_out, AP_CACHE_MISS,
+                "cache miss: store_headers failed");
+
+        ap_remove_output_filter(f);
+        cache_remove_lock(conf, cache, r, NULL);
+        return ap_pass_brigade(f->next, in);
+    }
+
+    /* we've got a cache miss! tell anyone who cares */
+    cache_run_cache_status(cache->handle, r, r->headers_out, AP_CACHE_MISS,
+            "cache miss: attempting entity save");
+
+    return cache_save_store(f, in, conf, cache);
+}

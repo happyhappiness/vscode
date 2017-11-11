@@ -112,3 +112,67 @@ int cmd_tag(int argc, const char **argv, const char *prefix)
 	if (msg.given || msgfile) {
 		if (msg.given && msgfile)
 			die(_("only one -F or -m option is allowed."));
+		if (msg.given)
+			strbuf_addbuf(&buf, &(msg.buf));
+		else {
+			if (!strcmp(msgfile, "-")) {
+				if (strbuf_read(&buf, 0, 1024) < 0)
+					die_errno(_("cannot read '%s'"), msgfile);
+			} else {
+				if (strbuf_read_file(&buf, msgfile, 1024) < 0)
+					die_errno(_("could not open or read '%s'"),
+						msgfile);
+			}
+		}
+	}
+
+	tag = argv[0];
+
+	object_ref = argc == 2 ? argv[1] : "HEAD";
+	if (argc > 2)
+		die(_("too many params"));
+
+	if (get_sha1(object_ref, object))
+		die(_("Failed to resolve '%s' as a valid ref."), object_ref);
+
+	if (strbuf_check_tag_ref(&ref, tag))
+		die(_("'%s' is not a valid tag name."), tag);
+
+	if (read_ref(ref.buf, prev))
+		hashclr(prev);
+	else if (!force)
+		die(_("tag '%s' already exists"), tag);
+
+	opt.message_given = msg.given || msgfile;
+
+	if (!cleanup_arg || !strcmp(cleanup_arg, "strip"))
+		opt.cleanup_mode = CLEANUP_ALL;
+	else if (!strcmp(cleanup_arg, "verbatim"))
+		opt.cleanup_mode = CLEANUP_NONE;
+	else if (!strcmp(cleanup_arg, "whitespace"))
+		opt.cleanup_mode = CLEANUP_SPACE;
+	else
+		die(_("Invalid cleanup mode %s"), cleanup_arg);
+
+	if (create_tag_object) {
+		if (force_sign_annotate && !annotate)
+			opt.sign = 1;
+		create_tag(object, tag, &buf, &opt, prev, object);
+	}
+
+	transaction = ref_transaction_begin(&err);
+	if (!transaction ||
+	    ref_transaction_update(transaction, ref.buf, object, prev,
+				   create_reflog ? REF_FORCE_CREATE_REFLOG : 0,
+				   NULL, &err) ||
+	    ref_transaction_commit(transaction, &err))
+		die("%s", err.buf);
+	ref_transaction_free(transaction);
+	if (force && !is_null_sha1(prev) && hashcmp(prev, object))
+		printf(_("Updated tag '%s' (was %s)\n"), tag, find_unique_abbrev(prev, DEFAULT_ABBREV));
+
+	strbuf_release(&err);
+	strbuf_release(&buf);
+	strbuf_release(&ref);
+	return 0;
+}

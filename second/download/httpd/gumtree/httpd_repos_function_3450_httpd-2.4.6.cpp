@@ -88,4 +88,32 @@ static winnt_conn_ctx_t *mpm_get_completion_context(int *timeout)
                 /* Create the transaction pool */
                 apr_allocator_create(&allocator);
                 apr_allocator_max_free_set(allocator, ap_max_mem_free);
-                rv = apr_pool_create_ex(&context->ptrans, 
+                rv = apr_pool_create_ex(&context->ptrans, pchild, NULL,
+                                        allocator);
+                if (rv != APR_SUCCESS) {
+                    ap_log_error(APLOG_MARK, APLOG_WARNING, rv, ap_server_conf, APLOGNO(00330)
+                                 "mpm_get_completion_context: Failed "
+                                 "to create the transaction pool.");
+                    CloseHandle(context->overlapped.hEvent);
+
+                    apr_thread_mutex_unlock(child_lock);
+                    return NULL;
+                }
+                apr_allocator_owner_set(allocator, context->ptrans);
+                apr_pool_tag(context->ptrans, "transaction");
+
+                context->accept_socket = INVALID_SOCKET;
+                context->ba = apr_bucket_alloc_create(context->ptrans);
+                apr_atomic_inc32(&num_completion_contexts);
+
+                apr_thread_mutex_unlock(child_lock);
+                break;
+            }
+        } else {
+            /* Got a context from the queue */
+            break;
+        }
+    }
+
+    return context;
+}

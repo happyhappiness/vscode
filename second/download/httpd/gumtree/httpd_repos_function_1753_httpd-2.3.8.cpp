@@ -114,4 +114,17 @@ static const char *
         }
 
         for (i = 0; i < arr->nelts; i++) {
-            if (reu
+            if (reuse) {
+                ap_log_error(APLOG_MARK, APLOG_WARNING, 0, cmd->server,
+                             "Ignoring parameter '%s=%s' for worker '%s' because of worker sharing",
+                             elts[i].key, elts[i].val, worker->name);
+            } else {
+                const char *err = set_worker_param(cmd->pool, worker, elts[i].key,
+                                                   elts[i].val);
+                if (err)
+                    return apr_pstrcat(cmd->temp_pool, "ProxyPass ", err, NULL);
+            }
+        }
+    }
+    return NULL;
+}

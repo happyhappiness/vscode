@@ -107,4 +107,36 @@ static const char *cmd_rewritemap(cmd_parms *cmd, void *dconf, const char *a1,
         newmap->checkfile = newmap->argv[0];
     }
     else if (strncasecmp(a2, "int:", 4) == 0) {
-   
+        newmap->type      = MAPTYPE_INT;
+        newmap->func      = (char *(*)(request_rec *,char *))
+                            apr_hash_get(mapfunc_hash, a2+4, strlen(a2+4));
+        if (newmap->func == NULL) {
+            return apr_pstrcat(cmd->pool, "RewriteMap: internal map not found:",
+                               a2+4, NULL);
+        }
+    }
+    else {
+        if ((fname = ap_server_root_relative(cmd->pool, a2)) == NULL) {
+            return apr_pstrcat(cmd->pool, "RewriteMap: bad path to txt map: ",
+                               a2, NULL);
+        }
+
+        newmap->type      = MAPTYPE_TXT;
+        newmap->datafile  = fname;
+        newmap->checkfile = fname;
+        newmap->cachename = apr_psprintf(cmd->pool, "%pp:%s",
+                                         (void *)cmd->server, a1);
+    }
+
+    if (newmap->checkfile
+        && (apr_stat(&st, newmap->checkfile, APR_FINFO_MIN,
+                     cmd->pool) != APR_SUCCESS)) {
+        return apr_pstrcat(cmd->pool,
+                           "RewriteMap: file for map ", a1,
+                           " not found:", newmap->checkfile, NULL);
+    }
+
+    apr_hash_set(sconf->rewritemaps, a1, APR_HASH_KEY_STRING, newmap);
+
+    return NULL;
+}

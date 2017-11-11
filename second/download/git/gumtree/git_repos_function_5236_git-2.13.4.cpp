@@ -148,4 +148,67 @@ int cmd_diff(int argc, const char **argv, const char *prefix)
 			obj = &((struct commit *)obj)->tree->object;
 
 		if (obj->type == OBJ_TREE) {
-			o
+			obj->flags |= flags;
+			add_object_array(obj, name, &ent);
+		} else if (obj->type == OBJ_BLOB) {
+			if (2 <= blobs)
+				die(_("more than two blobs given: '%s'"), name);
+			blob[blobs] = entry;
+			blobs++;
+
+		} else {
+			die(_("unhandled object '%s' given."), name);
+		}
+	}
+	if (rev.prune_data.nr)
+		paths += rev.prune_data.nr;
+
+	/*
+	 * Now, do the arguments look reasonable?
+	 */
+	if (!ent.nr) {
+		switch (blobs) {
+		case 0:
+			result = builtin_diff_files(&rev, argc, argv);
+			break;
+		case 1:
+			if (paths != 1)
+				usage(builtin_diff_usage);
+			result = builtin_diff_b_f(&rev, argc, argv, blob);
+			break;
+		case 2:
+			if (paths)
+				usage(builtin_diff_usage);
+			result = builtin_diff_blobs(&rev, argc, argv, blob);
+			break;
+		default:
+			usage(builtin_diff_usage);
+		}
+	}
+	else if (blobs)
+		usage(builtin_diff_usage);
+	else if (ent.nr == 1)
+		result = builtin_diff_index(&rev, argc, argv);
+	else if (ent.nr == 2)
+		result = builtin_diff_tree(&rev, argc, argv,
+					   &ent.objects[0], &ent.objects[1]);
+	else if (ent.objects[0].item->flags & UNINTERESTING) {
+		/*
+		 * diff A...B where there is at least one merge base
+		 * between A and B.  We have ent.objects[0] ==
+		 * merge-base, ent.objects[ents-2] == A, and
+		 * ent.objects[ents-1] == B.  Show diff between the
+		 * base and B.  Note that we pick one merge base at
+		 * random if there are more than one.
+		 */
+		result = builtin_diff_tree(&rev, argc, argv,
+					   &ent.objects[0],
+					   &ent.objects[ent.nr-1]);
+	} else
+		result = builtin_diff_combined(&rev, argc, argv,
+					       ent.objects, ent.nr);
+	result = diff_result_code(&rev.diffopt, result);
+	if (1 < rev.diffopt.skip_stat_unmatch)
+		refresh_index_quietly();
+	return result;
+}

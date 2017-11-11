@@ -115,4 +115,14 @@ static apr_status_t handle_include(include_ctx_t *ctx, ap_filter_t *f,
 
         /* Do *not* destroy the subrequest here; it may have allocated
          * variables in this r->subprocess_env in the subrequest's
-         * r->pool, so that p
+         * r->pool, so that pool must survive as long as this request.
+         * Yes, this is a memory leak. */
+
+    }
+
+    if (last_error) {
+        SSI_CREATE_ERROR_BUCKET(ctx, f, bb);
+    }
+
+    return APR_SUCCESS;
+}

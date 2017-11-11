@@ -111,4 +111,103 @@ static const char *set_worker_param(apr_pool_t *p,
     else if (!strcasecmp(key, "disablereuse")) {
         if (!strcasecmp(val, "on"))
             worker->s->disablereuse = 1;
-        else if (!strcasecmp(val, "off"
+        else if (!strcasecmp(val, "off"))
+            worker->s->disablereuse = 0;
+        else
+            return "DisableReuse must be On|Off";
+        worker->s->disablereuse_set = 1;
+    }
+    else if (!strcasecmp(key, "route")) {
+        /* Worker route.
+         */
+        if (strlen(val) >= sizeof(worker->s->route))
+            return apr_psprintf(p, "Route length must be < %d characters",
+                    (int)sizeof(worker->s->route));
+        PROXY_STRNCPY(worker->s->route, val);
+    }
+    else if (!strcasecmp(key, "redirect")) {
+        /* Worker redirection route.
+         */
+        if (strlen(val) >= sizeof(worker->s->redirect))
+            return apr_psprintf(p, "Redirect length must be < %d characters",
+                    (int)sizeof(worker->s->redirect));
+        PROXY_STRNCPY(worker->s->redirect, val);
+    }
+    else if (!strcasecmp(key, "status")) {
+        const char *v;
+        int mode = 1;
+        apr_status_t rv;
+        /* Worker status.
+         */
+        for (v = val; *v; v++) {
+            if (*v == '+') {
+                mode = 1;
+                v++;
+            }
+            else if (*v == '-') {
+                mode = 0;
+                v++;
+            }
+            rv = ap_proxy_set_wstatus(*v, mode, worker);
+            if (rv != APR_SUCCESS)
+                return "Unknown status parameter option";
+        }
+    }
+    else if (!strcasecmp(key, "flushpackets")) {
+        if (!strcasecmp(val, "on"))
+            worker->s->flush_packets = flush_on;
+        else if (!strcasecmp(val, "off"))
+            worker->s->flush_packets = flush_off;
+        else if (!strcasecmp(val, "auto"))
+            worker->s->flush_packets = flush_auto;
+        else
+            return "flushpackets must be on|off|auto";
+    }
+    else if (!strcasecmp(key, "flushwait")) {
+        ival = atoi(val);
+        if (ival > 1000 || ival < 0) {
+            return "flushwait must be <= 1000, or 0 for system default of 10 millseconds.";
+        }
+        if (ival == 0)
+            worker->s->flush_wait = PROXY_FLUSH_WAIT;
+        else
+            worker->s->flush_wait = ival * 1000;    /* change to microseconds */
+    }
+    else if (!strcasecmp(key, "ping")) {
+        /* Ping/Pong timeout in given unit (default is second).
+         */
+        if (ap_timeout_parameter_parse(val, &timeout, "s") != APR_SUCCESS)
+            return "Ping/Pong timeout has wrong format";
+        if (timeout < 1000)
+            return "Ping/Pong timeout must be at least one millisecond";
+        worker->s->ping_timeout = timeout;
+        worker->s->ping_timeout_set = 1;
+    }
+    else if (!strcasecmp(key, "lbset")) {
+        ival = atoi(val);
+        if (ival < 0 || ival > 99)
+            return "lbset must be between 0 and 99";
+        worker->s->lbset = ival;
+    }
+    else if (!strcasecmp(key, "connectiontimeout")) {
+        /* Request timeout in given unit (default is second).
+         * Defaults to connection timeout
+         */
+        if (ap_timeout_parameter_parse(val, &timeout, "s") != APR_SUCCESS)
+            return "Connectiontimeout has wrong format";
+        if (timeout < 1000)
+            return "Connectiontimeout must be at least one millisecond.";
+        worker->s->conn_timeout = timeout;
+        worker->s->conn_timeout_set = 1;
+    }
+    else if (!strcasecmp(key, "flusher")) {
+        if (strlen(val) >= sizeof(worker->s->flusher))
+            apr_psprintf(p, "flusher name length must be < %d characters",
+                    (int)sizeof(worker->s->flusher));
+        PROXY_STRNCPY(worker->s->flusher, val);
+    }
+    else {
+        return "unknown Worker parameter";
+    }
+    return NULL;
+}

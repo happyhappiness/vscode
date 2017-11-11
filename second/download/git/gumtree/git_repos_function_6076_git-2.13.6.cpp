@@ -125,4 +125,8 @@ static int mv(int argc, const char **argv)
 		strbuf_reset(&buf3);
 		strbuf_addf(&buf3, "remote: renamed %s to %s",
 				item->string, buf.buf);
-		if (create_symref(buf.buf,
+		if (create_symref(buf.buf, buf2.buf, buf3.buf))
+			die(_("creating '%s' failed"), buf.buf);
+	}
+	return 0;
+}

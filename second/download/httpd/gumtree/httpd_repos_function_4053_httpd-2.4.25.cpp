@@ -126,4 +126,101 @@ static void *merge_core_dir_configs(apr_pool_t *a, void *basev, void *newv)
         conf->sec_if = new->sec_if;
     }
     else if (new->sec_if) {
-        /* If we merge, the m
+        /* If we merge, the merge-result must have its own array
+         */
+        conf->sec_if = apr_array_append(a, base->sec_if, new->sec_if);
+    }
+    /* Otherwise we simply use the base->sec_if array
+     */
+
+    if (new->server_signature != srv_sig_unset) {
+        conf->server_signature = new->server_signature;
+    }
+
+    if (new->add_default_charset != ADD_DEFAULT_CHARSET_UNSET) {
+        conf->add_default_charset = new->add_default_charset;
+        conf->add_default_charset_name = new->add_default_charset_name;
+    }
+
+    /* Overriding all negotiation
+     */
+    if (new->mime_type) {
+        conf->mime_type = new->mime_type;
+    }
+
+    if (new->handler) {
+        conf->handler = new->handler;
+    }
+    if (new->expr_handler) {
+        conf->expr_handler = new->expr_handler;
+    }
+
+    if (new->output_filters) {
+        conf->output_filters = new->output_filters;
+    }
+
+    if (new->input_filters) {
+        conf->input_filters = new->input_filters;
+    }
+
+    /*
+     * Now merge the setting of the FileETag directive.
+     */
+    if (new->etag_bits == ETAG_UNSET) {
+        conf->etag_add =
+            (conf->etag_add & (~ new->etag_remove)) | new->etag_add;
+        conf->etag_remove =
+            (conf->etag_remove & (~ new->etag_add)) | new->etag_remove;
+        conf->etag_bits =
+            (conf->etag_bits & (~ conf->etag_remove)) | conf->etag_add;
+    }
+    else {
+        conf->etag_bits = new->etag_bits;
+        conf->etag_add = new->etag_add;
+        conf->etag_remove = new->etag_remove;
+    }
+
+    if (conf->etag_bits != ETAG_NONE) {
+        conf->etag_bits &= (~ ETAG_NONE);
+    }
+
+    if (new->enable_mmap != ENABLE_MMAP_UNSET) {
+        conf->enable_mmap = new->enable_mmap;
+    }
+
+    if (new->enable_sendfile != ENABLE_SENDFILE_UNSET) {
+        conf->enable_sendfile = new->enable_sendfile;
+    }
+
+    conf->allow_encoded_slashes = new->allow_encoded_slashes;
+    conf->decode_encoded_slashes = new->decode_encoded_slashes;
+
+    if (new->log) {
+        if (!conf->log) {
+            conf->log = new->log;
+        }
+        else {
+            conf->log = ap_new_log_config(a, new->log);
+            ap_merge_log_config(base->log, conf->log);
+        }
+    }
+
+    conf->max_ranges = new->max_ranges != AP_MAXRANGES_UNSET ? new->max_ranges : base->max_ranges;
+    conf->max_overlaps = new->max_overlaps != AP_MAXRANGES_UNSET ? new->max_overlaps : base->max_overlaps;
+    conf->max_reversals = new->max_reversals != AP_MAXRANGES_UNSET ? new->max_reversals : base->max_reversals;
+
+    conf->cgi_pass_auth = new->cgi_pass_auth != AP_CGI_PASS_AUTH_UNSET ? new->cgi_pass_auth : base->cgi_pass_auth;
+
+    if (new->cgi_var_rules) {
+        if (!conf->cgi_var_rules) {
+            conf->cgi_var_rules = new->cgi_var_rules;
+        }
+        else {
+            conf->cgi_var_rules = apr_hash_overlay(a, new->cgi_var_rules, conf->cgi_var_rules);
+        }
+    }
+
+    AP_CORE_MERGE_FLAG(qualify_redirect_url, conf, base, new);
+
+    return (void*)conf;
+}

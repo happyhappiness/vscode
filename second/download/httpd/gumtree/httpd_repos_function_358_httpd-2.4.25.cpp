@@ -246,4 +246,90 @@ static int dav_method_options(request_rec *r)
 
     s = allow = apr_palloc(r->pool, text_size);
 
-    for (i = 0; i
+    for (i = 0; i < arr->nelts; ++i) {
+        if (elts[i].key == NULL)
+            continue;
+
+        if (s != allow)
+            *s++ = ',';
+
+        strcpy(s, elts[i].key);
+        s += strlen(s);
+    }
+
+    apr_table_setn(r->headers_out, "Allow", allow);
+
+
+    /* If there is search set_option_head function, set head */
+    /* DASL: <DAV:basicsearch>
+     * DASL: <http://foo.bar.com/syntax1>
+     * DASL: <http://akuma.com/syntax2>
+     */
+    if (search_hooks != NULL
+        && *search_hooks->set_option_head != NULL) {
+        if ((err = (*search_hooks->set_option_head)(r)) != NULL) {
+            return dav_handle_err(r, err, NULL);
+        }
+    }
+
+    /* if there was no request body, then there is no response body */
+    if (doc == NULL) {
+        ap_set_content_length(r, 0);
+
+        /* ### this sends a Content-Type. the default OPTIONS does not. */
+
+        /* ### the default (ap_send_http_options) returns OK, but I believe
+         * ### that is because it is the default handler and nothing else
+         * ### will run after the thing. */
+        return DONE;
+    }
+
+    /* handle each options request */
+    for (elem = doc->root->first_child; elem != NULL; elem = elem->next) {
+        /* check for something we recognize first */
+        int core_option = 0;
+        dav_error *err = NULL;
+
+        if (elem->ns == APR_XML_NS_DAV_ID) {
+            if (strcmp(elem->name, "supported-method-set") == 0) {
+                err = dav_gen_supported_methods(r, elem, methods, &body);
+                core_option = 1;
+            }
+            else if (strcmp(elem->name, "supported-live-property-set") == 0) {
+                err = dav_gen_supported_live_props(r, resource, elem, &body);
+                core_option = 1;
+            }
+            else if (strcmp(elem->name, "supported-report-set") == 0) {
+                err = dav_gen_supported_reports(r, resource, elem, vsn_hooks, &body);
+                core_option = 1;
+            }
+        }
+
+        if (err != NULL)
+            return dav_handle_err(r, err, NULL);
+
+        /* if unrecognized option, pass to versioning provider */
+        if (!core_option && vsn_hooks != NULL) {
+            if ((err = (*vsn_hooks->get_option)(resource, elem, &body))
+                != NULL) {
+                return dav_handle_err(r, err, NULL);
+            }
+        }
+    }
+
+    /* send the options response */
+    r->status = HTTP_OK;
+    ap_set_content_type(r, DAV_XML_CONTENT_TYPE);
+
+    /* send the headers and response body */
+    ap_rputs(DAV_XML_HEADER DEBUG_CR
+             "<D:options-response xmlns:D=\"DAV:\">" DEBUG_CR, r);
+
+    for (t = body.first; t != NULL; t = t->next)
+        ap_rputs(t->text, r);
+
+    ap_rputs("</D:options-response>" DEBUG_CR, r);
+
+    /* we've sent everything necessary to the client. */
+    return DONE;
+}

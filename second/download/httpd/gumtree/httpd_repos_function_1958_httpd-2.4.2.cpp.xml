@@ -116,5 +116,21 @@
                     <expr_stmt><expr><call><name pos:line="115" pos:column="21">ap_log_rerror<pos:position pos:line="115" pos:column="34"/></name><argument_list pos:line="115" pos:column="34">(<argument><expr><name pos:line="115" pos:column="35">APLOG_MARK<pos:position pos:line="115" pos:column="45"/></name></expr></argument>, <argument><expr><name pos:line="115" pos:column="47">APLOG_DEBUG<pos:position pos:line="115" pos:column="58"/></name></expr></argument>, <argument><expr><name pos:line="115" pos:column="60">status<pos:position pos:line="115" pos:column="66"/></name></expr></argument>, <argument><expr><name pos:line="115" pos:column="68">r<pos:position pos:line="115" pos:column="69"/></name></expr></argument>, <argument><expr><call><name pos:line="115" pos:column="71">APLOGNO<pos:position pos:line="115" pos:column="78"/></name><argument_list pos:line="115" pos:column="78">(<argument><expr><literal type="number" pos:line="115" pos:column="79">01410<pos:position pos:line="115" pos:column="84"/></literal></expr></argument>)<pos:position pos:line="115" pos:column="85"/></argument_list></call>
                              <literal type="string" pos:line="116" pos:column="30">"reflector_handler: ap_pass_brigade returned %i"<pos:position pos:line="116" pos:column="78"/></literal></expr></argument>,
                                   <argument><expr><name pos:line="117" pos:column="35">status<pos:position pos:line="117" pos:column="41"/></name></expr></argument>)<pos:position pos:line="117" pos:column="42"/></argument_list></call></expr>;<pos:position pos:line="117" pos:column="43"/></expr_stmt>
-                    <return pos:line="118" pos:column="21">return <expr><name pos:line="118" pos:column="28">HTTP_INTERNAL_SERVER_ERROR<pos:position pos:line="118" pos:column="54"/></name></expr>;<pos:position pos:line="118" pos:column="55"/></return></block></then></if></block></for></block></do></block></then></if></elseif></if></block></function>
-        </unit>
+                    <return pos:line="118" pos:column="21">return <expr><name pos:line="118" pos:column="28">HTTP_INTERNAL_SERVER_ERROR<pos:position pos:line="118" pos:column="54"/></name></expr>;<pos:position pos:line="118" pos:column="55"/></return>
+                }<pos:position pos:line="119" pos:column="18"/></block></then></if>
+
+            }<pos:position pos:line="121" pos:column="14"/></block></for>
+
+            <expr_stmt><expr><call><name pos:line="123" pos:column="13">apr_brigade_cleanup<pos:position pos:line="123" pos:column="32"/></name><argument_list pos:line="123" pos:column="32">(<argument><expr><name pos:line="123" pos:column="33">bbin<pos:position pos:line="123" pos:column="37"/></name></expr></argument>)<pos:position pos:line="123" pos:column="38"/></argument_list></call></expr>;<pos:position pos:line="123" pos:column="39"/></expr_stmt>
+
+        }<pos:position pos:line="125" pos:column="10"/></block> while <condition pos:line="125" pos:column="17">(<expr><operator pos:line="125" pos:column="18">!<pos:position pos:line="125" pos:column="19"/></operator><name pos:line="125" pos:column="19">seen_eos<pos:position pos:line="125" pos:column="27"/></name></expr>)<pos:position pos:line="125" pos:column="28"/></condition>;<pos:position pos:line="125" pos:column="29"/></do>
+
+        <return pos:line="127" pos:column="9">return <expr><name pos:line="127" pos:column="16">OK<pos:position pos:line="127" pos:column="18"/></name></expr>;<pos:position pos:line="127" pos:column="19"/></return>
+
+    }<pos:position pos:line="129" pos:column="6"/></block></then></if></elseif>
+
+    <else pos:line="131" pos:column="5">else <block pos:line="131" pos:column="10">{
+        <return pos:line="132" pos:column="9">return <expr><name pos:line="132" pos:column="16">HTTP_METHOD_NOT_ALLOWED<pos:position pos:line="132" pos:column="39"/></name></expr>;<pos:position pos:line="132" pos:column="40"/></return>
+    }<pos:position pos:line="133" pos:column="6"/></block></else></if>
+
+}<pos:position pos:line="135" pos:column="2"/></block></function></unit>
