@@ -50,8 +50,18 @@ class SrcmlApi:
                 # function = etree.tostring(function_node)
                 # my_util.save_file(function, function_xml_name)
                 etree.ElementTree(function_node).write(function_xml_name)
+                read_file = open(function_xml_name, 'rb')
+                read_content_before = read_file.read()
+                if read_content_before.find('</function>') == -1:
+                    print 'no content for %s' %function_xml_name 
+                read_file.close()
                 # store source function
                 commands.getoutput('srcml -S ' + function_xml_name + ' -o ' + function_file_name)
+                read_file = open(function_file_name, 'rb')
+                read_content_after = read_file.read()
+                if len(read_content_after) == 0:
+                    print 'no content for %s' %function_file_name 
+                read_file.close()
                 self.functions.append(function_file_name)
                 index += 1
         return self.functions
@@ -160,7 +170,7 @@ class SrcmlApi:
                 return True
 
         return False
-    
+
     def get_logs_calls_types(self):
         """
         @ param nothing\n

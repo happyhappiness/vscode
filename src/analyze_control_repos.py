@@ -172,7 +172,7 @@ main function
 """
 if __name__ == "__main__":
     # curl
-    # analyze_repos("curl-7.41.0")
+    repos_name = "curl-7.41.0"
     # mutt
     # analyze_repos("mutt-1.7.2")
     # rsync
@@ -183,5 +183,5 @@ if __name__ == "__main__":
     # analyze_repos('httpd-2.3.8')
     # cluster_repos_log()
     # cluster_repos_log()
-    repos_name = 'httpd-2.0.65'
+    # repos_name = 'httpd-2.0.65'
     analyze_repos(repos_name, '_' + repos_name)
