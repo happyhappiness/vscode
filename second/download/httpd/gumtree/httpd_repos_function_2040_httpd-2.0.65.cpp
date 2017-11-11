@@ -246,3 +246,20 @@ int main(int argc, const char * const argv[])
                          0, NULL, "Configuration Failed");
             destroy_and_exit_process(process, 1);
         }
+
+        apr_pool_destroy(ptemp);
+        apr_pool_lock(pconf, 1);
+
+        ap_run_optional_fn_retrieve();
+
+        if (ap_mpm_run(pconf, plog, server_conf))
+            break;
+
+        apr_pool_lock(pconf, 0);
+    }
+
+    apr_pool_lock(pconf, 0);
+    destroy_and_exit_process(process, 0);
+
+    return 0; /* Termination 'ok' */
+}

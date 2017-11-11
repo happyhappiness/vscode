@@ -105,4 +105,57 @@ static int32 worker_thread(void * dummy)
                 sd = ap_listeners->sd;
                 goto got_fd;
             }
-         
+            else {
+                /* find a listener */
+                curr_pollfd = last_pollfd;
+                do {
+                    curr_pollfd++;
+
+                    if (curr_pollfd > num_listening_sockets)
+                        curr_pollfd = 1;
+                    
+                    /* Get the revent... */
+                    apr_poll_revents_get(&event, listening_sockets[curr_pollfd], pollset);
+                    
+                    if (event & APR_POLLIN) {
+                        last_pollfd = curr_pollfd;
+                        sd = listening_sockets[curr_pollfd];
+                        goto got_fd;
+                    }
+                } while (curr_pollfd != last_pollfd);
+            }
+        }
+    got_fd:
+
+        if (!this_worker_should_exit) {
+            rv = apr_accept(&csd, sd, ptrans);
+
+            apr_thread_mutex_unlock(accept_mutex);
+            if (rv != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                  "apr_accept");
+            } else {
+                process_socket(ptrans, csd, child_slot, bucket_alloc);
+                requests_this_child--;
+            }
+        }
+        else {
+            apr_thread_mutex_unlock(accept_mutex);
+            break;
+        }
+        apr_pool_clear(ptrans);
+    }
+
+    ap_update_child_status_from_indexes(0, child_slot, SERVER_DEAD, (request_rec*)NULL);
+
+    apr_bucket_alloc_destroy(bucket_alloc);
+
+    ap_log_error(APLOG_MARK, APLOG_NOTICE, 0, NULL,
+                 "worker_thread %ld exiting", find_thread(NULL));
+    
+    apr_thread_mutex_lock(worker_thread_count_mutex);
+    worker_thread_count--;
+    apr_thread_mutex_unlock(worker_thread_count_mutex);
+
+    return (0);
+}

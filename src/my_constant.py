@@ -6,7 +6,7 @@
 """
 repository
 """
-REPOS = 'httpd'
+REPOS = 'curl'
 """
 stroed file name prefix
 """
