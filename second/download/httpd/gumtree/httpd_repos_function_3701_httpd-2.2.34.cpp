@@ -119,4 +119,30 @@ apr_status_t apr_dir_read(apr_finfo_t *finfo, apr_int32_t wanted,
         wanted &= ~finfo->valid;
     }
     else {
-        /* We don't bail because we fail to stat, when we are only
+        /* We don't bail because we fail to stat, when we are only -required-
+         * to readdir... but the result will be APR_INCOMPLETE
+         */
+        finfo->pool = thedir->pool;
+        finfo->valid = 0;
+#ifdef DIRENT_TYPE
+        if (type != APR_UNKFILE) {
+            finfo->filetype = type;
+            finfo->valid |= APR_FINFO_TYPE;
+        }
+#endif
+#ifdef DIRENT_INODE
+        if (thedir->entry->DIRENT_INODE && thedir->entry->DIRENT_INODE != -1) {
+            finfo->inode = thedir->entry->DIRENT_INODE;
+            finfo->valid |= APR_FINFO_INODE;
+        }
+#endif
+    }
+
+    finfo->name = apr_pstrdup(thedir->pool, thedir->entry->d_name);
+    finfo->valid |= APR_FINFO_NAME;
+
+    if (wanted)
+        return APR_INCOMPLETE;
+
+    return APR_SUCCESS;
+}

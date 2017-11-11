@@ -117,4 +117,21 @@ static dav_error * dav_generic_load_lock_record(dav_lockdb *lockdb,
                                  apr_psprintf(p,
                                              "The lock database was found to "
                                              "be corrupt. offset %"
-                                             APR_SIZE_T_FMT ", c=%02x
+                                             APR_SIZE_T_FMT ", c=%02x",
+                                             offset, val.dptr[offset]));
+        }
+    }
+
+    apr_dbm_freedatum(lockdb->info->db, val);
+
+    /* Clean up this record if we found expired locks */
+    /*
+     * ### shouldn't do this if we've been opened READONLY. elide the
+     * ### timed-out locks from the response, but don't save that info back
+     */
+    if (need_save == DAV_TRUE) {
+        return dav_generic_save_lock_record(lockdb, key, *direct, *indirect);
+    }
+
+    return NULL;
+}
