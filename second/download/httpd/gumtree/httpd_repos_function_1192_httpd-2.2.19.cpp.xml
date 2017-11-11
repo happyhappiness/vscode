@@ -232,6 +232,10 @@
     }<pos:position pos:line="231" pos:column="6"/></block></then></if>
 
     <comment type="block" pos:line="233" pos:column="5">/* Finally remember the forced mime-type */</comment>
-    <expr_stmt><expr><call><name pos:line="234" pos:column="5">force_type_handler<pos:position pos:line="234" pos:column="23"/></name><argument_list pos:line="234" pos:column="23">(<argument><expr><name pos:line="234" pos:column="24">p<pos:position pos:line="234" pos:column="25"/></name></expr></argument>, <argument><expr><name pos:line="234" pos:column="27">ctx<pos:position pos:line="234" pos:column="30"/></name></expr></argument>)<pos:position pos:line="234" pos:column="31"/></argument_list></call></expr>;<pos:position pos:line="234" pos:column="32"/></expr_stmt></block></function>
+    <expr_stmt><expr><call><name pos:line="234" pos:column="5">force_type_handler<pos:position pos:line="234" pos:column="23"/></name><argument_list pos:line="234" pos:column="23">(<argument><expr><name pos:line="234" pos:column="24">p<pos:position pos:line="234" pos:column="25"/></name></expr></argument>, <argument><expr><name pos:line="234" pos:column="27">ctx<pos:position pos:line="234" pos:column="30"/></name></expr></argument>)<pos:position pos:line="234" pos:column="31"/></argument_list></call></expr>;<pos:position pos:line="234" pos:column="32"/></expr_stmt>
 
-    <comment type="block" pos:line="236" pos:column="5">/* Puuhhhhhhhh... WHAT COMPLICATED ST</comment></unit>
+    <comment type="block" pos:line="236" pos:column="5">/* Puuhhhhhhhh... WHAT COMPLICATED STUFF ;_)
+     * But now we're done for this particular rule.
+     */</comment>
+    <return pos:line="239" pos:column="5">return <expr><literal type="number" pos:line="239" pos:column="12">1<pos:position pos:line="239" pos:column="13"/></literal></expr>;<pos:position pos:line="239" pos:column="14"/></return>
+}<pos:position pos:line="240" pos:column="2"/></block></function></unit>

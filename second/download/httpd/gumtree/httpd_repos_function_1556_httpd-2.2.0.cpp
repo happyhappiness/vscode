@@ -125,4 +125,31 @@ static const char *filter_provider(cmd_parms *cmd, void *CFG, const char *args)
             provider->dispatch = SUBPROCESS_ENV;
         }
         else if (!strncasecmp(condition, "req=", 4)) {
-            provi
+            provider->dispatch = REQUEST_HEADERS;
+        }
+        else if (!strncasecmp(condition, "resp=", 5)) {
+            provider->dispatch = RESPONSE_HEADERS;
+        }
+        else {
+            return "FilterProvider: unrecognized dispatch table";
+        }
+    }
+    else {
+        if (!strcasecmp(condition, "handler")) {
+            provider->dispatch = HANDLER;
+        }
+        else {
+            provider->dispatch = RESPONSE_HEADERS;
+        }
+        str = apr_pstrdup(cmd->pool, condition);
+        ap_str_tolower(str);
+    }
+
+    if (   (provider->dispatch == RESPONSE_HEADERS)
+        && !strcmp(str, "content-type")) {
+        provider->dispatch = CONTENT_TYPE;
+    }
+    provider->value = str;
+
+    return NULL;
+}

@@ -550,4 +550,9 @@
     <expr><name pos:line="549" pos:column="5">MPM20_MODULE_STUFF<pos:position pos:line="549" pos:column="23"/></name></expr>,
     <expr><name pos:line="550" pos:column="5">ap_mpm_rewrite_args<pos:position pos:line="550" pos:column="24"/></name></expr>,        <comment type="block" pos:line="550" pos:column="33">/* hook to run before apache parses args */</comment>
     <expr><name pos:line="551" pos:column="5">NULL<pos:position pos:line="551" pos:column="9"/></name></expr>,                       <comment type="block" pos:line="551" pos:column="33">/* create per-directory config structure */</comment>
-    <expr><name pos:line="552" pos:column="5">NULL<pos:position pos:line="552" pos:column="9"/></name></expr>,<pos:position pos:line="552" pos:column="10"/></block></expr></init></decl></decl_stmt></block></function>                   </unit>
+    <expr><name pos:line="552" pos:column="5">NULL<pos:position pos:line="552" pos:column="9"/></name></expr>,                       <comment type="block" pos:line="552" pos:column="33">/* merge per-directory config structures */</comment>
+    <expr><name pos:line="553" pos:column="5">NULL<pos:position pos:line="553" pos:column="9"/></name></expr>,                       <comment type="block" pos:line="553" pos:column="33">/* create per-server config structure */</comment>
+    <expr><name pos:line="554" pos:column="5">NULL<pos:position pos:line="554" pos:column="9"/></name></expr>,                       <comment type="block" pos:line="554" pos:column="33">/* merge per-server config structures */</comment>
+    <expr><name pos:line="555" pos:column="5">threadpool_cmds<pos:position pos:line="555" pos:column="20"/></name></expr>,            <comment type="block" pos:line="555" pos:column="33">/* command apr_table_t */</comment>
+    <expr><name pos:line="556" pos:column="5">threadpool_hooks<pos:position pos:line="556" pos:column="21"/></name></expr>            <comment type="block" pos:line="556" pos:column="33">/* register_hooks */</comment>
+}<pos:position pos:line="557" pos:column="2"/></block></expr></init></decl>;<pos:position pos:line="557" pos:column="3"/></decl_stmt></block></function></unit>

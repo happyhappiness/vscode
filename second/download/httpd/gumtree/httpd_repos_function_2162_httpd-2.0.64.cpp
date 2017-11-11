@@ -126,4 +126,62 @@ static void child_main(int child_num_arg)
                 curr_pollfd = last_pollfd;
                 do {
                     curr_pollfd++;
-      
+                    if (curr_pollfd >= num_listensocks) {
+                        curr_pollfd = 0;
+                    }
+                    /* XXX: Should we check for POLLERR? */
+                    if (pollset[curr_pollfd].rtnevents & APR_POLLIN) {
+                        last_pollfd = curr_pollfd;
+                        offset = curr_pollfd;
+                        goto got_fd;
+                    }
+                } while (curr_pollfd != last_pollfd);
+
+                continue;
+            }
+        }
+    got_fd:
+	/* if we accept() something we don't want to die, so we have to
+	 * defer the exit
+	 */
+        status = listensocks[offset].accept_func(&csd, 
+                                                 &listensocks[offset], ptrans);
+        SAFE_ACCEPT(accept_mutex_off());	/* unlock after "accept" */
+
+        if (status == APR_EGENERAL) {
+            /* resource shortage or should-not-occur occured */
+            clean_child_exit(1);
+        }
+        else if (status != APR_SUCCESS) {
+            continue;
+        }
+
+	/*
+	 * We now have a connection, so set it up with the appropriate
+	 * socket options, file descriptors, and read/write buffers.
+	 */
+
+	current_conn = ap_run_create_connection(ptrans, ap_server_conf, csd, my_child_num, sbh, bucket_alloc);
+        if (current_conn) {
+            ap_process_connection(current_conn, csd);
+            ap_lingering_close(current_conn);
+        }
+        
+        /* Check the pod and the generation number after processing a
+         * connection so that we'll go away if a graceful restart occurred
+         * while we were processing the connection or we are the lucky
+         * idle server process that gets to die.
+         */
+        if (ap_mpm_pod_check(pod) == APR_SUCCESS) { /* selected as idle? */
+            die_now = 1;
+        }
+        else if (ap_my_generation !=
+                 ap_scoreboard_image->global->running_generation) { /* restart? */
+            /* yeah, this could be non-graceful restart, in which case the
+             * parent will kill us soon enough, but why bother checking?
+             */
+            die_now = 1;
+        }
+    }
+    clean_child_exit(0);
+}

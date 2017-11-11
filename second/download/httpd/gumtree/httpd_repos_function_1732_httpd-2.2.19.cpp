@@ -322,4 +322,23 @@ static apr_status_t deflate_out_filter(ap_filter_t *f,
                                            NULL, f->c->bucket_alloc);
                 APR_BRIGADE_INSERT_TAIL(ctx->bb, b);
                 ctx->stream.avail_out = c->bufferSize;
-      
+                /* Send what we have right now to the next filter. */
+                rv = ap_pass_brigade(f->next, ctx->bb);
+                if (rv != APR_SUCCESS) {
+                    return rv;
+                }
+            }
+
+            zRC = deflate(&(ctx->stream), Z_NO_FLUSH);
+
+            if (zRC != Z_OK) {
+                return APR_EGENERAL;
+            }
+        }
+
+        apr_bucket_delete(e);
+    }
+
+    apr_brigade_cleanup(bb);
+    return APR_SUCCESS;
+}

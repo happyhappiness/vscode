@@ -533,4 +533,66 @@ static int status_handler(request_rec *r)
                                (float)conn_bytes / KBYTE, (float) my_bytes / MBYTE,
                                (float)bytes / MBYTE);
                     
-                    if (ws_record->status == SERVER_BU
+                    if (ws_record->status == SERVER_BUSY_READ)
+                        ap_rprintf(r,
+                                   "</td><td>?</td><td nowrap>?</td><td nowrap>..reading.. </td></tr>\n\n");
+                    else
+                        ap_rprintf(r,
+                                   "</td><td>%s</td><td nowrap>%s</td><td nowrap>%s</td></tr>\n\n",
+                                   ap_escape_html(r->pool,
+                                                  ws_record->client),
+                                   ap_escape_html(r->pool,
+                                                  ws_record->vhost),
+                                   ap_escape_html(r->pool,
+                                                  ws_record->request));
+                } /* no_table_report */
+            } /* for (j...) */
+        } /* for (i...) */
+
+        if (!no_table_report) {
+            ap_rputs("</table>\n \
+<hr /> \
+<table>\n \
+<tr><th>Srv</th><td>Child Server number - generation</td></tr>\n \
+<tr><th>PID</th><td>OS process ID</td></tr>\n \
+<tr><th>Acc</th><td>Number of accesses this connection / this child / this slot</td></tr>\n \
+<tr><th>M</th><td>Mode of operation</td></tr>\n"
+
+#ifdef HAVE_TIMES
+"<tr><th>CPU</th><td>CPU usage, number of seconds</td></tr>\n"
+#endif
+
+"<tr><th>SS</th><td>Seconds since beginning of most recent request</td></tr>\n \
+<tr><th>Req</th><td>Milliseconds required to process most recent request</td></tr>\n \
+<tr><th>Conn</th><td>Kilobytes transferred this connection</td></tr>\n \
+<tr><th>Child</th><td>Megabytes transferred this child</td></tr>\n \
+<tr><th>Slot</th><td>Total megabytes transferred this slot</td></tr>\n \
+</table>\n", r);
+        }
+    } /* if (ap_extended_status && !short_report) */
+    else {
+
+        if (!short_report) {
+            ap_rputs("<hr />To obtain a full report with current status "
+                     "information you need to use the "
+                     "<code>ExtendedStatus On</code> directive.\n", r);
+        }
+    }
+
+    {
+        /* Run extension hooks to insert extra content. */
+        int flags = 
+            (short_report ? AP_STATUS_SHORT : 0) | 
+            (no_table_report ? AP_STATUS_NOTABLE : 0) |
+            (ap_extended_status ? AP_STATUS_EXTENDED : 0);
+        
+        ap_run_status_hook(r, flags);
+    }
+
+    if (!short_report) {
+        ap_rputs(ap_psignature("<hr />\n",r), r);
+        ap_rputs("</body></html>\n", r);
+    }
+
+    return 0;
+}

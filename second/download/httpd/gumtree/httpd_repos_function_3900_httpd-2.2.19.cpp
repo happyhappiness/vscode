@@ -110,4 +110,11 @@ apr_status_t apr_socket_sendfile(apr_socket_t * sock, apr_file_t * file,
                 return arv;
             }
         }
-    } while (rv == -1 && (errno == EINTR || errno 
+    } while (rv == -1 && (errno == EINTR || errno == EAGAIN));
+
+    (*len) = nbytes;
+    if (rv == -1) {
+        return errno;
+    }
+    return APR_SUCCESS;
+}

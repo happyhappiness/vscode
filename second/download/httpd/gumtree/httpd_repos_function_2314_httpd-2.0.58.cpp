@@ -108,4 +108,79 @@ static void *worker_thread(apr_thread_t *thd, void * dummy)
                     if (lr == NULL) {
                         lr = ap_listeners;
                     }
-      
+                    /* XXX: Should we check for POLLERR? */
+                    apr_poll_revents_get(&event, lr->sd, pollset);
+                    if (event & APR_POLLIN) {
+                        last_lr = lr;
+                        goto got_fd;
+                    }
+                } while (lr != last_lr);
+            }
+        }
+    got_fd:
+        if (!workers_may_exit) {
+            rv = lr->accept_func(&csd, lr, ptrans);
+            /* later we trash rv and rely on csd to indicate success/failure */
+            AP_DEBUG_ASSERT(rv == APR_SUCCESS || !csd);
+
+            if (rv == APR_EGENERAL) {
+                /* E[NM]FILE, ENOMEM, etc */
+                resource_shortage = 1;
+                signal_threads(ST_GRACEFUL);
+            }
+            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
+                != APR_SUCCESS) {
+                int level = APLOG_EMERG;
+
+                if (workers_may_exit) {
+                    break;
+                }
+                if (ap_scoreboard_image->parent[process_slot].generation != 
+                    ap_scoreboard_image->global->running_generation) {
+                    level = APLOG_DEBUG; /* common to get these at restart time */
+                }
+                ap_log_error(APLOG_MARK, level, rv, ap_server_conf,
+                             "apr_proc_mutex_unlock failed. Attempting to "
+                             "shutdown process gracefully.");
+                signal_threads(ST_GRACEFUL);
+            }
+            if (csd != NULL) {
+                is_listener = 0;
+                worker_stack_awaken_next(idle_worker_stack);
+                process_socket(ptrans, csd, process_slot,
+                               thread_slot, bucket_alloc);
+                apr_pool_clear(ptrans);
+                requests_this_child--;
+            }
+            if ((ap_mpm_pod_check(pod) == APR_SUCCESS) ||
+                (ap_my_generation !=
+                 ap_scoreboard_image->global->running_generation)) {
+                signal_threads(ST_GRACEFUL);
+                break;
+            }
+        }
+        else {
+            if ((rv = SAFE_ACCEPT(apr_proc_mutex_unlock(accept_mutex)))
+                != APR_SUCCESS) {
+                ap_log_error(APLOG_MARK, APLOG_EMERG, rv, ap_server_conf,
+                             "apr_proc_mutex_unlock failed. Attempting to "
+                             "shutdown process gracefully.");
+                signal_threads(ST_GRACEFUL);
+            }
+            break;
+        }
+    }
+
+    dying = 1;
+    ap_scoreboard_image->parent[process_slot].quiescing = 1;
+
+    worker_stack_term(idle_worker_stack);
+
+    ap_update_child_status_from_indexes(process_slot, thread_slot,
+        (dying) ? SERVER_DEAD : SERVER_GRACEFUL, (request_rec *) NULL);
+
+    apr_bucket_alloc_destroy(bucket_alloc);
+
+    apr_thread_exit(thd, APR_SUCCESS);
+    return NULL;
+}

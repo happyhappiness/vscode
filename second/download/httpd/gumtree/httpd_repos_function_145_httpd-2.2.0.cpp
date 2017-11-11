@@ -205,4 +205,112 @@ LRESULT CALLBACK ServiceDlgProc(HWND hDlg, UINT message,
             {
             case LBN_DBLCLK:
                 /* if started then stop, if stopped then start */
-                hListBo
+                hListBox = GetDlgItem(hDlg, IDL_SERVICES);
+                nItem = SendMessage(hListBox, LB_GETCURSEL, 0, 0);
+                if (nItem != LB_ERR)
+                {
+                    g_hBmpPicture = (HBITMAP)SendMessage(hListBox,
+                                                         LB_GETITEMDATA,
+                                                         nItem, (LPARAM) 0);
+                    if (g_hBmpPicture == g_hBmpStop) {
+                        SendMessage(hDlg, WM_MANAGEMESSAGE, nItem,
+                                    SERVICE_CONTROL_CONTINUE);
+                    }
+                    else {
+                        SendMessage(hDlg, WM_MANAGEMESSAGE, nItem,
+                                    SERVICE_CONTROL_STOP);
+                    }
+
+                }
+                return TRUE;
+            }
+            break;
+
+        case IDOK:
+            EndDialog(hDlg, TRUE);
+            return TRUE;
+
+        case IDC_SSTART:
+            Button_Enable(GetDlgItem(hDlg, IDC_SSTART), FALSE);
+            hListBox = GetDlgItem(hDlg, IDL_SERVICES);
+            nItem = SendMessage(hListBox, LB_GETCURSEL, 0, 0);
+            if (nItem != LB_ERR) {
+                SendMessage(hDlg, WM_MANAGEMESSAGE, nItem,
+                            SERVICE_CONTROL_CONTINUE);
+            }
+            Button_Enable(GetDlgItem(hDlg, IDC_SSTART), TRUE);
+            return TRUE;
+
+        case IDC_SSTOP:
+            Button_Enable(GetDlgItem(hDlg, IDC_SSTOP), FALSE);
+            hListBox = GetDlgItem(hDlg, IDL_SERVICES);
+            nItem = SendMessage(hListBox, LB_GETCURSEL, 0, 0);
+            if (nItem != LB_ERR) {
+                SendMessage(hDlg, WM_MANAGEMESSAGE, nItem,
+                            SERVICE_CONTROL_STOP);
+            }
+            Button_Enable(GetDlgItem(hDlg, IDC_SSTOP), TRUE);
+            return TRUE;
+
+        case IDC_SRESTART:
+            Button_Enable(GetDlgItem(hDlg, IDC_SRESTART), FALSE);
+            hListBox = GetDlgItem(hDlg, IDL_SERVICES);
+            nItem = SendMessage(hListBox, LB_GETCURSEL, 0, 0);
+            if (nItem != LB_ERR) {
+                SendMessage(hDlg, WM_MANAGEMESSAGE, nItem,
+                            SERVICE_APACHE_RESTART);
+            }
+            Button_Enable(GetDlgItem(hDlg, IDC_SRESTART), TRUE);
+            return TRUE;
+
+        case IDC_SMANAGER:
+            if (g_dwOSVersion >= OS_VERSION_WIN2K) {
+                ShellExecute(hDlg, "open", "services.msc", "/s",
+                             NULL, SW_NORMAL);
+            }
+            else {
+                WinExec("Control.exe SrvMgr.cpl Services", SW_NORMAL);
+            }
+            return TRUE;
+
+        case IDC_SEXIT:
+            EndDialog(hDlg, TRUE);
+            SendMessage(g_hwndMain, WM_COMMAND, (WPARAM)IDM_EXIT, 0);
+            return TRUE;
+
+        case IDC_SCONNECT:
+            DialogBox(g_hInstance, MAKEINTRESOURCE(IDD_DLGCONNECT),
+                      hDlg, (DLGPROC)ConnectDlgProc);
+            return TRUE;
+
+        case IDC_SDISCONN:
+            hListBox = GetDlgItem(hDlg, IDL_SERVICES);
+            nItem = SendMessage(hListBox, LB_GETCURSEL, 0, 0);
+            if (nItem != LB_ERR) {
+                am_DisconnectComputer(g_stServices[nItem].szComputerName);
+                SendMessage(g_hwndMain, WM_TIMER, WM_TIMER_RESCAN, 0);
+            }
+            return TRUE;
+        }
+        break;
+
+    case WM_SIZE:
+        switch (LOWORD(wParam))
+        {
+        case SIZE_MINIMIZED:
+            EndDialog(hDlg, TRUE);
+            return TRUE;
+            break;
+        }
+        break;
+
+    case WM_QUIT:
+    case WM_CLOSE:
+        EndDialog(hDlg, TRUE);
+        return TRUE;
+
+    default:
+        return FALSE;
+    }
+    return FALSE;
+}

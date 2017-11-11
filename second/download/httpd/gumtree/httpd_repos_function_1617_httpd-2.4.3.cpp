@@ -136,4 +136,99 @@ static int ap_set_byterange(request_rec *r, apr_off_t clength,
                  */
                 if (start == 0) {
                     num_ranges = 0;
-                    
+                    sum_lengths = 0;
+                    in_merge = 1;
+                    oend = end;
+                    ostart = start;
+                    apr_array_clear(*indexes);
+                    break;
+                }
+            }
+        }
+
+        if (start < 0) {
+            start = 0;
+        }
+        if (start >= clength) {
+            unsatisfiable = 1;
+            continue;
+        }
+        if (end >= clength) {
+            end = clength - 1;
+        }
+
+        if (!in_merge) {
+            /* new set */
+            ostart = start;
+            oend = end;
+            in_merge = 1;
+            continue;
+        }
+        in_merge = 0;
+
+        if (start >= ostart && end <= oend) {
+            in_merge = 1;
+        }
+
+        if (start < ostart && end >= ostart-1) {
+            ostart = start;
+            ++*reversals;
+            in_merge = 1;
+        }
+        if (end >= oend && start <= oend+1 ) {
+            oend = end;
+            in_merge = 1;
+        }
+
+        if (in_merge) {
+            ++*overlaps;
+            continue;
+        } else {
+            idx = (indexes_t *)apr_array_push(*indexes);
+            idx->start = ostart;
+            idx->end = oend;
+            sum_lengths += oend - ostart + 1;
+            /* new set again */
+            in_merge = 1;
+            ostart = start;
+            oend = end;
+            num_ranges++;
+        }
+    }
+
+    if (in_merge) {
+        idx = (indexes_t *)apr_array_push(*indexes);
+        idx->start = ostart;
+        idx->end = oend;
+        sum_lengths += oend - ostart + 1;
+        num_ranges++;
+    }
+    else if (num_ranges == 0 && unsatisfiable) {
+        /* If all ranges are unsatisfiable, we should return 416 */
+        return -1;
+    }
+    if (sum_lengths > clength) {
+        ap_log_rerror(APLOG_MARK, APLOG_TRACE1, 0, r,
+                      "Sum of ranges larger than file, ignoring.");
+        return 0;
+    }
+
+    /*
+     * create the merged table now, now that we know we need it
+     */
+    merged = apr_array_make(r->pool, num_ranges, sizeof(char *));
+    idx = (indexes_t *)(*indexes)->elts;
+    for (i = 0; i < (*indexes)->nelts; i++, idx++) {
+        char **new = (char **)apr_array_push(merged);
+        *new = apr_psprintf(r->pool, "%" APR_OFF_T_FMT "-%" APR_OFF_T_FMT,
+                            idx->start, idx->end);
+    }
+
+    r->status = HTTP_PARTIAL_CONTENT;
+    r->range = apr_array_pstrcat(r->pool, merged, ',');
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r, APLOGNO(01583)
+                  "Range: %s | %s (%d : %d : %"APR_OFF_T_FMT")",
+                  it, r->range, *overlaps, *reversals, clength);
+
+    return num_ranges;
+}

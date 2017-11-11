@@ -156,4 +156,162 @@ static int ldap_url_parse_ext(const char *url_in,
     q = strchr( p, '?' );
 
     if( q != NULL ) {
-        /* terminate dn p
+        /* terminate dn part */
+        *q++ = '\0';
+    }
+
+    if( *p != '\0' ) {
+        /* parse dn part */
+        ldap_pvt_hex_unescape( p );
+        ludp->lud_dn = LDAP_STRDUP( p );
+    } else {
+        ludp->lud_dn = LDAP_STRDUP( "" );
+    }
+
+    if( ludp->lud_dn == NULL ) {
+        LDAP_FREE( url );
+        apr_ldap_free_urldesc( ludp );
+        return LDAP_URL_ERR_MEM;
+    }
+
+    if( q == NULL ) {
+        /* no more */
+        LDAP_FREE( url );
+        *ludpp = ludp;
+        return LDAP_URL_SUCCESS;
+    }
+
+    /* scan forward for '?' that may marks end of attributes */
+    p = q;
+    q = strchr( p, '?' );
+
+    if( q != NULL ) {
+        /* terminate attributes part */
+        *q++ = '\0';
+    }
+
+    if( *p != '\0' ) {
+        /* parse attributes */
+        ldap_pvt_hex_unescape( p );
+        ludp->lud_attrs = ldap_str2charray( p, "," );
+
+        if( ludp->lud_attrs == NULL ) {
+            LDAP_FREE( url );
+            apr_ldap_free_urldesc( ludp );
+            return LDAP_URL_ERR_BADATTRS;
+        }
+    }
+
+    if ( q == NULL ) {
+        /* no more */
+        LDAP_FREE( url );
+        *ludpp = ludp;
+        return LDAP_URL_SUCCESS;
+    }
+
+    /* scan forward for '?' that may marks end of scope */
+    p = q;
+    q = strchr( p, '?' );
+
+    if( q != NULL ) {
+        /* terminate the scope part */
+        *q++ = '\0';
+    }
+
+    if( *p != '\0' ) {
+        /* parse the scope */
+        ldap_pvt_hex_unescape( p );
+        ludp->lud_scope = str2scope( p );
+
+        if( ludp->lud_scope == -1 ) {
+            LDAP_FREE( url );
+            apr_ldap_free_urldesc( ludp );
+            return LDAP_URL_ERR_BADSCOPE;
+        }
+    }
+
+    if ( q == NULL ) {
+        /* no more */
+        LDAP_FREE( url );
+        *ludpp = ludp;
+        return LDAP_URL_SUCCESS;
+    }
+
+    /* scan forward for '?' that may marks end of filter */
+    p = q;
+    q = strchr( p, '?' );
+
+    if( q != NULL ) {
+        /* terminate the filter part */
+        *q++ = '\0';
+    }
+
+    if( *p != '\0' ) {
+        /* parse the filter */
+        ldap_pvt_hex_unescape( p );
+
+        if( ! *p ) {
+            /* missing filter */
+            LDAP_FREE( url );
+            apr_ldap_free_urldesc( ludp );
+            return LDAP_URL_ERR_BADFILTER;
+        }
+
+        LDAP_FREE( ludp->lud_filter );
+        ludp->lud_filter = LDAP_STRDUP( p );
+
+        if( ludp->lud_filter == NULL ) {
+            LDAP_FREE( url );
+            apr_ldap_free_urldesc( ludp );
+            return LDAP_URL_ERR_MEM;
+        }
+    }
+
+    if ( q == NULL ) {
+        /* no more */
+        LDAP_FREE( url );
+        *ludpp = ludp;
+        return LDAP_URL_SUCCESS;
+    }
+
+    /* scan forward for '?' that may marks end of extensions */
+    p = q;
+    q = strchr( p, '?' );
+
+    if( q != NULL ) {
+        /* extra '?' */
+        LDAP_FREE( url );
+        apr_ldap_free_urldesc( ludp );
+        return LDAP_URL_ERR_BADURL;
+    }
+
+    /* parse the extensions */
+    ludp->lud_exts = ldap_str2charray( p, "," );
+
+    if( ludp->lud_exts == NULL ) {
+        LDAP_FREE( url );
+        apr_ldap_free_urldesc( ludp );
+        return LDAP_URL_ERR_BADEXTS;
+    }
+
+    for( i=0; ludp->lud_exts[i] != NULL; i++ ) {
+        ldap_pvt_hex_unescape( ludp->lud_exts[i] );
+
+        if( *ludp->lud_exts[i] == '!' ) {
+            /* count the number of critical extensions */
+            ludp->lud_crit_exts++;
+        }
+    }
+
+    if( i == 0 ) {
+        /* must have 1 or more */
+        LDAP_FREE( url );
+        apr_ldap_free_urldesc( ludp );
+        return LDAP_URL_ERR_BADEXTS;
+    }
+
+    /* no more */
+    *ludpp = ludp;
+    LDAP_FREE( url );
+    return LDAP_URL_SUCCESS;
+}

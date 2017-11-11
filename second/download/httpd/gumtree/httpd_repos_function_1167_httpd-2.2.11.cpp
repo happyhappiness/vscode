@@ -119,4 +119,104 @@ static int apply_rewrite_rule(rewriterule_entry *p, rewrite_ctx *ctx)
     /* expand the result */
     if (!(p->flags & RULEFLAG_NOSUB)) {
         newuri = do_expand(p->output, ctx, p);
-        rewritelog((r, 2, ctx->perdir, "rewrite '
+        rewritelog((r, 2, ctx->perdir, "rewrite '%s' -> '%s'", ctx->uri,
+                    newuri));
+    }
+
+    /* expand [E=var:val] and [CO=<cookie>] */
+    do_expand_env(p->env, ctx);
+    do_expand_cookie(p->cookie, ctx);
+
+    /* non-substitution rules ('RewriteRule <pat> -') end here. */
+    if (p->flags & RULEFLAG_NOSUB) {
+        force_type_handler(p, ctx);
+
+        if (p->flags & RULEFLAG_STATUS) {
+            rewritelog((r, 2, ctx->perdir, "forcing responsecode %d for %s",
+                        p->forced_responsecode, r->filename));
+
+            r->status = p->forced_responsecode;
+        }
+
+        return 2;
+    }
+
+    /* Now adjust API's knowledge about r->filename and r->args */
+    r->filename = newuri;
+    splitout_queryargs(r, p->flags & RULEFLAG_QSAPPEND);
+
+    /* Add the previously stripped per-directory location prefix, unless
+     * (1) it's an absolute URL path and
+     * (2) it's a full qualified URL
+     */
+    if (   ctx->perdir && !is_proxyreq && *r->filename != '/'
+        && !is_absolute_uri(r->filename)) {
+        rewritelog((r, 3, ctx->perdir, "add per-dir prefix: %s -> %s%s",
+                    r->filename, ctx->perdir, r->filename));
+
+        r->filename = apr_pstrcat(r->pool, ctx->perdir, r->filename, NULL);
+    }
+
+    /* If this rule is forced for proxy throughput
+     * (`RewriteRule ... ... [P]') then emulate mod_proxy's
+     * URL-to-filename handler to be sure mod_proxy is triggered
+     * for this URL later in the Apache API. But make sure it is
+     * a fully-qualified URL. (If not it is qualified with
+     * ourself).
+     */
+    if (p->flags & RULEFLAG_PROXY) {
+	/* PR#39746: Escaping things here gets repeated in mod_proxy */
+        fully_qualify_uri(r);
+
+        rewritelog((r, 2, ctx->perdir, "forcing proxy-throughput with %s",
+                    r->filename));
+
+        r->filename = apr_pstrcat(r->pool, "proxy:", r->filename, NULL);
+        return 1;
+    }
+
+    /* If this rule is explicitly forced for HTTP redirection
+     * (`RewriteRule .. .. [R]') then force an external HTTP
+     * redirect. But make sure it is a fully-qualified URL. (If
+     * not it is qualified with ourself).
+     */
+    if (p->flags & RULEFLAG_FORCEREDIRECT) {
+        fully_qualify_uri(r);
+
+        rewritelog((r, 2, ctx->perdir, "explicitly forcing redirect with %s",
+                    r->filename));
+
+        r->status = p->forced_responsecode;
+        return 1;
+    }
+
+    /* Special Rewriting Feature: Self-Reduction
+     * We reduce the URL by stripping a possible
+     * http[s]://<ourhost>[:<port>] prefix, i.e. a prefix which
+     * corresponds to ourself. This is to simplify rewrite maps
+     * and to avoid recursion, etc. When this prefix is not a
+     * coincidence then the user has to use [R] explicitly (see
+     * above).
+     */
+    reduce_uri(r);
+
+    /* If this rule is still implicitly forced for HTTP
+     * redirection (`RewriteRule .. <scheme>://...') then
+     * directly force an external HTTP redirect.
+     */
+    if (is_absolute_uri(r->filename)) {
+        rewritelog((r, 2, ctx->perdir, "implicitly forcing redirect (rc=%d) "
+                    "with %s", p->forced_responsecode, r->filename));
+
+        r->status = p->forced_responsecode;
+        return 1;
+    }
+
+    /* Finally remember the forced mime-type */
+    force_type_handler(p, ctx);
+
+    /* Puuhhhhhhhh... WHAT COMPLICATED STUFF ;_)
+     * But now we're done for this particular rule.
+     */
+    return 1;
+}

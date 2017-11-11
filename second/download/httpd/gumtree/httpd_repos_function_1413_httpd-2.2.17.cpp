@@ -112,4 +112,21 @@ static request_rec *internal_internal_redirect(const char *new_uri,
         new->output_filters  = new->proto_output_filters;
     }
 
-    update_r_in_filters(n
+    update_r_in_filters(new->input_filters, r, new);
+    update_r_in_filters(new->output_filters, r, new);
+
+    apr_table_setn(new->subprocess_env, "REDIRECT_STATUS",
+                   apr_itoa(r->pool, r->status));
+
+    /*
+     * XXX: hmm.  This is because mod_setenvif and mod_unique_id really need
+     * to do their thing on internal redirects as well.  Perhaps this is a
+     * misnamed function.
+     */
+    if ((access_status = ap_run_post_read_request(new))) {
+        ap_die(access_status, new);
+        return NULL;
+    }
+
+    return new;
+}

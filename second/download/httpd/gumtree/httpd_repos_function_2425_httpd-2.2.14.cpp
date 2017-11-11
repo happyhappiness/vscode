@@ -564,4 +564,20 @@ AP_INIT_TAKE1("MinSpareServers", set_min_free_servers, NULL, RSRC_CONF,
 AP_INIT_TAKE1("MaxSpareServers", set_max_free_servers, NULL, RSRC_CONF,
               "Maximum number of idle children"),
 AP_INIT_TAKE1("MaxClients", set_max_clients, NULL, RSRC_CONF,
-              "Maximum num
+              "Maximum number of children alive at the same time"),
+AP_INIT_TAKE1("ServerLimit", set_server_limit, NULL, RSRC_CONF,
+              "Maximum value of MaxClients for this run of Apache"),
+AP_GRACEFUL_SHUTDOWN_TIMEOUT_COMMAND,
+{ NULL }
+};
+
+module AP_MODULE_DECLARE_DATA mpm_prefork_module = {
+    MPM20_MODULE_STUFF,
+    ap_mpm_rewrite_args,        /* hook to run before apache parses args */
+    NULL,                       /* create per-directory config structure */
+    NULL,                       /* merge per-directory config structures */
+    NULL,                       /* create per-server config structure */
+    NULL,                       /* merge per-server config structures */
+    prefork_cmds,               /* command apr_table_t */
+    prefork_hooks,              /* register hooks */
+};

@@ -109,4 +109,70 @@ static void set_neg_headers(request_rec *r, negotiation_state *neg,
             *((const char **) apr_array_push(arr)) = "}";
         }
         if (variant->content_charset && *variant->content_charset) {
-        
+            *((const char **) apr_array_push(arr)) = " {charset ";
+            *((const char **) apr_array_push(arr)) = variant->content_charset;
+            *((const char **) apr_array_push(arr)) = "}";
+        }
+        if (lang) {
+            *((const char **) apr_array_push(arr)) = " {language ";
+            *((const char **) apr_array_push(arr)) = lang;
+            *((const char **) apr_array_push(arr)) = "}";
+        }
+        if (variant->content_encoding && *variant->content_encoding) {
+            /* Strictly speaking, this is non-standard, but so is TCN */
+
+            *((const char **) apr_array_push(arr)) = " {encoding ";
+            *((const char **) apr_array_push(arr)) = variant->content_encoding;
+            *((const char **) apr_array_push(arr)) = "}";
+        }
+
+        /* Note that the Alternates specification (in rfc2295) does
+         * not require that we include {length x}, so we could omit it
+         * if determining the length is too expensive.  We currently
+         * always include it though.
+         *
+         * If the variant is a CGI script, find_content_length would
+         * return the length of the script, not the output it
+         * produces, so we check for the presence of a handler and if
+         * there is one we don't add a length.
+         *
+         * XXX: TODO: This check does not detect a CGI script if we
+         * get the variant from a type map.  This needs to be fixed
+         * (without breaking things if the type map specifies a
+         * content-length, which currently leads to the correct result).
+         */
+        if (!(variant->sub_req && variant->sub_req->handler)
+            && (len = find_content_length(neg, variant)) >= 0) {
+
+            *((const char **) apr_array_push(arr)) = " {length ";
+            *((const char **) apr_array_push(arr)) = apr_off_t_toa(r->pool,
+                                                                   len);
+            *((const char **) apr_array_push(arr)) = "}";
+        }
+
+        *((const char **) apr_array_push(arr)) = "}";
+        *((const char **) apr_array_push(arr)) = ", "; /* trimmed below */
+    }
+
+    if (neg->send_alternates && neg->avail_vars->nelts) {
+        arr->nelts--;                                 /* remove last comma */
+        apr_table_mergen(hdrs, "Alternates",
+                        apr_array_pstrcat(r->pool, arr, '\0'));
+    }
+
+    if (neg->is_transparent || vary_by_type || vary_by_language ||
+        vary_by_language || vary_by_charset || vary_by_encoding) {
+
+        apr_table_mergen(hdrs, "Vary", 2 + apr_pstrcat(r->pool,
+            neg->is_transparent ? ", negotiate"       : "",
+            vary_by_type        ? ", accept"          : "",
+            vary_by_language    ? ", accept-language" : "",
+            vary_by_charset     ? ", accept-charset"  : "",
+            vary_by_encoding    ? ", accept-encoding" : "", NULL));
+    }
+
+    if (neg->is_transparent) { /* Create TCN response header */
+        apr_table_setn(hdrs, "TCN",
+                      alg_result == alg_list ? "list" : "choice");
+    }
+}

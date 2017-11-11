@@ -114,4 +114,16 @@ static dav_error * dav_fs_copymove_file(
             return dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
                                  "Could not remove source or destination "
                                  "file. Server is now in an inconsistent "
-          
+                                 "state.");
+        }
+
+        /* ### use something besides 500? */
+        err = dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
+                            "Could not remove source file after move. "
+                            "Destination was removed to ensure consistency.");
+        err->save_errno = save_errno;
+        return err;
+    }
+
+    return NULL;
+}

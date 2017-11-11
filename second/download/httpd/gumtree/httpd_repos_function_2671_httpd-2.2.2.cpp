@@ -135,4 +135,44 @@ static void start_handler(void *userdata, const char *name, const char **attrs)
     }
     else {
 	*colon = '\0';
-	elem->ns = find_prefix(parser, 
+	elem->ns = find_prefix(parser, elem->name);
+	elem->name = colon + 1;
+
+	if (APR_XML_NS_IS_ERROR(elem->ns)) {
+	    parser->error = elem->ns;
+	    return;
+	}
+    }
+
+    /* adjust all remaining attributes' namespaces */
+    for (attr = elem->attr; attr; attr = attr->next) {
+        /*
+         * apr_xml_attr defines this as "const" but we dup'd it, so we
+         * know that we can change it. a bit hacky, but the existing
+         * structure def is best.
+         */
+        char *attr_name = (char *)attr->name;
+
+	colon = strchr(attr_name, 0x3A);
+	if (colon == NULL) {
+	    /*
+	     * Attributes do NOT use the default namespace. Therefore,
+	     * we place them into the "no namespace" category.
+	     */
+	    attr->ns = APR_XML_NS_NONE;
+	}
+	else if (APR_XML_NS_IS_RESERVED(attr->name)) {
+	    attr->ns = APR_XML_NS_NONE;
+	}
+	else {
+	    *colon = '\0';
+	    attr->ns = find_prefix(parser, attr->name);
+	    attr->name = colon + 1;
+
+	    if (APR_XML_NS_IS_ERROR(attr->ns)) {
+		parser->error = attr->ns;
+		return;
+	    }
+	}
+    }
+}

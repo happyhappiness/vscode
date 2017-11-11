@@ -120,4 +120,22 @@ static int translate_userdir(request_rec *r)
          */
         if (filename && (!*userdirs
                       || ((rv = apr_stat(&statbuf, filename, APR_FINFO_MIN,
-                          
+                                         r->pool)) == APR_SUCCESS
+                                             || rv == APR_INCOMPLETE))) {
+            r->filename = apr_pstrcat(r->pool, filename, dname, NULL);
+            /* XXX: Does this walk us around FollowSymLink rules?
+             * When statbuf contains info on r->filename we can save a syscall
+             * by copying it to r->finfo
+             */
+            if (*userdirs && dname[0] == 0)
+                r->finfo = statbuf;
+
+            /* For use in the get_suexec_identity phase */
+            apr_table_setn(r->notes, "mod_userdir_user", w);
+
+            return OK;
+        }
+    }
+
+    return DECLINED;
+}

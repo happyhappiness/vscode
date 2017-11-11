@@ -119,4 +119,20 @@ static int open_entity(cache_handle_t *h, request_rec *r, const char *key)
         return DECLINED;
     }
 
-    rc =
+    rc = apr_file_info_get(&finfo, APR_FINFO_SIZE, dobj->fd);
+    if (rc == APR_SUCCESS) {
+        dobj->file_size = finfo.size;
+    }
+
+    /* Read the bytes to setup the cache_info fields */
+    rc = file_cache_recall_mydata(dobj->hfd, info, dobj, r);
+    if (rc != APR_SUCCESS) {
+        /* XXX log message */
+        return DECLINED;
+    }
+
+    /* Initialize the cache_handle callback functions */
+    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                 "disk_cache: Recalled cached URL info header %s",  dobj->name);
+    return OK;
+}

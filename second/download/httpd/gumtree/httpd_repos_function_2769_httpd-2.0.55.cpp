@@ -120,4 +120,10 @@ int main(int argc, char *argv[])
 
     fprintf(stdout, "\tClient:  Closing down socket.......");
     if (apr_socket_close(sock) != APR_SUCCESS) {
-        fprintf(stderr, "Could not shutdow
+        fprintf(stderr, "Could not shutdown socket\n");
+        exit(-1);
+    }
+    fprintf(stdout, "OK\n");
+
+    return 1;
+}
