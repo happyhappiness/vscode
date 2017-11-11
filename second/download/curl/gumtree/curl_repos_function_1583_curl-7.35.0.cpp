@@ -123,4 +123,10 @@ CURLcode Curl_verifyhost(struct connectdata * conn,
       return CURLE_OK;
     }
     else
-      failf(data, "SSL: c
+      failf(data, "SSL: certificate subject name '%s' does not match "
+            "target host name '%s'", dnsname, conn->host.dispname);
+    free(dnsname);
+  }
+
+  return CURLE_PEER_FAILED_VERIFICATION;
+}

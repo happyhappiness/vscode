@@ -120,4 +120,37 @@ int mutt_command_complete (char *buffer, size_t len, int pos, int numtabs)
       for (num = 0; menu[num].name; num++)
 	candidate (Completed, User_typed, menu[num].name, sizeof (Completed));
       /* try the generic menu */
-      if (Completed[0] == 0 && CurrentMenu != M
+      if (Completed[0] == 0 && CurrentMenu != MENU_PAGER) 
+      {
+	menu = OpGeneric;
+	for (num = 0; menu[num].name; num++)
+	  candidate (Completed, User_typed, menu[num].name, sizeof (Completed));
+      }
+      matches_ensure_morespace (Num_matched);
+      Matches[Num_matched++] = User_typed;
+
+      /* All matches are stored. Longest non-ambiguous string is ""
+       * i.e. don't change 'buffer'. Fake successful return this time */
+      if (User_typed[0] == 0)
+	return 1;
+    }
+
+    if (Completed[0] == 0 && User_typed[0])
+      return 0;
+
+    /* Num_matched will _always_ be at least 1 since the initial
+     * user-typed string is always stored */
+    if (numtabs == 1 && Num_matched == 2)
+      snprintf(Completed, sizeof(Completed),"%s", Matches[0]);
+    else if (numtabs > 1 && Num_matched > 2)
+    /* cycle thru all the matches */
+      snprintf(Completed, sizeof(Completed), "%s", 
+	       Matches[(numtabs - 2) % Num_matched]);
+
+    strncpy (pt, Completed, buffer + len - pt - spaces);
+  }
+  else
+    return 0;
+
+  return 1;
+}

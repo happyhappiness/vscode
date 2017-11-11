@@ -458,4 +458,71 @@ static void recv_generator(char *fname, struct file_struct *file, int ndx,
 			goto pretend_missing;
 		}
 		if (robust_unlink(backupptr) && errno != ENOENT) {
-			rsyserr(FE
+			rsyserr(FERROR, errno, "unlink %s",
+				full_fname(backupptr));
+			free(back_file);
+			close(fd);
+			return;
+		}
+		if ((f_copy = do_open(backupptr,
+		    O_WRONLY | O_CREAT | O_TRUNC | O_EXCL, 0600)) < 0) {
+			rsyserr(FERROR, errno, "open %s",
+				full_fname(backupptr));
+			free(back_file);
+			close(fd);
+			return;
+		}
+		fnamecmp_type = FNAMECMP_BACKUP;
+	}
+
+	if (verbose > 3) {
+		rprintf(FINFO, "gen mapped %s of size %.0f\n",
+			fnamecmp, (double)st.st_size);
+	}
+
+	if (verbose > 2)
+		rprintf(FINFO, "generating and sending sums for %d\n", ndx);
+
+  notify_others:
+	if (remove_sent_files && !delay_updates && !phase)
+	    increment_active_files(ndx, itemizing, code);
+	write_int(f_out, ndx);
+	if (itemizing) {
+		int iflags = ITEM_TRANSFER;
+		if (always_checksum)
+			iflags |= ITEM_REPORT_CHECKSUM;
+		if (fnamecmp_type != FNAMECMP_FNAME)
+			iflags |= ITEM_BASIS_TYPE_FOLLOWS;
+		if (fnamecmp_type == FNAMECMP_FUZZY)
+			iflags |= ITEM_XNAME_FOLLOWS;
+		itemize(file, -1, real_ret, &real_st, iflags, fnamecmp_type,
+			fuzzy_file ? fuzzy_file->basename : NULL);
+	}
+
+	if (!do_xfers) {
+		if (preserve_hard_links && file->link_u.links)
+			hard_link_cluster(file, ndx, itemizing, code);
+		return;
+	}
+	if (read_batch)
+		return;
+
+	if (statret != 0 || whole_file) {
+		write_sum_head(f_out, NULL);
+		return;
+	}
+
+	generate_and_send_sums(fd, st.st_size, f_out, f_copy);
+
+	if (f_copy >= 0) {
+		close(f_copy);
+		set_file_attrs(backupptr, back_file, NULL, 0);
+		if (verbose > 1) {
+			rprintf(FINFO, "backed up %s to %s\n",
+				fname, backupptr);
+		}
+		free(back_file);
+	}
+
+	close(fd);
+}

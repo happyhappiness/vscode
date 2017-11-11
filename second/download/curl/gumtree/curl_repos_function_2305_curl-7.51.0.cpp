@@ -91,3 +91,30 @@ static CURLcode verify_certificate(struct connectdata *conn, int sockindex)
         int hostname_len = strlen(conn->host.name);
         cert_hostname.tchar_ptr++;
         if(_tcsicmp(cert_hostname.const_tchar_ptr,
+                    hostname.const_tchar_ptr + hostname_len - len + 2) != 0)
+          result = CURLE_PEER_FAILED_VERIFICATION;
+      }
+      else if(len == 0 || _tcsicmp(hostname.const_tchar_ptr,
+                                   cert_hostname.const_tchar_ptr) != 0) {
+        result = CURLE_PEER_FAILED_VERIFICATION;
+      }
+      if(result == CURLE_PEER_FAILED_VERIFICATION) {
+        char *_cert_hostname;
+        _cert_hostname = Curl_convert_tchar_to_UTF8(cert_hostname.tchar_ptr);
+        failf(data, "schannel: CertGetNameString() certificate hostname "
+              "(%s) did not match connection (%s)",
+              _cert_hostname, conn->host.name);
+        Curl_unicodefree(_cert_hostname);
+      }
+      Curl_unicodefree(hostname.tchar_ptr);
+    }
+  }
+
+  if(pChainContext)
+    CertFreeCertificateChain(pChainContext);
+
+  if(pCertContextServer)
+    CertFreeCertificateContext(pCertContextServer);
+
+  return result;
+}

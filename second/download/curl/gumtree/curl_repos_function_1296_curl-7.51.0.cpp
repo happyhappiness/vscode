@@ -383,4 +383,41 @@ CURLcode Curl_SOCKS5(const char *proxy_name,
             (unsigned char)socksreq[6], (unsigned char)socksreq[7],
             (((unsigned char)socksreq[8] << 8) |
              (unsigned char)socksreq[9]),
-            (unsigned c
+            (unsigned char)socksreq[1]);
+    }
+    else if(socksreq[3] == 3) {
+      unsigned char port_upper = (unsigned char)socksreq[len - 2];
+      socksreq[len - 2] = 0;
+      failf(data,
+            "Can't complete SOCKS5 connection to %s:%d. (%d)",
+            (char *)&socksreq[5],
+            ((port_upper << 8) |
+             (unsigned char)socksreq[len - 1]),
+            (unsigned char)socksreq[1]);
+      socksreq[len - 2] = port_upper;
+    }
+    else if(socksreq[3] == 4) {
+      failf(data,
+            "Can't complete SOCKS5 connection to %02x%02x:%02x%02x:"
+            "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%d. (%d)",
+            (unsigned char)socksreq[4], (unsigned char)socksreq[5],
+            (unsigned char)socksreq[6], (unsigned char)socksreq[7],
+            (unsigned char)socksreq[8], (unsigned char)socksreq[9],
+            (unsigned char)socksreq[10], (unsigned char)socksreq[11],
+            (unsigned char)socksreq[12], (unsigned char)socksreq[13],
+            (unsigned char)socksreq[14], (unsigned char)socksreq[15],
+            (unsigned char)socksreq[16], (unsigned char)socksreq[17],
+            (unsigned char)socksreq[18], (unsigned char)socksreq[19],
+            (((unsigned char)socksreq[20] << 8) |
+             (unsigned char)socksreq[21]),
+            (unsigned char)socksreq[1]);
+    }
+    return CURLE_COULDNT_CONNECT;
+  }
+  else {
+    infof(data, "SOCKS5 request granted.\n");
+  }
+
+  (void)curlx_nonblock(sock, TRUE);
+  return CURLE_OK; /* Proxy was successful! */
+}

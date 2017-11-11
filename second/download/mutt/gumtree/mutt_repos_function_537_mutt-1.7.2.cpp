@@ -165,4 +165,69 @@ int mx_close_mailbox (CONTEXT *ctx, int *index_hint)
   }
 
   /* copy mails to the trash before expunging */
-  if (purge && ctx->deleted
+  if (purge && ctx->deleted && mutt_strcmp (ctx->path, TrashPath))
+  {
+    if (trash_append (ctx) != 0)
+    {
+      ctx->closing = 0;
+      return -1;
+    }
+  }
+
+#ifdef USE_IMAP
+  /* allow IMAP to preserve the deleted flag across sessions */
+  if (ctx->magic == MUTT_IMAP)
+  {
+    if ((check = imap_sync_mailbox (ctx, purge, index_hint)) != 0)
+    {
+      ctx->closing = 0;
+      return check;
+    }
+  }
+  else
+#endif
+  {
+    if (!purge)
+    {
+      for (i = 0; i < ctx->msgcount; i++)
+      {
+        ctx->hdrs[i]->deleted = 0;
+        ctx->hdrs[i]->purge = 0;
+      }
+      ctx->deleted = 0;
+    }
+
+    if (ctx->changed || ctx->deleted)
+    {
+      if ((check = sync_mailbox (ctx, index_hint)) != 0)
+      {
+	ctx->closing = 0;
+	return check;
+      }
+    }
+  }
+
+  if (!ctx->quiet)
+  {
+    if (move_messages)
+      mutt_message (_("%d kept, %d moved, %d deleted."),
+	ctx->msgcount - ctx->deleted, read_msgs, ctx->deleted);
+    else
+      mutt_message (_("%d kept, %d deleted."),
+	ctx->msgcount - ctx->deleted, ctx->deleted);
+  }
+
+  if (ctx->msgcount == ctx->deleted &&
+      (ctx->magic == MUTT_MMDF || ctx->magic == MUTT_MBOX) &&
+      !mutt_is_spool(ctx->path) && !option (OPTSAVEEMPTY))
+    mx_unlink_empty (ctx->path);
+
+#ifdef USE_SIDEBAR
+  ctx->msgcount -= ctx->deleted;
+  mutt_sb_set_buffystats (ctx);
+#endif
+
+  mx_fastclose_mailbox (ctx);
+
+  return 0;
+}

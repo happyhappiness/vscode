@@ -128,4 +128,20 @@ static char *find_keys (ADDRESS *adrlist, unsigned int app, int oppenc_mode)
         safe_realloc (&keylist, keylist_size);
         sprintf (keylist + keylist_used, "%s0x%s%s", /* __SPRINTF_CHECKED__ */
                 keylist_used ? " " : "",  keyID,
-                forced_v
+                forced_valid? "!":"");
+        keylist_used = mutt_strlen (keylist);
+
+        key_selected = 1;
+
+        crypt_free_key (&k_info);
+        rfc822_free_address (&addr);
+
+        if (crypt_hook != NULL)
+          crypt_hook = crypt_hook->next;
+
+      } while (crypt_hook != NULL);
+
+      mutt_free_list (&crypt_hook_list);
+    }
+  return (keylist);
+}

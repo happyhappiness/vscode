@@ -111,4 +111,36 @@ CURLcode Curl_add_buffer_send(Curl_send_buffer *in,
         http->backup.fread_func = conn->data->state.fread_func;
         http->backup.fread_in = conn->data->state.in;
         http->backup.postdata = http->postdata;
-        http->backup.postsize = http->p
+        http->backup.postsize = http->postsize;
+
+        /* set the new pointers for the request-sending */
+        conn->data->state.fread_func = (curl_read_callback)readmoredata;
+        conn->data->state.in = (void *)conn;
+        http->postdata = ptr;
+        http->postsize = (curl_off_t)size;
+
+        http->send_buffer = in;
+        http->sending = HTTPSEND_REQUEST;
+
+        return CURLE_OK;
+      }
+      http->sending = HTTPSEND_BODY;
+      /* the full buffer was sent, clean up and return */
+    }
+    else {
+      if((size_t)amount != size)
+        /* We have no continue-send mechanism now, fail. This can only happen
+           when this function is used from the CONNECT sending function. We
+           currently (stupidly) assume that the whole request is always sent
+           away in the first single chunk.
+
+           This needs FIXing.
+        */
+        return CURLE_SEND_ERROR;
+      Curl_pipeline_leave_write(conn);
+    }
+  }
+  Curl_add_buffer_free(in);
+
+  return result;
+}

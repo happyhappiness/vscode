@@ -1309,6 +1309,13 @@ file,function,loc,log,check,variable
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.5.4/attr.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_1732_git-2.5.4.cpp,20,"fprintf(stderr,
 				""%.*s is not a valid attribute name: %s:%d\n"",
 				len, cp, src, lineno)","[""invalid_attr_name_ret""]","[null, ""git_attr_internal_arg"", ""invalid_attr_name_arg_ret"", ""char"", ""int""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.5.4/attr.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_1733_git-2.5.4.cpp,17,"fprintf(stderr, ""%s not allowed: %s:%d\n"",
+				name, src, lineno)","[""int""]","[null, ""starts_with_arg_ret"", ""parse_attr_arg"", ""parse_attr_arg""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.5.4/attr.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_1733_git-2.5.4.cpp,26,"fprintf(stderr,
+				""%.*s is not a valid attribute name: %s:%d\n"",
+				namelen, name, src, lineno)","[""invalid_attr_name_ret""]","[null, ""strcspn_ret"", ""invalid_attr_name_arg_ret"", ""parse_attr_arg"", ""parse_attr_arg""]"
+/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.5.4/attr.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_1733_git-2.5.4.cpp,61,"warning(_(""Negative patterns are ignored in git attributes\n""
+				  ""Use '\\!' for literal leading exclamation.""))","[""sizeof_arg_ret"", null, null, null, null]",[]
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.5.4/setup.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_1757_git-2.5.4.cpp,4,"die(""'%s' is outside repository"", path)","[""prefix_path_gently_ret""]","[""prefix_path_gently_arg_ret""]"
 /usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/repos/git-2.5.4/setup.c,/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/git/gumtree/git_repos_function_1760_git-2.5.4.cpp,5,"die(""%s: no such path in the working tree.\n""
 		    ""Use 'git <command> -- <path>...' to specify paths that do not exist locally."",

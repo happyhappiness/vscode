@@ -280,4 +280,61 @@ static void show_version (void)
 #if HAVE_ICONV
 	"+HAVE_ICONV  "
 #else
-	"-H
+	"-HAVE_ICONV  "
+#endif
+
+#if ICONV_NONTRANS
+	"+ICONV_NONTRANS  "
+#else
+	"-ICONV_NONTRANS  "
+#endif
+
+#if HAVE_LIBIDN
+	"+HAVE_LIBIDN  "
+#else
+	"-HAVE_LIBIDN  "
+#endif
+	
+#if HAVE_GETSID
+	"+HAVE_GETSID  "
+#else
+	"-HAVE_GETSID  "
+#endif
+
+#if USE_HCACHE
+	"+USE_HCACHE  "
+#else
+	"-USE_HCACHE  "
+#endif
+
+#ifdef USE_SIDEBAR
+	"+USE_SIDEBAR  "
+#else
+	"-USE_SIDEBAR  "
+#endif
+
+	);
+
+#ifdef ISPELL
+  printf ("ISPELL=\"%s\"\n", ISPELL);
+#else
+  puts ("-ISPELL");
+#endif
+
+  printf ("SENDMAIL=\"%s\"\n", SENDMAIL);
+  printf ("MAILPATH=\"%s\"\n", MAILPATH);
+  printf ("PKGDATADIR=\"%s\"\n", PKGDATADIR);
+  printf ("SYSCONFDIR=\"%s\"\n", SYSCONFDIR);
+  printf ("EXECSHELL=\"%s\"\n", EXECSHELL);
+#ifdef MIXMASTER
+  printf ("MIXMASTER=\"%s\"\n", MIXMASTER);
+#else
+  puts ("-MIXMASTER");
+#endif
+
+  puts(_(ReachingUs));
+
+  mutt_print_patchlist();
+  
+  exit (0);
+}

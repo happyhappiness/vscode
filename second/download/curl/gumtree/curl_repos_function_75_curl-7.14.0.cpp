@@ -151,4 +151,106 @@ int main(int argc, char **argv) {
   else if (p.accesstype != 0) { /* see whether we can find an AIA or SIA for a given access type */
     if (!(serverurl = my_get_ext(p.usercert,p.accesstype,NID_info_access))) {
       BIO_printf(p.errorbio,"no service URL in user cert "
-                 "cherching in others 
+                 "cherching in others certificats\n");
+      int j=0;
+      int find=0;
+      for (j=0;j<sk_X509_num(p.ca);j++) {
+        if ((serverurl = my_get_ext(sk_X509_value(p.ca,j),p.accesstype,
+                                    NID_info_access)))
+          break;
+        if ((serverurl = my_get_ext(sk_X509_value(p.ca,j),p.accesstype,
+                                    NID_sinfo_access)))
+          break;
+      }
+    }
+  }
+
+  if (!serverurl) {
+    BIO_printf(p.errorbio, "no service URL in certificats,"
+               " check '-accesstype (AD_DVCS | ad_timestamping)'"
+               " or use '-connect'\n");
+    goto err;
+  }
+
+  if (p.verbose)
+    BIO_printf(p.errorbio, "Service URL: <%s>\n", serverurl);
+
+  curl_easy_setopt(p.curl, CURLOPT_URL, serverurl);
+
+  /* Now specify the POST binary data */
+
+  curl_easy_setopt(p.curl, CURLOPT_POSTFIELDS, binaryptr);
+  curl_easy_setopt(p.curl, CURLOPT_POSTFIELDSIZE,tabLength);
+
+  /* pass our list of custom made headers */
+
+  contenttype=(char*) malloc(15+strlen(mimetype));
+  sprintf(contenttype,"Content-type: %s",mimetype);
+  headers = curl_slist_append(headers,contenttype);
+  curl_easy_setopt(p.curl, CURLOPT_HTTPHEADER, headers);
+
+  if (p.verbose)
+    BIO_printf(p.errorbio, "Service URL: <%s>\n", serverurl);
+
+  {
+    FILE *outfp;
+    BIO_get_fp(out,&outfp);
+    curl_easy_setopt(p.curl, CURLOPT_FILE,outfp);
+  }
+
+  res = curl_easy_setopt(p.curl, CURLOPT_SSL_CTX_FUNCTION, sslctxfun)  ;
+
+  if (res != CURLE_OK)
+    BIO_printf(p.errorbio,"%d %s=%d %d\n", __LINE__, "CURLOPT_SSL_CTX_FUNCTION",CURLOPT_SSL_CTX_FUNCTION,res);
+
+  curl_easy_setopt(p.curl, CURLOPT_SSL_CTX_DATA, &p);
+
+  {
+    int lu; int i=0;
+    while ((lu = BIO_read (in,&binaryptr[i],tabLength-i)) >0 ) {
+      i+=lu;
+      if (i== tabLength) {
+        tabLength+=100;
+        binaryptr=(char*)realloc(binaryptr,tabLength); /* should be more careful */
+      }
+    }
+    tabLength = i;
+  }
+  /* Now specify the POST binary data */
+
+  curl_easy_setopt(p.curl, CURLOPT_POSTFIELDS, binaryptr);
+  curl_easy_setopt(p.curl, CURLOPT_POSTFIELDSIZE,tabLength);
+
+
+  /* Perform the request, res will get the return code */
+
+  BIO_printf(p.errorbio,"%d %s %d\n", __LINE__, "curl_easy_perform",
+             res = curl_easy_perform(p.curl));
+  {
+    int result =curl_easy_getinfo(p.curl,CURLINFO_CONTENT_TYPE,&response);
+    if( mimetypeaccept && p.verbose)
+      if(!strcmp(mimetypeaccept,response))
+        BIO_printf(p.errorbio,"the response has a correct mimetype : %s\n",
+                   response);
+      else
+        BIO_printf(p.errorbio,"the reponse doesn\'t has an acceptable "
+                   "mime type, it is %s instead of %s\n",
+                   response,mimetypeaccept);
+  }
+
+  /*** code d'erreur si accept mime ***, egalement code return HTTP != 200 ***/
+
+/* free the header list*/
+
+  curl_slist_free_all(headers);
+
+  /* always cleanup */
+  curl_easy_cleanup(p.curl);
+
+  BIO_free(in);
+  BIO_free(out);
+  return (EXIT_SUCCESS);
+
+  err: BIO_printf(p.errorbio,"error");
+  exit(1);
+}

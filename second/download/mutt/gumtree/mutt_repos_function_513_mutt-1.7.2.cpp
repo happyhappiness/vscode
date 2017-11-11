@@ -175,4 +175,153 @@ int mutt_parse_rfc822_line (ENVELOPE *e, HEADER *hdr, char *line, char *p, short
       }
       else if (!ascii_strcasecmp (line + 5, "followup-to"))
       {
-	e->mail_followup_to = rfc822_parse_adrli
+	e->mail_followup_to = rfc822_parse_adrlist (e->mail_followup_to, p);
+	matched = 1;
+      }
+    }
+    break;
+    
+    case 'r':
+    if (!ascii_strcasecmp (line + 1, "eferences"))
+    {
+      mutt_free_list (&e->references);
+      e->references = mutt_parse_references (p, 0);
+      matched = 1;
+    }
+    else if (!ascii_strcasecmp (line + 1, "eply-to"))
+    {
+      e->reply_to = rfc822_parse_adrlist (e->reply_to, p);
+      matched = 1;
+    }
+    else if (!ascii_strcasecmp (line + 1, "eturn-path"))
+    {
+      e->return_path = rfc822_parse_adrlist (e->return_path, p);
+      matched = 1;
+    }
+    else if (!ascii_strcasecmp (line + 1, "eceived"))
+    {
+      if (hdr && !hdr->received)
+      {
+	char *d = strrchr (p, ';');
+	
+	if (d)
+	  hdr->received = mutt_parse_date (d + 1, NULL);
+      }
+    }
+    break;
+    
+    case 's':
+    if (!ascii_strcasecmp (line + 1, "ubject"))
+    {
+      if (!e->subject)
+	e->subject = safe_strdup (p);
+      matched = 1;
+    }
+    else if (!ascii_strcasecmp (line + 1, "ender"))
+    {
+      e->sender = rfc822_parse_adrlist (e->sender, p);
+      matched = 1;
+    }
+    else if (!ascii_strcasecmp (line + 1, "tatus"))
+    {
+      if (hdr)
+      {
+	while (*p)
+	{
+	  switch(*p)
+	  {
+	    case 'r':
+	    hdr->replied = 1;
+	    break;
+	    case 'O':
+	      hdr->old = 1;
+	    break;
+	    case 'R':
+	    hdr->read = 1;
+	    break;
+	  }
+	  p++;
+	}
+      }
+      matched = 1;
+    }
+    else if ((!ascii_strcasecmp ("upersedes", line + 1) ||
+	      !ascii_strcasecmp ("upercedes", line + 1)) && hdr)
+    {
+      FREE(&e->supersedes);
+      e->supersedes = safe_strdup (p);
+    }
+    break;
+    
+    case 't':
+    if (ascii_strcasecmp (line+1, "o") == 0)
+    {
+      e->to = rfc822_parse_adrlist (e->to, p);
+      matched = 1;
+    }
+    break;
+    
+    case 'x':
+    if (ascii_strcasecmp (line+1, "-status") == 0)
+    {
+      if (hdr)
+      {
+	while (*p)
+	{
+	  switch (*p)
+	  {
+	    case 'A':
+	    hdr->replied = 1;
+	    break;
+	    case 'D':
+	    hdr->deleted = 1;
+	    break;
+	    case 'F':
+	    hdr->flagged = 1;
+	    break;
+	    default:
+	    break;
+	  }
+	  p++;
+	}
+      }
+      matched = 1;
+    }
+    else if (ascii_strcasecmp (line+1, "-label") == 0)
+    {
+      FREE(&e->x_label);
+      e->x_label = safe_strdup(p);
+      matched = 1;
+    }
+    
+    default:
+    break;
+  }
+  
+  /* Keep track of the user-defined headers */
+  if (!matched && user_hdrs)
+  {
+    /* restore the original line */
+    line[strlen (line)] = ':';
+    
+    if (weed && option (OPTWEED) && mutt_matches_ignore (line, Ignore)
+	&& !mutt_matches_ignore (line, UnIgnore))
+      goto done;
+
+    if (last)
+    {
+      last->next = mutt_new_list ();
+      last = last->next;
+    }
+    else
+      last = e->userhdrs = mutt_new_list ();
+    last->data = safe_strdup (line);
+    if (do_2047)
+      rfc2047_decode (&last->data);
+  }
+
+  done:
+  
+  *lastp = last;
+  return matched;
+}

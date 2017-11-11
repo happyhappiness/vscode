@@ -129,4 +129,95 @@ CURLMcode curl_multi_perform(CURLM *multi_handle, int *running_handles)
       easy->result = Curl_readwrite(easy->easy_conn, &done);
 
       if(easy->result)  {
-        /* The transfer phase r
+        /* The transfer phase returned error, we mark the connection to get
+         * closed to prevent being re-used. This is becasue we can't
+         * possibly know if the connection is in a good shape or not now. */
+        easy->easy_conn->bits.close = TRUE;
+
+        if(-1 !=easy->easy_conn->secondarysocket) {
+          /* if we failed anywhere, we must clean up the secondary socket if
+             it was used */
+          sclose(easy->easy_conn->secondarysocket);
+          easy->easy_conn->secondarysocket=-1;
+        }
+        Curl_posttransfer(easy->easy_handle);
+        Curl_done(easy->easy_conn);
+      }
+
+      /* after the transfer is done, go DONE */
+      else if(TRUE == done) {
+
+        /* call this even if the readwrite function returned error */
+        Curl_posttransfer(easy->easy_handle);
+
+        /* When we follow redirects, must to go back to the CONNECT state */
+        if(easy->easy_conn->newurl) {
+          easy->result = Curl_follow(easy->easy_handle,
+                                     strdup(easy->easy_conn->newurl));
+          if(CURLE_OK == easy->result) {
+            easy->state = CURLM_STATE_CONNECT;
+            result = CURLM_CALL_MULTI_PERFORM;
+          }
+        }
+        else {
+          easy->state = CURLM_STATE_DONE;
+          result = CURLM_CALL_MULTI_PERFORM; 
+        }
+      }
+      break;
+    case CURLM_STATE_DONE:
+      /* post-transfer command */
+      easy->result = Curl_done(easy->easy_conn);
+
+      /* after we have DONE what we're supposed to do, go COMPLETED, and
+         it doesn't matter what the Curl_done() returned! */
+      easy->state = CURLM_STATE_COMPLETED;
+      break;
+
+    case CURLM_STATE_COMPLETED:
+      /* this is a completed transfer, it is likely to still be connected */
+
+      /* This node should be delinked from the list now and we should post
+         an information message that we are complete. */
+      break;
+    default:
+      return CURLM_INTERNAL_ERROR;
+    }
+
+    if(CURLM_STATE_COMPLETED != easy->state) {
+      if(CURLE_OK != easy->result)
+        /*
+         * If an error was returned, and we aren't in completed state now,
+         * then we go to completed and consider this transfer aborted.  */
+        easy->state = CURLM_STATE_COMPLETED;
+      else
+        /* this one still lives! */
+        (*running_handles)++;
+    }
+
+    if ((CURLM_STATE_COMPLETED == easy->state) && !easy->msg) {
+      /* clear out the usage of the shared DNS cache */
+      easy->easy_handle->hostcache = NULL;
+
+      /* now add a node to the Curl_message linked list with this info */
+      msg = (struct Curl_message *)malloc(sizeof(struct Curl_message));
+
+      if(!msg)
+        return CURLM_OUT_OF_MEMORY;
+
+      msg->extmsg.msg = CURLMSG_DONE;
+      msg->extmsg.easy_handle = easy->easy_handle;
+      msg->extmsg.data.result = easy->result;
+      msg->next=NULL;
+
+      easy->msg = msg;
+      easy->msg_num = 1; /* there is one unread message here */
+
+      multi->num_msgs++; /* increase message counter */
+    }
+
+    easy = easy->next; /* operate on next handle */
+  }
+
+  return result;
+}

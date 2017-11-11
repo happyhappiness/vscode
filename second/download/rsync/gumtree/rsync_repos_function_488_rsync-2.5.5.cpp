@@ -156,4 +156,67 @@ int poptGetNextOpt(poptContext con)
 		}
 		
 		con->os->nextArg = expandNextArg(con, con->os->argv[con->os->next++]);
-	    
+	    }
+
+	    if (opt->arg) {
+		long aLong;
+		char *end;
+
+		switch (opt->argInfo & POPT_ARG_MASK) {
+		  case POPT_ARG_STRING:
+		    /* XXX memory leak, hard to plug */
+		    *((const char **) opt->arg) = xstrdup(con->os->nextArg);
+		    break;
+
+		  case POPT_ARG_INT:
+		  case POPT_ARG_LONG:
+		    aLong = strtol(con->os->nextArg, &end, 0);
+		    if (!(end && *end == '\0'))
+			return POPT_ERROR_BADNUMBER;
+
+		    if (aLong == LONG_MIN || aLong == LONG_MAX)
+			return POPT_ERROR_OVERFLOW;
+		    if ((opt->argInfo & POPT_ARG_MASK) == POPT_ARG_LONG) {
+			*((long *) opt->arg) = aLong;
+		    } else {
+			if (aLong > INT_MAX || aLong < INT_MIN)
+			    return POPT_ERROR_OVERFLOW;
+			*((int *) opt->arg) = aLong;
+		    }
+		    break;
+
+		  default:
+		    fprintf(stdout, POPT_("option type (%d) not implemented in popt\n"),
+		      opt->argInfo & POPT_ARG_MASK);
+		    exit(EXIT_FAILURE);
+		}
+	    }
+	}
+
+	if (cb)
+	    cb(con, POPT_CALLBACK_REASON_OPTION, opt, con->os->nextArg, cbData);
+	else if (opt->val && ((opt->argInfo & POPT_ARG_MASK) != POPT_ARG_VAL))
+	    done = 1;
+
+	if ((con->finalArgvCount + 2) >= (con->finalArgvAlloced)) {
+	    con->finalArgvAlloced += 10;
+	    con->finalArgv = realloc(con->finalArgv,
+			    sizeof(*con->finalArgv) * con->finalArgvAlloced);
+	}
+
+	{    char *s = malloc((opt->longName ? strlen(opt->longName) : 0) + 3);
+	    if (opt->longName)
+		sprintf(s, "--%s", opt->longName);
+	    else
+		sprintf(s, "-%c", opt->shortName);
+	    con->finalArgv[con->finalArgvCount++] = s;
+	}
+
+	if (opt->arg && (opt->argInfo & POPT_ARG_MASK) != POPT_ARG_NONE
+		     && (opt->argInfo & POPT_ARG_MASK) != POPT_ARG_VAL) {
+	    con->finalArgv[con->finalArgvCount++] = xstrdup(con->os->nextArg);
+	}
+    }
+
+    return opt->val;
+}

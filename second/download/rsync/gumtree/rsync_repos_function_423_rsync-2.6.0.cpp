@@ -102,4 +102,25 @@ local block_state deflate_slow(s, flush)
             s->strstart++;
             s->lookahead--;
             if (s->strm->avail_out == 0) return need_more;
-        } els
+        } else {
+            /* There is no previous match to compare with, wait for
+             * the next step to decide.
+             */
+            s->match_available = 1;
+            s->strstart++;
+            s->lookahead--;
+        }
+    }
+    if (flush == Z_INSERT_ONLY) {
+	s->block_start = s->strstart;
+	return need_more;
+    }
+    Assert (flush != Z_NO_FLUSH, "no flush?");
+    if (s->match_available) {
+        Tracevv((stderr,"%c", s->window[s->strstart-1]));
+        _tr_tally_lit(s, s->window[s->strstart-1], bflush);
+        s->match_available = 0;
+    }
+    FLUSH_BLOCK(s, flush == Z_FINISH);
+    return flush == Z_FINISH ? finish_done : block_done;
+}

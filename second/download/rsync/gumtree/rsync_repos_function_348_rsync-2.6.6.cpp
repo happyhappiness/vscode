@@ -172,4 +172,48 @@ struct file_list *send_file_list(int f, int argc, char *argv[])
 	}
 
 	gettimeofday(&end_tv, NULL);
-	stats.flist_buildtime = (i
+	stats.flist_buildtime = (int64)(end_tv.tv_sec - start_tv.tv_sec) * 1000
+			      + (end_tv.tv_usec - start_tv.tv_usec) / 1000;
+	if (stats.flist_buildtime == 0)
+		stats.flist_buildtime = 1;
+	start_tv = end_tv;
+
+	send_file_entry(NULL, f, 0);
+
+	if (show_filelist_p())
+		finish_filelist_progress(flist);
+
+	gettimeofday(&end_tv, NULL);
+	stats.flist_xfertime = (int64)(end_tv.tv_sec - start_tv.tv_sec) * 1000
+			     + (end_tv.tv_usec - start_tv.tv_usec) / 1000;
+
+	if (flist->hlink_pool) {
+		pool_destroy(flist->hlink_pool);
+		flist->hlink_pool = NULL;
+	}
+
+	/* Sort the list without removing any duplicates.  This allows the
+	 * receiving side to ask for any name they like, which gives us the
+	 * flexibility to change the way we unduplicate names in the future
+	 * without causing a compatibility problem with older versions. */
+	clean_flist(flist, 0, 0);
+
+	/* Now send the uid/gid list. This was introduced in
+	 * protocol version 15 */
+	send_uid_list(f);
+
+	/* send the io_error flag */
+	write_int(f, lp_ignore_errors(module_id) ? 0 : io_error);
+
+	io_end_buffering();
+	stats.flist_size = stats.total_written - start_write;
+	stats.num_files = flist->count;
+
+	if (verbose > 3)
+		output_flist(flist);
+
+	if (verbose > 2)
+		rprintf(FINFO, "send_file_list done\n");
+
+	return flist;
+}

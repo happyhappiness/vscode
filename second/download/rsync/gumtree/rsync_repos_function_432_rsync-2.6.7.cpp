@@ -529,4 +529,72 @@ int flush;
                 state->total += out;
                 if (out)
                     strm->adler = state->check =
-                        UPDATE(state->check, put - out, out
+                        UPDATE(state->check, put - out, out);
+                out = left;
+                if ((
+#ifdef GUNZIP
+                     state->flags ? hold :
+#endif
+                     REVERSE(hold)) != state->check) {
+                    strm->msg = (char *)"incorrect data check";
+                    state->mode = BAD;
+                    break;
+                }
+                INITBITS();
+                Tracev((stderr, "inflate:   check matches trailer\n"));
+            }
+#ifdef GUNZIP
+            state->mode = LENGTH;
+        case LENGTH:
+            if (state->wrap && state->flags) {
+                NEEDBITS(32);
+                if (hold != (state->total & 0xffffffffUL)) {
+                    strm->msg = (char *)"incorrect length check";
+                    state->mode = BAD;
+                    break;
+                }
+                INITBITS();
+                Tracev((stderr, "inflate:   length matches trailer\n"));
+            }
+#endif
+            state->mode = DONE;
+        case DONE:
+            ret = Z_STREAM_END;
+            goto inf_leave;
+        case BAD:
+            ret = Z_DATA_ERROR;
+            goto inf_leave;
+        case MEM:
+            return Z_MEM_ERROR;
+        case SYNC:
+        default:
+            return Z_STREAM_ERROR;
+        }
+
+    /*
+       Return from inflate(), updating the total counts and the check value.
+       If there was no progress during the inflate() call, return a buffer
+       error.  Call updatewindow() to create and/or update the window state.
+       Note: a memory error from inflate() is non-recoverable.
+     */
+  inf_leave:
+    RESTORE();
+    if (state->wsize || (state->mode < CHECK && out != strm->avail_out))
+        if (updatewindow(strm, out)) {
+            state->mode = MEM;
+            return Z_MEM_ERROR;
+        }
+    in -= strm->avail_in;
+    out -= strm->avail_out;
+    strm->total_in += in;
+    strm->total_out += out;
+    state->total += out;
+    if (state->wrap && out)
+        strm->adler = state->check =
+            UPDATE(state->check, strm->next_out - out, out);
+    strm->data_type = state->bits + (state->last ? 64 : 0) +
+                      (state->mode == TYPE ? 128 : 0);
+    if (((in == 0 && out == 0) || flush == Z_FINISH) && ret == Z_OK)
+        ret = Z_BUF_ERROR;
+    return ret;
+}

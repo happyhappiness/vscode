@@ -178,4 +178,29 @@ int mx_close_mailbox (CONTEXT *ctx, int *index_hint)
       ctx->deleted = 0;
     }
 
-    if (ctx->changed || ct
+    if (ctx->changed || ctx->deleted)
+    {
+      if ((check = sync_mailbox (ctx, index_hint)) != 0)
+      {
+	ctx->closing = 0;
+	return check;
+      }
+    }
+  }
+
+  if (move_messages)
+     mutt_message (_("%d kept, %d moved, %d deleted."),
+       ctx->msgcount - ctx->deleted, read_msgs, ctx->deleted);
+  else
+    mutt_message (_("%d kept, %d deleted."),
+      ctx->msgcount - ctx->deleted, ctx->deleted);
+
+  if (ctx->msgcount == ctx->deleted &&
+      (ctx->magic == M_MMDF || ctx->magic == M_MBOX) &&
+      !mutt_is_spool(ctx->path) && !option (OPTSAVEEMPTY))
+    mx_unlink_empty (ctx->path);
+
+  mx_fastclose_mailbox (ctx);
+
+  return 0;
+}

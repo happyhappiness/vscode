@@ -319,7 +319,7 @@ class SrcmlApi:
                 if argument_node is not None and self._remove_prefix(argument_node) == 'argument':
                     func_node = argument_node.getparent().getparent()
                     modifier_node = candi_node.getprevious()
-                    if modifier_node is not None and self._remove_prefix(modifier_node) == 'modifier'\
+                    if modifier_node is not None and self._remove_prefix(modifier_node) == 'operator'\
                                              and self._remove_blank(modifier_node) == '&':
                         self._update_dict(depended_nodes, candi_line, my_constant.VAR_FUNC_ARG_RETURN, func_node)
                     # filter by call ----argument --------name(ptr)

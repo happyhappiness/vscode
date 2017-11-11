@@ -299,4 +299,134 @@ static struct file_struct *recv_file_entry(int f, struct file_list *flist, int x
 			if (!(xflags & XMIT_NO_CONTENT_DIR)) {
 				if (xflags & XMIT_TOP_DIR)
 					file->flags |= FLAG_TOP_DIR;
-				file->flags |= FLAG_CONTENT
+				file->flags |= FLAG_CONTENT_DIR;
+			} else if (xflags & XMIT_TOP_DIR)
+				file->flags |= FLAG_IMPLIED_DIR;
+		} else if (xflags & XMIT_TOP_DIR) {
+			in_del_hier = recurse;
+			del_hier_name_len = F_DEPTH(file) == 0 ? 0 : l1 + l2;
+			if (relative_paths && del_hier_name_len > 2
+			    && lastname[del_hier_name_len-1] == '.'
+			    && lastname[del_hier_name_len-2] == '/')
+				del_hier_name_len -= 2;
+			file->flags |= FLAG_TOP_DIR | FLAG_CONTENT_DIR;
+		} else if (in_del_hier) {
+			if (!relative_paths || !del_hier_name_len
+			 || (l1 >= del_hier_name_len
+			  && lastname[del_hier_name_len] == '/'))
+				file->flags |= FLAG_CONTENT_DIR;
+			else
+				in_del_hier = 0;
+		}
+	}
+
+	if (preserve_devices && IS_DEVICE(mode)) {
+		uint32 *devp = F_RDEV_P(file);
+		DEV_MAJOR(devp) = major(rdev);
+		DEV_MINOR(devp) = minor(rdev);
+	}
+
+#ifdef SUPPORT_LINKS
+	if (linkname_len) {
+		bp += basename_len;
+		if (first_hlink_ndx >= flist->ndx_start) {
+			struct file_struct *first = flist->files[first_hlink_ndx - flist->ndx_start];
+			memcpy(bp, F_SYMLINK(first), linkname_len);
+		} else {
+			if (munge_symlinks) {
+				strlcpy(bp, SYMLINK_PREFIX, linkname_len);
+				bp += SYMLINK_PREFIX_LEN;
+				linkname_len -= SYMLINK_PREFIX_LEN;
+			}
+#ifdef ICONV_OPTION
+			if (sender_symlink_iconv) {
+				xbuf outbuf, inbuf;
+
+				alloc_len = linkname_len;
+				linkname_len /= 2;
+
+				/* Read the symlink data into the end of our double-sized
+				 * buffer and then convert it into the right spot. */
+				INIT_XBUF(inbuf, bp + alloc_len - linkname_len,
+					  linkname_len - 1, (size_t)-1);
+				read_sbuf(f, inbuf.buf, inbuf.len);
+				INIT_XBUF(outbuf, bp, 0, alloc_len);
+
+				if (iconvbufs(ic_recv, &inbuf, &outbuf, 0) < 0) {
+					io_error |= IOERR_GENERAL;
+					rprintf(FERROR_XFER,
+					    "[%s] cannot convert symlink data for: %s (%s)\n",
+					    who_am_i(), full_fname(thisname), strerror(errno));
+					bp = (char*)file->basename;
+					*bp++ = '\0';
+					outbuf.len = 0;
+				}
+				bp[outbuf.len] = '\0';
+			} else
+#endif
+				read_sbuf(f, bp, linkname_len - 1);
+			if (sanitize_paths && !munge_symlinks && *bp)
+				sanitize_path(bp, bp, "", lastdir_depth, SP_DEFAULT);
+		}
+	}
+#endif
+
+#ifdef SUPPORT_HARD_LINKS
+	if (preserve_hard_links && xflags & XMIT_HLINKED) {
+		if (protocol_version >= 30) {
+			if (xflags & XMIT_HLINK_FIRST) {
+				F_HL_GNUM(file) = flist->ndx_start + flist->used;
+			} else
+				F_HL_GNUM(file) = first_hlink_ndx;
+		} else {
+			static int32 cnt = 0;
+			struct ht_int64_node *np;
+			int64 ino;
+			int32 ndx;
+			if (protocol_version < 26) {
+				dev = read_int(f);
+				ino = read_int(f);
+			} else {
+				if (!(xflags & XMIT_SAME_DEV_pre30))
+					dev = read_longint(f);
+				ino = read_longint(f);
+			}
+			np = idev_find(dev, ino);
+			ndx = (int32)(long)np->data - 1;
+			if (ndx < 0) {
+				ndx = cnt++;
+				np->data = (void*)(long)cnt;
+			}
+			F_HL_GNUM(file) = ndx;
+		}
+	}
+#endif
+
+	if (always_checksum && (S_ISREG(mode) || protocol_version < 28)) {
+		if (S_ISREG(mode))
+			bp = F_SUM(file);
+		else {
+			/* Prior to 28, we get a useless set of nulls. */
+			bp = tmp_sum;
+		}
+		if (first_hlink_ndx >= flist->ndx_start) {
+			struct file_struct *first = flist->files[first_hlink_ndx - flist->ndx_start];
+			memcpy(bp, F_SUM(first), checksum_len);
+		} else
+			read_buf(f, bp, checksum_len);
+	}
+
+#ifdef SUPPORT_ACLS
+	if (preserve_acls && !S_ISLNK(mode))
+		receive_acl(f, file);
+#endif
+#ifdef SUPPORT_XATTRS
+	if (preserve_xattrs)
+		receive_xattr(f, file);
+#endif
+
+	if (S_ISREG(mode) || S_ISLNK(mode))
+		stats.total_size += file_length;
+
+	return file;
+}

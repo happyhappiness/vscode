@@ -171,4 +171,65 @@ static void query_menu (char *buf, size_t buflen, QUERY *results, int retbuf)
 	  }
 	  ci_send_message (0, msg, NULL, Context, NULL);
 	  menu->redraw = REDRAW_FULL;
-	  bre
+	  break;
+
+	case OP_EXIT:
+	  done = 1;
+	  break;
+      }
+    }
+
+    /* if we need to return the selected entries */
+    if (retbuf && (done == 2))
+    {
+      int tagged = 0;
+      size_t curpos = 0;
+
+      memset (buf, 0, buflen); 
+
+      /* check for tagged entries */
+      for (i = 0; i < menu->max; i++)
+      {
+	if (QueryTable[i].tagged)
+	{
+	  if (curpos == 0)
+	  {
+	    tagged = 1;
+	    rfc822_write_address (buf, buflen, result_to_addr(QueryTable[i].data));
+	    curpos = mutt_strlen (buf);
+	  }
+	  else if (curpos + 2 < buflen)
+	  {
+	    strcat (buf, ", ");	/* __STRCAT_CHECKED__ */
+	    rfc822_write_address ((char *) buf + curpos + 1, buflen - curpos - 1,
+				  result_to_addr(QueryTable[i].data));
+	    curpos = mutt_strlen (buf);
+	  }
+	}
+      }
+      /* then enter current message */
+      if (!tagged)
+      {
+	rfc822_write_address (buf, buflen, result_to_addr(QueryTable[menu->current].data));
+      }
+      
+    }
+
+    queryp = results;
+    while (queryp)
+    {
+      rfc822_free_address (&queryp->addr);
+      safe_free ((void **)&queryp->name);
+      safe_free ((void **)&queryp->other);
+      results = queryp->next;
+      safe_free ((void **)&queryp);
+      queryp = results;
+    }
+    safe_free ((void **) &QueryTable);
+    
+    /* tell whoever called me to redraw the screen when I return */
+    set_option (OPTNEEDREDRAW);
+  }
+
+  mutt_menuDestroy (&menu);
+}

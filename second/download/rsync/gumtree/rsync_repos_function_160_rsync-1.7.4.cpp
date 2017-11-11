@@ -142,4 +142,159 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	  if (opterr)
 	    fprintf (stderr, gettext ("%s: option `%s' is ambiguous\n"),
 		     argv[0], argv[optind]);
-	  nextchar += strlen (ne
+	  nextchar += strlen (nextchar);
+	  optind++;
+	  return '?';
+	}
+
+      if (pfound != NULL)
+	{
+	  option_index = indfound;
+	  optind++;
+	  if (*nameend)
+	    {
+	      /* Don't test has_arg with >, because some C compilers don't
+		 allow it to be used on enums.  */
+	      if (pfound->has_arg)
+		optarg = nameend + 1;
+	      else
+		{
+		  if (opterr)
+		   if (argv[optind - 1][1] == '-')
+		    /* --option */
+		    fprintf (stderr,
+		     gettext ("%s: option `--%s' doesn't allow an argument\n"),
+		     argv[0], pfound->name);
+		   else
+		    /* +option or -option */
+		    fprintf (stderr,
+		     gettext ("%s: option `%c%s' doesn't allow an argument\n"),
+		     argv[0], argv[optind - 1][0], pfound->name);
+
+		  nextchar += strlen (nextchar);
+		  return '?';
+		}
+	    }
+	  else if (pfound->has_arg == 1)
+	    {
+	      if (optind < argc)
+		optarg = argv[optind++];
+	      else
+		{
+		  if (opterr)
+		    fprintf (stderr,
+			   gettext ("%s: option `%s' requires an argument\n"),
+			   argv[0], argv[optind - 1]);
+		  nextchar += strlen (nextchar);
+		  return optstring[0] == ':' ? ':' : '?';
+		}
+	    }
+	  nextchar += strlen (nextchar);
+	  if (longind != NULL)
+	    *longind = option_index;
+	  if (pfound->flag)
+	    {
+	      *(pfound->flag) = pfound->val;
+	      return 0;
+	    }
+	  return pfound->val;
+	}
+
+      /* Can't find it as a long option.  If this is not getopt_long_only,
+	 or the option starts with '--' or is not a valid short
+	 option, then it's an error.
+	 Otherwise interpret it as a short option.  */
+      if (!long_only || argv[optind][1] == '-'
+	  || my_index (optstring, *nextchar) == NULL)
+	{
+	  if (opterr)
+	    {
+	      if (argv[optind][1] == '-')
+		/* --option */
+		fprintf (stderr, gettext ("%s: unrecognized option `--%s'\n"),
+			 argv[0], nextchar);
+	      else
+		/* +option or -option */
+		fprintf (stderr, gettext ("%s: unrecognized option `%c%s'\n"),
+			 argv[0], argv[optind][0], nextchar);
+	    }
+	  nextchar = (char *) "";
+	  optind++;
+	  return '?';
+	}
+    }
+
+  /* Look at and handle the next short option-character.  */
+
+  {
+    char c = *nextchar++;
+    char *temp = my_index (optstring, c);
+
+    /* Increment `optind' when we start to process its last character.  */
+    if (*nextchar == '\0')
+      ++optind;
+
+    if (temp == NULL || c == ':')
+      {
+	if (opterr)
+	  {
+	    if (posixly_correct)
+	      /* 1003.2 specifies the format of this message.  */
+	      fprintf (stderr, gettext ("%s: illegal option -- %c\n"),
+		       argv[0], c);
+	    else
+	      fprintf (stderr, gettext ("%s: invalid option -- %c\n"),
+		       argv[0], c);
+	  }
+	optopt = c;
+	return '?';
+      }
+    if (temp[1] == ':')
+      {
+	if (temp[2] == ':')
+	  {
+	    /* This is an option that accepts an argument optionally.  */
+	    if (*nextchar != '\0')
+	      {
+		optarg = nextchar;
+		optind++;
+	      }
+	    else
+	      optarg = NULL;
+	    nextchar = NULL;
+	  }
+	else
+	  {
+	    /* This is an option that requires an argument.  */
+	    if (*nextchar != '\0')
+	      {
+		optarg = nextchar;
+		/* If we end this ARGV-element by taking the rest as an arg,
+		   we must advance to the next element now.  */
+		optind++;
+	      }
+	    else if (optind == argc)
+	      {
+		if (opterr)
+		  {
+		    /* 1003.2 specifies the format of this message.  */
+		    fprintf (stderr,
+			   gettext ("%s: option requires an argument -- %c\n"),
+			   argv[0], c);
+		  }
+		optopt = c;
+		if (optstring[0] == ':')
+		  c = ':';
+		else
+		  c = '?';
+	      }
+	    else
+	      /* We already incremented `optind' once;
+		 increment it again when taking next ARGV-elt as argument.  */
+	      optarg = argv[optind++];
+	    nextchar = NULL;
+	  }
+      }
+    return c;
+  }
+}

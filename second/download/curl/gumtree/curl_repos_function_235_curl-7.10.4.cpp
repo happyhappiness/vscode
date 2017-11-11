@@ -126,3 +126,58 @@ static int handleSock5Proxy(
       hp=dns->addr;
     if (hp && hp->h_addr_list[0]) {
       socksreq[4] = ((char*)hp->h_addr_list[0])[0];
+      socksreq[5] = ((char*)hp->h_addr_list[0])[1];
+      socksreq[6] = ((char*)hp->h_addr_list[0])[2];
+      socksreq[7] = ((char*)hp->h_addr_list[0])[3];
+
+      Curl_resolv_unlock(conn->data, dns); /* not used anymore from now on */
+    }
+    else {
+      failf(conn->data, "Failed to resolve \"%s\" for SOCKS5 connect.",
+            conn->hostname);
+      return 1;
+    }
+#else
+    failf(conn->data,
+          "%s:%d has an internal error an needs to be fixed to work",
+          __FILE__, __LINE__);
+    return 1;
+#endif
+  }
+
+  *((unsigned short*)&socksreq[8]) = htons(conn->remote_port);
+
+  {
+    const int packetsize = 10;
+
+    result = Curl_write(conn, sock, (char *)socksreq, packetsize, &written);
+    if ((result != CURLE_OK) || (written != packetsize)) {
+      failf(conn->data, "Failed to send SOCKS5 connect request.");
+      return 1;
+    }
+
+    result = Curl_read(conn, sock, (char *)socksreq, packetsize, &actualread);
+    if ((result != CURLE_OK) || (actualread != packetsize)) {
+      failf(conn->data, "Failed to receive SOCKS5 connect request ack.");
+      return 1;
+    }
+
+    if (socksreq[0] != 5) { /* version */
+      failf(conn->data,
+            "SOCKS5 reply has wrong version, version should be 5.");
+      return 1;
+    }
+    if (socksreq[1] != 0) { /* Anything besides 0 is an error */
+        failf(conn->data,
+              "Can't complete SOCKS5 connection to %d.%d.%d.%d:%d. (%d)",
+              (unsigned char)socksreq[4], (unsigned char)socksreq[5],
+              (unsigned char)socksreq[6], (unsigned char)socksreq[7],
+              (unsigned int)ntohs(*(unsigned short*)(&socksreq[8])),
+              socksreq[1]);
+        return 1;
+    }
+  }
+
+  Curl_nonblock(sock, TRUE);
+  return 0; /* Proxy was successful! */
+}

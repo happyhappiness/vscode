@@ -93,4 +93,38 @@ mutt_pattern_exec (struct pattern_t *pat, pattern_exec_flag flags, CONTEXT *ctx,
     case M_PERSONAL_FROM:
       return (pat->not ^ match_user (pat->alladdr, h->env->from, NULL));
     case M_COLLAPSED:
-      return (pat->not ^ (h->collapsed && h->num_hidden > 1)
+      return (pat->not ^ (h->collapsed && h->num_hidden > 1));
+   case M_CRYPT_SIGN:
+     if (!WithCrypto)
+       break;
+     return (pat->not ^ ((h->security & SIGN) ? 1 : 0));
+   case M_CRYPT_VERIFIED:
+     if (!WithCrypto)
+       break;
+     return (pat->not ^ ((h->security & GOODSIGN) ? 1 : 0));
+   case M_CRYPT_ENCRYPT:
+     if (!WithCrypto)
+       break;
+     return (pat->not ^ ((h->security & ENCRYPT) ? 1 : 0));
+   case M_PGP_KEY:
+     if (!(WithCrypto & APPLICATION_PGP))
+       break;
+     return (pat->not ^ ((h->security & APPLICATION_PGP) && (h->security & PGPKEY)));
+    case M_XLABEL:
+      return (pat->not ^ (h->env->x_label && patmatch (pat, h->env->x_label) == 0));
+    case M_HORMEL:
+      return (pat->not ^ (h->env->spam && h->env->spam->data && patmatch (pat, h->env->spam->data) == 0));
+    case M_DUPLICATED:
+      return (pat->not ^ (h->thread && h->thread->duplicate_thread));
+    case M_MIMEATTACH:
+      {
+      int count = mutt_count_body_parts (ctx, h);
+      return (pat->not ^ (count >= pat->min && (pat->max == M_MAXRANGE ||
+                                                count <= pat->max)));
+      }
+    case M_UNREFERENCED:
+      return (pat->not ^ (h->thread && !h->thread->child));
+  }
+  mutt_error (_("error: unknown op %d (report this error)."), pat->op);
+  return (-1);
+}

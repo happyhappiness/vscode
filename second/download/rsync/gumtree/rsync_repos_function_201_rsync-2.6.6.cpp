@@ -132,4 +132,45 @@ void generate_files(int f_out, struct file_list *flist, char *local_name)
 		phase++;
 		if (verbose > 2)
 			rprintf(FINFO, "generate_files phase=%d\n", phase);
-	
+		if (delay_updates)
+			write_int(f_out, -1);
+		/* Read MSG_DONE for delay-updates phase & prior messages. */
+		get_redo_num(itemizing, code);
+	}
+
+	do_progress = save_do_progress;
+	if (delete_after && !local_name && flist->count > 0)
+		do_delete_pass(flist);
+
+	if ((need_retouch_dir_perms || need_retouch_dir_times)
+	    && !list_only && !local_name && !dry_run) {
+		int j = 0;
+		/* Now we need to fix any directory permissions that were
+		 * modified during the transfer and/or re-set any tweaked
+		 * modified-time values. */
+		for (i = 0; i < flist->count; i++) {
+			struct file_struct *file = flist->files[i];
+			if (!file->basename || !S_ISDIR(file->mode))
+				continue;
+			if (!need_retouch_dir_times && file->mode & S_IWUSR)
+				continue;
+			recv_generator(f_name(file), file, i, itemizing,
+				       maybe_PERMS_REPORT, code, -1);
+			if (allowed_lull && !(++j % lull_mod))
+				maybe_send_keepalive();
+			else if (!(j % 200))
+				maybe_flush_socket();
+		}
+	}
+	recv_generator(NULL, NULL, 0, 0, 0, code, -1);
+
+	if (max_delete > 0 && deletion_count > max_delete) {
+		rprintf(FINFO,
+			"Deletions stopped due to --max-delete limit (%d skipped)\n",
+			deletion_count - max_delete);
+		io_error |= IOERR_DEL_LIMIT;
+	}
+
+	if (verbose > 2)
+		rprintf(FINFO,"generate_files finished\n");
+}
