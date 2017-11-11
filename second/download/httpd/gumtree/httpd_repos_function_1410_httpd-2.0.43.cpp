@@ -406,4 +406,64 @@ static int cache_in_filter(ap_filter_t *f, apr_bucket_brigade *in)
     }
     else {
         date = info->date;
-   
+    }
+
+    /* set response_time for HTTP/1.1 age calculations */
+    info->response_time = now;
+
+    /* get the request time */
+    info->request_time = r->request_time;
+
+    /* check last-modified date */
+    /* XXX FIXME we're referencing date on a path where we didn't set it */
+    if (lastmod != APR_DATE_BAD && lastmod > date) {
+        /* if it's in the future, then replace by date */
+        lastmod = date;
+        lastmods = dates;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, 
+                     r->server,
+                     "cache: Last modified is in the future, "
+                     "replacing with now");
+    }
+    info->lastmod = lastmod;
+
+    /* if no expiry date then
+     *   if lastmod
+     *      expiry date = now + min((date - lastmod) * factor, maxexpire)
+     *   else
+     *      expire date = now + defaultexpire
+     */
+    if (exp == APR_DATE_BAD) {
+        if (lastmod != APR_DATE_BAD) {
+            apr_time_t x = (apr_time_t) ((date - lastmod) * conf->factor);
+            if (x > conf->maxex) {
+                x = conf->maxex;
+            }
+            exp = now + x;
+        }
+        else {
+            exp = now + conf->defex;
+        }
+    }
+    info->expire = exp;
+
+    info->content_type = apr_pstrdup(r->pool, r->content_type);
+    info->filename = apr_pstrdup(r->pool, r->filename );
+
+    /*
+     * Write away header information to cache.
+     */
+    rv = cache_write_entity_headers(cache->handle, r, info);
+    if (rv == APR_SUCCESS) {
+        rv = cache_write_entity_body(cache->handle, r, in);
+    }
+    if (rv != APR_SUCCESS) {
+        ap_remove_output_filter(f);
+    }
+    if (split_point) {
+        apr_bucket_brigade *already_sent = in;
+        in = apr_brigade_split(in, split_point);
+        apr_brigade_destroy(already_sent);
+    }
+    return ap_pass_brigade(f->next, in);
+}

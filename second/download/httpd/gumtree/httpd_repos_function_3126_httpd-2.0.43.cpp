@@ -160,4 +160,77 @@ do
       case OP_TYPEMINSTAR:
       case OP_TYPEQUERY:
       case OP_TYPEMINQUERY:
-    
+      switch(tcode[1])
+        {
+        case OP_NOT_DIGIT:
+        for (c = 0; c < 32; c++)
+          start_bits[c] |= ~cd->cbits[c+cbit_digit];
+        break;
+
+        case OP_DIGIT:
+        for (c = 0; c < 32; c++)
+          start_bits[c] |= cd->cbits[c+cbit_digit];
+        break;
+
+        case OP_NOT_WHITESPACE:
+        for (c = 0; c < 32; c++)
+          start_bits[c] |= ~cd->cbits[c+cbit_space];
+        break;
+
+        case OP_WHITESPACE:
+        for (c = 0; c < 32; c++)
+          start_bits[c] |= cd->cbits[c+cbit_space];
+        break;
+
+        case OP_NOT_WORDCHAR:
+        for (c = 0; c < 32; c++)
+          start_bits[c] |= ~cd->cbits[c+cbit_word];
+        break;
+
+        case OP_WORDCHAR:
+        for (c = 0; c < 32; c++)
+          start_bits[c] |= cd->cbits[c+cbit_word];
+        break;
+        }
+
+      tcode += 2;
+      break;
+
+      /* Character class: set the bits and either carry on or not,
+      according to the repeat count. */
+
+      case OP_CLASS:
+        {
+        tcode++;
+        for (c = 0; c < 32; c++) start_bits[c] |= tcode[c];
+        tcode += 32;
+        switch (*tcode)
+          {
+          case OP_CRSTAR:
+          case OP_CRMINSTAR:
+          case OP_CRQUERY:
+          case OP_CRMINQUERY:
+          tcode++;
+          break;
+
+          case OP_CRRANGE:
+          case OP_CRMINRANGE:
+          if (((tcode[1] << 8) + tcode[2]) == 0) tcode += 5;
+            else try_next = FALSE;
+          break;
+
+          default:
+          try_next = FALSE;
+          break;
+          }
+        }
+      break; /* End of class handling */
+
+      }      /* End of switch */
+    }        /* End of try_next loop */
+
+  code += (code[1] << 8) + code[2];   /* Advance to next branch */
+  }
+while (*code == OP_ALT);
+return TRUE;
+}

@@ -123,4 +123,29 @@ static CURLcode servercert(struct connectdata *conn,
 #if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_TLSEXT) && \
     !defined(OPENSSL_IS_BORINGSSL)
   if(data->set.ssl.verifystatus) {
-    result = verifystatus(conn, 
+    result = verifystatus(conn, connssl);
+    if(result) {
+      X509_free(connssl->server_cert);
+      connssl->server_cert = NULL;
+      return result;
+    }
+  }
+#endif
+
+  if(!strict)
+    /* when not strict, we don't bother about the verify cert problems */
+    result = CURLE_OK;
+
+  ptr = data->set.str[STRING_SSL_PINNEDPUBLICKEY];
+  if(!result && ptr) {
+    result = pkp_pin_peer_pubkey(connssl->server_cert, ptr);
+    if(result)
+      failf(data, "SSL: public key does not match pinned public key!");
+  }
+
+  X509_free(connssl->server_cert);
+  connssl->server_cert = NULL;
+  connssl->connecting_state = ssl_connect_done;
+
+  return result;
+}

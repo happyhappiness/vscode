@@ -109,4 +109,60 @@ CURLcode Curl_sasl_continue(struct SASL *sasl, struct connectdata *conn,
                                                     serverdata, &conn->krb5,
                                                     &resp, &len);
       newstate = SASL_GSSAPI_NO_DATA;
-    
+    }
+    else
+      /* Decode the security challenge and create the response message */
+      result = Curl_sasl_create_gssapi_security_message(data, serverdata,
+                                                        &conn->krb5,
+                                                        &resp, &len);
+    break;
+  case SASL_GSSAPI_NO_DATA:
+    sasl->params->getmessage(data->state.buffer, &serverdata);
+    /* Decode the security challenge and create the response message */
+    result = Curl_sasl_create_gssapi_security_message(data, serverdata,
+                                                      &conn->krb5,
+                                                      &resp, &len);
+    break;
+#endif
+
+  case SASL_XOAUTH2:
+    /* Create the authorisation message */
+    result = sasl_create_xoauth2_message(data, conn->user,
+                                         conn->xoauth2_bearer, &resp, &len);
+    break;
+  case SASL_CANCEL:
+    /* Remove the offending mechanism from the supported list */
+    sasl->authmechs ^= sasl->authused;
+
+    /* Start an alternative SASL authentication */
+    result = Curl_sasl_start(sasl, conn, sasl->force_ir, progress);
+    newstate = sasl->state;   /* Use state from Curl_sasl_start() */
+    break;
+  default:
+    failf(data, "Unsupported SASL authentication mechanism");
+    result = CURLE_UNSUPPORTED_PROTOCOL;  /* Should not happen */
+    break;
+  }
+
+  switch(result) {
+  case CURLE_BAD_CONTENT_ENCODING:
+    /* Cancel dialog */
+    result = sasl->params->sendcont(conn, "*");
+    newstate = SASL_CANCEL;
+    break;
+  case CURLE_OK:
+    if(resp)
+      result = sasl->params->sendcont(conn, resp);
+    break;
+  default:
+    newstate = SASL_STOP;    /* Stop on error */
+    *progress = SASL_DONE;
+    break;
+  }
+
+  Curl_safefree(resp);
+
+  state(sasl, conn, newstate);
+
+  return result;
+}

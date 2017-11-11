@@ -274,4 +274,93 @@ apr_status_t ap_proxy_http_process_response(apr_pool_t * p, request_rec *r,
              */
             if ( (conf->error_override ==0) || r->status < 400 ) {
 
-                /* read the 
+                /* read the body, pass it to the output filters */
+                int finish = FALSE;
+                while (ap_get_brigade(rp->input_filters, 
+                                      bb, 
+                                      AP_MODE_READBYTES, 
+                                      APR_BLOCK_READ, 
+                                      conf->io_buffer_size) == APR_SUCCESS) {
+#if DEBUGGING
+                    {
+                    apr_off_t readbytes;
+                    apr_brigade_length(bb, 0, &readbytes);
+                    ap_log_error(APLOG_MARK, APLOG_DEBUG, 0,
+                                 r->server, "proxy (PID %d): readbytes: %#x",
+                                 getpid(), readbytes);
+                    }
+#endif
+                    /* sanity check */
+                    if (APR_BRIGADE_EMPTY(bb)) {
+                        apr_brigade_cleanup(bb);
+                        break;
+                    }
+
+                    /* found the last brigade? */
+                    if (APR_BUCKET_IS_EOS(APR_BRIGADE_LAST(bb))) {
+                        /* if this is the last brigade, cleanup the
+                         * backend connection first to prevent the
+                         * backend server from hanging around waiting
+                         * for a slow client to eat these bytes
+                         */
+                        ap_proxy_http_cleanup(r, p_conn, backend);
+                        /* signal that we must leave */
+                        finish = TRUE;
+                    }
+
+                    /* try send what we read */
+                    if (ap_pass_brigade(r->output_filters, bb) != APR_SUCCESS
+                        || c->aborted) {
+                        /* Ack! Phbtt! Die! User aborted! */
+                        p_conn->close = 1;  /* this causes socket close below */
+                        finish = TRUE;
+                    }
+
+                    /* make sure we always clean up after ourselves */
+                    apr_brigade_cleanup(bb);
+
+                    /* if we are done, leave */
+                    if (TRUE == finish) {
+                        break;
+                    }
+                }
+            }
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: end body send");
+        } else {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                         "proxy: header only");
+        }
+    }
+
+    /* See define of AP_MAX_INTERIM_RESPONSES for why */
+    if (received_continue > AP_MAX_INTERIM_RESPONSES) {
+        return ap_proxyerror(r, HTTP_BAD_GATEWAY,
+                             apr_psprintf(p, 
+                             "Too many (%d) interim responses from origin server",
+                             received_continue));
+    }
+
+    if ( conf->error_override ) {
+        /* the code above this checks for 'OK' which is what the hook expects */
+        if ( r->status == HTTP_OK )
+            return OK;
+        else  {
+            /* clear r->status for override error, otherwise ErrorDocument
+             * thinks that this is a recursive error, and doesn't find the
+             * custom error page
+             */
+            int status = r->status;
+            r->status = HTTP_OK;
+            /* Discard body, if one is expected */
+            if ((status > 199) && /* not any 1xx response */
+                (status != HTTP_NO_CONTENT) && /* not 204 */
+                (status != HTTP_RESET_CONTENT) && /* not 205 */
+                (status != HTTP_NOT_MODIFIED)) { /* not 304 */
+               ap_discard_request_body(rp);
+           }
+            return status;
+        }
+    } else 
+        return OK;
+}

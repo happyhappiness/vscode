@@ -243,4 +243,12 @@ static int cgid_handler(request_rec *r)
         r->output_filters = r->proto_output_filters = cur;
 
         bb = apr_brigade_create(r->pool, c->bucket_alloc);
-        b = apr_bucket_pipe_create(tempsock, c->bucket_al
+        b = apr_bucket_pipe_create(tempsock, c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        b = apr_bucket_eos_create(c->bucket_alloc);
+        APR_BRIGADE_INSERT_TAIL(bb, b);
+        ap_pass_brigade(r->output_filters, bb);
+    } 
+
+    return OK; /* NOT r->status, even if it has changed. */ 
+}

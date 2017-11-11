@@ -137,4 +137,23 @@ CURLcode Curl_extract_certinfo(struct connectdata * conn,
      .
      -----END CERTIFICATE-----\n
    */
-  i 
+  i = 28 + cl1 + (cl1 + 64 - 1) / 64 + 26;
+  cp2 = malloc(i + 1);
+  if(!cp2) {
+    free(cp1);
+    return CURLE_OUT_OF_MEMORY;
+  }
+  /* Build the certificate string. */
+  i = copySubstring(cp2, "-----BEGIN CERTIFICATE-----");
+  for(j = 0; j < cl1; j += 64)
+    i += copySubstring(cp2 + i, cp1 + j);
+  i += copySubstring(cp2 + i, "-----END CERTIFICATE-----");
+  cp2[i] = '\0';
+  free(cp1);
+  if(data->set.ssl.certinfo)
+    Curl_ssl_push_certinfo(data, certnum, "Cert", cp2);
+  if(!certnum)
+    infof(data, "%s\n", cp2);
+  free(cp2);
+  return CURLE_OK;
+}
