@@ -96,4 +96,73 @@ static void do_pattmatch(ap_filter_t *f, apr_bucket *inb,
                          */
                         s2 = apr_pstrmemdup(tmp_pool, buff, bytes);
                         s1 = apr_pstrcat(tmp_pool, s1, s2, NULL);
-                        tmp_b = apr_b
+                        tmp_b = apr_bucket_transient_create(s1, strlen(s1),
+                                            f->r->connection->bucket_alloc);
+                        APR_BUCKET_INSERT_BEFORE(b, tmp_b);
+                        apr_bucket_delete(b);
+                        b = tmp_b;
+                    }
+
+                }
+                else if (script->regexp) {
+                    /*
+                     * we need a null terminated string here :(. To hopefully
+                     * save time and memory, we don't alloc for each run
+                     * through, but only if we need to have a larger chunk
+                     * to save the string to. So we keep track of how much
+                     * we've allocated and only re-alloc when we need it.
+                     * NOTE: this screams for a macro.
+                     */
+                    if (!scratch || (bytes > (fbytes + 1))) {
+                        fbytes = bytes + 1;
+                        scratch = apr_palloc(tpool, fbytes);
+                    }
+                    /* reset pointer to the scratch space */
+                    p = scratch;
+                    memcpy(p, buff, bytes);
+                    p[bytes] = '\0';
+                    while (!ap_regexec(script->regexp, p,
+                                       AP_MAX_REG_MATCH, regm, 0)) {
+                        /* first, grab the replacement string */
+                        repl = ap_pregsub(tmp_pool, script->replacement, p,
+                                          AP_MAX_REG_MATCH, regm);
+                        if (script->flatten && !force_quick) {
+                            SEDSCAT(s1, s2, tmp_pool, p, regm[0].rm_so, repl);
+                        }
+                        else {
+                            len = (apr_size_t) (regm[0].rm_eo - regm[0].rm_so);
+                            SEDRMPATBCKT(b, regm[0].rm_so, tmp_b, len);
+                            tmp_b = apr_bucket_transient_create(repl,
+                                                                strlen(repl),
+                                             f->r->connection->bucket_alloc);
+                            APR_BUCKET_INSERT_BEFORE(b, tmp_b);
+                        }
+                        /*
+                         * reset to past what we just did. buff now maps to b
+                         * again
+                         */
+                        p += regm[0].rm_eo;
+                    }
+                    if (script->flatten && s1 && !force_quick) {
+                        s1 = apr_pstrcat(tmp_pool, s1, p, NULL);
+                        tmp_b = apr_bucket_transient_create(s1, strlen(s1),
+                                            f->r->connection->bucket_alloc);
+                        APR_BUCKET_INSERT_BEFORE(b, tmp_b);
+                        apr_bucket_delete(b);
+                        b = tmp_b;
+                    }
+
+                }
+                else {
+                    /* huh? */
+                    continue;
+                }
+            }
+        }
+        script++;
+    }
+
+    apr_pool_destroy(tpool);
+
+    return;
+}

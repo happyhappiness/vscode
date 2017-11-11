@@ -109,4 +109,73 @@ static int expr_eval(request_rec *r, ap_parse_node_t *root,
                 current->left->token.type != TOKEN_STRING ||
                 current->right->token.type != TOKEN_STRING) {
                 ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
-                              "Invalid expression in file 
+                              "Invalid expression in file %s", r->filename);
+                *was_error = 1;
+                return 0;
+            }
+
+            lval = PARSE_STRING(r, current->left->token.value);
+            rval = PARSE_STRING(r, current->right->token.value);
+
+            current->value = strcmp(lval, rval);
+
+            switch (current->token.type) {
+            case TOKEN_GE: current->value = current->value >= 0; break;
+            case TOKEN_GT: current->value = current->value >  0; break;
+            case TOKEN_LE: current->value = current->value <= 0; break;
+            case TOKEN_LT: current->value = current->value <  0; break;
+            default: current->value = 0; break; /* should not happen */
+            }
+            break;
+
+        case TOKEN_NOT:
+        case TOKEN_GROUP:
+            if (current->right) {
+                if (!current->right->done) {
+                    current = current->right;
+                    continue;
+                }
+                current->value = current->right->value;
+            }
+            else {
+                current->value = 1;
+            }
+
+            if (current->token.type == TOKEN_NOT) {
+                current->value = !current->value;
+            }
+            break;
+        case TOKEN_ACCESS:
+            if (eval_func) {
+                *was_error = eval_func(r, current, string_func);
+                if (*was_error) {
+                    return 0;
+                }
+            }
+            break;
+
+        case TOKEN_RE:
+            if (!error) {
+                error = "No operator before regex in file %s";
+            }
+        case TOKEN_LBRACE:
+            if (!error) {
+                error = "Unmatched '(' in file %s";
+            }
+        default:
+            if (!error) {
+                error = "internal parser error in file %s";
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, error, r->filename);
+            *was_error = 1;
+            return 0;
+        }
+
+        DEBUG_DUMP_EVAL(r, current);
+        current->done = 1;
+        current = current->parent;
+    }
+
+    return (root ? root->value : 0);
+}
