@@ -135,4 +135,27 @@ static apr_status_t dbd_oracle_datum_get(const apr_dbd_row_t *row, int n,
                 }
                 break;
             default:
-                return APR_ENOE
+                return APR_ENOENT;
+            }
+            break;
+        default:
+            entry = dbd_oracle_get_entry(row, n);
+            if (entry == NULL) {
+                return APR_ENOENT;
+            }
+            e = apr_bucket_pool_create(entry, strlen(entry),
+                                       row->pool, b->bucket_alloc);
+            break;
+        }
+        APR_BRIGADE_INSERT_TAIL(b, e);
+        }
+        break;
+    case APR_DBD_TYPE_NULL:
+        *(void**)data = NULL;
+        break;
+    default:
+        return APR_EGENERAL;
+    }
+
+    return APR_SUCCESS;
+}

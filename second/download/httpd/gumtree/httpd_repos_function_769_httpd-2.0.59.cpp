@@ -619,4 +619,30 @@ int ssl_hook_Access(request_rec *r)
             ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
                          "Access to %s denied for %s "
                          "(requirement expression not fulfilled)",
-                         r->filename, r->connection->remot
+                         r->filename, r->connection->remote_ip);
+
+            ap_log_error(APLOG_MARK, APLOG_INFO, 0, r->server,
+                         "Failed expression: %s", req->cpExpr);
+
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, 
+                          "access to %s failed, reason: %s",
+                          r->filename,
+                          "SSL requirement expression not fulfilled "
+                          "(see SSL logfile for more details)");
+
+            /* remember forbidden access for strict require option */
+            apr_table_setn(r->notes, "ssl-access-forbidden", "1");
+
+            return HTTP_FORBIDDEN;
+        }
+    }
+
+    /*
+     * Else access is granted from our point of view (except vendor
+     * handlers override). But we have to return DECLINED here instead
+     * of OK, because mod_auth and other modules still might want to
+     * deny access.
+     */
+
+    return DECLINED;
+}

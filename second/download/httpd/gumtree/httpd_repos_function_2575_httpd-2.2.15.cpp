@@ -118,4 +118,78 @@ void ap_mpm_child_main(apr_pool_t *pconf)
 
             rc = DosRequestMutexSem(ap_mpm_accept_mutex, SEM_INDEFINITE_WAIT);
 
-            i
+            if (shutdown_pending) {
+                DosReleaseMutexSem(ap_mpm_accept_mutex);
+                break;
+            }
+
+            rv = APR_FROM_OS_ERROR(rc);
+
+            if (rv == APR_SUCCESS) {
+                rv = apr_pollset_poll(pollset, -1, &num_poll_results, &poll_results);
+                DosReleaseMutexSem(ap_mpm_accept_mutex);
+            }
+
+            if (rv == APR_SUCCESS) {
+                if (last_poll_idx >= num_listeners) {
+                    last_poll_idx = 0;
+                }
+
+                lr = poll_results[last_poll_idx++].client_data;
+                rv = apr_socket_accept(&worker_args->conn_sd, lr->sd, pconn);
+                last_poll_idx++;
+            }
+        }
+
+        if (rv != APR_SUCCESS) {
+            if (!APR_STATUS_IS_EINTR(rv)) {
+                ap_log_error(APLOG_MARK, APLOG_ERR, rv, ap_server_conf,
+                             "apr_socket_accept");
+                clean_child_exit(APEXIT_CHILDFATAL);
+            }
+        } else {
+            DosWriteQueue(workq, WORKTYPE_CONN, sizeof(worker_args_t), worker_args, 0);
+            requests_this_child++;
+        }
+
+        if (ap_max_requests_per_child != 0 && requests_this_child >= ap_max_requests_per_child)
+            break;
+    } while (!shutdown_pending && ap_my_generation == ap_scoreboard_image->global->running_generation);
+
+    ap_scoreboard_image->parent[child_slot].quiescing = 1;
+    DosPostEventSem(shutdown_event);
+    DosWaitThread(&server_maint_tid, DCWW_WAIT);
+
+    if (is_graceful) {
+        char someleft;
+
+        /* tell our worker threads to exit */
+        for (c=0; c<HARD_THREAD_LIMIT; c++) {
+            if (ap_scoreboard_image->servers[child_slot][c].status != SERVER_DEAD) {
+                DosWriteQueue(workq, WORKTYPE_EXIT, 0, NULL, 0);
+            }
+        }
+
+        do {
+            someleft = 0;
+
+            for (c=0; c<HARD_THREAD_LIMIT; c++) {
+                if (ap_scoreboard_image->servers[child_slot][c].status != SERVER_DEAD) {
+                    someleft = 1;
+                    DosSleep(1000);
+                    break;
+                }
+            }
+        } while (someleft);
+    } else {
+        DosPurgeQueue(workq);
+
+        for (c=0; c<HARD_THREAD_LIMIT; c++) {
+            if (ap_scoreboard_image->servers[child_slot][c].status != SERVER_DEAD) {
+                DosKillThread(ap_scoreboard_image->servers[child_slot][c].tid);
+            }
+        }
+    }
+
+    apr_pool_destroy(pchild);
+}

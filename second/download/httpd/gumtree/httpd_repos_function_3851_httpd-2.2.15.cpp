@@ -663,4 +663,75 @@ APR_DECLARE(apr_status_t) apr_ipsubnet_create(apr_ipsubnet_t **ipsub, const char
     if (mask_or_numbits) {
 #if APR_HAVE_IPV6
         if ((*ipsub)->family == AF_INET6) {
-            maxbits = 128
+            maxbits = 128;
+        }
+#endif
+        bits = strtol(mask_or_numbits, &endptr, 10);
+        if (*endptr == '\0' && bits > 0 && bits <= maxbits) {
+            /* valid num-bits string; fill in mask appropriately */
+            int cur_entry = 0;
+            apr_int32_t cur_bit_value;
+
+            memset((*ipsub)->mask, 0, sizeof (*ipsub)->mask);
+            while (bits > 32) {
+                (*ipsub)->mask[cur_entry] = 0xFFFFFFFF; /* all 32 bits */
+                bits -= 32;
+                ++cur_entry;
+            }
+            cur_bit_value = 0x80000000;
+            while (bits) {
+                (*ipsub)->mask[cur_entry] |= cur_bit_value;
+                --bits;
+                cur_bit_value /= 2;
+            }
+            (*ipsub)->mask[cur_entry] = htonl((*ipsub)->mask[cur_entry]);
+        }
+        else if (apr_inet_pton(AF_INET, mask_or_numbits, (*ipsub)->mask) == 1 &&
+            (*ipsub)->family == AF_INET) {
+            /* valid IPv4 netmask */
+        }
+        else {
+            return APR_EBADMASK;
+        }
+    }
+
+    fix_subnet(*ipsub);
+
+    return APR_SUCCESS;
+}
+
+APR_DECLARE(int) apr_ipsubnet_test(apr_ipsubnet_t *ipsub, apr_sockaddr_t *sa)
+{
+#if APR_HAVE_IPV6
+    /* XXX This line will segv on Win32 build with APR_HAVE_IPV6,
+     * but without the IPV6 drivers installed.
+     */
+    if (sa->sa.sin.sin_family == AF_INET) {
+        if (ipsub->family == AF_INET &&
+            ((sa->sa.sin.sin_addr.s_addr & ipsub->mask[0]) == ipsub->sub[0])) {
+            return 1;
+        }
+    }
+    else if (IN6_IS_ADDR_V4MAPPED((struct in6_addr *)sa->ipaddr_ptr)) {
+        if (ipsub->family == AF_INET &&
+            (((apr_uint32_t *)sa->ipaddr_ptr)[3] & ipsub->mask[0]) == ipsub->sub[0]) {
+            return 1;
+        }
+    }
+    else {
+        apr_uint32_t *addr = (apr_uint32_t *)sa->ipaddr_ptr;
+
+        if ((addr[0] & ipsub->mask[0]) == ipsub->sub[0] &&
+            (addr[1] & ipsub->mask[1]) == ipsub->sub[1] &&
+            (addr[2] & ipsub->mask[2]) == ipsub->sub[2] &&
+            (addr[3] & ipsub->mask[3]) == ipsub->sub[3]) {
+            return 1;
+        }
+    }
+#else
+    if ((sa->sa.sin.sin_addr.s_addr & ipsub->mask[0]) == ipsub->sub[0]) {
+        return 1;
+    }
+#endif /* APR_HAVE_IPV6 */
+    return 0; /* no match */
+}

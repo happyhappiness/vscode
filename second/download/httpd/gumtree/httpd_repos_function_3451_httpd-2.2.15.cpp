@@ -511,4 +511,132 @@ int run_mode(command_t *cmd_data)
         }
         if (cmd_data->output == otProgram) {
             rv = run_command(cmd_data, cmd_data->arglist);
-            if (
+            if (rv) {
+                return rv;
+            }
+        }
+        break;
+    default:
+        break;
+    } 
+
+    return 0;
+}
+
+void cleanup_tmp_dir(const char *dirname)
+{
+    DIR *dir;
+    struct dirent *entry;
+    char fullname[1024];
+
+    dir = opendir(dirname);
+
+    if (dir == NULL)
+        return;
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] != '.') {
+            strcpy(fullname, dirname);
+            strcat(fullname, "/");
+            strcat(fullname, entry->d_name);
+            remove(fullname);
+        }
+    }
+
+    rmdir(dirname);
+}
+
+void cleanup_tmp_dirs(command_t *cmd_data)
+{
+    int d;
+
+    for (d = 0; d < cmd_data->tmp_dirs->num; d++) {
+        cleanup_tmp_dir(cmd_data->tmp_dirs->vals[d]);
+    }
+}
+
+int ensure_fake_uptodate(command_t *cmd_data)
+{
+    /* FIXME: could do the stat/touch here, but nah... */
+    const char *touch_args[3];
+
+    if (cmd_data->mode == mInstall) {
+        return 0;
+    }
+    if (!cmd_data->fake_output_name) {
+        return 0;
+    }
+
+    touch_args[0] = "touch";
+    touch_args[1] = cmd_data->fake_output_name;
+    touch_args[2] = NULL;
+    return external_spawn(cmd_data, "touch", touch_args);
+}
+
+/* Store the install path in the *.la file */
+int add_for_runtime(command_t *cmd_data)
+{
+    if (cmd_data->mode == mInstall) {
+        return 0;
+    }
+    if (cmd_data->output == otDynamicLibraryOnly ||
+        cmd_data->output == otLibrary) {
+        FILE *f=fopen(cmd_data->fake_output_name,"w");
+        if (f == NULL) {
+            return -1;
+        }
+        fprintf(f,"%s\n", cmd_data->install_path);
+        fclose(f);
+        return(0);
+    } else {
+        return(ensure_fake_uptodate(cmd_data));
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    int rc;
+    command_t cmd_data;
+
+    memset(&cmd_data, 0, sizeof(cmd_data));
+
+    cmd_data.options.pic_mode = pic_UNKNOWN;
+
+    cmd_data.program_opts = (count_chars*)malloc(sizeof(count_chars));
+    init_count_chars(cmd_data.program_opts);
+    cmd_data.arglist = (count_chars*)malloc(sizeof(count_chars));
+    init_count_chars(cmd_data.arglist);
+    cmd_data.tmp_dirs = (count_chars*)malloc(sizeof(count_chars));
+    init_count_chars(cmd_data.tmp_dirs);
+    cmd_data.obj_files = (count_chars*)malloc(sizeof(count_chars));
+    init_count_chars(cmd_data.obj_files);
+    cmd_data.dep_rpaths = (count_chars*)malloc(sizeof(count_chars));
+    init_count_chars(cmd_data.dep_rpaths);
+    cmd_data.rpaths = (count_chars*)malloc(sizeof(count_chars));
+    init_count_chars(cmd_data.rpaths);
+    cmd_data.static_opts.normal = (count_chars*)malloc(sizeof(count_chars));
+    init_count_chars(cmd_data.static_opts.normal);
+    cmd_data.shared_opts.normal = (count_chars*)malloc(sizeof(count_chars));
+    init_count_chars(cmd_data.shared_opts.normal);
+    cmd_data.shared_opts.dependencies = (count_chars*)malloc(sizeof(count_chars));
+    init_count_chars(cmd_data.shared_opts.dependencies);
+
+    cmd_data.mode = mUnknown;
+    cmd_data.output = otGeneral;
+
+    parse_args(argc, argv, &cmd_data);
+    post_parse_fixup(&cmd_data);
+
+    if (cmd_data.mode == mUnknown) {
+        exit(0);
+    }
+
+    rc = run_mode(&cmd_data);
+
+    if (!rc) {
+       add_for_runtime(&cmd_data); 
+    }
+
+    cleanup_tmp_dirs(&cmd_data);
+    return rc;
+}
