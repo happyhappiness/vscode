@@ -123,4 +123,56 @@ static const char *add_opts(cmd_parms *cmd, void *d, const char *optstr)
                     return "NameWidth value must be greater than 5";
                 }
                 d_cfg->name_width = width;
-                d_cfg->name_adjust
+                d_cfg->name_adjust = K_NOADJUST;
+            }
+        }
+        else if (!strcasecmp(w, "DescriptionWidth")) {
+            if (action != '-') { 
+                return "DescriptionWidth with no value may only appear as " 
+                       "'-DescriptionWidth'"; 
+            } 
+            d_cfg->desc_width = DEFAULT_DESC_WIDTH; 
+            d_cfg->desc_adjust = K_NOADJUST; 
+        } 
+        else if (!strncasecmp(w, "DescriptionWidth=", 17)) {
+            if (action == '-') { 
+                return "Cannot combine '-' with DescriptionWidth=n"; 
+            } 
+            if (w[17] == '*') { 
+                d_cfg->desc_adjust = K_ADJUST; 
+            } 
+            else {
+                int width = atoi(&w[17]); 
+
+                if (width && (width < 12)) { 
+                    return "DescriptionWidth value must be greater than 12"; 
+                } 
+                d_cfg->desc_width = width; 
+                d_cfg->desc_adjust = K_NOADJUST; 
+            } 
+        } 
+        else {
+            return "Invalid directory indexing option";
+        }
+        if (action == '\0') {
+            opts |= option;
+            opts_add = 0;
+            opts_remove = 0;
+        }
+        else if (action == '+') {
+            opts_add |= option;
+            opts_remove &= ~option;
+        }
+        else {
+            opts_remove |= option;
+            opts_add &= ~option;
+        }
+    }
+    if ((opts & NO_OPTIONS) && (opts & ~NO_OPTIONS)) {
+        return "Cannot combine other IndexOptions keywords with 'None'";
+    }
+    d_cfg->incremented_opts = opts_add;
+    d_cfg->decremented_opts = opts_remove;
+    d_cfg->opts = opts;
+    return NULL;
+}

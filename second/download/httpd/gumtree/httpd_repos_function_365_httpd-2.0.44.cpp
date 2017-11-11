@@ -111,4 +111,76 @@ dav_get_props_result dav_get_props(dav_propdb *propdb, apr_xml_doc *doc)
 
         if (elem->ns == APR_XML_NS_NONE)
             name.ns = "";
- 
+        else
+            name.ns = APR_XML_GET_URI_ITEM(propdb->ns_xlate, elem->ns);
+        name.name = elem->name;
+
+        /* only bother to look if a database exists */
+        if (propdb->db != NULL) {
+            int found;
+
+            if ((err = (*db_hooks->output_value)(propdb->db, &name,
+                                                 xi, &hdr_good,
+                                                 &found)) != NULL) {
+                /* ### what to do? continue doesn't seem right... */
+                continue;
+            }
+
+            if (found) {
+                have_good = 1;
+
+                /* if we haven't added the db's namespaces, then do so... */
+                if (!xi_filled) {
+                    (void) (*db_hooks->define_namespaces)(propdb->db, xi);
+                    xi_filled = 1;
+                }
+                continue;
+            }
+        }
+
+        /* not found as a live OR dead property. add a record to the "bad"
+           propstats */
+
+        /* make sure we've started our "bad" propstat */
+        if (hdr_bad.first == NULL) {
+            apr_text_append(propdb->p, &hdr_bad,
+                            "<D:propstat>" DEBUG_CR
+                            "<D:prop>" DEBUG_CR);
+        }
+
+        /* output this property's name (into the bad propstats) */
+        dav_output_prop_name(propdb->p, &name, xi, &hdr_bad);
+    }
+
+    apr_text_append(propdb->p, &hdr_good,
+                    "</D:prop>" DEBUG_CR
+                    "<D:status>HTTP/1.1 200 OK</D:status>" DEBUG_CR
+                    "</D:propstat>" DEBUG_CR);
+
+    /* default to start with the good */
+    result.propstats = hdr_good.first;
+
+    /* we may not have any "bad" results */
+    if (hdr_bad.first != NULL) {
+        /* "close" the bad propstat */
+        apr_text_append(propdb->p, &hdr_bad,
+                        "</D:prop>" DEBUG_CR
+                        "<D:status>HTTP/1.1 404 Not Found</D:status>" DEBUG_CR
+                        "</D:propstat>" DEBUG_CR);
+
+        /* if there are no good props, then just return the bad */
+        if (!have_good) {
+            result.propstats = hdr_bad.first;
+        }
+        else {
+            /* hook the bad propstat to the end of the good one */
+            hdr_good.last->next = hdr_bad.first;
+        }
+    }
+
+    /* add in all the various namespaces, and return them */
+    dav_xmlns_generate(xi, &hdr_ns);
+    result.xmlns = hdr_ns.first;
+
+    return result;
+}

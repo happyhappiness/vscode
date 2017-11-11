@@ -187,3 +187,60 @@ int mod_auth_ldap_auth_checker(request_rec *r)
                     return sec->auth_authoritative? HTTP_UNAUTHORIZED : DECLINED;
                 }
             }
+            else {
+                if (req->user == NULL || strlen(req->user) == 0) {
+	            /* We weren't called in the authentication phase, so we didn't have a 
+                     * chance to set the user field. Do so now. */
+                    req->user = r->user;
+                }
+            }
+
+            ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                          "[%d] auth_ldap authorise: require group: testing for group membership in `%s'", 
+		          getpid(), t);
+
+            for (i = 0; i < sec->groupattr->nelts; i++) {
+	        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                              "[%d] auth_ldap authorise: require group: testing for %s: %s (%s)", getpid(),
+                              ent[i].name, sec->group_attrib_is_dn ? req->dn : req->user, t);
+
+                result = util_ldap_cache_compare(r, ldc, sec->url, t, ent[i].name, 
+                                     sec->group_attrib_is_dn ? req->dn : req->user);
+                switch(result) {
+                    case LDAP_COMPARE_TRUE: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: require group: "
+                                      "authorisation successful (attribute %s) [%s][%s]",
+                                      getpid(), ent[i].name, ldc->reason, ldap_err2string(result));
+                        return OK;
+                    }
+                    default: {
+                        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                                      "[%d] auth_ldap authorise: require group: "
+                                      "authorisation failed [%s][%s]",
+                                      getpid(), ldc->reason, ldap_err2string(result));
+                    }
+                }
+            }
+        }
+    }
+
+    if (!method_restricted) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: agreeing because non-restricted", 
+                      getpid());
+        return OK;
+    }
+
+    if (!sec->auth_authoritative) {
+        ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                      "[%d] auth_ldap authorise: declining to authorise", getpid());
+        return DECLINED;
+    }
+
+    ap_log_rerror(APLOG_MARK, APLOG_DEBUG|APLOG_NOERRNO, 0, r, 
+                  "[%d] auth_ldap authorise: authorisation denied", getpid());
+    ap_note_basic_auth_failure (r);
+
+    return HTTP_UNAUTHORIZED;
+}

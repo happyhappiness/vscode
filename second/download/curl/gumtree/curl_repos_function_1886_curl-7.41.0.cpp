@@ -530,4 +530,11 @@ CURLcode Curl_SOCKS5_gssapi_negotiate(int sockindex,
   /* For later use if encryption is required
      conn->socks5_gssapi_enctype = socksreq[0];
      if(socksreq[0] != 0)
-       conn->socks5_sspi_context =
+       conn->socks5_sspi_context = sspi_context;
+     else {
+       s_pSecFn->DeleteSecurityContext(&sspi_context);
+       conn->socks5_sspi_context = sspi_context;
+     }
+  */
+  return CURLE_OK;
+}

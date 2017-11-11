@@ -414,4 +414,85 @@ static CURLcode Curl_ldap(struct connectdata *conn, bool *done)
             }
           }
           else {
-            result = Curl_client_write(conn, CLIENTWRITE_BOD
+            result = Curl_client_write(conn, CLIENTWRITE_BODY, vals[i]->bv_val,
+                                       vals[i]->bv_len);
+            if(result) {
+              ldap_value_free_len(vals);
+#if defined(USE_WIN32_LDAP)
+              Curl_unicodefree(attr);
+#endif
+              ldap_memfree(attribute);
+              if(ber)
+                ber_free(ber, 0);
+
+              goto quit;
+            }
+
+            dlsize += vals[i]->bv_len;
+          }
+
+          result = Curl_client_write(conn, CLIENTWRITE_BODY, (char *)"\n", 1);
+          if(result) {
+            ldap_value_free_len(vals);
+#if defined(USE_WIN32_LDAP)
+            Curl_unicodefree(attr);
+#endif
+            ldap_memfree(attribute);
+            if(ber)
+              ber_free(ber, 0);
+
+            goto quit;
+          }
+
+          dlsize++;
+        }
+
+        /* Free memory used to store values */
+        ldap_value_free_len(vals);
+      }
+
+      /* Free the attribute as we are done with it */
+#if defined(USE_WIN32_LDAP)
+      Curl_unicodefree(attr);
+#endif
+      ldap_memfree(attribute);
+
+      result = Curl_client_write(conn, CLIENTWRITE_BODY, (char *)"\n", 1);
+      if(result)
+        goto quit;
+      dlsize++;
+      Curl_pgrsSetDownloadCounter(data, dlsize);
+    }
+
+    if(ber)
+       ber_free(ber, 0);
+  }
+
+quit:
+  if(ldapmsg) {
+    ldap_msgfree(ldapmsg);
+    LDAP_TRACE (("Received %d entries\n", num));
+  }
+  if(rc == LDAP_SIZELIMIT_EXCEEDED)
+    infof(data, "There are more than %d entries\n", num);
+  if(ludp)
+    ldap_free_urldesc(ludp);
+  if(server)
+    ldap_unbind_s(server);
+#if defined(HAVE_LDAP_SSL) && defined(CURL_HAS_NOVELL_LDAPSDK)
+  if(ldap_ssl)
+    ldapssl_client_deinit();
+#endif /* HAVE_LDAP_SSL && CURL_HAS_NOVELL_LDAPSDK */
+
+#if defined(USE_WIN32_LDAP)
+  Curl_unicodefree(passwd);
+  Curl_unicodefree(user);
+  Curl_unicodefree(host);
+#endif
+
+  /* no data to transfer */
+  Curl_setup_transfer(conn, -1, -1, FALSE, NULL, -1, NULL);
+  connclose(conn, "LDAP connection always disable re-use");
+
+  return result;
+}

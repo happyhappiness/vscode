@@ -122,4 +122,21 @@ static void log_error_core(const char *file, int line, int level,
                             ", referer: %s", referer);
     }
 
-    /* NU
+    /* NULL if we are logging to syslog */
+    if (logf) {
+        /* Truncate for the terminator (as apr_snprintf does) */
+        if (len > MAX_STRING_LEN - sizeof(APR_EOL_STR)) {
+            len = MAX_STRING_LEN - sizeof(APR_EOL_STR);
+        }
+        strcpy(errstr + len, APR_EOL_STR);
+        apr_file_puts(errstr, logf);
+        apr_file_flush(logf);
+    }
+#ifdef HAVE_SYSLOG
+    else {
+        syslog(level_and_mask, "%s", errstr);
+    }
+#endif
+
+    ap_run_error_log(file, line, level, status, s, r, pool, errstr + errstrlen);
+}
