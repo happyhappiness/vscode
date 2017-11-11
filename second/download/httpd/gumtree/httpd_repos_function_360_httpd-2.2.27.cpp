@@ -104,4 +104,57 @@ static int dav_method_lock(request_rec *r)
         if ((err = (*locks_hooks->refresh_locks)(lockdb, resource, ltl,
                                                  dav_get_timeout(r),
                                                  &lock)) != NULL) {
-            /* ### add a 
+            /* ### add a higher-level description to err? */
+            goto error;
+        }
+    } else {
+        /* New lock request */
+        char *locktoken_txt;
+        dav_dir_conf *conf;
+
+        conf = (dav_dir_conf *)ap_get_module_config(r->per_dir_config,
+                                                    &dav_module);
+
+        /* apply lower bound (if any) from DAVMinTimeout directive */
+        if (lock->timeout != DAV_TIMEOUT_INFINITE
+            && lock->timeout < time(NULL) + conf->locktimeout)
+            lock->timeout = time(NULL) + conf->locktimeout;
+
+        err = dav_add_lock(r, resource, lockdb, lock, &multi_response);
+        if (err != NULL) {
+            /* ### add a higher-level description to err? */
+            goto error;
+        }
+
+        locktoken_txt = apr_pstrcat(r->pool, "<",
+                                    (*locks_hooks->format_locktoken)(r->pool,
+                                        lock->locktoken),
+                                    ">", NULL);
+
+        apr_table_set(r->headers_out, "Lock-Token", locktoken_txt);
+    }
+
+    (*locks_hooks->close_lockdb)(lockdb);
+
+    r->status = HTTP_OK;
+    ap_set_content_type(r, DAV_XML_CONTENT_TYPE);
+
+    ap_rputs(DAV_XML_HEADER DEBUG_CR "<D:prop xmlns:D=\"DAV:\">" DEBUG_CR, r);
+    if (lock == NULL)
+        ap_rputs("<D:lockdiscovery/>" DEBUG_CR, r);
+    else {
+        ap_rprintf(r,
+                   "<D:lockdiscovery>" DEBUG_CR
+                   "%s" DEBUG_CR
+                   "</D:lockdiscovery>" DEBUG_CR,
+                   dav_lock_get_activelock(r, lock, NULL));
+    }
+    ap_rputs("</D:prop>", r);
+
+    /* the response has been sent. */
+    return DONE;
+
+  error:
+    (*locks_hooks->close_lockdb)(lockdb);
+    return dav_handle_err(r, err, multi_response);
+}

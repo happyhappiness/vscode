@@ -90,4 +90,106 @@ static int display_info(request_rec *r)
                     }
                 }
                 else {
-      
+                    ap_rputs("<tt> <em>none</em></tt>", r);
+                }
+#else
+                if (module_find_hook(modp, ap_hook_get_handler)) {
+                    ap_rputs("<tt> <em>yes</em></tt>", r);
+                }
+                else {
+                    ap_rputs("<tt> <em>none</em></tt>", r);
+                }
+#endif
+                ap_rputs("</dt>", r);
+                ap_rputs("<dt><strong>Configuration Phase Participation:</strong>\n",
+                      r);
+                if (modp->create_dir_config) {
+                    if (comma) {
+                        ap_rputs(", ", r);
+                    }
+                    ap_rputs("<tt>Create Directory Config</tt>", r);
+                    comma = 1;
+                }
+                if (modp->merge_dir_config) {
+                    if (comma) {
+                        ap_rputs(", ", r);
+                    }
+                    ap_rputs("<tt>Merge Directory Configs</tt>", r);
+                    comma = 1;
+                }
+                if (modp->create_server_config) {
+                    if (comma) {
+                        ap_rputs(", ", r);
+                    }
+                    ap_rputs("<tt>Create Server Config</tt>", r);
+                    comma = 1;
+                }
+                if (modp->merge_server_config) {
+                    if (comma) {
+                        ap_rputs(", ", r);
+                    }
+                    ap_rputs("<tt>Merge Server Configs</tt>", r);
+                    comma = 1;
+                }
+                if (!comma)
+                    ap_rputs("<tt> <em>none</em></tt>", r);
+                comma = 0;
+                ap_rputs("</dt>", r);
+
+                module_request_hook_participate(r, modp);
+
+                cmd = modp->cmds;
+                if (cmd) {
+                    ap_rputs("<dt><strong>Module Directives:</strong></dt>", r);
+                    while (cmd) {
+                        if (cmd->name) {
+                            ap_rputs("<dd><tt>", r);
+                            mod_info_html_cmd_string(r, cmd->name, 0);
+                            ap_rputs(" - <i>", r);
+                            if (cmd->errmsg) {
+                                ap_rputs(cmd->errmsg, r);
+                            }
+                            ap_rputs("</i></tt></dd>\n", r);
+                        }
+                        else {
+                            break;
+                        }
+                        cmd++;
+                    }
+                    ap_rputs("<dt><strong>Current Configuration:</strong></dt>\n", r);
+                    mod_info_module_cmds(r, modp->cmds, ap_conftree);
+                }
+                else {
+                    ap_rputs("<dt><strong>Module Directives:</strong> <tt>none</tt></dt>", r);
+                }
+                more_info = find_more_info(serv, modp->name);
+                if (more_info) {
+                    ap_rputs("<dt><strong>Additional Information:</strong>\n</dt><dd>",
+                          r);
+                    ap_rputs(more_info, r);
+                    ap_rputs("</dd>", r);
+                }
+                ap_rputs("</dl><hr />\n", r);
+                if (r->args) {
+                    break;
+                }
+            }
+        }
+        if (!modp && r->args && strcasecmp(r->args, "server")) {
+            ap_rputs("<p><b>No such module</b></p>\n", r);
+        }
+    }
+    else {
+        ap_rputs("<dl><dt>Server Module List</dt>", r);
+        for (modp = ap_top_module; modp; modp = modp->next) {
+            ap_rputs("<dd>", r);
+            ap_rputs(modp->name, r);
+            ap_rputs("</dd>", r);
+        }
+        ap_rputs("</dl><hr />", r);
+    }
+    ap_rputs(ap_psignature("",r), r);
+    ap_rputs("</body></html>\n", r);
+    /* Done, turn off timeout, close file and return */
+    return 0;
+}

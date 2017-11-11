@@ -107,4 +107,28 @@ start_over:
             if (   (compare_nodep == NULL)
                 || (strcmp(the_compare_node.dn, compare_nodep->dn) != 0)
                 || (strcmp(the_compare_node.attrib,compare_nodep->attrib) != 0)
-                || (st
+                || (strcmp(the_compare_node.value, compare_nodep->value) != 0))
+            {
+                util_ald_cache_insert(curl->compare_cache, &the_compare_node);
+            }
+            else {
+                compare_nodep->lastcompare = curtime;
+                compare_nodep->result = result;
+            }
+            LDAP_CACHE_UNLOCK();
+        }
+        if (LDAP_COMPARE_TRUE == result) {
+            ldc->reason = "Comparison true (adding to cache)";
+            return LDAP_COMPARE_TRUE;
+        }
+        else if (LDAP_COMPARE_FALSE == result) {
+            ldc->reason = "Comparison false (adding to cache)";
+            return LDAP_COMPARE_FALSE;
+        }
+        else {
+            ldc->reason = "Comparison no such attribute (adding to cache)";
+            return LDAP_NO_SUCH_ATTRIBUTE;
+        }
+    }
+    return result;
+}

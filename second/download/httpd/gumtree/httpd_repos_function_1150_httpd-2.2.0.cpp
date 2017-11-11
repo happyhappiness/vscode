@@ -213,4 +213,72 @@ static int hook_fixup(request_rec *r)
             /* the filename must be either an absolute local path or an
              * absolute local URL.
              */
-            
+            if (   *r->filename != '/'
+                && !ap_os_is_path_absolute(r->pool, r->filename)) {
+                return HTTP_BAD_REQUEST;
+            }
+
+            /* Check for deadlooping:
+             * At this point we KNOW that at least one rewriting
+             * rule was applied, but when the resulting URL is
+             * the same as the initial URL, we are not allowed to
+             * use the following internal redirection stuff because
+             * this would lead to a deadloop.
+             */
+            if (ofilename != NULL && strcmp(r->filename, ofilename) == 0) {
+                rewritelog((r, 1, dconf->directory, "initial URL equal rewritten"
+                            " URL: %s [IGNORING REWRITE]", r->filename));
+                return OK;
+            }
+
+            /* if there is a valid base-URL then substitute
+             * the per-dir prefix with this base-URL if the
+             * current filename still is inside this per-dir
+             * context. If not then treat the result as a
+             * plain URL
+             */
+            if (dconf->baseurl != NULL) {
+                rewritelog((r, 2, dconf->directory, "trying to replace prefix "
+                            "%s with %s", dconf->directory, dconf->baseurl));
+
+                r->filename = subst_prefix_path(r, r->filename,
+                                                dconf->directory,
+                                                dconf->baseurl);
+            }
+            else {
+                /* if no explicit base-URL exists we assume
+                 * that the directory prefix is also a valid URL
+                 * for this webserver and only try to remove the
+                 * document_root if it is prefix
+                 */
+                if ((ccp = ap_document_root(r)) != NULL) {
+                    /* strip trailing slash */
+                    l = strlen(ccp);
+                    if (ccp[l-1] == '/') {
+                        --l;
+                    }
+                    if (!strncmp(r->filename, ccp, l) &&
+                        r->filename[l] == '/') {
+                        rewritelog((r, 2,dconf->directory, "strip document_root"
+                                    " prefix: %s -> %s", r->filename,
+                                    r->filename+l));
+
+                        r->filename = apr_pstrdup(r->pool, r->filename+l);
+                    }
+                }
+            }
+
+            /* now initiate the internal redirect */
+            rewritelog((r, 1, dconf->directory, "internal redirect with %s "
+                        "[INTERNAL REDIRECT]", r->filename));
+            r->filename = apr_pstrcat(r->pool, "redirect:", r->filename, NULL);
+            r->handler = "redirect-handler";
+            return OK;
+        }
+    }
+    else {
+        rewritelog((r, 1, dconf->directory, "pass through %s", r->filename));
+        r->filename = ofilename;
+        return DECLINED;
+    }
+}

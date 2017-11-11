@@ -190,4 +190,65 @@ static void option_set_cert(apr_pool_t *pool, LDAP *ldap,
         switch (ents[i].type) {
         case APR_LDAP_CA_TYPE_BASE64:
             result->rc = ldap_set_option(ldap, LDAP_OPT_X_TLS_CACERTFILE,
-             
+                                         (void *)ents[i].path);
+            result->msg = ldap_err2string(result->rc);
+            break;
+        case APR_LDAP_CERT_TYPE_BASE64:
+            result->rc = ldap_set_option(ldap, LDAP_OPT_X_TLS_CERTFILE,
+                                         (void *)ents[i].path);
+            result->msg = ldap_err2string(result->rc);
+            break;
+        case APR_LDAP_KEY_TYPE_BASE64:
+            result->rc = ldap_set_option(ldap, LDAP_OPT_X_TLS_KEYFILE,
+                                         (void *)ents[i].path);
+            result->msg = ldap_err2string(result->rc);
+            break;
+#ifdef LDAP_OPT_X_TLS_CACERTDIR
+        case APR_LDAP_CA_TYPE_CACERTDIR_BASE64:
+            result->rc = ldap_set_option(ldap, LDAP_OPT_X_TLS_CACERTDIR,
+                                         (void *)ents[i].path);
+            result->msg = ldap_err2string(result->rc);
+            break;
+#endif
+        default:
+            result->rc = -1;
+            result->reason = "LDAP: The OpenLDAP SDK only understands the "
+                "PEM (BASE64) file type.";
+            break;
+        }
+        if (result->rc != LDAP_SUCCESS) {
+            break;
+        }
+    }
+#else
+    result->reason = "LDAP: LDAP_OPT_X_TLS_CACERTFILE not "
+                     "defined by this OpenLDAP SDK. Certificate "
+                     "authority file not set";
+    result->rc = -1;
+#endif
+#endif
+
+    /* Microsoft SDK */
+#if APR_HAS_MICROSOFT_LDAPSDK
+    /* Microsoft SDK use the registry certificate store - error out
+     * here with a message explaining this. */
+    result->reason = "LDAP: CA certificates cannot be set using this method, "
+                     "as they are stored in the registry instead.";
+    result->rc = -1;
+#endif
+
+    /* SDK not recognised */
+#if APR_HAS_OTHER_LDAPSDK
+    result->reason = "LDAP: LDAP_OPT_X_TLS_CACERTFILE not "
+                     "defined by this LDAP SDK. Certificate "
+                     "authority file not set";
+    result->rc = -1;
+#endif
+
+#else  /* not compiled with SSL Support */
+    result->reason = "LDAP: Attempt to set certificate(s) failed. "
+                     "Not built with SSL support";
+    result->rc = -1;
+#endif /* APR_HAS_LDAP_SSL */
+
+}

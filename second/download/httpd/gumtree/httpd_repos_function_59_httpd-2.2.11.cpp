@@ -136,4 +136,99 @@ int main (int argc, const char * const argv[])
                 apr_strftime(buf2, &rs, sizeof(buf2), szLogRoot, &e);
             }
             else {
-                sprintf(buf2, "%s.%010d", szLo
+                sprintf(buf2, "%s.%010d", szLogRoot, tLogStart);
+            }
+            tLogEnd = tLogStart + tRotation;
+            pfile_prev = pfile;
+            apr_pool_create(&pfile, pool);
+            rv = apr_file_open(&nLogFD, buf2, APR_WRITE | APR_CREATE | APR_APPEND,
+                               APR_OS_DEFAULT, pfile);
+            if (rv != APR_SUCCESS) {
+                char error[120];
+
+                apr_strerror(rv, error, sizeof error);
+
+                /* Uh-oh. Failed to open the new log file. Try to clear
+                 * the previous log file, note the lost log entries,
+                 * and keep on truckin'. */
+                if (nLogFDprev == NULL) {
+                    fprintf(stderr, "Could not open log file '%s' (%s)\n", buf2, error);
+                    exit(2);
+                }
+                else {
+                    nLogFD = nLogFDprev;
+                    apr_pool_destroy(pfile);
+                    pfile = pfile_prev;
+                    /* Try to keep this error message constant length
+                     * in case it occurs several times. */
+                    apr_snprintf(errbuf, sizeof errbuf,
+                                 "Resetting log file due to error opening "
+                                 "new log file, %10d messages lost: %-25.25s\n",
+                                 nMessCount, error);
+                    nWrite = strlen(errbuf);
+                    apr_file_trunc(nLogFD, 0);
+                    if (apr_file_write(nLogFD, errbuf, &nWrite) != APR_SUCCESS) {
+                        fprintf(stderr, "Error writing to the file %s\n", buf2);
+                        exit(2);
+                    }
+                }
+            }
+            else if (nLogFDprev) {
+                apr_file_close(nLogFDprev);
+                if (pfile_prev) {
+                    apr_pool_destroy(pfile_prev);
+                }
+            }
+            nMessCount = 0;
+        }
+        /*
+         * If we just bypassed reading stdin, due to bypass_io,
+         * then we have nothing to write, so skip this.
+         */
+        if (!bypass_io) {
+            nWrite = nRead;
+            rv = apr_file_write(nLogFD, buf, &nWrite);
+            if (rv == APR_SUCCESS && nWrite != nRead) {
+                /* buffer partially written, which for rotatelogs means we encountered
+                 * an error such as out of space or quota or some other limit reached;
+                 * try to write the rest so we get the real error code
+                 */
+                apr_size_t nWritten = nWrite;
+
+                nRead  = nRead - nWritten;
+                nWrite = nRead;
+                rv = apr_file_write(nLogFD, buf + nWritten, &nWrite);
+            }
+            if (nWrite != nRead) {
+                char strerrbuf[120];
+                apr_off_t cur_offset;
+                
+                cur_offset = 0;
+                if (apr_file_seek(nLogFD, APR_CUR, &cur_offset) != APR_SUCCESS) {
+                    cur_offset = -1;
+                }
+                apr_strerror(rv, strerrbuf, sizeof strerrbuf);
+                nMessCount++;
+                apr_snprintf(errbuf, sizeof errbuf,
+                             "Error %d writing to log file at offset %" APR_OFF_T_FMT ". "
+                             "%10d messages lost (%s)\n",
+                             rv, cur_offset, nMessCount, strerrbuf);
+                nWrite = strlen(errbuf);
+                apr_file_trunc(nLogFD, 0);
+                if (apr_file_write(nLogFD, errbuf, &nWrite) != APR_SUCCESS) {
+                    fprintf(stderr, "Error writing to the file %s\n", buf2);
+                exit(2);
+                }
+            }
+            else {
+                nMessCount++;
+            }
+        }
+        else {
+           /* now worry about reading 'n writing all the time */
+           bypass_io = 0;
+        }
+    }
+    /* Of course we never, but prevent compiler warnings */
+    return 0;
+}

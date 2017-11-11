@@ -108,4 +108,100 @@ static int cache_url_handler(request_rec *r, int lookup)
                     r->headers_in = cache->stale_headers;
                 }
 
-                /* Delete our per-request configuration. *
+                /* Delete our per-request configuration. */
+                ap_set_module_config(r->request_config, &cache_module, NULL);
+            }
+        }
+        else {
+            /* error */
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while checking for cached "
+                         "file by %s cache", cache->provider_name);
+        }
+        return DECLINED;
+    }
+
+    /* if we are a lookup, we are exiting soon one way or another; Restore
+     * the headers. */
+    if (lookup) {
+        if (cache->stale_headers) {
+            ap_log_error(APLOG_MARK, APLOG_DEBUG, APR_SUCCESS, r->server,
+                         "Restoring request headers.");
+            r->headers_in = cache->stale_headers;
+        }
+
+        /* Delete our per-request configuration. */
+        ap_set_module_config(r->request_config, &cache_module, NULL);
+    }
+
+    rv = ap_meets_conditions(r);
+    if (rv != OK) {
+        /* If we are a lookup, we have to return DECLINED as we have no
+         * way of knowing if we will be able to serve the content.
+         */
+        if (lookup) {
+            return DECLINED;
+        }
+
+        /* Return cached status. */
+        return rv;
+    }
+
+    /* If we're a lookup, we can exit now instead of serving the content. */
+    if (lookup) {
+        return OK;
+    }
+
+    /* Serve up the content */
+
+    /* We are in the quick handler hook, which means that no output
+     * filters have been set. So lets run the insert_filter hook.
+     */
+    ap_run_insert_filter(r);
+
+    /*
+     * Add cache_out filter to serve this request. Choose
+     * the correct filter by checking if we are a subrequest
+     * or not.
+     */
+    if (r->main) {
+        cache_out_handle = cache_out_subreq_filter_handle;
+    }
+    else {
+        cache_out_handle = cache_out_filter_handle;
+    }
+    ap_add_output_filter_handle(cache_out_handle, NULL, r, r->connection);
+
+    /*
+     * Remove all filters that are before the cache_out filter. This ensures
+     * that we kick off the filter stack with our cache_out filter being the
+     * first in the chain. This make sense because we want to restore things
+     * in the same manner as we saved them.
+     * There may be filters before our cache_out filter, because
+     *
+     * 1. We call ap_set_content_type during cache_select. This causes
+     *    Content-Type specific filters to be added.
+     * 2. We call the insert_filter hook. This causes filters e.g. like
+     *    the ones set with SetOutputFilter to be added.
+     */
+    next = r->output_filters;
+    while (next && (next->frec != cache_out_handle)) {
+        ap_remove_output_filter(next);
+        next = next->next;
+    }
+
+    /* kick off the filter stack */
+    out = apr_brigade_create(r->pool, r->connection->bucket_alloc);
+    rv = ap_pass_brigade(r->output_filters, out);
+    if (rv != APR_SUCCESS) {
+        if (rv != AP_FILTER_ERROR) {
+            ap_log_error(APLOG_MARK, APLOG_ERR, rv, r->server,
+                         "cache: error returned while trying to return %s "
+                         "cached data",
+                         cache->provider_name);
+        }
+        return rv;
+    }
+
+    return OK;
+}

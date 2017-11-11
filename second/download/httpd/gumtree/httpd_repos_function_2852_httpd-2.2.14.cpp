@@ -95,4 +95,54 @@ static int outputParams(apr_dbd_t *sql, apr_dbd_prepared_t *stmt)
             stmt->out[i].buf.raw = apr_palloc(stmt->pool, stmt->out[i].sz);
             sql->status = OCIDefineByPos(stmt->stmt, &stmt->out[i].defn,
                                          sql->err, i+1,
-                                         stmt->out[i].buf
+                                         stmt->out[i].buf.sval,
+                                         stmt->out[i].sz, SQLT_STR,
+                                         &stmt->out[i].ind, &stmt->out[i].len,
+                                         0, OCI_DEFAULT);
+            break;
+        case SQLT_LNG: /* 8: long */
+            stmt->out[i].sz = sql->long_size * 4 + 4; /* ugh, UCS-4 handling */
+            stmt->out[i].buf.raw = apr_palloc(stmt->pool, stmt->out[i].sz);
+            sql->status = OCIDefineByPos(stmt->stmt, &stmt->out[i].defn,
+                                         sql->err, i+1,
+                                         stmt->out[i].buf.raw,
+                                         stmt->out[i].sz, SQLT_LVC,
+                                         &stmt->out[i].ind, NULL,
+                                         0, OCI_DEFAULT);
+            break;
+        case SQLT_LBI: /* 24: long binary, perhaps UTF-16? */
+            stmt->out[i].sz = sql->long_size * 2 + 4; /* room for int prefix */
+            stmt->out[i].buf.raw = apr_palloc(stmt->pool, stmt->out[i].sz);
+            sql->status = OCIDefineByPos(stmt->stmt, &stmt->out[i].defn,
+                                         sql->err, i+1,
+                                         stmt->out[i].buf.raw,
+                                         stmt->out[i].sz, SQLT_LVB,
+                                         &stmt->out[i].ind, NULL,
+                                         0, OCI_DEFAULT);
+            break;
+        case SQLT_BLOB: /* 113 */
+        case SQLT_CLOB: /* 112 */
+/*http://download-west.oracle.com/docs/cd/B10501_01/appdev.920/a96584/oci05bnd.htm#434937*/
+            sql->status = OCIDescriptorAlloc(dbd_oracle_env,
+                                             (dvoid**)&stmt->out[i].buf.lobval,
+                                             OCI_DTYPE_LOB, 0, NULL);
+            apr_pool_cleanup_register(stmt->pool, stmt->out[i].buf.lobval,
+                                      dbd_free_lobdesc,
+                                      apr_pool_cleanup_null);
+            sql->status = OCIDefineByPos(stmt->stmt, &stmt->out[i].defn,
+                                         sql->err, i+1,
+                                         (dvoid*) &stmt->out[i].buf.lobval,
+                                         -1, stmt->out[i].type,
+                                         &stmt->out[i].ind, &stmt->out[i].len,
+                                         0, OCI_DEFAULT);
+            break;
+        }
+        switch (sql->status) {
+        case OCI_SUCCESS:
+            break;
+        default:
+            return 1;
+        }
+    }
+    return 0;
+}

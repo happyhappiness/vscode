@@ -210,4 +210,14 @@ static void child_main(int child_num_arg)
                  ap_scoreboard_image->global->running_generation) { /* restart? */
             /* yeah, this could be non-graceful restart, in which case the
              * parent will kill us soon enough, but why bother checking?
-          
+             */
+            die_now = 1;
+        }
+    }
+    /* This apr_pool_clear call is redundant, should be redundant, but compensates
+     * a flaw in the apr reslist code.  This should be removed once that flaw has
+     * been addressed.
+     */
+    apr_pool_clear(ptrans);
+    clean_child_exit(0);
+}

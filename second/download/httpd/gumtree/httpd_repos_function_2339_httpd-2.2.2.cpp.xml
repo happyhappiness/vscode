@@ -107,5 +107,10 @@
             }<pos:position pos:line="106" pos:column="14"/></block></then>
             <elseif pos:line="107" pos:column="13">else <if pos:line="107" pos:column="18">if <condition pos:line="107" pos:column="21">(<expr><name pos:line="107" pos:column="22">idle_spawn_rate<pos:position pos:line="107" pos:column="37"/></name> <operator pos:line="107" pos:column="38">&lt;<pos:position pos:line="107" pos:column="42"/></operator> <name pos:line="107" pos:column="40">MAX_SPAWN_RATE<pos:position pos:line="107" pos:column="54"/></name></expr>)<pos:position pos:line="107" pos:column="55"/></condition><then pos:line="107" pos:column="55"> <block pos:line="107" pos:column="56">{
                 <expr_stmt><expr><name pos:line="108" pos:column="17">idle_spawn_rate<pos:position pos:line="108" pos:column="32"/></name> <operator pos:line="108" pos:column="33">*=<pos:position pos:line="108" pos:column="35"/></operator> <literal type="number" pos:line="108" pos:column="36">2<pos:position pos:line="108" pos:column="37"/></literal></expr>;<pos:position pos:line="108" pos:column="38"/></expr_stmt>
-            }<pos:position pos:line="109" pos:column="14"/></block></then></if></elseif></if></block></else></if></block></then></if></elseif></if></block></function>
- </unit>
+            }<pos:position pos:line="109" pos:column="14"/></block></then></if></elseif></if>
+        }<pos:position pos:line="110" pos:column="10"/></block></else></if>
+    }<pos:position pos:line="111" pos:column="6"/></block></then></if></elseif>
+    <else pos:line="112" pos:column="5">else <block pos:line="112" pos:column="10">{
+        <expr_stmt><expr><name pos:line="113" pos:column="9">idle_spawn_rate<pos:position pos:line="113" pos:column="24"/></name> <operator pos:line="113" pos:column="25">=<pos:position pos:line="113" pos:column="26"/></operator> <literal type="number" pos:line="113" pos:column="27">1<pos:position pos:line="113" pos:column="28"/></literal></expr>;<pos:position pos:line="113" pos:column="29"/></expr_stmt>
+    }<pos:position pos:line="114" pos:column="6"/></block></else></if>
+}<pos:position pos:line="115" pos:column="2"/></block></function></unit>

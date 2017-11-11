@@ -106,4 +106,10 @@ static apr_status_t sed_response_filter(ap_filter_t *f,
         clear_ctxpool(ctx);
         return status;
     }
-    if (!APR_BRIGADE_EMPTY(ctx->
+    if (!APR_BRIGADE_EMPTY(ctx->bb)) {
+        status = ap_pass_brigade(f->next, ctx->bb);
+        apr_brigade_cleanup(ctx->bb);
+    }
+    clear_ctxpool(ctx);
+    return status;
+}

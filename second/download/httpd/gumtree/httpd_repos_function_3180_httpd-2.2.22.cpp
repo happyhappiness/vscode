@@ -115,4 +115,33 @@ appendAttributeValue(XML_Parser parser, const ENCODING *enc, XML_Bool isCdata,
         }
         if (entity->notation) {
           if (enc == encoding)
-            eventPtr
+            eventPtr = ptr;
+          return XML_ERROR_BINARY_ENTITY_REF;
+        }
+        if (!entity->textPtr) {
+          if (enc == encoding)
+            eventPtr = ptr;
+              return XML_ERROR_ATTRIBUTE_EXTERNAL_ENTITY_REF;
+        }
+        else {
+          enum XML_Error result;
+          const XML_Char *textEnd = entity->textPtr + entity->textLen;
+          entity->open = XML_TRUE;
+          result = appendAttributeValue(parser, internalEncoding, isCdata,
+                                        (char *)entity->textPtr,
+                                        (char *)textEnd, pool);
+          entity->open = XML_FALSE;
+          if (result)
+            return result;
+        }
+      }
+      break;
+    default:
+      if (enc == encoding)
+        eventPtr = ptr;
+      return XML_ERROR_UNEXPECTED_STATE;
+    }
+    ptr = next;
+  }
+  /* not reached */
+}

@@ -114,4 +114,32 @@ static int util_ldap_post_config(apr_pool_t *p, apr_pool_t *plog,
                               util_ldap_cleanup_module);
 
     /*
-     * Initialize SSL support, and log the result for the benefi
+     * Initialize SSL support, and log the result for the benefit of the admin.
+     *
+     * If SSL is not supported it is not necessarily an error, as the
+     * application may not want to use it.
+     */
+    rc = apr_ldap_ssl_init(p,
+                      NULL,
+                      0,
+                      &(result_err));
+    if (APR_SUCCESS == rc) {
+        rc = apr_ldap_set_option(ptemp, NULL, APR_LDAP_OPT_TLS_CERT,
+                                 (void *)st->global_certs, &(result_err));
+    }
+
+    if (APR_SUCCESS == rc) {
+        st->ssl_supported = 1;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "LDAP: SSL support available" );
+    }
+    else {
+        st->ssl_supported = 0;
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s,
+                     "LDAP: SSL support unavailable%s%s",
+                     result_err ? ": " : "",
+                     result_err ? result_err->reason : "");
+    }
+
+    return(OK);
+}
