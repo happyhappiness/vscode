@@ -136,4 +136,135 @@ static int write_zip_entry(struct archiver_args *args,
 		copy_le64(extra64.size, size);
 		copy_le64(extra64.compressed_size, compressed_size);
 		write_or_die(1, &extra64, ZIP64_EXTRA_SIZE);
-		zip_offset += ZIP64_EXTRA_SIZ
+		zip_offset += ZIP64_EXTRA_SIZE;
+	}
+
+	if (stream && method == 0) {
+		unsigned char buf[STREAM_BUFFER_SIZE];
+		ssize_t readlen;
+
+		for (;;) {
+			readlen = read_istream(stream, buf, sizeof(buf));
+			if (readlen <= 0)
+				break;
+			crc = crc32(crc, buf, readlen);
+			if (is_binary == -1)
+				is_binary = entry_is_binary(path_without_prefix,
+							    buf, readlen);
+			write_or_die(1, buf, readlen);
+		}
+		close_istream(stream);
+		if (readlen)
+			return readlen;
+
+		compressed_size = size;
+		zip_offset += compressed_size;
+
+		write_zip_data_desc(size, compressed_size, crc);
+	} else if (stream && method == 8) {
+		unsigned char buf[STREAM_BUFFER_SIZE];
+		ssize_t readlen;
+		git_zstream zstream;
+		int result;
+		size_t out_len;
+		unsigned char compressed[STREAM_BUFFER_SIZE * 2];
+
+		git_deflate_init_raw(&zstream, args->compression_level);
+
+		compressed_size = 0;
+		zstream.next_out = compressed;
+		zstream.avail_out = sizeof(compressed);
+
+		for (;;) {
+			readlen = read_istream(stream, buf, sizeof(buf));
+			if (readlen <= 0)
+				break;
+			crc = crc32(crc, buf, readlen);
+			if (is_binary == -1)
+				is_binary = entry_is_binary(path_without_prefix,
+							    buf, readlen);
+
+			zstream.next_in = buf;
+			zstream.avail_in = readlen;
+			result = git_deflate(&zstream, 0);
+			if (result != Z_OK)
+				die("deflate error (%d)", result);
+			out_len = zstream.next_out - compressed;
+
+			if (out_len > 0) {
+				write_or_die(1, compressed, out_len);
+				compressed_size += out_len;
+				zstream.next_out = compressed;
+				zstream.avail_out = sizeof(compressed);
+			}
+
+		}
+		close_istream(stream);
+		if (readlen)
+			return readlen;
+
+		zstream.next_in = buf;
+		zstream.avail_in = 0;
+		result = git_deflate(&zstream, Z_FINISH);
+		if (result != Z_STREAM_END)
+			die("deflate error (%d)", result);
+
+		git_deflate_end(&zstream);
+		out_len = zstream.next_out - compressed;
+		write_or_die(1, compressed, out_len);
+		compressed_size += out_len;
+		zip_offset += compressed_size;
+
+		write_zip_data_desc(size, compressed_size, crc);
+	} else if (compressed_size > 0) {
+		write_or_die(1, out, compressed_size);
+		zip_offset += compressed_size;
+	}
+
+	free(deflated);
+	free(buffer);
+
+	if (compressed_size > 0xffffffff || size > 0xffffffff ||
+	    offset > 0xffffffff) {
+		if (compressed_size >= 0xffffffff)
+			zip64_dir_extra_payload_size += 8;
+		if (size >= 0xffffffff)
+			zip64_dir_extra_payload_size += 8;
+		if (offset >= 0xffffffff)
+			zip64_dir_extra_payload_size += 8;
+		zip_dir_extra_size += 2 + 2 + zip64_dir_extra_payload_size;
+	}
+
+	strbuf_add_le(&zip_dir, 4, 0x02014b50);	/* magic */
+	strbuf_add_le(&zip_dir, 2, creator_version);
+	strbuf_add_le(&zip_dir, 2, version_needed);
+	strbuf_add_le(&zip_dir, 2, flags);
+	strbuf_add_le(&zip_dir, 2, method);
+	strbuf_add_le(&zip_dir, 2, zip_time);
+	strbuf_add_le(&zip_dir, 2, zip_date);
+	strbuf_add_le(&zip_dir, 4, crc);
+	strbuf_add_le(&zip_dir, 4, clamp32(compressed_size));
+	strbuf_add_le(&zip_dir, 4, clamp32(size));
+	strbuf_add_le(&zip_dir, 2, pathlen);
+	strbuf_add_le(&zip_dir, 2, zip_dir_extra_size);
+	strbuf_add_le(&zip_dir, 2, 0);		/* comment length */
+	strbuf_add_le(&zip_dir, 2, 0);		/* disk */
+	strbuf_add_le(&zip_dir, 2, !is_binary);
+	strbuf_add_le(&zip_dir, 4, attr2);
+	strbuf_add_le(&zip_dir, 4, clamp32(offset));
+	strbuf_add(&zip_dir, path, pathlen);
+	strbuf_add(&zip_dir, &extra, ZIP_EXTRA_MTIME_SIZE);
+	if (zip64_dir_extra_payload_size) {
+		strbuf_add_le(&zip_dir, 2, 0x0001);	/* magic */
+		strbuf_add_le(&zip_dir, 2, zip64_dir_extra_payload_size);
+		if (size >= 0xffffffff)
+			strbuf_add_le(&zip_dir, 8, size);
+		if (compressed_size >= 0xffffffff)
+			strbuf_add_le(&zip_dir, 8, compressed_size);
+		if (offset >= 0xffffffff)
+			strbuf_add_le(&zip_dir, 8, offset);
+	}
+	zip_dir_entries++;
+
+	return 0;
+}
