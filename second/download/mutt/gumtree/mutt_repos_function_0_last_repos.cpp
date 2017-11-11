@@ -191,4 +191,81 @@ static int dopr (char *buffer, size_t maxlen, const char *format, va_list args)
 	if (cflags == DP_C_LDOUBLE)
 	  fvalue = va_arg (args, long double);
 	else
-	  fvalu
+	  fvalue = va_arg (args, double);
+	break;
+      case 'G':
+	flags |= DP_F_UP;
+      case 'g':
+	if (cflags == DP_C_LDOUBLE)
+	  fvalue = va_arg (args, long double);
+	else
+	  fvalue = va_arg (args, double);
+	break;
+      case 'c':
+	dopr_outch (buffer, &currlen, maxlen, va_arg (args, int));
+	break;
+      case 's':
+	strvalue = va_arg (args, char *);
+	fmtstr (buffer, &currlen, maxlen, strvalue, flags, min, max);
+	break;
+      case 'p':
+	flags |= DP_F_UNSIGNED;
+	strvalue = va_arg (args, void *);
+	fmtint (buffer, &currlen, maxlen, (long) strvalue, 16, min, max, flags);
+	break;
+      case 'n':
+	if (cflags == DP_C_SHORT) 
+	{
+	  short int *num;
+	  num = va_arg (args, short int *);
+	  *num = currlen;
+        } 
+	else if (cflags == DP_C_LONG) 
+	{
+	  long int *num;
+	  num = va_arg (args, long int *);
+	  *num = currlen;
+        } 
+	else if (cflags == DP_C_LONGLONG) 
+	{
+	  long long int *num;
+	  num = va_arg (args, long long int *);
+	  *num = currlen;
+        } 
+	else 
+	{
+	  int *num;
+	  num = va_arg (args, int *);
+	  *num = currlen;
+        }
+	break;
+      case '%':
+	dopr_outch (buffer, &currlen, maxlen, ch);
+	break;
+      case 'w':
+	/* not supported yet, treat as next char */
+	ch = *format++;
+	break;
+      default:
+	/* Unknown, skip */
+	break;
+      }
+      ch = *format++;
+      state = DP_S_DEFAULT;
+      flags = cflags = min = 0;
+      max = -1;
+      break;
+    case DP_S_DONE:
+      break;
+    default:
+      /* hmm? */
+      break; /* some picky compilers need this */
+    }
+  }
+  if (currlen < maxlen - 1) 
+    buffer[currlen] = '\0';
+  else 
+    buffer[maxlen - 1] = '\0';
+
+  return (int)currlen;
+}

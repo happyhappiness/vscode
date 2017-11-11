@@ -1,8 +1,8 @@
 class,class_size,check,variable
-104,10,"[""new_array_ret""]",[]
-92,2,"[""int""]","[""int""]"
-105,9,"[""new_array_ret"", ""new_array_ret""]",[]
-106,13,"[""asprintf_ret""]",[]
+108,13,"[""new_array_ret""]",[]
+95,2,"[""int""]","[""int""]"
+107,10,"[""new_array_ret"", ""new_array_ret""]",[]
+109,13,"[""asprintf_ret""]",[]
 0,1,"[""asprintf_ret""]","[""auth_client_arg"", ""strlen_ret"", ""strncmp_arg_ret""]"
 1,1,[null],"[""write_sbuf_arg"", ""send_protected_args_arg"", ""int""]"
 2,1,"[""group_to_gid_ret""]","[""int"", ""rprintf_arg_ret""]"
@@ -24,85 +24,88 @@ class,class_size,check,variable
 18,1,"[""setgid_ret""]","[""io_start_multiplex_out_arg""]"
 19,1,"[""setgroups_ret""]","[""io_start_multiplex_out_arg""]"
 20,1,"[""initgroups_ret"", ""want_all_groups_ret""]","[""io_start_multiplex_out_arg""]"
-93,2,"[""setuid_ret"", ""seteuid_ret"", null]","[""io_start_multiplex_out_arg""]"
+96,2,"[""setuid_ret"", ""seteuid_ret"", null]","[""io_start_multiplex_out_arg""]"
 21,1,"[""lp_list_ret""]","[""lp_name_ret"", ""lp_comment_ret"", ""int""]"
 22,1,[null],"[""int""]"
-23,1,"[""do_open_ret"", ""do_open_ret""]","[""strerror_ret"", null, ""do_open_arg_ret""]"
-24,1,"[""fork_ret""]","[""strerror_ret"", null]"
-25,1,"[""load_config_ret""]","[null, null]"
-100,4,"[""new_array_ret"", ""new_array_ret"", null]",[]
-26,1,"[""realloc_ret"", ""strlen_ret"", ""realloc_ret"", null]",[]
-102,7,"[""strdup_ret"", ""strdup_ret""]",[]
-27,1,"[""strdup_ret"", ""char"", ""LOCAL_STRING_COUNT_ret"", ""char"", ""LOCAL_STRING_COUNT_ret""]",[]
-28,1,"[""stat_ret""]","[null, null]"
-95,3,"[""new0_ret"", ""new0_ret""]",[]
-29,1,"["" struct map_struct"", null]",[]
-30,1,"[""new_array_ret"", ""xbuf"", null]",[]
-97,3,"[""realloc_array_ret""]",[]
-31,1,"[""new_array_ret"", ""free_filter_arg_ret"", null]",[]
-32,1,"[""new_array0_ret"", ""new_array0_ret""]",[]
-33,1,"[null, null]","[null, null]"
-34,1,"["" struct idlist""]",[]
-35,1,"[null, ""restore_iobuf_size_arg"", null, null, null, ""rprintf_arg""]","[""long_ret"", null, ""rprintf_arg"", ""rprintf_arg""]"
-36,1,"[null, null, null, ""rprintf_arg""]","[null, ""rprintf_arg"", ""rprintf_arg"", ""rprintf_arg"", null, null, null]"
-94,2,"[""realloc_array_ret"", ""realloc_array_ret""]",[]
-101,4,"[""strdup_ret""]",[]
-37,1,"[""new_array0_ret"", ""new_array0_ret"", null, ""new_array0_ret"", null]",[]
-103,5,"[""int""]",[null]
-38,1,"["" struct suffix_tree"", null]",[]
-39,1,"[""new_array_ret"", ""strlen_ret"", ""new_array_ret""]",[]
-40,1,"[""new_array_ret"", ""strlen_ret"", ""new_array_ret"", ""new_array_ret""]",[]
-41,1,"[""new_array_ret"", ""new_array_ret"", ""AVAIL_OUT_SIZE_ret"", ""new_array_ret"", ""new_array_ret""]",[]
-42,1,"[""new_array0_ret""]",[]
-43,1,"[""dup2_ret"", ""dup2_ret""]","[null, ""rprintf_arg_ret""]"
-44,1,"[""read_sum_head_arg"", null]",[]
-45,1,"[""new_array_ret"", ""read_sum_head_arg_ret"", null]",[]
-46,1,"[""XATTR_ABBREV_arg_ret"", null]",[]
-47,1,"[""fflush_arg""]","[""timestring_ret"", ""time_ret"", ""getpid_ret"", ""fflush_arg"", null, ""syslog_arg""]"
-48,1,"[""isDigit_ret"", ""isDigit_ret"", ""isDigit_ret"", ""isPrint_ret"", ""isDigit_arg"", ""fwrite_arg"", ""isDigit_arg"", ""isDigit_arg"", ""isDigit_arg_ret"", ""int"", null, ""isPrint_arg_ret""]","[""fwrite_arg_ret"", null, ""fwrite_arg_ret""]"
-49,1,"["" enum logcode""]","[""who_am_i_ret"", null, null, "" enum logcode""]"
-50,1,"[""iconvbufs_arg"", null]","[""CVAL_ret"", ""filtered_fwrite_arg_ret""]"
-51,1,"[""new_array0_ret"", ""hashtable_find_ret"", null]",[]
-52,1,"[""strdup_ret"", ""hashtable_find_ret"", null]",[]
-53,1,"[""strdup_ret"", null, null, null, null]",[]
-54,1,"[""calloc_ret"", "" struct bitbag"", null, null]",[]
-55,1,"[""calloc_ret"", "" struct bitbag"", null, ""int"", null]",[]
-56,1,"["" struct flist_ndx_item"", null]",[]
-57,1,"[""_realloc_array_ret""]",[]
-58,1,"[""sys_lgetxattr_ret""]","[""strerror_ret"", null, null, ""sys_lgetxattr_arg_ret""]"
-59,1,"[""sscanf_ret""]","[null, null, ""sys_lgetxattr_arg_ret"", null]"
-60,1,"[""poptGetNextOpt_ret""]","[""poptBadOption_ret"", ""poptStrerror_ret"", null]"
-61,1,"[""rsync_acl""]",[]
-62,1,"[""new_array_ret"", ""rsync_acl_free_arg_ret"", null, null]",[]
-63,1,"[""new_array_ret"", ""new_array_ret"", ""unpack_smb_acl_arg"", null, null]",[]
-64,1,"[""new_array_ret"", ""ida_entries"", null]",[]
-65,1,"["" struct file_list"", null]",[]
-66,1,"[""new_array_ret"", ""send1extra_arg_ret"", null]",[]
-96,2,"[""new_array_ret"", ""finish_filelist_progress_arg_ret"", null]",[]
-67,1,"[""new0_ret"", ""new0_ret""]","[""char""]"
-68,1,"[""pool_create_ret"", ""new0_ret"", null]","[""char""]"
-69,1,"[""new0_ret"", null]","[""char""]"
-70,1,[null],"[""fflush_arg"", ""snprintf_arg""]"
-71,1,"[""pqremove_arg_ret"", ""pqdownheap_arg"", null]","[null, ""int"", ""pqremove_arg_ret"", ""int"", null, ""int"", ""pqremove_arg_ret"", ""int"", null, ""int"", ""pqremove_arg_ret"", ""int"", null]"
-72,1,"[""zmemcmp_ret"", null]","[""putc_arg"", ""IPos"", ""IPos"", ""int""]"
-73,1,"[""zmemcmp_ret"", null]","[""putc_arg"", null, null, ""IPos"", null, null, ""IPos""]"
-74,1,[null],"[""putc_arg"", ""IPos"", ""IPos"", ""int""]"
-75,1,"[""open_arg""]","[null, ""open_arg""]"
-76,1,"[""open_ret"", ""open_ret""]","[""strerror_ret"", null, ""run_program_arg""]"
-98,2,"[""write_ret"", ""read_ret""]","[""strerror_ret"", null]"
-77,1,"[""pipe_ret""]","[""strerror_ret"", null]"
-78,1,"[""fork_ret"", ""fork_ret""]","[""strerror_ret"", null]"
-99,2,"[""dup2_ret""]","[""strerror_ret"", null]"
-79,1,"[""fork_ret""]","[""strerror_ret"", null, ""execvp_arg_ret""]"
-80,1,"[""char""]","[null, ""char""]"
-81,1,"[""char""]","[null, ""poptContext"", ""poptContext"", null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null]"
-82,1,[null],"[null, ""sizeof_arg_ret"", ""int""]"
-83,1,[null],"[null, ""char""]"
-84,1,[null],[null]
-85,1,"[""findOption_ret"", null, null]","[""POPT__ret"", null, ""findOption_ret"", null, null]"
-86,1,"[""malloc_ret""]",[null]
-87,1,"[""poptContext"", null, null]","[""FILE"", ""strrchr_ret""]"
-88,1,"[""size_t"", ""size_t""]","[""FILE""]"
-89,1,"[""getArgDescrip_arg_ret"", null, ""getArgDescrip_arg_ret"", null]","[""FILE"", ""getArgDescrip_arg_ret"", null, ""getArgDescrip_arg_ret"", null, null, ""getArgDescrip_arg_ret"", null, ""strlen_arg_ret"", ""strlen_arg_ret"", ""strlen_arg_ret""]"
-90,1,"[""getArgDescrip_arg_ret"", null, ""getArgDescrip_arg_ret"", null]","[""FILE"", ""getArgDescrip_arg_ret"", null, ""getArgDescrip_arg_ret"", null, null, ""char"", ""strlen_arg_ret"", ""getArgDescrip_arg_ret"", null, ""strlen_arg_ret"", ""strlen_arg_ret""]"
-91,1,"[""showShortOptions_arg_ret"", ""char"", ""showShortOptions_arg_ret""]","[""showShortOptions_arg_ret"", ""showShortOptions_arg_ret""]"
+23,1,"[""lp_number_arg""]","[""rsync_module_arg"", ""lp_number_arg""]"
+24,1,"[""lp_number_ret"", ""lp_number_ret""]","[""rsync_module_arg"", null]"
+25,1,"[""do_open_ret"", ""do_open_ret""]","[""strerror_ret"", null, ""do_open_arg_ret""]"
+26,1,"[""fork_ret""]","[""strerror_ret"", null]"
+27,1,"[""load_config_ret""]","[null, null]"
+102,4,"[""new_array_ret"", ""new_array_ret"", null]",[]
+28,1,"[""realloc_ret"", ""strlen_ret"", ""realloc_ret"", null]",[]
+105,7,"[""strdup_ret"", ""strdup_ret""]",[]
+29,1,"[""strdup_ret"", ""char"", ""LOCAL_STRING_COUNT_ret"", ""char"", ""LOCAL_STRING_COUNT_ret""]",[]
+30,1,"[""stat_ret""]","[null, null]"
+103,4,"[""new0_ret"", ""new0_ret""]",[]
+31,1,"["" struct map_struct"", null]",[]
+32,1,"[""new_array_ret"", ""xbuf"", null]",[]
+99,3,"[""realloc_array_ret""]",[]
+33,1,"[""new_array_ret"", ""free_filter_arg_ret"", null]",[]
+34,1,"[""new_array0_ret"", ""new_array0_ret""]",[]
+35,1,"[null, null]","[null, null]"
+36,1,"["" struct idlist""]",[]
+37,1,"[null, ""restore_iobuf_size_arg"", null, null, null, ""rprintf_arg""]","[""long_ret"", null, ""rprintf_arg"", ""rprintf_arg""]"
+38,1,"[null, null, null, ""rprintf_arg""]","[null, ""rprintf_arg"", ""rprintf_arg"", ""rprintf_arg"", null, null, null]"
+97,2,"[""realloc_array_ret"", ""realloc_array_ret""]",[]
+104,4,"[""strdup_ret""]",[]
+39,1,"[""new_array0_ret"", ""new_array0_ret"", null, ""new_array0_ret"", null]",[]
+40,1,"[""new_array0_ret"", ""rprintf_arg"", null]",[]
+106,5,"[""int""]",[null]
+41,1,"["" struct suffix_tree"", null]",[]
+42,1,"[""new_array_ret"", ""strlen_ret"", ""new_array_ret""]",[]
+43,1,"[""new_array_ret"", ""strlen_ret"", ""new_array_ret"", ""new_array_ret""]",[]
+44,1,"[""new_array_ret"", ""new_array_ret"", ""AVAIL_OUT_SIZE_ret"", ""new_array_ret"", ""new_array_ret""]",[]
+45,1,"[""new_array0_ret""]",[]
+46,1,"[""dup2_ret"", ""dup2_ret""]","[null, ""rprintf_arg_ret""]"
+47,1,"[""read_sum_head_arg"", null]",[]
+48,1,"[""new_array_ret"", ""read_sum_head_arg_ret"", null]",[]
+49,1,"[""XATTR_ABBREV_arg_ret"", null]",[]
+50,1,"[""fflush_arg""]","[""timestring_ret"", ""time_ret"", ""getpid_ret"", ""fflush_arg"", null, ""syslog_arg""]"
+51,1,"[""isDigit_ret"", ""isDigit_ret"", ""isDigit_ret"", ""isPrint_ret"", ""isDigit_arg"", ""fwrite_arg"", ""isDigit_arg"", ""isDigit_arg"", ""isDigit_arg_ret"", ""int"", null, ""isPrint_arg_ret""]","[""fwrite_arg_ret"", null, ""fwrite_arg_ret""]"
+52,1,"["" enum logcode""]","[""who_am_i_ret"", null, null, "" enum logcode""]"
+53,1,"[""iconvbufs_arg"", null]","[""CVAL_ret"", ""filtered_fwrite_arg_ret""]"
+54,1,"[""new_array0_ret"", ""hashtable_find_ret"", null]",[]
+55,1,"[""strdup_ret"", ""hashtable_find_ret"", null]",[]
+56,1,"[""strdup_ret"", null, null, null, null]",[]
+57,1,"[""calloc_ret"", "" struct bitbag"", null, null]",[]
+58,1,"[""calloc_ret"", "" struct bitbag"", null, ""int"", null]",[]
+59,1,"["" struct flist_ndx_item"", null]",[]
+60,1,"[""_realloc_array_ret""]",[]
+61,1,"[""sys_lgetxattr_ret""]","[""strerror_ret"", null, null, ""sys_lgetxattr_arg_ret""]"
+62,1,"[""sscanf_ret""]","[null, null, ""sys_lgetxattr_arg_ret"", null]"
+63,1,"[""poptGetNextOpt_ret""]","[""poptBadOption_ret"", ""poptStrerror_ret"", null]"
+64,1,"[""rsync_acl""]",[]
+65,1,"[""new_array_ret"", ""rsync_acl_free_arg_ret"", null, null]",[]
+66,1,"[""new_array_ret"", ""new_array_ret"", ""unpack_smb_acl_arg"", null, null]",[]
+67,1,"[""new_array_ret"", ""ida_entries"", null]",[]
+68,1,"["" struct file_list"", null]",[]
+69,1,"[""new_array_ret"", ""send1extra_arg_ret"", null]",[]
+98,2,"[""new_array_ret"", ""finish_filelist_progress_arg_ret"", null]",[]
+70,1,"[""new0_ret"", ""new0_ret""]","[""char""]"
+71,1,"[""pool_create_ret"", ""new0_ret"", null]","[""char""]"
+72,1,"[""new0_ret"", null]","[""char""]"
+73,1,[null],"[""fflush_arg"", ""snprintf_arg""]"
+74,1,"[""pqremove_arg_ret"", ""pqdownheap_arg"", null]","[null, ""int"", ""pqremove_arg_ret"", ""int"", null, ""int"", ""pqremove_arg_ret"", ""int"", null, ""int"", ""pqremove_arg_ret"", ""int"", null]"
+75,1,"[""zmemcmp_ret"", null]","[""putc_arg"", ""IPos"", ""IPos"", ""int""]"
+76,1,"[""zmemcmp_ret"", null]","[""putc_arg"", null, null, ""IPos"", null, null, ""IPos""]"
+77,1,[null],"[""putc_arg"", ""IPos"", ""IPos"", ""int""]"
+78,1,"[""open_arg""]","[null, ""open_arg""]"
+79,1,"[""open_ret"", ""open_ret""]","[""strerror_ret"", null, ""run_program_arg""]"
+100,2,"[""write_ret"", ""read_ret""]","[""strerror_ret"", null]"
+80,1,"[""pipe_ret""]","[""strerror_ret"", null]"
+81,1,"[""fork_ret"", ""fork_ret""]","[""strerror_ret"", null]"
+101,2,"[""dup2_ret""]","[""strerror_ret"", null]"
+82,1,"[""fork_ret""]","[""strerror_ret"", null, ""execvp_arg_ret""]"
+83,1,"[""char""]","[null, ""char""]"
+84,1,"[""char""]","[null, ""poptContext"", ""poptContext"", null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null, ""poptContext"", null, null]"
+85,1,[null],"[null, ""sizeof_arg_ret"", ""int""]"
+86,1,[null],"[null, ""char""]"
+87,1,[null],[null]
+88,1,"[""findOption_ret"", null, null]","[""POPT__ret"", null, ""findOption_ret"", null, null]"
+89,1,"[""malloc_ret""]",[null]
+90,1,"[""poptContext"", null, null]","[""FILE"", ""strrchr_ret""]"
+91,1,"[""size_t"", ""size_t""]","[""FILE""]"
+92,1,"[""getArgDescrip_arg_ret"", null, ""getArgDescrip_arg_ret"", null]","[""FILE"", ""getArgDescrip_arg_ret"", null, ""getArgDescrip_arg_ret"", null, null, ""getArgDescrip_arg_ret"", null, ""strlen_arg_ret"", ""strlen_arg_ret"", ""strlen_arg_ret""]"
+93,1,"[""getArgDescrip_arg_ret"", null, ""getArgDescrip_arg_ret"", null]","[""FILE"", ""getArgDescrip_arg_ret"", null, ""getArgDescrip_arg_ret"", null, null, ""char"", ""strlen_arg_ret"", ""getArgDescrip_arg_ret"", null, ""strlen_arg_ret"", ""strlen_arg_ret""]"
+94,1,"[""showShortOptions_arg_ret"", ""char"", ""showShortOptions_arg_ret""]","[""showShortOptions_arg_ret"", ""showShortOptions_arg_ret""]"
