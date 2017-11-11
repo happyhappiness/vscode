@@ -142,4 +142,57 @@ retry:
 				goto error_return;
 			} else if (remove_dir_recursively(&ref_file,
 							  REMOVE_DIR_EMPTY_ONLY)) {
-				i
+				if (refs_verify_refname_available(
+						    &refs->base, refname,
+						    extras, skip, err)) {
+					/*
+					 * The error message set by
+					 * verify_refname_available() is OK.
+					 */
+					ret = TRANSACTION_NAME_CONFLICT;
+					goto error_return;
+				} else {
+					/*
+					 * We can't delete the directory,
+					 * but we also don't know of any
+					 * references that it should
+					 * contain.
+					 */
+					strbuf_addf(err, "there is a non-empty directory '%s' "
+						    "blocking reference '%s'",
+						    ref_file.buf, refname);
+					goto error_return;
+				}
+			}
+		} else if (errno == EINVAL && (*type & REF_ISBROKEN)) {
+			strbuf_addf(err, "unable to resolve reference '%s': "
+				    "reference broken", refname);
+			goto error_return;
+		} else {
+			strbuf_addf(err, "unable to resolve reference '%s': %s",
+				    refname, strerror(errno));
+			goto error_return;
+		}
+
+		/*
+		 * If the ref did not exist and we are creating it,
+		 * make sure there is no existing ref that conflicts
+		 * with refname:
+		 */
+		if (refs_verify_refname_available(
+				    &refs->base, refname,
+				    extras, skip, err))
+			goto error_return;
+	}
+
+	ret = 0;
+	goto out;
+
+error_return:
+	unlock_ref(lock);
+	*lock_p = NULL;
+
+out:
+	strbuf_release(&ref_file);
+	return ret;
+}

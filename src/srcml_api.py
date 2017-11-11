@@ -576,12 +576,12 @@ class SrcmlApi:
 
 if __name__ == "__main__":
     # input function cpp file
-    srcml_api = SrcmlApi('second/download/git/repos/git-2.6.7/commit.c', is_function=False)
-    print srcml_api.get_functions(0, "_test")
+    # srcml_api = SrcmlApi('second/download/git/repos/git-2.6.7/commit.c', is_function=False)
+    # print srcml_api.get_functions(0, "_test")
     # srcml_api = SrcmlApi('second/download/git/gumtree/git_repos_function_4242_git-2.7.6.cpp', is_function=True)
     # print srcml_api.get_logs_calls_types()
-    # srcml_api = SrcmlApi('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_48_httpd-2.4.3.cpp', True)
-    # if srcml_api.set_log_loc(13):
-    #     if srcml_api.set_control_dependence():
-    #         print srcml_api.get_control_info()
-    #         print srcml_api.get_log_info()
+    srcml_api = SrcmlApi('/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/httpd/gumtree/httpd_repos_function_2380_httpd-2.2.34.cpp', True)
+    if srcml_api.set_log_loc(36):
+        if srcml_api.set_control_dependence():
+            print srcml_api.get_control_info()
+            print srcml_api.get_log_info()
