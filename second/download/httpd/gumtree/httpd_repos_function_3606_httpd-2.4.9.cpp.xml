@@ -87,5 +87,28 @@
                              <argument><expr><name pos:line="86" pos:column="30">ap_server_conf<pos:position pos:line="86" pos:column="44"/></name></expr></argument>, <argument><expr><call><name pos:line="86" pos:column="46">APLOGNO<pos:position pos:line="86" pos:column="53"/></name><argument_list pos:line="86" pos:column="53">(<argument><expr><literal type="number" pos:line="86" pos:column="54">00488<pos:position pos:line="86" pos:column="59"/></literal></expr></argument>)<pos:position pos:line="86" pos:column="60"/></argument_list></call>
                              <literal type="string" pos:line="87" pos:column="30">"long lost child came home! (pid %ld)"<pos:position pos:line="87" pos:column="68"/></literal></expr></argument>,
                              <argument><expr><operator pos:line="88" pos:column="30">(<pos:position pos:line="88" pos:column="31"/></operator><name pos:line="88" pos:column="31">long<pos:position pos:line="88" pos:column="35"/></name><operator pos:line="88" pos:column="35">)<pos:position pos:line="88" pos:column="36"/></operator> <name><name pos:line="88" pos:column="37">pid<pos:position pos:line="88" pos:column="40"/></name><operator pos:line="88" pos:column="40">.<pos:position pos:line="88" pos:column="41"/></operator><name pos:line="88" pos:column="41">pid<pos:position pos:line="88" pos:column="44"/></name></name></expr></argument>)<pos:position pos:line="88" pos:column="45"/></argument_list></call></expr>;<pos:position pos:line="88" pos:column="46"/></expr_stmt>
-            }<pos:position pos:line="89" pos:column="14"/></block></then></if></elseif></if></block></then></if></block></while></block></function>
-            <comment type="block" pos:line="90" pos:column="13">/* Don't perform idle</comment></unit>
+            }<pos:position pos:line="89" pos:column="14"/></block></then></if></elseif></if>
+            <comment type="block" pos:line="90" pos:column="13">/* Don't perform idle maintenance when a child dies,
+             * only do it when there's a timeout.  Remember only a
+             * finite number of children can die, and it's pretty
+             * pathological for a lot to die suddenly.
+             */</comment>
+            <continue pos:line="95" pos:column="13">continue;<pos:position pos:line="95" pos:column="22"/></continue>
+        }<pos:position pos:line="96" pos:column="10"/></block></then>
+        <elseif pos:line="97" pos:column="9">else <if pos:line="97" pos:column="14">if <condition pos:line="97" pos:column="17">(<expr><name pos:line="97" pos:column="18">remaining_children_to_start<pos:position pos:line="97" pos:column="45"/></name></expr>)<pos:position pos:line="97" pos:column="46"/></condition><then pos:line="97" pos:column="46"> <block pos:line="97" pos:column="47">{
+            <comment type="block" pos:line="98" pos:column="13">/* we hit a 1 second timeout in which none of the previous
+             * generation of children needed to be reaped... so assume
+             * they're all done, and pick up the slack if any is left.
+             */</comment>
+            <expr_stmt><expr><call><name pos:line="102" pos:column="13">startup_children<pos:position pos:line="102" pos:column="29"/></name><argument_list pos:line="102" pos:column="29">(<argument><expr><name pos:line="102" pos:column="30">remaining_children_to_start<pos:position pos:line="102" pos:column="57"/></name></expr></argument>)<pos:position pos:line="102" pos:column="58"/></argument_list></call></expr>;<pos:position pos:line="102" pos:column="59"/></expr_stmt>
+            <expr_stmt><expr><name pos:line="103" pos:column="13">remaining_children_to_start<pos:position pos:line="103" pos:column="40"/></name> <operator pos:line="103" pos:column="41">=<pos:position pos:line="103" pos:column="42"/></operator> <literal type="number" pos:line="103" pos:column="43">0<pos:position pos:line="103" pos:column="44"/></literal></expr>;<pos:position pos:line="103" pos:column="45"/></expr_stmt>
+            <comment type="block" pos:line="104" pos:column="13">/* In any event we really shouldn't do the code below because
+             * few of the servers we just started are in the IDLE state
+             * yet, so we'd mistakenly create an extra server.
+             */</comment>
+            <continue pos:line="108" pos:column="13">continue;<pos:position pos:line="108" pos:column="22"/></continue>
+        }<pos:position pos:line="109" pos:column="10"/></block></then></if></elseif></if>
+
+        <expr_stmt><expr><call><name pos:line="111" pos:column="9">perform_idle_server_maintenance<pos:position pos:line="111" pos:column="40"/></name><argument_list pos:line="111" pos:column="40">()<pos:position pos:line="111" pos:column="42"/></argument_list></call></expr>;<pos:position pos:line="111" pos:column="43"/></expr_stmt>
+    }<pos:position pos:line="112" pos:column="6"/></block></while>
+}<pos:position pos:line="113" pos:column="2"/></block></function></unit>

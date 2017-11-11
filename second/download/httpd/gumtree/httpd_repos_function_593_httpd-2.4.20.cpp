@@ -99,4 +99,39 @@ static int match_headers(request_rec *r)
             (b->preg && !ap_regexec(b->preg, val, AP_MAX_REG_MATCH, regm, 0)) ||
             (b->expr && ap_expr_exec_re(r, b->expr, AP_MAX_REG_MATCH, regm, &val, &err) > 0))
         {
-            const apr_array_header_t *arr = apr_table_e
+            const apr_array_header_t *arr = apr_table_elts(b->features);
+            elts = (const apr_table_entry_t *) arr->elts;
+
+            for (j = 0; j < arr->nelts; ++j) {
+                if (*(elts[j].val) == '!') {
+                    apr_table_unset(r->subprocess_env, elts[j].key);
+                }
+                else {
+                    if (!b->pattern) {
+                        char *replaced = ap_pregsub(r->pool, elts[j].val, val,
+                                                    AP_MAX_REG_MATCH, regm);
+                        if (replaced) {
+                            apr_table_setn(r->subprocess_env, elts[j].key,
+                                           replaced);
+                        }
+                        else {
+                            ap_log_rerror(APLOG_MARK, APLOG_CRIT, 0, r, APLOGNO(01505)
+                                          "Regular expression replacement "
+                                          "failed for '%s', value too long?",
+                                          elts[j].key);
+                            return HTTP_INTERNAL_SERVER_ERROR;
+                        }
+                    }
+                    else {
+                        apr_table_setn(r->subprocess_env, elts[j].key,
+                                       elts[j].val);
+                    }
+                }
+                ap_log_rerror(APLOG_MARK, APLOG_TRACE2, 0, r, "Setting %s",
+                              elts[j].key);
+            }
+        }
+    }
+
+    return DECLINED;
+}

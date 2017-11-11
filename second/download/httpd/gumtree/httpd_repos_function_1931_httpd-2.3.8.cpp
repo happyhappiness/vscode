@@ -115,4 +115,21 @@ static int reflector_handler(request_rec * r)
                     ap_log_rerror(APLOG_MARK, APLOG_DEBUG, status, r,
                              "reflector_handler: ap_pass_brigade returned %i",
                                   status);
-                    return HTTP_INTERNAL_SERV
+                    return HTTP_INTERNAL_SERVER_ERROR;
+                }
+
+            }
+
+            apr_brigade_cleanup(bbin);
+
+        } while (!seen_eos);
+
+        return OK;
+
+    }
+
+    else {
+        return HTTP_METHOD_NOT_ALLOWED;
+    }
+
+}

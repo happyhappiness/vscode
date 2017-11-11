@@ -102,4 +102,39 @@ start_over:
                                                      values[val_index],
                                                      "objectClass",
                                                      sgc_ents[tmp_sgcIndex].name
- 
+                                                     );
+
+                        if (result != LDAP_COMPARE_TRUE) {
+                            tmp_sgcIndex++;
+                        }
+                    }
+                    /* It's a group, so add it to the array.  */
+                    if (result == LDAP_COMPARE_TRUE) {
+                        char **newgrp = (char **) apr_array_push(subgroups);
+                        *newgrp = apr_pstrdup(r->pool, values[val_index]);
+                    }
+                    val_index++;
+                }
+                ldap_value_free(values);
+            }
+            indx++;
+        }
+    }
+
+    ldap_msgfree(sga_res);
+
+    if (subgroups->nelts > 0) {
+        /* We need to fill in tmp_local_subgroups using the data from LDAP */
+        int sgindex;
+        char **group;
+        res = apr_pcalloc(r->pool, sizeof(util_compare_subgroup_t));
+        res->subgroupDNs  = apr_palloc(r->pool,
+                                       sizeof(char *) * (subgroups->nelts));
+        for (sgindex = 0; (group = apr_array_pop(subgroups)); sgindex++) {
+            res->subgroupDNs[sgindex] = apr_pstrdup(r->pool, *group);
+        }
+        res->len = sgindex;
+    }
+
+    return res;
+}

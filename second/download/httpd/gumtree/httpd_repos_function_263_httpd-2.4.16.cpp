@@ -207,4 +207,69 @@ static dav_error * dav_fs_walker(dav_fs_walker_context *fsctx, int depth)
             fsctx->res1.uri = fsctx->uri_buf.buf;
 
             /*
-            ** To prevent a PROPFIND showing an expired l
+            ** To prevent a PROPFIND showing an expired locknull
+            ** resource, query the lock database to force removal
+            ** of both the lock entry and .locknull, if necessary..
+            ** Sure, the query in PROPFIND would do this.. after
+            ** the locknull resource was already included in the
+            ** return.
+            **
+            ** NOTE: we assume the caller has opened the lock database
+            **       if they have provided DAV_WALKTYPE_LOCKNULL.
+            */
+            /* ### we should also look into opening it read-only and
+               ### eliding timed-out items from the walk, yet leaving
+               ### them in the locknull database until somebody opens
+               ### the thing writable.
+               */
+            /* ### probably ought to use has_locks. note the problem
+               ### mentioned above, though... we would traverse this as
+               ### a locknull, but then a PROPFIND would load the lock
+               ### info, causing a timeout and the locks would not be
+               ### reported. Therefore, a null resource would be returned
+               ### in the PROPFIND.
+               ###
+               ### alternative: just load unresolved locks. any direct
+               ### locks will be timed out (correct). any indirect will
+               ### not (correct; consider if a parent timed out -- the
+               ### timeout routines do not walk and remove indirects;
+               ### even the resolve func would probably fail when it
+               ### tried to find a timed-out direct lock).
+            */
+            if ((err = dav_lock_query(params->lockdb, &fsctx->res1,
+                                      &locks)) != NULL) {
+                /* ### maybe add a higher-level description? */
+                return err;
+            }
+
+            /* call the function for the specified dir + file */
+            if (locks != NULL &&
+                (err = (*params->func)(&fsctx->wres,
+                                       DAV_CALLTYPE_LOCKNULL)) != NULL) {
+                /* ### maybe add a higher-level description? */
+                return err;
+            }
+
+            offset += len + 1;
+        }
+
+        /* reset the exists flag */
+        fsctx->res1.exists = 1;
+    }
+
+    if (params->walk_type & DAV_WALKTYPE_POSTFIX) {
+        /* replace the dirs' trailing slashes with null terms */
+        fsctx->path1.buf[--fsctx->path1.cur_len] = '\0';
+        fsctx->uri_buf.buf[--fsctx->uri_buf.cur_len] = '\0';
+        if (fsctx->path2.buf != NULL) {
+            fsctx->path2.buf[--fsctx->path2.cur_len] = '\0';
+        }
+
+        /* this is a collection which exists */
+        fsctx->res1.collection = 1;
+
+        return (*params->func)(&fsctx->wres, DAV_CALLTYPE_POSTFIX);
+    }
+
+    return NULL;
+}

@@ -145,4 +145,55 @@ static long xdl_split(unsigned long const *ha1, long off1, long lim1,
 				}
 			}
 			if (best > 0) {
-				spl->min_lo 
+				spl->min_lo = 0;
+				spl->min_hi = 1;
+				return ec;
+			}
+		}
+
+		/*
+		 * Enough is enough. We spent too much time here and now we collect
+		 * the furthest reaching path using the (i1 + i2) measure.
+		 */
+		if (ec >= xenv->mxcost) {
+			long fbest, fbest1, bbest, bbest1;
+
+			fbest = fbest1 = -1;
+			for (d = fmax; d >= fmin; d -= 2) {
+				i1 = XDL_MIN(kvdf[d], lim1);
+				i2 = i1 - d;
+				if (lim2 < i2)
+					i1 = lim2 + d, i2 = lim2;
+				if (fbest < i1 + i2) {
+					fbest = i1 + i2;
+					fbest1 = i1;
+				}
+			}
+
+			bbest = bbest1 = XDL_LINE_MAX;
+			for (d = bmax; d >= bmin; d -= 2) {
+				i1 = XDL_MAX(off1, kvdb[d]);
+				i2 = i1 - d;
+				if (i2 < off2)
+					i1 = off2 + d, i2 = off2;
+				if (i1 + i2 < bbest) {
+					bbest = i1 + i2;
+					bbest1 = i1;
+				}
+			}
+
+			if ((lim1 + lim2) - bbest < fbest - (off1 + off2)) {
+				spl->i1 = fbest1;
+				spl->i2 = fbest - fbest1;
+				spl->min_lo = 1;
+				spl->min_hi = 0;
+			} else {
+				spl->i1 = bbest1;
+				spl->i2 = bbest - bbest1;
+				spl->min_lo = 0;
+				spl->min_hi = 1;
+			}
+			return ec;
+		}
+	}
+}

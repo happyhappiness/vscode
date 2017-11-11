@@ -104,4 +104,15 @@ int lua_db_acquire(lua_State *L)
                     lua_pushliteral(L, 
                                 "mod_lua not compatible with APR in get_driver");
                 }
-                lua_pushinteger(L, r
+                lua_pushinteger(L, rc);
+                apr_pool_destroy(pool);
+                return 3;
+            }
+        }
+
+        lua_pushnil(L);
+        return 1;
+    }
+
+    return 0;
+}

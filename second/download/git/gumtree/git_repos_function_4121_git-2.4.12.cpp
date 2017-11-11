@@ -225,4 +225,108 @@ parse_done:
 	if (is_null_sha1(sb.final->object.sha1)) {
 		o = sb.final->util;
 		sb.final_buf = xmemdupz(o->file.ptr, o->file.size);
-		sb.final
+		sb.final_buf_size = o->file.size;
+	}
+	else {
+		o = get_origin(&sb, sb.final, path);
+		if (fill_blob_sha1_and_mode(o))
+			die("no such path %s in %s", path, final_commit_name);
+
+		if (DIFF_OPT_TST(&sb.revs->diffopt, ALLOW_TEXTCONV) &&
+		    textconv_object(path, o->mode, o->blob_sha1, 1, (char **) &sb.final_buf,
+				    &sb.final_buf_size))
+			;
+		else
+			sb.final_buf = read_sha1_file(o->blob_sha1, &type,
+						      &sb.final_buf_size);
+
+		if (!sb.final_buf)
+			die("Cannot read blob %s for path %s",
+			    sha1_to_hex(o->blob_sha1),
+			    path);
+	}
+	num_read_blob++;
+	lno = prepare_lines(&sb);
+
+	if (lno && !range_list.nr)
+		string_list_append(&range_list, xstrdup("1"));
+
+	anchor = 1;
+	range_set_init(&ranges, range_list.nr);
+	for (range_i = 0; range_i < range_list.nr; ++range_i) {
+		long bottom, top;
+		if (parse_range_arg(range_list.items[range_i].string,
+				    nth_line_cb, &sb, lno, anchor,
+				    &bottom, &top, sb.path))
+			usage(blame_usage);
+		if (lno < top || ((lno || bottom) && lno < bottom))
+			die("file %s has only %lu lines", path, lno);
+		if (bottom < 1)
+			bottom = 1;
+		if (top < 1)
+			top = lno;
+		bottom--;
+		range_set_append_unsafe(&ranges, bottom, top);
+		anchor = top + 1;
+	}
+	sort_and_merge_range_set(&ranges);
+
+	for (range_i = ranges.nr; range_i > 0; --range_i) {
+		const struct range *r = &ranges.ranges[range_i - 1];
+		long bottom = r->start;
+		long top = r->end;
+		struct blame_entry *next = ent;
+		ent = xcalloc(1, sizeof(*ent));
+		ent->lno = bottom;
+		ent->num_lines = top - bottom;
+		ent->suspect = o;
+		ent->s_lno = bottom;
+		ent->next = next;
+		origin_incref(o);
+	}
+
+	o->suspects = ent;
+	prio_queue_put(&sb.commits, o->commit);
+
+	origin_decref(o);
+
+	range_set_release(&ranges);
+	string_list_clear(&range_list, 0);
+
+	sb.ent = NULL;
+	sb.path = path;
+
+	read_mailmap(&mailmap, NULL);
+
+	if (!incremental)
+		setup_pager();
+
+	assign_blame(&sb, opt);
+
+	free(final_commit_name);
+
+	if (incremental)
+		return 0;
+
+	sb.ent = blame_sort(sb.ent, compare_blame_final);
+
+	coalesce(&sb);
+
+	if (!(output_option & OUTPUT_PORCELAIN))
+		find_alignment(&sb, &output_option);
+
+	output(&sb, output_option);
+	free((void *)sb.final_buf);
+	for (ent = sb.ent; ent; ) {
+		struct blame_entry *e = ent->next;
+		free(ent);
+		ent = e;
+	}
+
+	if (show_stats) {
+		printf("num read blob: %d\n", num_read_blob);
+		printf("num get patch: %d\n", num_get_patch);
+		printf("num commits: %d\n", num_commits);
+	}
+	return 0;
+}

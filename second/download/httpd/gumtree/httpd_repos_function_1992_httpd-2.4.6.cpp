@@ -109,4 +109,32 @@ static const char *proxysection(cmd_parms *cmd, void *mconfig, const char *arg)
             }
         }
         if (worker == NULL && balancer == NULL) {
-            return apr_p
+            return apr_pstrcat(cmd->pool, thiscmd->name,
+                               "> arguments are supported only for workers.",
+                               NULL);
+        }
+        while (*arg) {
+            word = ap_getword_conf(cmd->pool, &arg);
+            val = strchr(word, '=');
+            if (!val) {
+                return "Invalid Proxy parameter. Parameter must be "
+                       "in the form 'key=value'";
+            }
+            else
+                *val++ = '\0';
+            if (worker)
+                err = set_worker_param(cmd->pool, worker, word, val);
+            else
+                err = set_balancer_param(sconf, cmd->pool, balancer,
+                                         word, val);
+            if (err)
+                return apr_pstrcat(cmd->temp_pool, thiscmd->name, " ", err, " ",
+                                   word, "=", val, "; ", conf->p, NULL);
+        }
+    }
+
+    cmd->path = old_path;
+    cmd->override = old_overrides;
+
+    return NULL;
+}

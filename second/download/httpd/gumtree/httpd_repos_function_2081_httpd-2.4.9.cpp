@@ -217,4 +217,92 @@ recv_again:
                             apr_brigade_cleanup(ob);
 
                             apr_pool_clear(setaside_pool);
-  
+                        }
+                        else {
+                            /* We're still looking for the end of the
+                             * headers, so this part of the data will need
+                             * to persist. */
+                            apr_bucket_setaside(b, setaside_pool);
+                        }
+                    } else {
+                        /* we've already passed along the headers, so now pass
+                         * through the content.  we could simply continue to
+                         * setaside the content and not pass until we see the
+                         * 0 content-length (below, where we append the EOS),
+                         * but that could be a huge amount of data; so we pass
+                         * along smaller chunks
+                         */
+                        if (script_error_status == HTTP_OK) {
+                            rv = ap_pass_brigade(r->output_filters, ob);
+                            if (rv != APR_SUCCESS) {
+                                break;
+                            }
+                        }
+                        apr_brigade_cleanup(ob);
+                    }
+
+                    /* If we didn't read all the data go back and get the
+                     * rest of it. */
+                    if (clen > readbuflen) {
+                        clen -= readbuflen;
+                        goto recv_again;
+                    }
+                } else {
+                    /* XXX what if we haven't seen end of the headers yet? */
+
+                    if (script_error_status == HTTP_OK) {
+                        b = apr_bucket_eos_create(c->bucket_alloc);
+                        APR_BRIGADE_INSERT_TAIL(ob, b);
+                        rv = ap_pass_brigade(r->output_filters, ob);
+                        if (rv != APR_SUCCESS) {
+                            break;
+                        }
+                    }
+
+                    /* XXX Why don't we cleanup here?  (logic from AJP) */
+                }
+                break;
+
+            case AP_FCGI_STDERR:
+                /* TODO: Should probably clean up this logging a bit... */
+                if (clen) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01071)
+                                  "Got error '%s'", readbuf);
+                }
+
+                if (clen > readbuflen) {
+                    clen -= readbuflen;
+                    goto recv_again;
+                }
+                break;
+
+            case AP_FCGI_END_REQUEST:
+                done = 1;
+                break;
+
+            default:
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r, APLOGNO(01072)
+                              "Got bogus record %d", type);
+                break;
+            }
+
+            if (plen) {
+                rv = get_data_full(conn, readbuf, plen);
+                if (rv != APR_SUCCESS) {
+                    ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                                  APLOGNO(02537) "Error occurred reading padding");
+                    break;
+                }
+            }
+        }
+    }
+
+    apr_brigade_destroy(ib);
+    apr_brigade_destroy(ob);
+
+    if (script_error_status != HTTP_OK) {
+        ap_die(script_error_status, r); /* send ErrorDocument */
+    }
+
+    return rv;
+}

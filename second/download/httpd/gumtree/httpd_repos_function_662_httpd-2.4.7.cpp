@@ -100,4 +100,70 @@ int ssl_pphrase_Handle_CB(char *buf, int bufsize, int verify, void *srv)
             apr_file_printf(writetty, "%s mod_ssl (Pass Phrase Dialog)\n",
                             AP_SERVER_BASEVERSION);
             apr_file_printf(writetty, "Some of your private key files are encrypted for security reasons.\n");
-            apr_file_printf(writetty, "In
+            apr_file_printf(writetty, "In order to read them you have to provide the pass phrases.\n");
+        }
+        if (*pbPassPhraseDialogOnce) {
+            *pbPassPhraseDialogOnce = FALSE;
+            apr_file_printf(writetty, "\n");
+            apr_file_printf(writetty, "Server %s (%s)\n", cpVHostID, cpAlgoType);
+        }
+
+        /*
+         * Emulate the OpenSSL internal pass phrase dialog
+         * (see crypto/pem/pem_lib.c:def_callback() for details)
+         */
+        prompt = "Enter pass phrase:";
+
+        for (;;) {
+            apr_file_puts(prompt, writetty);
+            if (sc->server->pphrase_dialog_type == SSL_PPTYPE_PIPE) {
+                i = pipe_get_passwd_cb(buf, bufsize, "", FALSE);
+            }
+            else { /* sc->server->pphrase_dialog_type == SSL_PPTYPE_BUILTIN */
+                i = EVP_read_pw_string(buf, bufsize, "", FALSE);
+            }
+            if (i != 0) {
+                PEMerr(PEM_F_PEM_DEF_CALLBACK,PEM_R_PROBLEMS_GETTING_PASSWORD);
+                memset(buf, 0, (unsigned int)bufsize);
+                return (-1);
+            }
+            len = strlen(buf);
+            if (len < 1)
+                apr_file_printf(writetty, "Apache:mod_ssl:Error: Pass phrase empty (needs to be at least 1 character).\n");
+            else
+                break;
+        }
+    }
+
+    /*
+     * Filter program
+     */
+    else if (sc->server->pphrase_dialog_type == SSL_PPTYPE_FILTER) {
+        const char *cmd = sc->server->pphrase_dialog_path;
+        const char **argv = apr_palloc(p, sizeof(char *) * 4);
+        char *result;
+
+        ap_log_error(APLOG_MARK, APLOG_INFO, 0, s, APLOGNO(01969)
+                     "Init: Requesting pass phrase from dialog filter "
+                     "program (%s)", cmd);
+
+        argv[0] = cmd;
+        argv[1] = cpVHostID;
+        argv[2] = cpAlgoType;
+        argv[3] = NULL;
+
+        result = ssl_util_readfilter(s, p, cmd, argv);
+        apr_cpystrn(buf, result, bufsize);
+        len = strlen(buf);
+    }
+
+    /*
+     * Ok, we now have the pass phrase, so give it back
+     */
+    *cppPassPhraseCur = apr_pstrdup(p, buf);
+
+    /*
+     * And return its length to OpenSSL...
+     */
+    return (len);
+}

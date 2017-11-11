@@ -86,4 +86,26 @@ static void server_main_loop(int remaining_children_to_start)
                              (long)pid.pid);
             }
             /* Don't perform idle maintenance when a child dies,
-             * only do it wh
+             * only do it when there's a timeout.  Remember only a
+             * finite number of children can die, and it's pretty
+             * pathological for a lot to die suddenly.
+             */
+            continue;
+        }
+        else if (remaining_children_to_start) {
+            /* we hit a 1 second timeout in which none of the previous
+             * generation of children needed to be reaped... so assume
+             * they're all done, and pick up the slack if any is left.
+             */
+            startup_children(remaining_children_to_start);
+            remaining_children_to_start = 0;
+            /* In any event we really shouldn't do the code below because
+             * few of the servers we just started are in the IDLE state
+             * yet, so we'd mistakenly create an extra server.
+             */
+            continue;
+        }
+
+        perform_idle_server_maintenance();
+    }
+}

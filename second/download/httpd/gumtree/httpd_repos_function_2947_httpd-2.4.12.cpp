@@ -105,4 +105,107 @@ static apr_status_t handle_response(const fcgi_provider_conf *conf,
                         ap_log_rerror(APLOG_MARK, APLOG_DEBUG, 0, r,
                                       APLOGNO(02504) "%s: script header "
                                       "parsing -> %d/%d",
-                                      fn, status, 
+                                      fn, status, r->status);
+
+                        if (rspbuf) { /* caller wants to see response body,
+                                       * if any
+                                       */
+                            apr_status_t tmprv;
+
+                            if (rspbuflen) {
+                                *rspbuflen = orspbuflen;
+                            }
+                            tmprv = apr_brigade_flatten(ob, rspbuf, rspbuflen);
+                            if (tmprv != APR_SUCCESS) {
+                                /* should not occur for these bucket types;
+                                 * does not indicate overflow
+                                 */
+                                ap_log_rerror(APLOG_MARK, APLOG_ERR, tmprv, r,
+                                              APLOGNO(02505) "%s: error "
+                                              "flattening response body",
+                                              fn);
+                            }
+                        }
+
+                        if (status != OK) {
+                            r->status = status;
+                            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                                          APLOGNO(02506) "%s: Error parsing "
+                                          "script headers from %s",
+                                          fn, conf->backend);
+                            rv = APR_EINVAL;
+                            break;
+                        }
+                        apr_pool_clear(temp_pool);
+                    }
+                    else {
+                        /* We're still looking for the end of the
+                         * headers, so this part of the data will need
+                         * to persist. */
+                        apr_bucket_setaside(b, temp_pool);
+                    }
+                }
+
+                /* If we didn't read all the data go back and get the
+                 * rest of it. */
+                if (clen > readbuflen) {
+                    clen -= readbuflen;
+                    goto recv_again;
+                }
+            }
+            break;
+
+        case AP_FCGI_STDERR: /* Text to log */
+            if (clen) {
+                ap_log_rerror(APLOG_MARK, APLOG_WARNING, 0, r,
+                              APLOGNO(02507) "%s: Logged from %s: '%s'",
+                              fn, conf->backend, readbuf);
+            }
+
+            if (clen > readbuflen) {
+                clen -= readbuflen;
+                goto recv_again; /* continue reading this record */
+            }
+            break;
+
+        case AP_FCGI_END_REQUEST:
+            done = 1;
+            break;
+
+        default:
+            ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                          APLOGNO(02508) "%s: Got bogus FastCGI record type "
+                          "%d", fn, type);
+            break;
+        }
+        /* Leave on above switch's inner error. */
+        if (rv != APR_SUCCESS) {
+            break;
+        }
+
+        /*
+         * Read/discard any trailing padding.
+         */
+        if (plen) {
+            rv = recv_data_full(conf, r, s, readbuf, plen);
+            if (rv != APR_SUCCESS) {
+                ap_log_rerror(APLOG_MARK, APLOG_ERR, rv, r,
+                              APLOGNO(02509) "%s: Error occurred reading "
+                              "padding",
+                              fn);
+                break;
+            }
+        }
+    }
+
+    apr_brigade_cleanup(ob);
+
+    if (rv == APR_SUCCESS && !seen_end_of_headers) {
+        rv = APR_EINVAL;
+        ap_log_rerror(APLOG_MARK, APLOG_ERR, 0, r,
+                      APLOGNO(02510) "%s: Never reached end of script headers",
+                      fn);
+    }
+
+    return rv;
+}

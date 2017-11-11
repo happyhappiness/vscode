@@ -238,4 +238,37 @@ static apr_status_t command(sed_eval_t *eval, sed_reptr_t *ipc,
                 } else {
                     for (p1 = eval->linebuf; *p1 != '\n' && *p1 != '\0'; p1++);
                     rv = wline(eval, eval->linebuf, p1 - eval->linebuf);
-  
+                    if (rv != APR_SUCCESS)
+                        return rv;
+                }
+            }
+            if (i && (ipc->findex >= 0) && eval->fcode[ipc->findex])
+                apr_file_printf(eval->fcode[ipc->findex], "%s\n",
+                                eval->linebuf);
+            break;
+
+        case TCOM:
+            if(eval->sflag == 0)  break;
+            eval->sflag = 0;
+            eval->jflag = 1;
+            break;
+
+        case WCOM:
+            if (ipc->findex >= 0)
+                apr_file_printf(eval->fcode[ipc->findex], "%s\n",
+                                eval->linebuf);
+            break;
+        case XCOM:
+            copy_to_genbuf(eval, eval->linebuf);
+            copy_to_linebuf(eval, eval->holdbuf);
+            copy_to_holdbuf(eval, eval->genbuf);
+            break;
+
+        case YCOM:
+            p1 = eval->linebuf;
+            p2 = ipc->re1;
+            while((*p1 = p2[(unsigned char)*p1]) != 0)    p1++;
+            break;
+    }
+    return rv;
+}
