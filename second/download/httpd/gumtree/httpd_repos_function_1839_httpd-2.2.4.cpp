@@ -104,4 +104,18 @@ static const char *mod_auth_ldap_parse_url(cmd_parms *cmd,
     if (strncasecmp(url, "ldaps", 5) == 0)
     {
         sec->secure = APR_LDAP_SSL;
-        sec->port = urld->lud_port? urld->lud_port : LDAPS
+        sec->port = urld->lud_port? urld->lud_port : LDAPS_PORT;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                     "LDAP: auth_ldap using SSL connections");
+    }
+    else
+    {
+        sec->port = urld->lud_port? urld->lud_port : LDAP_PORT;
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, cmd->server,
+                     "LDAP: auth_ldap not using SSL connections");
+    }
+
+    sec->have_ldap_url = 1;
+
+    return NULL;
+}

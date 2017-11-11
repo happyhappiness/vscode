@@ -235,4 +235,5 @@ start_over:
     ldap_msgfree(res);
 
     ldc->reason = "Authentication successful";
-    return LDAP_SU
+    return LDAP_SUCCESS;
+}

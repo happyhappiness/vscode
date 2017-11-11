@@ -1066,4 +1066,106 @@ if (re->top_backref > re->top_bracket) *errorptr = ERR15;
 if (*errorptr != NULL)
   {
   (pcre_free)(re);
-  PCRE_ER
+  PCRE_ERROR_RETURN:
+  *erroroffset = ptr - (const uschar *)pattern;
+  return NULL;
+  }
+
+/* If the anchored option was not passed, set the flag if we can determine that
+the pattern is anchored by virtue of ^ characters or \A or anything else (such
+as starting with .* when DOTALL is set).
+
+Otherwise, if we know what the first character has to be, save it, because that
+speeds up unanchored matches no end. If not, see if we can set the
+PCRE_STARTLINE flag. This is helpful for multiline matches when all branches
+start with ^. and also when all branches start with .* for non-DOTALL matches.
+*/
+
+if ((options & PCRE_ANCHORED) == 0)
+  {
+  int temp_options = options;
+  if (is_anchored(codestart, &temp_options, 0, compile_block.backref_map))
+    re->options |= PCRE_ANCHORED;
+  else
+    {
+    if (firstbyte < 0)
+      firstbyte = find_firstassertedchar(codestart, &temp_options, FALSE);
+    if (firstbyte >= 0)   /* Remove caseless flag for non-caseable chars */
+      {
+      int ch = firstbyte & 255;
+      re->first_byte = ((firstbyte & REQ_CASELESS) != 0 &&
+         compile_block.fcc[ch] == ch)? ch : firstbyte;
+      re->options |= PCRE_FIRSTSET;
+      }
+    else if (is_startline(codestart, 0, compile_block.backref_map))
+      re->options |= PCRE_STARTLINE;
+    }
+  }
+
+/* For an anchored pattern, we use the "required byte" only if it follows a
+variable length item in the regex. Remove the caseless flag for non-caseable
+bytes. */
+
+if (reqbyte >= 0 &&
+     ((re->options & PCRE_ANCHORED) == 0 || (reqbyte & REQ_VARY) != 0))
+  {
+  int ch = reqbyte & 255;
+  re->req_byte = ((reqbyte & REQ_CASELESS) != 0 &&
+    compile_block.fcc[ch] == ch)? (reqbyte & ~REQ_CASELESS) : reqbyte;
+  re->options |= PCRE_REQCHSET;
+  }
+
+/* Print out the compiled data for debugging */
+
+#ifdef DEBUG
+
+printf("Length = %d top_bracket = %d top_backref = %d\n",
+  length, re->top_bracket, re->top_backref);
+
+if (re->options != 0)
+  {
+  printf("%s%s%s%s%s%s%s%s%s%s\n",
+    ((re->options & PCRE_NOPARTIAL) != 0)? "nopartial " : "",
+    ((re->options & PCRE_ANCHORED) != 0)? "anchored " : "",
+    ((re->options & PCRE_CASELESS) != 0)? "caseless " : "",
+    ((re->options & PCRE_ICHANGED) != 0)? "case state changed " : "",
+    ((re->options & PCRE_EXTENDED) != 0)? "extended " : "",
+    ((re->options & PCRE_MULTILINE) != 0)? "multiline " : "",
+    ((re->options & PCRE_DOTALL) != 0)? "dotall " : "",
+    ((re->options & PCRE_DOLLAR_ENDONLY) != 0)? "endonly " : "",
+    ((re->options & PCRE_EXTRA) != 0)? "extra " : "",
+    ((re->options & PCRE_UNGREEDY) != 0)? "ungreedy " : "");
+  }
+
+if ((re->options & PCRE_FIRSTSET) != 0)
+  {
+  int ch = re->first_byte & 255;
+  const char *caseless = ((re->first_byte & REQ_CASELESS) == 0)? "" : " (caseless)";
+  if (isprint(ch)) printf("First char = %c%s\n", ch, caseless);
+    else printf("First char = \\x%02x%s\n", ch, caseless);
+  }
+
+if ((re->options & PCRE_REQCHSET) != 0)
+  {
+  int ch = re->req_byte & 255;
+  const char *caseless = ((re->req_byte & REQ_CASELESS) == 0)? "" : " (caseless)";
+  if (isprint(ch)) printf("Req char = %c%s\n", ch, caseless);
+    else printf("Req char = \\x%02x%s\n", ch, caseless);
+  }
+
+print_internals(re, stdout);
+
+/* This check is done here in the debugging case so that the code that
+was compiled can be seen. */
+
+if (code - codestart > length)
+  {
+  *errorptr = ERR23;
+  (pcre_free)(re);
+  *erroroffset = ptr - (uschar *)pattern;
+  return NULL;
+  }
+#endif
+
+return (pcre *)re;
+}

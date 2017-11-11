@@ -513,6 +513,64 @@
         }<pos:position pos:line="512" pos:column="10"/></block></then></if>
 
         <if pos:line="514" pos:column="9">if <condition pos:line="514" pos:column="12">(<expr><name pos:line="514" pos:column="13">reason<pos:position pos:line="514" pos:column="19"/></name> <operator pos:line="514" pos:column="20">==<pos:position pos:line="514" pos:column="22"/></operator> <name pos:line="514" pos:column="23">NULL<pos:position pos:line="514" pos:column="27"/></name></expr>)<pos:position pos:line="514" pos:column="28"/></condition><then pos:line="514" pos:column="28"> <block pos:line="514" pos:column="29">{
-            <return pos:line="515" pos:column="13">return <macro><name pos:line="515" pos:column="20">dav_new_error<pos:position pos:line="515" pos:column="33"/></name><argument_list pos:line="515" pos:column="33">(<argument pos:line="515" pos:column="34">p<pos:position pos:line="515" pos:column="35"/></argument>, <argument pos:line="515" pos:column="37">HTTP_PRECONDITION_FAILED<pos:position pos:line="515" pos:column="61"/></argument>, <argument><literal type="number" pos:line="515" pos:column="63">0<pos:position pos:line="515" pos:column="64"/></literal></argument>,
-                                 <argument><literal type="string" pos:line="516" pos:column="34">"The preconditions specified by the \"If:\" "<pos:position pos:line="516" pos:column="79"/></literal>
-                                 <literal type="string" pos:line="517" pos:column="34">"<pos:position pos:line="517" pos:column="35"/></literal></argument></argument_list></macro></return></block></then></if></block></then></if></block></function>header did not match t</unit>
+            <return pos:line="515" pos:column="13">return <expr><call><name pos:line="515" pos:column="20">dav_new_error<pos:position pos:line="515" pos:column="33"/></name><argument_list pos:line="515" pos:column="33">(<argument><expr><name pos:line="515" pos:column="34">p<pos:position pos:line="515" pos:column="35"/></name></expr></argument>, <argument><expr><name pos:line="515" pos:column="37">HTTP_PRECONDITION_FAILED<pos:position pos:line="515" pos:column="61"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="515" pos:column="63">0<pos:position pos:line="515" pos:column="64"/></literal></expr></argument>,
+                                 <argument><expr><literal type="string" pos:line="516" pos:column="34">"The preconditions specified by the \"If:\" "<pos:position pos:line="516" pos:column="79"/></literal>
+                                 <literal type="string" pos:line="517" pos:column="34">"header did not match this resource."<pos:position pos:line="517" pos:column="71"/></literal></expr></argument>)<pos:position pos:line="517" pos:column="72"/></argument_list></call></expr>;<pos:position pos:line="517" pos:column="73"/></return>
+        }<pos:position pos:line="518" pos:column="10"/></block></then></if>
+
+        <return pos:line="520" pos:column="9">return <expr><call><name pos:line="520" pos:column="16">dav_new_error<pos:position pos:line="520" pos:column="29"/></name><argument_list pos:line="520" pos:column="29">(<argument><expr><name pos:line="520" pos:column="30">p<pos:position pos:line="520" pos:column="31"/></name></expr></argument>, <argument><expr><name pos:line="520" pos:column="33">HTTP_PRECONDITION_FAILED<pos:position pos:line="520" pos:column="57"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="520" pos:column="59">0<pos:position pos:line="520" pos:column="60"/></literal></expr></argument>,
+                             <argument><expr><call><name pos:line="521" pos:column="30">apr_psprintf<pos:position pos:line="521" pos:column="42"/></name><argument_list pos:line="521" pos:column="42">(<argument><expr><name pos:line="521" pos:column="43">p<pos:position pos:line="521" pos:column="44"/></name></expr></argument>,
+                                         <argument><expr><literal type="string" pos:line="522" pos:column="42">"The precondition(s) specified by "<pos:position pos:line="522" pos:column="77"/></literal>
+                                         <literal type="string" pos:line="523" pos:column="42">"the \"If:\" header did not match "<pos:position pos:line="523" pos:column="77"/></literal>
+                                         <literal type="string" pos:line="524" pos:column="42">"this resource. At least one "<pos:position pos:line="524" pos:column="72"/></literal>
+                                         <literal type="string" pos:line="525" pos:column="42">"failure is because: %s"<pos:position pos:line="525" pos:column="66"/></literal></expr></argument>, <argument><expr><name pos:line="525" pos:column="68">reason<pos:position pos:line="525" pos:column="74"/></name></expr></argument>)<pos:position pos:line="525" pos:column="75"/></argument_list></call></expr></argument>)<pos:position pos:line="525" pos:column="76"/></argument_list></call></expr>;<pos:position pos:line="525" pos:column="77"/></return>
+    }<pos:position pos:line="526" pos:column="6"/></block></then></if>
+
+    <comment type="block" pos:line="528" pos:column="5">/* assert seen_locktoken == 0 */</comment>
+
+    <comment type="block" pos:line="530" pos:column="5">/*
+    ** ifhdr_scan != NULL implies we found a matching state_list.
+    **
+    ** Since we're still here, it also means that we have not yet found
+    ** one the resource's locktokens in the If: header.
+    **
+    ** Scan all the if_headers and states looking for one of this
+    ** resource's locktokens. Note that we need to go back and scan them
+    ** all -- we may have aborted a scan with a failure before we saw a
+    ** matching token.
+    **
+    ** Note that seen_locktoken == 0 implies lock_list != NULL which implies
+    ** locks_hooks != NULL.
+    */</comment>
+    <if pos:line="544" pos:column="5">if <condition pos:line="544" pos:column="8">(<expr><call><name pos:line="544" pos:column="9">dav_find_submitted_locktoken<pos:position pos:line="544" pos:column="37"/></name><argument_list pos:line="544" pos:column="37">(<argument><expr><name pos:line="544" pos:column="38">if_header<pos:position pos:line="544" pos:column="47"/></name></expr></argument>, <argument><expr><name pos:line="544" pos:column="49">lock_list<pos:position pos:line="544" pos:column="58"/></name></expr></argument>, <argument><expr><name pos:line="544" pos:column="60">locks_hooks<pos:position pos:line="544" pos:column="71"/></name></expr></argument>)<pos:position pos:line="544" pos:column="72"/></argument_list></call></expr>)<pos:position pos:line="544" pos:column="73"/></condition><then pos:line="544" pos:column="73"> <block pos:line="544" pos:column="74">{
+        <comment type="block" pos:line="545" pos:column="9">/*
+        ** We found a match! We're set... we have a matching state list,
+        ** and the If: header specified the locktoken somewhere. We're done.
+        */</comment>
+        <return pos:line="549" pos:column="9">return <expr><name pos:line="549" pos:column="16">NULL<pos:position pos:line="549" pos:column="20"/></name></expr>;<pos:position pos:line="549" pos:column="21"/></return>
+    }<pos:position pos:line="550" pos:column="6"/></block></then></if>
+
+    <comment type="block" pos:line="552" pos:column="5">/*
+    ** We had a matching state list, but the user agent did not specify one
+    ** of this resource's locktokens. Tell them so.
+    **
+    ** Note that we need to special-case the message on whether a "dummy"
+    ** header exists. If it exists, yet we didn't see a needed locktoken,
+    ** then that implies the dummy header (Lock-Token header) did NOT
+    ** specify one of this resource's locktokens. (this implies something
+    ** in the real If: header matched)
+    **
+    ** We want to note the 400 (Bad Request) in favor of a 423 (Locked).
+    */</comment>
+    <if pos:line="564" pos:column="5">if <condition pos:line="564" pos:column="8">(<expr><name><name pos:line="564" pos:column="9">if_header<pos:position pos:line="564" pos:column="18"/></name><operator pos:line="564" pos:column="18">-&gt;<pos:position pos:line="564" pos:column="23"/></operator><name pos:line="564" pos:column="20">dummy_header<pos:position pos:line="564" pos:column="32"/></name></name></expr>)<pos:position pos:line="564" pos:column="33"/></condition><then pos:line="564" pos:column="33"> <block pos:line="564" pos:column="34">{
+        <return pos:line="565" pos:column="9">return <expr><call><name pos:line="565" pos:column="16">dav_new_error<pos:position pos:line="565" pos:column="29"/></name><argument_list pos:line="565" pos:column="29">(<argument><expr><name pos:line="565" pos:column="30">p<pos:position pos:line="565" pos:column="31"/></name></expr></argument>, <argument><expr><name pos:line="565" pos:column="33">HTTP_BAD_REQUEST<pos:position pos:line="565" pos:column="49"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="565" pos:column="51">0<pos:position pos:line="565" pos:column="52"/></literal></expr></argument>,
+                             <argument><expr><literal type="string" pos:line="566" pos:column="30">"The locktoken specified in the "<pos:position pos:line="566" pos:column="63"/></literal>
+                             <literal type="string" pos:line="567" pos:column="30">"\"Lock-Token:\" header did not specify one "<pos:position pos:line="567" pos:column="75"/></literal>
+                             <literal type="string" pos:line="568" pos:column="30">"of this resource's locktoken(s)."<pos:position pos:line="568" pos:column="64"/></literal></expr></argument>)<pos:position pos:line="568" pos:column="65"/></argument_list></call></expr>;<pos:position pos:line="568" pos:column="66"/></return>
+    }<pos:position pos:line="569" pos:column="6"/></block></then></if>
+
+    <return pos:line="571" pos:column="5">return <expr><call><name pos:line="571" pos:column="12">dav_new_error<pos:position pos:line="571" pos:column="25"/></name><argument_list pos:line="571" pos:column="25">(<argument><expr><name pos:line="571" pos:column="26">p<pos:position pos:line="571" pos:column="27"/></name></expr></argument>, <argument><expr><name pos:line="571" pos:column="29">HTTP_LOCKED<pos:position pos:line="571" pos:column="40"/></name></expr></argument>, <argument><expr><literal type="number" pos:line="571" pos:column="42">1<pos:position pos:line="571" pos:column="43"/></literal></expr></argument> <comment type="block" pos:line="571" pos:column="44">/* error_id */</comment>,
+                         <argument><expr><literal type="string" pos:line="572" pos:column="26">"This resource is locked and the \"If:\" header "<pos:position pos:line="572" pos:column="75"/></literal>
+                         <literal type="string" pos:line="573" pos:column="26">"did not specify one of the "<pos:position pos:line="573" pos:column="55"/></literal>
+                         <literal type="string" pos:line="574" pos:column="26">"locktokens for this resource's lock(s)."<pos:position pos:line="574" pos:column="67"/></literal></expr></argument>)<pos:position pos:line="574" pos:column="68"/></argument_list></call></expr>;<pos:position pos:line="574" pos:column="69"/></return>
+}<pos:position pos:line="575" pos:column="2"/></block></function></unit>

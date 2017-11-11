@@ -112,4 +112,46 @@ static void option_set_tls(apr_pool_t *pool, LDAP *ldap, const void *invalue,
 #if APR_HAS_MICROSOFT_LDAPSDK
     if (tls == APR_LDAP_NONE) {
         result->rc = ldap_set_option(ldap, LDAP_OPT_SSL, LDAP_OPT_OFF);
-        if (result->rc != LDA
+        if (result->rc != LDAP_SUCCESS) {
+            result->reason = "LDAP: an attempt to set LDAP_OPT_SSL off "
+                             "failed.";
+            result->msg = ldap_err2string(result->rc);
+        }
+    }
+    else if (tls == APR_LDAP_SSL) {
+        result->rc = ldap_set_option(ldap, LDAP_OPT_SSL, LDAP_OPT_ON);
+        if (result->rc != LDAP_SUCCESS) {
+            result->reason = "LDAP: an attempt to set LDAP_OPT_SSL on "
+                             "failed.";
+            result->msg = ldap_err2string(result->rc);
+        }
+    }
+#if APR_HAS_LDAP_START_TLS_S
+    else if (tls == APR_LDAP_STARTTLS) {
+        result->rc = ldap_start_tls_s(ldap, NULL, NULL, NULL, NULL);
+        if (result->rc != LDAP_SUCCESS) {
+            result->reason = "LDAP: ldap_start_tls_s() failed";
+            result->msg = ldap_err2string(result->rc);
+        }
+    }
+    else if (tls == APR_LDAP_STOPTLS) {
+        result->rc = ldap_stop_tls_s(ldap);
+        if (result->rc != LDAP_SUCCESS) {
+            result->reason = "LDAP: ldap_stop_tls_s() failed";
+            result->msg = ldap_err2string(result->rc);
+        }
+    }
+#endif
+#endif
+
+#if APR_HAS_OTHER_LDAPSDK
+    if (tls != APR_LDAP_NONE) {
+        result->reason = "LDAP: SSL/TLS is currently not supported by "
+                         "APR on this LDAP SDK";
+        result->rc = -1;
+    }
+#endif
+
+#endif /* APR_HAS_LDAP_SSL */
+
+}

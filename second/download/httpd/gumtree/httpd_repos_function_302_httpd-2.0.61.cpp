@@ -86,4 +86,6 @@ static dav_error *dav_gen_supported_reports(request_rec *r,
         }
     }
 
-    apr_tex
+    apr_text_append(r->pool, body, "</D:supported-report-set>" DEBUG_CR);
+    return NULL;
+}

@@ -83,4 +83,22 @@ BOOL GetApacheServicesStatus()
                                     strcpy(szTmp, szBuf);
                                 }
                                 g_stServices[stPos].szDisplayName 
-                                             
+                                                        = strdup(szTmp);
+
+                            }
+                            ++stPos;
+                            if (stPos >= MAX_APACHE_SERVICES) {
+                                retCode = !ERROR_SUCCESS;
+                            }
+                        }
+                    }
+                    RegCloseKey(hSubKey);
+                }
+            }
+        }
+        ++computers;
+    }
+    RegCloseKey(hKey);
+    FindRunningServices();
+    return TRUE;
+}

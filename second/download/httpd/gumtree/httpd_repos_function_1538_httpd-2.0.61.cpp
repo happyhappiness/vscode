@@ -87,4 +87,17 @@ static apr_status_t store_body(cache_handle_t *h, request_rec *r,
           ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
                      "cache_disk: URL %s failed the size check (%lu<%lu)",
                      h->cache_obj->key, (unsigned long)dobj->file_size, (unsigned long)conf->minfs);
-          /* Remove the intermediate cache file and
+          /* Remove the intermediate cache file and return non-APR_SUCCESS */
+          file_cache_errorcleanup(dobj, r);
+          return APR_EGENERAL;
+        }
+
+        /* All checks were fine. Move tempfile to final destination */
+        /* Link to the perm file, and close the descriptor */
+        file_cache_el_final(dobj, r);
+        ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, r->server,
+                     "disk_cache: Body for URL %s cached.",  dobj->name);
+    }
+
+    return APR_SUCCESS;
+}
