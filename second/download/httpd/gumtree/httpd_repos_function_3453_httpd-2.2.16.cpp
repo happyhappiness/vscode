@@ -120,4 +120,27 @@ int parse_input_file_name(char *arg, command_t *cmd_data)
             }
             break;
         default:
-       
+            break;
+        }
+        return 1;
+    }
+
+    if (strcmp(ext, "c") == 0) {
+        /* If we don't already have an idea what our output name will be. */
+        if (cmd_data->basename == NULL) {
+            cmd_data->basename = (char *)malloc(strlen(arg) + 4);
+            strcpy(cmd_data->basename, arg);
+            strcpy(strrchr(cmd_data->basename, '.') + 1, "lo");
+
+            cmd_data->fake_output_name = strrchr(cmd_data->basename, '/');
+            if (cmd_data->fake_output_name) {
+                cmd_data->fake_output_name++;
+            }
+            else {
+                cmd_data->fake_output_name = cmd_data->basename;
+            }
+        }
+    }
+
+    return 0;
+}

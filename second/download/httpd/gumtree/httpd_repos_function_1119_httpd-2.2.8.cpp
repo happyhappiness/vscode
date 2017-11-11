@@ -120,4 +120,14 @@ static char *lookup_map(request_rec *r, char *name, char *key)
         value = s->func(r, key);
         if (!value) {
             rewritelog((r, 5,NULL,"map lookup FAILED: map=%s key=%s", name,
-  
+                        key));
+            return NULL;
+        }
+
+        rewritelog((r, 5, NULL, "map lookup OK: map=%s key=%s -> val=%s",
+                    name, key, value));
+        return value;
+    }
+
+    return NULL;
+}

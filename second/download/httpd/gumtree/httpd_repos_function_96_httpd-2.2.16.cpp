@@ -248,4 +248,47 @@ int main(int argc, const char * const argv[])
     if ((heartbeatres) && (requests > 150)) {
         heartbeatres = requests / 10;   /* Print line every 10% of requests */
         if (heartbeatres < 100)
-            heartbeatres = 100; /* but never more 
+            heartbeatres = 100; /* but never more often than once every 100
+                                 * connections. */
+    }
+    else
+        heartbeatres = 0;
+
+#ifdef USE_SSL
+#ifdef RSAREF
+    R_malloc_init();
+#else
+    CRYPTO_malloc_init();
+#endif
+    SSL_load_error_strings();
+    SSL_library_init();
+    bio_out=BIO_new_fp(stdout,BIO_NOCLOSE);
+    bio_err=BIO_new_fp(stderr,BIO_NOCLOSE);
+
+    if (!(ssl_ctx = SSL_CTX_new(meth))) {
+        BIO_printf(bio_err, "Could not initialize SSL Context.\n");
+        ERR_print_errors(bio_err);
+        exit(1);
+    }
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_ALL);
+    if (ssl_cipher != NULL) {
+        if (!SSL_CTX_set_cipher_list(ssl_ctx, ssl_cipher)) {
+            fprintf(stderr, "error setting cipher list [%s]\n", ssl_cipher);
+        ERR_print_errors_fp(stderr);
+        exit(1);
+    }
+    }
+    if (verbosity >= 3) {
+        SSL_CTX_set_info_callback(ssl_ctx, ssl_state_cb);
+    }
+#endif
+#ifdef SIGPIPE
+    apr_signal(SIGPIPE, SIG_IGN);       /* Ignore writes to connections that
+                                         * have been closed at the other end. */
+#endif
+    copyright();
+    test();
+    apr_pool_destroy(cntxt);
+
+    return 0;
+}

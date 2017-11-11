@@ -514,4 +514,62 @@ static dav_error * dav_validate_resource_state(apr_pool_t *p,
         if (reason == NULL) {
             return dav_new_error(p, HTTP_PRECONDITION_FAILED, 0,
                                  "The preconditions specified by the \"If:\" "
-                                 "header did not match t
+                                 "header did not match this resource.");
+        }
+
+        return dav_new_error(p, HTTP_PRECONDITION_FAILED, 0,
+                             apr_psprintf(p,
+                                         "The precondition(s) specified by "
+                                         "the \"If:\" header did not match "
+                                         "this resource. At least one "
+                                         "failure is because: %s", reason));
+    }
+
+    /* assert seen_locktoken == 0 */
+
+    /*
+    ** ifhdr_scan != NULL implies we found a matching state_list.
+    **
+    ** Since we're still here, it also means that we have not yet found
+    ** one the resource's locktokens in the If: header.
+    **
+    ** Scan all the if_headers and states looking for one of this
+    ** resource's locktokens. Note that we need to go back and scan them
+    ** all -- we may have aborted a scan with a failure before we saw a
+    ** matching token.
+    **
+    ** Note that seen_locktoken == 0 implies lock_list != NULL which implies
+    ** locks_hooks != NULL.
+    */
+    if (dav_find_submitted_locktoken(if_header, lock_list, locks_hooks)) {
+        /*
+        ** We found a match! We're set... we have a matching state list,
+        ** and the If: header specified the locktoken somewhere. We're done.
+        */
+        return NULL;
+    }
+
+    /*
+    ** We had a matching state list, but the user agent did not specify one
+    ** of this resource's locktokens. Tell them so.
+    **
+    ** Note that we need to special-case the message on whether a "dummy"
+    ** header exists. If it exists, yet we didn't see a needed locktoken,
+    ** then that implies the dummy header (Lock-Token header) did NOT
+    ** specify one of this resource's locktokens. (this implies something
+    ** in the real If: header matched)
+    **
+    ** We want to note the 400 (Bad Request) in favor of a 423 (Locked).
+    */
+    if (if_header->dummy_header) {
+        return dav_new_error(p, HTTP_BAD_REQUEST, 0,
+                             "The locktoken specified in the "
+                             "\"Lock-Token:\" header did not specify one "
+                             "of this resource's locktoken(s).");
+    }
+
+    return dav_new_error(p, HTTP_LOCKED, 1 /* error_id */,
+                         "This resource is locked and the \"If:\" header "
+                         "did not specify one of the "
+                         "locktokens for this resource's lock(s).");
+}

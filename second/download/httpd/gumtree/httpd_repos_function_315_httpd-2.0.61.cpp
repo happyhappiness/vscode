@@ -398,4 +398,5 @@ static int dav_method_copymove(request_rec *r, int is_move)
 
     /* return an appropriate response (HTTP_CREATED or HTTP_NO_CONTENT) */
     return dav_created(r, lookup.rnew->uri, "Destination",
-                     
+                       resnew_state == DAV_RESOURCE_EXISTS);
+}

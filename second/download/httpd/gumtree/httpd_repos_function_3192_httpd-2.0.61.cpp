@@ -115,4 +115,129 @@ APR_DECLARE(void *) apr_pcalloc_debug(apr_pool_t *pool, apr_size_t size,
 }
 
 APR_DECLARE(void) apr_pool_clear_debug(apr_pool_t *pool,
-                                       const char 
+                                       const char *file_line)
+{
+    apr_pool_clear(pool);
+}
+
+APR_DECLARE(void) apr_pool_destroy_debug(apr_pool_t *pool,
+                                         const char *file_line)
+{
+    apr_pool_destroy(pool);
+}
+
+APR_DECLARE(apr_status_t) apr_pool_create_ex_debug(apr_pool_t **newpool,
+                                                   apr_pool_t *parent,
+                                                   apr_abortfunc_t abort_fn,
+                                                   apr_allocator_t *allocator,
+                                                   const char *file_line)
+{
+    return apr_pool_create_ex(newpool, parent, abort_fn, allocator);
+}
+
+#else /* APR_POOL_DEBUG */
+
+#undef apr_palloc
+APR_DECLARE(void *) apr_palloc(apr_pool_t *pool, apr_size_t size);
+
+APR_DECLARE(void *) apr_palloc(apr_pool_t *pool, apr_size_t size)
+{
+    return apr_palloc_debug(pool, size, "undefined");
+}
+
+#undef apr_pcalloc
+APR_DECLARE(void *) apr_pcalloc(apr_pool_t *pool, apr_size_t size);
+
+APR_DECLARE(void *) apr_pcalloc(apr_pool_t *pool, apr_size_t size)
+{
+    return apr_pcalloc_debug(pool, size, "undefined");
+}
+
+#undef apr_pool_clear
+APR_DECLARE(void) apr_pool_clear(apr_pool_t *pool);
+
+APR_DECLARE(void) apr_pool_clear(apr_pool_t *pool)
+{
+    apr_pool_clear_debug(pool, "undefined");
+}
+
+#undef apr_pool_destroy
+APR_DECLARE(void) apr_pool_destroy(apr_pool_t *pool);
+
+APR_DECLARE(void) apr_pool_destroy(apr_pool_t *pool)
+{
+    apr_pool_destroy_debug(pool, "undefined");
+}
+
+#undef apr_pool_create_ex
+APR_DECLARE(apr_status_t) apr_pool_create_ex(apr_pool_t **newpool,
+                                             apr_pool_t *parent,
+                                             apr_abortfunc_t abort_fn,
+                                             apr_allocator_t *allocator);
+
+APR_DECLARE(apr_status_t) apr_pool_create_ex(apr_pool_t **newpool,
+                                             apr_pool_t *parent,
+                                             apr_abortfunc_t abort_fn,
+                                             apr_allocator_t *allocator)
+{
+    return apr_pool_create_ex_debug(newpool, parent,
+                                    abort_fn, allocator,
+                                    "undefined");
+}
+
+#endif /* APR_POOL_DEBUG */
+
+/* Deprecated */
+APR_DECLARE(void) apr_allocator_set_max_free(apr_allocator_t *allocator,
+                                             apr_size_t size)
+{
+    apr_allocator_max_free_set(allocator, size);
+}
+
+/* Deprecated */
+APR_DECLARE(void) apr_pool_set_abort(apr_abortfunc_t abort_fn,
+                                     apr_pool_t *pool)
+{
+    apr_pool_abort_set(abort_fn, pool);
+}
+
+/* Deprecated */
+APR_DECLARE(apr_abortfunc_t) apr_pool_get_abort(apr_pool_t *pool)
+{
+    return apr_pool_abort_get(pool);
+}
+
+/* Deprecated */
+APR_DECLARE(apr_pool_t *) apr_pool_get_parent(apr_pool_t *pool)
+{
+    return apr_pool_parent_get(pool);
+}
+
+/* Deprecated */
+APR_DECLARE(void) apr_allocator_set_owner(apr_allocator_t *allocator,
+                                          apr_pool_t *pool)
+{
+    apr_allocator_owner_set(allocator, pool);
+}
+
+/* Deprecated */
+APR_DECLARE(apr_pool_t *) apr_allocator_get_owner(
+                                  apr_allocator_t *allocator)
+{
+    return apr_allocator_owner_get(allocator);
+}
+
+#if APR_HAS_THREADS
+/* Deprecated */
+APR_DECLARE(apr_thread_mutex_t *) apr_allocator_get_mutex(
+                                      apr_allocator_t *allocator)
+{
+    return apr_allocator_mutex_get(allocator);
+}
+
+/* Deprecated */
+APR_DECLARE(void) apr_allocator_set_mutex(apr_allocator_t *allocator,
+                                          apr_thread_mutex_t *mutex)
+{
+    apr_allocator_mutex_set(allocator, mutex);
+}

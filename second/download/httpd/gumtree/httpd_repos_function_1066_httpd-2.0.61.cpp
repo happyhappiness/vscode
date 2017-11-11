@@ -117,4 +117,19 @@ static int is_variant_better(negotiation_state *neg, var_rec *variant,
     if (variant->encoding_quality < best->encoding_quality) {
        return 0;
     }
-    if (variant->encoding_quality > best->encoding
+    if (variant->encoding_quality > best->encoding_quality) {
+       *p_bestq = q;
+       return 1;
+    }
+
+    /* content length if all else equal */
+    if (find_content_length(neg, variant) >= find_content_length(neg, best)) {
+        return 0;
+    }
+
+    /* ok, to get here means every thing turned out equal, except
+     * we have a shorter content length, so use this variant
+     */
+    *p_bestq = q;
+    return 1;
+}
