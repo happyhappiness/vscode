@@ -193,4 +193,41 @@ print_partial_compiled_pattern (start, end)
 	  printf ("/after_dot");
           break;
 
-	c
+	case syntaxspec:
+          printf ("/syntaxspec");
+	  mcnt = *p++;
+	  printf ("/%d", mcnt);
+          break;
+
+	case notsyntaxspec:
+          printf ("/notsyntaxspec");
+	  mcnt = *p++;
+	  printf ("/%d", mcnt);
+	  break;
+#endif /* emacs */
+
+	case wordchar:
+	  printf ("/wordchar");
+          break;
+
+	case notwordchar:
+	  printf ("/notwordchar");
+          break;
+
+	case begbuf:
+	  printf ("/begbuf");
+          break;
+
+	case endbuf:
+	  printf ("/endbuf");
+          break;
+
+        default:
+          printf ("?%d", *(p-1));
+	}
+
+      putchar ('\n');
+    }
+
+  printf ("%d:\tend of pattern.\n", p - start);
+}

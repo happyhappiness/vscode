@@ -141,3 +141,29 @@ int imap_browse (char* path, struct browser_state* state)
   imap_munge_mbox_name (idata, munged_mbox, sizeof (munged_mbox), buf);
   dprint (3, (debugfile, "%s\n", munged_mbox));
   snprintf (buf, sizeof (buf), "%s \"\" %s", list_cmd, munged_mbox);
+  if (browse_add_list_result (idata, buf, state, 0))
+    goto fail;
+
+  if (!state->entrylen)
+  {
+    mutt_error _("No such folder");
+    goto fail;
+  }
+
+  mutt_clear_error ();
+
+  qsort(&(state->entry[nsup]),state->entrylen-nsup,sizeof(state->entry[0]),
+	(int (*)(const void*,const void*)) compare_names);
+
+  if (save_lsub)
+    set_option (OPTIMAPCHECKSUBSCRIBED);
+
+  FREE (&mx.mbox);
+  return 0;
+
+ fail:
+  if (save_lsub)
+    set_option (OPTIMAPCHECKSUBSCRIBED);
+  FREE (&mx.mbox);
+  return -1;
+}

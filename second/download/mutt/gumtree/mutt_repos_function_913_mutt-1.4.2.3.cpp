@@ -189,4 +189,47 @@ int mutt_menuLoop (MUTTMENU *menu)
 	      menu->tagged += menu->tag (menu, i, 0);
 	    menu->redraw = REDRAW_INDEX;
 	  }
+	  else if (menu->max)
+	  {
+	    int i = menu->tag (menu, menu->current, -1);
+	    menu->tagged += i;
+	    if (i && option (OPTRESOLVE) && menu->current < menu->max - 1)
+	    {
+	      menu->current++;
+	      menu->redraw = REDRAW_MOTION_RESYNCH;
+	    }
+	    else
+	      menu->redraw = REDRAW_CURRENT;
+	  }
 	  else
+	    mutt_error _("No entries.");
+	}
+	else
+	  mutt_error _("Tagging is not supported.");
+	break;
+
+      case OP_SHELL_ESCAPE:
+	mutt_shell_escape ();
+	MAYBE_REDRAW (menu->redraw);
+	break;
+
+      case OP_REDRAW:
+	clearok (stdscr, TRUE);
+	menu->redraw = REDRAW_FULL;
+	break;
+
+      case OP_HELP:
+	mutt_help (menu->menu);
+	menu->redraw = REDRAW_FULL;
+	break;
+
+      case OP_NULL:
+	km_error_key (menu->menu);
+	break;
+
+      default:
+	return (i);
+    }
+  }
+  /* not reached */
+}

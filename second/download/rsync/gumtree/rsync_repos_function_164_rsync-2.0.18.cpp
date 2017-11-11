@@ -170,4 +170,31 @@ int recv_files(int f_in,struct file_list *flist,char *local_name,int f_gen)
 		cleanup_fname = NULL;
 
 		
-		if (!recv_
+		if (!recv_ok) {
+			if (csum_length == SUM_LENGTH) {
+				rprintf(FERROR,"ERROR: file corruption in %s. File changed during transfer?\n",
+					fname);
+			} else {
+				if (verbose > 1)
+					rprintf(FINFO,"redoing %s(%d)\n",fname,i);
+				write_int(f_gen,i);
+			}
+		}
+	}
+
+	if (preserve_hard_links)
+		do_hard_links(flist);
+
+	/* now we need to fix any directory permissions that were 
+	   modified during the transfer */
+	for (i = 0; i < flist->count; i++) {
+		file = flist->files[i];
+		if (!file->basename || !S_ISDIR(file->mode)) continue;
+		recv_generator(f_name(file),flist,i,-1);
+	}
+
+	if (verbose > 2)
+		rprintf(FINFO,"recv_files finished\n");
+	
+	return 0;
+}

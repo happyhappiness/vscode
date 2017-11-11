@@ -119,4 +119,28 @@
     <case pos:line="118" pos:column="5">case <expr><name pos:line="118" pos:column="10">TLS_DH_RSA_WITH_AES_256_CBC_SHA<pos:position pos:line="118" pos:column="41"/></name></expr>:<pos:position pos:line="118" pos:column="42"/></case>
       <return pos:line="119" pos:column="7">return <expr><literal type="string" pos:line="119" pos:column="14">"TLS_DH_RSA_WITH_AES_256_CBC_SHA"<pos:position pos:line="119" pos:column="47"/></literal></expr>;<pos:position pos:line="119" pos:column="48"/></return>
       <break pos:line="120" pos:column="7">break;<pos:position pos:line="120" pos:column="13"/></break>
-    <macro><name pos:line="121" pos:column="5">ca<pos:position pos:line="121" pos:column="7"/></name></macro></block></switch></block></function></unit>
+    <case pos:line="121" pos:column="5">case <expr><name pos:line="121" pos:column="10">TLS_DHE_DSS_WITH_AES_256_CBC_SHA<pos:position pos:line="121" pos:column="42"/></name></expr>:<pos:position pos:line="121" pos:column="43"/></case>
+      <return pos:line="122" pos:column="7">return <expr><literal type="string" pos:line="122" pos:column="14">"TLS_DHE_DSS_WITH_AES_256_CBC_SHA"<pos:position pos:line="122" pos:column="48"/></literal></expr>;<pos:position pos:line="122" pos:column="49"/></return>
+      <break pos:line="123" pos:column="7">break;<pos:position pos:line="123" pos:column="13"/></break>
+    <case pos:line="124" pos:column="5">case <expr><name pos:line="124" pos:column="10">TLS_DHE_RSA_WITH_AES_256_CBC_SHA<pos:position pos:line="124" pos:column="42"/></name></expr>:<pos:position pos:line="124" pos:column="43"/></case>
+      <return pos:line="125" pos:column="7">return <expr><literal type="string" pos:line="125" pos:column="14">"TLS_DHE_RSA_WITH_AES_256_CBC_SHA"<pos:position pos:line="125" pos:column="48"/></literal></expr>;<pos:position pos:line="125" pos:column="49"/></return>
+      <break pos:line="126" pos:column="7">break;<pos:position pos:line="126" pos:column="13"/></break>
+    <case pos:line="127" pos:column="5">case <expr><name pos:line="127" pos:column="10">TLS_DH_anon_WITH_AES_256_CBC_SHA<pos:position pos:line="127" pos:column="42"/></name></expr>:<pos:position pos:line="127" pos:column="43"/></case>
+      <return pos:line="128" pos:column="7">return <expr><literal type="string" pos:line="128" pos:column="14">"TLS_DH_anon_WITH_AES_256_CBC_SHA"<pos:position pos:line="128" pos:column="48"/></literal></expr>;<pos:position pos:line="128" pos:column="49"/></return>
+      <break pos:line="129" pos:column="7">break;<pos:position pos:line="129" pos:column="13"/></break>
+    <comment type="block" pos:line="130" pos:column="5">/* SSL version 2.0 */</comment>
+    <case pos:line="131" pos:column="5">case <expr><name pos:line="131" pos:column="10">SSL_RSA_WITH_RC2_CBC_MD5<pos:position pos:line="131" pos:column="34"/></name></expr>:<pos:position pos:line="131" pos:column="35"/></case>
+      <return pos:line="132" pos:column="7">return <expr><literal type="string" pos:line="132" pos:column="14">"SSL_RSA_WITH_RC2_CBC_MD5"<pos:position pos:line="132" pos:column="40"/></literal></expr>;<pos:position pos:line="132" pos:column="41"/></return>
+      <break pos:line="133" pos:column="7">break;<pos:position pos:line="133" pos:column="13"/></break>
+    <case pos:line="134" pos:column="5">case <expr><name pos:line="134" pos:column="10">SSL_RSA_WITH_IDEA_CBC_MD5<pos:position pos:line="134" pos:column="35"/></name></expr>:<pos:position pos:line="134" pos:column="36"/></case>
+      <return pos:line="135" pos:column="7">return <expr><literal type="string" pos:line="135" pos:column="14">"SSL_RSA_WITH_IDEA_CBC_MD5"<pos:position pos:line="135" pos:column="41"/></literal></expr>;<pos:position pos:line="135" pos:column="42"/></return>
+      <break pos:line="136" pos:column="7">break;<pos:position pos:line="136" pos:column="13"/></break>
+    <case pos:line="137" pos:column="5">case <expr><name pos:line="137" pos:column="10">SSL_RSA_WITH_DES_CBC_MD5<pos:position pos:line="137" pos:column="34"/></name></expr>:<pos:position pos:line="137" pos:column="35"/></case>
+      <return pos:line="138" pos:column="7">return <expr><literal type="string" pos:line="138" pos:column="14">"SSL_RSA_WITH_DES_CBC_MD5"<pos:position pos:line="138" pos:column="40"/></literal></expr>;<pos:position pos:line="138" pos:column="41"/></return>
+      <break pos:line="139" pos:column="7">break;<pos:position pos:line="139" pos:column="13"/></break>
+    <case pos:line="140" pos:column="5">case <expr><name pos:line="140" pos:column="10">SSL_RSA_WITH_3DES_EDE_CBC_MD5<pos:position pos:line="140" pos:column="39"/></name></expr>:<pos:position pos:line="140" pos:column="40"/></case>
+      <return pos:line="141" pos:column="7">return <expr><literal type="string" pos:line="141" pos:column="14">"SSL_RSA_WITH_3DES_EDE_CBC_MD5"<pos:position pos:line="141" pos:column="45"/></literal></expr>;<pos:position pos:line="141" pos:column="46"/></return>
+      <break pos:line="142" pos:column="7">break;<pos:position pos:line="142" pos:column="13"/></break>
+  }<pos:position pos:line="143" pos:column="4"/></block></switch>
+  <return pos:line="144" pos:column="3">return <expr><literal type="string" pos:line="144" pos:column="10">"SSL_NULL_WITH_NULL_NULL"<pos:position pos:line="144" pos:column="35"/></literal></expr>;<pos:position pos:line="144" pos:column="36"/></return>
+}<pos:position pos:line="145" pos:column="2"/></block></function></unit>

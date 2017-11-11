@@ -274,4 +274,89 @@ CURLFORMcode FormAdd(struct curl_httppost **httppost,
     }
   }
 
-  if(CURL_FORMADD_OK == 
+  if(CURL_FORMADD_OK == return_value) {
+    /* go through the list, check for copleteness and if everything is
+     * alright add the HttpPost item otherwise set return_value accordingly */
+    
+    post = NULL;
+    for(form = first_form;
+        form != NULL;
+        form = form->more) {
+      if ( ((!form->name || !form->value) && !post) ||
+           ( (form->contentslength) &&
+             (form->flags & HTTPPOST_FILENAME) ) ||
+           ( (form->flags & HTTPPOST_FILENAME) &&
+             (form->flags & HTTPPOST_PTRCONTENTS) ) ||
+
+           /* CMC: Added support for buffer uploads */
+           ( (!form->buffer) &&
+             (form->flags & HTTPPOST_BUFFER) &&
+             (form->flags & HTTPPOST_PTRBUFFER) ) ||
+
+           ( (form->flags & HTTPPOST_READFILE) &&
+             (form->flags & HTTPPOST_PTRCONTENTS) )
+           ) {
+        return_value = CURL_FORMADD_INCOMPLETE;
+        break;
+      }
+      else {
+        if ( ((form->flags & HTTPPOST_FILENAME) ||
+              (form->flags & HTTPPOST_BUFFER)) &&
+             !form->contenttype ) {
+          /* our contenttype is missing */
+          form->contenttype
+            = strdup(ContentTypeForFilename(form->value, prevtype));
+        }
+        if ( !(form->flags & HTTPPOST_PTRNAME) &&
+             (form == first_form) ) {
+          /* copy name (without strdup; possibly contains null characters) */
+          if (AllocAndCopy(&form->name, form->namelength)) {
+            return_value = CURL_FORMADD_MEMORY;
+            break;
+          }
+        }
+        if ( !(form->flags & HTTPPOST_FILENAME) &&
+             !(form->flags & HTTPPOST_READFILE) && 
+             !(form->flags & HTTPPOST_PTRCONTENTS) &&
+
+             /* CMC: Added support for buffer uploads */
+             !(form->flags & HTTPPOST_PTRBUFFER) ) {
+
+          /* copy value (without strdup; possibly contains null characters) */
+          if (AllocAndCopy(&form->value, form->contentslength)) {
+            return_value = CURL_FORMADD_MEMORY;
+            break;
+          }
+        }
+        post = AddHttpPost(form->name, form->namelength,
+                           form->value, form->contentslength,
+
+                           /* CMC: Added support for buffer uploads */
+                           form->buffer, form->bufferlength,
+
+                           form->contenttype, form->flags,
+                           form->contentheader, form->showfilename,
+                           post, httppost,
+                           last_post);
+        
+        if(!post)
+          return_value = CURL_FORMADD_MEMORY;
+
+        if (form->contenttype)
+          prevtype = form->contenttype;
+      }
+    }
+  }
+
+  /* always delete the allocated memory before returning */
+  form = first_form;
+  while (form != NULL) {
+    FormInfo *delete_form;
+    
+    delete_form = form;
+    form = form->more;
+    free (delete_form);
+  }
+
+  return return_value;
+}

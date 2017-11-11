@@ -296,4 +296,16 @@ int poptGetNextOpt(poptContext con)
 
 	if (opt->arg && (opt->argInfo & POPT_ARG_MASK) == POPT_ARG_NONE)
 	    /*@-ifempty@*/ ; /*@=ifempty@*/
-	else if ((opt->ar
+	else if ((opt->argInfo & POPT_ARG_MASK) == POPT_ARG_VAL)
+	    /*@-ifempty@*/ ; /*@=ifempty@*/
+	else if ((opt->argInfo & POPT_ARG_MASK) != POPT_ARG_NONE) {
+	    if (con->finalArgv != NULL && con->os->nextArg)
+	        con->finalArgv[con->finalArgvCount++] =
+			/*@-nullpass@*/	/* LCL: con->os->nextArg != NULL */
+			xstrdup(con->os->nextArg);
+			/*@=nullpass@*/
+	}
+    }
+
+    return (opt ? opt->val : -1);	/* XXX can't happen */
+}

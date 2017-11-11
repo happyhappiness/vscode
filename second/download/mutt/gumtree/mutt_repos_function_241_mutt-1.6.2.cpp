@@ -145,4 +145,36 @@ int mbox_parse_mailbox (CONTEXT *ctx)
 	curhdr->env->return_path = rfc822_parse_adrlist (curhdr->env->return_path, return_path);
 
       if (!curhdr->env->from)
-	curhdr->env->from = rfc822_cpy_adr (c
+	curhdr->env->from = rfc822_cpy_adr (curhdr->env->return_path, 0);
+
+      lines = 0;
+    }
+    else
+      lines++;
+    
+    loc = ftello (ctx->fp);
+  }
+  
+  /*
+   * Only set the content-length of the previous message if we have read more
+   * than one message during _this_ invocation.  If this routine is called
+   * when new mail is received, we need to make sure not to clobber what
+   * previously was the last message since the headers may be sorted.
+   */
+  if (count > 0)
+  {
+    if (PREV->content->length < 0)
+    {
+      PREV->content->length = ftello (ctx->fp) - PREV->content->offset - 1;
+      if (PREV->content->length < 0)
+	PREV->content->length = 0;
+    }
+
+    if (!PREV->lines)
+      PREV->lines = lines ? lines - 1 : 0;
+
+    mx_update_context (ctx, count);
+  }
+
+  return (0);
+}

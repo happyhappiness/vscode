@@ -195,3 +195,13 @@ pattern_t *mutt_pattern_comp (/* const */ char *s, int flags, BUFFER *err)
   {
     strfcpy (err->data, _("empty pattern"), err->dsize);
     return NULL;
+  }
+  if (curlist->next)
+  {
+    tmp = new_pattern ();
+    tmp->op = or ? M_OR : M_AND;
+    tmp->child = curlist;
+    curlist = tmp;
+  }
+  return (curlist);
+}

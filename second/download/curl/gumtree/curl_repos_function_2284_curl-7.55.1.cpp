@@ -117,4 +117,15 @@ static CURLcode ossl_connect_step2(struct connectdata *conn, int sockindex)
         else
 #endif
         if(len == ALPN_HTTP_1_1_LENGTH &&
-           
+           !memcmp(ALPN_HTTP_1_1, neg_protocol, ALPN_HTTP_1_1_LENGTH)) {
+          conn->negnpn = CURL_HTTP_VERSION_1_1;
+        }
+      }
+      else
+        infof(data, "ALPN, server did not agree to a protocol\n");
+    }
+#endif
+
+    return CURLE_OK;
+  }
+}

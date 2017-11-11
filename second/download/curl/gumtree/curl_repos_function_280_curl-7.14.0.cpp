@@ -112,4 +112,45 @@ static CURLcode verifyhost(struct connectdata *conn,
         if (j >= 0) {
           peer_CN = OPENSSL_malloc(j+1);
           if (peer_CN) {
-            memcpy(pee
+            memcpy(peer_CN, ASN1_STRING_data(tmp), j);
+            peer_CN[j] = '\0';
+          }
+        }
+      }
+      else /* not a UTF8 name */
+        j = ASN1_STRING_to_UTF8(&peer_CN, tmp);
+    }
+
+    if (peer_CN == nulstr)
+       peer_CN = NULL;
+
+    if (!peer_CN) {
+      if(data->set.ssl.verifyhost > 1) {
+        failf(data,
+              "SSL: unable to obtain common name from peer certificate");
+        return CURLE_SSL_PEER_CERTIFICATE;
+      }
+      else {
+        /* Consider verifyhost == 1 as an "OK" for a missing CN field, but we
+           output a note about the situation */
+        infof(data, "\t common name: WARNING couldn't obtain\n");
+      }
+    }
+    else if(!cert_hostcheck((const char *)peer_CN, conn->host.name)) {
+      if(data->set.ssl.verifyhost > 1) {
+        failf(data, "SSL: certificate subject name '%s' does not match "
+              "target host name '%s'", peer_CN, conn->host.dispname);
+        res = CURLE_SSL_PEER_CERTIFICATE;
+      }
+      else
+        infof(data, "\t common name: %s (does not match '%s')\n",
+              peer_CN, conn->host.dispname);
+    }
+    else {
+      infof(data, "\t common name: %s (matched)\n", peer_CN);
+    }
+    if(peer_CN)
+      OPENSSL_free(peer_CN);
+  }
+  return res;
+}

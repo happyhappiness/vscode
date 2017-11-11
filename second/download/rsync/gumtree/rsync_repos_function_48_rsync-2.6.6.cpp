@@ -161,4 +161,44 @@ static const char *parse_rule_tok(const char *p, uint32 mflags, int xflags,
 			case 'n':
 				new_mflags |= MATCHFLG_NO_INHERIT;
 				break;
-			case 'r'
+			case 'r':
+				new_mflags |= MATCHFLG_RECEIVER_SIDE;
+				break;
+			case 's':
+				new_mflags |= MATCHFLG_SENDER_SIDE;
+				break;
+			case 'w':
+				new_mflags |= MATCHFLG_WORD_SPLIT;
+				break;
+			}
+		}
+		if (*s)
+			s++;
+	}
+
+	if (mflags & MATCHFLG_WORD_SPLIT) {
+		const uchar *cp = s;
+		/* Token ends at whitespace or the end of the string. */
+		while (!isspace(*cp) && *cp != '\0')
+			cp++;
+		len = cp - s;
+	} else
+		len = strlen((char*)s);
+
+	if (new_mflags & MATCHFLG_CLEAR_LIST) {
+		if (!(xflags & XFLG_OLD_PREFIXES) && len) {
+			rprintf(FERROR,
+				"'!' rule has trailing characters: %s\n", p);
+			exit_cleanup(RERR_SYNTAX);
+		}
+		if (len > 1)
+			new_mflags &= ~MATCHFLG_CLEAR_LIST;
+	} else if (!len && !(new_mflags & MATCHFLG_CVS_IGNORE)) {
+		rprintf(FERROR, "unexpected end of filter rule: %s\n", p);
+		exit_cleanup(RERR_SYNTAX);
+	}
+
+	*len_ptr = len;
+	*mflags_ptr = new_mflags;
+	return (const char *)s;
+}

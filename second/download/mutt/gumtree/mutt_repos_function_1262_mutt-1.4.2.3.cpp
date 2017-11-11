@@ -127,4 +127,31 @@ int imap_read_headers (IMAP_DATA* idata, int msgbegin, int msgend)
       ctx->msgcount++;
     }
     while ((rc != IMAP_CMD_OK) && ((mfhrc == -1) ||
-      ((msgno + 1) >= fetchlast)
+      ((msgno + 1) >= fetchlast)));
+
+    if ((mfhrc < -1) || ((rc != IMAP_CMD_CONTINUE) && (rc != IMAP_CMD_OK)))
+    {
+      imap_free_header_data ((void**) &h.data);
+      fclose (fp);
+
+      return -1;
+    }
+	
+    /* in case we get new mail while fetching the headers */
+    if (idata->reopen & IMAP_NEWMAIL_PENDING)
+    {
+      msgend = idata->newMailCount - 1;
+      while ((msgend) >= ctx->hdrmax)
+	mx_alloc_memory (ctx);
+      idata->reopen &= ~IMAP_NEWMAIL_PENDING;
+      idata->newMailCount = 0;
+    }
+  }
+
+  fclose(fp);
+
+  if (ctx->msgcount > oldmsgcount)
+    mx_update_context (ctx, ctx->msgcount - oldmsgcount);
+
+  return msgend;
+}

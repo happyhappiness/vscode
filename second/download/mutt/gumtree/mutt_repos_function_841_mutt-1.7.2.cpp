@@ -154,4 +154,44 @@ _mutt_copy_message (FILE *fpout, FILE *fpin, HEADER *hdr, BODY *body,
     fputc ('\n', fpout);
 
     fseeko (fp, cur->offset, 0);
-    if (mutt_copy_bytes (fp, fpout, 
+    if (mutt_copy_bytes (fp, fpout, cur->length) == -1)
+    {
+      safe_fclose (&fp);
+      mutt_free_body (&cur);
+      return (-1);
+    }
+    mutt_free_body (&cur);
+    safe_fclose (&fp);
+  }
+  else
+  {
+    fseeko (fpin, body->offset, 0);
+    if (flags & MUTT_CM_PREFIX)
+    {
+      int c;
+      size_t bytes = body->length;
+      
+      fputs(prefix, fpout);
+      
+      while((c = fgetc(fpin)) != EOF && bytes--)
+      {
+	fputc(c, fpout);
+	if(c == '\n')
+	{
+	  fputs(prefix, fpout);
+	}
+      } 
+    }
+    else if (mutt_copy_bytes (fpin, fpout, body->length) == -1)
+      return -1;
+  }
+
+  if ((flags & MUTT_CM_UPDATE) && (flags & MUTT_CM_NOHEADER) == 0 
+      && new_offset != -1)
+  {
+    body->offset = new_offset;
+    mutt_free_body (&body->parts);
+  }
+
+  return rc;
+}

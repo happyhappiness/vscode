@@ -418,4 +418,70 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
       if(data->info.httpproxycode != 200) {
         /* Deal with the possibly already received authenticate
            headers. 'newurl' is set to a new URL if we must loop. */
-        result = Curl_http_au
+        result = Curl_http_auth_act(conn);
+        if(result)
+          return result;
+
+        if(conn->bits.close)
+          /* the connection has been marked for closure, most likely in the
+             Curl_http_auth_act() function and thus we can kill it at once
+             below
+          */
+          closeConnection = TRUE;
+      }
+
+      if(closeConnection && data->req.newurl) {
+        /* Connection closed by server. Don't use it anymore */
+        Curl_closesocket(conn, conn->sock[sockindex]);
+        conn->sock[sockindex] = CURL_SOCKET_BAD;
+        break;
+      }
+    } /* END NEGOTIATION PHASE */
+
+    /* If we are supposed to continue and request a new URL, which basically
+     * means the HTTP authentication is still going on so if the tunnel
+     * is complete we start over in INIT state */
+    if(data->req.newurl &&
+       (TUNNEL_COMPLETE == conn->tunnel_state[sockindex])) {
+      conn->tunnel_state[sockindex] = TUNNEL_INIT;
+      infof(data, "TUNNEL_STATE switched to: %d\n",
+            conn->tunnel_state[sockindex]);
+    }
+
+  } while(data->req.newurl);
+
+  if(200 != data->req.httpcode) {
+    failf(data, "Received HTTP code %d from proxy after CONNECT",
+          data->req.httpcode);
+
+    if(closeConnection && data->req.newurl)
+      conn->bits.proxy_connect_closed = TRUE;
+
+    if(data->req.newurl) {
+      /* this won't be used anymore for the CONNECT so free it now */
+      free(data->req.newurl);
+      data->req.newurl = NULL;
+    }
+
+    /* to back to init state */
+    conn->tunnel_state[sockindex] = TUNNEL_INIT;
+
+    return CURLE_RECV_ERROR;
+  }
+
+  conn->tunnel_state[sockindex] = TUNNEL_COMPLETE;
+
+  /* If a proxy-authorization header was used for the proxy, then we should
+     make sure that it isn't accidentally used for the document request
+     after we've connected. So let's free and clear it here. */
+  Curl_safefree(conn->allocptr.proxyuserpwd);
+  conn->allocptr.proxyuserpwd = NULL;
+
+  data->state.authproxy.done = TRUE;
+
+  infof (data, "Proxy replied OK to CONNECT request\n");
+  data->req.ignorebody = FALSE; /* put it (back) to non-ignore state */
+  conn->bits.rewindaftersend = FALSE; /* make sure this isn't set for the
+                                         document request  */
+  return CURLE_OK;
+}

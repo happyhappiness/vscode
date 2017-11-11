@@ -216,4 +216,90 @@ int ZEXPORT deflate (strm, flush)
             return Z_OK;
         }
 
-    /* Make sure there is something to do and avoid dup
+    /* Make sure there is something to do and avoid duplicate consecutive
+     * flushes. For repeated and useless calls with Z_FINISH, we keep
+     * returning Z_STREAM_END instead of Z_BUF_ERROR.
+     */
+    } else if (strm->avail_in == 0 && flush <= old_flush &&
+               flush != Z_FINISH) {
+        ERR_RETURN(strm, Z_BUF_ERROR);
+    }
+
+    /* User must not provide more input after the first FINISH: */
+    if (s->status == FINISH_STATE && strm->avail_in != 0) {
+        ERR_RETURN(strm, Z_BUF_ERROR);
+    }
+
+    /* Start a new block or continue the current one.
+     */
+    if (strm->avail_in != 0 || s->lookahead != 0 ||
+        (flush != Z_NO_FLUSH && s->status != FINISH_STATE)) {
+        block_state bstate;
+
+        bstate = (*(configuration_table[s->level].func))(s, flush);
+
+        if (bstate == finish_started || bstate == finish_done) {
+            s->status = FINISH_STATE;
+        }
+        if (bstate == need_more || bstate == finish_started) {
+            if (strm->avail_out == 0) {
+                s->last_flush = -1; /* avoid BUF_ERROR next call, see above */
+            }
+            return Z_OK;
+            /* If flush != Z_NO_FLUSH && avail_out == 0, the next call
+             * of deflate should use the same flush parameter to make sure
+             * that the flush is complete. So we don't have to output an
+             * empty block here, this will be done at next call. This also
+             * ensures that for a very small output buffer, we emit at most
+             * one empty block.
+             */
+        }
+        if (bstate == block_done) {
+            if (flush == Z_PARTIAL_FLUSH) {
+                _tr_align(s);
+            } else { /* FULL_FLUSH or SYNC_FLUSH */
+                _tr_stored_block(s, (char*)0, 0L, 0);
+                /* For a full flush, this empty block will be recognized
+                 * as a special marker by inflate_sync().
+                 */
+                if (flush == Z_FULL_FLUSH) {
+                    CLEAR_HASH(s);             /* forget history */
+                }
+            }
+            flush_pending(strm);
+            if (strm->avail_out == 0) {
+              s->last_flush = -1; /* avoid BUF_ERROR at next call, see above */
+              return Z_OK;
+            }
+        }
+    }
+    Assert(strm->avail_out > 0, "bug2");
+
+    if (flush != Z_FINISH) return Z_OK;
+    if (s->wrap <= 0) return Z_STREAM_END;
+
+    /* Write the trailer */
+#ifdef GZIP
+    if (s->wrap == 2) {
+        put_byte(s, (Byte)(strm->adler & 0xff));
+        put_byte(s, (Byte)((strm->adler >> 8) & 0xff));
+        put_byte(s, (Byte)((strm->adler >> 16) & 0xff));
+        put_byte(s, (Byte)((strm->adler >> 24) & 0xff));
+        put_byte(s, (Byte)(strm->total_in & 0xff));
+        put_byte(s, (Byte)((strm->total_in >> 8) & 0xff));
+        put_byte(s, (Byte)((strm->total_in >> 16) & 0xff));
+        put_byte(s, (Byte)((strm->total_in >> 24) & 0xff));
+    }
+    else
+#endif
+    {
+        putShortMSB(s, (uInt)(strm->adler >> 16));
+        putShortMSB(s, (uInt)(strm->adler & 0xffff));
+    }
+    flush_pending(strm);
+    /* If avail_out is zero, the application will call deflate again
+     * to flush the rest.
+     */
+    if (s->wrap > 0) s->wrap = -s->wrap; /* write the trailer only once! */
+    return s->pending != 0 ? Z_OK : Z_STREAM_END;
+}

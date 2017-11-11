@@ -124,4 +124,15 @@ static CURLcode ftp_do_more(struct connectdata *conn, int *completep)
   }
 
   if((result == CURLE_OK) && (ftp->transfer != FTPTRANSFER_BODY))
-    /* no data to transf
+    /* no data to transfer. FIX: it feels like a kludge to have this here
+       too! */
+    Curl_setup_transfer(conn, -1, -1, FALSE, NULL, -1, NULL);
+
+  if(!ftpc->wait_data_conn) {
+    /* no waiting for the data connection so this is now complete */
+    *completep = 1;
+    DEBUGF(infof(data, "DO-MORE phase ends with %d\n", (int)result));
+  }
+
+  return result;
+}

@@ -155,4 +155,6 @@ static void clean_flist(struct file_list *flist, int strip_root, int no_dups)
 			if (flist->files[i]->basename)
 				break;
 		}
-		flist->h
+		flist->high = i;
+	}
+}

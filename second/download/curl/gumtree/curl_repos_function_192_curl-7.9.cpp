@@ -123,4 +123,36 @@ int Curl_GetFTPResponse(int sockfd,
         }
       }
       break;
-    } /* s
+    } /* switch */
+  } /* while there's buffer left and loop is requested */
+
+  if(!error)
+    code = atoi(buf);
+
+#if KRB4
+  /* handle the security-oriented responses 6xx ***/
+  /* FIXME: some errorchecking perhaps... ***/
+  switch(code) {
+  case 631:
+    Curl_sec_read_msg(conn, buf, prot_safe);
+    break;
+  case 632:
+    Curl_sec_read_msg(conn, buf, prot_private);
+    break;
+  case 633:
+    Curl_sec_read_msg(conn, buf, prot_confidential);
+    break;
+  default:
+    /* normal ftp stuff we pass through! */
+    break;
+  }
+#endif
+
+  if(error)
+    return -error;
+
+  if(ftpcode)
+    *ftpcode=code; /* return the initial number like this */
+
+  return nread; /* total amount of bytes read */
+}

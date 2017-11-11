@@ -496,4 +496,16 @@ hdr_format_str (char *dest,
       break;
 
     default:
-      snprintf (dest, destle
+      snprintf (dest, destlen, "%%%s%c", prefix, op);
+      break;
+  }
+
+  if (optional)
+    mutt_FormatString (dest, destlen, col, ifstring, hdr_format_str, (unsigned long) hfi, flags);
+  else if (flags & M_FORMAT_OPTIONAL)
+    mutt_FormatString (dest, destlen, col, elsestring, hdr_format_str, (unsigned long) hfi, flags);
+
+  return (src);
+#undef THREAD_NEW
+#undef THREAD_OLD
+}

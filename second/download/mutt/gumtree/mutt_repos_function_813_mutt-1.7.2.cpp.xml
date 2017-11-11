@@ -688,5 +688,11 @@
 	    <block type="pseudo"><decl_stmt><decl><type><name pos:line="687" pos:column="13">mutt_error<pos:position pos:line="687" pos:column="23"/></name></type> <name pos:line="687" pos:column="24">_<pos:position pos:line="687" pos:column="25"/></name><argument_list pos:line="687" pos:column="25">(<argument><expr><literal type="string" pos:line="687" pos:column="26">"Error trying to view file"<pos:position pos:line="687" pos:column="53"/></literal></expr></argument>)<pos:position pos:line="687" pos:column="54"/></argument_list></decl>;<pos:position pos:line="687" pos:column="55"/></decl_stmt></block></else></if>
 	}<pos:position pos:line="688" pos:column="10"/></block></else></if>
     }<pos:position pos:line="689" pos:column="6"/></block></switch>
-  }<pos:position pos:line="690" pos:column="4"/></block></block></function>
-  </unit>
+  }<pos:position pos:line="690" pos:column="4"/></block>
+  
+  <label><name pos:line="692" pos:column="3">bail<pos:position pos:line="692" pos:column="7"/></name>:<pos:position pos:line="692" pos:column="8"/></label>
+  
+  <if pos:line="694" pos:column="3">if <condition pos:line="694" pos:column="6">(<expr><operator pos:line="694" pos:column="7">!<pos:position pos:line="694" pos:column="8"/></operator><name pos:line="694" pos:column="8">folder<pos:position pos:line="694" pos:column="14"/></name></expr>)<pos:position pos:line="694" pos:column="15"/></condition><then pos:line="694" pos:column="15">
+    <block type="pseudo"><expr_stmt><expr><call><name pos:line="695" pos:column="5">strfcpy<pos:position pos:line="695" pos:column="12"/></name> <argument_list pos:line="695" pos:column="13">(<argument><expr><name pos:line="695" pos:column="14">LastDir<pos:position pos:line="695" pos:column="21"/></name></expr></argument>, <argument><expr><name pos:line="695" pos:column="23">LastDirBackup<pos:position pos:line="695" pos:column="36"/></name></expr></argument>, <argument><expr><sizeof pos:line="695" pos:column="38">sizeof <argument_list pos:line="695" pos:column="45">(<argument><expr><name pos:line="695" pos:column="46">LastDir<pos:position pos:line="695" pos:column="53"/></name></expr></argument>)<pos:position pos:line="695" pos:column="54"/></argument_list></sizeof></expr></argument>)<pos:position pos:line="695" pos:column="55"/></argument_list></call></expr>;<pos:position pos:line="695" pos:column="56"/></expr_stmt></block></then></if>
+  
+}<pos:position pos:line="697" pos:column="2"/></block></function></unit>

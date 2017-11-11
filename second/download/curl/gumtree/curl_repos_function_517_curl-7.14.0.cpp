@@ -113,4 +113,44 @@ static CURLcode ftp_readresp(curl_socket_t sockfd,
            full chunk of data we have read from the server. We therefore need
            to store the rest of the data to be checked on the next invoke as
            it may actually contain another end of response already! */
-        ftp->cache_size = 
+        ftp->cache_size = gotbytes - i;
+        ftp->cache = (char *)malloc((int)ftp->cache_size);
+        if(ftp->cache)
+          memcpy(ftp->cache, ftp->linestart_resp, (int)ftp->cache_size);
+        else
+          return CURLE_OUT_OF_MEMORY; /**BANG**/
+      }
+    } /* there was data */
+
+  } /* while there's buffer left and loop is requested */
+
+  if(!result)
+    code = atoi(buf);
+
+#ifdef HAVE_KRB4
+  /* handle the security-oriented responses 6xx ***/
+  /* FIXME: some errorchecking perhaps... ***/
+  switch(code) {
+  case 631:
+    Curl_sec_read_msg(conn, buf, prot_safe);
+    break;
+  case 632:
+    Curl_sec_read_msg(conn, buf, prot_private);
+    break;
+  case 633:
+    Curl_sec_read_msg(conn, buf, prot_confidential);
+    break;
+  default:
+    /* normal ftp stuff we pass through! */
+    break;
+  }
+#endif
+
+  *ftpcode=code; /* return the initial number like this */
+
+
+  /* store the latest code for later retrieval */
+  conn->data->info.httpcode=code;
+
+  return result;
+}

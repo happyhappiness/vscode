@@ -168,4 +168,121 @@ re_compile_fastmap (bufp)
 	case endbuf:
 	case wordbound:
 	case notwordbound:
-	case wordb
+	case wordbeg:
+	case wordend:
+        case push_dummy_failure:
+          continue;
+
+
+	case jump_n:
+        case pop_failure_jump:
+	case maybe_pop_jump:
+	case jump:
+        case jump_past_alt:
+	case dummy_failure_jump:
+          EXTRACT_NUMBER_AND_INCR (j, p);
+	  p += j;
+	  if (j > 0)
+	    continue;
+
+          /* Jump backward implies we just went through the body of a
+             loop and matched nothing.  Opcode jumped to should be
+             `on_failure_jump' or `succeed_n'.  Just treat it like an
+             ordinary jump.  For a * loop, it has pushed its failure
+             point already; if so, discard that as redundant.  */
+          if ((re_opcode_t) *p != on_failure_jump
+	      && (re_opcode_t) *p != succeed_n)
+	    continue;
+
+          p++;
+          EXTRACT_NUMBER_AND_INCR (j, p);
+          p += j;
+
+          /* If what's on the stack is where we are now, pop it.  */
+          if (!FAIL_STACK_EMPTY ()
+	      && fail_stack.stack[fail_stack.avail - 1].pointer == p)
+            fail_stack.avail--;
+
+          continue;
+
+
+        case on_failure_jump:
+        case on_failure_keep_string_jump:
+	handle_on_failure_jump:
+          EXTRACT_NUMBER_AND_INCR (j, p);
+
+          /* For some patterns, e.g., `(a?)?', `p+j' here points to the
+             end of the pattern.  We don't want to push such a point,
+             since when we restore it above, entering the switch will
+             increment `p' past the end of the pattern.  We don't need
+             to push such a point since we obviously won't find any more
+             fastmap entries beyond `pend'.  Such a pattern can match
+             the null string, though.  */
+          if (p + j < pend)
+            {
+              if (!PUSH_PATTERN_OP (p + j, fail_stack))
+		{
+		  RESET_FAIL_STACK ();
+		  return -2;
+		}
+            }
+          else
+            bufp->can_be_null = 1;
+
+          if (succeed_n_p)
+            {
+              EXTRACT_NUMBER_AND_INCR (k, p);	/* Skip the n.  */
+              succeed_n_p = false;
+	    }
+
+          continue;
+
+
+	case succeed_n:
+          /* Get to the number of times to succeed.  */
+          p += 2;
+
+          /* Increment p past the n for when k != 0.  */
+          EXTRACT_NUMBER_AND_INCR (k, p);
+          if (k == 0)
+	    {
+              p -= 4;
+  	      succeed_n_p = true;  /* Spaghetti code alert.  */
+              goto handle_on_failure_jump;
+            }
+          continue;
+
+
+	case set_number_at:
+          p += 4;
+          continue;
+
+
+	case start_memory:
+        case stop_memory:
+	  p += 2;
+	  continue;
+
+
+	default:
+          abort (); /* We have listed all the cases.  */
+        } /* switch *p++ */
+
+      /* Getting here means we have found the possible starting
+         characters for one path of the pattern -- and that the empty
+         string does not match.  We need not follow this path further.
+         Instead, look at the next alternative (remembered on the
+         stack), or quit if no more.  The test at the top of the loop
+         does these things.  */
+      path_can_be_null = false;
+      p = pend;
+    } /* while p */
+
+  /* Set `can_be_null' for the last path (also the first path, if the
+     pattern is empty).  */
+  bufp->can_be_null |= path_can_be_null;
+
+ done:
+  RESET_FAIL_STACK ();
+  return 0;
+}

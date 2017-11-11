@@ -504,4 +504,164 @@ int main (int argc, char **argv)
     if (attach)
     {
       LIST *t = attach;
-      BODY *a = msg->
+      BODY *a = msg->content;
+
+      while (a && a->next)
+        a = a->next;
+
+      while (t)
+      {
+	if (a)
+	{
+	  a->next = mutt_make_file_attach (t->data);
+	  a = a->next;
+	}
+	else
+	  msg->content = a = mutt_make_file_attach (t->data);
+	if (!a)
+	{
+	  if (!option (OPTNOCURSES))
+	    mutt_endwin (NULL);
+	  fprintf (stderr, _("%s: unable to attach file.\n"), t->data);
+	  mutt_free_list (&attach);
+	  exit (1);
+	}
+	t = t->next;
+      }
+      mutt_free_list (&attach);
+    }
+
+    rv = ci_send_message (sendflags, msg, bodyfile, NULL, NULL);
+
+    if (edit_infile)
+    {
+      if (includeFile)
+        msg->content->unlink = 0;
+      else if (draftFile)
+      {
+        if (truncate (expanded_infile, 0) == -1)
+        {
+          if (!option (OPTNOCURSES))
+            mutt_endwin (NULL);
+          perror (expanded_infile);
+          exit (1);
+        }
+        if ((fout = safe_fopen (expanded_infile, "a")) == NULL)
+        {
+          if (!option (OPTNOCURSES))
+            mutt_endwin (NULL);
+          perror (expanded_infile);
+          exit (1);
+        }
+
+        /* If the message was sent or postponed, these will already
+         * have been done.
+         */
+        if (rv < 0)
+        {
+          if (msg->content->next)
+            msg->content = mutt_make_multipart (msg->content);
+          mutt_encode_descriptions (msg->content, 1);
+          mutt_prepare_envelope (msg->env, 0);
+          mutt_env_to_intl (msg->env, NULL, NULL);
+        }
+
+        mutt_write_rfc822_header (fout, msg->env, msg->content, -1, 0);
+        if (option (OPTRESUMEEDITEDDRAFTFILES))
+          fprintf (fout, "X-Mutt-Resume-Draft: 1\n");
+        fputc ('\n', fout);
+        if ((mutt_write_mime_body (msg->content, fout) == -1))
+        {
+          if (!option (OPTNOCURSES))
+            mutt_endwin (NULL);
+          safe_fclose (&fout);
+          exit (1);
+        }
+        safe_fclose (&fout);
+      }
+
+      mutt_free_header (&msg);
+    }
+
+    /* !edit_infile && draftFile will leave the tempfile around */
+    if (tempfile)
+    {
+      unlink (tempfile);
+      FREE (&tempfile);
+    }
+
+    if (!option (OPTNOCURSES))
+      mutt_endwin (NULL);
+
+    if (rv)
+      exit(1);
+  }
+  else
+  {
+    if (flags & M_BUFFY)
+    {
+      if (!mutt_buffy_check (0))
+      {
+	mutt_endwin _("No mailbox with new mail.");
+	exit (1);
+      }
+      folder[0] = 0;
+      mutt_buffy (folder, sizeof (folder));
+    }
+    else if (flags & M_SELECT)
+    {
+      if (!Incoming) {
+	mutt_endwin _("No incoming mailboxes defined.");
+	exit (1);
+      }
+      folder[0] = 0;
+      mutt_select_file (folder, sizeof (folder), M_SEL_FOLDER | M_SEL_BUFFY);
+      if (!folder[0])
+      {
+	mutt_endwin (NULL);
+	exit (0);
+      }
+    }
+
+    if (!folder[0])
+      strfcpy (folder, NONULL(Spoolfile), sizeof (folder));
+    mutt_expand_path (folder, sizeof (folder));
+
+    mutt_str_replace (&CurrentFolder, folder);
+    mutt_str_replace (&LastFolder, folder);
+
+    if (flags & M_IGNORE)
+    {
+      /* check to see if there are any messages in the folder */
+      switch (mx_check_empty (folder))
+      {
+	case -1:
+	  mutt_endwin (strerror (errno));
+	  exit (1);
+	case 1:
+	  mutt_endwin _("Mailbox is empty.");
+	  exit (1);
+      }
+    }
+
+    mutt_folder_hook (folder);
+
+    if((Context = mx_open_mailbox (folder, ((flags & M_RO) || option (OPTREADONLY)) ? M_READONLY : 0, NULL))
+       || !explicit_folder)
+    {
+      mutt_index_menu ();
+      if (Context)
+	FREE (&Context);
+    }
+#ifdef USE_IMAP
+    imap_logout_all ();
+#endif
+#ifdef USE_SASL
+    mutt_sasl_done ();
+#endif
+    mutt_free_opts ();
+    mutt_endwin (Errorbuf);
+  }
+
+  exit (0);
+}

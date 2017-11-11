@@ -129,4 +129,86 @@ CURLcode Curl_auth_create_gssapi_security_message(struct Curl_easy *data,
 
   /* Allocate our message */
   messagelen = sizeof(outdata) + strlen(user_name) + 1;
-  message = mall
+  message = malloc(messagelen);
+  if(!message) {
+    free(trailer);
+    Curl_unicodefree(user_name);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  /* Populate the message with the security layer, client supported receive
+     message size and authorization identity including the 0x00 based
+     terminator. Note: Despite RFC4752 Section 3.1 stating "The authorization
+     identity is not terminated with the zero-valued (%x00) octet." it seems
+     necessary to include it. */
+  outdata = htonl(max_size) | sec_layer;
+  memcpy(message, &outdata, sizeof(outdata));
+  strcpy((char *) message + sizeof(outdata), user_name);
+  Curl_unicodefree(user_name);
+
+  /* Allocate the padding */
+  padding = malloc(sizes.cbBlockSize);
+  if(!padding) {
+    free(message);
+    free(trailer);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  /* Setup the "authentication data" security buffer */
+  wrap_desc.ulVersion    = SECBUFFER_VERSION;
+  wrap_desc.cBuffers     = 3;
+  wrap_desc.pBuffers     = wrap_buf;
+  wrap_buf[0].BufferType = SECBUFFER_TOKEN;
+  wrap_buf[0].pvBuffer   = trailer;
+  wrap_buf[0].cbBuffer   = sizes.cbSecurityTrailer;
+  wrap_buf[1].BufferType = SECBUFFER_DATA;
+  wrap_buf[1].pvBuffer   = message;
+  wrap_buf[1].cbBuffer   = curlx_uztoul(messagelen);
+  wrap_buf[2].BufferType = SECBUFFER_PADDING;
+  wrap_buf[2].pvBuffer   = padding;
+  wrap_buf[2].cbBuffer   = sizes.cbBlockSize;
+
+  /* Encrypt the data */
+  status = s_pSecFn->EncryptMessage(krb5->context, KERB_WRAP_NO_ENCRYPT,
+                                    &wrap_desc, 0);
+  if(status != SEC_E_OK) {
+    free(padding);
+    free(message);
+    free(trailer);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  /* Allocate the encryption (wrap) buffer */
+  appdatalen = wrap_buf[0].cbBuffer + wrap_buf[1].cbBuffer +
+               wrap_buf[2].cbBuffer;
+  appdata = malloc(appdatalen);
+  if(!appdata) {
+    free(padding);
+    free(message);
+    free(trailer);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  /* Populate the encryption buffer */
+  memcpy(appdata, wrap_buf[0].pvBuffer, wrap_buf[0].cbBuffer);
+  offset += wrap_buf[0].cbBuffer;
+  memcpy(appdata + offset, wrap_buf[1].pvBuffer, wrap_buf[1].cbBuffer);
+  offset += wrap_buf[1].cbBuffer;
+  memcpy(appdata + offset, wrap_buf[2].pvBuffer, wrap_buf[2].cbBuffer);
+
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, (char *) appdata, appdatalen, outptr,
+                              outlen);
+
+  /* Free all of our local buffers */
+  free(appdata);
+  free(padding);
+  free(message);
+  free(trailer);
+
+  return result;
+}

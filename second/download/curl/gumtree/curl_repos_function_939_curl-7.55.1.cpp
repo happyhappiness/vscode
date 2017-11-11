@@ -198,4 +198,66 @@ void ourWriteOut(CURL *curl, struct OutStruct *outs, const char *writeinfo)
                   case CURL_HTTP_VERSION_1_0:
                     version = "1.0";
                     break;
-           
+                  case CURL_HTTP_VERSION_1_1:
+                    version = "1.1";
+                    break;
+                  case CURL_HTTP_VERSION_2_0:
+                    version = "2";
+                    break;
+                  }
+
+                  fprintf(stream, version);
+                }
+                break;
+              case VAR_SCHEME:
+                if(CURLE_OK ==
+                   curl_easy_getinfo(curl, CURLINFO_SCHEME,
+                                     &stringp))
+                  fprintf(stream, "%s", stringp);
+                break;
+              default:
+                break;
+              }
+              break;
+            }
+          }
+          if(!match) {
+            fprintf(stderr, "curl: unknown --write-out variable: '%s'\n", ptr);
+          }
+          ptr = end + 1; /* pass the end */
+          *end = keepit;
+        }
+        else {
+          /* illegal syntax, then just output the characters that are used */
+          fputc('%', stream);
+          fputc(ptr[1], stream);
+          ptr += 2;
+        }
+      }
+    }
+    else if('\\' == *ptr && ptr[1]) {
+      switch(ptr[1]) {
+      case 'r':
+        fputc('\r', stream);
+        break;
+      case 'n':
+        fputc('\n', stream);
+        break;
+      case 't':
+        fputc('\t', stream);
+        break;
+      default:
+        /* unknown, just output this */
+        fputc(*ptr, stream);
+        fputc(ptr[1], stream);
+        break;
+      }
+      ptr += 2;
+    }
+    else {
+      fputc(*ptr, stream);
+      ptr++;
+    }
+  }
+
+}

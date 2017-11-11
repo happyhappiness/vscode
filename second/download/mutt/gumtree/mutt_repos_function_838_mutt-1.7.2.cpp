@@ -155,4 +155,120 @@ mutt_copy_hdr (FILE *in, FILE *out, LOFF_T off_start, LOFF_T off_end, int flags,
 	   ascii_strncasecmp ("X-Status:", buf, 9) == 0))
 	continue;
       if ((flags & (CH_UPDATE_LEN | CH_XMIT | CH_NOLEN)) &&
-	  (ascii_strnca
+	  (ascii_strncasecmp ("Content-Length:", buf, 15) == 0 ||
+	   ascii_strncasecmp ("Lines:", buf, 6) == 0))
+	continue;
+      if ((flags & CH_MIME) &&
+	  ((ascii_strncasecmp ("content-", buf, 8) == 0 &&
+	    (ascii_strncasecmp ("transfer-encoding:", buf + 8, 18) == 0 ||
+	     ascii_strncasecmp ("type:", buf + 8, 5) == 0)) ||
+	   ascii_strncasecmp ("mime-version:", buf, 13) == 0))
+	continue;
+      if ((flags & CH_UPDATE_REFS) &&
+	  ascii_strncasecmp ("References:", buf, 11) == 0)
+	continue;
+      if ((flags & CH_UPDATE_IRT) &&
+	  ascii_strncasecmp ("In-Reply-To:", buf, 12) == 0)
+	continue;
+
+      /* Find x -- the array entry where this header is to be saved */
+      if (flags & CH_REORDER)
+      {
+	for (t = HeaderOrderList, x = 0 ; (t) ; t = t->next, x++)
+	{
+	  if (!ascii_strncasecmp (buf, t->data, mutt_strlen (t->data)))
+	  {
+	    dprint(2, (debugfile, "Reorder: %s matches %s\n", t->data, buf));
+	    break;
+	  }
+	}
+      }
+
+      ignore = 0;
+    } /* If beginning of header */
+
+    if (!ignore)
+    {
+      dprint (2, (debugfile, "Reorder: x = %d; hdr_count = %d\n", x, hdr_count));
+      if (!this_one) {
+	this_one = safe_strdup (buf);
+	this_one_len = mutt_strlen (this_one);
+      } else {
+	int blen = mutt_strlen (buf);
+
+	safe_realloc (&this_one, this_one_len + blen + sizeof (char));
+	strcat (this_one + this_one_len, buf); /* __STRCAT_CHECKED__ */
+	this_one_len += blen;
+      }
+    }
+  } /* while (ftello (in) < off_end) */
+
+  /* Do we have anything pending?  -- XXX, same code as in above in the loop. */
+  if (this_one)
+  {
+    if (flags & CH_DECODE) 
+    {
+      if (!address_header_decode (&this_one))
+	rfc2047_decode (&this_one);
+      this_one_len = mutt_strlen (this_one);
+    }
+    
+    if (!headers[x])
+      headers[x] = this_one;
+    else 
+    {
+      int hlen = mutt_strlen (headers[x]);
+
+      safe_realloc (&headers[x], hlen + this_one_len + sizeof (char));
+      strcat (headers[x] + hlen, this_one); /* __STRCAT_CHECKED__ */
+      FREE (&this_one);
+    }
+
+    this_one = NULL;
+  }
+
+  /* Now output the headers in order */
+  for (x = 0; x < hdr_count; x++)
+  {
+    if (headers[x])
+    {
+#if 0
+      if (flags & CH_DECODE)
+	rfc2047_decode (&headers[x]);
+#endif
+
+      /* We couldn't do the prefixing when reading because RFC 2047
+       * decoding may have concatenated lines.
+       */
+      
+      if (flags & (CH_DECODE|CH_PREFIX))
+      {
+	if (mutt_write_one_header (out, 0, headers[x], 
+				   flags & CH_PREFIX ? prefix : 0,
+                                   mutt_window_wrap_cols (MuttIndexWindow, Wrap), flags) == -1)
+	{
+	  error = TRUE;
+	  break;
+	}
+      }
+      else
+      {      
+	if (fputs (headers[x], out) == EOF)
+	{
+	  error = TRUE;
+	  break;
+	}
+      }
+    }
+  }
+
+  /* Free in a separate loop to be sure that all headers are freed
+   * in case of error. */
+  for (x = 0; x < hdr_count; x++)
+    FREE (&headers[x]);
+  FREE (&headers);
+
+  if (error)
+    return (-1);
+  return (0);
+}

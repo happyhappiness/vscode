@@ -108,4 +108,17 @@ static CURLcode tftp_tx(tftp_state_data_t *state, tftp_event_t event)
     setpacketevent(&state->spacket, TFTP_EVENT_ERROR);
     setpacketblock(&state->spacket, state->block);
     (void)sendto(state->sockfd, (void *)state->spacket.data, 4, SEND_4TH_ARG,
-                 (st
+                 (struct sockaddr *)&state->remote_addr,
+                 state->remote_addrlen);
+    /* don't bother with the return code, but if the socket is still up we
+     * should be a good TFTP client and let the server know we're done */
+    state->state = TFTP_STATE_FIN;
+    break;
+
+  default:
+    failf(data, "tftp_tx: internal error, event: %i", (int)(event));
+    break;
+  }
+
+  return res;
+}

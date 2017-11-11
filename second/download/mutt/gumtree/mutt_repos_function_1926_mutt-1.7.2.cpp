@@ -125,4 +125,110 @@ imap_auth_res_t imap_auth_gss (IMAP_DATA* idata, const char* method)
 
   gss_release_name (&min_stat, &target_name);
 
-  /* get security flags and
+  /* get security flags and buffer size */
+  do
+    rc = imap_cmd_step (idata);
+  while (rc == IMAP_CMD_CONTINUE);
+
+  if (rc != IMAP_CMD_RESPOND)
+  {
+    dprint (1, (debugfile, "Error receiving server response.\n"));
+    goto bail;
+  }
+  request_buf.length = mutt_from_base64 (buf2, idata->buf + 2);
+  request_buf.value = buf2;
+
+  maj_stat = gss_unwrap (&min_stat, context, &request_buf, &send_token,
+    &cflags, &quality);
+  if (maj_stat != GSS_S_COMPLETE)
+  {
+    print_gss_error(maj_stat, min_stat);
+    dprint (2, (debugfile, "Couldn't unwrap security level data\n"));
+    gss_release_buffer (&min_stat, &send_token);
+    goto err_abort_cmd;
+  }
+  dprint (2, (debugfile, "Credential exchange complete\n"));
+
+  /* first octet is security levels supported. We want NONE */
+#ifdef DEBUG
+  server_conf_flags = ((char*) send_token.value)[0];
+#endif
+  if ( !(((char*) send_token.value)[0] & GSS_AUTH_P_NONE) )
+  {
+    dprint (2, (debugfile, "Server requires integrity or privacy\n"));
+    gss_release_buffer (&min_stat, &send_token);
+    goto err_abort_cmd;
+  }
+
+  /* we don't care about buffer size if we don't wrap content. But here it is */
+  ((char*) send_token.value)[0] = 0;
+  buf_size = ntohl (*((long *) send_token.value));
+  gss_release_buffer (&min_stat, &send_token);
+  dprint (2, (debugfile, "Unwrapped security level flags: %c%c%c\n",
+    server_conf_flags & GSS_AUTH_P_NONE      ? 'N' : '-',
+    server_conf_flags & GSS_AUTH_P_INTEGRITY ? 'I' : '-',
+    server_conf_flags & GSS_AUTH_P_PRIVACY   ? 'P' : '-'));
+  dprint (2, (debugfile, "Maximum GSS token size is %ld\n", buf_size));
+
+  /* agree to terms (hack!) */
+  buf_size = htonl (buf_size); /* not relevant without integrity/privacy */
+  memcpy (buf1, &buf_size, 4);
+  buf1[0] = GSS_AUTH_P_NONE;
+  /* server decides if principal can log in as user */
+  strncpy (buf1 + 4, idata->conn->account.user, sizeof (buf1) - 4);
+  request_buf.value = buf1;
+  request_buf.length = 4 + strlen (idata->conn->account.user) + 1;
+  maj_stat = gss_wrap (&min_stat, context, 0, GSS_C_QOP_DEFAULT, &request_buf,
+    &cflags, &send_token);
+  if (maj_stat != GSS_S_COMPLETE)
+  {
+    dprint (2, (debugfile, "Error creating login request\n"));
+    goto err_abort_cmd;
+  }
+
+  mutt_to_base64 ((unsigned char*) buf1, send_token.value, send_token.length,
+		  sizeof (buf1) - 2);
+  dprint (2, (debugfile, "Requesting authorisation as %s\n",
+    idata->conn->account.user));
+  safe_strcat (buf1, sizeof (buf1), "\r\n");
+  mutt_socket_write (idata->conn, buf1);
+
+  /* Joy of victory or agony of defeat? */
+  do
+    rc = imap_cmd_step (idata);
+  while (rc == IMAP_CMD_CONTINUE);
+  if (rc == IMAP_CMD_RESPOND)
+  {
+    dprint (1, (debugfile, "Unexpected server continuation request.\n"));
+    goto err_abort_cmd;
+  }
+  if (imap_code (idata->buf))
+  {
+    /* flush the security context */
+    dprint (2, (debugfile, "Releasing GSS credentials\n"));
+    maj_stat = gss_delete_sec_context (&min_stat, &context, &send_token);
+    if (maj_stat != GSS_S_COMPLETE)
+      dprint (1, (debugfile, "Error releasing credentials\n"));
+
+    /* send_token may contain a notification to the server to flush
+     * credentials. RFC 1731 doesn't specify what to do, and since this
+     * support is only for authentication, we'll assume the server knows
+     * enough to flush its own credentials */
+    gss_release_buffer (&min_stat, &send_token);
+
+    return IMAP_AUTH_SUCCESS;
+  }
+  else
+    goto bail;
+
+ err_abort_cmd:
+  mutt_socket_write (idata->conn, "*\r\n");
+  do
+    rc = imap_cmd_step (idata);
+  while (rc == IMAP_CMD_CONTINUE);
+
+ bail:
+  mutt_error _("GSSAPI authentication failed.");
+  mutt_sleep (2);
+  return IMAP_AUTH_FAILURE;
+}

@@ -118,4 +118,28 @@ CF_INLINE const char *SSLCipherNameForNumber(SSLCipherSuite cipher)
     case TLS_DH_RSA_WITH_AES_256_CBC_SHA:
       return "TLS_DH_RSA_WITH_AES_256_CBC_SHA";
       break;
-    ca
+    case TLS_DHE_DSS_WITH_AES_256_CBC_SHA:
+      return "TLS_DHE_DSS_WITH_AES_256_CBC_SHA";
+      break;
+    case TLS_DHE_RSA_WITH_AES_256_CBC_SHA:
+      return "TLS_DHE_RSA_WITH_AES_256_CBC_SHA";
+      break;
+    case TLS_DH_anon_WITH_AES_256_CBC_SHA:
+      return "TLS_DH_anon_WITH_AES_256_CBC_SHA";
+      break;
+    /* SSL version 2.0 */
+    case SSL_RSA_WITH_RC2_CBC_MD5:
+      return "SSL_RSA_WITH_RC2_CBC_MD5";
+      break;
+    case SSL_RSA_WITH_IDEA_CBC_MD5:
+      return "SSL_RSA_WITH_IDEA_CBC_MD5";
+      break;
+    case SSL_RSA_WITH_DES_CBC_MD5:
+      return "SSL_RSA_WITH_DES_CBC_MD5";
+      break;
+    case SSL_RSA_WITH_3DES_EDE_CBC_MD5:
+      return "SSL_RSA_WITH_3DES_EDE_CBC_MD5";
+      break;
+  }
+  return "SSL_NULL_WITH_NULL_NULL";
+}

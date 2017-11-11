@@ -146,4 +146,70 @@ skip_filters:
 		} else {
 			if (!S_ISDIR(st.st_mode) && st.st_nlink > 1)
 				file->link_u.idev = pool_talloc(
-				    flis
+				    flist->hlink_pool, struct idev, 1,
+				    "inode_table");
+		}
+	}
+	if (file->link_u.idev) {
+		file->F_DEV = st.st_dev;
+		file->F_INODE = st.st_ino;
+	}
+#endif
+
+	if (dirname_len) {
+		file->dirname = lastdir = bp;
+		lastdir_len = dirname_len - 1;
+		memcpy(bp, dirname, dirname_len - 1);
+		bp += dirname_len;
+		bp[-1] = '\0';
+	} else if (dirname)
+		file->dirname = dirname;
+
+	file->basename = bp;
+	memcpy(bp, basename, basename_len);
+	bp += basename_len;
+
+#ifdef HAVE_STRUCT_STAT_ST_RDEV
+	if (preserve_devices && IS_DEVICE(st.st_mode))
+		file->u.rdev = st.st_rdev;
+#endif
+
+#ifdef SUPPORT_LINKS
+	if (linkname_len) {
+		file->u.link = bp;
+		memcpy(bp, linkname, linkname_len);
+		bp += linkname_len;
+	}
+#endif
+
+	if (sum_len) {
+		file->u.sum = bp;
+		file_checksum(thisname, bp, st.st_size);
+		/*bp += sum_len;*/
+	}
+
+	file->dir.root = flist_dir;
+
+	/* This code is only used by the receiver when it is building
+	 * a list of files for a delete pass. */
+	if (keep_dirlinks && linkname_len && flist) {
+		STRUCT_STAT st2;
+		int save_mode = file->mode;
+		file->mode = S_IFDIR; /* find a directory w/our name */
+		if (flist_find(the_file_list, file) >= 0
+		    && do_stat(thisname, &st2) == 0 && S_ISDIR(st2.st_mode)) {
+			file->modtime = st2.st_mtime;
+			file->length = st2.st_size;
+			file->mode = st2.st_mode;
+			file->uid = st2.st_uid;
+			file->gid = st2.st_gid;
+			file->u.link = NULL;
+		} else
+			file->mode = save_mode;
+	}
+
+	if (S_ISREG(st.st_mode) || S_ISLNK(st.st_mode))
+		stats.total_size += st.st_size;
+
+	return file;
+}

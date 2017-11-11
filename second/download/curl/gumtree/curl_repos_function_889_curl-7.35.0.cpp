@@ -125,4 +125,36 @@ CURLcode Curl_readwrite(struct connectdata *conn,
           so we'll check to see if the discrepancy can be explained
           by the number of CRLFs we've changed to LFs.
        */
-       (k->bytecount != (k->size + data->st
+       (k->bytecount != (k->size + data->state.crlf_conversions)) &&
+#endif /* CURL_DO_LINEEND_CONV */
+       !data->req.newurl) {
+      failf(data, "transfer closed with %" CURL_FORMAT_CURL_OFF_T
+            " bytes remaining to read",
+            k->size - k->bytecount);
+      return CURLE_PARTIAL_FILE;
+    }
+    else if(!(data->set.opt_no_body) &&
+            k->chunk &&
+            (conn->chunk.state != CHUNK_STOP)) {
+      /*
+       * In chunked mode, return an error if the connection is closed prior to
+       * the empty (terminating) chunk is read.
+       *
+       * The condition above used to check for
+       * conn->proto.http->chunk.datasize != 0 which is true after reading
+       * *any* chunk, not just the empty chunk.
+       *
+       */
+      failf(data, "transfer closed with outstanding read data remaining");
+      return CURLE_PARTIAL_FILE;
+    }
+    if(Curl_pgrsUpdate(conn))
+      return CURLE_ABORTED_BY_CALLBACK;
+  }
+
+  /* Now update the "done" boolean we return */
+  *done = (0 == (k->keepon&(KEEP_RECV|KEEP_SEND|
+                            KEEP_RECV_PAUSE|KEEP_SEND_PAUSE))) ? TRUE : FALSE;
+
+  return CURLE_OK;
+}
