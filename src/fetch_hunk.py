@@ -184,8 +184,8 @@ def fetch_version_diff(is_recreate=False):
         total_log_hunk, total_hunk = deal_version_diff(version_diff_file, log_function, total_log_hunk, total_hunk, hunk_writer)
     # close file and output analysis result
     hunk_file.close()
-    commands.getoutput('echo ---------------'+ my_constant.REPOS + ': log hunk / hunk---------------- >> data/evaluate/statistics.txt')
-    commands.getoutput('echo ' + str(total_log_hunk) + '/' + str(total_hunk) + ' >> data/evaluate/statistics.txt')
+    commands.getoutput('echo #' + my_constant.REPOS + ': log hunk, hunk >> data/evaluate/statistics.txt')
+    commands.getoutput('echo ' + str(total_log_hunk) + ',' + str(total_hunk) + ' >> data/evaluate/statistics.txt')
 
 
 
