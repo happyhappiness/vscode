@@ -63,10 +63,10 @@ def statistical_cluster(csv_file_name, statistic_file):
 
     # show edition type result
     for edit_type in my_constant.LOD_EDIT_TYPES:
-        print >> statistic_file, "%s: %d" %(edit_type, edit_type_for_cluster_dict[edit_type]),
+        print >> statistic_file, "%s:%d," %(edit_type, edit_type_for_cluster_dict[edit_type]),
     print >> statistic_file, ''
     # show cluster result
-    print >> statistic_file, "cluster is %d, repeted cluster is %d, repeted log is %d" %(number_cluster, repeted_cluster, repeted_log)
+    print >> statistic_file, "cluster is:%d, repeted cluster is:%d, repeted log is:%d" %(number_cluster, repeted_cluster, repeted_log)
 
     reading_file.close()
 
@@ -99,25 +99,25 @@ def perform_statistic():
             edit type info and cluster info (no.cluster, no.>1cluster, no.repeted log)\n 
     """
     statistic_file = open('data/evaluate/statistics.txt', 'ab')
-    print >> statistic_file, "-------------now analyzing repos: %s-------------" %(my_constant.REPOS)
+    print >> statistic_file, "\n#now analyzing repos:%s" %(my_constant.REPOS)
     # statistics about edition cluster
-    print >> statistic_file, "----------------------edition cluster info-------------------"
+    print >> statistic_file, "#edition cluster info"
     edition_file_name = my_constant.CLUSTER_EDITION_OLD_NEW_FILE_NAME
     number_log, edit_type_for_log_dict = statistical_cluster(edition_file_name, statistic_file)
-    print >> statistic_file, "----------------------edition and feature cluster info-------------------"
+    print >> statistic_file, "#edition and feature cluster info"
     # statistics about edition and feature cluster
     edition_and_feature_file_name = my_constant.CLUSTER_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME
     statistical_cluster(edition_and_feature_file_name, statistic_file)
-    print >> statistic_file, "----------------------log info-------------------"
-    print >> statistic_file, "number of log is %d "  %number_log
+    print >> statistic_file, "#log info"
+    print >> statistic_file, "number of log is:%d"  %number_log
     # show edition type result
     for edit_type in my_constant.LOD_EDIT_TYPES:
-        print >> statistic_file, "%s: %d" %(edit_type, edit_type_for_log_dict[edit_type]),
+        print >> statistic_file, "%s:%d," %(edit_type, edit_type_for_log_dict[edit_type]),
     print >> statistic_file, ''
     # statistics about rule class
     insert_counter, modify_counter = statistical_rule_class(my_constant.CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME)
-    print >> statistic_file, '--------------------rule info-----------------'
-    print >> statistic_file, 'insert rule: %d, modify rule: %d' %(insert_counter, modify_counter)
+    print >> statistic_file, '#rule info'
+    print >> statistic_file, 'insert rule:%d, modify rule:%d' %(insert_counter, modify_counter)
     statistic_file.close()
 
 """
