@@ -5,9 +5,9 @@ import my_constant
 
 def statistical_cluster(csv_file_name, statistic_file):
     """
-    @ param csv file name
-    @ return statistical info about log records(number of instance, edit type frequence) 
-    @ involve get statistical info about cluster as well as all records
+    @ param csv file name and statistical file to write\n
+    @ return statistical info about log records(number of instance, edit type frequence)\n
+    @ involve get statistical info about cluster as well as all records\n
     """
     reading_file = file(csv_file_name)
     records = csv.reader(reading_file)
@@ -72,14 +72,34 @@ def statistical_cluster(csv_file_name, statistic_file):
 
     return number_log, edit_type_for_log_dict
 
+def statistical_rule_class(csv_file_name):
+    """
+    @ param csv file name\n
+    @ return number of insert rule and number of modify rule\n
+    @ involve count two sort of rules\n
+    """
+    reading_file = file(csv_file_name)
+    records = csv.reader(reading_file)
+    modify_counter = 0
+    insert_counter = 0
+    for records in islice(records, 1, None):
+        old_loc = records[my_constant.CLASS_OLD_NEW_OLD_LOC]
+        if old_loc == '-1':
+            insert_counter += 1
+        else:
+            modify_counter += 1
+    reading_file.close()
+    return insert_counter, modify_counter
+
 def perform_statistic():
     """
-    @ param nothing
-    @ return nothing
+    @ param nothing\n
+    @ return nothing\n
     @ involve get statistical info about cluster and log,
-            edit type info and cluster info (no.cluster, no.>1cluster, no.repeted log) 
+            edit type info and cluster info (no.cluster, no.>1cluster, no.repeted log)\n 
     """
     statistic_file = open('data/evaluate/statistics.txt', 'ab')
+    print >> statistic_file, "-------------now analyzing repos: %s-------------" %(my_constant.REPOS)
     # statistics about edition cluster
     print >> statistic_file, "----------------------edition cluster info-------------------"
     edition_file_name = my_constant.CLUSTER_EDITION_OLD_NEW_FILE_NAME
@@ -94,6 +114,10 @@ def perform_statistic():
     for edit_type in my_constant.LOD_EDIT_TYPES:
         print >> statistic_file, "%s: %d" %(edit_type, edit_type_for_log_dict[edit_type]),
     print >> statistic_file, ''
+    # statistics about rule class
+    insert_counter, modify_counter = statistical_rule_class(my_constant.CLASS_EDITION_AND_FEATURE_OLD_NEW_FILE_NAME)
+    print >> statistic_file, '--------------------rule info-----------------'
+    print >> statistic_file, 'insert rule: %d, modify rule: %d' %(insert_counter, modify_counter)
     statistic_file.close()
 
 """
